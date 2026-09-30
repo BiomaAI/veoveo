@@ -57,21 +57,21 @@ use url::Url;
 use veoveo_artifact_contract::{ArtifactMetadata, ComplianceMetadata};
 use veoveo_frames_mcp::contract::CoordinateOperationProvenance;
 use veoveo_mcp_contract::{
-    AccessTokenSubject, AnalyticalRuntimeDeployment, AuditEvent, AuthAuditEvent,
-    DataLabelDefinition, DataRetentionPolicy, GATEWAY_INTERNAL_TOKEN_ISSUER,
-    GatewayAuthorizationCodeRecord, GatewayAuthorizationRequest, GatewayControlPlane,
-    GatewayControlPlaneRevision, GatewayInternalIdentity, GatewayInternalSigningKey,
-    GatewayInternalTokenIssuer, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
-    GatewayJwtRevocation, GatewayJwtRevocationApplyResult, GatewayJwtRevocationPruneResult,
-    GatewayJwtRevocationRequest, GatewayProfile, GatewayProfileId, GatewayResourceProjection,
-    GatewayResourceSubscription, IdentityProvider, IdentityProviderDeployment,
-    IdentityProviderOidcClientRegistration, IngressDeployment, McpSurfaceCapabilities,
-    OAuthClientRegistration, ObjectStoreDeployment, PlatformStoreDeployment, PolicyDecision,
-    PolicyRule, PolicySet, Principal, PrincipalAuditAttributes, PrincipalKind,
-    ProfileServerExposure, ResourceAuthorizationServer, SecretManagerDeployment, SecretReference,
-    SelfHostedDeploymentPlan, SelfHostedDeploymentProfile, ServerManifest, ServerResourceUris,
-    ServerSlug, ServiceToServiceSecurity, TelemetryDeployment, TenantDefinition, TenantModel,
-    TokenIssuer, TokenSubject, UpstreamEndpoint, UsageRecord, UsageReport,
+    AccessTokenSubject, AnalyticalRuntimeDeployment, DataLabelDefinition, DataRetentionPolicy,
+    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayAuthorizationCodeRecord, GatewayAuthorizationRequest,
+    GatewayControlPlane, GatewayControlPlaneRevision, GatewayInternalIdentity,
+    GatewayInternalSigningKey, GatewayInternalTokenIssuer, GatewayInternalTokenVerifier,
+    GatewayInternalTrustBundle, GatewayJwtRevocation, GatewayJwtRevocationApplyResult,
+    GatewayJwtRevocationPruneResult, GatewayJwtRevocationRequest, GatewayProfile, GatewayProfileId,
+    GatewayResourceProjection, GatewayResourceSubscription, IdentityProvider,
+    IdentityProviderDeployment, IdentityProviderOidcClientRegistration, IngressDeployment,
+    McpSurfaceCapabilities, OAuthClientRegistration, ObjectStoreDeployment,
+    PlatformStoreDeployment, PolicyDecision, PolicyRule, PolicySet, Principal,
+    PrincipalAuditAttributes, PrincipalKind, ProfileServerExposure, ResourceAuthorizationServer,
+    SecretManagerDeployment, SecretReference, SelfHostedDeploymentPlan,
+    SelfHostedDeploymentProfile, ServerManifest, ServerResourceUris, ServerSlug,
+    ServiceToServiceSecurity, TelemetryDeployment, TenantDefinition, TenantModel, TokenIssuer,
+    TokenSubject, UpstreamEndpoint, UsageRecord, UsageReport,
 };
 use veoveo_types::{
     AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, ScopeName, TenantId,
@@ -468,7 +468,7 @@ async fn main() -> Result<()> {
             let catalog = read_resource_json(&client, &uris.models_uri()).await?;
             cmd_models_from_catalog(catalog, query, r#type)
         }
-        Cmd::Complete { prefix } => cmd_complete(&client, &uris, prefix).await,
+        Cmd::Complete { prefix } => cmd_complete(&client, prefix).await,
         Cmd::Resources => cmd_resources(&client).await,
         Cmd::AppsCheck => cmd_apps_check(&client).await,
         Cmd::Prompts => cmd_prompts(&client).await,

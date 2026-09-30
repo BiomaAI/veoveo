@@ -5,6 +5,156 @@ Historical data requires no support or migration. Remove compatibility adapters
 introduced during earlier checkpoints; those checkpoint descriptions are not
 requirements to preserve them. Current-format restart and failure recovery still apply.
 
+Current implementation pass: the unified audit cut is underway across the contract,
+Store, writer, gateway and deployment inputs. `platform/audit/contract` sits below Store
+and MCP; the writer depends on Store. The working batch includes checked drafts and
+identities, partition-scoped SQL/LIVE reads, transactional and grouped writes, signed
+blocks, a lease-fenced change-feed sealer, retention admission, request correlation,
+OTLP timing, aggregated MCP discovery, cached denial counts, native catalog watches,
+completion retry, token lifecycle writers, transactional refresh audit, and partitioned
+CLI reads and verification. Retention now requires an installation value. Live View
+issuance/renewal await a commit; close/expiry/revocation queue stable completion records.
+Speech writes session-open, rejection and terminal counts, with request attribution
+validated by the shared signed-context converter. Recording ingress classifies domain
+activity directly and omits successful batch/status records. Task routes preserve their
+opaque gateway identity rather than parsing it as a platform Task UUID. Daily counts
+have SQL date bounds and partition-bound keyset pagination.
+
+Artifact source now uses typed activities, related capability/access-request/share IDs,
+grant recipients and release states. Download windows coalesce concurrent reads in a
+bounded replica cache and claim the same key transactionally in Store. Upload publication
+uses its persisted completion request context and appends in the occurrence transaction.
+Admin source now uses closed operation/failure enums, correlated admission records and
+queued completions; its free-form metadata API and caller maps are removed. Agent and
+Console Artifact routes carry their concrete audit target. Source regressions cover
+concurrent ranges, individual denials and retry after an unavailable first window commit.
+
+Console source now separates audit from installation inventory. Its APIs and browser
+use typed filters and keyset pages, daily SQL aggregates, scoped LIVE invalidations
+and partition block recovery. A committed view receipt gates pages and streams;
+reconnects reuse it. Audit owns its scope, and reads use the current actor's tenant
+and installation role. Export waits for a sealed marker, freezes the retained block
+interval and fails on a retention gap. CLI and HTTP exports share typed JSON Lines
+framing with a completion footer. Browser contract generation, the Console production
+build and all 102 Console unit tests pass in the grouped qualification batch.
+Native export-range, access-receipt, SQL filtering and partitioned LIVE recovery checks pass.
+No installed acceptance is implied.
+
+Computer source now appends typed lifecycle, access, command, file-transfer and
+maintenance records inside domain transactions. Reservation and observed restart take
+the verified actor; maintenance recovery records its submitting actor. Work Context
+changes commit with control-plane activation under a checked previous-head lock.
+Store owns one append function, shared by these producers and upload publication.
+Upload SQL is assembled as one complete transaction before SDK parsing.
+
+The writer now owns its drain handle. Gateway, Artifact, Speech and UAV hosts stop
+admission and drain queued writes; Speech and UAV stop their session producers first.
+Worker failure closes admission, and a 30-second drain deadline reports uncommitted
+work. Replica writes, immutable-identity retries and conflicting-batch rollback pass
+against the fresh Store. Native domain transactions and Artifact attribution pass;
+installed acceptance remains open.
+
+Gateway source now hosts the sealer and whole-block retention worker. Typed lease
+outcomes distinguish a valid standby replica from recovery and integrity failure;
+readiness checks worker health. Sealer shutdown drains every pending feed page. Idle
+LIVE renewal keeps a caught-up cursor current without scanning records. The hosted
+retention pass has a two-second budget and removes expired download-window guards.
+The old authentication cleanup loop no longer deletes audit rows. Gateway requires a
+dedicated audit signing seed; Helm references its separate Secret, and `audit keygen`
+creates a private seed file while printing only public verification material. Host
+HTTP shutdown deadlines and Pod grace periods now cover producer and audit draining.
+Replica election, takeover and full drain regressions pass. A failed sealing drain
+reports failure and preserves the unsealed record.
+
+Destination source now includes typed OCSF 1.9.0 mapping, S3 conditional writes and
+content reconciliation, and OTLP/HTTP collector acknowledgements. Store persists
+immutable delivery intent and per-destination cursors; permanent rejections survive
+replica changes. Retention requires every configured destination's receipt. Native
+LIVE wakes the exporter while sealing and lease renewal continue independently.
+Gateway/Helm expose public export configuration and Secret references, and the reference
+selects bundled S3 with Object Lock disabled. Source fixtures cover retry bytes,
+uncertain PUTs, missing compliance proof and fenced export-gated retention. The nine
+integrity and export-protocol unit tests pass. Independent OCSF validation accepts all
+32 class/outcome cases; the selected Account Change class has its documented deprecation
+warning. The full audit foundation batch passes, including real RustFS delivery,
+downloaded-record signature verification, persisted receipts and worker restart.
+Installed S3/OTLP and compliance-provider acceptance remain pending. The provider fixture
+now passes with S3 and OTLP together. Both destinations persist receipts and resume
+after restart, and the pinned Collector's debug pipeline reports both exported records.
+
+The obsolete audit DTOs, readers, summaries, row-retention API and online index
+preparation are removed from source. Gateway, Store and upload fixtures use the
+unified records. Gateway smoke scenarios select typed activities and fixture
+partitions in SQL, assert aggregated discovery and omitted successful bearer/status
+records, and exercise the scoped public CLI. Whole-block retention has one audit-owned
+fixture spanning all six classes. That retention fixture passes on fresh RocksDB;
+gateway smoke qualification is in progress; its current results are recorded below.
+
+Native Task cancellation now carries an explicit server and UUID through Console,
+gateway policy and audit. Its owner query checks the current profile, tenant, clearance
+and Work Context in SQL before decoding and inside cancellation transactions. Shared
+MCP cancellation uses the same owner-checked transition. Policy and native denial and
+provider-uncertainty regressions pass against the native Store.
+
+Artifact administration carries concrete occurrence or access-request targets.
+The Artifact domain contract owns access-request and capability IDs and the shared
+private ledger-address builder. Access-request and capability denials record the
+verified actor, or no actor when the credential cannot authenticate one.
+
+The workspace regression completed 318 targets with 2,747 reported passes, two failures
+and 59 ignored cases. Its failures were a Docker creation deadline and a delegated
+Computers fixture that discarded its source identity. Computers now reuses its verified
+actor. Container creation has a separate 90-second budget, while later commands keep
+their shorter deadlines. The repaired Computers and all seven AgentRuntime cases pass.
+
+The live-database batch exercises Store, gateway, Task runtime and Media alongside the
+new audit fixtures. SQL filtering before decoding and limits, access-receipt identity
+and expiry, UTC summary pages and partitioned LIVE recovery pass. The detail-schema
+guard accepts the reviewed inlined digest shape and rejects free text. Public
+`gateway audit verify` detects changed and deleted records, a deleted block, a forged
+signature and a backdated insertion. All twelve current-format native Artifact cases
+pass after binding the final upload identity to its request context. The obsolete
+historical upload-upgrade test is removed under the coordinated hard cut.
+
+The Console stream, two-server, platform-store, chart projection and complete gateway
+Task smoke scenarios pass. The Task run includes cancellation, model completion,
+generation, Artifact handoff, aggregate audit counts and public audit CLI reads.
+Fixture generators update every profile referring to the replaced Media manifest.
+Profile counts come from typed fixture input. Conformance model completion uses the
+Media contract's reserved-expansion template. Current-policy assertions clear the SDK's
+cached response before checking the existing transport against changed authorization.
+
+Successful revocation uses an accepted reason, while a revoked credential is a denial.
+Token lifecycle records carry the verified principal's scopes and data labels. Both
+gateway authentication smoke scenarios pass. Their fixtures drain queued completion
+records before checking them and verify delegated service actors separately from their
+user initiators. The other five composed gateway scenarios pass as well.
+
+Time uses exact pointer/release conflict checks in place of its tenant fence; the fence
+schema is removed under the fresh-store cut. Cross-family activation and concurrent
+pointer/release repair checks pass on RocksDB. Upload reads select typed ownership in SQL
+before decoding. Issuer and subject types live in `platform/types`, below Store and MCP.
+The grouped build and forty native test targets pass, with 607 reported passes. All
+thirteen current-format native Artifact cases pass, including the malformed foreign-upload
+regression. Paired development measurements exposed a warm-catalog regression from the
+writer's fixed five-millisecond window. The writer now groups already queued records
+without a timer. Affected native cases, all seven gateway scenarios and strict workspace
+checks pass. The replica test checks each concurrent required write immediately after
+acknowledgement. The [measurement record](../platform/audit/measurements/2026-09-30.md)
+includes 912 paired samples and the remaining catalog and read-tail limitations. Audit
+wait takes about 21% of sequential catalog median latency and 7% of read median latency.
+Installed acceptance remains open. The native fixtures remove their databases and
+provider containers.
+
+Computer connection lease checks use their domain ledger without per-tick audit rows.
+A dedicated audit seed and public verification material are generated in an
+installation-owned private directory; the seed has mode 0600. Creating the Kubernetes
+Secret and qualifying the installed exporters remain. The pre-cut instrumentation
+inputs are reconstructed over `21711f55` for paired measurements on fresh stores.
+That baseline and its matching hosted fixture are built and measured with request
+timers propagated through MCP dispatch. No audit deployment has run. Do not resume
+per-server checks.
+
 Current checkpoint: SurrealDB 3.3.0 native qualification passes. Every Rust SDK
 pin, the deployment contract, Helm and fixture images now select 3.3.0. The OCI
 index is `sha256:681c6c22c287421b5c7d99e0fde79b6e0d32c36c1ddeaab2762a1661cb04cd20`.
@@ -15,16 +165,15 @@ of existing and absent records pass on RocksDB. Audit retention uses 128-row
 batches within its two-second deadline. Obsolete historical index-upgrade tests
 are removed. Helm configuration and documentation checks pass. Installed
 acceptance is pending at the composed audit checkpoint; the reference cluster is
-stopped. The next implementation pass covers the unified audit contract, writer,
-producers and readers together.
+stopped. The unified audit source pass covers the contract, writer, producers and
+readers together and is now in runtime qualification.
 
 Status: Phase 0 accepted and published on 2026-09-27 at `1177185f`; documentation
 checks and reference GitOps convergence passed. Phases 1–3 are in progress.
 Phase 4 has started with the SurrealDB 3.3.0 hard cut; phases 5–9 have not started.
 The database upgrade takes priority over the remaining phase 3 work. The unfinished
 Computers batch is preserved separately while the SDK, image and fresh-store
-qualification advance together. Finish this upgrade batch, then start the unified
-audit implementation. Remaining phase 3 work stays tracked and does not block
+qualification advance together. The SurrealDB upgrade is committed; the unified audit implementation is active. Remaining phase 3 work stays tracked and does not block
 independent implementation in phases 4–9. Existing database state is discarded; no historical
 conversion or mixed-version support is required. The platform and UAV images and charts are published at
 `5df83706` on 2026-09-29. Strict Rust acceptance passed 2,670 tests; the default-feature
@@ -712,7 +861,7 @@ using the shared vehicle record as the write conflict on SurrealDB 3.2.4. Finali
 checks the admitting token and settles the plan with its lease release in a transaction.
 Lease revisions increase across replacements, and expiry cannot displace any executing
 plan for that vehicle. Native RocksDB contention across principals, obsolete-token,
-expiry, overflow and injected rollback cases pass. Store migration 0097 adds the composite
+expiry, overflow and injected rollback cases pass. The UAV executing-vehicle migration adds the composite
 vehicle/state index without changing records. EXPLAIN confirms IndexScan on that index.
 The full UAV suite passes 51 checks, Store migration tests pass nine, and strict workspace
 Clippy passes. The transactions, lookup and index validate under the pinned 3.2.4 CLI.
@@ -1981,8 +2130,8 @@ execution separately from the stable compilation graph; they are not runtime bud
 
 | Batch | Implementation checkpoint | Qualification checkpoint |
 |---|---|---|
-| SurrealDB 3.3.0 upgrade (current) | Update every client/server pin and readiness check; use fresh database state | Build the affected consumers once, run grouped Store/gateway and SQL behavior checks; group installed smoke with audit integration |
-| Unified audit (next) | Implement the phase 4 audit types, writer and producer changes as one concern before broad validation | Focused audit behavior followed by affected consumers |
+| SurrealDB 3.3.0 upgrade (committed) | Client/server pins and fresh-store behavior select 3.3.0 | Native qualification passes; group installed smoke with audit integration |
+| Unified audit (current) | Phase 4 audit types, writer, producers and readers are implemented together; native repairs and queued-record batching are qualified | Native checks and paired measurements pass; publish and run composed installed acceptance |
 | Computers ownership and public identities (preserved) | Complete maintenance SQL admission, accepted-request and worker lookup review, lifecycle/access IDs and their direct consumers together | First run SQL denial, replay/conflict and identity regressions. Then run the affected domain, service, gateway/BFF and generated-schema checks once for the completed batch |
 | Provider identities | Trace private runtime and retained-instance identity requirements, then update the owning types and all transport consumers together | Native runtime and provider fixtures, including current-format recovery; preserve required GPU acceptance |
 | Composed Phase 3 delivery | Finish remaining Map/template setup and cross-component contract work | Run the shared contract closure and installed acceptance against the complete deployment, then stop the cluster |
@@ -2368,7 +2517,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Digest wire profiles | Time's `AuthoritySourceDigest` preserves bare hexadecimal spelling through metadata, requests and typed persistence drafts; canonical content comparison and shared provenance use the foundational `sha256:` value. Native cases preserve uppercase retained data and idempotency while rejecting malformed matching rows. View still uses bare hexadecimal text | Qualify current digest admission in installed Time; migrate remaining owners and callers by hard cut |
 | Computers | The isolated contract owns distinct Computer, execution, file-transfer and automation-grant IDs, the complete resource vocabulary and an empty scope enum. Domain APIs, gateway routes, relays and generated browser schemas adopt those types. Checked hosted setup supplies startup and discovery. Owned and granted Computer reads admit identity, clearance and current policy before decoding; final SQL rechecks authority before public ordering and limits. Lifecycle and command/file Tasks resolve scoped policy inputs before reading private state. Browser/CLI grant reads bind credentials, sessions, parents and providers in SQL | Complete maintenance SQL admission and audit accepted-request receipts and internal worker lookups; remaining lifecycle/access/provider identities and DTO relationships; installed qualification |
 | Speech | The isolated contract owns distinct transcription/dictation IDs, every public resource family and an empty scope vocabulary. Checked hosted setup supplies initialization and discovery. Application execution, resource subscriptions, Gateway targets and Console routes retain the owner types; receipt decoding and completed output reads check parent identity. Independent consumers, compile-fail cases and native callers pass; generated browser schemas use the qualified shared converter | Qualify current-profile CUDA transcription/dictation and installed delivery; strengthen remaining transcript result relationships |
-| Artifact plane model | `platform/artifacts/contract` owns occurrence identity, metadata, compliance, provenance, release state, grants, share-link values and byte handoffs. The separate plane service/client prevents placing their common model in the MCP server package without a Cargo cycle. Its server library exposes tool DTOs and typed `ArtifactResource` families through an isolated contract feature. Shared URI components build addresses from occurrence IDs or closed document variants. Checked hosted setup includes the Library App, index and embedded documents; both registrations declare revision 3. Independent consumption, direct consumer tests, and wire/schema qualification pass | Qualify installed reads and sharing at the next integration checkpoint; separate remaining access/service request contracts and finish index cursor addresses |
+| Artifact plane model | `platform/artifacts/contract` owns occurrence identity, metadata, compliance, provenance, release state, grants, share-link values and byte handoffs. The separate plane service/client prevents placing their common model in the MCP server package without a Cargo cycle. Its server library exposes tool DTOs and typed `ArtifactResource` families through an isolated contract feature. Shared URI components build addresses from occurrence IDs or closed document variants. Checked hosted setup includes the Library App, index and embedded documents; both registrations declare revision 3. Independent consumption, direct consumer tests, and wire/schema qualification pass | Qualify installed reads and sharing at the next integration checkpoint; separate remaining access/service request contracts and finish index cursor addresses. Upload ownership uses a typed SQL owner selector before decoding; the malformed foreign-row regression and all thirteen native service cases pass |
 | Artifact identity and URI admission | `ArtifactId` checks version and RFC variant; `ArtifactUri` owns neutral/presented variants, preserves accepted URI spelling, and builds from typed IDs and schemes; metadata checks wire ID/URI agreement | Qualify installed consumption of the current identity and URI contract |
 | Remaining Artifact references | Download URLs, some Store DTOs, and other domain URI fields still use broader string profiles | Migrate with each owning contract; distinguish Artifact identities from external fetch locations and declare persisted/profile changes |
 | Artifact attribution construction | `ArtifactProvenance` uses foundational `InvocationProvenance`; a private wire adapter preserves valid flat metadata and requires each mode's identities in both decoding and schemas | Native publication/readback, independent consumption, schema/decoder parity, and compile-fail qualification pass; qualify installed metadata consumption during reference acceptance |
@@ -2520,7 +2669,7 @@ Work:
    audit commit, and upstream time in its trace, and the gateway exports them as
    histograms. Record a baseline for catalog lists, resource reads, and tool calls on the
    reference installation.
-3. Define the record types in `mcp/contract/src/audit.rs`, and delete `AuditEvent`,
+3. Define the record types in `platform/audit/contract`, and delete `AuditEvent`,
    `AuthAuditEvent`, and their metadata maps.
 4. Add a migration that removes `audit_event` and creates `audit_record` with compound
    record IDs `[partition, uuidv7]`, record links for platform targets, `READONLY`
@@ -2627,7 +2776,9 @@ Work:
    for recovery. Typed decoders in `platform/store` turn table changes into the events
    consumers act on, so each table's event vocabulary has one owner. A consumer whose
    cursor falls behind the change-feed retention reconciles from current table state.
-   Migrate one consumer per commit, and keep its existing reactive tests passing.
+   Migrate all consumers in one implementation pass with their typed decoders and
+   recovery paths. Run their reactive tests as a grouped batch, collect independent
+   failures, and commit coherent concerns after qualification.
 4. Deliver delayed agent wakes from `wake.available_at` with a timer armed for the next
    due wake and re-armed by LIVE changes on `wake`. Do not poll.
 5. Delete `outbox_event`, `outbox_checkpoint`, `platform_outbox_sequence`,

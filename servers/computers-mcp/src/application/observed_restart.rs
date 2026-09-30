@@ -6,7 +6,11 @@ use veoveo_computers_runtime::{Binding, Phase};
 
 impl Application {
     /// Call only after current owner/grantee authorization for this Computer.
-    pub(crate) async fn refresh_run(&self, before: &Computer) -> Result<bool> {
+    pub(crate) async fn refresh_run(
+        &self,
+        actor: &veoveo_computers::ComputerActor,
+        before: &Computer,
+    ) -> Result<bool> {
         if before.phase != ComputerPhase::Ready || before.active_operation.is_some() {
             return Ok(false);
         }
@@ -39,6 +43,7 @@ impl Application {
         }
         self.store
             .record_observed_restart(
+                actor,
                 before,
                 ReachedState {
                     computer_id: before.computer_id,

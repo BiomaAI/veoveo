@@ -60,3 +60,4 @@ LET $dispatched = (UPDATE ONLY $operation SET stage = "dispatched", dispatch_id 
     AND updated_at = $current.updated_at RETURN AFTER);
 IF $dispatched = NONE { THROW "computer_state_conflict"; };
 CREATE outbox_event CONTENT $event;
+  fn::append_audit($audit_rows);

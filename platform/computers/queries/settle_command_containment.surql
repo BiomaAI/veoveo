@@ -28,3 +28,4 @@ IF $computer_state.active_operation = NONE {
 };
 DELETE $slot WHERE execution = $execution;
 CREATE outbox_event CONTENT $event;
+fn::append_audit($audit_rows);

@@ -45,7 +45,13 @@ pub(crate) async fn gateway_chart_projection(
         ],
         [],
     )?;
-    contains(&validation, "ok: 2 server(s), 2 profile(s)")?;
+    contains(
+        &validation,
+        &format!(
+            "ok: 2 server(s), {} profile(s)",
+            fixture_profile_count(&generated_control_plane)?
+        ),
+    )?;
 
     let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
     let platform_store = spawn_gateway_platform_store(gateway, &generated_control_plane).await?;
@@ -90,8 +96,8 @@ pub(crate) async fn gateway_chart_projection(
         ],
     )?;
     contains(&call, "charts fixture rendered chart view")?;
-    assert_structured_field(&call, "chart_types_uri", "charts://chart-types")?;
-    assert_structured_field(&call, "view_resource_uri", "ui://charts/chart-view.html")?;
+    assert_structured_field(&call, "chart_types_uri", "vendor://chart-types")?;
+    assert_structured_field(&call, "view_resource_uri", "ui://vendor/chart-view.html")?;
 
     let chart_types = run_mcp(
         conformance,
@@ -132,7 +138,7 @@ pub(crate) async fn gateway_chart_projection(
     )?;
     contains(&prompt, "Author a bar chart")?;
 
-    gateway_child.stop();
+    gateway_child.drain(Duration::from_secs(90)).await?;
     chart.stop();
     cleanup.remove_on_drop();
     println!("gateway chart projection smoke ok");

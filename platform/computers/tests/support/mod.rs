@@ -96,6 +96,7 @@ pub fn identity(owner: &TaskOwner) -> veoveo_mcp_contract::GatewayInternalIdenti
         actor: principal.clone(),
         authority: owner.authority.clone(),
         request_context: Some(GatewayRequestContext {
+            audit: veoveo_mcp_contract::audit::AuditRequest::background(),
             principal,
             access_token,
         }),

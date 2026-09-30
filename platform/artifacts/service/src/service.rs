@@ -1,6 +1,11 @@
 //! Artifact-plane policy enforcement and security workflows.
 
+mod audit;
 mod read_capability;
+
+use audit::{ArtifactAction, access_reason};
+use veoveo_artifact_contract::ArtifactLedgerAddress;
+use veoveo_mcp_contract::audit::{ArtifactActivity, AuditOutcome, AuditReason};
 mod write_capability;
 
 use std::collections::BTreeSet;
@@ -29,10 +34,9 @@ use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel};
 
 use crate::ledger::{
     ArtifactAccessRequestCancellation, ArtifactAccessRequestDecisionDraft,
-    ArtifactAccessRequestListQuery, ArtifactAuditEvent, ArtifactListQuery, ArtifactRepository,
-    AuditOutcome, BlobSha256, NewArtifact, NewArtifactAccessRequest, RepositoryActor,
-    RepositoryError, ShareLinkDraft, StoredArtifact, WriteCapabilityDraft,
-    WriteCapabilityReservation,
+    ArtifactAccessRequestListQuery, ArtifactListQuery, ArtifactRepository, BlobSha256, NewArtifact,
+    NewArtifactAccessRequest, RepositoryActor, RepositoryError, ShareLinkDraft, StoredArtifact,
+    WriteCapabilityDraft, WriteCapabilityReservation,
 };
 use crate::store::{BlobStore, BlobStream};
 
@@ -85,6 +89,7 @@ pub struct ArtifactService<R: ArtifactRepository, S: BlobStore> {
     store: S,
     public_base_url: String,
     max_internal_read_bytes: u64,
+    audit_windows: audit::AuditWindows,
 }
 
 impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
@@ -108,11 +113,16 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
             store,
             public_base_url: public_base_url.into().trim_end_matches('/').to_owned(),
             max_internal_read_bytes,
+            audit_windows: audit::AuditWindows::default(),
         }
     }
 
     fn actor(caller: &PlaneCaller) -> Result<RepositoryActor, ArtifactPlaneError> {
         Ok(RepositoryActor {
+            audit: caller
+                .identity
+                .audit_context()
+                .map_err(|_| ArtifactPlaneError::Unauthenticated)?,
             tenant: caller
                 .tenant()
                 .cloned()
@@ -142,50 +152,24 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
         Ok(artifact)
     }
 
-    async fn audit(
-        &self,
-        actor: Option<RepositoryActor>,
-        tenant: Option<veoveo_types::TenantId>,
-        action: &str,
-        artifact_id: Option<ArtifactId>,
-        outcome: AuditOutcome,
-        details: serde_json::Map<String, serde_json::Value>,
-    ) -> Result<(), ArtifactPlaneError> {
-        self.repository
-            .append_audit(ArtifactAuditEvent {
-                actor,
-                tenant,
-                action: action.to_owned(),
-                artifact_id,
-                outcome,
-                details,
-            })
-            .await
-            .map_err(transport)
-    }
-
     async fn authorize(
         &self,
         caller: &PlaneCaller,
         stored: &StoredArtifact,
-        action: &str,
+        activity: ArtifactActivity,
         level: AccessLevel,
     ) -> Result<(), ArtifactPlaneError> {
+        let actor = Self::actor(caller)?;
         let decision = Self::access_decision(caller, stored, level);
-        let mut details = serde_json::Map::new();
-        details.insert("requested".into(), serde_json::json!(level));
-        details.insert("decision".into(), serde_json::json!(decision));
         self.audit(
-            Some(Self::actor(caller)?),
-            Some(stored.tenant.clone()),
-            action,
-            Some(stored.metadata.artifact_id()),
+            Some(&actor.audit),
+            ArtifactAction::artifact(activity, stored.metadata.artifact_id()).requested(level),
             if decision.is_allowed() {
                 AuditOutcome::Allowed
             } else {
                 AuditOutcome::Denied
             },
-            details,
+            access_reason(decision),
         )
         .await?;
         match decision {
@@ -295,12 +279,11 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
             )
             .await?;
         self.audit(
-            Some(actor),
-            Some(stored.tenant.clone()),
-            "artifact.put",
-            Some(artifact_id),
-            AuditOutcome::Allowed,
-            serde_json::Map::new(),
+            Some(&actor.audit),
+            ArtifactAction::artifact(ArtifactActivity::Publish, artifact_id)
+                .bytes(stored.metadata.byte_len),
+            AuditOutcome::Succeeded,
+            AuditReason::Accepted,
         )
         .await?;
         Ok(stored.metadata)
@@ -522,12 +505,11 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
             Err(error) => return Err(error),
         };
         self.audit(
-            Some(actor),
-            Some(stored.tenant.clone()),
-            "artifact.put_stream",
-            Some(artifact_id),
-            AuditOutcome::Allowed,
-            serde_json::Map::new(),
+            Some(&actor.audit),
+            ArtifactAction::artifact(ArtifactActivity::Publish, artifact_id)
+                .bytes(stored.metadata.byte_len),
+            AuditOutcome::Succeeded,
+            AuditReason::Accepted,
         )
         .await?;
         Ok(stored.metadata)
@@ -541,8 +523,13 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
         body: DownloadBody,
     ) -> Result<ArtifactDownload, ArtifactPlaneError> {
         let stored = self.load(artifact_id).await?;
-        self.authorize(caller, &stored, "artifact.download", AccessLevel::Read)
-            .await?;
+        self.authorize(
+            caller,
+            &stored,
+            ArtifactActivity::Download,
+            AccessLevel::Read,
+        )
+        .await?;
         self.delivery(stored, range, body).await
     }
 
@@ -556,31 +543,33 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
             return Err(ArtifactPlaneError::NotFound);
         }
         let token_hash = secret_hash(b"veoveo.artifact-share.v1", token);
-        let artifact_id = self
+        let redemption = self
             .repository
             .redeem_share_link(&token_hash)
             .await
             .map_err(transport)?;
-        let Some(artifact_id) = artifact_id else {
+        let Some(redemption) = redemption else {
             self.audit(
                 None,
-                None,
-                "artifact.share.redeem",
-                None,
+                ArtifactAction::surface(
+                    ArtifactActivity::ShareRedeem,
+                    ArtifactLedgerAddress::Shares,
+                ),
                 AuditOutcome::Denied,
-                serde_json::Map::new(),
+                AuditReason::InvalidCredential,
             )
             .await?;
             return Err(ArtifactPlaneError::NotFound);
         };
-        let stored = self.load(artifact_id).await?;
+        let stored = self.load(redemption.artifact_id).await?;
+        let context = audit::share_context(redemption.link_id, &stored);
         self.audit(
-            None,
-            Some(stored.tenant.clone()),
-            "artifact.share.redeem",
-            Some(artifact_id),
+            Some(&context),
+            ArtifactAction::artifact(ArtifactActivity::Download, redemption.artifact_id)
+                .related(ArtifactLedgerAddress::Share(redemption.link_id))
+                .requested(AccessLevel::Read),
             AuditOutcome::Allowed,
-            serde_json::Map::new(),
+            AuditReason::Accepted,
         )
         .await?;
         self.delivery(stored, range, body).await
@@ -676,7 +665,7 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
         level: AccessLevel,
     ) -> Result<ArtifactObject, ArtifactPlaneError> {
         let stored = self.load(*artifact_id).await?;
-        self.authorize(caller, &stored, "artifact.get", level)
+        self.authorize(caller, &stored, ArtifactActivity::Download, level)
             .await?;
         let bytes = self
             .store
@@ -703,8 +692,13 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
         artifact_id: &ArtifactId,
     ) -> Result<ArtifactMetadata, ArtifactPlaneError> {
         let stored = self.load(*artifact_id).await?;
-        self.authorize(caller, &stored, "artifact.head", AccessLevel::Read)
-            .await?;
+        self.authorize(
+            caller,
+            &stored,
+            ArtifactActivity::Inspect,
+            AccessLevel::Read,
+        )
+        .await?;
         Ok(stored.metadata)
     }
 
@@ -771,15 +765,10 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
         }
 
         self.audit(
-            Some(actor.clone()),
-            Some(actor.tenant),
-            "artifact.list",
-            None,
+            Some(&actor.audit),
+            ArtifactAction::surface(ArtifactActivity::Inspect, ArtifactLedgerAddress::Collection),
             AuditOutcome::Allowed,
-            serde_json::Map::from_iter([
-                ("count".into(), serde_json::json!(artifacts.len())),
-                ("limit".into(), serde_json::json!(limit)),
-            ]),
+            AuditReason::Accepted,
         )
         .await?;
         let next_cursor = (artifacts.len() == limit).then(|| {
@@ -811,7 +800,7 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
         level: AccessLevel,
     ) -> Result<(), ArtifactPlaneError> {
         let stored = self.load(*artifact_id).await?;
-        self.authorize(caller, &stored, "artifact.grant", AccessLevel::Admin)
+        self.authorize(caller, &stored, ArtifactActivity::Grant, AccessLevel::Admin)
             .await?;
         if matches!(
             &subject,
@@ -823,9 +812,14 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
                 "the owner admin grant cannot be lowered".into(),
             ));
         }
-        self.repository
+        let actor = Self::actor(caller)?;
+        let audit = ArtifactAction::artifact(ArtifactActivity::Grant, *artifact_id)
+            .subject(subject.clone())
+            .requested(level);
+        let result = self
+            .repository
             .upsert_grant(
-                &Self::actor(caller)?,
+                &actor,
                 Grant {
                     artifact: *artifact_id,
                     subject,
@@ -836,7 +830,8 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
                 },
             )
             .await
-            .map_err(transport)
+            .map_err(transport);
+        self.complete_artifact(&actor.audit, audit, result).await
     }
 
     async fn revoke(
@@ -846,8 +841,13 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
         subject: &AccessSubject,
     ) -> Result<(), ArtifactPlaneError> {
         let stored = self.load(*artifact_id).await?;
-        self.authorize(caller, &stored, "artifact.revoke", AccessLevel::Admin)
-            .await?;
+        self.authorize(
+            caller,
+            &stored,
+            ArtifactActivity::Revoke,
+            AccessLevel::Admin,
+        )
+        .await?;
         if matches!(
             subject,
             owner if stored.metadata.compliance.owner.as_ref() == Some(owner)
@@ -856,10 +856,19 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
                 "the owner admin grant cannot be revoked".into(),
             ));
         }
-        self.repository
+        let actor = Self::actor(caller)?;
+        let result = self
+            .repository
             .remove_grant(*artifact_id, subject)
             .await
-            .map_err(transport)
+            .map_err(transport);
+        self.complete_artifact(
+            &actor.audit,
+            ArtifactAction::artifact(ArtifactActivity::Revoke, *artifact_id)
+                .subject(subject.clone()),
+            result,
+        )
+        .await
     }
 
     async fn list_grants(
@@ -868,8 +877,13 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
         artifact_id: &ArtifactId,
     ) -> Result<Vec<Grant>, ArtifactPlaneError> {
         let stored = self.load(*artifact_id).await?;
-        self.authorize(caller, &stored, "artifact.grants.list", AccessLevel::Admin)
-            .await?;
+        self.authorize(
+            caller,
+            &stored,
+            ArtifactActivity::GrantsRead,
+            AccessLevel::Admin,
+        )
+        .await?;
         Ok(stored.grants)
     }
 
@@ -880,14 +894,31 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
         release_state: ArtifactReleaseState,
     ) -> Result<ArtifactMetadata, ArtifactPlaneError> {
         let stored = self.load(*artifact_id).await?;
-        self.authorize(caller, &stored, "artifact.release", AccessLevel::Admin)
-            .await?;
-        self.repository
+        self.authorize(
+            caller,
+            &stored,
+            ArtifactActivity::Release,
+            AccessLevel::Admin,
+        )
+        .await?;
+        let actor = Self::actor(caller)?;
+        let result = self
+            .repository
             .set_release_state(*artifact_id, release_state)
             .await
-            .map_err(transport)?
-            .map(|stored| stored.metadata)
-            .ok_or(ArtifactPlaneError::NotFound)
+            .map_err(transport)
+            .and_then(|stored| {
+                stored
+                    .map(|stored| stored.metadata)
+                    .ok_or(ArtifactPlaneError::NotFound)
+            });
+        self.complete_artifact(
+            &actor.audit,
+            ArtifactAction::artifact(ArtifactActivity::Release, *artifact_id)
+                .release_state(release_state),
+            result,
+        )
+        .await
     }
 
     async fn create_share_link(
@@ -897,7 +928,7 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
         request: CreateArtifactShareLinkRequest,
     ) -> Result<ArtifactShareLink, ArtifactPlaneError> {
         let stored = self.load(*artifact_id).await?;
-        self.authorize(caller, &stored, "artifact.share.create", AccessLevel::Admin)
+        self.authorize(caller, &stored, ArtifactActivity::Share, AccessLevel::Admin)
             .await?;
         if stored.metadata.release_state == ArtifactReleaseState::Private {
             return Err(ArtifactPlaneError::Conflict(
@@ -915,7 +946,8 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
         let link_id = ArtifactShareLinkId::new();
         let secret = random_secret()?;
         let max_downloads = request.max_downloads.map(NonZeroU64::get);
-        self.repository
+        let result = self
+            .repository
             .create_share_link(ShareLinkDraft {
                 link_id,
                 artifact_id: *artifact_id,
@@ -925,7 +957,14 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
                 max_downloads,
             })
             .await
-            .map_err(transport)?;
+            .map_err(transport);
+        self.complete_artifact(
+            &actor.audit,
+            ArtifactAction::artifact(ArtifactActivity::Share, *artifact_id)
+                .related(ArtifactLedgerAddress::Share(link_id)),
+            result,
+        )
+        .await?;
         Ok(ArtifactShareLink {
             link_id,
             artifact_id: *artifact_id,
@@ -942,18 +981,33 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
         link_id: &ArtifactShareLinkId,
     ) -> Result<(), ArtifactPlaneError> {
         let stored = self.load(*artifact_id).await?;
-        self.authorize(caller, &stored, "artifact.share.revoke", AccessLevel::Admin)
-            .await?;
-        if self
+        self.authorize(
+            caller,
+            &stored,
+            ArtifactActivity::Unshare,
+            AccessLevel::Admin,
+        )
+        .await?;
+        let actor = Self::actor(caller)?;
+        let result = self
             .repository
             .revoke_share_link(*artifact_id, *link_id)
             .await
-            .map_err(transport)?
-        {
-            Ok(())
-        } else {
-            Err(ArtifactPlaneError::NotFound)
-        }
+            .map_err(transport)
+            .and_then(|revoked| {
+                if revoked {
+                    Ok(())
+                } else {
+                    Err(ArtifactPlaneError::NotFound)
+                }
+            });
+        self.complete_artifact(
+            &actor.audit,
+            ArtifactAction::artifact(ArtifactActivity::Unshare, *artifact_id)
+                .related(ArtifactLedgerAddress::Share(*link_id)),
+            result,
+        )
+        .await
     }
 
     async fn create_access_request(
@@ -962,22 +1016,38 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
         artifact_id: &ArtifactId,
         request: CreateArtifactAccessRequest,
     ) -> Result<ArtifactAccessRequest, ArtifactPlaneError> {
-        let stored = self.load(*artifact_id).await?;
         let actor = Self::actor(caller)?;
-        if stored.tenant != actor.tenant {
-            return Err(ArtifactPlaneError::NotFound);
-        }
-        match Self::access_decision(caller, &stored, request.requested_level) {
-            AccessDecision::Allow => {
-                return Err(ArtifactPlaneError::Conflict(
-                    "the requested access is already effective".into(),
-                ));
+        let action = || {
+            ArtifactAction::artifact(ArtifactActivity::AccessRequestCreate, *artifact_id)
+                .requested(request.requested_level)
+        };
+        let stored = match self.load(*artifact_id).await {
+            Ok(stored) => stored,
+            Err(error) => {
+                return self
+                    .complete_artifact(&actor.audit, action(), Err(error))
+                    .await;
             }
-            AccessDecision::DenyTenant => return Err(ArtifactPlaneError::NotFound),
-            AccessDecision::DenyClearance => {
-                return Err(ArtifactPlaneError::Denied(AccessDecision::DenyClearance));
+        };
+        let decision = Self::access_decision(caller, &stored, request.requested_level);
+        let refusal = match decision {
+            AccessDecision::Allow => Some((
+                AuditReason::Conflict,
+                ArtifactPlaneError::Conflict("the requested access is already effective".into()),
+            )),
+            AccessDecision::DenyTenant => {
+                Some((AuditReason::TenantMismatch, ArtifactPlaneError::NotFound))
             }
-            AccessDecision::DenyNeedToKnow => {}
+            AccessDecision::DenyClearance => Some((
+                AuditReason::InsufficientClearance,
+                ArtifactPlaneError::Denied(decision),
+            )),
+            AccessDecision::DenyNeedToKnow => None,
+        };
+        if let Some((reason, error)) = refusal {
+            self.audit(Some(&actor.audit), action(), AuditOutcome::Denied, reason)
+                .await?;
+            return Err(error);
         }
         let created = self
             .repository
@@ -991,21 +1061,12 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
             .await
             .map_err(repository_mutation_error)?;
         self.audit(
-            Some(actor.clone()),
-            Some(actor.tenant),
-            "artifact.access_request.create",
-            Some(*artifact_id),
-            AuditOutcome::Allowed,
-            serde_json::Map::from_iter([
-                (
-                    "request_id".to_owned(),
-                    serde_json::json!(created.id.to_string()),
-                ),
-                (
-                    "requested_level".to_owned(),
-                    serde_json::json!(created.requested_level),
-                ),
-            ]),
+            Some(&actor.audit),
+            ArtifactAction::artifact(ArtifactActivity::AccessRequestCreate, *artifact_id)
+                .related(ArtifactLedgerAddress::AccessRequest(created.id))
+                .requested(created.requested_level),
+            AuditOutcome::Succeeded,
+            AuditReason::Accepted,
         )
         .await?;
         Ok(created)
@@ -1033,6 +1094,16 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
                     .membership
                     .allows(WorkContextMembershipLevel::Custodian)
                 {
+                    self.audit(
+                        Some(&actor.audit),
+                        ArtifactAction::surface(
+                            ArtifactActivity::AccessRequestRead,
+                            ArtifactLedgerAddress::AccessRequests,
+                        ),
+                        AuditOutcome::Denied,
+                        AuditReason::InsufficientAccess,
+                    )
+                    .await?;
                     return Err(ArtifactPlaneError::Denied(AccessDecision::DenyNeedToKnow));
                 }
                 Some(caller.identity.authority.work_context.clone())
@@ -1052,15 +1123,13 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
         let next_cursor = (requests.len() > limit).then(|| requests[limit - 1].id);
         requests.truncate(limit);
         self.audit(
-            Some(actor.clone()),
-            Some(actor.tenant),
-            "artifact.access_request.list",
-            None,
+            Some(&actor.audit),
+            ArtifactAction::surface(
+                ArtifactActivity::AccessRequestRead,
+                ArtifactLedgerAddress::AccessRequests,
+            ),
             AuditOutcome::Allowed,
-            serde_json::Map::from_iter([
-                ("scope".to_owned(), serde_json::json!(scope)),
-                ("count".to_owned(), serde_json::json!(requests.len())),
-            ]),
+            AuditReason::Accepted,
         )
         .await?;
         Ok(ArtifactAccessRequestPage {
@@ -1091,7 +1160,7 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
         self.authorize(
             caller,
             &stored,
-            "artifact.access_request.decide",
+            ArtifactActivity::AccessRequestDecide,
             AccessLevel::Admin,
         )
         .await?;
@@ -1106,18 +1175,12 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
             .await
             .map_err(repository_mutation_error)?;
         self.audit(
-            Some(actor.clone()),
-            Some(actor.tenant),
-            "artifact.access_request.decision",
-            Some(decided.artifact_id),
-            AuditOutcome::Allowed,
-            serde_json::Map::from_iter([
-                (
-                    "request_id".to_owned(),
-                    serde_json::json!(request_id.to_string()),
-                ),
-                ("state".to_owned(), serde_json::json!(decided.state)),
-            ]),
+            Some(&actor.audit),
+            ArtifactAction::artifact(ArtifactActivity::AccessRequestDecide, decided.artifact_id)
+                .related(ArtifactLedgerAddress::AccessRequest(*request_id))
+                .requested(decided.requested_level),
+            AuditOutcome::Succeeded,
+            AuditReason::Accepted,
         )
         .await?;
         Ok(decided)
@@ -1138,15 +1201,11 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
             .await
             .map_err(repository_mutation_error)?;
         self.audit(
-            Some(actor.clone()),
-            Some(actor.tenant),
-            "artifact.access_request.cancel",
-            Some(cancelled.artifact_id),
-            AuditOutcome::Allowed,
-            serde_json::Map::from_iter([(
-                "request_id".to_owned(),
-                serde_json::json!(request_id.to_string()),
-            )]),
+            Some(&actor.audit),
+            ArtifactAction::artifact(ArtifactActivity::AccessRequestCancel, cancelled.artifact_id)
+                .related(ArtifactLedgerAddress::AccessRequest(*request_id)),
+            AuditOutcome::Succeeded,
+            AuditReason::Accepted,
         )
         .await?;
         Ok(cancelled)
@@ -1241,15 +1300,18 @@ fn repository_mutation_error(error: RepositoryError) -> ArtifactPlaneError {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
+    mod audit_windows;
+    mod identity;
     mod immutable_blob;
+    pub(crate) use identity::request_context;
+    use identity::{bind_request_context, caller};
     mod native_database;
     mod provenance;
     mod read_capability;
     mod upload_admission;
     mod upload_engine;
     mod upload_lifecycle;
-    mod upload_migration;
     mod upload_parts;
     mod write_capability;
     use std::collections::BTreeSet;
@@ -1274,57 +1336,6 @@ mod tests {
     use super::*;
     use crate::ledger::testing::InMemoryRepository;
     use crate::store::{BlobStoreError, testing::InMemoryBlobStore};
-
-    fn caller(principal: &str, tenant: &str, labels: &[&str]) -> PlaneCaller {
-        let now = Utc::now();
-        let actor = Principal {
-            id: PrincipalId::new(principal).unwrap(),
-            kind: PrincipalKind::User,
-            issuer: TokenIssuer::new("https://idp.example.com").unwrap(),
-            subject: TokenSubject::new(format!("subject-{principal}")).unwrap(),
-            tenant: Some(TenantId::new(tenant).unwrap()),
-            groups: BTreeSet::new(),
-            group_roles: BTreeSet::new(),
-            roles: BTreeSet::new(),
-            scopes: BTreeSet::new(),
-            data_labels: labels
-                .iter()
-                .map(|label| DataLabelId::new(*label).unwrap())
-                .collect(),
-            assurances: BTreeSet::new(),
-            authenticated_at: Some(now),
-        };
-        PlaneCaller {
-            bearer_token: "signed-token".into(),
-            identity: GatewayInternalIdentity {
-                issuer: TokenIssuer::new("veoveo-internal").unwrap(),
-                profile: GatewayProfileId::new("operator").unwrap(),
-                server: ServerSlug::new("media").unwrap(),
-                actor: actor.clone(),
-                authority: InvocationAuthority {
-                    work_context: WorkContextId::new("mission").unwrap(),
-                    tenant: TenantId::new(tenant).unwrap(),
-                    membership: WorkContextMembershipLevel::Owner,
-                    policy_revision: PolicyVersion::new("r1").unwrap(),
-                    output_policy: WorkContextOutputPolicy {
-                        owner: AccessSubject::Principal(actor.id.clone()),
-                        initial_grants: Vec::new(),
-                        classification: None,
-                        data_labels: BTreeSet::new(),
-                    },
-                    provenance: InvocationProvenance::Direct {
-                        initiator: actor.id.clone(),
-                    },
-                },
-                request_context: None,
-                jwt_id: JwtId::new(uuid::Uuid::new_v4().to_string()).unwrap(),
-                issued_at: now,
-                not_before: now,
-                expires_at: now + TimeDelta::minutes(5),
-            },
-            memberships: BTreeSet::new(),
-        }
-    }
 
     fn service() -> (
         ArtifactService<InMemoryRepository, InMemoryBlobStore>,
@@ -1973,6 +1984,7 @@ mod tests {
         let mut bob = caller("bob", "acme", &["controlled"]);
         bob.identity.authority.work_context = WorkContextId::new("other-work").unwrap();
         bob.identity.authority.membership = WorkContextMembershipLevel::Viewer;
+        bind_request_context(&mut bob.identity);
         let mut custodian = caller("casey", "acme", &["controlled"]);
         custodian.identity.authority.membership = WorkContextMembershipLevel::Custodian;
 
@@ -2053,6 +2065,7 @@ mod tests {
 
         let mut no_clearance = caller("dana", "acme", &[]);
         no_clearance.identity.authority.work_context = WorkContextId::new("other-work").unwrap();
+        bind_request_context(&mut no_clearance.identity);
         assert_eq!(
             service
                 .create_access_request(

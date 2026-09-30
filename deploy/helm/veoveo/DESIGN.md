@@ -17,6 +17,24 @@
 | `veoveo.ai/computer-host/v1` | Private compute-container configuration; dedicated daemon, provider and retained ext4 storage |
 | RFC 9562 UUIDv8 | Deterministic identity for explicitly unconfigured Computers; configured provider identity remains an installation input |
 
+## Audit Service
+
+Gateway rendering requires an explicit `gateway.auditRetentionDays`. The gateway also
+loads the `seed-b64` entry from `gateway.auditSigningSecret`; both replicas use this
+installation-owned Ed25519 seed. The chart stores no private key in values or ConfigMaps.
+Gateway readiness includes the sealer's active or standby lease state.
+`gateway.auditExport.destinations` renders a public ConfigMap and a Pod checksum.
+S3 credentials reference the selected Secret's `object-store-access-key` and
+`object-store-secret-key` entries. OTLP bearer authentication optionally references
+`token` in `otlpBearerSecret`. The exporter requires receipts from both destinations
+when both are selected. The Bioma reference selects the bundled bucket with prefix
+`audit` and Object Lock disabled. Destination changes require a coordinated gateway
+drain and restart; an existing receipt applies only to its original configuration.
+
+Termination allows 120 seconds for the gateway and 90 seconds for Artifact and Speech.
+Each host bounds HTTP draining at 30 seconds and drains its audit writer after producers
+stop. Gateway then drains committed records through its sealer and releases the lease.
+
 ## Object Store Version Transition
 
 The chart owns the RustFS image and the single-replica StatefulSet. It pins the

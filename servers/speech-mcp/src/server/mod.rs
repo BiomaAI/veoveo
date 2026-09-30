@@ -97,7 +97,7 @@ pub async fn run() -> anyhow::Result<()> {
         hosts.push(host);
     }
     let router = router(
-        service,
+        service.clone(),
         verifier,
         hosts,
         endpoint.mount_path(),
@@ -105,20 +105,33 @@ pub async fn run() -> anyhow::Result<()> {
     );
     let listener =
         tokio::net::TcpListener::bind((std::net::Ipv4Addr::UNSPECIFIED, args.port)).await?;
-    axum::serve(listener, router)
+    let serving = std::future::IntoFuture::into_future(axum::serve(listener, router)
         .with_graceful_shutdown({
             let stop = stop.clone();
+            let audit = service.audit.clone();
             async move {
                 let mut terminate =
                     tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
                         .expect("install SIGTERM handler");
-                tokio::select! { _ = tokio::signal::ctrl_c() => {}, _ = terminate.recv() => {} }
+                tokio::select! { _ = tokio::signal::ctrl_c() => {}, _ = terminate.recv() => {}, _ = audit.closed() => {} }
                 stop.cancel();
             }
-        })
-        .await?;
+        }));
+    tokio::pin!(serving);
+    let result: anyhow::Result<()> = tokio::select! {
+        result = &mut serving => result.map_err(Into::into),
+        _ = stop.cancelled() => tokio::time::timeout(Duration::from_secs(30), &mut serving)
+            .await.map_err(|_| anyhow::anyhow!("Speech HTTP shutdown deadline exceeded"))
+            .and_then(|result| result.map_err(Into::into)),
+    };
     stop.cancel();
     recovery.abort();
+    let _ = recovery.await;
+    let sessions = service.dictations.shutdown().await;
+    let drained = service.audit.shutdown(Duration::from_secs(30)).await;
+    result?;
+    sessions?;
+    drained?;
     Ok(())
 }
 
@@ -173,7 +186,8 @@ pub fn router(
 }
 
 async fn ready(State(state): State<Arc<SpeechService>>) -> StatusCode {
-    if state.worker.ready().await.is_ok()
+    if state.audit.is_running()
+        && state.worker.ready().await.is_ok()
         && matches!(
             tokio::time::timeout(
                 Duration::from_secs(2),

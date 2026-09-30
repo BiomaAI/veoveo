@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, time::Instant};
+use veoveo_mcp_contract::audit::{AuditDetail, RecordingActivity};
 
 use axum::{
     body::Body,
@@ -8,10 +8,9 @@ use axum::{
 };
 use chrono::{TimeDelta, Utc};
 use veoveo_mcp_contract::{
-    AuditEvent, GatewayAction, GatewayProfileId, McpMethodName, PolicyEffect, PolicyTarget,
-    PrincipalAuditAttributes, ServerSlug, TraceId,
+    GatewayAction, GatewayProfileId, PolicyEffect, PolicyTarget, ServerSlug, TraceId,
 };
-use veoveo_mcp_gateway::{AuthenticatedSubject, PolicyRequest, merge_principal_audit_metadata};
+use veoveo_mcp_gateway::{AuthenticatedSubject, PolicyRequest};
 
 use crate::runtime::{RecordingLayerPublicationState, current_catalog, current_http_client};
 
@@ -25,7 +24,6 @@ pub(super) async fn publish_recording_layer(
     headers: HeaderMap,
     body: Body,
 ) -> Response {
-    let started_at = Instant::now();
     let Ok(profile) = GatewayProfileId::new(profile) else {
         return StatusCode::NOT_FOUND.into_response();
     };
@@ -36,7 +34,7 @@ pub(super) async fn publish_recording_layer(
     if catalog.profile(&profile).is_none() {
         return StatusCode::NOT_FOUND.into_response();
     }
-    let trace_id = match TraceId::new(uuid::Uuid::new_v4().to_string()) {
+    let trace_id = match TraceId::new(subject.audit.trace_id.to_string()) {
         Ok(value) => value,
         Err(error) => {
             tracing::error!(%error, "failed to create recording publication trace id");
@@ -53,24 +51,20 @@ pub(super) async fn publish_recording_layer(
         target: &target,
         trace_id: &trace_id,
     });
-    let audit = AuditEvent {
-        event_id: trace_id.clone(),
-        timestamp: decision.evaluated_at,
-        trace_id,
-        profile: profile.clone(),
-        method: McpMethodName::new("recording/layer_publish")
-            .expect("static publication audit method is valid"),
-        action: GatewayAction::RecordingLayerPublish,
-        target,
-        decision: decision.clone(),
-        principal: Some(subject.principal.id.clone()),
-        principal_attributes: Some(PrincipalAuditAttributes::from(&subject.principal)),
-        tenant: subject.principal.tenant.clone(),
-        token_issuer: Some(subject.access_token.issuer.clone()),
-        latency_ms: u64::try_from(started_at.elapsed().as_millis()).ok(),
-        metadata: merge_principal_audit_metadata(BTreeMap::new(), &subject.principal),
-    };
-    if let Err(error) = state.gateway_state.record_audit_event(&audit).await {
+
+    if let Err(error) = state
+        .gateway_state
+        .record_policy_admission(
+            &subject,
+            &profile,
+            &target,
+            AuditDetail::Recording {
+                activity: RecordingActivity::LayerPublish,
+            },
+            &decision,
+        )
+        .await
+    {
         tracing::error!(%error, "failed to audit recording layer publication");
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }

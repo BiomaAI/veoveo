@@ -64,7 +64,7 @@ impl ComputersStore {
         kind: ProviderCommit,
         body: &'static str,
         mut params: Vec<(&'static str, Value)>,
-        event: &str,
+        event: crate::audit::ExecutionTransition,
     ) -> Result<()> {
         #[derive(Serialize)]
         struct Event<'a> {
@@ -101,7 +101,7 @@ impl ComputersStore {
             ),
             "computer",
             operation.computer_id().to_string(),
-            event,
+            event.event(crate::audit::ExecutionDomain::Command),
             1,
             payload,
         );
@@ -122,6 +122,39 @@ impl ComputersStore {
             ("provider", self.provider_instance_id.into_value()),
             ("event", outbox.into_value()),
         ]);
+        use veoveo_audit_contract::AuditReason;
+        let failure = match event {
+            crate::audit::ExecutionTransition::Undispatched => {
+                operation.refusal.map(|reason| match reason {
+                    super::CommandRefusal::CancelledBeforeDispatch => AuditReason::Cancelled,
+                    super::CommandRefusal::AuthorityDenied => AuditReason::PolicyDenied,
+                    super::CommandRefusal::RunChanged => AuditReason::Conflict,
+                    super::CommandRefusal::PreparationExpired => AuditReason::TimedOut,
+                })
+            }
+            crate::audit::ExecutionTransition::Terminated => {
+                operation.interruption.map(|reason| match reason {
+                    super::CommandInterruption::Cancelled => AuditReason::Cancelled,
+                    super::CommandInterruption::Deadline => AuditReason::TimedOut,
+                    super::CommandInterruption::AuthorityLost => AuditReason::Revoked,
+                    super::CommandInterruption::ExecutionUnknown => AuditReason::Unavailable,
+                })
+            }
+            crate::audit::ExecutionTransition::Completed => operation
+                .result
+                .filter(|result| result.exit_code != 0)
+                .map(|_| AuditReason::UpstreamFailure),
+            _ => None,
+        };
+        params.push(crate::audit::binding(
+            &operation.authority,
+            operation.computer_id(),
+            event.transition(
+                crate::audit::ExecutionDomain::Command,
+                operation.task_id(),
+                failure,
+            )?,
+        )?);
         TaskRuntime::new(self.platform.clone(), "computers", &claim.lease_owner)
             .commit_provider_journal(claim, kind, body, params)
             .await

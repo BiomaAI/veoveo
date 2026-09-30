@@ -703,13 +703,16 @@ demand and announced through MCP subscriptions.
 
 ## Audit And Failure Isolation
 
-Open, denial, close, expiry, camera mutation, and product-activation rejection produce
-typed access events. The platform store appends each accepted audit record and outbox
-projection atomically. Tokens, native endpoints, media, and provider credentials never
-enter audit data.
+The MCP service writes one typed audit record for each live-view issuance, renewal,
+close, expiry, revocation and denied request. Issuance and renewal wait for the shared
+writer's commit before publishing an active stream token. Close and expiry revoke
+access immediately; the writer retries their completion records with stable identities.
+The session preserves verified actor, invocation authority and gateway correlation.
+Typed UAV URI builders identify each authorization. Tokens, media and provider
+credentials never enter audit data. These writes create no audit outbox projection.
 
-An audit-store outage is logged with the typed action and authorization identity. It
-cannot roll back an already-issued authorization, interrupt a viewer, or stop simulation.
+An audit-store outage rejects new authorizations and renewals. It cannot stop simulation
+or keep a closed authorization active.
 
 The GPU Deployment starts the authoritative simulator and recording forwarder together.
 The independent MCP Deployment starts whenever the platform database is reachable and

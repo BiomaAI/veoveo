@@ -13,6 +13,7 @@ pub struct ConsoleBootstrap {
     pub installation: ConsoleInstallation,
     pub session: ConsoleSession,
     pub can_read_installation: bool,
+    pub can_read_audit: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]

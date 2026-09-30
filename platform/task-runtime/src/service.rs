@@ -196,8 +196,9 @@ pub async fn update_durable_task(
 }
 
 pub async fn cancel_durable_task(query: &OwnerTaskQuery, task_id: String) -> Result<(), McpError> {
-    authorized_snapshot(query, &task_id).await?;
-    query.runtime.cancel(&task_id).await.map_err(task_error)?;
+    let task_id = crate::types::parse_task_id(&task_id)
+        .map_err(|_| McpError::invalid_params("unknown task id", None))?;
+    query.cancel(task_id).await.map_err(task_error)?;
     Ok(())
 }
 

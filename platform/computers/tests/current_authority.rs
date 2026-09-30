@@ -47,7 +47,7 @@ async fn queued(
     .unwrap();
     let computer = store
         .reserve(
-            &owner,
+            &actor,
             &Reservation {
                 request_id: Uuid::now_v7(),
                 template_id: "development".into(),

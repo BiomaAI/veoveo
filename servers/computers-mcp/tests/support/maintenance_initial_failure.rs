@@ -40,7 +40,7 @@ impl Scenario<'_> {
         } = self;
         let computer = store
             .reserve(
-                owner.owner(),
+                owner,
                 &Reservation {
                     request_id: Uuid::now_v7(),
                     template_id: source.0.into(),

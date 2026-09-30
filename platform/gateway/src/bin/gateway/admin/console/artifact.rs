@@ -1,5 +1,6 @@
 //! Direct governed detail projection, independent of the latest catalog window.
 use super::*;
+use veoveo_mcp_contract::audit::AdministrativeOperation;
 use veoveo_platform_store::{ArtifactId, PrincipalRecord, ShareLinkRecord};
 
 pub(crate) async fn read_console_artifact(
@@ -11,14 +12,19 @@ pub(crate) async fn read_console_artifact(
     let Some(profile_id) = admin_profile_id(profile) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let (_, _, subject) = match authorize_admin_request(
+    let (_, _, subject) = match crate::audit::authorize_admin_target_request(
         &state,
         &profile_id,
         subject,
-        GatewayAction::AdminRead,
-        "admin/console/artifacts/read",
-        BTreeMap::from([("artifact_id".into(), artifact_id.to_string())]),
-        started,
+        crate::audit::AdminAuthorizationRequest {
+            action: GatewayAction::AdminRead,
+            target: veoveo_mcp_contract::PolicyTarget::Gateway,
+            audit_target: Some(veoveo_mcp_contract::audit::AuditTarget::Artifact {
+                artifact: artifact_id,
+            }),
+            operation: AdministrativeOperation::ConsoleArtifact,
+            started_at: started,
+        },
     )
     .await
     {

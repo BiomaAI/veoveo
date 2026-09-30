@@ -308,6 +308,7 @@ mod tests {
             GatewayProfileId::new("operator").unwrap(),
             ServerSlug::new("uav-sim").unwrap(),
             &crate::AuthenticatedSubject {
+                audit: veoveo_mcp_contract::audit::AuditRequest::background(),
                 access_token: veoveo_mcp_contract::AccessTokenSubject {
                     managed_agent: None,
                     issuer: actor.issuer.clone(),

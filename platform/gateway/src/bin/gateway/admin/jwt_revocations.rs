@@ -1,4 +1,5 @@
-use std::{collections::BTreeMap, time::Instant};
+use std::time::Instant;
+use veoveo_mcp_contract::audit::AdministrativeOperation;
 
 use axum::{
     Json,
@@ -17,14 +18,10 @@ use crate::{
     admin::admin_profile_id,
     audit::{
         AdminOperationAuditRecord, AdminOperationFailure, AdminOperationStatus,
-        admin_revocation_metadata, authorize_admin_request, internal_error_response,
-        record_admin_operation_audit,
+        authorize_admin_request, internal_error_response, record_admin_operation_audit,
     },
     runtime::AdminState,
 };
-
-const ADMIN_JWT_REVOCATIONS_RESULT_METHOD: &str = "admin/jwt-revocations/result";
-const ADMIN_JWT_REVOCATIONS_PRUNE_RESULT_METHOD: &str = "admin/jwt-revocations/prune/result";
 
 pub(crate) async fn revoke_jwt(
     State(state): State<AdminState>,
@@ -36,15 +33,21 @@ pub(crate) async fn revoke_jwt(
     let Some(profile_id) = admin_profile_id(profile) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let metadata = admin_revocation_metadata(&request);
-    let (catalog, profile, subject) = match authorize_admin_request(
+    let revocation_target = match revocation_audit_target(&request) {
+        Ok(target) => target,
+        Err(error) => return internal_error_response(error),
+    };
+    let (catalog, profile, subject) = match crate::audit::authorize_admin_target_request(
         &state,
         &profile_id,
         subject,
-        GatewayAction::AdminWrite,
-        "admin/jwt-revocations",
-        metadata.clone(),
-        started_at,
+        crate::audit::AdminAuthorizationRequest {
+            action: GatewayAction::AdminWrite,
+            target: veoveo_mcp_contract::PolicyTarget::Gateway,
+            audit_target: Some(revocation_target.clone()),
+            operation: AdministrativeOperation::JwtRevoke,
+            started_at,
+        },
     )
     .await
     {
@@ -62,12 +65,12 @@ pub(crate) async fn revoke_jwt(
             &profile,
             &subject,
             AdminOperationAuditRecord {
+                audit_target: Some(revocation_target.clone()),
                 action: GatewayAction::AdminWrite,
-                method: ADMIN_JWT_REVOCATIONS_RESULT_METHOD,
+                operation: AdministrativeOperation::JwtRevoke,
                 started_at,
                 status: AdminOperationStatus::Rejected,
                 failure: Some(AdminOperationFailure::ExpiredRevocation),
-                metadata,
             },
         )
         .await
@@ -95,12 +98,12 @@ pub(crate) async fn revoke_jwt(
             &profile,
             &subject,
             AdminOperationAuditRecord {
+                audit_target: Some(revocation_target.clone()),
                 action: GatewayAction::AdminWrite,
-                method: ADMIN_JWT_REVOCATIONS_RESULT_METHOD,
+                operation: AdministrativeOperation::JwtRevoke,
                 started_at,
                 status: AdminOperationStatus::Failed,
                 failure: Some(AdminOperationFailure::PersistJwtRevocation),
-                metadata: metadata.clone(),
             },
         )
         .await
@@ -114,12 +117,12 @@ pub(crate) async fn revoke_jwt(
         &profile,
         &subject,
         AdminOperationAuditRecord {
+            audit_target: Some(revocation_target.clone()),
             action: GatewayAction::AdminWrite,
-            method: ADMIN_JWT_REVOCATIONS_RESULT_METHOD,
+            operation: AdministrativeOperation::JwtRevoke,
             started_at,
             status: AdminOperationStatus::Succeeded,
             failure: None,
-            metadata,
         },
     )
     .await
@@ -150,14 +153,12 @@ pub(crate) async fn prune_jwt_revocations(
     let Some(profile_id) = admin_profile_id(profile) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let metadata = BTreeMap::from([("operation".to_string(), "prune_jwt_revocations".to_string())]);
     let (_catalog, profile, subject) = match authorize_admin_request(
         &state,
         &profile_id,
         subject,
         GatewayAction::AdminWrite,
-        "admin/jwt-revocations/prune",
-        metadata.clone(),
+        AdministrativeOperation::JwtPrune,
         started_at,
     )
     .await
@@ -178,12 +179,12 @@ pub(crate) async fn prune_jwt_revocations(
                 &profile,
                 &subject,
                 AdminOperationAuditRecord {
+                    audit_target: None,
                     action: GatewayAction::AdminWrite,
-                    method: ADMIN_JWT_REVOCATIONS_PRUNE_RESULT_METHOD,
+                    operation: AdministrativeOperation::JwtPrune,
                     started_at,
                     status: AdminOperationStatus::Failed,
                     failure: Some(AdminOperationFailure::PruneJwtRevocations),
-                    metadata,
                 },
             )
             .await
@@ -198,16 +199,12 @@ pub(crate) async fn prune_jwt_revocations(
         &profile,
         &subject,
         AdminOperationAuditRecord {
+            audit_target: None,
             action: GatewayAction::AdminWrite,
-            method: ADMIN_JWT_REVOCATIONS_PRUNE_RESULT_METHOD,
+            operation: AdministrativeOperation::JwtPrune,
             started_at,
             status: AdminOperationStatus::Succeeded,
             failure: None,
-            metadata: {
-                let mut metadata = metadata;
-                metadata.insert("deleted".to_string(), deleted.to_string());
-                metadata
-            },
         },
     )
     .await
@@ -225,4 +222,17 @@ pub(crate) async fn prune_jwt_revocations(
         deleted,
     })
     .into_response()
+}
+
+fn revocation_audit_target(
+    request: &GatewayJwtRevocationRequest,
+) -> anyhow::Result<veoveo_mcp_contract::audit::AuditTarget> {
+    use veoveo_types::{ResourceUriBuilder, UriSegment};
+    Ok(veoveo_mcp_contract::audit::AuditTarget::PlatformResource {
+        uri: ResourceUriBuilder::new("veoveo://jwt-revocations")?
+            .segment(UriSegment::new(request.profile.to_string())?)
+            .query_pair("issuer", request.issuer.as_str())?
+            .query_pair("jwt_id", request.jwt_id.as_str())?
+            .build()?,
+    })
 }

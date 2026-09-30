@@ -36,6 +36,7 @@ spec:
       annotations:
         {{- include "veoveo.podAnnotations" . | nindent 8 }}
     spec:
+      terminationGracePeriodSeconds: 90
       serviceAccountName: {{ include "veoveo.serviceAccountName" . }}
       automountServiceAccountToken: false
       imagePullSecrets:

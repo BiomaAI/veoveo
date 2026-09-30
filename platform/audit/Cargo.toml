@@ -1,0 +1,34 @@
+[package]
+name = "veoveo-audit"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+# Stable releases verified from crates.io upstream metadata on 2026-09-30.
+serde_json_canonicalizer = "=0.3.2"
+ed25519-dalek = "=3.0.0"
+base64.workspace = true
+veoveo-types.workspace = true
+veoveo-audit-contract.workspace = true
+veoveo-platform-store = { path = "../store" }
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["sync", "time", "rt", "macros"] }
+tracing.workspace = true
+futures.workspace = true
+uuid.workspace = true
+zeroize.workspace = true
+
+http.workspace = true
+url = { workspace = true, features = ["serde"] }
+object_store.workspace = true
+reqwest = { workspace = true, features = ["rustls-no-provider", "stream"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full"] }
+axum.workspace = true
+reqwest = { workspace = true, features = ["json"] }

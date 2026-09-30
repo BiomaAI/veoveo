@@ -23,8 +23,7 @@ use crate::mcp_support::{
 use super::tools::{project_detailed_task_resource_uris, rewrite_detailed_task_id};
 use super::{
     GATEWAY_PAGE_SIZE, GatewayMcp,
-    discovery::{DiscoveredResource, DiscoveryCacheKey},
-    invocation_authorization_fingerprint,
+    discovery::{AdmittedCatalog, DiscoveredResource, DiscoveryCacheKey},
 };
 
 impl GatewayMcp {
@@ -34,7 +33,18 @@ impl GatewayMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
         let subject = self.authenticated(&context)?;
-        let (mut resources, degradation) = self.available_resources(context, subject).await?;
+        let (mut resources, degradation, denied) =
+            self.available_resources(context, subject.clone()).await?;
+        self.record_discovery(
+            &subject,
+            veoveo_audit_contract::DiscoveryKind::Resources,
+            resources
+                .iter()
+                .map(|resource| resource.uri.clone())
+                .collect(),
+            denied,
+        )
+        .await?;
         resources.sort_by(|left, right| left.uri.cmp(&right.uri));
         let page = paginate(resources, request.as_ref(), GATEWAY_PAGE_SIZE)
             .map_err(|err| mcp_invalid_params(err.to_string()))?;
@@ -56,7 +66,7 @@ impl GatewayMcp {
         &self,
         context: RequestContext<RoleServer>,
         subject: crate::AuthenticatedSubject,
-    ) -> Result<(Vec<rmcp::model::Resource>, GatewayDiscoveryDegradation), McpError> {
+    ) -> Result<(Vec<rmcp::model::Resource>, GatewayDiscoveryDegradation, u32), McpError> {
         let profile_server_list = self.profile_servers();
         let profile_servers = profile_server_list
             .iter()
@@ -65,8 +75,7 @@ impl GatewayMcp {
         let snapshot = self.catalog.snapshot();
         let catalog = snapshot.catalog().clone();
         let catalog_generation = snapshot.generation();
-        let authorization_fingerprint =
-            invocation_authorization_fingerprint(&subject.actor, &subject.authority)?;
+        let authorization_fingerprint = super::discovery_authorization_fingerprint(&subject)?;
         let mut keys = Vec::new();
         let mut cached_at_start = std::collections::BTreeMap::new();
         for server_slug in profile_server_list {
@@ -77,7 +86,9 @@ impl GatewayMcp {
                 server: server_slug.clone(),
             };
             keys.push(key.clone());
-            if let Some(items) = self.discovery.resources(&key).await {
+            if self.discovery_watch_active(&key).await
+                && let Some(items) = self.discovery.resources(&key).await
+            {
                 cached_at_start.insert(key, items);
                 continue;
             }
@@ -94,20 +105,29 @@ impl GatewayMcp {
             let context = context.clone();
             let subject = subject.clone();
             tokio::spawn(async move {
-                let result = gateway
-                    .discover_resources_for_server(
-                        &catalog,
-                        &profile_servers,
-                        &server_slug,
-                        &context,
-                        &subject,
-                    )
-                    .await;
+                let result = async {
+                    gateway
+                        .ensure_discovery_watch(&key, context.peer.clone(), &subject)
+                        .await?;
+                    gateway
+                        .discover_resources_for_server(
+                            &catalog,
+                            &profile_servers,
+                            &server_slug,
+                            &context,
+                            &subject,
+                        )
+                        .await
+                }
+                .await;
                 match result {
                     Ok(discovered) => {
                         gateway
                             .discovery
-                            .finish_resource_routes(fetch, discovered)
+                            .finish_resource_routes(
+                                fetch.with_denied(discovered.denied),
+                                discovered.items,
+                            )
                             .await;
                     }
                     Err(error) => {
@@ -129,13 +149,18 @@ impl GatewayMcp {
             .await;
         let mut resources = Vec::new();
         let mut failures = Vec::new();
+        let mut denied = 0u32;
         for key in keys {
             let cached = match cached_at_start.remove(&key) {
                 Some(items) => Some(items),
-                None => self.discovery.resources(&key).await,
+                None if self.discovery_watch_active(&key).await => {
+                    self.discovery.resources(&key).await
+                }
+                None => None,
             };
             if let Some(mut cached) = cached {
-                resources.append(&mut cached);
+                denied = denied.saturating_add(cached.denied);
+                resources.append(&mut cached.items);
             } else {
                 let code = self
                     .discovery
@@ -148,7 +173,11 @@ impl GatewayMcp {
                 });
             }
         }
-        Ok((resources, GatewayDiscoveryDegradation::new(failures)))
+        Ok((
+            resources,
+            GatewayDiscoveryDegradation::new(failures),
+            denied,
+        ))
     }
 
     async fn discover_resources_for_server(
@@ -158,7 +187,7 @@ impl GatewayMcp {
         server_slug: &veoveo_mcp_contract::ServerSlug,
         context: &RequestContext<RoleServer>,
         subject: &crate::AuthenticatedSubject,
-    ) -> Result<Vec<DiscoveredResource>, McpError> {
+    ) -> Result<AdmittedCatalog<DiscoveredResource>, McpError> {
         let started = std::time::Instant::now();
         let manifest = catalog
             .server(server_slug)
@@ -209,14 +238,23 @@ impl GatewayMcp {
                 authorization_ms = authorization_started.elapsed().as_millis(),
                 total_ms = started.elapsed().as_millis(), "slow MCP catalog discovery");
         }
-        Ok(resources
-            .into_iter()
-            .zip(allowed)
-            .map(|(mut resource, allowed)| {
-                resource.listed = allowed;
-                resource
-            })
-            .collect())
+        let denied = allowed
+            .iter()
+            .filter(|allowed| !**allowed)
+            .count()
+            .try_into()
+            .map_err(|_| mcp_internal("catalog exceeds audit count range"))?;
+        Ok(AdmittedCatalog {
+            denied,
+            items: resources
+                .into_iter()
+                .zip(allowed)
+                .map(|(mut resource, allowed)| {
+                    resource.listed = allowed;
+                    resource
+                })
+                .collect(),
+        })
     }
 
     pub(super) async fn handle_list_resource_templates(
@@ -225,7 +263,7 @@ impl GatewayMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, McpError> {
         let subject = self.authenticated(&context)?;
-        let (mut templates, degradation) = self
+        let (mut templates, degradation, denied) = self
             .available_resource_templates(context, subject.clone())
             .await?;
         if self.client_allows_task_projection(&subject).await? {
@@ -239,6 +277,16 @@ impl GatewayMcp {
             );
         }
         templates.sort_by(|left, right| left.uri_template.cmp(&right.uri_template));
+        self.record_discovery(
+            &subject,
+            veoveo_audit_contract::DiscoveryKind::ResourceTemplates,
+            templates
+                .iter()
+                .map(|template| template.uri_template.clone())
+                .collect(),
+            denied,
+        )
+        .await?;
         let page = paginate(templates, request.as_ref(), GATEWAY_PAGE_SIZE)
             .map_err(|err| mcp_invalid_params(err.to_string()))?;
         Ok(ListResourceTemplatesResult {
@@ -255,12 +303,11 @@ impl GatewayMcp {
         &self,
         context: RequestContext<RoleServer>,
         subject: crate::AuthenticatedSubject,
-    ) -> Result<(Vec<ResourceTemplate>, GatewayDiscoveryDegradation), McpError> {
+    ) -> Result<(Vec<ResourceTemplate>, GatewayDiscoveryDegradation, u32), McpError> {
         let snapshot = self.catalog.snapshot();
         let catalog = snapshot.catalog().clone();
         let catalog_generation = snapshot.generation();
-        let authorization_fingerprint =
-            invocation_authorization_fingerprint(&subject.actor, &subject.authority)?;
+        let authorization_fingerprint = super::discovery_authorization_fingerprint(&subject)?;
         let mut keys = Vec::new();
         let mut cached_at_start = std::collections::BTreeMap::new();
         for server_slug in self.profile_servers() {
@@ -271,7 +318,9 @@ impl GatewayMcp {
                 server: server_slug.clone(),
             };
             keys.push(key.clone());
-            if let Some(items) = self.discovery.resource_templates(&key).await {
+            if self.discovery_watch_active(&key).await
+                && let Some(items) = self.discovery.resource_templates(&key).await
+            {
                 cached_at_start.insert(key, items);
                 continue;
             }
@@ -287,19 +336,28 @@ impl GatewayMcp {
             let context = context.clone();
             let subject = subject.clone();
             tokio::spawn(async move {
-                let result = gateway
-                    .discover_resource_templates_for_server(
-                        &catalog,
-                        &server_slug,
-                        &context,
-                        &subject,
-                    )
-                    .await;
+                let result = async {
+                    gateway
+                        .ensure_discovery_watch(&key, context.peer.clone(), &subject)
+                        .await?;
+                    gateway
+                        .discover_resource_templates_for_server(
+                            &catalog,
+                            &server_slug,
+                            &context,
+                            &subject,
+                        )
+                        .await
+                }
+                .await;
                 match result {
                     Ok(discovered) => {
                         gateway
                             .discovery
-                            .finish_resource_templates(fetch, discovered)
+                            .finish_resource_templates(
+                                fetch.with_denied(discovered.denied),
+                                discovered.items,
+                            )
                             .await;
                     }
                     Err(error) => {
@@ -321,13 +379,18 @@ impl GatewayMcp {
             .await;
         let mut templates = Vec::new();
         let mut failures = Vec::new();
+        let mut denied = 0u32;
         for key in keys {
             let cached = match cached_at_start.remove(&key) {
                 Some(items) => Some(items),
-                None => self.discovery.resource_templates(&key).await,
+                None if self.discovery_watch_active(&key).await => {
+                    self.discovery.resource_templates(&key).await
+                }
+                None => None,
             };
             if let Some(mut cached) = cached {
-                templates.append(&mut cached);
+                denied = denied.saturating_add(cached.denied);
+                templates.append(&mut cached.items);
             } else {
                 let code = self
                     .discovery
@@ -340,7 +403,11 @@ impl GatewayMcp {
                 });
             }
         }
-        Ok((templates, GatewayDiscoveryDegradation::new(failures)))
+        Ok((
+            templates,
+            GatewayDiscoveryDegradation::new(failures),
+            denied,
+        ))
     }
 
     async fn discover_resource_templates_for_server(
@@ -349,7 +416,7 @@ impl GatewayMcp {
         server_slug: &veoveo_mcp_contract::ServerSlug,
         context: &RequestContext<RoleServer>,
         subject: &crate::AuthenticatedSubject,
-    ) -> Result<Vec<ResourceTemplate>, McpError> {
+    ) -> Result<AdmittedCatalog<ResourceTemplate>, McpError> {
         let manifest = catalog
             .server(server_slug)
             .ok_or_else(|| mcp_internal(format!("unknown profile server `{server_slug}`")))?;
@@ -374,11 +441,20 @@ impl GatewayMcp {
         let allowed = self
             .allows_catalog_targets(context, GatewayAction::ResourcesTemplatesList, targets)
             .await?;
-        Ok(templates
-            .into_iter()
-            .zip(allowed)
-            .filter_map(|(template, allowed)| allowed.then_some(template))
-            .collect())
+        let denied = allowed
+            .iter()
+            .filter(|allowed| !**allowed)
+            .count()
+            .try_into()
+            .map_err(|_| mcp_internal("catalog exceeds audit count range"))?;
+        Ok(AdmittedCatalog {
+            denied,
+            items: templates
+                .into_iter()
+                .zip(allowed)
+                .filter_map(|(template, allowed)| allowed.then_some(template))
+                .collect(),
+        })
     }
 
     pub(super) async fn handle_read_resource(
@@ -404,12 +480,11 @@ impl GatewayMcp {
         let key = DiscoveryCacheKey {
             catalog_generation: snapshot.generation(),
             principal: subject.actor.id.clone(),
-            authorization_fingerprint: invocation_authorization_fingerprint(
-                &subject.actor,
-                &subject.authority,
-            )?,
+            authorization_fingerprint: super::discovery_authorization_fingerprint(&subject)?,
             server: server.clone(),
         };
+        self.ensure_discovery_watch(&key, context.peer.clone(), &subject)
+            .await?;
         let routes = match self.discovery.resource_routes(&key).await {
             Some(routes) => routes,
             None => {
@@ -429,7 +504,14 @@ impl GatewayMcp {
                         )
                         .await
                     {
-                        Ok(routes) => self.discovery.finish_resource_routes(fetch, routes).await,
+                        Ok(routes) => {
+                            self.discovery
+                                .finish_resource_routes(
+                                    fetch.with_denied(routes.denied),
+                                    routes.items,
+                                )
+                                .await
+                        }
                         Err(error) => {
                             self.discovery
                                 .finish_failure(GatewayDiscoverySurface::Resources, fetch)

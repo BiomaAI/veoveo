@@ -12,6 +12,8 @@ mod artifact_download;
 mod artifact_upload;
 #[path = "gateway/audit.rs"]
 mod audit;
+#[path = "gateway/audit_cli.rs"]
+mod audit_cli;
 #[path = "gateway/auth.rs"]
 mod auth;
 #[path = "gateway/computers/mod.rs"]
@@ -62,12 +64,10 @@ use veoveo_mcp_contract::{
 };
 use veoveo_mcp_gateway::{
     GatewayCatalog, GatewayControlStore, GatewayRefreshDeliveryWindow, GatewaySecretResolver,
-    GatewayState, RefreshTokenDeliveryCipher, new_gateway_control_plane_revision_id,
+    RefreshTokenDeliveryCipher, new_gateway_control_plane_revision_id,
 };
 use veoveo_platform_store::{PlatformStore, StoreAuthLevel, StoreConfig, StoreCredentials};
 use veoveo_types::PrincipalId;
-
-use runtime::GatewayRetentionPolicy;
 
 fn install_rustls_provider() {
     let _ = rustls::crypto::ring::default_provider().install_default();
@@ -187,46 +187,10 @@ enum Command {
         #[arg(long)]
         purpose: String,
     },
-    /// Print aggregate gateway audit counts as JSON.
-    AuditCounts {
-        #[command(flatten)]
-        store: SurrealStoreArgs,
-    },
-    /// Print gateway auth audit counts grouped by auth method as JSON.
-    AuthAuditMethodSummary {
-        #[command(flatten)]
-        store: SurrealStoreArgs,
-    },
-    /// Print gateway auth audit counts grouped by auth reason as JSON.
-    AuthAuditReasonSummary {
-        #[command(flatten)]
-        store: SurrealStoreArgs,
-    },
-    /// Print gateway auth audit counts grouped by one metadata value as JSON.
-    AuthAuditMetadataSummary {
-        #[command(flatten)]
-        store: SurrealStoreArgs,
-        /// Metadata key to group by.
-        #[arg(long)]
-        metadata_key: String,
-    },
-    /// Print gateway policy audit counts grouped by MCP method as JSON.
-    AuditMethodSummary {
-        #[command(flatten)]
-        store: SurrealStoreArgs,
-    },
-    /// Print gateway policy audit counts grouped by decision reason as JSON.
-    AuditReasonSummary {
-        #[command(flatten)]
-        store: SurrealStoreArgs,
-    },
-    /// Print gateway policy audit counts grouped by one metadata value as JSON.
-    AuditMetadataSummary {
-        #[command(flatten)]
-        store: SurrealStoreArgs,
-        /// Metadata key to group by.
-        #[arg(long)]
-        metadata_key: String,
+    /// Read or verify one explicitly selected audit partition.
+    Audit {
+        #[command(subcommand)]
+        command: audit_cli::AuditCommand,
     },
     /// Start the gateway process.
     Serve {
@@ -289,8 +253,14 @@ enum Command {
         )]
         connectivity_mode: ConnectivityMode,
         /// Retention window for gateway audit evidence.
-        #[arg(long, default_value = "365", value_parser = clap::value_parser!(NonZeroU32))]
-        audit_event_retention_days: NonZeroU32,
+        #[arg(long, env = "VEOVEO_AUDIT_RETENTION_DAYS", value_parser = clap::value_parser!(NonZeroU32))]
+        audit_retention_days: NonZeroU32,
+        /// Dedicated audit block-signing seed; never reuse an identity assertion key.
+        #[arg(long, env = "VEOVEO_AUDIT_SIGNING_KEY_B64", hide_env_values = true)]
+        audit_signing_key_b64: RedactedSecret,
+        /// Optional public S3/OTLP destination configuration; credential values stay in Secrets.
+        #[arg(long, env = "VEOVEO_AUDIT_EXPORT_CONFIG")]
+        audit_export_config: Option<std::path::PathBuf>,
     },
 }
 
@@ -328,6 +298,21 @@ async fn main() -> anyhow::Result<()> {
             if store.auth_level != StoreAuthLevel::Root {
                 anyhow::bail!("installation-bootstrap requires VEOVEO_SURREAL_AUTH_LEVEL=root");
             }
+            // Audit records identify the database-authenticated operator. The
+            // revision's applied_by option is operator-supplied attribution.
+            let audit_context = veoveo_mcp_contract::audit::AuditContext {
+                actor: veoveo_mcp_contract::audit::AuditActor {
+                    principal: PrincipalId::new(store.username.clone())?,
+                    kind: veoveo_mcp_contract::audit::AuditPrincipalKind::Service,
+                    tenant: None,
+                    oauth_client: None,
+                    session_family: None,
+                    delegating_principal: None,
+                    managed_agent: None,
+                },
+                authority: Default::default(),
+                request: veoveo_mcp_contract::audit::AuditRequest::background(),
+            };
             let catalog = GatewayCatalog::load_json(&control_plane)?;
             let control_plane = catalog.control_plane().clone();
             let sha256 = control_plane_sha256(&control_plane)?;
@@ -363,7 +348,9 @@ async fn main() -> anyhow::Result<()> {
                         tenant: None,
                         control_plane,
                     };
-                    control_store.record_revision(&revision).await?;
+                    control_store
+                        .record_revision(&revision, &audit_context)
+                        .await?;
                     ("bootstrapped", revision_id)
                 }
             };
@@ -424,65 +411,7 @@ async fn main() -> anyhow::Result<()> {
             );
             Ok(())
         }
-        Command::AuditCounts { store } => {
-            let state = GatewayState::connect(store.into_config()?).await?;
-            println!("{}", serde_json::to_string(&state.audit_counts().await?)?);
-            Ok(())
-        }
-        Command::AuthAuditMethodSummary { store } => {
-            let state = GatewayState::connect(store.into_config()?).await?;
-            println!(
-                "{}",
-                serde_json::to_string(&state.auth_audit_method_summary().await?)?
-            );
-            Ok(())
-        }
-        Command::AuthAuditReasonSummary { store } => {
-            let state = GatewayState::connect(store.into_config()?).await?;
-            println!(
-                "{}",
-                serde_json::to_string(&state.auth_audit_reason_summary().await?)?
-            );
-            Ok(())
-        }
-        Command::AuthAuditMetadataSummary {
-            store,
-            metadata_key,
-        } => {
-            let state = GatewayState::connect(store.into_config()?).await?;
-            println!(
-                "{}",
-                serde_json::to_string(&state.auth_audit_metadata_summary(&metadata_key).await?)?
-            );
-            Ok(())
-        }
-        Command::AuditMethodSummary { store } => {
-            let state = GatewayState::connect(store.into_config()?).await?;
-            println!(
-                "{}",
-                serde_json::to_string(&state.policy_audit_method_summary().await?)?
-            );
-            Ok(())
-        }
-        Command::AuditReasonSummary { store } => {
-            let state = GatewayState::connect(store.into_config()?).await?;
-            println!(
-                "{}",
-                serde_json::to_string(&state.policy_audit_reason_summary().await?)?
-            );
-            Ok(())
-        }
-        Command::AuditMetadataSummary {
-            store,
-            metadata_key,
-        } => {
-            let state = GatewayState::connect(store.into_config()?).await?;
-            println!(
-                "{}",
-                serde_json::to_string(&state.policy_audit_metadata_summary(&metadata_key).await?)?
-            );
-            Ok(())
-        }
+        Command::Audit { command } => command.run().await,
         Command::Serve {
             port,
             public_base_url,
@@ -495,7 +424,9 @@ async fn main() -> anyhow::Result<()> {
             refresh_delivery_window_seconds,
             allow_loopback_hosts,
             connectivity_mode,
-            audit_event_retention_days,
+            audit_retention_days,
+            audit_signing_key_b64,
+            audit_export_config,
         } => {
             let control_store = GatewayControlStore::connect(store.into_config()?).await?;
             let expected_control_plane_sha256 = expected_control_plane
@@ -505,9 +436,15 @@ async fn main() -> anyhow::Result<()> {
                     control_plane_sha256(catalog.control_plane())
                 })
                 .transpose()?;
-            let retention = GatewayRetentionPolicy {
-                audit_event_days: audit_event_retention_days,
-            };
+            let audit_exports = audit_export_config
+                .as_deref()
+                .map(veoveo_audit::export::AuditExportConfig::load)
+                .transpose()?
+                .unwrap_or_default();
+            let audit_signing_key =
+                std::sync::Arc::new(veoveo_audit::integrity::AuditSigningKey::from_base64(
+                    audit_signing_key_b64.0.expose_secret(),
+                )?);
             let refresh_delivery_cipher = RefreshTokenDeliveryCipher::from_base64(
                 refresh_delivery_key_b64.0.expose_secret(),
             )?;
@@ -525,7 +462,9 @@ async fn main() -> anyhow::Result<()> {
                 refresh_delivery_window,
                 allow_loopback_hosts,
                 offline_mode: connectivity_mode == ConnectivityMode::Offline,
-                retention,
+                audit_retention_days,
+                audit_signing_key,
+                audit_exports,
             })
             .await
         }
@@ -604,7 +543,7 @@ mod tests {
     }
 
     #[test]
-    fn serve_cli_redacts_refresh_delivery_key() {
+    fn serve_cli_redacts_signing_and_delivery_keys() {
         let mut arguments = vec![
             "gateway",
             "serve",
@@ -614,6 +553,10 @@ mod tests {
             "internal-signing-secret",
             "--refresh-delivery-key-b64",
             "refresh-delivery-secret",
+            "--audit-retention-days",
+            "1",
+            "--audit-signing-key-b64",
+            "audit-signing-secret",
         ];
         arguments.extend(CANONICAL_STORE_ARGS);
         let parsed = Args::try_parse_from(arguments).unwrap();
@@ -621,5 +564,6 @@ mod tests {
         assert!(debug.contains("[REDACTED]"));
         assert!(!debug.contains("internal-signing-secret"));
         assert!(!debug.contains("refresh-delivery-secret"));
+        assert!(!debug.contains("audit-signing-secret"));
     }
 }

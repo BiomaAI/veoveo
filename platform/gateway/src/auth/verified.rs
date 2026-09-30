@@ -16,6 +16,7 @@ pub struct VerifiedAccessToken {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthenticatedSubject {
+    pub audit: veoveo_audit_contract::AuditRequest,
     pub access_token: AccessTokenSubject,
     pub principal: Principal,
     pub actor: Principal,
@@ -26,6 +27,7 @@ pub struct AuthenticatedSubject {
 impl AuthenticatedSubject {
     pub fn request_context(&self) -> veoveo_mcp_contract::GatewayRequestContext {
         veoveo_mcp_contract::GatewayRequestContext {
+            audit: self.audit.clone(),
             access_token: self.access_token.clone(),
             principal: self.principal.clone(),
         }

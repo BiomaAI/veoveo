@@ -160,12 +160,7 @@ fn replace_media_server_with_duckdb(
 }
 
 fn configure_profiles_for_duckdb(control_plane: &mut Value) -> Result<()> {
-    for profile_id in ["operator", "admin"] {
-        let profiles = control_plane_array_mut(control_plane, "profiles")?;
-        let profile = profiles
-            .iter_mut()
-            .find(|profile| profile.get("id").and_then(Value::as_str) == Some(profile_id))
-            .ok_or_else(|| anyhow!("control plane has no `{profile_id}` profile"))?;
+    for profile in control_plane_array_mut(control_plane, "profiles")? {
         profile["servers"] = json!([{
             "server": "duckdb",
             "tools": {
@@ -530,6 +525,14 @@ fn fake_hosted_capabilities() -> Value {
 
 fn configure_profiles_for_fake_servers(control_plane: &mut Value) -> Result<()> {
     let profiles = control_plane_array_mut(control_plane, "profiles")?;
+    // Every profile referencing the replaced manifest must use its fixture vocabulary.
+    for profile in profiles.iter_mut() {
+        for exposure in control_plane_array_mut(profile, "servers")? {
+            if exposure.get("server").and_then(Value::as_str) == Some("media") {
+                *exposure = fake_profile_server_exposure("media", "media");
+            }
+        }
+    }
     for profile_id in ["operator", "admin"] {
         let profile = profiles
             .iter_mut()

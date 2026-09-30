@@ -165,14 +165,13 @@ mod setup_tests {
                 .is_err()
         );
         let capabilities = &setup.server_config().capabilities;
-        assert_eq!(
-            capabilities
+        assert!(
+            !capabilities
                 .resources
                 .as_ref()
                 .unwrap()
                 .subscribe
-                .unwrap_or(false),
-            false
+                .unwrap_or(false)
         );
         assert!(
             !capabilities

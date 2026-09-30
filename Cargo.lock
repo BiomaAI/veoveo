@@ -13306,6 +13306,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
+name = "ryu-js"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04d056b875a9d2e6cb9a61d127afee9ac5999b9f87bcb32079d1318e505be714"
+
+[[package]]
 name = "safe_arch"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -13635,6 +13641,17 @@ dependencies = [
  "serde",
  "serde_core",
  "zmij",
+]
+
+[[package]]
+name = "serde_json_canonicalizer"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe52319a927259afbfa5180c5157cd8167edfd3e8c254f9558c7fef44c5649f2"
+dependencies = [
+ "ryu-js",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -15029,6 +15046,7 @@ dependencies = [
  "futures-core",
  "futures-io",
  "futures-sink",
+ "futures-util",
  "libc",
  "pin-project-lite",
  "tokio",
@@ -15998,8 +16016,51 @@ dependencies = [
  "uuid",
  "veoveo-artifact-client",
  "veoveo-artifact-contract",
+ "veoveo-audit",
  "veoveo-mcp-contract",
  "veoveo-platform-store",
+ "veoveo-types",
+]
+
+[[package]]
+name = "veoveo-audit"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "base64 0.23.1",
+ "chrono",
+ "ed25519-dalek 3.0.0",
+ "futures",
+ "http",
+ "object_store 0.14.1",
+ "reqwest 0.13.5",
+ "serde",
+ "serde_json",
+ "serde_json_canonicalizer",
+ "sha2 0.11.0",
+ "thiserror 2.0.20",
+ "tokio",
+ "tracing",
+ "url",
+ "uuid",
+ "veoveo-audit-contract",
+ "veoveo-platform-store",
+ "veoveo-types",
+ "zeroize",
+]
+
+[[package]]
+name = "veoveo-audit-contract"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "schemars 1.2.2",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "uuid",
+ "veoveo-artifact-contract",
+ "veoveo-computers-contract",
  "veoveo-types",
 ]
 
@@ -16117,6 +16178,7 @@ dependencies = [
  "thiserror 2.0.20",
  "tokio",
  "uuid",
+ "veoveo-audit-contract",
  "veoveo-computer-execution",
  "veoveo-computers-contract",
  "veoveo-mcp-contract",
@@ -16616,6 +16678,7 @@ dependencies = [
  "url",
  "uuid",
  "veoveo-artifact-contract",
+ "veoveo-audit-contract",
  "veoveo-types",
 ]
 
@@ -16636,6 +16699,8 @@ dependencies = [
  "hex",
  "jsonschema",
  "jsonwebtoken 11.0.0",
+ "opentelemetry",
+ "opentelemetry_sdk",
  "parking_lot",
  "prost",
  "rcgen",
@@ -16661,6 +16726,8 @@ dependencies = [
  "veoveo-agent-runtime",
  "veoveo-artifact-client",
  "veoveo-artifact-contract",
+ "veoveo-audit",
+ "veoveo-audit-contract",
  "veoveo-computers-contract",
  "veoveo-computers-transport",
  "veoveo-mcp-apps-extension",
@@ -16672,6 +16739,7 @@ dependencies = [
  "veoveo-speech-contract",
  "veoveo-task-runtime",
  "veoveo-types",
+ "zeroize",
 ]
 
 [[package]]
@@ -16813,6 +16881,7 @@ dependencies = [
  "url",
  "uuid",
  "veoveo-artifact-contract",
+ "veoveo-audit-contract",
  "veoveo-types",
 ]
 
@@ -17221,6 +17290,7 @@ dependencies = [
  "veoveo-artifact-client",
  "veoveo-artifact-contract",
  "veoveo-artifact-service",
+ "veoveo-audit",
  "veoveo-mcp-conformance",
  "veoveo-mcp-contract",
  "veoveo-platform-store",
@@ -17453,6 +17523,7 @@ dependencies = [
  "tracing",
  "url",
  "uuid",
+ "veoveo-audit",
  "veoveo-frames-mcp",
  "veoveo-map-mcp",
  "veoveo-mcp-apps-extension",
@@ -17530,6 +17601,7 @@ dependencies = [
  "tempfile",
  "url",
  "uuid",
+ "veoveo-audit-contract",
  "veoveo-computers-contract",
  "veoveo-deploy-contract",
  "veoveo-deploy-runtime",

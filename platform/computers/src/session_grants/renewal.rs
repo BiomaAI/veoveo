@@ -176,6 +176,14 @@ impl ComputersStore {
                         "admission_expires_at",
                         actor.admission_expires_at().into_value(),
                     ),
+                    crate::audit::binding(
+                        actor.accepted(),
+                        row.computer_id()?,
+                        crate::audit::Transition::accepted(
+                            veoveo_audit_contract::ComputerActivity::Revoke,
+                            veoveo_audit_contract::ComputerAuditStage::GrantRevoked,
+                        ),
+                    )?,
                     (
                         "event",
                         authority::event(
@@ -218,6 +226,7 @@ impl ComputersStore {
                         "admission_expires_at",
                         Option::<DateTime<Utc>>::None.into_value(),
                     ),
+                    crate::audit::binding(&accepted, row.computer_id()?, crate::audit::Transition::accepted(veoveo_audit_contract::ComputerActivity::Close, veoveo_audit_contract::ComputerAuditStage::Closed))?,
                     (
                         "event",
                         authority::event(

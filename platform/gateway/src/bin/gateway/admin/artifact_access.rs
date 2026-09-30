@@ -1,4 +1,5 @@
-use std::{collections::BTreeMap, time::Instant};
+use std::time::Instant;
+use veoveo_mcp_contract::audit::{AdministrativeOperation, AuditTarget};
 
 use axum::{
     Json,
@@ -9,16 +10,17 @@ use axum::{
 use chrono::{TimeDelta, Utc};
 use serde::Serialize;
 use veoveo_artifact_client::HttpArtifactPlane;
-use veoveo_artifact_contract::ArtifactId;
+use veoveo_artifact_contract::{ArtifactId, ArtifactLedgerAddress};
 use veoveo_mcp_contract::{
     ArtifactAccessRequestId, ArtifactPlane, ArtifactPlaneError, CreateArtifactAccessRequest,
     DecideArtifactAccessRequest, GatewayAction, ListArtifactAccessRequests, PlaneCaller,
+    PolicyTarget,
 };
 use veoveo_mcp_gateway::AuthenticatedSubject;
 
 use crate::{
     admin::admin_profile_id,
-    audit::authorize_admin_request,
+    audit::{AdminAuthorizationRequest, authorize_admin_target_request},
     runtime::{AdminState, current_http_client},
 };
 
@@ -38,7 +40,10 @@ pub(crate) async fn create_artifact_access_request(
         profile,
         subject,
         GatewayAction::AdminRead,
-        "admin/artifact-access-requests/create",
+        AdministrativeOperation::ArtifactAccessRequestCreate,
+        AuditTarget::Artifact {
+            artifact: artifact_id,
+        },
     )
     .await
     {
@@ -65,7 +70,10 @@ pub(crate) async fn list_artifact_access_requests(
         profile,
         subject,
         GatewayAction::AdminRead,
-        "admin/artifact-access-requests/list",
+        AdministrativeOperation::ArtifactAccessRequestList,
+        AuditTarget::PlatformResource {
+            uri: ArtifactLedgerAddress::AccessRequests.uri(),
+        },
     )
     .await
     {
@@ -92,7 +100,10 @@ pub(crate) async fn decide_artifact_access_request(
         profile,
         subject,
         GatewayAction::AdminWrite,
-        "admin/artifact-access-requests/decision",
+        AdministrativeOperation::ArtifactAccessRequestDecide,
+        AuditTarget::PlatformResource {
+            uri: ArtifactLedgerAddress::AccessRequest(request_id).uri(),
+        },
     )
     .await
     {
@@ -121,7 +132,10 @@ pub(crate) async fn cancel_artifact_access_request(
         profile,
         subject,
         GatewayAction::AdminRead,
-        "admin/artifact-access-requests/cancel",
+        AdministrativeOperation::ArtifactAccessRequestCancel,
+        AuditTarget::PlatformResource {
+            uri: ArtifactLedgerAddress::AccessRequest(request_id).uri(),
+        },
     )
     .await
     {
@@ -139,19 +153,23 @@ async fn authorized_plane(
     profile: String,
     subject: AuthenticatedSubject,
     action: GatewayAction,
-    method: &str,
+    operation: AdministrativeOperation,
+    audit_target: AuditTarget,
 ) -> Result<(HttpArtifactPlane, PlaneCaller), Box<Response>> {
     let Some(profile_id) = admin_profile_id(profile) else {
         return Err(StatusCode::NOT_FOUND.into_response().into());
     };
-    let (_, _, subject) = authorize_admin_request(
+    let (_, _, subject) = authorize_admin_target_request(
         state,
         &profile_id,
         subject,
-        action,
-        method,
-        BTreeMap::new(),
-        Instant::now(),
+        AdminAuthorizationRequest {
+            action,
+            target: PolicyTarget::Gateway,
+            operation,
+            audit_target: Some(audit_target),
+            started_at: Instant::now(),
+        },
     )
     .await?;
     let expires_at = std::cmp::min(

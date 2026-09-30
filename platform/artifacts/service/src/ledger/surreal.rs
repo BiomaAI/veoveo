@@ -26,9 +26,9 @@ use veoveo_types::{
 
 use super::{
     ArtifactAccessRequestCancellation, ArtifactAccessRequestDecisionDraft,
-    ArtifactAccessRequestListQuery, ArtifactAuditEvent, ArtifactListQuery, ArtifactRepository,
-    AuditOutcome, BlobSha256, NewArtifact, NewArtifactAccessRequest, RedeemedWriteCapability,
-    RepositoryActor, RepositoryError, ShareLinkDraft, StoredArtifact, WriteCapabilityDraft,
+    ArtifactAccessRequestListQuery, ArtifactListQuery, ArtifactRepository, BlobSha256, NewArtifact,
+    NewArtifactAccessRequest, RedeemedWriteCapability, RepositoryActor, RepositoryError,
+    ShareLinkDraft, ShareRedemption, StoredArtifact, WriteCapabilityDraft,
     WriteCapabilityReservation,
 };
 
@@ -37,15 +37,21 @@ mod read_capability;
 #[derive(Clone, Debug)]
 pub struct SurrealArtifactRepository {
     store: platform::PlatformStore,
+    audit: veoveo_audit::AuditWriter,
 }
 
 impl SurrealArtifactRepository {
     pub fn new(store: platform::PlatformStore) -> Self {
-        Self { store }
+        let audit = veoveo_audit::AuditWriter::start(store.clone());
+        Self { store, audit }
     }
 
     pub fn store(&self) -> &platform::PlatformStore {
         &self.store
+    }
+
+    pub fn audit_writer(&self) -> &veoveo_audit::AuditWriter {
+        &self.audit
     }
 
     async fn identity(
@@ -414,6 +420,7 @@ impl ArtifactRepository for SurrealArtifactRepository {
         let identity = self.identity(&draft.actor).await?;
         self.store
             .create_artifact_write_capability(platform::ArtifactWriteCapabilityDraft {
+                audit: platform::audit::AuditContextRecord(draft.actor.audit.clone()),
                 capability_id: platform::ArtifactWriteCapabilityId::from_uuid(
                     draft.capability_id.as_uuid(),
                 ),
@@ -472,6 +479,7 @@ impl ArtifactRepository for SurrealArtifactRepository {
             )
             .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
             actor: RepositoryActor {
+                audit: capability.audit.0,
                 tenant,
                 principal: PrincipalId::new(capability.actor_key)
                     .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
@@ -543,55 +551,35 @@ impl ArtifactRepository for SurrealArtifactRepository {
     async fn redeem_share_link(
         &self,
         token_hash: &str,
-    ) -> Result<Option<ArtifactId>, RepositoryError> {
+    ) -> Result<Option<ShareRedemption>, RepositoryError> {
         self.store
             .redeem_public_share_link(token_hash)
             .await
             .map_err(repository_error)?
             .map(|redemption| {
-                ArtifactId::parse(redemption.artifact_id.to_string())
-                    .map_err(|error| RepositoryError::Corrupt(error.to_string()))
+                Ok(ShareRedemption {
+                    artifact_id: ArtifactId::parse(redemption.artifact_id.to_string())
+                        .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
+                    link_id: ArtifactShareLinkId::parse(
+                        record_uuid(&redemption.link.id)?.to_string(),
+                    )
+                    .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
+                })
             })
             .transpose()
     }
 
-    async fn append_audit(&self, event: ArtifactAuditEvent) -> Result<(), RepositoryError> {
-        let identity = match &event.actor {
-            Some(actor) => Some(self.identity(actor).await?),
-            None => match &event.tenant {
-                Some(tenant) => Some(
-                    self.store
-                        .ensure_identity(
-                            tenant.as_str(),
-                            "artifact-public-reader",
-                            "veoveo-artifact-service",
-                            "public-share",
-                            platform::PrincipalKind::Service,
-                        )
-                        .await
-                        .map_err(repository_error)?,
-                ),
-                None => None,
-            },
-        };
-        self.store
-            .append_artifact_audit(platform::ArtifactAuditDraft {
-                tenant: identity.as_ref().map(|identity| identity.tenant_id),
-                actor: event
-                    .actor
-                    .as_ref()
-                    .and_then(|_| identity.as_ref().map(|identity| identity.principal_id)),
-                action: event.action,
-                resource_id: event.artifact_id.map(|id| id.to_string()),
-                outcome: match event.outcome {
-                    AuditOutcome::Allowed => platform::AuditOutcome::Allowed,
-                    AuditOutcome::Denied => platform::AuditOutcome::Denied,
-                    AuditOutcome::Failed => platform::AuditOutcome::Failed,
-                },
-                details: event.details.into_iter().collect(),
-            })
+    async fn append_audit(
+        &self,
+        event: veoveo_mcp_contract::audit::AuditDraft,
+    ) -> Result<(), RepositoryError> {
+        self.audit
+            .record(event)
             .await
-            .map_err(repository_error)
+            .map_err(|error| RepositoryError::Backend(error.to_string()))
+    }
+    async fn complete_audit(&self, event: veoveo_mcp_contract::audit::AuditDraft) {
+        self.audit.record_completion(event).await;
     }
 
     async fn create_or_reopen_access_request(

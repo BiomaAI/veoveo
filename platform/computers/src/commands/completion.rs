@@ -135,7 +135,7 @@ impl ComputersStore {
                     .into_value(),
                 ),
             ],
-            "computer.execution_completed",
+            crate::audit::ExecutionTransition::Completed,
         )
         .await?;
         self.command_for_claim(claim).await

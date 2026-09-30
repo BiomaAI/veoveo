@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+mod audit;
 
 use anyhow::{Context, Result};
 use serde::Serialize;
@@ -89,11 +90,26 @@ impl GatewayControlStore {
             .context("failed to read the active gateway control-plane revision")
     }
 
-    pub async fn record_revision(&self, revision: &GatewayControlPlaneRevision) -> Result<()> {
+    pub async fn record_revision(
+        &self,
+        revision: &GatewayControlPlaneRevision,
+        context: &veoveo_audit_contract::AuditContext,
+    ) -> Result<()> {
         revision
             .control_plane
             .validate()
             .context("refusing to persist invalid gateway control plane")?;
+        let previous = self.load_active_revision().await?;
+        let expected = previous.as_ref().map(|revision| {
+            RecordId::new("gateway_control_revision", revision.revision_id.as_str())
+        });
+        let changes = audit::changes(
+            previous.as_ref().map_or(&[], |revision| {
+                revision.control_plane.work_contexts.as_slice()
+            }),
+            &revision.control_plane.work_contexts,
+            context,
+        )?;
         let revision_record =
             RecordId::new("gateway_control_revision", revision.revision_id.as_str());
         let revision_content = GatewayControlRevisionContent {
@@ -158,6 +174,8 @@ impl GatewayControlStore {
             .query(
                 r#"
                 BEGIN TRANSACTION;
+                LET $head = (SELECT * FROM ONLY gateway_control_active:current FOR UPDATE);
+                IF $head.revision != $expected { THROW 'control_plane_revision_changed'; };
                 CREATE ONLY $revision_record CONTENT $revision;
                 FOR $object IN $objects {
                     CREATE gateway_control_object CONTENT $object;
@@ -180,10 +198,13 @@ impl GatewayControlStore {
                     updated_at: $applied_at
                 };
                 CREATE outbox_event CONTENT $outbox;
+                fn::append_audit($audit_rows);
                 COMMIT TRANSACTION;
                 "#,
             )
             .bind(("revision_record", revision_record))
+            .bind(("expected", expected))
+            .bind(changes.into_binding())
             .bind(("revision", revision_content))
             .bind(("revision_id", revision.revision_id.as_str()))
             .bind(("applied_at", revision.applied_at))

@@ -338,7 +338,7 @@ pub struct DataRetentionPolicy {
     pub artifact_metadata_days: u32,
     pub artifact_bytes_days: u32,
     pub usage_analytics_days: u32,
-    pub audit_event_days: u32,
+    pub audit_days: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
@@ -624,7 +624,7 @@ impl DataRetentionPolicy {
             ("artifact_metadata_days", self.artifact_metadata_days),
             ("artifact_bytes_days", self.artifact_bytes_days),
             ("usage_analytics_days", self.usage_analytics_days),
-            ("audit_event_days", self.audit_event_days),
+            ("audit_days", self.audit_days),
         ] {
             if days == 0 {
                 bail!("deployment profile `{profile}` retention `{name}` must be greater than 0");

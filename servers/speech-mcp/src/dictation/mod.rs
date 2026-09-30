@@ -1,5 +1,8 @@
 //! Ephemeral human drafts; audio and text never enter a chat or durable Task here.
+mod audit;
 mod session;
+use veoveo_audit::AuditWriter;
+use veoveo_mcp_contract::audit::{AuditContext, AuditReason};
 
 use crate::{
     process::WorkerProcess,
@@ -20,6 +23,9 @@ pub struct Dictations {
     sessions: Mutex<HashMap<DictationSessionId, Arc<Session>>>,
     slots: Arc<Semaphore>,
     worker: Arc<WorkerProcess>,
+    audit: AuditWriter,
+    stop: tokio_util::sync::CancellationToken,
+    workers: tokio_util::task::TaskTracker,
 }
 
 struct Session {
@@ -35,9 +41,11 @@ enum Command {
         reply: oneshot::Sender<Result<()>>,
     },
     Finish {
+        audit: AuditContext,
         reply: oneshot::Sender<Result<()>>,
     },
     Cancel {
+        audit: AuditContext,
         reply: oneshot::Sender<Result<()>>,
     },
 }
@@ -53,7 +61,7 @@ fn human(identity: &GatewayInternalIdentity) -> Result<()> {
                 .request_context
                 .as_ref()
                 .is_some_and(|context| context.access_token.session_family.is_some()),
-        "dictation requires an active human browser session"
+        Rejection(AuditReason::PolicyDenied)
     );
     Ok(())
 }
@@ -76,11 +84,14 @@ fn same_owner(owner: &GatewayInternalIdentity, caller: &GatewayInternalIdentity)
 }
 
 impl Dictations {
-    pub fn new(worker: Arc<WorkerProcess>, capacity: usize) -> Arc<Self> {
+    pub fn new(worker: Arc<WorkerProcess>, capacity: usize, audit: AuditWriter) -> Arc<Self> {
         Arc::new(Self {
             sessions: Mutex::new(HashMap::new()),
             slots: Arc::new(Semaphore::new(capacity)),
             worker,
+            audit,
+            stop: tokio_util::sync::CancellationToken::new(),
+            workers: tokio_util::task::TaskTracker::new(),
         })
     }
 
@@ -89,28 +100,52 @@ impl Dictations {
         caller: GatewayInternalIdentity,
         request: StartDictation,
     ) -> Result<DictationSnapshot> {
+        let context = caller.clone();
+        let id = request.id;
+        let result = self.start_session(caller, request).await;
+        if let Err(error) = &result
+            && let Some(reason) = error.downcast_ref::<Rejection>()
+        {
+            audit::denial(&self.audit, &context, id, reason.0).await?;
+        }
+        result
+    }
+
+    async fn start_session(
+        self: &Arc<Self>,
+        caller: GatewayInternalIdentity,
+        request: StartDictation,
+    ) -> Result<DictationSnapshot> {
         human(&caller)?;
         ensure!(
             (8000..=48000).contains(&request.sample_rate),
-            "invalid dictation parameters"
+            Rejection(AuditReason::InvalidRequest)
         );
         let mut sessions = self.sessions.lock().await;
+        ensure!(
+            !self.stop.is_cancelled(),
+            Rejection(AuditReason::Unavailable)
+        );
         if let Some(session) = sessions.get(&request.id) {
             ensure!(
                 same_owner(&session.owner, &caller) && session.sample_rate == request.sample_rate,
-                "unknown dictation"
+                Rejection(AuditReason::NotFound)
             );
             return Ok(session.snapshot.borrow().clone());
         }
-        ensure!(sessions.len() < 64, "dictation receipts at capacity");
+        ensure!(sessions.len() < 64, Rejection(AuditReason::QuotaExceeded));
         ensure!(
             !sessions
                 .values()
                 .any(|session| same_owner(&session.owner, &caller)
                     && !session.snapshot.borrow().status.terminal()),
-            "a dictation is already active"
+            Rejection(AuditReason::Conflict)
         );
-        let slot = self.slots.clone().try_acquire_owned()?;
+        let slot = self
+            .slots
+            .clone()
+            .try_acquire_owned()
+            .map_err(|_| Rejection(AuditReason::QuotaExceeded))?;
         let mut connection = WorkerConnection::connect(
             self.worker.socket(),
             &WorkerRequest::Live {
@@ -126,6 +161,9 @@ impl Dictations {
             ),
             "dictation capacity unavailable"
         );
+        let session_audit =
+            audit::SessionAudit::open(self.audit.clone(), &caller, request.id, request.sample_rate)
+                .await?;
         let snapshot = DictationSnapshot::new(request.id);
         let (updates, receiver) = watch::channel(snapshot.clone());
         let (commands, input) = mpsc::channel(2);
@@ -138,12 +176,14 @@ impl Dictations {
                 snapshot: receiver,
             }),
         );
-        tokio::spawn(session::run(
+        self.workers.spawn(session::run(
             connection,
             input,
             updates,
             request.sample_rate,
             slot,
+            session_audit,
+            self.stop.child_token(),
         ));
         // Bounded receipt lifetime. The session loop independently closes idle audio
         // after ten seconds; this timer performs no inference or provider query.
@@ -157,18 +197,40 @@ impl Dictations {
         Ok(snapshot)
     }
 
+    pub async fn shutdown(&self) -> Result<()> {
+        // Admission holds this lock until its session task is registered.
+        let mut sessions = self.sessions.lock().await;
+        self.stop.cancel();
+        sessions.clear();
+        self.workers.close();
+        drop(sessions);
+        tokio::time::timeout(Duration::from_secs(20), self.workers.wait()).await?;
+        Ok(())
+    }
+
     async fn authorized(
         &self,
         caller: &GatewayInternalIdentity,
         id: DictationSessionId,
     ) -> Result<Arc<Session>> {
-        human(caller)?;
-        let sessions = self.sessions.lock().await;
-        let session = sessions
-            .get(&id)
-            .ok_or_else(|| anyhow::anyhow!("dictation expired"))?;
-        ensure!(same_owner(&session.owner, caller), "unknown dictation");
-        Ok(session.clone())
+        let result = async {
+            human(caller)?;
+            let sessions = self.sessions.lock().await;
+            let session = sessions.get(&id).ok_or(Rejection(AuditReason::NotFound))?;
+            ensure!(
+                same_owner(&session.owner, caller),
+                Rejection(AuditReason::NotFound)
+            );
+            Ok(session.clone())
+        }
+        .await;
+        if let Err(error) = &result {
+            let reason = error
+                .downcast_ref::<Rejection>()
+                .map_or(AuditReason::PolicyDenied, |r| r.0);
+            audit::denial(&self.audit, caller, id, reason).await?;
+        }
+        result
     }
 
     pub async fn read(
@@ -188,7 +250,7 @@ impl Dictations {
     ) -> Result<DictationSnapshot> {
         let session = self.authorized(caller, id).await?;
         let (reply, received) = oneshot::channel();
-        tokio::time::timeout(Duration::from_secs(5), async {
+        let result = tokio::time::timeout(Duration::from_secs(5), async {
             session
                 .commands
                 .send(Command::Chunk {
@@ -199,7 +261,13 @@ impl Dictations {
                 .await?;
             received.await?
         })
-        .await??;
+        .await?;
+        if let Err(error) = &result
+            && let Some(reason) = error.downcast_ref::<Rejection>()
+        {
+            audit::denial(&self.audit, caller, id, reason.0).await?;
+        }
+        result?;
         Ok(session.snapshot.borrow().clone())
     }
 
@@ -218,9 +286,15 @@ impl Dictations {
             session
                 .commands
                 .send(if cancel {
-                    Command::Cancel { reply }
+                    Command::Cancel {
+                        reply,
+                        audit: caller.audit_context()?,
+                    }
                 } else {
-                    Command::Finish { reply }
+                    Command::Finish {
+                        reply,
+                        audit: caller.audit_context()?,
+                    }
                 })
                 .await?;
             received.await?
@@ -239,3 +313,12 @@ impl Dictations {
         .await?
     }
 }
+
+#[derive(Debug)]
+struct Rejection(AuditReason);
+impl std::fmt::Display for Rejection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "dictation request rejected: {:?}", self.0)
+    }
+}
+impl std::error::Error for Rejection {}

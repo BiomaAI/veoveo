@@ -203,14 +203,13 @@ mod setup_tests {
             FramesScope::try_from(&veoveo_types::ScopeName::new("external:read").unwrap()).is_err()
         );
         let capabilities = &setup.server_config().capabilities;
-        assert_eq!(
+        assert!(
             capabilities
                 .resources
                 .as_ref()
                 .unwrap()
                 .subscribe
-                .unwrap_or(false),
-            true
+                .unwrap_or(false)
         );
         assert!(
             !capabilities

@@ -38,6 +38,7 @@ async fn fixture(
         .actor
         .scopes
         .insert(veoveo_types::ScopeName::new("artifact:upload").unwrap());
+    bind_request_context(&mut identity);
     contract::VerifiedArtifactUploadIdentity {
         identity,
         authorization: contract::ArtifactUploadAuthority {
@@ -67,6 +68,7 @@ async fn upload_http_enforces_identity_and_streams_to_a_durable_receipt() {
             verified.identity.profile.clone(),
             verified.identity.actor.clone(),
             verified.identity.authority.clone(),
+            verified.identity.request_context.clone().unwrap(),
             verified.authorization.clone(),
             Utc::now() + TimeDelta::minutes(5),
         )
@@ -203,13 +205,18 @@ async fn upload_http_enforces_identity_and_streams_to_a_durable_receipt() {
             .byte_len,
         data.len() as u64
     );
-    let mut foreign = verified.identity.actor.clone();
-    foreign.id = veoveo_types::PrincipalId::new("another-person").unwrap();
+    let mut foreign = verified.identity.clone();
+    foreign.actor.id = veoveo_types::PrincipalId::new("another-person").unwrap();
+    foreign.authority.provenance = InvocationProvenance::Direct {
+        initiator: foreign.actor.id.clone(),
+    };
+    bind_request_context(&mut foreign);
     let foreign = issuer
         .issue_artifact_upload(
             verified.identity.profile.clone(),
-            foreign,
-            verified.identity.authority.clone(),
+            foreign.actor.clone(),
+            foreign.authority.clone(),
+            foreign.request_context.clone().unwrap(),
             verified.authorization.clone(),
             Utc::now() + TimeDelta::minutes(5),
         )
@@ -531,4 +538,42 @@ async fn dropped_upload_request_releases_memory_and_cancellation_recovers_physic
     recovery.abort();
     let _ = recovery.await;
     database.finish();
+}
+
+#[tokio::test]
+#[ignore = "requires VEOVEO_SURREAL_BINARY; owns an isolated SurrealDB 3.3.0 process"]
+async fn upload_ownership_filters_foreign_malformed_rows_before_decoding() {
+    tokio::time::timeout(Duration::from_secs(90), async {
+        let mut database = Database::start();
+        let store = database.connect().await;
+        let actor = caller("alice", "acme", &[]);
+        let verified = fixture(&store, &actor).await;
+        let service = UploadService::new(store.clone(),
+            ArtifactObjectStore::with_multipart(Arc::new(object_store::memory::InMemory::new())));
+        let (session, _) = service.create(&verified, contract::ArtifactUploadRequestId::new(), descriptor(1)).await.unwrap();
+        service.status(&verified, session.upload_id, 0).await.unwrap();
+        store.client()
+            .query("DEFINE FIELD OVERWRITE state ON artifact_upload TYPE string; UPDATE $upload SET state = 'invalid-state' RETURN NONE;")
+            .bind(("upload", platform::upload_record_id(session.upload_id.as_uuid())))
+            .await.unwrap().check().unwrap();
+        for field in ["tenant", "actor", "profile", "context", "issuer", "subject", "missing_tenant"] {
+            let mut foreign = verified.clone();
+            match field {
+                "tenant" => foreign.identity.actor.tenant = Some(veoveo_types::TenantId::new("other-tenant").unwrap()),
+                "actor" => foreign.identity.actor.id = veoveo_types::PrincipalId::new("other-actor").unwrap(),
+                "profile" => foreign.identity.profile = veoveo_types::GatewayProfileId::new("other-profile").unwrap(),
+                "context" => foreign.identity.authority.work_context = veoveo_types::WorkContextId::new("other-context").unwrap(),
+                "issuer" => foreign.identity.actor.issuer = veoveo_types::TokenIssuer::new("https://other.example").unwrap(),
+                "subject" => foreign.identity.actor.subject = veoveo_types::TokenSubject::new("other-subject").unwrap(),
+                "missing_tenant" => foreign.identity.actor.tenant = None,
+                _ => unreachable!(),
+            }
+            let result = service.status(&foreign, session.upload_id, 0).await;
+            assert!(matches!(result, Err(crate::uploads::UploadFault(contract::UploadErrorCode::NotFound))), "foreign {field}: {result:?}");
+        }
+        // A malformed owned row must still fail; the test must not mask corruption.
+        assert!(matches!(service.status(&verified, session.upload_id, 0).await,
+            Err(crate::uploads::UploadFault(contract::UploadErrorCode::Unavailable))));
+        database.finish();
+    }).await.expect("upload ownership qualification exceeded 90 seconds");
 }

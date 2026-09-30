@@ -84,8 +84,8 @@ pub use deployment::{
 pub use gateway::{
     APP_RESOURCE_DEPENDENCIES_META_KEY, APP_TOOL_DEPENDENCIES_META_KEY, AccessTokenSubject,
     AppResourceDependency, AppResourceOperation, AppToolDependency, AppToolImport,
-    ArtifactAudience, AuditEvent, AuthAuditEvent, AuthMethod, AuthMode, AuthOutcome,
-    AuthReasonCode, AuthorizationServerEndpoint, AuthorizationServerId, CanonicalTaskId,
+    ArtifactAudience, AuthMethod, AuthMode, AuthOutcome, AuthReasonCode,
+    AuthorizationServerEndpoint, AuthorizationServerId, CanonicalTaskId,
     CertificateAuthorityFilePath, CertificateAuthoritySource, CompatibilityHelperId,
     CompletionExposure, ConsoleBootstrap, ConsoleInstallation, ConsoleSession, ConsoleTenant,
     DataLabelDefinition, DiscoveryFailureMode, Exposure, GatewayAction,
@@ -158,3 +158,8 @@ pub use uri::{
 pub use usage::{UsageKind, UsageRecord, UsageReport};
 pub use waiters::WebhookWaiters;
 pub use work_context::{WorkContextDefinition, WorkContextMembershipRule};
+
+/// Unified platform audit contract, also used by non-MCP producers.
+pub mod audit {
+    pub use veoveo_audit_contract::*;
+}

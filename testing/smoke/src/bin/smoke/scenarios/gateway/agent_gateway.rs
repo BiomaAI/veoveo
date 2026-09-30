@@ -94,7 +94,11 @@ pub(crate) async fn agent_gateway(
         &gateway_log,
     )?;
     wait_for_http(&format!("{gateway_base}/healthz")).await?;
-    assert_ready_profiles(&gateway_base, 2).await?;
+    assert_ready_profiles(
+        &gateway_base,
+        fixture_profile_count(&generated_control_plane)?,
+    )
+    .await?;
 
     let token_a = gateway_token_for_profile(
         conformance,

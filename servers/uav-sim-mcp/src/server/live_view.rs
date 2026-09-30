@@ -14,6 +14,7 @@ use crate::contract::{
     LiveViewHardwareEncoder, LiveViewId, LiveViewLifecycle, LiveViewOwner, LiveViewState,
     LiveViewUri,
 };
+use veoveo_mcp_contract::audit::{AuditContext, AuditOutcome, AuditReason, LiveViewActivity};
 use veoveo_types::PrincipalId;
 
 use crate::{
@@ -28,6 +29,7 @@ use crate::{
 #[derive(Debug, Clone)]
 struct ViewerSession {
     state: LiveViewState,
+    audit_context: AuditContext,
     token_hash: [u8; 32],
     generation: u64,
     events: watch::Sender<ViewerSignal>,
@@ -62,6 +64,8 @@ pub(super) struct LiveViewService {
     audit: Option<Arc<LiveViewAudit>>,
     config: LiveViewConfig,
     state: Mutex<LiveViewStateStore>,
+    stop: tokio_util::sync::CancellationToken,
+    workers: tokio_util::task::TaskTracker,
 }
 
 impl LiveViewService {
@@ -103,16 +107,23 @@ impl LiveViewService {
             state: Mutex::new(LiveViewStateStore {
                 sessions: BTreeMap::new(),
             }),
+            stop: tokio_util::sync::CancellationToken::new(),
+            workers: tokio_util::task::TaskTracker::new(),
         }))
     }
 
     pub(super) async fn open(
         self: &Arc<Self>,
         owner: LiveViewOwner,
-        viewer_actor: PrincipalId,
+        audit_context: AuditContext,
         request: OpenLiveViewRequest,
     ) -> Result<LiveViewConnection, LiveViewError> {
+        validate_audit_owner(&audit_context, &owner)?;
+        let viewer_actor = audit_context.actor.principal.clone();
         let mut state = self.state.lock().await;
+        if self.stop.is_cancelled() {
+            return Err(LiveViewError::Audit);
+        }
         if let Some(existing_id) = state.sessions.iter().find_map(|(id, session)| {
             (active(&session.state)
                 && session.state.owner == owner
@@ -121,14 +132,14 @@ impl LiveViewService {
                 && session.state.camera_id == request.camera_id)
                 .then(|| id.clone())
         }) {
-            let connection = rotate(
-                &self.config,
-                state
-                    .sessions
-                    .get_mut(&existing_id)
-                    .expect("session exists"),
-            )?;
-            let generation = state.sessions[&existing_id].generation;
+            let mut candidate = state.sessions[&existing_id].clone();
+            candidate.audit_context = audit_context;
+            let connection = rotate(&self.config, &mut candidate)?;
+            self.record_required(&candidate, LiveViewActivity::Renew)
+                .await?;
+            let generation = candidate.generation;
+            let _ = candidate.events.send(signal(&candidate.state));
+            state.sessions.insert(existing_id.clone(), candidate);
             drop(state);
             self.arm_expiry(existing_id, generation, connection.stream.expires_at);
             return Ok(connection);
@@ -216,15 +227,16 @@ impl LiveViewService {
         };
         stream.validate().map_err(|_| LiveViewError::Contract)?;
         let (events, _) = watch::channel(signal(&stream));
-        state.sessions.insert(
-            live_view_id.clone(),
-            ViewerSession {
-                state: stream.clone(),
-                token_hash: token_hash(&token),
-                generation: 1,
-                events,
-            },
-        );
+        let candidate = ViewerSession {
+            state: stream.clone(),
+            audit_context,
+            token_hash: token_hash(&token),
+            generation: 1,
+            events,
+        };
+        self.record_required(&candidate, LiveViewActivity::Issue)
+            .await?;
+        state.sessions.insert(live_view_id.clone(), candidate);
         drop(state);
         self.arm_expiry(live_view_id, 1, expires_at);
         Ok(LiveViewConnection {
@@ -236,10 +248,15 @@ impl LiveViewService {
     pub(super) async fn renew(
         self: &Arc<Self>,
         owner: &LiveViewOwner,
-        viewer_actor: &PrincipalId,
+        audit_context: &AuditContext,
         request: RenewLiveViewRequest,
     ) -> Result<LiveViewConnection, LiveViewError> {
+        validate_audit_owner(audit_context, owner)?;
+        let viewer_actor = &audit_context.actor.principal;
         let mut state = self.state.lock().await;
+        if self.stop.is_cancelled() {
+            return Err(LiveViewError::Audit);
+        }
         let session = state
             .sessions
             .get_mut(&request.live_view_id)
@@ -255,10 +272,21 @@ impl LiveViewService {
         }
         if session.state.owner != *owner {
             close_session(session);
+            let mut revoked = session.clone();
+            revoked.audit_context = audit_context.clone();
+            drop(state);
+            self.record_completion(&revoked, LiveViewActivity::Revoke)
+                .await;
             return Err(LiveViewError::AuthorityRevoked);
         }
-        let connection = rotate(&self.config, session)?;
-        let generation = session.generation;
+        let mut candidate = session.clone();
+        candidate.audit_context = audit_context.clone();
+        let connection = rotate(&self.config, &mut candidate)?;
+        self.record_required(&candidate, LiveViewActivity::Renew)
+            .await?;
+        let generation = candidate.generation;
+        let _ = candidate.events.send(signal(&candidate.state));
+        *session = candidate;
         drop(state);
         self.arm_expiry(
             request.live_view_id,
@@ -271,9 +299,11 @@ impl LiveViewService {
     pub(super) async fn close(
         self: &Arc<Self>,
         owner: &LiveViewOwner,
-        viewer_actor: &PrincipalId,
+        audit_context: &AuditContext,
         request: CloseLiveViewRequest,
     ) -> Result<CloseLiveViewResult, LiveViewError> {
+        validate_audit_owner(audit_context, owner)?;
+        let viewer_actor = &audit_context.actor.principal;
         let mut state = self.state.lock().await;
         let session = state
             .sessions
@@ -282,7 +312,18 @@ impl LiveViewService {
             .ok_or_else(|| LiveViewError::ViewNotFound(request.live_view_id.clone()))?;
         authorize_owner(session, owner, viewer_actor, &request.viewer_instance_id)?;
         let resource_uri = session.state.resource_uri.as_str().to_owned();
+        if session.state.lifecycle == LiveViewLifecycle::Closed {
+            return Ok(CloseLiveViewResult {
+                resource_uri,
+                closed: true,
+            });
+        }
         close_session(session);
+        let mut closed = session.clone();
+        closed.audit_context = audit_context.clone();
+        drop(state);
+        self.record_completion(&closed, LiveViewActivity::Close)
+            .await;
         Ok(CloseLiveViewResult {
             resource_uri,
             closed: true,
@@ -414,6 +455,43 @@ impl LiveViewService {
         }
     }
 
+    async fn record_required(
+        &self,
+        session: &ViewerSession,
+        activity: LiveViewActivity,
+    ) -> Result<(), LiveViewError> {
+        if let Some(audit) = &self.audit {
+            let draft = LiveViewAudit::draft(
+                &session.audit_context,
+                crate::uris::live_view(&session.state.session_id, &session.state.live_view_id),
+                activity,
+                AuditOutcome::Succeeded,
+                AuditReason::Accepted,
+            )
+            .map_err(|_| LiveViewError::Audit)?;
+            audit
+                .required(draft)
+                .await
+                .map_err(|_| LiveViewError::Audit)?;
+        }
+        Ok(())
+    }
+
+    async fn record_completion(&self, session: &ViewerSession, activity: LiveViewActivity) {
+        if let Some(audit) = &self.audit {
+            // The same identity and typed URI already passed required issuance.
+            let draft = LiveViewAudit::draft(
+                &session.audit_context,
+                crate::uris::live_view(&session.state.session_id, &session.state.live_view_id),
+                activity,
+                AuditOutcome::Succeeded,
+                AuditReason::Accepted,
+            )
+            .expect("issued live view has validated audit attribution");
+            audit.completion(draft).await;
+        }
+    }
+
     fn arm_expiry(
         self: &Arc<Self>,
         live_view_id: LiveViewId,
@@ -421,33 +499,59 @@ impl LiveViewService {
         expires_at: DateTime<Utc>,
     ) {
         let service = self.clone();
-        tokio::spawn(async move {
+        self.workers.spawn(async move {
             let wait = (expires_at - Utc::now()).to_std().unwrap_or_default();
-            tokio::time::sleep(wait).await;
+            tokio::select! { _ = tokio::time::sleep(wait) => {}, _ = service.stop.cancelled() => return }
             let mut state = service.state.lock().await;
             let Some(session) = state.sessions.get_mut(&live_view_id) else {
                 return;
             };
-            if session.generation != generation || session.state.expires_at > Utc::now() {
+            if session.generation != generation || session.state.expires_at > Utc::now()
+                || session.state.lifecycle == LiveViewLifecycle::Closed {
                 return;
             }
             close_session(session);
-            let expired = session.state.clone();
+            let expired = session.clone();
             drop(state);
-            if let Some(audit) = &service.audit
-                && let Err(error) = audit
-                    .append_authorization(
-                        &expired,
-                        "expired",
-                        veoveo_platform_store::AuditOutcome::Allowed,
-                        BTreeMap::new(),
-                    )
-                    .await
-            {
-                tracing::error!(%error, live_view_id = %expired.live_view_id, "failed to persist live-view expiry audit");
-            }
+            service
+                .record_completion(&expired, LiveViewActivity::Expire)
+                .await;
         });
     }
+
+    /// HTTP and stream admission must stop before the session drain.
+    pub(super) async fn shutdown(&self) -> anyhow::Result<()> {
+        self.stop.cancel();
+        self.workers.close();
+        tokio::time::timeout(Duration::from_secs(20), async {
+            self.workers.wait().await;
+            let mut state = self.state.lock().await;
+            let sessions = std::mem::take(&mut state.sessions);
+            drop(state);
+            for mut session in sessions.into_values() {
+                if session.state.lifecycle != LiveViewLifecycle::Closed {
+                    close_session(&mut session);
+                    self.record_completion(&session, LiveViewActivity::Close)
+                        .await;
+                }
+            }
+        })
+        .await?;
+        Ok(())
+    }
+}
+
+fn validate_audit_owner(
+    context: &AuditContext,
+    owner: &LiveViewOwner,
+) -> Result<(), LiveViewError> {
+    if context.actor.tenant.as_ref() != Some(&owner.tenant)
+        || context.authority.work_context.as_ref() != Some(&owner.work_context)
+        || context.authority.policy_revision.as_ref() != Some(&owner.policy_revision)
+    {
+        return Err(LiveViewError::Ownership);
+    }
+    Ok(())
 }
 
 fn authorize_owner(
@@ -518,7 +622,6 @@ fn rotate(
     session.token_hash = token_hash(&token);
     session.state.expires_at = expiry(Utc::now(), config.session_duration)?;
     session.generation = session.generation.saturating_add(1);
-    let _ = session.events.send(signal(&session.state));
     Ok(LiveViewConnection {
         stream: session.state.clone(),
         access_token: token,
@@ -549,6 +652,8 @@ fn expiry(now: DateTime<Utc>, duration: Duration) -> Result<DateTime<Utc>, LiveV
 
 #[derive(Debug, thiserror::Error)]
 pub(super) enum LiveViewError {
+    #[error("required live-view audit commit unavailable")]
+    Audit,
     #[error("simulation session {0} was not found")]
     SessionNotFound(LiveSessionId),
     #[error("live camera {0} was not found")]
@@ -576,25 +681,20 @@ pub(super) enum LiveViewError {
 }
 
 impl LiveViewError {
-    pub(super) fn code(&self) -> &'static str {
+    pub(super) fn audit_reason(&self) -> AuditReason {
         match self {
-            Self::SessionNotFound(_) => "session_not_found",
-            Self::CameraNotFound(_) => "camera_not_found",
-            Self::ViewNotFound(_) => "view_not_found",
-            Self::CameraUnavailable => "camera_unavailable",
-            Self::ViewUnavailable => "view_unavailable",
-            Self::Ownership => "ownership_mismatch",
-            Self::AuthorityRevoked => "viewer_authority_revoked",
-            Self::Access => "access_denied",
-            Self::Identifier => "invalid_identifier",
-            Self::Contract => "invalid_contract",
-            Self::Time => "time_overflow",
-            Self::Runtime(_) => "stream_state_failed",
+            Self::SessionNotFound(_) | Self::CameraNotFound(_) | Self::ViewNotFound(_) => {
+                AuditReason::NotFound
+            }
+            Self::Ownership | Self::Access => AuditReason::PolicyDenied,
+            Self::AuthorityRevoked => AuditReason::Revoked,
+            Self::CameraUnavailable | Self::ViewUnavailable | Self::Audit => {
+                AuditReason::Unavailable
+            }
+            Self::Identifier | Self::Contract | Self::Time | Self::Runtime(_) => {
+                AuditReason::InternalFailure
+            }
         }
-    }
-
-    pub(super) fn audit_details(&self) -> BTreeMap<String, serde_json::Value> {
-        BTreeMap::new()
     }
 }
 
@@ -617,6 +717,31 @@ mod tests {
             data_labels: [DataLabelId::new("simulation").unwrap()]
                 .into_iter()
                 .collect(),
+        }
+    }
+
+    fn audit_context(principal: PrincipalId) -> AuditContext {
+        use veoveo_mcp_contract::audit::{
+            AuditActor, AuditAuthority, AuditPrincipalKind, AuditRequest,
+        };
+        let owner = owner();
+        AuditContext {
+            actor: AuditActor {
+                principal,
+                kind: AuditPrincipalKind::User,
+                tenant: Some(owner.tenant),
+                oauth_client: None,
+                session_family: None,
+                delegating_principal: None,
+                managed_agent: None,
+            },
+            authority: AuditAuthority {
+                work_context: Some(owner.work_context),
+                policy_revision: Some(owner.policy_revision),
+                data_labels: owner.data_labels,
+                ..Default::default()
+            },
+            request: AuditRequest::background(),
         }
     }
 
@@ -653,7 +778,7 @@ mod tests {
                 service
                     .open(
                         owner(),
-                        PrincipalId::new(format!("viewer-{index}")).unwrap(),
+                        audit_context(PrincipalId::new(format!("viewer-{index}")).unwrap()),
                         request(&format!("browser-{index}")),
                     )
                     .await
@@ -689,14 +814,22 @@ mod tests {
             let other = PrincipalId::new("bob").unwrap();
             for i in 0..102 {
                 service
-                    .open(owner(), other.clone(), request(&format!("other-{i}")))
+                    .open(
+                        owner(),
+                        audit_context(other.clone()),
+                        request(&format!("other-{i}")),
+                    )
                     .await
                     .unwrap();
             }
             let mut expected = std::collections::BTreeSet::new();
             for i in 0..102 {
                 let connection = service
-                    .open(owner(), actor.clone(), request(&format!("own-{i}")))
+                    .open(
+                        owner(),
+                        audit_context(actor.clone()),
+                        request(&format!("own-{i}")),
+                    )
                     .await
                     .unwrap();
                 expected.insert(connection.stream.live_view_id);
@@ -761,17 +894,17 @@ mod tests {
         let (service, adapter) = service().await;
         let actor = PrincipalId::new("alice").unwrap();
         let first = service
-            .open(owner(), actor.clone(), request("browser-a"))
+            .open(owner(), audit_context(actor.clone()), request("browser-a"))
             .await
             .unwrap();
         let second = service
-            .open(owner(), actor.clone(), request("browser-b"))
+            .open(owner(), audit_context(actor.clone()), request("browser-b"))
             .await
             .unwrap();
         service
             .close(
                 &owner(),
-                &actor,
+                &audit_context(actor.clone()),
                 CloseLiveViewRequest {
                     session_id: first.stream.session_id,
                     live_view_id: first.stream.live_view_id,
@@ -800,7 +933,7 @@ mod tests {
         let (service, adapter) = service().await;
         let actor = PrincipalId::new("alice").unwrap();
         let opened = service
-            .open(owner(), actor, request("browser-a"))
+            .open(owner(), audit_context(actor), request("browser-a"))
             .await
             .unwrap();
         service

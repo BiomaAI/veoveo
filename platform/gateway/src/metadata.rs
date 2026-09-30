@@ -8,7 +8,7 @@ use veoveo_mcp_contract::{
     AuthMode, AuthorizationServerId, GatewayProfile, GatewayProfileId, JwksSource,
     OAuthClientAuthMethod, OAuthGrantType,
 };
-use veoveo_types::ScopeName;
+use veoveo_types::{ScopeDefinition, ScopeName};
 
 use crate::GatewayCatalog;
 
@@ -330,6 +330,9 @@ impl GatewayCatalog {
             .iter()
             .cloned()
             .collect::<BTreeSet<_>>();
+        // The gateway hosts the audit API for each profile. Client registrations
+        // still control who can obtain this domain-owned optional scope.
+        scopes.insert(veoveo_audit_contract::AuditScope::Read.name().clone());
         if let Some(policy) = self.policy(&profile.policy_version) {
             for rule in &policy.rules {
                 if (rule.protected_resources.is_empty()

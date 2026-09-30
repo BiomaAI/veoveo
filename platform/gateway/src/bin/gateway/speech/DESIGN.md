@@ -12,8 +12,10 @@ assertion and catalog-scoped upstream TLS pool.
 Routes fix the server to `speech`. Start and chunks require `start_dictation` policy;
 finish and cancel require their matching tools. Receipt reads require the exact
 `speech://dictation/{id}` resource. The current actor must be a human Contributor
-with a browser session family. Each chunk receives a fresh policy decision, audit
-record and assertion. The domain binds the receipt to that actor and session.
+with a browser session family. Each chunk receives a fresh policy decision and
+assertion. The gateway records each denial; Speech records session admission and
+one terminal summary with chunk and duration counts. Allowed chunks produce no
+individual audit rows. The domain binds the receipt to that actor and session.
 
 HTTP route admission uses Speech's `DictationSessionId`. Receipt policy targets use
 its `DictationUri` builder. Responses decode the same owner contract, which requires

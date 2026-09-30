@@ -1,4 +1,6 @@
+use veoveo_mcp_contract::audit::AdministrativeOperation;
 mod artifact;
+pub(crate) mod audit;
 mod health;
 mod projection;
 mod stream;
@@ -23,13 +25,12 @@ pub(crate) use artifact::read_console_artifact;
 pub(crate) use health::{ServerHealthMonitor, spawn_server_health_prober};
 use projection::{
     AgentSummary, ArtifactAccessContext, ArtifactGrantSummary, ArtifactShareLinkSummary,
-    ArtifactSummary, AuditSummary, PolicySummary, PrincipalSummary, RecordingSummary,
-    ServerSummary, TaskSummary,
+    ArtifactSummary, PolicySummary, PrincipalSummary, RecordingSummary, ServerSummary, TaskSummary,
 };
 use projection::{
-    Projection, agent_summary, artifact_grant_summary, artifact_summary, audit_summary,
-    load_projection, principal_summary, record_key, recording_summary, server_summary,
-    share_link_summary, task_summary,
+    Projection, agent_summary, artifact_grant_summary, artifact_summary, load_projection,
+    principal_summary, record_key, recording_summary, server_summary, share_link_summary,
+    task_summary,
 };
 pub(crate) use stream::{ConsoleStreamRuntime, spawn_console_wake_hub, stream_console};
 
@@ -55,8 +56,7 @@ pub(crate) async fn authorize_console_cluster(
         &profile_id,
         subject,
         GatewayAction::AdminRead,
-        "admin/console/cluster",
-        BTreeMap::new(),
+        AdministrativeOperation::ConsoleCluster,
         started_at,
     )
     .await
@@ -80,8 +80,7 @@ pub(crate) async fn read_console_snapshot(
         &profile_id,
         subject,
         GatewayAction::AdminRead,
-        "admin/console/snapshot",
-        BTreeMap::new(),
+        AdministrativeOperation::ConsoleSnapshot,
         started_at,
     )
     .await
@@ -152,7 +151,6 @@ struct ConsoleSnapshot {
     recordings: Vec<RecordingSummary>,
     servers: Vec<ServerSummary>,
     policies: Vec<PolicySummary>,
-    audit: Vec<AuditSummary>,
 }
 
 /// Console live-stream bootstrap: the changefeed cursor the browser passes
@@ -349,12 +347,6 @@ fn build_snapshot(
             updated_at,
         })
         .collect();
-    let audit = projection
-        .audit
-        .into_iter()
-        .map(|event| audit_summary(event, &principal_names))
-        .collect::<anyhow::Result<Vec<_>>>()?;
-
     let (installation, mut session) = presentation(control, subject, offline_mode)?;
     session.display_name = display_name;
     Ok(ConsoleSnapshot {
@@ -371,6 +363,5 @@ fn build_snapshot(
         recordings,
         servers,
         policies,
-        audit,
     })
 }

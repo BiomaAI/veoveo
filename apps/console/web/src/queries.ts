@@ -20,6 +20,7 @@ import type {
   InstallationSnapshot,
   ReleaseState,
   ShareLinkCreated,
+  TaskSummary,
 } from "./types";
 
 export const queryKeys = {
@@ -133,12 +134,12 @@ function patchArtifact(
 export function useCancelTask() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (taskId: string) => cancelTask(taskId),
-    onSuccess: (_result, taskId) => {
+    mutationFn: (task: Pick<TaskSummary, "server" | "id">) => cancelTask(task),
+    onSuccess: (_result, cancelled) => {
       patchSnapshot(client, (snapshot) => ({
         ...snapshot,
         tasks: snapshot.tasks.map((task) =>
-          task.id === taskId ? { ...task, state: "cancel_requested" as const } : task
+          task.id === cancelled.id && task.server === cancelled.server ? { ...task, state: "cancel_requested" as const } : task
         ),
       }));
     },

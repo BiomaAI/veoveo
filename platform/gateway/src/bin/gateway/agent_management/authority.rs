@@ -1,5 +1,4 @@
 use std::{
-    collections::BTreeMap,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -55,16 +54,21 @@ pub(super) async fn admit(
     let profile =
         GatewayProfileId::new(profile).map_err(|_| Fault::status(StatusCode::NOT_FOUND))?;
     let started = Instant::now();
+    let audit_target = veoveo_mcp_contract::audit::AuditTarget::WorkContext {
+        tenant: subject.authority.tenant.clone(),
+        context: subject.authority.work_context.clone(),
+    };
     let (catalog, profile, subject) = authorize_gateway_action(
         &state.gateway,
         state.catalog.current(),
         &profile,
         subject,
         AdminAuthorizationRequest {
+            audit_target: Some(audit_target),
             action,
             target: PolicyTarget::Gateway,
-            method: "admin/agent-management",
-            metadata: BTreeMap::new(),
+            operation: crate::audit::agent_management_operation(action)
+                .map_err(|_| Fault::unavailable())?,
             started_at: started,
         },
     )

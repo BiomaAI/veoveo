@@ -3,13 +3,6 @@ use super::*;
 pub(crate) fn assert_control_plane_admin_result(
     value: &Value,
     expected_status: &str,
-) -> Result<String> {
-    assert_control_plane_admin_result_with_profiles(value, expected_status, 2)
-}
-
-pub(crate) fn assert_control_plane_admin_result_with_profiles(
-    value: &Value,
-    expected_status: &str,
     expected_profiles: u64,
 ) -> Result<String> {
     if value.get("status").and_then(Value::as_str) != Some(expected_status)
@@ -26,11 +19,7 @@ pub(crate) fn assert_control_plane_admin_result_with_profiles(
     Ok(revision_id.to_string())
 }
 
-pub(crate) fn assert_control_plane_status(value: &Value, expected_revision_id: &str) -> Result<()> {
-    assert_control_plane_status_with_profiles(value, expected_revision_id, 2)
-}
-
-pub(crate) fn assert_control_plane_status_with_profiles(
+pub(crate) fn assert_control_plane_status(
     value: &Value,
     expected_revision_id: &str,
     expected_profiles: u64,

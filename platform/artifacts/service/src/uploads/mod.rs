@@ -142,6 +142,10 @@ impl UploadService {
                     sha256: manifest.sha256.map(Into::into),
                 },
                 &row.policy_digest,
+                caller
+                    .identity
+                    .audit_context()
+                    .map_err(|_| contract::UploadErrorCode::Denied)?,
             )
             .await?;
         self.wake.notify_one();

@@ -27,8 +27,8 @@ async fn database_replay_crosses_unrelated_pages_and_keeps_whole_transactions() 
         .query(
             "DEFINE TABLE agent SCHEMAFULL CHANGEFEED 1h INCLUDE ORIGINAL;
          DEFINE FIELD lease ON agent TYPE datetime;
-         DEFINE TABLE audit_event SCHEMAFULL CHANGEFEED 1h INCLUDE ORIGINAL;
-         DEFINE FIELD ordinal ON audit_event TYPE int;",
+         DEFINE TABLE changefeed_noise_fixture SCHEMAFULL CHANGEFEED 1h INCLUDE ORIGINAL;
+         DEFINE FIELD ordinal ON changefeed_noise_fixture TYPE int;",
         )
         .await
         .unwrap()
@@ -39,7 +39,7 @@ async fn database_replay_crosses_unrelated_pages_and_keeps_whole_transactions() 
         store
             .client()
             .query(format!(
-                "CREATE audit_event:noise{ordinal} SET ordinal = {ordinal};"
+                "CREATE changefeed_noise_fixture:noise{ordinal} SET ordinal = {ordinal};"
             ))
             .await
             .unwrap()
@@ -51,7 +51,7 @@ async fn database_replay_crosses_unrelated_pages_and_keeps_whole_transactions() 
         .query(
             "BEGIN TRANSACTION;
          CREATE agent:pilot SET lease = time::now() + 30s;
-         CREATE audit_event:coupled SET ordinal = 99;
+         CREATE changefeed_noise_fixture:coupled SET ordinal = 99;
          COMMIT TRANSACTION;",
         )
         .await
@@ -82,7 +82,7 @@ async fn database_replay_crosses_unrelated_pages_and_keeps_whole_transactions() 
                 assert!(
                     entries
                         .iter()
-                        .any(|entry| entry.table() == Some("audit_event")),
+                        .any(|entry| entry.table() == Some("changefeed_noise_fixture")),
                     "the transaction tail must include the audit table before advancing"
                 );
             }

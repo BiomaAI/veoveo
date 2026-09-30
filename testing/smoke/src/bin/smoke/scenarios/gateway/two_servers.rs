@@ -1,4 +1,6 @@
 use super::*;
+use SmokeAuditSelection as Select;
+use veoveo_mcp_contract::audit::{AuditOutcome, AuditReadMethod};
 
 pub(crate) async fn gateway_two_servers(
     conformance: &Path,
@@ -73,7 +75,12 @@ pub(crate) async fn gateway_two_servers(
         ],
         [],
     )?;
-    contains(&validation, "ok: 2 server(s), 2 profile(s)")?;
+    let fixture: veoveo_mcp_contract::GatewayControlPlane =
+        serde_json::from_slice(&fs::read(&generated_control_plane)?)?;
+    contains(
+        &validation,
+        &format!("ok: 2 server(s), {} profile(s)", fixture.profiles.len()),
+    )?;
 
     let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
     let platform_store = spawn_gateway_platform_store(gateway, &generated_control_plane).await?;
@@ -222,12 +229,27 @@ pub(crate) async fn gateway_two_servers(
         bail!("media-only token unexpectedly called simulation tool");
     }
 
-    gateway_child.stop();
-    let audit_summary = run_gateway_json(gateway, "audit-method-summary", &platform_store)?;
-    assert_audit_method(&audit_summary, "tools/call", 2, 1)?;
-    assert_audit_method(&audit_summary, "resources/read", 1, 0)?;
-    assert_audit_method(&audit_summary, "prompts/get", 1, 0)?;
-    assert_audit_method(&audit_summary, "completion/complete", 1, 0)?;
+    gateway_child.drain(Duration::from_secs(90)).await?;
+    let audit = SmokeAudit::connect(&platform_store, &generated_control_plane).await?;
+    audit
+        .at_least(Select::ToolAdmission, Some(AuditOutcome::Allowed), 2)
+        .await?;
+    audit
+        .at_least(Select::ToolAdmission, Some(AuditOutcome::Denied), 1)
+        .await?;
+    audit
+        .at_least(Select::ToolCompletion, Some(AuditOutcome::Succeeded), 2)
+        .await?;
+    for method in [
+        AuditReadMethod::ResourceRead,
+        AuditReadMethod::PromptGet,
+        AuditReadMethod::Completion,
+    ] {
+        audit
+            .at_least(Select::Read(method), Some(AuditOutcome::Allowed), 1)
+            .await?;
+    }
+    audit.assert_cli(gateway, &platform_store)?;
 
     media.stop();
     simulation.stop();

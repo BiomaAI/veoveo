@@ -41,8 +41,21 @@ async fn publishes_immutable_revisions_and_moves_active_pointer_atomically() {
     assert!(store.load_active_revision().await.unwrap().is_none());
     assert!(store.load_active_revision_head().await.unwrap().is_none());
 
+    let audit_context = veoveo_audit_contract::AuditContext {
+        actor: veoveo_audit_contract::AuditActor {
+            principal: PrincipalId::new("integration-admin").unwrap(),
+            kind: veoveo_audit_contract::AuditPrincipalKind::Service,
+            tenant: None,
+            oauth_client: None,
+            session_family: None,
+            delegating_principal: None,
+            managed_agent: None,
+        },
+        authority: Default::default(),
+        request: veoveo_audit_contract::AuditRequest::background(),
+    };
     let first = revision("gcp-first", "a".repeat(64), empty_control_plane());
-    store.record_revision(&first).await.unwrap();
+    store.record_revision(&first, &audit_context).await.unwrap();
     assert_eq!(
         store.load_active_revision().await.unwrap(),
         Some(first.clone())
@@ -85,7 +98,10 @@ async fn publishes_immutable_revisions_and_moves_active_pointer_atomically() {
         }],
     });
     let second = revision("gcp-second", "b".repeat(64), second_plane);
-    store.record_revision(&second).await.unwrap();
+    store
+        .record_revision(&second, &audit_context)
+        .await
+        .unwrap();
     assert_eq!(
         store.load_active_revision().await.unwrap(),
         Some(second.clone())
@@ -112,7 +128,7 @@ async fn publishes_immutable_revisions_and_moves_active_pointer_atomically() {
     let mut third_plane = second.control_plane.clone();
     third_plane.work_contexts.clear();
     let third = revision("gcp-third", "c".repeat(64), third_plane);
-    store.record_revision(&third).await.unwrap();
+    store.record_revision(&third, &audit_context).await.unwrap();
     assert_eq!(
         store.load_active_revision().await.unwrap(),
         Some(third.clone())
@@ -129,7 +145,10 @@ async fn publishes_immutable_revisions_and_moves_active_pointer_atomically() {
     );
 
     assert!(
-        store.record_revision(&first).await.is_err(),
+        store
+            .record_revision(&second, &audit_context)
+            .await
+            .is_err(),
         "duplicate immutable revision unexpectedly succeeded"
     );
     assert_eq!(
@@ -138,6 +157,24 @@ async fn publishes_immutable_revisions_and_moves_active_pointer_atomically() {
         "failed publication moved the active pointer"
     );
     assert_eq!(store.revision_count().await.unwrap(), 3);
+
+    let activities: Vec<String> = store
+        .platform_store()
+        .client()
+        .query(
+            "SELECT VALUE activity FROM audit_record WHERE class = 'account_change' ORDER BY id;",
+        )
+        .await
+        .unwrap()
+        .check()
+        .unwrap()
+        .take(0)
+        .unwrap();
+    assert_eq!(
+        activities,
+        ["account_create", "account_delete"],
+        "failed re-publication must not recreate or re-audit a deleted Work Context"
+    );
 
     let outbox = store.platform_store().read_outbox(0, 10).await.unwrap();
     assert_eq!(outbox.events.len(), 3);

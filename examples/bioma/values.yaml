@@ -18,6 +18,18 @@ artifactService:
   - datasheet
   - uav-sim
 gateway:
+  auditRetentionDays: 365
+  auditExport:
+    destinations:
+      s3:
+        endpoint: http://rustfs:9000
+        region: us-east-1
+        bucket: artifact-plane
+        prefix: audit
+        object_lock:
+          mode: disabled
+        allow_http: true
+      otlp: null
   existingControlPlaneConfigMap: bioma-gateway-control-plane
   agents:
     models:
@@ -150,6 +162,7 @@ consoleBff:
   - artifact:upload
   - operator:use
   - admin:manage
+  - audit:read
   - recording:seal
   - uav-sim:admin
   - uav-sim:stream

@@ -70,6 +70,26 @@ pub enum MigrationError {
 #[derive(Debug, Error)]
 pub enum StoreError {
     #[error(transparent)]
+    AuditValidation(#[from] veoveo_audit_contract::AuditValidationError),
+    #[error("audit partition access denied")]
+    AuditAccessDenied,
+    #[error("audit row identity or document is inconsistent")]
+    AuditIntegrity,
+    #[error("audit batch exceeds the limit for this operation")]
+    AuditBatchLimit,
+    #[error("another replica holds the audit maintenance lease")]
+    AuditLeaseBusy,
+    #[error("audit maintenance lease ownership was lost")]
+    AuditLeaseLost,
+    #[error("audit change-feed recovery exceeded its six-day safety window")]
+    AuditChangefeedGap,
+    #[error("audit retention conditions changed before commit")]
+    AuditRetentionNotAdmitted,
+    #[error(
+        "audit destination permanently rejected this delivery; configure a corrected destination before resuming export"
+    )]
+    AuditExportRejected,
+    #[error(transparent)]
     DownstreamMigration(#[from] crate::DownstreamMigrationError),
     #[error("downstream migration {version:04}_{name} statement {statement} failed: {source}")]
     DownstreamMigrationExecution {
@@ -78,8 +98,6 @@ pub enum StoreError {
         statement: usize,
         source: Box<surrealdb::Error>,
     },
-    #[error("migration {version:04} preparation failed: {reason}")]
-    MigrationPreparation { version: u32, reason: &'static str },
     #[error("the active gateway control-plane pointer and revision do not agree")]
     InvalidGatewayControlRevision,
     #[error("migration {version:04}_{name} statement {statement} failed: {source}")]

@@ -29,6 +29,16 @@ impl TaskRuntime {
 }
 
 impl OwnerTaskQuery {
+    /// Cancel a caller-owned Task. Every read and state change applies this
+    /// query's owner, clearance, operation and optional Work Context selection.
+    pub async fn cancel(
+        &self,
+        task: veoveo_types::TaskId,
+    ) -> Result<crate::TaskSnapshot, TaskError> {
+        let task = crate::types::validate_task_id(task)?;
+        self.runtime.cancel_selected(task, Some(self)).await
+    }
+
     /// Require agreement with this caller's tenant and Work Context in SQL.
     /// Invocation admission supplies membership and permission; this adds row selection.
     pub fn in_work_context(mut self) -> Result<Self, TaskError> {

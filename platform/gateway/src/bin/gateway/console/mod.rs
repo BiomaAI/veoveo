@@ -12,6 +12,7 @@ use veoveo_mcp_contract::{
     ConsoleBootstrap, GatewayAction, GatewayProfileId, PolicyEffect, PolicyTarget, TraceId,
 };
 use veoveo_mcp_gateway::{AuthenticatedSubject, PolicyRequest};
+use veoveo_types::ScopeDefinition;
 
 #[derive(Clone)]
 pub(crate) struct ConsoleState {
@@ -53,6 +54,10 @@ pub(crate) async fn bootstrap(
             installation,
             session,
             can_read_installation,
+            can_read_audit: subject
+                .actor
+                .scopes
+                .contains(veoveo_mcp_contract::audit::AuditScope::Read.name()),
         }),
     )
         .into_response()

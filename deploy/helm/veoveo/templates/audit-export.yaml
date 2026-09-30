@@ -1,0 +1,13 @@
+{{- if and (include "veoveo.componentEnabled" (list . "gateway")) (or .Values.gateway.auditExport.destinations.s3 .Values.gateway.auditExport.destinations.otlp) }}
+{{- if and .Values.gateway.auditExport.destinations.otlp .Values.gateway.auditExport.destinations.otlp.bearer_token_env (not .Values.gateway.auditExport.otlpBearerSecret) }}
+{{- fail "gateway.auditExport.otlpBearerSecret is required for authenticated OTLP audit export" }}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "veoveo.fullname" . }}-audit-export
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+data:
+  export.json: {{ .Values.gateway.auditExport.destinations | toJson | quote }}
+{{- end }}

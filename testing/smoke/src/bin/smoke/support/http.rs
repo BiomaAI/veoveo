@@ -115,6 +115,12 @@ pub(crate) async fn assert_http_get_status(
     }
 }
 
+pub(crate) fn fixture_profile_count(path: &Path) -> Result<u64> {
+    let fixture: veoveo_mcp_contract::GatewayControlPlane =
+        serde_json::from_slice(&fs::read(path)?)?;
+    Ok(fixture.profiles.len().try_into()?)
+}
+
 pub(crate) async fn assert_ready_profiles(gateway_base: &str, expected: u64) -> Result<()> {
     let ready: Value = reqwest::get(format!("{gateway_base}/readyz"))
         .await?

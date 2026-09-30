@@ -4,6 +4,10 @@ use super::native_database::{Database, context};
 use super::upload_admission::{admission, install_profile};
 use super::upload_parts::{claim, fence as part_fence, id};
 use super::*;
+use veoveo_mcp_contract::audit::{
+    ArtifactActivity, AuditClass, AuditDetail, AuditOutcome, AuditPartition, AuditQuery,
+    AuditReadScope, AuditTarget,
+};
 use veoveo_platform_store as platform;
 
 const SIZE: i64 = 1024;
@@ -67,7 +71,7 @@ async fn sealed(
         .await
         .unwrap();
     store
-        .freeze_artifact_upload(upload, manifest(), &row.policy_digest)
+        .freeze_artifact_upload(upload, manifest(), &row.policy_digest, row.audit.0.clone())
         .await
         .unwrap();
     let worker = work(store, upload).await;
@@ -155,11 +159,27 @@ async fn upload_publication_commits_receipt_grants_audit_and_duplicate_cleanup_a
             aggregate.occurrence.policy_revision,
             row.authority.policy_revision
         );
-        let mut response = first.client().query("SELECT * FROM audit_event WHERE action = 'artifact.upload.completed' AND resource_id = $artifact; SELECT * FROM outbox_event WHERE event_type = 'artifact.created' AND aggregate_id = $artifact;")
+        let tenant = veoveo_types::TenantId::new("acme").unwrap();
+        let scope = AuditReadScope::new(Some(tenant.clone()), false);
+        let mut query = AuditQuery::new(AuditPartition::Tenant(tenant));
+        query.class = Some(AuditClass::ArtifactActivity);
+        query.target = Some(AuditTarget::Artifact {
+            artifact: veoveo_artifact_contract::ArtifactId::try_from(id(&row.artifact)).unwrap(),
+        });
+        query.outcome = Some(AuditOutcome::Succeeded);
+        let audits = first.audit_page(&scope, &query).await.unwrap();
+        assert!(audits.next.is_none());
+        assert_eq!(audits.records.len(), 1);
+        assert!(matches!(
+            audits.records[0].draft.detail(),
+            AuditDetail::Artifact {
+                activity: ArtifactActivity::Publish,
+                ..
+            }
+        ));
+        let mut response = first.client().query("SELECT * FROM outbox_event WHERE event_type = 'artifact.created' AND aggregate_id = $artifact;")
             .bind(("artifact", id(&row.artifact).to_string())).await.unwrap().check().unwrap();
-        let audits: Vec<platform::AuditEventRecord> = response.take(0).unwrap();
-        let events: Vec<platform::OutboxEventRecord> = response.take(1).unwrap();
-        assert_eq!(audits.len(), 1);
+        let events: Vec<platform::OutboxEventRecord> = response.take(0).unwrap();
         assert_eq!(events.len(), 1);
     }
     let (duplicate, retained) = if a.cleanup_pending {
@@ -264,12 +284,22 @@ async fn sealed_upload_recovery_rejects_stale_workers_manifest_changes_and_revok
     changed.byte_len += 1;
     assert!(
         store
-            .freeze_artifact_upload(worker.upload_id, changed, &row.policy_digest)
+            .freeze_artifact_upload(
+                worker.upload_id,
+                changed,
+                &row.policy_digest,
+                row.audit.0.clone()
+            )
             .await
             .is_err()
     );
     store
-        .freeze_artifact_upload(worker.upload_id, manifest(), &row.policy_digest)
+        .freeze_artifact_upload(
+            worker.upload_id,
+            manifest(),
+            &row.policy_digest,
+            row.audit.0.clone(),
+        )
         .await
         .unwrap();
     assert!(

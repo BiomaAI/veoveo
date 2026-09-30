@@ -147,6 +147,9 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
+    "canReadAudit": {
+      "type": "boolean"
+    },
     "canReadInstallation": {
       "type": "boolean"
     },
@@ -164,7 +167,8 @@
     "profile",
     "installation",
     "session",
-    "canReadInstallation"
+    "canReadInstallation",
+    "canReadAudit"
   ],
   "title": "ConsoleBootstrap",
   "type": "object"

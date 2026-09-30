@@ -52,15 +52,13 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
             .await
             .map_err(transport)?;
         self.audit(
-            Some(actor.clone()),
-            Some(actor.tenant),
-            "artifact.read_capability.issue",
-            None,
+            Some(&actor.audit),
+            ArtifactAction::surface(
+                ArtifactActivity::ReadCapabilityIssue,
+                ArtifactLedgerAddress::ReadCapability(capability_id),
+            ),
             AuditOutcome::Allowed,
-            serde_json::Map::from_iter([
-                ("capability_id".into(), serde_json::json!(capability_id)),
-                ("task_id".into(), serde_json::json!(request.task_id)),
-            ]),
+            AuditReason::Accepted,
         )
         .await?;
         Ok(IssuedArtifactReadCapability {
@@ -110,8 +108,21 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
         task_id: ArtifactTaskId,
         artifact_id: ArtifactId,
     ) -> Result<StoredArtifact, ArtifactPlaneError> {
-        ArtifactReadCapabilitySecret::new(secret)
-            .map_err(|_| ArtifactPlaneError::Unauthenticated)?;
+        let action = || {
+            ArtifactAction::artifact(ArtifactActivity::Download, artifact_id)
+                .related(ArtifactLedgerAddress::ReadCapability(capability_id))
+                .requested(AccessLevel::Read)
+        };
+        if ArtifactReadCapabilitySecret::new(secret).is_err() {
+            self.audit(
+                None,
+                action(),
+                AuditOutcome::Denied,
+                AuditReason::InvalidCredential,
+            )
+            .await?;
+            return Err(ArtifactPlaneError::Unauthenticated);
+        }
         let authentication = ReadCapabilityAuthentication {
             capability_id,
             token_hash: secret_hash(HASH_DOMAIN, secret),
@@ -121,9 +132,23 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
             .repository
             .read_capability(&authentication)
             .await
-            .map_err(transport)?
-            .ok_or(ArtifactPlaneError::Unauthenticated)?;
-        let stored = self.load(artifact_id).await?;
+            .map_err(transport)?;
+        let Some(capability) = capability else {
+            self.audit(
+                None,
+                action(),
+                AuditOutcome::Denied,
+                AuditReason::InvalidCredential,
+            )
+            .await?;
+            return Err(ArtifactPlaneError::Unauthenticated);
+        };
+        let mut context = capability.actor.audit.clone();
+        context.request = veoveo_mcp_contract::audit::AuditRequest::background();
+        let stored = match self.load(artifact_id).await {
+            Ok(stored) => stored,
+            Err(error) => return self.complete_artifact(&context, action(), Err(error)).await,
+        };
         // Delegation is an access ceiling, never a replacement gateway identity.
         // The occurrence and its grants/labels are loaded for every read.
         let decision = decide(&AccessRequest {
@@ -139,25 +164,14 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
             .then_some(capability.authority.membership),
             requested: AccessLevel::Read,
         });
-        let details = serde_json::Map::from_iter([
-            ("capability_id".into(), serde_json::json!(capability_id)),
-            ("task_id".into(), serde_json::json!(task_id)),
-            ("decision".into(), serde_json::json!(decision)),
-        ]);
-        self.audit(
-            Some(capability.actor.clone()),
-            Some(stored.tenant.clone()),
-            "artifact.read_capability.authorize",
-            Some(artifact_id),
-            if decision.is_allowed() {
-                AuditOutcome::Allowed
-            } else {
-                AuditOutcome::Denied
-            },
-            details,
-        )
-        .await?;
         if decision != AccessDecision::Allow {
+            self.audit(
+                Some(&context),
+                action(),
+                AuditOutcome::Denied,
+                access_reason(decision),
+            )
+            .await?;
             return Err(ArtifactPlaneError::Denied(decision));
         }
         if !self
@@ -166,10 +180,24 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
             .await
             .map_err(transport)?
         {
+            self.audit(
+                Some(&context),
+                action(),
+                AuditOutcome::Denied,
+                AuditReason::Conflict,
+            )
+            .await?;
             return Err(ArtifactPlaneError::Conflict(
                 "read delegation quota exhausted or authority changed".into(),
             ));
         }
+        self.audit(
+            Some(&context),
+            action(),
+            AuditOutcome::Allowed,
+            AuditReason::Accepted,
+        )
+        .await?;
         Ok(stored)
     }
 
@@ -213,18 +241,26 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
             .await
             .map_err(transport)?
         {
+            self.audit(
+                Some(&actor.audit),
+                ArtifactAction::surface(
+                    ArtifactActivity::ReadCapabilityRevoke,
+                    ArtifactLedgerAddress::ReadCapability(capability_id),
+                ),
+                AuditOutcome::Denied,
+                AuditReason::NotFound,
+            )
+            .await?;
             return Err(ArtifactPlaneError::NotFound);
         }
         self.audit(
-            Some(actor.clone()),
-            Some(actor.tenant),
-            "artifact.read_capability.revoke",
-            None,
-            AuditOutcome::Allowed,
-            serde_json::Map::from_iter([(
-                "capability_id".into(),
-                serde_json::json!(capability_id),
-            )]),
+            Some(&actor.audit),
+            ArtifactAction::surface(
+                ArtifactActivity::ReadCapabilityRevoke,
+                ArtifactLedgerAddress::ReadCapability(capability_id),
+            ),
+            AuditOutcome::Succeeded,
+            AuditReason::Accepted,
         )
         .await
     }

@@ -1,4 +1,5 @@
 //! Public upload policy enforcement and bounded streaming proxy.
+use veoveo_mcp_contract::audit::{ArtifactActivity, AuditDetail};
 
 use axum::{
     Json, Router,
@@ -10,9 +11,9 @@ use axum::{
 };
 use chrono::{TimeDelta, Utc};
 use serde::Deserialize;
-use std::{collections::BTreeMap, num::NonZeroU32, time::Instant};
+use std::num::NonZeroU32;
 use veoveo_mcp_contract::{self as contract, UploadErrorCode as Code};
-use veoveo_mcp_gateway::{AuthenticatedSubject, PolicyRequest, merge_principal_audit_metadata};
+use veoveo_mcp_gateway::{AuthenticatedSubject, PolicyRequest};
 
 use crate::runtime::{ArtifactHttpState, current_catalog};
 
@@ -58,12 +59,11 @@ async fn proxy(
         Err(_) => return fault(Code::Malformed),
     };
     let policy_request = matched.as_str().ends_with("/upload-policy");
-    let started = Instant::now();
     let catalog = current_catalog(&state.catalog);
     let Some(profile) = catalog.profile(&route.profile) else {
         return fault(Code::NotFound);
     };
-    let Ok(trace_id) = contract::TraceId::new(uuid::Uuid::now_v7().to_string()) else {
+    let Ok(trace_id) = contract::TraceId::new(subject.audit.trace_id.to_string()) else {
         return fault(Code::Unavailable);
     };
     let target = contract::PolicyTarget::Server {
@@ -101,36 +101,25 @@ async fn proxy(
     if explanation.is_some() {
         decision.effect = contract::PolicyEffect::Deny;
     }
-    let Ok(audit_method) = contract::McpMethodName::new("artifact/upload") else {
-        return fault(Code::Unavailable);
-    };
-    if let Err(error) = state
-        .gateway_state
-        .record_audit_event(&contract::AuditEvent {
-            event_id: trace_id.clone(),
-            timestamp: decision.evaluated_at,
-            trace_id,
-            profile: route.profile.clone(),
-            method: audit_method,
-            action: contract::GatewayAction::ArtifactUpload,
-            target,
-            decision: decision.clone(),
-            principal: Some(subject.principal.id.clone()),
-            principal_attributes: Some(contract::PrincipalAuditAttributes::from(
-                &subject.principal,
-            )),
-            tenant: subject.principal.tenant.clone(),
-            token_issuer: Some(subject.access_token.issuer.clone()),
-            latency_ms: u64::try_from(started.elapsed().as_millis()).ok(),
-            metadata: merge_principal_audit_metadata(
-                BTreeMap::from([
-                    ("http_method".into(), method.to_string()),
-                    ("route".into(), matched.as_str().to_owned()),
-                ]),
-                &subject.principal,
-            ),
-        })
-        .await
+    if decision.effect != contract::PolicyEffect::Allow
+        && let Err(error) = state
+            .gateway_state
+            .record_policy_admission(
+                &subject,
+                &route.profile,
+                &target,
+                AuditDetail::Artifact {
+                    requested: None,
+                    subject: None,
+                    release_state: None,
+                    related: None,
+                    activity: ArtifactActivity::Publish,
+                    bytes: None,
+                    window_start: None,
+                },
+                &decision,
+            )
+            .await
     {
         tracing::error!(%error, "could not persist upload policy decision");
         return fault(Code::Unavailable);
@@ -195,10 +184,12 @@ async fn proxy(
         subject.access_token.expires_at,
         Utc::now() + TimeDelta::seconds(60),
     );
+    let request_context = subject.request_context();
     let token = match state.internal_token_issuer.issue_artifact_upload(
         route.profile,
         subject.actor,
         subject.authority,
+        request_context,
         binding,
         expires,
     ) {

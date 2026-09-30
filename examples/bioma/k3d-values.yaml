@@ -11,6 +11,7 @@ objectStore:
     persistence:
       size: 10Gi
 gateway:
+  auditRetentionDays: 365
   replicas: 1
 artifactService:
   replicas: 1

@@ -90,12 +90,13 @@ pub enum PlatformTable {
     AgentEpisode,
     AgentTask,
     AgentInputRequest,
-    AuditEvent,
+    AuditRecord,
+    AuditBlock,
     OutboxEvent,
 }
 
 impl PlatformTable {
-    pub const ALL: [Self; 86] = [
+    pub const ALL: [Self; 87] = [
         Self::Enterprise,
         Self::Tenant,
         Self::Principal,
@@ -180,7 +181,8 @@ impl PlatformTable {
         Self::AgentEpisode,
         Self::AgentTask,
         Self::AgentInputRequest,
-        Self::AuditEvent,
+        Self::AuditRecord,
+        Self::AuditBlock,
         Self::OutboxEvent,
     ];
 
@@ -270,7 +272,8 @@ impl PlatformTable {
             Self::AgentEpisode => "agent_episode",
             Self::AgentTask => "agent_task",
             Self::AgentInputRequest => "agent_input_request",
-            Self::AuditEvent => "audit_event",
+            Self::AuditRecord => "audit_record",
+            Self::AuditBlock => "audit_block",
             Self::OutboxEvent => "outbox_event",
         }
     }

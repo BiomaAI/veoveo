@@ -49,3 +49,4 @@ IF $stage = "succeeded" {
   UPDATE ONLY $computer SET phase = "stopped", updated_at = $now;
 };
 CREATE outbox_event CONTENT $event;
+fn::append_audit($audit_rows);

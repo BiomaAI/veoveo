@@ -111,26 +111,28 @@ impl UploadService {
         caller: &contract::VerifiedArtifactUploadIdentity,
         id: contract::ArtifactUploadId,
     ) -> Result<(Authority, platform::ArtifactUploadRecord), UploadFault> {
-        // Foreign identifiers disclose no descriptor, counters, or terminal state.
-        let row = self
-            .database
-            .artifact_upload(id.as_uuid())
-            .await?
-            .ok_or(contract::UploadErrorCode::NotFound)?;
+        // Foreign rows never enter the descriptor decoder, even when malformed.
         let identity = &caller.identity;
-        if identity
+        let tenant = identity
             .actor
             .tenant
             .as_ref()
-            .is_none_or(|tenant| tenant.as_str() != row.tenant_key)
-            || identity.actor.id.as_str() != row.actor_key
-            || identity.profile.as_str() != row.profile_key
-            || identity.authority.work_context.as_str() != row.authority.context_key
-            || identity.actor.issuer.as_str() != row.actor_issuer
-            || identity.actor.subject.as_str() != row.actor_subject
-        {
-            return Err(contract::UploadErrorCode::NotFound.into());
-        }
+            .ok_or(contract::UploadErrorCode::NotFound)?;
+        let row = self
+            .database
+            .owned_artifact_upload(
+                id,
+                platform::ArtifactUploadOwner {
+                    tenant,
+                    actor: &identity.actor.id,
+                    profile: &identity.profile,
+                    work_context: &identity.authority.work_context,
+                    issuer: &identity.actor.issuer,
+                    subject: &identity.actor.subject,
+                },
+            )
+            .await?
+            .ok_or(contract::UploadErrorCode::NotFound)?;
         let authority = self.authorize(caller).await?;
         if !matches!(
             row.state,
@@ -206,6 +208,12 @@ impl Authority {
                 .min(layout.max_total_bytes.get())
         });
         Ok(platform::ArtifactUploadRecord {
+            audit: platform::audit::AuditContextRecord(
+                caller
+                    .identity
+                    .audit_context()
+                    .map_err(|_| contract::UploadErrorCode::Denied)?,
+            ),
             id: platform::upload_record_id(id),
             tenant: self.identity.tenant_id.record_id(),
             tenant_key: self.identity.tenant_key.clone(),

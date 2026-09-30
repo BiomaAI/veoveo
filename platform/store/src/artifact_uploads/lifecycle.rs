@@ -22,6 +22,7 @@ struct Mutation<'a> {
     operation: &'static str,
     multipart_id: Option<&'a str>,
     manifest: Option<ArtifactUploadManifest>,
+    audit: Option<crate::audit::AuditContextRecord>,
     policy_digest: Option<&'a str>,
     terminal: Option<ArtifactUploadState>,
     failure: Option<ArtifactUploadFailure>,
@@ -117,6 +118,7 @@ impl PlatformStore {
         upload_id: Uuid,
         manifest: ArtifactUploadManifest,
         policy_digest: &str,
+        audit: veoveo_audit_contract::AuditContext,
     ) -> Result<ArtifactUploadRecord, StoreError> {
         if manifest.byte_len < 0
             || manifest.byte_len > 9_007_199_254_740_991
@@ -133,6 +135,7 @@ impl PlatformStore {
             upload_id,
             Mutation {
                 manifest: Some(manifest),
+                audit: Some(crate::audit::AuditContextRecord(audit)),
                 policy_digest: Some(policy_digest),
                 ..Mutation::default()
             },
@@ -262,6 +265,7 @@ impl PlatformStore {
                 .bind(("operation", mutation.operation.to_owned()))
                 .bind(("multipart_id", mutation.multipart_id.map(str::to_owned)))
                 .bind(("manifest", mutation.manifest.clone()))
+                .bind(("audit", mutation.audit.clone()))
                 .bind(("policy_digest", mutation.policy_digest.map(str::to_owned)))
                 .bind(("terminal", mutation.terminal))
                 .bind(("failure", mutation.failure))

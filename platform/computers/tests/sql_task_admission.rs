@@ -1,9 +1,8 @@
 //! Denied Task and access-ledger reads never decode protected metadata or state.
-#[path = "support/commands.rs"]
-mod command_support;
 #[path = "support/files.rs"]
 #[allow(unused_imports)] // The shared fixture also exports optional Computer helpers.
 mod file_support;
+use file_support::command_fixture as command_support;
 mod support;
 use std::time::Duration;
 use surrealdb::types::RecordId;
@@ -31,7 +30,7 @@ async fn another_computer(
 ) -> ComputerId {
     store
         .reserve(
-            actor.owner(),
+            actor,
             &Reservation {
                 request_id: Uuid::now_v7(),
                 template_id: "development".into(),

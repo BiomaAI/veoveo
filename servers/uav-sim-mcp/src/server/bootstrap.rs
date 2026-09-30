@@ -100,7 +100,7 @@ pub(in crate::server) async fn serve() -> anyhow::Result<()> {
         control_authority,
         subscribers: subscribers.clone(),
         live_views: live_views.clone(),
-        live_view_audit,
+        live_view_audit: live_view_audit.clone(),
         live_view_connect_origin,
     });
     for snapshot in recovery.resumable {
@@ -164,7 +164,7 @@ pub(in crate::server) async fn serve() -> anyhow::Result<()> {
         "live-stream gate port must differ from the MCP port"
     );
     let live_stream_gate = super::super::live_stream::LiveStreamGate::new(
-        live_views,
+        live_views.clone(),
         subscribers,
         &args.public_stream_url,
         &args.runtime_stream_url,
@@ -179,7 +179,7 @@ pub(in crate::server) async fn serve() -> anyhow::Result<()> {
                 .nest("/admin", admin_router)
                 .nest("/mcp", mcp_router),
         )
-        .with_state(state)
+        .with_state(state.clone())
         .layer(middleware::from_fn_with_state(allowed_hosts, validate_host))
         .layer(
             TraceLayer::new_for_http()
@@ -193,8 +193,15 @@ pub(in crate::server) async fn serve() -> anyhow::Result<()> {
     let server = std::future::IntoFuture::into_future(
         axum::serve(listener, router).with_graceful_shutdown({
             let shutdown = shutdown.clone();
+            let audit = live_view_audit.clone();
             async move {
-                let _ = tokio::signal::ctrl_c().await;
+                let mut terminate =
+                    tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                        .expect("install SIGTERM handler");
+                tokio::select! {
+                    _ = tokio::signal::ctrl_c() => {}, _ = terminate.recv() => {},
+                    _ = audit.closed() => {}, _ = shutdown.cancelled() => {},
+                }
                 shutdown.cancel();
             }
         }),
@@ -202,26 +209,48 @@ pub(in crate::server) async fn serve() -> anyhow::Result<()> {
     let mut live_stream_task =
         tokio::spawn(live_stream_gate.run(live_stream_address, shutdown.child_token()));
     tokio::pin!(server);
-    let result = tokio::select! {
-        result = &mut server => result.map_err(Into::into),
-        result = &mut live_stream_task => match result {
+    let (result, server_finished) = tokio::select! {
+        _ = shutdown.cancelled() => (Ok(()), false),
+        result = &mut server => (result.map_err(anyhow::Error::from), true),
+        result = &mut live_stream_task => (match result {
             Ok(result) => result,
             Err(error) => Err(error.into()),
-        },
+        }, false),
     };
     shutdown.cancel();
-    if !live_stream_task.is_finished() {
-        live_stream_task.await??;
-    }
-    target_observer.await?;
-    resource_observer.await?;
-    if let Some(task) = runtime_event_task {
-        task.await?;
-    }
+    let http_drain = if !server_finished {
+        tokio::time::timeout(std::time::Duration::from_secs(30), &mut server)
+            .await
+            .map_err(anyhow::Error::from)
+            .and_then(|result| result.map_err(Into::into))
+    } else {
+        Ok(())
+    };
+    let observers = tokio::time::timeout(std::time::Duration::from_secs(20), async {
+        if !live_stream_task.is_finished() {
+            live_stream_task.await??;
+        }
+        target_observer.await?;
+        resource_observer.await?;
+        if let Some(task) = runtime_event_task {
+            task.await?;
+        }
+        Ok::<(), anyhow::Error>(())
+    })
+    .await;
+    let sessions = live_views.shutdown().await;
+    let drained = live_view_audit.shutdown().await;
+    http_drain?;
+    observers??;
+    sessions?;
+    drained?;
     result
 }
 
 async fn ready(State(state): State<Arc<AppState>>) -> StatusCode {
+    if !state.live_view_audit.is_running() {
+        return StatusCode::SERVICE_UNAVAILABLE;
+    }
     match state.adapter.state().await {
         Ok(simulation) if simulation.lifecycle != SimulationLifecycle::Failed => StatusCode::OK,
         Ok(_) => StatusCode::SERVICE_UNAVAILABLE,

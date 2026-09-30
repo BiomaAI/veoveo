@@ -145,6 +145,7 @@ fn issue_internal_conformance_token(args: &Args, private_key_der_b64: &str) -> R
     let now = Utc::now();
     let expires_at = now + TimeDelta::minutes(30);
     let request_context = GatewayRequestContext {
+        audit: veoveo_mcp_contract::audit::AuditRequest::background(),
         access_token: AccessTokenSubject {
             managed_agent: None,
             issuer: principal.issuer.clone(),

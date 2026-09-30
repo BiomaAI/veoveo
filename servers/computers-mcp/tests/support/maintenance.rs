@@ -55,7 +55,7 @@ async fn maintenance_http_mcp_retry_and_current_task_authority_share_one_fence()
     let owner = support::owner("alice");
     let computer = store
         .reserve(
-            &owner,
+            &crate::support::authenticated(&owner),
             &Reservation {
                 request_id: Uuid::now_v7(),
                 template_id: "development-retained".into(),

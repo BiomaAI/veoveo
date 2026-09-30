@@ -51,11 +51,10 @@ use super::{
         projection_data,
     },
     runtime::{
-        AdminState, AppState, ArtifactHttpState, DynamicMcpState, GatewayRetentionPolicy,
-        ProfileAuthState, ProfileMcpService, Readiness, RecordingIngestGatewayState,
-        RecordingLayerPublicationState, RecordingPlaybackState, build_http_client, current_catalog,
-        profile_id_from_gateway_path, spawn_gateway_retention_gc_loop,
-        spawn_refresh_delivery_gc_loop,
+        AdminState, AppState, ArtifactHttpState, DynamicMcpState, ProfileAuthState,
+        ProfileMcpService, Readiness, RecordingIngestGatewayState, RecordingLayerPublicationState,
+        RecordingPlaybackState, build_http_client, current_catalog, profile_id_from_gateway_path,
+        spawn_authorization_retention_gc_loop, spawn_refresh_delivery_gc_loop,
     },
 };
 
@@ -71,7 +70,9 @@ pub(super) struct ServeConfig {
     pub(super) refresh_delivery_window: GatewayRefreshDeliveryWindow,
     pub(super) allow_loopback_hosts: bool,
     pub(super) offline_mode: bool,
-    pub(super) retention: GatewayRetentionPolicy,
+    pub(super) audit_retention_days: std::num::NonZeroU32,
+    pub(super) audit_exports: veoveo_audit::export::AuditExportConfig,
+    pub(super) audit_signing_key: Arc<veoveo_audit::integrity::AuditSigningKey>,
 }
 
 pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
@@ -87,7 +88,9 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
         refresh_delivery_window,
         allow_loopback_hosts,
         offline_mode,
-        retention,
+        audit_retention_days,
+        audit_signing_key,
+        audit_exports,
     } = config;
     let initial_catalog =
         load_initial_catalog(&control_store, expected_control_plane_sha256.as_deref()).await?;
@@ -98,9 +101,8 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
                     &initial_catalog,
                 )?,
             );
+    let audit_store = control_store.platform_store().clone();
     let agent_control = AgentControl::new(control_store.platform_store().clone())?;
-    spawn_gateway_retention_gc_loop(gateway_state.clone(), retention);
-    spawn_refresh_delivery_gc_loop(gateway_state.clone());
     let catalog = GatewayCatalogHandle::new(initial_catalog.clone());
     let internal_signing_key_der = BASE64_STANDARD
         .decode(internal_signing_key_der_b64.expose_secret().trim())
@@ -382,12 +384,39 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
             get(authorize_console_cluster),
         )
         .route("/admin/{profile}/console/stream", get(stream_console))
+        .route(
+            "/admin/{profile}/console/audit/views",
+            post(super::admin::console_audit::open_view),
+        )
+        .route(
+            "/admin/{profile}/console/audit/partitions",
+            get(super::admin::console_audit::partitions),
+        )
+        .route(
+            "/admin/{profile}/console/audit/records",
+            get(super::admin::console_audit::records),
+        )
+        .route(
+            "/admin/{profile}/console/audit/summary",
+            get(super::admin::console_audit::summary),
+        )
+        .route(
+            "/admin/{profile}/console/audit/stream",
+            get(super::admin::console_audit::stream_audit),
+        )
+        .route(
+            "/admin/{profile}/console/audit/export",
+            get(super::admin::console_audit::export_audit),
+        )
         .route("/admin/{profile}/jwt-revocations", post(revoke_jwt))
         .route(
             "/admin/{profile}/jwt-revocations/prune",
             post(prune_jwt_revocations),
         )
-        .route("/admin/{profile}/tasks/{task_id}/cancel", post(cancel_task))
+        .route(
+            "/admin/{profile}/tasks/{server}/{task_id}/cancel",
+            post(cancel_task),
+        )
         .route(
             "/admin/{profile}/agents/{agent_id}/messages",
             post(send_agent_message),
@@ -444,6 +473,9 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
         .layer(middleware::from_fn_with_state(auth_state, authenticate_mcp));
     router = router.merge(admin_router);
     let router = router
+        .layer(middleware::from_fn(
+            veoveo_mcp_gateway::request_observation::observe_request,
+        ))
         .layer(middleware::from_fn_with_state(
             allowed_hosts.clone(),
             validate_host,
@@ -462,12 +494,52 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
         "listening"
     );
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, router)
-        .with_graceful_shutdown(async move {
-            let _ = tokio::signal::ctrl_c().await;
+    let audit = gateway_state.audit_writer().await.clone();
+    let audit_service = veoveo_audit::AuditService::start(
+        audit_store,
+        audit_signing_key,
+        audit_retention_days,
+        audit_exports,
+    )?;
+    gateway_state.set_audit_health(audit_service.health())?;
+    let authorization_gc =
+        spawn_authorization_retention_gc_loop(gateway_state.clone(), ct.child_token());
+    let refresh_gc = spawn_refresh_delivery_gc_loop(gateway_state.clone(), ct.child_token());
+    let serving = std::future::IntoFuture::into_future(axum::serve(
+        listener,
+        router.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown({
+        let audit = audit.clone();
+        let ct = ct.clone();
+        async move {
+            let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                .expect("install SIGTERM handler");
+            tokio::select! { _ = tokio::signal::ctrl_c() => {}, _ = terminate.recv() => {}, _ = audit.closed() => {} }
             ct.cancel();
-        })
-        .await?;
+        }
+    }));
+    tokio::pin!(serving);
+    let result: anyhow::Result<()> = tokio::select! {
+        result = &mut serving => result.map_err(Into::into),
+        _ = ct.cancelled() => tokio::time::timeout(std::time::Duration::from_secs(30), &mut serving)
+            .await.context("gateway HTTP shutdown deadline exceeded").and_then(|result| result.map_err(Into::into)),
+    };
+    ct.cancel();
+    let drained = audit.shutdown(std::time::Duration::from_secs(30)).await;
+    let sealed = audit_service
+        .shutdown(std::time::Duration::from_secs(30))
+        .await;
+    let cleanup = tokio::time::timeout(std::time::Duration::from_secs(15), async {
+        authorization_gc.await?;
+        refresh_gc.await?;
+        Ok::<(), tokio::task::JoinError>(())
+    })
+    .await;
+    result?;
+    drained?;
+    sealed?;
+    cleanup??;
     Ok(())
 }
 
@@ -555,13 +627,21 @@ fn build_profile_mcp_service(
         ))
 }
 
-async fn readyz(State(state): State<AppState>) -> Json<Readiness> {
+async fn readyz(State(state): State<AppState>) -> (StatusCode, Json<Readiness>) {
     let catalog = current_catalog(&state.catalog);
-    Json(Readiness {
-        status: "ready",
-        servers: catalog.server_count(),
-        profiles: catalog.profile_count(),
-    })
+    let ready = state.gateway_state.audit_ready();
+    (
+        if ready {
+            StatusCode::OK
+        } else {
+            StatusCode::SERVICE_UNAVAILABLE
+        },
+        Json(Readiness {
+            status: if ready { "ready" } else { "audit_unavailable" },
+            servers: catalog.server_count(),
+            profiles: catalog.profile_count(),
+        }),
+    )
 }
 
 #[cfg(test)]

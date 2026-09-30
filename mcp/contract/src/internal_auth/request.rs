@@ -6,6 +6,8 @@ use veoveo_types::{InvocationMode, InvocationProvenance};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct GatewayRequestContext {
+    /// Gateway-established HTTP correlation, authenticated by the internal assertion.
+    pub audit: veoveo_audit_contract::AuditRequest,
     pub access_token: AccessTokenSubject,
     /// JWT-verified source principal before delegated actor derivation.
     pub principal: Principal,
@@ -71,5 +73,72 @@ impl GatewayRequestContext {
             return Err(InternalTokenError::InvalidRequestContext);
         }
         Ok(())
+    }
+}
+
+impl GatewayRequestContext {
+    /// Derive audit attribution only after checking the signed invocation relationship.
+    pub fn audit_context(
+        &self,
+        actor: &Principal,
+        authority: &InvocationAuthority,
+        profile: &GatewayProfileId,
+    ) -> Result<veoveo_audit_contract::AuditContext, InternalTokenError> {
+        use std::num::NonZeroU64;
+        use veoveo_audit_contract::*;
+        self.validate_for(actor, authority)?;
+        let managed_agent = self
+            .access_token
+            .managed_agent
+            .as_ref()
+            .map(|agent| {
+                let generation = u64::try_from(agent.generation)
+                    .ok()
+                    .and_then(NonZeroU64::new)
+                    .ok_or(InternalTokenError::InvalidRequestContext)?;
+                let dispatch_epoch = u64::try_from(agent.epoch)
+                    .ok()
+                    .and_then(NonZeroU64::new)
+                    .ok_or(InternalTokenError::InvalidRequestContext)?;
+                Ok::<_, InternalTokenError>(AuditManagedExecution {
+                    instance: agent.instance.clone(),
+                    generation,
+                    dispatch_epoch,
+                    episode: None,
+                })
+            })
+            .transpose()?;
+        Ok(AuditContext {
+            actor: AuditActor {
+                principal: actor.id.clone(),
+                kind: match actor.kind {
+                    PrincipalKind::User => AuditPrincipalKind::User,
+                    PrincipalKind::Service => AuditPrincipalKind::Service,
+                },
+                tenant: actor.tenant.clone(),
+                oauth_client: Some(self.access_token.oauth_client_id.clone()),
+                session_family: self.access_token.session_family.clone(),
+                delegating_principal: (self.principal.id != actor.id)
+                    .then(|| self.principal.id.clone()),
+                managed_agent,
+            },
+            authority: AuditAuthority {
+                profile: Some(profile.clone()),
+                work_context: Some(authority.work_context.clone()),
+                policy_revision: Some(authority.policy_revision.clone()),
+                scopes: actor.scopes.clone(),
+                data_labels: actor.data_labels.clone(),
+            },
+            request: self.audit.clone(),
+        })
+    }
+}
+
+impl GatewayInternalIdentity {
+    pub fn audit_context(&self) -> Result<veoveo_audit_contract::AuditContext, InternalTokenError> {
+        self.request_context
+            .as_ref()
+            .ok_or(InternalTokenError::InvalidRequestContext)?
+            .audit_context(&self.actor, &self.authority, &self.profile)
     }
 }

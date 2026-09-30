@@ -233,7 +233,7 @@ pub(crate) async fn gateway_console_stream(
     }
     drop(held);
 
-    gateway_child.stop();
+    gateway_child.drain(Duration::from_secs(90)).await?;
     cleanup.remove_on_drop();
     println!("gateway console stream smoke ok");
     Ok(())

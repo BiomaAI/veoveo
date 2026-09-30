@@ -58,6 +58,11 @@ transport pool. No bearer token is stored in the context. Computers must persist
 separate accepted authorization and re-evaluate current policy before dispatch or
 grant renewal; the assertion alone cannot extend access after its source expires.
 
+Authentication audit records identify that verified source principal. API activity
+records identify the invocation actor. A delegated request records the OAuth service
+as its actor and the source user as `delegating_principal`; the actor carries the
+admitted scopes and data labels. Direct requests use the verified principal as actor.
+
 ## Rollout And Qualification
 
 The gateway owns this claim extension. Existing family records need no migration.
@@ -79,3 +84,17 @@ Local evidence includes signed claim validation and isolated real-store issue,
 rotation, replay, logout, expiry and missing-record checks across independent clients.
 Tests reject mismatched client, context, tenant, principal, profile, authorization
 server and scope. They do not establish public ingress or installed attachment UX.
+
+## Audit Correlation
+
+The gateway assigns an HTTP request identity before authentication and carries it in
+`GatewayRequestContext.audit`. Internal assertions sign that request ID, W3C trace and
+span identities, and the peer IP together with the access-token subject and principal.
+A downstream producer uses the signed context's values. It never trusts a caller's
+unsigned request-ID header as gateway attribution.
+
+Authentication audit records carry the verified principal's scopes and data labels
+when that principal is available. Successful refresh-family revocation is an accepted
+revocation activity; presenting a revoked credential is a denied credential activity.
+The detail retains its typed authentication reason in either case. Anonymous failures
+never acquire a principal or clearance from unverified claims.

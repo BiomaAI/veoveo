@@ -129,6 +129,13 @@ and discards text. GET reads its short-lived receipt. Every request carries a fr
 verified gateway assertion. The owner includes actor, profile, tenant, Work Context
 and browser session family. Service principals cannot dictate.
 
+The shared audit writer commits a session-open record before Speech exposes the
+session. One terminal record contains accepted chunk counts, audio duration and the
+completion reason. The session loop owns that summary, including timeout and disconnect,
+and retries its stable record ID. Finish and cancel preserve their request correlation.
+Rejected domain requests have individual records. Chunk success and status reads produce
+no per-request audit entry. Audio and transcript text never enter audit records.
+
 Audio remains in bounded memory. Idle sessions close after ten seconds. Input is
 limited to 120 seconds, and receipts expire within 165 seconds. Runtime restart
 interrupts capture; the browser keeps its last draft without resubmitting audio.

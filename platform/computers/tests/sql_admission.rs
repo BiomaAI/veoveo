@@ -12,7 +12,7 @@ fn record(id: ComputerId) -> RecordId {
 async fn reserve(store: &ComputersStore, owner: &TaskOwner) -> ComputerId {
     store
         .reserve(
-            owner,
+            &crate::support::authenticated(owner),
             &Reservation {
                 request_id: Uuid::now_v7(),
                 template_id: "development".into(),

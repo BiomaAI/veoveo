@@ -30,6 +30,11 @@ alongside its tool DTOs and resource families.
 
 Artifact access evaluation, Work Context membership, grant composition, capabilities,
 and transport-facing request/response types currently live in `mcp/contract`.
+`ledger.rs` owns distinct UUIDv7 identities for access requests, read and write
+capabilities, uploads, upload requests and Artifact Tasks. Its `ArtifactLedgerAddress` builder constructs
+private `veoveo://artifact-plane/` addresses for audit targets and related ledger
+objects. These addresses grant no access and declare no public MCP read route.
+The service and gateway import the same builder; MCP transport DTOs re-export its IDs.
 This library neither authenticates metadata nor authorizes a read or mutation.
 Artifact service continues to enforce current tenant, context, clearance, and grants.
 

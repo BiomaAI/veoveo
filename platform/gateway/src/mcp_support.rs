@@ -7,8 +7,8 @@ use rmcp::model::{
 use serde_json::Value;
 use veoveo_mcp_contract::{
     APP_RESOURCE_DEPENDENCIES_META_KEY, APP_TOOL_DEPENDENCIES_META_KEY, GatewayAction,
-    GatewayResourceProjection, GatewayToolName, McpMethodName, PolicyTarget,
-    ResourceProjectionMode, ServerManifest, ServerResourceUri, ServerSlug,
+    GatewayResourceProjection, GatewayToolName, PolicyTarget, ResourceProjectionMode,
+    ServerManifest, ServerResourceUri, ServerSlug,
 };
 use veoveo_types::{DataLabelId, ResourceTemplateUri, ResourceUri, ScopeName};
 
@@ -355,19 +355,6 @@ pub(crate) fn resource_policy_target(
         },
         ResourceReadKind::General => PolicyTarget::Resource { server, uri },
     })
-}
-
-pub(crate) fn audit_method_name(action: GatewayAction) -> Result<McpMethodName, McpError> {
-    let method = match action {
-        GatewayAction::ArtifactRead | GatewayAction::UsageRead => "resources/read",
-        GatewayAction::AdminRead | GatewayAction::AdminWrite => {
-            return Err(mcp_internal("admin audit method is not an MCP method"));
-        }
-        other => other
-            .mcp_method()
-            .ok_or_else(|| mcp_internal("gateway action does not map to an MCP method"))?,
-    };
-    McpMethodName::new(method).map_err(|err| mcp_internal(format!("invalid MCP method: {err}")))
 }
 
 pub(crate) fn parse_gateway_tool(

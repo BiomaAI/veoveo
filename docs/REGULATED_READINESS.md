@@ -139,12 +139,12 @@ originates customer-side (encrypted volumes on validated modules, KMS key
 custody); the product-side work is SSE passthrough, documentation, and the
 envelope-key layer that enables cryptographic erasure.
 
-**Pillar 4 — complete capture, no immutability.** Every MCP call, auth
-outcome, and admin operation lands in `audit_event` with actor, source IP,
-trace ID, and reason codes. But integrity rests on database access control
-alone: no WORM sink, no hash chaining, and a retention job that hard-deletes
-audit records after a rolling window (`platform/store/src/gateway_runtime.rs:727-741`).
-For AU-9 this is the inverted problem — evidence silently expires.
+**Pillar 4 — audit qualification.** The [unified audit design](AUDIT.md) uses typed
+records, signed Merkle blocks and installation-defined retention. Its source includes
+S3/OTLP exporters and requires delivery receipts before deleting archived blocks.
+The [foundations batch](PLATFORM_FOUNDATIONS_PLAN.md#phase-4-unified-audit-log) still
+owes runtime and installed qualification. No assessed AU-9 or write-once claim follows
+from source implementation; compliance-mode storage acceptance remains open.
 
 **Pillar 5 — locatable, not deletable.** Tenant-scoped blob keys, cataloged
 segments, and stamped metadata make regulated data findable. Nothing makes
@@ -196,12 +196,12 @@ Priority 2 is the program that makes it durable.
 | G1 | No FIPS mode: ring provider, XChaCha20-Poly1305 envelopes, no validated module claim | 3 | 0 |
 | G2 | No SSE/KMS hooks in the chart; encrypted-volume requirement and key custody undocumented | 3 | 0 |
 | G3 | No selective deletion: artifacts, blobs (no refcount), recordings, workspaces | 5 | 0 |
-| G4 | Audit not immutable and silently expires; no WORM export path | 4 | 0 |
+| G4 | Unified audit sealing, required retention and archive delivery await runtime and installed qualification | 4 | 0 |
 | G5 | No AAL vocabulary (MFA/PIV/acr), session controls, or system use notification | 2 | 0 |
 | G6 | Agent LLM egress defaults external in the production manifest | 6 | 0 |
 | G7 | No image signing, admission verification, or own-image digest pinning | 7 | 1 |
 | G8 | Share-link redemption skips label clearance; export/marking propagation absent | 1 | 1 |
-| G9 | No governed storage profile: default store is beta rustfs with no Object Lock capability | 7 | 1 |
+| G9 | Bundled RustFS has no qualified Object Lock path; a compliance-mode provider and its storage probe remain unqualified | 7 | 1 |
 | G10 | Restricted-deployment geo content: Google tiles licensing bars caching/offline/ML use | 6 | 1 |
 | G11 | NetworkPolicy link-local/CGNAT gaps; Rerun analytics opt-out not baked | 6 | 1 |
 | G12 | Secret backends: KMS/cloud/enterprise variants declared but unimplemented | 3 | 1 |
@@ -258,8 +258,7 @@ P1 items harden the claim; P2 items build the assessor-facing program.
 
 - [ ] G4/P0 — Audit export pipeline to an Object-Locked bucket in the
       governed storage profile (WORM sink)
-- [ ] G4/P0 — Audit retention becomes an organization-defined parameter
-      with no silent default deletion
+- [ ] G4/P0 — Qualify required installation retention and export-gated whole-block deletion
 - [ ] G4/P1 — Published SIEM-consumable audit export schema
 
 ### Identification, authentication, and session (IA-2, IA-8, AC-8, AC-11, AC-12)

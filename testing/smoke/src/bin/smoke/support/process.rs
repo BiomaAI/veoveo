@@ -144,6 +144,8 @@ pub(crate) fn run_raw(
         .env_remove("VEOVEO_INTERNAL_SIGNING_KEY_DER_B64")
         .env_remove("VEOVEO_INTERNAL_SIGNING_KEY_ID")
         .env_remove("VEOVEO_INTERNAL_TRUST_JWKS")
+        .env_remove("VEOVEO_AUDIT_SIGNING_KEY_B64")
+        .env_remove("VEOVEO_AUDIT_RETENTION_DAYS")
         .env_remove("VEOVEO_REFRESH_DELIVERY_KEY_B64")
         .env_remove("VEOVEO_REFRESH_DELIVERY_WINDOW_SECONDS")
         .envs(envs)

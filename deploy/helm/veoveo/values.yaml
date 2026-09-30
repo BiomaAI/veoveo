@@ -101,6 +101,18 @@ gateway:
   controlPlaneKey: gateway.json
   # Required when gateway is selected: SHA-256 of its complete mounted public bundle.
   controlPlaneRevision: ""
+  # Installation-owned retention. Gateway rendering requires an explicit value.
+  auditRetentionDays: null
+  # Dedicated installation Secret containing a base64-encoded 32-byte seed.
+  auditSigningSecret: veoveo-audit-signing-key
+  auditExport:
+    destinations:
+      s3: null
+      otlp: null
+    # Empty uses the installation object-store credential Secret.
+    s3CredentialsSecret: ""
+    # Optional Secret key token; config uses VEOVEO_AUDIT_OTLP_BEARER_TOKEN.
+    otlpBearerSecret: ""
   refreshDeliveryWindowSeconds: 5
   agents:
     # Approved connections; definitions are authored through the management API.
@@ -475,6 +487,7 @@ consoleBff:
   oauthScopes:
     - operator:use
     - admin:manage
+    - audit:read
     - recording:seal
     - uav-sim:admin
     - uav-sim:stream

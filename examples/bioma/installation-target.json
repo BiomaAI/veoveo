@@ -74,6 +74,7 @@
     "scopes": [
       "operator:use",
       "admin:manage",
+      "audit:read",
       "uav-sim:admin",
       "time:read",
       "map:admin",

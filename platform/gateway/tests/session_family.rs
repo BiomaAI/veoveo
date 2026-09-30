@@ -224,24 +224,41 @@ fn audit(
     profile: &GatewayProfileId,
     principal: &Principal,
     reason: AuthReasonCode,
-) -> AuthAuditEvent {
-    AuthAuditEvent {
-        event_id: TraceId::new(uuid::Uuid::now_v7().to_string()).unwrap(),
-        timestamp: Utc::now(),
-        trace_id: TraceId::new(uuid::Uuid::now_v7().to_string()).unwrap(),
-        profile: Some(profile.clone()),
-        protected_resource: ProtectedResourceId::new("https://veoveo.example/mcp/operator")
-            .unwrap(),
-        outcome: AuthOutcome::Allow,
-        reason,
-        method: AuthMethod::RefreshToken,
-        principal: Some(principal.id.clone()),
-        principal_attributes: Some(PrincipalAuditAttributes::from(principal)),
+) -> veoveo_audit_contract::AuditDraft {
+    use veoveo_audit_contract::*;
+    let activity = if reason == AuthReasonCode::RefreshTokenDuplicateDelivery {
+        AuthenticationActivity::DuplicateRefresh
+    } else {
+        AuthenticationActivity::Refresh
+    };
+    AuditDraft::builder(
+        AuditRequest::background(),
+        AuditTarget::Profile {
+            profile: profile.clone(),
+        },
+        AuditDetail::Authentication {
+            activity,
+            method: AuthMethod::RefreshToken,
+            reason,
+        },
+        AuditOutcome::Allowed,
+        AuditReason::Accepted,
+    )
+    .actor(AuditActor {
+        principal: principal.id.clone(),
+        kind: AuditPrincipalKind::User,
         tenant: principal.tenant.clone(),
-        token_issuer: Some(principal.issuer.clone()),
-        token_subject: Some(principal.subject.clone()),
-        jwt_id: None,
-        latency_ms: None,
-        metadata: Default::default(),
-    }
+        oauth_client: None,
+        session_family: None,
+        delegating_principal: None,
+        managed_agent: None,
+    })
+    .authority(AuditAuthority {
+        profile: Some(profile.clone()),
+        scopes: principal.scopes.clone(),
+        data_labels: principal.data_labels.clone(),
+        ..Default::default()
+    })
+    .build()
+    .unwrap()
 }

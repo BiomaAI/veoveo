@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use crate::contract::{LiveSessionId, UavGrantCursor, UavScope};
@@ -21,6 +21,7 @@ use rmcp::{
 use serde::Serialize;
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
+use veoveo_mcp_contract::audit::{AuditOutcome, LiveViewActivity};
 use veoveo_mcp_contract::{
     GatewayInternalIdentity, Page, SubscriptionHub, UsageKind, UsageRecord, UsageReport, paginate,
 };
@@ -449,42 +450,29 @@ impl UavSimMcp {
     ) -> Result<CallToolResult, McpError> {
         let identity = require_scope(&context, UavScope::Stream)?;
         let owner = crate::server::ownership::live_view_owner(&identity);
-        let details = live_view_details(&request.session_id, Some(request.camera_id.as_str()));
+        let audit_context = identity
+            .audit_context()
+            .map_err(|error| McpError::invalid_request(error.to_string(), None))?;
+        let denial_uri = uris::live_views(&request.session_id);
         let result = self
             .state
             .live_views
-            .open(owner, identity.actor.id.clone(), request)
+            .open(owner, audit_context, request)
             .await;
         let connection = match result {
             Ok(connection) => connection,
             Err(error) => {
-                let mut denied_details = details;
-                denied_details.extend(error.audit_details());
-                denied_details.insert(
-                    "failure_code".to_owned(),
-                    serde_json::Value::String(error.code().to_owned()),
-                );
-                audit_live_view(
+                audit_live_view_denial(
                     &self.state,
                     &identity,
-                    None,
-                    "open_denied",
-                    veoveo_platform_store::AuditOutcome::Denied,
-                    denied_details,
+                    denial_uri,
+                    LiveViewActivity::Issue,
+                    &error,
                 )
-                .await;
+                .await?;
                 return Err(live_view_error(error));
             }
         };
-        audit_live_view(
-            &self.state,
-            &identity,
-            Some(&connection.stream.live_view_id),
-            "opened",
-            veoveo_platform_store::AuditOutcome::Allowed,
-            details,
-        )
-        .await;
         self.state
             .subscribers
             .notify_resource_updated(connection.stream.resource_uri.as_str())
@@ -512,36 +500,27 @@ impl UavSimMcp {
     ) -> Result<CallToolResult, McpError> {
         let identity = require_scope(&context, UavScope::Stream)?;
         let owner = crate::server::ownership::live_view_owner(&identity);
+        let audit_context = identity
+            .audit_context()
+            .map_err(|error| McpError::invalid_request(error.to_string(), None))?;
         let session_id = request.session_id.clone();
         let live_view_id = request.live_view_id.clone();
         let result = self
             .state
             .live_views
-            .renew(&owner, &identity.actor.id, request)
+            .renew(&owner, &audit_context, request)
             .await;
         let result = match result {
             Ok(result) => result,
             Err(error) => {
-                let action = if matches!(error, LiveViewError::AuthorityRevoked) {
-                    "viewer_authority_revoked"
-                } else {
-                    "renew_denied"
-                };
-                let mut details = live_view_details(&session_id, None);
-                details.extend(error.audit_details());
-                details.insert(
-                    "failure_code".to_owned(),
-                    serde_json::Value::String(error.code().to_owned()),
-                );
-                audit_live_view(
+                audit_live_view_denial(
                     &self.state,
                     &identity,
-                    Some(&live_view_id),
-                    action,
-                    veoveo_platform_store::AuditOutcome::Denied,
-                    details,
+                    uris::live_view(&session_id, &live_view_id),
+                    LiveViewActivity::Renew,
+                    &error,
                 )
-                .await;
+                .await?;
                 if matches!(error, LiveViewError::AuthorityRevoked) {
                     self.state
                         .subscribers
@@ -555,18 +534,6 @@ impl UavSimMcp {
                 return Err(live_view_error(error));
             }
         };
-        audit_live_view(
-            &self.state,
-            &identity,
-            Some(&live_view_id),
-            "renewed",
-            veoveo_platform_store::AuditOutcome::Allowed,
-            live_view_details(
-                &result.stream.session_id,
-                Some(result.stream.camera_id.as_str()),
-            ),
-        )
-        .await;
         self.state
             .subscribers
             .notify_resource_updated(result.stream.resource_uri.as_str())
@@ -590,43 +557,30 @@ impl UavSimMcp {
     ) -> Result<CallToolResult, McpError> {
         let identity = require_scope(&context, UavScope::Stream)?;
         let owner = crate::server::ownership::live_view_owner(&identity);
+        let audit_context = identity
+            .audit_context()
+            .map_err(|error| McpError::invalid_request(error.to_string(), None))?;
         let session_id = request.session_id.clone();
         let live_view_id = request.live_view_id.clone();
         let result = self
             .state
             .live_views
-            .close(&owner, &identity.actor.id, request)
+            .close(&owner, &audit_context, request)
             .await;
         let result = match result {
             Ok(result) => result,
             Err(error) => {
-                let mut details = live_view_details(&session_id, None);
-                details.extend(error.audit_details());
-                details.insert(
-                    "failure_code".to_owned(),
-                    serde_json::Value::String(error.code().to_owned()),
-                );
-                audit_live_view(
+                audit_live_view_denial(
                     &self.state,
                     &identity,
-                    Some(&live_view_id),
-                    "close_denied",
-                    veoveo_platform_store::AuditOutcome::Denied,
-                    details,
+                    uris::live_view(&session_id, &live_view_id),
+                    LiveViewActivity::Close,
+                    &error,
                 )
-                .await;
+                .await?;
                 return Err(live_view_error(error));
             }
         };
-        audit_live_view(
-            &self.state,
-            &identity,
-            Some(&live_view_id),
-            "closed",
-            veoveo_platform_store::AuditOutcome::Allowed,
-            live_view_details(&session_id, None),
-        )
-        .await;
         self.state
             .subscribers
             .notify_resource_updated(&result.resource_uri)
@@ -1260,38 +1214,29 @@ fn authority_error(error: ControlAuthorityError) -> McpError {
     }
 }
 
-fn live_view_details(
-    session_id: &LiveSessionId,
-    camera_id: Option<&str>,
-) -> BTreeMap<String, serde_json::Value> {
-    let mut details = BTreeMap::from([(
-        "session_id".to_owned(),
-        serde_json::Value::String(session_id.to_string()),
-    )]);
-    if let Some(camera_id) = camera_id {
-        details.insert(
-            "camera_id".to_owned(),
-            serde_json::Value::String(camera_id.to_owned()),
-        );
-    }
-    details
-}
-
-async fn audit_live_view(
+async fn audit_live_view_denial(
     state: &AppState,
     identity: &GatewayInternalIdentity,
-    live_view_id: Option<&crate::contract::LiveViewId>,
-    action: &'static str,
-    outcome: veoveo_platform_store::AuditOutcome,
-    details: BTreeMap<String, serde_json::Value>,
-) {
-    if let Err(error) = state
+    uri: veoveo_types::ResourceUri,
+    activity: LiveViewActivity,
+    error: &LiveViewError,
+) -> Result<(), McpError> {
+    let context = identity
+        .audit_context()
+        .map_err(|error| McpError::internal_error(error.to_string(), None))?;
+    let draft = super::live_view_audit::LiveViewAudit::draft(
+        &context,
+        uri,
+        activity,
+        AuditOutcome::Denied,
+        error.audit_reason(),
+    )
+    .map_err(|error| McpError::internal_error(error.to_string(), None))?;
+    state
         .live_view_audit
-        .append(identity, live_view_id, action, outcome, details)
+        .required(draft)
         .await
-    {
-        tracing::error!(%error, action, "failed to persist live-view access audit");
-    }
+        .map_err(|_| McpError::internal_error("required audit commit unavailable", None))
 }
 
 fn live_view_error(error: LiveViewError) -> McpError {

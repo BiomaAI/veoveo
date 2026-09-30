@@ -147,7 +147,7 @@ async fn owned_and_granted_computers_share_bounded_ordered_pages_without_duplica
     grant(&store, &owner, first, &[AutomationPermission::Read]).await;
     let second = store
         .reserve(
-            owner.owner(),
+            &owner,
             &Reservation {
                 request_id: Uuid::now_v7(),
                 template_id: "development".into(),
@@ -165,7 +165,7 @@ async fn owned_and_granted_computers_share_bounded_ordered_pages_without_duplica
     .await;
     let third = store
         .reserve(
-            agent.owner(),
+            &agent,
             &Reservation {
                 request_id: Uuid::now_v7(),
                 template_id: "development".into(),

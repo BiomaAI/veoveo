@@ -23,6 +23,7 @@ IF $current = NONE OR $current.owner_key != $owner_key OR $current.provider_inst
 IF $grant_state.revoked_at = NONE {
   UPDATE $grant SET revoked_at=$now, revision += 1;
   CREATE outbox_event CONTENT $event;
+  fn::append_audit($audit_rows);
 };
 COMMIT TRANSACTION;
 SELECT * FROM ONLY $grant;

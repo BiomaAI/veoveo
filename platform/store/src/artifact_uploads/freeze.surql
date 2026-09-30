@@ -1,6 +1,13 @@
 BEGIN TRANSACTION;
   LET $upload_state = SELECT * FROM ONLY $upload;
   IF $upload_state = NONE { THROW 'artifact_upload_conflict'; };
+  IF $audit.actor.principal != $upload_state.actor_key
+    OR $audit.actor.tenant != $upload_state.tenant_key
+    OR $audit.authority.profile != $upload_state.profile_key
+    OR $audit.authority.work_context != $upload_state.authority.context_key
+    OR $audit.authority.policy_revision != $upload_state.authority.policy_revision {
+    THROW 'artifact_upload_denied';
+  };
   IF $upload_state.policy_digest != $policy_digest OR !fn::artifact_upload_authority_matches($upload_state) { THROW 'artifact_upload_denied'; };
   IF $upload_state.state IN ['finalizing', 'verifying', 'completed'] {
     IF $upload_state.manifest.byte_len != $manifest.byte_len OR $upload_state.manifest.part_count != $manifest.part_count
@@ -22,6 +29,6 @@ BEGIN TRANSACTION;
         OR (part_number < $manifest.part_count AND byte_len != $upload_state.layout.part_bytes)
         OR (part_number = $manifest.part_count AND byte_len != $manifest.byte_len - (($manifest.part_count - 1) * $upload_state.layout.part_bytes))) LIMIT 1;
     IF array::len($invalid) > 0 { THROW 'artifact_upload_conflict'; };
-    UPDATE ONLY $upload SET state = 'finalizing', manifest = $manifest, updated_at = $now RETURN NONE;
+    UPDATE ONLY $upload SET state = 'finalizing', manifest = $manifest, audit = $audit, updated_at = $now RETURN NONE;
   };
 COMMIT TRANSACTION;

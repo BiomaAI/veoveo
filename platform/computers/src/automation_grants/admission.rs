@@ -191,6 +191,14 @@ impl ComputersStore {
                 )
                 .into_value(),
             ),
+            crate::audit::binding(
+                actor.accepted(),
+                input.computer_id,
+                crate::audit::Transition::accepted(
+                    veoveo_audit_contract::ComputerActivity::Grant,
+                    veoveo_audit_contract::ComputerAuditStage::GrantIssued,
+                ),
+            )?,
             (
                 "event",
                 crate::session_grants::authority::event(
@@ -313,6 +321,14 @@ impl ComputersStore {
                 ("computer_id", input.computer_id.into_uuid().into_value()),
                 ("owner_key", owner_key(&computer.owner)?.into_value()),
                 ("provider", self.provider_instance_id.into_value()),
+                crate::audit::binding(
+                    actor.accepted(),
+                    input.computer_id,
+                    crate::audit::Transition::accepted(
+                        veoveo_audit_contract::ComputerActivity::Revoke,
+                        veoveo_audit_contract::ComputerAuditStage::GrantRevoked,
+                    ),
+                )?,
                 (
                     "event",
                     crate::session_grants::authority::event(

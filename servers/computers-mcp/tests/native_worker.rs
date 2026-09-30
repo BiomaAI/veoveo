@@ -145,7 +145,7 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
     let actor = support::owner("alice");
     let computer = a
         .reserve(
-            &actor,
+            &crate::support::authenticated(&actor),
             &Reservation {
                 request_id: Uuid::now_v7(),
                 template_id: "development".into(),

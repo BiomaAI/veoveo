@@ -4,6 +4,8 @@ use super::*;
 
 #[path = "support/assertions.rs"]
 mod assertions;
+#[path = "support/audit.rs"]
+mod audit;
 #[path = "support/control_plane.rs"]
 mod control_plane;
 #[path = "support/duckdb.rs"]
@@ -34,6 +36,7 @@ mod types;
 mod usage;
 
 pub(crate) use assertions::*;
+pub(crate) use audit::*;
 pub(crate) use control_plane::*;
 pub(crate) use duckdb::*;
 pub(crate) use final_tasks::*;

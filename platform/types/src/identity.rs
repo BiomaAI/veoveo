@@ -66,3 +66,14 @@ pub enum AccessSubject {
     Principal(PrincipalId),
     Group(GroupId),
 }
+
+name!(
+    TokenIssuer,
+    validate_claim_text,
+    "Expected token issuer identifier."
+);
+name!(
+    TokenSubject,
+    validate_claim_text,
+    "AccessSubject claim from an authenticated access token or identity assertion."
+);

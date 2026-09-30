@@ -13,7 +13,7 @@ export function TaskDrawer({ task, onClose }: { task: TaskSummary; onClose: () =
   const cancel = async () => {
     setActionError(undefined);
     try {
-      await cancelTask.mutateAsync(task.id);
+      await cancelTask.mutateAsync(task);
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : "The task wasn't cancelled. Try again.");
     }

@@ -6,6 +6,7 @@ mod artifact_access;
 mod artifacts;
 #[path = "admin/console/mod.rs"]
 mod console;
+pub(crate) use console::audit as console_audit;
 #[path = "admin/control_plane.rs"]
 mod control_plane;
 #[path = "admin/jwt_revocations.rs"]

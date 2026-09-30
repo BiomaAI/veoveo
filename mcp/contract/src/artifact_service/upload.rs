@@ -5,8 +5,7 @@ use super::*;
 mod policy;
 pub use policy::*;
 
-artifact_uuid_id!(ArtifactUploadId, "artifact upload id");
-artifact_uuid_id!(ArtifactUploadRequestId, "upload idempotency key");
+pub use veoveo_artifact_contract::{ArtifactUploadId, ArtifactUploadRequestId};
 
 pub const UPLOAD_PART_BYTE_LEN_HEADER: &str = "x-veoveo-part-byte-len";
 pub const UPLOAD_PART_SHA256_HEADER: &str = "x-veoveo-part-sha256";

@@ -3,7 +3,6 @@ use crate::{
     ComputerActor, ComputerError, ComputersStore, Result, identity::owner_key,
     session_grants::authority,
 };
-use chrono::Utc;
 use std::time::Duration;
 use surrealdb::types::SurrealValue;
 use uuid::Uuid;
@@ -78,6 +77,7 @@ impl ComputersStore {
                     ("resource", computer.provider_resource_id.into_value()),
                     ("process", computer.process_id.into_value()),
                     ("authority_expires_at", end.into_value()),
+                    crate::audit::binding(&accepted, computer_id, crate::audit::Transition::accepted(veoveo_audit_contract::ComputerActivity::Attach, veoveo_audit_contract::ComputerAuditStage::Attached))?,
                     (
                         "event",
                         authority::event(&accepted, computer_id, grant_id, "access_connected")?
@@ -207,6 +207,14 @@ impl ComputersStore {
                         "admission_expires_at",
                         actor.admission_expires_at().into_value(),
                     ),
+                    crate::audit::binding(
+                        actor.accepted(),
+                        computer_id,
+                        crate::audit::Transition::accepted(
+                            veoveo_audit_contract::ComputerActivity::Revoke,
+                            veoveo_audit_contract::ComputerAuditStage::GrantRevoked,
+                        ),
+                    )?,
                     (
                         "event",
                         authority::event(
@@ -228,12 +236,52 @@ impl ComputersStore {
     /// Closing one TCP/gRPC connection never revokes the paired client.
     pub async fn close_cli_connection(&self, handle: &CliConnectionHandle) -> Result<()> {
         tokio::time::timeout(Duration::from_secs(5), async {
-            self.query("UPDATE ONLY $connection SET closed_at = $now WHERE connection_id = $connection_id AND grant_id = $grant_id AND closed_at = NONE;", vec![
-                ("connection", super::connection_record(handle.connection_id).into_value()),
-                ("connection_id", handle.connection_id.into_value()), ("grant_id", handle.grant_id.into_value()),
-                ("now", Utc::now().into_value()),
-            ]).await?;
+            let mut read = self
+                .query(
+                    "SELECT * FROM ONLY $grant WHERE grant_id = $grant_id
+                AND provider_instance_id = $provider AND $connection.connection_id = $connection_id
+                AND $connection.grant_id = $grant_id AND $connection.closed_at = NONE;",
+                    vec![
+                        ("grant", super::grant_record(handle.grant_id).into_value()),
+                        ("provider", self.provider_instance_id.into_value()),
+                        (
+                            "connection",
+                            super::connection_record(handle.connection_id).into_value(),
+                        ),
+                        ("connection_id", handle.connection_id.into_value()),
+                        ("grant_id", handle.grant_id.into_value()),
+                    ],
+                )
+                .await?;
+            let grant: Option<model::Grant> =
+                read.take(0).map_err(|_| ComputerError::Unavailable)?;
+            let Some(grant) = grant else {
+                return Ok(());
+            };
+            let accepted = grant.accepted()?;
+            self.query(
+                include_str!("../../queries/close_cli_connection.surql"),
+                vec![
+                    (
+                        "connection",
+                        super::connection_record(handle.connection_id).into_value(),
+                    ),
+                    ("connection_id", handle.connection_id.into_value()),
+                    ("grant_id", handle.grant_id.into_value()),
+                    crate::audit::binding(
+                        &accepted,
+                        grant.computer_id()?,
+                        crate::audit::Transition::accepted(
+                            veoveo_audit_contract::ComputerActivity::Close,
+                            veoveo_audit_contract::ComputerAuditStage::Closed,
+                        ),
+                    )?,
+                ],
+            )
+            .await?;
             Ok(())
-        }).await.map_err(|_| ComputerError::Unavailable)?
+        })
+        .await
+        .map_err(|_| ComputerError::Unavailable)?
     }
 }

@@ -1,11 +1,8 @@
-use std::collections::BTreeMap;
-
 use axum::{
     Json,
     extract::{Extension, Path, State},
     http::{HeaderMap, StatusCode},
 };
-use uuid::Uuid;
 use veoveo_mcp_contract::{GatewayAction as Action, PolicyTarget, agent_management as wire};
 use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_platform_store::{PrincipalId, agent_management as domain};
@@ -23,7 +20,6 @@ use crate::audit::{
 async fn finish(
     state: &AgentManagementState,
     actor: &Admission,
-    request_id: Uuid,
     result: Result<domain::AgentDefinition, Fault>,
 ) -> Api<wire::Definition> {
     let result = match result {
@@ -43,15 +39,21 @@ async fn finish(
         &actor.subject,
         PolicyTarget::Gateway,
         AdminOperationAuditRecord {
+            audit_target: result.as_ref().ok().map(|definition| {
+                crate::audit::agent_definition_audit_target(
+                    &actor.subject.authority.tenant,
+                    &definition.id,
+                )
+            }),
             action: actor.action,
-            method: "admin/agent-management/result",
+            operation: crate::audit::agent_management_operation(actor.action)
+                .map_err(|_| Fault::unavailable())?,
             started_at: actor.started,
             status,
             failure: result
                 .as_ref()
                 .err()
                 .map(|_| AdminOperationFailure::AgentManagement),
-            metadata: BTreeMap::from([("request_id".into(), request_id.to_string())]),
         },
     )
     .await
@@ -101,7 +103,7 @@ pub(super) async fn create(
             .await?)
     }
     .await;
-    finish(&state, &actor, request.request_id, result).await
+    finish(&state, &actor, result).await
 }
 
 pub(super) async fn draft(
@@ -124,7 +126,7 @@ pub(super) async fn draft(
         )
         .await
         .map_err(Fault::from);
-    finish(&state, &actor, request.request_id, result).await
+    finish(&state, &actor, result).await
 }
 
 pub(super) async fn metadata(
@@ -157,7 +159,7 @@ pub(super) async fn metadata(
         )
         .await
         .map_err(Fault::from);
-    finish(&state, &actor, request.request_id, result).await
+    finish(&state, &actor, result).await
 }
 
 pub(super) async fn publish(
@@ -214,7 +216,7 @@ pub(super) async fn publish(
             .await?)
     }
     .await;
-    finish(&state, &actor, request.request_id, result).await
+    finish(&state, &actor, result).await
 }
 
 async fn status(
@@ -301,7 +303,7 @@ async fn status(
             .await?)
     }
     .await;
-    finish(&state, &actor, request.request_id, result).await
+    finish(&state, &actor, result).await
 }
 pub(super) async fn disable(
     State(state): State<AgentManagementState>,

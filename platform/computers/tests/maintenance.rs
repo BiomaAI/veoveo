@@ -196,7 +196,7 @@ async fn failed_initial_create_is_fenced_without_reclassifying_its_unknown_effec
     let actor = support::authenticated(&owner("alice"));
     let computer = a
         .reserve(
-            actor.owner(),
+            &actor,
             &Reservation {
                 request_id: Uuid::now_v7(),
                 template_id: "development".into(),
@@ -267,7 +267,7 @@ async fn failed_initial_create_is_fenced_without_reclassifying_its_unknown_effec
     assert!(retained.provider_resource_id.is_none());
     assert!(matches!(
         a.reserve(
-            actor.owner(),
+            &actor,
             &Reservation {
                 request_id: Uuid::now_v7(),
                 template_id: "development".into(),

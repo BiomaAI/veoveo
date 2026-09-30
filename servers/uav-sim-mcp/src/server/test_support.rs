@@ -18,7 +18,7 @@ pub(super) fn identity(
     let principal = PrincipalId::new(name).unwrap();
     let tenant = TenantId::new(tenant).unwrap();
     let now = Utc::now();
-    GatewayInternalIdentity {
+    let mut identity = GatewayInternalIdentity {
         issuer: TokenIssuer::new("https://gateway.example").unwrap(),
         profile: GatewayProfileId::new("uav-index-test").unwrap(),
         server: ServerSlug::new("uav-sim").unwrap(),
@@ -59,7 +59,9 @@ pub(super) fn identity(
         issued_at: now,
         not_before: now,
         expires_at: now + TimeDelta::minutes(5),
-    }
+    };
+    bind_request_context(&mut identity);
+    identity
 }
 
 #[path = "../../../../testing/fixtures/store.rs"]
@@ -113,6 +115,7 @@ pub(super) fn context(
         .actor
         .scopes
         .insert(ScopeName::new("external:custom").unwrap());
+    bind_request_context(&mut identity);
     let (mut parts, _) = axum::http::Request::new(()).into_parts();
     parts.extensions.insert(identity);
     parts
@@ -126,4 +129,32 @@ pub(super) fn context(
             .set_client_capabilities(ClientCapabilities::builder().enable_tasks().build());
     }
     context
+}
+
+fn bind_request_context(identity: &mut GatewayInternalIdentity) {
+    use veoveo_mcp_contract::{
+        AccessTokenSubject, GatewayRequestContext, OAuthClientId, ProtectedResourceId,
+    };
+    identity.request_context = Some(GatewayRequestContext {
+        audit: veoveo_mcp_contract::audit::AuditRequest::background(),
+        principal: identity.actor.clone(),
+        access_token: AccessTokenSubject {
+            managed_agent: None,
+            issuer: identity.actor.issuer.clone(),
+            subject: identity.actor.subject.clone(),
+            oauth_client_id: OAuthClientId::new("native-test").unwrap(),
+            session_family: None,
+            audience: ProtectedResourceId::new("https://gateway.example/mcp/uav-index-test")
+                .unwrap(),
+            work_context: identity.authority.work_context.clone(),
+            invocation_mode: veoveo_types::InvocationMode::Direct,
+            initiator: Some(identity.actor.id.clone()),
+            delegation_id: None,
+            scopes: identity.actor.scopes.clone(),
+            jwt_id: Some(identity.jwt_id.clone()),
+            issued_at: identity.issued_at,
+            not_before: Some(identity.not_before),
+            expires_at: identity.expires_at,
+        },
+    });
 }

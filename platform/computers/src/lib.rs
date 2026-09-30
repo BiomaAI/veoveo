@@ -77,3 +77,4 @@ pub enum ComputerError {
     Unavailable,
 }
 pub type Result<T> = std::result::Result<T, ComputerError>;
+mod audit;

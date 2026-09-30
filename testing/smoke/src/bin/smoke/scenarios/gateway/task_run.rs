@@ -1,6 +1,7 @@
 use super::*;
+use SmokeAuditSelection as Select;
+use veoveo_mcp_contract::audit::{AuditOutcome, AuditReadMethod, DiscoveryKind, TaskActivity};
 use veoveo_media_mcp::contract::MediaGenerationResult;
-use veoveo_platform_store::{GatewayAuditKind, PlatformStore, StoreConfig, StoreCredentials};
 
 pub(crate) async fn gateway_task_run(
     conformance: &Path,
@@ -194,6 +195,17 @@ pub(crate) async fn gateway_task_run(
     assert_usage_report(&usage, "media", &native_task_id)?;
 
     let full_session = connect_mcp_client(&format!("{gateway_base}/mcp/operator"), token).await?;
+    let full_resources = full_session
+        .list_resources(Default::default())
+        .await
+        .context("full-MCP resource discovery")?;
+    if full_resources
+        .resources
+        .iter()
+        .any(|resource| resource.uri == veoveo_media_mcp::uris::STUDIO_APP_URI)
+    {
+        bail!("operator resource discovery exposed the excluded Studio App");
+    }
     let full_tools = full_session
         .list_tools(Default::default())
         .await
@@ -432,66 +444,63 @@ pub(crate) async fn gateway_task_run(
         )],
     )?;
 
-    gateway_child.stop();
-    let audit_summary = run_gateway_json(gateway, "audit-method-summary", platform_store)?;
-    assert_media_discovery_denial(platform_store).await?;
-    assert_audit_method(&audit_summary, "completion/complete", 1, 0)?;
-    assert_audit_method(&audit_summary, "tools/call", 6, 0)?;
-    assert_audit_method(&audit_summary, "tasks/cancel", 1, 0)?;
-    assert_audit_method(&audit_summary, "tasks/get", 3, 0)?;
-    assert_audit_method(&audit_summary, "subscriptions/listen", 1, 0)?;
-    assert_audit_method(&audit_summary, "resources/read", 2, 0)?;
+    gateway_child.drain(Duration::from_secs(90)).await?;
+    let audit = SmokeAudit::connect(platform_store, control_plane).await?;
+    // One aggregate discovery record describes the excluded Studio App.
+    audit
+        .at_least(
+            Select::DiscoveryDenials {
+                collection: DiscoveryKind::Resources,
+                denied: 1,
+            },
+            Some(AuditOutcome::Allowed),
+            1,
+        )
+        .await?;
+    audit
+        .at_least(
+            Select::Read(AuditReadMethod::Completion),
+            Some(AuditOutcome::Allowed),
+            1,
+        )
+        .await?;
+    audit
+        .at_least(Select::ToolAdmission, Some(AuditOutcome::Allowed), 6)
+        .await?;
+    audit.at_least(Select::ToolCompletion, None, 6).await?;
+    audit
+        .at_least(
+            Select::Task(TaskActivity::Cancel),
+            Some(AuditOutcome::Allowed),
+            1,
+        )
+        .await?;
+    audit
+        .exact(
+            Select::Read(AuditReadMethod::Status),
+            Some(AuditOutcome::Allowed),
+            0,
+        )
+        .await?;
+    audit
+        .at_least(
+            Select::Read(AuditReadMethod::Subscription),
+            Some(AuditOutcome::Allowed),
+            1,
+        )
+        .await?;
+    audit
+        .at_least(
+            Select::Read(AuditReadMethod::ResourceRead),
+            Some(AuditOutcome::Allowed),
+            2,
+        )
+        .await?;
+    audit.assert_cli(gateway, platform_store)?;
 
     media_child.stop();
     provider.stop();
     cleanup.remove_on_drop();
     println!("gateway task run smoke ok");
-    Ok(())
-}
-
-async fn assert_media_discovery_denial(platform: &PlatformStoreSmoke) -> Result<()> {
-    let store = PlatformStore::connect(
-        StoreConfig::builder(
-            &platform.endpoint,
-            &platform.namespace,
-            &platform.database,
-            StoreCredentials::database(
-                SURREAL_RUNTIME_USER,
-                secrecy::SecretString::from(SURREAL_RUNTIME_PASSWORD),
-            ),
-        )
-        .build()?,
-    )
-    .await?;
-    let mut denied = 0;
-    for record in store.gateway_audit_events(GatewayAuditKind::Policy).await? {
-        let event: veoveo_mcp_contract::AuditEvent = serde_json::from_value(
-            record
-                .details
-                .as_map()
-                .get("event")
-                .cloned()
-                .context("policy audit omitted its event")?,
-        )?;
-        if event.decision.effect == veoveo_mcp_contract::PolicyEffect::Deny {
-            denied += 1;
-            // The fixture exposes media resources, excluding the ui-scheme App.
-            let expected_target = matches!(&event.target,
-                veoveo_mcp_contract::PolicyTarget::Resource { server, uri }
-                if server.as_str() == "media" && uri.as_str() == "ui://media/studio.html"
-            );
-            anyhow::ensure!(
-                event.action == veoveo_mcp_contract::GatewayAction::ResourcesList
-                    && event.decision.reason
-                        == veoveo_mcp_contract::PolicyReasonCode::UnknownResource
-                    && expected_target,
-                "unexpected gateway policy denial: {event:?}"
-            );
-        }
-    }
-    anyhow::ensure!(
-        denied == 1,
-        "expected one Studio discovery denial, got {denied}"
-    );
     Ok(())
 }

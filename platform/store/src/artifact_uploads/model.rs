@@ -95,6 +95,7 @@ pub struct ArtifactUploadManifest {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
 pub struct ArtifactUploadRecord {
+    pub audit: crate::audit::AuditContextRecord,
     pub id: RecordId,
     pub tenant: RecordId,
     pub tenant_key: String,

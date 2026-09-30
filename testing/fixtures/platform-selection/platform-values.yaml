@@ -1,4 +1,5 @@
 # Explicit render-only identity for this anonymous contract fixture.
 # It does not establish a running gateway or a verified mounted bundle.
 gateway:
+  auditRetentionDays: 365
   controlPlaneRevision: "1111111111111111111111111111111111111111111111111111111111111111"

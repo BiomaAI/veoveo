@@ -3,6 +3,7 @@ mod api;
 mod app_host;
 mod apps;
 mod artifact_upload;
+mod audit;
 mod bootstrap;
 mod browser;
 mod cluster;
@@ -132,6 +133,12 @@ async fn main() -> anyhow::Result<()> {
             get(api::artifact_details),
         )
         .route("/console/api/stream", get(api::stream))
+        .route("/console/api/audit/views", post(audit::open_view))
+        .route("/console/api/audit/partitions", get(audit::partitions))
+        .route("/console/api/audit/records", get(audit::records))
+        .route("/console/api/audit/summary", get(audit::summary))
+        .route("/console/api/audit/stream", get(audit::stream))
+        .route("/console/api/audit/export", get(audit::export))
         .route("/console/api/apps", get(apps::list_apps))
         .route("/console/api/apps/events", get(apps::app_catalog_events))
         .route("/console/api/apps/frame", get(apps::app_frame))
@@ -154,7 +161,7 @@ async fn main() -> anyhow::Result<()> {
             get(viewer_config::rerun_map_config),
         )
         .route(
-            "/console/api/tasks/{task_id}/cancel",
+            "/console/api/tasks/{server}/{task_id}/cancel",
             post(api::cancel_task),
         )
         .route(

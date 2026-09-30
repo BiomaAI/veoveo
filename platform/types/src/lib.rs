@@ -27,6 +27,7 @@ mod https_url;
 pub mod identifier_syntax;
 mod identity;
 mod names;
+mod platform_names;
 mod provenance;
 mod resource;
 mod resource_components;
@@ -52,10 +53,22 @@ pub use resource_template::{ResourceTemplateError, ResourceTemplateUri};
 
 pub use identity::{
     AccessSubject, DataLabelId, DelegationId, GroupId, PolicyVersion, PrincipalId, RoleId,
-    TenantId, WorkContextId,
+    TenantId, TokenIssuer, TokenSubject, WorkContextId,
 };
 pub use provenance::{InvocationMode, InvocationProvenance};
 pub use task::TaskId;
 #[doc(hidden)]
 pub use task_type::assert_task_type_names as __assert_task_type_names;
 pub use task_type::{TaskTypeDefinition, TaskTypeName};
+
+pub use platform_names::{
+    CanonicalTaskId, GatewayProfileId, GatewayRefreshFamilyId, LocalToolName, OAuthClientId,
+    PromptName, ServerSlug,
+};
+
+mod agent_names;
+pub use agent_names::{
+    AgentDefinitionId, AgentIdentifierError, AgentManagedInstanceId, AgentModelId, AgentTemplateId,
+};
+mod authentication;
+pub use authentication::{AuthMethod, AuthOutcome, AuthReasonCode};

@@ -99,6 +99,14 @@ impl ComputersStore {
                     .min(snapshot.checked_at + chrono::TimeDelta::seconds(30))
                     .into_value(),
             ),
+            crate::audit::binding(
+                actor.accepted(),
+                computer_id,
+                crate::audit::Transition::accepted(
+                    veoveo_audit_contract::ComputerActivity::Grant,
+                    veoveo_audit_contract::ComputerAuditStage::GrantIssued,
+                ),
+            )?,
             (
                 "event",
                 authority::event(actor.accepted(), computer_id, grant_id, "access_issued")?
@@ -212,6 +220,14 @@ impl ComputersStore {
                         "admission_expires_at",
                         actor.admission_expires_at().into_value(),
                     ),
+                    crate::audit::binding(
+                        actor.accepted(),
+                        row.computer_id()?,
+                        crate::audit::Transition::accepted(
+                            veoveo_audit_contract::ComputerActivity::Attach,
+                            veoveo_audit_contract::ComputerAuditStage::Attached,
+                        ),
+                    )?,
                     (
                         "event",
                         authority::event(

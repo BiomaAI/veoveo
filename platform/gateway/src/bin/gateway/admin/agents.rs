@@ -1,4 +1,5 @@
-use std::{collections::BTreeMap, str::FromStr, time::Instant};
+use std::{str::FromStr, time::Instant};
+use veoveo_mcp_contract::audit::AdministrativeOperation;
 
 use axum::{
     Json,
@@ -27,16 +28,6 @@ use crate::{
     runtime::AdminState,
 };
 
-const AGENT_MESSAGE_METHOD: &str = "admin/agents/messages";
-const AGENT_MESSAGE_RESULT_METHOD: &str = "admin/agents/messages/result";
-const AGENT_CONVERSATION_METHOD: &str = "admin/agents/conversation";
-const AGENT_CONVERSATION_RESULT_METHOD: &str = "admin/agents/conversation/result";
-const AGENT_INPUT_REQUESTS_METHOD: &str = "admin/agents/input-requests";
-const AGENT_INPUT_REQUESTS_RESULT_METHOD: &str = "admin/agents/input-requests/result";
-const AGENT_INPUT_REQUEST_DECISION_METHOD: &str = "admin/agents/input-requests/decision";
-const AGENT_INPUT_REQUEST_DECISION_RESULT_METHOD: &str =
-    "admin/agents/input-requests/decision/result";
-
 #[derive(Clone, Copy)]
 enum AgentOperation {
     ReadConversation,
@@ -54,21 +45,12 @@ impl AgentOperation {
         }
     }
 
-    const fn method(self) -> &'static str {
+    const fn audit_operation(self) -> AdministrativeOperation {
         match self {
-            Self::ReadConversation => AGENT_CONVERSATION_METHOD,
-            Self::ReadInputRequests => AGENT_INPUT_REQUESTS_METHOD,
-            Self::SendMessage => AGENT_MESSAGE_METHOD,
-            Self::DecideInputRequest => AGENT_INPUT_REQUEST_DECISION_METHOD,
-        }
-    }
-
-    const fn result_method(self) -> &'static str {
-        match self {
-            Self::ReadConversation => AGENT_CONVERSATION_RESULT_METHOD,
-            Self::ReadInputRequests => AGENT_INPUT_REQUESTS_RESULT_METHOD,
-            Self::SendMessage => AGENT_MESSAGE_RESULT_METHOD,
-            Self::DecideInputRequest => AGENT_INPUT_REQUEST_DECISION_RESULT_METHOD,
+            Self::ReadConversation => AdministrativeOperation::AgentConversation,
+            Self::ReadInputRequests => AdministrativeOperation::AgentInputRequests,
+            Self::SendMessage => AdministrativeOperation::AgentMessage,
+            Self::DecideInputRequest => AdministrativeOperation::AgentInputDecision,
         }
     }
 
@@ -96,7 +78,6 @@ struct AuthorizedAgentOperation {
     profile: GatewayProfile,
     subject: AuthenticatedSubject,
     target: AgentControlTarget,
-    metadata: BTreeMap<String, String>,
 }
 
 pub(crate) async fn read_agent_conversation(
@@ -279,19 +260,17 @@ async fn authorize_agent_operation(
     {
         return Err(StatusCode::NOT_FOUND.into_response().into());
     }
-    let metadata = BTreeMap::from([
-        ("operation".to_owned(), operation.name().to_owned()),
-        ("agent_id".to_owned(), agent_id.clone()),
-    ]);
+    let audit_target = agent_audit_target(&subject, &agent_id)
+        .map_err(|error| Box::new(internal_error_response(error)))?;
     let (_catalog, profile, subject) = authorize_admin_target_request(
         state,
         &profile_id,
         subject,
         AdminAuthorizationRequest {
+            audit_target: Some(audit_target),
             action: operation.action(),
             target: PolicyTarget::Gateway,
-            method: operation.method(),
-            metadata: metadata.clone(),
+            operation: operation.audit_operation(),
             started_at,
         },
     )
@@ -305,7 +284,6 @@ async fn authorize_agent_operation(
         profile,
         subject,
         target,
-        metadata,
     };
     Ok(context)
 }
@@ -427,32 +405,29 @@ async fn record_agent_result(
         &context.profile,
         &context.subject,
         AdminOperationAuditRecord {
+            audit_target: Some(agent_audit_target(
+                &context.subject,
+                &context.target.agent_key,
+            )?),
             action: operation.action(),
-            method: operation.result_method(),
+            operation: operation.audit_operation(),
             started_at,
             status,
             failure,
-            metadata: context.metadata.clone(),
         },
     )
     .await
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn agent_control_methods_are_valid_audit_methods() {
-        for method in [
-            AGENT_MESSAGE_METHOD,
-            AGENT_MESSAGE_RESULT_METHOD,
-            AGENT_INPUT_REQUESTS_METHOD,
-            AGENT_INPUT_REQUESTS_RESULT_METHOD,
-            AGENT_INPUT_REQUEST_DECISION_METHOD,
-            AGENT_INPUT_REQUEST_DECISION_RESULT_METHOD,
-        ] {
-            assert!(veoveo_mcp_contract::McpMethodName::new(method).is_ok());
-        }
-    }
+fn agent_audit_target(
+    subject: &AuthenticatedSubject,
+    agent: &str,
+) -> anyhow::Result<veoveo_mcp_contract::audit::AuditTarget> {
+    use veoveo_types::{ResourceUriBuilder, UriSegment};
+    let uri = ResourceUriBuilder::new("veoveo://agents")?
+        .segment(UriSegment::new(subject.authority.tenant.to_string())?)
+        .segment(UriSegment::new(subject.authority.work_context.to_string())?)
+        .segment(UriSegment::new(agent)?)
+        .build()?;
+    Ok(veoveo_mcp_contract::audit::AuditTarget::PlatformResource { uri })
 }

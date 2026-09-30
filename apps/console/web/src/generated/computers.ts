@@ -609,7 +609,7 @@ export interface ExecutionOutput {
   byteCount: number;
 }
 /**
- * Canonical address for one completed file transfer; it is not an access credential.
+ * Completed transfer metadata. Artifact bytes require Artifact read authority.
  *
  * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "FileTransferResult".

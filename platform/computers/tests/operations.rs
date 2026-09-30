@@ -38,7 +38,10 @@ async fn contended_operation_updates_never_overwrite_a_previously_acquired_fence
     let b = installed(db.b.clone()).await;
     for round in 0..8 {
         let actor = owner(&format!("contended-{round}"));
-        let computer = a.reserve(&actor, &request()).await.unwrap();
+        let computer = a
+            .reserve(&crate::support::authenticated(&actor), &request())
+            .await
+            .unwrap();
         let results = futures::future::join_all((0..32).map(|index| {
             let store = if index % 2 == 0 { &a } else { &b };
             store.queue_operation(
@@ -71,7 +74,10 @@ async fn concurrent_operation_retry_has_one_fence_task_and_audit_identity() {
     let a = installed(db.a.clone()).await;
     let b = installed(db.b.clone()).await;
     let alice = owner("alice");
-    let computer = a.reserve(&alice, &request()).await.unwrap();
+    let computer = a
+        .reserve(&crate::support::authenticated(&alice), &request())
+        .await
+        .unwrap();
     let id = computer.computer_id;
     let request_id = Uuid::now_v7();
     let pending = futures::future::join_all((0..8).map(|i| {
@@ -161,7 +167,10 @@ async fn competing_requests_and_private_authority_cannot_replace_the_active_oper
     let b = installed(db.b.clone()).await;
     let alice = owner("alice");
     let bob = owner("bob");
-    let computer = a.reserve(&alice, &request()).await.unwrap();
+    let computer = a
+        .reserve(&crate::support::authenticated(&alice), &request())
+        .await
+        .unwrap();
     let id = computer.computer_id;
     assert!(matches!(
         a.queue_operation(
@@ -227,11 +236,14 @@ async fn unreadable_output_policy_is_rejected_before_consuming_capacity() {
         .data_labels
         .insert(veoveo_types::DataLabelId::new("restricted").unwrap());
     assert!(matches!(
-        a.reserve(&alice, &request()).await,
+        a.reserve(&crate::support::authenticated(&alice), &request())
+            .await,
         Err(ComputerError::Forbidden)
     ));
     alice.data_labels.insert("restricted".into());
-    a.reserve(&alice, &request()).await.unwrap();
+    a.reserve(&crate::support::authenticated(&alice), &request())
+        .await
+        .unwrap();
     let mut query =
         db.a.client()
             .query("SELECT * FROM computer_usage;")
@@ -255,11 +267,16 @@ async fn action_admission_preserves_the_previous_run_and_checks_current_membersh
     let mut alice = owner("alice");
     alice.authority.membership = veoveo_types::WorkContextMembershipLevel::Viewer;
     assert!(matches!(
-        store.reserve(&alice, &request()).await,
+        store
+            .reserve(&crate::support::authenticated(&alice), &request())
+            .await,
         Err(ComputerError::Forbidden)
     ));
     alice.authority.membership = veoveo_types::WorkContextMembershipLevel::Contributor;
-    let computer = store.reserve(&alice, &request()).await.unwrap();
+    let computer = store
+        .reserve(&crate::support::authenticated(&alice), &request())
+        .await
+        .unwrap();
     let record = surrealdb::types::RecordId::new(
         "computer",
         surrealdb::types::Uuid::from(computer.computer_id.into_uuid()),

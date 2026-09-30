@@ -131,10 +131,4 @@ export const demoSnapshot: InstallationSnapshot = {
     { id: "artifact-release", name: "Artifact release", revision: 6, state: "active", rules: 9, updatedAt: ago(280) },
     { id: "recording-retention", name: "Recording retention", revision: 3, state: "draft", rules: 5, updatedAt: ago(15) }
   ],
-  audit: [
-    { id: "a-10492", occurredAt: ago(1), actor: "pilot-agent", action: "tools/call", resource: "frames:batch_transform", outcome: "allowed", sourceIp: "10.24.0.18", traceId: "4a0f92cf" },
-    { id: "a-10491", occurredAt: ago(2), actor: "mara.chen", action: "artifact/share_link.create", resource: "019f4d01-3d7c-71dd-88fd-348009550aa4", outcome: "allowed", sourceIp: "10.24.1.42", traceId: "2ed1c407" },
-    { id: "a-10490", occurredAt: ago(4), actor: "traffic-analyst", action: "tools/call", resource: "duckdb:execute", outcome: "denied", sourceIp: "10.24.0.21", traceId: "c9f8a83d" },
-    { id: "a-10489", occurredAt: ago(7), actor: "mara.chen", action: "admin/policy.update", resource: "recording-retention:3", outcome: "allowed", sourceIp: "10.24.1.42", traceId: "8113b599" }
-  ]
 };

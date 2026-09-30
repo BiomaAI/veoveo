@@ -203,20 +203,17 @@ fn classify_snapshot_upstream(status: reqwest::StatusCode) -> SnapshotUpstreamDi
 
 pub(crate) async fn cancel_task(
     State(state): State<AppState>,
-    Path(task_id): Path<String>,
+    Path((server, task_id)): Path<(veoveo_mcp_contract::ServerSlug, veoveo_types::TaskId)>,
     request_headers: HeaderMap,
 ) -> Response {
-    let Ok(task_id) = uuid::Uuid::parse_str(&task_id) else {
-        return StatusCode::NOT_FOUND.into_response();
-    };
-    if task_id.get_version_num() != 7 {
+    if task_id.as_uuid().get_version_num() != 7 {
         return StatusCode::NOT_FOUND.into_response();
     }
     proxy_json::<()>(
         &state,
         &request_headers,
         Method::POST,
-        &format!("tasks/{task_id}/cancel"),
+        &format!("tasks/{server}/{task_id}/cancel"),
         None,
     )
     .await

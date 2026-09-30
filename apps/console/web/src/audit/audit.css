@@ -1,0 +1,13 @@
+.audit-partition { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.audit-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; padding: 12px; border-bottom: 1px solid var(--border); }
+.audit-filters label { display: flex; flex-direction: column; gap: 5px; font-size: var(--text-xs); color: var(--muted); }
+.audit-filters input, .audit-filters select, .audit-partition select { min-height: 34px; padding: 6px 8px; color: var(--text); background: var(--control); border: 1px solid var(--border); font: inherit; }
+.audit-filters input { max-width: 205px; }
+.audit-notice { padding: 12px; }
+.audit-target { max-width: 380px; color: var(--text); text-align: left; overflow-wrap: anywhere; text-decoration: underline; background: none; border: 0; cursor: pointer; font: inherit; }
+.audit-reason { display: block; margin-top: 5px; color: var(--muted); font-size: var(--text-xs); }
+.audit-daily { padding: 12px; }
+.audit-daily p { color: var(--muted); font-size: var(--text-xs); }
+.audit-daily dl > div { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-subtle); }
+.audit-daily dt { text-transform: capitalize; }
+.audit-daily dd { font-variant-numeric: tabular-nums; }

@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, time::Instant};
+use veoveo_mcp_contract::audit::{ArtifactActivity, AuditDetail, AuditOutcome, AuditTarget};
 
 use axum::{
     body::Body,
@@ -8,11 +8,8 @@ use axum::{
 };
 use chrono::{TimeDelta, Utc};
 use veoveo_artifact_contract::ArtifactId;
-use veoveo_mcp_contract::{
-    AuditEvent, GatewayAction, GatewayProfileId, McpMethodName, PolicyEffect, PolicyTarget,
-    PrincipalAuditAttributes, TraceId,
-};
-use veoveo_mcp_gateway::{AuthenticatedSubject, PolicyRequest, merge_principal_audit_metadata};
+use veoveo_mcp_contract::{GatewayAction, GatewayProfileId, PolicyEffect, PolicyTarget, TraceId};
+use veoveo_mcp_gateway::{AuthenticatedSubject, PolicyRequest, audit::policy_reason};
 use veoveo_types::ResourceUri;
 
 use crate::runtime::{ArtifactHttpState, current_catalog};
@@ -26,7 +23,6 @@ pub(super) async fn download_artifact(
     method: Method,
     request_headers: HeaderMap,
 ) -> Response {
-    let started_at = Instant::now();
     let Ok(profile) = GatewayProfileId::new(profile) else {
         return StatusCode::NOT_FOUND.into_response();
     };
@@ -40,7 +36,7 @@ pub(super) async fn download_artifact(
     if catalog.profile(&profile).is_none() {
         return StatusCode::NOT_FOUND.into_response();
     }
-    let trace_id = match TraceId::new(uuid::Uuid::new_v4().to_string()) {
+    let trace_id = match TraceId::new(subject.audit.trace_id.to_string()) {
         Ok(trace_id) => trace_id,
         Err(error) => {
             tracing::error!("failed to create artifact download trace id: {error}");
@@ -58,39 +54,32 @@ pub(super) async fn download_artifact(
         target: &target,
         trace_id: &trace_id,
     });
-    if let Err(error) = state
-        .gateway_state
-        .record_audit_event(&AuditEvent {
-            event_id: trace_id.clone(),
-            timestamp: decision.evaluated_at,
-            trace_id,
-            profile: profile.clone(),
-            method: match McpMethodName::new("artifact/download") {
-                Ok(method) => method,
-                Err(error) => {
-                    tracing::error!("invalid artifact download audit method: {error}");
-                    return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-                }
-            },
-            action: GatewayAction::ArtifactRead,
-            target,
-            decision: decision.clone(),
-            principal: Some(subject.principal.id.clone()),
-            principal_attributes: Some(PrincipalAuditAttributes::from(&subject.principal)),
-            tenant: subject.principal.tenant.clone(),
-            token_issuer: Some(subject.access_token.issuer.clone()),
-            latency_ms: u64::try_from(started_at.elapsed().as_millis()).ok(),
-            metadata: merge_principal_audit_metadata(
-                BTreeMap::from([("artifact_id".to_owned(), artifact_id.to_string())]),
-                &subject.principal,
-            ),
-        })
-        .await
-    {
-        tracing::error!("failed to record artifact download policy decision: {error}");
-        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-    }
     if decision.effect != PolicyEffect::Allow {
+        let recorded = async {
+            let draft = subject.audit_draft(
+                &profile,
+                AuditTarget::Artifact {
+                    artifact: artifact_id,
+                },
+                AuditDetail::Artifact {
+                    requested: None,
+                    subject: None,
+                    release_state: None,
+                    related: None,
+                    activity: ArtifactActivity::Download,
+                    bytes: None,
+                    window_start: None,
+                },
+                AuditOutcome::Denied,
+                policy_reason(decision.reason),
+            )?;
+            state.gateway_state.record_audit(draft).await
+        }
+        .await;
+        if let Err(error) = recorded {
+            tracing::error!("failed to record artifact download policy decision: {error}");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
         tracing::warn!(
             profile = %profile,
             principal = %subject.principal.id,

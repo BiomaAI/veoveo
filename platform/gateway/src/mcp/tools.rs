@@ -1,6 +1,6 @@
 use std::{borrow::Cow, time::Instant};
+use veoveo_audit_contract::{AuditDetail, AuditOutcome, AuditReason, AuditTarget, ToolResultKind};
 
-use chrono::Utc;
 use futures::{StreamExt, stream};
 use rmcp::{
     model::{
@@ -13,8 +13,8 @@ use rmcp::{
 use serde_json::Value;
 use veoveo_mcp_contract::{
     DiscoveryFailureMode, GatewayAction, GatewayDiscoveryDegradation, GatewayDiscoveryFailure,
-    GatewayDiscoverySurface, LocalToolName, PrincipalAuditAttributes, TaskExposure, TraceId,
-    paginate, related_task_meta, sanitized_request_meta,
+    GatewayDiscoverySurface, LocalToolName, TaskExposure, paginate, related_task_meta,
+    sanitized_request_meta,
 };
 use veoveo_platform_store::PrincipalKind as StorePrincipalKind;
 
@@ -24,13 +24,14 @@ use crate::{
         mcp_internal, mcp_invalid_params, parse_gateway_tool, project_call_tool_resource_uris,
         project_tool_resource_metadata, unexpected_upstream_response, upstream_error,
     },
-    principal_audit_metadata,
-    state::{GatewayTaskRouteDraft, GatewayToolCallAuditEvent, GatewayToolCallResultKind},
+    state::GatewayTaskRouteDraft,
 };
 
 use super::{
     GATEWAY_PAGE_SIZE, GatewayMcp,
-    discovery::{DiscoveryCacheKey, MAX_CONCURRENT_DISCOVERY, isolate_discovery_failures},
+    discovery::{
+        AdmittedCatalog, DiscoveryCacheKey, MAX_CONCURRENT_DISCOVERY, isolate_discovery_failures,
+    },
     invocation_authorization_fingerprint,
 };
 
@@ -48,10 +49,17 @@ impl GatewayMcp {
             .profile(&self.profile_id)
             .map(|profile| profile.discovery_failure_mode)
             .unwrap_or(DiscoveryFailureMode::FailClosed);
-        let authorization_fingerprint =
-            invocation_authorization_fingerprint(&subject.actor, &subject.authority)?;
+        let authorization_fingerprint = super::discovery_authorization_fingerprint(&subject)?;
         if discovery_failure_mode == DiscoveryFailureMode::Isolate {
-            let (mut tools, degradation) = self.available_tools(context, subject).await?;
+            let (mut tools, degradation, denied) =
+                self.available_tools(context, subject.clone()).await?;
+            self.record_discovery(
+                &subject,
+                veoveo_audit_contract::DiscoveryKind::Tools,
+                tools.iter().map(|tool| tool.name.to_string()).collect(),
+                denied,
+            )
+            .await?;
             tools.sort_by(|left, right| left.name.cmp(&right.name));
             let page = paginate(tools, request.as_ref(), GATEWAY_PAGE_SIZE)
                 .map_err(|err| mcp_invalid_params(err.to_string()))?;
@@ -75,6 +83,12 @@ impl GatewayMcp {
                     authorization_fingerprint,
                     server: server_slug.clone(),
                 };
+                if let Err(error) = self
+                    .ensure_discovery_watch(&key, context.peer.clone(), subject)
+                    .await
+                {
+                    return (server_slug, Err(error));
+                }
                 if let Some(tools) = self.discovery.tools(&key).await {
                     return (server_slug, Ok::<_, McpError>(tools));
                 }
@@ -84,7 +98,10 @@ impl GatewayMcp {
                         .discover_tools_for_server(&catalog, &server_slug, context, subject)
                         .await?;
                     self.discovery
-                        .store_tools(fetch.clone(), tools.clone())
+                        .store_tools(
+                            fetch.clone().map(|fetch| fetch.with_denied(tools.denied)),
+                            tools.items.clone(),
+                        )
                         .await;
                     Ok(tools)
                 }
@@ -102,6 +119,15 @@ impl GatewayMcp {
         .buffer_unordered(MAX_CONCURRENT_DISCOVERY)
         .collect::<Vec<_>>()
         .await;
+        let denied = results
+            .iter()
+            .filter_map(|(_, result)| result.as_ref().ok())
+            .map(|catalog| catalog.denied)
+            .sum();
+        let results = results
+            .into_iter()
+            .map(|(server, result)| (server, result.map(|catalog| catalog.items)))
+            .collect();
         let (mut tools, degradation, errors) =
             isolate_discovery_failures(GatewayDiscoverySurface::Tools, results);
         for (server, error) in &errors {
@@ -109,6 +135,13 @@ impl GatewayMcp {
         }
         enforce_complete_tool_discovery(discovery_failure_mode, &errors)?;
         tools.sort_by(|left, right| left.name.cmp(&right.name));
+        self.record_discovery(
+            &subject,
+            veoveo_audit_contract::DiscoveryKind::Tools,
+            tools.iter().map(|tool| tool.name.to_string()).collect(),
+            denied,
+        )
+        .await?;
         let page = paginate(tools, request.as_ref(), GATEWAY_PAGE_SIZE)
             .map_err(|err| mcp_invalid_params(err.to_string()))?;
         Ok(ListToolsResult {
@@ -127,12 +160,11 @@ impl GatewayMcp {
         &self,
         context: RequestContext<RoleServer>,
         subject: crate::AuthenticatedSubject,
-    ) -> Result<(Vec<rmcp::model::Tool>, GatewayDiscoveryDegradation), McpError> {
+    ) -> Result<(Vec<rmcp::model::Tool>, GatewayDiscoveryDegradation, u32), McpError> {
         let snapshot = self.catalog.snapshot();
         let catalog = snapshot.catalog().clone();
         let catalog_generation = snapshot.generation();
-        let authorization_fingerprint =
-            invocation_authorization_fingerprint(&subject.actor, &subject.authority)?;
+        let authorization_fingerprint = super::discovery_authorization_fingerprint(&subject)?;
         let mut keys = Vec::new();
         let mut cached_at_start = std::collections::BTreeMap::new();
         for server_slug in self.profile_servers() {
@@ -143,7 +175,9 @@ impl GatewayMcp {
                 server: server_slug.clone(),
             };
             keys.push(key.clone());
-            if let Some(items) = self.discovery.tools(&key).await {
+            if self.discovery_watch_active(&key).await
+                && let Some(items) = self.discovery.tools(&key).await
+            {
                 cached_at_start.insert(key, items);
                 continue;
             }
@@ -159,12 +193,21 @@ impl GatewayMcp {
             let context = context.clone();
             let subject = subject.clone();
             tokio::spawn(async move {
-                let result = gateway
-                    .discover_tools_for_server(&catalog, &server_slug, &context, &subject)
-                    .await;
+                let result = async {
+                    gateway
+                        .ensure_discovery_watch(&key, context.peer.clone(), &subject)
+                        .await?;
+                    gateway
+                        .discover_tools_for_server(&catalog, &server_slug, &context, &subject)
+                        .await
+                }
+                .await;
                 match result {
                     Ok(discovered) => {
-                        gateway.discovery.finish_tools(fetch, discovered).await;
+                        gateway
+                            .discovery
+                            .finish_tools(fetch.with_denied(discovered.denied), discovered.items)
+                            .await;
                     }
                     Err(error) => {
                         gateway
@@ -185,13 +228,16 @@ impl GatewayMcp {
             .await;
         let mut tools = Vec::new();
         let mut failures = Vec::new();
+        let mut denied = 0u32;
         for key in keys {
             let cached = match cached_at_start.remove(&key) {
                 Some(items) => Some(items),
-                None => self.discovery.tools(&key).await,
+                None if self.discovery_watch_active(&key).await => self.discovery.tools(&key).await,
+                None => None,
             };
             if let Some(mut cached) = cached {
-                tools.append(&mut cached);
+                denied = denied.saturating_add(cached.denied);
+                tools.append(&mut cached.items);
             } else {
                 let code = self
                     .discovery
@@ -204,7 +250,7 @@ impl GatewayMcp {
                 });
             }
         }
-        Ok((tools, GatewayDiscoveryDegradation::new(failures)))
+        Ok((tools, GatewayDiscoveryDegradation::new(failures), denied))
     }
 
     async fn discover_tools_for_server(
@@ -213,7 +259,7 @@ impl GatewayMcp {
         server_slug: &veoveo_mcp_contract::ServerSlug,
         context: &RequestContext<RoleServer>,
         subject: &crate::AuthenticatedSubject,
-    ) -> Result<Vec<rmcp::model::Tool>, McpError> {
+    ) -> Result<AdmittedCatalog<rmcp::model::Tool>, McpError> {
         let started = std::time::Instant::now();
         let manifest = catalog
             .server(server_slug)
@@ -228,6 +274,7 @@ impl GatewayMcp {
             .await?;
         let upstream_ms = started.elapsed().as_millis();
         let mut tools = Vec::with_capacity(upstream_tools.len());
+        let mut client_denied = 0u32;
         let mut targets = Vec::with_capacity(upstream_tools.len());
         for mut tool in upstream_tools {
             let local_tool = LocalToolName::new(tool.name.as_ref().to_owned()).map_err(|err| {
@@ -237,6 +284,9 @@ impl GatewayMcp {
                 .client_allows_compatibility_helper(subject, server_slug, &local_tool)
                 .await?
             {
+                client_denied = client_denied
+                    .checked_add(1)
+                    .ok_or_else(|| mcp_internal("catalog exceeds audit count range"))?;
                 continue;
             }
             targets.push(veoveo_mcp_contract::PolicyTarget::Tool {
@@ -260,11 +310,23 @@ impl GatewayMcp {
                 authorization_ms = authorization_started.elapsed().as_millis(),
                 total_ms = started.elapsed().as_millis(), "slow MCP catalog discovery");
         }
-        Ok(tools
-            .into_iter()
-            .zip(allowed)
-            .filter_map(|(tool, allowed)| allowed.then_some(tool))
-            .collect())
+        let policy_denied: u32 = allowed
+            .iter()
+            .filter(|allowed| !**allowed)
+            .count()
+            .try_into()
+            .map_err(|_| mcp_internal("catalog exceeds audit count range"))?;
+        let denied = client_denied
+            .checked_add(policy_denied)
+            .ok_or_else(|| mcp_internal("catalog exceeds audit count range"))?;
+        Ok(AdmittedCatalog {
+            denied,
+            items: tools
+                .into_iter()
+                .zip(allowed)
+                .filter_map(|(tool, allowed)| allowed.then_some(tool))
+                .collect(),
+        })
     }
 
     pub(super) async fn handle_call_tool(
@@ -291,7 +353,7 @@ impl GatewayMcp {
             .await?;
             return Err(mcp_invalid_params("unknown tool"));
         }
-        let (subject, trace_id) = self
+        let (subject, _) = self
             .authorize_tool(
                 &context,
                 GatewayAction::ToolsCall,
@@ -301,6 +363,9 @@ impl GatewayMcp {
             .await?;
         let started = Instant::now();
         let response = async {
+            let _upstream_timer = crate::request_observation::StageTimer::start(
+                crate::request_observation::RequestStage::Upstream,
+            );
             restore_request_meta(&mut request, &context.meta);
             request.name = Cow::Owned(projection.tool.to_string());
 
@@ -406,31 +471,45 @@ impl GatewayMcp {
         }
         .await;
         let (result_kind, mcp_error_code) = tool_call_result_kind(&response);
-        let event_id = TraceId::new(uuid::Uuid::new_v4().to_string())
-            .map_err(|error| mcp_internal(format!("failed to create audit event id: {error}")))?;
-        self.state
-            .record_tool_call_audit_event(&GatewayToolCallAuditEvent {
-                event_id,
-                timestamp: Utc::now(),
-                trace_id,
-                profile: self.profile_id.clone(),
+        let failed = matches!(
+            result_kind,
+            ToolResultKind::ErrorResult | ToolResultKind::ProtocolError
+        );
+        let draft = subject.audit_draft(
+            &self.profile_id,
+            AuditTarget::Tool {
                 server: projection.server,
                 tool: projection.tool,
-                result_kind,
-                principal: subject.principal.id.clone(),
-                principal_attributes: PrincipalAuditAttributes::from(&subject.principal),
-                tenant: subject.principal.tenant.clone(),
-                token_issuer: subject.access_token.issuer.clone(),
-                latency_ms: u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
-                mcp_error_code,
-                metadata: principal_audit_metadata(&subject.principal),
-            })
-            .await
-            .map_err(|error| {
-                mcp_internal(format!(
-                    "failed to record gateway tool-call audit event: {error}"
-                ))
-            })?;
+            },
+            AuditDetail::ToolCompletion {
+                result: result_kind,
+                duration_ms: u64::try_from(started.elapsed().as_millis())
+                    .unwrap_or((1u64 << 53) - 1),
+                error_code: mcp_error_code,
+            },
+            if failed {
+                AuditOutcome::Failed
+            } else {
+                AuditOutcome::Succeeded
+            },
+            if failed {
+                AuditReason::UpstreamFailure
+            } else {
+                AuditReason::Accepted
+            },
+        );
+        match draft {
+            Ok(draft) => {
+                self.state
+                    .audit_writer()
+                    .await
+                    .record_completion(draft)
+                    .await
+            }
+            Err(error) => {
+                tracing::error!(%error, request_id=%subject.audit.id, "tool completion audit attribution failed")
+            }
+        }
         response
     }
 
@@ -482,16 +561,16 @@ impl GatewayMcp {
 
 fn tool_call_result_kind(
     response: &Result<CallToolResponse, McpError>,
-) -> (GatewayToolCallResultKind, Option<i32>) {
+) -> (ToolResultKind, Option<i32>) {
     match response {
         Ok(CallToolResponse::Complete(result)) if result.is_error == Some(true) => {
-            (GatewayToolCallResultKind::ErrorResult, None)
+            (ToolResultKind::ErrorResult, None)
         }
-        Ok(CallToolResponse::Complete(_)) => (GatewayToolCallResultKind::Complete, None),
-        Ok(CallToolResponse::InputRequired(_)) => (GatewayToolCallResultKind::InputRequired, None),
-        Ok(CallToolResponse::Task(_)) => (GatewayToolCallResultKind::TaskCreated, None),
-        Ok(_) => (GatewayToolCallResultKind::OtherResponse, None),
-        Err(error) => (GatewayToolCallResultKind::ProtocolError, Some(error.code.0)),
+        Ok(CallToolResponse::Complete(_)) => (ToolResultKind::Complete, None),
+        Ok(CallToolResponse::InputRequired(_)) => (ToolResultKind::InputRequired, None),
+        Ok(CallToolResponse::Task(_)) => (ToolResultKind::TaskCreated, None),
+        Ok(_) => (ToolResultKind::OtherResponse, None),
+        Err(error) => (ToolResultKind::ProtocolError, Some(error.code.0)),
     }
 }
 
@@ -633,13 +712,13 @@ mod tests {
         let domain_failure = Ok(CallToolResponse::Complete(CallToolResult::error(vec![])));
         assert_eq!(
             tool_call_result_kind(&domain_failure),
-            (GatewayToolCallResultKind::ErrorResult, None)
+            (ToolResultKind::ErrorResult, None)
         );
         let protocol_failure = Err(McpError::invalid_params("bad arguments", None));
         assert_eq!(
             tool_call_result_kind(&protocol_failure),
             (
-                GatewayToolCallResultKind::ProtocolError,
+                ToolResultKind::ProtocolError,
                 Some(rmcp::model::ErrorCode::INVALID_PARAMS.0)
             )
         );

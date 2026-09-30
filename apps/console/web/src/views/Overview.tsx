@@ -1,16 +1,17 @@
-import { Check } from "lucide-react";
 import { Metric, SectionHeader, StatusPill } from "../components/primitives";
 import { TaskTable } from "../components/TaskTable";
 import { ArtifactTable } from "../components/ArtifactTable";
-import { formatDate } from "../format";
+import { AuditOverview } from "../audit/Overview";
 import type { ArtifactSummary, InstallationSnapshot, TaskSummary } from "../types";
 
 export function Overview({
   snapshot,
   onTask,
-  onArtifact
+  onArtifact,
+  canReadAudit,
 }: {
   snapshot: InstallationSnapshot;
+  canReadAudit: boolean;
   onTask: (task: TaskSummary) => void;
   onArtifact: (artifact: ArtifactSummary) => void;
 }) {
@@ -46,18 +47,7 @@ export function Overview({
           <SectionHeader title="Recent artifacts" count={snapshot.artifacts.length} />
           <ArtifactTable artifacts={snapshot.artifacts.slice(0, 4)} onSelect={onArtifact} compact />
         </section>
-        <section className="panel">
-          <SectionHeader title="Recent decisions" />
-          <div className="audit-stream">
-            {snapshot.audit.slice(0, 4).map((event) => (
-              <div key={event.id} className="audit-item">
-                <span className={`decision decision-${event.outcome}`}><Check size={12} /></span>
-                <div><strong>{event.action}</strong><span>{event.actor} · {event.resource}</span></div>
-                <time>{formatDate(event.occurredAt)}</time>
-              </div>
-            ))}
-          </div>
-        </section>
+        {canReadAudit && <AuditOverview />}
       </div>
     </>
   );

@@ -364,6 +364,35 @@ remediation enabled to exercise that controller path. Verify cancellation with t
 
 ## Provision Secrets
 
+The reference gateway exports sealed audit blocks to `artifact-plane/audit` on the
+bundled S3 store. Export receipts gate database retention. This profile has Object Lock
+disabled. To use compliance mode, configure `gateway.auditExport.destinations.s3` with
+a supporting bucket and `object_lock: {mode: compliance, days: <installation period>}`.
+The destination must expose version IDs and compliance retention on GET. Qualify it
+before claiming write-once retention. Optional OTLP export uses the complete Logs URL,
+including `/v1/logs`; its collector acknowledgement also gates retention.
+
+Export destination changes require draining and restarting gateway replicas together.
+They re-export retained blocks under new destination identities. Existing archives
+are an installation-owned transfer when changing storage. See the
+[export profile](../../platform/audit/src/export/DESIGN.md) for failure and replay semantics.
+
+The gateway requires a dedicated audit signing Secret. Generate its seed once in a
+private directory, keep the public-key output with the installation's verification
+material, and create the Secret before starting the gateway:
+
+~~~bash
+cargo run -p veoveo-mcp-gateway --bin gateway -- audit keygen \
+  --secret-out /private/installation/audit-seed.b64 > /private/installation/audit-public-key.json
+kubectl --context k3d-veoveo-bioma -n veoveo create secret generic veoveo-audit-signing-key \
+  --from-file=seed-b64=/private/installation/audit-seed.b64
+~~~
+
+The command refuses an existing seed file and writes it with mode `0600`. Both gateway
+replicas use this Secret. Store the seed in the installation's secret manager; retain
+public keys needed to verify older blocks when rotating it. Audit retention is the
+explicit `gateway.auditRetentionDays` value in this installation's Helm values.
+
 The enterprise owns Secret creation. For this local reference, load the main
 worktree .env and create the required Secret objects before the root Kustomization.
 Bootstrap the managed-kernel namespace with the chart's security labels and Helm

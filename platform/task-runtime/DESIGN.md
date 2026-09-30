@@ -33,6 +33,11 @@ operation selection admits every operation hosted by the
 runtime server; an empty explicit selection is an error. `get`, `page` and `subscribe`
 apply the same selection in SQL before decoding. Subscription updates and Store
 reconnect baselines preserve it. Shared code contains no server operation variants.
+`cancel` applies that selection to every read and to both cancellation transitions.
+The transition transaction checks current profile, owner, clearance and selected
+Work Context before updating the Task or writing its event. A denied Task has the
+same unknown-ID response as an absent Task. The MCP service adapter uses this method;
+domain workers keep the trusted runtime API for their own lifecycle transitions.
 `runtime/context_scope` owns the Work Context predicates and typed scalar bindings
 shared by Task observation and linked usage reads.
 `runtime/owner_reads` owns SQL Task-owner selection and bindings;

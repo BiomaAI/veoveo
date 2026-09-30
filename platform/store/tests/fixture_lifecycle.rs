@@ -30,6 +30,7 @@ impl CliFixture {
     fn docker(&self) -> Docker {
         Docker {
             program: self.0.join("docker"),
+            creation_timeout: Duration::from_millis(300),
             command_timeout: Duration::from_millis(300),
             creation_settlement_timeout: Duration::from_secs(2),
         }
@@ -126,7 +127,7 @@ async fn command_deadline_kills_the_cli_and_cleans_up() {
 async fn caller_cancellation_also_kills_the_cli_and_cleans_up() {
     let fixture = CliFixture::new("exec sleep 30", "exit 99", "exit 99", "exit 0");
     let mut docker = fixture.docker();
-    docker.command_timeout = Duration::from_secs(30);
+    docker.creation_timeout = Duration::from_secs(30);
     let result = tokio::time::timeout(
         Duration::from_millis(300),
         Container::start(docker, "memory", "private-fixture-password"),

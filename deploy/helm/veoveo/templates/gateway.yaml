@@ -49,8 +49,10 @@ spec:
         {{- end }}
       annotations:
         {{- include "veoveo.podAnnotations" . | nindent 8 }}
+        checksum/audit-export: {{ .Values.gateway.auditExport.destinations | toJson | sha256sum | quote }}
         checksum/control-plane: {{ $controlPlaneRevision | quote }}
     spec:
+      terminationGracePeriodSeconds: 120
       serviceAccountName: {{ include "veoveo.serviceAccountName" . }}
       automountServiceAccountToken: false
       imagePullSecrets:
@@ -109,6 +111,36 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.global.existingSecret }}
                   key: refresh-delivery-key-b64
+            - name: VEOVEO_AUDIT_RETENTION_DAYS
+              value: {{ required "gateway.auditRetentionDays is required when gateway is selected" .Values.gateway.auditRetentionDays | quote }}
+            - name: VEOVEO_AUDIT_SIGNING_KEY_B64
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "gateway.auditSigningSecret is required when gateway is selected" .Values.gateway.auditSigningSecret | quote }}
+                  key: seed-b64
+            {{- if or .Values.gateway.auditExport.destinations.s3 .Values.gateway.auditExport.destinations.otlp }}
+            - name: VEOVEO_AUDIT_EXPORT_CONFIG
+              value: /etc/veoveo/audit/export.json
+            {{- end }}
+            {{- if .Values.gateway.auditExport.destinations.s3 }}
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.gateway.auditExport.s3CredentialsSecret | default .Values.global.existingSecret }}
+                  key: object-store-access-key
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.gateway.auditExport.s3CredentialsSecret | default .Values.global.existingSecret }}
+                  key: object-store-secret-key
+            {{- end }}
+            {{- if .Values.gateway.auditExport.otlpBearerSecret }}
+            - name: VEOVEO_AUDIT_OTLP_BEARER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.gateway.auditExport.otlpBearerSecret }}
+                  key: token
+            {{- end }}
             - name: VEOVEO_REFRESH_DELIVERY_WINDOW_SECONDS
               value: {{ .Values.gateway.refreshDeliveryWindowSeconds | quote }}
             {{- if .Values.telemetry.enabled }}
@@ -154,12 +186,22 @@ spec:
           resources:
             {{- toYaml .Values.gateway.resources | nindent 12 }}
           volumeMounts:
+            {{- if or .Values.gateway.auditExport.destinations.s3 .Values.gateway.auditExport.destinations.otlp }}
+            - name: audit-export
+              mountPath: /etc/veoveo/audit
+              readOnly: true
+            {{- end }}
             - name: control-plane
               mountPath: /etc/veoveo/gateway
               readOnly: true
             - name: tmp
               mountPath: /tmp
       volumes:
+        {{- if or .Values.gateway.auditExport.destinations.s3 .Values.gateway.auditExport.destinations.otlp }}
+        - name: audit-export
+          configMap:
+            name: {{ include "veoveo.fullname" . }}-audit-export
+        {{- end }}
         - name: control-plane
           configMap:
             name: {{ .Values.gateway.existingControlPlaneConfigMap }}

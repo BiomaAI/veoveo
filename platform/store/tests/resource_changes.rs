@@ -55,7 +55,7 @@ async fn replica_changes_and_reconnect_invalidate_without_outbox_or_idle_polling
              DEFINE TABLE recording SCHEMALESS CHANGEFEED 1h INCLUDE ORIGINAL;
              DEFINE TABLE task SCHEMALESS CHANGEFEED 1h INCLUDE ORIGINAL;
              DEFINE TABLE domain_usage SCHEMALESS CHANGEFEED 1h INCLUDE ORIGINAL;
-             DEFINE TABLE audit_event SCHEMALESS CHANGEFEED 1h INCLUDE ORIGINAL;",
+             DEFINE TABLE changefeed_noise_fixture SCHEMALESS CHANGEFEED 1h INCLUDE ORIGINAL;",
             )
             .await
             .unwrap()
@@ -121,7 +121,7 @@ async fn replica_changes_and_reconnect_invalidate_without_outbox_or_idle_polling
         test_writer
             .client()
             .query(
-                "CREATE audit_event:unrelated SET ordinal = 1;
+                "CREATE changefeed_noise_fixture:unrelated SET ordinal = 1;
              UPDATE frame_world:fixture SET revision = 2;",
             )
             .await

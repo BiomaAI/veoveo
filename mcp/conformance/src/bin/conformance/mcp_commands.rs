@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use anyhow::{Context, bail};
-use veoveo_media_mcp::contract::MediaGenerationResult;
+use veoveo_media_mcp::contract::{MediaGenerationResult, MediaModelUri};
 
 use super::client::Client;
 use super::*;
@@ -140,14 +140,10 @@ pub(super) fn cmd_models_from_catalog(
     Ok(())
 }
 
-pub(super) async fn cmd_complete(
-    client: &Client,
-    uris: &ServerResourceUris,
-    prefix: String,
-) -> Result<()> {
+pub(super) async fn cmd_complete(client: &Client, prefix: String) -> Result<()> {
     let result = client
         .complete(CompleteRequestParams::new(
-            Reference::for_resource(uris.model_template()),
+            Reference::for_resource(MediaModelUri::TEMPLATE),
             ArgumentInfo::new("model_id", prefix),
         ))
         .await?;

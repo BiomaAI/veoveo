@@ -13,3 +13,4 @@ LET $aborted = (UPDATE ONLY $execution SET stage = $stage, refusal = $refusal, s
 IF $aborted = NONE { THROW "computer_state_conflict"; };
 DELETE $slot WHERE execution = $execution;
 CREATE outbox_event CONTENT $event;
+fn::append_audit($audit_rows);

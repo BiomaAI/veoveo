@@ -67,6 +67,7 @@ fn subject() -> AuthenticatedSubject {
         expires_at: now + TimeDelta::seconds(25),
     };
     AuthenticatedSubject {
+        audit: veoveo_mcp_contract::audit::AuditRequest::background(),
         access_token,
         principal: principal.clone(),
         actor: principal,
@@ -226,22 +227,14 @@ async fn admission_preserves_signed_source_context_without_admin_permission_and_
             .0,
         StatusCode::FORBIDDEN
     );
-    assert_eq!(
-        state
-            .gateway_state
-            .audit_counts()
-            .await
-            .unwrap()
-            .policy_events,
-        8
-    );
-    // The second real store client sees the same evidence; no token or terminal payload enters it.
-    assert_eq!(
-        GatewayState::new(db.b.clone())
-            .audit_counts()
-            .await
-            .unwrap()
-            .policy_events,
-        8
-    );
+    // Both clients read only this fixture tenant through SQL admission.
+    let tenant = veoveo_types::TenantId::new("test").unwrap();
+    let scope = audit::AuditReadScope::new(Some(tenant.clone()), false);
+    let mut query = audit::AuditQuery::new(audit::AuditPartition::Tenant(tenant));
+    query.class = Some(audit::AuditClass::ApiActivity);
+    for store in [state.gateway_state.platform_store(), &db.b] {
+        let page = store.audit_page(&scope, &query).await.unwrap();
+        assert!(page.next.is_none());
+        assert_eq!(page.records.len(), 8);
+    }
 }

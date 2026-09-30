@@ -10,23 +10,21 @@ mod artifact_access_requests;
 mod artifact_reads;
 mod artifact_uploads;
 mod artifacts;
+pub mod audit;
 mod changefeed;
 mod config;
 mod error;
 mod gateway_control;
-mod gateway_retention;
 mod gateway_runtime;
 mod governance;
 mod identity;
 mod ids;
 mod json_value;
-mod live_views;
 mod map;
 mod map_authoring;
 mod map_derivations;
 mod map_presentations;
 mod map_projection;
-mod migration_preparation;
 mod migrations;
 mod models;
 mod outbox;
@@ -51,19 +49,17 @@ pub use artifact_reads::{
 };
 pub use artifact_uploads::*;
 pub use artifacts::{
-    ArtifactAggregate, ArtifactAuditDraft, ArtifactGrantDraft, ArtifactOccurrenceDraft,
-    ArtifactShareLinkDraft, ArtifactWriteCapabilityDraft, ArtifactWriteReservation,
-    PublicShareRedemption,
+    ArtifactAggregate, ArtifactGrantDraft, ArtifactOccurrenceDraft, ArtifactShareLinkDraft,
+    ArtifactWriteCapabilityDraft, ArtifactWriteReservation, PublicShareRedemption,
 };
 pub use changefeed::{
     ChangefeedBatch, ChangefeedCursor, ChangefeedEntry, LiveStream, decode_changefeed_entry,
 };
 pub use config::{StoreAuthLevel, StoreConfig, StoreConfigBuilder, StoreCredentials};
 pub use error::{MigrationError, RecordingIngestQuota, StoreConfigError, StoreError};
-pub use gateway_retention::GATEWAY_AUDIT_BATCH_LIMIT;
 pub use gateway_runtime::{
-    GatewayAuditKind, GatewayRefreshRedelivery, GatewayRefreshRetentionSummary,
-    GatewayRefreshRotation, GatewayRefreshRotationOutcome, gateway_authorization_code_record_id,
+    GatewayRefreshRedelivery, GatewayRefreshRetentionSummary, GatewayRefreshRotation,
+    GatewayRefreshRotationOutcome, gateway_authorization_code_record_id,
     gateway_authorization_request_record_id, gateway_jwt_revocation_record_id,
     gateway_refresh_family_record_id, gateway_refresh_token_record_id, gateway_replay_record_id,
     gateway_resource_subscription_record_id,

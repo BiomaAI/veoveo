@@ -86,7 +86,7 @@ fn rendered(
     snapshot.instance.resources.volume_claim = format!("{owner}-memory");
     let directory = std::env::temp_dir().join(namespace);
     std::fs::create_dir(&directory)?;
-    let values = json!({"networkPolicy":{"enabled":network_policy},"global":{"publicBaseUrl":"https://gateway.test"},"gateway":{"controlPlaneRevision":"a".repeat(64),"agents":{"models":config.models,"templates":config.templates}},"agentManager":{"namespace":namespace,"existingControlPlaneConfigMap":"fixture-control","kubernetesApiEgress":[{"cidr":"10.43.0.1/32","port":443}]}});
+    let values = json!({"networkPolicy":{"enabled":network_policy},"global":{"publicBaseUrl":"https://gateway.test"},"gateway":{"controlPlaneRevision":"a".repeat(64),"auditRetentionDays":1,"agents":{"models":config.models,"templates":config.templates}},"agentManager":{"namespace":namespace,"existingControlPlaneConfigMap":"fixture-control","kubernetesApiEgress":[{"cidr":"10.43.0.1/32","port":443}]}});
     let path = directory.join("values.json");
     std::fs::write(&path, serde_json::to_vec(&values)?)?;
     let bytes = success(command(

@@ -86,8 +86,16 @@ fn contract_schemas() -> Result<Vec<ContractSchema>> {
         AccessTokenSubject
     );
     add_schema!(schemas, "policy-decision.schema.json", PolicyDecision);
-    add_schema!(schemas, "audit-event.schema.json", AuditEvent);
-    add_schema!(schemas, "auth-audit-event.schema.json", AuthAuditEvent);
+    add_schema!(
+        schemas,
+        "audit-record.schema.json",
+        veoveo_mcp_contract::audit::AuditRecord
+    );
+    add_schema!(
+        schemas,
+        "audit-block.schema.json",
+        veoveo_mcp_contract::audit::AuditBlock
+    );
     add_schema!(
         schemas,
         "gateway-jwt-revocation-request.schema.json",

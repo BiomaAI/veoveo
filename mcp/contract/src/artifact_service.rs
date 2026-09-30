@@ -51,77 +51,15 @@ use veoveo_types::{AccessSubject, DataLabelId, PrincipalId, TenantId, WorkContex
 /// compliance, and provenance descriptors small enough for the control plane.
 pub const MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES: usize = 4 * 1024;
 
-macro_rules! artifact_uuid_id {
-    ($name:ident, $label:literal) => {
-        #[derive(
-            Clone,
-            Copy,
-            Debug,
-            PartialEq,
-            Eq,
-            PartialOrd,
-            Ord,
-            Hash,
-            Serialize,
-            Deserialize,
-            JsonSchema,
-        )]
-        #[serde(try_from = "String", into = "String")]
-        pub struct $name(uuid::Uuid);
+pub use veoveo_artifact_contract::{
+    ArtifactAccessRequestId, ArtifactReadCapabilityId, ArtifactTaskId, ArtifactWriteCapabilityId,
+};
 
-        impl $name {
-            pub fn new() -> Self {
-                Self(uuid::Uuid::now_v7())
-            }
-
-            pub fn parse(value: impl AsRef<str>) -> Result<Self, ArtifactPlaneError> {
-                let value = uuid::Uuid::parse_str(value.as_ref()).map_err(|_| {
-                    ArtifactPlaneError::InvalidRequest(concat!($label, " must be a UUIDv7").into())
-                })?;
-                if value.get_version_num() != 7 {
-                    return Err(ArtifactPlaneError::InvalidRequest(
-                        concat!($label, " must be a UUIDv7").into(),
-                    ));
-                }
-                Ok(Self(value))
-            }
-
-            pub const fn as_uuid(self) -> uuid::Uuid {
-                self.0
-            }
-        }
-
-        impl Default for $name {
-            fn default() -> Self {
-                Self::new()
-            }
-        }
-
-        impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                self.0.fmt(f)
-            }
-        }
-
-        impl TryFrom<String> for $name {
-            type Error = ArtifactPlaneError;
-
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::parse(value)
-            }
-        }
-
-        impl From<$name> for String {
-            fn from(value: $name) -> Self {
-                value.to_string()
-            }
-        }
-    };
+impl From<veoveo_artifact_contract::ArtifactLedgerIdError> for ArtifactPlaneError {
+    fn from(error: veoveo_artifact_contract::ArtifactLedgerIdError) -> Self {
+        Self::InvalidRequest(error.to_string())
+    }
 }
-
-artifact_uuid_id!(ArtifactWriteCapabilityId, "artifact write capability id");
-artifact_uuid_id!(ArtifactReadCapabilityId, "artifact read capability id");
-artifact_uuid_id!(ArtifactTaskId, "artifact task id");
 
 mod read_capability;
 pub mod upload;
@@ -172,7 +110,6 @@ impl<'de> Deserialize<'de> for ArtifactWriteIdempotencyKey {
         Self::new(String::deserialize(deserializer)?).map_err(serde::de::Error::custom)
     }
 }
-artifact_uuid_id!(ArtifactAccessRequestId, "artifact access request id");
 
 /// Opaque identity of an artifact-write capability issued by the artifact
 /// service. This is not an artifact id or a gateway identity assertion.

@@ -32,7 +32,12 @@ async fn host_restart_preserves_resource_and_owner_and_rejects_old_grants_and_ob
         .await
         .unwrap();
     store
-        .record_observed_restart(&before, observed(&before, "restarted-run"), Instant::now())
+        .record_observed_restart(
+            &actor,
+            &before,
+            observed(&before, "restarted-run"),
+            Instant::now(),
+        )
         .await
         .unwrap();
     let after = replica.get(actor.owner(), id).await.unwrap();
@@ -47,7 +52,12 @@ async fn host_restart_preserves_resource_and_owner_and_rejects_old_grants_and_ob
     assert!(store.renew_browser_grant(&handle, false).await.is_err());
     assert!(matches!(
         replica
-            .record_observed_restart(&before, observed(&before, "stale-run"), Instant::now())
+            .record_observed_restart(
+                &actor,
+                &before,
+                observed(&before, "stale-run"),
+                Instant::now()
+            )
             .await,
         Err(ComputerError::StateConflict)
     ));
@@ -74,6 +84,17 @@ async fn host_restart_preserves_resource_and_owner_and_rejects_old_grants_and_ob
             .unwrap();
     let events: Vec<surrealdb::types::Value> = q.take(0).unwrap();
     assert_eq!(events.len(), 1);
+    let audited: Option<u64> = db.b.client().query(
+        "RETURN array::len(SELECT id FROM audit_record WHERE activity = 'computer_restart_observed'
+            AND actor_key = $actor AND target_ref = $computer);"
+    ).bind(("actor", actor.owner().principal_key.as_str()))
+        .bind(("computer", record("computer", id.into_uuid())))
+        .await.unwrap().check().unwrap().take(0).unwrap();
+    assert_eq!(
+        audited,
+        Some(1),
+        "stale observations cannot emit a second restart record"
+    );
 }
 #[tokio::test]
 async fn restart_observation_cannot_replace_identity_or_cross_an_operation_fence() {
@@ -94,7 +115,7 @@ async fn restart_observation_cannot_replace_identity_or_cross_an_operation_fence
         }
         assert!(matches!(
             store
-                .record_observed_restart(&before, seen, Instant::now())
+                .record_observed_restart(&actor, &before, seen, Instant::now())
                 .await,
             Err(ComputerError::StateConflict)
         ));
@@ -102,6 +123,7 @@ async fn restart_observation_cannot_replace_identity_or_cross_an_operation_fence
     assert!(
         store
             .record_observed_restart(
+                &actor,
                 &before,
                 observed(&before, "new-run"),
                 Instant::now() - Duration::from_secs(11)
@@ -112,6 +134,7 @@ async fn restart_observation_cannot_replace_identity_or_cross_an_operation_fence
     assert!(
         store
             .record_observed_restart(
+                &actor,
                 &before,
                 observed(&before, "new-run"),
                 Instant::now() + Duration::from_secs(1)
@@ -129,7 +152,12 @@ async fn restart_observation_cannot_replace_identity_or_cross_an_operation_fence
         .unwrap();
     assert!(matches!(
         store
-            .record_observed_restart(&before, observed(&before, "new-run"), Instant::now())
+            .record_observed_restart(
+                &actor,
+                &before,
+                observed(&before, "new-run"),
+                Instant::now()
+            )
             .await,
         Err(ComputerError::OperationBusy)
     ));
@@ -156,7 +184,12 @@ async fn restart_observation_preserves_unresolved_command_or_file_slot() {
         .unwrap();
     assert!(matches!(
         store
-            .record_observed_restart(&before, observed(&before, "new-run"), Instant::now())
+            .record_observed_restart(
+                &actor,
+                &before,
+                observed(&before, "new-run"),
+                Instant::now()
+            )
             .await,
         Err(ComputerError::OperationBusy)
     ));

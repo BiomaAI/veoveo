@@ -43,8 +43,70 @@ behavior; no compatibility mode rewrites domain payloads.
 
 ## Qualification
 
+`tests/audit_cli.rs` exercises the public `audit verify` command against disposable
+RocksDB databases. Each case starts with sealed records, then uses the fixture's root
+identity to change a record, delete a record or block, or replace a signature. A separate
+case inserts a backdated record before sealing. The command must reject each case with
+its corresponding integrity or clock finding. The fixture owns its Docker container,
+uses generated credentials and allows 240 seconds for the complete run.
+
+Native Task cancellation uses `/admin/{profile}/tasks/{server}/{task_id}/cancel`.
+The Console supplies the Task's server and native UUIDv7 identity. Gateway policy
+uses `PolicyTarget::PlatformTask`; forwarded MCP Tasks use `PolicyTarget::Task` with
+an opaque route. After policy admission, the native runtime selects the caller's
+principal, current profile, tenant, clearance and Work Context in SQL and repeats
+that selection inside cancellation transactions. Audit records carry the native
+Task identity for this API, including rejected owner selection.
+
 Native forwarding cases cover identity projection, explicit resource links, App link
 projection, independent producer references, unknown metadata, malformed App links and
 profile-scoped App dependencies. Domain contracts qualify their own serialization and
 digest checks. Installed acceptance compares a published Frames world with its resource
 readback through the public gateway before configuring a simulator.
+
+## Audit And Catalog Cache
+
+The gateway hosts the [audit exporter](../audit/src/export/DESIGN.md) under the sealer
+lease. `VEOVEO_AUDIT_EXPORT_CONFIG` selects public S3/OTLP destination configuration;
+credential values come from the installation's Secret environment. Export runs beside
+lease renewal and sealing. A permanent destination rejection fails audit readiness,
+and retention waits for every configured destination's receipt.
+
+Recording ingress uses the gateway-owned private resource addresses
+`recording-ingest://producers/{producer}` and
+`recording-ingest://producers/{producer}/streams/{stream}` in audit targets. Typed
+producer and stream IDs pass through the shared URI builder. These addresses identify
+internal protocol objects; they are not MCP read routes. Successful batch appends and
+status polls use the recording ledger without individual audit records. Policy denials
+are recorded before forwarding. Recording catalog grants audit the sorted selection's
+digest and count once at admission and once on completion.
+
+The unified audit implementation is being qualified under the
+[foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#phase-4-unified-audit-log).
+
+Control-plane publication compares the new Work Context definitions with the active
+revision and builds typed create, update and delete records for changed definitions.
+The activation transaction locks the previously read head, rejects a concurrent
+revision change and commits Work Contexts together with their audit records. Request
+publication uses the verified acting principal; installation bootstrap uses the
+database-authenticated operator. The revision's supplied attribution cannot replace
+that audit identity.
+Its gateway record builder takes the admitted actor and authority. Token lifecycle
+records share that contract; refresh rotation appends its record in the rotation
+transaction. Tool completion retries use stable record identities and preserve the
+upstream result.
+
+Discovery entries contain admitted descriptors and their denied count. The cache key
+includes the catalog generation, actor and invocation authority, OAuth client, and
+managed-agent generation and dispatch epoch. A warm list uses those decisions and
+writes one aggregate record. Prompt catalogs use the same cache behavior.
+
+A dynamic catalog has an authenticated native subscription before the gateway caches
+it. The gateway coalesces subscriptions for the same authority and server, with a limit
+of 256 subscriptions per profile and a ten-second opening deadline. Catalog changes
+invalidate the corresponding server surface. Disconnect, token expiry and a gateway
+catalog replacement invalidate the associated authority's entries. Opening the next
+stream precedes fresh discovery, covering notifications missed during the disconnect.
+The gateway keeps no five-second expiry for admitted decisions. The private MCP TTL
+sent to clients continues to describe their protocol cache, independently of the
+internal subscription lifetime.

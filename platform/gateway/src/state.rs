@@ -1,19 +1,12 @@
 use anyhow::{Context, Result};
 use veoveo_platform_store::{PlatformStore, StoreConfig};
 
-mod audit;
 mod auth_state;
 mod refresh_tokens;
 mod session;
 mod subscriptions;
 mod task_routes;
 
-pub use audit::{
-    GatewayAuditCounts, GatewayAuditRetentionSummary, GatewayAuthAuditMetadataSummary,
-    GatewayAuthAuditMethodSummary, GatewayAuthAuditReasonSummary,
-    GatewayPolicyAuditMetadataSummary, GatewayPolicyAuditMethodSummary,
-    GatewayPolicyAuditReasonSummary, GatewayToolCallAuditEvent, GatewayToolCallResultKind,
-};
 pub use auth_state::GatewayReplayRetentionSummary;
 pub use refresh_tokens::{
     GatewayRefreshDeliveryWindow, GatewayRefreshExchange, GatewayRefreshIssueRequest,
@@ -29,6 +22,8 @@ pub(crate) use task_routes::{GatewayTaskOwnership, GatewayTaskRouteDraft};
 #[derive(Debug, Clone)]
 pub struct GatewayState {
     pub(super) platform: PlatformStore,
+    pub(crate) audit_writer: std::sync::Arc<tokio::sync::OnceCell<veoveo_audit::AuditWriter>>,
+    pub(crate) audit_health: std::sync::Arc<std::sync::OnceLock<veoveo_audit::AuditHealth>>,
     pub(crate) managed_templates: std::sync::Arc<crate::managed_agents::ManagedTemplateCatalog>,
 }
 
@@ -36,6 +31,8 @@ impl GatewayState {
     pub fn new(platform: PlatformStore) -> Self {
         Self {
             platform,
+            audit_writer: Default::default(),
+            audit_health: Default::default(),
             managed_templates: Default::default(),
         }
     }

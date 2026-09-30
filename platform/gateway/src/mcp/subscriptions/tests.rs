@@ -169,7 +169,13 @@ async fn subscription_list_changes_invalidate_cached_catalog_surfaces() {
         .finish_resources(resources, vec![Resource::new("media://after", "after")])
         .await;
     assert_eq!(
-        gateway.discovery.resources(&key("media")).await.unwrap()[0].uri,
+        gateway
+            .discovery
+            .resources(&key("media"))
+            .await
+            .unwrap()
+            .items[0]
+            .uri,
         "media://after"
     );
 }

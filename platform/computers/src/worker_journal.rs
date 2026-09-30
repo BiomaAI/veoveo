@@ -68,7 +68,7 @@ impl ComputersStore {
         kind: ProviderCommit,
         body: &'static str,
         mut bindings: Vec<(&'static str, Value)>,
-        event: &str,
+        event: crate::audit::LifecycleTransition,
     ) -> Result<()> {
         bindings.extend([
             (
@@ -81,8 +81,16 @@ impl ComputersStore {
                 computer_record(operation.computer_id).into_value(),
             ),
             ("provider", self.provider_instance_id.into_value()),
-            ("event", operation_event(operation, event)?.into_value()),
+            (
+                "event",
+                operation_event(operation, event.event())?.into_value(),
+            ),
         ]);
+        bindings.push(crate::audit::binding(
+            &operation.execution_authority,
+            operation.computer_id,
+            event.transition(operation),
+        )?);
         // Construct against this store, so a caller cannot accidentally commit its
         // Task guard against another installation's database.
         TaskRuntime::new(self.platform.clone(), "computers", &claimed.lease_owner)

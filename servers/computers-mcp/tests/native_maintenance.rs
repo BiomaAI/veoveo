@@ -197,7 +197,7 @@ async fn installation_templates_upgrade_recover_and_rollback_retained_home() {
     .unwrap();
     let computer = a
         .reserve(
-            owner.owner(),
+            &owner,
             &Reservation {
                 request_id: Uuid::now_v7(),
                 template_id: source_id.clone(),

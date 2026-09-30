@@ -13,6 +13,8 @@ members = [
     "mcp/bridges/stdio",
     "mcp/conformance",
     "mcp/contract",
+    "platform/audit",
+    "platform/audit/contract",
     "platform/artifacts/client",
     "platform/artifacts/contract",
     "platform/artifacts/service",
@@ -72,6 +74,8 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
+veoveo-audit-contract = { path = "platform/audit/contract" }
+veoveo-audit = { path = "platform/audit" }
 reqwest-websocket = { version = "=0.6.0", default-features = false }
 anyhow = "=1.0.104"
 axum = "0.8.9"
@@ -114,7 +118,7 @@ opentelemetry-appender-tracing = "0.32.0"
 # OTLP `hyper-client`. opentelemetry-otlp 0.32.0 cannot compile the combined
 # blocking-reqwest + hyper feature set unless the higher-priority async
 # reqwest client is also enabled.
-opentelemetry-otlp = { version = "0.32.0", default-features = false, features = ["http-proto", "reqwest-blocking-client", "reqwest-client", "trace", "logs"] }
+opentelemetry-otlp = { version = "0.32.0", default-features = false, features = ["http-proto", "reqwest-blocking-client", "reqwest-client", "trace", "logs", "metrics"] }
 opentelemetry_sdk = "0.32.1"
 mp4 = "=0.14.0"
 nix = { version = "0.31.3", features = ["process", "signal"] }

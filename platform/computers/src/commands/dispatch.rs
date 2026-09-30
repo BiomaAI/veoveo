@@ -227,7 +227,7 @@ impl ComputersStore {
             ProviderCommit::Dispatch,
             include_str!("../../queries/dispatch_command.surql"),
             params,
-            "computer.execution_dispatched",
+            crate::audit::ExecutionTransition::Dispatch,
         )
         .await?;
         let selected = self.worker_command(claim).await?;

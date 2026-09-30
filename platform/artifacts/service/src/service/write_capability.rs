@@ -68,15 +68,13 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
             .await
             .map_err(transport)?;
         self.audit(
-            Some(actor.clone()),
-            Some(actor.tenant),
-            "artifact.capability.issue",
-            None,
+            Some(&actor.audit),
+            ArtifactAction::surface(
+                ArtifactActivity::WriteCapabilityIssue,
+                ArtifactLedgerAddress::WriteCapability(capability_id),
+            ),
             AuditOutcome::Allowed,
-            serde_json::Map::from_iter([(
-                "capability_id".into(),
-                serde_json::json!(capability_id),
-            )]),
+            AuditReason::Accepted,
         )
         .await?;
         Ok(IssuedArtifactWriteCapability {
@@ -154,15 +152,16 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
                 .map_err(transport)?;
             if finalized {
                 self.audit(
-                    Some(redemption.actor),
-                    Some(existing.tenant.clone()),
-                    "artifact.capability.redeem",
-                    Some(redemption.artifact_id),
-                    AuditOutcome::Allowed,
-                    serde_json::Map::from_iter([(
-                        "idempotency_key".into(),
-                        serde_json::json!(request.idempotency_key.as_str()),
-                    )]),
+                    Some(&redemption.actor.audit),
+                    ArtifactAction::artifact(
+                        ArtifactActivity::WriteCapabilityRedeem,
+                        redemption.artifact_id,
+                    )
+                    .related(ArtifactLedgerAddress::WriteCapability(
+                        request.capability_id,
+                    )),
+                    AuditOutcome::Succeeded,
+                    AuditReason::Accepted,
                 )
                 .await?;
             }
@@ -210,15 +209,16 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
             .map_err(transport)?;
         if finalized {
             self.audit(
-                Some(redemption.actor),
-                Some(stored.tenant.clone()),
-                "artifact.capability.redeem",
-                Some(redemption.artifact_id),
-                AuditOutcome::Allowed,
-                serde_json::Map::from_iter([(
-                    "idempotency_key".into(),
-                    serde_json::json!(request.idempotency_key.as_str()),
-                )]),
+                Some(&redemption.actor.audit),
+                ArtifactAction::artifact(
+                    ArtifactActivity::WriteCapabilityRedeem,
+                    redemption.artifact_id,
+                )
+                .related(ArtifactLedgerAddress::WriteCapability(
+                    request.capability_id,
+                )),
+                AuditOutcome::Succeeded,
+                AuditReason::Accepted,
             )
             .await?;
         }

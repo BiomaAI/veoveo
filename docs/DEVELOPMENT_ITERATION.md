@@ -1972,12 +1972,12 @@ cost more time than the check. A reviewed descriptor for installation Helm input
 is a follow-up. The Map Recreate rollout also waits for its 30-second termination
 period; acceptance starts after rollout and discovery recovery.
 
-The installed latency target is still open. Eight rounds spaced 5.5 seconds apart
+The [audit measurement protocol](AUDIT.md#measurement) defines current acceptance.
+At this checkpoint, eight rounds spaced 5.5 seconds apart
 returned their concurrent reads together, but catalog expiry still incurred a full
 authorization/audit pass. Across 64 reads, p95 was 1.53 seconds; the eight App catalog
-requests had p95 1.32 seconds. The warm round completed within 280 ms. These results
-do not meet the requested 500 ms p95. The native audit optimization did not establish
-the same improvement under installed concurrent discovery.
+requests had p95 1.32 seconds. The warm round completed within 280 ms. These
+measurements did not establish the same improvement under installed concurrent discovery.
 
 The next performance investigation should split policy-evaluation time from audit
 commit and transaction-retry time, then reduce work repeated across catalog

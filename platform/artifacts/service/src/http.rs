@@ -15,7 +15,9 @@ use axum::{Json, Router};
 use base64::Engine;
 use futures::StreamExt as _;
 use serde::Deserialize;
-use veoveo_artifact_contract::{ArtifactId, ArtifactMetadata, ArtifactShareLinkId};
+use veoveo_artifact_contract::{
+    ArtifactId, ArtifactLedgerIdError, ArtifactMetadata, ArtifactShareLinkId,
+};
 use veoveo_mcp_contract::{
     ArtifactAccessRequest, ArtifactAccessRequestId, ArtifactAccessRequestPage, ArtifactPlane,
     ArtifactPlaneError, ArtifactWriteCapabilityId, CreateArtifactAccessRequest,
@@ -170,6 +172,12 @@ impl From<ArtifactPlaneError> for ApiError {
     }
 }
 
+impl From<ArtifactLedgerIdError> for ApiError {
+    fn from(error: ArtifactLedgerIdError) -> Self {
+        Self(error.into())
+    }
+}
+
 async fn healthz() -> &'static str {
     "ok"
 }
@@ -196,7 +204,7 @@ fn parse_artifact_id(value: &str) -> Result<ArtifactId, ApiError> {
 }
 
 fn parse_access_request_id(value: &str) -> Result<ArtifactAccessRequestId, ApiError> {
-    ArtifactAccessRequestId::parse(value).map_err(ApiError)
+    ArtifactAccessRequestId::parse(value).map_err(ApiError::from)
 }
 
 fn put_request(headers: &HeaderMap) -> Result<PutArtifactRequest, ApiError> {
@@ -809,13 +817,14 @@ pub(crate) mod tests {
                 initiator: principal.id.clone(),
             },
         };
+        let context = crate::service::tests::request_context(&principal, &authority);
         let issued = issuer
             .issue(
                 GatewayProfileId::new("operator").unwrap(),
                 ServerSlug::new("media").unwrap(),
                 principal,
                 authority,
-                None,
+                Some(context),
                 now + TimeDelta::minutes(5),
             )
             .unwrap();

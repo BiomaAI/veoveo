@@ -1,94 +1,6 @@
 use super::*;
 use std::time::Duration;
 
-#[tokio::test]
-async fn additive_fence_schema_preserves_retained_authorities() {
-    tokio::time::timeout(Duration::from_secs(90), async {
-        let db = TestDb::new().await;
-        let files = AuthorityFiles::new().await;
-        let catalog = TimeCatalog::new(db.b.clone());
-        let registry = files.registry();
-        let owner = scope(&db.a, "retained-authorities").await;
-        for (kind, path) in [
-            (AuthorityDatasetKind::Tzdb, &files.tzdb),
-            (AuthorityDatasetKind::LeapSeconds, &files.first_leaps),
-        ] {
-            let (release, _) = stage(&catalog, &owner, kind, path).await;
-            activate(
-                &catalog,
-                &registry,
-                &owner,
-                &release,
-                TimeWriteGuard::Absent,
-            )
-            .await;
-        }
-        let pointers: Vec<crate::persistence::TimeActiveAuthorityRecord> =
-            db.a.client()
-                .query("SELECT * FROM time_active_authority ORDER BY id;")
-                .await
-                .unwrap()
-                .check()
-                .unwrap()
-                .take(0)
-                .unwrap();
-        let releases = catalog.list_releases(&owner).await.unwrap();
-        // Reconstruct the pre-migration schema in this owned database. The normal
-        // fixture startup already qualified the complete migration runner.
-        db.a.client()
-            .query("REMOVE TABLE time_authority_activation_fence;")
-            .await
-            .unwrap()
-            .check()
-            .unwrap();
-        let migration = veoveo_platform_store::migrations()
-            .iter()
-            .find(|entry| entry.filename == "0096_time_activation_fence.surql")
-            .unwrap();
-        db.a.client()
-            .query("BEGIN TRANSACTION;")
-            .query(migration.sql)
-            .query("COMMIT TRANSACTION;")
-            .await
-            .unwrap()
-            .check()
-            .unwrap();
-        let after: Vec<crate::persistence::TimeActiveAuthorityRecord> =
-            db.a.client()
-                .query("SELECT * FROM time_active_authority ORDER BY id;")
-                .await
-                .unwrap()
-                .check()
-                .unwrap()
-                .take(0)
-                .unwrap();
-        assert_eq!(after, pointers);
-        assert_eq!(catalog.list_releases(&owner).await.unwrap(), releases);
-        let (replacement, _) = stage(
-            &catalog,
-            &owner,
-            AuthorityDatasetKind::LeapSeconds,
-            &files.next_leaps,
-        )
-        .await;
-        activate(
-            &catalog,
-            &registry,
-            &owner,
-            &replacement,
-            TimeWriteGuard::Existing(TimeVersion::FIRST),
-        )
-        .await;
-        let engine = registry.authority_engine(&catalog, &owner).await.unwrap();
-        assert_eq!(
-            engine.authority().effective().leap_seconds().release_id(),
-            &replacement.release_id
-        );
-    })
-    .await
-    .expect("retained authority migration qualification exceeded 90 seconds");
-}
-
 async fn prepare(
     registry: &AuthorityRegistry,
     catalog: &TimeCatalog,
@@ -170,7 +82,7 @@ async fn activation_serializes_both_families_from_the_preflighted_pair() {
 }
 
 #[tokio::test]
-async fn changed_preflight_inputs_reject_publication_and_roll_back_the_fence() {
+async fn changed_preflight_inputs_reject_publication_without_advancing_authority() {
     tokio::time::timeout(Duration::from_secs(90), async {
         let db = TestDb::new().await;
         let files = AuthorityFiles::new().await;
@@ -187,21 +99,6 @@ async fn changed_preflight_inputs_reject_publication_and_roll_back_the_fence() {
         .await;
         activate(&catalog, &registry, &owner, &leaps, TimeWriteGuard::Absent).await;
         let (tzdb, _) = stage(&catalog, &owner, AuthorityDatasetKind::Tzdb, &files.tzdb).await;
-        let fence = RecordId::new(
-            "time_authority_activation_fence",
-            owner.identity.tenant_id.to_string(),
-        );
-        let token: Option<Uuid> =
-            db.a.client()
-                .query("SELECT VALUE token FROM ONLY $fence;")
-                .bind(("fence", fence.clone()))
-                .await
-                .unwrap()
-                .check()
-                .unwrap()
-                .take(0)
-                .unwrap();
-        assert!(token.is_some());
         for target in [&leaps, &tzdb] {
             let draft = prepare(&registry, &catalog, &owner, &tzdb, TimeWriteGuard::Absent).await;
             let record = RecordId::new("time_authority_release", target.release_id.to_string());
@@ -221,20 +118,9 @@ async fn changed_preflight_inputs_reject_publication_and_roll_back_the_fence() {
                 .unwrap()
                 .check()
                 .unwrap();
-            let after: Option<Uuid> =
-                db.a.client()
-                    .query("SELECT VALUE token FROM ONLY $fence;")
-                    .bind(("fence", fence.clone()))
-                    .await
-                    .unwrap()
-                    .check()
-                    .unwrap()
-                    .take(0)
-                    .unwrap();
-            assert_eq!(
-                after, token,
-                "the failed publication must roll back its fence write"
-            );
+            let pair = catalog.active_releases(&owner).await.unwrap();
+            assert_eq!(pair.len(), 1);
+            assert_eq!(pair[0].release_id, leaps.release_id);
             let candidate = catalog
                 .release(&owner, &tzdb.release_id)
                 .await
@@ -265,7 +151,7 @@ async fn changed_preflight_inputs_reject_publication_and_roll_back_the_fence() {
 }
 
 #[tokio::test]
-async fn failed_file_preflight_never_creates_an_activation_fence() {
+async fn failed_file_preflight_never_publishes_an_authority() {
     tokio::time::timeout(Duration::from_secs(90), async {
         let db = TestDb::new().await;
         let files = AuthorityFiles::new().await;
@@ -293,21 +179,6 @@ async fn failed_file_preflight_never_creates_an_activation_fence() {
                 .is_err()
         );
         assert!(catalog.active_releases(&owner).await.unwrap().is_empty());
-        let fence = RecordId::new(
-            "time_authority_activation_fence",
-            owner.identity.tenant_id.to_string(),
-        );
-        let token: Option<Uuid> =
-            db.a.client()
-                .query("SELECT VALUE token FROM ONLY $fence;")
-                .bind(("fence", fence))
-                .await
-                .unwrap()
-                .check()
-                .unwrap()
-                .take(0)
-                .unwrap();
-        assert!(token.is_none());
         assert_eq!(
             catalog
                 .release(&owner, &leaps.release_id)
@@ -320,4 +191,87 @@ async fn failed_file_preflight_never_creates_an_activation_fence() {
     })
     .await
     .expect("failed file preflight qualification exceeded 90 seconds");
+}
+
+#[tokio::test]
+async fn locked_activation_inputs_detect_pointer_and_release_repairs() {
+    tokio::time::timeout(Duration::from_secs(90), async {
+        let db = TestDb::with_backend(crate::test_store::StoreBackend::RocksDb).await;
+        let files = AuthorityFiles::new().await;
+        let catalog = TimeCatalog::new(db.a.clone());
+        let registry = files.registry();
+        let owner = scope(&db.a, "locked-inputs").await;
+        let mut releases = Vec::new();
+        for (kind, path) in [
+            (AuthorityDatasetKind::LeapSeconds, &files.first_leaps),
+            (AuthorityDatasetKind::Tzdb, &files.tzdb),
+        ] {
+            let (release, _) = stage(&catalog, &owner, kind, path).await;
+            activate(
+                &catalog,
+                &registry,
+                &owner,
+                &release,
+                TimeWriteGuard::Absent,
+            )
+            .await;
+            releases.push(RecordId::new(
+                "time_authority_release",
+                release.release_id.to_string(),
+            ));
+        }
+        let pointers = ["leap_seconds", "tzdb"].map(|kind| {
+            RecordId::new(
+                "time_active_authority",
+                format!("{}:{kind}", owner.identity.tenant_id),
+            )
+        });
+        db.a.client()
+            .query("DEFINE TABLE activation_probe SCHEMALESS;")
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        for changed in pointers.iter().chain(releases.iter()) {
+            let transaction = db.a.client().clone().begin().await.unwrap();
+            transaction
+                .query(include_str!("../../persistence/activation_locks.surql"))
+                .bind(("pointers", pointers.clone()))
+                .bind(("releases", releases.clone()))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+            // A separate writer can repair either family or its source metadata.
+            db.b.client()
+                .query("UPDATE $changed SET record_version += 1 RETURN NONE;")
+                .bind(("changed", changed.clone()))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+            transaction
+                .query("CREATE activation_probe:one SET accepted = true;")
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+            assert!(
+                transaction.commit().await.is_err(),
+                "locked input changed: {changed:?}"
+            );
+            let count: Option<i64> =
+                db.b.client()
+                    .query("RETURN array::len(SELECT * FROM activation_probe);")
+                    .await
+                    .unwrap()
+                    .check()
+                    .unwrap()
+                    .take(0)
+                    .unwrap();
+            assert_eq!(count, Some(0), "conflicting decision must roll back");
+        }
+    })
+    .await
+    .expect("locked activation inputs exceeded 90 seconds");
 }

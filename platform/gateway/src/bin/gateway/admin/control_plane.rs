@@ -1,4 +1,5 @@
-use std::{collections::BTreeMap, sync::Arc, time::Instant};
+use std::{sync::Arc, time::Instant};
+use veoveo_mcp_contract::audit::AdministrativeOperation;
 
 use axum::{
     Json,
@@ -25,8 +26,6 @@ use crate::{
     },
     runtime::{AdminState, build_http_client, replace_catalog, replace_http_client},
 };
-
-const ADMIN_CONTROL_PLANE_RESULT_METHOD: &str = "admin/control-plane/result";
 
 #[derive(Debug, Serialize)]
 struct ControlPlaneReadResult {
@@ -61,8 +60,7 @@ pub(crate) async fn read_control_plane(
         &profile_id,
         subject,
         GatewayAction::AdminRead,
-        "admin/control-plane",
-        BTreeMap::new(),
+        AdministrativeOperation::ControlPlane,
         started_at,
     )
     .await
@@ -79,12 +77,12 @@ pub(crate) async fn read_control_plane(
                 &profile,
                 &subject,
                 AdminOperationAuditRecord {
+                    audit_target: None,
                     action: GatewayAction::AdminRead,
-                    method: ADMIN_CONTROL_PLANE_RESULT_METHOD,
+                    operation: AdministrativeOperation::ControlPlane,
                     started_at,
                     status: AdminOperationStatus::Failed,
                     failure: Some(AdminOperationFailure::ControlPlaneSha),
-                    metadata: BTreeMap::new(),
                 },
             )
             .await
@@ -103,12 +101,12 @@ pub(crate) async fn read_control_plane(
                 &profile,
                 &subject,
                 AdminOperationAuditRecord {
+                    audit_target: None,
                     action: GatewayAction::AdminRead,
-                    method: ADMIN_CONTROL_PLANE_RESULT_METHOD,
+                    operation: AdministrativeOperation::ControlPlane,
                     started_at,
                     status: AdminOperationStatus::Failed,
                     failure: Some(AdminOperationFailure::LatestRevisionRead),
-                    metadata: BTreeMap::from([("sha256".to_string(), sha256.clone())]),
                 },
             )
             .await
@@ -118,25 +116,17 @@ pub(crate) async fn read_control_plane(
             return internal_error_response(err);
         }
     };
-    let mut metadata = BTreeMap::from([
-        ("sha256".to_string(), sha256.clone()),
-        ("servers".to_string(), catalog.server_count().to_string()),
-        ("profiles".to_string(), catalog.profile_count().to_string()),
-    ]);
-    if let Some(revision_id) = &revision_id {
-        metadata.insert("revision_id".to_string(), revision_id.to_string());
-    }
     if let Err(err) = record_admin_operation_audit(
         &state,
         &profile,
         &subject,
         AdminOperationAuditRecord {
+            audit_target: None,
             action: GatewayAction::AdminRead,
-            method: ADMIN_CONTROL_PLANE_RESULT_METHOD,
+            operation: AdministrativeOperation::ControlPlane,
             started_at,
             status: AdminOperationStatus::Succeeded,
             failure: None,
-            metadata,
         },
     )
     .await
@@ -170,8 +160,7 @@ pub(crate) async fn update_control_plane(
         &profile_id,
         subject,
         GatewayAction::AdminWrite,
-        "admin/control-plane",
-        BTreeMap::new(),
+        AdministrativeOperation::ControlPlane,
         started_at,
     )
     .await
@@ -189,12 +178,12 @@ pub(crate) async fn update_control_plane(
                 &profile,
                 &subject,
                 AdminOperationAuditRecord {
+                    audit_target: None,
                     action: GatewayAction::AdminWrite,
-                    method: ADMIN_CONTROL_PLANE_RESULT_METHOD,
+                    operation: AdministrativeOperation::ControlPlane,
                     started_at,
                     status: AdminOperationStatus::Rejected,
                     failure: Some(AdminOperationFailure::InvalidControlPlane),
-                    metadata: BTreeMap::new(),
                 },
             )
             .await
@@ -213,12 +202,12 @@ pub(crate) async fn update_control_plane(
                 &profile,
                 &subject,
                 AdminOperationAuditRecord {
+                    audit_target: None,
                     action: GatewayAction::AdminWrite,
-                    method: ADMIN_CONTROL_PLANE_RESULT_METHOD,
+                    operation: AdministrativeOperation::ControlPlane,
                     started_at,
                     status: AdminOperationStatus::Failed,
                     failure: Some(AdminOperationFailure::BuildHttpClient),
-                    metadata: BTreeMap::new(),
                 },
             )
             .await
@@ -241,12 +230,12 @@ pub(crate) async fn update_control_plane(
                 &profile,
                 &subject,
                 AdminOperationAuditRecord {
+                    audit_target: None,
                     action: GatewayAction::AdminWrite,
-                    method: ADMIN_CONTROL_PLANE_RESULT_METHOD,
+                    operation: AdministrativeOperation::ControlPlane,
                     started_at,
                     status: AdminOperationStatus::Failed,
                     failure: Some(AdminOperationFailure::ControlPlaneSha),
-                    metadata: BTreeMap::new(),
                 },
             )
             .await
@@ -264,12 +253,12 @@ pub(crate) async fn update_control_plane(
                 &profile,
                 &subject,
                 AdminOperationAuditRecord {
+                    audit_target: None,
                     action: GatewayAction::AdminWrite,
-                    method: ADMIN_CONTROL_PLANE_RESULT_METHOD,
+                    operation: AdministrativeOperation::ControlPlane,
                     started_at,
                     status: AdminOperationStatus::Failed,
                     failure: Some(AdminOperationFailure::RevisionId),
-                    metadata: BTreeMap::from([("sha256".to_string(), sha256.clone())]),
                 },
             )
             .await
@@ -284,26 +273,31 @@ pub(crate) async fn update_control_plane(
         sha256: sha256.clone(),
         source: GatewayControlPlaneRevisionSource::AdminApi,
         applied_at: Utc::now(),
-        applied_by: subject.principal.id.clone(),
-        tenant: subject.principal.tenant.clone(),
+        applied_by: subject.actor.id.clone(),
+        tenant: subject.actor.tenant.clone(),
         control_plane,
     };
-    if let Err(err) = state.control_store.record_revision(&revision).await {
+    let audit_context = match subject.audit_context(&profile_id) {
+        Ok(context) => context,
+        Err(error) => return internal_error_response(error),
+    };
+    if let Err(err) = state
+        .control_store
+        .record_revision(&revision, &audit_context)
+        .await
+    {
         tracing::error!("failed to persist gateway control-plane revision: {err}");
         if let Err(audit_err) = record_admin_operation_audit(
             &state,
             &profile,
             &subject,
             AdminOperationAuditRecord {
+                audit_target: None,
                 action: GatewayAction::AdminWrite,
-                method: ADMIN_CONTROL_PLANE_RESULT_METHOD,
+                operation: AdministrativeOperation::ControlPlane,
                 started_at,
                 status: AdminOperationStatus::Failed,
                 failure: Some(AdminOperationFailure::PersistControlPlaneRevision),
-                metadata: BTreeMap::from([
-                    ("revision_id".to_string(), revision_id.to_string()),
-                    ("sha256".to_string(), sha256.clone()),
-                ]),
             },
         )
         .await
@@ -320,17 +314,12 @@ pub(crate) async fn update_control_plane(
         &profile,
         &subject,
         AdminOperationAuditRecord {
+            audit_target: None,
             action: GatewayAction::AdminWrite,
-            method: ADMIN_CONTROL_PLANE_RESULT_METHOD,
+            operation: AdministrativeOperation::ControlPlane,
             started_at,
             status: AdminOperationStatus::Succeeded,
             failure: None,
-            metadata: BTreeMap::from([
-                ("revision_id".to_string(), revision_id.to_string()),
-                ("sha256".to_string(), sha256.clone()),
-                ("servers".to_string(), servers.to_string()),
-                ("profiles".to_string(), profiles.to_string()),
-            ]),
         },
     )
     .await

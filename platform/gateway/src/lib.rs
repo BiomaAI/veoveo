@@ -7,6 +7,7 @@ mod mcp_support;
 mod metadata;
 mod policy;
 mod principal_audit;
+pub mod request_observation;
 pub mod secrets;
 pub mod state;
 #[cfg(test)]
@@ -40,9 +41,10 @@ pub use policy::{
 pub use principal_audit::{merge_principal_audit_metadata, principal_audit_metadata};
 pub use secrets::{GatewaySecretResolver, ResolvedSecretString, SecretResolverError};
 pub use state::{
-    GatewayAuditCounts, GatewayAuditRetentionSummary, GatewayAuthAuditMetadataSummary,
-    GatewayAuthAuditMethodSummary, GatewayAuthAuditReasonSummary, GatewayRefreshDeliveryWindow,
-    GatewayRefreshExchange, GatewayRefreshIssueRequest, GatewayRefreshRotationRequest,
-    GatewayState, IssuedGatewayRefreshToken, REFRESH_TOKEN_TTL_SECONDS, RefreshTokenDeliveryCipher,
+    GatewayRefreshDeliveryWindow, GatewayRefreshExchange, GatewayRefreshIssueRequest,
+    GatewayRefreshRotationRequest, GatewayState, IssuedGatewayRefreshToken,
+    REFRESH_TOKEN_TTL_SECONDS, RefreshTokenDeliveryCipher,
 };
 pub use tool_name::{GatewayNameError, GatewayToolProjection};
+
+pub mod audit;

@@ -1,15 +1,10 @@
 use super::{Fault, Route, SpeechState};
 use axum::http::{HeaderValue, StatusCode};
 use chrono::{TimeDelta, Utc};
-use std::{
-    collections::BTreeMap,
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{sync::Arc, time::Duration};
+use veoveo_mcp_contract::audit::AuditDetail;
 use veoveo_mcp_contract::{self as contract, ServerSlug};
-use veoveo_mcp_gateway::{
-    AuthenticatedSubject, GatewayCatalog, PolicyRequest, merge_principal_audit_metadata,
-};
+use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayCatalog, PolicyRequest};
 
 // Deliberately no Debug: this contains an internal assertion.
 pub(super) struct Authorized {
@@ -33,7 +28,6 @@ async fn admitted(
     route: &Route,
     subject: AuthenticatedSubject,
 ) -> Result<Authorized, Fault> {
-    let started = Instant::now();
     let catalog = state.catalog.current();
     let server = ServerSlug::new("speech").expect("static server");
     let (_, _, manifest) = catalog
@@ -42,7 +36,7 @@ async fn admitted(
     let manifest = manifest.clone();
     let (target, actions) = route.authorization();
     for &action in actions {
-        let trace = contract::TraceId::new(uuid::Uuid::now_v7().to_string()).expect("UUID trace");
+        let trace = contract::TraceId::new(subject.audit.trace_id.to_string()).expect("UUID trace");
         let mut decision = catalog.decide(PolicyRequest {
             principal: &subject.principal,
             profile: &route.profile,
@@ -60,29 +54,18 @@ async fn admitted(
             decision.effect = contract::PolicyEffect::Deny;
             decision.reason = contract::PolicyReasonCode::MissingPrincipalAssurance;
         }
-        state
-            .gateway_state
-            .record_audit_event(&contract::AuditEvent {
-                event_id: trace.clone(),
-                timestamp: decision.evaluated_at,
-                trace_id: trace,
-                profile: route.profile.clone(),
-                method: contract::McpMethodName::new("speech/http").expect("static method"),
-                action,
-                target: target.clone(),
-                decision: decision.clone(),
-                principal: Some(subject.principal.id.clone()),
-                principal_attributes: Some(contract::PrincipalAuditAttributes::from(
-                    &subject.principal,
-                )),
-                tenant: subject.principal.tenant.clone(),
-                token_issuer: Some(subject.access_token.issuer.clone()),
-                latency_ms: u64::try_from(started.elapsed().as_millis()).ok(),
-                metadata: merge_principal_audit_metadata(BTreeMap::new(), &subject.principal),
-            })
-            .await
-            .map_err(|_| Fault::unavailable())?;
         if decision.effect != contract::PolicyEffect::Allow {
+            state
+                .gateway_state
+                .record_policy_admission(
+                    &subject,
+                    &route.profile,
+                    &target,
+                    AuditDetail::DictationDenial,
+                    &decision,
+                )
+                .await
+                .map_err(|_| Fault::unavailable())?;
             return Err(Fault::denied());
         }
     }

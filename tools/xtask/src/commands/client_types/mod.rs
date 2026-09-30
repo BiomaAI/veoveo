@@ -11,6 +11,11 @@ pub(crate) fn run(repository: &RepositoryContext, check: bool) -> Result<()> {
     let web = repository.root().join("apps/console/web");
     let schemas = [
         (
+            "audit",
+            "apps/console/web/src/generated",
+            serde_json::to_value(veoveo_audit_contract::reader_schema())?,
+        ),
+        (
             "speech",
             "apps/workspace/src/generated",
             serde_json::to_value(veoveo_speech_contract::schema_bundle())?,

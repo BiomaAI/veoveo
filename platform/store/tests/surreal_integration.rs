@@ -23,6 +23,8 @@ use veoveo_platform_store::{
 };
 use veoveo_types::TaskId;
 
+#[path = "surreal_integration/audit_transactions.rs"]
+mod audit_transactions;
 #[path = "surreal_integration/changefeed.rs"]
 mod changefeed;
 #[path = "../../../testing/fixtures/store.rs"]
@@ -33,6 +35,37 @@ mod map_projection;
 mod query_semantics;
 #[path = "surreal_integration/recording_ingest.rs"]
 mod recording_ingest;
+
+fn artifact_audit_context(
+    identity: &veoveo_platform_store::PlatformIdentity,
+) -> veoveo_platform_store::audit::AuditContextRecord {
+    use veoveo_audit_contract::{
+        AuditActor, AuditAuthority, AuditContext, AuditPrincipalKind, AuditRequest,
+    };
+    veoveo_platform_store::audit::AuditContextRecord(AuditContext {
+        actor: AuditActor {
+            principal: veoveo_types::PrincipalId::new(identity.principal_key.clone()).unwrap(),
+            tenant: Some(veoveo_types::TenantId::new(identity.tenant_key.clone()).unwrap()),
+            kind: AuditPrincipalKind::User,
+            oauth_client: None,
+            session_family: None,
+            delegating_principal: None,
+            managed_agent: None,
+        },
+        authority: AuditAuthority {
+            profile: Some("operator".parse().unwrap()),
+            work_context: Some(
+                veoveo_types::WorkContextId::new(artifact_authority(identity).context_key).unwrap(),
+            ),
+            policy_revision: Some(
+                veoveo_types::PolicyVersion::new(artifact_authority(identity).policy_revision)
+                    .unwrap(),
+            ),
+            ..Default::default()
+        },
+        request: AuditRequest::background(),
+    })
+}
 
 fn artifact_authority(identity: &PlatformIdentity) -> InvocationAuthorityRecord {
     InvocationAuthorityRecord {
@@ -823,6 +856,7 @@ async fn artifact_plane_counters_and_occurrence_dedup_are_durable() {
     let capability_task_id = TaskId::new().to_string();
     store
         .create_artifact_write_capability(ArtifactWriteCapabilityDraft {
+            audit: artifact_audit_context(&identity),
             capability_id,
             identity: identity.clone(),
             authority: artifact_authority(&identity),
@@ -1001,6 +1035,7 @@ async fn artifact_plane_counters_and_occurrence_dedup_are_durable() {
     let rebind_task_id = TaskId::new().to_string();
     store
         .create_artifact_write_capability(ArtifactWriteCapabilityDraft {
+            audit: artifact_audit_context(&identity),
             capability_id: rebind_capability_id,
             identity: identity.clone(),
             authority: artifact_authority(&identity),

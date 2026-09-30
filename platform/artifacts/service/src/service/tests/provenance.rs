@@ -21,6 +21,15 @@ async fn assert_published_attribution<R: ArtifactRepository>(
         if automated {
             actor.identity.actor.kind = PrincipalKind::Service;
         }
+        if matches!(invocation, InvocationProvenance::Delegated { .. }) {
+            actor.identity.actor.kind = PrincipalKind::Service;
+            actor.identity.actor.subject = TokenSubject::new("artifact-test").unwrap();
+            actor.identity.actor.id =
+                PrincipalId::new(format!("{}#artifact-test", actor.identity.actor.issuer)).unwrap();
+            actor.identity.authority.output_policy.owner =
+                AccessSubject::Principal(actor.identity.actor.id.clone());
+        }
+        bind_request_context(&mut actor.identity);
         let published = writer
             .put(&actor, PutArtifactRequest::default(), b"artifact".to_vec())
             .await

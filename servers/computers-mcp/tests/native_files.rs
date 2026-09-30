@@ -180,7 +180,7 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
         ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap();
     let computer = a
         .reserve(
-            owner.owner(),
+            &owner,
             &Reservation {
                 request_id: Uuid::now_v7(),
                 template_id: "development".into(),

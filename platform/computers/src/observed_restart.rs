@@ -13,10 +13,12 @@ impl ComputersStore {
     /// This cannot settle an operation, replace a resource or release an execution fence.
     pub async fn record_observed_restart(
         &self,
+        actor: &crate::ComputerActor,
         before: &Computer,
         observed: ReachedState,
         checked_at: Instant,
     ) -> Result<()> {
+        actor.check_admission()?;
         let remaining = checked_at
             .checked_add(Duration::from_secs(10))
             .and_then(|end| end.checked_duration_since(Instant::now()))
@@ -100,6 +102,14 @@ impl ComputersStore {
                     .into_value(),
                 ),
                 ("event", event.into_value()),
+                crate::audit::binding(
+                    actor.accepted(),
+                    before.computer_id,
+                    crate::audit::Transition::accepted(
+                        veoveo_audit_contract::ComputerActivity::ObserveRestart,
+                        veoveo_audit_contract::ComputerAuditStage::Observed,
+                    ),
+                )?,
             ],
         )
         .await?;

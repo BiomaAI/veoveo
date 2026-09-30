@@ -13,4 +13,5 @@ IF $current.stage = "dispatched" {
     updated_at = $now WHERE stage = "dispatched" AND containment_id = NONE RETURN AFTER);
   IF $changed = NONE { THROW "computer_state_conflict"; };
   CREATE outbox_event CONTENT $event;
+fn::append_audit($audit_rows);
 };

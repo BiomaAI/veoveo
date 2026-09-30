@@ -1,28 +1,24 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    num::NonZeroU32,
-};
+use std::{collections::BTreeSet, num::NonZeroU32};
+use veoveo_audit_contract::*;
 
 use chrono::{TimeDelta, Utc};
 use futures::future::join_all;
 use secrecy::SecretString;
 use uuid::Uuid;
 use veoveo_mcp_contract::{
-    AuditEvent, AuthAuditEvent, AuthMethod, AuthOutcome, AuthReasonCode, AuthorizationServerId,
-    GatewayAction, GatewayAuthorizationCodeRecord, GatewayAuthorizationRequest,
-    GatewayJwtRevocation, GatewayProfileId, GatewayResourceSubscription, JwtId, McpMethodName,
-    OAuthAuthorizationCode, OAuthClientId, OAuthRedirectUri, OAuthStateValue,
-    OidcClientRegistrationId, OidcNonce, PkceCodeChallenge, PkceCodeChallengeMethod,
-    PkceCodeVerifier, PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyTarget, Principal,
-    PrincipalAuditAttributes, PrincipalDisplayName, PrincipalKind, ProtectedResourceId, ServerSlug,
-    TokenIssuer, TokenSubject, TraceId,
+    AuthMethod, AuthReasonCode, AuthorizationServerId, GatewayAuthorizationCodeRecord,
+    GatewayAuthorizationRequest, GatewayJwtRevocation, GatewayProfileId,
+    GatewayResourceSubscription, JwtId, OAuthAuthorizationCode, OAuthClientId, OAuthRedirectUri,
+    OAuthStateValue, OidcClientRegistrationId, OidcNonce, PkceCodeChallenge,
+    PkceCodeChallengeMethod, PkceCodeVerifier, Principal, PrincipalDisplayName, PrincipalKind,
+    ServerSlug, TokenIssuer, TokenSubject,
 };
 use veoveo_mcp_gateway::{
     GatewayRefreshDeliveryWindow, GatewayRefreshExchange, GatewayRefreshIssueRequest,
     GatewayRefreshRotationRequest, GatewayState, RefreshTokenDeliveryCipher,
 };
 use veoveo_platform_store::{
-    GatewayAuditKind, GatewayRefreshTokenRecord, PlatformStore, StoreConfig, StoreCredentials,
+    GatewayRefreshTokenRecord, PlatformStore, StoreConfig, StoreCredentials,
 };
 use veoveo_types::{PrincipalId, ResourceUri, ScopeName, TenantId, WorkContextId};
 
@@ -49,20 +45,23 @@ async fn concurrent_gateway_audit_writes_retry_transaction_conflicts() {
 
     let results = join_all((0..12).map(|index| {
         let state = state.clone();
-        let event = policy_audit_event(
+        let event = policy_draft(
             &format!("concurrent-policy-{index}"),
             now,
             &profile,
             &principal,
         );
-        async move { state.record_audit_event(&event).await }
+        async move { state.record_audit(event).await }
     }))
     .await;
     for result in results {
         result.unwrap();
     }
 
-    assert_eq!(state.audit_counts().await.unwrap().policy_events, 12);
+    assert_eq!(
+        audit_count(&state, &principal, AuditClass::ApiActivity).await,
+        12
+    );
     let outbox = state.platform_store().read_outbox(0, 100).await.unwrap();
     assert_eq!(
         outbox
@@ -70,7 +69,7 @@ async fn concurrent_gateway_audit_writes_retry_transaction_conflicts() {
             .iter()
             .filter(|event| event.event_type == "gateway.audit.recorded")
             .count(),
-        12,
+        0,
     );
 }
 
@@ -243,12 +242,12 @@ async fn gateway_correctness_state_is_shared_and_single_use_across_replicas() {
         .unwrap();
     let presented_refresh = issued_refresh.token.clone();
     let delivery_cipher = test_refresh_delivery_cipher();
-    let left_refresh_audit = auth_audit_event("refresh-left", now, &profile, &principal);
-    let right_refresh_audit = auth_audit_event("refresh-right", now, &profile, &principal);
+    let left_refresh_audit = auth_draft("refresh-left", now, &profile, &principal);
+    let right_refresh_audit = auth_draft("refresh-right", now, &profile, &principal);
     let left_duplicate_audit =
-        duplicate_delivery_audit_event("refresh-left-duplicate", now, &profile, &principal);
+        redelivery_draft("refresh-left-duplicate", now, &profile, &principal);
     let right_duplicate_audit =
-        duplicate_delivery_audit_event("refresh-right-duplicate", now, &profile, &principal);
+        redelivery_draft("refresh-right-duplicate", now, &profile, &principal);
     let (left, right) = tokio::join!(
         first.rotate_refresh_token(
             &presented_refresh,
@@ -300,9 +299,8 @@ async fn gateway_correctness_state_is_shared_and_single_use_across_replicas() {
     );
     assert_eq!(rotated.grant.family_id, duplicate_delivery.grant.family_id);
 
-    let delayed_replay_audit =
-        auth_audit_event("refresh-delayed-replay", now, &profile, &principal);
-    let delayed_duplicate_audit = duplicate_delivery_audit_event(
+    let delayed_replay_audit = auth_draft("refresh-delayed-replay", now, &profile, &principal);
+    let delayed_duplicate_audit = redelivery_draft(
         "refresh-delayed-replay-duplicate",
         now,
         &profile,
@@ -327,8 +325,8 @@ async fn gateway_correctness_state_is_shared_and_single_use_across_replicas() {
         GatewayRefreshExchange::ReplayDetected { .. }
     ));
     let revoked_successor_audit =
-        auth_audit_event("refresh-revoked-successor", now, &profile, &principal);
-    let revoked_successor_duplicate_audit = duplicate_delivery_audit_event(
+        auth_draft("refresh-revoked-successor", now, &profile, &principal);
+    let revoked_successor_duplicate_audit = redelivery_draft(
         "refresh-revoked-successor-duplicate",
         now,
         &profile,
@@ -371,30 +369,24 @@ async fn gateway_correctness_state_is_shared_and_single_use_across_replicas() {
         token.token_hash != presented_refresh.as_str() && token.token_hash != rotated.token.as_str()
     }));
 
-    let old_policy =
-        policy_audit_event("policy-old", now - TimeDelta::days(2), &profile, &principal);
-    first.record_audit_event(&old_policy).await.unwrap();
-    let auth = auth_audit_event("auth-current", now, &profile, &principal);
-    second.record_auth_audit_event(&auth).await.unwrap();
-    assert_eq!(second.audit_counts().await.unwrap().policy_events, 1);
-    assert_eq!(first.audit_counts().await.unwrap().auth_events, 3);
+    let old_policy = policy_draft("policy-old", now - TimeDelta::days(2), &profile, &principal);
+    first.record_audit(old_policy).await.unwrap();
+    let auth = auth_draft("auth-current", now, &profile, &principal);
+    second.record_audit(auth).await.unwrap();
     assert_eq!(
-        first
-            .platform_store()
-            .gateway_audit_events(GatewayAuditKind::Policy)
-            .await
-            .unwrap()
-            .len(),
-        1,
-        "gateway policy evidence must live in canonical audit_event",
+        audit_count(&second, &principal, AuditClass::ApiActivity).await,
+        1
+    );
+    assert_eq!(
+        audit_count(&first, &principal, AuditClass::Authentication).await,
+        3
     );
     let outbox = first.platform_store().read_outbox(0, 100).await.unwrap();
     assert!(
         outbox
             .events
             .iter()
-            .any(|event| event.event_type == "gateway.audit.recorded"),
-        "canonical gateway audit writes must publish to the durable outbox",
+            .all(|event| event.event_type != "gateway.audit.recorded")
     );
     for event_type in [
         "gateway.refresh_family.issued",
@@ -409,15 +401,6 @@ async fn gateway_correctness_state_is_shared_and_single_use_across_replicas() {
             "missing durable refresh outbox event {event_type}",
         );
     }
-
-    let retention = second
-        .delete_audit_batch_before(now - TimeDelta::days(1))
-        .await
-        .unwrap();
-    assert_eq!(retention.policy_events_deleted, 1);
-    assert_eq!(retention.auth_events_deleted, 0);
-    assert_eq!(first.audit_counts().await.unwrap().policy_events, 0);
-    assert_eq!(first.audit_counts().await.unwrap().auth_events, 3);
 
     let delivery_retention = second
         .prune_expired_refresh_tokens(now + TimeDelta::seconds(7))
@@ -484,15 +467,15 @@ async fn refresh_rotation_rolls_back_when_success_audit_cannot_commit() {
         })
         .await
         .unwrap();
-    let duplicate_audit = auth_audit_event("duplicate-refresh-audit", now, &profile, &principal);
-    let duplicate_delivery_audit = duplicate_delivery_audit_event(
+    let duplicate_audit = auth_draft("duplicate-refresh-audit", now, &profile, &principal);
+    let duplicate_delivery_audit = redelivery_draft(
         "duplicate-refresh-delivery-audit",
         now,
         &profile,
         &principal,
     );
     state
-        .record_auth_audit_event(&duplicate_audit)
+        .record_audit(conflicting_draft(&duplicate_audit))
         .await
         .unwrap();
 
@@ -510,7 +493,7 @@ async fn refresh_rotation_rolls_back_when_success_audit_cannot_commit() {
             ),
         )
         .await
-        .expect_err("duplicate success audit must roll back the refresh rotation");
+        .expect_err("conflicting audit identity must roll back the refresh rotation");
     let preserved = state
         .refresh_token_grant(
             &issued.token,
@@ -524,8 +507,8 @@ async fn refresh_rotation_rolls_back_when_success_audit_cannot_commit() {
         .expect("failed delivery must leave the presented refresh token usable");
     assert_eq!(preserved.generation, 0);
 
-    let retry_audit = auth_audit_event("refresh-delivery-retry", now, &profile, &principal);
-    let retry_duplicate_audit = duplicate_delivery_audit_event(
+    let retry_audit = auth_draft("refresh-delivery-retry", now, &profile, &principal);
+    let retry_duplicate_audit = redelivery_draft(
         "refresh-delivery-retry-duplicate",
         now,
         &profile,
@@ -584,9 +567,9 @@ async fn consuming_a_successor_clears_its_delivery_envelope_atomically() {
         })
         .await
         .unwrap();
-    let first_audit = auth_audit_event("eager-clear-first", now, &profile, &principal);
+    let first_audit = auth_draft("eager-clear-first", now, &profile, &principal);
     let first_duplicate_audit =
-        duplicate_delivery_audit_event("eager-clear-first-duplicate", now, &profile, &principal);
+        redelivery_draft("eager-clear-first-duplicate", now, &profile, &principal);
     let successor = match state
         .rotate_refresh_token(
             &issued.token,
@@ -607,10 +590,13 @@ async fn consuming_a_successor_clears_its_delivery_envelope_atomically() {
         outcome => panic!("first rotation returned {outcome:?}"),
     };
 
-    let blocked_audit = auth_audit_event("eager-clear-blocked", now, &profile, &principal);
-    state.record_auth_audit_event(&blocked_audit).await.unwrap();
+    let blocked_audit = auth_draft("eager-clear-blocked", now, &profile, &principal);
+    state
+        .record_audit(conflicting_draft(&blocked_audit))
+        .await
+        .unwrap();
     let blocked_duplicate_audit =
-        duplicate_delivery_audit_event("eager-clear-blocked-duplicate", now, &profile, &principal);
+        redelivery_draft("eager-clear-blocked-duplicate", now, &profile, &principal);
     state
         .rotate_refresh_token(
             &successor.token,
@@ -631,9 +617,9 @@ async fn consuming_a_successor_clears_its_delivery_envelope_atomically() {
     assert!(generation_one.delivery_envelope.is_some());
     assert!(generation_one.delivery_expires_at.is_some());
 
-    let consume_audit = auth_audit_event("eager-clear-consume", now, &profile, &principal);
+    let consume_audit = auth_draft("eager-clear-consume", now, &profile, &principal);
     let consume_duplicate_audit =
-        duplicate_delivery_audit_event("eager-clear-consume-duplicate", now, &profile, &principal);
+        redelivery_draft("eager-clear-consume-duplicate", now, &profile, &principal);
     assert!(matches!(
         state
             .rotate_refresh_token(
@@ -736,13 +722,9 @@ async fn public_client_revocation_is_bound_idempotent_and_family_wide() {
             .is_some(),
         "repeated revocation is idempotently successful",
     );
-    let rejected_audit = auth_audit_event("revoked-family-rotate", now, &profile, &principal);
-    let rejected_duplicate_audit = duplicate_delivery_audit_event(
-        "revoked-family-rotate-duplicate",
-        now,
-        &profile,
-        &principal,
-    );
+    let rejected_audit = auth_draft("revoked-family-rotate", now, &profile, &principal);
+    let rejected_duplicate_audit =
+        redelivery_draft("revoked-family-rotate-duplicate", now, &profile, &principal);
     assert!(matches!(
         state
             .rotate_refresh_token(
@@ -867,80 +849,118 @@ fn authorization_code(
     }
 }
 
-fn policy_audit_event(
-    id: &str,
+fn fixture_draft(
     timestamp: chrono::DateTime<Utc>,
     profile: &GatewayProfileId,
     principal: &Principal,
-) -> AuditEvent {
-    let trace_id = TraceId::new(format!("trace-{id}")).unwrap();
-    let target = PolicyTarget::Gateway;
-    let decision = PolicyDecision {
-        effect: PolicyEffect::Allow,
-        reason: PolicyReasonCode::PolicyAllow,
-        evaluated_at: timestamp,
-        profile: profile.clone(),
-        action: GatewayAction::AdminRead,
-        target: target.clone(),
-        principal: Some(principal.id.clone()),
+    detail: AuditDetail,
+) -> AuditDraft {
+    AuditDraft::builder(
+        AuditRequest::background(),
+        AuditTarget::Profile {
+            profile: profile.clone(),
+        },
+        detail,
+        AuditOutcome::Allowed,
+        AuditReason::Accepted,
+    )
+    .actor(AuditActor {
+        principal: principal.id.clone(),
+        kind: AuditPrincipalKind::User,
         tenant: principal.tenant.clone(),
-        policy_version: None,
-        rule_id: None,
-        trace_id: trace_id.clone(),
-    };
-    AuditEvent {
-        event_id: TraceId::new(id).unwrap(),
-        timestamp,
-        trace_id,
-        profile: profile.clone(),
-        method: McpMethodName::new("admin/integration").unwrap(),
-        action: GatewayAction::AdminRead,
-        target,
-        decision,
-        principal: Some(principal.id.clone()),
-        principal_attributes: Some(PrincipalAuditAttributes::from(principal)),
-        tenant: principal.tenant.clone(),
-        token_issuer: Some(principal.issuer.clone()),
-        latency_ms: Some(1),
-        metadata: BTreeMap::from([("test".to_owned(), "policy".to_owned())]),
-    }
-}
-
-fn auth_audit_event(
-    id: &str,
-    timestamp: chrono::DateTime<Utc>,
-    profile: &GatewayProfileId,
-    principal: &Principal,
-) -> AuthAuditEvent {
-    AuthAuditEvent {
-        event_id: TraceId::new(id).unwrap(),
-        timestamp,
-        trace_id: TraceId::new(format!("trace-{id}")).unwrap(),
+        oauth_client: None,
+        session_family: None,
+        delegating_principal: None,
+        managed_agent: None,
+    })
+    .authority(AuditAuthority {
         profile: Some(profile.clone()),
-        protected_resource: ProtectedResourceId::new("operator-resource").unwrap(),
-        outcome: AuthOutcome::Allow,
-        reason: AuthReasonCode::AuthAllow,
-        method: AuthMethod::BearerJwt,
-        principal: Some(principal.id.clone()),
-        principal_attributes: Some(PrincipalAuditAttributes::from(principal)),
-        tenant: principal.tenant.clone(),
-        token_issuer: Some(principal.issuer.clone()),
-        token_subject: Some(principal.subject.clone()),
-        jwt_id: Some(JwtId::new("auth-jwt").unwrap()),
-        latency_ms: Some(1),
-        metadata: BTreeMap::from([("test".to_owned(), "auth".to_owned())]),
-    }
+        scopes: principal.scopes.clone(),
+        data_labels: principal.data_labels.clone(),
+        ..Default::default()
+    })
+    .occurred_at(timestamp)
+    .latency_ms(1)
+    .build()
+    .unwrap()
 }
-
-fn duplicate_delivery_audit_event(
-    id: &str,
+fn policy_draft(
+    _label: &str,
     timestamp: chrono::DateTime<Utc>,
     profile: &GatewayProfileId,
     principal: &Principal,
-) -> AuthAuditEvent {
-    let mut event = auth_audit_event(id, timestamp, profile, principal);
-    event.reason = AuthReasonCode::RefreshTokenDuplicateDelivery;
-    event
+) -> AuditDraft {
+    fixture_draft(
+        timestamp,
+        profile,
+        principal,
+        AuditDetail::Read {
+            method: AuditReadMethod::Status,
+        },
+    )
+}
+fn auth_draft(
+    _label: &str,
+    timestamp: chrono::DateTime<Utc>,
+    profile: &GatewayProfileId,
+    principal: &Principal,
+) -> AuditDraft {
+    fixture_draft(
+        timestamp,
+        profile,
+        principal,
+        AuditDetail::Authentication {
+            activity: AuthenticationActivity::Refresh,
+            method: AuthMethod::RefreshToken,
+            reason: AuthReasonCode::AuthAllow,
+        },
+    )
+}
+fn redelivery_draft(
+    _label: &str,
+    timestamp: chrono::DateTime<Utc>,
+    profile: &GatewayProfileId,
+    principal: &Principal,
+) -> AuditDraft {
+    fixture_draft(
+        timestamp,
+        profile,
+        principal,
+        AuditDetail::Authentication {
+            activity: AuthenticationActivity::DuplicateRefresh,
+            method: AuthMethod::RefreshToken,
+            reason: AuthReasonCode::RefreshTokenDuplicateDelivery,
+        },
+    )
+}
+fn conflicting_draft(draft: &AuditDraft) -> AuditDraft {
+    AuditDraft::builder(
+        draft.request().clone(),
+        draft.target().clone(),
+        draft.detail().clone(),
+        draft.outcome(),
+        draft.reason(),
+    )
+    .identity(draft.id())
+    .actor(draft.actor().unwrap().clone())
+    .authority(draft.authority().clone())
+    .occurred_at(draft.occurred_at())
+    .latency_ms(99)
+    .build()
+    .unwrap()
+}
+async fn audit_count(state: &GatewayState, principal: &Principal, class: AuditClass) -> usize {
+    let scope = AuditReadScope::new(principal.tenant.clone(), principal.tenant.is_none());
+    let mut query = AuditQuery::new(scope.partitions().into_iter().next().unwrap());
+    query.class = Some(class);
+    query.limit = 1000;
+    let page = state
+        .platform_store()
+        .audit_page(&scope, &query)
+        .await
+        .unwrap();
+    assert!(page.next.is_none(), "fixture exceeds its audit page");
+    page.records.len()
 }
 
 fn test_refresh_delivery_cipher() -> RefreshTokenDeliveryCipher {
@@ -953,8 +973,8 @@ fn refresh_rotation_request<'a>(
     oauth_client_id: &'a OAuthClientId,
     now: chrono::DateTime<Utc>,
     delivery_cipher: &'a RefreshTokenDeliveryCipher,
-    success_audit: &'a AuthAuditEvent,
-    duplicate_delivery_audit: &'a AuthAuditEvent,
+    success_audit: &'a AuditDraft,
+    duplicate_delivery_audit: &'a AuditDraft,
 ) -> GatewayRefreshRotationRequest<'a> {
     GatewayRefreshRotationRequest {
         authorization_server,

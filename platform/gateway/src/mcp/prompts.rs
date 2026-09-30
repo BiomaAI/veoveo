@@ -18,9 +18,26 @@ impl GatewayMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<ListPromptsResult, McpError> {
         let subject = self.authenticated(&context)?;
+        let snapshot = self.catalog.snapshot();
+        let fingerprint = super::discovery_authorization_fingerprint(&subject)?;
         let mut prompts = Vec::new();
+        let mut denied = 0u32;
         for server_slug in self.profile_servers() {
-            let upstream_prompts = self
+            let key = super::discovery::DiscoveryCacheKey {
+                catalog_generation: snapshot.generation(),
+                principal: subject.actor.id.clone(),
+                authorization_fingerprint: fingerprint,
+                server: server_slug.clone(),
+            };
+            self.ensure_discovery_watch(&key, context.peer.clone(), &subject)
+                .await?;
+            if let Some(mut cached) = self.discovery.prompts(&key).await {
+                denied = denied.saturating_add(cached.denied);
+                prompts.append(&mut cached.items);
+                continue;
+            }
+            let fetch = self.discovery.start_prompts(key).await;
+            let upstream = self
                 .idempotent_upstream_request(
                     &server_slug,
                     context.peer.clone(),
@@ -28,26 +45,45 @@ impl GatewayMcp {
                     |upstream| async move { upstream.list_all_prompts().await },
                 )
                 .await?;
-            for prompt in upstream_prompts {
-                let prompt_name = PromptName::new(prompt.name.clone()).map_err(|err| {
-                    mcp_internal(format!("upstream exposed invalid prompt name: {err}"))
-                })?;
-                if !self
-                    .allows_prompt(
-                        &context,
-                        GatewayAction::PromptsList,
-                        server_slug.clone(),
-                        prompt_name,
-                    )
-                    .await?
-                {
-                    continue;
-                }
-                prompts.push(prompt);
-            }
+            let targets = upstream
+                .iter()
+                .map(|prompt| {
+                    Ok(veoveo_mcp_contract::PolicyTarget::Prompt {
+                        server: server_slug.clone(),
+                        prompt: PromptName::new(prompt.name.clone())
+                            .map_err(|_| mcp_internal("upstream exposed invalid prompt name"))?,
+                    })
+                })
+                .collect::<Result<Vec<_>, McpError>>()?;
+            let allowed = self
+                .allows_catalog_targets(&context, GatewayAction::PromptsList, targets)
+                .await?;
+            let rejected: u32 = allowed
+                .iter()
+                .filter(|allowed| !**allowed)
+                .count()
+                .try_into()
+                .map_err(|_| mcp_internal("catalog exceeds audit count range"))?;
+            let mut items = upstream
+                .into_iter()
+                .zip(allowed)
+                .filter_map(|(prompt, allowed)| allowed.then_some(prompt))
+                .collect::<Vec<_>>();
+            self.discovery
+                .store_prompts(fetch, items.clone(), rejected)
+                .await;
+            denied = denied.saturating_add(rejected);
+            prompts.append(&mut items);
         }
         ensure_unique_prompts(&prompts)?;
         prompts.sort_by(|left, right| left.name.cmp(&right.name));
+        self.record_discovery(
+            &subject,
+            veoveo_audit_contract::DiscoveryKind::Prompts,
+            prompts.iter().map(|prompt| prompt.name.clone()).collect(),
+            denied,
+        )
+        .await?;
         let page = paginate(prompts, request.as_ref(), GATEWAY_PAGE_SIZE)
             .map_err(|err| mcp_invalid_params(err.to_string()))?;
         Ok(ListPromptsResult {

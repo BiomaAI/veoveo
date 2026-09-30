@@ -434,7 +434,7 @@ fn profile_allows_target(
                 Err(PolicyReasonCode::PolicyDeny)
             }
         }
-        PolicyTarget::Task { server, task_id: _ } => {
+        PolicyTarget::Task { server, .. } | PolicyTarget::PlatformTask { server, .. } => {
             let _manifest = catalog
                 .server(server)
                 .ok_or(PolicyReasonCode::UnknownServer)?;
@@ -732,7 +732,9 @@ fn matches_target_filters(rule: &PolicyRule, target: &PolicyTarget) -> bool {
         PolicyTarget::Prompt { server, prompt } => {
             filter_matches(&rule.servers, server) && filter_matches(&rule.prompts, prompt)
         }
-        PolicyTarget::Task { server, task_id: _ } => filter_matches(&rule.servers, server),
+        PolicyTarget::Task { server, .. } | PolicyTarget::PlatformTask { server, .. } => {
+            filter_matches(&rule.servers, server)
+        }
         PolicyTarget::RecordingProducer { .. } | PolicyTarget::RecordingStream { .. } => false,
     }
 }

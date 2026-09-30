@@ -10,7 +10,8 @@ fn render(values: Value) -> Result<std::process::Output> {
     file.flush()?;
     Ok(Command::new("timeout")
         .args(["25s", "helm", "template", "speech-test", "deploy/helm/veoveo",
-            "--set", "gateway.controlPlaneRevision=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"])
+            "--set", "gateway.controlPlaneRevision=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "--set", "gateway.auditRetentionDays=1"])
         .arg("--values").arg(file.path())
         .current_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/../..")).output()?)
 }

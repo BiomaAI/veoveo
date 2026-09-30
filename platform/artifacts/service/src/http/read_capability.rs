@@ -29,7 +29,7 @@ struct TaskQuery {
 }
 
 fn capability_id(value: &str) -> Result<ArtifactReadCapabilityId, ApiError> {
-    ArtifactReadCapabilityId::parse(value).map_err(ApiError)
+    ArtifactReadCapabilityId::parse(value).map_err(ApiError::from)
 }
 
 async fn issue<R: ArtifactRepository, S: BlobStore>(

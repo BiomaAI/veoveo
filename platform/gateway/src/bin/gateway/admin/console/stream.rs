@@ -4,6 +4,7 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
+use veoveo_mcp_contract::audit::AdministrativeOperation;
 
 use axum::{
     extract::{Extension, Path as AxumPath, Query, State},
@@ -23,17 +24,16 @@ use veoveo_mcp_contract::GatewayAction;
 use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_platform_store::{
     AgentRecord, ArtifactAccessRequestRecord, ArtifactBlobRecord, ArtifactGrantEdge,
-    ArtifactOccurrenceRecord, ArtifactUploadRecord, ArtifactUploadState, AuditEventRecord,
-    ChangefeedCursor, ChangefeedEntry, PlatformStore, PlatformTable, PrincipalRecord, RecordId,
-    RecordingLayerRecord, RecordingLayerState, RecordingRecord, ShareLinkRecord, TaskRecord,
-    Value as DbValue, WakeRecord, decode_changefeed_entry, deterministic_tenant_id,
+    ArtifactOccurrenceRecord, ArtifactUploadRecord, ArtifactUploadState, ChangefeedCursor,
+    ChangefeedEntry, PlatformStore, PlatformTable, PrincipalRecord, RecordId, RecordingLayerRecord,
+    RecordingLayerState, RecordingRecord, ShareLinkRecord, TaskRecord, Value as DbValue,
+    WakeRecord, decode_changefeed_entry, deterministic_tenant_id,
 };
 
 use super::projection::{
     ArtifactAccessContext, ArtifactGrantSummary, ArtifactShareLinkSummary, agent_public_key,
-    agent_summary, artifact_grant_summary, artifact_summary, audit_summary, load_projection,
-    principal_summary, record_key, recording_summary, server_summary, share_link_summary,
-    task_summary,
+    agent_summary, artifact_grant_summary, artifact_summary, load_projection, principal_summary,
+    record_key, recording_summary, server_summary, share_link_summary, task_summary,
 };
 use crate::{
     admin::admin_profile_id,
@@ -55,7 +55,7 @@ const REPLAY_HORIZON: chrono::TimeDelta = chrono::TimeDelta::hours(24);
 
 /// Tenant tables the console stream follows, in dependency order: within one
 /// versionstamp group parents apply before the children that re-emit them.
-const STREAM_TABLES: [PlatformTable; 13] = [
+const STREAM_TABLES: [PlatformTable; 12] = [
     PlatformTable::Principal,
     PlatformTable::Task,
     PlatformTable::ArtifactBlob,
@@ -68,7 +68,6 @@ const STREAM_TABLES: [PlatformTable; 13] = [
     PlatformTable::Wake,
     PlatformTable::Recording,
     PlatformTable::RecordingLayer,
-    PlatformTable::AuditEvent,
 ];
 
 const fn table_rank(table: PlatformTable) -> usize {
@@ -96,7 +95,7 @@ struct StreamLimits {
     per_principal: Mutex<BTreeMap<String, usize>>,
 }
 
-struct StreamSlot {
+pub(super) struct StreamSlot {
     _global: OwnedSemaphorePermit,
     limits: Arc<StreamLimits>,
     principal: String,
@@ -115,7 +114,7 @@ impl Drop for StreamSlot {
 }
 
 impl ConsoleStreamRuntime {
-    fn acquire(&self, principal: &str) -> Option<StreamSlot> {
+    pub(super) fn acquire(&self, principal: &str) -> Option<StreamSlot> {
         let global = self.global_permit()?;
         let mut per_principal = self.limits.per_principal.lock();
         let count = per_principal.entry(principal.to_owned()).or_default();
@@ -223,8 +222,7 @@ pub(crate) async fn stream_console(
         &profile_id,
         subject,
         GatewayAction::AdminRead,
-        "admin/console/stream",
-        BTreeMap::new(),
+        AdministrativeOperation::ConsoleStream,
         started_at,
     )
     .await
@@ -795,11 +793,6 @@ impl ConsoleStreamState {
                         );
                         self.emit_recording(&recording, versionstamp, rank)
                     }
-                    PlatformTable::AuditEvent => {
-                        let event: AuditEventRecord = row.into_t()?;
-                        let summary = audit_summary(event, &self.principal_names)?;
-                        Ok(out("audit", upsert_payload(&summary)?))
-                    }
                     _ => Ok(None),
                 }
             }
@@ -870,7 +863,6 @@ impl ConsoleStreamState {
                         }
                         None => Ok(None),
                     },
-                    PlatformTable::AuditEvent => Ok(None),
                     _ => Ok(None),
                 }
             }

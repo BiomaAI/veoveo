@@ -756,14 +756,32 @@ impl TaskRuntime {
         current: &TaskSnapshot,
         transition: TaskTransition,
     ) -> Result<TaskSnapshot, TaskError> {
+        self.transition_selected(current, transition, None).await
+    }
+
+    async fn selected_snapshot(
+        &self,
+        task: TaskId,
+        selection: Option<&OwnerTaskQuery>,
+    ) -> Result<TaskSnapshot, TaskError> {
+        let snapshot = match selection {
+            Some(query) => query.get(task).await?,
+            None => self.get(&task.to_string()).await?,
+        };
+        snapshot.ok_or_else(|| TaskError::NotFound(task.to_string()))
+    }
+
+    async fn transition_selected(
+        &self,
+        current: &TaskSnapshot,
+        transition: TaskTransition,
+        selection: Option<&OwnerTaskQuery>,
+    ) -> Result<TaskSnapshot, TaskError> {
         let task_id = current.task_id.to_string();
         if current.server != self.server {
             return Err(TaskError::WrongServer(task_id));
         }
-        let durable = self
-            .get(&task_id)
-            .await?
-            .ok_or_else(|| TaskError::NotFound(task_id.clone()))?;
+        let durable = self.selected_snapshot(current.task_id, selection).await?;
         if durable.status != current.status || durable.updated_at != current.updated_at {
             return Err(TaskError::Conflict(task_id));
         }
@@ -817,18 +835,36 @@ impl TaskRuntime {
         let event_type = format!("task.{}", status_name(next));
         let event_snapshot = transitioned_snapshot(&durable, &transition, now);
         let event = task_event(&event_snapshot, &event_type)?;
-        let mut response = self
+        let admission = selection
+            .map(|query| {
+                format!(
+                    "AND {} {}",
+                    owner_reads::VISIBLE_TASK,
+                    query.selection_predicate()
+                )
+            })
+            .unwrap_or_default();
+        let query = self
             .store
             .client()
             .query(
-                "BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $task SET status = $next, request = $request, progress = $progress, result = $result, error = $error, cancel_requested_at = $cancel_requested_at, completed_at = $completed_at, lease_owner = IF $terminal { NONE } ELSE { lease_owner }, lease_expires_at = IF $terminal { NONE } ELSE { lease_expires_at }, updated_at = $now WHERE status = $expected AND updated_at = $expected_updated_at AND server = $server AND tenant = $tenant AND owner = $owner AND ($control_transition OR (lease_owner = $worker AND lease_expires_at > $now) OR ($expired_cancellation AND (lease_expires_at = NONE OR lease_expires_at <= $now))) RETURN AFTER); IF $updated != NONE { CREATE outbox_event CONTENT $event RETURN NONE; }; RETURN $updated; COMMIT TRANSACTION;",
+                include_str!("runtime/transition.surql")
+                    .replace("/* caller selection */", &admission),
             )
             .bind(("task", task_record_id(current.task_id)))
             .bind(("next", next))
             .bind(("request", envelope.into_open_object()?))
             .bind(("progress", progress))
-            .bind(("result", transition.result().map(veoveo_platform_store::TaskResultRecord::new)))
-            .bind(("error", transition.failure().as_ref().map(failure_to_open_object)))
+            .bind((
+                "result",
+                transition
+                    .result()
+                    .map(veoveo_platform_store::TaskResultRecord::new),
+            ))
+            .bind((
+                "error",
+                transition.failure().as_ref().map(failure_to_open_object),
+            ))
             .bind((
                 "cancel_requested_at",
                 if next == StoreTaskStatus::CancelRequested {
@@ -848,9 +884,12 @@ impl TaskRuntime {
             .bind(("worker", self.worker_id.clone()))
             .bind(("control_transition", control_transition))
             .bind(("expired_cancellation", expired_cancellation))
-            .bind(("event", event))
-            .await?
-            .check()?;
+            .bind(("event", event));
+        let query = match selection {
+            Some(selection) => selection.bind(query)?,
+            None => query,
+        };
+        let mut response = query.await?.check()?;
         let updated: Option<TaskRecord> = response.take(3)?;
         let snapshot = updated
             .map(record_to_snapshot)
@@ -861,11 +900,16 @@ impl TaskRuntime {
     }
 
     pub async fn cancel(&self, task_id: &str) -> Result<TaskSnapshot, TaskError> {
+        self.cancel_selected(parse_task_id(task_id)?, None).await
+    }
+
+    async fn cancel_selected(
+        &self,
+        task_id: TaskId,
+        selection: Option<&OwnerTaskQuery>,
+    ) -> Result<TaskSnapshot, TaskError> {
         loop {
-            let current = self
-                .get(task_id)
-                .await?
-                .ok_or_else(|| TaskError::NotFound(task_id.to_owned()))?;
+            let current = self.selected_snapshot(task_id, selection).await?;
             if current.is_terminal() {
                 return Ok(current);
             }
@@ -873,7 +917,7 @@ impl TaskRuntime {
                 current
             } else {
                 match self
-                    .transition_if_current(&current, TaskTransition::CancelRequested)
+                    .transition_selected(&current, TaskTransition::CancelRequested, selection)
                     .await
                 {
                     Ok(requested) => requested,
@@ -888,7 +932,7 @@ impl TaskRuntime {
                 && requested.recovery_class != RecoveryClass::ProviderWait
             {
                 match self
-                    .transition_if_current(&requested, TaskTransition::Cancelled)
+                    .transition_selected(&requested, TaskTransition::Cancelled, selection)
                     .await
                 {
                     Ok(cancelled) => return Ok(cancelled),

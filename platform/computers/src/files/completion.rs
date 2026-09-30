@@ -160,7 +160,7 @@ impl ComputersStore {
                     .into_value(),
                 ),
             ],
-            "computer.file_transfer_finished",
+            crate::audit::ExecutionTransition::Completed,
         )
         .await?;
         self.file_for_claim(claim).await

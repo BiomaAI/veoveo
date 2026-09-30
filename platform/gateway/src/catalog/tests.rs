@@ -928,7 +928,10 @@ fn builds_protected_resource_metadata_for_profile() {
         metadata.authorization_servers,
         vec!["https://veoveo.example/oauth".to_string()]
     );
-    assert_eq!(metadata.scopes_supported, vec!["operator:use".to_string()]);
+    assert_eq!(
+        metadata.scopes_supported,
+        vec!["audit:read".to_string(), "operator:use".to_string()]
+    );
     assert_eq!(
         metadata.bearer_methods_supported,
         vec!["header".to_string()]
@@ -969,7 +972,10 @@ fn builds_authorization_server_metadata_for_profile() {
         metadata.jwks_uri.as_deref(),
         Some("https://veoveo.example/oauth/jwks.json")
     );
-    assert_eq!(metadata.scopes_supported, vec!["operator:use".to_string()]);
+    assert_eq!(
+        metadata.scopes_supported,
+        vec!["audit:read".to_string(), "operator:use".to_string()]
+    );
     assert_eq!(metadata.response_types_supported, vec!["code".to_string()]);
     assert!(
         metadata

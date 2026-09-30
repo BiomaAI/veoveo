@@ -1,4 +1,6 @@
 //! Real worker lifecycle, CUDA inference and bounded live audio. No mocked inference.
+#[path = "../../../testing/fixtures/store.rs"]
+mod fixture;
 mod support;
 
 use anyhow::{Context, Result, bail, ensure};
@@ -314,7 +316,9 @@ async fn private_sessions(python: &std::path::Path, pcm: &[u8]) -> Result<()> {
     use veoveo_speech_mcp::{dictation::Dictations, process::WorkerProcess};
     use veoveo_types::WorkContextId;
     let worker = std::sync::Arc::new(WorkerProcess::start(python, 2).await?);
-    let sessions = Dictations::new(worker, 1);
+    let db = fixture::TestDb::new().await;
+    let audit = veoveo_audit::AuditWriter::start(db.a.clone());
+    let sessions = Dictations::new(worker, 1, audit);
     let alice = support::identity(&support::owner("alice"));
     let bob = support::identity(&support::owner("bob"));
     let id = veoveo_speech_contract::DictationSessionId::new();

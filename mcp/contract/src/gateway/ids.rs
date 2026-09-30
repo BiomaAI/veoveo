@@ -1,4 +1,8 @@
 use std::{fmt, str::FromStr};
+pub use veoveo_types::{
+    CanonicalTaskId, GatewayProfileId, GatewayRefreshFamilyId, LocalToolName, OAuthClientId,
+    PromptName, ServerSlug, TokenIssuer, TokenSubject,
+};
 use veoveo_types::{
     IdentifierError,
     identifier_syntax::{validate_claim_text, validate_path_id, validate_token_text},
@@ -141,24 +145,6 @@ fn validate_uuid_v7(value: &str) -> Result<(), IdentifierError> {
     Ok(())
 }
 
-fn validate_opaque_handle(value: &str) -> Result<(), IdentifierError> {
-    validate_token_text(value)?;
-    if value.len() > 128 {
-        return Err(IdentifierError::new(value, "must be at most 128 bytes"));
-    }
-    Ok(())
-}
-
-typed_id!(
-    ServerSlug,
-    validate_path_id,
-    "Canonical hosted MCP server id used in manifests, profiles, and gateway routes."
-);
-typed_id!(
-    GatewayProfileId,
-    validate_path_id,
-    "Veoveo profile id exposed under `/mcp/{profile}`."
-);
 typed_id!(
     IdentityProviderId,
     validate_path_id,
@@ -173,16 +159,6 @@ typed_id!(
     GatewayToolName,
     validate_gateway_name,
     "Gateway-scoped tool name after server namespace projection."
-);
-typed_id!(
-    LocalToolName,
-    validate_gateway_name,
-    "Tool name as exposed by one direct MCP server."
-);
-typed_id!(
-    PromptName,
-    validate_gateway_name,
-    "Prompt name as exposed by one direct MCP server or gateway profile."
 );
 typed_id!(
     ArtifactAudience,
@@ -240,11 +216,6 @@ typed_id!(
     "Canonical UUIDv7 identity of one authenticated recording ingest stream."
 );
 typed_id!(
-    OAuthClientId,
-    validate_claim_text,
-    "Registered OAuth client id allowed to request gateway-profile tokens."
-);
-typed_id!(
     CompatibilityHelperId,
     validate_compatibility_helper_id,
     "Explicit compatibility helper id exposed to limited MCP clients, for example `media.models`."
@@ -263,16 +234,6 @@ typed_id!(
     OidcNonce,
     validate_oauth_state_value,
     "OIDC nonce bound to an enterprise identity-provider authorization request."
-);
-typed_id!(
-    TokenIssuer,
-    validate_claim_text,
-    "Expected token issuer identifier."
-);
-typed_id!(
-    TokenSubject,
-    validate_claim_text,
-    "AccessSubject claim from an authenticated access token or identity assertion."
 );
 typed_id!(
     JwtId,
@@ -309,11 +270,7 @@ typed_id!(
     validate_token_text,
     "Request trace/correlation id used in audit and runtime state."
 );
-typed_id!(
-    CanonicalTaskId,
-    validate_opaque_handle,
-    "Opaque bounded gateway task route checked against current authority on every use."
-);
+
 typed_id!(
     OpaqueTaskId,
     validate_token_text,
@@ -323,11 +280,6 @@ typed_id!(
     GatewayControlPlaneRevisionId,
     validate_token_text,
     "Durable gateway control-plane revision id."
-);
-typed_id!(
-    GatewayRefreshFamilyId,
-    validate_uuid_v7,
-    "Canonical UUIDv7 identity for one rotating OAuth refresh-token family."
 );
 typed_id!(
     McpMethodName,

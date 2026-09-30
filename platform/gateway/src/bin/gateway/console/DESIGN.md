@@ -14,6 +14,8 @@ It never loads principal inventories, Tasks, servers or control-plane secrets.
 `canReadInstallation` reflects the current catalog's `AdminRead` decision against
 the Gateway target. It is a presentation hint; administrative handlers independently
 authorize and audit their requests. Bootstrap does not execute an administrative action.
+`canReadAudit` reports the actor's audit scope independently of installation inventory
+access. The [audit handlers](../admin/console/audit/DESIGN.md) authorize every read.
 
 The existing authentication middleware selects the profile from `console-api` and
 establishes current subject authority before projection. An unknown profile returns

@@ -22,6 +22,7 @@ pub use read_capability::*;
 /// Full verified identity needed to create stable platform records and audit actors.
 #[derive(Debug, Clone)]
 pub struct RepositoryActor {
+    pub audit: veoveo_mcp_contract::audit::AuditContext,
     pub tenant: TenantId,
     pub principal: PrincipalId,
     pub kind: PrincipalKind,
@@ -150,6 +151,12 @@ pub struct RedeemedWriteCapability {
     pub request_matches: bool,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct ShareRedemption {
+    pub artifact_id: ArtifactId,
+    pub link_id: ArtifactShareLinkId,
+}
+
 #[derive(Debug, Clone)]
 pub struct ShareLinkDraft {
     pub link_id: ArtifactShareLinkId,
@@ -158,23 +165,6 @@ pub struct ShareLinkDraft {
     pub token_hash: String,
     pub expires_at: DateTime<Utc>,
     pub max_downloads: Option<u64>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AuditOutcome {
-    Allowed,
-    Denied,
-    Failed,
-}
-
-#[derive(Debug, Clone)]
-pub struct ArtifactAuditEvent {
-    pub actor: Option<RepositoryActor>,
-    pub tenant: Option<TenantId>,
-    pub action: String,
-    pub artifact_id: Option<ArtifactId>,
-    pub outcome: AuditOutcome,
-    pub details: serde_json::Map<String, serde_json::Value>,
 }
 
 #[derive(Debug)]
@@ -261,12 +251,17 @@ pub trait ArtifactRepository: Send + Sync + ReadCapabilityRepository {
     fn redeem_share_link(
         &self,
         token_hash: &str,
-    ) -> impl std::future::Future<Output = Result<Option<ArtifactId>, RepositoryError>> + Send;
+    ) -> impl std::future::Future<Output = Result<Option<ShareRedemption>, RepositoryError>> + Send;
 
     fn append_audit(
         &self,
-        event: ArtifactAuditEvent,
+        event: veoveo_mcp_contract::audit::AuditDraft,
     ) -> impl std::future::Future<Output = Result<(), RepositoryError>> + Send;
+
+    fn complete_audit(
+        &self,
+        event: veoveo_mcp_contract::audit::AuditDraft,
+    ) -> impl std::future::Future<Output = ()> + Send;
 
     fn create_or_reopen_access_request(
         &self,
@@ -323,7 +318,44 @@ pub(crate) mod testing {
         redemptions: HashMap<(ArtifactWriteCapabilityId, String), RedemptionState>,
         shares: HashMap<String, ShareState>,
         access_requests: HashMap<ArtifactAccessRequestId, ArtifactAccessRequest>,
-        audits: Vec<ArtifactAuditEvent>,
+        audits: Vec<veoveo_mcp_contract::audit::AuditDraft>,
+        reject_required_audit: bool,
+    }
+
+    impl State {
+        fn record_audit(&mut self, event: veoveo_mcp_contract::audit::AuditDraft) {
+            use veoveo_mcp_contract::audit::{ArtifactActivity, AuditDetail, AuditOutcome};
+            let duplicate = self.audits.iter().any(|existing| {
+                if existing.id() == event.id() {
+                    return true;
+                }
+                let AuditDetail::Artifact {
+                    activity: ArtifactActivity::Download,
+                    window_start: Some(start),
+                    ..
+                } = event.detail()
+                else {
+                    return false;
+                };
+                let AuditDetail::Artifact {
+                    activity: ArtifactActivity::Download,
+                    window_start: Some(previous),
+                    ..
+                } = existing.detail()
+                else {
+                    return false;
+                };
+                event.outcome() == AuditOutcome::Allowed
+                    && existing.outcome() == AuditOutcome::Allowed
+                    && start == previous
+                    && event.partition() == existing.partition()
+                    && event.target() == existing.target()
+                    && event.actor().map(|a| &a.principal) == existing.actor().map(|a| &a.principal)
+            });
+            if !duplicate {
+                self.audits.push(event);
+            }
+        }
     }
 
     struct CapabilityState {
@@ -348,6 +380,14 @@ pub(crate) mod testing {
     }
 
     impl InMemoryRepository {
+        pub fn audit_records(&self) -> Vec<veoveo_mcp_contract::audit::AuditDraft> {
+            self.state.lock().unwrap().audits.clone()
+        }
+
+        pub fn reject_required_audit(&self, reject: bool) {
+            self.state.lock().unwrap().reject_required_audit = reject;
+        }
+
         pub fn audit_count(&self) -> usize {
             self.state.lock().unwrap().audits.len()
         }
@@ -627,7 +667,7 @@ pub(crate) mod testing {
         async fn redeem_share_link(
             &self,
             token_hash: &str,
-        ) -> Result<Option<ArtifactId>, RepositoryError> {
+        ) -> Result<Option<ShareRedemption>, RepositoryError> {
             let mut state = self.state.lock().unwrap();
             let Some(share) = state.shares.get(token_hash) else {
                 return Ok(None);
@@ -658,12 +698,28 @@ pub(crate) mod testing {
                 return Ok(None);
             }
             share.download_count += 1;
-            Ok(Some(artifact_id))
+            Ok(Some(ShareRedemption {
+                artifact_id,
+                link_id: share.draft.link_id,
+            }))
         }
 
-        async fn append_audit(&self, event: ArtifactAuditEvent) -> Result<(), RepositoryError> {
-            self.state.lock().unwrap().audits.push(event);
+        async fn append_audit(
+            &self,
+            event: veoveo_mcp_contract::audit::AuditDraft,
+        ) -> Result<(), RepositoryError> {
+            let mut state = self.state.lock().unwrap();
+            if state.reject_required_audit {
+                return Err(RepositoryError::Backend(
+                    "injected audit commit failure".into(),
+                ));
+            }
+            state.record_audit(event);
             Ok(())
+        }
+
+        async fn complete_audit(&self, event: veoveo_mcp_contract::audit::AuditDraft) {
+            self.state.lock().unwrap().record_audit(event);
         }
 
         async fn create_or_reopen_access_request(

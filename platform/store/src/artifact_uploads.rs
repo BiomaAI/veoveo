@@ -2,10 +2,12 @@
 
 mod lifecycle;
 mod model;
+mod ownership;
 mod parts;
 mod publication;
 pub use lifecycle::*;
 pub use model::*;
+pub use ownership::ArtifactUploadOwner;
 pub use parts::*;
 
 use crate::{PlatformStore, StoreError};
@@ -63,6 +65,23 @@ impl PlatformStore {
         quota: i64,
         active_limit: i64,
     ) -> Result<ArtifactUploadRecord, StoreError> {
+        let audit = &content.audit.0;
+        if audit.actor.principal.as_str() != content.actor_key
+            || audit.actor.tenant.as_ref().map(|id| id.as_str())
+                != Some(content.tenant_key.as_str())
+            || audit.authority.profile.as_ref().map(|id| id.as_str())
+                != Some(content.profile_key.as_str())
+            || audit.authority.work_context.as_ref().map(|id| id.as_str())
+                != Some(content.authority.context_key.as_str())
+            || audit
+                .authority
+                .policy_revision
+                .as_ref()
+                .map(|id| id.as_str())
+                != Some(content.authority.policy_revision.as_str())
+        {
+            return Err(StoreError::ArtifactUpload(ArtifactUploadRejection::Denied));
+        }
         if quota <= 0
             || quota > 9_007_199_254_740_991
             || active_limit <= 0
@@ -121,7 +140,7 @@ impl PlatformStore {
         })
     }
 
-    /// Read identity before exposing any session state; callers enforce current authority.
+    /// Trusted worker inspection. Request handlers must use `owned_artifact_upload`.
     pub async fn artifact_upload(
         &self,
         id: uuid::Uuid,

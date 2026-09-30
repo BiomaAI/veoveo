@@ -29,6 +29,7 @@ pub struct ArtifactReadAdmission {
 
 #[derive(Clone, Debug)]
 pub struct ArtifactReadCapabilityDraft {
+    pub audit: crate::audit::AuditContextRecord,
     pub capability_id: ArtifactReadCapabilityId,
     pub identity: PlatformIdentity,
     pub authority: InvocationAuthorityRecord,
@@ -49,6 +50,7 @@ pub struct ArtifactReadCapabilityDraft {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
 pub struct ArtifactReadCapabilityRecord {
+    pub audit: crate::audit::AuditContextRecord,
     pub id: RecordId,
     pub tenant: RecordId,
     pub actor: RecordId,
@@ -98,6 +100,7 @@ impl PlatformStore {
         draft: ArtifactReadCapabilityDraft,
     ) -> Result<(), StoreError> {
         let record = ArtifactReadCapabilityRecord {
+            audit: draft.audit,
             id: draft.capability_id.record_id(),
             tenant: draft.identity.tenant_id.record_id(),
             actor: draft.identity.principal_id.record_id(),

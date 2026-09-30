@@ -150,6 +150,15 @@ impl ComputersStore {
             ),
             ("content", content.into_value()),
             ("event", event.into_value()),
+            crate::audit::binding(
+                actor.accepted(),
+                binding.computer_id,
+                crate::audit::Transition::accepted(
+                    veoveo_audit_contract::ComputerActivity::FileTransfer,
+                    veoveo_audit_contract::ComputerAuditStage::Queued,
+                )
+                .task(binding.transfer_id.task_id()),
+            )?,
             ("expected_updated_at", computer.updated_at.into_value()),
             (
                 "expected_owner_context",

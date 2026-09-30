@@ -9,9 +9,9 @@ use veoveo_mcp_contract::{
 };
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayServerHealth, GatewayServerHealthState};
 use veoveo_platform_store::{
-    AgentRecord, ArtifactBlobRecord, ArtifactGrantEdge, ArtifactOccurrenceRecord, AuditEventRecord,
-    PrincipalRecord, RecordId, RecordIdKey, RecordingLayerRecord, RecordingRecord, ShareLinkRecord,
-    TaskRecord, WakeRecord,
+    AgentRecord, ArtifactBlobRecord, ArtifactGrantEdge, ArtifactOccurrenceRecord, PrincipalRecord,
+    RecordId, RecordIdKey, RecordingLayerRecord, RecordingRecord, ShareLinkRecord, TaskRecord,
+    WakeRecord,
 };
 use veoveo_types::{AccessLevel, WorkContextMembershipLevel};
 use veoveo_types::{
@@ -34,7 +34,6 @@ pub(crate) struct Projection {
     pub(crate) wakes: Vec<WakeRecord>,
     pub(crate) recordings: Vec<RecordingRecord>,
     pub(crate) layers: Vec<RecordingLayerRecord>,
-    pub(crate) audit: Vec<AuditEventRecord>,
 }
 
 #[derive(Clone, Serialize)]
@@ -79,7 +78,6 @@ pub(crate) async fn load_projection(
                 )
                 ORDER BY created_at DESC
                 LIMIT $layer_limit;
-            SELECT * FROM audit_event WHERE tenant = $tenant ORDER BY occurred_at DESC LIMIT $limit;
             "#,
         )
         .bind(("tenant", tenant.clone()))
@@ -106,7 +104,6 @@ pub(crate) async fn load_projection(
         wakes: response.take(6)?,
         recordings: response.take(7)?,
         layers: response.take(8)?,
-        audit: response.take(9)?,
     })
 }
 
@@ -385,21 +382,6 @@ pub(crate) struct PolicySummary {
     pub(crate) state: &'static str,
     pub(crate) rules: usize,
     pub(crate) updated_at: DateTime<Utc>,
-}
-
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct AuditSummary {
-    pub(crate) id: String,
-    pub(crate) occurred_at: DateTime<Utc>,
-    pub(crate) actor: String,
-    pub(crate) action: String,
-    pub(crate) resource: String,
-    pub(crate) outcome: veoveo_platform_store::AuditOutcome,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) source_ip: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) trace_id: Option<String>,
 }
 
 pub(crate) fn task_summary(
@@ -727,31 +709,6 @@ pub(crate) fn recording_summary(
         last_data_at: recording.last_data_at,
         ended_at: recording.ended_at,
         sealed_at: recording.sealed_at,
-    })
-}
-
-pub(crate) fn audit_summary(
-    event: AuditEventRecord,
-    principal_names: &BTreeMap<String, String>,
-) -> anyhow::Result<AuditSummary> {
-    let actor = event
-        .actor
-        .as_ref()
-        .map(|actor| display_record(principal_names, actor))
-        .transpose()?
-        .unwrap_or_else(|| "system".to_owned());
-    Ok(AuditSummary {
-        id: record_key(&event.id)?,
-        occurred_at: event.occurred_at,
-        actor,
-        action: event.action,
-        resource: match event.resource_id {
-            Some(id) => format!("{}:{id}", event.resource_type),
-            None => event.resource_type,
-        },
-        outcome: event.outcome,
-        source_ip: event.source_ip,
-        trace_id: event.trace_id,
     })
 }
 

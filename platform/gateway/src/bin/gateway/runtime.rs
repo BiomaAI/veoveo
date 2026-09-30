@@ -1,8 +1,8 @@
-use std::{collections::BTreeMap, num::NonZeroU32, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
-use anyhow::{Context, anyhow};
+use anyhow::Context;
 use axum::Router;
-use chrono::{DateTime, TimeDelta, Utc};
+use chrono::Utc;
 use parking_lot::RwLock;
 use serde::Serialize;
 use tokio_util::sync::CancellationToken;
@@ -24,11 +24,6 @@ pub(super) type SharedHttpClient = Arc<RwLock<reqwest::Client>>;
 pub(super) type ProfileMcpService = Router;
 pub(super) type SharedProfileMcpServices =
     Arc<RwLock<BTreeMap<GatewayProfileId, ProfileMcpService>>>;
-
-#[derive(Debug, Clone, Copy)]
-pub(super) struct GatewayRetentionPolicy {
-    pub(super) audit_event_days: NonZeroU32,
-}
 
 #[derive(Clone)]
 pub(super) struct AppState {
@@ -161,23 +156,10 @@ pub(super) fn replace_http_client(http: &SharedHttpClient, new_client: reqwest::
     *http.write() = new_client;
 }
 
-pub(super) fn gateway_retention_cutoff(
-    now: DateTime<Utc>,
-    days: NonZeroU32,
-) -> anyhow::Result<DateTime<Utc>> {
-    now.checked_sub_signed(TimeDelta::days(i64::from(days.get())))
-        .ok_or_else(|| anyhow!("gateway retention cutoff overflow for {days} day window"))
-}
-
-pub(super) async fn run_gateway_retention_gc(
+pub(super) async fn run_authorization_retention_gc(
     gateway_state: &GatewayState,
-    retention: GatewayRetentionPolicy,
-) -> anyhow::Result<bool> {
+) -> anyhow::Result<()> {
     let now = Utc::now();
-    let audit_cutoff = gateway_retention_cutoff(now, retention.audit_event_days)?;
-    let audit_summary = gateway_state
-        .delete_audit_batch_before(audit_cutoff)
-        .await?;
     let authorization_records_deleted = gateway_state
         .prune_expired_authorization_records(now)
         .await?;
@@ -185,9 +167,6 @@ pub(super) async fn run_gateway_retention_gc(
     let replay_summary = gateway_state.prune_expired_replay_ids(now).await?;
     let refresh_summary = gateway_state.prune_expired_refresh_tokens(now).await?;
     tracing::info!(
-        deleted_auth_audit_events = audit_summary.auth_events_deleted,
-        deleted_policy_audit_events = audit_summary.policy_events_deleted,
-        deleted_tool_call_audit_events = audit_summary.tool_call_events_deleted,
         deleted_authorization_records = authorization_records_deleted,
         deleted_jwt_revocations = jwt_revocations_deleted,
         deleted_client_assertion_replay_ids = replay_summary.client_assertion_jtis_deleted,
@@ -195,35 +174,39 @@ pub(super) async fn run_gateway_retention_gc(
         deleted_refresh_tokens = refresh_summary.tokens_deleted,
         deleted_refresh_families = refresh_summary.families_deleted,
         deleted_refresh_delivery_envelopes = refresh_summary.delivery_envelopes_deleted,
-        audit_batch_full = audit_summary.batch_was_full(),
         "gateway retention gc completed"
     );
-    Ok(audit_summary.batch_was_full())
+    Ok(())
 }
 
-pub(super) fn spawn_gateway_retention_gc_loop(
+pub(super) fn spawn_authorization_retention_gc_loop(
     gateway_state: GatewayState,
-    retention: GatewayRetentionPolicy,
-) {
+    stop: CancellationToken,
+) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         loop {
-            let pause = match run_gateway_retention_gc(&gateway_state, retention).await {
-                Ok(true) => Duration::from_secs(1),
-                Ok(false) => Duration::from_secs(60 * 60),
+            if stop.is_cancelled() {
+                return;
+            }
+            let pause = match run_authorization_retention_gc(&gateway_state).await {
+                Ok(()) => Duration::from_secs(60 * 60),
                 Err(err) => {
-                    tracing::error!("gateway retention gc failed: {err}");
+                    tracing::error!("gateway authorization retention failed: {err}");
                     Duration::from_secs(60)
                 }
             };
-            tokio::time::sleep(pause).await;
+            tokio::select! { _ = tokio::time::sleep(pause) => {}, _ = stop.cancelled() => return }
         }
-    });
+    })
 }
 
-pub(super) fn spawn_refresh_delivery_gc_loop(gateway_state: GatewayState) {
+pub(super) fn spawn_refresh_delivery_gc_loop(
+    gateway_state: GatewayState,
+    stop: CancellationToken,
+) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         loop {
-            tokio::time::sleep(REFRESH_DELIVERY_GC_INTERVAL).await;
+            tokio::select! { _ = tokio::time::sleep(REFRESH_DELIVERY_GC_INTERVAL) => {}, _ = stop.cancelled() => return }
             match gateway_state
                 .clear_expired_refresh_delivery_envelopes(Utc::now())
                 .await
@@ -232,12 +215,10 @@ pub(super) fn spawn_refresh_delivery_gc_loop(gateway_state: GatewayState) {
                     deleted_refresh_delivery_envelopes = cleared,
                     "gateway refresh delivery-envelope gc completed"
                 ),
-                Err(err) => {
-                    tracing::error!("gateway refresh delivery-envelope gc failed: {err}");
-                }
+                Err(err) => tracing::error!("gateway refresh delivery-envelope gc failed: {err}"),
             }
         }
-    });
+    })
 }
 
 pub(super) fn build_http_client(catalog: &GatewayCatalog) -> anyhow::Result<reqwest::Client> {

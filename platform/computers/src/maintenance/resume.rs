@@ -255,6 +255,15 @@ impl ComputersStore {
                         ("computer_updated_at", computer.updated_at.into_value()),
                         ("source_owner", object(&computer.owner)?.into_value()),
                         ("event", event.into_value()),
+                        crate::audit::binding(
+                            actor.accepted(),
+                            input.computer_id,
+                            crate::audit::Transition::accepted(
+                                veoveo_audit_contract::ComputerActivity::Maintain,
+                                veoveo_audit_contract::ComputerAuditStage::Resumed,
+                            )
+                            .task(veoveo_types::TaskId::from_uuid(input.task_id)),
+                        )?,
                         ("family", family.into_value()),
                         (
                             "authority_expires_at",

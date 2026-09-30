@@ -65,6 +65,7 @@ pub(crate) fn subject(name: &str) -> AuthenticatedSubject {
         expires_at: now + TimeDelta::minutes(5),
     };
     AuthenticatedSubject {
+        audit: veoveo_mcp_contract::audit::AuditRequest::background(),
         access_token,
         principal: principal.clone(),
         actor: principal,

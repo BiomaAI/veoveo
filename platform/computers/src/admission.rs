@@ -91,7 +91,13 @@ impl ComputersStore {
     }
 
     /// An exact retry resolves its original Computer, including after a quota reduction.
-    pub async fn reserve(&self, owner: &TaskOwner, input: &Reservation) -> Result<Computer> {
+    pub async fn reserve(
+        &self,
+        actor: &crate::ComputerActor,
+        input: &Reservation,
+    ) -> Result<Computer> {
+        actor.check_admission()?;
+        let owner = actor.owner();
         input.validate()?;
         can_mutate(owner)?;
         let key = owner_key(owner)?;
@@ -138,6 +144,14 @@ impl ComputersStore {
             })?,
         );
         let params = vec![
+            crate::audit::binding(
+                actor.accepted(),
+                id,
+                crate::audit::Transition::accepted(
+                    veoveo_audit_contract::ComputerActivity::Create,
+                    veoveo_audit_contract::ComputerAuditStage::Reserved,
+                ),
+            )?,
             ("request", request.clone().into_value()),
             ("fingerprint", fingerprint.into_value()),
             ("computer", computer.into_value()),

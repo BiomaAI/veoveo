@@ -118,6 +118,12 @@ spec:
             matchLabels:
               {{- include "veoveo.selectorLabels" . | nindent 14 }}
               app.kubernetes.io/component: object-store-init
+        {{- if .Values.gateway.auditExport.destinations.s3 }}
+        - podSelector:
+            matchLabels:
+              {{- include "veoveo.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: gateway
+        {{- end }}
       ports:
         - protocol: TCP
           port: 9000

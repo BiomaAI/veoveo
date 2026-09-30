@@ -112,7 +112,7 @@ pub(crate) async fn gateway_keycloak(
         &gateway_log,
     )?;
     wait_for_http(&format!("{gateway_base}/healthz")).await?;
-    assert_ready_profiles(&gateway_base, 2).await?;
+    assert_ready_profiles(&gateway_base, fixture_profile_count(&control_plane)?).await?;
 
     exercise_keycloak_browser_flow(&gateway_base, &issuer, &cert_path).await?;
 

@@ -1,7 +1,7 @@
 #![allow(dead_code)] // Scenarios select independent parts of this shared fixture.
 use crate::support;
 #[path = "commands.rs"]
-mod command_fixture;
+pub(crate) mod command_fixture;
 pub use command_fixture::{computer_record, keys};
 use uuid::Uuid;
 use veoveo_computers::{

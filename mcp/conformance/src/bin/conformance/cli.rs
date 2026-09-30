@@ -404,7 +404,7 @@ pub(super) enum Cmd {
         #[arg(long)]
         r#type: Option<String>,
     },
-    /// Autocomplete model ids via completion/complete on the model template.
+    /// Autocomplete Media model ids using its server-owned resource template.
     Complete { prefix: String },
     /// List MCP resources visible to the authenticated principal.
     Resources,

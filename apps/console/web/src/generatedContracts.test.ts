@@ -100,6 +100,7 @@ test("session bootstrap requires current permission and rejects inventory on the
   const bootstrap = {
     profile: "operator",
     canReadInstallation: false,
+    canReadAudit: false,
     installation: {
       name: "Veoveo",
       productLabel: "Workspace",
@@ -122,5 +123,6 @@ test("session bootstrap requires current permission and rejects inventory on the
   };
   assert.equal(parseConsoleBootstrap(bootstrap).canReadInstallation, false);
   assert.throws(() => parseConsoleBootstrap({ ...bootstrap, canReadInstallation: undefined }));
+  assert.throws(() => parseConsoleBootstrap({ ...bootstrap, canReadAudit: undefined }));
   assert.throws(() => parseConsoleBootstrap({ ...bootstrap, principals: [] }));
 });

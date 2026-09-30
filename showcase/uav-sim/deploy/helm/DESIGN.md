@@ -16,6 +16,10 @@ The chart owns the GPU simulator and independent UAV MCP companion. Its retained
 claims hold runtime caches and recording-forwarder data. Installation values supply
 network placement and credential references.
 
+The MCP companion has a 120-second termination grace period. It stops HTTP and stream
+admission, closes live-view sessions, and drains their audit records before exit. These
+shutdown steps leave the simulator's independent GPU and persistent-cache contract intact.
+
 `agentTemplate.enabled` installs the immutable pilot ConfigMap into
 `agentTemplate.namespace`. Its name contains the first twelve characters of the
 canonical data digest. The platform's approved runtime template must select this

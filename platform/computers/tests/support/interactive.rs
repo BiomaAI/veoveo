@@ -48,7 +48,7 @@ pub async fn ready(
     a.install_session_grant_policy(None, LIMITS).await.unwrap();
     let computer = a
         .reserve(
-            actor.owner(),
+            actor,
             &Reservation {
                 request_id: Uuid::now_v7(),
                 template_id: "development".into(),

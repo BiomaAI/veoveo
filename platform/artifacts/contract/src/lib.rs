@@ -4,11 +4,17 @@
 mod access;
 pub use access::{ArtifactShareLink, ArtifactShareLinkId, ArtifactShareLinkIdError, Grant};
 mod identity;
+mod ledger;
 mod metadata;
 mod provenance;
 mod uri;
 
 pub use identity::{ARTIFACT_PLANE_SCHEME, ArtifactId, ArtifactIdError, parse_artifact_plane_uri};
+pub use ledger::{
+    ArtifactAccessRequestId, ArtifactLedgerAddress, ArtifactLedgerIdError,
+    ArtifactReadCapabilityId, ArtifactTaskId, ArtifactUploadId, ArtifactUploadRequestId,
+    ArtifactWriteCapabilityId,
+};
 pub use metadata::{
     ArtifactMetadata, ArtifactMetadataError, ArtifactObject, ArtifactPut, ArtifactReleaseState,
     ComplianceMetadata,

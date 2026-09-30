@@ -44,6 +44,10 @@ async fn context_agreement_precedes_decode_limits_and_subscription_admission() {
         // malformed payload proves rejection happens in SQL, before decoding.
         for assignment in [
             "work_context = $foreign_context",
+            "profile = profile:another",
+            "request.owner.profile = 'another-profile'",
+            "request.owner.principal_key = 'another-principal'",
+            "request.owner.data_labels = ['secret']",
             "authority.context_key = 'another-context'",
             "request.owner.authority.work_context = 'another-context'",
             "request.owner.authority.tenant = 'another-tenant'",
@@ -74,8 +78,26 @@ async fn context_agreement_precedes_decode_limits_and_subscription_admission() {
                 .unwrap()
                 .check()
                 .unwrap();
-            assert!(runtime.for_owner(&owner()).get(id).await.is_err());
+            assert!(runtime.get(&id.to_string()).await.is_err());
             assert!(query.get(id).await.unwrap().is_none());
+            assert!(matches!(
+                query.cancel(id).await,
+                Err(TaskError::NotFound(_))
+            ));
+            let mut result =
+                db.b.client()
+                    .query("SELECT VALUE status FROM ONLY $id;")
+                    .bind(("id", task_record_id(id)))
+                    .await
+                    .unwrap()
+                    .check()
+                    .unwrap();
+            assert_eq!(
+                result
+                    .take::<Option<veoveo_task_runtime::TaskStatus>>(0)
+                    .unwrap(),
+                Some(veoveo_task_runtime::TaskStatus::Queued)
+            );
             excluded.push(id);
         }
         let mut expected = Vec::new();
@@ -129,6 +151,47 @@ async fn context_agreement_precedes_decode_limits_and_subscription_admission() {
     })
     .await
     .expect("context selection exceeded 60 seconds");
+}
+
+#[tokio::test]
+async fn owner_cancellation_preserves_provider_uncertainty_and_current_profile() {
+    tokio::time::timeout(Duration::from_secs(60), async {
+        let db = fixture::TestDb::new().await;
+        let runtime = TaskRuntime::new(db.a.clone(), "integration-server", "reader");
+        let query = runtime.for_owner(&owner()).in_work_context().unwrap();
+        for recovery in [RecoveryClass::Resume, RecoveryClass::ProviderWait] {
+            let task = runtime
+                .create(draft(SELECTED.as_str(), recovery))
+                .await
+                .unwrap()
+                .snapshot;
+            let mut wrong_profile = owner();
+            wrong_profile.profile = "another-profile".into();
+            assert!(matches!(
+                runtime
+                    .for_owner(&wrong_profile)
+                    .in_work_context()
+                    .unwrap()
+                    .cancel(task.task_id)
+                    .await,
+                Err(TaskError::NotFound(_))
+            ));
+            let cancelled = query.cancel(task.task_id).await.unwrap();
+            assert_eq!(
+                cancelled.status,
+                if recovery == RecoveryClass::ProviderWait {
+                    veoveo_task_runtime::TaskStatus::CancelRequested
+                } else {
+                    veoveo_task_runtime::TaskStatus::Cancelled
+                }
+            );
+            let retry = query.cancel(task.task_id).await.unwrap();
+            assert_eq!(retry.status, cancelled.status);
+            assert_eq!(retry.cancel_requested_at, cancelled.cancel_requested_at);
+        }
+    })
+    .await
+    .expect("owner cancellation exceeded 60 seconds");
 }
 
 #[tokio::test]

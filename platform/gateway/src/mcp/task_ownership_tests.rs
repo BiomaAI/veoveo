@@ -33,6 +33,7 @@ pub(crate) fn subject() -> AuthenticatedSubject {
     actor.scopes = BTreeSet::from([ScopeName::new("operator:use").unwrap()]);
     actor.data_labels.insert(DataLabelId::new("cui").unwrap());
     AuthenticatedSubject {
+        audit: veoveo_mcp_contract::audit::AuditRequest::background(),
         access_token: AccessTokenSubject {
             managed_agent: None,
             issuer: actor.issuer.clone(),

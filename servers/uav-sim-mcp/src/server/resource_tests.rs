@@ -150,7 +150,7 @@ async fn reads_and_subscription_admission_reject_bad_routes_scopes_and_parents()
             .live_views
             .open(
                 crate::server::ownership::live_view_owner(&identity),
-                identity.actor.id.clone(),
+                identity.audit_context().unwrap(),
                 crate::contract::OpenLiveViewRequest {
                     session_id: LiveSessionId::new("native-session").unwrap(),
                     camera_id: simulation.live_cameras[0].camera_id.clone(),

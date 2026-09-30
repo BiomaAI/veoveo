@@ -44,5 +44,6 @@ IF $prior = NONE {
   CREATE $execution CONTENT object::extend($content, {stage:"queued", created_at:$now, updated_at:$now});
   CREATE $request CONTENT {execution:$execution};
   CREATE outbox_event CONTENT $event;
+fn::append_audit($audit_rows);
 };
 COMMIT TRANSACTION;

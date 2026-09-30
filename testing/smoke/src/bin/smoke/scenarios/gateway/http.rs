@@ -1,4 +1,7 @@
 use super::*;
+use SmokeAuditSelection as Select;
+use veoveo_mcp_contract::audit::{AdministrativeOperation, AuditOutcome};
+use veoveo_types::{AuthMethod, AuthReasonCode};
 
 pub(crate) async fn gateway_http(
     conformance: &Path,
@@ -81,6 +84,29 @@ pub(crate) async fn gateway_http(
         ],
         [],
     )?;
+    let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
+    let platform_store = spawn_gateway_platform_store(gateway, &control_plane).await?;
+    let spawn_gateway = || {
+        ChildGuard::spawn(
+            gateway,
+            gateway_serve_args(port, &platform_store),
+            [
+                (
+                    "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+                    INTERNAL_SIGNING_KEY_DER_B64.into(),
+                ),
+                ("VEOVEO_IDP_OIDC_CLIENT_SECRET", oidc_secret.into()),
+                (
+                    "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
+                    auth_private_key.trim().into(),
+                ),
+            ],
+            &gateway_log,
+        )
+    };
+    let mut gateway_child = spawn_gateway()?;
+    wait_for_http(&format!("{base}/healthz")).await?;
+    assert_ready_profiles(&base, fixture_profile_count(&control_plane)?).await?;
     let authorization_metadata: Value = reqwest::Client::new()
         .get(format!(
             "{base}/.well-known/oauth-authorization-server/oauth"
@@ -110,26 +136,6 @@ pub(crate) async fn gateway_http(
         bail!("authorization metadata omitted public refresh revocation: {authorization_metadata}");
     }
 
-    let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
-    let platform_store = spawn_gateway_platform_store(gateway, &control_plane).await?;
-    let mut gateway_child = ChildGuard::spawn(
-        gateway,
-        gateway_serve_args(port, &platform_store),
-        [
-            (
-                "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
-                INTERNAL_SIGNING_KEY_DER_B64.into(),
-            ),
-            ("VEOVEO_IDP_OIDC_CLIENT_SECRET", oidc_secret.into()),
-            (
-                "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
-                auth_private_key.trim().into(),
-            ),
-        ],
-        &gateway_log,
-    )?;
-    wait_for_http(&format!("{base}/healthz")).await?;
-    assert_ready_profiles(&base, 2).await?;
     let untrusted_host_status = reqwest::Client::new()
         .get(format!(
             "{base}/.well-known/oauth-protected-resource/mcp/operator"
@@ -296,6 +302,9 @@ pub(crate) async fn gateway_http(
     {
         bail!("refresh exchange returned an invalid token response: {refresh_response}");
     }
+    // Concurrent deliveries reuse the same successor during the configured window.
+    // Reuse after that deadline must revoke the family.
+    tokio::time::sleep(Duration::from_secs(REFRESH_DELIVERY_WINDOW_SECONDS + 1)).await;
     let refresh_replay_response = http
         .post(format!("{base}/oauth/token"))
         .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
@@ -510,12 +519,14 @@ pub(crate) async fn gateway_http(
     if signing_failure_status != StatusCode::INTERNAL_SERVER_ERROR {
         bail!("missing signing key refresh status was {signing_failure_status}, expected 500");
     }
-    http.put(format!("{base}/admin/admin/control-plane"))
-        .bearer_auth(admin_token.trim())
-        .json(&original_control_plane)
-        .send()
-        .await?
-        .error_for_status()?;
+    // The unavailable signer also prevents loading this authorization server's
+    // verification keys. Recover through the installation command, then prove
+    // that the same unconsumed refresh token survives the gateway restart.
+    gateway_child.drain(Duration::from_secs(90)).await?;
+    bootstrap_gateway_platform_store(gateway, &control_plane, &platform_store).await?;
+    gateway_child = spawn_gateway()?;
+    wait_for_http(&format!("{base}/healthz")).await?;
+    assert_ready_profiles(&base, fixture_profile_count(&control_plane)?).await?;
     let delivery_retry: Value = http
         .post(format!("{base}/oauth/token"))
         .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
@@ -629,41 +640,87 @@ pub(crate) async fn gateway_http(
         bail!("expired JWT revocation status was {expired_status}, expected 400");
     }
 
-    gateway_child.stop();
-    let audit_counts = run_gateway_json(gateway, "audit-counts", &platform_store)?;
-    assert_json_u64_at_least(&audit_counts, "auth_events", 1)?;
-    assert_json_u64_at_least(&audit_counts, "policy_events", 1)?;
-    let auth_method_summary =
-        run_gateway_json(gateway, "auth-audit-method-summary", &platform_store)?;
-    assert_audit_method(&auth_method_summary, "bearer_jwt", 2, 1)?;
-    assert_audit_method(
-        &auth_method_summary,
-        "client_credentials_private_key_jwt",
-        2,
-        1,
-    )?;
-    assert_audit_method(&auth_method_summary, "oidc_authorization_code_pkce", 1, 2)?;
-    assert_audit_method(&auth_method_summary, "refresh_token", 4, 5)?;
-    let auth_reason_summary =
-        run_gateway_json(gateway, "auth-audit-reason-summary", &platform_store)?;
-    assert_reason_summary_at_least(&auth_reason_summary, "auth_allow", 4)?;
-    assert_reason_summary_at_least(&auth_reason_summary, "missing_authorization_header", 1)?;
-    assert_reason_summary_at_least(&auth_reason_summary, "client_assertion_replay", 1)?;
-    assert_reason_summary_at_least(&auth_reason_summary, "invalid_authorization_code", 1)?;
-    assert_reason_summary_at_least(&auth_reason_summary, "invalid_pkce", 1)?;
-    assert_reason_summary_at_least(&auth_reason_summary, "refresh_token_replay", 1)?;
-    assert_reason_summary_at_least(&auth_reason_summary, "invalid_refresh_token", 1)?;
-    assert_reason_summary_at_least(&auth_reason_summary, "refresh_token_revoked", 2)?;
-    assert_reason_summary_at_least(&auth_reason_summary, "token_signing_key_unavailable", 1)?;
-    let audit_summary = run_gateway_json(gateway, "audit-method-summary", &platform_store)?;
-    assert_audit_method(&audit_summary, "admin/jwt-revocations", 2, 0)?;
-    assert_audit_method(&audit_summary, "admin/jwt-revocations/prune", 1, 0)?;
-    assert_audit_method(&audit_summary, "admin/jwt-revocations/result", 2, 0)?;
-    assert_audit_method(&audit_summary, "admin/jwt-revocations/prune/result", 1, 0)?;
-    let audit_status_summary =
-        run_gateway_metadata_summary(gateway, &platform_store, "operation_status")?;
-    assert_metadata_summary_at_least(&audit_status_summary, "succeeded", 2)?;
-    assert_metadata_summary_at_least(&audit_status_summary, "rejected", 1)?;
+    gateway_child.drain(Duration::from_secs(90)).await?;
+    let audit = SmokeAudit::connect(&platform_store, &control_plane).await?;
+    audit
+        .exact(
+            Select::AuthenticationMethod(AuthMethod::BearerJwt),
+            Some(AuditOutcome::Succeeded),
+            0,
+        )
+        .await?;
+    for (method, successes, denials) in [
+        (AuthMethod::BearerJwt, 0, 1),
+        (AuthMethod::ClientCredentialsPrivateKeyJwt, 2, 1),
+        (AuthMethod::OidcAuthorizationCodePkce, 1, 2),
+        (AuthMethod::RefreshToken, 4, 5),
+    ] {
+        audit
+            .at_least(
+                Select::AuthenticationMethod(method),
+                Some(AuditOutcome::Succeeded),
+                successes,
+            )
+            .await?;
+        audit
+            .at_least(
+                Select::AuthenticationMethod(method),
+                Some(AuditOutcome::Denied),
+                denials,
+            )
+            .await?;
+    }
+    for (reason, minimum) in [
+        (AuthReasonCode::AuthAllow, 4),
+        (AuthReasonCode::MissingAuthorizationHeader, 1),
+        (AuthReasonCode::ClientAssertionReplay, 1),
+        (AuthReasonCode::InvalidAuthorizationCode, 1),
+        (AuthReasonCode::InvalidPkce, 1),
+        (AuthReasonCode::RefreshTokenReplay, 1),
+        (AuthReasonCode::InvalidRefreshToken, 1),
+        (AuthReasonCode::RefreshTokenRevoked, 2),
+        (AuthReasonCode::TokenSigningKeyUnavailable, 1),
+    ] {
+        audit
+            .at_least(Select::AuthenticationReason(reason), None, minimum)
+            .await?;
+    }
+    audit
+        .at_least(
+            Select::AdminAdmission(AdministrativeOperation::JwtRevoke),
+            Some(AuditOutcome::Allowed),
+            2,
+        )
+        .await?;
+    audit
+        .at_least(
+            Select::AdminAdmission(AdministrativeOperation::JwtPrune),
+            Some(AuditOutcome::Allowed),
+            1,
+        )
+        .await?;
+    audit
+        .at_least(
+            Select::AdminCompletion(AdministrativeOperation::JwtRevoke),
+            Some(AuditOutcome::Succeeded),
+            1,
+        )
+        .await?;
+    audit
+        .at_least(
+            Select::AdminCompletion(AdministrativeOperation::JwtRevoke),
+            Some(AuditOutcome::Failed),
+            1,
+        )
+        .await?;
+    audit
+        .at_least(
+            Select::AdminCompletion(AdministrativeOperation::JwtPrune),
+            Some(AuditOutcome::Succeeded),
+            1,
+        )
+        .await?;
+    audit.assert_cli(gateway, &platform_store)?;
 
     idp.stop();
     cleanup.remove_on_drop();

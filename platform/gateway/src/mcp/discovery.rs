@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, time::Duration};
 
-use rmcp::model::{Resource, ResourceTemplate, Tool};
+use rmcp::model::{Prompt, Resource, ResourceTemplate, Tool};
 use tokio::{
     sync::{Mutex, Notify, broadcast},
     time::Instant,
@@ -58,13 +58,24 @@ impl DiscoveryChange {
 pub(super) struct DiscoveryFetch {
     key: DiscoveryCacheKey,
     request: Uuid,
+    denied: u32,
+}
+impl DiscoveryFetch {
+    pub(super) fn with_denied(mut self, denied: u32) -> Self {
+        self.denied = denied;
+        self
+    }
+}
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct AdmittedCatalog<T> {
+    pub(super) items: Vec<T>,
+    pub(super) denied: u32,
 }
 
 #[derive(Debug)]
 struct CachedItems<T> {
     items: Vec<T>,
-    expires: Instant,
-    observed_expired: bool,
+    denied: u32,
 }
 
 #[derive(Debug)]
@@ -90,12 +101,7 @@ impl<T> Default for SurfaceCache<T> {
 impl<T: Clone + PartialEq> SurfaceCache<T> {
     #[cfg(test)]
     async fn contains(&self, key: &DiscoveryCacheKey) -> bool {
-        self.0
-            .lock()
-            .await
-            .entries
-            .get(key)
-            .is_some_and(|entry| entry.expires > Instant::now())
+        self.0.lock().await.entries.contains_key(key)
     }
 
     async fn pending(&self, keys: &[DiscoveryCacheKey]) -> bool {
@@ -109,16 +115,13 @@ impl<T: Clone + PartialEq> SurfaceCache<T> {
             .any(|key| state.in_flight.contains_key(key) && !state.failed.contains_key(key))
     }
 
-    async fn get(&self, key: &DiscoveryCacheKey) -> Option<Vec<T>> {
-        // Retain the prior value only to compare refreshes. Expired authority
-        // must never be returned to a caller.
-        let mut state = self.0.lock().await;
-        let entry = state.entries.get_mut(key)?;
-        if entry.expires <= Instant::now() {
-            entry.observed_expired = true;
-            return None;
-        }
-        Some(entry.items.clone())
+    async fn get(&self, key: &DiscoveryCacheKey) -> Option<AdmittedCatalog<T>> {
+        let state = self.0.lock().await;
+        let entry = state.entries.get(key)?;
+        Some(AdmittedCatalog {
+            items: entry.items.clone(),
+            denied: entry.denied,
+        })
     }
 
     async fn begin(&self, key: DiscoveryCacheKey, coalesce: bool) -> Option<DiscoveryFetch> {
@@ -147,7 +150,11 @@ impl<T: Clone + PartialEq> SurfaceCache<T> {
         }
         let request = Uuid::now_v7();
         state.in_flight.insert(key.clone(), request);
-        Some(DiscoveryFetch { key, request })
+        Some(DiscoveryFetch {
+            key,
+            request,
+            denied: 0,
+        })
     }
 
     async fn finish(&self, fetch: &DiscoveryFetch, items: Option<Vec<T>>) -> bool {
@@ -161,7 +168,7 @@ impl<T: Clone + PartialEq> SurfaceCache<T> {
             let changed = state
                 .entries
                 .get(&fetch.key)
-                .is_none_or(|previous| previous.items != items || previous.observed_expired);
+                .is_none_or(|previous| previous.items != items || previous.denied != fetch.denied);
             if state.entries.len() >= MAX_CACHE_ENTRIES_PER_SURFACE
                 && !state.entries.contains_key(&fetch.key)
             {
@@ -171,9 +178,7 @@ impl<T: Clone + PartialEq> SurfaceCache<T> {
                 fetch.key.clone(),
                 CachedItems {
                     items,
-                    expires: Instant::now()
-                        + Duration::from_millis(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-                    observed_expired: false,
+                    denied: fetch.denied,
                 },
             );
             changed
@@ -191,6 +196,15 @@ impl<T: Clone + PartialEq> SurfaceCache<T> {
         }
     }
 
+    async fn invalidate_cached_key(&self, key: &DiscoveryCacheKey) {
+        self.0.lock().await.entries.remove(key);
+    }
+    async fn invalidate_key(&self, key: &DiscoveryCacheKey) {
+        let mut state = self.0.lock().await;
+        state.entries.remove(key);
+        state.in_flight.remove(key);
+        state.failed.remove(key);
+    }
     async fn invalidate(&self, server: &ServerSlug) {
         let mut state = self.0.lock().await;
         state.entries.retain(|key, _| &key.server != server);
@@ -206,6 +220,7 @@ pub(super) struct CatalogDiscoveryCache {
     resources: SurfaceCache<DiscoveredResource>,
     resource_templates: SurfaceCache<ResourceTemplate>,
     tools: SurfaceCache<Tool>,
+    prompts: SurfaceCache<Prompt>,
     changes: broadcast::Sender<DiscoveryChange>,
     settled: Notify,
 }
@@ -215,6 +230,7 @@ impl Default for CatalogDiscoveryCache {
             resources: Default::default(),
             resource_templates: Default::default(),
             tools: Default::default(),
+            prompts: Default::default(),
             changes: broadcast::channel(DISCOVERY_CHANGE_BUFFER).0,
             settled: Notify::new(),
         }
@@ -319,30 +335,34 @@ impl CatalogDiscoveryCache {
         };
         self.settled.notify_waiters();
     }
-    pub(super) async fn resources(&self, key: &DiscoveryCacheKey) -> Option<Vec<Resource>> {
-        Some(
-            self.resources
-                .get(key)
-                .await?
+    pub(super) async fn resources(
+        &self,
+        key: &DiscoveryCacheKey,
+    ) -> Option<AdmittedCatalog<Resource>> {
+        let admitted = self.resources.get(key).await?;
+        Some(AdmittedCatalog {
+            items: admitted
+                .items
                 .into_iter()
                 .filter(|item| item.listed)
                 .map(|item| item.resource)
                 .collect(),
-        )
+            denied: admitted.denied,
+        })
     }
     pub(super) async fn resource_routes(
         &self,
         key: &DiscoveryCacheKey,
     ) -> Option<Vec<DiscoveredResource>> {
-        self.resources.get(key).await
+        self.resources.get(key).await.map(|admitted| admitted.items)
     }
     pub(super) async fn resource_templates(
         &self,
         key: &DiscoveryCacheKey,
-    ) -> Option<Vec<ResourceTemplate>> {
+    ) -> Option<AdmittedCatalog<ResourceTemplate>> {
         self.resource_templates.get(key).await
     }
-    pub(super) async fn tools(&self, key: &DiscoveryCacheKey) -> Option<Vec<Tool>> {
+    pub(super) async fn tools(&self, key: &DiscoveryCacheKey) -> Option<AdmittedCatalog<Tool>> {
         self.tools.get(key).await
     }
     pub(super) async fn start_tools(&self, key: DiscoveryCacheKey) -> Option<DiscoveryFetch> {
@@ -392,12 +412,46 @@ impl CatalogDiscoveryCache {
         }
         self.settled.notify_waiters();
     }
+    pub(super) async fn prompts(&self, key: &DiscoveryCacheKey) -> Option<AdmittedCatalog<Prompt>> {
+        self.prompts.get(key).await
+    }
+    pub(super) async fn start_prompts(&self, key: DiscoveryCacheKey) -> Option<DiscoveryFetch> {
+        self.prompts.begin(key, false).await
+    }
+    pub(super) async fn store_prompts(
+        &self,
+        fetch: Option<DiscoveryFetch>,
+        items: Vec<Prompt>,
+        denied: u32,
+    ) {
+        if let Some(fetch) = fetch {
+            self.prompts
+                .finish(&fetch.with_denied(denied), Some(items))
+                .await;
+        }
+    }
+    pub(super) async fn invalidate_prompts(&self, server: &ServerSlug) {
+        self.prompts.invalidate(server).await;
+    }
     fn publish(&self, surface: GatewayDiscoverySurface, fetch: DiscoveryFetch) {
         self.settled.notify_waiters();
         let _ = self.changes.send(DiscoveryChange {
             surface,
             key: fetch.key,
         });
+    }
+    pub(super) async fn invalidate_cached_key(&self, key: &DiscoveryCacheKey) {
+        self.resources.invalidate_cached_key(key).await;
+        self.resource_templates.invalidate_cached_key(key).await;
+        self.tools.invalidate_cached_key(key).await;
+        self.prompts.invalidate_cached_key(key).await;
+    }
+    pub(super) async fn invalidate_key(&self, key: &DiscoveryCacheKey) {
+        self.resources.invalidate_key(key).await;
+        self.resource_templates.invalidate_key(key).await;
+        self.tools.invalidate_key(key).await;
+        self.prompts.invalidate_key(key).await;
+        self.settled.notify_waiters();
     }
     pub(super) async fn invalidate_resource_surfaces(&self, server: &ServerSlug) {
         self.resources.invalidate(server).await;
@@ -467,7 +521,11 @@ mod tests {
             .finish_resource_routes(fetch, vec![route.clone()])
             .await;
         assert_eq!(
-            cache.resources(&owner).await.unwrap(),
+            cache
+                .resources(&owner)
+                .await
+                .map(|catalog| catalog.items)
+                .unwrap(),
             vec![route.resource.clone()]
         );
         for _ in 0..2 {
@@ -496,7 +554,14 @@ mod tests {
         cache
             .finish_resource_routes(fetch, vec![hidden.clone()])
             .await;
-        assert!(cache.resources(&owner).await.unwrap().is_empty());
+        assert!(
+            cache
+                .resources(&owner)
+                .await
+                .map(|catalog| catalog.items)
+                .unwrap()
+                .is_empty()
+        );
         assert_eq!(cache.resource_routes(&owner).await.unwrap(), vec![hidden]);
     }
 
@@ -542,7 +607,10 @@ mod tests {
         let mut changes = cache.subscribe();
         let items = vec![Resource::new("offline://recovered", "recovered")];
         cache.finish_resources(retry, items.clone()).await;
-        assert_eq!(cache.resources(&failed).await, Some(items));
+        assert_eq!(
+            cache.resources(&failed).await.map(|catalog| catalog.items),
+            Some(items)
+        );
         assert!(changes.try_recv().is_ok());
         assert!(!cache.resources.0.lock().await.failed.contains_key(&failed));
     }
@@ -557,35 +625,25 @@ mod tests {
         cache.finish_resources(first, items.clone()).await;
         assert!(updates.try_recv().is_ok());
 
-        cache
-            .resources
-            .0
-            .lock()
-            .await
-            .entries
-            .get_mut(&key)
-            .unwrap()
-            .expires = Instant::now();
         let refresh = begin(&cache, key.clone()).await;
         cache.finish_resources(refresh, items.clone()).await;
         assert!(matches!(
             updates.try_recv(),
             Err(broadcast::error::TryRecvError::Empty)
         ));
-        assert_eq!(cache.resources(&key).await, Some(items.clone()));
+        assert_eq!(
+            cache.resources(&key).await.map(|catalog| catalog.items),
+            Some(items.clone())
+        );
 
-        cache
-            .resources
-            .0
-            .lock()
-            .await
-            .entries
-            .get_mut(&key)
-            .unwrap()
-            .expires = Instant::now();
+        cache.invalidate_resource_surfaces(&key.server).await;
         assert!(
-            cache.resources(&key).await.is_none(),
-            "expired permissions are never served"
+            cache
+                .resources(&key)
+                .await
+                .map(|catalog| catalog.items)
+                .is_none(),
+            "invalidated permissions are never served"
         );
         let recovery = begin(&cache, key.clone()).await;
         cache.finish_resources(recovery, items.clone()).await;
@@ -595,20 +653,24 @@ mod tests {
         );
 
         cache.invalidate_resource_surfaces(&key.server).await;
-        assert!(cache.resources(&key).await.is_none());
+        assert!(
+            cache
+                .resources(&key)
+                .await
+                .map(|catalog| catalog.items)
+                .is_none()
+        );
         let refreshed = begin(&cache, key.clone()).await;
         cache.finish_resources(refreshed, items).await;
         assert!(updates.try_recv().is_ok());
     }
 
     #[tokio::test]
-    async fn cold_and_expired_catalogs_settle_before_the_first_snapshot() {
+    async fn cold_and_invalidated_catalogs_settle_before_the_first_snapshot() {
         let cache = std::sync::Arc::new(CatalogDiscoveryCache::default());
         let cache_key = key(1, "ready");
         for version in 0..2 {
-            if let Some(entry) = cache.resources.0.lock().await.entries.get_mut(&cache_key) {
-                entry.expires = Instant::now();
-            }
+            cache.invalidate_resource_surfaces(&cache_key.server).await;
             assert!(
                 !cache
                     .contains(GatewayDiscoverySurface::Resources, &cache_key)
@@ -635,7 +697,12 @@ mod tests {
             .await
             .unwrap();
             assert_eq!(
-                cache.resources(&cache_key).await.unwrap()[0].uri,
+                cache
+                    .resources(&cache_key)
+                    .await
+                    .map(|catalog| catalog.items)
+                    .unwrap()[0]
+                    .uri,
                 format!("ready://{version}")
             );
             work.await.unwrap();
@@ -694,7 +761,13 @@ mod tests {
         cache
             .finish_resources(stale, vec![Resource::new("one://old", "old")])
             .await;
-        assert!(cache.resources(&key(1, "one")).await.is_none());
+        assert!(
+            cache
+                .resources(&key(1, "one"))
+                .await
+                .map(|catalog| catalog.items)
+                .is_none()
+        );
         assert!(
             cache
                 .begin(GatewayDiscoverySurface::Resources, key(1, "one"))
@@ -705,7 +778,12 @@ mod tests {
             .finish_resources(current, vec![Resource::new("two://current", "current")])
             .await;
         assert_eq!(
-            cache.resources(&key(2, "two")).await.unwrap()[0].uri,
+            cache
+                .resources(&key(2, "two"))
+                .await
+                .map(|catalog| catalog.items)
+                .unwrap()[0]
+                .uri,
             "two://current"
         );
     }
@@ -728,13 +806,30 @@ mod tests {
         cache
             .finish_failure(GatewayDiscoverySurface::Resources, stale)
             .await;
-        assert!(cache.resources(&key(1, "one")).await.is_none());
-        assert!(cache.resources(&key(1, "two")).await.is_some());
+        assert!(
+            cache
+                .resources(&key(1, "one"))
+                .await
+                .map(|catalog| catalog.items)
+                .is_none()
+        );
+        assert!(
+            cache
+                .resources(&key(1, "two"))
+                .await
+                .map(|catalog| catalog.items)
+                .is_some()
+        );
         cache
             .finish_resources(current, vec![Resource::new("one://new", "new")])
             .await;
         assert_eq!(
-            cache.resources(&key(1, "one")).await.unwrap()[0].uri,
+            cache
+                .resources(&key(1, "one"))
+                .await
+                .map(|catalog| catalog.items)
+                .unwrap()[0]
+                .uri,
             "one://new"
         );
     }
@@ -753,7 +848,13 @@ mod tests {
                 vec![Tool::new("stale", "old", std::sync::Arc::default())],
             )
             .await;
-        assert!(cache.tools(&key(1, "one")).await.is_none());
+        assert!(
+            cache
+                .tools(&key(1, "one"))
+                .await
+                .map(|catalog| catalog.items)
+                .is_none()
+        );
         cache
             .store_tools(
                 current,
@@ -761,35 +862,43 @@ mod tests {
             )
             .await;
         assert_eq!(
-            cache.tools(&key(1, "one")).await.unwrap()[0].name,
+            cache
+                .tools(&key(1, "one"))
+                .await
+                .map(|catalog| catalog.items)
+                .unwrap()[0]
+                .name,
             "current"
         );
     }
 
     #[tokio::test]
-    async fn expired_entries_require_fresh_discovery_after_missed_notifications() {
+    async fn disconnected_watch_requires_fresh_discovery_after_missed_notifications() {
         let cache = CatalogDiscoveryCache::default();
         let fetch = begin(&cache, key(1, "one")).await;
         cache
             .finish_resources(fetch, vec![Resource::new("one://old", "old")])
             .await;
-        // Set the actual deadline directly; no wall-clock delay in this unit test.
-        cache
-            .resources
-            .0
-            .lock()
-            .await
-            .entries
-            .get_mut(&key(1, "one"))
-            .unwrap()
-            .expires = Instant::now();
-        assert!(cache.resources(&key(1, "one")).await.is_none());
+        // A disconnected watcher invalidates every surface for its authority key.
+        cache.invalidate_key(&key(1, "one")).await;
+        assert!(
+            cache
+                .resources(&key(1, "one"))
+                .await
+                .map(|catalog| catalog.items)
+                .is_none()
+        );
         let fetch = begin(&cache, key(1, "one")).await;
         cache
             .finish_resources(fetch, vec![Resource::new("one://new", "new")])
             .await;
         assert_eq!(
-            cache.resources(&key(1, "one")).await.unwrap()[0].uri,
+            cache
+                .resources(&key(1, "one"))
+                .await
+                .map(|catalog| catalog.items)
+                .unwrap()[0]
+                .uri,
             "one://new"
         );
     }
@@ -802,7 +911,13 @@ mod tests {
         let mut changes = cache.subscribe();
         cache.finish_resources(healthy, Vec::new()).await;
         assert_eq!(changes.recv().await.unwrap().key, key(1, "healthy"));
-        assert!(cache.resources(&key(1, "hung")).await.is_none());
+        assert!(
+            cache
+                .resources(&key(1, "hung"))
+                .await
+                .map(|catalog| catalog.items)
+                .is_none()
+        );
     }
 
     #[test]

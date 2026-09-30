@@ -894,6 +894,148 @@
                   }
                 }
               }
+            },
+            "auditRetentionDays": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 4294967295,
+              "description": "Required installation retention in days when gateway is selected; no deletion default."
+            },
+            "auditSigningSecret": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 253,
+              "description": "Dedicated installation Secret with a seed-b64 key for audit block signatures."
+            },
+            "auditExport": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "destinations",
+                "s3CredentialsSecret",
+                "otlpBearerSecret"
+              ],
+              "properties": {
+                "destinations": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "s3": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "additionalProperties": false,
+                      "required": [
+                        "endpoint",
+                        "region",
+                        "bucket",
+                        "prefix",
+                        "object_lock"
+                      ],
+                      "properties": {
+                        "endpoint": {
+                          "type": "string",
+                          "format": "uri"
+                        },
+                        "region": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "bucket": {
+                          "type": "string",
+                          "minLength": 3,
+                          "maxLength": 63,
+                          "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$"
+                        },
+                        "prefix": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 256
+                        },
+                        "object_lock": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "mode"
+                              ],
+                              "properties": {
+                                "mode": {
+                                  "const": "disabled"
+                                }
+                              }
+                            },
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "mode",
+                                "days"
+                              ],
+                              "properties": {
+                                "mode": {
+                                  "const": "compliance"
+                                },
+                                "days": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 4294967295
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        "allow_http": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "otlp": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "additionalProperties": false,
+                      "required": [
+                        "endpoint"
+                      ],
+                      "properties": {
+                        "endpoint": {
+                          "type": "string",
+                          "format": "uri"
+                        },
+                        "allow_http": {
+                          "type": "boolean"
+                        },
+                        "bearer_token_env": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            null,
+                            "VEOVEO_AUDIT_OTLP_BEARER_TOKEN"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                "s3CredentialsSecret": {
+                  "type": "string",
+                  "maxLength": 253
+                },
+                "otlpBearerSecret": {
+                  "type": "string",
+                  "maxLength": 253
+                }
+              }
             }
           }
         }

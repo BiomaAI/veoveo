@@ -75,7 +75,7 @@ async fn ticket(
         .get(current_actor.owner(), id)
         .await
         .map_err(ApplicationError::from)?;
-    transport.app.refresh_run(&computer).await?;
+    transport.app.refresh_run(&current_actor, &computer).await?;
     let grant = transport
         .app
         .store

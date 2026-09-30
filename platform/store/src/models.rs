@@ -422,15 +422,6 @@ string_enum! {
 }
 
 string_enum! {
-    pub enum AuditOutcome {
-        Allowed => "allowed",
-        Denied => "denied",
-        Failed => "failed",
-        Succeeded => "succeeded",
-    }
-}
-
-string_enum! {
     pub enum GatewayReplayKind {
         ClientAssertion => "client_assertion",
         IdJag => "id_jag",
@@ -748,6 +739,7 @@ pub struct ShareLinkRecord {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
 pub struct ArtifactWriteCapabilityRecord {
+    pub audit: crate::audit::AuditContextRecord,
     pub id: RecordId,
     pub tenant: RecordId,
     pub actor: RecordId,
@@ -1588,23 +1580,6 @@ pub struct GatewayRefreshTokenRecord {
     pub replay_detected_at: Option<DateTime<Utc>>,
     pub delivery_envelope: Option<RedactedSecret>,
     pub delivery_expires_at: Option<DateTime<Utc>>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
-pub struct AuditEventRecord {
-    pub id: RecordId,
-    pub tenant: Option<RecordId>,
-    pub actor: Option<RecordId>,
-    pub action: String,
-    pub resource_type: String,
-    pub resource_id: Option<String>,
-    pub outcome: AuditOutcome,
-    pub request_id: Option<String>,
-    pub trace_id: Option<String>,
-    pub source_ip: Option<String>,
-    pub details: OpenObject,
-    pub occurred_at: DateTime<Utc>,
-    pub search_text: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]

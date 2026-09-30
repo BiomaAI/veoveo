@@ -25,7 +25,6 @@ export interface InstallationSnapshot {
   recordings: RecordingSummary[];
   servers: McpServerSummary[];
   policies: PolicySummary[];
-  audit: AuditSummary[];
 }
 
 export interface PrincipalSummary {
@@ -349,16 +348,7 @@ export interface PolicySummary {
   updatedAt: string;
 }
 
-export interface AuditSummary {
-  id: string;
-  occurredAt: string;
-  actor: string;
-  action: string;
-  resource: string;
-  outcome: "allowed" | "denied" | "failed" | "succeeded";
-  sourceIp?: string;
-  traceId?: string;
-}
+
 
 export interface AppToolDescriptor {
   name: string;

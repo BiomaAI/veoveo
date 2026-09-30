@@ -122,7 +122,6 @@ domain_id!(WorkspaceOperationId, "workspace_operation");
 domain_id!(WorkspaceMemberId, "workspace_member");
 domain_id!(WorkspaceMessageId, "workspace_message");
 domain_id!(WorkspaceInvitationId, "workspace_invitation");
-domain_id!(AuditEventId, "audit_event");
 domain_id!(OutboxEventId, "outbox_event");
 
 #[cfg(test)]

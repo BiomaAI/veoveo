@@ -5,6 +5,7 @@ pub(crate) async fn surreal_integration() -> Result<()> {
         .local_addr()?
         .port();
     let name = format!("veoveo-surreal-smoke-{}", uuid::Uuid::new_v4().simple());
+    let _container = ContainerGuard::new(name.clone());
     run_checked(
         Path::new("docker"),
         [
@@ -17,7 +18,7 @@ pub(crate) async fn surreal_integration() -> Result<()> {
             format!("127.0.0.1:{port}:8000").into(),
             "--tmpfs".into(),
             "/data:rw,size=1073741824,uid=65532,gid=65532,mode=0700".into(),
-            "surrealdb/surrealdb:v3.3.0".into(),
+            "surrealdb/surrealdb@sha256:681c6c22c287421b5c7d99e0fde79b6e0d32c36c1ddeaab2762a1661cb04cd20".into(),
             "start".into(),
             "--bind".into(),
             "0.0.0.0:8000".into(),
@@ -29,7 +30,6 @@ pub(crate) async fn surreal_integration() -> Result<()> {
         ],
         [],
     )?;
-    let _container = ContainerGuard::new(name);
     let ready_url = format!("http://127.0.0.1:{port}/ready");
     let mut ready = false;
     for _ in 0..120 {
@@ -52,31 +52,38 @@ pub(crate) async fn surreal_integration() -> Result<()> {
         ("VEOVEO_SURREAL_USERNAME", "root".into()),
         ("VEOVEO_SURREAL_PASSWORD", "root".into()),
     ];
-    for (package, test) in [
-        ("veoveo-platform-store", "surreal_integration"),
-        ("veoveo-task-runtime", "surreal_integration"),
-        ("veoveo-agent-runtime", "surreal_integration"),
-        ("veoveo-mcp-gateway", "control_store"),
-        ("veoveo-mcp-gateway", "gateway_state"),
-        ("veoveo-media-mcp", "surreal_integration"),
-    ] {
-        println!("==> live SurrealDB test: {package}/{test}");
-        run_checked(
-            Path::new("cargo"),
-            [
-                "test".into(),
-                "-p".into(),
-                package.into(),
-                "--test".into(),
-                test.into(),
-                "--".into(),
-                "--nocapture".into(),
-                "--test-threads=1".into(),
-            ],
-            environment.clone(),
-        )?;
-    }
-    let _ = environment;
+    // Resolve one feature union for the integration targets and collect every
+    // target's result before returning a failure.
+    println!("==> live SurrealDB integration batch");
+    let output = run_checked(
+        Path::new("cargo"),
+        [
+            "test".into(),
+            "--locked".into(),
+            "--workspace".into(),
+            "--all-features".into(),
+            "--test".into(),
+            "surreal_integration".into(),
+            "--test".into(),
+            "control_store".into(),
+            "--test".into(),
+            "gateway_state".into(),
+            "--test".into(),
+            "current_authority".into(),
+            "--test".into(),
+            "audit_cli".into(),
+            "--test".into(),
+            "reads".into(),
+            "--test".into(),
+            "detail_schema".into(),
+            "--no-fail-fast".into(),
+            "--".into(),
+            "--nocapture".into(),
+            "--test-threads=1".into(),
+        ],
+        environment,
+    )?;
+    print!("{output}");
     println!("surreal integration smoke ok");
     Ok(())
 }
@@ -94,7 +101,13 @@ pub(crate) async fn gateway_platform_store(gateway: &Path, control_plane: &Path)
         platform_store.runtime_env(),
     )?;
     contains(&validate, "ok: revision")?;
-    contains(&validate, "1 server(s), 2 profile(s)")?;
+    contains(
+        &validate,
+        &format!(
+            "1 server(s), {} profile(s)",
+            fixture_profile_count(control_plane)?
+        ),
+    )?;
 
     cleanup.remove_on_drop();
     println!("gateway platform store smoke ok");
@@ -163,17 +176,14 @@ pub(crate) fn contract_schemas(conformance: &Path) -> Result<()> {
         &schemas.join("tenant-definition.schema.json"),
         "TenantDefinition",
     )?;
-    let auth_audit = assert_schema_title(
-        &schemas.join("auth-audit-event.schema.json"),
-        "AuthAuditEvent",
-    )?;
-    for property in ["outcome", "reason", "method", "protected_resource"] {
-        if !auth_audit
+    let audit = assert_schema_title(&schemas.join("audit-record.schema.json"), "AuditRecord")?;
+    for property in ["draft", "recorded_at"] {
+        if !audit
             .get("properties")
             .and_then(|properties| properties.get(property))
             .is_some_and(Value::is_object)
         {
-            bail!("auth audit schema has no object `{property}` property");
+            bail!("audit record schema has no object `{property}` property");
         }
     }
     let deployment = assert_schema_title(

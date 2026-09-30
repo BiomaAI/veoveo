@@ -20,5 +20,6 @@ IF $state = NONE OR $state.owner_key != $owner_key OR $state.phase != "ready" OR
 };
 UPDATE $grant SET connection_id = $connection;
 CREATE outbox_event CONTENT $event;
+  fn::append_audit($audit_rows);
 COMMIT TRANSACTION;
 RETURN $connection;

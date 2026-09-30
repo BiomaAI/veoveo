@@ -230,7 +230,7 @@ async fn an_interrupted_reservation_can_be_provisioned_from_the_visible_collecti
     ));
     let reserved = store
         .reserve(
-            &owner,
+            &crate::support::authenticated(&owner),
             &veoveo_computers::Reservation {
                 request_id: Uuid::now_v7(),
                 template_id: "development-retained".into(),

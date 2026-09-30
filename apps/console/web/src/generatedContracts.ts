@@ -1,6 +1,8 @@
 import { compileGeneratedSchema } from "./jsonSchema.ts";
 import computerSchema from "./generated/computers.schema.json" with { type: "json" };
 import consoleSchema from "./generated/console.schema.json" with { type: "json" };
+import auditSchema from "./generated/audit.schema.json" with { type: "json" };
+import type { AuditReaderApi } from "./generated/audit.ts";
 import type { ComputerId, ComputersApi } from "./generated/computers.ts";
 import type { ConsoleBootstrap } from "./generated/console.ts";
 
@@ -12,6 +14,19 @@ function parser<T>(schema: object): (value: unknown) => T {
 }
 export const parseConsoleBootstrap = parser<ConsoleBootstrap>(consoleSchema);
 export const parseComputerId = parser<ComputerId>(computerSchema.$defs.ComputerId);
+const auditParsers = new Map<keyof AuditReaderApi, (value: unknown) => unknown>();
+export function parseAudit<K extends keyof AuditReaderApi>(kind: K, value: unknown): AuditReaderApi[K] {
+  let parse = auditParsers.get(kind);
+  if (!parse) {
+    parse = parser({
+      $schema: auditSchema.$schema,
+      $defs: auditSchema.$defs,
+      ...auditSchema.properties[kind],
+    });
+    auditParsers.set(kind, parse);
+  }
+  return parse(value) as AuditReaderApi[K];
+}
 const computerParsers = new Map<keyof ComputersApi, (value: unknown) => unknown>();
 export function parseComputer<K extends keyof ComputersApi>(
   kind: K,

@@ -139,6 +139,7 @@ impl ComputersStore {
             None => digest(&("veoveo.computer.operation.input.v1", computer_id, action))?,
         };
         let id = Uuid::now_v7();
+        let audit_activity = crate::audit::lifecycle_activity(action);
         let (action, previous, next) = match action {
             Action::Create => (
                 "create",
@@ -206,6 +207,15 @@ impl ComputersStore {
             ("next_phase", phase(next).into_value()),
             ("event", event.into_value()),
         ];
+        bindings.push(crate::audit::binding(
+            actor.accepted(),
+            computer_id,
+            crate::audit::Transition::accepted(
+                audit_activity,
+                veoveo_audit_contract::ComputerAuditStage::Queued,
+            )
+            .task(veoveo_types::TaskId::from_uuid(id)),
+        )?);
         if let Some(authority) = &authority {
             bindings.extend(authority.transaction_bindings()?);
             bindings.push(("policy", self.automation_policy_record().into_value()));

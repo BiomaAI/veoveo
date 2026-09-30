@@ -84,7 +84,7 @@
         "artifact_metadata_days": 90,
         "artifact_bytes_days": 90,
         "usage_analytics_days": 365,
-        "audit_event_days": 365
+        "audit_days": 365
       }
     },
     {
@@ -171,7 +171,7 @@
         "artifact_metadata_days": 90,
         "artifact_bytes_days": 90,
         "usage_analytics_days": 365,
-        "audit_event_days": 365
+        "audit_days": 365
       }
     }
   ]

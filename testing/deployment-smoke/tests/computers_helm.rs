@@ -14,6 +14,8 @@ fn render(extra: &[&str]) -> std::process::Output {
             "computers-test",
             "--set",
             "gateway.controlPlaneRevision=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "--set",
+            "gateway.auditRetentionDays=1",
         ])
         .args(extra)
         .current_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."))

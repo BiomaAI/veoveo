@@ -1,0 +1,1718 @@
+{
+  "$defs": {
+    "AccessLevel": {
+      "description": "A capability level. Ordered `Read < Write < Admin`, so `min` yields the\nlesser privilege — exactly what capping a group role by a grant level needs.",
+      "enum": [
+        "read",
+        "write",
+        "admin"
+      ],
+      "type": "string"
+    },
+    "AccessSubject": {
+      "description": "A principal or group that can own governed data or receive access.",
+      "oneOf": [
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/PrincipalId"
+            },
+            "kind": {
+              "const": "principal",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/GroupId"
+            },
+            "kind": {
+              "const": "group",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "AccountActivity": {
+      "enum": [
+        "create",
+        "update",
+        "delete",
+        "membership_change",
+        "grant",
+        "revoke"
+      ],
+      "type": "string"
+    },
+    "AdminOperationFailure": {
+      "enum": [
+        "agent_management",
+        "agent_conversation",
+        "agent_input_request",
+        "agent_message",
+        "artifact_grant",
+        "artifact_grant_revoke",
+        "artifact_release_state",
+        "artifact_share_link",
+        "artifact_share_link_revoke",
+        "build_http_client",
+        "cancel_task",
+        "control_plane_sha",
+        "expired_revocation",
+        "invalid_control_plane",
+        "issue_internal_token",
+        "latest_revision_read",
+        "persist_control_plane_revision",
+        "persist_jwt_revocation",
+        "prune_jwt_revocations",
+        "revision_id",
+        "server_admin_proxy",
+        "task_ownership",
+        "task_route"
+      ],
+      "type": "string"
+    },
+    "AdministrativeAccess": {
+      "enum": [
+        "read",
+        "write"
+      ],
+      "type": "string"
+    },
+    "AdministrativeOperation": {
+      "enum": [
+        "control_plane",
+        "jwt_revoke",
+        "jwt_prune",
+        "agent_message",
+        "agent_conversation",
+        "agent_input_requests",
+        "agent_input_decision",
+        "agent_definitions_read",
+        "agent_definitions_read_content",
+        "agent_definitions_create",
+        "agent_definitions_edit",
+        "agent_definitions_publish",
+        "agent_definitions_use",
+        "agent_definitions_control",
+        "agent_definitions_archive",
+        "agent_definitions_transfer",
+        "agent_instances_deploy",
+        "agent_instances_control",
+        "artifact_release",
+        "artifact_grant",
+        "artifact_revoke",
+        "artifact_share",
+        "artifact_unshare",
+        "artifact_access_request_create",
+        "artifact_access_request_list",
+        "artifact_access_request_decide",
+        "artifact_access_request_cancel",
+        "console_cluster",
+        "console_snapshot",
+        "console_stream",
+        "console_artifact",
+        "server_proxy",
+        "task_cancel"
+      ],
+      "type": "string"
+    },
+    "ArtifactActivity": {
+      "enum": [
+        "publish",
+        "download",
+        "grant",
+        "revoke",
+        "share",
+        "unshare",
+        "delete",
+        "inspect",
+        "grants_read",
+        "release",
+        "access_request_create",
+        "access_request_read",
+        "access_request_decide",
+        "access_request_cancel",
+        "read_capability_issue",
+        "read_capability_revoke",
+        "write_capability_issue",
+        "write_capability_redeem",
+        "share_redeem"
+      ],
+      "type": "string"
+    },
+    "ArtifactId": {
+      "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
+      "type": "string"
+    },
+    "ArtifactReleaseState": {
+      "enum": [
+        "private",
+        "releasable",
+        "released"
+      ],
+      "type": "string"
+    },
+    "AuditClass": {
+      "enum": [
+        "api_activity",
+        "authentication",
+        "account_change",
+        "artifact_activity",
+        "live_view_access",
+        "computer_activity"
+      ],
+      "type": "string"
+    },
+    "AuditCursor": {
+      "additionalProperties": false,
+      "properties": {
+        "last_id": {
+          "$ref": "#/$defs/AuditRecordId"
+        },
+        "order": {
+          "$ref": "#/$defs/AuditOrder"
+        },
+        "partition": {
+          "$ref": "#/$defs/AuditPartition"
+        }
+      },
+      "required": [
+        "order",
+        "partition",
+        "last_id"
+      ],
+      "type": "object"
+    },
+    "AuditDailyCount": {
+      "properties": {
+        "class": {
+          "$ref": "#/$defs/AuditClass"
+        },
+        "count": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "day": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "outcome": {
+          "$ref": "#/$defs/AuditOutcome"
+        },
+        "partition": {
+          "$ref": "#/$defs/AuditPartition"
+        }
+      },
+      "required": [
+        "partition",
+        "day",
+        "class",
+        "outcome",
+        "count"
+      ],
+      "type": "object"
+    },
+    "AuditDailyCursor": {
+      "additionalProperties": false,
+      "description": "Stable keyset over one partition's grouped counts. Date bounds are inclusive/exclusive.",
+      "properties": {
+        "class": {
+          "$ref": "#/$defs/AuditClass"
+        },
+        "day": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "outcome": {
+          "$ref": "#/$defs/AuditOutcome"
+        },
+        "partition": {
+          "$ref": "#/$defs/AuditPartition"
+        }
+      },
+      "required": [
+        "partition",
+        "day",
+        "class",
+        "outcome"
+      ],
+      "type": "object"
+    },
+    "AuditDailyPage": {
+      "properties": {
+        "counts": {
+          "items": {
+            "$ref": "#/$defs/AuditDailyCount"
+          },
+          "type": "array"
+        },
+        "next": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AuditDailyCursor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "counts"
+      ],
+      "type": "object"
+    },
+    "AuditDailyQuery": {
+      "additionalProperties": false,
+      "properties": {
+        "cursor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AuditDailyCursor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "from": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "limit": {
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "partition": {
+          "$ref": "#/$defs/AuditPartition"
+        },
+        "until": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "partition",
+        "from",
+        "until",
+        "limit"
+      ],
+      "type": "object"
+    },
+    "AuditDetail": {
+      "description": "Closed payloads contain identifiers, measurements and reviewed enums only.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "access": {
+              "$ref": "#/$defs/AdministrativeAccess"
+            },
+            "kind": {
+              "const": "admin_admission",
+              "type": "string"
+            },
+            "operation": {
+              "$ref": "#/$defs/AdministrativeOperation"
+            }
+          },
+          "required": [
+            "kind",
+            "operation",
+            "access"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "access": {
+              "$ref": "#/$defs/AdministrativeAccess"
+            },
+            "failure": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AdminOperationFailure"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "kind": {
+              "const": "admin_completion",
+              "type": "string"
+            },
+            "operation": {
+              "$ref": "#/$defs/AdministrativeOperation"
+            }
+          },
+          "required": [
+            "kind",
+            "operation",
+            "access"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "read",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/AuditReadMethod"
+            }
+          },
+          "required": [
+            "kind",
+            "method"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "collection": {
+              "$ref": "#/$defs/DiscoveryKind"
+            },
+            "denied": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "discovery",
+              "type": "string"
+            },
+            "visible": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "visible_digest": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "collection",
+            "visible",
+            "denied",
+            "visible_digest"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "activity": {
+              "$ref": "#/$defs/TaskActivity"
+            },
+            "kind": {
+              "const": "task",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "activity"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "tool_admission",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "duration_ms": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "error_code": {
+              "format": "int32",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "kind": {
+              "const": "tool_completion",
+              "type": "string"
+            },
+            "result": {
+              "$ref": "#/$defs/ToolResultKind"
+            }
+          },
+          "required": [
+            "kind",
+            "result",
+            "duration_ms"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "activity": {
+              "$ref": "#/$defs/AuthenticationActivity"
+            },
+            "kind": {
+              "const": "authentication",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/$defs/AuthMethod"
+            },
+            "reason": {
+              "$ref": "#/$defs/AuthReasonCode"
+            }
+          },
+          "required": [
+            "kind",
+            "activity",
+            "method",
+            "reason"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "activity": {
+              "$ref": "#/$defs/AccountActivity"
+            },
+            "kind": {
+              "const": "account_change",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "activity"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "activity": {
+              "$ref": "#/$defs/ArtifactActivity"
+            },
+            "bytes": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "kind": {
+              "const": "artifact",
+              "type": "string"
+            },
+            "related": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ResourceUri"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "release_state": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ArtifactReleaseState"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "requested": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AccessLevel"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "subject": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AccessSubject"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "window_start": {
+              "format": "date-time",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "activity"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "activity": {
+              "$ref": "#/$defs/LiveViewActivity"
+            },
+            "kind": {
+              "const": "live_view",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "activity"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "activity": {
+              "$ref": "#/$defs/ComputerActivity"
+            },
+            "kind": {
+              "const": "computer",
+              "type": "string"
+            },
+            "stage": {
+              "$ref": "#/$defs/ComputerAuditStage"
+            },
+            "task": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/TaskId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "activity",
+            "stage"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "activity": {
+              "$ref": "#/$defs/RecordingActivity"
+            },
+            "kind": {
+              "const": "recording",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "activity"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "recording_catalog_grant",
+              "type": "string"
+            },
+            "recordings": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "selection_digest": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "recordings",
+            "selection_digest"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "dictation_open",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "dictation_denial",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "chunks": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "duration_ms": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "end": {
+              "$ref": "#/$defs/DictationEnd"
+            },
+            "kind": {
+              "const": "dictation_summary",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "end",
+            "chunks",
+            "duration_ms"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "knowledge_read",
+              "type": "string"
+            },
+            "member": {
+              "$ref": "#/$defs/ResourceUri"
+            },
+            "revision": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "status": {
+              "$ref": "#/$defs/KnowledgeReadStatus"
+            }
+          },
+          "required": [
+            "kind",
+            "member",
+            "status"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "denials": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "indexing_window",
+              "type": "string"
+            },
+            "members_digest": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "reads": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "reads",
+            "denials",
+            "members_digest"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "AuditOrder": {
+      "enum": [
+        "oldest_first",
+        "newest_first"
+      ],
+      "type": "string"
+    },
+    "AuditOutcome": {
+      "enum": [
+        "allowed",
+        "denied",
+        "succeeded",
+        "failed"
+      ],
+      "type": "string"
+    },
+    "AuditPartition": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "installation",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "tenant",
+              "type": "string"
+            },
+            "tenant": {
+              "$ref": "#/$defs/TenantId"
+            }
+          },
+          "required": [
+            "kind",
+            "tenant"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "AuditQuery": {
+      "additionalProperties": false,
+      "properties": {
+        "actor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PrincipalId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "class": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AuditClass"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cursor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AuditCursor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "from": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "limit": {
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "order": {
+          "$ref": "#/$defs/AuditOrder"
+        },
+        "outcome": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AuditOutcome"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "partition": {
+          "$ref": "#/$defs/AuditPartition"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AuditTarget"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "trace": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AuditTraceId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "until": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "order",
+        "partition",
+        "limit"
+      ],
+      "type": "object"
+    },
+    "AuditReadMethod": {
+      "enum": [
+        "resource_read",
+        "prompt_get",
+        "completion",
+        "subscription",
+        "status",
+        "usage",
+        "audit_view",
+        "audit_export"
+      ],
+      "type": "string"
+    },
+    "AuditReason": {
+      "enum": [
+        "accepted",
+        "policy_denied",
+        "tenant_mismatch",
+        "insufficient_clearance",
+        "insufficient_access",
+        "unauthenticated",
+        "invalid_credential",
+        "expired_credential",
+        "replay",
+        "revoked",
+        "invalid_request",
+        "not_found",
+        "conflict",
+        "unavailable",
+        "quota_exceeded",
+        "cancelled",
+        "timed_out",
+        "upstream_failure",
+        "internal_failure",
+        "unknown_profile",
+        "unknown_server",
+        "unknown_tool",
+        "unknown_resource",
+        "unknown_prompt",
+        "unknown_task",
+        "unknown_artifact",
+        "unknown_principal",
+        "unknown_scope",
+        "unknown_data_label",
+        "unknown_tenant",
+        "unknown_token_issuer",
+        "missing_principal",
+        "missing_tenant",
+        "missing_group",
+        "missing_role",
+        "missing_scope",
+        "missing_data_label",
+        "missing_principal_assurance",
+        "token_audience_mismatch",
+        "token_not_yet_valid"
+      ],
+      "type": "string"
+    },
+    "AuditRecordId": {
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "type": "string"
+    },
+    "AuditRecordSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "actor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PrincipalId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "class": {
+          "$ref": "#/$defs/AuditClass"
+        },
+        "detail": {
+          "$ref": "#/$defs/AuditDetail"
+        },
+        "id": {
+          "$ref": "#/$defs/AuditRecordId"
+        },
+        "occurredAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "outcome": {
+          "$ref": "#/$defs/AuditOutcome"
+        },
+        "reason": {
+          "$ref": "#/$defs/AuditReason"
+        },
+        "requestId": {
+          "$ref": "#/$defs/AuditRequestId"
+        },
+        "sourceIp": {
+          "format": "ip",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "target": {
+          "$ref": "#/$defs/AuditTarget"
+        },
+        "traceId": {
+          "$ref": "#/$defs/AuditTraceId"
+        }
+      },
+      "required": [
+        "id",
+        "occurredAt",
+        "class",
+        "detail",
+        "target",
+        "outcome",
+        "reason",
+        "traceId",
+        "requestId"
+      ],
+      "type": "object"
+    },
+    "AuditRequestId": {
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "type": "string"
+    },
+    "AuditSummaryPage": {
+      "additionalProperties": false,
+      "properties": {
+        "next": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AuditCursor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "records": {
+          "items": {
+            "$ref": "#/$defs/AuditRecordSummary"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "records"
+      ],
+      "type": "object"
+    },
+    "AuditTarget": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "platform_resource",
+              "type": "string"
+            },
+            "uri": {
+              "$ref": "#/$defs/ResourceUri"
+            }
+          },
+          "required": [
+            "kind",
+            "uri"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "server",
+              "type": "string"
+            },
+            "server": {
+              "$ref": "#/$defs/ServerSlug"
+            }
+          },
+          "required": [
+            "kind",
+            "server"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "artifact": {
+              "$ref": "#/$defs/ArtifactId"
+            },
+            "kind": {
+              "const": "artifact",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "artifact"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "computer": {
+              "$ref": "#/$defs/ComputerId"
+            },
+            "kind": {
+              "const": "computer",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "computer"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "task",
+              "type": "string"
+            },
+            "task": {
+              "$ref": "#/$defs/TaskId"
+            }
+          },
+          "required": [
+            "kind",
+            "task"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "task_route",
+              "type": "string"
+            },
+            "route": {
+              "$ref": "#/$defs/CanonicalTaskId"
+            },
+            "server": {
+              "$ref": "#/$defs/ServerSlug"
+            }
+          },
+          "required": [
+            "kind",
+            "server",
+            "route"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "principal",
+              "type": "string"
+            },
+            "principal": {
+              "$ref": "#/$defs/PrincipalId"
+            },
+            "tenant": {
+              "$ref": "#/$defs/TenantId"
+            }
+          },
+          "required": [
+            "kind",
+            "tenant",
+            "principal"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "context": {
+              "$ref": "#/$defs/WorkContextId"
+            },
+            "kind": {
+              "const": "work_context",
+              "type": "string"
+            },
+            "tenant": {
+              "$ref": "#/$defs/TenantId"
+            }
+          },
+          "required": [
+            "kind",
+            "tenant",
+            "context"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "tool",
+              "type": "string"
+            },
+            "server": {
+              "$ref": "#/$defs/ServerSlug"
+            },
+            "tool": {
+              "$ref": "#/$defs/LocalToolName"
+            }
+          },
+          "required": [
+            "kind",
+            "server",
+            "tool"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "resource",
+              "type": "string"
+            },
+            "server": {
+              "$ref": "#/$defs/ServerSlug"
+            },
+            "uri": {
+              "$ref": "#/$defs/ResourceUri"
+            }
+          },
+          "required": [
+            "kind",
+            "server",
+            "uri"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "resource_template",
+              "type": "string"
+            },
+            "server": {
+              "$ref": "#/$defs/ServerSlug"
+            },
+            "uri": {
+              "$ref": "#/$defs/ResourceTemplateUri"
+            }
+          },
+          "required": [
+            "kind",
+            "server",
+            "uri"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "prompt",
+              "type": "string"
+            },
+            "prompt": {
+              "$ref": "#/$defs/PromptName"
+            },
+            "server": {
+              "$ref": "#/$defs/ServerSlug"
+            }
+          },
+          "required": [
+            "kind",
+            "server",
+            "prompt"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "collection": {
+              "$ref": "#/$defs/DiscoveryKind"
+            },
+            "kind": {
+              "const": "discovery",
+              "type": "string"
+            },
+            "server": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ServerSlug"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "collection"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "profile",
+              "type": "string"
+            },
+            "profile": {
+              "$ref": "#/$defs/GatewayProfileId"
+            }
+          },
+          "required": [
+            "kind",
+            "profile"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "client": {
+              "$ref": "#/$defs/OAuthClientId"
+            },
+            "kind": {
+              "const": "client",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "client"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "audit_log",
+              "type": "string"
+            },
+            "partition": {
+              "$ref": "#/$defs/AuditPartition"
+            }
+          },
+          "required": [
+            "kind",
+            "partition"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "installation",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "AuditTraceId": {
+      "not": {
+        "const": "00000000000000000000000000000000"
+      },
+      "pattern": "^[0-9a-f]{32}$",
+      "type": "string"
+    },
+    "AuditViewSession": {
+      "additionalProperties": false,
+      "description": "Reference to the committed access record, checked against the current caller\nand selected partition on each read. This identifier grants no authority.",
+      "properties": {
+        "expiresAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "id": {
+          "$ref": "#/$defs/AuditRecordId"
+        },
+        "partition": {
+          "$ref": "#/$defs/AuditPartition"
+        }
+      },
+      "required": [
+        "id",
+        "partition",
+        "expiresAt"
+      ],
+      "type": "object"
+    },
+    "AuthMethod": {
+      "enum": [
+        "bearer_jwt",
+        "oidc_authorization_code_pkce",
+        "refresh_token",
+        "client_credentials_private_key_jwt",
+        "enterprise_managed_id_jag"
+      ],
+      "type": "string"
+    },
+    "AuthReasonCode": {
+      "enum": [
+        "auth_allow",
+        "missing_authorization_header",
+        "invalid_authorization_header",
+        "unknown_identity_provider",
+        "unknown_authorization_server",
+        "identity_provider_unavailable",
+        "authorization_server_unavailable",
+        "invalid_auth_config",
+        "invalid_bearer_token",
+        "invalid_authorization_request",
+        "invalid_authorization_code",
+        "invalid_refresh_token",
+        "refresh_token_duplicate_delivery",
+        "refresh_token_revoked",
+        "refresh_token_replay",
+        "invalid_pkce",
+        "invalid_oidc_id_token",
+        "invalid_client",
+        "unsupported_grant_type",
+        "invalid_client_assertion",
+        "client_assertion_replay",
+        "invalid_identity_assertion",
+        "identity_assertion_replay",
+        "invalid_scope",
+        "token_signing_key_unavailable",
+        "token_revoked",
+        "auth_state_unavailable",
+        "policy_denied"
+      ],
+      "type": "string"
+    },
+    "AuthenticationActivity": {
+      "enum": [
+        "issue",
+        "refresh",
+        "duplicate_refresh",
+        "revoke",
+        "replay",
+        "credential_denial",
+        "login",
+        "logout"
+      ],
+      "type": "string"
+    },
+    "CanonicalTaskId": {
+      "description": "Opaque gateway task route bound to current invocation authority.",
+      "type": "string"
+    },
+    "ComputerActivity": {
+      "enum": [
+        "create",
+        "start",
+        "stop",
+        "delete",
+        "attach",
+        "grant",
+        "renew",
+        "revoke",
+        "command",
+        "file_transfer",
+        "maintain",
+        "close",
+        "observe_restart"
+      ],
+      "type": "string"
+    },
+    "ComputerAuditStage": {
+      "enum": [
+        "reserved",
+        "queued",
+        "dispatched",
+        "observed",
+        "settled",
+        "aborted",
+        "grant_issued",
+        "grant_renewed",
+        "grant_revoked",
+        "attached",
+        "closed",
+        "terminated",
+        "containment_requested",
+        "stop_dispatched",
+        "maintenance_progress",
+        "resumed",
+        "recovery_required"
+      ],
+      "type": "string"
+    },
+    "ComputerId": {
+      "format": "uuid",
+      "maxLength": 36,
+      "minLength": 36,
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "type": "string"
+    },
+    "DictationEnd": {
+      "enum": [
+        "completed",
+        "cancelled",
+        "timed_out",
+        "disconnected",
+        "failed"
+      ],
+      "type": "string"
+    },
+    "DiscoveryKind": {
+      "enum": [
+        "tools",
+        "resources",
+        "resource_templates",
+        "prompts"
+      ],
+      "type": "string"
+    },
+    "GatewayProfileId": {
+      "description": "Veoveo profile id exposed under `/mcp/{profile}`.",
+      "type": "string"
+    },
+    "GroupId": {
+      "description": "Identity-provider group identifier used by gateway policy.",
+      "type": "string"
+    },
+    "KnowledgeReadStatus": {
+      "enum": [
+        "read",
+        "not_modified",
+        "missing",
+        "denied"
+      ],
+      "type": "string"
+    },
+    "LiveViewActivity": {
+      "enum": [
+        "issue",
+        "renew",
+        "close",
+        "expire",
+        "revoke"
+      ],
+      "type": "string"
+    },
+    "LocalToolName": {
+      "description": "Tool name as exposed by one direct MCP server.",
+      "type": "string"
+    },
+    "OAuthClientId": {
+      "description": "Registered OAuth client id allowed to request gateway-profile tokens.",
+      "type": "string"
+    },
+    "PrincipalId": {
+      "description": "Stable authenticated user or service-principal identity.",
+      "type": "string"
+    },
+    "PromptName": {
+      "description": "Prompt name as exposed by one direct MCP server or gateway profile.",
+      "type": "string"
+    },
+    "RecordingActivity": {
+      "enum": [
+        "stream_open",
+        "stream_status",
+        "append_denied",
+        "blueprint_publish",
+        "finish",
+        "layer_publish",
+        "playback_grant"
+      ],
+      "type": "string"
+    },
+    "ResourceTemplateUri": {
+      "description": "An ASCII RFC 6570 template with a literal lowercase resource scheme and `://` prefix.\nValidation preserves spelling and does not establish route ownership or policy.\nA literal-only template is valid under RFC 6570.\n```compile_fail\nuse veoveo_types::{ResourceTemplateUri, ResourceUri};\nfn read_concrete(_: ResourceUri) {}\nread_concrete(ResourceTemplateUri::new(\"example://items/{id}\").unwrap());\n```",
+      "type": "string"
+    },
+    "ResourceUri": {
+      "type": "string"
+    },
+    "ServerSlug": {
+      "description": "Canonical hosted MCP server id used in manifests, profiles, and gateway routes.",
+      "type": "string"
+    },
+    "TaskActivity": {
+      "enum": [
+        "update",
+        "cancel"
+      ],
+      "type": "string"
+    },
+    "TaskId": {
+      "maxLength": 45,
+      "pattern": "^(?:[0-9A-Fa-f]{32}|[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}|\\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\\}|urn:uuid:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})(?![\\s\\S])",
+      "type": "string"
+    },
+    "TenantId": {
+      "description": "Tenant, organization, or customer boundary identifier.",
+      "type": "string"
+    },
+    "ToolResultKind": {
+      "enum": [
+        "complete",
+        "error_result",
+        "input_required",
+        "task_created",
+        "other_response",
+        "protocol_error"
+      ],
+      "type": "string"
+    },
+    "WorkContextId": {
+      "description": "Tenant-local boundary that governs related work and every output it produces.",
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Schema root for generated clients; this envelope is not an API response.",
+  "properties": {
+    "daily_page": {
+      "$ref": "#/$defs/AuditDailyPage"
+    },
+    "daily_query": {
+      "$ref": "#/$defs/AuditDailyQuery"
+    },
+    "page": {
+      "$ref": "#/$defs/AuditSummaryPage"
+    },
+    "partitions": {
+      "items": {
+        "$ref": "#/$defs/AuditPartition"
+      },
+      "type": "array"
+    },
+    "query": {
+      "$ref": "#/$defs/AuditQuery"
+    },
+    "view": {
+      "$ref": "#/$defs/AuditViewSession"
+    }
+  },
+  "required": [
+    "partitions",
+    "query",
+    "daily_query",
+    "page",
+    "daily_page",
+    "view"
+  ],
+  "title": "AuditReaderApi",
+  "type": "object"
+}

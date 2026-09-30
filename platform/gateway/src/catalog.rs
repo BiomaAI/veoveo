@@ -88,6 +88,7 @@ impl std::error::Error for GatewayAuthorityError {}
 #[derive(Debug, Clone)]
 pub struct GatewayCatalogHandle {
     state: Arc<RwLock<GatewayCatalogHandleState>>,
+    changes: tokio::sync::watch::Sender<u64>,
 }
 
 #[derive(Debug)]
@@ -109,7 +110,12 @@ impl GatewayCatalogHandle {
                 catalog,
                 generation: 0,
             })),
+            changes: tokio::sync::watch::channel(0).0,
         }
+    }
+
+    pub fn subscribe(&self) -> tokio::sync::watch::Receiver<u64> {
+        self.changes.subscribe()
     }
 
     pub fn current(&self) -> Arc<GatewayCatalog> {
@@ -128,6 +134,7 @@ impl GatewayCatalogHandle {
         let mut state = self.state.write();
         state.catalog = catalog;
         state.generation = state.generation.saturating_add(1);
+        self.changes.send_replace(state.generation);
     }
 }
 
@@ -512,6 +519,9 @@ impl GatewayCatalog {
             }
         };
         Ok(AuthenticatedSubject {
+            audit: crate::request_observation::RequestObservation::current()
+                .map(|request| request.audit)
+                .unwrap_or_else(veoveo_audit_contract::AuditRequest::background),
             access_token,
             principal,
             actor,

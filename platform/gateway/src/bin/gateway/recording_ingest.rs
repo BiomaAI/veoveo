@@ -1,7 +1,9 @@
 //! Authenticated public recording ingest and discovery routes.
 
-use std::collections::BTreeMap;
+#[path = "recording_ingest/audit.rs"]
+mod audit;
 use std::time::{Duration, Instant};
+use veoveo_mcp_contract::audit::{AuditOutcome, AuditReason};
 
 use axum::{
     Router,
@@ -315,7 +317,7 @@ async fn proxy_authorized(
         Ok(authenticated) => authenticated,
         Err(response) => return *response,
     };
-    let trace_id = match TraceId::new(uuid::Uuid::new_v4().to_string()) {
+    let trace_id = match TraceId::new(subject.audit.trace_id.to_string()) {
         Ok(trace_id) => trace_id,
         Err(error) => return auth_audit_error_response(error.into()),
     };
@@ -326,45 +328,26 @@ async fn proxy_authorized(
         action,
         trace_id: &trace_id,
     });
-    let mut audit_metadata = BTreeMap::from([
-        ("action".to_owned(), format!("{action:?}")),
-        ("producer_id".to_owned(), producer.id.to_string()),
-        ("trace_id".to_owned(), trace_id.to_string()),
-    ]);
-    if let Some(policy) = &decision.policy_version {
-        audit_metadata.insert("policy_version".to_owned(), policy.to_string());
-    }
-    if let Some(rule) = &decision.rule_id {
-        audit_metadata.insert("policy_rule".to_owned(), rule.to_string());
-    }
-    if let Some(stream_id) = stream_id {
-        audit_metadata.insert("stream_id".to_owned(), stream_id.to_string());
-    }
     let allowed = decision.effect == PolicyEffect::Allow;
-    if should_record_authorization_audit(action, &decision.effect)
-        && let Err(error) = record_resource_auth_audit(
-            &state.gateway_state,
-            AuthAuditTarget {
-                profile: None,
-                protected_resource: &resource.protected_resource,
-            },
+    if should_record_authorization_audit(action, &decision.effect) {
+        let draft = match audit::draft(
+            &subject,
+            &producer.id,
+            stream_id,
+            action,
             if allowed {
-                AuthOutcome::Allow
+                AuditOutcome::Allowed
             } else {
-                AuthOutcome::Deny
+                AuditOutcome::Denied
             },
-            if allowed {
-                AuthReasonCode::AuthAllow
-            } else {
-                AuthReasonCode::PolicyDenied
-            },
-            Some(&subject),
-            started_at,
-            audit_metadata,
-        )
-        .await
-    {
-        return auth_audit_error_response(error);
+            veoveo_mcp_gateway::audit::policy_reason(decision.reason),
+        ) {
+            Ok(draft) => draft,
+            Err(error) => return auth_audit_error_response(error),
+        };
+        if let Err(error) = state.gateway_state.record_audit(draft).await {
+            return auth_audit_error_response(error);
+        }
     }
     if !allowed {
         return ingest_error(
@@ -374,80 +357,118 @@ async fn proxy_authorized(
         );
     }
 
-    envelope.set_producer(authorized_producer(&producer));
-    let expires_at = std::cmp::min(
-        subject.access_token.expires_at,
-        Utc::now() + TimeDelta::seconds(INTERNAL_TOKEN_TTL_SECONDS),
-    );
-    let internal_token = match state.internal_token_issuer.issue_resource(
-        resource.protected_resource.clone(),
-        match ServerSlug::new("recording-hub") {
-            Ok(server) => server,
-            Err(error) => return auth_audit_error_response(error.into()),
-        },
-        subject.actor,
-        subject.authority,
-        expires_at,
-    ) {
-        Ok(token) => token,
-        Err(error) => return auth_audit_error_response(error.into()),
-    };
-    let url = format!(
-        "{}{}",
-        resource.upstream.url.as_str().trim_end_matches('/'),
-        internal_path
-    );
-    let response = match current_http_client(&state.http)
-        .request(
-            if matches!(
-                action,
-                GatewayAction::RecordingBatchAppend | GatewayAction::RecordingBlueprintPublish
-            ) {
-                reqwest::Method::PUT
-            } else {
-                reqwest::Method::POST
+    let response = async {
+        envelope.set_producer(authorized_producer(&producer));
+        let expires_at = std::cmp::min(
+            subject.access_token.expires_at,
+            Utc::now() + TimeDelta::seconds(INTERNAL_TOKEN_TTL_SECONDS),
+        );
+        let internal_token = match state.internal_token_issuer.issue_resource(
+            resource.protected_resource.clone(),
+            match ServerSlug::new("recording-hub") {
+                Ok(server) => server,
+                Err(error) => return auth_audit_error_response(error.into()),
             },
-            url,
-        )
-        .bearer_auth(internal_token.bearer_token)
-        .header(header::CONTENT_TYPE.as_str(), MEDIA_TYPE)
-        .timeout(RECORDING_HUB_REQUEST_TIMEOUT)
-        .body(envelope.encode_to_vec())
-        .send()
-        .await
+            subject.actor.clone(),
+            subject.authority.clone(),
+            expires_at,
+        ) {
+            Ok(token) => token,
+            Err(error) => return auth_audit_error_response(error.into()),
+        };
+        let url = format!(
+            "{}{}",
+            resource.upstream.url.as_str().trim_end_matches('/'),
+            internal_path
+        );
+        let response = match current_http_client(&state.http)
+            .request(
+                if matches!(
+                    action,
+                    GatewayAction::RecordingBatchAppend | GatewayAction::RecordingBlueprintPublish
+                ) {
+                    reqwest::Method::PUT
+                } else {
+                    reqwest::Method::POST
+                },
+                url,
+            )
+            .bearer_auth(internal_token.bearer_token)
+            .header(header::CONTENT_TYPE.as_str(), MEDIA_TYPE)
+            .timeout(RECORDING_HUB_REQUEST_TIMEOUT)
+            .body(envelope.encode_to_vec())
+            .send()
+            .await
+        {
+            Ok(response) => response,
+            Err(error) => {
+                tracing::warn!("recording hub ingest request failed: {error}");
+                return ingest_error(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    IngestErrorCode::StorageUnavailable,
+                    "recording hub is unavailable",
+                );
+            }
+        };
+        let status = response.status();
+        let body = match response.bytes().await {
+            Ok(body) => body,
+            Err(error) => {
+                tracing::warn!("recording hub ingest response failed: {error}");
+                return ingest_error(
+                    StatusCode::BAD_GATEWAY,
+                    IngestErrorCode::StorageUnavailable,
+                    "recording hub returned an invalid response",
+                );
+            }
+        };
+        let status = StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+        let mut forwarded = (status, body).into_response();
+        forwarded
+            .headers_mut()
+            .insert(header::CONTENT_TYPE, HeaderValue::from_static(MEDIA_TYPE));
+        forwarded
+    }
+    .await;
+    // A successful append/status already has domain state; no per-chunk/per-poll record.
+    if should_record_authorization_audit(action, &PolicyEffect::Allow)
+        || !response.status().is_success()
     {
-        Ok(response) => response,
-        Err(error) => {
-            tracing::warn!("recording hub ingest request failed: {error}");
-            return ingest_error(
-                StatusCode::SERVICE_UNAVAILABLE,
-                IngestErrorCode::StorageUnavailable,
-                "recording hub is unavailable",
-            );
+        let outcome = if response.status().is_success() {
+            AuditOutcome::Succeeded
+        } else if response.status().is_client_error() {
+            AuditOutcome::Denied
+        } else {
+            AuditOutcome::Failed
+        };
+        let reason = if response.status().is_success() {
+            AuditReason::Accepted
+        } else if response.status().is_client_error() {
+            AuditReason::InvalidRequest
+        } else {
+            AuditReason::UpstreamFailure
+        };
+        match audit::draft(&subject, &producer.id, stream_id, action, outcome, reason) {
+            Ok(draft) => {
+                state
+                    .gateway_state
+                    .audit_writer()
+                    .await
+                    .record_completion(draft)
+                    .await
+            }
+            Err(error) => tracing::error!(%error, "invalid recording completion audit"),
         }
-    };
-    let status = response.status();
-    let body = match response.bytes().await {
-        Ok(body) => body,
-        Err(error) => {
-            tracing::warn!("recording hub ingest response failed: {error}");
-            return ingest_error(
-                StatusCode::BAD_GATEWAY,
-                IngestErrorCode::StorageUnavailable,
-                "recording hub returned an invalid response",
-            );
-        }
-    };
-    let status = StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
-    let mut forwarded = (status, body).into_response();
-    forwarded
-        .headers_mut()
-        .insert(header::CONTENT_TYPE, HeaderValue::from_static(MEDIA_TYPE));
-    forwarded
+    }
+    response
 }
 
 fn should_record_authorization_audit(action: GatewayAction, effect: &PolicyEffect) -> bool {
-    *effect == PolicyEffect::Deny || action != GatewayAction::RecordingBatchAppend
+    *effect == PolicyEffect::Deny
+        || !matches!(
+            action,
+            GatewayAction::RecordingBatchAppend | GatewayAction::RecordingStreamStatus
+        )
 }
 
 async fn authenticate(
@@ -616,7 +637,6 @@ async fn record_denial(
         reason,
         None,
         started_at,
-        BTreeMap::new(),
     )
     .await
     {
@@ -723,7 +743,6 @@ mod tests {
     fn recording_lifecycle_and_every_denial_remain_audited() {
         for action in [
             GatewayAction::RecordingStreamOpen,
-            GatewayAction::RecordingStreamStatus,
             GatewayAction::RecordingStreamFinish,
         ] {
             assert!(should_record_authorization_audit(

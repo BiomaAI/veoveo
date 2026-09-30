@@ -7,6 +7,7 @@
 | Veoveo identity and Work Context | Canonical TaskOwner authority, named user/service principals, tenant and context isolation; current implementation admits private ownership |
 | SurrealDB / SurrealQL 3.3.0 | Existing qualified platform client/server pin; schema-full records, atomic multi-record admission and outbox, conflict-only bounded transaction retry |
 | Veoveo Computers JSON | Public DTOs live in `contract/`; provider identities and persisted authority remain internal |
+| Veoveo audit record v1 | Closed Computer activities and journal stages, verified request attribution and transactional append through the shared Store function |
 | XChaCha20-Poly1305 and HMAC-SHA-256 | Private command, output-capability and maintenance-checkpoint envelope v1; installation-owned keys, random 192-bit nonces, distinct derived encryption and fingerprint keys and authenticated purposes; no public wire extension |
 | Veoveo file-transfer envelope v1 | Separate private purposes for bounded file intent and Artifact capability; binds exact owner, actor, optional grant, provider, retained instance, process, template, direction and inherited labels |
 | Veoveo file-transfer journal | Migrations 0073–0075; private request, one-shot dispatch, bounded original-run containment and exact result settlement under a shared `computer.file_transfer` Task lease; native worker and public admission live in `servers/computers-mcp` |
@@ -25,6 +26,22 @@ The domain owns retained Computer identity. Provider transport belongs to
 through the Computers worker service. No provider dependency enters the gateway.
 [Qualification Limits](#qualification-limits) records the installed acceptance scope
 and remaining release gates.
+
+## Transactional Audit
+
+`src/audit.rs` builds records from accepted request authority. Reservation requires a
+verified `ComputerActor`; retained ownership alone cannot supply request attribution.
+Lifecycle, command, file-transfer and maintenance journals append their typed stage
+and optional Task identity in the transaction that changes domain state. The accepted
+actor follows work into background execution. Maintenance resumption records the actor
+who submitted the recovery request.
+
+Grant issuance, attachment, revocation and closure use the same transaction function.
+Connection lease checks and activity timestamps belong to the access ledger and do not
+create per-tick records. An observed host restart records the verified reader who
+triggered the observation. SQL fences reject stale observations before any record can
+commit. Audit records contain no command text, file bytes, credentials or provider
+payloads. The existing outbox still supplies domain notifications.
 
 ## Admission And Ownership
 

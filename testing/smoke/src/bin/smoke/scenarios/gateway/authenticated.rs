@@ -1,4 +1,10 @@
 use super::*;
+use SmokeAuditSelection as Select;
+use veoveo_mcp_contract::audit::{
+    AdministrativeOperation, AuditClass, AuditOutcome, AuditPrincipalKind, AuditReadMethod,
+    AuditReason, DiscoveryKind,
+};
+use veoveo_types::{AuthMethod, AuthReasonCode, DataLabelId, OAuthClientId, PrincipalId};
 
 pub(crate) async fn gateway_authenticated(
     conformance: &Path,
@@ -11,6 +17,7 @@ pub(crate) async fn gateway_authenticated(
     assert_executable(media)?;
     assert_executable(gateway)?;
     assert_executable(artifact_service)?;
+    let expected_profiles = fixture_profile_count(control_plane)?;
 
     let tmpdir = smoke_tmpdir()?;
     let mut cleanup = TmpDirGuard::new(tmpdir.clone());
@@ -77,7 +84,7 @@ pub(crate) async fn gateway_authenticated(
         &gateway_log,
     )?;
     wait_for_http(&format!("{gateway_base}/healthz")).await?;
-    assert_ready_profiles(&gateway_base, 2).await?;
+    assert_ready_profiles(&gateway_base, fixture_profile_count(control_plane)?).await?;
     assert_json_log(
         &gateway_log,
         &[("message", "listening"), ("service", "veoveo-mcp-gateway")],
@@ -173,7 +180,11 @@ pub(crate) async fn gateway_authenticated(
         .ok_or_else(|| {
             anyhow!("seeded control-plane status had no revision: {seeded_control_status}")
         })?;
-    assert_control_plane_status(&seeded_control_status, seeded_revision_id)?;
+    assert_control_plane_status(
+        &seeded_control_status,
+        seeded_revision_id,
+        expected_profiles,
+    )?;
 
     let applied = put_json_file(
         &http,
@@ -182,16 +193,16 @@ pub(crate) async fn gateway_authenticated(
         control_plane,
     )
     .await?;
-    let revision_id = assert_control_plane_admin_result(&applied, "applied")?;
+    let revision_id = assert_control_plane_admin_result(&applied, "applied", expected_profiles)?;
     let control_status = get_json(
         &http,
         &format!("{gateway_base}/admin/admin/control-plane"),
         Some(admin_token.trim()),
     )
     .await?;
-    assert_control_plane_status(&control_status, &revision_id)?;
+    assert_control_plane_status(&control_status, &revision_id, expected_profiles)?;
 
-    assert_ready_profiles(&gateway_base, 2).await?;
+    assert_ready_profiles(&gateway_base, fixture_profile_count(control_plane)?).await?;
     let admin_id_jag_token = gateway_id_jag_token_for_profile(
         conformance,
         &gateway_base,
@@ -213,7 +224,7 @@ pub(crate) async fn gateway_authenticated(
         Some(admin_id_jag_token.trim()),
     )
     .await?;
-    assert_control_plane_status_with_profiles(&admin_status, &revision_id, 2)?;
+    assert_control_plane_status(&admin_status, &revision_id, expected_profiles)?;
     let admin_id_jag_mcp_token = gateway_id_jag_token_for_profile(
         conformance,
         &gateway_base,
@@ -276,7 +287,7 @@ pub(crate) async fn gateway_authenticated(
         ["info".into()],
     )?;
 
-    gateway_child.stop();
+    gateway_child.drain(Duration::from_secs(90)).await?;
     gateway_child = ChildGuard::spawn(
         gateway,
         gateway_serve_args(gateway_port, platform_store),
@@ -293,14 +304,14 @@ pub(crate) async fn gateway_authenticated(
         &gateway_log,
     )?;
     wait_for_http(&format!("{gateway_base}/healthz")).await?;
-    assert_ready_profiles(&gateway_base, 2).await?;
+    assert_ready_profiles(&gateway_base, fixture_profile_count(control_plane)?).await?;
     let restarted_admin_status = get_json(
         &http,
         &format!("{gateway_base}/admin/admin/control-plane"),
         Some(admin_id_jag_token.trim()),
     )
     .await?;
-    assert_control_plane_status_with_profiles(&restarted_admin_status, &revision_id, 2)?;
+    assert_control_plane_status(&restarted_admin_status, &revision_id, expected_profiles)?;
     run_direct_mcp(
         conformance,
         &format!("{gateway_base}/mcp/admin"),
@@ -397,7 +408,7 @@ pub(crate) async fn gateway_authenticated(
         &cui_control_plane,
     )
     .await?;
-    assert_control_plane_admin_result(&cui_apply, "applied")?;
+    assert_control_plane_admin_result(&cui_apply, "applied", expected_profiles)?;
 
     assert_mcp_denied(
         conformance,
@@ -512,61 +523,133 @@ pub(crate) async fn gateway_authenticated(
     }
 
     edge.stop();
-    gateway_child.stop();
-    let audit_counts = run_gateway_json(gateway, "audit-counts", platform_store)?;
-    assert_json_u64_at_least(&audit_counts, "auth_events", 1)?;
-    assert_json_u64_at_least(&audit_counts, "policy_events", 1)?;
-    let auth_method_summary =
-        run_gateway_json(gateway, "auth-audit-method-summary", platform_store)?;
-    assert_audit_method(&auth_method_summary, "bearer_jwt", 10, 2)?;
-    assert_audit_method(
-        &auth_method_summary,
-        "client_credentials_private_key_jwt",
-        4,
-        1,
-    )?;
-    assert_audit_method(&auth_method_summary, "enterprise_managed_id_jag", 5, 1)?;
-    let auth_reason_summary =
-        run_gateway_json(gateway, "auth-audit-reason-summary", platform_store)?;
-    assert_reason_summary_at_least(&auth_reason_summary, "auth_allow", 10)?;
-    assert_reason_summary_at_least(&auth_reason_summary, "missing_authorization_header", 1)?;
-    assert_reason_summary_at_least(&auth_reason_summary, "invalid_bearer_token", 3)?;
-    assert_reason_summary_at_least(&auth_reason_summary, "invalid_scope", 1)?;
-    assert_reason_summary_at_least(&auth_reason_summary, "identity_assertion_replay", 1)?;
-    assert_reason_summary_at_least(&auth_reason_summary, "token_revoked", 1)?;
-    let auth_principal_kind_summary =
-        run_gateway_auth_metadata_summary(gateway, platform_store, "principal_kind")?;
-    assert_metadata_summary_at_least(&auth_principal_kind_summary, "user", 1)?;
-    let auth_principal_label_summary =
-        run_gateway_auth_metadata_summary(gateway, platform_store, "principal_data_labels")?;
-    assert_metadata_summary_at_least(&auth_principal_label_summary, "cui", 1)?;
-    let auth_principal_assurance_summary =
-        run_gateway_auth_metadata_summary(gateway, platform_store, "principal_assurances")?;
-    assert_metadata_summary_at_least(&auth_principal_assurance_summary, "us_person", 1)?;
-    let audit_summary = run_gateway_json(gateway, "audit-method-summary", platform_store)?;
-    assert_audit_method(&audit_summary, "tools/list", 1, 0)?;
-    assert_audit_method(&audit_summary, "resources/list", 1, 0)?;
-    assert_audit_method(&audit_summary, "resources/templates/list", 1, 0)?;
-    assert_audit_method(&audit_summary, "resources/read", 3, 5)?;
-    assert_audit_method(&audit_summary, "prompts/list", 2, 0)?;
-    assert_audit_method(&audit_summary, "prompts/get", 1, 1)?;
-    assert_audit_method(&audit_summary, "completion/complete", 0, 1)?;
-    assert_audit_method(&audit_summary, "admin/control-plane", 1, 0)?;
-    assert_audit_method(&audit_summary, "admin/control-plane/result", 1, 0)?;
-    let audit_reasons = run_gateway_json(gateway, "audit-reason-summary", platform_store)?;
-    assert_reason_summary_at_least(&audit_reasons, "missing_data_label", 1)?;
-    assert_reason_summary_at_least(&audit_reasons, "missing_principal_assurance", 1)?;
-    assert_reason_summary_at_least(&audit_reasons, "missing_group", 1)?;
-    assert_reason_summary_at_least(&audit_reasons, "missing_role", 1)?;
-    let principal_kind_summary =
-        run_gateway_metadata_summary(gateway, platform_store, "principal_kind")?;
-    assert_metadata_summary_at_least(&principal_kind_summary, "user", 1)?;
-    let principal_label_summary =
-        run_gateway_metadata_summary(gateway, platform_store, "principal_data_labels")?;
-    assert_metadata_summary_at_least(&principal_label_summary, "cui", 1)?;
-    let principal_assurance_summary =
-        run_gateway_metadata_summary(gateway, platform_store, "principal_assurances")?;
-    assert_metadata_summary_at_least(&principal_assurance_summary, "us_person", 1)?;
+    gateway_child.drain(Duration::from_secs(90)).await?;
+    let audit = SmokeAudit::connect(platform_store, control_plane).await?;
+    audit
+        .exact(
+            Select::AuthenticationMethod(AuthMethod::BearerJwt),
+            Some(AuditOutcome::Succeeded),
+            0,
+        )
+        .await?;
+    for (method, successes, denials) in [
+        (AuthMethod::BearerJwt, 0, 2),
+        (AuthMethod::ClientCredentialsPrivateKeyJwt, 4, 1),
+        (AuthMethod::EnterpriseManagedIdJag, 5, 1),
+    ] {
+        audit
+            .at_least(
+                Select::AuthenticationMethod(method),
+                Some(AuditOutcome::Succeeded),
+                successes,
+            )
+            .await?;
+        audit
+            .at_least(
+                Select::AuthenticationMethod(method),
+                Some(AuditOutcome::Denied),
+                denials,
+            )
+            .await?;
+    }
+    for (reason, minimum) in [
+        (AuthReasonCode::AuthAllow, 9),
+        (AuthReasonCode::MissingAuthorizationHeader, 1),
+        (AuthReasonCode::InvalidBearerToken, 3),
+        (AuthReasonCode::InvalidScope, 1),
+        (AuthReasonCode::IdentityAssertionReplay, 1),
+        (AuthReasonCode::TokenRevoked, 1),
+    ] {
+        audit
+            .at_least(Select::AuthenticationReason(reason), None, minimum)
+            .await?;
+    }
+    for collection in [
+        DiscoveryKind::Tools,
+        DiscoveryKind::Resources,
+        DiscoveryKind::ResourceTemplates,
+        DiscoveryKind::Prompts,
+    ] {
+        audit
+            .at_least(
+                Select::Discovery(collection),
+                Some(AuditOutcome::Allowed),
+                1,
+            )
+            .await?;
+    }
+    for (method, allows, denials) in [
+        (AuditReadMethod::Usage, 3, 5),
+        (AuditReadMethod::PromptGet, 1, 1),
+        (AuditReadMethod::Completion, 0, 1),
+    ] {
+        audit
+            .at_least(Select::Read(method), Some(AuditOutcome::Allowed), allows)
+            .await?;
+        audit
+            .at_least(Select::Read(method), Some(AuditOutcome::Denied), denials)
+            .await?;
+    }
+    audit
+        .at_least(
+            Select::AdminAdmission(AdministrativeOperation::ControlPlane),
+            Some(AuditOutcome::Allowed),
+            1,
+        )
+        .await?;
+    audit
+        .at_least(
+            Select::AdminCompletion(AdministrativeOperation::ControlPlane),
+            Some(AuditOutcome::Succeeded),
+            1,
+        )
+        .await?;
+    for reason in [
+        AuditReason::MissingDataLabel,
+        AuditReason::MissingPrincipalAssurance,
+        AuditReason::MissingGroup,
+        AuditReason::MissingRole,
+    ] {
+        audit
+            .at_least(Select::Reason(reason), Some(AuditOutcome::Denied), 1)
+            .await?;
+    }
+    for class in [AuditClass::Authentication, AuditClass::ApiActivity] {
+        audit.at_least(Select::Class(class), None, 1).await?;
+        audit
+            .at_least(
+                Select::DataLabel {
+                    class,
+                    label: DataLabelId::new("cui")?,
+                },
+                None,
+                1,
+            )
+            .await?;
+    }
+    audit
+        .at_least(
+            Select::ActorKind {
+                class: AuditClass::Authentication,
+                kind: AuditPrincipalKind::User,
+            },
+            None,
+            1,
+        )
+        .await?;
+    audit
+        .at_least(
+            Select::DelegatedActor {
+                class: AuditClass::ApiActivity,
+                actor: PrincipalId::new("https://veoveo.example/oauth#admin-delegated")?,
+                delegator: PrincipalId::new("https://idp.example.com#00u-smoke")?,
+                client: OAuthClientId::new("admin-delegated")?,
+            },
+            Some(AuditOutcome::Allowed),
+            1,
+        )
+        .await?;
+    audit.assert_cli(gateway, platform_store)?;
 
     media_child.stop();
     cleanup.remove_on_drop();

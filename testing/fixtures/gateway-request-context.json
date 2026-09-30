@@ -74,6 +74,12 @@
         "data_labels": [],
         "assurances": [],
         "authenticated_at": null
+      },
+      "audit": {
+        "id": "0199a000-0000-7000-8000-000000000001",
+        "trace_id": "00000000000000000000000000000001",
+        "span_id": "0000000000000001",
+        "source_ip": null
       }
     }
   },
@@ -151,6 +157,12 @@
         "data_labels": [],
         "assurances": [],
         "authenticated_at": null
+      },
+      "audit": {
+        "id": "0199a000-0000-7000-8000-000000000002",
+        "trace_id": "00000000000000000000000000000002",
+        "span_id": "0000000000000002",
+        "source_ip": null
       }
     }
   },
@@ -224,6 +236,12 @@
         "data_labels": [],
         "assurances": [],
         "authenticated_at": null
+      },
+      "audit": {
+        "id": "0199a000-0000-7000-8000-000000000003",
+        "trace_id": "00000000000000000000000000000003",
+        "span_id": "0000000000000003",
+        "source_ip": null
       }
     }
   }

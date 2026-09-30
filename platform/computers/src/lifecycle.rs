@@ -145,7 +145,7 @@ impl ComputersStore {
             ProviderCommit::Dispatch,
             include_str!("../queries/dispatch.surql"),
             bindings,
-            "computer.operation_dispatched",
+            crate::audit::LifecycleTransition::Dispatch,
         )
         .await?;
         let after = self.worker_operation(claimed).await?;
@@ -185,7 +185,7 @@ impl ComputersStore {
                         .into_value(),
                 ),
             ],
-            "computer.recovery_required",
+            crate::audit::LifecycleTransition::RecoveryRequired,
         )
         .await?;
         let after = self.worker_operation(claimed).await?;
@@ -260,7 +260,7 @@ impl ComputersStore {
                 ("process", reached.process_id.into_value()),
                 ("phase", phase.into_value()),
             ],
-            "computer.operation_succeeded",
+            crate::audit::LifecycleTransition::Settle,
         )
         .await?;
         Ok(self.worker_operation(claimed).await?.operation)

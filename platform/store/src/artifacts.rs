@@ -10,10 +10,10 @@ use crate::{
     ArtifactBlobId, ArtifactBlobRecord, ArtifactGrantEdge, ArtifactGrantSubjectKind, ArtifactId,
     ArtifactOccurrenceRecord, ArtifactReleaseState, ArtifactWriteCapabilityId,
     ArtifactWriteCapabilityRecord, ArtifactWriteRedemptionId, ArtifactWriteRedemptionRecord,
-    ArtifactWriteRedemptionState, AuditEventId, AuditEventRecord, AuditOutcome, GrantPermission,
-    InvocationAuthorityRecord, OpenObject, OutboxDraft, PlatformIdentity, PlatformStore,
-    PrincipalId, PrincipalKind, ShareLinkId, ShareLinkRecord, StoreError, TenantId, TenantRecord,
-    deterministic_principal_id, deterministic_work_context_id,
+    ArtifactWriteRedemptionState, GrantPermission, InvocationAuthorityRecord, OpenObject,
+    OutboxDraft, PlatformIdentity, PlatformStore, PrincipalId, PrincipalKind, ShareLinkId,
+    ShareLinkRecord, StoreError, TenantId, TenantRecord, deterministic_principal_id,
+    deterministic_work_context_id,
 };
 use veoveo_types::TaskId;
 
@@ -60,6 +60,7 @@ pub struct ArtifactAggregate {
 
 #[derive(Clone, Debug)]
 pub struct ArtifactWriteCapabilityDraft {
+    pub audit: crate::audit::AuditContextRecord,
     pub capability_id: ArtifactWriteCapabilityId,
     pub identity: PlatformIdentity,
     pub authority: InvocationAuthorityRecord,
@@ -97,16 +98,6 @@ pub struct ArtifactShareLinkDraft {
 pub struct PublicShareRedemption {
     pub link: ShareLinkRecord,
     pub artifact_id: ArtifactId,
-}
-
-#[derive(Clone, Debug)]
-pub struct ArtifactAuditDraft {
-    pub tenant: Option<TenantId>,
-    pub actor: Option<PrincipalId>,
-    pub action: String,
-    pub resource_id: Option<String>,
-    pub outcome: AuditOutcome,
-    pub details: BTreeMap<String, serde_json::Value>,
 }
 
 impl PlatformStore {
@@ -358,6 +349,7 @@ impl PlatformStore {
         draft: ArtifactWriteCapabilityDraft,
     ) -> Result<ArtifactWriteCapabilityRecord, StoreError> {
         let record = ArtifactWriteCapabilityRecord {
+            audit: draft.audit,
             id: draft.capability_id.record_id(),
             tenant: draft.identity.tenant_id.record_id(),
             actor: draft.identity.principal_id.record_id(),
@@ -800,44 +792,6 @@ impl PlatformStore {
         };
         let artifact_id = record_uuid(&link.artifact).map(ArtifactId::from_uuid)?;
         Ok(Some(PublicShareRedemption { link, artifact_id }))
-    }
-
-    pub async fn append_artifact_audit(&self, draft: ArtifactAuditDraft) -> Result<(), StoreError> {
-        let id = AuditEventId::new();
-        let record = AuditEventRecord {
-            id: id.record_id(),
-            tenant: draft.tenant.map(TenantId::record_id),
-            actor: draft.actor.map(PrincipalId::record_id),
-            action: draft.action.clone(),
-            resource_type: "artifact".into(),
-            resource_id: draft.resource_id,
-            outcome: draft.outcome,
-            request_id: None,
-            trace_id: None,
-            source_ip: None,
-            details: OpenObject::new(draft.details),
-            occurred_at: Utc::now(),
-            search_text: draft.action,
-        };
-        let outbox = OutboxDraft::now(
-            record.tenant.clone(),
-            "audit",
-            id.to_string(),
-            "audit.recorded",
-            1,
-            OpenObject::new(BTreeMap::from([
-                ("action".into(), serde_json::json!(&record.action)),
-                ("resource_id".into(), serde_json::json!(&record.resource_id)),
-            ])),
-        );
-        self.db
-            .query("BEGIN TRANSACTION; CREATE ONLY $record CONTENT $content RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
-            .bind(("record", id.record_id()))
-            .bind(("content", record))
-            .bind(("outbox", outbox))
-            .await?
-            .check()?;
-        Ok(())
     }
 }
 

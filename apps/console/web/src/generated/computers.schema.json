@@ -1041,7 +1041,7 @@
     },
     "FileTransferResult": {
       "additionalProperties": false,
-      "description": "Canonical address for one completed file transfer; it is not an access credential.",
+      "description": "Completed transfer metadata. Artifact bytes require Artifact read authority.",
       "properties": {
         "artifactId": {
           "format": "uuid",

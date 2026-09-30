@@ -2,6 +2,11 @@
 
 ## Standards And Protocols
 
+Artifact ledger targets use the domain contract's `ArtifactLedgerAddress` builder.
+Access-request and read-capability denials commit an individual record before
+returning. Authenticated records carry the verified actor; an invalid capability
+records the requested object without claiming the capability's issuing actor.
+
 | Boundary | Supported profile |
 |---|---|
 | Internal HTTP | JSON metadata and capability control; streamed GET/HEAD downloads with the existing single-range profile |
@@ -9,7 +14,7 @@
 | Gateway identity | Forwarded, verified short-lived internal assertion for ordinary operations and capability issuance/revocation |
 | Upload identity | Dedicated `artifact-upload` EdDSA assertion includes the checked control-plane SHA-256 and Work Context digest; ordinary forwarded server tokens do not authorize uploads |
 | Veoveo Artifact read delegation | Repository-owned internal API, opaque UUIDv7 capability and task identities, bearer secret confined to task-read routes |
-| Persistence | Typed platform Store records and ordered SurrealQL migrations through `0050`; native durability acceptance uses SurrealDB 3.3.0 |
+| Persistence | Typed platform Store records and ordered SurrealQL migrations; native durability acceptance uses SurrealDB 3.3.0 |
 | Content and credential identity | SHA-256 for immutable blobs and domain-separated secret hashes |
 | Local blob storage | `object_store` 0.14.1 filesystem profile; opaque files with HTTP delivery headers supplied by the Artifact service, without unsupported object attributes |
 | S3 multipart adapter | `object_store` 0.14.1 low-level `MultipartStore`, one-based public parts mapped to zero-based adapter indices; private provider handles and receipts |
@@ -59,6 +64,30 @@ header accessor cannot decode non-ASCII names; JSON decoding also rejects malfor
 UTF-8 before write admission. The transport test publishes a Unicode filename through
 the ordinary client and verifies it on full, range and HEAD download responses.
 
+## Audit
+
+`service/audit.rs` builds closed Artifact activities and checked targets. Grant outcomes
+include the typed recipient and permission; release outcomes carry the release enum.
+Access requests, read/write capabilities and shares use private platform addresses built
+from their distinct IDs. These ledger addresses do not advertise MCP resources.
+
+Ordinary calls derive actor, authority, request and trace identity from the verified
+internal assertion. Upload admission persists that context; finalization freezes the
+completion caller's context before the worker publishes the occurrence. Task capabilities
+retain their issuing authority. Public share downloads identify the validated share link
+as a capability actor without recording its secret or claiming gateway authority.
+
+Every denial requires an acknowledged audit write. Downloads record the first allowed
+request per actor, artifact and five-minute UTC window. A replica caches at most 4,096
+window acknowledgements and coalesces concurrent first requests. Failed commits leave
+the window retryable. Store claims the window and writes its record in one transaction,
+which also deduplicates requests after eviction or on another replica. Policy is evaluated
+for every download before the cache is consulted.
+
+Mutation completions enter the shared retry queue. Capability issuance requires its
+record before exposing the capability. Upload publication appends its completion in the
+occurrence transaction. The owning process must drain the shared writer on shutdown.
+
 ## Resumable Upload Contract
 
 The public upload contract is defined in
@@ -80,6 +109,12 @@ and completion subroutes. It audits `artifact_upload` against the Artifact serve
 requires the upload scope and contributor membership, and compares its loaded
 configuration identity with Store before signing an assertion. Policy discovery
 returns a readable disabled explanation when authenticated callers lack upload access.
+The service supplies Store with an `ArtifactUploadOwner` containing typed tenant,
+actor, profile, Work Context, issuer and subject values. Status, part admission,
+completion and cancellation select all six identities in SQL before decoding the
+upload record. Stored tenant, principal and Work Context links must agree with those
+identities. Current policy validation follows ownership selection. Trusted background
+recovery has a separate unscoped inspection path.
 Only selected content and part headers pass through the proxy. Internal assertions,
 storage handles, and redirect locations are never accepted from public callers.
 
@@ -140,8 +175,9 @@ preserving the immutable descriptor for a matching retry.
 Finalization freezes a complete ordered manifest in Store before touching S3 completion.
 Session leases carry a generation; takeover invalidates prior workers. The publication
 transaction checks current authority and the active verification lease, then commits
-the immutable blob mapping, governed occurrence and grants, completion audit, outbox,
-and durable receipt fields together. Matching publication replay retains the same
+the immutable blob mapping, governed occurrence and grants, unified completion audit,
+and durable receipt fields together. The audit append runs inside the existing publication
+transaction and emits no audit outbox event. Matching publication replay retains the same
 occurrence and completion timestamp. Ordinary writes and upload publication share the
 typed content builder and SQL registration fragment.
 

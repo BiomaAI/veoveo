@@ -1,7 +1,5 @@
-use std::{
-    collections::BTreeMap,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
+use veoveo_mcp_contract::audit::AdministrativeOperation;
 
 use axum::{
     body::{Body, to_bytes},
@@ -27,7 +25,6 @@ const MAX_ADMIN_REQUEST_BYTES: usize = 8 * 1024 * 1024;
 const MAX_ADMIN_RESPONSE_BYTES: usize = 32 * 1024 * 1024;
 const INTERNAL_ADMIN_TOKEN_TTL_SECONDS: i64 = 60;
 const ADMIN_PROXY_TIMEOUT: Duration = Duration::from_secs(60);
-const ADMIN_PROXY_METHOD: &str = "admin/server/proxy";
 
 pub(crate) async fn proxy_server_admin(
     State(state): State<AdminState>,
@@ -53,21 +50,15 @@ pub(crate) async fn proxy_server_admin(
     let target = PolicyTarget::Server {
         server: server_slug.clone(),
     };
-    let metadata = BTreeMap::from([
-        ("operation".to_owned(), "proxy_server_admin".to_owned()),
-        ("server".to_owned(), server_slug.to_string()),
-        ("path".to_owned(), path.clone()),
-        ("http_method".to_owned(), request.method().to_string()),
-    ]);
     let (catalog, profile, subject) = match authorize_admin_target_request(
         &state,
         &profile_id,
         subject,
         AdminAuthorizationRequest {
+            audit_target: None,
             action,
             target: target.clone(),
-            method: ADMIN_PROXY_METHOD,
-            metadata: metadata.clone(),
+            operation: AdministrativeOperation::ServerProxy,
             started_at,
         },
     )
@@ -144,7 +135,6 @@ pub(crate) async fn proxy_server_admin(
                 action,
                 started_at,
                 AdminOperationStatus::Failed,
-                metadata,
             )
             .await;
             tracing::warn!(server = %server_slug, "admin upstream request failed: {error}");
@@ -159,7 +149,6 @@ pub(crate) async fn proxy_server_admin(
                 action,
                 started_at,
                 AdminOperationStatus::Failed,
-                metadata,
             )
             .await;
             return StatusCode::GATEWAY_TIMEOUT.into_response();
@@ -191,7 +180,6 @@ pub(crate) async fn proxy_server_admin(
         } else {
             AdminOperationStatus::Rejected
         },
-        metadata,
     )
     .await;
     response
@@ -241,7 +229,6 @@ async fn record_result(
     action: GatewayAction,
     started_at: Instant,
     status: AdminOperationStatus,
-    metadata: BTreeMap<String, String>,
 ) {
     if let Err(error) = record_admin_target_operation_audit(
         state,
@@ -249,13 +236,13 @@ async fn record_result(
         subject,
         target,
         AdminOperationAuditRecord {
+            audit_target: None,
             action,
-            method: ADMIN_PROXY_METHOD,
+            operation: AdministrativeOperation::ServerProxy,
             started_at,
             status,
             failure: matches!(status, AdminOperationStatus::Failed)
                 .then_some(AdminOperationFailure::ServerAdminProxy),
-            metadata,
         },
     )
     .await

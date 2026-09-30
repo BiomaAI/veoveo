@@ -217,7 +217,6 @@ impl PlatformStore {
 
         for version in status.pending_versions.clone() {
             let migration = &upstream[version as usize];
-            self.prepare_migration(version).await?;
             let statement = format!(
                 "BEGIN TRANSACTION;\n{}\nCREATE platform_schema_migration:{} CONTENT {{ version: {}, name: $migration_name, checksum: $migration_checksum, applied_at: time::now() }};\nCOMMIT TRANSACTION;",
                 migration.sql, migration.version, migration.version
@@ -307,10 +306,10 @@ mod tests {
 
     #[test]
     fn every_public_table_is_schemafull_with_a_changefeed() {
-        let sql = schema_sql();
+        let sql = schema_sql().replace("DEFINE TABLE IF NOT EXISTS ", "DEFINE TABLE ");
         assert!(!sql.contains("SCHEMALESS"));
         for table in PlatformTable::ALL {
-            let declaration = format!("DEFINE TABLE IF NOT EXISTS {} SCHEMAFULL", table.as_str());
+            let declaration = format!("DEFINE TABLE {} SCHEMAFULL", table.as_str());
             assert!(sql.contains(&declaration), "missing {declaration}");
             let definition = sql
                 .split(&declaration)
@@ -353,13 +352,6 @@ mod tests {
         ] {
             assert!(sql.contains(&format!("DEFINE INDEX IF NOT EXISTS {index}")));
         }
-    }
-
-    #[test]
-    fn unused_audit_full_text_index_is_removed() {
-        assert!(
-            schema_sql().contains("REMOVE INDEX IF EXISTS audit_event_search ON TABLE audit_event")
-        );
     }
 
     #[test]

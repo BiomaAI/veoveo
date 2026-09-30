@@ -85,8 +85,7 @@ impl GatewayMcp {
         let accepted = context.accepted().clone();
         let snapshot = self.catalog.snapshot();
         let catalog_generation = snapshot.generation();
-        let authorization_fingerprint =
-            super::invocation_authorization_fingerprint(&subject.actor, &subject.authority)?;
+        let authorization_fingerprint = super::discovery_authorization_fingerprint(&subject)?;
         let mut discovery_changes = self.discovery.subscribe();
 
         // A catalog listener primes discovery on the same replica that owns the
@@ -343,6 +342,9 @@ impl GatewayMcp {
             // Invalidate before waking a client that will immediately list again.
             ServerNotification::ResourceListChangedNotification(_) => {
                 self.discovery.invalidate_resource_surfaces(server).await;
+            }
+            ServerNotification::PromptListChangedNotification(_) => {
+                self.discovery.invalidate_prompts(server).await;
             }
             ServerNotification::ToolListChangedNotification(_) => {
                 self.discovery.invalidate_tools(server).await;

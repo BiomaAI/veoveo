@@ -1,6 +1,7 @@
 mod authorization;
 mod completion;
 mod discovery;
+mod discovery_watch;
 mod health;
 mod info;
 mod progress;
@@ -44,7 +45,7 @@ use veoveo_types::InvocationAuthority;
 
 use crate::{
     AuthenticatedSubject, GatewayCatalogHandle, GatewayState,
-    mcp_support::{mcp_internal, mcp_invalid_params},
+    mcp_support::{mcp_internal, mcp_invalid_params, mcp_invalid_request},
 };
 use discovery::CatalogDiscoveryCache;
 use upstream::{GatewayUpstreamHandler, GatewayUpstreamHandlerConfig};
@@ -67,6 +68,7 @@ pub struct GatewayMcp {
     internal_token_issuer: GatewayInternalTokenIssuer,
     upstream_http: GatewayUpstreamHttpClientPool,
     discovery: Arc<CatalogDiscoveryCache>,
+    discovery_watches: Arc<discovery_watch::DiscoveryWatches>,
     progress_tokens: progress::GatewayProgressTokens,
 }
 
@@ -85,6 +87,7 @@ impl GatewayMcp {
             internal_token_issuer,
             upstream_http,
             discovery: Arc::new(CatalogDiscoveryCache::default()),
+            discovery_watches: Default::default(),
             progress_tokens: progress::GatewayProgressTokens::default(),
         }
     }
@@ -172,6 +175,9 @@ impl GatewayMcp {
         F: Fn(Peer<RoleClient>) -> Fut,
         Fut: Future<Output = Result<T, ServiceError>>,
     {
+        let _timing = crate::request_observation::StageTimer::start(
+            crate::request_observation::RequestStage::Upstream,
+        );
         let upstream = self
             .upstream(server_slug, downstream.clone(), subject)
             .await?;
@@ -228,6 +234,21 @@ fn invocation_authorization_fingerprint(
     .into())
 }
 
+fn discovery_authorization_fingerprint(
+    subject: &AuthenticatedSubject,
+) -> Result<[u8; 32], McpError> {
+    let authority = invocation_authorization_fingerprint(&subject.actor, &subject.authority)?;
+    Ok(Sha256::digest(
+        serde_json::to_vec(&(
+            authority,
+            &subject.access_token.oauth_client_id,
+            &subject.access_token.managed_agent,
+        ))
+        .map_err(|_| mcp_internal("failed to fingerprint discovery authority"))?,
+    )
+    .into())
+}
+
 impl ServerHandler for GatewayMcp {
     fn get_info(&self) -> ServerConfig {
         self.handle_get_info()
@@ -238,7 +259,9 @@ impl ServerHandler for GatewayMcp {
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, McpError> {
-        self.handle_list_tools(request, context).await
+        request_observation(&context)?
+            .scope(self.handle_list_tools(request, context))
+            .await
     }
 
     async fn call_tool(
@@ -246,7 +269,9 @@ impl ServerHandler for GatewayMcp {
         request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
-        self.handle_call_tool(request, context).await
+        request_observation(&context)?
+            .scope(self.handle_call_tool(request, context))
+            .await
     }
 
     async fn list_resources(
@@ -254,7 +279,9 @@ impl ServerHandler for GatewayMcp {
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
-        self.handle_list_resources(request, context).await
+        request_observation(&context)?
+            .scope(self.handle_list_resources(request, context))
+            .await
     }
 
     async fn list_resource_templates(
@@ -262,7 +289,9 @@ impl ServerHandler for GatewayMcp {
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, McpError> {
-        self.handle_list_resource_templates(request, context).await
+        request_observation(&context)?
+            .scope(self.handle_list_resource_templates(request, context))
+            .await
     }
 
     async fn read_resource(
@@ -270,7 +299,8 @@ impl ServerHandler for GatewayMcp {
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResponse, McpError> {
-        self.handle_read_resource(request, context)
+        request_observation(&context)?
+            .scope(self.handle_read_resource(request, context))
             .await
             .map(Into::into)
     }
@@ -291,7 +321,9 @@ impl ServerHandler for GatewayMcp {
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListPromptsResult, McpError> {
-        self.handle_list_prompts(request, context).await
+        request_observation(&context)?
+            .scope(self.handle_list_prompts(request, context))
+            .await
     }
 
     async fn get_prompt(
@@ -299,7 +331,8 @@ impl ServerHandler for GatewayMcp {
         request: GetPromptRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<rmcp::model::GetPromptResponse, McpError> {
-        async { self.handle_get_prompt(request, context).await }
+        request_observation(&context)?
+            .scope(self.handle_get_prompt(request, context))
             .await
             .map(Into::into)
     }
@@ -309,7 +342,9 @@ impl ServerHandler for GatewayMcp {
         request: CompleteRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CompleteResult, McpError> {
-        self.handle_complete(request, context).await
+        request_observation(&context)?
+            .scope(self.handle_complete(request, context))
+            .await
     }
 
     async fn get_task(
@@ -317,7 +352,9 @@ impl ServerHandler for GatewayMcp {
         request: GetTaskParams,
         context: RequestContext<RoleServer>,
     ) -> Result<GetTaskResult, McpError> {
-        self.handle_get_task(request, context).await
+        request_observation(&context)?
+            .scope(self.handle_get_task(request, context))
+            .await
     }
 
     async fn update_task(
@@ -325,7 +362,9 @@ impl ServerHandler for GatewayMcp {
         request: UpdateTaskParams,
         context: RequestContext<RoleServer>,
     ) -> Result<(), McpError> {
-        self.handle_update_task(request, context).await
+        request_observation(&context)?
+            .scope(self.handle_update_task(request, context))
+            .await
     }
 
     async fn cancel_task(
@@ -333,8 +372,25 @@ impl ServerHandler for GatewayMcp {
         request: CancelTaskParams,
         context: RequestContext<RoleServer>,
     ) -> Result<(), McpError> {
-        self.handle_cancel_task(request, context).await
+        request_observation(&context)?
+            .scope(self.handle_cancel_task(request, context))
+            .await
     }
+}
+
+fn request_observation(
+    context: &RequestContext<RoleServer>,
+) -> Result<crate::request_observation::RequestObservation, McpError> {
+    context
+        .extensions
+        .get::<axum::http::request::Parts>()
+        .and_then(|parts| {
+            parts
+                .extensions
+                .get::<crate::request_observation::RequestObservation>()
+        })
+        .cloned()
+        .ok_or_else(|| mcp_invalid_request("HTTP request correlation missing"))
 }
 
 #[cfg(test)]

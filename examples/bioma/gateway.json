@@ -6614,6 +6614,7 @@
         "none"
       ],
       "allowed_scopes": [
+        "audit:read",
         "operator:use",
         "admin:manage",
         "uav-sim:admin",
@@ -6720,6 +6721,7 @@
         "private_key_jwt"
       ],
       "allowed_scopes": [
+        "audit:read",
         "operator:use",
         "admin:manage",
         "uav-sim:read",

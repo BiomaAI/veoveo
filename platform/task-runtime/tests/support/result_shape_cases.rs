@@ -148,7 +148,7 @@ async fn schema_rejects_incomplete_envelopes_and_format_installation_over_tasks(
                 None
             );
         }
-        let migration = include_str!("../../../store/migrations/0099_task_result_envelope.surql");
+        let migration = include_str!("../../../store/migrations/0098_task_result_envelope.surql");
         let error =
             db.b.client()
                 .query(format!(

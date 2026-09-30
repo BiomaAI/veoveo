@@ -29,7 +29,8 @@ the same iri-string expansion engine. Consumers need no URI-library context for 
 case. Names keep their RFC spelling, unreferenced entries are ignored, and absent
 variables remain undefined. Domain builders still validate required IDs and parents.
 Platform identity belongs here too: `PrincipalId`, `TenantId`, `WorkContextId`,
-`DelegationId`, `GroupId`, `RoleId`, `DataLabelId`, and `PolicyVersion` are distinct
+`DelegationId`, `GroupId`, `RoleId`, `DataLabelId`, `PolicyVersion`, `TokenIssuer`
+and `TokenSubject` are distinct
 validated newtypes. `AccessSubject` identifies a principal or group. `InvocationMode`
 and `InvocationProvenance` describe direct, delegated, or automated attribution.
 `TaskId` identifies a native platform Task independently of its database record or MCP handle.
@@ -262,3 +263,11 @@ incorrect subject variants, and incomplete delegated provenance.
 These tests qualify foundational types and extension points. Hosted-server behavior,
 SQL visibility, authorization decisions, and runtime isolation require their owning
 tests and conformance profiles.
+
+## Shared Installation Names
+
+The foundational library owns opaque gateway Task routes, server and profile names, OAuth client and refresh-family
+identities, agent definition/model/template/instance names, and authentication methods
+and reason codes. MCP re-exports these types for its protocol consumers. The audit
+contract imports them directly without depending on MCP or the gateway. A managed-agent
+instance is a validated installation name; it is not assumed to be a UUID.

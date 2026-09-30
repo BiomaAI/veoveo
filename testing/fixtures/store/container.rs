@@ -10,6 +10,7 @@ const IMAGE: &str =
 #[derive(Clone)]
 pub(super) struct Docker {
     pub program: PathBuf,
+    pub creation_timeout: Duration,
     pub command_timeout: Duration,
     pub creation_settlement_timeout: Duration,
 }
@@ -18,6 +19,7 @@ impl Default for Docker {
     fn default() -> Self {
         Self {
             program: "docker".into(),
+            creation_timeout: Duration::from_secs(90),
             command_timeout: Duration::from_secs(30),
             creation_settlement_timeout: Duration::from_secs(120),
         }
@@ -109,7 +111,7 @@ impl Container {
             .run(
                 create,
                 "container creation",
-                container.docker.command_timeout,
+                container.docker.creation_timeout,
             )
             .await
         {

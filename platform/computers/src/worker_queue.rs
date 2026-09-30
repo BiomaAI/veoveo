@@ -67,7 +67,7 @@ impl ComputersStore {
             ProviderCommit::Observe,
             include_str!("../queries/abort_undispatched.surql"),
             vec![("stage", stage.into_value()), ("code", code.into_value())],
-            "computer.operation_undispatched",
+            crate::audit::LifecycleTransition::Abort(outcome),
         )
         .await?;
         self.operation_for_claim(claimed).await

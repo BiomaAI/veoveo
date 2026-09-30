@@ -36,7 +36,7 @@ impl ComputersStore {
                     .into_value(),
                 ),
             ],
-            "computer.file_transfer_undispatched",
+            crate::audit::ExecutionTransition::Undispatched,
         )
         .await?;
         self.file_for_claim(claim).await
@@ -116,7 +116,7 @@ impl ComputersStore {
                 ("resource", stopped.resource_id.into_value()),
                 ("process", stopped.process_id.into_value()),
             ],
-            "computer.file_transfer_terminated",
+            crate::audit::ExecutionTransition::Terminated,
         )
         .await?;
         self.file_for_claim(claim).await

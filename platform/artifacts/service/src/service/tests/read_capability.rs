@@ -49,6 +49,7 @@ async fn artifact_read_delegation_rechecks_grants_clearance_tenant_and_revocatio
     let alice = caller("alice", "acme", &["private"]);
     let mut bob = caller("bob", "acme", &[]);
     bob.identity.authority.work_context = WorkContextId::new("research").unwrap();
+    bind_request_context(&mut bob.identity);
     admit_context(&repository, &bob);
     let artifact = service
         .put(&alice, PutArtifactRequest::default(), b"recording".to_vec())

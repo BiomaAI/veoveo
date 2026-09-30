@@ -1,19 +1,15 @@
-use std::{collections::BTreeMap, time::Instant};
-use veoveo_platform_store::task_record_id;
+use std::time::Instant;
+use veoveo_mcp_contract::audit::AdministrativeOperation;
 
 use axum::{
     extract::{Extension, Path as AxumPath, State},
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use veoveo_mcp_contract::{
-    CanonicalTaskId, GatewayAction, GatewayProfile, PolicyTarget, ServerSlug, TaskExposure,
-};
+use veoveo_mcp_contract::{GatewayAction, GatewayProfile, PolicyTarget, ServerSlug, TaskExposure};
 use veoveo_mcp_gateway::AuthenticatedSubject;
-use veoveo_platform_store::TaskRecord;
-use veoveo_task_runtime::{TaskRuntime, TaskSnapshot};
+use veoveo_task_runtime::{TaskError, TaskOwner, TaskRuntime};
 use veoveo_types::TaskId;
-use veoveo_types::TenantId;
 
 use crate::{
     admin::admin_profile_id,
@@ -25,12 +21,9 @@ use crate::{
     runtime::AdminState,
 };
 
-const ADMIN_TASK_CANCEL_METHOD: &str = "admin/tasks/cancel";
-const ADMIN_TASK_CANCEL_RESULT_METHOD: &str = "admin/tasks/cancel/result";
-
 pub(crate) async fn cancel_task(
     State(state): State<AdminState>,
-    AxumPath((profile, task_id)): AxumPath<(String, String)>,
+    AxumPath((profile, server, task_id)): AxumPath<(String, String, String)>,
     Extension(subject): Extension<AuthenticatedSubject>,
 ) -> Response {
     let started_at = Instant::now();
@@ -40,36 +33,25 @@ pub(crate) async fn cancel_task(
     let Ok(task_id) = task_id.parse::<TaskId>() else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let snapshot = match load_task(&state, task_id).await {
-        Ok(Some(snapshot)) => snapshot,
-        Ok(None) => return StatusCode::NOT_FOUND.into_response(),
-        Err(error) => return internal_error_response(error),
+    if task_id.as_uuid().get_version_num() != 7 {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    let Ok(server_slug) = ServerSlug::new(server) else {
+        return StatusCode::NOT_FOUND.into_response();
     };
-    let Ok(server_slug) = ServerSlug::new(snapshot.server.clone()) else {
-        return internal_error_response("canonical task has an invalid server identity");
-    };
-    let canonical_task_id = match CanonicalTaskId::new(task_id.to_string()) {
-        Ok(task_id) => task_id,
-        Err(error) => return internal_error_response(error),
-    };
-    let target = PolicyTarget::Task {
+    let target = PolicyTarget::PlatformTask {
         server: server_slug.clone(),
-        task_id: canonical_task_id,
+        task_id,
     };
-    let metadata = BTreeMap::from([
-        ("operation".to_owned(), "cancel_task".to_owned()),
-        ("task_id".to_owned(), task_id.to_string()),
-        ("server".to_owned(), server_slug.to_string()),
-    ]);
     let (catalog, profile, subject) = match authorize_admin_target_request(
         &state,
         &profile_id,
         subject,
         AdminAuthorizationRequest {
+            audit_target: None,
             action: GatewayAction::TasksCancel,
             target: target.clone(),
-            method: ADMIN_TASK_CANCEL_METHOD,
-            metadata: metadata.clone(),
+            operation: AdministrativeOperation::TaskCancel,
             started_at,
         },
     )
@@ -93,36 +75,6 @@ pub(crate) async fn cancel_task(
             started_at,
             AdminOperationStatus::Rejected,
             Some(AdminOperationFailure::TaskRoute),
-            metadata,
-        )
-        .await
-        {
-            return internal_error_response(error);
-        }
-        return StatusCode::NOT_FOUND.into_response();
-    }
-
-    let labels = subject
-        .principal
-        .data_labels
-        .iter()
-        .map(ToString::to_string)
-        .collect();
-    if !snapshot.owner.allows(
-        subject.principal.id.as_str(),
-        &snapshot.owner.profile,
-        subject.principal.tenant.as_ref().map(TenantId::as_str),
-        &labels,
-    ) {
-        if let Err(error) = record_task_result(
-            &state,
-            &profile,
-            &subject,
-            target,
-            started_at,
-            AdminOperationStatus::Rejected,
-            Some(AdminOperationFailure::TaskOwnership),
-            metadata,
         )
         .await
         {
@@ -136,8 +88,48 @@ pub(crate) async fn cancel_task(
         server_slug.to_string(),
         "gateway-admin",
     );
-    match task_runtime.cancel(&task_id.to_string()).await {
+    let owner = TaskOwner {
+        principal_key: subject.principal.id.to_string(),
+        principal_kind: match subject.principal.kind {
+            veoveo_mcp_contract::PrincipalKind::User => veoveo_task_runtime::PrincipalKind::User,
+            veoveo_mcp_contract::PrincipalKind::Service => {
+                veoveo_task_runtime::PrincipalKind::Service
+            }
+        },
+        issuer: subject.principal.issuer.to_string(),
+        subject: subject.principal.subject.to_string(),
+        profile: profile_id.to_string(),
+        tenant_key: subject.principal.tenant.as_ref().map(ToString::to_string),
+        data_labels: subject
+            .principal
+            .data_labels
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
+        authority: subject.authority.clone(),
+    };
+    let query = match task_runtime.for_owner(&owner).in_work_context() {
+        Ok(query) => query,
+        Err(error) => return internal_error_response(error),
+    };
+    match query.cancel(task_id).await {
         Ok(_) => {}
+        Err(TaskError::NotFound(_)) => {
+            if let Err(error) = record_task_result(
+                &state,
+                &profile,
+                &subject,
+                target,
+                started_at,
+                AdminOperationStatus::Rejected,
+                Some(AdminOperationFailure::TaskOwnership),
+            )
+            .await
+            {
+                return internal_error_response(error);
+            }
+            return StatusCode::NOT_FOUND.into_response();
+        }
         Err(error) => {
             return audited_task_failure(
                 &state,
@@ -146,7 +138,6 @@ pub(crate) async fn cancel_task(
                 target,
                 started_at,
                 AdminOperationFailure::CancelTask,
-                metadata,
                 error,
             )
             .await;
@@ -160,29 +151,12 @@ pub(crate) async fn cancel_task(
         started_at,
         AdminOperationStatus::Succeeded,
         None,
-        metadata,
     )
     .await
     {
         return internal_error_response(error);
     }
     StatusCode::NO_CONTENT.into_response()
-}
-
-async fn load_task(state: &AdminState, task_id: TaskId) -> anyhow::Result<Option<TaskSnapshot>> {
-    let mut response = state
-        .control_store
-        .platform_store()
-        .client()
-        .query("SELECT * FROM ONLY $task;")
-        .bind(("task", task_record_id(task_id)))
-        .await?
-        .check()?;
-    let record: Option<TaskRecord> = response.take(0)?;
-    record
-        .map(TaskSnapshot::try_from)
-        .transpose()
-        .map_err(Into::into)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -194,7 +168,6 @@ async fn record_task_result(
     started_at: Instant,
     status: AdminOperationStatus,
     failure: Option<AdminOperationFailure>,
-    metadata: BTreeMap<String, String>,
 ) -> anyhow::Result<()> {
     record_admin_target_operation_audit(
         state,
@@ -202,12 +175,12 @@ async fn record_task_result(
         subject,
         target,
         AdminOperationAuditRecord {
+            audit_target: None,
             action: GatewayAction::TasksCancel,
-            method: ADMIN_TASK_CANCEL_RESULT_METHOD,
+            operation: AdministrativeOperation::TaskCancel,
             started_at,
             status,
             failure,
-            metadata,
         },
     )
     .await
@@ -221,7 +194,7 @@ async fn audited_task_failure(
     target: PolicyTarget,
     started_at: Instant,
     failure: AdminOperationFailure,
-    metadata: BTreeMap<String, String>,
+
     error: impl std::fmt::Display,
 ) -> Response {
     tracing::error!(failure = ?failure, "gateway task cancellation failed: {error}");
@@ -233,7 +206,6 @@ async fn audited_task_failure(
         started_at,
         AdminOperationStatus::Failed,
         Some(failure),
-        metadata,
     )
     .await
     {

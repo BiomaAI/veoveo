@@ -159,9 +159,10 @@ hosted conformance and domain tests establish the relevant behavior. Authenticat
 resource visibility, and operation policy stay with their existing owners.
 Gateway template discovery and resource completion use `PolicyTarget::ResourceTemplate`;
 concrete resource targets use their existing variants. The shared evaluator preserves
-the selector language and checks action/target consistency. Historical stored events
-enter through the gateway's [versioned persistence adapter](../../platform/gateway/src/state/audit/DESIGN.md),
-which owns the coordinated upgrade and rollback contract.
+the selector language and checks action/target consistency. Native administration
+uses `PolicyTarget::PlatformTask` with a foundational Task UUID; MCP routes use the
+opaque `PolicyTarget::Task` identity. Both apply the same server exposure and policy.
+The gateway converts these targets into the [unified audit contract](../../platform/audit/contract/DESIGN.md).
 Server contracts may use the foundation's `scope_enum!` declaration helper to generate
 their scope conversions and schemas from one set of wire spellings.
 
@@ -340,10 +341,12 @@ authority. Repeated list calls share that single in-flight operation. An unfinis
 `upstream_unavailable`. A healthy server commits independently and publishes its
 matching MCP `listChanged` notification when content changes or a previously
 reported gap recovers. An identical refresh does not generate another catalog
-change. Discovery retains one policy decision and durable audit/outbox record per item.
-Audit writes commit in batches of at most 64 items to reduce contention on the
-shared event sequence. Results are released only after all audit batches commit. A failed operation is not cached
-and becomes eligible on the next explicit list call.
+change. Discovery caches per-item admission decisions with the caller authority,
+policy revision and catalog generation. Native catalog subscriptions invalidate those
+decisions on change. Each list request commits one audit record with visible and denied
+counts and the visible-set digest before returning. A warm list evaluates no policy.
+Audit writes emit no outbox rows. A failed fetch becomes eligible on the next explicit
+list call.
 
 A profile whose work requires a complete tool catalog sets
 `discovery_failure_mode` to `fail_closed`; its tool list fails until every

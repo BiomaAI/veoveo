@@ -77,6 +77,9 @@ pub(crate) async fn assert_mcp_client_resource_denied(
     session: &SmokeMcpClient,
     uri: &str,
 ) -> Result<()> {
+    // This assertion must reach current server policy on the existing transport.
+    // The SDK can otherwise return the previous body, including on refresh errors.
+    session.clear_response_cache().await;
     if read_mcp_resource_json(session, uri).await.is_ok() {
         bail!("same MCP client unexpectedly read `{uri}` after policy update");
     }

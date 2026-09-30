@@ -117,7 +117,8 @@ function Console({ bootstrap }: { bootstrap: ConsoleBootstrap }) {
   const { data: appsCatalog } = useApps();
   useAppCatalogLive(true);
   const [selectedView, setView] = useState<ViewId>(initial.view);
-  const view = bootstrap.canReadInstallation || selectedView === "computers" || selectedView === "apps" ? selectedView : "computers";
+  const permitsView = (id: ViewId) => id === "audit" ? bootstrap.canReadAudit : bootstrap.canReadInstallation || id === "computers" || id === "apps";
+  const view = permitsView(selectedView) ? selectedView : "computers";
   const [selectedAppKey, setSelectedAppKey] = useState<string | undefined>(initial.appKey);
   const [mobileNav, setMobileNav] = useState(false);
   const [artifactSelection, setArtifactSelection] = useState<{ artifact: ArtifactSummary; scope: string }>();
@@ -237,7 +238,7 @@ function Console({ bootstrap }: { bootstrap: ConsoleBootstrap }) {
           </button>
         </div>
         <nav aria-label="Primary navigation">
-          {navItems.filter((item) => bootstrap.canReadInstallation || item.id === "computers" || item.id === "apps").map(({ id, label, icon: Icon }) => (
+          {navItems.filter((item) => permitsView(item.id)).map(({ id, label, icon: Icon }) => (
             <Fragment key={id}>
               <button
                 className={view === id && !(id === "apps" && selectedApp) ? "nav-active" : ""}
@@ -362,10 +363,10 @@ function Console({ bootstrap }: { bootstrap: ConsoleBootstrap }) {
           {view === "computers" && <ComputersPage scope={consoleIdentityScope(bootstrap)} canReadInstallation={bootstrap.canReadInstallation}
             profile={bootstrap.profile} principals={snapshot?.principals ?? []} cliEndpoint="/console/computers"
             artifacts={snapshot?.artifacts ?? []} uploads={uploadState} onUpload={() => setUploadsOpen(true)} />}
-          {view !== "computers" && view !== "apps" && !snapshot && <div className="center-state">
+          {view !== "computers" && view !== "apps" && view !== "audit" && !snapshot && <div className="center-state">
             <p>{inventory.isLoading ? "Loading installation…" : inventory.error instanceof Error ? inventory.error.message : "Installation inventory is unavailable."}</p>
             <button className="button button-secondary" onClick={retrySnapshot}>Retry</button></div>}
-          {snapshot && view === "overview" && <Overview snapshot={snapshot} onArtifact={setSelectedArtifact} onTask={setSelectedTask} />}
+          {snapshot && view === "overview" && <Overview snapshot={snapshot} canReadAudit={bootstrap.canReadAudit} onArtifact={setSelectedArtifact} onTask={setSelectedTask} />}
           {snapshot && view === "work" && <WorkView tasks={snapshot.tasks} onSelect={setSelectedTask} />}
           {snapshot && view === "artifacts" && <ArtifactsView artifacts={snapshot.artifacts} onSelect={setSelectedArtifact} onUpload={() => setUploadsOpen(true)} />}
           {snapshot && view === "agents" && <AgentsView snapshot={snapshot} />}
@@ -382,7 +383,7 @@ function Console({ bootstrap }: { bootstrap: ConsoleBootstrap }) {
             />
           )}
           {snapshot && view === "access" && <AccessView snapshot={snapshot} />}
-          {snapshot && view === "audit" && <AuditView snapshot={snapshot} />}
+          {view === "audit" && bootstrap.canReadAudit && <AuditView />}
           {snapshot && view === "cluster" && <ClusterView snapshot={snapshot} />}
         </main>
       </div>

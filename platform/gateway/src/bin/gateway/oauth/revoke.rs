@@ -276,7 +276,6 @@ async fn record_revocation_audit(
             authorization_server: Some(authorization_server),
             client_id,
             principal,
-            jwt_id: None,
             outcome,
             reason,
             started_at,

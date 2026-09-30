@@ -19,4 +19,5 @@ IF array::len($active) >= 16 { THROW "computer_access_limit"; };
 CREATE $connection CONTENT {connection_id:$connection_id, grant_id:$grant_id,
   provider_resource_id:$resource, process_id:$process, issued_at:$now, expires_at:$authority_expires_at};
 CREATE outbox_event CONTENT $event;
+  fn::append_audit($audit_rows);
 COMMIT TRANSACTION;

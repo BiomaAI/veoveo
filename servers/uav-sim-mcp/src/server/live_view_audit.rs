@@ -1,101 +1,54 @@
-use std::{collections::BTreeMap, sync::Arc};
-
-use crate::contract::{LiveViewId, LiveViewState};
-use chrono::Utc;
-use serde_json::Value;
-use veoveo_mcp_contract::GatewayInternalIdentity;
-use veoveo_platform_store::{
-    AuditEventId, AuditEventRecord, AuditOutcome, OpenObject, PlatformStore,
-    deterministic_principal_id, deterministic_tenant_id,
+use std::sync::Arc;
+use veoveo_audit::AuditWriter;
+use veoveo_mcp_contract::audit::{
+    AuditContext, AuditDetail, AuditDraft, AuditOutcome, AuditReason, AuditTarget, LiveViewActivity,
 };
+use veoveo_platform_store::PlatformStore;
+use veoveo_types::ResourceUri;
 
 #[derive(Clone)]
 pub(super) struct LiveViewAudit {
-    store: PlatformStore,
+    writer: AuditWriter,
 }
-
 impl LiveViewAudit {
     pub(super) fn new(store: PlatformStore) -> Arc<Self> {
-        Arc::new(Self { store })
+        let writer = AuditWriter::start(store);
+        Arc::new(Self { writer })
     }
-
-    pub(super) async fn append(
-        &self,
-        identity: &GatewayInternalIdentity,
-        live_view_id: Option<&LiveViewId>,
-        action: &'static str,
+    pub(super) fn draft(
+        context: &AuditContext,
+        uri: ResourceUri,
+        activity: LiveViewActivity,
         outcome: AuditOutcome,
-        details: BTreeMap<String, Value>,
-    ) -> anyhow::Result<()> {
-        let tenant_key = identity.authority.tenant.as_str();
-        let tenant = deterministic_tenant_id(tenant_key)?.record_id();
-        let actor = deterministic_principal_id(tenant_key, identity.actor.id.as_str())?.record_id();
-        let resource_id = live_view_id.map(ToString::to_string);
-        self.store
-            .append_live_view_audit(AuditEventRecord {
-                id: AuditEventId::new().record_id(),
-                tenant: Some(tenant),
-                actor: Some(actor),
-                action: action.to_owned(),
-                resource_type: "simulator_live_view".to_owned(),
-                resource_id: resource_id.clone(),
-                outcome,
-                request_id: None,
-                trace_id: None,
-                source_ip: None,
-                details: OpenObject::new(details),
-                occurred_at: Utc::now(),
-                search_text: format!(
-                    "simulator_live_view {action} {}",
-                    resource_id.as_deref().unwrap_or("unallocated")
-                ),
-            })
-            .await?;
+        reason: AuditReason,
+    ) -> anyhow::Result<AuditDraft> {
+        Ok(context.draft(
+            AuditTarget::Resource {
+                server: veoveo_mcp_contract::ServerSlug::new("uav-sim")?,
+                uri,
+            },
+            AuditDetail::LiveView { activity },
+            outcome,
+            reason,
+        )?)
+    }
+    pub(super) async fn required(&self, draft: AuditDraft) -> anyhow::Result<()> {
+        self.writer.record(draft).await?;
         Ok(())
     }
-
-    pub(super) async fn append_authorization(
-        &self,
-        authorization: &LiveViewState,
-        action: &'static str,
-        outcome: AuditOutcome,
-        mut details: BTreeMap<String, Value>,
-    ) -> anyhow::Result<()> {
-        let tenant_key = authorization.owner.tenant.as_str();
-        details.insert(
-            "session_id".to_owned(),
-            Value::String(authorization.session_id.to_string()),
-        );
-        details.insert(
-            "camera_id".to_owned(),
-            Value::String(authorization.camera_id.to_string()),
-        );
-        details.insert(
-            "work_context".to_owned(),
-            Value::String(authorization.owner.work_context.to_string()),
-        );
-        self.store
-            .append_live_view_audit(AuditEventRecord {
-                id: AuditEventId::new().record_id(),
-                tenant: Some(deterministic_tenant_id(tenant_key)?.record_id()),
-                actor: Some(
-                    deterministic_principal_id(tenant_key, authorization.viewer_actor.as_str())?
-                        .record_id(),
-                ),
-                action: action.to_owned(),
-                resource_type: "simulator_live_view".to_owned(),
-                resource_id: Some(authorization.live_view_id.to_string()),
-                outcome,
-                request_id: None,
-                trace_id: None,
-                source_ip: None,
-                details: OpenObject::new(details),
-                occurred_at: Utc::now(),
-                search_text: format!(
-                    "simulator_live_view {action} {}",
-                    authorization.live_view_id
-                ),
-            })
+    /// Closing access takes effect immediately; the original record ID survives retries.
+    pub(super) async fn completion(&self, draft: AuditDraft) {
+        self.writer.record_completion(draft).await;
+    }
+    pub(super) fn is_running(&self) -> bool {
+        self.writer.is_running()
+    }
+    pub(super) async fn closed(&self) {
+        self.writer.closed().await;
+    }
+    pub(super) async fn shutdown(&self) -> anyhow::Result<()> {
+        self.writer
+            .shutdown(std::time::Duration::from_secs(30))
             .await?;
         Ok(())
     }

@@ -8,6 +8,7 @@ name = "veoveo_platform_store"
 path = "src/lib.rs"
 
 [dependencies]
+veoveo-audit-contract.workspace = true
 veoveo-types.workspace = true
 veoveo-artifact-contract.workspace = true
 async-stream = "=0.3.6"

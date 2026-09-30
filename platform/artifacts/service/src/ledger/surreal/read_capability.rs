@@ -29,6 +29,7 @@ impl ReadCapabilityRepository for SurrealArtifactRepository {
     ) -> Result<(), RepositoryError> {
         self.store
             .create_artifact_read_capability(platform::ArtifactReadCapabilityDraft {
+                audit: platform::audit::AuditContextRecord(draft.actor.audit.clone()),
                 capability_id: platform::ArtifactReadCapabilityId::from_uuid(
                     draft.capability_id.as_uuid(),
                 ),
@@ -126,6 +127,7 @@ fn decode(
     Ok(ReadCapabilityDraft {
         capability_id: id,
         actor: RepositoryActor {
+            audit: record.audit.0,
             tenant,
             principal: PrincipalId::new(record.actor_key).map_err(corrupt)?,
             kind: match record.actor_kind {

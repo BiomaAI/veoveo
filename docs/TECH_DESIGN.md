@@ -20,10 +20,12 @@ version.
 | OpenID Connect and OAuth 2.0 | OIDC Core login; S256 PKCE; Client Credentials and JWT Bearer grants; RFC 8414 authorization-server metadata; RFC 9728 protected-resource metadata; RFC 8707 resource indicators; signed JWT/JWS/JWK tokens and key discovery. |
 | MCP Enterprise-Managed Authorization / ID-JAG | Explicit enterprise grant profile with durable replay protection, client binding, tenant mapping, and scope reduction. |
 | HTTPS and HTTP range semantics | External acquisition, MCP transport, provider webhooks, and artifact delivery. Cleartext HTTP is used only inside declared cluster trust boundaries. |
+| OCSF 1.9.0, RFC 9162, RFC 8785, RFC 8032 and S3 Object Lock | Typed audit export, canonical JSON hashes, Merkle blocks and dedicated Ed25519 signatures; optional compliance-mode archives. [Export qualification](../platform/audit/src/export/DESIGN.md#qualification) is part of the active foundations cut. |
+| W3C Trace Context | Audit records and signed upstream request attribution share trace and span IDs. |
 | OpenTelemetry OTLP/HTTP | Optional traces and logs from shared server instrumentation. Export stays off unless the installation supplies an endpoint. |
 | Veoveo recording ingest | Version `2026-09-23`; authenticated protobuf batches and separate Blueprint publications preserve native Rerun 0.38.1 stores, ordering, idempotency, decoder-safe rollover markers, and policy-scoped replacement of a single recording. |
 | Rerun 0.38.1 gRPC, RRD, Rerun Data Protocol, and `VideoStream` | Producer-local log ingestion, immutable records over time and space, lazy per-recording viewer playback, and H.264 Annex B video with exact timeline indices. |
-| S3-compatible object API | Private Artifact service storage only. The bundled store is digest-pinned RustFS `1.0.0-rc.3`, the latest non-preview release candidate, because RustFS has no stable release. SurrealDB is the system of record for occurrences, identity, grants, release state, shares, policy, and audit. Clients download over HTTP streaming and byte ranges through the installation origin. |
+| S3-compatible object API | Artifact bytes and audit block archives. The bundled store is digest-pinned RustFS `1.0.0`; SurrealDB holds domain identity and authorization. Optional audit Object Lock requires a provider qualified for compliance mode. |
 | NVIDIA cuOpt 26.08 and CUDA 13.3 | Digest-pinned hardware-GPU execution for heterogeneous routing, BatchSolve scenarios, continuous LP/QP/QCQP/SOCP, and linear MILP. `veoveo.ai/travel-model-artifact/v1` is the repository-owned Map handoff; `veoveo.ai/cuopt-executor/v1` is a private pod-local adapter protocol, not a public contract. |
 | Kubernetes, Helm, and OCI images | Workload graph, declarative installation configuration, registry-first delivery, GitOps reconciliation, and offline bundle material. |
 | Domain standards | Map, Optimization, Time, Frames, View, UAV, Recording, Perception, and Reason designs each pin their own geospatial, solver, temporal, 3D, vehicle, and media profiles. |
@@ -525,13 +527,13 @@ and policy targets are all rejected. Audit records carry explicit principal attr
 and decision context. They never contain prompts, artifact bytes, provider payloads,
 tokens, link bearers, webhook bodies, or signed URLs.
 
-Audit retention deletes old records in batches. For each audit kind, it selects at
-most 128 record IDs through the `resource_type, occurred_at` index, and each delete
-has a two-second database deadline. A full batch schedules another pass one second
-later. A partial or empty batch returns to the hourly schedule, and failures retry
-after one minute. Retention respects the configured age cutoff and never deletes other
-domains' records. Bootstrap waits for the index to become ready before marking its
-schema step complete (`platform/store/src/migration_preparation.rs`).
+The [audit design](AUDIT.md) defines one checked record model and requires an explicit
+installation retention period. The gateway seals committed records under a database
+lease, then retires whole blocks with their last signed head preserved. SQL admits
+only blocks acknowledged by every configured export destination. A maintenance pass
+has a two-second work budget and a 128-block limit. Authentication credential cleanup
+has separate ownership and never deletes audit records. Runtime and installed
+qualification remain in the [foundations plan](PLATFORM_FOUNDATIONS_PLAN.md#phase-4-unified-audit-log).
 
 The [gateway forwarding design](../platform/gateway/DESIGN.md) defines resource
 projection. The gateway gives each server's MCP resource addresses and Apps their own namespace.

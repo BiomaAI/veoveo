@@ -772,11 +772,37 @@ mod tests {
             control_plane_sha256: crate::UploadSha256::parse("a".repeat(64)).unwrap(),
             context_digest: crate::UploadSha256::parse("b".repeat(64)).unwrap(),
         };
+        let actor = principal();
+        let invocation = authority();
+        let now = Utc::now();
+        let request_context = GatewayRequestContext {
+            audit: crate::audit::AuditRequest::background(),
+            principal: actor.clone(),
+            access_token: crate::AccessTokenSubject {
+                managed_agent: None,
+                issuer: actor.issuer.clone(),
+                subject: actor.subject.clone(),
+                oauth_client_id: crate::OAuthClientId::new("upload-test").unwrap(),
+                session_family: None,
+                audience: crate::ProtectedResourceId::new("https://gateway.test/mcp/default")
+                    .unwrap(),
+                work_context: invocation.work_context.clone(),
+                invocation_mode: invocation.provenance.mode(),
+                initiator: invocation.provenance.initiator().cloned(),
+                delegation_id: None,
+                scopes: actor.scopes.clone(),
+                jwt_id: None,
+                issued_at: now,
+                not_before: None,
+                expires_at: now + TimeDelta::minutes(5),
+            },
+        };
         let token = issuer
             .issue_artifact_upload(
                 GatewayProfileId::new("default").unwrap(),
-                principal(),
-                authority(),
+                actor,
+                invocation,
+                request_context,
                 binding.clone(),
                 Utc::now() + TimeDelta::minutes(1),
             )

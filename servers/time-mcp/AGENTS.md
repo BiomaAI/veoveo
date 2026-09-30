@@ -50,7 +50,9 @@ leap second assumptions.
   checks runtime composition independently from the MCP feature.
 - Time owns its private `src/persistence/` queries, driver records and mutation
   validation. Store owns migrations `0019_time_domain.surql` and
-  `0043_time_acquisition_release_index.surql` and `0096_time_activation_fence.surql`.
+  `0043_time_acquisition_release_index.surql`. Activation uses exact-ID locked reads
+  of both pointers, including absence, and their preflight releases. Preserve full
+  snapshot comparison and qualify cross-family contention on RocksDB.
   Runtime library tests use the shared
   isolated SurrealDB fixture; schema changes also require Store migration checks.
 - `node --test tests/workbench-pagination.test.mjs` in `apps/console/web` checks
@@ -116,10 +118,10 @@ leap second assumptions.
   eviction follows every Store invalidation; delivery never substitutes for a read.
   Authority loading and preflight each have a 30-second deadline.
 - `src/registry/tests/activation.rs` qualifies cross-family conflicts on disposable
-  RocksDB, retained authority preservation, stale preflight metadata and fence rollback.
-  Production activation goes through the registry and consumes its observed draft.
-  Both families participate in commit checks; every activation writes the common
-  tenant fence. Keep the coordinated drain and fence-retirement conditions in DESIGN.
+  RocksDB, absent and present pointers, concurrent release repairs and stale preflight
+  metadata. Production activation goes through the registry and consumes its observed
+  draft. Both exact pointer IDs and all preflight release IDs participate in commit
+  conflict checks. Keep the fresh-store and drain requirements in DESIGN.
 - The optional ntpd-rs observation socket is a deployment concern; unit tests
   use bounded fake observations.
 

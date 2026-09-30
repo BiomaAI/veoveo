@@ -348,6 +348,15 @@ impl ComputersStore {
                 ("maintenance", record(id).into_value()),
                 ("content", content.into_value()),
                 ("event", event.into_value()),
+                crate::audit::binding(
+                    actor.accepted(),
+                    computer_id,
+                    crate::audit::Transition::accepted(
+                        veoveo_audit_contract::ComputerActivity::Maintain,
+                        veoveo_audit_contract::ComputerAuditStage::Queued,
+                    )
+                    .task(veoveo_types::TaskId::from_uuid(id)),
+                )?,
                 (
                     "execution_slot",
                     RecordId::new(

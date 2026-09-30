@@ -30,6 +30,9 @@ impl veoveo_policy::PolicyCatalogView for GatewayCatalog {
 }
 impl GatewayCatalog {
     pub fn decide(&self, request: PolicyRequest<'_>) -> PolicyDecision {
+        let _timing = crate::request_observation::StageTimer::start(
+            crate::request_observation::RequestStage::Policy,
+        );
         veoveo_policy::decide(self, request)
     }
     pub fn decide_recording_ingest(

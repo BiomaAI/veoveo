@@ -30,7 +30,7 @@ async fn queued_cancellation_is_atomic_and_projection_ack_survives_pin_interrupt
     for cancel in [false, true] {
         let computer = a
             .reserve(
-                &actor,
+                &crate::support::authenticated(&actor),
                 &Reservation {
                     request_id: Uuid::now_v7(),
                     template_id: "development".into(),
@@ -160,7 +160,7 @@ async fn undispatched_abort_cannot_clear_an_uncertain_dispatch() {
     let actor = owner("alice");
     let computer = a
         .reserve(
-            &actor,
+            &crate::support::authenticated(&actor),
             &Reservation {
                 request_id: Uuid::now_v7(),
                 template_id: "development".into(),

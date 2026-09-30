@@ -43,10 +43,7 @@ pub(crate) struct AuthorityActivation {
     pub(crate) canonical_json: String,
 }
 
-const FENCE: &str = r#"
-BEGIN TRANSACTION;
-UPSERT ONLY $fence SET tenant = $tenant, token = $activation_token RETURN NONE;
-"#;
+const LOCK_INPUTS: &str = include_str!("activation_locks.surql");
 
 const CHECK_SNAPSHOT: &str = r#"
 IF array::len($observed) != array::len($expected_authorities) {
@@ -124,20 +121,32 @@ impl TimePersistence {
         let previous_version = pointer.as_ref().map(|record| record.release.record_version);
         // Compose fixed statements only. Both reads use precisely the same SQL shape.
         let query = format!(
-            "{FENCE} LET $observed = {{ {} }}; {CHECK_SNAPSHOT} {ACTIVATE}",
+            "BEGIN TRANSACTION; {LOCK_INPUTS} LET $observed = {{ {} }}; {CHECK_SNAPSHOT} {ACTIVATE}",
             super::active::ACTIVE_AUTHORITIES
         );
         let mut response = self
             .client()
             .query(query)
             .bind((
-                "fence",
-                time_record(
-                    "time_authority_activation_fence",
-                    identity.tenant_id.to_string(),
-                ),
+                "pointers",
+                [TimeDatasetKind::LeapSeconds, TimeDatasetKind::Tzdb].map(|kind| {
+                    time_record(
+                        "time_active_authority",
+                        format!("{}:{}", identity.tenant_id, dataset_kind_key(kind)),
+                    )
+                }),
             ))
-            .bind(("activation_token", uuid::Uuid::now_v7()))
+            .bind((
+                "releases",
+                snapshot
+                    .releases()
+                    .map(|record| record.release_key)
+                    .chain(std::iter::once(release_key.to_string()))
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .into_iter()
+                    .map(|key| time_record("time_authority_release", key))
+                    .collect::<Vec<_>>(),
+            ))
             .bind(("kind", Option::<TimeDatasetKind>::None))
             .bind(("expected_authorities", snapshot.rows))
             .bind(("expected_candidate", release))

@@ -7,22 +7,11 @@ use uuid::Uuid;
 use crate::identity::PLATFORM_ID_NAMESPACE;
 use crate::store::primary_transaction_error;
 use crate::{
-    AuditEventRecord, GatewayAuthorizationCodeStateRecord, GatewayAuthorizationRequestRecord,
+    GatewayAuthorizationCodeStateRecord, GatewayAuthorizationRequestRecord,
     GatewayJwtRevocationRecord, GatewayRefreshFamilyRecord, GatewayRefreshTokenRecord,
     GatewayReplayKind, GatewayReplayRecord, GatewayResourceSubscriptionRecord, OpenObject,
     OutboxDraft, PlatformStore, StoreError,
 };
-
-const GATEWAY_POLICY_AUDIT: &str = "gateway_policy";
-const GATEWAY_AUTH_AUDIT: &str = "gateway_auth";
-const GATEWAY_TOOL_CALL_AUDIT: &str = "gateway_tool_call";
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum GatewayAuditKind {
-    Policy,
-    Auth,
-    ToolCall,
-}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct GatewayRefreshRotation {
@@ -50,16 +39,6 @@ pub struct GatewayRefreshRetentionSummary {
     pub delivery_envelopes_deleted: u64,
     pub tokens_deleted: u64,
     pub families_deleted: u64,
-}
-
-impl GatewayAuditKind {
-    pub const fn resource_type(self) -> &'static str {
-        match self {
-            Self::Policy => GATEWAY_POLICY_AUDIT,
-            Self::Auth => GATEWAY_AUTH_AUDIT,
-            Self::ToolCall => GATEWAY_TOOL_CALL_AUDIT,
-        }
-    }
 }
 
 pub fn gateway_resource_subscription_record_id(
@@ -501,17 +480,9 @@ impl PlatformStore {
         current_hash: &str,
         replacement: GatewayRefreshTokenRecord,
         now: DateTime<Utc>,
-        success_audit: AuditEventRecord,
-        duplicate_delivery_audit: AuditEventRecord,
+        success_audit: veoveo_audit_contract::AuditDraft,
+        duplicate_delivery_audit: veoveo_audit_contract::AuditDraft,
     ) -> Result<GatewayRefreshRotationOutcome, StoreError> {
-        debug_assert_eq!(
-            success_audit.resource_type,
-            GatewayAuditKind::Auth.resource_type()
-        );
-        debug_assert_eq!(
-            duplicate_delivery_audit.resource_type,
-            GatewayAuditKind::Auth.resource_type()
-        );
         let Some((token, family)) = self.gateway_refresh_grant_by_hash(current_hash).await? else {
             return Ok(GatewayRefreshRotationOutcome::Invalid);
         };
@@ -546,12 +517,11 @@ impl PlatformStore {
                 ("profile".into(), serde_json::json!(&family.profile)),
             ]),
         );
-        let audit_outbox = gateway_audit_outbox(GatewayAuditKind::Auth, &success_audit);
         const MAX_ATTEMPTS: u32 = 8;
         for attempt in 0..MAX_ATTEMPTS {
-            let response = self
+            let response = crate::audit::AuditTransactionWrite::new(success_audit.clone())?.append(self
                 .db
-                .query("BEGIN TRANSACTION; LET $consumed = (UPDATE ONLY $current SET consumed_at = $now, replacement = $replacement, delivery_envelope = NONE, delivery_expires_at = NONE WHERE consumed_at = NONE AND replay_detected_at = NONE AND expires_at > $now RETURN AFTER); IF $consumed = NONE { THROW 'gateway_refresh_token_replay'; }; LET $family_updated = (UPDATE ONLY $family SET current_generation = $next_generation WHERE revoked_at = NONE AND expires_at > $now AND current_generation = $current_generation RETURN AFTER); IF $family_updated = NONE { THROW 'gateway_refresh_family_invalid'; }; CREATE ONLY $replacement CONTENT $replacement_content RETURN NONE; CREATE ONLY $audit_record CONTENT $audit_content RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; CREATE outbox_event CONTENT $audit_outbox RETURN NONE; COMMIT TRANSACTION;")
+                .query("BEGIN TRANSACTION; LET $consumed = (UPDATE ONLY $current SET consumed_at = $now, replacement = $replacement, delivery_envelope = NONE, delivery_expires_at = NONE WHERE consumed_at = NONE AND replay_detected_at = NONE AND expires_at > $now RETURN AFTER); IF $consumed = NONE { THROW 'gateway_refresh_token_replay'; }; LET $family_updated = (UPDATE ONLY $family SET current_generation = $next_generation WHERE revoked_at = NONE AND expires_at > $now AND current_generation = $current_generation RETURN AFTER); IF $family_updated = NONE { THROW 'gateway_refresh_family_invalid'; }; CREATE ONLY $replacement CONTENT $replacement_content RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; ")
                 .bind(("current", token.id.clone()))
                 .bind(("family", family.id.clone()))
                 .bind(("replacement", replacement.id.clone()))
@@ -559,11 +529,8 @@ impl PlatformStore {
                 .bind(("now", now))
                 .bind(("current_generation", token.generation))
                 .bind(("next_generation", replacement.generation))
-                .bind(("audit_record", success_audit.id.clone()))
-                .bind(("audit_content", success_audit.clone()))
                 .bind(("outbox", outbox.clone()))
-                .bind(("audit_outbox", audit_outbox.clone()))
-                .await
+                ).query("COMMIT TRANSACTION;").await
                 .and_then(|mut response| match primary_transaction_error(response.take_errors()) {
                     Some(error) => Err(error),
                     None => Ok(()),
@@ -662,97 +629,6 @@ impl PlatformStore {
             operation: "gateway refresh delivery-envelope retention count conversion",
         })
     }
-
-    pub async fn record_gateway_audit_event(
-        &self,
-        kind: GatewayAuditKind,
-        record: AuditEventRecord,
-    ) -> Result<(), StoreError> {
-        self.record_gateway_audit_events(kind, &[record]).await
-    }
-
-    /// Keep individual audit and outbox records while amortizing the shared
-    /// sequence transaction. No catalog result is released before these commit.
-    pub async fn record_gateway_audit_events(
-        &self,
-        kind: GatewayAuditKind,
-        records: &[AuditEventRecord],
-    ) -> Result<(), StoreError> {
-        for batch in records.chunks(64) {
-            self.record_gateway_audit_batch(kind, batch).await?;
-        }
-        Ok(())
-    }
-
-    async fn record_gateway_audit_batch(
-        &self,
-        kind: GatewayAuditKind,
-        records: &[AuditEventRecord],
-    ) -> Result<(), StoreError> {
-        debug_assert!(
-            records
-                .iter()
-                .all(|record| record.resource_type == kind.resource_type())
-        );
-        let outbox: Vec<_> = records
-            .iter()
-            .map(|record| gateway_audit_outbox(kind, record))
-            .collect();
-        const MAX_ATTEMPTS: u32 = 8;
-        for attempt in 0..MAX_ATTEMPTS {
-            let response = self
-                .db
-                .query("BEGIN TRANSACTION; INSERT INTO audit_event $records RETURN NONE; INSERT INTO outbox_event $outbox RETURN NONE; COMMIT TRANSACTION;")
-                .bind(("records", records.to_vec()))
-                .bind(("outbox", outbox.clone()))
-                .await
-                .and_then(|mut response| match primary_transaction_error(response.take_errors()) {
-                    Some(error) => Err(error),
-                    None => Ok(()),
-                });
-            match response {
-                Ok(()) => return Ok(()),
-                Err(error)
-                    if is_retryable_transaction_failure(&error) && attempt + 1 < MAX_ATTEMPTS =>
-                {
-                    retry_backoff(attempt).await;
-                }
-                Err(error) => return Err(error.into()),
-            }
-        }
-        unreachable!("gateway audit attempts return or fail")
-    }
-
-    pub async fn gateway_audit_events(
-        &self,
-        kind: GatewayAuditKind,
-    ) -> Result<Vec<AuditEventRecord>, StoreError> {
-        let mut response = self
-            .db
-            .query("SELECT * FROM audit_event WHERE resource_type = $resource_type ORDER BY occurred_at ASC, id ASC;")
-            .bind(("resource_type", kind.resource_type()))
-            .await?
-            .check()?;
-        Ok(response.take(0)?)
-    }
-
-    pub async fn gateway_audit_event_count(
-        &self,
-        kind: GatewayAuditKind,
-    ) -> Result<u64, StoreError> {
-        let mut response = self
-            .db
-            .query("SELECT VALUE count FROM (SELECT count() AS count FROM audit_event WHERE resource_type = $resource_type GROUP ALL);")
-            .bind(("resource_type", kind.resource_type()))
-            .await?
-            .check()?;
-        let counts: Vec<i64> = response.take(0)?;
-        u64::try_from(counts.first().copied().unwrap_or_default()).map_err(|_| {
-            StoreError::MissingRecord {
-                operation: "gateway audit count conversion",
-            }
-        })
-    }
 }
 
 impl PlatformStore {
@@ -761,7 +637,7 @@ impl PlatformStore {
         current_hash: &str,
         replacement: &GatewayRefreshTokenRecord,
         now: DateTime<Utc>,
-        duplicate_delivery_audit: &AuditEventRecord,
+        duplicate_delivery_audit: &veoveo_audit_contract::AuditDraft,
     ) -> Result<Option<GatewayRefreshRotationOutcome>, StoreError> {
         let Some((token, family)) = self.gateway_refresh_grant_by_hash(current_hash).await? else {
             return Ok(Some(GatewayRefreshRotationOutcome::Invalid));
@@ -804,7 +680,7 @@ impl PlatformStore {
         token: &GatewayRefreshTokenRecord,
         family: &GatewayRefreshFamilyRecord,
         now: DateTime<Utc>,
-        duplicate_delivery_audit: &AuditEventRecord,
+        duplicate_delivery_audit: &veoveo_audit_contract::AuditDraft,
     ) -> Result<GatewayRefreshRotationOutcome, StoreError> {
         let replacement: Option<GatewayRefreshTokenRecord> = match token.replacement.as_ref() {
             Some(replacement_id) => self.db.select(replacement_id.clone()).await?,
@@ -827,11 +703,8 @@ impl PlatformStore {
                         .is_some_and(|expires_at| expires_at > now)
             })
         {
-            self.record_gateway_audit_event(
-                GatewayAuditKind::Auth,
-                duplicate_delivery_audit.clone(),
-            )
-            .await?;
+            self.append_audit_records(std::slice::from_ref(duplicate_delivery_audit))
+                .await?;
             return Ok(GatewayRefreshRotationOutcome::Redelivered(Box::new(
                 GatewayRefreshRedelivery {
                     family: family.clone(),
@@ -936,19 +809,6 @@ fn gateway_outbox(
         event_type,
         1,
         OpenObject::new(payload),
-    )
-}
-
-fn gateway_audit_outbox(kind: GatewayAuditKind, record: &AuditEventRecord) -> OutboxDraft {
-    gateway_outbox(
-        "gateway_audit",
-        &record.id,
-        "gateway.audit.recorded",
-        BTreeMap::from([
-            ("kind".into(), serde_json::json!(kind.resource_type())),
-            ("action".into(), serde_json::json!(&record.action)),
-            ("outcome".into(), serde_json::json!(record.outcome)),
-        ]),
     )
 }
 

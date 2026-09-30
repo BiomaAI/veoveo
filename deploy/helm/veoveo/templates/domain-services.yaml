@@ -105,6 +105,9 @@ spec:
         checksum/bootstrap: {{ toJson (index $.Values.serverBootstrap $service.name) | sha256sum }}
         {{- end }}
     spec:
+      {{- if eq $service.name "speech-mcp" }}
+      terminationGracePeriodSeconds: 90
+      {{- end }}
       {{- if $service.runtimeClassName }}
       runtimeClassName: {{ if $gpuWorkload }}{{ include "veoveo.gpuRuntimeClass" (list $ $service.runtimeClassName) }}{{ else }}{{ $service.runtimeClassName }}{{ end }}
       {{- end }}

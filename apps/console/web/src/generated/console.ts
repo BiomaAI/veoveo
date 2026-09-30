@@ -47,6 +47,7 @@ export type WorkContextMembershipLevel = "viewer" | "contributor" | "custodian" 
 export type WorkContextId = string;
 
 export interface ConsoleBootstrap {
+  canReadAudit: boolean;
   canReadInstallation: boolean;
   installation: ConsoleInstallation;
   profile: GatewayProfileId;

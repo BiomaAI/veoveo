@@ -41,6 +41,7 @@ IF $prior != NONE {
   CREATE $grant CONTENT object::extend($content, {issued_at:$now, revision:0});
   CREATE $request CONTENT {grant:$grant, fingerprint:$fingerprint};
   CREATE outbox_event CONTENT $event;
+  fn::append_audit($audit_rows);
 };
 COMMIT TRANSACTION;
 SELECT * FROM ONLY (SELECT VALUE grant FROM ONLY $request);

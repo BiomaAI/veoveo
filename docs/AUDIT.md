@@ -87,8 +87,10 @@ execution of the same request share that record.
 
 HTTP range requests have no end event, so a download is recorded by window. A replica
 records the first range request of an actor for an artifact in each five-minute
-window. A duplicate from another replica is harmless. Indexing reads use the same
-window rule, because one collection sync is one logical action.
+window. Artifact service coalesces concurrent requests through a cache of at most 4,096
+acknowledged windows. Store atomically claims each actor/artifact/window with its record,
+so cache eviction and replica changes preserve the same window. Denials bypass that
+cache. Indexing reads use collection windows because one sync is one logical action.
 
 Each action has one owner. The gateway records requests. A domain service records the
 state changes it owns, such as an authorization issuance, a publication, or a Computer
@@ -105,10 +107,10 @@ Writers call one library, `platform/audit`, with one of two modes:
 
 - A transactional write commits the record inside the caller's domain transaction.
   Upload publication, Computers lifecycle changes, and Work Context transitions use it.
-- A request write joins a group commit. The writer gathers records from concurrent
-  requests for a short window and commits them in one transaction. Each caller waits
-  for its own commit. The window starts at 5 ms or 64 records, and measurement tunes
-  it.
+- A request write joins a group commit. The writer yields to ready request tasks,
+  then commits up to 64 queued records in one transaction. Records arriving during
+  that commit form the next group. Each caller waits for its own commit; an idle
+  request incurs no batching timer.
 
 A request fails when its required record cannot be committed. A completion record
 after a tool call is the exception: the effect already happened, so the writer
@@ -127,12 +129,11 @@ query filtered by partition and resumes from its change-feed cursor after a reco
 as `platform/store/src/resource_changes.rs` does for Time and Recording. No reader
 polls or scans other partitions.
 
-Transactional records for domain changes are first evaluated as SurrealDB events. Upload
-publication tries a synchronous `DEFINE EVENT` that writes the record from the
-publication's own authority fields in the same transaction. The writer library keeps
-this path only if the event is simpler than the library call and passes the same
-record-type tests; an event cannot see the calling session, so the domain record must
-carry every actor field the audit record needs.
+Upload publication builds its checked draft from the persisted completion context and
+appends it through Store's shared function in the publication transaction. The
+synchronous `DEFINE EVENT` alternative would reconstruct that draft from domain fields
+and duplicate the Rust enum and identifier conversions in SQL. The library call keeps
+one draft builder and lets the publication branch choose when a state change occurred.
 
 ## Measurement
 
@@ -144,6 +145,11 @@ acceptance is that audit commit is not the dominant cost of catalog and read lat
 Discovery decisions are cached by caller authority, policy revision, and catalog
 generation, and change events invalidate them. A list served from that cache
 evaluates no policy and writes its single record.
+
+The [paired native measurements](../platform/audit/measurements/2026-09-30.md)
+record request, policy, audit and upstream timing before and after this implementation.
+They qualify queued-record batching on fresh RocksDB stores and report the remaining
+catalog overhead and read-tail variation. Installed latency requires its own measurement.
 
 ## Integrity
 
@@ -188,13 +194,22 @@ beyond the reach of installation administrators.
 |---|---|
 | `api_activity`, `live_view_access`, `computer_activity` | API Activity (6003) |
 | `authentication` | Authentication (3002) |
-| `account_change` | Account Change (3001) |
+| `account_change` targeting a principal | Account Change (3001; deprecated but supported in OCSF 1.9.0) |
+| Work Context changes | API Activity (6003) |
+| Records without a class's required identity or source facts | Base Event (0), preserving the typed source |
 | `artifact_activity` | File Hosting Activity (6006) |
 
-The implementation confirms each class UID and required attribute against the OCSF
-1.9.0 schema before it ships the mapping. The exporter can also send records
-to an OpenTelemetry collector. Export delivery is at least once, and record IDs make
-duplicates identifiable.
+The [export design](../platform/audit/src/export/DESIGN.md) records the OCSF required
+attributes, provider completion profiles and failure handling. Source mapping checks
+use the upstream 1.9.0 class and object definitions; independent schema validation
+remains part of qualification. OCSF events preserve the typed source under
+`unmapped.veoveo`. The exporter can send the same events to an OpenTelemetry collector.
+Store acknowledges each configured destination separately. Delivery is at least once,
+and record IDs make duplicates identifiable.
+
+Export and compliance-mode acceptance are tracked in the foundations plan. The bundled
+RustFS configuration proves no Object Lock guarantee; gap G9 stays open until a
+supporting provider passes its installed tests.
 
 ## Access
 
@@ -205,8 +220,16 @@ for class, actor, target, outcome, trace, and time. The Console's overview reads
 `audit_daily`, a table view defined with `AS SELECT … GROUP BY` that SurrealDB maintains
 incrementally with counts of retained records by partition, day, class, and outcome, so
 the overview scans no records. The Console reads records through this
-query and exports the full filtered result on the server, not only the rows loaded in
-the browser.
+query and exports the full filtered result on the server. Opening a view first commits
+its access record. Pages and streams reference that record, and Store checks the
+current actor, profile, selected partition and fifteen-minute receipt lifetime.
+Current authorization still applies to every read.
+
+Console notifications use partition-scoped LIVE queries. Sealed block sequences carry
+commit-order recovery after reconnect, while unsealed records invalidate pages
+immediately. Export waits for its access marker to be sealed, freezes the retained
+interval and aborts if retention removes a member during the read. JSON Lines readers
+require the matching completion footer before accepting a complete export.
 
 ## Correlation
 
@@ -232,9 +255,9 @@ outside it:
 
 | Path | Responsibility |
 |---|---|
-| `mcp/contract/src/audit.rs` | record, actor, authority, target, detail, and outcome types |
+| `platform/audit/contract` | record, actor, authority, target, detail, and outcome types |
 | `platform/audit` | writer with transactional and group-commit modes, sealer, exporter, and verification |
-| `platform/store/src/audit.rs` and its migration | `audit_record`, `audit_block`, and `audit_daily`, compound record IDs, `READONLY` fields, record links, bounded range queries, LIVE and change-feed readers, and retention |
+| `platform/store/src/audit/` and its migration | `audit_record`, `audit_block`, and `audit_daily`, compound record IDs, `READONLY` fields, record links, bounded range queries, LIVE and change-feed readers, and retention |
 | `platform/gateway` | request IDs, trace context in the signed request context, request records, discovery aggregation, token lifecycle records, the sealer, exporter, and retention worker, and the `audit verify` command |
 | `platform/artifacts/service` | artifact activity records and download sessions |
 | `servers/uav-sim-mcp` | live-view access records |

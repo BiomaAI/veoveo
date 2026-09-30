@@ -36,7 +36,9 @@ async fn racing_same_request_reserves_once_and_changed_input_is_rejected() {
     let input = request();
     let requests = (0..8).map(|i| {
         let store = if i % 2 == 0 { &a } else { &b };
-        store.reserve(&owner, &input)
+        let actor = authenticated(&owner);
+        let input = &input;
+        async move { store.reserve(&actor, input).await }
     });
     let results = futures::future::join_all(requests).await;
     let id = results[0].as_ref().unwrap().computer_id;
@@ -53,7 +55,8 @@ async fn racing_same_request_reserves_once_and_changed_input_is_rejected() {
     reduced.install_capacity(Some(prior), closed).await.unwrap();
     assert_eq!(a.capacity().await.unwrap(), closed);
     assert!(matches!(
-        a.reserve(&owner, &request()).await,
+        a.reserve(&crate::support::authenticated(&owner), &request())
+            .await,
         Err(ComputerError::CapacityFull)
     ));
     assert_eq!(
@@ -61,17 +64,24 @@ async fn racing_same_request_reserves_once_and_changed_input_is_rejected() {
         Err(ComputerError::PolicyConflict)
     );
     assert_eq!(
-        reduced.reserve(&owner, &input).await.unwrap().computer_id,
+        reduced
+            .reserve(&crate::support::authenticated(&owner), &input)
+            .await
+            .unwrap()
+            .computer_id,
         id
     );
     assert!(matches!(
-        reduced.reserve(&owner, &request()).await,
+        reduced
+            .reserve(&crate::support::authenticated(&owner), &request())
+            .await,
         Err(ComputerError::CapacityFull)
     ));
     let mut changed = input.clone();
     changed.template_fingerprint = "b".repeat(64);
     assert!(matches!(
-        a.reserve(&owner, &changed).await,
+        a.reserve(&crate::support::authenticated(&owner), &changed)
+            .await,
         Err(ComputerError::RequestConflict)
     ));
     // An exact request creates one outbox entry and consumes one retained slot.
@@ -94,8 +104,14 @@ async fn collections_support_services_and_contexts_without_multiplying_owner_quo
     let mut service = owner("automation");
     service.principal_kind = veoveo_task_runtime::PrincipalKind::Service;
     service.authority.provenance = veoveo_types::InvocationProvenance::Automated;
-    let first = a.reserve(&alice, &request()).await.unwrap();
-    let second = a.reserve(&alice, &request()).await.unwrap();
+    let first = a
+        .reserve(&crate::support::authenticated(&alice), &request())
+        .await
+        .unwrap();
+    let second = a
+        .reserve(&crate::support::authenticated(&alice), &request())
+        .await
+        .unwrap();
     let page = a.list(&alice, None, 1).await.unwrap();
     assert_eq!(page.computers.len(), 1);
     assert_eq!(page.computers[0].computer_id, first.computer_id);
@@ -107,7 +123,10 @@ async fn collections_support_services_and_contexts_without_multiplying_owner_quo
         Err(ComputerError::NotFound)
     ));
     assert!(a.list(&bob, None, 10).await.unwrap().computers.is_empty());
-    let agent = a.reserve(&service, &request()).await.unwrap();
+    let agent = a
+        .reserve(&crate::support::authenticated(&service), &request())
+        .await
+        .unwrap();
     assert_eq!(
         agent.owner.principal_kind,
         veoveo_task_runtime::PrincipalKind::Service
@@ -125,32 +144,40 @@ async fn collections_support_services_and_contexts_without_multiplying_owner_quo
         a.get(&other_context, first.computer_id).await,
         Err(ComputerError::NotFound)
     ));
-    a.reserve(&other_context, &request()).await.unwrap();
+    a.reserve(&crate::support::authenticated(&other_context), &request())
+        .await
+        .unwrap();
     assert!(matches!(
-        a.reserve(&alice, &request()).await,
+        a.reserve(&crate::support::authenticated(&alice), &request())
+            .await,
         Err(ComputerError::CapacityFull)
     ));
     let mut other_profile = alice.clone();
     other_profile.profile = "different".into();
     assert!(matches!(
-        a.reserve(&other_profile, &request()).await,
+        a.reserve(&crate::support::authenticated(&other_profile), &request())
+            .await,
         Err(ComputerError::CapacityFull)
     ));
     let mut invalid = alice.clone();
     invalid.tenant_key = Some("another-tenant".into());
     assert!(matches!(
-        a.reserve(&invalid, &request()).await,
-        Err(ComputerError::InvalidInput)
+        veoveo_computers::ComputerActor::from_verified(&support::identity(&invalid)),
+        Err(ComputerError::Forbidden)
     ));
     let mut nil_request = request();
     nil_request.request_id = Uuid::nil();
     assert!(matches!(
-        a.reserve(&alice, &nil_request).await,
+        a.reserve(&crate::support::authenticated(&alice), &nil_request)
+            .await,
         Err(ComputerError::InvalidInput)
     ));
     let mut classified = owner("classified");
     classified.data_labels.insert("private-data".into());
-    let private = a.reserve(&classified, &request()).await.unwrap();
+    let private = a
+        .reserve(&crate::support::authenticated(&classified), &request())
+        .await
+        .unwrap();
     classified.data_labels.clear();
     assert!(matches!(
         a.get(&classified, private.computer_id).await,
@@ -179,28 +206,35 @@ async fn concurrent_distinct_admissions_enforce_each_shared_capacity_boundary() 
     let alice = owner("alice");
     let inputs: Vec<_> = (0..6).map(|_| request()).collect();
     let results = futures::future::join_all(inputs.iter().enumerate().map(|(i, r)| {
-        if i % 2 == 0 {
-            a.reserve(&alice, r)
-        } else {
-            b.reserve(&alice, r)
-        }
+        let store = if i % 2 == 0 { &a } else { &b };
+        let actor = authenticated(&alice);
+        async move { store.reserve(&actor, r).await }
     }))
     .await;
     assert_eq!(results.iter().filter(|r| r.is_ok()).count(), 2);
     for error in results.into_iter().filter_map(Result::err) {
         assert_eq!(error, ComputerError::CapacityFull);
     }
-    a.reserve(&owner("bob"), &request()).await.unwrap();
+    a.reserve(&crate::support::authenticated(&owner("bob")), &request())
+        .await
+        .unwrap();
     assert!(matches!(
-        a.reserve(&owner("charlie"), &request()).await,
+        a.reserve(
+            &crate::support::authenticated(&owner("charlie")),
+            &request()
+        )
+        .await,
         Err(ComputerError::CapacityFull)
     ));
     let mut other_tenant = owner("dana");
     other_tenant.tenant_key = Some("tenant-two".into());
     other_tenant.authority.tenant = veoveo_types::TenantId::new("tenant-two").unwrap();
-    b.reserve(&other_tenant, &request()).await.unwrap();
+    b.reserve(&crate::support::authenticated(&other_tenant), &request())
+        .await
+        .unwrap();
     assert!(matches!(
-        a.reserve(&other_tenant, &request()).await,
+        a.reserve(&crate::support::authenticated(&other_tenant), &request())
+            .await,
         Err(ComputerError::CapacityFull)
     ));
     assert_eq!(a.list(&alice, None, 100).await.unwrap().computers.len(), 2);

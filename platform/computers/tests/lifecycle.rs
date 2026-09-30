@@ -38,7 +38,7 @@ async fn replacement_lifecycle_keeps_instance_identity_through_dispatch_and_sett
     let actor = owner("alice");
     let computer = store
         .reserve(
-            &actor,
+            &crate::support::authenticated(&actor),
             &Reservation {
                 request_id: Uuid::now_v7(),
                 template_id: "development".into(),
@@ -129,7 +129,7 @@ async fn create(store: &ComputersStore, tasks: &TaskRuntime) -> (Operation, Clai
     let actor = owner("alice");
     let computer = store
         .reserve(
-            &actor,
+            &crate::support::authenticated(&actor),
             &Reservation {
                 request_id: Uuid::now_v7(),
                 template_id: "development".into(),

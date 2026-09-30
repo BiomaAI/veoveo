@@ -1,4 +1,5 @@
-use std::{collections::BTreeMap, time::Instant};
+use std::time::Instant;
+use veoveo_mcp_contract::audit::{AdministrativeOperation, AuditTarget};
 
 use axum::{
     Json,
@@ -14,7 +15,6 @@ use veoveo_mcp_contract::{
     GatewayProfile, PlaneCaller, PolicyTarget, PutGrantRequest, SetArtifactReleaseStateRequest,
 };
 use veoveo_mcp_gateway::AuthenticatedSubject;
-use veoveo_types::AccessLevel;
 use veoveo_types::{AccessSubject, ResourceUri};
 
 use crate::{
@@ -49,23 +49,13 @@ impl ArtifactOperation {
         }
     }
 
-    const fn method(self) -> &'static str {
+    const fn audit_operation(self) -> AdministrativeOperation {
         match self {
-            Self::SetReleaseState => "admin/artifacts/release-state",
-            Self::Grant => "admin/artifacts/grants",
-            Self::RevokeGrant => "admin/artifacts/grants/revoke",
-            Self::CreateShareLink => "admin/artifacts/share-links",
-            Self::RevokeShareLink => "admin/artifacts/share-links/revoke",
-        }
-    }
-
-    const fn result_method(self) -> &'static str {
-        match self {
-            Self::SetReleaseState => "admin/artifacts/release-state/result",
-            Self::Grant => "admin/artifacts/grants/result",
-            Self::RevokeGrant => "admin/artifacts/grants/revoke/result",
-            Self::CreateShareLink => "admin/artifacts/share-links/result",
-            Self::RevokeShareLink => "admin/artifacts/share-links/revoke/result",
+            Self::SetReleaseState => AdministrativeOperation::ArtifactRelease,
+            Self::Grant => AdministrativeOperation::ArtifactGrant,
+            Self::RevokeGrant => AdministrativeOperation::ArtifactRevoke,
+            Self::CreateShareLink => AdministrativeOperation::ArtifactShare,
+            Self::RevokeShareLink => AdministrativeOperation::ArtifactUnshare,
         }
     }
 
@@ -88,7 +78,6 @@ struct AuthorizedArtifactOperation {
     subject: AuthenticatedSubject,
     target: PolicyTarget,
     operation: ArtifactOperation,
-    metadata: BTreeMap<String, String>,
 }
 
 pub(crate) async fn set_artifact_release_state(
@@ -98,18 +87,12 @@ pub(crate) async fn set_artifact_release_state(
     Json(request): Json<SetArtifactReleaseStateRequest>,
 ) -> Response {
     let started_at = Instant::now();
-    let mut metadata = BTreeMap::new();
-    metadata.insert(
-        "release_state".to_owned(),
-        release_state_name(request.release_state).to_owned(),
-    );
     let context = match authorize_artifact_operation(
         &state,
         profile,
         artifact_id,
         subject,
         ArtifactOperation::SetReleaseState,
-        metadata,
         started_at,
     )
     .await
@@ -147,14 +130,12 @@ pub(crate) async fn grant_artifact(
     Json(request): Json<PutGrantRequest>,
 ) -> Response {
     let started_at = Instant::now();
-    let metadata = grant_metadata(&request.subject, request.level);
     let context = match authorize_artifact_operation(
         &state,
         profile,
         artifact_id,
         subject,
         ArtifactOperation::Grant,
-        metadata,
         started_at,
     )
     .await
@@ -181,14 +162,12 @@ pub(crate) async fn revoke_artifact_grant(
     Json(grant_subject): Json<AccessSubject>,
 ) -> Response {
     let started_at = Instant::now();
-    let metadata = grant_subject_metadata(&grant_subject);
     let context = match authorize_artifact_operation(
         &state,
         profile,
         artifact_id,
         subject,
         ArtifactOperation::RevokeGrant,
-        metadata,
         started_at,
     )
     .await
@@ -210,20 +189,12 @@ pub(crate) async fn create_artifact_share_link(
     Json(request): Json<CreateArtifactShareLinkRequest>,
 ) -> Response {
     let started_at = Instant::now();
-    let mut metadata = BTreeMap::new();
-    if let Some(expires_at) = request.expires_at {
-        metadata.insert("expires_at".to_owned(), expires_at.to_rfc3339());
-    }
-    if let Some(max_downloads) = request.max_downloads {
-        metadata.insert("max_downloads".to_owned(), max_downloads.to_string());
-    }
-    let mut context = match authorize_artifact_operation(
+    let context = match authorize_artifact_operation(
         &state,
         profile,
         artifact_id,
         subject,
         ArtifactOperation::CreateShareLink,
-        metadata,
         started_at,
     )
     .await
@@ -237,9 +208,6 @@ pub(crate) async fn create_artifact_share_link(
         .await;
     match result {
         Ok(link) => {
-            context
-                .metadata
-                .insert("link_id".to_owned(), link.link_id.to_string());
             if let Err(error) = record_artifact_result(
                 &state,
                 &context,
@@ -266,14 +234,12 @@ pub(crate) async fn revoke_artifact_share_link(
     let Ok(link_id) = ArtifactShareLinkId::parse(link_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let metadata = BTreeMap::from([("link_id".to_owned(), link_id.to_string())]);
     let context = match authorize_artifact_operation(
         &state,
         profile,
         artifact_id,
         subject,
         ArtifactOperation::RevokeShareLink,
-        metadata,
         started_at,
     )
     .await
@@ -295,7 +261,7 @@ async fn authorize_artifact_operation(
     artifact_id: String,
     subject: AuthenticatedSubject,
     operation: ArtifactOperation,
-    mut metadata: BTreeMap<String, String>,
+
     started_at: Instant,
 ) -> Result<AuthorizedArtifactOperation, Box<Response>> {
     let Some(profile_id) = admin_profile_id(profile) else {
@@ -310,17 +276,17 @@ async fn authorize_artifact_operation(
         server: state.artifact_server.clone(),
         artifact_uri,
     };
-    metadata.insert("operation".to_owned(), operation.name().to_owned());
-    metadata.insert("artifact_id".to_owned(), artifact_id.to_string());
     let (_catalog, profile, subject) = authorize_admin_target_request(
         state,
         &profile_id,
         subject,
         AdminAuthorizationRequest {
+            audit_target: Some(AuditTarget::Artifact {
+                artifact: artifact_id,
+            }),
             action: GatewayAction::AdminWrite,
             target: target.clone(),
-            method: operation.method(),
-            metadata: metadata.clone(),
+            operation: operation.audit_operation(),
             started_at,
         },
     )
@@ -344,12 +310,12 @@ async fn authorize_artifact_operation(
                 state,
                 &profile,
                 &subject,
+                artifact_id,
                 target,
                 operation,
                 started_at,
                 AdminOperationStatus::Failed,
                 Some(AdminOperationFailure::IssueInternalToken),
-                metadata,
             )
             .await
             {
@@ -375,7 +341,6 @@ async fn authorize_artifact_operation(
         subject,
         target,
         operation,
-        metadata,
     })
 }
 
@@ -451,12 +416,12 @@ async fn record_artifact_result(
         state,
         &context.profile,
         &context.subject,
+        context.artifact_id,
         context.target.clone(),
         context.operation,
         started_at,
         status,
         failure,
-        context.metadata.clone(),
     )
     .await
 }
@@ -466,12 +431,12 @@ async fn record_artifact_operation(
     state: &AdminState,
     profile: &GatewayProfile,
     subject: &AuthenticatedSubject,
+    artifact_id: ArtifactId,
     target: PolicyTarget,
     operation: ArtifactOperation,
     started_at: Instant,
     status: AdminOperationStatus,
     failure: Option<AdminOperationFailure>,
-    metadata: BTreeMap<String, String>,
 ) -> anyhow::Result<()> {
     record_admin_target_operation_audit(
         state,
@@ -479,49 +444,15 @@ async fn record_artifact_operation(
         subject,
         target,
         AdminOperationAuditRecord {
+            audit_target: Some(AuditTarget::Artifact {
+                artifact: artifact_id,
+            }),
             action: GatewayAction::AdminWrite,
-            method: operation.result_method(),
+            operation: operation.audit_operation(),
             started_at,
             status,
             failure,
-            metadata,
         },
     )
     .await
-}
-
-fn grant_metadata(subject: &AccessSubject, level: AccessLevel) -> BTreeMap<String, String> {
-    let mut metadata = grant_subject_metadata(subject);
-    metadata.insert(
-        "grant_level".to_owned(),
-        access_level_name(level).to_owned(),
-    );
-    metadata
-}
-
-fn grant_subject_metadata(subject: &AccessSubject) -> BTreeMap<String, String> {
-    let (kind, id) = match subject {
-        AccessSubject::Principal(id) => ("user", id.to_string()),
-        AccessSubject::Group(id) => ("group", id.to_string()),
-    };
-    BTreeMap::from([
-        ("grant_subject_kind".to_owned(), kind.to_owned()),
-        ("grant_subject".to_owned(), id),
-    ])
-}
-
-const fn access_level_name(level: AccessLevel) -> &'static str {
-    match level {
-        AccessLevel::Read => "read",
-        AccessLevel::Write => "write",
-        AccessLevel::Admin => "admin",
-    }
-}
-
-const fn release_state_name(state: veoveo_artifact_contract::ArtifactReleaseState) -> &'static str {
-    match state {
-        veoveo_artifact_contract::ArtifactReleaseState::Private => "private",
-        veoveo_artifact_contract::ArtifactReleaseState::Releasable => "releasable",
-        veoveo_artifact_contract::ArtifactReleaseState::Released => "released",
-    }
 }

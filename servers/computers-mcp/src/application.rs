@@ -169,7 +169,7 @@ impl Application {
             .store
             .read_computer_access(actor, &authority, id)
             .await?;
-        if self.refresh_run(computer.computer()?).await? {
+        if self.refresh_run(actor, computer.computer()?).await? {
             computer = self
                 .store
                 .read_computer_access(actor, &authority, id)
@@ -334,7 +334,7 @@ impl Application {
             match self
                 .store
                 .reserve(
-                    actor.owner(),
+                    &actor,
                     &Reservation {
                         request_id: request.request_id,
                         template_id: selected.id.clone(),
@@ -421,7 +421,7 @@ impl Application {
         {
             return Err(ApplicationError::Unavailable);
         }
-        self.refresh_run(&selected).await?;
+        self.refresh_run(&actor, &selected).await?;
         authority.require_action(action)?;
         let operation = self
             .store

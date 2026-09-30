@@ -22,6 +22,7 @@ import type {
   ReleaseState,
   RecordingPlaybackManifest,
   ShareLinkCreated,
+  TaskSummary,
 } from "./types";
 import { authenticationRequired, redirectToLogin } from "./auth";
 
@@ -135,8 +136,8 @@ export async function logoutConsole(): Promise<void> {
   redirectToLogin();
 }
 
-export async function cancelTask(taskId: string): Promise<void> {
-  await consoleMutation(`tasks/${encodeURIComponent(taskId)}/cancel`, {
+export async function cancelTask(task: Pick<TaskSummary, "server" | "id">): Promise<void> {
+  await consoleMutation(`tasks/${encodeURIComponent(task.server)}/${encodeURIComponent(task.id)}/cancel`, {
     method: "POST",
     body: ""
   });

@@ -14,8 +14,8 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 use veoveo_mcp_contract::{
-    AuthAuditEvent, AuthorizationServerId, GatewayProfileId, GatewayRefreshFamilyId,
-    GatewayRefreshGrant, OAuthClientId, OAuthRefreshToken, Principal, PrincipalDisplayName,
+    AuthorizationServerId, GatewayProfileId, GatewayRefreshFamilyId, GatewayRefreshGrant,
+    OAuthClientId, OAuthRefreshToken, Principal, PrincipalDisplayName,
 };
 use veoveo_platform_store::{
     GatewayRefreshFamilyRecord, GatewayRefreshRotationOutcome, GatewayRefreshTokenRecord,
@@ -129,8 +129,8 @@ pub struct GatewayRefreshRotationRequest<'a> {
     pub now: DateTime<Utc>,
     pub delivery_window: GatewayRefreshDeliveryWindow,
     pub delivery_cipher: &'a RefreshTokenDeliveryCipher,
-    pub success_audit: &'a AuthAuditEvent,
-    pub duplicate_delivery_audit: &'a AuthAuditEvent,
+    pub success_audit: &'a veoveo_audit_contract::AuditDraft,
+    pub duplicate_delivery_audit: &'a veoveo_audit_contract::AuditDraft,
 }
 
 pub struct GatewayRefreshIssueRequest<'a> {
@@ -315,11 +315,8 @@ impl GatewayState {
         if current.expires_at <= request.now || family.expires_at <= request.now {
             return Ok(GatewayRefreshExchange::Invalid);
         }
-        let success_audit = super::audit::canonical_auth_record(request.success_audit)
-            .context("failed to prepare refresh-token success audit")?;
-        let duplicate_delivery_audit =
-            super::audit::canonical_auth_record(request.duplicate_delivery_audit)
-                .context("failed to prepare duplicate refresh delivery audit")?;
+        let success_audit = request.success_audit.clone();
+        let duplicate_delivery_audit = request.duplicate_delivery_audit.clone();
         let next_generation = current
             .generation
             .checked_add(1)

@@ -27,3 +27,4 @@ LET $released = (UPDATE ONLY $computer SET phase = $phase, provider_resource_id 
   WHERE active_operation = $operation_id AND updated_at = $computer_state.updated_at RETURN AFTER);
 IF $released = NONE { THROW "computer_state_conflict"; };
 CREATE outbox_event CONTENT $event;
+  fn::append_audit($audit_rows);

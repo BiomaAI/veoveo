@@ -129,6 +129,11 @@ impl ComputersStore {
             ("computer_updated_at", computer.updated_at.into_value()),
             ("source_owner", object(&computer.owner)?.into_value()),
             ("event", event.into_value()),
+            crate::audit::binding(
+                &before.execution_authority,
+                before.computer_id,
+                crate::audit::maintenance(after),
+            )?,
             ("policy", policy.map(object).transpose()?.into_value()),
             (
                 "checkpoint",

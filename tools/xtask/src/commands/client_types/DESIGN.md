@@ -4,11 +4,11 @@
 
 | Boundary | Supported profile |
 |---|---|
-| JSON Schema 2020-12 | Schemars output from the owning Computers, Speech and MCP contract crates |
+| JSON Schema 2020-12 | Schemars output from the owning Audit, Computers, Speech and MCP contract crates |
 | TypeScript | Committed interfaces and aliases rendered by `json-schema-to-typescript` 16.0.0 |
 | `tsType` | Converter-local extension for closed empty objects and impossible schemas; it is absent from the published schemas |
 
-`cargo xtask release client-types` generates Console, Computers and agent-management
+`cargo xtask release client-types` generates Audit, Console, Computers and agent-management
 models under `apps/console/web/src/generated`, and Speech and Workspace models under
 `apps/workspace/src/generated`. `--check`
 compares those outputs without modifying them. The command imports only the pure

@@ -20,6 +20,7 @@ pub struct SpeechService {
     pub dictations: Arc<crate::dictation::Dictations>,
     pub artifacts: HttpArtifactPlane,
     pub worker: Arc<WorkerProcess>,
+    pub audit: veoveo_audit::AuditWriter,
     slots: Arc<tokio::sync::Semaphore>,
     queue: Arc<tokio::sync::Semaphore>,
 }
@@ -32,11 +33,15 @@ impl SpeechService {
         concurrent_files: usize,
         dictation_capacity: usize,
     ) -> Self {
+        let audit = veoveo_audit::AuditWriter::start(tasks.platform_store().clone());
+        let dictations =
+            crate::dictation::Dictations::new(worker.clone(), dictation_capacity, audit.clone());
         Self {
             tasks,
-            dictations: crate::dictation::Dictations::new(worker.clone(), dictation_capacity),
+            dictations,
             artifacts,
             worker,
+            audit,
             slots: Arc::new(tokio::sync::Semaphore::new(concurrent_files)),
             queue: Arc::new(tokio::sync::Semaphore::new(64)),
         }

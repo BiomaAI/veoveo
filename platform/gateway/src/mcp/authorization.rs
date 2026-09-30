@@ -1,13 +1,14 @@
-use chrono::Utc;
 use rmcp::{
     model::ErrorData as McpError,
     service::{RequestContext, RoleServer},
 };
+use veoveo_audit_contract::{
+    AuditDetail, AuditOutcome, AuditReadMethod, AuditReason, TaskActivity,
+};
 use veoveo_mcp_contract::{
-    AuditEvent, CanonicalTaskId, CompatibilityHelperId, GatewayAction, GatewayResourceProjection,
+    CanonicalTaskId, CompatibilityHelperId, GatewayAction, GatewayResourceProjection,
     LocalToolName, OAuthClientRegistration, OAuthClientSurface, PolicyDecision, PolicyEffect,
-    PolicyReasonCode, PolicyTarget, PrincipalAuditAttributes, PromptName, ServerSlug, TraceId,
-    trace_id_from_traceparent,
+    PolicyReasonCode, PolicyTarget, PromptName, ServerSlug, TraceId,
 };
 use veoveo_platform_store::{
     RecordIdKey, deterministic_principal_id, deterministic_tenant_id, deterministic_work_context_id,
@@ -16,10 +17,9 @@ use veoveo_platform_store::{
 use crate::{
     AuthenticatedSubject, PolicyRequest,
     mcp_support::{
-        audit_method_name, gateway_resource_uri, mcp_internal, mcp_invalid_params,
-        mcp_invalid_request, project_upstream_resource, resource_policy_target,
+        gateway_resource_uri, mcp_internal, mcp_invalid_params, mcp_invalid_request,
+        project_upstream_resource, resource_policy_target,
     },
-    principal_audit_metadata,
 };
 
 use super::GatewayMcp;
@@ -168,11 +168,17 @@ impl GatewayMcp {
             .extensions
             .get::<axum::http::request::Parts>()
             .ok_or_else(|| mcp_invalid_request("authenticated HTTP context missing"))?;
-        parts
+        let mut subject = parts
             .extensions
             .get::<AuthenticatedSubject>()
             .cloned()
-            .ok_or_else(|| mcp_invalid_request("authenticated subject missing"))
+            .ok_or_else(|| mcp_invalid_request("authenticated subject missing"))?;
+        let observation = parts
+            .extensions
+            .get::<crate::request_observation::RequestObservation>()
+            .ok_or_else(|| mcp_invalid_request("HTTP request correlation missing"))?;
+        subject.audit = observation.audit.clone();
+        Ok(subject)
     }
 
     pub(super) async fn authenticated_oauth_client(
@@ -296,27 +302,13 @@ impl GatewayMcp {
         }
     }
 
-    pub(super) async fn allows(
-        &self,
-        context: &RequestContext<RoleServer>,
-        action: GatewayAction,
-        target: PolicyTarget,
-    ) -> Result<bool, McpError> {
-        let subject = self.authenticated(context)?;
-        let trace_id = trace_id_for_context(context)?;
-        let (_subject, decision) = self
-            .evaluate_policy_for_subject_with_trace(&subject, action, target, trace_id)
-            .await?;
-        Ok(decision.effect == PolicyEffect::Allow)
-    }
-
     pub(super) async fn evaluate_policy_for_subject(
         &self,
         subject: &AuthenticatedSubject,
         action: GatewayAction,
         target: PolicyTarget,
     ) -> Result<(AuthenticatedSubject, PolicyDecision), McpError> {
-        let trace_id = TraceId::new(uuid::Uuid::new_v4().to_string())
+        let trace_id = TraceId::new(subject.audit.trace_id.to_string())
             .map_err(|err| mcp_internal(format!("failed to create trace id: {err}")))?;
         self.evaluate_policy_for_subject_with_trace(subject, action, target, trace_id)
             .await
@@ -329,19 +321,68 @@ impl GatewayMcp {
         target: PolicyTarget,
         trace_id: TraceId,
     ) -> Result<(AuthenticatedSubject, PolicyDecision), McpError> {
-        let event = self.policy_event(subject, action, target, trace_id).await?;
-        self.state
-            .record_audit_event(&event)
-            .await
-            .map_err(|err| {
-                tracing::error!("failed to record gateway audit event: {err}");
-                mcp_internal("The gateway couldn't record this request in the audit log, so it was not completed. Try again shortly.")
+        let decision = self
+            .policy_decision(subject, action, &target, trace_id)
+            .await?;
+        // Owned task status is a polling protocol. Its denials are still records.
+        if action != GatewayAction::TasksGet || decision.effect != PolicyEffect::Allow {
+            let detail = match action {
+                GatewayAction::ToolsCall => AuditDetail::ToolAdmission,
+                GatewayAction::ResourcesRead | GatewayAction::ArtifactRead => AuditDetail::Read {
+                    method: AuditReadMethod::ResourceRead,
+                },
+                GatewayAction::PromptsGet => AuditDetail::Read {
+                    method: AuditReadMethod::PromptGet,
+                },
+                GatewayAction::CompletionComplete => AuditDetail::Read {
+                    method: AuditReadMethod::Completion,
+                },
+                GatewayAction::SubscriptionsListen => AuditDetail::Read {
+                    method: AuditReadMethod::Subscription,
+                },
+                GatewayAction::TasksGet => AuditDetail::Read {
+                    method: AuditReadMethod::Status,
+                },
+                GatewayAction::TasksUpdate => AuditDetail::Task {
+                    activity: TaskActivity::Update,
+                },
+                GatewayAction::TasksCancel => AuditDetail::Task {
+                    activity: TaskActivity::Cancel,
+                },
+                GatewayAction::UsageRead => AuditDetail::Read {
+                    method: AuditReadMethod::Usage,
+                },
+                _ => return Err(mcp_internal("action requires its domain audit producer")),
+            };
+            let allowed = decision.effect == PolicyEffect::Allow;
+            let target = crate::audit::mcp_audit_target(&target)
+                .map_err(|_| mcp_internal("invalid audit target"))?;
+            let draft = subject
+                .audit_draft(
+                    &self.profile_id,
+                    target,
+                    detail,
+                    if allowed {
+                        AuditOutcome::Allowed
+                    } else {
+                        AuditOutcome::Denied
+                    },
+                    if allowed {
+                        AuditReason::Accepted
+                    } else {
+                        crate::audit::policy_reason(decision.reason)
+                    },
+                )
+                .map_err(|_| mcp_internal("invalid audit attribution"))?;
+            self.state.record_audit(draft).await.map_err(|_| {
+                mcp_internal("The gateway couldn't commit the audit record. Try again shortly.")
             })?;
-        Ok((subject.clone(), event.decision))
+        }
+        Ok((subject.clone(), decision))
     }
 
-    /// One decision and durable audit record per listed item, with bounded
-    /// database batches instead of competing per-item sequence transactions.
+    /// Discovery evaluates item visibility here; the list handler owns its one
+    /// request record after aggregation, including responses served from cache.
     pub(super) async fn allows_catalog_targets(
         &self,
         context: &RequestContext<RoleServer>,
@@ -350,74 +391,84 @@ impl GatewayMcp {
     ) -> Result<Vec<bool>, McpError> {
         let subject = self.authenticated(context)?;
         let trace = trace_id_for_context(context)?;
-        let mut events = Vec::with_capacity(targets.len());
+        let mut admitted = Vec::with_capacity(targets.len());
         for target in targets {
-            events.push(
-                self.policy_event(&subject, action, target, trace.clone())
-                    .await?,
+            admitted.push(
+                self.policy_decision(&subject, action, &target, trace.clone())
+                    .await?
+                    .effect
+                    == PolicyEffect::Allow,
             );
         }
-        self.state
-            .record_audit_events(&events)
-            .await
-            .map_err(|err| {
-                tracing::error!("failed to record discovery audit events: {err}");
-                mcp_internal("The gateway couldn't record this request in the audit log, so it was not completed. Try again shortly.")
-            })?;
-        Ok(events
-            .into_iter()
-            .map(|event| event.decision.effect == PolicyEffect::Allow)
-            .collect())
+        Ok(admitted)
     }
 
-    async fn policy_event(
+    async fn policy_decision(
         &self,
         subject: &AuthenticatedSubject,
         action: GatewayAction,
-        target: PolicyTarget,
+        target: &PolicyTarget,
         trace_id: TraceId,
-    ) -> Result<AuditEvent, McpError> {
+    ) -> Result<PolicyDecision, McpError> {
         let catalog = self.catalog.current();
-        let managed_admitted = match self
+        let managed_admitted = self
             .state
-            .managed_action_admitted(&catalog, subject, action, &target)
+            .managed_action_admitted(&catalog, subject, action, target)
             .await
-        {
-            Ok(admitted) => admitted,
-            Err(error) => {
-                tracing::warn!(%error, "managed agent authority unavailable");
-                false
-            }
-        };
+            .map_err(|_| mcp_internal("managed agent authority unavailable"))?;
         let mut decision = catalog.decide(PolicyRequest {
             principal: &subject.principal,
             profile: &self.profile_id,
             action,
-            target: &target,
+            target,
             trace_id: &trace_id,
         });
         if !managed_admitted {
             decision.effect = PolicyEffect::Deny;
             decision.reason = PolicyReasonCode::PolicyDeny;
         }
-        let event_id = TraceId::new(uuid::Uuid::new_v4().to_string())
-            .map_err(|err| mcp_internal(format!("failed to create audit event id: {err}")))?;
-        Ok(AuditEvent {
-            event_id,
-            timestamp: decision.evaluated_at,
-            trace_id,
-            profile: self.profile_id.clone(),
-            method: audit_method_name(action)?,
-            action,
-            target,
-            decision: decision.clone(),
-            principal: Some(subject.principal.id.clone()),
-            principal_attributes: Some(PrincipalAuditAttributes::from(&subject.principal)),
-            tenant: subject.principal.tenant.clone(),
-            token_issuer: Some(subject.access_token.issuer.clone()),
-            latency_ms: None,
-            metadata: principal_audit_metadata(&subject.principal),
-        })
+        Ok(decision)
+    }
+
+    pub(super) async fn record_discovery(
+        &self,
+        subject: &AuthenticatedSubject,
+        collection: veoveo_audit_contract::DiscoveryKind,
+        mut identities: Vec<String>,
+        denied: u32,
+    ) -> Result<(), McpError> {
+        use sha2::{Digest, Sha256};
+        use veoveo_audit_contract::AuditTarget;
+        identities.sort();
+        let visible = identities
+            .len()
+            .try_into()
+            .map_err(|_| mcp_internal("catalog exceeds audit count range"))?;
+        // A length-delimited JSON array prevents concatenation collisions between IDs.
+        let bytes = serde_json::to_vec(&identities)
+            .map_err(|_| mcp_internal("invalid catalog identity"))?;
+        let visible_digest = veoveo_types::Sha256Digest::from_bytes(Sha256::digest(bytes).into());
+        let draft = subject
+            .audit_draft(
+                &self.profile_id,
+                AuditTarget::Discovery {
+                    server: None,
+                    collection,
+                },
+                AuditDetail::Discovery {
+                    collection,
+                    visible,
+                    denied,
+                    visible_digest,
+                },
+                AuditOutcome::Allowed,
+                AuditReason::Accepted,
+            )
+            .map_err(|_| mcp_internal("invalid discovery attribution"))?;
+        self.state
+            .record_audit(draft)
+            .await
+            .map_err(|_| mcp_internal("required discovery audit unavailable"))
     }
 
     pub(super) async fn authorize_tool(
@@ -477,17 +528,6 @@ impl GatewayMcp {
             .await
     }
 
-    pub(super) async fn allows_prompt(
-        &self,
-        context: &RequestContext<RoleServer>,
-        action: GatewayAction,
-        server: ServerSlug,
-        prompt: PromptName,
-    ) -> Result<bool, McpError> {
-        self.allows(context, action, PolicyTarget::Prompt { server, prompt })
-            .await
-    }
-
     pub(super) async fn record_policy_denial(
         &self,
         subject: &AuthenticatedSubject,
@@ -495,50 +535,28 @@ impl GatewayMcp {
         target: PolicyTarget,
         reason: PolicyReasonCode,
     ) -> Result<(), McpError> {
-        let trace_id = TraceId::new(uuid::Uuid::new_v4().to_string())
-            .map_err(|err| mcp_internal(format!("failed to create trace id: {err}")))?;
-        let event_id = TraceId::new(uuid::Uuid::new_v4().to_string())
-            .map_err(|err| mcp_internal(format!("failed to create audit event id: {err}")))?;
-        let policy_version = self
-            .catalog
-            .current()
-            .profile(&self.profile_id)
-            .map(|profile| profile.policy_version.clone());
-        let decision = PolicyDecision {
-            effect: PolicyEffect::Deny,
-            reason,
-            evaluated_at: Utc::now(),
-            profile: self.profile_id.clone(),
-            action,
-            target: target.clone(),
-            principal: Some(subject.principal.id.clone()),
-            tenant: subject.principal.tenant.clone(),
-            policy_version,
-            rule_id: None,
-            trace_id: trace_id.clone(),
+        let target = crate::audit::mcp_audit_target(&target)
+            .map_err(|_| mcp_internal("invalid audit target"))?;
+        let detail = if action == GatewayAction::ToolsCall {
+            AuditDetail::ToolAdmission
+        } else {
+            AuditDetail::Read {
+                method: AuditReadMethod::Status,
+            }
         };
-        self.state
-            .record_audit_event(&AuditEvent {
-                event_id,
-                timestamp: decision.evaluated_at,
-                trace_id,
-                profile: self.profile_id.clone(),
-                method: audit_method_name(action)?,
-                action,
+        let draft = subject
+            .audit_draft(
+                &self.profile_id,
                 target,
-                decision,
-                principal: Some(subject.principal.id.clone()),
-                principal_attributes: Some(PrincipalAuditAttributes::from(&subject.principal)),
-                tenant: subject.principal.tenant.clone(),
-                token_issuer: Some(subject.access_token.issuer.clone()),
-                latency_ms: None,
-                metadata: principal_audit_metadata(&subject.principal),
-            })
+                detail,
+                AuditOutcome::Denied,
+                crate::audit::policy_reason(reason),
+            )
+            .map_err(|_| mcp_internal("invalid denial attribution"))?;
+        self.state
+            .record_audit(draft)
             .await
-            .map_err(|err| {
-                tracing::error!("failed to record gateway audit event: {err}");
-                mcp_internal("The gateway couldn't record this request in the audit log, so it was not completed. Try again shortly.")
-            })?;
+            .map_err(|_| mcp_internal("required denial audit unavailable"))?;
         Ok(())
     }
 
@@ -592,13 +610,16 @@ impl GatewayMcp {
 }
 
 fn trace_id_for_context(context: &RequestContext<RoleServer>) -> Result<TraceId, McpError> {
-    let value = context
-        .meta
-        .get_traceparent()
-        .and_then(trace_id_from_traceparent)
-        .map(str::to_owned)
-        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-    TraceId::new(value).map_err(|error| mcp_internal(format!("failed to create trace id: {error}")))
+    let parts = context
+        .extensions
+        .get::<axum::http::request::Parts>()
+        .ok_or_else(|| mcp_invalid_request("HTTP request correlation missing"))?;
+    let observation = parts
+        .extensions
+        .get::<crate::request_observation::RequestObservation>()
+        .ok_or_else(|| mcp_invalid_request("HTTP request correlation missing"))?;
+    TraceId::new(observation.audit.trace_id.to_string())
+        .map_err(|_| mcp_internal("invalid request trace"))
 }
 
 fn record_key(record: &veoveo_platform_store::RecordId) -> Result<String, McpError> {
@@ -631,6 +652,7 @@ fn policy_denial_message(decision: &PolicyDecision) -> String {
         PolicyTarget::ResourceTemplate { uri, .. } => format!("use resource template `{uri}`"),
         PolicyTarget::Prompt { server, prompt } => format!("use prompt `{prompt}` on `{server}`"),
         PolicyTarget::Task { task_id, .. } => format!("access task `{task_id}`"),
+        PolicyTarget::PlatformTask { task_id, .. } => format!("access task `{task_id}`"),
         PolicyTarget::Artifact { artifact_uri, .. } => format!("access `{artifact_uri}`"),
         PolicyTarget::Usage { usage_uri, .. } => format!("read `{usage_uri}`"),
         PolicyTarget::Server { server } => format!("use the `{server}` server"),

@@ -8,6 +8,7 @@ use opentelemetry_otlp::{WithExportConfig, WithHttpConfig};
 use opentelemetry_sdk::{
     Resource,
     logs::{BatchConfigBuilder as LogBatchConfigBuilder, BatchLogProcessor, SdkLoggerProvider},
+    metrics::SdkMeterProvider,
     trace::{BatchConfigBuilder as TraceBatchConfigBuilder, BatchSpanProcessor, SdkTracerProvider},
 };
 use std::{env, time::Duration};
@@ -17,16 +18,21 @@ const OTEL_SDK_DISABLED: &str = "OTEL_SDK_DISABLED";
 const OTEL_EXPORTER_OTLP_ENDPOINT: &str = "OTEL_EXPORTER_OTLP_ENDPOINT";
 const OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: &str = "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT";
 const OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: &str = "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT";
+const OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: &str = "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT";
 const EXPORT_SCHEDULE_DELAY: Duration = Duration::from_millis(500);
 
 #[derive(Debug, Default)]
 pub struct TelemetryGuard {
     tracer_provider: Option<SdkTracerProvider>,
     logger_provider: Option<SdkLoggerProvider>,
+    meter_provider: Option<SdkMeterProvider>,
 }
 
 impl Drop for TelemetryGuard {
     fn drop(&mut self) {
+        if let Some(provider) = &self.meter_provider {
+            let _ = provider.shutdown();
+        }
         if let Some(provider) = &self.logger_provider {
             let _ = provider.shutdown();
         }
@@ -53,6 +59,15 @@ pub fn init_server_telemetry(
     };
     let logger_provider = if otlp_logs_enabled() {
         Some(build_logger_provider(service_name)?)
+    } else {
+        None
+    };
+
+    let meter_provider = if !sdk_disabled()
+        && (env::var_os(OTEL_EXPORTER_OTLP_ENDPOINT).is_some()
+            || env::var_os(OTEL_EXPORTER_OTLP_METRICS_ENDPOINT).is_some())
+    {
+        Some(build_meter_provider(service_name)?)
     } else {
         None
     };
@@ -101,6 +116,7 @@ pub fn init_server_telemetry(
     Ok(TelemetryGuard {
         tracer_provider,
         logger_provider,
+        meter_provider,
     })
 }
 
@@ -199,6 +215,22 @@ fn sdk_disabled() -> bool {
 
 fn sdk_disabled_value(value: &str) -> bool {
     matches!(value, "true" | "TRUE" | "True" | "1")
+}
+
+fn build_meter_provider(service_name: &'static str) -> Result<SdkMeterProvider> {
+    let exporter = opentelemetry_otlp::MetricExporter::builder()
+        .with_http()
+        .with_http_client(blocking_export_client(
+            opentelemetry_otlp::OTEL_EXPORTER_OTLP_METRICS_TIMEOUT,
+        )?)
+        .with_protocol(opentelemetry_otlp::Protocol::HttpBinary)
+        .build()?;
+    let provider = SdkMeterProvider::builder()
+        .with_resource(resource(service_name))
+        .with_periodic_exporter(exporter)
+        .build();
+    global::set_meter_provider(provider.clone());
+    Ok(provider)
 }
 
 #[cfg(test)]

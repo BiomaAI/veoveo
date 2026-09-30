@@ -39,7 +39,7 @@ async fn access_inventory_and_revocation_share_owned_state_and_resource_invalida
         .unwrap();
     let computer = store
         .reserve(
-            actor.owner(),
+            &actor,
             &Reservation {
                 request_id: Uuid::now_v7(),
                 template_id: "development".into(),

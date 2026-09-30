@@ -4,7 +4,6 @@
     UPDATE ONLY $upload SET state = 'completed', verified_sha256 = $blob_content.sha256,
       completed_at = $now, updated_at = $now, reserved_bytes = 0,
       cleanup_bytes = $duplicate_bytes, cleanup_pending = $retained.object_key != $upload_state.object_key RETURN NONE;
-    CREATE ONLY $audit.id CONTENT $audit RETURN NONE;
-    CREATE outbox_event CONTENT $audit_outbox RETURN NONE;
+    fn::append_audit($audit_rows);
   };
 COMMIT TRANSACTION;

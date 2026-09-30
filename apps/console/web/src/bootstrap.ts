@@ -20,6 +20,7 @@ export function useConsoleBootstrap() {
         return parseConsoleBootstrap({
           profile: "demo",
           canReadInstallation: true,
+          canReadAudit: false,
           installation: demoSnapshot.installation,
           session: demoSnapshot.session,
         });

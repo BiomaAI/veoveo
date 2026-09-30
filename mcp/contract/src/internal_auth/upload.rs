@@ -22,6 +22,7 @@ impl GatewayInternalTokenIssuer {
         profile: GatewayProfileId,
         actor: Principal,
         authority: InvocationAuthority,
+        request_context: GatewayRequestContext,
         authorization: ArtifactUploadAuthority,
         expires_at: DateTime<Utc>,
     ) -> Result<String, InternalTokenError> {
@@ -30,7 +31,7 @@ impl GatewayInternalTokenIssuer {
             ServerSlug::new(ARTIFACT_UPLOAD_AUDIENCE).map_err(InternalTokenError::Identifier)?,
             actor,
             authority,
-            None,
+            Some(request_context),
             expires_at,
         )?;
         let claims = UploadClaims {
@@ -63,8 +64,10 @@ impl GatewayInternalTokenVerifier {
                 actual: claims.identity.server,
             });
         }
+        let identity = self.identity_from_claims(claims.identity)?;
+        identity.audit_context()?;
         Ok(VerifiedArtifactUploadIdentity {
-            identity: self.identity_from_claims(claims.identity)?,
+            identity,
             authorization: claims.upload_authorization,
         })
     }

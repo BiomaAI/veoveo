@@ -1,0 +1,18 @@
+[package]
+name = "veoveo-audit-contract"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+veoveo-types.workspace = true
+veoveo-artifact-contract.workspace = true
+veoveo-computers-contract = { path = "../../computers/contract" }
+chrono.workspace = true
+schemars = { workspace = true, features = ["chrono04", "uuid1"] }
+serde.workspace = true
+uuid.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

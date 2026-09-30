@@ -3,7 +3,7 @@ use serde_json::{Value, json};
 use std::{fmt::Debug, str::FromStr};
 use veoveo_types::{
     AccessSubject, DataLabelId, DelegationId, GroupId, InvocationMode, InvocationProvenance,
-    PolicyVersion, PrincipalId, RoleId, TenantId, WorkContextId,
+    PolicyVersion, PrincipalId, RoleId, TenantId, TokenIssuer, TokenSubject, WorkContextId,
 };
 
 fn assert_wire_profile<T>(accepted: &[&str], rejected: &[&str])
@@ -40,6 +40,8 @@ fn claim_identities_preserve_external_spelling() {
         &long,
     ];
     let rejected = ["", "subject\n", "a\tb", "a\0b", "a\u{7f}b", "a\u{85}b"];
+    assert_wire_profile::<TokenIssuer>(&accepted, &rejected);
+    assert_wire_profile::<TokenSubject>(&accepted, &rejected);
     assert_wire_profile::<PrincipalId>(&accepted, &rejected);
     assert_wire_profile::<TenantId>(&accepted, &rejected);
     assert_wire_profile::<DelegationId>(&accepted, &rejected);

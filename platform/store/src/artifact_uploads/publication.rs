@@ -1,14 +1,17 @@
 //! An upload receipt and governed occurrence become durable in one transaction.
 
 use super::*;
+use crate::audit::AuditTransactionWrite;
 use crate::{
     ArtifactGrantDraft, ArtifactGrantSubjectKind, ArtifactId, ArtifactOccurrenceDraft,
-    AuditEventId, AuditEventRecord, AuditOutcome, GrantPermission, OpenObject, OutboxDraft,
-    PlatformIdentity, PrincipalId, TenantId,
+    GrantPermission, PlatformIdentity, PrincipalId, TenantId,
 };
 use chrono::Utc;
 use std::collections::BTreeMap;
 use surrealdb::types::RecordId;
+use veoveo_audit_contract::{
+    ArtifactActivity, AuditDetail, AuditOutcome, AuditReason, AuditTarget,
+};
 
 impl PlatformStore {
     pub async fn publish_artifact_upload(
@@ -25,39 +28,25 @@ impl PlatformStore {
         let upload = self.required_upload(fence.upload_id).await?;
         let draft = upload_publication(&upload, sha256, byte_len)?;
         let publication = crate::artifacts::publication::prepare_publication(draft)?;
-        let audit_id = AuditEventId::new();
-        let audit = AuditEventRecord {
-            id: audit_id.record_id(),
-            tenant: Some(upload.tenant.clone()),
-            actor: Some(upload.actor.clone()),
-            action: "artifact.upload.completed".into(),
-            resource_type: "artifact".into(),
-            resource_id: Some(crate::artifacts::record_uuid(&upload.artifact)?.to_string()),
-            outcome: AuditOutcome::Succeeded,
-            request_id: Some(upload.request_id.to_string()),
-            trace_id: None,
-            source_ip: None,
-            details: OpenObject::new(BTreeMap::from([
-                (
-                    "upload_id".into(),
-                    serde_json::json!(fence.upload_id.to_string()),
-                ),
-                ("byte_len".into(), serde_json::json!(byte_len)),
-            ])),
-            occurred_at: Utc::now(),
-            search_text: "artifact.upload.completed".into(),
-        };
-        let audit_outbox = OutboxDraft::now(
-            Some(upload.tenant.clone()),
-            "audit",
-            audit_id.to_string(),
-            "audit.recorded",
-            1,
-            OpenObject::new(BTreeMap::from([
-                ("action".into(), serde_json::json!(&audit.action)),
-                ("resource_id".into(), serde_json::json!(&audit.resource_id)),
-            ])),
-        );
+        let audit = upload.audit.0.draft(
+            AuditTarget::Artifact {
+                artifact: veoveo_artifact_contract::ArtifactId::try_from(
+                    crate::artifacts::record_uuid(&upload.artifact)?,
+                )
+                .map_err(|_| StoreError::AuditIntegrity)?,
+            },
+            AuditDetail::Artifact {
+                activity: ArtifactActivity::Publish,
+                requested: None,
+                subject: None,
+                release_state: None,
+                related: None,
+                bytes: Some(u64::try_from(byte_len).map_err(|_| StoreError::AuditIntegrity)?),
+                window_start: None,
+            },
+            AuditOutcome::Succeeded,
+            AuditReason::Accepted,
+        )?;
         for attempt in 0..8_u32 {
             let mut response = self
                 .db
@@ -76,12 +65,11 @@ impl PlatformStore {
                 .bind(("artifact_content", publication.occurrence.clone()))
                 .bind(("grants", publication.grants.clone()))
                 .bind(("outbox", publication.outbox.clone()))
+                .bind(AuditTransactionWrite::new(audit.clone())?.into_binding())
                 .bind((
                     "storage_usage",
                     RecordId::new("artifact_storage_usage", upload.tenant.key.clone()),
                 ))
-                .bind(("audit", audit.clone()))
-                .bind(("audit_outbox", audit_outbox.clone()))
                 .await?;
             let Some(error) = crate::store::primary_transaction_error(response.take_errors())
             else {

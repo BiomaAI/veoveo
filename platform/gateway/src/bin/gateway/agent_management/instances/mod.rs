@@ -2,8 +2,6 @@
 mod admission;
 mod projection;
 
-use std::collections::BTreeMap;
-
 use axum::{
     Json, Router,
     extract::{Extension, Path, Query, State},
@@ -100,7 +98,6 @@ async fn finish(
     state: &AgentManagementState,
     actor: &Admission,
     key: &str,
-    request_id: Uuid,
     result: Result<ManagedAgentOperation, Fault>,
 ) -> Result<(StatusCode, Json<wire::LifecycleOperation>), Fault> {
     let result = result.and_then(|value| projection::operation(key, value));
@@ -110,8 +107,13 @@ async fn finish(
         &actor.subject,
         PolicyTarget::Gateway,
         AdminOperationAuditRecord {
+            audit_target: Some(crate::audit::managed_instance_audit_target(
+                &actor.subject.authority.tenant,
+                &wire::AgentManagedInstanceId::new(key).map_err(|_| Fault::unavailable())?,
+            )),
             action: actor.action,
-            method: "admin/agent-instances/result",
+            operation: crate::audit::agent_management_operation(actor.action)
+                .map_err(|_| Fault::unavailable())?,
             started_at: actor.started,
             status: match &result {
                 Ok(_) => AdminOperationStatus::Succeeded,
@@ -122,10 +124,6 @@ async fn finish(
                 .as_ref()
                 .err()
                 .map(|_| AdminOperationFailure::AgentManagement),
-            metadata: BTreeMap::from([
-                ("request_id".into(), request_id.to_string()),
-                ("instance".into(), key.into()),
-            ]),
         },
     )
     .await
@@ -141,14 +139,7 @@ async fn provision(
 ) -> Result<(StatusCode, Json<wire::LifecycleOperation>), Fault> {
     let actor = authority::admit(&state, profile, subject, Action::AgentInstancesDeploy).await?;
     let result = admission::provision(&state, &actor, &request).await;
-    finish(
-        &state,
-        &actor,
-        request.id.as_str(),
-        request.request_id,
-        result,
-    )
-    .await
+    finish(&state, &actor, request.id.as_str(), result).await
 }
 
 async fn update(
@@ -236,5 +227,5 @@ async fn update(
             .await?)
     }
     .await;
-    finish(&state, &actor, &id, request.request_id, result).await
+    finish(&state, &actor, &id, result).await
 }

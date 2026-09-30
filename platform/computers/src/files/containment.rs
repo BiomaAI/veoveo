@@ -68,7 +68,7 @@ impl ComputersStore {
                         .into_value(),
                 ),
             ],
-            "computer.file_transfer_containment_requested",
+            crate::audit::ExecutionTransition::ContainmentRequested,
         )
         .await?;
         self.file_for_claim(claim).await
@@ -92,7 +92,7 @@ impl ComputersStore {
             ProviderCommit::Observe,
             include_str!("../../queries/dispatch_file_stop.surql"),
             vec![("stop_id", id.into_value())],
-            "computer.file_transfer_stop_dispatched",
+            crate::audit::ExecutionTransition::StopDispatched,
         )
         .await?;
         let selected = self.worker_file(claim).await?;
@@ -136,7 +136,7 @@ impl ComputersStore {
                         .into_value(),
                 ),
             ],
-            "computer.file_transfer_recovery_required",
+            crate::audit::ExecutionTransition::RecoveryRequired,
         )
         .await?;
         let selected = self.worker_file(claim).await?;

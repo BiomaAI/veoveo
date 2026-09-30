@@ -335,27 +335,22 @@ even when an external repair did not advance the version. SQL compares optional
 pointer history by value because a missing stored field and a driver `NONE` have
 different object representations.
 
-Every activation writes a fresh UUID to the tenant's `time_authority_activation_fence`
-record in the same transaction. This common write makes concurrent changes to different
-families conflict under SurrealDB 3.3.0 snapshot isolation. The record contains no
-release selection. A failure rolls back its write with the candidate and pointers;
-there is no process lock, background lease renewal or automatic mutation retry.
-Clients retry a rejected activation only after loading the current pair again.
-Store's shared transaction-error selector preserves the causal database error instead
-of reporting an earlier cancelled statement as the cause.
+Every activation registers both exact `time_active_authority` IDs for commit-time conflict detection with
+`SELECT … FOR UPDATE`, including absent pointers. It registers the candidate and
+both preflight release records too, then compares the complete preflight snapshot before
+changing a release or pointer. IDs are read in stable order. The database takes no blocking row lock. A concurrent insert,
+update or deletion invalidates the transaction under the selected SurrealDB 3.3.0
+profile. A failed activation rolls back every write. Clients load the current pair
+again before retrying; the server performs no automatic mutation retry.
+Store's transaction-error selector preserves the causal database error instead of
+reporting an earlier cancelled statement as the cause.
 
-The Time owner requires a coordinated drain of older writers before adopting this
-activation profile. Store creates the additive fence table without rewriting retained
-authority records or backfilling fence rows; the first activation creates its tenant's
-row. Keep the prior image and database snapshot, and restore both for rollback under
-the Store migration contract. Native qualification covers fresh and retained pairs,
-different-family contention on RocksDB, stale metadata, tenant mismatch, failed file
-loads and rollback. Installed upgrade and rollback qualification are still pending.
-
-The database's [locked-read clause](https://surrealdb.com/docs/reference/query-language/statements/select#the-for-update-clause)
-is available in 3.3.0. Qualify locked reads of both pointer IDs, including absent
-IDs, and their release records before changing activation locking. Retire the fence only when those checks replace its cross-family
-conflict guarantee and the coordinated transition passes qualification.
+The foundations cut requires a fresh database and drained writers. The schema contains
+no activation-fence table. Native qualification covers different-family contention
+starting with absent pointers, existing pairs, concurrent pointer and release repairs,
+stale preflight metadata, tenant mismatch and failed file loads. Qualification results
+and pending installed acceptance are recorded in the
+[foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#phase-4-unified-audit-log).
 
 ### Tenant Authority Contexts
 

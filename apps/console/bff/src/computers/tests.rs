@@ -50,7 +50,7 @@ impl Fixture {
                 }
                 if path == "/console-api/admin/session" {
                     return ([(header::SET_COOKIE, "upstream=forbidden")], Json(serde_json::json!({
-                        "profile":"admin", "canReadInstallation":false,
+                        "profile":"admin", "canReadInstallation":false, "canReadAudit":false,
                         "installation":{"name":"Veoveo","productLabel":"Workspace","version":"fixture","offlineMode":false,"generatedAt":Utc::now()},
                         "session":{"displayName":"Alice","principalId":"https://test#alice","actorId":"https://test#alice","tenantId":"test","tenantName":"Test","workContext":"work","workContextTitle":"Work","membership":"contributor","invocationMode":"direct","availableTenants":[{"id":"test","name":"Test"}]}
                     }))).into_response();

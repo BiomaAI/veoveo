@@ -23,6 +23,7 @@ url.workspace = true
 uuid.workspace = true
 veoveo-deploy-contract.workspace = true
 veoveo-computers-contract = { path = "../../platform/computers/contract" }
+veoveo-audit-contract = { path = "../../platform/audit/contract" }
 veoveo-deploy-runtime.workspace = true
 veoveo-image-build-control.workspace = true
 veoveo-mcp-contract = { workspace = true, default-features = false }

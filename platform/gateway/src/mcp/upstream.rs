@@ -150,6 +150,9 @@ impl ClientHandler for GatewayUpstreamHandler {
     }
 
     async fn on_prompt_list_changed(&self, _context: NotificationContext<RoleClient>) {
+        self.discovery
+            .invalidate_prompts(&self.upstream_server)
+            .await;
         let downstream = self.downstream.clone();
         forward_notification(self.upstream_server.clone(), "prompt list", async move {
             downstream.notify_prompt_list_changed().await

@@ -179,6 +179,15 @@ impl ComputersStore {
                 object(&computer.owner)?.into_value(),
             ),
             ("event", event.into_value()),
+            crate::audit::binding(
+                actor.accepted(),
+                binding.computer_id,
+                crate::audit::Transition::accepted(
+                    veoveo_audit_contract::ComputerActivity::Command,
+                    veoveo_audit_contract::ComputerAuditStage::Queued,
+                )
+                .task(binding.execution_id.task_id()),
+            )?,
         ]);
         self.query(include_str!("../../queries/queue_command.surql"), params)
             .await?;

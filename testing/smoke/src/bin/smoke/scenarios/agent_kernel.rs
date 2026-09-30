@@ -102,7 +102,7 @@ pub(crate) async fn agent_kernel_detach_resume(
         &tmpdir.join("gateway.log"),
     )?;
     wait_for_http(&format!("{gateway_base}/healthz")).await?;
-    assert_ready_profiles(&gateway_base, 2).await?;
+    assert_ready_profiles(&gateway_base, fixture_profile_count(control_plane)?).await?;
 
     let migrations_dir = tmpdir.join("migrations");
     fs::create_dir_all(&migrations_dir)?;
@@ -382,7 +382,7 @@ pub(crate) async fn agent_kernel_scheduler(
         &gateway_log,
     )?;
     wait_for_http(&format!("{gateway_base}/healthz")).await?;
-    assert_ready_profiles(&gateway_base, 3).await?;
+    assert_ready_profiles(&gateway_base, fixture_profile_count(control_plane)?).await?;
 
     let write_manifest = |name: &str, extra: serde_json::Value| -> Result<std::path::PathBuf> {
         let mut manifest = serde_json::json!({
@@ -763,7 +763,11 @@ pub(crate) async fn agent_pilot_mission(
         &gateway_log,
     )?;
     wait_for_http(&format!("{gateway_base}/healthz")).await?;
-    assert_ready_profiles(&gateway_base, 3).await?;
+    assert_ready_profiles(
+        &gateway_base,
+        fixture_profile_count(&generated_control_plane)?,
+    )
+    .await?;
 
     // The pilot's real domain migrations, applied verbatim.
     let migrations_dir =
@@ -1121,7 +1125,7 @@ pub(crate) async fn agent_sleep_wake(
         &tmpdir.join("gateway.log"),
     )?;
     wait_for_http(&format!("{gateway_base}/healthz")).await?;
-    assert_ready_profiles(&gateway_base, 2).await?;
+    assert_ready_profiles(&gateway_base, fixture_profile_count(control_plane)?).await?;
 
     let (model_base_url, api_key_env, model) = live_model.clone().unwrap_or((
         format!("http://127.0.0.1:{llm_port}/v1"),

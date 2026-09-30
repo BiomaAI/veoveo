@@ -7,7 +7,6 @@ import type {
   AgentSummary,
   AppCatalog,
   ArtifactSummary,
-  AuditSummary,
   InstallationSnapshot,
   McpServerSummary,
   PrincipalSummary,
@@ -17,7 +16,7 @@ import type {
 
 export type LiveStatus = "live" | "reconnecting" | "off";
 
-const ENTITY_EVENTS = ["principal", "task", "artifact", "agent", "recording", "audit", "server"] as const;
+const ENTITY_EVENTS = ["principal", "task", "artifact", "agent", "recording", "server"] as const;
 type EntityEvent = (typeof ENTITY_EVENTS)[number];
 
 type RowEvent =
@@ -25,7 +24,6 @@ type RowEvent =
   | { op: "delete"; id: string };
 
 const ROW_CAP = 500;
-const AUDIT_ROW_CAP = 400;
 
 interface Keyed {
   id: string;
@@ -108,19 +106,6 @@ export function applyRowEvent(client: QueryClient, entity: EntityEvent, event: R
                   ROW_CAP
                 )
               : removeRow(snapshot.recordings, event.id),
-        };
-      case "audit":
-        return {
-          ...snapshot,
-          audit:
-            event.op === "upsert"
-              ? upsertSorted(
-                  snapshot.audit,
-                  event.row as unknown as AuditSummary,
-                  (item) => item.occurredAt,
-                  AUDIT_ROW_CAP
-                )
-              : removeRow(snapshot.audit, event.id),
         };
       case "server":
         return {

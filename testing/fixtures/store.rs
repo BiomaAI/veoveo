@@ -21,10 +21,15 @@ pub struct TestDb {
     _container: Container,
     runtime_credentials: StoreCredentials,
     pub a: PlatformStore,
+    #[allow(dead_code, reason = "Only replica fixtures use the second connection")]
     pub b: PlatformStore,
 }
 
 impl TestDb {
+    #[allow(
+        dead_code,
+        reason = "Fixture consumers select memory or RocksDB explicitly"
+    )]
     pub async fn new() -> Self {
         Self::with_backend(StoreBackend::Memory).await
     }

@@ -569,6 +569,8 @@ optional features, Veoveo implements only the subset its designs describe.
 | Geography and time | WGS84/EPSG identities; GeoJSON RFC 7946; OGC JSON-FG and CQL2; GeoParquet 1.0; Mapbox Vector Tile 2.1; MapLibre Style 8; RFC 3339; RFC 9557; IANA TZDB/TZif and leap-second data; TAI and GPS time. |
 | Optimization | NVIDIA cuOpt 26.08 on CUDA 13.3; `veoveo.ai/travel-model-artifact/v1` for the Map handoff; and the private pod-local `veoveo.ai/cuopt-executor/v1` adapter protocol. |
 | 3D and vehicles | OGC 3D Tiles 1.0/1.1; glTF/GLB 2.0; Draco geometry compression; OpenUSD; Newton and Warp CUDA; and MAVLink 2 HIL. |
+| Audit | [OCSF 1.9.0 export](platform/audit/src/export/DESIGN.md), W3C Trace Context, signed blocks and OTLP Logs; foundations qualification in progress. |
+| Coordination | SurrealDB 3.3.0 with typed Store access and native change feeds. |
 | Packaging and operations | Kubernetes resources, Helm charts, OCI images and charts, S3-compatible storage, and OpenTelemetry. |
 
 The supported subsets are listed in
