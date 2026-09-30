@@ -1795,6 +1795,26 @@ including owned and delegated reads, collections and completions. Remaining
 lifecycle/access/provider identities and DTO relationships are recorded below.
 Installed qualification stays at the integration checkpoint.
 
+The Computers SQL batch admits owner identity, Work Context, retained labels and
+classification before decoding exact reads, collections and completions. Grant reads
+bind their parent and verified grantee in SQL. Current owner policy and effective
+grant lifetime are resolved before decoding the Computer. Private typed permits feed
+a final SQL transaction that rechecks control and grant revisions, account state,
+session expiry and installation limits before ordering and limiting public rows.
+Denied candidates cannot consume a page slot; the cursor identifies the last returned
+Computer. Admitted malformed rows fail the read.
+
+The grouped native selection and affected follow-up qualify 584 unique checks. Five
+new regressions cover malformed denied rows, complete owner identity and clearance,
+page filling, owner policy, grant lifetime, control replacement and logout. Six
+prerequisite-dependent checks remain ignored. SurrealDB 3.2.4 validates the nine
+queries. A post-build filesystem flush took 14 seconds before the grouped fixtures;
+the run had no Docker creation timeout. This is a resource observation for this plan,
+not a fixture guarantee. The cluster and BuildKit stayed stopped, and native fixtures
+removed their containers. Operation Task reads, command/file authorization metadata
+and access/session grant queries still need SQL admission review. Remaining typed
+lifecycle/access/provider identities and installed acceptance stay open.
+
 ## Standards And Protocols
 
 | Standard or protocol | Role in this plan |
@@ -2279,7 +2299,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Time resolution metadata | `ResolveTimeOutput` admits matching instant/release pairs and protects them with read-only accessors; its wire adapter preserves flat projection fields. Engine epoch keys remain typed, relative calculations reject foreign authority and preserve uncertainty, and additional uncertainty checks overflow. Native and independent-consumer cases qualify these relationships | Qualify installed resolve/convert decoding and epoch behavior after authority activation; computed representations remain the engine's responsibility |
 | Time activation preflight | A private draft carries the candidate and both admitted active families through file loading to SQL commit. A shared tenant write fences different-family decisions on 3.2.4; the transaction compares the observed metadata and rolls back every mutation on conflict. Native cases cover RocksDB contention, retained schema upgrades, stale inputs and failed file loads | Qualify installed activation; qualify 3.3 locked reads before retiring the concurrency fence |
 | Digest wire profiles | Time's `AuthoritySourceDigest` preserves bare hexadecimal spelling through metadata, requests and typed persistence drafts; canonical content comparison and shared provenance use the foundational `sha256:` value. Native cases preserve uppercase retained data and idempotency while rejecting malformed matching rows. View still uses bare hexadecimal text | Qualify current digest admission in installed Time; migrate remaining owners and callers by hard cut |
-| Computers | The isolated contract owns distinct Computer, execution, file-transfer and automation-grant IDs, the complete resource vocabulary and an empty scope enum. Domain APIs, gateway routes, relays and generated browser schemas adopt those types. Checked hosted setup supplies startup and discovery. Grouped native checks, isolated consumption, compile-fail cases and browser schema checks pass | Complete SQL admission before decoding and page limits, remaining lifecycle/access/provider identities and DTO relationships, and installed qualification |
+| Computers | The isolated contract owns distinct Computer, execution, file-transfer and automation-grant IDs, the complete resource vocabulary and an empty scope enum. Domain APIs, gateway routes, relays and generated browser schemas adopt those types. Checked hosted setup supplies startup and discovery. Owned and granted Computer reads admit identity, clearance and current policy before decoding; final SQL rechecks authority before public ordering and limits. Grouped native checks, isolated consumption, compile-fail cases and browser schema checks pass | Complete SQL admission for operation Tasks, command/file authorization metadata and access/session grants; remaining lifecycle/access/provider identities and DTO relationships; installed qualification |
 | Speech | The isolated contract owns distinct transcription/dictation IDs, every public resource family and an empty scope vocabulary. Checked hosted setup supplies initialization and discovery. Application execution, resource subscriptions, Gateway targets and Console routes retain the owner types; receipt decoding and completed output reads check parent identity. Independent consumers, compile-fail cases and native callers pass; generated browser schemas use the qualified shared converter | Qualify current-profile CUDA transcription/dictation and installed delivery; strengthen remaining transcript result relationships |
 | Artifact plane model | `platform/artifacts/contract` owns occurrence identity, metadata, compliance, provenance, release state, grants, share-link values and byte handoffs. The separate plane service/client prevents placing their common model in the MCP server package without a Cargo cycle. Its server library exposes tool DTOs and typed `ArtifactResource` families through an isolated contract feature. Shared URI components build addresses from occurrence IDs or closed document variants. Checked hosted setup includes the Library App, index and embedded documents; both registrations declare revision 3. Independent consumption, direct consumer tests, and wire/schema qualification pass | Qualify installed reads and sharing at the next integration checkpoint; separate remaining access/service request contracts and finish index cursor addresses |
 | Artifact identity and URI admission | `ArtifactId` checks version and RFC variant; `ArtifactUri` owns neutral/presented variants, preserves accepted URI spelling, and builds from typed IDs and schemes; metadata checks wire ID/URI agreement | Qualify installed consumption of the current identity and URI contract |

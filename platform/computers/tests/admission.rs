@@ -156,10 +156,13 @@ async fn collections_support_services_and_contexts_without_multiplying_owner_quo
         a.get(&classified, private.computer_id).await,
         Err(ComputerError::NotFound)
     ));
-    assert!(matches!(
-        a.list(&classified, None, 100).await,
-        Err(ComputerError::NotFound)
-    ));
+    assert!(
+        a.list(&classified, None, 100)
+            .await
+            .unwrap()
+            .computers
+            .is_empty()
+    );
 }
 
 #[tokio::test]

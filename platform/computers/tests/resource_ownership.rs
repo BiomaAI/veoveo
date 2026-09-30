@@ -65,6 +65,18 @@ async fn retained_collection_uses_current_profile_policy_and_indexed_owner_ident
             .query(query)
             .bind(("owner_tenant", workspace.owner().tenant_key().to_owned()))
             .bind(("owner_principal", workspace.owner().principal_key.clone()))
+            .bind(("owner_kind", workspace.owner().principal_kind))
+            .bind(("owner_issuer", workspace.owner().issuer.clone()))
+            .bind(("owner_subject", workspace.owner().subject.clone()))
+            .bind((
+                "owner_labels",
+                workspace
+                    .owner()
+                    .data_labels
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>(),
+            ))
             .bind((
                 "owner_context",
                 workspace.owner().authority.work_context.to_string(),

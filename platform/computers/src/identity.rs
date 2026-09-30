@@ -43,6 +43,12 @@ pub(crate) fn permits(stored: &TaskOwner, caller: &TaskOwner) -> Result<()> {
             .data_labels
             .iter()
             .all(|label| caller.data_labels.contains(label.as_str()))
+        || stored
+            .authority
+            .output_policy
+            .classification
+            .as_ref()
+            .is_some_and(|label| !caller.data_labels.contains(label.as_str()))
     {
         return Err(ComputerError::NotFound);
     }

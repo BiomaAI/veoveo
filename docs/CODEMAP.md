@@ -191,6 +191,7 @@ designs above.
 | `platform/gateway/src/state/audit/policy_codec.rs` | current policy-event format admission and shared action/target validation for writes and reads |
 | `platform/policy/src/resource_policy.rs` | typed resource/template ownership and shared lexical exposure checks |
 | `platform/policy/` | shared policy evaluator, immutable catalog view and session-family predicate; callers own authentication, store reads and freshness |
+| `platform/computers/src/computer_access/` and `queries/admitted_computers.surql` | private read permits, current-authority rechecks and SQL selection before public Computer page limits |
 | `platform/computers/src/authority.rs` | verified identity for operation admission and the source context that execution policy checks |
 | `platform/computers/src/current_authority.rs` | fresh policy and directory checks, dispatch authorization, and recorded policy decisions |
 | `platform/computers/src/operation_authority.rs` and `operation_admission.rs` | separates the owner from the principal acting on the lifecycle; named Start/Stop admission, grant-bound Task access and owner recovery through the public Computers application |

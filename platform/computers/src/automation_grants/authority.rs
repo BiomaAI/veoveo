@@ -22,6 +22,19 @@ enum GrantUse {
     AcceptedWork,
 }
 
+/// Query admission for a Read grant under one current policy revision. Its
+/// private fields bind the final SQL read to the authority that was evaluated.
+#[derive(Clone, SurrealValue)]
+pub(crate) struct GrantReadPermit {
+    computer: RecordId,
+    grant: RecordId,
+    revision: u64,
+    owner_source: RecordId,
+    owner_actor: RecordId,
+    policy_fingerprint: String,
+    expires_at: DateTime<Utc>,
+}
+
 /// A short current read of named authority. This is not a native dispatch ticket.
 /// Operation admission and dispatch must also compare its durable grant revision.
 pub struct AutomationAuthority {
@@ -40,6 +53,24 @@ pub struct AutomationAuthority {
     view: crate::api::AutomationGrantView,
 }
 impl AutomationAuthority {
+    pub(crate) fn control_revision(&self) -> &RecordId {
+        &self.source_snapshot.revision_record
+    }
+    pub(crate) fn read_permit(&self) -> Result<GrantReadPermit> {
+        self.check_fresh()?;
+        if !self.view.permissions.contains(&AutomationPermission::Read) {
+            return Err(ComputerError::Forbidden);
+        }
+        Ok(GrantReadPermit {
+            computer: computer_record(self.computer.computer_id),
+            grant: super::record(self.grant_id),
+            revision: self.grant_revision,
+            owner_source: self.owner_snapshot.source.clone(),
+            owner_actor: self.owner_snapshot.actor.clone(),
+            policy_fingerprint: self.policy_fingerprint.clone(),
+            expires_at: self.admission_end,
+        })
+    }
     pub fn current_view(&self) -> Result<&crate::api::AutomationGrantView> {
         self.check_fresh()?;
         Ok(&self.view)
@@ -444,7 +475,9 @@ impl ComputersStore {
         {
             return Err(ComputerError::Forbidden);
         }
-        let grant = self.automation_grant(grant_id).await?;
+        let grant = self
+            .grantee_automation_grant(accepted, computer_id, grant_id)
+            .await?;
         let source = &accepted.request_context.principal;
         let kind = match source.kind {
             veoveo_mcp_contract::PrincipalKind::User => PrincipalKind::User,
@@ -522,43 +555,6 @@ impl ComputersStore {
         if !permissions.contains(&permission) {
             return Err(ComputerError::Forbidden);
         }
-        let mut read = self
-            .query(
-                "SELECT * FROM ONLY $computer;",
-                vec![("computer", computer_record(computer_id).into_value())],
-            )
-            .await?;
-        let row: Option<ComputerRecord> = read.take(0).map_err(|_| ComputerError::Unavailable)?;
-        let computer = Computer::try_from(row.ok_or(ComputerError::NotFound)?)?;
-        crate::identity::verify_retained_owner(
-            &computer.owner,
-            &grant.owner_key,
-            &grant.authority.task_owner(),
-        )?;
-        if computer.provider_instance_id != grant.provider
-            || owner_key(&computer.owner)? != grant.owner_key
-            || !computer.owner.data_labels.iter().all(|label| {
-                source
-                    .data_labels
-                    .iter()
-                    .any(|actual| actual.as_str() == label)
-            })
-            || !computer
-                .owner
-                .authority
-                .output_policy
-                .data_labels
-                .is_subset(&source.data_labels)
-            || computer
-                .owner
-                .authority
-                .output_policy
-                .classification
-                .as_ref()
-                .is_some_and(|label| !source.data_labels.contains(label))
-        {
-            return Err(ComputerError::Forbidden);
-        }
         let limits = grant
             .view
             .execution_limits
@@ -587,6 +583,53 @@ impl ComputersStore {
             .min(Instant::now() + remaining);
         if let GrantUse::Admission(expires_at) = purpose
             && expires_at <= Utc::now()
+        {
+            return Err(ComputerError::Forbidden);
+        }
+        source_snapshot.check_fresh()?;
+        owner_snapshot.check_fresh()?;
+        // A shortened installation lifetime must deny before parent decoding.
+        let mut retained = grant.authority.task_owner();
+        // The owner supplies identity; the current grantee supplies read clearance.
+        retained.data_labels = source.data_labels.iter().map(ToString::to_string).collect();
+        let mut params = crate::store::owner_query_bindings(&retained)?;
+        params.extend([
+            ("computer", computer_record(computer_id).into_value()),
+            ("provider", grant.provider.into_value()),
+            ("owner_key", grant.owner_key.clone().into_value()),
+            ("admission_end", admission_end.into_value()),
+        ]);
+        let mut read = self
+            .query(include_str!("../../queries/granted_computer.surql"), params)
+            .await?;
+        let row: Option<ComputerRecord> = read.take(0).map_err(|_| ComputerError::Unavailable)?;
+        let computer = Computer::try_from(row.ok_or(ComputerError::Forbidden)?)?;
+        crate::identity::verify_retained_owner(
+            &computer.owner,
+            &grant.owner_key,
+            &grant.authority.task_owner(),
+        )?;
+        if computer.provider_instance_id != grant.provider
+            || owner_key(&computer.owner)? != grant.owner_key
+            || !computer.owner.data_labels.iter().all(|label| {
+                source
+                    .data_labels
+                    .iter()
+                    .any(|actual| actual.as_str() == label)
+            })
+            || !computer
+                .owner
+                .authority
+                .output_policy
+                .data_labels
+                .is_subset(&source.data_labels)
+            || computer
+                .owner
+                .authority
+                .output_policy
+                .classification
+                .as_ref()
+                .is_some_and(|label| !source.data_labels.contains(label))
         {
             return Err(ComputerError::Forbidden);
         }

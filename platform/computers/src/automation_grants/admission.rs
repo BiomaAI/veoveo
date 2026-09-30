@@ -233,11 +233,12 @@ impl ComputersStore {
                 .query(
                     "SELECT * FROM computer_automation_grant
                  WHERE owner_key = $owner_key AND computer_id = $computer_id
-                   AND revoked_at = NONE AND expires_at > time::now()
+                   AND provider_instance_id = $provider AND revoked_at = NONE AND expires_at > time::now()
                  ORDER BY grant_id LIMIT 64;",
                     vec![
                         ("owner_key", owner_key(&computer.owner)?.into_value()),
                         ("computer_id", computer_id.into_uuid().into_value()),
+                        ("provider", self.provider_instance_id.into_value()),
                     ],
                 )
                 .await?;
@@ -284,7 +285,7 @@ impl ComputersStore {
             let control = self.control_authority(actor).await?;
             control.require_read(Some(computer_id))?;
             let computer = self.get(actor.owner(), computer_id).await?;
-            let grant = self.automation_grant(grant_id).await?;
+            let grant = self.owned_automation_grant(&computer, grant_id).await?;
             authority::owned(&grant, &computer, self.provider_instance_id)?;
             control.require_read(Some(computer_id))?;
             Ok(grant.view)
@@ -301,7 +302,9 @@ impl ComputersStore {
         tokio::time::timeout(std::time::Duration::from_secs(5), async {
             let owner = self.automation_owner(actor, "revoke_automation").await?;
             let computer = self.get(actor.owner(), input.computer_id).await?;
-            let grant = self.automation_grant(input.grant_id).await?;
+            let grant = self
+                .owned_automation_grant(&computer, input.grant_id)
+                .await?;
             authority::owned(&grant, &computer, self.provider_instance_id)?;
             let mut params = owner.bindings(actor)?;
             params.extend([

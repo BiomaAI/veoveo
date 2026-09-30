@@ -1,8 +1,8 @@
 //! Bounded current Computer reads for retained owners and named grantees.
+mod admission;
 use crate::{
     Computer, ComputerActor, ComputerError, ComputersStore, ControlAuthority, Result,
     api::{AutomationPermission, ComputerAccessMode, ComputerGrantedAccess},
-    identity::same_resource_owner,
 };
 use std::time::{Duration, Instant};
 use surrealdb::types::{SurrealValue, Value};
@@ -20,6 +20,7 @@ pub struct ComputerReadAccess {
     grants: Vec<ComputerGrantedAccess>,
     file_transfer: bool,
     deadline: Instant,
+    read_permits: Vec<crate::automation_grants::GrantReadPermit>,
 }
 impl ComputerReadAccess {
     pub fn computer(&self) -> Result<&Computer> {
@@ -48,20 +49,48 @@ impl ComputerReadAccess {
     }
 }
 
-fn scope(actor: &ComputerActor) -> Result<Vec<(&'static str, Value)>> {
-    let source = &actor.accepted().request_context.principal;
+pub(crate) fn scope(accepted: &crate::AcceptedAuthority) -> Result<Vec<(&'static str, Value)>> {
+    accepted.validate()?;
+    let source = &accepted.request_context.principal;
     Ok(vec![
         (
+            "grantee_tenant",
+            accepted.invocation.tenant.to_string().into_value(),
+        ),
+        ("grantee_principal", source.id.to_string().into_value()),
+        (
+            "grantee_kind",
+            match source.kind {
+                veoveo_mcp_contract::PrincipalKind::User => {
+                    veoveo_platform_store::PrincipalKind::User
+                }
+                veoveo_mcp_contract::PrincipalKind::Service => {
+                    veoveo_platform_store::PrincipalKind::Service
+                }
+            }
+            .into_value(),
+        ),
+        ("grantee_issuer", source.issuer.to_string().into_value()),
+        ("grantee_subject", source.subject.to_string().into_value()),
+        (
+            "grantee_labels",
+            source
+                .data_labels
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .into_value(),
+        ),
+        (
             "grantee",
-            deterministic_principal_id(actor.owner().tenant_key(), source.id.as_str())
+            deterministic_principal_id(accepted.invocation.tenant.as_str(), source.id.as_str())
                 .map_err(|_| ComputerError::Forbidden)?
                 .record_id()
                 .into_value(),
         ),
         (
             "client",
-            actor
-                .accepted()
+            accepted
                 .request_context
                 .access_token
                 .oauth_client_id
@@ -71,18 +100,14 @@ fn scope(actor: &ComputerActor) -> Result<Vec<(&'static str, Value)>> {
         ),
         (
             "context",
-            actor
-                .accepted()
+            accepted
                 .invocation
                 .work_context
                 .as_str()
                 .to_owned()
                 .into_value(),
         ),
-        (
-            "profile",
-            actor.accepted().profile.as_str().to_owned().into_value(),
-        ),
+        ("profile", accepted.profile.as_str().to_owned().into_value()),
     ])
 }
 
@@ -98,7 +123,7 @@ impl ComputersStore {
     ) -> Result<bool> {
         control.require_actor(actor)?;
         control.require_read(None)?;
-        let mut params = scope(actor)?;
+        let mut params = scope(actor.accepted())?;
         params.extend([
             ("computer", computer.into_uuid().into_value()),
             (
@@ -110,6 +135,9 @@ impl ComputersStore {
         let mut read = self
             .query(
                 "SELECT VALUE grant_id FROM $grant WHERE grantee = $grantee
+             AND principal_id = $grantee_principal AND grantee_kind = $grantee_kind
+             AND grantee_issuer = $grantee_issuer AND grantee_subject = $grantee_subject
+             AND authority.invocation.tenant = $grantee_tenant
              AND computer_id = $computer AND provider_instance_id = $provider
              AND oauth_client_id = $client AND authority.profile = $profile
              AND authority.invocation.work_context = $context AND 'read' IN permissions;",
@@ -167,58 +195,48 @@ impl ComputersStore {
             .valid_until()
             .min(Instant::now() + Duration::from_secs(5));
         tokio::time::timeout_at(tokio::time::Instant::from_std(deadline), async {
-            let (ids, next_cursor) = self
-                .accessible_computer_candidates(actor, control, after, limit, prefix)
-                .await?;
-            let records: Vec<_> = ids
-                .iter()
-                .copied()
-                .map(crate::model::computer_record)
-                .collect();
-            let mut read = self
-                .query(
-                    "SELECT * FROM $computers;",
-                    vec![("computers", records.into_value())],
-                )
-                .await?;
-            let rows: Vec<crate::model::ComputerRecord> =
-                read.take(0).map_err(|_| ComputerError::Unavailable)?;
-            let mut computers = Vec::new();
-            for row in rows {
-                let computer = Computer::try_from(row)?;
-                if !ids.contains(&computer.computer_id) {
-                    return Err(ComputerError::Unavailable);
-                }
-                if same_resource_owner(&computer.owner, actor.owner())? {
-                    crate::identity::permits(&computer.owner, actor.owner())?;
-                    control.require_read(Some(computer.computer_id))?;
-                    computers.push(ComputerReadAccess {
-                        computer,
-                        mode: ComputerAccessMode::Owner,
-                        grants: vec![],
-                        file_transfer: control.allows_file_transfer(),
-                        deadline,
-                    });
-                } else {
-                    match self
-                        .read_computer_access(actor, control, computer.computer_id)
-                        .await
-                    {
-                        Ok(access) => computers.push(access),
+            if !(1..=100).contains(&limit) {
+                return Err(ComputerError::InvalidInput);
+            }
+            let mut scan_after = after;
+            let mut admitted = Vec::new();
+            loop {
+                // This is a private authorization-key batch, not a public page.
+                // Only SQL-admitted Computer rows can consume the caller's limit.
+                let (ids, more) = self
+                    .accessible_computer_candidates(actor, control, scan_after, 100, prefix)
+                    .await?;
+                let mut exhausted = more.is_none();
+                for (position, id) in ids.iter().copied().enumerate() {
+                    scan_after = Some(id);
+                    match self.resolve_computer_read(actor, control, id).await {
+                        Ok(access) => admitted.push(access),
                         Err(ComputerError::Forbidden | ComputerError::NotFound) => {}
                         Err(error) => return Err(error),
                     }
+                    if admitted.len() > limit as usize {
+                        exhausted = exhausted && position + 1 == ids.len();
+                        break;
+                    }
+                }
+                admitted = self
+                    .select_admitted_computers(actor, control, admitted, limit + 1)
+                    .await?;
+                if admitted.len() > limit as usize || exhausted {
+                    let more = admitted.len() > limit as usize;
+                    admitted.truncate(limit as usize);
+                    let next_cursor =
+                        more.then(|| admitted.last().expect("nonzero page").computer.computer_id);
+                    for access in &admitted {
+                        access.check()?;
+                    }
+                    control.require_read(None)?;
+                    return Ok(ComputerReadPage {
+                        computers: admitted,
+                        next_cursor,
+                    });
                 }
             }
-            computers.sort_by_key(|access| access.computer.computer_id);
-            for access in &computers {
-                access.check()?;
-            }
-            control.require_read(None)?;
-            Ok(ComputerReadPage {
-                computers,
-                next_cursor,
-            })
         })
         .await
         .map_err(|_| ComputerError::Unavailable)?
@@ -226,6 +244,26 @@ impl ComputersStore {
     /// One request-scoped source decision is shared by its collection rows. Every
     /// named grant still checks its owner, current policy and retained labels.
     pub async fn read_computer_access(
+        &self,
+        actor: &ComputerActor,
+        control: &ControlAuthority,
+        id: crate::api::ComputerId,
+    ) -> Result<ComputerReadAccess> {
+        let deadline = control
+            .valid_until()
+            .min(Instant::now() + Duration::from_secs(5));
+        tokio::time::timeout_at(tokio::time::Instant::from_std(deadline), async {
+            let access = self.resolve_computer_read(actor, control, id).await?;
+            self.select_admitted_computers(actor, control, vec![access], 1)
+                .await?
+                .pop()
+                .ok_or(ComputerError::NotFound)
+        })
+        .await
+        .map_err(|_| ComputerError::Unavailable)?
+    }
+
+    async fn resolve_computer_read(
         &self,
         actor: &ComputerActor,
         control: &ControlAuthority,
@@ -244,36 +282,56 @@ impl ComputersStore {
                     grants: vec![],
                     file_transfer: control.allows_file_transfer(),
                     deadline,
+                    read_permits: vec![],
                 });
             }
             Err(ComputerError::NotFound) => {}
             Err(error) => return Err(error),
         }
         tokio::time::timeout_at(tokio::time::Instant::from_std(deadline), async {
-            let mut params = scope(actor)?;
-            params.extend([
-                ("computer", id.into_uuid().into_value()),
-                ("provider", self.provider_instance_id.into_value()),
-            ]);
-            let mut read = self
-                .query(
-                    include_str!("../queries/computer_access_grants.surql"),
-                    params,
-                )
-                .await?;
-            let ids: Vec<Uuid> = read.take(0).map_err(|_| ComputerError::Unavailable)?;
+            // Resolve a usable Read grant before decoding any Computer row. Other
+            // grants can contribute action choices only after this read is admitted.
+            let read_ids = self.grantee_grant_ids(actor, id, true).await?;
             let mut computer = None;
             let mut grants = Vec::new();
             let mut expiry = deadline;
             let mut file_transfer = false;
-            for grant in ids {
-                let grant = crate::api::AutomationGrantId::try_from(grant)
-                    .map_err(|_| ComputerError::Unavailable)?;
-                let authority = match self.automation_access_scope(actor, id, grant).await {
-                    Ok(authority) => authority,
-                    Err(ComputerError::Forbidden | ComputerError::NotFound) => continue,
+            let mut read_permits = Vec::new();
+            let mut authorities = Vec::new();
+            for grant in read_ids {
+                match self
+                    .authorize_automation_grant(actor, id, grant, AutomationPermission::Read)
+                    .await
+                {
+                    Ok(authority) => {
+                        control.require_same_revision(authority.control_revision())?;
+                        read_permits.push(authority.read_permit()?);
+                        authorities.push(authority);
+                    }
+                    Err(ComputerError::Forbidden | ComputerError::NotFound) => {}
                     Err(error) => return Err(error),
-                };
+                }
+            }
+            if authorities.is_empty() {
+                return Err(ComputerError::NotFound);
+            }
+            for grant in self.grantee_grant_ids(actor, id, false).await? {
+                if authorities
+                    .iter()
+                    .any(|authority| authority.grant_id() == grant)
+                {
+                    continue;
+                }
+                match self.automation_access_scope(actor, id, grant).await {
+                    Ok(authority) => {
+                        control.require_same_revision(authority.control_revision())?;
+                        authorities.push(authority);
+                    }
+                    Err(ComputerError::Forbidden | ComputerError::NotFound) => {}
+                    Err(error) => return Err(error),
+                }
+            }
+            for authority in authorities {
                 let selected = authority.computer()?;
                 if let Some(prior) = &computer {
                     if prior != selected {
@@ -295,6 +353,7 @@ impl ComputersStore {
                     expires_at: current.expires_at,
                 });
             }
+            grants.sort_by_key(|grant| grant.grant_id);
             if !grants
                 .iter()
                 .any(|grant| grant.permissions.contains(&AutomationPermission::Read))
@@ -308,6 +367,7 @@ impl ComputersStore {
                 grants,
                 file_transfer,
                 deadline: expiry,
+                read_permits,
             };
             access.check()?;
             Ok(access)
@@ -316,8 +376,45 @@ impl ComputersStore {
         .map_err(|_| ComputerError::Unavailable)?
     }
 
-    /// Candidate cursor denotes the last scanned row. Current authorization is
-    /// applied to every candidate before a facade returns any Computer metadata.
+    async fn grantee_grant_ids(
+        &self,
+        actor: &ComputerActor,
+        computer: crate::api::ComputerId,
+        read_only: bool,
+    ) -> Result<Vec<crate::api::AutomationGrantId>> {
+        let mut params = scope(actor.accepted())?;
+        params.extend([
+            ("computer", computer.into_uuid().into_value()),
+            (
+                "computer_record",
+                crate::model::computer_record(computer).into_value(),
+            ),
+            ("provider", self.provider_instance_id.into_value()),
+            ("read_only", read_only.into_value()),
+        ]);
+        let mut read = self
+            .query(
+                include_str!("../queries/computer_access_grants.surql"),
+                params,
+            )
+            .await?;
+        let index = read
+            .num_statements()
+            .checked_sub(1)
+            .ok_or(ComputerError::Unavailable)?;
+        let ids: Vec<Uuid> = read.take(index).map_err(|_| ComputerError::Unavailable)?;
+        if ids.len() > 64 {
+            return Err(ComputerError::Unavailable);
+        }
+        ids.into_iter()
+            .map(|id| {
+                crate::api::AutomationGrantId::try_from(id).map_err(|_| ComputerError::Unavailable)
+            })
+            .collect()
+    }
+
+    /// Scan private authorization keys. Public page limits belong to the final
+    /// SQL read after current policy resolves the admission permits.
     async fn accessible_computer_candidates(
         &self,
         actor: &ComputerActor,
@@ -331,7 +428,7 @@ impl ComputersStore {
         }
         control.require_actor(actor)?;
         control.require_read(None)?;
-        let mut params = scope(actor)?;
+        let mut params = scope(actor.accepted())?;
         params.extend(crate::store::owner_query_bindings(actor.owner())?);
         params.extend([
             ("provider", self.provider_instance_id.into_value()),

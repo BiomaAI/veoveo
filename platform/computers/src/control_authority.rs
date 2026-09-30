@@ -39,6 +39,43 @@ impl ComputersStore {
     }
 }
 impl ControlAuthority {
+    pub(crate) fn require_same_revision(
+        &self,
+        revision: &surrealdb::types::RecordId,
+    ) -> Result<()> {
+        self.check_fresh()?;
+        if &self.snapshot.revision_record != revision {
+            return Err(ComputerError::PolicyConflict);
+        }
+        Ok(())
+    }
+    pub(crate) fn read_bindings(&self) -> Result<Vec<(&'static str, surrealdb::types::Value)>> {
+        use surrealdb::types::SurrealValue;
+        self.check_fresh()?;
+        let family = self
+            .snapshot
+            .accepted
+            .request_context
+            .access_token
+            .session_family
+            .as_ref()
+            .map(|id| {
+                id.as_str()
+                    .parse::<Uuid>()
+                    .map(veoveo_platform_store::gateway_refresh_family_record_id)
+            })
+            .transpose()
+            .map_err(|_| ComputerError::Forbidden)?;
+        let remaining = self.valid_until().saturating_duration_since(Instant::now());
+        let expires = Utc::now()
+            + chrono::TimeDelta::from_std(remaining).map_err(|_| ComputerError::Unavailable)?;
+        let mut params = crate::session_grants::authority::bindings(&self.snapshot);
+        params.extend([
+            ("family", family.into_value()),
+            ("authority_expires_at", expires.into_value()),
+        ]);
+        Ok(params)
+    }
     pub(crate) fn require_actor(&self, actor: &ComputerActor) -> Result<()> {
         self.check_fresh()?;
         actor.check_admission()?;

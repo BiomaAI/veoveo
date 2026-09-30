@@ -1,5 +1,5 @@
 SELECT *
-FROM computer
+FROM ONLY $computer
 WHERE
   tenant_key = $owner_tenant
   AND owner_context.authority.tenant = $owner_tenant
@@ -18,10 +18,4 @@ WHERE
   AND (
     owner_context.authority.output_policy.classification = NONE
     OR owner_context.authority.output_policy.classification IN $owner_labels
-  )
-  AND (
-    $after = NONE
-    OR computer_id > $after
-  )
-ORDER BY computer_id ASC
-LIMIT $limit;
+  );

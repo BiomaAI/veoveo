@@ -28,21 +28,30 @@ and remaining release gates.
 
 ## Admission And Ownership
 
-`computer_access.rs` reads owned and explicitly granted Computers through one bounded
-collection. It merges indexed owner and grantee candidates, deduplicates Computer
-IDs and reads owned rows in a batch. Grant candidates match the current OAuth client,
-profile and Work Context before policy evaluation. Each returned granted Computer
-requires a currently usable Read grant. Its other named scopes remain separate action
-choices; a Start-only grant cannot discover private state. Collection pages may be
-empty when current authority removes every candidate in that page. The continuation
-cursor advances the scanned position and conveys no resource authority.
+`computer_access.rs` combines owned and explicitly granted Computers in ordered
+pages. Owner SQL predicates bind tenant, principal kind, issuer, subject and Work
+Context, then require clearance for retained labels and classification. The same
+predicates admit exact reads and completions before row decoding or page limits.
+
+Collections resolve current policy over private authorization keys in batches of 100.
+The grant query binds the verified principal, OAuth client, profile and Work Context
+before decoding authorization metadata. A usable Read grant must be established
+before a Computer row is decoded. Other named grants contribute separate action
+choices after that read has been admitted.
+
+`computer_access/admission.rs` passes private typed grant permits and admitted owner
+identities to the final SQL query. That transaction rechecks the control revision,
+account state, session family, grant revision, revocation, expiry and installation
+limits. SQL applies retained clearance again and orders and limits the admitted
+Computers. Denied keys cannot consume a public page slot. The cursor identifies the
+last returned Computer; it conveys no authority. An admitted malformed row fails the
+read instead of disappearing from the collection.
 
 All reads share the request's current source control decision. Named scopes also
-check the grant owner and retained clearance. The complete page has a five-second
-budget, and stale scope results are rejected before projection. Explicitly selected
-mutation grants retain their independent admission and dispatch checks. Current grant
-views contain metadata only. Terminal and owner management remain outside named
-automation permissions.
+check the grant owner's current policy. A complete page has a five-second budget;
+exhausting authorization resolution fails the request rather than returning a partial
+page. Mutation grants retain their independent admission and dispatch checks.
+Terminal and owner management remain outside named automation permissions.
 
 Private resource ownership binds tenant, principal identity and Work Context.
 An authenticated person's Console and Workspace profiles refer to the same retained
@@ -50,7 +59,7 @@ Computer. Each request still evaluates its current profile's action policy. Chan
 a display name does not change identity. User and service principals use
 the same admission rules. A gateway-verified TaskOwner is an internal trust boundary;
 it is never deserialized from a public Computer request. Current caller data labels
-must cover the stored authority labels before a record can be read.
+must cover the stored authority labels and classification before a record can be read.
 
 The stored `owner_key` remains the immutable creation binding, including its original
 profile. It is still used by operation fences, encrypted envelopes and grant parent

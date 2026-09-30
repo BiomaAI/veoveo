@@ -15,6 +15,18 @@ pub(crate) fn owner_query_bindings(caller: &TaskOwner) -> Result<Vec<(&'static s
     Ok(vec![
         ("owner_tenant", caller.tenant_key().to_owned().into_value()),
         ("owner_principal", caller.principal_key.clone().into_value()),
+        ("owner_kind", caller.principal_kind.into_value()),
+        ("owner_issuer", caller.issuer.clone().into_value()),
+        ("owner_subject", caller.subject.clone().into_value()),
+        (
+            "owner_labels",
+            caller
+                .data_labels
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>()
+                .into_value(),
+        ),
         (
             "owner_context",
             caller.authority.work_context.to_string().into_value(),
@@ -67,12 +79,10 @@ impl ComputersStore {
     }
 
     pub async fn get(&self, caller: &TaskOwner, id: crate::api::ComputerId) -> Result<Computer> {
-        owner_key(caller)?;
+        let mut params = owner_query_bindings(caller)?;
+        params.push(("computer", computer_record(id).into_value()));
         let mut response = self
-            .query(
-                "SELECT * FROM ONLY $computer;",
-                vec![("computer", computer_record(id).into_value())],
-            )
+            .query(include_str!("../queries/get.surql"), params)
             .await?;
         let row: Option<ComputerRecord> =
             response.take(0).map_err(|_| ComputerError::Unavailable)?;
@@ -123,8 +133,8 @@ impl ComputersStore {
             .into_iter()
             .map(Computer::try_from)
             .collect::<Result<Vec<_>>>()?;
-        // Never silently drop rows when authority is insufficient; that could produce an
-        // apparently complete collection that hides retained, quota-consuming work.
+        // SQL admits visibility before LIMIT. These checks detect inconsistent stored
+        // identity; they never filter or repair an already selected page.
         for computer in &computers {
             permits(&computer.owner, caller)?;
         }
