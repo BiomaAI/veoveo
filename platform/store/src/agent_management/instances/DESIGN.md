@@ -7,7 +7,7 @@ controller fencing for phase 3 of the agent management plan.
 
 | Boundary | Profile |
 |---|---|
-| SurrealDB `3.2.4` | Migration 0090, typed bindings, transactions and the platform outbox |
+| SurrealDB `3.3.0` | Migration 0090, typed bindings, transactions and the platform outbox |
 | Veoveo management | Current context authority, UUIDv7 mutation identities, immutable definition revisions and expected-generation updates |
 | OAuth 2.0 and private-key JWT | A durable registration binds one instance, service principal, approved scopes and public RSA JWK; private keys remain in Kubernetes Secrets |
 | Kubernetes | Recorded resource names precede external provisioning; the controller owns resource-version and generation checks at the API boundary |

@@ -44,7 +44,7 @@ pub(super) fn id(record: &platform::RecordId) -> uuid::Uuid {
 }
 
 #[tokio::test]
-#[ignore = "requires VEOVEO_SURREAL_BINARY; owns an isolated SurrealDB 3.2.4 process"]
+#[ignore = "requires VEOVEO_SURREAL_BINARY; owns an isolated SurrealDB 3.3.0 process"]
 async fn upload_parts_fence_stale_attempts_preserve_receipts_and_bound_shared_memory() {
     let mut database = Database::start();
     let store = database.connect().await;
@@ -162,7 +162,7 @@ async fn upload_parts_fence_stale_attempts_preserve_receipts_and_bound_shared_me
 }
 
 #[tokio::test]
-#[ignore = "requires VEOVEO_SURREAL_BINARY; owns an isolated SurrealDB 3.2.4 process"]
+#[ignore = "requires VEOVEO_SURREAL_BINARY; owns an isolated SurrealDB 3.3.0 process"]
 async fn unknown_length_uploads_reserve_additional_windows_before_accepting_parts() {
     let mut database = Database::start();
     let store = database.connect().await;

@@ -6,7 +6,7 @@
 |---|---|
 | MCP 2026-07-28 Tasks extension | Opaque canonical Task identifiers projected from upstream CreateTaskResult |
 | Veoveo invocation authority | Stable tenant, actual actor, Work Context, profile and invocation provenance; every use checks current policy and retained data labels |
-| SurrealDB 3.2.4 | Durable mapping from 0037, shared Task reference from 0041, optional version-1 ownership metadata from 0081 |
+| SurrealDB 3.3.0 | Durable mapping from 0037, shared Task reference from 0041, optional version-1 ownership metadata from 0081 |
 | Veoveo `gtr_` route identifiers | 32 random bytes encoded as base64url without padding; identifiers convey no access authority |
 
 `task_routes.rs` owns the mapping between an upstream Task and its public gateway

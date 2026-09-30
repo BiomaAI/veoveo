@@ -157,7 +157,7 @@ pub(super) async fn admission(
 }
 
 #[tokio::test]
-#[ignore = "requires VEOVEO_SURREAL_BINARY; owns an isolated SurrealDB 3.2.4 process"]
+#[ignore = "requires VEOVEO_SURREAL_BINARY; owns an isolated SurrealDB 3.3.0 process"]
 async fn upload_admission_serializes_large_reservations_replays_and_authority_changes() {
     const GIB: i64 = 1024 * 1024 * 1024;
     let mut database = Database::start();

@@ -4,7 +4,7 @@
 
 | Boundary | Profile |
 |---|---|
-| SurrealDB `3.2.4` | Existing qualified server image pinned by OCI digest, WebSocket Rust client, complete platform migrations |
+| SurrealDB `3.3.0` | Existing qualified server image pinned by OCI digest, WebSocket Rust client, complete platform migrations |
 | Docker Engine CLI | Tokio child processes with cancellation and deadlines; local disposable container lifecycle; loopback-only ephemeral port; no installed volumes or credentials |
 | Rust test harness | Source module reused by owning integration tests; no separate smoke process or assertion framework |
 

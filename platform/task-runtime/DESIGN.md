@@ -5,7 +5,7 @@
 | Boundary | Supported profile |
 |---|---|
 | MCP `2026-07-28`, Tasks SEP-2663 | Official RMCP Task projection; internal recovery classes introduce no new MCP status or method |
-| SurrealDB / SurrealQL `3.2.4` | Shared durable Task records, lease compare-and-set, transactional outbox and additive schema migrations; the Python port uses the pinned SurrealDB Python SDK `2.0.0` |
+| SurrealDB / SurrealQL `3.3.0` | Shared durable Task records, lease compare-and-set, transactional outbox and additive schema migrations; the Python port uses the pinned SurrealDB Python SDK `2.0.0` |
 | Veoveo Work Context | Canonical TaskOwner/InvocationAuthority, tenant and server ownership, retained result pins |
 | Internal recovery-class vocabulary | `resume`, `webhook_wait`, `provider_wait`, `interrupted_indeterminate`; domain-qualified completion semantics |
 | Native Task identity | `veoveo_types::TaskId` carries UUID identity; external runtime lookups require UUIDv7. MCP opaque handles have their own protocol profile. |

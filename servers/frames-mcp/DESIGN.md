@@ -30,7 +30,7 @@ URL 2.5.8 implements WHATWG parsing for these hierarchical custom-scheme routes,
 with the domain restrictions described below.
 Resource templates use RFC 6570 path variables and the optional `cursor` query
 expansion. The concrete parser admits only each route's declared parameters.
-Persistence uses the shared Store's pinned SurrealDB 3.2.4 client and SurrealQL
+Persistence uses the shared Store's pinned SurrealDB 3.3.0 client and SurrealQL
 queries over its internal WebSocket connection.
 Frames operation authority is an internal storage contract with a required profile
 and the caller's original optional tenant identity.
@@ -259,8 +259,7 @@ response. Task changes invalidate accepted usage references even when no usage r
 
 Frames owns operation persistence in `state/operations`; Store provides its client,
 schema migrations, record primitives, and transactional outbox. The runtime uses
-SurrealDB SDK 3.2.4 to match Store's driver types. Upstream 3.3.0 was verified on
-2026-09-27; the foundations database upgrade qualifies both owners together.
+SurrealDB SDK 3.3.0 to match Store's driver types.
 
 `FrameOperationScope` requires typed principal, optional tenant, gateway profile,
 and data-label clearance. The gateway assertion supplies those values for direct

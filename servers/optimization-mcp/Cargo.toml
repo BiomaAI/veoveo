@@ -88,8 +88,8 @@ mcp = [
 
 [dependencies]
 veoveo-map-mcp = { path = "../map-mcp", default-features = false, features = ["contract"], optional = true }
-# Matches the qualified Store driver; upstream stable verified at https://github.com/surrealdb/surrealdb/releases/tag/v3.2.4.
-surrealdb = { version = "=3.2.4", default-features = false, optional = true }
+# Matches the qualified Store driver; upstream stable verified at https://github.com/surrealdb/surrealdb/releases/tag/v3.3.0.
+surrealdb = { version = "=3.3.0", default-features = false, optional = true }
 veoveo-artifact-contract = { workspace = true, optional = true }
 veoveo-types = { workspace = true, optional = true }
 anyhow = { workspace = true, optional = true }

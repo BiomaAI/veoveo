@@ -54,7 +54,7 @@ retain the `time://` scheme.
 | [NTPv4 RFC 5905](https://www.rfc-editor.org/rfc/rfc5905.html) and [Network Time Security RFC 8915](https://www.rfc-editor.org/rfc/rfc8915.html) | Approved node clocks may use NTP/NTS. Time MCP consumes a bounded `ntpd-rs` observation; it does not act as an NTP network endpoint. |
 | HTTPS | Registered IANA authority sources are acquired under fixed host, media, digest, size, and elapsed-time policy. |
 | OAuth bearer and signed JWT identity | Read, schedule, event, task, and authority-administration scopes are fixed by gateway policy and verified again in the hosted server. |
-| SurrealDB 3.2.4 and SurrealQL | Private runtime persistence uses Store's qualified Rust SDK version and connection. Bound parameters carry domain values; SQL applies catalog visibility, ordering, paging and activation transactions. Store owns schema migrations. |
+| SurrealDB 3.3.0 and SurrealQL | Private runtime persistence uses Store's qualified Rust SDK version and connection. Bound parameters carry domain values; SQL applies catalog visibility, ordering, paging and activation transactions. Store owns schema migrations. |
 
 ## Domain Contract
 
@@ -337,7 +337,7 @@ different object representations.
 
 Every activation writes a fresh UUID to the tenant's `time_authority_activation_fence`
 record in the same transaction. This common write makes concurrent changes to different
-families conflict under SurrealDB 3.2.4 snapshot isolation. The record contains no
+families conflict under SurrealDB 3.3.0 snapshot isolation. The record contains no
 release selection. A failure rolls back its write with the candidate and pointers;
 there is no process lock, background lease renewal or automatic mutation retry.
 Clients retry a rejected activation only after loading the current pair again.
@@ -353,9 +353,8 @@ different-family contention on RocksDB, stale metadata, tenant mismatch, failed 
 loads and rollback. Installed upgrade and rollback qualification are still pending.
 
 The database's [locked-read clause](https://surrealdb.com/docs/reference/query-language/statements/select#the-for-update-clause)
-starts in 3.3. The current profile uses the qualified 3.2.4 pin. During the planned
-upgrade, qualify locked reads of both pointer IDs, including absent IDs, and their
-release records. Retire the fence only when those checks replace its cross-family
+is available in 3.3.0. Qualify locked reads of both pointer IDs, including absent
+IDs, and their release records before changing activation locking. Retire the fence only when those checks replace its cross-family
 conflict guarantee and the coordinated transition passes qualification.
 
 ### Tenant Authority Contexts
@@ -666,7 +665,7 @@ SurrealDB is the canonical temporal catalog and task store.
 
 The runtime's private `persistence/` modules own temporal queries, driver records,
 mutation drafts and validation. `PlatformStore` supplies the connection and platform
-identity; Store owns the migration catalog. Time uses the same pinned SurrealDB 3.2.4
+identity; Store owns the migration catalog. Time uses the same pinned SurrealDB 3.3.0
 SDK as Store, behind its `runtime` feature. Contract-only consumers do not resolve it.
 
 Catalog calls retain source, release, acquisition, calendar, epoch and event ID types

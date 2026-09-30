@@ -7,7 +7,7 @@
 | Veoveo gateway control plane | Existing typed profiles, policy sets, principal attributes, resource exposure and recording-ingest declarations |
 | MCP 2026-07-28 | Canonical method/action names and domain resource ownership; evaluation itself performs no protocol I/O |
 | JSON / JSON Schema 2020-12 | `mcp/contract` owns typed policy decisions and target kinds; selector configuration and policy versions keep their existing representation |
-| SurrealDB 3.2.4 | Caller-owned current revision read in `platform/store`; the evaluator has no database dependency |
+| SurrealDB 3.3.0 | Caller-owned current revision read in `platform/store`; the evaluator has no database dependency |
 | Veoveo session-family authority | Internal read-only projection of the stored refresh family and verified request context; no new token or stored wire format |
 | RFC 6570 declaration targets | Template discovery and completion carry the foundational `ResourceTemplateUri`. Policy selectors use their existing restricted lexical matcher, not RFC expansion or set containment. |
 

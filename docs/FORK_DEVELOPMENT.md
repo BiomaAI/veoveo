@@ -14,7 +14,7 @@ separate Git repository; Bioma provides the maintained reference configuration.
 | OCI Distribution | digest-pinned images and application charts, with build provenance |
 | Helm and Kubernetes | application releases with explicit ownership, security and GPU requirements |
 | `veoveo.ai/deployment/v8` and `veoveo.ai/deployment-lock/v8` | local source publication, typed component selection and immutable artifact reuse |
-| SurrealDB 3.2.4 | separate checksummed upstream and downstream migration histories |
+| SurrealDB 3.3.0 | separate checksummed upstream and downstream migration histories |
 
 ## Code Placement
 

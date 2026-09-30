@@ -104,7 +104,7 @@ enum Cmd {
         #[arg(long)]
         evidence_output: PathBuf,
     },
-    /// Run every live SurrealDB integration target against an isolated 3.2.4 container.
+    /// Run every live SurrealDB integration target against an isolated 3.3.0 container.
     SurrealIntegration,
     /// Smoke-test gateway platform bootstrap and active revision validation.
     GatewayPlatformStore {

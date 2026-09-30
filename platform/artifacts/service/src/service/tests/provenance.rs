@@ -56,7 +56,7 @@ async fn publication_preserves_authenticated_provenance() {
 }
 
 #[tokio::test]
-#[ignore = "requires VEOVEO_SURREAL_BINARY; owns an isolated SurrealDB 3.2.4 process"]
+#[ignore = "requires VEOVEO_SURREAL_BINARY; owns an isolated SurrealDB 3.3.0 process"]
 async fn provenance_survives_independent_repository_reads() {
     let mut database = native_database::Database::start();
     tokio::time::timeout(std::time::Duration::from_secs(60), async {

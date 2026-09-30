@@ -19,13 +19,13 @@ pub(super) struct Database {
 impl Database {
     pub(super) fn start() -> Self {
         let binary = std::env::var("VEOVEO_SURREAL_BINARY")
-            .expect("set the exact SurrealDB 3.2.4 executable");
+            .expect("set the exact SurrealDB 3.3.0 executable");
         let version = Command::new(&binary).arg("version").output().unwrap();
         assert!(version.status.success());
         assert!(
             String::from_utf8(version.stdout)
                 .unwrap()
-                .starts_with("3.2.4")
+                .starts_with("3.3.0")
         );
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let address = listener.local_addr().unwrap();
@@ -58,7 +58,7 @@ impl Database {
 
     pub(super) async fn connect_unmigrated(&mut self) -> platform::PlatformStore {
         let start = Instant::now();
-        let health = self.endpoint.replacen("ws://", "http://", 1) + "/health";
+        let ready = self.endpoint.replacen("ws://", "http://", 1) + "/ready";
         let http = reqwest::Client::new();
         loop {
             assert!(
@@ -66,7 +66,7 @@ impl Database {
                 "fixture database exited"
             );
             if http
-                .get(&health)
+                .get(&ready)
                 .timeout(Duration::from_secs(1))
                 .send()
                 .await

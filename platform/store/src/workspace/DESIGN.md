@@ -2,7 +2,7 @@
 
 ## Standards And Protocols
 
-This component uses SurrealDB `3.2.4` transactions over the existing authenticated
+This component uses SurrealDB `3.3.0` transactions over the existing authenticated
 WebSocket client. Rust records use the SDK's typed `SurrealValue` representation.
 The database schema is private to Veoveo. Gateway JSON projections are a separate
 application contract and must not expose database credentials or raw record IDs.

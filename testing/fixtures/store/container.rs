@@ -5,7 +5,7 @@ use tokio::process::Command;
 use uuid::Uuid;
 
 const IMAGE: &str =
-    "surrealdb/surrealdb@sha256:51baed8709f57f67dcf04b30e3177db846803fa9342dae2be58c6fa5f8d59843";
+    "surrealdb/surrealdb@sha256:681c6c22c287421b5c7d99e0fde79b6e0d32c36c1ddeaab2762a1661cb04cd20";
 
 #[derive(Clone)]
 pub(super) struct Docker {

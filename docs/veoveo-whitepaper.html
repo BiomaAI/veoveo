@@ -776,7 +776,7 @@
   </div>
   <h3 class="minor">Shared stores</h3>
   <ul class="bullets">
-    <li><b>Platform store.</b> One SurrealDB 3.2.4 node on RocksDB coordinates the installation.
+    <li><b>Platform store.</b> One SurrealDB 3.3.0 node on RocksDB coordinates the installation.
         It holds identity, policy, control-plane revisions, tasks, artifacts, the recording
         catalog, map catalogs and releases, agents, wakes, audit records, and usage.
         Cross-process work travels through its transactional outbox and replayable changefeed.</li>
@@ -1043,7 +1043,7 @@
       <tr><td class="mono">Reason server</td><td>ours</td><td>Describes recorded segments, detects typed events, and answers questions with a local world model.</td></tr>
       <tr><td class="mono">Map server</td><td>ours</td><td>Earth geography and routing over versioned releases, with MCP administration of sources, activation, and rollback.</td></tr>
       <tr><td class="mono">Python server SDK</td><td>ours</td><td>Gives Python servers identity checks, official Tasks, artifact capabilities, and usage reporting. Datasheet is its reference server.</td></tr>
-      <tr><td class="mono">platform store</td><td>OSS</td><td>SurrealDB 3.2.4 holding identity, policy, tasks, artifacts, recordings, agents, audit, and the transactional outbox.</td></tr>
+      <tr><td class="mono">platform store</td><td>OSS</td><td>SurrealDB 3.3.0 holding identity, policy, tasks, artifacts, recordings, agents, audit, and the transactional outbox.</td></tr>
       <tr><td class="mono">task runtime</td><td>ours</td><td>Stores long work with atomic leases, transitions, results, and a declared recovery class per operation.</td></tr>
       <tr><td class="mono">recording forwarder</td><td>ours</td><td>Accepts Rerun gRPC on the producer's loopback, queues it on disk, uploads through OAuth, and resumes from the checkpoint.</td></tr>
       <tr><td class="mono">Recording Hub</td><td>ours</td><td>Acknowledges a batch after fsyncing its journal and writing an immutable part, and advances a monotonic checkpoint.</td></tr>
@@ -1081,7 +1081,7 @@
       <tr><td>RTP and H.264</td><td>Live video into Stream, and camera output from UAV simulation.</td></tr>
       <tr><td>Rerun 0.38.1 and RRD</td><td>Recording traffic, the decision log, and archive shards.</td></tr>
       <tr><td>Apache Arrow</td><td>Recording projections returned to agents.</td></tr>
-      <tr><td>SurrealDB 3.2.4</td><td>The platform store, one node on RocksDB.</td></tr>
+      <tr><td>SurrealDB 3.3.0</td><td>The platform store, one node on RocksDB.</td></tr>
       <tr><td>NVIDIA cuOpt 26.08</td><td>Routing and mathematical optimization on a GPU.</td></tr>
       <tr><td>Isaac Sim 6.0.1, PX4, and MAVLink 2</td><td>The UAV reference integration: simulator, autopilot firmware, and the hardware-in-the-loop link between them.</td></tr>
       <tr><td>Eclipse SUMO 1.27.1 and TraCI</td><td>The road-traffic reference integration and its control socket.</td></tr>

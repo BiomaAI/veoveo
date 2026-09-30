@@ -2,7 +2,7 @@
 
 ## Standards And Protocols
 
-SurrealDB `3.2.4` transactions persist private typed records through the existing
+SurrealDB `3.3.0` transactions persist private typed records through the existing
 store client. MCP `2026-07-28`, SEP-2663 Tasks and SEP-2322 multi-round requests
 define the external operation boundary. Persistence retains bounded opaque MCP
 envelopes; the gateway's pinned SDK interprets them. This module does not implement

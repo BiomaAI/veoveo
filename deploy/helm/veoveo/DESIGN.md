@@ -9,6 +9,7 @@
 | Kubernetes admissionregistration.k8s.io/v1 and CEL | Fail-closed managed kernel and controller resource validation; requires Kubernetes 1.30 or newer |
 | Kubernetes networking.k8s.io/v1 | Namespace-isolated managed ingress/egress and fixed destination admission |
 | Rerun Data Protocol `rerun.cloud.v1alpha1` | Read-only Redap route on a separate Ingress with native HTTP/2 gRPC to the recording service; browser gRPC-Web uses the same path |
+| SurrealDB 3.3.0 | One RocksDB node, digest-pinned image, `/ready` for traffic admission and `/health` for process liveness |
 | OCI image digests | Veoveo image ownership and production digest enforcement through the shared chart helpers |
 | Amazon S3 API | Private Artifact object storage through RustFS 1.0.0 or an installation-owned compatible store; multipart write, object metadata and ranged reads are exercised by the Artifact client |
 | OTLP gRPC and HTTP; OpenTelemetry Collector 0.161.0 | Optional telemetry receiver with installation-owned pipeline configuration; the checked-in receiver, batch processor and debug exporter profile is qualified with an OTLP/HTTP log |

@@ -40,7 +40,7 @@ impl ContextScope {
     }
 
     pub(super) fn bind<'a, C: Connection>(&self, query: Query<'a, C>) -> Query<'a, C> {
-        // Scalar bindings preserve planner access to the compound indexes on 3.2.4.
+        // Scalar bindings preserve planner access to the compound indexes on 3.3.0.
         query
             .bind(("work_context", self.record.clone()))
             .bind(("work_context_key", self.key.to_string()))

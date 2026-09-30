@@ -2,7 +2,7 @@
 
 ## Standards And Protocols
 
-SurrealDB 3.2.4 executes SurrealQL transactions over the existing authenticated
+SurrealDB 3.3.0 executes SurrealQL transactions over the existing authenticated
 WebSocket client. SHA-256 binds applied migration SQL to compiled source. Migration
 catalogs are internal Rust values, with no runtime package or registration protocol.
 The upstream history format keeps its existing numeric identity and SQL checksums.

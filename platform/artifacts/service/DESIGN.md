@@ -9,7 +9,7 @@
 | Gateway identity | Forwarded, verified short-lived internal assertion for ordinary operations and capability issuance/revocation |
 | Upload identity | Dedicated `artifact-upload` EdDSA assertion includes the checked control-plane SHA-256 and Work Context digest; ordinary forwarded server tokens do not authorize uploads |
 | Veoveo Artifact read delegation | Repository-owned internal API, opaque UUIDv7 capability and task identities, bearer secret confined to task-read routes |
-| Persistence | Typed platform Store records and ordered SurrealQL migrations through `0050`; native durability acceptance uses SurrealDB 3.2.4 |
+| Persistence | Typed platform Store records and ordered SurrealQL migrations through `0050`; native durability acceptance uses SurrealDB 3.3.0 |
 | Content and credential identity | SHA-256 for immutable blobs and domain-separated secret hashes |
 | Local blob storage | `object_store` 0.14.1 filesystem profile; opaque files with HTTP delivery headers supplied by the Artifact service, without unsupported object attributes |
 | S3 multipart adapter | `object_store` 0.14.1 low-level `MultipartStore`, one-based public parts mapped to zero-based adapter indices; private provider handles and receipts |
@@ -117,7 +117,7 @@ transaction retries preserve this rule for ordinary writes and recording publica
 as well as uploads. The retained mapping returned by Store is authoritative; upload
 cleanup may remove only its unreferenced losing object.
 
-Native validation uses SurrealDB 3.2.4. SQL formatting uses
+Native validation uses SurrealDB 3.3.0. SQL formatting uses
 `@surrealdb/surql-fmt@0.1.0-beta.2`, the latest published formatter; upstream has no
 stable formatter release. The formatter does not supply execution evidence.
 
@@ -255,14 +255,14 @@ Unit and native HTTP tests cover current grant revocation, tenant and label deni
 task/secret mismatch, expiry, owner revocation, quotas and credential separation.
 The ignored native test
 `artifact_read_delegation_survives_service_recreation_and_enforces_native_atomic_state`
-starts and reaps an isolated SurrealDB 3.2.4 process. Set `VEOVEO_SURREAL_BINARY` to
+starts and reaps an isolated SurrealDB 3.3.0 process. Set `VEOVEO_SURREAL_BINARY` to
 that exact executable. It recreates service instances, races byte admissions, checks
 persisted authority fields, and distinguishes timestamp updates from policy changes.
 
 The SQL formatter `@surrealdb/surql-fmt` has no stable release at this checkpoint.
 Its latest published `0.1.0-beta.2` formats the query files but corrupts dotted field
 paths in this migration. The migration therefore retains manually checked field
-paths and passes the native 3.2.4 parser and database application test.
+paths and passes the native 3.3.0 parser and database application test.
 
 Stream and Reason persist the capability in protected task state and supply it to
 the recording reader. The scope endpoint checks current validity without admitting

@@ -280,7 +280,7 @@ pub(crate) fn helm_config() -> Result<()> {
     )
     .context("Recording MCP must remove Artifact-backed Blueprint staging files")?;
     for expected in [
-        "image: surrealdb/surrealdb:v3.2.4",
+        "image: surrealdb/surrealdb@sha256:681c6c22c287421b5c7d99e0fde79b6e0d32c36c1ddeaab2762a1661cb04cd20",
         "image: rustfs/rustfs@sha256:8cc9801755448b71a786705ce76692c77e14936cccd87cf2fc31842e58f4d1ff",
         "image: amazon/aws-cli:2.35.23",
         "name: mcp-gateway",

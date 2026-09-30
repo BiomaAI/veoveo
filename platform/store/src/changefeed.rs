@@ -153,7 +153,7 @@ impl PlatformStore {
 
     /// Replay database-wide committed changes from an inclusive cursor.
     ///
-    /// SurrealDB 3.2.4 applies LIMIT to physical table entries before table
+    /// SurrealDB 3.3.0 applies LIMIT to physical table entries before table
     /// filtering and versionstamp grouping. A table-filtered page can therefore
     /// be empty while newer rows exist. Database replay always exposes progress.
     /// The last transaction is reread from its beginning at the maximum limit

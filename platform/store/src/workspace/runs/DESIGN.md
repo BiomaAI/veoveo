@@ -2,7 +2,7 @@
 
 ## Standards And Protocols
 
-This private persistence boundary uses SurrealDB `3.2.4` transactions and typed Rust
+This private persistence boundary uses SurrealDB `3.3.0` transactions and typed Rust
 records. It has no model-provider or MCP transport. Gateway workers own model
 streams and capability authority; browser projections must omit execution fences
 and internal record identities. Migration `0078` adds tables without rewriting

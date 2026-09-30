@@ -10,7 +10,7 @@
 | Veoveo `session_family` claim | Repository-owned optional UUIDv7 refresh-family identity; it is signed metadata, not a bearer credential or standardized device authorization |
 | Veoveo `managed_agent` claim | Repository-owned instance, generation and dispatch-epoch binding for managed service tokens; current registration and template authority are checked independently |
 | Veoveo internal `request_context` | Verified source principal and token metadata carried into a signed upstream assertion; the source token bounds that assertion's lifetime |
-| SurrealDB 3.2.4 | Shared refresh family, replay, JWT revocation and audit records; no process-local positive revocation cache |
+| SurrealDB 3.3.0 | Shared refresh family, replay, JWT revocation and audit records; no process-local positive revocation cache |
 
 An authorization-code exchange creates its refresh family before signing the access
 token. When that client supports refresh, the token carries `session_family`. Each

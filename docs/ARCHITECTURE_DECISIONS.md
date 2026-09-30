@@ -129,7 +129,7 @@ principal namespace.
 
 ## Durable platform store
 
-SurrealDB `3.2.4` is the required platform store. The supported topology is one
+SurrealDB `3.3.0` is the required platform store. The supported topology is one
 SurrealDB node on RocksDB storage. Application services may scale horizontally; this
 release makes no claim of database high availability.
 

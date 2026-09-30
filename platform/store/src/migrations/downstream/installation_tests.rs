@@ -1,4 +1,4 @@
-//! Requires Docker and the locally available, digest-pinned SurrealDB 3.2.4 image.
+//! Requires Docker and the locally available, digest-pinned SurrealDB 3.3.0 image.
 //! Owns its loopback-only container and never reads installation credentials.
 use std::{process::Command, time::Duration};
 
@@ -6,7 +6,7 @@ use super::*;
 use crate::{StoreConfig, StoreCredentials};
 
 const IMAGE: &str =
-    "surrealdb/surrealdb@sha256:51baed8709f57f67dcf04b30e3177db846803fa9342dae2be58c6fa5f8d59843";
+    "surrealdb/surrealdb@sha256:681c6c22c287421b5c7d99e0fde79b6e0d32c36c1ddeaab2762a1661cb04cd20";
 struct Fixture(String);
 impl Drop for Fixture {
     fn drop(&mut self) {
@@ -145,7 +145,7 @@ async fn markers(store: &PlatformStore) -> Vec<RecordId> {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker and the pinned SurrealDB 3.2.4 image"]
+#[ignore = "requires Docker and the pinned SurrealDB 3.3.0 image"]
 async fn fork_upgrade_rollback_and_drift_use_the_production_executor() {
     let (_fixture, store) = Fixture::start().await;
     tokio::time::timeout(Duration::from_secs(90), async {
@@ -203,7 +203,7 @@ async fn fork_upgrade_rollback_and_drift_use_the_production_executor() {
 }
 
 #[tokio::test]
-#[ignore = "requires Docker and the pinned SurrealDB 3.2.4 image"]
+#[ignore = "requires Docker and the pinned SurrealDB 3.3.0 image"]
 async fn production_upgrade_preserves_existing_history_and_runtime_authority() {
     let (_fixture, store) = Fixture::start().await;
     tokio::time::timeout(Duration::from_secs(120), async {

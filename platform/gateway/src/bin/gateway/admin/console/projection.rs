@@ -943,7 +943,7 @@ mod tests {
         let version = Command::new(&binary).arg("version").output().unwrap();
         assert!(
             version.status.success()
-                && String::from_utf8_lossy(&version.stdout).starts_with("3.2.4")
+                && String::from_utf8_lossy(&version.stdout).starts_with("3.3.0")
         );
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let address = listener.local_addr().unwrap();
@@ -969,7 +969,7 @@ mod tests {
         let client = reqwest::Client::new();
         let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
         while !client
-            .get(format!("http://{address}/health"))
+            .get(format!("http://{address}/ready"))
             .timeout(Duration::from_secs(1))
             .send()
             .await

@@ -5,7 +5,7 @@ use surrealdb::types::{RecordId, SurrealValue};
 
 use crate::{GatewayAuditKind, PlatformStore, StoreError};
 
-pub const GATEWAY_AUDIT_BATCH_LIMIT: u32 = 1024;
+pub const GATEWAY_AUDIT_BATCH_LIMIT: u32 = 128;
 
 const DELETE_BATCH: &str = "
 DELETE (SELECT VALUE id FROM audit_event WITH INDEX audit_event_resource_time

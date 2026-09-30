@@ -17,7 +17,7 @@ pub(crate) async fn surreal_integration() -> Result<()> {
             format!("127.0.0.1:{port}:8000").into(),
             "--tmpfs".into(),
             "/data:rw,size=1073741824,uid=65532,gid=65532,mode=0700".into(),
-            "surrealdb/surrealdb:v3.2.4".into(),
+            "surrealdb/surrealdb:v3.3.0".into(),
             "start".into(),
             "--bind".into(),
             "0.0.0.0:8000".into(),
@@ -40,7 +40,7 @@ pub(crate) async fn surreal_integration() -> Result<()> {
         tokio::time::sleep(Duration::from_millis(250)).await;
     }
     if !ready {
-        bail!("timed out waiting for SurrealDB 3.2.4 at {ready_url}");
+        bail!("timed out waiting for SurrealDB 3.3.0 at {ready_url}");
     }
 
     let endpoint = format!("ws://127.0.0.1:{port}");

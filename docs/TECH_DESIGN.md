@@ -240,8 +240,11 @@ cookies or gains agent authority.
 
 ## Durable Platform Store
 
-SurrealDB `3.2.4` is the only platform coordination store, and the Rust client pins
-the matching `3.2.4` release. The supported release runs one RocksDB-backed node.
+SurrealDB `3.3.0` is the only platform coordination store, and the Rust client pins
+the matching `3.3.0` release. The supported release runs one RocksDB-backed node.
+The foundations upgrade is a coordinated hard cut onto fresh database state. Stop
+writers before resetting that store, bootstrap the current schema, and start only
+3.3.0 clients. Historical records and older database versions have no support path.
 Installation bootstrap connects with root credentials, applies ordered migrations,
 creates or rotates the database runtime user, and publishes the first gateway control
 revision. Long-running services connect with database-scoped credentials and never run
@@ -523,15 +526,12 @@ and decision context. They never contain prompts, artifact bytes, provider paylo
 tokens, link bearers, webhook bodies, or signed URLs.
 
 Audit retention deletes old records in batches. For each audit kind, it selects at
-most 1,024 record IDs through the `resource_type, occurred_at` index, and each delete
+most 128 record IDs through the `resource_type, occurred_at` index, and each delete
 has a two-second database deadline. A full batch schedules another pass one second
 later. A partial or empty batch returns to the hourly schedule, and failures retry
 after one minute. Retention respects the configured age cutoff and never deletes other
-domains' records. Migration 0072 adds the index. Bootstrap builds it online with
-SurrealDB's `CONCURRENTLY` index builder before the migration commits
-(`platform/store/src/migration_preparation.rs`). Apply the migration before rolling
-out the new cleanup worker. Older workers keep working during the upgrade, and a
-rollback leaves the index in place.
+domains' records. Bootstrap waits for the index to become ready before marking its
+schema step complete (`platform/store/src/migration_preparation.rs`).
 
 The [gateway forwarding design](../platform/gateway/DESIGN.md) defines resource
 projection. The gateway gives each server's MCP resource addresses and Apps their own namespace.
@@ -745,7 +745,7 @@ Headless results cannot replace headed hardware visual acceptance.
 
 Coverage includes:
 
-- real SurrealDB 3.2 migration and runtime credentials, and durability across
+- real SurrealDB 3.3.0 schema creation and runtime credentials, and durability across
   processes;
 - gateway OAuth, Keycloak login, refresh rotation and replay, internal assertions,
   policy, admin operations, audit, and task and artifact routing;

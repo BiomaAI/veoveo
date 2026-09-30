@@ -47,7 +47,7 @@ retain the `optimization://` scheme.
 | `veoveo.ai/cuopt-executor/v1` | Private control-to-executor protocol over a Unix-domain socket. Each JSON message has an unsigned 64-bit big-endian length prefix and a configured byte bound. It is not a public contract. |
 | SHA-256 and UUID version 7 | Canonical problem and solution digests use SHA-256. Problem, run, solution, and verification identities use UUIDv7-derived controlled identifiers. |
 | Veoveo usage resource profile | Native UUIDv7 Task addresses built through the shared URI component profile, 100-entry pages, and version 1 URL-safe unpadded Base64 cursors as specified under Usage Reads. |
-| SurrealDB 3.2.4 | Domain-owned parameterized SQL for current owner, Work Context, Task metadata and completed-result selection. The runtime dependency matches the Store driver and installed server. |
+| SurrealDB 3.3.0 | Domain-owned parameterized SQL for current owner, Work Context, Task metadata and completed-result selection. The runtime dependency matches the Store driver and installed server. |
 | Veoveo Optimization catalog profile | Collection-bound version 1 Base64 cursors over creation time and native UUIDv7 Task identity; concrete addresses use the shared URI component builder. |
 | RFC 9562 and the Veoveo concrete URI profile | Output identities use lowercase hyphenated RFC-variant UUIDv7 values with domain prefixes. Resource constructors and parsers use the foundation's URL 2.5.8 component implementation. Profile names use bounded ASCII unreserved characters and exclude relative path segments. |
 | RFC 6570 | Discovery templates use checked declarations; iri-string 0.7.14 expansion is qualified against each typed resource family. |

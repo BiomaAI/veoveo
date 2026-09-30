@@ -4,7 +4,7 @@ use super::native_database::Database;
 use veoveo_platform_store as platform;
 
 #[tokio::test]
-#[ignore = "requires VEOVEO_SURREAL_BINARY; owns an isolated SurrealDB 3.2.4 process"]
+#[ignore = "requires VEOVEO_SURREAL_BINARY; owns an isolated SurrealDB 3.3.0 process"]
 async fn upload_migration_counts_existing_blobs_and_replay_preserves_reservations() {
     let mut database = Database::start();
     let store = database.connect_unmigrated().await;

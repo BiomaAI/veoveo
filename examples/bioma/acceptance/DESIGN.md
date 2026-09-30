@@ -5,7 +5,7 @@
 | Boundary | Supported profile |
 |---|---|
 | Veoveo configuration | Repository-owned typed gateway and deployment contracts, validated against the Bioma installation |
-| SurrealDB 3.2.4 | Native Rust SDK, parameterized SurrealQL transactions and the platform-store schema; recovery exports use native SQL values |
+| SurrealDB 3.3.0 | Native Rust SDK, parameterized SurrealQL transactions and the platform-store schema; recovery exports use native SQL values |
 | Kubernetes | Existing Deployment, Secret, PersistentVolume and PersistentVolumeClaim APIs; retained local-path storage is installation-owned |
 | Pilot migration | Private `bioma-pilot-cutover/v1` evidence and four explicit adoption records; this is an installation procedure, not a public API |
 | Definition consolidation | Private `bioma-pilot-consolidation/v1` transaction for four paused, drained instances; no compatibility adapter or public rebinding API |
@@ -70,7 +70,7 @@ Run each installed command before committing its implementation.
 public keys, signing Secrets and physical memory volumes. Vehicle control grants
 continue to select each pilot’s vehicle. The template accepts only a session.
 
-The operator rehearses the transaction against a disposable SurrealDB 3.2.4 copy of
+The operator rehearses the transaction against a disposable SurrealDB 3.3.0 copy of
 the relevant installation records. The test rejects a stale fourth instance and a
 live runtime lease, checks transaction rollback, and verifies that replay cannot
 replace a subsequent generation. After consolidation, the rehearsal reconstructs

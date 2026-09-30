@@ -4,7 +4,7 @@ use super::*;
 use veoveo_platform_store as platform;
 
 #[tokio::test]
-#[ignore = "requires VEOVEO_SURREAL_BINARY; owns and removes an isolated in-memory SurrealDB 3.2.4 process"]
+#[ignore = "requires VEOVEO_SURREAL_BINARY; owns and removes an isolated in-memory SurrealDB 3.3.0 process"]
 async fn artifact_read_delegation_survives_service_recreation_and_enforces_native_atomic_state() {
     let mut database = Database::start();
     let store = database.connect().await;

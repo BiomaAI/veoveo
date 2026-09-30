@@ -17,7 +17,7 @@ for visualization.
 | Standard or protocol | Supported profile |
 |---|---|
 | Model Context Protocol | Version `2026-07-28` over the repository stateless Streamable HTTP profile, including Discover, tools, resources, templates, `subscriptions/listen`, official Tasks, and one MCP App. |
-| SurrealDB / SurrealQL `3.2.4` | Tenant and Work Context grant/plan queries, transactional command-lease, plan and Task-link transitions, caller-owned Task pages, SQL completion, and shared LIVE/changefeed invalidation. |
+| SurrealDB / SurrealQL `3.3.0` | Tenant and Work Context grant/plan queries, transactional command-lease, plan and Task-link transitions, caller-owned Task pages, SQL completion, and shared LIVE/changefeed invalidation. |
 | UAV mission admission | Repository-owned Store relationship linking each admitted plan to one native Task and its vehicle command lease. Public plan JSON exposes domain state. |
 | RFC 6570 URI Templates | iri-string `0.7.14` through foundational template admission and scalar expansion; every advertised UAV template is checked against the owning address builder. |
 | Concrete resource URIs | URL `2.5.8` and percent-encoding `2.3.2` through foundational components; typed UAV routes and collection-bound hexadecimal JSON cursors, version 1. |
@@ -449,7 +449,7 @@ before they are returned or used for execution. These checks reject corrupt sele
 records; they do not remove records from a page after SQL selection.
 
 Execution serializes contenders through a write to the same Work Context/session/vehicle
-lease record. SurrealDB 3.2.4 transaction conflicts reject concurrent decisions from the
+lease record. SurrealDB 3.3.0 transaction conflicts reject concurrent decisions from the
 same retained state. Admission rejects any executing plan for that vehicle, across
 principals and mission IDs. A composite tenant/context/session/vehicle/state index serves
 that lookup. Lease expiry does not establish that simulator work stopped and never permits

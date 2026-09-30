@@ -112,7 +112,7 @@ impl TaskRuntime {
             return Err(TaskError::InvalidPageQuery);
         }
         let position = if after.is_some() {
-            // The 3.2.4 task/time index can include rows whose leading Task key
+            // The 3.3.0 task/time index can include rows whose leading Task key
             // equals the exclusive bound. Keep inequality in the SQL residual.
             "AND task > $after AND task != $after"
         } else {

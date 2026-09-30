@@ -309,7 +309,7 @@ fn descriptor(bytes: usize) -> contract::CreateArtifactUpload {
 }
 
 #[tokio::test]
-#[ignore = "requires VEOVEO_SURREAL_BINARY; owns an isolated SurrealDB 3.2.4 process"]
+#[ignore = "requires VEOVEO_SURREAL_BINARY; owns an isolated SurrealDB 3.3.0 process"]
 async fn upload_service_replays_admission_and_parts_then_recovers_completion_on_another_replica() {
     let mut database = Database::start();
     let store = database.connect().await;
@@ -423,7 +423,7 @@ async fn upload_service_replays_admission_and_parts_then_recovers_completion_on_
 }
 
 #[tokio::test]
-#[ignore = "requires VEOVEO_SURREAL_BINARY; owns an isolated SurrealDB 3.2.4 process"]
+#[ignore = "requires VEOVEO_SURREAL_BINARY; owns an isolated SurrealDB 3.3.0 process"]
 async fn dropped_upload_request_releases_memory_and_cancellation_recovers_physical_cleanup() {
     let mut database = Database::start();
     let store = database.connect().await;

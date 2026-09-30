@@ -4,7 +4,7 @@ use super::native_database::Database;
 use super::*;
 
 #[tokio::test]
-#[ignore = "requires VEOVEO_SURREAL_BINARY; owns an isolated SurrealDB 3.2.4 process"]
+#[ignore = "requires VEOVEO_SURREAL_BINARY; owns an isolated SurrealDB 3.3.0 process"]
 async fn immutable_blob_registration_survives_concurrent_writers_and_failed_publication() {
     let mut database = Database::start();
     let first_store = database.connect().await;

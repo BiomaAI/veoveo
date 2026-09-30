@@ -14,7 +14,7 @@ AND (
   THROW 'uav_execution_conflict';
 };
 
--- Every contender writes the same vehicle record. On 3.2.4 this supplies the
+-- Every contender writes the same vehicle record. On 3.3.0 this supplies the
 -- shared write conflict that excludes decisions from concurrent snapshots.
 IF $previous_lease = NONE {
   CREATE ONLY $lease CONTENT {

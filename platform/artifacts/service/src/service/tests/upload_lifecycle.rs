@@ -94,7 +94,7 @@ async fn usage(store: &platform::PlatformStore) -> platform::ArtifactStorageUsag
 }
 
 #[tokio::test]
-#[ignore = "requires VEOVEO_SURREAL_BINARY; owns an isolated SurrealDB 3.2.4 process"]
+#[ignore = "requires VEOVEO_SURREAL_BINARY; owns an isolated SurrealDB 3.3.0 process"]
 async fn upload_publication_commits_receipt_grants_audit_and_duplicate_cleanup_atomically() {
     let mut database = Database::start();
     let first = database.connect().await;
@@ -194,7 +194,7 @@ async fn upload_publication_commits_receipt_grants_audit_and_duplicate_cleanup_a
 }
 
 #[tokio::test]
-#[ignore = "requires VEOVEO_SURREAL_BINARY; owns an isolated SurrealDB 3.2.4 process"]
+#[ignore = "requires VEOVEO_SURREAL_BINARY; owns an isolated SurrealDB 3.3.0 process"]
 async fn cancellation_retains_cleanup_debt_and_waits_for_part_requests_to_stop() {
     let mut database = Database::start();
     let store = database.connect().await;
@@ -247,7 +247,7 @@ async fn cancellation_retains_cleanup_debt_and_waits_for_part_requests_to_stop()
 }
 
 #[tokio::test]
-#[ignore = "requires VEOVEO_SURREAL_BINARY; owns an isolated SurrealDB 3.2.4 process"]
+#[ignore = "requires VEOVEO_SURREAL_BINARY; owns an isolated SurrealDB 3.3.0 process"]
 async fn sealed_upload_recovery_rejects_stale_workers_manifest_changes_and_revoked_authority() {
     let mut database = Database::start();
     let store = database.connect().await;

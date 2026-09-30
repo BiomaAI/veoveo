@@ -92,7 +92,7 @@ nix = { workspace = true, features = ["fs", "user", "mount"] }
 tokio = { workspace = true, features = ["process"] }
 tokio-rustls.workspace = true
 rcgen.workspace = true
-surrealdb = { version = "=3.2.4", default-features = false, features = ["protocol-ws", "rustls"] }
+surrealdb = { version = "=3.3.0", default-features = false, features = ["protocol-ws", "rustls"] }
 
 [[bin]]
 name = "computers-mcp"

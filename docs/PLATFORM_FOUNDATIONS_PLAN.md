@@ -5,9 +5,28 @@ Historical data requires no support or migration. Remove compatibility adapters
 introduced during earlier checkpoints; those checkpoint descriptions are not
 requirements to preserve them. Current-format restart and failure recovery still apply.
 
+Current checkpoint: SurrealDB 3.3.0 native qualification passes. Every Rust SDK
+pin, the deployment contract, Helm and fixture images now select 3.3.0. The OCI
+index is `sha256:681c6c22c287421b5c7d99e0fde79b6e0d32c36c1ddeaab2762a1661cb04cd20`.
+One grouped build and runtime pass, followed by checks of the collected fixes,
+passes 533 Rust cases and 165 Python cases. Fresh schema creation, database-scoped
+clients, conditional writes against the pre-write value, and locked exact reads
+of existing and absent records pass on RocksDB. Audit retention uses 128-row
+batches within its two-second deadline. Obsolete historical index-upgrade tests
+are removed. Helm configuration and documentation checks pass. Installed
+acceptance is pending at the composed audit checkpoint; the reference cluster is
+stopped. The next implementation pass covers the unified audit contract, writer,
+producers and readers together.
+
 Status: Phase 0 accepted and published on 2026-09-27 at `1177185f`; documentation
 checks and reference GitOps convergence passed. Phases 1–3 are in progress.
-Phases 4–9 have not started. The platform and UAV images and charts are published at
+Phase 4 has started with the SurrealDB 3.3.0 hard cut; phases 5–9 have not started.
+The database upgrade takes priority over the remaining phase 3 work. The unfinished
+Computers batch is preserved separately while the SDK, image and fresh-store
+qualification advance together. Finish this upgrade batch, then start the unified
+audit implementation. Remaining phase 3 work stays tracked and does not block
+independent implementation in phases 4–9. Existing database state is discarded; no historical
+conversion or mixed-version support is required. The platform and UAV images and charts are published at
 `5df83706` on 2026-09-29. Strict Rust acceptance passed 2,670 tests; the default-feature
 suite passed 2,649. Python passed 156 tests, and documentation and identifier checks
 passed. The old reference node and its five owned volumes have been removed.
@@ -1856,8 +1875,10 @@ IDs and DTO relationships. Installed qualification stays at the integration chec
 - Work autonomously. Do not stop to ask the user questions. When a choice is open,
   take the option closest to the designs this plan links, or the best-supported guess,
   and record the choice in the commit message.
-- Define a complete behavior or contract change before editing, including its direct
-  consumers, fixtures and documentation. Finish those related edits before compiling.
+- Implement each concern across all affected components in one pass, including its
+  consumers, fixtures and documentation. Do not complete a separate implementation
+  and validation cycle for each MCP server. Finish the whole pass before compiling,
+  collect independent failures together, and fix them in a second pass.
   An individual helper, query or ID wrapper is not a validation checkpoint. Use reads,
   formatting and query parsing during implementation; run an early test only to resolve
   a concrete uncertainty that would change the implementation.
@@ -1868,9 +1889,8 @@ IDs and DTO relationships. Installed qualification stays at the integration chec
   with the selected test targets to collect independent compiler errors, fix them
   together, then proceed to tests using the same graph. Avoid a separate `cargo check`
   pass when the required test build provides the same compiler feedback.
-- Validate in three checkpoints: focused behavioral regressions after implementation,
-  affected component and consumer suites before committing the completed batch, and
-  workspace/deployment acceptance at an integration milestone. Select regression cases
+- Run the selected behavioral and consumer checks together after the implementation
+  pass, then workspace/deployment acceptance at an integration milestone. Select cases
   by the changed behavior and consolidate failures before editing again. Use
   `--no-fail-fast` for independent test targets; it does not aggregate compiler errors.
   Passing focused cases count toward the batch's qualification; exclude them from the
@@ -1961,7 +1981,9 @@ execution separately from the stable compilation graph; they are not runtime bud
 
 | Batch | Implementation checkpoint | Qualification checkpoint |
 |---|---|---|
-| Computers ownership and public identities | Complete maintenance SQL admission, accepted-request and worker lookup review, lifecycle/access IDs and their direct consumers together | First run SQL denial, replay/conflict and identity regressions. Then run the affected domain, service, gateway/BFF and generated-schema checks once for the completed batch |
+| SurrealDB 3.3.0 upgrade (current) | Update every client/server pin and readiness check; use fresh database state | Build the affected consumers once, run grouped Store/gateway and SQL behavior checks; group installed smoke with audit integration |
+| Unified audit (next) | Implement the phase 4 audit types, writer and producer changes as one concern before broad validation | Focused audit behavior followed by affected consumers |
+| Computers ownership and public identities (preserved) | Complete maintenance SQL admission, accepted-request and worker lookup review, lifecycle/access IDs and their direct consumers together | First run SQL denial, replay/conflict and identity regressions. Then run the affected domain, service, gateway/BFF and generated-schema checks once for the completed batch |
 | Provider identities | Trace private runtime and retained-instance identity requirements, then update the owning types and all transport consumers together | Native runtime and provider fixtures, including current-format recovery; preserve required GPU acceptance |
 | Composed Phase 3 delivery | Finish remaining Map/template setup and cross-component contract work | Run the shared contract closure and installed acceptance against the complete deployment, then stop the cluster |
 
@@ -2484,14 +2506,16 @@ Work:
    the tests and documents that name the version. Check the store code against the 3.3
    behavior changes: locked reads through `SELECT … FOR UPDATE`, and `UPDATE` and
    `UPSERT` now evaluating `WHERE` before their data clauses. Qualify with the store and
-   gateway test suites, all migrations on a fresh store, and the installed smoke
-   scenarios.
-   Time currently uses a tenant fence because the qualified server is 3.2.4.
+   gateway test suites and all migrations on a fresh store. Run the installed smoke
+   scenarios at the composed audit integration checkpoint; do not hold the broad
+   audit implementation pass for a separate full-cluster deployment.
+   Time currently uses a tenant fence. Generic exact-ID locked reads pass on 3.3.0;
+   the domain pointer/release transaction still needs its replacement qualification.
    Qualify `FOR UPDATE` on both exact pointer IDs, including absent records, and
    their releases before replacing that fence; preserve the preflight snapshot checks.
    GitHub's latest-release API confirmed [SurrealDB 3.3.0](https://github.com/surrealdb/surrealdb/releases/tag/v3.3.0)
    on 2026-09-28, published at 11:40:24 UTC. Resolve the image digest and SDK provenance
-   and qualify the release before changing pins.
+   and qualify the release before committing the upgrade.
 2. Add request timing before changing audit. Each request reports policy evaluation,
    audit commit, and upstream time in its trace, and the gateway exports them as
    histograms. Record a baseline for catalog lists, resource reads, and tool calls on the
@@ -2547,7 +2571,9 @@ Work:
 
 Acceptance:
 
-- The SurrealDB 3.3 upgrade passes its qualification before any audit commit lands.
+- The SurrealDB 3.3 upgrade passes native client/server qualification before any audit
+  commit lands. Installed upgrade and audit acceptance run together at the composed
+  integration checkpoint.
 - Tests count records for each action in the table above and match the target column,
   and a live-view renewal and an indexing window each produce the record the audit
   design specifies.

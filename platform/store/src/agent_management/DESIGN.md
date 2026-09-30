@@ -8,7 +8,7 @@ admission and controller fencing; its external provisioning integration is in pr
 
 | Boundary | Profile |
 |---|---|
-| SurrealDB `3.2.4` | Migration 0088, explicit transactions, typed bindings, current context digests and the existing transactional outbox |
+| SurrealDB `3.3.0` | Migration 0088, explicit transactions, typed bindings, current context digests and the existing transactional outbox |
 | Veoveo identity and Work Context | Caller-authenticated user or service principal, exact tenant/context and current action-policy admission |
 | UUID | Client UUIDv7 request identity; deterministic UUIDv5 internal definition/receipt identity |
 | JSON and SHA-256 | Canonical typed Rust content serialization binds a published revision; this is an internal digest, not a provider protocol |

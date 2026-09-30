@@ -5,7 +5,7 @@
 | Boundary | Supported profile |
 |---|---|
 | Veoveo identity and Work Context | Canonical TaskOwner authority, named user/service principals, tenant and context isolation; current implementation admits private ownership |
-| SurrealDB / SurrealQL 3.2.4 | Existing qualified platform client/server pin; schema-full records, atomic multi-record admission and outbox, conflict-only bounded transaction retry |
+| SurrealDB / SurrealQL 3.3.0 | Existing qualified platform client/server pin; schema-full records, atomic multi-record admission and outbox, conflict-only bounded transaction retry |
 | Veoveo Computers JSON | Public DTOs live in `contract/`; provider identities and persisted authority remain internal |
 | XChaCha20-Poly1305 and HMAC-SHA-256 | Private command, output-capability and maintenance-checkpoint envelope v1; installation-owned keys, random 192-bit nonces, distinct derived encryption and fingerprint keys and authenticated purposes; no public wire extension |
 | Veoveo file-transfer envelope v1 | Separate private purposes for bounded file intent and Artifact capability; binds exact owner, actor, optional grant, provider, retained instance, process, template, direction and inherited labels |
@@ -217,7 +217,7 @@ the behavior they exercise. Domain tests alone do not establish installed accept
 
 ## Verification
 
-Rust tests run against two independent clients of an isolated SurrealDB 3.2.4 server.
+Rust tests run against two independent clients of an isolated SurrealDB 3.3.0 server.
 They exercise racing reservations, exact retries, changed inputs, quotas above one,
 tenant/context/principal isolation and quota reduction. This evidence establishes
 durable admission; native provider and installed journeys require separate checks.

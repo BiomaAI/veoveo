@@ -29,6 +29,8 @@ mod changefeed;
 mod fixture;
 #[path = "surreal_integration/map_projection.rs"]
 mod map_projection;
+#[path = "surreal_integration/query_semantics.rs"]
+mod query_semantics;
 #[path = "surreal_integration/recording_ingest.rs"]
 mod recording_ingest;
 
@@ -487,7 +489,7 @@ async fn removes_obsolete_mirror_state_during_forward_migration() {
 /// Run explicitly with:
 /// `VEOVEO_SURREAL_INTEGRATION=1 VEOVEO_SURREAL_URL=ws://127.0.0.1:8000 cargo test -p veoveo-platform-store --test surreal_integration`
 #[tokio::test]
-async fn applies_schema_to_surrealdb_3_2() {
+async fn applies_schema_to_surrealdb_3_3() {
     if std::env::var("VEOVEO_SURREAL_INTEGRATION").as_deref() != Ok("1") {
         return;
     }

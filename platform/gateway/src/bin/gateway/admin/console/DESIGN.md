@@ -5,7 +5,7 @@
 | Boundary | Supported profile |
 |---|---|
 | HTTP and Server-Sent Events | Authenticated installation stream, named entity events, `Last-Event-ID`, reconnect and reset |
-| SurrealDB 3.2.4 changefeeds | Database-wide versionstamp replay with `INCLUDE ORIGINAL`; LIVE queries accelerate replay |
+| SurrealDB 3.3.0 changefeeds | Database-wide versionstamp replay with `INCLUDE ORIGINAL`; LIVE queries accelerate replay |
 | Veoveo installation projection | Tenant-filtered Console summaries; current administrator authority admits each connection |
 
 The snapshot anchors a cursor before reading rows. The stream replays database

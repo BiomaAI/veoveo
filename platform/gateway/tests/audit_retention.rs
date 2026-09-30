@@ -8,7 +8,7 @@ use veoveo_platform_store::{
 };
 
 #[tokio::test]
-#[ignore = "requires an isolated SurrealDB 3.2.4 endpoint"]
+#[ignore = "requires an isolated SurrealDB 3.3.0 endpoint"]
 async fn audit_retention_uses_index_and_preserves_other_kinds_and_cutoff() {
     tokio::time::timeout(std::time::Duration::from_secs(60), qualify())
         .await
