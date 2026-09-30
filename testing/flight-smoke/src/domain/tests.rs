@@ -42,7 +42,7 @@ fn live_session(session_number: u8, pipeline_id: &str, lifecycle: &str) -> LiveS
 #[test]
 fn canonical_mission_is_runtime_loaded_and_validated() {
     let scenario = UavAcceptanceScenario::load(&canonical_scenario()).unwrap();
-    assert_eq!(scenario.schema, "veoveo.uav-sim-acceptance/v11");
+    assert_eq!(scenario.schema, "veoveo.ai/uav-sim-acceptance/v12");
     assert_eq!(
         scenario.map_mobility_profile_uri.as_str(),
         "map://mobility-profile/mobility-019ffdb2-0598-7476-96d3-f3d7b0769f9e/1"
@@ -69,16 +69,8 @@ fn canonical_mission_is_runtime_loaded_and_validated() {
     assert_eq!(scenario.mission.longitude_offset_degrees, 0.0002);
     assert_eq!(scenario.mission.speed_mps, 20.0);
     assert_eq!(scenario.mission.task_timeout_seconds, 1800);
-    assert_eq!(scenario.recording.live_rows_timeout_seconds, 120);
     assert_eq!(scenario.camera.stream_timeout_seconds, 60);
     assert_eq!(scenario.stream.recording_replay.range_lag_seconds, 1.0);
-    assert_eq!(
-        scenario
-            .stream
-            .recording_replay
-            .freshness_probe_duration_seconds,
-        1.0
-    );
     assert!(!scenario.reason.prompt.is_empty());
     assert_eq!(scenario.reason.maximum_frames, 6);
     assert_eq!(scenario.view.camera.width_px, 640);

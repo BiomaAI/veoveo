@@ -118,10 +118,9 @@ Flux applies it. Chart publication alone does not replace unchanged Pod template
 
 <!-- TODO(foundations): Finish composed flight and installed workload acceptance.
 Sensor health, landing, re-arming, takeoff, Map routing and mission completion pass.
-DuckDB 1.5.6 Map recovery and installed live Stream pass. The camera-freshness gate
-currently calls an archive-only projection API on a live recording. Use the supported
-live-part snapshot contract and qualify Stream replay and Reason directly before
-repeating composed acceptance. -->
+DuckDB 1.5.6 Map recovery and installed live Stream pass. The focused Recording
+harness uses live-part snapshots through Stream and Reason. Qualify those consumers with uav-recording-verify
+before repeating composed acceptance. -->
 
 Service clients authenticate with separate installation-owned RSA keys. Only their
 public JWKS belongs in this GitOps bundle. The private PEM files stay in the caller's
@@ -753,6 +752,21 @@ preview through the public Stream resources, then stops the session if it create
 It leaves a reused session with its owner. It performs no landing, takeoff, mission,
 recording replay or Reason work. Full flight checks the same live prerequisite before
 vehicle control and again after mission completion.
+
+Qualify live Recording consumers before repeating the full flight:
+
+~~~bash
+cargo xtask smoke uav-recording-verify \
+  --installation examples/bioma/installation-target.json
+~~~
+
+The running camera must have at least 26 seconds of simulation history. This check
+uses operator credentials and runs Stream replay followed by grounded Reason on the
+same live recording range. It checks both result resources and published Artifacts,
+then prints a JSON result. It issues no vehicle commands and creates no live session.
+Release any live Stream session owned by the acceptance run before invoking it to
+make GPU capacity available. A Task timeout requires reconciling that Task before
+submitting another analysis.
 
 Flight verification also requires the administrator client's private key through
 `VEOVEO_ADMIN_SERVICE_CLIENT_PRIVATE_KEY_FILE` and its ID through

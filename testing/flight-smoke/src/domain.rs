@@ -30,6 +30,8 @@ mod artifacts;
 mod client;
 mod control_grants;
 mod readiness;
+mod recording;
+pub(crate) use recording::verify as uav_recording_verify;
 mod route;
 mod scenario;
 pub(crate) use route::verify as uav_route_verify;
@@ -125,7 +127,6 @@ async fn uav_sim_verify_with_visual_hold(
         "stream__stop_live_session",
         "stream__run_recording",
         "reason__analyze_recording",
-        "recording__create_recording_projection",
     ] {
         contains(&info, tool)?;
     }
@@ -150,28 +151,6 @@ async fn uav_sim_verify_with_visual_hold(
             && json_string(&state, "/cameras/0/encoder")? == "nvidia_nvenc",
         "UAV camera did not fail closed on the canonical NVIDIA NVENC H.264 path: {state}"
     );
-    state = wait_for_recording_catalog(&operator, &scenario, Duration::from_secs(30)).await?;
-    let recording: veoveo_uav_sim_mcp::contract::RecordingState = serde_json::from_value(
-        state
-            .pointer("/recordings/0")
-            .context("UAV state omitted recording")?
-            .clone(),
-    )?;
-    let recording_uri = recording
-        .catalog
-        .recording_uri()
-        .context("UAV recording catalog is not ready")?;
-    let recording_id = recording_uri.id();
-    let recording_catalog_entry = operator
-        .resource(&recording_uri.to_string(), Duration::from_secs(60))
-        .await?;
-    let dataset_id = json_string(&recording_catalog_entry, "/dataset_id")?.to_owned();
-    ensure!(
-        uuid::Uuid::parse_str(&dataset_id)?.get_version_num() == 7,
-        "UAV recording dataset identity must be UUIDv7"
-    );
-    let camera_entity = json_string(&state, "/recordings/0/camera_streams/0")?.to_owned();
-
     let stream_app = operator
         .resource_text("ui://stream/live.html", Duration::from_secs(60))
         .await
@@ -197,7 +176,7 @@ async fn uav_sim_verify_with_visual_hold(
         None => (None, None),
     };
 
-    let flight_result: Result<String> = async {
+    let flight_result: Result<veoveo_artifact_contract::ArtifactId> = async {
         // Qualify independent live inference before any landing or takeoff work.
         // The later check still proves freshness after the mission.
         wait_for_live_stream(
@@ -342,134 +321,9 @@ async fn uav_sim_verify_with_visual_hold(
             owned_live_session_stopped = true;
         }
 
-        state = simulation_state(&operator, &scenario).await?;
-        let simulation_time_s = state
-            .get("simulation_time_s")
-            .and_then(Value::as_f64)
-            .context("UAV state omitted simulation_time_s")?;
-        let replay = &scenario.stream.recording_replay;
-        let range_end_s = simulation_time_s - replay.range_lag_seconds;
-        let range_start_s = range_end_s - replay.range_duration_seconds;
-        ensure!(
-            range_start_s >= 0.0,
-            "UAV recording has not accumulated enough stable aerial camera history"
-        );
-        let range_start = (range_start_s * 1_000_000_000.0) as i64;
-        let range_end = (range_end_s * 1_000_000_000.0) as i64;
-        let freshness_probe_start =
-            range_end - (replay.freshness_probe_duration_seconds * 1_000_000_000.0) as i64;
-
-        wait_for_recording_camera_range(
-            &operator,
-            &dataset_id,
-            recording_id,
-            &camera_entity,
-            freshness_probe_start,
-            range_end,
-            Duration::from_secs(scenario.recording.live_rows_timeout_seconds),
-        )
-        .await?;
-        let stream_replay = operator
-            .task_tool(
-                "stream__run_recording",
-                serde_json::json!({
-                    "video": {
-                        "recording_uri": recording_uri,
-                        "entity_path": camera_entity,
-                        "timeline": "simulation_time",
-                        "range": {"start": range_start, "end": range_end}
-                    },
-                    "pipeline_id": "traffic-object-detection",
-                    "sampling": {
-                        "mode": "maximum_frames",
-                        "count": replay.maximum_frames
-                    },
-                    "include_source_clip": true
-                }),
-                Duration::from_secs(replay.task_timeout_seconds),
-            )
-            .await?;
-        ensure!(
-            stream_replay
-                .pointer("/summary/processed_frames")
-                .and_then(Value::as_u64)
-                .is_some_and(|count| count > 0),
-            "Stream replay processed no Isaac camera frames: {stream_replay}"
-        );
-        assert_requested_range(&stream_replay, range_start, range_end, "Stream replay")?;
-        let stream_output: veoveo_stream_mcp::contract::RunRecordingOutput =
-            serde_json::from_value(stream_replay.clone())
-                .context("decoding Stream replay completion")?;
-        let canonical_results = operator
-            .resource(
-                &stream_output.result_uri().to_string(),
-                Duration::from_secs(60),
-            )
-            .await?;
-        let typed_results: veoveo_stream_mcp::contract::AnalysisResults =
-            serde_json::from_value(canonical_results.clone())
-                .context("decoding Stream's canonical result resource")?;
-        typed_results.validate()?;
-        ensure!(
-            &typed_results.pipeline_id == stream_output.pipeline_uri.id()
-                && &typed_results.model_id == stream_output.model_uri.id()
-                && typed_results.processed_frames == stream_output.summary.processed_frames,
-            "Stream result resource does not match its completion"
-        );
-        let governed_artifact_id =
-            json_string(&stream_replay, "/results_artifact/artifact_id")?.to_owned();
-        ensure!(
-            uuid::Uuid::parse_str(&governed_artifact_id)?.get_version_num() == 7,
-            "Stream replay result artifact identity must be UUIDv7"
-        );
-        let stream_results =
-            download_governed_json_artifact(conformance, installation, &governed_artifact_id)
-                .await?;
-        ensure!(
-            stream_results == canonical_results,
-            "Stream result URI and published artifact disagree"
-        );
-        assert_live_recording_snapshot(&stream_results, "Stream replay")?;
-        let grounding_uri =
-            json_string(&stream_replay, "/results_artifact/artifact_uri")?.to_owned();
-
-        let reason = operator
-            .task_tool(
-                "reason__analyze_recording",
-                serde_json::json!({
-                    "video": {
-                        "recording_uri": recording_uri,
-                        "entity_path": camera_entity,
-                        "timeline": "simulation_time",
-                        "range": {"start": range_start, "end": range_end}
-                    },
-                    "pipeline_id": "video-reasoning",
-                    "task": {
-                        "kind": "describe_segment",
-                        "prompt": scenario.reason.prompt
-                    },
-                    "sampling": {"max_frames": scenario.reason.maximum_frames},
-                    "grounding": {"results_artifact_uri": grounding_uri}
-                }),
-                Duration::from_secs(scenario.reason.task_timeout_seconds),
-            )
-            .await?;
-        ensure!(
-            reason
-                .pointer("/summary/observed_frames")
-                .and_then(Value::as_u64)
-                .is_some_and(|count| count > 0),
-            "Reason observed no Isaac camera frames: {reason}"
-        );
-        assert_requested_range(&reason, range_start, range_end, "Reason")?;
-        let reason_artifact_id = json_string(&reason, "/results_artifact/artifact_id")?.to_owned();
-        ensure!(
-            uuid::Uuid::parse_str(&reason_artifact_id)?.get_version_num() == 7,
-            "Reason result artifact identity must be UUIDv7"
-        );
-        let reason_results =
-            download_governed_json_artifact(conformance, installation, &reason_artifact_id).await?;
-        assert_live_recording_snapshot(&reason_results, "Reason")?;
+        let governed_artifact_id = recording::analyze(&operator, &scenario)
+            .await?
+            .stream_artifact_id;
 
         if let Some(captured) = moving_recording_capture.take() {
             let timeout = Duration::from_secs(scenario.view.timeout_seconds.saturating_add(30));

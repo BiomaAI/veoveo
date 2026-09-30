@@ -851,7 +851,8 @@ pub(crate) fn helm_config() -> Result<()> {
         "showcase/uav-sim/scenarios/new-york-aerial.json",
     )?)?;
     ensure!(
-        uav_scenario.get("schema").and_then(Value::as_str) == Some("veoveo.uav-sim-acceptance/v11")
+        uav_scenario.get("schema").and_then(Value::as_str)
+            == Some("veoveo.ai/uav-sim-acceptance/v12")
             && uav_scenario
                 .pointer("/world/tree/frames/1/parent_transform/origin/latitude_degrees")
                 .and_then(Value::as_f64)

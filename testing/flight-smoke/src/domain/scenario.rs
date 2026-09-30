@@ -14,7 +14,6 @@ pub(super) struct UavAcceptanceScenario {
     pub(super) camera: CameraAcceptance,
     pub(super) map_mobility_profile_uri: MapMobilityProfileUri,
     pub(super) mission: MissionScenario,
-    pub(super) recording: RecordingAcceptance,
     pub(super) stream: StreamScenario,
     pub(super) reason: ReasonScenario,
     pub(super) view: ViewAcceptance,
@@ -69,12 +68,6 @@ pub(super) struct MissionScenario {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct RecordingAcceptance {
-    pub(super) live_rows_timeout_seconds: u64,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub(super) struct StreamScenario {
     pub(super) live_pipeline_id: veoveo_stream_mcp::contract::PipelineId,
     pub(super) minimum_live_frames: u64,
@@ -87,9 +80,8 @@ pub(super) struct StreamScenario {
 #[serde(deny_unknown_fields)]
 pub(super) struct RecordingReplayAcceptance {
     pub(super) range_lag_seconds: f64,
-    pub(super) freshness_probe_duration_seconds: f64,
     pub(super) range_duration_seconds: f64,
-    pub(super) maximum_frames: u64,
+    pub(super) maximum_frames: u32,
     pub(super) task_timeout_seconds: u64,
 }
 
@@ -97,7 +89,7 @@ pub(super) struct RecordingReplayAcceptance {
 #[serde(deny_unknown_fields)]
 pub(super) struct ReasonScenario {
     pub(super) prompt: String,
-    pub(super) maximum_frames: u64,
+    pub(super) maximum_frames: u32,
     pub(super) task_timeout_seconds: u64,
 }
 
@@ -141,7 +133,7 @@ impl UavAcceptanceScenario {
 
     pub(super) fn validate(&self) -> Result<()> {
         ensure!(
-            self.schema == "veoveo.uav-sim-acceptance/v11",
+            self.schema == "veoveo.ai/uav-sim-acceptance/v12",
             "unsupported UAV acceptance scenario schema {:?}",
             self.schema
         );
@@ -200,7 +192,6 @@ impl UavAcceptanceScenario {
                 && self.takeoff.state_timeout_seconds > 0
                 && self.camera.stream_timeout_seconds > 0
                 && self.mission.task_timeout_seconds > 0
-                && self.recording.live_rows_timeout_seconds > 0
                 && self.stream.live_timeout_seconds > 0
                 && self.stream.recording_replay.task_timeout_seconds > 0
                 && self.view.timeout_seconds > 0
@@ -228,9 +219,6 @@ impl UavAcceptanceScenario {
             replay.range_lag_seconds.is_finite()
                 && replay.range_lag_seconds >= 0.0
                 && replay.range_lag_seconds <= 2.0
-                && replay.freshness_probe_duration_seconds.is_finite()
-                && replay.freshness_probe_duration_seconds > 0.0
-                && replay.freshness_probe_duration_seconds <= replay.range_duration_seconds
                 && replay.range_duration_seconds.is_finite()
                 && replay.range_duration_seconds > 0.0
                 && (1..=10_000).contains(&replay.maximum_frames)

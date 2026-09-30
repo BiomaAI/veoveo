@@ -11,8 +11,8 @@ mod domain;
 mod support;
 use cli::{Args, SmokeCommand};
 use domain::{
-    uav_route_verify, uav_showcase_up, uav_showcase_verify, uav_sim_verify, uav_stream_verify,
-    uav_world_publish,
+    uav_recording_verify, uav_route_verify, uav_showcase_up, uav_showcase_verify, uav_sim_verify,
+    uav_stream_verify, uav_world_publish,
 };
 use support::InstalledTarget;
 
@@ -26,6 +26,18 @@ async fn main() -> Result<()> {
             installation,
         } => {
             uav_stream_verify(
+                &conformance_bin,
+                &scenario,
+                &InstalledTarget::load(&installation)?,
+            )
+            .await
+        }
+        SmokeCommand::UavRecordingVerify {
+            conformance_bin,
+            scenario,
+            installation,
+        } => {
+            uav_recording_verify(
                 &conformance_bin,
                 &scenario,
                 &InstalledTarget::load(&installation)?,

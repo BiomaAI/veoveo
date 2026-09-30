@@ -6,7 +6,8 @@
 |---|---|
 | Installation input | Required `--installation` file using `veoveo.ai/installation-target/v1`; identities and endpoints validated against its control-plane document |
 | MCP and authentication | Repository conformance CLI over public HTTPS, the hosted MCP 2026-07-28 profile, OAuth token exchange, exact Work Context and profile scopes |
-| Flight scenario | Runtime-loaded `veoveo.uav-sim-acceptance/v11` JSON with bounded typed mission, world, video and observation parameters |
+| Flight scenario | Runtime-loaded `veoveo.ai/uav-sim-acceptance/v12` JSON with bounded typed mission, world, video and observation parameters |
+| Recording analysis | Stream and Reason contract features, Recording catalog and checked live-part snapshot types; `veoveo.ai/uav-recording-acceptance/v1` JSON result |
 | Stream live sessions | Server-owned live-session types imported through the Stream library's isolated `contract` feature |
 | UAV control grants | UAV-owned grant, permission and collection types through its isolated contract feature; a 60-second and 100-page traversal limit; Map owns mobility-profile references |
 | Route admission | Map-owned route request, position, policy and result types through its isolated contract feature; a current aviation route Task runs before flight commands |
@@ -19,7 +20,8 @@
 ## Ownership
 
 `cargo xtask smoke` builds this harness and its conformance executable for
-`uav-world-publish`, `uav-route-verify`, `uav-stream-verify`, `uav-domain-verify`,
+`uav-world-publish`, `uav-route-verify`, `uav-stream-verify`, `uav-recording-verify`,
+`uav-domain-verify`,
 `uav-showcase-up`, and `uav-showcase-verify`. Their command
 arguments and assertions stay in Rust. `main.rs` only installs TLS and dispatches
 parsed commands. `cli.rs` owns those arguments.
@@ -65,6 +67,29 @@ Both commands report a failure before cleanup and stop only sessions they create
 Flight cleanup lands the vehicle only after this run began issuing flight commands.
 An early Stream failure therefore needs no landing cycle. Existing sessions keep their
 owner, and an independent Stream pass does not establish composed flight or visual acceptance.
+
+`domain/recording.rs` owns replay and grounded Reason acceptance for both
+`uav-recording-verify` and the composed flight. The focused command needs operator
+credentials, a running NVENC camera with at least the scenario's recording history,
+Recording, Stream and Reason services, and their NVIDIA workers. It sends no vehicle
+commands and does not start a live Stream session. Operators stop only sessions they
+own when freeing GPU capacity before this check.
+
+The harness selects the active recording for the scenario's vehicle camera, reads its
+live catalog entry, and submits one bounded Stream replay Task followed by one grounded
+Reason Task over the same range. The services capture acknowledged live parts through
+the shared Recording reader. Each completion must agree with its typed result resource
+and downloaded Artifact. Dataset, recording, entity, timeline and range must match the
+request; the checked source snapshot must include a live ingest part. The command
+prints a JSON result with the selection, Artifact identities and frame counts. Catalog
+readiness has a 30-second deadline; Tasks use the scenario deadlines and are not retried.
+An unresolved Task needs its existing identity reconciled before another run. Task
+workers own their scratch cleanup; successful result Artifacts remain inspectable.
+
+The client imports Reason through its contract feature and Artifact identities through
+the shared contract. Internal scenario v12 removes the archive-projection probe fields;
+obsolete shapes fail decoding. Independent replay acceptance does not establish flight
+or headed visual acceptance.
 
 `domain/readiness.rs` distinguishes startup from invalid state. Runtime, terrain,
 PX4 connection and camera warmup share the scenario's single timeout. A running

@@ -10,6 +10,8 @@ path = "src/main.rs"
 [dependencies]
 veoveo-deploy-contract.workspace = true
 veoveo-recording-contract.workspace = true
+veoveo-artifact-contract.workspace = true
+veoveo-reason-mcp = { path = "../../servers/reason-mcp", default-features = false, features = ["contract"] }
 veoveo-types.workspace = true
 veoveo-stream-mcp = { path = "../../servers/stream-mcp", default-features = false, features = ["contract"] }
 veoveo-uav-sim-mcp = { path = "../../servers/uav-sim-mcp", default-features = false, features = ["contract"] }

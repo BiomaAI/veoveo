@@ -5,7 +5,7 @@ use super::*;
 pub(super) async fn assert_governed_artifact_access(
     conformance: &Path,
     installation: &InstalledTarget,
-    artifact_id: &str,
+    artifact_id: &veoveo_artifact_contract::ArtifactId,
 ) -> Result<()> {
     let administrator = installation.administrator()?;
     let admin_token = administrator.token(conformance).await?;
@@ -32,9 +32,9 @@ pub(super) async fn assert_governed_artifact_access(
         .get("artifacts")
         .and_then(Value::as_array)
         .and_then(|artifacts| {
-            artifacts
-                .iter()
-                .find(|artifact| artifact.get("id").and_then(Value::as_str) == Some(artifact_id))
+            artifacts.iter().find(|artifact| {
+                artifact.get("id").and_then(Value::as_str) == Some(artifact_id.to_string().as_str())
+            })
         })
         .with_context(|| format!("Console snapshot omitted governed artifact {artifact_id}"))?;
     ensure!(
@@ -65,8 +65,12 @@ pub(super) async fn assert_governed_artifact_access(
         "governed artifact provenance or effective access is incomplete: {artifact}"
     );
 
-    let download_url =
-        installation.public_url(&["artifacts", installation.profile(), artifact_id, "download"])?;
+    let download_url = installation.public_url(&[
+        "artifacts",
+        installation.profile(),
+        &artifact_id.to_string(),
+        "download",
+    ])?;
     let preview_json =
         download_governed_json_artifact(conformance, installation, artifact_id).await?;
     ensure!(
@@ -104,7 +108,7 @@ pub(super) async fn assert_governed_artifact_access(
 pub(super) async fn download_governed_json_artifact(
     conformance: &Path,
     installation: &InstalledTarget,
-    artifact_id: &str,
+    artifact_id: &veoveo_artifact_contract::ArtifactId,
 ) -> Result<Value> {
     let token = installation.token(conformance).await?;
     let response = reqwest::Client::builder()
@@ -113,7 +117,7 @@ pub(super) async fn download_governed_json_artifact(
         .get(installation.public_url(&[
             "artifacts",
             installation.profile(),
-            artifact_id,
+            &artifact_id.to_string(),
             "download",
         ])?)
         .bearer_auth(token)
@@ -139,97 +143,4 @@ pub(super) async fn download_governed_json_artifact(
     );
     serde_json::from_slice(&response.bytes().await?)
         .with_context(|| format!("governed artifact {artifact_id} contained invalid JSON"))
-}
-
-// TODO(foundations): This gate must use the shared Recording reader's live-part
-// snapshot contract. create_recording_projection admits committed archive layers;
-// qualify live Stream replay and Reason directly before repeating composed flight.
-pub(super) async fn wait_for_recording_camera_range(
-    operator: &OperatorClient<'_>,
-    dataset_id: &str,
-    recording_id: super::RecordingId,
-    camera_entity: &str,
-    range_start: i64,
-    range_end: i64,
-    timeout: Duration,
-) -> Result<Value> {
-    let deadline = tokio::time::Instant::now() + timeout;
-    loop {
-        let projection = operator
-            .call_tool(
-                "recording__create_recording_projection",
-                serde_json::json!({
-                    "dataset_id": dataset_id,
-                    "recording_id": recording_id,
-                    "entity_paths": [camera_entity],
-                    "component_ids": ["VideoStream:sample"],
-                    "timeline": "simulation_time",
-                    "sampling": {
-                        "kind": "range",
-                        "start": range_start,
-                        "end": range_end
-                    },
-                    "sparse_fill": "none",
-                    "maximum_entities": 1,
-                    "maximum_columns": 1,
-                    "maximum_samples": 1000,
-                    "maximum_rows": 10000,
-                    "maximum_bytes": 33554432,
-                    "deadline_ms": 15000,
-                    "idempotency_key": uuid::Uuid::now_v7().to_string(),
-                    "units": {},
-                    "coordinate_frame_refs": []
-                }),
-            )
-            .await?;
-        if projection
-            .pointer("/result/row_count")
-            .and_then(Value::as_u64)
-            .is_some_and(|count| count > 0)
-        {
-            return Ok(projection);
-        }
-        if tokio::time::Instant::now() >= deadline {
-            bail!(
-                "Recording Catalog exposed no durable live UAV camera samples in range \
-                 {range_start}..={range_end} within {timeout:?}: {projection}"
-            );
-        }
-        tokio::time::sleep(Duration::from_secs(5)).await;
-    }
-}
-
-pub(super) fn assert_live_recording_snapshot(output: &Value, domain: &str) -> Result<()> {
-    let sources = output
-        .pointer("/source_snapshot/sources")
-        .and_then(Value::as_array)
-        .with_context(|| format!("{domain} omitted its governed recording source snapshot"))?;
-    ensure!(
-        sources.iter().any(|source| {
-            source.get("kind").and_then(Value::as_str) == Some("live_ingest_part")
-        }),
-        "{domain} did not analyze an acknowledged live ingest part before archive rollover: \
-         {output}"
-    );
-    Ok(())
-}
-
-pub(super) fn assert_requested_range(
-    output: &Value,
-    start: i64,
-    end: i64,
-    domain: &str,
-) -> Result<()> {
-    ensure!(
-        output
-            .pointer("/summary/requested_start_index")
-            .and_then(Value::as_i64)
-            == Some(start)
-            && output
-                .pointer("/summary/requested_end_index")
-                .and_then(Value::as_i64)
-                == Some(end),
-        "{domain} did not analyze the requested near-live recording range: {output}"
-    );
-    Ok(())
 }
