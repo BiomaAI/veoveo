@@ -48,7 +48,7 @@
           "$ref": "#/$defs/ArtifactId"
         },
         "artifact_uri": {
-          "type": "string"
+          "$ref": "#/$defs/ArtifactUri"
         },
         "byte_len": {
           "format": "uint64",
@@ -101,43 +101,110 @@
     },
     "ArtifactProvenance": {
       "description": "Immutable explanation of how an artifact came into being.",
-      "properties": {
-        "delegation_id": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/DelegationId"
+      "oneOf": [
+        {
+          "properties": {
+            "delegation_id": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/NoIdentity"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "initiator": {
-          "anyOf": [
-            {
+            "initiator": {
               "$ref": "#/$defs/PrincipalId"
             },
-            {
-              "type": "null"
+            "invocation_mode": {
+              "const": "direct",
+              "type": "string"
+            },
+            "policy_revision": {
+              "$ref": "#/$defs/PolicyVersion"
+            },
+            "producer": {
+              "$ref": "#/$defs/PrincipalId"
             }
-          ]
+          },
+          "required": [
+            "invocation_mode",
+            "producer",
+            "initiator",
+            "policy_revision"
+          ],
+          "type": "object"
         },
-        "invocation_mode": {
-          "$ref": "#/$defs/InvocationMode"
+        {
+          "properties": {
+            "delegation_id": {
+              "$ref": "#/$defs/DelegationId"
+            },
+            "initiator": {
+              "$ref": "#/$defs/PrincipalId"
+            },
+            "invocation_mode": {
+              "const": "delegated",
+              "type": "string"
+            },
+            "policy_revision": {
+              "$ref": "#/$defs/PolicyVersion"
+            },
+            "producer": {
+              "$ref": "#/$defs/PrincipalId"
+            }
+          },
+          "required": [
+            "invocation_mode",
+            "producer",
+            "initiator",
+            "delegation_id",
+            "policy_revision"
+          ],
+          "type": "object"
         },
-        "policy_revision": {
-          "$ref": "#/$defs/PolicyVersion"
-        },
-        "producer": {
-          "$ref": "#/$defs/PrincipalId"
+        {
+          "properties": {
+            "delegation_id": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/NoIdentity"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "initiator": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/NoIdentity"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "invocation_mode": {
+              "const": "automated",
+              "type": "string"
+            },
+            "policy_revision": {
+              "$ref": "#/$defs/PolicyVersion"
+            },
+            "producer": {
+              "$ref": "#/$defs/PrincipalId"
+            }
+          },
+          "required": [
+            "invocation_mode",
+            "producer",
+            "policy_revision"
+          ],
+          "type": "object"
         }
-      },
-      "required": [
-        "producer",
-        "invocation_mode",
-        "policy_revision"
-      ],
-      "type": "object"
+      ]
     },
     "ArtifactReleaseState": {
       "enum": [
@@ -145,6 +212,10 @@
         "releasable",
         "released"
       ],
+      "type": "string"
+    },
+    "ArtifactUri": {
+      "description": "Neutral or server-presented Artifact occurrence URI.",
       "type": "string"
     },
     "ComplianceMetadata": {
@@ -229,8 +300,7 @@
       "additionalProperties": false,
       "properties": {
         "id": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/DictationSessionId"
         }
       },
       "required": [
@@ -238,12 +308,17 @@
       ],
       "type": "object"
     },
+    "DictationSessionId": {
+      "format": "uuid",
+      "maxLength": 36,
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[47][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "type": "string"
+    },
     "DictationSnapshot": {
       "additionalProperties": false,
       "properties": {
         "id": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/DictationSessionId"
         },
         "max_duration_seconds": {
           "format": "uint32",
@@ -256,7 +331,7 @@
           "type": "integer"
         },
         "result_uri": {
-          "type": "string"
+          "$ref": "#/$defs/DictationUri"
         },
         "status": {
           "$ref": "#/$defs/DictationStatus"
@@ -291,19 +366,15 @@
       ],
       "type": "string"
     },
+    "DictationUri": {
+      "pattern": "^speech://dictation/[0-9a-f]{8}-[0-9a-f]{4}-[47][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?![\\s\\S])",
+      "type": "string"
+    },
     "GroupId": {
       "description": "Identity-provider group identifier used by gateway policy.",
       "type": "string"
     },
-    "InvocationMode": {
-      "description": "How the current actor obtained authority to perform the work.",
-      "enum": [
-        "direct",
-        "delegated",
-        "automated"
-      ],
-      "type": "string"
-    },
+    "NoIdentity": false,
     "PolicyVersion": {
       "description": "Immutable policy version identifier emitted with decisions and audit records.",
       "type": "string"
@@ -345,8 +416,7 @@
       "additionalProperties": false,
       "properties": {
         "id": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/DictationSessionId"
         },
         "sample_rate": {
           "format": "uint32",
@@ -368,8 +438,8 @@
       "additionalProperties": false,
       "properties": {
         "artifact_uri": {
-          "description": "`artifact://` URI of an uploaded audio or video file you can read.",
-          "type": "string"
+          "$ref": "#/$defs/ArtifactUri",
+          "description": "`artifact://` URI of an uploaded audio or video file you can read."
         }
       },
       "required": [
@@ -414,7 +484,7 @@
           "type": "string"
         },
         "source_artifact_uri": {
-          "type": "string"
+          "$ref": "#/$defs/ArtifactUri"
         },
         "source_sha256": {
           "type": "string"
@@ -444,10 +514,10 @@
           "type": "number"
         },
         "result_uri": {
-          "type": "string"
+          "$ref": "#/$defs/TranscriptionUri"
         },
         "source_artifact_uri": {
-          "type": "string"
+          "$ref": "#/$defs/ArtifactUri"
         },
         "transcript": {
           "$ref": "#/$defs/ArtifactMetadata"
@@ -461,6 +531,10 @@
         "duration_seconds"
       ],
       "type": "object"
+    },
+    "TranscriptionUri": {
+      "pattern": "^speech://transcript/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?![\\s\\S])",
+      "type": "string"
     },
     "Word": {
       "additionalProperties": false,

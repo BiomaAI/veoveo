@@ -35,6 +35,7 @@ impl TryFrom<&str> for ArtifactDocument {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ArtifactResource {
+    LibraryApp,
     Index,
     Docs,
     Document(ArtifactDocument),
@@ -47,6 +48,9 @@ pub enum ArtifactResource {
 impl ArtifactResource {
     pub fn parse(value: &str) -> Result<Self, ResourceUriError> {
         let parts = ResourceUriParts::parse(value)?;
+        if value == super::LIBRARY_APP_URI {
+            return Ok(Self::LibraryApp);
+        }
         if parts.scheme() != "artifact" || parts.has_query() || value.contains('%') {
             return Err(ResourceUriError::DisallowedComponent);
         }
@@ -70,7 +74,15 @@ impl ArtifactResource {
     }
 
     pub fn to_uri(self) -> ResourceUri {
+        if self == Self::LibraryApp {
+            return ResourceUriBuilder::new("ui://artifact")
+                .expect("declared App root")
+                .segment(UriSegment::new("library.html").expect("declared App document"))
+                .build()
+                .expect("declared App URI");
+        }
         let (authority, segment) = match self {
+            Self::LibraryApp => unreachable!("App address handled above"),
             Self::Index => ("index".into(), None),
             Self::Docs => ("docs".into(), None),
             Self::Contract => ("contract".into(), None),
@@ -135,6 +147,7 @@ mod tests {
     fn public_families_round_trip_and_reject_ambiguous_components() {
         let id = ArtifactId::new();
         for resource in [
+            ArtifactResource::LibraryApp,
             ArtifactResource::Index,
             ArtifactResource::Docs,
             ArtifactResource::Contract,

@@ -1,7 +1,7 @@
 # Artifact MCP Server — Agent Manual
 
 Delta over the repository root `AGENTS.md`. The normative server contract is
-[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 2.
+[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 3.
 
 ## Purpose
 
@@ -28,6 +28,8 @@ links. It fronts `artifact-service` and holds no bytes of its own.
 - `DESIGN.md` is the domain contract; the typed contract in `src/contract.rs`
   carries its shapes and URIs. Both documents are embedded at build time and
   served under the well-known surface.
+- Hosted declarations belong to `src/bin/server/setup.rs`; initialization and
+  discovery consume the shared checked setup. Domain authorization stays in the service.
 
 ## Public Library
 
@@ -47,7 +49,7 @@ these gates. Public types keep their existing domain owners.
 
 ## Contract Compliance
 
-Contract revision: 2
+Contract revision: 3
 
 - C01: met
 - C02: met
@@ -65,7 +67,7 @@ Contract revision: 2
 - C14: met
 - C15: met
 - C16: met
-- C17: pending — registration does not state the contract revision
+- C17: met — local and reference registrations and crate documents declare revision 3
 - C18: met
 - C19: met
 - C20: met

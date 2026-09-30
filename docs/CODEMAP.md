@@ -681,6 +681,8 @@ The MCP server for the artifact plane. `handler.rs` owns tools/resources,
 plumbing. `src/contract.rs` exposes tool values and plane-owned public types through
 an isolated contract feature. `src/contract/resources.rs` owns Artifact resource
 families and typed component construction.
+`src/bin/server/setup.rs` binds those addresses, documents and templates to the shared
+checked MCP setup used by startup and discovery.
 
 ## Domain Servers
 
@@ -725,6 +727,8 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/frames-mcp/src/bin/server/subscriptions.rs` | mutable world and usage admission, shared Store LIVE observation, and shutdown of the resource observer |
 | `servers/map-mcp` | Earth geography, feature authoring and products, source and raster releases, reusable spatial derivation, mobility validation, logistics routing, and immutable cuOpt travel models |
 | `servers/media-mcp` | webhook-completed provider media work and artifact outputs |
+| `servers/speech-mcp/contract/src/identity.rs`, `resources.rs`, `dictation.rs` | distinct transcription/dictation identities, typed resource families and checked receipt identity shared by Speech, Gateway and Console |
+| `servers/speech-mcp/src/server/setup.rs`, `mcp.rs` | checked hosted declarations and typed resource read/subscription admission; application code owns source/session authorization |
 | `servers/optimization-mcp` | typed cuOpt routing and route-scenario problems, convex and MILP models, GPU execution, independent verification, and immutable problem/run/solution records |
 | `servers/stream-mcp` | isolated `contract` feature for replay and live-session models; `runtime` and `mcp` enable admitted GStreamer execution, encoded preview, and the Stream MCP App |
 | `servers/reason-mcp` | local recorded-video reasoning, grounding, and Rerun annotations |

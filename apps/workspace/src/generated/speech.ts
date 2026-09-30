@@ -2,9 +2,26 @@
 
 /**
  * This interface was referenced by `SchemaBundle`'s JSON-Schema
+ * via the `definition` "DictationSessionId".
+ */
+export type DictationSessionId = string;
+/**
+ * This interface was referenced by `SchemaBundle`'s JSON-Schema
+ * via the `definition` "DictationUri".
+ */
+export type DictationUri = string;
+/**
+ * This interface was referenced by `SchemaBundle`'s JSON-Schema
  * via the `definition` "DictationStatus".
  */
 export type DictationStatus = "listening" | "flushing" | "completed" | "cancelled" | "failed";
+/**
+ * Neutral or server-presented Artifact occurrence URI.
+ *
+ * This interface was referenced by `SchemaBundle`'s JSON-Schema
+ * via the `definition` "ArtifactUri".
+ */
+export type ArtifactUri = string;
 /**
  * Canonical identity of one logical artifact occurrence. Every put creates a
  * fresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.
@@ -50,19 +67,38 @@ export type PrincipalId = string;
  */
 export type GroupId = string;
 /**
- * Auditable identity of authority delegated by an initiator to another actor.
+ * Immutable explanation of how an artifact came into being.
  *
  * This interface was referenced by `SchemaBundle`'s JSON-Schema
- * via the `definition` "DelegationId".
+ * via the `definition` "ArtifactProvenance".
  */
-export type DelegationId = string;
+export type ArtifactProvenance =
+  | {
+      delegation_id?: NoIdentity | null;
+      initiator: PrincipalId;
+      invocation_mode: "direct";
+      policy_revision: PolicyVersion;
+      producer: PrincipalId;
+    }
+  | {
+      delegation_id: DelegationId;
+      initiator: PrincipalId;
+      invocation_mode: "delegated";
+      policy_revision: PolicyVersion;
+      producer: PrincipalId;
+    }
+  | {
+      delegation_id?: NoIdentity | null;
+      initiator?: NoIdentity | null;
+      invocation_mode: "automated";
+      policy_revision: PolicyVersion;
+      producer: PrincipalId;
+    };
 /**
- * How the current actor obtained authority to perform the work.
- *
  * This interface was referenced by `SchemaBundle`'s JSON-Schema
- * via the `definition` "InvocationMode".
+ * via the `definition` "NoIdentity".
  */
-export type InvocationMode = "direct" | "delegated" | "automated";
+export type NoIdentity = never;
 /**
  * Immutable policy version identifier emitted with decisions and audit records.
  *
@@ -70,6 +106,13 @@ export type InvocationMode = "direct" | "delegated" | "automated";
  * via the `definition` "PolicyVersion".
  */
 export type PolicyVersion = string;
+/**
+ * Auditable identity of authority delegated by an initiator to another actor.
+ *
+ * This interface was referenced by `SchemaBundle`'s JSON-Schema
+ * via the `definition` "DelegationId".
+ */
+export type DelegationId = string;
 /**
  * Tenant, organization, or customer boundary identifier.
  *
@@ -84,6 +127,11 @@ export type TenantId = string;
  * via the `definition` "WorkContextId".
  */
 export type WorkContextId = string;
+/**
+ * This interface was referenced by `SchemaBundle`'s JSON-Schema
+ * via the `definition` "TranscriptionUri".
+ */
+export type TranscriptionUri = string;
 /**
  * This interface was referenced by `SchemaBundle`'s JSON-Schema
  * via the `definition` "ArtifactReleaseState".
@@ -103,10 +151,10 @@ export interface SchemaBundle {
  * via the `definition` "DictationSnapshot".
  */
 export interface DictationSnapshot {
-  id: string;
+  id: DictationSessionId;
   max_duration_seconds: number;
   next_sequence: number;
-  result_uri: string;
+  result_uri: DictationUri;
   status: DictationStatus;
   transcript?: Transcript | null;
 }
@@ -143,7 +191,7 @@ export interface Word {
  * via the `definition` "DictationId".
  */
 export interface DictationId {
-  id: string;
+  id: DictationSessionId;
 }
 /**
  * This interface was referenced by `SchemaBundle`'s JSON-Schema
@@ -153,7 +201,7 @@ export interface TranscriptDocument {
   model: string;
   model_revision: string;
   schema: string;
-  source_artifact_uri: string;
+  source_artifact_uri: ArtifactUri;
   source_sha256: string;
   transcript: Transcript;
 }
@@ -164,8 +212,8 @@ export interface TranscriptDocument {
 export interface TranscriptionOutput {
   captions: ArtifactMetadata;
   duration_seconds: number;
-  result_uri: string;
-  source_artifact_uri: string;
+  result_uri: TranscriptionUri;
+  source_artifact_uri: ArtifactUri;
   transcript: ArtifactMetadata;
 }
 /**
@@ -180,7 +228,7 @@ export interface TranscriptionOutput {
  */
 export interface ArtifactMetadata {
   artifact_id: ArtifactId;
-  artifact_uri: string;
+  artifact_uri: ArtifactUri;
   byte_len: number;
   compliance?: ComplianceMetadata;
   created_at: string;
@@ -209,24 +257,11 @@ export interface ComplianceMetadata {
   work_context?: WorkContextId | null;
 }
 /**
- * Immutable explanation of how an artifact came into being.
- *
- * This interface was referenced by `SchemaBundle`'s JSON-Schema
- * via the `definition` "ArtifactProvenance".
- */
-export interface ArtifactProvenance {
-  delegation_id?: DelegationId | null;
-  initiator?: PrincipalId | null;
-  invocation_mode: InvocationMode;
-  policy_revision: PolicyVersion;
-  producer: PrincipalId;
-}
-/**
  * This interface was referenced by `SchemaBundle`'s JSON-Schema
  * via the `definition` "StartDictation".
  */
 export interface StartDictation {
-  id: string;
+  id: DictationSessionId;
   sample_rate: number;
 }
 /**
@@ -235,7 +270,7 @@ export interface StartDictation {
  */
 export interface TranscribeRequest {
   /**
-   * `artifact://` URI of an uploaded audio or video file you can read.
+   * Neutral or server-presented Artifact occurrence URI.
    */
   artifact_uri: string;
 }

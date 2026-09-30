@@ -142,14 +142,9 @@ async fn speech_uses_workspace_cookie_csrf_and_fixed_profile() {
                     calls.fetch_add(1, Ordering::SeqCst);
                     assert_eq!(headers["authorization"], "Bearer cookie-access");
                     assert!(!headers.contains_key("cookie"));
-                    Json(veoveo_speech_contract::dictation::DictationSnapshot {
-                        id: body.id,
-                        result_uri: format!("speech://dictation/{}", body.id),
-                        status: veoveo_speech_contract::dictation::DictationStatus::Listening,
-                        next_sequence: 0,
-                        max_duration_seconds: 120,
-                        transcript: None,
-                    })
+                    Json(veoveo_speech_contract::dictation::DictationSnapshot::new(
+                        body.id,
+                    ))
                 }
             },
         ),

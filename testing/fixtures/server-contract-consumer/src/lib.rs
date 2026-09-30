@@ -28,6 +28,20 @@ mod tests {
             ArtifactResource::parse(address.to_uri().as_str()).unwrap(),
             address
         );
+        use veoveo_speech_mcp::contract::{
+            DictationSessionId, DictationUri, SpeechResource, TranscriptionId, TranscriptionUri,
+        };
+        let session = DictationSessionId::new();
+        let draft = DictationUri::new(session);
+        assert_eq!(
+            SpeechResource::parse(&draft.to_string()).unwrap(),
+            SpeechResource::Dictation(session)
+        );
+        let task = TranscriptionId::new();
+        assert_eq!(
+            SpeechResource::parse(&TranscriptionUri::new(task).to_string()).unwrap(),
+            SpeechResource::Transcript(task)
+        );
     }
 
     #[test]

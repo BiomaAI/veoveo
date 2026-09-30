@@ -9,7 +9,7 @@ state, shares, policy, and audit.
 
 ## Standards And Protocols
 
-Model Context Protocol over JSON-RPC 2.0 and Streamable HTTP; JSON Schema
+Model Context Protocol `2026-07-28` over JSON-RPC 2.0 and Streamable HTTP; JSON Schema
 2020-12 tool contracts; platform artifact identities per
 [`docs/WORK_CONTEXT_GOVERNANCE.md`](../../docs/WORK_CONTEXT_GOVERNANCE.md).
 MCP Apps uses SEP-1865 / `io.modelcontextprotocol/ui` `2026-01-26`; the
@@ -57,17 +57,24 @@ The resolved dependencies contain identity, URI, date/time, serialization and sc
 libraries. The `runtime` feature supplies service clients and persistence dependencies;
 `mcp` adds the hosted executable and transport. Default builds select `mcp`.
 
-`ArtifactResource` covers occurrences, metadata, grants, document roots and the
+`ArtifactResource` covers occurrences, metadata, grants, document roots, the Library App and the
 contract resource. Constructors take `ArtifactId` or the closed `ArtifactDocument`
 enum, and use the foundation URI builder. Parsers reject query strings, fragments,
 encoded aliases, unrelated schemes and extra segments. A URI locates an occurrence;
 current service authorization still decides whether the caller can read it.
 Prompt inputs decode the same Artifact ID and use these builders for references.
 
+`src/bin/server/setup.rs` binds those types to `McpServerContract`. Startup validates
+the document owner, fixed resource descriptors and all four templates before connecting
+to Store. The handlers consume this setup for initialization and discovery. The first
+authorized occurrence page includes these fixed resources and the Artifact index.
+`ArtifactScope` declares an empty vocabulary; gateway policy and Artifact service
+access decisions authorize operations.
+
 The independent [contract consumer](../../testing/fixtures/server-contract-consumer/DESIGN.md)
 checks the public library without runtime feature unification. Native service tests
 own authorization and transport qualification.
 
-<!-- TODO(foundations): Qualify installed Artifact reads/sharing and the Computers/Speech
-hosted feature builds at the next Phase 3 integration checkpoint; native contract gates
-and direct consumers pass, and the reference cluster stays stopped during development. -->
+<!-- TODO(foundations): Qualify installed Artifact reads/sharing, Computers hosted feature
+builds, and Speech's current identity profile through CUDA transcription/dictation at
+the next Phase 3 integration checkpoint; keep the reference cluster stopped during development. -->

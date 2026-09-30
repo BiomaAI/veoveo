@@ -24,10 +24,12 @@ pub const CONTRACT_URI: &str = "artifact://contract";
 pub const DOC_TEMPLATE: &str = "artifact://docs/{doc_id}";
 
 mod resources;
+mod scopes;
 pub use resources::{
     ArtifactDocument, ArtifactResource, doc_uri, grants_uri, metadata_uri, parse_doc_uri,
     parse_grants_uri, parse_metadata_uri,
 };
+pub use scopes::ArtifactScope;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ArtifactReference {

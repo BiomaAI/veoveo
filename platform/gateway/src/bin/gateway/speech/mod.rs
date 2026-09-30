@@ -11,7 +11,6 @@ use axum::{
 };
 use serde::Deserialize;
 use std::{sync::Arc, time::Duration};
-use uuid::Uuid;
 use veoveo_mcp_contract::{
     GatewayAction, GatewayInternalTokenIssuer, GatewayProfileId, LocalToolName, PolicyTarget,
     ServerSlug,
@@ -20,7 +19,7 @@ use veoveo_mcp_gateway::{
     AuthenticatedSubject, GatewayCatalogHandle, GatewayState, GatewayUpstreamHttpClientPool,
 };
 use veoveo_speech_contract::dictation::{DictationSnapshot, MAX_CHUNK_BYTES, StartDictation};
-use veoveo_types::ResourceUri;
+use veoveo_speech_contract::{DictationSessionId, DictationUri};
 
 #[derive(Clone)]
 pub(crate) struct SpeechState {
@@ -45,12 +44,12 @@ pub(crate) fn router(state: SpeechState) -> Router {
 #[derive(Deserialize)]
 struct Parameters {
     profile: GatewayProfileId,
-    id: Option<Uuid>,
+    id: Option<DictationSessionId>,
     sequence: Option<u32>,
 }
 struct Route {
     profile: GatewayProfileId,
-    id: Option<Uuid>,
+    id: Option<DictationSessionId>,
     path: String,
     tool: Option<&'static str>,
     pcm: bool,
@@ -69,11 +68,7 @@ impl Route {
             None => (
                 PolicyTarget::Resource {
                     server,
-                    uri: ResourceUri::new(format!(
-                        "speech://dictation/{}",
-                        self.id.expect("validated read")
-                    ))
-                    .expect("typed UUID URI"),
+                    uri: DictationUri::new(self.id.expect("validated read")).to_uri(),
                 },
                 &[GatewayAction::ResourcesRead],
             ),
@@ -114,7 +109,7 @@ async fn proxy(
     matched: MatchedPath,
     request: Request,
 ) -> Result<Response, Fault> {
-    if request.uri().query().is_some() || params.id.is_some_and(|id| id.is_nil()) {
+    if request.uri().query().is_some() {
         return Err(Fault::invalid());
     }
     let _slot = state
@@ -169,7 +164,7 @@ async fn proxy(
         } else {
             let input: StartDictation =
                 serde_json::from_slice(&bytes).map_err(|_| Fault::invalid())?;
-            if input.id.is_nil() || !(8000..=48000).contains(&input.sample_rate) {
+            if !(8000..=48000).contains(&input.sample_rate) {
                 return Err(Fault::invalid());
             }
             input.id
@@ -207,7 +202,7 @@ async fn proxy(
             .map_err(|_| Fault::unavailable())?;
         let snapshot: DictationSnapshot =
             serde_json::from_slice(&bytes).map_err(|_| Fault::unavailable())?;
-        if snapshot.id != expected {
+        if snapshot.id() != expected {
             return Err(Fault::unavailable());
         }
         if let Some(transcript) = &snapshot.transcript {

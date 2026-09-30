@@ -4,6 +4,7 @@ mod config;
 mod dictation;
 mod host;
 mod mcp;
+mod setup;
 mod tasks;
 
 use crate::{application::SpeechService, process::WorkerProcess};
@@ -29,6 +30,7 @@ pub async fn run() -> anyhow::Result<()> {
     let _ = rustls::crypto::ring::default_provider().install_default();
     let _telemetry = veoveo_mcp_contract::init_server_telemetry("veoveo-speech-mcp", "info")?;
     let args = config::Args::parse();
+    LazyLock::force(&setup::SERVER_SETUP);
     anyhow::ensure!(
         args.concurrent_recordings > 0
             && args.concurrent_recordings < usize::from(args.inference_capacity),

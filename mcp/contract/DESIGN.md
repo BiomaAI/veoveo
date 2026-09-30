@@ -131,7 +131,7 @@ contract feature. Shared protocol infrastructure does not own those domain DTOs.
 The foundation's `ScopeDefinition` and `ResourceAddress` traits accept independent
 domain implementations. The foundation's component parser and builder support concrete
 addresses; gateway policy and stored audit references still accept completion templates.
-Wider URI builder adoption and server feature isolation are implementation work in the
+Wider URI builder and checked setup adoption are implementation work in the
 [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 `server_contract::McpServerContract` associates each server's scope and resource types
 with its MCP configuration, documents, descriptors, and templates. A server implements

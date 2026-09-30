@@ -8,8 +8,8 @@ use axum::{
     routing::{get, post, put},
 };
 use std::sync::Arc;
-use uuid::Uuid;
 use veoveo_mcp_contract::GatewayInternalIdentity;
+use veoveo_speech_contract::DictationSessionId;
 use veoveo_speech_contract::dictation::{DictationSnapshot, MAX_CHUNK_BYTES, StartDictation};
 
 pub(super) fn router() -> Router<Arc<SpeechService>> {
@@ -38,14 +38,14 @@ async fn start(
 async fn read(
     State(state): State<Arc<SpeechService>>,
     Extension(caller): Extension<GatewayInternalIdentity>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<DictationSessionId>,
 ) -> Response {
     response(state.dictations.read(&caller, id).await)
 }
 async fn chunk(
     State(state): State<Arc<SpeechService>>,
     Extension(caller): Extension<GatewayInternalIdentity>,
-    Path((id, sequence)): Path<(Uuid, u32)>,
+    Path((id, sequence)): Path<(DictationSessionId, u32)>,
     bytes: Bytes,
 ) -> Response {
     response(
@@ -58,14 +58,14 @@ async fn chunk(
 async fn finish(
     State(state): State<Arc<SpeechService>>,
     Extension(caller): Extension<GatewayInternalIdentity>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<DictationSessionId>,
 ) -> Response {
     response(state.dictations.finish(&caller, id, false).await)
 }
 async fn cancel(
     State(state): State<Arc<SpeechService>>,
     Extension(caller): Extension<GatewayInternalIdentity>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<DictationSessionId>,
 ) -> Response {
     response(state.dictations.finish(&caller, id, true).await)
 }

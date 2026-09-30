@@ -8,7 +8,7 @@ use rmcp::{
 };
 use std::sync::Arc;
 use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller};
-use veoveo_speech_contract::TranscribeRequest;
+use veoveo_speech_contract::{TranscribeRequest, TranscriptionId};
 use veoveo_task_runtime::{
     DurableTaskService, DurableTaskSubscription, cancel_durable_task, get_durable_task,
     retention_pins, subscribe_durable_tasks, task_seed, update_durable_task,
@@ -76,7 +76,9 @@ impl DurableTaskService for SpeechTasks {
         caller: &PlaneCaller,
         request: GetTaskParams,
     ) -> Result<GetTaskResult, McpError> {
-        self.0.authorize(caller, &request.task_id, true).await?;
+        self.0
+            .authorize(caller, transcription_id(&request.task_id)?, true)
+            .await?;
         get_durable_task(&self.0.tasks.for_owner(&owner(&caller.identity)), request).await
     }
     async fn update_task(
@@ -84,11 +86,15 @@ impl DurableTaskService for SpeechTasks {
         caller: &PlaneCaller,
         request: UpdateTaskParams,
     ) -> Result<(), McpError> {
-        self.0.authorize(caller, &request.task_id, false).await?;
+        self.0
+            .authorize(caller, transcription_id(&request.task_id)?, false)
+            .await?;
         update_durable_task(&self.0.tasks.for_owner(&owner(&caller.identity)), request).await
     }
     async fn cancel_task(&self, caller: &PlaneCaller, task_id: String) -> Result<(), McpError> {
-        self.0.authorize(caller, &task_id, false).await?;
+        self.0
+            .authorize(caller, transcription_id(&task_id)?, false)
+            .await?;
         cancel_durable_task(&self.0.tasks.for_owner(&owner(&caller.identity)), task_id).await
     }
     async fn subscribe_tasks(
@@ -97,8 +103,15 @@ impl DurableTaskService for SpeechTasks {
         task_ids: Vec<String>,
     ) -> Result<DurableTaskSubscription, McpError> {
         for id in &task_ids {
-            self.0.authorize(caller, id, true).await?;
+            self.0
+                .authorize(caller, transcription_id(id)?, true)
+                .await?;
         }
         subscribe_durable_tasks(&self.0.tasks.for_owner(&owner(&caller.identity)), task_ids).await
     }
+}
+
+pub(super) fn transcription_id(value: &str) -> Result<TranscriptionId, McpError> {
+    TranscriptionId::parse(value)
+        .map_err(|_| McpError::invalid_params("unknown transcription", None))
 }

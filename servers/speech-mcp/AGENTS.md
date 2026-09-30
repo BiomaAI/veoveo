@@ -25,6 +25,9 @@ contract feature free of MCP integration, service, provider and asynchronous run
 dependencies. Execution uses `runtime`; hosted endpoints and binaries require `mcp`.
 Qualify the isolated consumer and both runtime feature configurations when changing
 these gates. Public types keep their existing domain owners.
+Use `TranscriptionId` and `DictationSessionId` through application calls and construct
+addresses with the matching owner types. Hosted declarations belong to `server/setup.rs`;
+startup and discovery consume the shared checked setup.
 
 ## Build And Test
 

@@ -8,16 +8,16 @@ use crate::{
 use anyhow::{Result, ensure};
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::{Mutex, Semaphore, mpsc, oneshot, watch};
-use uuid::Uuid;
 use veoveo_mcp_contract::{GatewayInternalIdentity, PrincipalKind};
+use veoveo_speech_contract::DictationSessionId;
 use veoveo_speech_contract::{
-    dictation::{DictationSnapshot, DictationStatus, StartDictation},
+    dictation::{DictationSnapshot, StartDictation},
     transcript::MAX_DICTATION_SECONDS,
 };
 use veoveo_types::WorkContextMembershipLevel;
 
 pub struct Dictations {
-    sessions: Mutex<HashMap<Uuid, Arc<Session>>>,
+    sessions: Mutex<HashMap<DictationSessionId, Arc<Session>>>,
     slots: Arc<Semaphore>,
     worker: Arc<WorkerProcess>,
 }
@@ -91,7 +91,7 @@ impl Dictations {
     ) -> Result<DictationSnapshot> {
         human(&caller)?;
         ensure!(
-            !request.id.is_nil() && (8000..=48000).contains(&request.sample_rate),
+            (8000..=48000).contains(&request.sample_rate),
             "invalid dictation parameters"
         );
         let mut sessions = self.sessions.lock().await;
@@ -126,14 +126,7 @@ impl Dictations {
             ),
             "dictation capacity unavailable"
         );
-        let snapshot = DictationSnapshot {
-            id: request.id,
-            result_uri: format!("speech://dictation/{}", request.id),
-            status: DictationStatus::Listening,
-            next_sequence: 0,
-            max_duration_seconds: MAX_DICTATION_SECONDS,
-            transcript: None,
-        };
+        let snapshot = DictationSnapshot::new(request.id);
         let (updates, receiver) = watch::channel(snapshot.clone());
         let (commands, input) = mpsc::channel(2);
         sessions.insert(
@@ -164,7 +157,11 @@ impl Dictations {
         Ok(snapshot)
     }
 
-    async fn authorized(&self, caller: &GatewayInternalIdentity, id: Uuid) -> Result<Arc<Session>> {
+    async fn authorized(
+        &self,
+        caller: &GatewayInternalIdentity,
+        id: DictationSessionId,
+    ) -> Result<Arc<Session>> {
         human(caller)?;
         let sessions = self.sessions.lock().await;
         let session = sessions
@@ -177,7 +174,7 @@ impl Dictations {
     pub async fn read(
         &self,
         caller: &GatewayInternalIdentity,
-        id: Uuid,
+        id: DictationSessionId,
     ) -> Result<DictationSnapshot> {
         Ok(self.authorized(caller, id).await?.snapshot.borrow().clone())
     }
@@ -185,7 +182,7 @@ impl Dictations {
     pub async fn chunk(
         &self,
         caller: &GatewayInternalIdentity,
-        id: Uuid,
+        id: DictationSessionId,
         sequence: u32,
         bytes: Vec<u8>,
     ) -> Result<DictationSnapshot> {
@@ -209,7 +206,7 @@ impl Dictations {
     pub async fn finish(
         &self,
         caller: &GatewayInternalIdentity,
-        id: Uuid,
+        id: DictationSessionId,
         cancel: bool,
     ) -> Result<DictationSnapshot> {
         let session = self.authorized(caller, id).await?;

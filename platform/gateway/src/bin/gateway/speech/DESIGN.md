@@ -15,6 +15,10 @@ finish and cancel require their matching tools. Receipt reads require the exact
 with a browser session family. Each chunk receives a fresh policy decision, audit
 record and assertion. The domain binds the receipt to that actor and session.
 
+HTTP route admission uses Speech's `DictationSessionId`. Receipt policy targets use
+its `DictationUri` builder. Responses decode the same owner contract, which requires
+the returned ID and resource address to name the same session.
+
 The projection accepts at most 192000 input bytes, limits requests to 25 seconds and
 validates the returned session ID and transcript bounds. No browser-selected upstream
 URL, profile override in a query, provider credential or Artifact byte path is admitted.

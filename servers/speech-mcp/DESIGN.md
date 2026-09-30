@@ -27,6 +27,12 @@ The independent [contract consumer](../../testing/fixtures/server-contract-consu
 qualifies the isolated dependency graph. Runtime and hosted tests qualify their own
 feature configurations; a contract build supplies no installed workload evidence.
 
+The hosted adapter implements `McpServerContract` in `server/setup.rs`. It checks its
+fixed resources, templates and documents before starting the inference worker. MCP
+initialization and discovery use that setup. The lightweight contract owns typed
+transcription and dictation identities, their resource builders and an empty scope
+vocabulary. Source and session authorization remain in the application.
+
 ## Inference Boundary
 
 The persistent worker loads one model and admits a bounded number of simultaneous
@@ -114,7 +120,7 @@ private receipt; these ephemeral receipts do not support MCP subscriptions. Chun
 acknowledgements contain the latest provisional snapshot. Recorded Task subscriptions
 remain the durable observation boundary.
 
-POST `/dictation` accepts an idempotent UUID and sample rate. PUT
+POST `/dictation` accepts a lowercase hyphenated RFC UUIDv4 or UUIDv7 and sample rate. PUT
 `/dictation/{id}/chunks/{sequence}` accepts up to 192000 bytes of mono little-endian
 float32 PCM. Sequence numbers start at zero. Repeating the last identical chunk is
 safe; conflicting or out-of-order input closes inference. POST

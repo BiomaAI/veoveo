@@ -10,7 +10,7 @@ use axum::{
 };
 use serde::Deserialize;
 use std::time::Duration;
-use uuid::Uuid;
+use veoveo_speech_contract::DictationSessionId;
 use veoveo_speech_contract::dictation::{DictationSnapshot, MAX_CHUNK_BYTES, StartDictation};
 
 pub(crate) fn router() -> Router<AppState> {
@@ -28,7 +28,7 @@ pub(crate) fn router() -> Router<AppState> {
 }
 #[derive(Deserialize)]
 struct Route {
-    id: Option<Uuid>,
+    id: Option<DictationSessionId>,
     sequence: Option<u32>,
 }
 
@@ -38,7 +38,7 @@ async fn proxy(
     matched: MatchedPath,
     request: Request,
 ) -> Response {
-    if request.uri().query().is_some() || route.id.is_some_and(|id| id.is_nil()) {
+    if request.uri().query().is_some() {
         return StatusCode::BAD_REQUEST.into_response();
     }
     let session = match api::upstream_session(&state, request.headers()).await {
@@ -99,7 +99,7 @@ async fn proxy(
             .map_err(|_| StatusCode::BAD_GATEWAY)?;
         let snapshot: DictationSnapshot =
             serde_json::from_slice(&bytes).map_err(|_| StatusCode::BAD_GATEWAY)?;
-        if snapshot.id != expected {
+        if snapshot.id() != expected {
             return Err(StatusCode::BAD_GATEWAY);
         }
         Ok(Json(snapshot).into_response())

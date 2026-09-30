@@ -13,7 +13,7 @@ use axum::{
     routing::get,
 };
 
-use super::handler::SERVER_DOCS;
+use super::setup::SERVER_DOCS;
 
 pub(super) fn router() -> Router {
     Router::new()

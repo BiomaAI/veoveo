@@ -153,13 +153,16 @@ async fn exercise() -> Result<()> {
         .await?;
     let id = task.task_id.to_string();
     ensure!(
-        service.authorize(&bob, &id, true).await.is_err(),
+        service.authorize(&bob, id.parse()?, true).await.is_err(),
         "private Task leaked"
     );
     let mut switched = alice.clone();
     switched.identity.authority.work_context = WorkContextId::new("another-context")?;
     ensure!(
-        service.authorize(&switched, &id, false).await.is_err(),
+        service
+            .authorize(&switched, id.parse()?, false)
+            .await
+            .is_err(),
         "Task crossed Work Context"
     );
     let mut subscription =
@@ -180,7 +183,7 @@ async fn exercise() -> Result<()> {
             break;
         }
     }
-    let finished = service.authorize(&alice, &id, true).await?;
+    let finished = service.authorize(&alice, id.parse()?, true).await?;
     ensure!(
         finished.status == TaskStatus::Succeeded,
         "transcription failed: {:?}",

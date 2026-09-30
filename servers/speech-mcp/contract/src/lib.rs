@@ -1,4 +1,10 @@
+mod identity;
+mod resources;
+mod scopes;
 mod task_kind;
+pub use identity::{DictationSessionId, SpeechIdentityError, TranscriptionId};
+pub use resources::{DictationUri, SpeechDocument, SpeechResource, TranscriptionUri};
+pub use scopes::SpeechScope;
 pub use task_kind::SpeechTaskKind;
 pub mod dictation;
 pub mod transcript;
@@ -51,7 +57,7 @@ impl TranscribeRequest {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TranscriptionOutput {
-    pub result_uri: String,
+    pub result_uri: TranscriptionUri,
     pub source_artifact_uri: ArtifactUri,
     pub transcript: ArtifactMetadata,
     pub captions: ArtifactMetadata,
@@ -67,10 +73,6 @@ pub struct TranscriptDocument {
     pub model: String,
     pub model_revision: String,
     pub transcript: Transcript,
-}
-
-pub fn transcript_uri(task: &str) -> String {
-    format!("speech://transcript/{task}")
 }
 
 pub fn validate_source(metadata: &ArtifactMetadata) -> Result<()> {

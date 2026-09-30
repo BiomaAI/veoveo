@@ -317,14 +317,14 @@ async fn private_sessions(python: &std::path::Path, pcm: &[u8]) -> Result<()> {
     let sessions = Dictations::new(worker, 1);
     let alice = support::identity(&support::owner("alice"));
     let bob = support::identity(&support::owner("bob"));
-    let id = uuid::Uuid::now_v7();
+    let id = veoveo_speech_contract::DictationSessionId::new();
     let start = StartDictation {
         id,
         sample_rate: 16_000,
     };
     sessions.start(alice.clone(), start.clone()).await?;
     ensure!(
-        sessions.start(alice.clone(), start).await?.id == id,
+        sessions.start(alice.clone(), start).await?.id() == id,
         "start replay changed session"
     );
     ensure!(
@@ -388,7 +388,7 @@ async fn private_sessions(python: &std::path::Path, pcm: &[u8]) -> Result<()> {
         repeated.transcript.unwrap().text == result.transcript.unwrap().text,
         "final replay changed text"
     );
-    let cancelled_id = uuid::Uuid::now_v7();
+    let cancelled_id = veoveo_speech_contract::DictationSessionId::new();
     sessions
         .start(
             alice.clone(),

@@ -1,8 +1,4 @@
-use std::{
-    collections::BTreeSet,
-    num::NonZeroU64,
-    sync::{Arc, LazyLock},
-};
+use std::{collections::BTreeSet, num::NonZeroU64, sync::Arc};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use rmcp::tool;
@@ -14,8 +10,7 @@ use rmcp::{
         ContentBlock, GetPromptRequestParams, GetPromptResponse, ListPromptsResult,
         ListResourceTemplatesResult, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
         Prompt, ReadResourceRequestParams, ReadResourceResponse, ReadResourceResult, Reference,
-        Resource, ResourceContents, ResourceTemplate, ServerCapabilities, ServerConfig,
-        SubscriptionFilter,
+        Resource, ResourceContents, ServerConfig, SubscriptionFilter,
     },
     service::{RequestContext, SubscriptionContext},
     tool_handler, tool_router,
@@ -27,18 +22,19 @@ use veoveo_artifact_mcp::contract::{
     ARTIFACT_TEMPLATE, ArtifactGrantsOutput, ArtifactMetadataOutput, ArtifactMutationOutput,
     ArtifactReference, ArtifactShareOutput, CONTRACT_URI, CreateArtifactShareRequest, DOC_TEMPLATE,
     DOCS_URI, GRANTS_TEMPLATE, GrantArtifactRequest, INDEX_URI, LIBRARY_APP_URI, METADATA_TEMPLATE,
-    RevokeArtifactGrantRequest, RevokeArtifactShareRequest, SetArtifactReleaseRequest, doc_uri,
+    RevokeArtifactGrantRequest, RevokeArtifactShareRequest, SetArtifactReleaseRequest,
     parse_doc_uri, parse_grants_uri, parse_metadata_uri,
 };
 use veoveo_mcp_contract::{
     ArtifactPlane, ArtifactPlaneError, CreateArtifactShareLinkRequest, ListArtifactsRequest, Page,
-    PlaneCaller, docs::ServerDocs, paginate,
+    PlaneCaller, paginate,
 };
 use veoveo_types::AccessLevel;
 
 use super::{
     auth,
     prompts::ArtifactPrompt,
+    setup::{SERVER_DOCS, SERVER_SETUP},
     subscriptions::{ArtifactSubscriptions, SubscriptionKind, visible_ids},
 };
 
@@ -51,13 +47,6 @@ const LIBRARY_TOOLS: &[&str] = &[
     "revoke_share_link",
     "set_release_state",
 ];
-
-/// The crate documents embedded at build time and served under the well-known
-/// surface: `artifact://docs`, `artifact://docs/{doc_id}`,
-/// `artifact://contract`, and the administrative `admin/docs` routes
-/// (contract C18-C21).
-pub(super) static SERVER_DOCS: LazyLock<ServerDocs> =
-    LazyLock::new(|| veoveo_mcp_contract::server_docs!("artifact"));
 
 #[derive(Clone)]
 pub(super) struct AppState {
@@ -92,6 +81,7 @@ pub(super) struct ArtifactMcp {
 #[tool_router]
 impl ArtifactMcp {
     pub(super) fn new(state: Arc<AppState>) -> Self {
+        std::sync::LazyLock::force(&SERVER_SETUP);
         Self {
             state,
             tool_router: Self::tool_router(),
@@ -295,23 +285,7 @@ impl ServerHandler for ArtifactMcp {
     }
 
     fn get_info(&self) -> ServerConfig {
-        let mut info = ServerConfig::default();
-        let mut capabilities = ServerCapabilities::builder()
-            .enable_tools()
-            .enable_prompts()
-            .enable_resources()
-            .enable_resources_subscribe()
-            .enable_resources_list_changed()
-            .enable_completions()
-            .build();
-        veoveo_mcp_apps_extension::extend_capabilities(&mut capabilities);
-        info.capabilities = capabilities;
-        info.server_info = rmcp::model::Implementation::new("artifact", env!("CARGO_PKG_VERSION"));
-        info.instructions = Some(
-            "Find and share artifacts. Each artifact://{artifact_id} URI names one immutable artifact. Share with named users or groups through grants. Anyone-with-link sharing needs the artifact to be marked releasable, and links expire."
-                .to_owned(),
-        );
-        info
+        SERVER_SETUP.server_config().clone()
     }
 
     async fn list_tools(
@@ -401,7 +375,11 @@ impl ServerHandler for ArtifactMcp {
         // The well-known surface rides the first plane page; artifact pages
         // continue under the plane cursor (contract C18, C19).
         let mut resources = if cursor.is_none() {
-            well_known_resources()
+            SERVER_SETUP
+                .resources()
+                .iter()
+                .map(|resource| resource.descriptor().clone())
+                .collect()
         } else {
             Vec::new()
         };
@@ -437,7 +415,14 @@ impl ServerHandler for ArtifactMcp {
         request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, McpError> {
-        let page = static_page(resource_templates(), request.as_ref())?;
+        let page = static_page(
+            SERVER_SETUP
+                .resource_templates()
+                .iter()
+                .map(|template| template.descriptor().clone())
+                .collect(),
+            request.as_ref(),
+        )?;
         let mut result = ListResourceTemplatesResult::with_all_items(page.items)
             .with_ttl_ms(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS)
             .with_cache_scope(CacheScope::Private);
@@ -736,62 +721,6 @@ impl ServerHandler for ArtifactMcp {
             .map_err(|error| McpError::internal_error(error, None))?;
         Ok(CompleteResult::new(completion))
     }
-}
-
-/// Well-known surface resources (contract C18, C19). The first
-/// `list_resources` page serves these for every authenticated identity.
-fn well_known_resources() -> Vec<Resource> {
-    let mut resources = vec![
-        veoveo_mcp_apps_extension::app_resource(LIBRARY_APP_URI, "library")
-            .with_title("Library")
-            .with_description("Governed artifact discovery, inspection, release, and sharing."),
-        Resource::new(DOCS_URI, "artifact-docs")
-            .with_title("Server documents")
-            .with_description("Index of the crate documents embedded at build time.")
-            .with_mime_type("application/json"),
-    ];
-    for doc in SERVER_DOCS.iter() {
-        resources.push(
-            Resource::new(
-                doc_uri(doc.id.try_into().expect("embedded Artifact document")).to_string(),
-                doc.title,
-            )
-            .with_title(doc.title)
-            .with_description("Crate document embedded at build time.")
-            .with_mime_type("text/markdown"),
-        );
-    }
-    resources.push(
-        Resource::new(CONTRACT_URI, "artifact-contract")
-            .with_title("Contract declaration")
-            .with_description(
-                "Machine-readable contract revision, compliance, and capability inventory.",
-            )
-            .with_mime_type("application/json"),
-    );
-    resources
-}
-
-/// Templates served by `list_resource_templates`.
-fn resource_templates() -> Vec<ResourceTemplate> {
-    vec![
-        ResourceTemplate::new(DOC_TEMPLATE, "artifact-doc")
-            .with_title("Server document")
-            .with_description("Embedded crate document body (contract C18).")
-            .with_mime_type("text/markdown"),
-        ResourceTemplate::new(ARTIFACT_TEMPLATE, "artifact")
-            .with_title("Artifact content")
-            .with_description("Immutable artifact occurrence bytes.")
-            .with_mime_type("application/octet-stream"),
-        ResourceTemplate::new(METADATA_TEMPLATE, "artifact-metadata")
-            .with_title("Artifact metadata")
-            .with_description("Policy-filtered artifact metadata and download location.")
-            .with_mime_type("application/json"),
-        ResourceTemplate::new(GRANTS_TEMPLATE, "artifact-grants")
-            .with_title("Artifact grants")
-            .with_description("Administrative artifact access-control entries.")
-            .with_mime_type("application/json"),
-    ]
 }
 
 fn static_page<T>(

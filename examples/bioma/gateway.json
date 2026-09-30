@@ -641,7 +641,9 @@
       "required_scopes": [
         "operator:use"
       ],
-      "metadata": {},
+      "metadata": {
+        "contract_revision": 3
+      },
       "resource_projection": "server_owned"
     },
     {

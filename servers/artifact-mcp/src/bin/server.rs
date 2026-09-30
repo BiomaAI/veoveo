@@ -26,6 +26,8 @@ mod handler;
 mod host;
 #[path = "server/prompts.rs"]
 mod prompts;
+#[path = "server/setup.rs"]
+mod setup;
 #[path = "server/subscriptions.rs"]
 mod subscriptions;
 
@@ -47,6 +49,7 @@ async fn main() -> anyhow::Result<()> {
     let _telemetry: TelemetryGuard =
         init_server_telemetry("veoveo-artifact-mcp", "info,veoveo_artifact_mcp=debug")?;
     let args = Args::parse();
+    std::sync::LazyLock::force(&setup::SERVER_SETUP);
     let public_deployment = args.public_deployment()?;
     let public_endpoint = public_deployment.server(SERVER_SLUG)?;
     let store = PlatformStore::connect(args.store_config()?).await?;

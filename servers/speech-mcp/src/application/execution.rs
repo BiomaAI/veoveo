@@ -8,7 +8,7 @@ use tokio::io::AsyncWriteExt;
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{ArtifactReadAuthority, ArtifactTaskId};
 use veoveo_speech_contract::transcript::{MAX_RECORDING_SECONDS, Transcript};
-use veoveo_speech_contract::{MAX_SOURCE_BYTES, validate_source};
+use veoveo_speech_contract::{MAX_SOURCE_BYTES, TranscriptionId, validate_source};
 use veoveo_task_runtime::{TaskFailure, TaskSnapshot, TaskStatus, TaskTransition};
 
 const LEASE: Duration = Duration::from_secs(60);
@@ -20,35 +20,36 @@ impl SpeechService {
         request: DurableRequest,
         permit: tokio::sync::OwnedSemaphorePermit,
     ) -> Result<TaskSnapshot> {
-        let task = snapshot.task_id.to_string();
-        let claimed = self.tasks.claim(&task, LEASE).await?;
+        let task = TranscriptionId::parse(snapshot.task_id.to_string())?;
+        let claimed = self.tasks.claim(&task.to_string(), LEASE).await?;
         let cancel = CancellationToken::new();
         let worker = {
             let service = self.clone();
-            let task = task.clone();
             let cancel = cancel.clone();
             tokio::spawn(async move {
                 let _permit = permit;
                 service.run(task, request, cancel).await;
             })
         };
-        self.tasks.register_worker(&task, cancel, worker).await?;
+        self.tasks
+            .register_worker(&task.to_string(), cancel, worker)
+            .await?;
         Ok(claimed.snapshot)
     }
 
     async fn run(
         self: Arc<Self>,
-        task: String,
+        task: TranscriptionId,
         request: DurableRequest,
         cancel: CancellationToken,
     ) {
-        let task_ids = [task.clone()];
+        let task_ids = [task.to_string()];
         // Subscription establishment participates in the same select as lease
         // renewal and cancellation; a slow baseline cannot strand a live worker.
         let mut updates =
             Box::pin(futures::stream::once(self.tasks.live_updates_for(&task_ids)).try_flatten());
         let mut work = Box::pin(async {
-            tokio::time::timeout(Duration::from_secs(900), self.execute(&task, request)).await?
+            tokio::time::timeout(Duration::from_secs(900), self.execute(task, request)).await?
         });
         let mut heartbeat = tokio::time::interval(Duration::from_secs(20));
         heartbeat.tick().await;
@@ -58,7 +59,7 @@ impl SpeechService {
                     Ok(result) => TaskTransition::Succeeded { message: "Transcript ready".into(), result },
                     Err(error) => {
                         // No provider exception or captured text belongs in public errors.
-                        tracing::warn!(task, error_type = %error.root_cause(), "speech transcription failed");
+                        tracing::warn!(%task, error_type = %error.root_cause(), "speech transcription failed");
                         TaskTransition::Failed(TaskFailure::new("transcription_failed",
                             "Transcription could not finish. Check source access, audio format and Speech service availability."))
                     }
@@ -72,7 +73,7 @@ impl SpeechService {
                     }
                 },
                 _ = heartbeat.tick() => {
-                    match self.tasks.renew_lease(&task, LEASE).await {
+                    match self.tasks.renew_lease(&task.to_string(), LEASE).await {
                         Ok(snapshot) if snapshot.status == TaskStatus::CancelRequested => break TaskTransition::Cancelled,
                         Ok(_) => (),
                         Err(_) => return,
@@ -82,20 +83,25 @@ impl SpeechService {
         };
         // Disconnect inference and remove its private source before terminal acknowledgement.
         drop(work);
-        let transition = if self.tasks.is_cancel_requested(&task).await.unwrap_or(true) {
+        let transition = if self
+            .tasks
+            .is_cancel_requested(&task.to_string())
+            .await
+            .unwrap_or(true)
+        {
             TaskTransition::Cancelled
         } else {
             transition
         };
-        if let Err(error) = self.tasks.transition(&task, transition).await {
-            tracing::warn!(task, %error, "speech Task settlement lost its lease");
+        if let Err(error) = self.tasks.transition(&task.to_string(), transition).await {
+            tracing::warn!(%task, %error, "speech Task settlement lost its lease");
         }
     }
 
-    async fn progress(&self, task: &str, message: &str, progress: f64) -> Result<()> {
+    async fn progress(&self, task: TranscriptionId, message: &str, progress: f64) -> Result<()> {
         self.tasks
             .transition(
-                task,
+                &task.to_string(),
                 TaskTransition::Running {
                     message: message.into(),
                     progress,
@@ -105,7 +111,11 @@ impl SpeechService {
         Ok(())
     }
 
-    async fn execute(&self, task: &str, request: DurableRequest) -> Result<serde_json::Value> {
+    async fn execute(
+        &self,
+        task: TranscriptionId,
+        request: DurableRequest,
+    ) -> Result<serde_json::Value> {
         let _slot = self.slots.acquire().await?;
         self.progress(task, "Reading authorized recording", 0.0)
             .await?;
@@ -115,7 +125,7 @@ impl SpeechService {
         let path = work.path().join("source");
         let authority = ArtifactReadAuthority::Task {
             capability: &request.read,
-            task_id: ArtifactTaskId::parse(task)?,
+            task_id: ArtifactTaskId::parse(task.to_string())?,
         };
         let download = self
             .artifacts
@@ -193,7 +203,7 @@ impl SpeechService {
             .artifacts
             .read_metadata(authority, source.artifact_id())
             .await?;
-        self.tasks.renew_lease(task, LEASE).await?;
+        self.tasks.renew_lease(&task.to_string(), LEASE).await?;
         self.publish(
             task,
             &request.write,

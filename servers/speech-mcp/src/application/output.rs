@@ -9,7 +9,9 @@ use veoveo_mcp_contract::{
     RedeemArtifactWriteCapabilityRequest,
 };
 use veoveo_speech_contract::transcript::Transcript;
-use veoveo_speech_contract::{TranscriptDocument, TranscriptionOutput, transcript_uri};
+use veoveo_speech_contract::{
+    TranscriptDocument, TranscriptionId, TranscriptionOutput, TranscriptionUri,
+};
 
 #[derive(Serialize)]
 #[serde(deny_unknown_fields)]
@@ -23,7 +25,7 @@ struct Provenance<'a> {
 impl SpeechService {
     pub(super) async fn publish(
         &self,
-        task: &str,
+        task: TranscriptionId,
         capability: &IssuedArtifactWriteCapability,
         source: ArtifactMetadata,
         digest: String,
@@ -51,11 +53,11 @@ impl SpeechService {
             ("vtt", "text/vtt", captions),
         ] {
             anyhow::ensure!(
-                !self.tasks.is_cancel_requested(task).await?,
+                !self.tasks.is_cancel_requested(&task.to_string()).await?,
                 "publication cancelled"
             );
             self.tasks
-                .renew_lease(task, std::time::Duration::from_secs(60))
+                .renew_lease(&task.to_string(), std::time::Duration::from_secs(60))
                 .await?;
             let request = RedeemArtifactWriteCapabilityRequest {
                 capability_id: capability.capability_id,
@@ -78,7 +80,7 @@ impl SpeechService {
             );
         }
         let output = TranscriptionOutput {
-            result_uri: transcript_uri(task),
+            result_uri: TranscriptionUri::new(task),
             source_artifact_uri: source.artifact_uri,
             transcript: artifacts.remove(0),
             captions: artifacts.remove(0),
@@ -87,7 +89,7 @@ impl SpeechService {
         let mut result = CallToolResult::success(vec![
             ContentBlock::text("Transcript ready."),
             ContentBlock::ResourceLink(
-                Resource::new(output.result_uri.clone(), "Transcript")
+                Resource::new(output.result_uri.to_string(), "Transcript")
                     .with_mime_type("application/json"),
             ),
         ]);
