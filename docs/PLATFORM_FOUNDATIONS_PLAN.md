@@ -149,9 +149,15 @@ of peak growth and keeps 128 GiB free; it passes with 71 GiB beyond that budget.
 All four images are published from `400caa87`, and the installation selects their
 immutable runnable digests. Registry-layer inspection verifies the owned engine files
 in all four images and the matching Spatial files in Map and DuckDB against the
-qualified upstream bytes. BuildKit is stopped. Installed recovery against the current
-Map volume is next. The earlier convergence observer was cancelled; no successful
-convergence receipt or composed flight acceptance is claimed for that deployment.
+qualified upstream bytes. GitOps convergence passes at `0a901aca` and Map starts
+against the existing volume. Composed acceptance passes Map route admission, the
+mission with a completed waypoint, and live Stream before and after the mission.
+It then rejects the camera-freshness probe: the client calls the archive-only
+`create_recording_projection` API on a live recording without committed archive layers.
+Hub ingestion is healthy with no materialization backlog. The next client batch must
+use the shared reader's live-part snapshot contract and qualify Stream replay and
+Reason independently before repeating flight. Owned landing and Stream cleanup finish;
+replay and Reason were not reached. BuildKit and the cluster are stopped afterward.
 The cluster is stopped during that development; Rust and BuildKit caches, image layers
 and runtime claims are preserved. The architecture catalog
 validates, rendering is idempotent, and its unchanged HTML/PDF reuse the headed NVIDIA
@@ -2610,7 +2616,7 @@ not complete while a row remains.
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
 | Phase 3 Task result installation | `platform/task-runtime/DESIGN.md` | Install the shared result envelope and event schema 3 on a fresh reference Store; qualify linked domain results and cross-replica delivery | Native format and consumer checks pass; installed acceptance requires stopped writers and a database reset |
-| Phase 1 reference reset | `examples/bioma/README.md` | Qualify Map recovery with the current PVC, then finish Stream replay, Reason and composed timing acceptance | Installed live Stream now passes after RTP-only timestamping. Map restart exposed a DuckDB 1.5.5 Spatial WAL assertion; the unchanged stopped snapshot recovers all nine source features and index entries on 1.5.6. The 1.5.6 batch passes 316 native checks and its four published images contain the qualified native bytes; installed recovery is next |
+| Phase 1 reference reset | `testing/flight-smoke/src/domain/artifacts.rs` | Replace the archive-only camera-freshness gate with the live-part snapshot contract; qualify Stream replay and Reason directly before repeating composed timing acceptance | The DuckDB 1.5.6 batch passes 316 native checks and installed convergence at `0a901aca`. Map restarts with the current PVC, route and mission checks pass, and live Stream passes before and after the mission. Recording rejects the archive projection of a live source. Owned landing/session cleanup finishes; replay and Reason were not reached |
 | Phase 3 Reason C02 installation | `servers/reason-mcp/src/bin/server/task_results.rs` | Verify current result delivery and GPU completion on the rebuilt reference installation | Native work runs with reference workloads stopped; no historical-data transition or dual-profile rollback is required |
 | Phase 3 Stream C02 installation | `servers/stream-mcp/src/bin/server/task_results.rs` | Qualify canonical result reads, Task delivery and GPU completion on the rebuilt reference installation | Native current-format delivery and browser behavior pass; reference workloads are stopped during development |
 | Phase 3 Stream C27 installation | `servers/stream-mcp/src/bin/server/subscriptions.rs` | Qualify cross-replica run invalidations and live-session notifications on the rebuilt reference installation | Native mixed-source, reconnect and MCP cancellation checks pass; reference workloads are stopped during development |

@@ -141,6 +141,9 @@ pub(super) async fn download_governed_json_artifact(
         .with_context(|| format!("governed artifact {artifact_id} contained invalid JSON"))
 }
 
+// TODO(foundations): This gate must use the shared Recording reader's live-part
+// snapshot contract. create_recording_projection admits committed archive layers;
+// qualify live Stream replay and Reason directly before repeating composed flight.
 pub(super) async fn wait_for_recording_camera_range(
     operator: &OperatorClient<'_>,
     dataset_id: &str,

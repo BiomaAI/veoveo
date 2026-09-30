@@ -118,9 +118,10 @@ Flux applies it. Chart publication alone does not replace unchanged Pod template
 
 <!-- TODO(foundations): Finish composed flight and installed workload acceptance.
 Sensor health, landing, re-arming, takeoff, Map routing and mission completion pass.
-Installed uav-stream-verify passes with RTP-only timestamps. Qualify the DuckDB 1.5.6
-Map restart correction with the current PVC before repeating flight, replay and Reason
-acceptance. -->
+DuckDB 1.5.6 Map recovery and installed live Stream pass. The camera-freshness gate
+currently calls an archive-only projection API on a live recording. Use the supported
+live-part snapshot contract and qualify Stream replay and Reason directly before
+repeating composed acceptance. -->
 
 Service clients authenticate with separate installation-owned RSA keys. Only their
 public JWKS belongs in this GitOps bundle. The private PEM files stay in the caller's
