@@ -2,36 +2,21 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use rmcp::{
     ErrorData as McpError,
     model::{CallToolResult, ContentBlock},
-    schemars,
     service::{RequestContext, RoleServer},
 };
-use veoveo_artifact_contract::ArtifactMetadata;
 
 use super::{AppState, ownership::internal_caller};
-use veoveo_media_mcp::uris;
 
 const MAX_INLINE_ARTIFACT_BYTES: u64 = 3 * 1024 * 1024;
 
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-pub(super) struct ArtifactArgs {
-    /// Media artifact resource URI, for example media://artifact/{artifact_id}.
-    pub(super) artifact_uri: String,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
-pub(super) struct ArtifactOutput {
-    pub(super) artifact: ArtifactMetadata,
-    pub(super) inlined: bool,
-}
+use veoveo_media_mcp::contract::{ArtifactArgs, ArtifactOutput};
 
 pub(super) async fn artifact_result(
     state: &AppState,
     args: ArtifactArgs,
     context: &RequestContext<RoleServer>,
 ) -> Result<CallToolResult, McpError> {
-    let artifact_id = uris::parse_artifact_uri(&args.artifact_uri).ok_or_else(|| {
-        McpError::invalid_params("artifact_uri must be media://artifact/{artifact_id}", None)
-    })?;
+    let artifact_id = args.artifact_uri.artifact_id();
     // The plane enforces access with the caller's identity.
     let caller = internal_caller(context)?;
     let artifact = state

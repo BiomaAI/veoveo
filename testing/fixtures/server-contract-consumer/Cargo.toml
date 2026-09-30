@@ -13,4 +13,5 @@ veoveo-computers-mcp = { path = "../../../servers/computers-mcp", default-featur
 veoveo-speech-mcp = { path = "../../../servers/speech-mcp", default-features = false, features = ["contract"] }
 veoveo-frames-mcp = { path = "../../../servers/frames-mcp", default-features = false, features = ["contract"] }
 veoveo-timeseries-mcp = { path = "../../../servers/timeseries-mcp", default-features = false, features = ["contract"] }
+veoveo-media-mcp = { path = "../../../servers/media-mcp", default-features = false, features = ["contract"] }
 veoveo-types = { path = "../../../platform/types" }

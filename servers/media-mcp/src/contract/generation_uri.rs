@@ -23,9 +23,9 @@ impl MediaGenerationUri {
     /// MediaGenerationUri::new(TaskId::new());
     /// ```
     pub fn new(prediction: MediaPredictionId) -> Self {
-        let wire = ResourceUriBuilder::new("media://prediction")
-            .expect("declared Media prediction root")
-            .segment(UriSegment::new(prediction.as_str()).expect("checked prediction ID"))
+        let parent = MediaPredictionUri::new(prediction.clone());
+        let wire = ResourceUriBuilder::new(parent.as_str())
+            .expect("typed Media prediction parent")
             .segment(UriSegment::new("result").expect("declared result segment"))
             .build()
             .expect("typed generation address");

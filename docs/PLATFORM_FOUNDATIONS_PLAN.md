@@ -1756,6 +1756,22 @@ Two compile-fail cases pass. Twelve of the fifteen Rust MCP servers now consume
 checked setup; Computers, Map, Media and the templates remain. Installed resource and
 workload qualification joins the Phase 3 integration checkpoint.
 
+The Media batch extracts public model, Artifact and generation requests/responses into
+its isolated contract feature. Model identities stay typed through registry lookup,
+provider submission and output attribution. `MediaResource` owns every hosted route;
+startup, discovery and subscription admission consume the owner contract. Provider HTTP
+paths and callback queries use URL components. Template qualification found that opaque
+prediction IDs used different reserved-character encoding in constructors and RFC 6570
+expansion; prediction and result builders now agree with the declared templates. The
+model template uses reserved expansion for its slash-separated identity.
+The grouped Media/conformance selection passes 67 native checks after the encoding
+correction and fixture retries. The isolated consumer passes four checks across six
+server libraries; four resource checks and eight compile-fail cases pass with only
+the Media contract feature. Docker took 50 and 32 seconds to create the first Store fixture; both late
+containers were removed. The unchanged compiled billing case passes in four seconds
+when retried after compilation. Thirteen Rust servers adopt checked setup; Computers,
+Map and the templates remain. Installed acceptance stays at the integration checkpoint.
+
 ## Standards And Protocols
 
 | Standard or protocol | Role in this plan |
@@ -1793,7 +1809,9 @@ workload qualification joins the Phase 3 integration checkpoint.
   execution but still compile every selected test target. Avoid `--workspace --lib`
   for a local library correction, and keep each focused harness feature graph stable.
   Publish and perform installed acceptance once per coherent batch, rather than after
-  each small edit. A failure or new change justifies repeating only the affected checks.
+  each small edit. A failure or new change justifies repeating only the affected checks. Reuse a
+  current native test executable for fixture-only retries; rebuild when its source or
+  dependency inputs change.
 - Evaluate contract adequacy during each change. Improve outdated or inexpressive
   contracts when the accepted architecture requires it, without waiting for the user
   to identify the problem. Explain material tradeoffs, update the owning design and
@@ -2240,7 +2258,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Artifact identity and URI admission | `ArtifactId` checks version and RFC variant; `ArtifactUri` owns neutral/presented variants, preserves accepted URI spelling, and builds from typed IDs and schemes; metadata checks wire ID/URI agreement | Qualify installed consumption of the current identity and URI contract |
 | Remaining Artifact references | Download URLs, some Store DTOs, and other domain URI fields still use broader string profiles | Migrate with each owning contract; distinguish Artifact identities from external fetch locations and declare persisted/profile changes |
 | Artifact attribution construction | `ArtifactProvenance` uses foundational `InvocationProvenance`; a private wire adapter preserves valid flat metadata and requires each mode's identities in both decoding and schemas | Native publication/readback, independent consumption, schema/decoder parity, and compile-fail qualification pass; qualify installed metadata consumption during reference acceptance |
-| Artifact MCP and remaining Media operations | Media generation result DTOs and prediction/usage contracts now belong to its isolated library feature; its canonical completion handoff passes native producer and consumer qualification. Other public operations still depend on shared access/provider contracts and runtime modules | Complete public request/model extraction, closed scopes, remaining resource builders and checked MCP setup; qualify installed behavior |
+| Media public contract and hosted setup | The isolated library owns public requests and responses, registry entries, typed model/prediction identities, all hosted resource variants and an empty scope vocabulary. Checked MCP setup supplies startup and discovery; resource reads and subscription admission share the owner parser. Model IDs remain typed through provider submission and output attribution. Opaque prediction builders share the declared template encoding; model routes use reserved expansion. Provider HTTP URLs use component builders | Complete remaining DTO relationships and model catalog paging; qualify registration, installed behavior and provider recovery budgets |
 | Frames hosted setup | The isolated server contract composes world, operation, usage, Artifact and document routes into `FramesResource`. Startup and discovery consume checked setup; reads and mutable subscription admission use owner parsing. No domain scopes are added | Qualify current resource admission and subscriptions through installed clients |
 | Frames world reads | Frames owns typed reads over the existing Store client; SQL applies visibility and parent checks, world catalogs use typed keyset pages, and completion binds parents and matches before limits. Six isolated native cases pass. Discovery is static; private driver records and mutations also belong to Frames | Qualify installed paging and completion with current catalog consumers |
 | Frames mutation inputs | Frames owns typed mutations, private driver records and world-event vocabulary. World publication checks owner, current labels and head agreement in the transaction; repeated writes settle from authorized matching state. Store has no world draft API | Qualify installed publication and concurrent replay under current writer policy |

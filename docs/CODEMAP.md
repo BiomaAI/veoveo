@@ -1008,11 +1008,12 @@ Media-specific ownership:
 
 | Path | Responsibility |
 |---|---|
-| `servers/media-mcp/src/contract/` | isolated contract feature: checked current Media generation results, output attribution, typed provider identity, prediction/result/usage addresses, collection cursors and checked pages |
+| `servers/media-mcp/src/contract/` | isolated contract feature: typed model/prediction identities, public requests and responses, complete resource vocabulary, empty scopes, checked generation results, output attribution, collection cursors and pages |
 | `servers/media-mcp/src/reads/` | SQL selection of usage, prediction and retained generation result resources under current Task owner and parent-record checks |
 | `servers/media-mcp/src/task_results.rs` | Media-owned current MCP completion handoff and authorization/parent checks for Task reads and subscriptions |
 | `servers/media-mcp/src/state/usage.rs` | ledger writes, retention and paged SQL billing recovery |
-| `servers/media-mcp/src/bin/server/resources.rs` and `subscriptions.rs` | static MCP discovery, typed resource dispatch and SQL-backed subscription admission |
+| `servers/media-mcp/src/bin/server/setup.rs` | checked MCP startup, fixed discovery and typed resource templates |
+| `servers/media-mcp/src/bin/server/resources.rs` and `subscriptions.rs` | owner resource dispatch and SQL-backed subscription admission |
 | `servers/media-mcp/src/provider.rs` | provider-neutral registry/submission adapter |
 | `servers/media-mcp/src/webhook.rs` | signature parsing and constant-time verification |
 | `servers/media-mcp/src/bin/server/generation_task.rs` | durable submission/WebhookWait/terminal flow |
@@ -1413,7 +1414,7 @@ dispatch preflights and budgeted execution.
 | `mcp/conformance` | reusable domain-neutral MCP certification library, thin CLI, schemas, profiles, authenticated same-origin well-known-surface checks, live declaration binding, and standalone image |
 | `testing/fixtures/store.rs`, `store/container.rs`, `connection_switch.rs` | owned disposable database setup, cancellable Docker subprocesses and acknowledged TCP connection loss for native recovery tests; `platform/store/tests/fixture_lifecycle.rs` owns CLI lifecycle fault injection |
 | [`testing/fixtures/modular-mcp/`](../testing/fixtures/modular-mcp/DESIGN.md) | independent scope/resource library with isolated contract and MCP features; `mcp/conformance/tests/modular_server.rs` owns hosted qualification and fixture cleanup |
-| [`testing/fixtures/server-contract-consumer/`](../testing/fixtures/server-contract-consumer/DESIGN.md) | independently resolved Artifact, Computers, Speech, Frames and Timeseries library consumer; rejects service dependencies in their contract features |
+| [`testing/fixtures/server-contract-consumer/`](../testing/fixtures/server-contract-consumer/DESIGN.md) | independently resolved Artifact, Computers, Speech, Frames, Timeseries and Media library consumer; rejects service dependencies in their contract features |
 | `testing/flight-smoke/` | [focused composed-flight harness](../testing/flight-smoke/DESIGN.md), with server-owned wire types and client-only dependency closure |
 | `testing/browser-smoke/src/cli.rs` and `main.rs` | installation-selected browser acceptance arguments and scenario dispatch; `support.rs` reuses the shared installed-target loader; `browser.rs` owns headed hardware checks and browser assertions shared with flight acceptance |
 | `testing/smoke/src/bin/smoke.rs` | smoke command dispatcher and digest-addressed simulation certification entrypoint |

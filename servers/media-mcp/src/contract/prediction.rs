@@ -1,9 +1,9 @@
 //! Provider prediction identity and its public resource address.
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::{fmt, str::FromStr};
+use std::{collections::BTreeMap, fmt, str::FromStr, sync::LazyLock};
 use veoveo_types::{
-    ResourceAddress, ResourceUri, ResourceUriBuilder, ResourceUriParts, UriSegment,
+    ResourceAddress, ResourceTemplateUri, ResourceUri, ResourceUriParts, UriSegment,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -70,10 +70,15 @@ impl MediaPredictionUri {
     /// MediaPredictionUri::new(TaskId::new());
     /// ```
     pub fn new(id: MediaPredictionId) -> Self {
-        let wire = ResourceUriBuilder::new("media://prediction")
-            .expect("declared prediction root")
-            .segment(UriSegment::new(id.as_str()).expect("checked prediction identity"))
-            .build()
+        // Simple RFC 6570 expansion escapes every reserved character in this
+        // opaque ID. URL path setters permit some of them unescaped, which would
+        // make the template and the canonical owner address disagree.
+        static TEMPLATE: LazyLock<ResourceTemplateUri> = LazyLock::new(|| {
+            ResourceTemplateUri::new(MediaPredictionUri::TEMPLATE)
+                .expect("declared prediction template")
+        });
+        let wire = TEMPLATE
+            .expand_scalars(&BTreeMap::from([("id".to_owned(), id.to_string())]))
             .expect("typed prediction address");
         Self { wire, id }
     }

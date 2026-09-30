@@ -1,18 +1,11 @@
 use std::sync::Arc;
 
-use rmcp::{model::JsonObject, schemars};
 use serde_json::Value;
 use veoveo_task_runtime::{TaskFailure, TaskTransition};
 
 use super::{AppState, usage::record_usage_estimate};
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, schemars::JsonSchema)]
-pub(super) struct RunArgs {
-    /// Media model id. Browse media://models or complete the model template.
-    pub(super) model: String,
-    /// Model-specific input matching media://model/{model_id}.
-    pub(super) input: JsonObject,
-}
+use veoveo_media_mcp::contract::RunArgs;
 
 /// Validate and submit one provider job. The worker intentionally stops after
 /// the durable provider binding enters `waiting`; only a signed webhook can
@@ -49,10 +42,10 @@ pub(super) async fn submit_task(state: Arc<AppState>, task_id: String, args: Run
                 &task_id,
                 "invalid_model_input",
                 format!(
-                    "input failed schema validation for {}: {}; see media://model/{}",
+                    "input failed schema validation for {}: {}; see {}",
                     args.model,
                     errors.join("; "),
-                    args.model
+                    veoveo_media_mcp::contract::MediaModelUri::new(args.model.clone())
                 ),
             )
             .await;

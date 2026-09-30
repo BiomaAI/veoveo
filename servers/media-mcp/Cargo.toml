@@ -25,6 +25,10 @@ name = "generation_contract"
 required-features = ["contract"]
 
 [[test]]
+name = "resource_contract"
+required-features = ["contract"]
+
+[[test]]
 name = "reads"
 required-features = ["mcp"]
 

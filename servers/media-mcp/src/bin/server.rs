@@ -11,7 +11,7 @@
 //!   tool `model_schema(model)`       — exact input schema for tools-only clients
 //!   tool `artifact(artifact_uri)`     — artifact image blocks for tools-only clients
 //!   resource `media://models`        — compact catalog of all models
-//!   template `media://model/{model_id}`       — full input schema + pricing
+//!   template `media://model/{+model_id}`       — full input schema + pricing
 //!   template `media://prediction/{id}`        — live prediction state, subscribable
 //!   completion/complete over {model_id}
 //!   notifications: task updates and resources/updated
@@ -43,8 +43,7 @@ use rmcp::{
         CompleteRequestParams, CompleteResult, CompletionInfo, GetPromptRequestParams,
         GetTaskParams, GetTaskResult, ListPromptsResult, ListResourceTemplatesResult,
         ListResourcesResult, ListToolsResult, PaginatedRequestParams, Prompt,
-        ReadResourceRequestParams, Reference, ServerCapabilities, ServerConfig, SubscriptionFilter,
-        UpdateTaskParams,
+        ReadResourceRequestParams, Reference, ServerConfig, SubscriptionFilter, UpdateTaskParams,
     },
     service::{RequestContext, SubscriptionContext},
     tool_handler, tool_router,
@@ -57,12 +56,13 @@ use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
     IssueArtifactWriteCapabilityRequest, Page, ServerSlug, SubscriptionHub, TelemetryGuard,
-    TokenIssuer, docs::ServerDocs, init_server_telemetry, paginate, public_allowed_hosts,
+    TokenIssuer, init_server_telemetry, paginate, public_allowed_hosts,
 };
 use veoveo_media_mcp::{
     artifacts::ArtifactRepository,
     contract::MediaGenerationResult,
-    provider::{ModelEntry, Prediction, ProviderClient},
+    contract::{MediaModelUri, ModelEntry},
+    provider::{Prediction, ProviderClient},
     state::MediaState,
     uris, webhook,
 };
@@ -95,9 +95,11 @@ mod ownership;
 mod prompts;
 #[path = "server/resources.rs"]
 mod resources;
+#[path = "server/setup.rs"]
+mod setup;
 #[path = "server/subscriptions.rs"]
 mod subscriptions;
-use resources::{resource_catalog, resource_templates};
+use setup::{SERVER_DOCS, SERVER_SETUP};
 #[path = "server/retention.rs"]
 mod retention;
 #[path = "server/task_extension.rs"]
@@ -106,17 +108,18 @@ mod task_extension;
 mod usage;
 
 use app_state::{AppState, spawn_provider_event_reconciliation, spawn_subscription_projection};
-use artifact_tools::ArtifactArgs;
 use config::Args;
-use generation_task::{RunArgs, submit_task};
+use generation_task::submit_task;
 use host::validate_host;
 use internal_auth::{InternalMcpAuthState, authenticate_internal_mcp};
-use model_tools::{ModelSchemaArgs, ModelsArgs};
 use ownership::{internal_identity, runtime_owner};
 use prompts::MediaPrompt;
 use retention::{run_retention_gc, spawn_retention_gc_loop};
 use task_extension::MediaTaskExtension;
 use usage::spawn_missing_actual_usage_reconciliations;
+use veoveo_media_mcp::contract::ArtifactArgs;
+use veoveo_media_mcp::contract::RunArgs;
+use veoveo_media_mcp::contract::{ModelSchemaArgs, ModelsArgs};
 
 fn install_rustls_provider() {
     let _ = rustls::crypto::ring::default_provider().install_default();
@@ -132,12 +135,6 @@ const SERVER_SLUG: &str = "media";
 const LIST_PAGE_SIZE: usize = 100;
 const TASK_LEASE_DURATION: Duration = Duration::from_secs(120);
 
-/// The crate documents embedded at build time and served under the well-known
-/// surface: `media://docs`, `media://docs/{doc_id}`, `media://contract`, and
-/// the administrative `admin/docs` routes (contract C18-C21).
-static SERVER_DOCS: LazyLock<ServerDocs> =
-    LazyLock::new(|| veoveo_mcp_contract::server_docs!(SERVER_SLUG));
-
 #[derive(Clone)]
 struct MediaMcp {
     state: Arc<AppState>,
@@ -149,6 +146,7 @@ struct MediaMcp {
 #[tool_router]
 impl MediaMcp {
     fn new(state: Arc<AppState>) -> Self {
+        LazyLock::force(&SERVER_SETUP);
         Self {
             task_service: MediaTaskExtension::new(state.clone()),
             state,
@@ -160,7 +158,7 @@ impl MediaMcp {
     /// Direct synchronous invocation is intentionally unsupported.
     #[tool(
         title = "Run media model",
-        description = "Run any media model. Run as an MCP Task and read tasks/get for status and the typed result. Find models at media://models, input schemas at media://model/{model_id}, and billing at media://usage/task/{task_id}.",
+        description = "Run any media model. Run as an MCP Task and read tasks/get for status and the typed result. Find models at media://models, input schemas at media://model/{+model_id}, and billing at media://usage/task/{task_id}.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<MediaGenerationResult>(),
         annotations(
             read_only_hint = false,
@@ -182,7 +180,7 @@ impl MediaMcp {
     #[tool(
         title = "List media models",
         description = "Search the media model catalog and return exact model ids for media__run. Use this when the MCP client cannot browse media://models resources.",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<model_tools::ModelCatalogOutput>(),
+        output_schema = rmcp::handler::server::tool::schema_for_type::<veoveo_media_mcp::contract::ModelCatalogOutput>(),
         annotations(
             read_only_hint = true,
             destructive_hint = false,
@@ -205,7 +203,7 @@ impl MediaMcp {
     #[tool(
         title = "Get media model schema",
         description = "Return the exact input JSON Schema and pricing metadata for one media model id.",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<model_tools::ModelSchemaOutput>(),
+        output_schema = rmcp::handler::server::tool::schema_for_type::<veoveo_media_mcp::contract::ModelSchemaOutput>(),
         annotations(
             read_only_hint = true,
             destructive_hint = false,
@@ -237,7 +235,7 @@ impl MediaMcp {
     #[tool(
         title = "Get media artifact",
         description = "Return a media artifact you can read as MCP image content when possible. Use this when the MCP client cannot read media://artifact/{artifact_id} resources.",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<artifact_tools::ArtifactOutput>(),
+        output_schema = rmcp::handler::server::tool::schema_for_type::<veoveo_media_mcp::contract::ArtifactOutput>(),
         annotations(
             read_only_hint = true,
             destructive_hint = false,
@@ -265,7 +263,7 @@ impl MediaMcp {
                         "type": m.model_type,
                         "description": m.description,
                         "base_price": m.base_price,
-                        "schema_uri": uris::model_uri(&m.model_id),
+                        "schema_uri": MediaModelUri::new(m.model_id.clone()),
                     })
                 })
                 .collect(),
@@ -293,34 +291,7 @@ impl ServerHandler for MediaMcp {
     }
 
     fn get_info(&self) -> ServerConfig {
-        let mut caps: ServerCapabilities = ServerCapabilities::builder()
-            .enable_tools()
-            .enable_prompts()
-            .enable_resources()
-            .enable_resources_subscribe()
-            .enable_resources_list_changed()
-            .enable_completions()
-            .build();
-        veoveo_mcp_apps_extension::extend_capabilities(&mut caps);
-        caps.extensions.get_or_insert_default().insert(
-            rmcp::model::TASKS_EXTENSION_ID.to_owned(),
-            rmcp::model::JsonObject::new(),
-        );
-        let mut info = ServerConfig::default();
-        info.capabilities = caps;
-        info.server_info = rmcp::model::Implementation::new("media", env!("CARGO_PKG_VERSION"));
-        info.instructions = Some(
-            "Async gateway to media generation models. Workflow: \
-             (1) read media://models (or use completion/complete on media://model/{model_id}) to pick a model; \
-             (2) optionally use prompts/list and prompts/get to draft model selection or media-specific briefs; \
-             (3) read media://model/{model_id} for its exact input JSON Schema; \
-             (4) call the `run` tool through the negotiated task extension with {model, input}; \
-             (5) read tasks/get or subscribe through subscriptions/listen; \
-             (6) read its canonical media://prediction/{id}/result resource for typed Artifact metadata; \
-             (7) read media://usage/task/{task_id} using the result's native Task ID for usage estimates and actual billing."
-                .into(),
-        );
-        info
+        SERVER_SETUP.server_config().clone()
     }
 
     async fn call_tool(
@@ -450,7 +421,14 @@ impl ServerHandler for MediaMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
         internal_identity(&context)?;
-        let page = mcp_page(resource_catalog(), request.as_ref())?;
+        let page = mcp_page(
+            SERVER_SETUP
+                .resources()
+                .iter()
+                .map(|resource| resource.descriptor().clone())
+                .collect(),
+            request.as_ref(),
+        )?;
         Ok(ListResourcesResult {
             resources: page.items,
             next_cursor: page.next_cursor,
@@ -466,7 +444,14 @@ impl ServerHandler for MediaMcp {
         request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, McpError> {
-        let page = mcp_page(resource_templates(), request.as_ref())?;
+        let page = mcp_page(
+            SERVER_SETUP
+                .resource_templates()
+                .iter()
+                .map(|template| template.descriptor().clone())
+                .collect(),
+            request.as_ref(),
+        )?;
         Ok(ListResourceTemplatesResult {
             resource_templates: page.items,
             next_cursor: page.next_cursor,
@@ -541,11 +526,11 @@ impl ServerHandler for MediaMcp {
         let mut prefixed: Vec<&str> = Vec::new();
         let mut contained: Vec<&str> = Vec::new();
         for m in models.iter() {
-            let id = m.model_id.to_lowercase();
+            let id = m.model_id.as_str().to_lowercase();
             if id.starts_with(&needle) {
-                prefixed.push(&m.model_id);
+                prefixed.push(m.model_id.as_str());
             } else if id.contains(&needle) {
-                contained.push(&m.model_id);
+                contained.push(m.model_id.as_str());
             }
         }
         let total = (prefixed.len() + contained.len()) as u32;
@@ -701,6 +686,7 @@ async fn media_webhook(
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    LazyLock::force(&SERVER_SETUP);
     install_rustls_provider();
     let _ = dotenvy::dotenv();
     let _telemetry: TelemetryGuard =
@@ -739,7 +725,7 @@ async fn main() -> anyhow::Result<()> {
 
     let state = Arc::new(AppState {
         provider: ProviderClient::new(args.provider_api_key()?)
-            .with_base(args.provider_base_url.clone()),
+            .with_base(&args.provider_base_url)?,
         http: reqwest::Client::new(),
         public_endpoint: public_endpoint.clone(),
         webhook_secret: args.provider_webhook_secret()?,

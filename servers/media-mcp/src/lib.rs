@@ -10,7 +10,7 @@ pub mod reads;
 pub mod state;
 #[cfg(feature = "mcp")]
 pub mod task_results;
-#[cfg(feature = "runtime")]
+#[cfg(feature = "contract")]
 pub mod uris;
 #[cfg(feature = "runtime")]
 pub mod webhook;

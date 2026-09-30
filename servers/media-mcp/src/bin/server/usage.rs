@@ -3,8 +3,9 @@ use std::{sync::Arc, time::Duration};
 use chrono::{DateTime, Utc};
 use veoveo_mcp_contract::{UsageKind, UsageRecord, now_utc};
 use veoveo_media_mcp::{
+    contract::ModelEntry,
     contract::{MediaPredictionId, MediaTaskUsageUri},
-    provider::{BillingRecord, ModelEntry, Prediction},
+    provider::{BillingRecord, Prediction},
     state::MediaProviderJob,
 };
 
@@ -20,7 +21,7 @@ fn usage_estimate(
         task_id: task_id.to_string(),
         source_id: Some("initial-estimate".into()),
         provider_job_id: Some(provider_job_id.to_string()),
-        model_id: entry.model_id.clone(),
+        model_id: entry.model_id.to_string(),
         kind: UsageKind::Estimate,
         quantity: Some(1.0),
         unit: Some("run".into()),
@@ -62,7 +63,7 @@ fn actual_usage_record(
             .prediction
             .as_ref()
             .and_then(|prediction| prediction.model_uuid.clone())
-            .unwrap_or_else(|| prediction.model.clone()),
+            .unwrap_or_else(|| prediction.model.to_string()),
         kind: UsageKind::Actual,
         quantity: Some(1.0),
         unit: Some("billing_record".into()),

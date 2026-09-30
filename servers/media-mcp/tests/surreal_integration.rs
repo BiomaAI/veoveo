@@ -72,7 +72,7 @@ fn owner() -> TaskOwner {
 fn prediction(id: &str, status: &str) -> Prediction {
     Prediction {
         id: id.parse().unwrap(),
-        model: "fake/image".into(),
+        model: "fake/image".parse().unwrap(),
         outputs: Vec::new(),
         urls: None,
         status: status.into(),

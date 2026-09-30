@@ -2,7 +2,7 @@
 
 ## Standards And Protocols
 
-Cargo resolver 3 selects Artifact, Computers, Speech, Frames and Timeseries libraries with default
+Cargo resolver 3 selects Artifact, Computers, Speech, Frames, Timeseries and Media libraries with default
 features disabled and `contract` enabled. The fixture calls their public Rust APIs;
 it implements no transport or installed service protocol.
 
@@ -11,7 +11,8 @@ it implements no transport or installed service protocol.
 This separate workspace prevents service test features from hiding a dependency leak.
 The consumer constructs requests with Artifact identity shared across Speech and the
 Artifact MCP library, imports the Computers public projection, and builds Frames and
-Timeseries resource addresses from their owner types. Its graph test
+Timeseries resource addresses from their owner types. Media consumers construct model
+requests and Artifact addresses through the same isolated contract. Its graph test
 rejects Veoveo implementation crates, RMCP, databases and asynchronous runtimes.
 
 Run the isolated checks with one shared build directory:

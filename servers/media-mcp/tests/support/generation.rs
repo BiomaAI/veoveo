@@ -28,7 +28,7 @@ pub fn generation(task: TaskId, prediction: MediaPredictionId) -> MediaGeneratio
             "metadata": MediaOutputArtifactMetadata {
                 task_id: task,
                 job_id: prediction.clone(),
-                model_id: "test/image".into(),
+                model_id: "test/image".parse().unwrap(),
                 output_index: index,
             },
         }))
@@ -39,7 +39,7 @@ pub fn generation(task: TaskId, prediction: MediaPredictionId) -> MediaGeneratio
         task,
         GenerationPredictionSummary {
             id: prediction,
-            model_id: "test/image".into(),
+            model_id: "test/image".parse().unwrap(),
             status: "completed".into(),
             created_at: None,
             error: None,

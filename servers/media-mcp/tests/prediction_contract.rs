@@ -42,6 +42,9 @@ fn prediction_addresses_encode_reserved_identity_and_reject_aliases() {
         "other://prediction/a",
         "media://prediction/",
         "media://prediction/a/",
+        "media://prediction/a+b",
+        "media://prediction/a&b",
+        "media://prediction/a=b",
     ] {
         assert!(MediaPredictionUri::parse(invalid).is_err(), "{invalid}");
     }

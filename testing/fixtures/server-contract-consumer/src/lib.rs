@@ -18,6 +18,24 @@ mod tests {
     use super::*;
     use veoveo_artifact_mcp::contract::ArtifactResource;
     #[test]
+    fn media_consumers_share_typed_model_and_artifact_addresses() {
+        use veoveo_media_mcp::contract::{MediaArtifactUri, MediaModelUri, MediaResource, RunArgs};
+        use veoveo_types::ResourceAddress;
+        let request = RunArgs {
+            model: "openai/gpt-image-2/edit".parse().unwrap(),
+            input: Default::default(),
+        };
+        for resource in [
+            MediaResource::Model(MediaModelUri::new(request.model)),
+            MediaResource::Artifact(MediaArtifactUri::new(ArtifactId::new())),
+        ] {
+            assert_eq!(
+                MediaResource::parse(resource.to_uri().unwrap().as_str()).unwrap(),
+                resource
+            );
+        }
+    }
+    #[test]
     fn server_libraries_share_the_owner_types() {
         let id = ArtifactId::new();
         let (artifact, computer, speech) = public_requests(id);
@@ -114,6 +132,7 @@ mod tests {
                 "veoveo-speech-mcp",
                 "veoveo-frames-mcp",
                 "veoveo-timeseries-mcp",
+                "veoveo-media-mcp",
                 "veoveo-map-mcp",
                 "veoveo-duckdb-mcp",
             ]
@@ -140,6 +159,7 @@ mod tests {
                         "veoveo-speech-contract",
                         "veoveo-frames-mcp",
                         "veoveo-timeseries-mcp",
+                        "veoveo-media-mcp",
                         "veoveo-frames-contract",
                         "veoveo-map-mcp",
                         "veoveo-duckdb-mcp",

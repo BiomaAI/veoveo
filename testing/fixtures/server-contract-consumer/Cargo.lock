@@ -1202,12 +1202,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-media-mcp"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "chrono",
+ "schemars",
+ "serde",
+ "serde_json",
+ "uuid",
+ "veoveo-artifact-contract",
+ "veoveo-types",
+]
+
+[[package]]
 name = "veoveo-server-contract-consumer"
 version = "0.1.0"
 dependencies = [
  "veoveo-artifact-mcp",
  "veoveo-computers-mcp",
  "veoveo-frames-mcp",
+ "veoveo-media-mcp",
  "veoveo-speech-mcp",
  "veoveo-timeseries-mcp",
  "veoveo-types",

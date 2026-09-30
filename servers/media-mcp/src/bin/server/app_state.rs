@@ -8,7 +8,8 @@ use veoveo_mcp_contract::{ServerPublicEndpoint, SubscriptionHub};
 use veoveo_media_mcp::{
     artifacts::ArtifactRepository,
     contract::MediaPredictionUri,
-    provider::{ModelEntry, Prediction, ProviderClient},
+    contract::{MediaModelId, ModelEntry},
+    provider::{Prediction, ProviderClient},
     state::{MediaProviderEvent, MediaState, WebhookReceipt},
     task_results::GENERATION_COMPLETED,
 };
@@ -26,7 +27,7 @@ const RECONCILIATION_INTERVAL: Duration = Duration::from_millis(500);
 pub(super) struct RegistryCache {
     fetched_at: std::time::Instant,
     models: Arc<Vec<ModelEntry>>,
-    by_id: HashMap<String, usize>,
+    by_id: HashMap<MediaModelId, usize>,
 }
 
 pub(super) struct AppState {
@@ -81,7 +82,10 @@ impl AppState {
         Ok(models)
     }
 
-    pub(super) async fn find_model(&self, model_id: &str) -> Result<Option<ModelEntry>, String> {
+    pub(super) async fn find_model(
+        &self,
+        model_id: &MediaModelId,
+    ) -> Result<Option<ModelEntry>, String> {
         let models = self.registry().await?;
         let guard = self.registry.read().await;
         let Some(cache) = guard.as_ref() else {

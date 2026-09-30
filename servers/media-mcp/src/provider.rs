@@ -1,6 +1,6 @@
 //! Minimal provider API client: model registry and prediction submit.
 
-use crate::contract::{GenerationPredictionSummary, MediaPredictionId};
+use crate::contract::{GenerationPredictionSummary, MediaModelId, MediaPredictionId, ModelEntry};
 use chrono::{DateTime, Utc};
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
@@ -26,7 +26,7 @@ pub struct PredictionUrls {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Prediction {
     pub id: MediaPredictionId,
-    pub model: String,
+    pub model: MediaModelId,
     #[serde(default)]
     pub outputs: Vec<String>,
     #[serde(default)]
@@ -127,39 +127,9 @@ struct ProviderCancellationRequest<'a> {
     ids: [&'a MediaPredictionId; 1],
 }
 
-/// One entry from `GET /api/v3/models`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ModelEntry {
-    pub model_id: String,
-    #[serde(default)]
-    pub name: String,
-    #[serde(rename = "type", default)]
-    pub model_type: String,
-    #[serde(default)]
-    pub description: String,
-    #[serde(default)]
-    pub base_price: Option<f64>,
-    #[serde(default)]
-    pub formula: Option<String>,
-    #[serde(default)]
-    pub api_schema: Option<Value>,
-}
-
-impl ModelEntry {
-    /// The JSON Schema for this model's run input, if published.
-    pub fn request_schema(&self) -> Option<&Value> {
-        self.api_schema
-            .as_ref()?
-            .get("api_schemas")?
-            .as_array()?
-            .iter()
-            .find(|s| s.get("type").and_then(Value::as_str) == Some("model_run"))?
-            .get("request_schema")
-    }
-}
-
 #[derive(Debug)]
 pub enum ProviderError {
+    InvalidEndpoint,
     Http(reqwest::Error),
     HttpStatus { status: reqwest::StatusCode },
     Api { code: i64 },
@@ -168,6 +138,7 @@ pub enum ProviderError {
 impl std::fmt::Display for ProviderError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            ProviderError::InvalidEndpoint => f.write_str("invalid media provider endpoint"),
             ProviderError::Http(e) => write!(f, "http error: {e}"),
             ProviderError::HttpStatus { status } => {
                 write!(f, "provider http error (status {status})")
@@ -179,14 +150,14 @@ impl std::fmt::Display for ProviderError {
 impl std::error::Error for ProviderError {}
 impl From<reqwest::Error> for ProviderError {
     fn from(e: reqwest::Error) -> Self {
-        ProviderError::Http(e)
+        ProviderError::Http(e.without_url())
     }
 }
 
 #[derive(Clone)]
 pub struct ProviderClient {
     http: reqwest::Client,
-    base: String,
+    base: reqwest::Url,
     api_key: SecretString,
 }
 
@@ -204,14 +175,43 @@ impl ProviderClient {
     pub fn new(api_key: impl Into<SecretString>) -> Self {
         Self {
             http: reqwest::Client::new(),
-            base: DEFAULT_BASE_URL.to_string(),
+            base: reqwest::Url::parse(DEFAULT_BASE_URL).expect("declared provider endpoint"),
             api_key: api_key.into(),
         }
     }
 
-    pub fn with_base(mut self, base: impl Into<String>) -> Self {
-        self.base = base.into();
-        self
+    pub fn with_base(mut self, base: impl AsRef<str>) -> Result<Self, ProviderError> {
+        let base =
+            reqwest::Url::parse(base.as_ref()).map_err(|_| ProviderError::InvalidEndpoint)?;
+        if !matches!(base.scheme(), "https" | "http")
+            || base.host_str().is_none()
+            || !base.username().is_empty()
+            || base.password().is_some()
+            || base.query().is_some()
+            || base.fragment().is_some()
+        {
+            return Err(ProviderError::InvalidEndpoint);
+        }
+        self.base = base;
+        Ok(self)
+    }
+
+    fn endpoint<'a>(&self, components: impl IntoIterator<Item = &'a str>) -> reqwest::Url {
+        let mut url = self.base.clone();
+        url.path_segments_mut()
+            .expect("admitted HTTP endpoint")
+            .pop_if_empty()
+            .extend(["api", "v3"])
+            .extend(components);
+        url
+    }
+
+    fn submission_url(&self, model: &MediaModelId, webhook: Option<&str>) -> reqwest::Url {
+        let mut url = self.endpoint(model.components());
+        if let Some(webhook) = webhook {
+            url.query_pairs_mut().append_pair("webhook", webhook);
+        }
+        url
     }
 
     async fn unwrap_envelope<T: serde::de::DeserializeOwned>(
@@ -232,7 +232,7 @@ impl ProviderClient {
     pub async fn list_models(&self) -> Result<Vec<ModelEntry>, ProviderError> {
         let resp = self
             .http
-            .get(format!("{}/api/v3/models", self.base))
+            .get(self.endpoint(["models"]))
             .bearer_auth(self.api_key.expose_secret())
             .send()
             .await?;
@@ -244,17 +244,13 @@ impl ProviderClient {
     /// state through that callback.
     pub async fn submit(
         &self,
-        model_id: &str,
+        model_id: &MediaModelId,
         input: &Value,
         webhook_url: Option<&str>,
     ) -> Result<Prediction, ProviderError> {
-        let mut url = format!("{}/api/v3/{}", self.base, model_id);
-        if let Some(hook) = webhook_url {
-            url = format!("{url}?webhook={}", urlencode(hook));
-        }
         let resp = self
             .http
-            .post(url)
+            .post(self.submission_url(model_id, webhook_url))
             .bearer_auth(self.api_key.expose_secret())
             .json(input)
             .send()
@@ -270,7 +266,7 @@ impl ProviderClient {
     ) -> Result<Vec<BillingRecord>, ProviderError> {
         let resp = self
             .http
-            .post(format!("{}/api/v3/billings/search", self.base))
+            .post(self.endpoint(["billings", "search"]))
             .bearer_auth(self.api_key.expose_secret())
             .json(&serde_json::json!({
                 "page": 1,
@@ -293,7 +289,7 @@ impl ProviderClient {
     ) -> Result<ProviderCancellationReceipt, ProviderError> {
         let resp = self
             .http
-            .post(format!("{}/api/v3/predictions/delete", self.base))
+            .post(self.endpoint(["predictions", "delete"]))
             .bearer_auth(self.api_key.expose_secret())
             .json(&ProviderCancellationRequest {
                 ids: [prediction_id],
@@ -302,19 +298,6 @@ impl ProviderClient {
             .await?;
         Self::unwrap_envelope(resp).await
     }
-}
-
-fn urlencode(s: &str) -> String {
-    let mut out = String::with_capacity(s.len() * 3);
-    for b in s.bytes() {
-        match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                out.push(b as char)
-            }
-            _ => out.push_str(&format!("%{b:02X}")),
-        }
-    }
-    out
 }
 
 #[cfg(test)]
@@ -361,6 +344,7 @@ mod tests {
         });
         let error = ProviderClient::new("request-secret")
             .with_base(format!("http://{address}"))
+            .unwrap()
             .list_models()
             .await
             .unwrap_err();
@@ -373,11 +357,35 @@ mod tests {
     }
 
     #[test]
-    fn urlencode_reserves() {
-        assert_eq!(
-            urlencode("https://x.io/hook?a=1"),
-            "https%3A%2F%2Fx.io%2Fhook%3Fa%3D1"
-        );
+    fn provider_routes_preserve_model_components_and_encode_callback_query() {
+        install_rustls_provider();
+        let model = "openai/gpt-image-2/edit".parse().unwrap();
+        for base in [
+            "https://provider.example/prefix",
+            "https://provider.example/prefix/",
+        ] {
+            let client = ProviderClient::new("secret").with_base(base).unwrap();
+            let callback = "https://callback.example/webhooks/task?a=1&b=two +%#fragment";
+            let url = client.submission_url(&model, Some(callback));
+            assert_eq!(url.path(), "/prefix/api/v3/openai/gpt-image-2/edit");
+            assert_eq!(
+                url.query_pairs().collect::<Vec<_>>(),
+                vec![("webhook".into(), callback.into())]
+            );
+            assert!(url.fragment().is_none());
+            assert!(client.submission_url(&model, None).query().is_none());
+            assert_eq!(client.endpoint(["models"]).path(), "/prefix/api/v3/models");
+        }
+        for base in [
+            "bad",
+            "file:///tmp/provider",
+            "https://user:password@provider.example",
+            "https://provider.example?token=secret",
+            "https://provider.example#fragment",
+        ] {
+            let error = ProviderClient::new("secret").with_base(base).unwrap_err();
+            assert_eq!(error.to_string(), "invalid media provider endpoint");
+        }
     }
 
     #[test]

@@ -1,71 +1,13 @@
 use rmcp::{
     ErrorData as McpError,
     model::{CallToolResult, ContentBlock},
-    schemars,
 };
-use serde_json::Value;
-use veoveo_media_mcp::{provider::ModelEntry, uris};
+use veoveo_media_mcp::contract::{
+    MediaModelUri, ModelCatalogItem, ModelCatalogOutput, ModelEntry, ModelSchemaOutput, ModelsArgs,
+};
 
 const DEFAULT_MODEL_LIMIT: usize = 20;
 const MAX_MODEL_LIMIT: usize = 100;
-
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-pub(super) struct ModelsArgs {
-    /// Case-insensitive search over model id, name, type, and description.
-    #[serde(default)]
-    pub(super) query: Option<String>,
-    /// Exact model type filter, e.g. text-to-image, image-to-image, text-to-video.
-    #[serde(default, rename = "type")]
-    pub(super) model_type: Option<String>,
-    /// Maximum number of models to return. Defaults to 20 and cannot exceed 100.
-    #[serde(default)]
-    pub(super) limit: Option<u32>,
-}
-
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-pub(super) struct ModelSchemaArgs {
-    /// Exact model id, e.g. wavespeed-ai/flux-schnell.
-    pub(super) model: String,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
-pub(super) struct ModelCatalogItem {
-    pub(super) model_id: String,
-    pub(super) name: String,
-    #[serde(rename = "type")]
-    pub(super) model_type: String,
-    pub(super) description: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(super) base_price: Option<f64>,
-    pub(super) schema_uri: String,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
-pub(super) struct ModelCatalogOutput {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(super) query: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none", rename = "type")]
-    pub(super) model_type: Option<String>,
-    pub(super) total_available: usize,
-    pub(super) returned: usize,
-    pub(super) models: Vec<ModelCatalogItem>,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
-pub(super) struct ModelSchemaOutput {
-    pub(super) model_id: String,
-    pub(super) name: String,
-    #[serde(rename = "type")]
-    pub(super) model_type: String,
-    pub(super) description: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(super) base_price: Option<f64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(super) formula: Option<String>,
-    pub(super) schema_uri: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(super) request_schema: Option<Value>,
-}
 
 pub(super) fn models_result(
     models: &[ModelEntry],
@@ -108,7 +50,7 @@ pub(super) fn model_schema_result(model: ModelEntry) -> Result<CallToolResult, M
         description: model.description,
         base_price: model.base_price,
         formula: model.formula,
-        schema_uri: uris::model_uri(&model.model_id),
+        schema_uri: MediaModelUri::new(model.model_id.clone()),
         request_schema,
     };
     call_result(
@@ -159,7 +101,7 @@ fn matches_query(model: &ModelEntry, query: Option<&str>) -> bool {
     let Some(query) = query else {
         return true;
     };
-    model.model_id.to_ascii_lowercase().contains(query)
+    model.model_id.as_str().to_ascii_lowercase().contains(query)
         || model.name.to_ascii_lowercase().contains(query)
         || model.model_type.to_ascii_lowercase().contains(query)
         || model.description.to_ascii_lowercase().contains(query)
@@ -172,7 +114,7 @@ fn catalog_item(model: &ModelEntry) -> ModelCatalogItem {
         model_type: model.model_type.clone(),
         description: model.description.clone(),
         base_price: model.base_price,
-        schema_uri: uris::model_uri(&model.model_id),
+        schema_uri: MediaModelUri::new(model.model_id.clone()),
     }
 }
 
@@ -182,7 +124,7 @@ mod tests {
 
     fn model(model_id: &str, model_type: &str, description: &str) -> ModelEntry {
         ModelEntry {
-            model_id: model_id.to_string(),
+            model_id: model_id.parse().unwrap(),
             name: model_id.to_string(),
             model_type: model_type.to_string(),
             description: description.to_string(),
@@ -235,7 +177,10 @@ mod tests {
         let output: ModelCatalogOutput =
             serde_json::from_value(result.structured_content.unwrap()).unwrap();
         assert_eq!(output.total_available, 1);
-        assert_eq!(output.models[0].model_id, "wavespeed-ai/flux-schnell");
+        assert_eq!(
+            output.models[0].model_id.as_str(),
+            "wavespeed-ai/flux-schnell"
+        );
     }
 
     #[test]
@@ -248,7 +193,7 @@ mod tests {
         .unwrap();
         let output: ModelSchemaOutput =
             serde_json::from_value(result.structured_content.unwrap()).unwrap();
-        assert_eq!(output.model_id, "wavespeed-ai/flux-schnell");
+        assert_eq!(output.model_id.as_str(), "wavespeed-ai/flux-schnell");
         assert!(
             output
                 .request_schema

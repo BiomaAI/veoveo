@@ -11,9 +11,15 @@ state, task usage records, and generated artifacts under the `media://` scheme.
 
 ## Invariants
 
-- Prediction and usage IDs, addresses, cursors and pages belong to the library's
-  isolated `contract` feature. Use its typed builders through handlers and consumers.
-  Model, document and Artifact conventions currently live in `src/uris.rs`.
+- Public requests, model and prediction IDs, all resource variants, cursors and pages
+  belong to the library's isolated `contract` feature. Keep owner types through
+  handlers and consumers; `src/uris.rs` declares fixed roots and templates only.
+- Startup and discovery consume checked `MediaContract` setup. Reads and subscription
+  admission share `MediaResource` parsing. Preserve the empty domain scope vocabulary
+  and the existing gateway/current-owner access policy.
+- Build model routes from `MediaModelId` components and Artifact addresses from
+  `ArtifactId`. The model template uses RFC 6570 reserved expansion for slashes.
+  Provider HTTP paths and callback query values use the URL library.
 - Public prediction and usage selection belongs to `src/reads/`. Apply current
   caller policy and linked-record agreement in SQL before ordering and limits.
   Discovery declares roots/templates; instance catalogs supply paged links.
@@ -40,7 +46,8 @@ state, task usage records, and generated artifacts under the `media://` scheme.
   Docker with the pinned image already present, disposable loopback databases,
   separate clients, bounded timeouts and owned cleanup. They run by default.
 - `cargo test -p veoveo-media-mcp --no-default-features --features contract
-  --test usage_contract --test prediction_contract --test generation_contract`
+  --test usage_contract --test prediction_contract --test generation_contract
+  --test resource_contract`
   checks the public types; also resolve a separate consumer to check dependency isolation.
 - `cargo xtask smoke media-task-run` qualifies the native MCP/provider/Artifact path.
   It also restarts the current server and checks the stored generation resource.

@@ -11,7 +11,8 @@ use veoveo_types::{ResourceScheme, TaskId};
 pub struct MediaOutputArtifactMetadata {
     pub task_id: TaskId,
     pub job_id: MediaPredictionId,
-    pub model_id: String,
+    #[schemars(with = "String")]
+    pub model_id: super::MediaModelId,
     pub output_index: usize,
 }
 

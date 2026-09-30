@@ -54,7 +54,7 @@ async fn create(
     let id = ProviderJobId::new();
     let prediction = Prediction {
         id: MediaPredictionId::new(prediction_id).unwrap(),
-        model: "test/image".into(),
+        model: "test/image".parse().unwrap(),
         outputs: vec!["https://provider.test/private-output".into()],
         urls: None,
         status: "completed".into(),

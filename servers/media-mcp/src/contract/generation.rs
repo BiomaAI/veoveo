@@ -10,7 +10,8 @@ use super::MediaPredictionId;
 pub struct GenerationPredictionSummary {
     #[schemars(with = "String")]
     pub id: MediaPredictionId,
-    pub model_id: String,
+    #[schemars(with = "String")]
+    pub model_id: super::MediaModelId,
     pub status: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub created_at: Option<DateTime<Utc>>,
