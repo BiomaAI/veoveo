@@ -23,8 +23,6 @@ pub(super) struct RecordingAcceptance {
     observed_frames: u64,
 }
 
-// TODO(foundations): Qualify this focused live-part path on the reference installation
-// before repeating composed flight and its timing acceptance.
 pub(crate) async fn verify(
     conformance: &Path,
     scenario_path: &Path,

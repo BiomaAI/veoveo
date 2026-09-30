@@ -1,6 +1,4 @@
 //! Stream product handoffs and current, owner-authorized Task delivery.
-// TODO(foundations): qualify canonical result reads, Task delivery and GPU completion
-// on the rebuilt reference installation through its runbook.
 use futures::StreamExt;
 use rmcp::{
     ErrorData as McpError,

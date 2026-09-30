@@ -73,6 +73,8 @@ fn preflight_flight_authority(installation: &InstalledTarget) -> Result<()> {
     Ok(())
 }
 
+// TODO(foundations): Complete composed flight and timing acceptance on the
+// rebuilt reference installation; focused live, replay and Reason checks pass.
 pub(crate) async fn uav_sim_verify(
     conformance: &Path,
     scenario_path: &Path,

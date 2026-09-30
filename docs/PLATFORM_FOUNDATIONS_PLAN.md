@@ -166,7 +166,15 @@ obsolete projection settings. The focused native batch passes 173 checks; compil
 takes 13 seconds. Deployment's normal binary rebuild takes 2.5 seconds and Helm
 configuration passes. An initial broad test selection was stopped when its deployment
 dev-dependency imported gateway and embedded SurrealDB; those unrelated integration
-tests are excluded from this harness batch. Installed focused qualification is next.
+tests are excluded from this harness batch. Installed `uav-recording-verify` passes
+at harness revision `83baf53f`: Stream processes 415 frames and grounded Reason observes
+six. Both complete through the public Task path, expose matching typed result resources,
+and publish matching Artifacts from acknowledged live parts of the selected recording.
+The installed Stream and Reason pods each request an NVIDIA GPU, and the RTX 4090
+executes the run. This closes their C02 installed result-delivery gaps. No vehicle
+commands or image publication are needed. Full composed flight, headed visual
+acceptance and cross-replica notifications remain integration work. The cluster is
+stopped after this focused qualification; BuildKit remains stopped.
 The cluster is stopped during that development; Rust and BuildKit caches, image layers
 and runtime claims are preserved. The architecture catalog
 validates, rendering is idempotent, and its unchanged HTML/PDF reuse the headed NVIDIA
@@ -2628,7 +2636,5 @@ not complete while a row remains.
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
 | Phase 3 Task result installation | `platform/task-runtime/DESIGN.md` | Install the shared result envelope and event schema 3 on a fresh reference Store; qualify linked domain results and cross-replica delivery | Native format and consumer checks pass; installed acceptance requires stopped writers and a database reset |
-| Phase 1 reference reset | `testing/flight-smoke/src/domain/recording.rs` | Qualify the shared live-part Stream replay and grounded Reason assertions through uav-recording-verify before repeating composed timing acceptance | The DuckDB 1.5.6 batch passes 316 native checks and installed convergence at `0a901aca`. Map restarts with the current PVC, route and mission checks pass, and live Stream passes before and after the mission. Recording rejects the archive projection of a live source. Owned landing/session cleanup finishes; replay and Reason were not reached |
-| Phase 3 Reason C02 installation | `servers/reason-mcp/src/bin/server/task_results.rs` | Verify current result delivery and GPU completion on the rebuilt reference installation | Native work runs with reference workloads stopped; no historical-data transition or dual-profile rollback is required |
-| Phase 3 Stream C02 installation | `servers/stream-mcp/src/bin/server/task_results.rs` | Qualify canonical result reads, Task delivery and GPU completion on the rebuilt reference installation | Native current-format delivery and browser behavior pass; reference workloads are stopped during development |
+| Phase 1 reference reset | `testing/flight-smoke/src/domain.rs` | Finish composed flight, timing and installed workload acceptance with the corrected shared recording path | Map recovery, route and mission execution, live Stream, and independent live-part Stream replay and grounded Reason pass. The composed run has not yet exercised its corrected recording stage or reached final acceptance |
 | Phase 3 Stream C27 installation | `servers/stream-mcp/src/bin/server/subscriptions.rs` | Qualify cross-replica run invalidations and live-session notifications on the rebuilt reference installation | Native mixed-source, reconnect and MCP cancellation checks pass; reference workloads are stopped during development |

@@ -1,6 +1,4 @@
 //! Current Reason terminal results and authorized Task delivery.
-// TODO(foundations): qualify current result delivery and GPU completion on the
-// rebuilt reference installation through its runbook.
 use futures::StreamExt;
 use rmcp::{
     ErrorData as McpError,
