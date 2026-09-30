@@ -1856,31 +1856,35 @@ IDs and DTO relationships. Installed qualification stays at the integration chec
 - Work autonomously. Do not stop to ask the user questions. When a choice is open,
   take the option closest to the designs this plan links, or the best-supported guess,
   and record the choice in the commit message.
-- Batch related implementation work before expensive validation. Use local reads,
-  formatting and focused checks to resolve specific uncertainty during development;
-  run affected tests together after the batch. Keep one Cargo pipeline and reuse the
-  qualified feature configuration where practical. Determine the complete affected
-  crate, target and feature set before the first Cargo invocation; inspect development
-  dependencies because `cargo test` can import unrelated service implementations.
-  Use `--no-fail-fast` for independent Cargo targets so a fixture failure does not
-  prevent the remaining targets from reporting results. For a broad type migration,
-  compile the same selected packages and integration targets with `cargo build
-  --keep-going` to collect independent compiler errors together. Cargo test does not
-  provide that compiler behavior; its flag applies to test execution. Keep the feature
-  graph and build directory unchanged when proceeding to the grouped tests.
-  Include direct consumers of changed native libraries. Deployment harness configuration
-  checks use its normal binary and `helm-config`; its gateway integration tests are a
-  separate target for changes to that integration. Avoid running `check`, `test` and another compilation
-  pass over the same inputs unless the additional check covers a distinct risk.
-  Run broad workspace checks at
-  integration milestones or when shared inputs widen the affected dependency set.
-  Select affected crates and targets before adding test-name filters: filters reduce
-  execution but still compile every selected test target. Avoid `--workspace --lib`
-  for a local library correction, and keep each focused harness feature graph stable.
-  Publish and perform installed acceptance once per coherent batch, rather than after
-  each small edit. A failure or new change justifies repeating only the affected checks. Reuse a
-  current native test executable for fixture-only retries; rebuild when its source or
-  dependency inputs change.
+- Define a complete behavior or contract change before editing, including its direct
+  consumers, fixtures and documentation. Finish those related edits before compiling.
+  An individual helper, query or ID wrapper is not a validation checkpoint. Use reads,
+  formatting and query parsing during implementation; run an early test only to resolve
+  a concrete uncertainty that would change the implementation.
+- Select the affected packages, targets and features once per batch. Inspect development
+  dependencies and preserve the qualified Cargo feature graph, build directory and
+  environment. A stable compilation graph does not require executing every test in it.
+  Keep one Cargo pipeline. For broad type migrations, use `cargo build --keep-going`
+  with the selected test targets to collect independent compiler errors, fix them
+  together, then proceed to tests using the same graph. Avoid a separate `cargo check`
+  pass when the required test build provides the same compiler feedback.
+- Validate in three checkpoints: focused behavioral regressions after implementation,
+  affected component and consumer suites before committing the completed batch, and
+  workspace/deployment acceptance at an integration milestone. Select regression cases
+  by the changed behavior and consolidate failures before editing again. Use
+  `--no-fail-fast` for independent test targets; it does not aggregate compiler errors.
+  Passing focused cases count toward the batch's qualification; exclude them from the
+  remaining run while their source, dependency inputs and environment are unchanged.
+  A failure or follow-up edit repeats only checks whose inputs or behavior changed.
+  Reuse current native executables for fixture-only retries. Rebuild after source or
+  dependency changes. Test-name filters narrow execution but still compile selected
+  targets; choose targets first and avoid blanket `--workspace --lib` feedback runs.
+- Include direct consumers when a shared contract changes. Broaden qualification when
+  the affected dependency closure requires it, rather than after every local edit.
+  Deployment configuration uses the normal harness binary and `helm-config`; gateway
+  integration tests run when their integration changes. Publish and perform installed
+  acceptance once the composed batch passes local qualification. A documentation-only
+  edit runs the documentation check and does not repeat native behavioral suites.
 - Evaluate contract adequacy during each change. Improve outdated or inexpressive
   contracts when the accepted architecture requires it, without waiting for the user
   to identify the problem. Explain material tradeoffs, update the owning design and
@@ -1924,8 +1928,9 @@ IDs and DTO relationships. Installed qualification stays at the integration chec
   startup compete for the same disk. Preserve the failed attempt's diagnostics and
   clear its owned workloads before retrying.
 - Read `AGENTS.md` and `docs/CODEMAP.md` before each phase.
-- Work on `main` in small commits, one concern each. Run the native checks each commit
-  touches, and run `cargo xtask enforce docs` for every documentation change.
+- Work on `main` in coherent commits, one completed concern each. Commit after the
+  batch's affected checks pass; commit size alone does not trigger another validation
+  cycle. Run `cargo xtask enforce docs` for every documentation change.
 - Internal names and formats change by hard cut. Do not add aliases, fallbacks, or
   readers for old identifiers. This applies to stored data and server/client contracts
   throughout this plan. Keep one current format, update its callers together and reset
@@ -1945,6 +1950,24 @@ IDs and DTO relationships. Installed qualification stays at the integration chec
   component, or document.
 - Update the Status line at the top of this plan when a phase lands, naming the phase
   and its deployed revision.
+
+### Current Computers Validation Batches
+
+The last broad selection ran 41 executables across seven packages. Compilation took
+2 minutes 45 seconds and reported test execution totaled 6 minutes 2 seconds, excluding
+the filesystem flush and orchestration. Its affected six-target follow-up compiled in
+30 seconds and reported 77 seconds of tests. Those measurements support selecting
+execution separately from the stable compilation graph; they are not runtime budgets.
+
+| Batch | Implementation checkpoint | Qualification checkpoint |
+|---|---|---|
+| Computers ownership and public identities | Complete maintenance SQL admission, accepted-request and worker lookup review, lifecycle/access IDs and their direct consumers together | First run SQL denial, replay/conflict and identity regressions. Then run the affected domain, service, gateway/BFF and generated-schema checks once for the completed batch |
+| Provider identities | Trace private runtime and retained-instance identity requirements, then update the owning types and all transport consumers together | Native runtime and provider fixtures, including current-format recovery; preserve required GPU acceptance |
+| Composed Phase 3 delivery | Finish remaining Map/template setup and cross-component contract work | Run the shared contract closure and installed acceptance against the complete deployment, then stop the cluster |
+
+These checkpoints guide this plan's work. They do not add a repository-wide testing
+rule or remove required acceptance. Report implementation completed since the last
+checkpoint separately from checks still pending.
 
 ## Prerequisites And Deployment
 
