@@ -111,6 +111,8 @@ and the cluster stops for native qualification and publication.
 The reader/video batch passes 17 native tests, including committed codec metadata
 joined with producer-named live samples after rollover. Strict Clippy also checks
 both libraries and the Stream/Reason consumers. Installed requalification is pending.
+The repaired Stream and Reason images are published from `6ee6805a`; the reference
+image lock selects their new digests. The builder stops before the cluster restarts.
 
 The unified audit cut spans the contract, Store, writer, gateway and deployment inputs.
 `platform/audit/contract` sits below Store
