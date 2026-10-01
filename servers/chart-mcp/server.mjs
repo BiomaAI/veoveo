@@ -39,7 +39,11 @@ const SERVER_DOCS = [
 ];
 
 function docsIndexJson() {
-  return JSON.stringify(SERVER_DOCS.map(({ id, title }) => ({ id, title })));
+  return JSON.stringify({ items: SERVER_DOCS.map(({ id, title }) => {
+    const uri = new URL(DOCS_URI);
+    uri.pathname = id;
+    return { id, title, uri: uri.href };
+  }) });
 }
 
 function llmsTxt() {

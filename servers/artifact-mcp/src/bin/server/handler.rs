@@ -435,6 +435,9 @@ impl ServerHandler for ArtifactMcp {
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResponse, McpError> {
+        if let Some(result) = SERVER_SETUP.read_documents(&request, &context)? {
+            return Ok(result);
+        }
         let caller = auth::caller(&context)?;
         let uri = request.uri.as_str();
         // Well-known surface (contract C18, C19): readable by any

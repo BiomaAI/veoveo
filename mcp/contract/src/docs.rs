@@ -13,6 +13,11 @@ use std::sync::OnceLock;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+mod knowledge;
+#[doc(hidden)]
+pub use veoveo_knowledge_macros::embedded_document;
+pub use veoveo_mcp_knowledge_extension as knowledge_extension;
+
 /// The normative contract revision this crate implements.
 pub const CONTRACT_REVISION: u32 = 3;
 
@@ -31,10 +36,10 @@ pub const REQUIRED_AGENT_SECTIONS: [&str; 4] = [
 ];
 
 /// Stable identifiers of the compliance checklist in `DESIGN.md`.
-pub const CHECKLIST_IDS: [&str; 31] = [
+pub const CHECKLIST_IDS: [&str; 32] = [
     "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12", "C13",
     "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21", "C22", "C23", "C24", "C25", "C26",
-    "C27", "C28", "C29", "C30", "C31",
+    "C27", "C28", "C29", "C30", "C31", "C32",
 ];
 
 /// One document embedded from the server crate at build time.
@@ -44,6 +49,8 @@ pub struct ServerDoc {
     pub title: &'static str,
     #[serde(skip)]
     pub body: &'static str,
+    #[serde(skip)]
+    pub digest: veoveo_types::Sha256Digest,
 }
 
 /// The embedded document set a server serves under `{scheme}://docs`.
@@ -64,7 +71,28 @@ impl ServerDocs {
     }
 
     pub fn with_doc(mut self, id: &'static str, title: &'static str, body: &'static str) -> Self {
-        self.docs.push(ServerDoc { id, title, body });
+        self.docs.push(ServerDoc {
+            id,
+            title,
+            body,
+            digest: knowledge_extension::content_digest(body),
+        });
+        self
+    }
+
+    /// Production documents use a digest emitted by the compile-time macro.
+    pub fn with_embedded_doc(
+        mut self,
+        id: &'static str,
+        title: &'static str,
+        embedded: (&'static str, [u8; 32]),
+    ) -> Self {
+        self.docs.push(ServerDoc {
+            id,
+            title,
+            body: embedded.0,
+            digest: veoveo_types::Sha256Digest::from_bytes(embedded.1),
+        });
         self
     }
 
@@ -195,15 +223,15 @@ pub fn parse_compliance(manual: &str) -> Vec<ComplianceItem> {
 macro_rules! server_docs {
     ($server:expr) => {
         $crate::docs::ServerDocs::new($server)
-            .with_doc(
+            .with_embedded_doc(
                 $crate::docs::DOC_ID_AGENTS,
                 "Agent work manual",
-                include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/AGENTS.md")),
+                $crate::docs::embedded_document!("AGENTS.md"),
             )
-            .with_doc(
+            .with_embedded_doc(
                 $crate::docs::DOC_ID_DESIGN,
                 "Domain design",
-                include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/DESIGN.md")),
+                $crate::docs::embedded_document!("DESIGN.md"),
             )
     };
 }
@@ -264,7 +292,7 @@ mod tests {
 
     #[test]
     fn checklist_ids_are_dense_and_stable() {
-        assert_eq!(CHECKLIST_IDS.len(), 31);
+        assert_eq!(CHECKLIST_IDS.len(), 32);
         for (index, id) in CHECKLIST_IDS.iter().enumerate() {
             assert_eq!(*id, format!("C{:02}", index + 1));
         }

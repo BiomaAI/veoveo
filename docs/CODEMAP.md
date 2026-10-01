@@ -457,6 +457,7 @@ even when that server is first-party.
 | `artifact_service/upload.rs` and `artifact_service/upload/policy.rs` | resumable HTTP upload identities, descriptors, receipts, errors, explicit quota policy, and checked multipart layout/manifest validation |
 | `internal_auth/upload.rs` | dedicated signed upload assertions bound to the checked control-plane and Work Context |
 | `docs.rs` | build-embedded server documents, once-built revision/compliance declarations, compliance parsing, and llms.txt rendering; observed capabilities come from Discover and list methods |
+| `docs/knowledge.rs` | docs collection declaration, typed index pages and authenticated ordinary/conditional document reads shared by hosted servers |
 | `server_contract.rs` | open MCP associations for server-owned scopes and resources; typed concrete and RFC 6570 template descriptors, document checks and discovery setup consumed by hosted handlers |
 | `uri.rs` | hosted-server resource URI construction and shared one-segment document URI parsing |
 | `gateway.rs` | gateway control-plane aggregate and public re-exports |

@@ -563,7 +563,7 @@ optional features, Veoveo implements only the subset its designs describe.
 
 | Area | Implemented standards and protocols |
 |---|---|
-| Agent and app interfaces | Model Context Protocol `2026-07-28` over JSON-RPC 2.0 and stateless Streamable HTTP; official MCP Tasks; JSON Schema 2020-12; and [MCP Apps](mcp/apps-extension/DESIGN.md). |
+| Agent and app interfaces | Model Context Protocol `2026-07-28` over JSON-RPC 2.0 and stateless Streamable HTTP; official MCP Tasks; JSON Schema 2020-12; [MCP Apps](mcp/apps-extension/DESIGN.md); and the [`ai.veoveo/knowledge-source` extension](mcp/knowledge-extension/DESIGN.md), whose integration is in progress. |
 | Identity and authorization | OpenID Connect Core; OAuth 2.0 Authorization Code with S256 PKCE, Client Credentials, and JWT Bearer grants; RFC 8414 metadata; RFC 9728 protected-resource metadata; RFC 8707 resource indicators; JWT, JWS, and JWK; MCP enterprise-managed authorization and ID-JAG. |
 | Recordings, data, and media | Rerun 0.38.1 RRD and `VideoStream`; read-only Rerun Data Protocol over native gRPC and gRPC-Web; versioned protobuf recording ingest; S3-compatible object APIs; DuckDB SQL; Apache Parquet; and OTLP/HTTP telemetry. |
 | Geography and time | WGS84/EPSG identities; GeoJSON RFC 7946; OGC JSON-FG and CQL2; GeoParquet 1.0; Mapbox Vector Tile 2.1; MapLibre Style 8; RFC 3339; RFC 9557; IANA TZDB/TZif and leap-second data; TAI and GPS time. |

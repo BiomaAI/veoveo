@@ -21,10 +21,10 @@ from datasheet_mcp.server.main import RootApp
 
 def test_docs_index_lists_the_embedded_documents():
     index = json.loads(json.dumps(SERVER_DOCS.index_wire()))
-    assert index == [
-        {"id": "agents", "title": "Agent work manual"},
-        {"id": "design", "title": "Domain design"},
-    ]
+    assert index == {"items": [
+        {"id": "agents", "title": "Agent work manual", "uri": "datasheet://docs/agents"},
+        {"id": "design", "title": "Domain design", "uri": "datasheet://docs/design"},
+    ]}
 
 
 def test_llms_txt_renders_the_contract_format():

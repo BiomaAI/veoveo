@@ -52,7 +52,7 @@ SERVER_NAME = "anonymous-simulation"
 _PACKAGE = __package__ or "anonymous_simulation_mcp"
 _SOURCE_ROOT = Path(__file__).resolve().parents[2]
 SERVER_DOCS: ServerDocs = server_docs(SERVER_NAME, _PACKAGE, source_root=_SOURCE_ROOT)
-DOCS_INDEX = tuple(doc.wire() for doc in SERVER_DOCS)
+DOCS_INDEX = SERVER_DOCS.index_wire()
 LLMS_TXT = SERVER_DOCS.llms_txt()
 AGENTS_DOCUMENT = SERVER_DOCS.doc(DOC_ID_AGENTS)
 DESIGN_DOCUMENT = SERVER_DOCS.doc(DOC_ID_DESIGN)
@@ -202,7 +202,7 @@ def build_mcp_server(runtime: FixtureRuntime) -> Server:
         if uri == APP_URI:
             return _text_result(uri, _APP_HTML, APP_MIME)
         if uri == DOCS_URI:
-            return _json_result(uri, list(DOCS_INDEX))
+            return _json_result(uri, DOCS_INDEX)
         if uri == DESIGN_URI:
             return _text_result(uri, DESIGN_DOCUMENT.body, "text/markdown")
         if uri == AGENTS_URI:

@@ -4,9 +4,10 @@ use crate::{
     ReadCondition, Revision, content_digest,
 };
 use rmcp::model::{
-    ClientCapabilities, ReadResourceResult, RequestMetaObject, ResourceContents, ResourceTemplate,
-    ServerCapabilities,
+    ClientCapabilities, ClientRequest, ReadResourceRequest, ReadResourceRequestParams,
+    ReadResourceResult, RequestMetaObject, ResourceContents, ResourceTemplate, ServerCapabilities,
 };
+use rmcp::service::PeerRequestOptions;
 use veoveo_types::ResourceUri;
 
 pub fn declare(capabilities: &mut ClientCapabilities) {
@@ -42,6 +43,29 @@ pub fn declare_read(meta: &mut RequestMetaObject, revision: Option<&Revision>) {
             meta.remove(EXTENSION_ID);
         }
     }
+}
+
+/// Prepare a network read with explicit request metadata. RMCP's discover
+/// lifecycle overwrites capabilities in params; request options take precedence.
+/// Sending this through `send_request_with_option` also avoids a memoized result
+/// substituting for the server's authorization of a conditional read.
+pub fn read_request(
+    mut params: ReadResourceRequestParams,
+    capabilities: ClientCapabilities,
+    revision: Option<&Revision>,
+    mut options: PeerRequestOptions,
+) -> (ClientRequest, PeerRequestOptions) {
+    let mut meta = params.meta.take().unwrap_or_default();
+    if let Some(overrides) = options.meta.take() {
+        meta.extend(overrides);
+    }
+    meta.set_client_capabilities(capabilities);
+    declare_read(&mut meta, revision);
+    options.meta = Some(meta);
+    (
+        ClientRequest::ReadResourceRequest(ReadResourceRequest::new(params)),
+        options,
+    )
 }
 
 pub fn collection(

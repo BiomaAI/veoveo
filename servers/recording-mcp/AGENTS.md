@@ -122,3 +122,4 @@ Contract revision: 3
 - C29: met
 - C30: met — the endpoint is connection-stateless and derives no durable or domain authority from an MCP transport session
 - C31: pending — installed Discover and list readiness qualification is pending
+- C32: pending — shared typed docs support is wired; K01–K08 qualification is in progress

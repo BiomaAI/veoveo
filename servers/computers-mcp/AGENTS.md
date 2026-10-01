@@ -71,3 +71,4 @@ installed acceptance matrix stays active. Fixture evidence is not installed-user
 - C29: met
 - C30: met
 - C31: pending — installed readiness against the declared catalog is pending
+- C32: pending — shared typed docs support is wired; K01–K08 qualification is in progress

@@ -88,3 +88,4 @@ Contract revision: 3
 - C29: met
 - C30: met — the server is stateless at the MCP boundary and retains only explicit durable domain state
 - C31: met — installed Discover, list surfaces and readiness pass hosted certification
+- C32: pending — Python SDK docs integration and K01–K08 qualification are in progress

@@ -100,3 +100,4 @@ implemented. Installed qualification remains in the
 - C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection
 - C24: met
 - C31: met
+- C32: pending — shared typed docs support is wired; K01–K08 qualification is in progress

@@ -112,4 +112,4 @@ Contract revision: 3
 - C29: met
 - C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection
 - C31: pending — checked MCP setup is implemented; installed readiness qualification remains
-- C32: pending — knowledge-source extension adoption is planned
+- C32: pending — shared typed docs support is wired; K01–K08 qualification is in progress

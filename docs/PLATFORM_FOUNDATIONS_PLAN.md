@@ -1,19 +1,21 @@
 # Platform Foundations Plan
 
 Status: Phase 0 is accepted. Phases 1–3 have the installed acceptance gaps listed
-under Deferred Work. Phase 4's installed audit checks pass; composed flight and
-Recording acceptance remain open. Phase 5 has qualified native consumer migration and
+under Deferred Work. Phase 4's installed audit checks and composed flight domain
+checks pass; composed visual acceptance remains open. Phase 5 has qualified native consumer migration and
 writer/schema removal. Computer authority observation and the database-feature review
 are qualified locally. Private command/file payload separation passes native tests
 and repeated storage measurements. Phase 5 images and charts are published from
 `6ec504d8`. The fresh reference converges at `5dd357c4` with both Helm releases and
 all 25 Deployments Ready. Installed certification, public Artifact delivery, headed
 Speech CUDA transcription/dictation, audit export readback, live Recording replay with
-grounded Reason, and live Stream inference pass. Composed flight and the deferred
-cross-replica/domain checks remain open.
+grounded Reason, and live Stream inference pass. The composed flight domain sequence
+also passes; visual acceptance fails on a black live-camera App frame. That visual
+failure and the deferred cross-replica/domain checks remain open.
 Phase 6 has typed extension models, negotiation/read helpers, docs paging and a
-compile-time digest macro; shared hosted integration and qualification are in progress.
-Phases 7–9 are not implemented. BuildKit is stopped during installed qualification.
+compile-time digest macro. All 15 Rust servers use shared authenticated docs reads;
+Python and Node indexes use the same page shape. Broader integration and qualification
+are in progress. Phases 7–9 are not implemented. The cluster and BuildKit are stopped.
 
 Current direction: every contract change in this plan is a coordinated hard cut.
 Historical data requires no support or migration. Remove compatibility adapters
@@ -3170,8 +3172,34 @@ The extension crate now provides separate contract and MCP features. Its depende
 direction is foundational types → knowledge extension → MCP core, with no dependency
 on domain servers. Six grouped native tests qualify closed declarations, collection
 and access checks, content-bound conditional responses, stable docs paging, bounded
-search snippets and compile-time document digests. Hosted Rust/Python adoption,
-conformance, Store schema, gateway audit and kernel integration remain to implement.
+search snippets and compile-time document digests. Python observation support,
+K01–K08 conformance, Store schema, gateway audit and kernel integration remain open.
+
+The Rust docs integration declares the extension through checked setup and routes
+ordinary and conditional reads through the same authenticated path. Map uses the
+shared helper through its existing discovery adapter. Python and Node document indexes
+use the current typed page shape; their observation adapters remain open. C32 is now
+in the checklist and every server declares its pending qualification explicitly.
+The repository compiles with `cargo check --workspace --all-targets`; 19 Python
+document tests, the fork fixture's document checks and the Node syntax check pass.
+The grouped Rust run passes 164 tests, including real stateless HTTP negotiation,
+content validation, matching conditional reads and denial under an unauthorized
+profile. RMCP's explicit request options carry the knowledge capability because its
+discover lifecycle overwrites capabilities in request params. The client helper also
+forces conditional reads through the server instead of its response cache.
+Workspace Clippy passes; the subsequent full-workspace test/doc sweep from
+`enforce rust` was stopped because the affected checks run in the focused batch.
+The remaining conformance work must
+resolve Map's 99,113-byte design document against the kernel's 64 KiB per-item limit
+without increasing the kernel budget or claiming that oversized reads are admitted.
+
+The installed composed run at `442ba70b` completed mission execution, live inference,
+Recording retention, Stream replay, grounded Reason and cross-context access checks.
+Its subsequent visual stage rejected a black live-view frame: 1280×720 H.264, 34
+decoded frames, zero measured luma. The failure and diagnostic images are retained
+under `output/development/foundations-phase5-publication-6ec504d8/composed-flight`.
+The run exited 1 after owned postflight recovery. The reference cluster is stopped
+while Phase 6 source development continues; visual acceptance remains unqualified.
 
 1. Create `mcp/knowledge-extension` as a workspace crate with the models, server and
    client helpers, and docs collection listed in its design's implementation map.
@@ -3344,5 +3372,5 @@ not complete while a row remains.
 |---|---|---|---|
 | Phase 3 Task result installation | `platform/task-runtime/DESIGN.md` | Qualify cross-replica delivery of the installed shared result envelope and event schema 3 | The fresh Store and linked Stream/Reason result acceptance pass; multiple installed replicas still need qualification |
 | Phase 3 final server library gates | `servers/artifact-mcp/DESIGN.md` | Finish installed Artifact sharing and Computers hosted feature qualification | Publication, all hosted catalogs, public full/HEAD/range Artifact delivery and headed Speech CUDA transcription/dictation pass at `5dd357c4`; the remaining domain assertions join composed acceptance |
-| Phase 1 reference reset | `testing/flight-smoke/src/domain.rs` | Finish composed flight, timing and installed workload acceptance with the corrected shared recording path | Map recovery, route and mission execution, live Stream, and independent live-part Stream replay and grounded Reason pass. The composed run has not yet exercised its corrected recording stage or reached final acceptance |
+| Phase 1 reference reset | `testing/flight-smoke/src/domain.rs` | Finish composed visual and timing acceptance | The composed flight domain sequence passes at `442ba70b`, including Recording, replay, Reason and cross-context denial. The subsequent visual stage rejects a black live-camera App frame and still requires diagnosis and qualification |
 | Phase 3 Stream C27 installation | `servers/stream-mcp/src/bin/server/subscriptions.rs` | Qualify cross-replica run invalidations and live-session notifications on the rebuilt reference installation | Native mixed-source, reconnect and MCP cancellation checks pass; reference workloads are stopped during development |

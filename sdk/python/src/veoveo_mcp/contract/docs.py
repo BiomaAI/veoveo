@@ -15,8 +15,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from importlib.resources import files
-from pathlib import Path
-from typing import Any, Iterator
+from pathlib import Path, PurePosixPath
+from typing import Any, Iterator, NotRequired, TypedDict
+from urllib.parse import urlunsplit, quote
+import re
 
 CONTRACT_REVISION = 3
 """The normative contract revision this package implements."""
@@ -42,13 +44,24 @@ CHECKLIST_IDS: tuple[str, ...] = (
     "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10",
     "C11", "C12", "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20",
     "C21", "C22", "C23", "C24", "C25", "C26", "C27", "C28", "C29", "C30",
-    "C31",
+    "C31", "C32",
 )
 """Stable identifiers of the compliance checklist in `DESIGN.md`."""
 
 
 class ServerDocsError(ValueError):
     """A server document set could not be assembled fail-closed."""
+
+
+class DocumentIndexEntry(TypedDict):
+    id: str
+    title: str
+    uri: str
+
+
+class DocumentPage(TypedDict):
+    items: list[DocumentIndexEntry]
+    nextCursor: NotRequired[str]
 
 
 @dataclass(frozen=True)
@@ -60,8 +73,8 @@ class ServerDoc:
     body: str
 
     def __post_init__(self) -> None:
-        if not self.id.strip():
-            raise ServerDocsError("server document id must be non-empty")
+        if not re.fullmatch(r"[a-z][a-z0-9-]{0,127}", self.id):
+            raise ServerDocsError("invalid server document id")
         if not self.title.strip():
             raise ServerDocsError(f"server document `{self.id}` title must be non-empty")
         if not self.body.strip():
@@ -93,9 +106,27 @@ class ServerDocs:
     def __iter__(self) -> Iterator[ServerDoc]:
         return iter(self.docs)
 
-    def index_wire(self) -> list[dict[str, str]]:
-        """The JSON index served at `{scheme}://docs`."""
-        return [doc.wire() for doc in self.docs]
+    def index_wire(self, cursor: str | None = None, *, scheme: str | None = None) -> DocumentPage:
+        """Stable pages of at most 32 document identities and concrete URIs."""
+        scheme = scheme or self.server
+        if not re.fullmatch(r"[a-z][a-z0-9+.-]*", scheme):
+            raise ServerDocsError("invalid document URI scheme")
+        ordered = sorted(self.docs, key=lambda doc: doc.id)
+        ids = [doc.id for doc in ordered]
+        if len(ids) != len(set(ids)):
+            raise ServerDocsError("duplicate document id")
+        if cursor is not None and cursor not in ids:
+            raise ServerDocsError("unknown document cursor")
+        start = 0 if cursor is None else ids.index(cursor) + 1
+        end = min(start + 32, len(ordered))
+        page: DocumentPage = {"items": [
+            {"id": doc.id, "title": doc.title,
+             "uri": urlunsplit((scheme, "docs", quote(PurePosixPath("/", doc.id).as_posix(), safe="/"), "", ""))}
+            for doc in ordered[start:end]
+        ]}
+        if end < len(ordered):
+            page["nextCursor"] = ordered[end - 1].id
+        return page
 
     def llms_txt(self) -> str:
         """The llms.txt index served at `{mount}/admin/docs/llms.txt` (C20)."""

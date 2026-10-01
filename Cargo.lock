@@ -16690,6 +16690,8 @@ dependencies = [
  "uuid",
  "veoveo-artifact-contract",
  "veoveo-audit-contract",
+ "veoveo-knowledge-macros",
+ "veoveo-mcp-knowledge-extension",
  "veoveo-types",
 ]
 

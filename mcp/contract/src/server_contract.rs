@@ -130,7 +130,7 @@ impl<C: McpServerContract> McpServerSetup<C> {
     pub fn new() -> Result<Self, McpSetupError> {
         let slug = C::slug();
         let scheme = C::scheme();
-        let info = C::server_config();
+        let mut info = C::server_config();
         let documents = C::documents();
         if info.server_info.name != slug.as_str() || documents.server() != slug.as_str() {
             return Err(McpSetupError::IdentityMismatch);
@@ -185,6 +185,20 @@ impl<C: McpServerContract> McpServerSetup<C> {
             }
         }
         let mut templates = C::resource_templates()?;
+        let docs_template = crate::docs::knowledge_extension::docs::member_template(&scheme);
+        let mut found_docs = false;
+        for template in &mut templates {
+            if template.template == docs_template {
+                documents
+                    .knowledge_template(&scheme, &mut template.descriptor)
+                    .map_err(|_| McpSetupError::InvalidTemplate)?;
+                found_docs = true;
+            }
+        }
+        if !found_docs {
+            return Err(McpSetupError::MissingDocumentTemplate);
+        }
+        documents.declare_knowledge(&mut info.capabilities);
         templates.sort_by(|a, b| a.template.cmp(&b.template));
         let mut declared_templates = BTreeSet::new();
         for template in &templates {
@@ -213,6 +227,15 @@ impl<C: McpServerContract> McpServerSetup<C> {
     }
     pub fn documents(&self) -> &'static ServerDocs {
         self.documents
+    }
+
+    pub fn read_documents(
+        &self,
+        request: &rmcp::model::ReadResourceRequestParams,
+        context: &rmcp::service::RequestContext<rmcp::RoleServer>,
+    ) -> Result<Option<rmcp::model::ReadResourceResponse>, rmcp::ErrorData> {
+        self.documents
+            .read_knowledge(&C::scheme(), request, context)
     }
     pub fn scope_names(&self) -> &BTreeSet<ScopeName> {
         &self.scopes
@@ -269,6 +292,7 @@ pub enum McpSetupError {
     InvalidTemplate,
     DescriptorTemplateMismatch,
     DuplicateTemplate,
+    MissingDocumentTemplate,
 }
 
 impl fmt::Display for McpSetupError {
@@ -302,6 +326,7 @@ impl fmt::Display for McpSetupError {
                 "resource metadata builder changed the typed template"
             }
             Self::DuplicateTemplate => "resource discovery contains a duplicate template",
+            Self::MissingDocumentTemplate => "resource discovery requires the docs member template",
         })
     }
 }

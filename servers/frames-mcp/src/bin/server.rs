@@ -474,6 +474,9 @@ impl ServerHandler for FramesMcp {
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
+        if let Some(result) = SERVER_SETUP.read_documents(&request, &context)? {
+            return Ok(result);
+        }
         self.read_frames_resource(request, context).await
     }
 

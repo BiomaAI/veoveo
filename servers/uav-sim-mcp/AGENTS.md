@@ -167,3 +167,4 @@ Contract revision: 3
 - C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection
 - C24: met
 - C31: pending — native discovery is qualified with an unreachable simulator; installed readiness qualification is pending
+- C32: pending — shared typed docs support is wired; K01–K08 qualification is in progress

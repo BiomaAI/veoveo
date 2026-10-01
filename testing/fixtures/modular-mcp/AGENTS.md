@@ -29,3 +29,4 @@ Contract revision: 3
 - C21: met
 - C30: met — stateless protocol handler
 - C31: met — hosted Discover and list checks qualify this synthetic fixture; installed authentication and service behavior require their own qualification
+- C32: pending — shared typed docs support is wired; K01–K08 qualification is in progress

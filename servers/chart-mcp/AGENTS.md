@@ -77,3 +77,4 @@ Contract revision: 3
 - C30: met — the server is stateless and does not require sticky routing
 - C24: pending — no Rust crate; the server is a pinned upstream npm package
 - C31: pending — installed Discover and list readiness qualification is pending
+- C32: pending — Node docs declaration and K01–K08 qualification are scheduled in Phase 7

@@ -445,7 +445,7 @@ Every server is self-describing. Under its canonical URI scheme it serves:
 
 | Resource | Content |
 |---|---|
-| `{scheme}://docs` | index of the server's documents |
+| `{scheme}://docs` | stable page of document entries with `id`, `title`, and concrete `uri`, in `items`; optional `nextCursor` names the last entry and continues through `?cursor=` |
 | `{scheme}://docs/{doc_id}` | a document body: at minimum `agents` (the crate `AGENTS.md`) and `design` (the crate `DESIGN.md`) |
 | `{scheme}://contract` | machine-readable contract declaration: contract revision, per-item compliance status, and embedded-document evidence; Discover and list methods own the observed runtime surface |
 
@@ -469,6 +469,14 @@ installation llms.txt from the catalog. Neither requires per-server work.
 The document bodies also form the server's `{slug}.docs` knowledge collection under
 `ai.veoveo/knowledge-source`. Each body is immutable for the running image, and its
 revision is the SHA-256 of the embedded bytes.
+
+The Rust embedding macro computes document digests during compilation. Checked
+server setup attaches the docs collection to its template and declares the extension.
+The shared read adapter requires the gateway-authenticated profile before serving
+either a full body or a matching conditional response. An independently hosted
+adapter may call the authorized-read helper after enforcing its own profile policy.
+Document indexes contain at most 32 entries per page. Unknown cursors, duplicate
+IDs and unsupported document query parameters fail admission.
 
 ## Crate Documents
 
@@ -520,6 +528,7 @@ Server crates are named `*-mcp`.
 | C29 | MUST | Ordinary hosted servers and the gateway tolerate load-balanced replica changes; singleton workloads name the real exclusive state or GPU owner. |
 | C30 | MUST | Requests with equivalent upstream transport security share one catalog-revision-scoped HTTP connection pool and TLS trust store without sharing request authority. |
 | C31 | MUST | Readiness calls Discover and required list methods, compares the observed surface with installation allow/require policy, and fails closed on mismatch. |
+| C32 | MUST | Declare `ai.veoveo/knowledge-source` and the server's docs collection; satisfy K01–K10 for every declared collection under the [knowledge extension](../knowledge-extension/DESIGN.md). |
 | C32 | MUST | The server declares `ai.veoveo/knowledge-source`, publishes its `{slug}.docs` collection, and satisfies rules K01–K10 for every collection it declares. |
 
 ## Enforcement

@@ -303,6 +303,9 @@ impl ServerHandler for OptimizationMcp {
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
+        if let Some(result) = SERVER_SETUP.read_documents(&request, &context)? {
+            return Ok(result);
+        }
         let cacheable = request.request_state.is_none() && request.input_responses.is_none();
         async {
             let identity = internal_identity(&context)?;

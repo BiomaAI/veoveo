@@ -112,7 +112,7 @@ pub(super) fn discoverable_resources(
 /// list and the `map://contract` capability inventory declares it, so the two
 /// cannot diverge.
 pub(super) fn resource_templates() -> Vec<ResourceTemplate> {
-    vec![
+    let mut templates = vec![
         ResourceTemplate::new(
             crate::contract::MapMobilityProfilesUri::TEMPLATE,
             "Mobility profile page",
@@ -324,7 +324,18 @@ pub(super) fn resource_templates() -> Vec<ResourceTemplate> {
             "Map composition revision",
             "Immutable map composition revision.",
         ),
-    ]
+    ];
+    for template in &mut templates {
+        if template.uri_template == uris::DOC_TEMPLATE {
+            SERVER_DOCS
+                .knowledge_template(
+                    &veoveo_types::ResourceScheme::new("map").expect("declared scheme"),
+                    template,
+                )
+                .expect("declared document template");
+        }
+    }
+    templates
 }
 
 fn well_known_resources() -> Vec<Resource> {

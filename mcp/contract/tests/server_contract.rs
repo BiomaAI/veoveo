@@ -149,10 +149,12 @@ impl<const CASE: u8> McpServerContract for Fixture<CASE> {
             ResourceTemplateUri::new(text).map_err(|_| McpSetupError::InvalidTemplate)?;
         let descriptor =
             McpResourceTemplate::new(template, |uri| ResourceTemplate::new(uri, "Item"))?;
-        Ok(vec![
-            descriptor;
-            if CASE == DUPLICATE_TEMPLATE { 2 } else { 1 }
-        ])
+        let mut templates = vec![descriptor; if CASE == DUPLICATE_TEMPLATE { 2 } else { 1 }];
+        templates.push(McpResourceTemplate::new(
+            ResourceTemplateUri::new("independent://docs/{doc_id}").unwrap(),
+            |uri| ResourceTemplate::new(uri, "Document"),
+        )?);
+        Ok(templates)
     }
 }
 
@@ -206,7 +208,13 @@ fn setup_preserves_typed_addresses_metadata_and_rfc6570_declarations() {
         );
     }
     assert_eq!(
-        setup.resource_templates()[0].template().as_str(),
+        setup
+            .resource_templates()
+            .iter()
+            .find(|t| t.descriptor().name == "Item")
+            .unwrap()
+            .template()
+            .as_str(),
         "independent://item/{+id}{?cursor}"
     );
     assert_eq!(

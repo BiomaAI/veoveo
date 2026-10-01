@@ -143,6 +143,7 @@ async fn qualify() -> anyhow::Result<()> {
     assert!(report.passed(), "{:#?}", report.checks);
 
     let resource = ObservatoryResource::Reading(ReadingId::new("sensor-a")?).to_uri()?;
+    let mut document_revision = None;
     for (token, allowed) in [("fixture-read", true), ("fixture-unrelated", false)] {
         let client = ()
             .serve_with_lifecycle(
@@ -155,6 +156,35 @@ async fn qualify() -> anyhow::Result<()> {
                 },
             )
             .await?;
+        use veoveo_mcp_contract::docs::knowledge_extension as knowledge;
+        let document_uri = veoveo_types::ResourceUri::new("observatory://docs/design")?;
+        if allowed {
+            let plain = client
+                .read_resource(ReadResourceRequestParams::new(document_uri.as_str()))
+                .await?;
+            assert!(knowledge::client::observation(&plain)?.is_none());
+            let full = knowledge_read(&client, &document_uri, None).await?;
+            let observation = knowledge::client::validate_read(&full, &document_uri, None)?
+                .expect("negotiated docs observation");
+            document_revision = Some(observation.revision().clone());
+        }
+        let conditional = knowledge_read(&client, &document_uri, document_revision.as_ref()).await;
+        if allowed {
+            assert!(
+                knowledge::client::validate_read(
+                    &conditional?,
+                    &document_uri,
+                    document_revision.as_ref()
+                )?
+                .unwrap()
+                .not_modified()
+            );
+        } else {
+            expect_mcp_error(
+                conditional.unwrap_err(),
+                rmcp::model::ErrorCode::INVALID_REQUEST,
+            );
+        }
         let result = client
             .read_resource(ReadResourceRequestParams::new(resource.as_str()))
             .await;
@@ -210,4 +240,26 @@ fn expect_mcp_error(error: rmcp::ServiceError, expected: rmcp::model::ErrorCode)
         panic!("expected a protocol rejection, got {error:?}");
     };
     assert_eq!(error.code, expected, "{error:?}");
+}
+
+async fn knowledge_read(
+    client: &rmcp::Peer<rmcp::RoleClient>,
+    uri: &veoveo_types::ResourceUri,
+    revision: Option<&veoveo_mcp_contract::docs::knowledge_extension::Revision>,
+) -> Result<rmcp::model::ReadResourceResult, rmcp::ServiceError> {
+    let (request, options) = veoveo_mcp_contract::docs::knowledge_extension::client::read_request(
+        ReadResourceRequestParams::new(uri.as_str()),
+        rmcp::model::ClientCapabilities::default(),
+        revision,
+        rmcp::service::PeerRequestOptions::with_timeout(Duration::from_secs(10)),
+    );
+    match client
+        .send_request_with_option(request, options)
+        .await?
+        .await_response()
+        .await?
+    {
+        rmcp::model::ServerResult::ReadResourceResult(result) => Ok(result),
+        _ => Err(rmcp::ServiceError::UnexpectedResponse),
+    }
 }

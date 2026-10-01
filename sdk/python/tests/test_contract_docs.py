@@ -94,14 +94,14 @@ def test_declaration_derives_from_the_embedded_manual():
 
 
 def test_checklist_ids_are_dense_and_stable():
-    assert len(CHECKLIST_IDS) == 31
+    assert len(CHECKLIST_IDS) == 32
     for index, checklist_id in enumerate(CHECKLIST_IDS):
         assert checklist_id == f"C{index + 1:02}"
 
 
 def test_docs_index_wire_never_carries_bodies():
     docs = _docs(ServerDoc(id=DOC_ID_AGENTS, title=DOC_TITLE_AGENTS, body=MANUAL))
-    assert docs.index_wire() == [{"id": "agents", "title": "Agent work manual"}]
+    assert docs.index_wire() == {"items": [{"id": "agents", "title": "Agent work manual", "uri": "example://docs/agents"}]}
 
 
 def test_server_docs_loads_from_a_source_root(tmp_path: Path):

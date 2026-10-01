@@ -111,7 +111,7 @@ async def test_closing_one_viewer_does_not_stop_the_shared_product() -> None:
 
 
 def test_docs_index_lists_the_required_documents() -> None:
-    assert [entry["id"] for entry in DOCS_INDEX] == ["agents", "design"]
+    assert [entry["id"] for entry in DOCS_INDEX["items"]] == ["agents", "design"]
     assert all(doc.body.strip() for doc in SERVER_DOCS)
 
 

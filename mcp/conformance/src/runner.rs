@@ -413,12 +413,6 @@ struct ObservedSurface {
     tasks_advertised: bool,
 }
 
-/// One entry of the document index served at `{scheme}://docs` (C18).
-#[derive(serde::Deserialize)]
-struct DocIndexEntry {
-    id: String,
-}
-
 async fn read_text_resource(client: &Client, uri: &str) -> Result<String> {
     let result = client
         .read_resource(rmcp::model::ReadResourceRequestParams::new(uri))
@@ -431,6 +425,49 @@ async fn read_text_resource(client: &Client, uri: &str) -> Result<String> {
             _ => None,
         })
         .ok_or_else(|| anyhow!("resource {uri} returned no text contents"))
+}
+
+async fn read_document_index(client: &Client, scheme: &str) -> Result<Vec<String>> {
+    use veoveo_mcp_contract::docs::knowledge_extension::docs;
+    use veoveo_types::{ResourceScheme, ResourceUriBuilder};
+    let scheme = ResourceScheme::new(scheme)?;
+    let root = docs::index_uri(&scheme);
+    let mut uri = root.clone();
+    let mut ids = Vec::new();
+    let mut previous = None;
+    for _ in 0..8 {
+        let page: docs::DocumentPage =
+            serde_json::from_str(&read_text_resource(client, uri.as_str()).await?)?;
+        anyhow::ensure!(
+            page.items.len() <= docs::DOC_PAGE_SIZE,
+            "document page exceeds 32 entries"
+        );
+        for item in &page.items {
+            anyhow::ensure!(
+                previous.as_ref().is_none_or(|id| id < &item.id),
+                "document order is not strictly increasing"
+            );
+            anyhow::ensure!(
+                item.uri == docs::member_uri(&scheme, &item.id),
+                "document URI disagrees with its index identity"
+            );
+            previous = Some(item.id.clone());
+            ids.push(item.id.to_string());
+        }
+        match page.next_cursor {
+            Some(cursor) => {
+                anyhow::ensure!(
+                    !page.items.is_empty() && previous.as_ref() == Some(&cursor),
+                    "document cursor must identify the last member"
+                );
+                uri = ResourceUriBuilder::new(root.as_str())?
+                    .query_pair("cursor", cursor.as_str())?
+                    .build()?;
+            }
+            None => return Ok(ids),
+        }
+    }
+    anyhow::bail!("document index exceeds certification limit of 8 pages")
 }
 
 /// Reads the Well-Known Surface over the live session (contract C18, C19):
@@ -448,26 +485,18 @@ async fn check_well_known_surface(
     let mut serving_scheme = None;
     let mut listed_ids = Vec::new();
     for scheme in &profile.owned_resource_schemes {
-        let uri = format!("{scheme}://docs");
-        match read_text_resource(client, &uri).await {
-            Ok(text) => match serde_json::from_str::<Vec<DocIndexEntry>>(&text) {
-                Ok(entries) => {
-                    let ids: Vec<String> = entries.into_iter().map(|entry| entry.id).collect();
-                    if ["agents", "design"]
-                        .iter()
-                        .all(|id| ids.iter().any(|listed| listed == id))
-                    {
-                        serving_scheme = Some(scheme.clone());
-                        listed_ids = ids;
-                        break;
-                    }
-                    index_errors.push(format!("{uri}: index lists {ids:?} without agents+design"));
-                }
-                Err(error) => {
-                    index_errors.push(format!("{uri}: index is not a JSON list: {error}"))
-                }
-            },
-            Err(error) => index_errors.push(format!("{uri}: {error}")),
+        match read_document_index(client, scheme).await {
+            Ok(ids)
+                if ["agents", "design"]
+                    .iter()
+                    .all(|id| ids.iter().any(|listed| listed == id)) =>
+            {
+                serving_scheme = Some(scheme.clone());
+                listed_ids = ids;
+                break;
+            }
+            Ok(_) => index_errors.push(format!("{scheme}: docs index lacks agents or design")),
+            Err(error) => index_errors.push(format!("{scheme}: {error}")),
         }
     }
 

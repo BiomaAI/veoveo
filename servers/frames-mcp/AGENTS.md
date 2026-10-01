@@ -105,3 +105,4 @@ Installed qualification remains in the foundations plan.
 - C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection
 - C24: met
 - C31: pending — installed Discover and list readiness qualification is pending
+- C32: pending — shared typed docs support is wired; K01–K08 qualification is in progress

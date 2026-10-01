@@ -467,6 +467,9 @@ impl ServerHandler for MediaMcp {
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
+        if let Some(result) = SERVER_SETUP.read_documents(&request, &context)? {
+            return Ok(result);
+        }
         self.read_media_resource(request, context).await
     }
 

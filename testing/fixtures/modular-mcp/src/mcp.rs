@@ -80,9 +80,15 @@ impl McpServerContract for ObservatoryContract {
     fn resource_templates() -> Result<Vec<McpResourceTemplate>, McpSetupError> {
         let template = ResourceTemplateUri::new("observatory://reading/{reading_id}")
             .map_err(|_| McpSetupError::InvalidTemplate)?;
-        Ok(vec![McpResourceTemplate::new(template, |uri| {
-            ResourceTemplate::new(uri, "Reading").with_mime_type("application/json")
-        })?])
+        Ok(vec![
+            McpResourceTemplate::new(template, |uri| {
+                ResourceTemplate::new(uri, "Reading").with_mime_type("application/json")
+            })?,
+            McpResourceTemplate::new(
+                ResourceTemplateUri::new("observatory://docs/{doc_id}").unwrap(),
+                |uri| ResourceTemplate::new(uri, "Document").with_mime_type("text/markdown"),
+            )?,
+        ])
     }
 }
 
@@ -156,6 +162,13 @@ impl ServerHandler for ObservatoryMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResponse, ErrorData> {
         authorize(&context)?;
+        if let Some(result) = SETUP.documents().read_authorized_knowledge(
+            &veoveo_types::ResourceScheme::new("observatory").unwrap(),
+            &request,
+            &context.meta,
+        )? {
+            return Ok(result);
+        }
         let uri = ResourceUri::new(request.uri.clone())
             .map_err(|_| ErrorData::invalid_params("invalid resource", None))?;
         let resource = ObservatoryResource::parse(&uri)

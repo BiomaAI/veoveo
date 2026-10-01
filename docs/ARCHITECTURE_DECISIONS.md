@@ -14,7 +14,7 @@ the repository's ordinary component modules and existing runtime authorization.
 
 | Boundary | Profile |
 |---|---|
-| MCP, JSON-RPC, JSON Schema, OAuth and OpenID Connect | Versions and supported subsets in the normative [MCP server contract](../mcp/contract/DESIGN.md) |
+| MCP, JSON-RPC, JSON Schema, OAuth and OpenID Connect | Versions and supported subsets in the normative [MCP server contract](../mcp/contract/DESIGN.md); typed collection declarations and read observations in [`ai.veoveo/knowledge-source`](../mcp/knowledge-extension/DESIGN.md) |
 | HTTP, WebSocket, SSH and internal gRPC | Policy-checked control, artifact transfer, and Computers access; [contract evolution](CONTRACT_EVOLUTION.md) records the new profile requirements |
 | UUIDv7, SHA-256 and Git identity | Opaque domain identities, integrity, and exact source provenance |
 | SurrealQL, LIVE queries and changefeeds | Durable store and recovery under the pinned SurrealDB implementation; no database HA claim |

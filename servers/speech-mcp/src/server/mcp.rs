@@ -169,6 +169,9 @@ impl ServerHandler for SpeechMcp {
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResponse, McpError> {
+        if let Some(result) = SERVER_SETUP.read_documents(&request, &context)? {
+            return Ok(result);
+        }
         let uri = &request.uri;
         let resource = SpeechResource::parse(uri)
             .map_err(|_| McpError::resource_not_found("unknown Speech resource", None))?;

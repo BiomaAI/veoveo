@@ -221,6 +221,9 @@ impl ServerHandler for RecordingMcp {
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
+        if let Some(result) = SERVER_SETUP.read_documents(&request, &context)? {
+            return Ok(result);
+        }
         let cacheable = request.request_state.is_none() && request.input_responses.is_none();
         let identity = identity(&context)?;
         let resource = RecordingResource::parse(&request.uri).map_err(invalid_params)?;

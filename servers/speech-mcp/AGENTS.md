@@ -74,3 +74,4 @@ Contract revision: 3
 - C29: met — native hosted certification and domain qualification; see DESIGN.md.
 - C30: met — native hosted certification and domain qualification; see DESIGN.md.
 - C31: met — installed catalog certification and headed Workspace CUDA transcription/dictation pass.
+- C32: pending — shared typed docs support is wired; K01–K08 qualification is in progress

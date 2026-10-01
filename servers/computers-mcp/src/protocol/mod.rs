@@ -177,6 +177,9 @@ impl ServerHandler for ComputersMcp {
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResponse, ErrorData> {
+        if let Some(result) = setup::SERVER_SETUP.read_documents(&request, &context)? {
+            return Ok(result);
+        }
         self.resource(request, context).await
     }
     async fn list_prompts(

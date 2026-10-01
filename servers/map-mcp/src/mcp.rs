@@ -868,6 +868,7 @@ impl ServerHandler for MapMcp {
             .enable_completions()
             .build();
         veoveo_mcp_apps_extension::extend_capabilities(&mut capabilities);
+        SERVER_DOCS.declare_knowledge(&mut capabilities);
         capabilities.extensions.get_or_insert_default().insert(
             rmcp::model::TASKS_EXTENSION_ID.to_owned(),
             rmcp::model::JsonObject::new(),
@@ -1012,6 +1013,13 @@ impl ServerHandler for MapMcp {
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
+        if let Some(result) = SERVER_DOCS.read_knowledge(
+            &veoveo_types::ResourceScheme::new("map").expect("declared scheme"),
+            &request,
+            &context,
+        )? {
+            return Ok(result);
+        }
         self.read_map_resource(request, context).await
     }
 

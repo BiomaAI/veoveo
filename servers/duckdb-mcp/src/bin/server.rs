@@ -366,6 +366,9 @@ impl ServerHandler for DuckdbMcp {
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
+        if let Some(result) = setup::SERVER_SETUP.read_documents(&request, &context)? {
+            return Ok(result);
+        }
         let cacheable = request.request_state.is_none() && request.input_responses.is_none();
         resources::read(&self.state, &request.uri, &context)
             .await
