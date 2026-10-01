@@ -103,8 +103,8 @@ impl AuthoringProjection {
             for commit in &commits {
                 revisions.extend(self.revisions_for_commit(commit).await?);
             }
-            // A short page proves that every Map commit through the snapshot is
-            // included. Gaps belong to other domains and need no projection work.
+            // A short page proves that every Map commit through the captured
+            // domain head is included. The checkpoint commits with the projection.
             let next_sequence = if commits.len() < PAGE_SIZE as usize {
                 through
             } else {
@@ -115,7 +115,6 @@ impl AuthoringProjection {
             };
             self.apply_page(&revisions, next_sequence)?;
             sequence = next_sequence;
-            self.store.checkpoint_outbox(CONSUMER, sequence).await?;
         }
         Ok(u64::try_from(sequence)?)
     }

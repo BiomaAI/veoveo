@@ -1,8 +1,8 @@
--- Map recovery pages its immutable domain log rather than the shared outbox.
+-- Map recovery pages its immutable domain log.
 DEFINE INDEX IF NOT EXISTS map_feature_changeset_commit_sequence ON TABLE map_feature_changeset FIELDS commit_sequence;
 
--- The sequence allocator is independent of the data transaction. A shared Map
--- head serializes accepted commits and supplies a committed recovery boundary.
+-- Changeset writers allocate the next sequence from this head in their data
+-- transaction. The event serializes accepted commits and advances the head.
 DEFINE TABLE IF NOT EXISTS map_projection_state SCHEMAFULL TYPE NORMAL CHANGEFEED 90d INCLUDE ORIGINAL PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE map_projection_state TYPE string;
 DEFINE FIELD IF NOT EXISTS last_sequence ON TABLE map_projection_state TYPE int ASSERT $value >= 0;

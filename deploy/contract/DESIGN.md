@@ -24,6 +24,11 @@
 | Kubernetes Dynamic Resource Allocation `resource.k8s.io/v1` | persistent `ResourceClaim` allocation, named requests, per-container claims, and distinct-device constraints |
 | NVIDIA DRA Driver for GPUs Helm chart `0.5.0` and `resource.nvidia.com/v1beta1` | digest-locked standalone GPU allocation, full-GPU and MIG DeviceClasses, CDI preparation, and measured time-slicing configuration; GPU allocation and `TimeSlicingSettings` remain upstream technology-preview features |
 
+The internal platform-store profile selects `native_changefeed` as the source of
+committed recovery and `changefeed_wake` as LIVE's role. The supported database is
+SurrealDB 3.3.0 on single-node RocksDB. Consumers reconcile after disconnect and use
+known deadlines for delayed work; the profile contains no periodic outbox recovery.
+
 ## Responsibility
 
 This crate owns the typed multi-source deployment profile, immutable deployment lock,

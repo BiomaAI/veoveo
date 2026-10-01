@@ -86,12 +86,6 @@ impl PlatformStore {
         }, "IF $authority.membership = 'viewer' { THROW 'agent_forbidden'; }; LET $instance = SELECT * FROM ONLY $command.instance; IF $instance != NONE AND !fn::managed_agent_editor($authority, $instance) { THROW 'agent_not_found'; }; LET $receipt = SELECT * FROM ONLY $command.operation; IF $receipt = NONE { RETURN NONE; }; IF $receipt.fingerprint != $command.fingerprint OR $receipt.work_context != $authority.work_context { THROW 'agent_conflict'; }; RETURN $receipt;").await
     }
 
-    pub async fn agent_management_head(&self, authority: &AgentCatalogAuthority) -> Result<i64> {
-        self.agent_query(authority, false,
-            "RETURN array::first(SELECT VALUE sequence FROM outbox_event WHERE tenant = $authority.tenant AND ((aggregate_type = 'agent_definition' AND $authority.work_context IN payload.affected_contexts) OR (aggregate_type = 'managed_agent' AND payload.work_context = $authority.work_context AND (payload.operation.instance.owner = $authority.principal OR $authority.manage_context))) ORDER BY sequence DESC LIMIT 1) ?? 0;"
-        ).await
-    }
-
     pub async fn managed_agent_registration(
         &self,
         client_id: &str,

@@ -19,8 +19,7 @@ pub struct MapFeatureProjectionCommit {
 
 impl PlatformStore {
     /// Last Map sequence whose changeset and serialization head committed together.
-    /// The global outbox maximum cannot provide this boundary: unrelated writers
-    /// may commit a higher allocated sequence while a Map transaction is pending.
+    /// Accepted changesets increment this domain head inside their transaction.
     pub async fn latest_map_feature_commit_sequence(&self) -> Result<i64, StoreError> {
         let mut response = self
             .client()
@@ -36,7 +35,7 @@ impl PlatformStore {
 
     /// Read Map commits in `(after_sequence, through_sequence]`. The caller
     /// captures the upper bound once, so unrelated traffic cannot extend replay.
-    /// Changesets and their outbox sequences commit in the same transaction.
+    /// Changesets and their domain sequences commit in the same transaction.
     pub async fn read_map_feature_commits(
         &self,
         after_sequence: i64,

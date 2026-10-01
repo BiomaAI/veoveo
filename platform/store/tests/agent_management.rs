@@ -789,3 +789,59 @@ async fn offline_chat_import_preserves_identity_and_qualifies_exact_restore() {
         Err(AgentManagementError::Forbidden)
     );
 }
+
+#[tokio::test]
+async fn current_view_revisions_ignore_private_writes_and_change_on_removal() {
+    tokio::time::timeout(std::time::Duration::from_secs(60), async {
+        let db = TestDb::new().await;
+        let alice = identity(&db.a, "catalog-revisions", "alice").await;
+        let bob = identity(&db.a, "catalog-revisions", "bob").await;
+        context(&db.a, &alice, "research").await;
+        let a = authority(&db.a, &alice, "research").await;
+        let b = authority(&db.b, &bob, "research").await;
+        let public_before = db.b.agent_catalog_revision(&b).await.unwrap();
+        let bob_before = db.b.agent_management_revision(&b).await.unwrap();
+        let alice_before = db.a.agent_management_revision(&a).await.unwrap();
+        let private = create(&db.a, &a, "private-draft").await;
+        assert_eq!(
+            db.b.agent_catalog_revision(&b).await.unwrap(),
+            public_before
+        );
+        assert_eq!(
+            db.b.agent_management_revision(&b).await.unwrap(),
+            bob_before
+        );
+        assert_ne!(
+            db.a.agent_management_revision(&a).await.unwrap(),
+            alice_before
+        );
+        let published = publish(&db.a, &a, &private).await;
+        let visible = db.b.agent_catalog_revision(&b).await.unwrap();
+        assert_ne!(visible, public_before);
+        assert_ne!(
+            db.b.agent_management_revision(&b).await.unwrap(),
+            bob_before
+        );
+        db.a.mutate_agent_definition(
+            &a,
+            &published.key,
+            Uuid::now_v7(),
+            Some(published.revision),
+            AgentDefinitionMutation::Status {
+                status: AgentDefinitionStatus::Disabled,
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            db.b.agent_catalog_revision(&b).await.unwrap(),
+            public_before
+        );
+        assert_eq!(
+            db.b.agent_management_revision(&b).await.unwrap(),
+            bob_before
+        );
+    })
+    .await
+    .expect("catalog revision qualification deadline");
+}

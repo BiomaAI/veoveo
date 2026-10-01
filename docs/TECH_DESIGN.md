@@ -278,21 +278,25 @@ select different `serde_json` object-order features.
 - coordinate frames/operations, recording datasets/layers, agents/episodes/wakes;
 - audit events and the transactional outbox.
 
-A state change that other processes must see writes its domain record and outbox event
-in one transaction. Consumers checkpoint their position in the outbox. SurrealDB LIVE
-queries can cut latency, but after a reconnect a consumer always catches up from its
-checkpoint, because LIVE ordering and delivery are not guaranteed.
-
-Rust Task observation, agent wake scheduling, Artifact notifications and Computer
-notifications consume native table changefeeds. `changefeed/consumer.rs` registers
+Task observation in Rust and Python, agent wake scheduling, Agent Manager, gateway
+catalog and Console invalidations, Artifact notifications and Computer notifications
+consume native table changefeeds. `changefeed/consumer.rs` registers
 projected LIVE queries before recovery and persists checked versionstamp cursors.
 Database-wide replay completes the final transaction before advancing, which avoids
 the pinned SurrealDB table-filter/LIMIT interaction. Consumers reconcile current state
 when the cursor exceeds the six-day safety window. Task public readers use identities
 only and reapply SQL admission before decoding; trusted workers can replay committed
 states. Domain ID decoders import their owning contract libraries. Checkpoint writes
-have no changefeed. Remaining outbox consumers and writer removal are tracked in the
+have no changefeed. The remaining outbox writers and their removal are tracked in the
 [foundations plan](PLATFORM_FOUNDATIONS_PLAN.md#phase-5-store-simplification).
+
+Gateway agent revisions hash metadata selected under the caller's current SQL admission.
+Private writes leave other callers' revisions unchanged, and removal changes the
+visible set's digest. Agent Manager combines native Store notifications with Kubernetes
+metadata watches. Its timers follow persisted claim, startup and drain deadlines;
+transient failures use an increasing retry delay capped at 30 seconds. Map changesets
+allocate their own commit sequence in the transaction that advances the projection
+head. DuckDB persists the applied sequence with each projection page.
 
 Resource hubs share a Store LIVE source per process. Each observed write anchors its
 cursor to the database clock, with a two-second overlap. Reconnection registers LIVE

@@ -3,6 +3,7 @@
 mod import;
 pub mod instances;
 mod records;
+mod revision;
 mod validation;
 pub use import::{AgentChatImport, AgentChatImportDirection, AgentChatImportMapping};
 pub use records::*;
@@ -56,13 +57,6 @@ pub fn agent_definition_record(tenant: &RecordId, key: &str) -> Result<RecordId>
 }
 
 impl PlatformStore {
-    /// Authorized invalidation head, scoped to contexts affected by a committed mutation.
-    pub async fn agent_catalog_head(&self, authority: &AgentCatalogAuthority) -> Result<i64> {
-        self.agent_query(authority, false,
-            "RETURN array::first(SELECT VALUE sequence FROM outbox_event WHERE tenant = $authority.tenant AND aggregate_type = 'agent_definition' AND $authority.work_context IN payload.affected_contexts ORDER BY sequence DESC LIMIT 1) ?? 0;"
-        ).await
-    }
-
     pub async fn mutate_agent_definition(
         &self,
         authority: &AgentCatalogAuthority,

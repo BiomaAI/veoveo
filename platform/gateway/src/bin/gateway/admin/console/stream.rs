@@ -24,10 +24,11 @@ use veoveo_mcp_contract::GatewayAction;
 use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_platform_store::{
     AgentRecord, ArtifactAccessRequestRecord, ArtifactBlobRecord, ArtifactGrantEdge,
-    ArtifactOccurrenceRecord, ArtifactUploadRecord, ArtifactUploadState, ChangefeedCursor,
-    ChangefeedEntry, PlatformStore, PlatformTable, PrincipalRecord, RecordId, RecordingLayerRecord,
-    RecordingLayerState, RecordingRecord, ShareLinkRecord, TaskRecord, Value as DbValue,
-    WakeRecord, decode_changefeed_entry, deterministic_tenant_id,
+    ArtifactOccurrenceRecord, ArtifactUploadRecord, ArtifactUploadState, ChangefeedConsumerId,
+    ChangefeedCursor, ChangefeedDelivery, ChangefeedEntry, PlatformStore, PlatformTable,
+    PrincipalRecord, RecordId, RecordingLayerRecord, RecordingLayerState, RecordingRecord,
+    ShareLinkRecord, TaskRecord, Value as DbValue, WakeRecord, decode_changefeed_entry,
+    deterministic_tenant_id,
 };
 
 use super::projection::{
@@ -44,9 +45,7 @@ use crate::{
 const MAX_CONCURRENT_STREAMS: usize = 16;
 const MAX_STREAMS_PER_PRINCIPAL: usize = 3;
 const MAX_STREAM_LIFETIME: Duration = Duration::from_secs(15 * 60);
-const RECONCILE_INTERVAL: Duration = Duration::from_secs(15);
 const WAKE_DEBOUNCE: Duration = Duration::from_millis(200);
-const LIVE_RECONNECT_DELAY: Duration = Duration::from_secs(1);
 const REPLAY_PAGE_LIMIT: u32 = 1_000;
 const RETRY_HINT_MS: u32 = 3_000;
 /// Cursors older than this force a full resync instead of replaying a huge
@@ -139,65 +138,49 @@ pub(crate) fn spawn_console_wake_hub(
     cancellation: CancellationToken,
 ) -> ConsoleStreamRuntime {
     let (wake_tx, wake_rx) = watch::channel(0u64);
-    let wake_tx = Arc::new(wake_tx);
-    for table in STREAM_TABLES {
-        let store = store.clone();
-        let wake_tx = wake_tx.clone();
-        let cancellation = cancellation.clone();
-        tokio::spawn(async move {
-            table_wake_loop(store, table, wake_tx, cancellation).await;
-        });
-    }
+    tokio::spawn(async move {
+        use futures::StreamExt;
+        let replica = std::env::var("HOSTNAME").unwrap_or_else(|_| "local".into());
+        let consumer = ChangefeedConsumerId::new(format!("gateway-console/{replica}"))
+            .expect("gateway replica must be a valid consumer identity");
+        let cursor = store
+            .changefeed_checkpoint(&consumer)
+            .await
+            .unwrap_or_default();
+        let mut source = store.observe_changes(STREAM_TABLES.to_vec(), cursor);
+        loop {
+            let delivery = tokio::select! {
+                () = cancellation.cancelled() => return,
+                delivery = source.next() => delivery,
+            };
+            match delivery {
+                Some(Ok(delivery)) => {
+                    let changed = match &delivery {
+                        ChangefeedDelivery::Reconcile { .. } => true,
+                        ChangefeedDelivery::Changes { entries, .. } => !entries.is_empty(),
+                    };
+                    if changed {
+                        wake_tx.send_modify(|epoch| *epoch = epoch.wrapping_add(1));
+                    }
+                    if let Err(error) = store.checkpoint_changes(&consumer, delivery.cursor()).await
+                    {
+                        tracing::warn!(%error, "console feed checkpoint unavailable");
+                    }
+                }
+                Some(Err(error)) => {
+                    tracing::warn!(%error, "console native feed reconnecting");
+                    wake_tx.send_modify(|epoch| *epoch = epoch.wrapping_add(1));
+                }
+                None => return,
+            }
+        }
+    });
     ConsoleStreamRuntime {
         wake: wake_rx,
         limits: Arc::new(StreamLimits {
             global: Arc::new(Semaphore::new(MAX_CONCURRENT_STREAMS)),
             per_principal: Mutex::new(BTreeMap::new()),
         }),
-    }
-}
-
-/// One reconnecting LIVE subscription per table, exactly like the
-/// artifact-mcp outbox wake loop: LIVE items are dropped on the floor, they
-/// only bump the wake epoch. A LIVE failure loses nothing — replay covers
-/// the gap after reconnect.
-async fn table_wake_loop(
-    store: PlatformStore,
-    table: PlatformTable,
-    wake: Arc<watch::Sender<u64>>,
-    cancellation: CancellationToken,
-) {
-    use futures::StreamExt;
-    loop {
-        let mut live = match store.live::<DbValue>(table).await {
-            Ok(live) => live,
-            Err(error) => {
-                tracing::warn!(%table, "console wake LIVE connect failed: {error}");
-                tokio::select! {
-                    () = cancellation.cancelled() => return,
-                    () = tokio::time::sleep(LIVE_RECONNECT_DELAY) => continue,
-                }
-            }
-        };
-        loop {
-            tokio::select! {
-                () = cancellation.cancelled() => return,
-                item = live.next() => match item {
-                    Some(Ok(_)) => {
-                        wake.send_modify(|epoch| *epoch += 1);
-                    }
-                    Some(Err(error)) => {
-                        tracing::warn!(%table, "console wake LIVE stream failed: {error}");
-                        break;
-                    }
-                    None => break,
-                },
-            }
-        }
-        tokio::select! {
-            () = cancellation.cancelled() => return,
-            () = tokio::time::sleep(LIVE_RECONNECT_DELAY) => {}
-        }
     }
 }
 
@@ -376,10 +359,6 @@ fn console_event_stream(
             yield Ok(event);
         }
 
-        let mut reconcile = tokio::time::interval(RECONCILE_INTERVAL);
-        reconcile.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-        reconcile.reset();
-
         loop {
             tokio::select! {
                 () = tokio::time::sleep_until(deadline) => {
@@ -415,20 +394,7 @@ fn console_event_stream(
                         }
                     }
                 }
-                _ = reconcile.tick() => {
-                    match projection_state.drain(&store).await {
-                        Ok(events) => {
-                            for event in group_events(events) {
-                                yield Ok(event);
-                            }
-                        }
-                        Err(error) => {
-                            tracing::warn!("console stream reconcile failed: {error}");
-                            yield Ok(reset_event("replay-failed"));
-                            return;
-                        }
-                    }
-                }
+
             }
         }
     }

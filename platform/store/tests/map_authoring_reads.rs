@@ -650,3 +650,100 @@ async fn qualify_pages() {
             .is_empty()
     );
 }
+
+#[tokio::test]
+async fn native_map_commit_order_is_transactional_and_independent_of_other_domains() {
+    tokio::time::timeout(Duration::from_secs(60), async {
+        let db = fixture::TestDb::new().await;
+        let identity =
+            db.a.ensure_identity(
+                "map-order",
+                "author",
+                "https://identity.test",
+                "author",
+                PrincipalKind::User,
+            )
+            .await
+            .unwrap();
+        let first = create_records(&db.a, &identity, "operations", &[]).await;
+        let second = create_records(&db.b, &identity, "operations", &[]).await;
+        let draft = |layer: &MapFeatureLayerRecord| MapFeatureCommitDraft {
+            identity: identity.clone(),
+            authority: authority("operations", &[]),
+            layer_key: layer.layer_key.clone(),
+            layer_canonical_json: r#"{"revision":1}"#.into(),
+            expected_layer_revision: 0,
+            changeset_key: format!("changeset-{}", Uuid::now_v7()),
+            idempotency_key: Uuid::now_v7().to_string(),
+            request_digest_sha256: "b".repeat(64),
+            changeset_canonical_json: r#"{"resulting_layer_revision":1}"#.into(),
+            revisions: vec![MapFeatureRevisionDraft {
+                feature_key: format!("feature-{}", Uuid::now_v7()),
+                feature_revision: 1,
+                layer_revision: 1,
+                schema_version: 1,
+                deleted: false,
+                geometry_type: "Point".into(),
+                geometry_json: r#"{"type":"Point","coordinates":[-89.2,13.7]}"#.into(),
+                bbox_west: -89.2,
+                bbox_south: 13.7,
+                bbox_east: -89.2,
+                bbox_north: 13.7,
+                valid_from: None,
+                valid_until: None,
+                semantic_type: "inspection_area".into(),
+                title: None,
+                canonical_json: r#"{"type":"Feature"}"#.into(),
+                expected_feature_revision: None,
+            }],
+        };
+        let one = draft(&first.layer);
+        let two = draft(&second.layer);
+        let (a, b) = tokio::join!(
+            db.a.commit_map_feature_changes(one.clone()),
+            db.b.commit_map_feature_changes(two.clone())
+        );
+        let mut sequences = Vec::new();
+        for (store, result, draft) in [(&db.a, a, one.clone()), (&db.b, b, two)] {
+            let committed = match result {
+                Ok(committed) => committed,
+                Err(StoreError::Database(error))
+                    if matches!(
+                        error.query_details(),
+                        Some(surrealdb::types::QueryError::TransactionConflict)
+                    ) =>
+                {
+                    store.commit_map_feature_changes(draft).await.unwrap()
+                }
+                Err(error) => panic!("unexpected Map commit failure: {error}"),
+            };
+            sequences.push(committed.changeset.commit_sequence);
+        }
+        sequences.sort();
+        assert_eq!(sequences, vec![1, 2]);
+        assert_eq!(db.a.latest_map_feature_commit_sequence().await.unwrap(), 2);
+        assert_eq!(
+            db.a.read_map_feature_commits(0, 2, 1).await.unwrap().len(),
+            1
+        );
+        assert_eq!(
+            db.b.read_map_feature_commits(1, 2, 1).await.unwrap()[0].commit_sequence,
+            2
+        );
+        assert!(
+            db.a.commit_map_feature_changes(one.clone()).await.is_ok(),
+            "idempotent replay"
+        );
+        let mut conflict = one;
+        conflict.changeset_key = format!("changeset-{}", Uuid::now_v7());
+        conflict.idempotency_key = Uuid::now_v7().to_string();
+        assert!(db.a.commit_map_feature_changes(conflict).await.is_err());
+        assert_eq!(
+            db.a.latest_map_feature_commit_sequence().await.unwrap(),
+            2,
+            "rejected writes cannot advance the head"
+        );
+    })
+    .await
+    .expect("Map commit-order qualification deadline");
+}

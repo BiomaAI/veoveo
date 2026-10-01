@@ -10,9 +10,8 @@ use crate::store::primary_transaction_error;
 use crate::{
     ArtifactGrantSubjectKind, InvocationAuthorityRecord, MapFeatureChangeSetRecord,
     MapFeatureHeadRecord, MapFeatureLayerRecord, MapFeatureRevisionRecord,
-    MapFeatureSchemaRevisionRecord, MapLayerPublicationRecord, MapStyleRevisionRecord, OpenObject,
-    OutboxDraft, PlatformIdentity, PlatformStore, StoreError, TenantId,
-    deterministic_work_context_id,
+    MapFeatureSchemaRevisionRecord, MapLayerPublicationRecord, MapStyleRevisionRecord,
+    PlatformIdentity, PlatformStore, StoreError, TenantId, deterministic_work_context_id,
 };
 
 const MAX_AUTHORING_JSON_BYTES: usize = 2 * 1024 * 1024;
@@ -331,16 +330,6 @@ impl PlatformStore {
             created_by: draft.identity.principal_id.record_id(),
             created_at: now,
         };
-        let event = authoring_event(
-            &draft.identity,
-            "map_feature_layer",
-            &draft.layer_key,
-            "map.feature_layer.created",
-            [
-                ("layer_key", serde_json::json!(draft.layer_key)),
-                ("revision", serde_json::json!(draft.revision)),
-            ],
-        );
         if let Some(style) = draft.style {
             let style_record = authored_version_record(
                 "map_style_revision",
@@ -359,24 +348,22 @@ impl PlatformStore {
                 created_at: now,
             };
             self.client()
-                .query("BEGIN TRANSACTION; CREATE ONLY $schema_record CONTENT $schema RETURN NONE; CREATE ONLY $style_record CONTENT $style RETURN NONE; CREATE ONLY $layer_record CONTENT $layer RETURN NONE; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;")
+                .query("BEGIN TRANSACTION; CREATE ONLY $schema_record CONTENT $schema RETURN NONE; CREATE ONLY $style_record CONTENT $style RETURN NONE; CREATE ONLY $layer_record CONTENT $layer RETURN NONE; COMMIT TRANSACTION;")
                 .bind(("schema_record", schema_record))
                 .bind(("schema", schema))
                 .bind(("style_record", style_record))
                 .bind(("style", style))
                 .bind(("layer_record", layer_record.clone()))
                 .bind(("layer", content))
-                .bind(("event", event))
                 .await?
                 .check()?;
         } else {
             self.client()
-                .query("BEGIN TRANSACTION; CREATE ONLY $schema_record CONTENT $schema RETURN NONE; CREATE ONLY $layer_record CONTENT $layer RETURN NONE; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;")
+                .query("BEGIN TRANSACTION; CREATE ONLY $schema_record CONTENT $schema RETURN NONE; CREATE ONLY $layer_record CONTENT $layer RETURN NONE; COMMIT TRANSACTION;")
                 .bind(("schema_record", schema_record))
                 .bind(("schema", schema))
                 .bind(("layer_record", layer_record.clone()))
                 .bind(("layer", content))
-                .bind(("event", event))
                 .await?
                 .check()?;
         }
@@ -442,21 +429,6 @@ impl PlatformStore {
             };
             (record, content)
         });
-        let event_type = if draft.archived_at.is_some() {
-            "map.feature_layer.archived"
-        } else {
-            "map.feature_layer.updated"
-        };
-        let event = authoring_event(
-            &draft.identity,
-            "map_feature_layer",
-            &draft.layer_key,
-            event_type,
-            [
-                ("layer_key", serde_json::json!(draft.layer_key)),
-                ("revision", serde_json::json!(draft.revision)),
-            ],
-        );
         let mut query = String::from("BEGIN TRANSACTION; ");
         if schema.is_some() {
             query.push_str("CREATE ONLY $schema_record CONTENT $schema RETURN NONE; ");
@@ -465,7 +437,7 @@ impl PlatformStore {
             query.push_str("CREATE ONLY $style_record CONTENT $style RETURN NONE; ");
         }
         query.push_str(
-            "LET $updated = (UPDATE ONLY $layer_record SET title = $title, description = $description, schema_version = $schema_version, schema_revision_key = $schema_revision_key, style_version = $style_version, style_revision_key = $style_revision_key, revision = $revision, archived_at = $archived_at, canonical_json = $canonical_json, updated_at = $now WHERE tenant = $tenant AND work_context = $context AND revision = $expected RETURN AFTER); IF $updated = NONE { THROW 'map_feature_layer_conflict'; }; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;",
+            "LET $updated = (UPDATE ONLY $layer_record SET title = $title, description = $description, schema_version = $schema_version, schema_revision_key = $schema_revision_key, style_version = $style_version, style_revision_key = $style_revision_key, revision = $revision, archived_at = $archived_at, canonical_json = $canonical_json, updated_at = $now WHERE tenant = $tenant AND work_context = $context AND revision = $expected RETURN AFTER); IF $updated = NONE { THROW 'map_feature_layer_conflict'; }; COMMIT TRANSACTION;",
         );
         let mut query = self.client().query(query);
         if let Some((record, content)) = schema {
@@ -493,7 +465,6 @@ impl PlatformStore {
             .bind(("tenant", draft.identity.tenant_id.record_id()))
             .bind(("context", work_context))
             .bind(("expected", expected_revision))
-            .bind(("event", event))
             .await?
             .check()?;
         select_only(self, layer_record)
@@ -691,21 +662,6 @@ impl PlatformStore {
                 }
             })
             .collect::<Vec<_>>();
-        let event = authoring_event(
-            &draft.identity,
-            "map_feature_changeset",
-            &draft.changeset_key,
-            "map.feature_changes.committed",
-            [
-                ("layer_key", serde_json::json!(draft.layer_key)),
-                ("changeset_key", serde_json::json!(draft.changeset_key)),
-                ("tenant_key", serde_json::json!(draft.identity.tenant_key)),
-                (
-                    "work_context_key",
-                    serde_json::json!(draft.authority.context_key),
-                ),
-            ],
-        );
         let result = self
             .client()
             .query(
@@ -725,9 +681,9 @@ impl PlatformStore {
                      UPDATE ONLY $mutation.head_record CONTENT $mutation.head RETURN NONE; \
                    }; \
                  }; \
-                 LET $events = (CREATE outbox_event CONTENT $event RETURN AFTER); \
-                 LET $event_record = array::first($events); \
-                 UPDATE ONLY $changeset_record SET commit_sequence = $event_record.sequence RETURN NONE; \
+                 LET $head = (SELECT * FROM ONLY map_projection_state:authored_features); \
+                 IF $head = NONE { THROW 'map_feature_projection_head_missing'; }; \
+                 UPDATE ONLY $changeset_record SET commit_sequence = $head.last_sequence + 1 RETURN NONE; \
                  COMMIT TRANSACTION;",
             )
             .bind(("changeset_record", changeset_record.clone()))
@@ -740,7 +696,6 @@ impl PlatformStore {
             .bind(("context", work_context))
             .bind(("expected_layer_revision", draft.expected_layer_revision))
             .bind(("mutations", mutations))
-            .bind(("event", event))
             .await
             .and_then(|mut response| match primary_transaction_error(response.take_errors()) {
                 Some(error) => Err(error),
@@ -917,25 +872,14 @@ impl PlatformStore {
             canonical_json: draft.canonical_json,
             published_at: draft.published_at,
         };
-        let event = authoring_event(
-            &draft.identity,
-            "map_layer_publication",
-            &draft.publication_key,
-            "map.feature_layer.published",
-            [
-                ("layer_key", serde_json::json!(draft.layer_key)),
-                ("publication_key", serde_json::json!(draft.publication_key)),
-            ],
-        );
         self.client()
-            .query("BEGIN TRANSACTION; LET $layer = (SELECT * FROM ONLY $layer_record WHERE tenant = $tenant AND work_context = $context AND revision = $layer_revision AND archived_at = NONE); IF $layer = NONE { THROW 'map_feature_layer_conflict'; }; CREATE ONLY $publication_record CONTENT $publication RETURN NONE; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; LET $layer = (SELECT * FROM ONLY $layer_record WHERE tenant = $tenant AND work_context = $context AND revision = $layer_revision AND archived_at = NONE); IF $layer = NONE { THROW 'map_feature_layer_conflict'; }; CREATE ONLY $publication_record CONTENT $publication RETURN NONE; COMMIT TRANSACTION;")
             .bind(("layer_record", layer_record))
             .bind(("tenant", draft.identity.tenant_id.record_id()))
             .bind(("context", work_context))
             .bind(("layer_revision", draft.layer_revision))
             .bind(("publication_record", publication_record.clone()))
             .bind(("publication", content))
-            .bind(("event", event))
             .await?
             .check()?;
         select_only(self, publication_record)
@@ -1048,28 +992,6 @@ fn authored_feature_revision_record(
         "map_feature_revision",
         tenant_key,
         &[layer_key, feature_key, &format!("{version:020}")],
-    )
-}
-
-fn authoring_event<const N: usize>(
-    identity: &PlatformIdentity,
-    aggregate_type: &str,
-    aggregate_id: &str,
-    event_type: &str,
-    payload: [(&str, serde_json::Value); N],
-) -> OutboxDraft {
-    OutboxDraft::now(
-        Some(identity.tenant_id.record_id()),
-        aggregate_type,
-        aggregate_id,
-        event_type,
-        1,
-        OpenObject::new(
-            payload
-                .into_iter()
-                .map(|(key, value)| (key.to_owned(), value))
-                .collect(),
-        ),
     )
 }
 

@@ -191,13 +191,13 @@ pub enum DatabaseHighAvailability {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ChangefeedSourceOfTruth {
-    DurableOutbox,
+    NativeChangefeed,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum LiveQueryRole {
-    BestEffortLatencyPath,
+    ChangefeedWake,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -498,11 +498,11 @@ impl PlatformStoreDeployment {
             || self.topology != DatabaseTopology::SingleNode
             || self.database_ha != DatabaseHighAvailability::OutOfScope
             || !self.durable_volume_required
-            || self.changefeed_source_of_truth != ChangefeedSourceOfTruth::DurableOutbox
-            || self.live_queries != LiveQueryRole::BestEffortLatencyPath
+            || self.changefeed_source_of_truth != ChangefeedSourceOfTruth::NativeChangefeed
+            || self.live_queries != LiveQueryRole::ChangefeedWake
         {
             bail!(
-                "deployment profile `{profile}` must use required SurrealDB 3.3.0 single-node RocksDB; database HA is out of scope, durable outbox is authoritative, and LIVE is latency-only"
+                "deployment profile `{profile}` must use required SurrealDB 3.3.0 single-node RocksDB; database HA is out of scope, native changefeeds supply committed recovery, and LIVE wakes readers"
             );
         }
         if !(self.endpoint.as_str().starts_with("ws://")

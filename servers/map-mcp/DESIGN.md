@@ -434,33 +434,30 @@ grant authority to alter the routing data plane.
 SurrealDB owns the immutable truth. A direct commit contains at most 100
 mutations and 1 MiB. One transaction checks the expected layer revision and
 each expected feature revision, creates feature revisions, advances heads,
-records the scoped idempotent changeset, and appends the outbox event. The
-changeset stores the event sequence needed for read-your-write projection
-checks. A repeated idempotency key returns the original changeset only when its
-request digest matches.
+records the scoped idempotent changeset, and allocates its next sequence from the
+Map projection head. A repeated idempotency key returns the original changeset only
+when its request digest matches.
 
-The changeset event updates a shared Map projection head in the same transaction.
-An allocated sequence at or below the committed head is rejected; concurrent head
-writes conflict atomically. This makes accepted Map commit sequences increase in
-commit order even though the shared sequence allocator runs independently of the
-data transaction. Installation migrations `0047` and `0048` establish the head from
-committed Map changesets. The backfill reads canonical rows directly because the
-new index is populated after its defining migration commits. Apply both migrations
-while Map writers are stopped, then resume the new Map image.
-The persisted DuckDB volume and checkpoint remain in place.
+A synchronous database event advances the Map head in the same transaction. An
+allocated sequence at or below the committed head is rejected; concurrent writes
+conflict atomically. The sequence belongs to authored Map commits, so unrelated domain
+writes cannot contend on this ordering key. Read-your-write requests carry that
+committed sequence.
 
 DuckDB Spatial is a rebuildable query projection. Recovery captures the committed
-Map head once, then reads the canonical Map changesets
-through that bound using the `commit_sequence` index. Each page contains at most
-1,000 Map commits. Unrelated platform events require no replay or payload transfer.
-The projector checks each changeset's complete feature revision inventory and
-writes a revision table, a current-head table, R-tree indexes, and the local
-checkpoint in one transaction. The checkpoint remains a global sequence: a short
-page proves that every Map commit through the captured bound has been projected.
-The existing persisted checkpoint resumes directly, and read-your-write requests
-above the committed Map bound fail. Unrelated writes cannot advance that bound.
-Map continues publishing its transactional outbox
-events for other consumers. Queries can select a current layer or a published
+Map head once, then reads immutable changesets through that bound using the
+`commit_sequence` index. Each page contains at most 1,000 Map commits. The projector
+checks each changeset's complete feature revision inventory and writes the revision
+table, current-head table, R-tree indexes and local checkpoint in one DuckDB transaction.
+Restart resumes that checkpoint. Requests above the committed Map bound fail.
+
+SurrealDB `ASYNC` events cannot own this projection because it writes a separate DuckDB
+volume. The Map service owns the external transaction and its checkpoint. The Map-head
+event must also run synchronously: advancing it after commit would permit a reader to
+capture a head that omits an accepted changeset. Native changefeeds record Map mutations
+for other consumers; immutable changesets supply the complete rebuild log.
+
+Queries can select a current layer or a published
 layer revision. They accept a validated WGS84 bounding box, open valid-time
 interval, geometry type, opaque keyset cursor, and a bounded Basic CQL2-JSON subset.
 Property paths and literal values remain parameters. A dateline-crossing box is

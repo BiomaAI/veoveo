@@ -148,6 +148,22 @@ pub struct ManagedAgentOperation {
     pub updated_at: DateTime<Utc>,
 }
 
+/// A position produced by a managed-operation inventory row.
+#[derive(Clone, Debug)]
+pub struct ManagedAgentOperationCursor(RecordId);
+
+impl ManagedAgentOperation {
+    pub fn cursor(&self) -> ManagedAgentOperationCursor {
+        ManagedAgentOperationCursor(self.id.clone())
+    }
+}
+
+impl ManagedAgentOperationCursor {
+    pub(super) fn record(self) -> RecordId {
+        self.0
+    }
+}
+
 /// Server-side admission decision after validating the published revision and
 /// the complete installation template. Never deserialize this from HTTP.
 #[derive(Clone, Debug, Serialize, SurrealValue)]

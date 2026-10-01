@@ -266,7 +266,7 @@ designs above.
 | `platform/gateway/src/bin/gateway/computers/files.rs` | typed file request and result validation at the fixed public Computer boundary |
 | `servers/computers-mcp/src/application/maintenance.rs` and `src/server/maintenance.rs` | public environment updates, stable target selection, typed progress and HTTP receipts; MCP resources and Tasks use the same domain checks |
 | `servers/computers-mcp/src/application.rs` and `templates.rs` | shared lifecycle and read views, action flags, availability/quota states and original Create selection across default-template changes |
-| `servers/computers-mcp/src/protocol/` and `server/` | authenticated stateless MCP, lifecycle/resource/Task surfaces, shared-outbox subscriptions and Console HTTP routes; service startup and provider readiness in `server/run.rs` and `provider.rs` |
+| `servers/computers-mcp/src/protocol/` and `server/` | authenticated stateless MCP, lifecycle/resource/Task surfaces, native changefeed subscriptions and Console HTTP routes; service startup and provider readiness in `server/run.rs` and `provider.rs` |
 | `servers/computers-mcp/src/server/terminal/`, `attachment_authority.rs`, `access_events.rs` and `runtime_access.rs` | Origin-checked one-use browser attachment, shared browser/CLI revocation wakes and renewal, domain-to-runtime leases, and provider resource/process verification before any bytes flow |
 | `servers/computers-mcp/src/server/cli/` | narrow-credential admission, connection fencing, five-method stock CLI gRPC facade and WebSocket byte pump; public SSO/ingress evidence is recorded in the Computers plan |
 | `servers/computers-mcp/src/server/pairing.rs` | Origin-checked HTTP pairing and one-use confirmation; the domain stores challenges and owns issuance |
@@ -537,13 +537,14 @@ Domain runtimes can own private queries and driver records over these connection
 | `migrations/0050_artifact_uploads.surql` | durable upload/part state, storage accounting, and repository-owned current-authority digest functions |
 | `artifact_reads.rs`, `artifact_reads/` | task-bound read delegation, current policy identity, and atomic distinct-occurrence quotas; specified in the Artifact service design |
 | `map.rs` | source, release, active-pointer, mobility, restriction, snapshot, route, matrix, and acquisition persistence |
-| `map_authoring.rs` | Work Context-scoped feature layers, immutable schema/style/feature revisions, atomic changesets, heads, publications, and authoring outbox events |
+| `map_authoring.rs` | Work Context-scoped feature layers, immutable schema/style/feature revisions, atomic changesets, a domain commit counter, heads and publications |
 | `map_projection.rs` | indexed Map changeset replay up to the committed Map head |
 | `map_presentations.rs` | immutable publication products plus publication-pinned map compositions and revisions |
 | `recordings.rs`, `recordings/reads.rs` | recording lifecycle, SQL tenant/label visibility, cursor pages, bounded completion and layer counts |
 | `recording_ingest.rs`, `recording_blueprints.rs` | producer streams, idempotent batch checkpoints, immutable producer Blueprint revisions, and journal state |
 | `usage.rs` | shared domain/media usage records |
 | `resource_changes.rs` | shared domain LIVE invalidations, coalescing, database-clock checkpoints and changefeed recovery; composed into Time, Recording, Frames, Media, Optimization, and UAV resource hubs |
+| `agent_management/revision.rs` and `agent_management/revision.surql` | SHA-256 revisions of SQL-authorized catalog and management views |
 | `outbox.rs` | event writers and consumers awaiting the foundations Store cut |
 | `changefeed.rs`, `changefeed/` | complete transaction-tail replay, consumer checkpoints and LIVE recovery; typed Task, Artifact and Computer change decoding imports the owning contract types |
 | `platform/task-runtime/src/runtime/history.rs`, `subscriptions.rs`, `owner_subscriptions.rs` | committed-state replay for trusted workers, shared native-feed wakeups and current SQL-authorized public Task reads |
@@ -569,7 +570,7 @@ or success.
 
 ### `platform/task-runtime`
 
-`runtime/subscriptions.rs` owns per-Task baselines, filtered outbox replay and shared
+`runtime/subscriptions.rs` owns per-Task baselines, native commit replay and shared
 wake-source lifetime. Workspace `operations/progress.rs` ties measured progress to its
 request and dispatch fence.
 
@@ -584,7 +585,7 @@ observation lease and cancellation epoch in one transaction.
 | `runtime.rs` | create/idempotency, update, cancel, finish, subscriptions and prune |
 | `admission.rs`, `tests/admission.rs` | shared queued-Task transaction guard and native qualification; domains supply their own admission SQL and retain ownership of resource policy |
 | `runtime/task_pages.rs` | caller-owned collection pages with Store authorization filters, creation-time and Task-ID cursors |
-| `runtime/owner_query.rs`, `runtime/owner_reads.rs` and `runtime/owner_subscriptions.rs` | typed owner/context/operation query builder and shared SQL selection for exact reads, cancellation, collection pages and public Task delivery; current-state projection from payload-free outbox hints |
+| `runtime/owner_query.rs`, `runtime/owner_reads.rs` and `runtime/owner_subscriptions.rs` | typed owner/context/operation query builder and shared SQL selection for exact reads, cancellation, collection pages and public Task delivery; current-state projection from native Task identities |
 | `runtime/transition.surql` | Task compare-and-set transitions with owner-query selection repeated inside caller cancellations |
 | `runtime/context_scope.rs` | checked Work Context predicates and bindings shared by Task observation and linked usage reads |
 | `runtime/usage.rs` | caller-owned usage reads and Task-ID pages; SQL checks both usage and linked Task metadata before grouping and limits under an explicit owner or Work Context policy; Task existence admission before the first usage row |
@@ -1350,7 +1351,8 @@ The [manager design](../agents/manager/DESIGN.md) owns namespace-scoped managed
 kernel provisioning. `tests/admission.rs` qualifies rendered CEL policies against
 the actual resource composer and a temporary Kubernetes namespace. `reconcile.rs` advances durable claims, `credentials.rs`
 correlates retained signing keys, `resources.rs` composes fixed workloads, and
-`kubernetes.rs` owns HTTPS requests and native watch recovery. Installation
+`observation.rs` owns native intent replay and recovery checkpoints. `kubernetes.rs`
+owns HTTPS requests, metadata watches and resource-version recovery. Installation
 admission policy constrains the controller's Kubernetes authority.
 
 ### `agents/kernel`

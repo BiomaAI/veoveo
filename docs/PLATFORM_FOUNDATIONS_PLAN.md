@@ -1,11 +1,18 @@
 # Platform Foundations Plan
 
+Status: Phase 0 is accepted. Phases 1–3 have the installed acceptance gaps listed
+under Deferred Work. Phase 4's installed audit checks pass; composed flight and
+Recording acceptance remain open. Phase 5 has qualified native consumer migration,
+with writer/schema removal, relationship adoption and final measurements still in
+progress. Phases 6–9 are open. The reference installation last converged at `8e4b36e7`;
+it is stopped during development, and the Phase 5 changes are not deployed.
+
 Current direction: every contract change in this plan is a coordinated hard cut.
 Historical data requires no support or migration. Remove compatibility adapters
 introduced during earlier checkpoints; those checkpoint descriptions are not
 requirements to preserve them. Current-format restart and failure recovery still apply.
 
-Current release checkpoint (2026-09-30): the unified audit cut is committed at
+Release checkpoint (2026-09-30): the unified audit cut is committed at
 `e543e6e4`. Its affected native tests, seven gateway scenarios, strict workspace checks
 and paired development measurements pass. All 29 affected images and both Helm charts
 are published from that revision. The release inputs select their digests, including
@@ -2904,6 +2911,28 @@ cross-replica delivery and a zero-query idle interval pass against the pinned 3.
 The grouped SDK, Datasheet template and fork-fixture run passes 227 checks (191, 28 and
 eight). The temporary database is removed after the run; the cluster and builder stay
 stopped with about 178 GiB free. Installed acceptance remains open for this batch.
+
+The remaining-consumer batch moves Agent Manager and gateway catalog/Console wakes
+to native feeds. Manager inventories page through typed operation cursors and wake
+from Kubernetes metadata watches or persisted deadlines. A watch resumes bookmarks
+after normal expiration and relists on HTTP 410. Helm grants and tests list/watch
+permissions for every observed resource. Catalog SSE revisions hash SQL-authorized
+metadata; private edits leave another user's revision unchanged, while publication
+changes it. Policy replacement and token expiry close the stream. Feed ownership
+also closes readers when the producer ends.
+
+Map authoring allocates its sequence from the Map head in the same transaction and
+stops writing outbox events. Unrelated domain traffic cannot advance its sequence.
+DuckDB commits each projection page with its checkpoint and resumes after restart.
+The deployment profile now declares native changefeed recovery and LIVE wakeups.
+The grouped run and affected follow-up pass 183 distinct Rust tests and 125 browser
+client unit tests. Both clients pass TypeScript checks, five affected packages pass
+strict all-target Clippy, and docs pass link validation. The installed Kubernetes
+admission case remains unrun while the cluster is stopped. About 165 GiB is free.
+Installed qualification, remaining outbox writer/API/schema removal, Computer authority
+timers and Task wake-source failure ownership remain open, followed by the relationship
+review and paired measurements. The existing headed Chrome profile on port 9222 is
+connected; WebGL uses the RTX 4090, and WebGPU reports a software fallback.
 
 The reference installation converged at `8e4b36e7` with both Helm releases and all 25
 Deployments current. The corrected composed flight harness used the existing headed

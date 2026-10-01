@@ -200,13 +200,31 @@ async fn instance_routes_reserve_capacity_recover_retries_and_keep_owner_control
     )
     .await
     .unwrap();
-    let before = db.a.agent_management_head(&actor.authority).await.unwrap();
+    let before =
+        db.a.agent_management_revision(&actor.authority)
+            .await
+            .unwrap();
+    let bob_actor = authority::admit(
+        &state,
+        "operator".into(),
+        fixture_subject("Bob"),
+        Action::AgentDefinitionsRead,
+    )
+    .await
+    .unwrap();
+    let bob_before =
+        db.a.agent_management_revision(&bob_actor.authority)
+            .await
+            .unwrap();
     let body = json!({"requestId":uuid::Uuid::now_v7(),"id":"worker-one","name":"Worker one","definition":"worker","revision":definition["publishedDigest"]});
     let (status, operation) = request(&alice, "POST", "agent-instances", body.clone()).await;
     assert_eq!(status, StatusCode::ACCEPTED, "{operation}");
     assert_eq!(operation["phase"], "queued");
-    let after = db.a.agent_management_head(&actor.authority).await.unwrap();
-    assert!(after > before);
+    let after =
+        db.a.agent_management_revision(&actor.authority)
+            .await
+            .unwrap();
+    assert_ne!(after, before);
     let bob_actor = authority::admit(
         &state,
         "operator".into(),
@@ -216,10 +234,10 @@ async fn instance_routes_reserve_capacity_recover_retries_and_keep_owner_control
     .await
     .unwrap();
     assert_eq!(
-        db.a.agent_management_head(&bob_actor.authority)
+        db.a.agent_management_revision(&bob_actor.authority)
             .await
             .unwrap(),
-        before
+        bob_before
     );
     let (_, replay) = request(&alice, "POST", "agent-instances", body.clone()).await;
     assert_eq!(replay, operation);

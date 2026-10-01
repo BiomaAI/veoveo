@@ -2,6 +2,7 @@ mod config;
 mod credentials;
 mod kubernetes;
 mod kubernetes_types;
+mod observation;
 mod reconcile;
 mod resources;
 #[cfg(test)]
@@ -11,9 +12,7 @@ use anyhow::{Result, ensure};
 use futures::{StreamExt, stream};
 use std::{path::Path, sync::Arc, time::Duration};
 use tokio::sync::watch;
-use veoveo_platform_store::{
-    OutboxEventRecord, PlatformStore, PlatformTable, StoreConfig, StoreCredentials,
-};
+use veoveo_platform_store::{PlatformStore, StoreConfig, StoreCredentials};
 
 use config::Config;
 use kubernetes::Kubernetes;
@@ -55,13 +54,17 @@ async fn main() -> Result<()> {
         config,
     };
     let (changed, mut changes) = watch::channel(0_u64);
-    tokio::spawn(kube.watch_pods(changed.clone()));
-    tokio::spawn(observe_intents(store, changed));
-    let mut recovery = tokio::time::interval(Duration::from_secs(5));
-    recovery.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-    let mut audit = tokio::time::interval(Duration::from_secs(30));
-    audit.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-    let mut include_settled = true;
+    for resource in [
+        kubernetes::Resource::Pods,
+        kubernetes::Resource::Deployments,
+        kubernetes::Resource::Claims,
+        kubernetes::Resource::Secrets,
+        kubernetes::Resource::ConfigMaps,
+    ] {
+        tokio::spawn(kube.clone().watch_resources(resource, changed.clone()));
+    }
+    let mut intents = tokio::spawn(observation::observe_intents(store, changed));
+    let mut retry_delay = Duration::from_millis(250);
     let shutdown = shutdown_signal();
     tokio::pin!(shutdown);
     tracing::info!(
@@ -69,56 +72,76 @@ async fn main() -> Result<()> {
         "agent lifecycle manager ready"
     );
     loop {
-        match manager
+        // Consume hints before inventory; writes during reconciliation remain
+        // pending and immediately trigger the next pass.
+        changes.borrow_and_update();
+        let work = reconcile_inventory(&manager);
+        let mut retry = tokio::select! {
+            retry = work => retry,
+            _ = &mut shutdown => return Ok(()),
+            _ = &mut intents => anyhow::bail!("manager intent observer ended"),
+        };
+        let due = match manager
             .store
-            .pending_managed_agent_operations(&manager.config.namespace, 200, include_settled)
+            .next_managed_agent_delay(&manager.config.namespace)
             .await
         {
-            Ok(operations) => {
-                let work = stream::iter(operations)
-                    .for_each_concurrent(4, |operation| manager.process(operation));
-                tokio::select! { _ = work => {}, _ = &mut shutdown => return Ok(()) }
+            Ok(due) => due,
+            Err(error) => {
+                tracing::warn!(%error, "managed deadlines unavailable");
+                retry = true;
+                None
             }
-            Err(error) => tracing::warn!(%error, "managed intent inventory unavailable"),
-        }
-        include_settled = tokio::select! {
-            _ = &mut shutdown => return Ok(()),
-            _ = recovery.tick() => false,
-            _ = changes.changed() => true,
-            _ = audit.tick() => true,
         };
+        let delay = if retry {
+            let delay = retry_delay;
+            retry_delay = (retry_delay * 2).min(Duration::from_secs(30));
+            Some(delay)
+        } else {
+            retry_delay = Duration::from_millis(250);
+            due
+        };
+        let deadline = async {
+            match delay {
+                Some(delay) => tokio::time::sleep(delay).await,
+                None => futures::future::pending().await,
+            }
+        };
+        tokio::select! {
+            _ = &mut shutdown => return Ok(()),
+            _ = &mut intents => anyhow::bail!("manager intent observer ended"),
+            changed = changes.changed() => { if changed.is_err() { anyhow::bail!("manager observation sources ended"); } },
+            _ = deadline => {},
+        }
     }
 }
 
-async fn observe_intents(store: PlatformStore, changed: watch::Sender<u64>) {
+async fn reconcile_inventory(manager: &Manager) -> bool {
+    let mut after = None;
+    let mut retry = false;
     loop {
-        match store
-            .live::<OutboxEventRecord>(PlatformTable::OutboxEvent)
+        let operations = match manager
+            .store
+            .pending_managed_agent_operations(&manager.config.namespace, 200, true, after)
             .await
         {
-            Ok(mut live) => {
-                changed.send_modify(|version| *version = version.wrapping_add(1));
-                while let Some(event) = live.next().await {
-                    match event {
-                        Ok(event)
-                            if matches!(
-                                event.data.aggregate_type.as_str(),
-                                "managed_agent" | "agent_definition" | "agent"
-                            ) =>
-                        {
-                            changed.send_modify(|version| *version = version.wrapping_add(1))
-                        }
-                        Ok(_) => {}
-                        Err(error) => {
-                            tracing::warn!(%error, "managed intent stream requires recovery");
-                            break;
-                        }
-                    }
-                }
+            Ok(operations) => operations,
+            Err(error) => {
+                tracing::warn!(%error, "managed intent inventory unavailable");
+                return true;
             }
-            Err(error) => tracing::warn!(%error, "managed intent stream unavailable"),
+        };
+        let full = operations.len() == 200;
+        after = operations.last().map(|operation| operation.cursor());
+        let mut work = stream::iter(operations)
+            .map(|operation| manager.process(operation))
+            .buffer_unordered(4);
+        while let Some(failed) = work.next().await {
+            retry |= failed;
         }
-        tokio::time::sleep(Duration::from_secs(2)).await;
+        if !full {
+            return retry;
+        }
     }
 }
 

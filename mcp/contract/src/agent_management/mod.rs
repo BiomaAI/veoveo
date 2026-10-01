@@ -270,7 +270,7 @@ pub struct Authoring {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CatalogWake {
-    pub sequence: i64,
+    pub revision: veoveo_types::Sha256Digest,
 }
 
 #[derive(JsonSchema)]

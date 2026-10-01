@@ -518,5 +518,5 @@ export interface Finding {
  * via the `definition` "CatalogWake".
  */
 export interface CatalogWake {
-  sequence: number;
+  revision: string;
 }

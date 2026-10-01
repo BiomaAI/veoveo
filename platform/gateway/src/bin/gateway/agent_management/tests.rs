@@ -306,13 +306,18 @@ async fn http_authoring_publishes_immutable_revisions_with_private_content_and_r
     )
     .await
     .unwrap();
-    assert!(
+    let revision = state
+        .store()
+        .agent_catalog_revision(&actor.authority)
+        .await
+        .unwrap();
+    assert_eq!(
         state
             .store()
-            .agent_catalog_head(&actor.authority)
+            .agent_catalog_revision(&actor.authority)
             .await
-            .unwrap()
-            > 0
+            .unwrap(),
+        revision
     );
 }
 
@@ -352,4 +357,47 @@ async fn current_context_and_principal_override_authoring_policy() {
             .0,
         StatusCode::FORBIDDEN
     );
+}
+
+#[tokio::test]
+async fn native_catalog_stream_filters_private_changes_and_ends_on_policy_or_token_expiry() {
+    use futures::StreamExt;
+    use std::time::Duration;
+    tokio::time::timeout(Duration::from_secs(60), async {
+        let db = crate::test_store::TestDb::new().await;
+        crate::workspace::tests::setup(&db.a).await;
+        let state = state(&db.a);
+        let _stop = state.stop.clone().drop_guard();
+        let alice = app(&state, fixture_subject("Alice"));
+        let bob = app(&state, fixture_subject("Bob"));
+        let response = bob.oneshot(Request::builder().uri("/admin/operator/agent-events").body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let mut stream = response.into_body().into_data_stream();
+        let first = stream.next().await.unwrap().unwrap();
+        let decode = |bytes: &[u8]| -> wire::CatalogWake {
+            let text = std::str::from_utf8(bytes).unwrap();
+            let data = text.lines().find_map(|line| line.strip_prefix("data:")).expect("SSE data");
+            serde_json::from_str(data.trim()).unwrap()
+        };
+        let initial = decode(&first);
+        let (_, authoring) = request(&alice, "GET", "agent-authoring", Value::Null).await;
+        let content = json!({"model":authoring["models"][0]["reference"], "instructions":"Private", "tools":[], "execution":{"kind":"chat"}, "budgets":authoring["models"][0]["limits"]});
+        let (status, definition) = request(&alice, "POST", "agent-definitions", json!({"requestId":uuid::Uuid::now_v7(), "id":"private", "name":"Private", "description":"Fixture", "source":{"kind":"blank", "content":content}})).await;
+        assert_eq!(status, StatusCode::OK, "{definition}");
+        assert!(tokio::time::timeout(Duration::from_millis(250), stream.next()).await.is_err());
+        let (status, published) = request(&alice, "POST", "agent-definitions/private/publish", json!({"requestId":uuid::Uuid::now_v7(), "expectedRevision":definition["revision"], "digest":definition["draftDigest"], "audience":["shared"]})).await;
+        assert_eq!(status, StatusCode::OK, "{published}");
+        let updated = tokio::time::timeout(Duration::from_secs(5), stream.next()).await.unwrap().unwrap().unwrap();
+        assert_ne!(decode(&updated).revision, initial.revision);
+        state.catalog.replace(Arc::new(fixture_catalog()));
+        assert!(tokio::time::timeout(Duration::from_secs(1), stream.next()).await.unwrap().is_none());
+
+        let mut subject = fixture_subject("Bob");
+        subject.access_token.expires_at = chrono::Utc::now() + chrono::TimeDelta::milliseconds(500);
+        let response = app(&state, subject).oneshot(Request::builder().uri("/admin/operator/agent-events").body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let mut expiring = response.into_body().into_data_stream();
+        assert!(expiring.next().await.unwrap().is_ok());
+        assert!(tokio::time::timeout(Duration::from_secs(2), expiring.next()).await.unwrap().is_none());
+    }).await.expect("native catalog SSE qualification deadline");
 }

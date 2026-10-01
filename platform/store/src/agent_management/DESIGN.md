@@ -56,6 +56,11 @@ Replay still requires current identity, context and ownership. Receipts contain 
 authoring data and have no public collection endpoint. Outbox payloads contain IDs and
 revisions only; no prompt or provider credential enters event payloads.
 
+Catalog observation computes a SHA-256 revision from rows admitted in SQL and ordered
+by domain key. The management revision includes the public catalog and only definitions
+and instances the caller can manage. Native table feeds wake these reads. The digest
+changes when a visible row is removed and ignores private writes outside the view.
+
 ## Validation And Evidence
 
 Closed typed content admits model references, bounded instructions, exact tool names,

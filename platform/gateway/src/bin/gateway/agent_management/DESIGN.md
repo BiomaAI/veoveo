@@ -50,10 +50,19 @@ A retry still needs current identity, home-context access, action policy and aud
 admission. It returns the original response without repeating publication. Current
 revision checks protect new mutations. History pages use stable timestamp/digest order.
 
-One gateway outbox subscription wakes bounded browser streams. A contentless SSE
-sequence invalidates the local catalog; reconnect and periodic database reconciliation
-recover missed hints. These checks never invoke a model. Events include former audience
-contexts so removing publication access invalidates their catalogs too.
+One native feed per gateway replica wakes browser streams and persists its recovery
+cursor. Streams hash the current SQL-authorized catalog, authored definitions and
+managed instances into a typed SHA-256 revision. A private change outside that view
+cannot change its revision. Removing an audience member removes the definition from
+that caller's view and changes its digest without reading the old payload.
+
+LIVE queries supply wakeups; reconnect reconciles current state. Idle streams issue no
+database queries. Token expiry and the five-minute stream lifetime have explicit
+timers. Current session, principal, tenant, context and JWT revocation changes wake
+admission checks; a gateway policy generation change closes the stream. Feed failure
+ends active streams so clients renew admission. The SSE payload is `{revision}` and
+its ID carries the same digest. Deploy gateway and browser clients together for this
+unreleased HTTP contract change.
 
 Enable revalidates the retained published model and capability selection. Model
 connection revisions bind destinations, model names, Secret references and ceilings;

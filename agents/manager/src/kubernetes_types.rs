@@ -304,13 +304,15 @@ pub struct ResourceList<T> {
 #[serde(rename_all = "camelCase")]
 pub struct ListMetadata {
     pub resource_version: String,
+    #[serde(default, rename = "continue")]
+    pub continuation: Option<String>,
 }
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", content = "object", rename_all = "UPPERCASE")]
 pub enum WatchEvent {
-    Added(Pod),
-    Modified(Pod),
-    Deleted(Pod),
+    Added(Bookmark),
+    Modified(Bookmark),
+    Deleted(Bookmark),
     Bookmark(Bookmark),
     Error(ApiStatus),
 }

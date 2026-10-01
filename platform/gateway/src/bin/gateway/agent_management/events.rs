@@ -1,4 +1,4 @@
-//! Contentless catalog invalidation. Durable heads recover dropped LIVE hints.
+//! Contentless native invalidation with revisions of current authorized views.
 use std::{convert::Infallible, sync::Arc, time::Duration};
 
 use axum::{
@@ -12,10 +12,11 @@ use axum::{
     routing::get,
 };
 use futures::StreamExt;
-use tokio::sync::broadcast;
+use tokio::sync::watch;
 use veoveo_mcp_contract::{GatewayAction as Action, agent_management::CatalogWake};
 use veoveo_mcp_gateway::AuthenticatedSubject;
-use veoveo_platform_store::{OutboxEventRecord, PlatformTable, RecordId};
+use veoveo_platform_store::{ChangefeedConsumerId, ChangefeedDelivery, PlatformTable};
+use veoveo_types::Sha256Digest;
 
 use super::{AgentManagementState, authority};
 use crate::stream_limits::Limits;
@@ -23,12 +24,12 @@ use crate::stream_limits::Limits;
 #[derive(Clone)]
 struct Events {
     agents: AgentManagementState,
-    wakes: broadcast::Sender<Option<RecordId>>,
+    wakes: watch::Receiver<bool>,
     limits: Arc<Limits>,
 }
 
 pub(super) fn router(agents: AgentManagementState) -> Router<AgentManagementState> {
-    let (wakes, _) = broadcast::channel(128);
+    let (wake_tx, wakes) = watch::channel(true);
     let events = Events {
         agents,
         wakes,
@@ -36,22 +37,53 @@ pub(super) fn router(agents: AgentManagementState) -> Router<AgentManagementStat
     };
     let shared = events.clone();
     tokio::spawn(async move {
+        let replica = std::env::var("HOSTNAME").unwrap_or_else(|_| "local".into());
+        let consumer = ChangefeedConsumerId::new(format!("gateway-agent-events/{replica}"))
+            .expect("gateway replica must be a valid consumer identity");
+        let store = shared.agents.store();
+        let cursor = store
+            .changefeed_checkpoint(&consumer)
+            .await
+            .unwrap_or_default();
+        let mut source = store.observe_changes(
+            vec![
+                PlatformTable::AgentDefinition,
+                PlatformTable::ManagedAgent,
+                PlatformTable::WorkContext,
+                PlatformTable::Principal,
+                PlatformTable::Tenant,
+                PlatformTable::GatewayRefreshFamily,
+                PlatformTable::GatewayJwtRevocation,
+            ],
+            cursor,
+        );
         loop {
-            let source = tokio::select! { _ = shared.agents.stop.cancelled() => return, source = shared.agents.store().live::<OutboxEventRecord>(PlatformTable::OutboxEvent) => source };
-            if let Ok(mut source) = source {
-                loop {
-                    tokio::select! {
-                        _ = shared.agents.stop.cancelled() => return,
-                        hint = source.next() => match hint {
-                            Some(Ok(hint)) if matches!(hint.data.aggregate_type.as_str(), "agent_definition" | "managed_agent") => { let _ = shared.wakes.send(hint.data.tenant); },
-                            Some(Ok(_)) => {},
-                            _ => break,
-                        }
+            let delivery = tokio::select! {
+                _ = shared.agents.stop.cancelled() => return,
+                delivery = source.next() => delivery,
+            };
+            match delivery {
+                Some(Ok(delivery)) => {
+                    let changed = match &delivery {
+                        ChangefeedDelivery::Reconcile { .. } => true,
+                        ChangefeedDelivery::Changes { entries, .. } => !entries.is_empty(),
+                    };
+                    if changed {
+                        wake_tx.send_replace(true);
+                    }
+                    if let Err(error) = store.checkpoint_changes(&consumer, delivery.cursor()).await
+                    {
+                        tracing::warn!(%error, "agent event checkpoint unavailable");
                     }
                 }
+                Some(Err(error)) => {
+                    tracing::warn!(%error, "agent event source disconnected");
+                    wake_tx.send_replace(false);
+                }
+                None => {
+                    return;
+                }
             }
-            let _ = shared.wakes.send(None);
-            tokio::select! { _ = shared.agents.stop.cancelled() => return, _ = tokio::time::sleep(Duration::from_secs(1)) => {} }
         }
     });
     Router::new()
@@ -84,11 +116,15 @@ async fn stream(
     let Some(slot) = state.limits.acquire(actor.subject.principal.id.as_str()) else {
         return StatusCode::TOO_MANY_REQUESTS.into_response();
     };
-    let mut hints = state.wakes.subscribe();
+    let mut hints = state.wakes.clone();
+    if hints.has_changed().is_err() || !*hints.borrow_and_update() {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    }
+    let mut catalog = state.agents.catalog.subscribe();
     let first = match state
         .agents
         .store()
-        .agent_management_head(&actor.authority)
+        .agent_management_revision(&actor.authority)
         .await
     {
         Ok(head) => head,
@@ -97,27 +133,24 @@ async fn stream(
     let stream = async_stream::stream! {
         let _slot = slot;
         let mut head = first;
-        yield Ok::<_, Infallible>(change(head));
-        let mut tick = tokio::time::interval(Duration::from_secs(15));
-        tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-        tick.tick().await;
-        let lifetime = tokio::time::sleep(Duration::from_secs(300));
+        yield Ok::<_, Infallible>(change(&head));
+        let remaining = (actor.subject.access_token.expires_at - chrono::Utc::now())
+            .to_std().unwrap_or(Duration::ZERO).min(Duration::from_secs(300));
+        let lifetime = tokio::time::sleep(remaining);
         tokio::pin!(lifetime);
         loop {
             tokio::select! {
                 _ = state.agents.stop.cancelled() => break,
                 _ = &mut lifetime => break,
-                _ = tick.tick() => {},
-                hint = hints.recv() => match hint {
-                    Ok(Some(tenant)) if tenant != actor.authority.tenant => continue,
-                    Err(broadcast::error::RecvError::Closed) => break,
-                    _ => {},
+                _ = catalog.changed() => break,
+                hint = hints.changed() => {
+                    if hint.is_err() || !*hints.borrow_and_update() { break; }
                 }
             }
             if !Arc::ptr_eq(&actor.catalog, &state.agents.catalog.current()) { break; }
             if authority::live_session(&state.agents, &actor.profile, &actor.subject).await.is_err() { break; }
-            match state.agents.store().agent_management_head(&actor.authority).await {
-                Ok(next) if next != head => { head = next; yield Ok(change(head)); },
+            match state.agents.store().agent_management_revision(&actor.authority).await {
+                Ok(next) if next != head => { head = next; yield Ok(change(&head)); },
                 Ok(_) => {},
                 Err(_) => { yield Ok(Event::default().event("expired").data("{}")); break; },
             }
@@ -132,11 +165,13 @@ async fn stream(
     response
 }
 
-fn change(sequence: i64) -> Event {
+fn change(revision: &Sha256Digest) -> Event {
     Event::default()
         .event("change")
-        .id(sequence.to_string())
+        .id(revision)
         .retry(Duration::from_secs(2))
-        .json_data(CatalogWake { sequence })
+        .json_data(CatalogWake {
+            revision: revision.clone(),
+        })
         .expect("bounded wake")
 }

@@ -3,8 +3,8 @@ use std::collections::BTreeMap;
 use tempfile::TempDir;
 use veoveo_platform_store::{
     ArtifactGrantSubjectKind, InvocationAuthorityRecord, InvocationMode, MapFeatureCommitDraft,
-    MapFeatureLayerDraft, MapFeatureRevisionDraft, MapFeatureSchemaDraft, OpenObject, OutboxDraft,
-    PrincipalKind, WorkContextMembershipLevel,
+    MapFeatureLayerDraft, MapFeatureRevisionDraft, MapFeatureSchemaDraft, PrincipalKind,
+    WorkContextMembershipLevel,
 };
 
 use crate::{analytics::MapAnalyticsConfig, contract::*};
@@ -13,9 +13,6 @@ use super::*;
 
 #[tokio::test]
 async fn recovery_pages_map_commits_and_resumes_the_persisted_projection() {
-    if std::env::var_os("VEOVEO_TEST_DUCKDB_SPATIAL_EXTENSION").is_none() {
-        return;
-    }
     tokio::time::timeout(std::time::Duration::from_secs(180), recovery())
         .await
         .expect("Map projection recovery exceeded 180 seconds");
@@ -133,9 +130,9 @@ async fn recovery() {
         .unwrap()
         .changeset
         .commit_sequence;
-    append_unrelated_events(&store).await;
-    let snapshot = store.latest_outbox_sequence().await.unwrap();
-    assert!(snapshot > first + 1_000);
+    append_unrelated_changes(&store).await;
+    let snapshot = store.latest_map_feature_commit_sequence().await.unwrap();
+    assert_eq!(snapshot, first);
 
     // Commit after the snapshot, then prove keyset paging honors both bounds.
     draft.expected_layer_revision = 1;
@@ -237,10 +234,9 @@ async fn recovery() {
     assert_projection_rows(&projection, 2, 2);
 
     // Unrelated writers cannot move Map's committed recovery boundary.
-    append_unrelated_events(&store).await;
+    append_unrelated_changes(&store).await;
     let through = store.latest_map_feature_commit_sequence().await.unwrap();
     assert_eq!(through, second);
-    assert!(store.latest_outbox_sequence().await.unwrap() > through);
     assert_eq!(projection.reconcile().await.unwrap(), through as u64);
     assert_projection_rows(&projection, 2, 2);
     assert!(
@@ -281,7 +277,6 @@ async fn recovery() {
         .unwrap();
     assert!(projection.reconcile().await.is_err());
     assert_eq!(projection.sequence().unwrap(), through as u64);
-    assert_eq!(store.outbox_checkpoint(CONSUMER).await.unwrap(), through);
     assert_projection_rows(&projection, 2, 2);
     assert_late_sequence_rolls_back(&store, third.changeset.id).await;
 }
@@ -290,29 +285,14 @@ async fn assert_late_sequence_rolls_back(
     store: &PlatformStore,
     source: veoveo_platform_store::RecordId,
 ) {
-    // Allocation is independent of the enclosing transaction. Reserve the older
-    // number, commit a newer changeset, then attempt the delayed older commit.
-    let mut response = store
-        .client()
-        .query("RETURN sequence::nextval('platform_outbox_sequence');")
-        .await
-        .unwrap()
-        .check()
-        .unwrap();
-    let delayed_sequence = response.take::<Option<i64>>(0).unwrap().unwrap();
+    // The database rejects a stale sequence even for a direct trusted write.
+    let delayed_sequence = store.latest_map_feature_commit_sequence().await.unwrap() + 1;
     let query = "BEGIN TRANSACTION; \
         LET $copy = (SELECT * OMIT id FROM ONLY $source); \
         CREATE ONLY type::record('map_feature_changeset', ['map-recovery', 'sequence-probe', $key]) \
         CONTENT object::extend($copy, {changeset_key: $key, idempotency_key: $key, commit_sequence: $sequence}); \
         COMMIT TRANSACTION;";
-    let mut response = store
-        .client()
-        .query("RETURN sequence::nextval('platform_outbox_sequence');")
-        .await
-        .unwrap()
-        .check()
-        .unwrap();
-    let newer_sequence = response.take::<Option<i64>>(0).unwrap().unwrap();
+    let newer_sequence = delayed_sequence + 1;
     store
         .client()
         .query(query)
@@ -358,17 +338,10 @@ async fn assert_late_sequence_rolls_back(
     assert_eq!(page[0].commit_sequence, newer_sequence);
 }
 
-async fn append_unrelated_events(store: &PlatformStore) {
-    let event = OutboxDraft::now(
-        None,
-        "test",
-        "unrelated",
-        "test.unrelated",
-        1,
-        OpenObject::default(),
-    );
-    store.client().query("BEGIN TRANSACTION; FOR $i IN 0..1001 { CREATE outbox_event CONTENT $event RETURN NONE; }; COMMIT TRANSACTION;")
-        .bind(("event", event)).await.unwrap().check().unwrap();
+async fn append_unrelated_changes(store: &PlatformStore) {
+    store.client().query("BEGIN TRANSACTION; FOR $i IN 0..1001 { CREATE type::record('gateway_replay_id', rand::uuid::v7()) SET kind = 'client_assertion', authorization_server = 'fixture', client_id = $batch, jwt_id = type::string($i), seen_at = time::now(), expires_at = time::now() + 1h RETURN NONE; }; COMMIT TRANSACTION;")
+        .bind(("batch", uuid::Uuid::now_v7().to_string()))
+        .await.unwrap().check().unwrap();
 }
 
 fn assert_projection_rows(projection: &AuthoringProjection, revisions: i64, head_revision: i64) {

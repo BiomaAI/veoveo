@@ -51,9 +51,26 @@ or force-deleted during recovery.
 Readiness requires a Ready Pod and the same Pod UID and generation in the kernel's
 lease-bound readiness record. Accepting an operation is distinct from completing it. Startup that fails to reach
 readiness within ten minutes stops the workload and reports an actionable failure.
-Bounded reconciliation workers consume outbox and Kubernetes watch hints. A bounded
-inventory recovery pass covers lost hints and controller replacement. This service
-does not inspect provider jobs or call a model.
+Four reconciliation workers consume native database and Kubernetes watch changes.
+Database reconnect starts a namespace inventory, paged by typed operation cursors.
+The controller observes definition, instance, runtime, episode and authority tables;
+its own operation-claim updates cannot trigger another inventory. It persists the
+native feed cursor under its replica identity and reconciles current intent after
+replacement.
+
+Pods, Deployments, PVCs, signing Secrets and reviewed ConfigMaps supply metadata-only
+watches. Inventory pages establish a resource version; ordinary watch expiration
+resumes its latest event or bookmark version. Watch loss and HTTP 410 relist before
+reconciliation, following the [Kubernetes watch contract](https://kubernetes.io/docs/reference/using-api/api-concepts/#efficient-detection-of-changes).
+Each inventory has a 30-second deadline, pages contain at most 200 entries, and watch
+frames are limited to 4 MiB. Namespace RBAC grants list/watch for these resources.
+
+Timers target the next claim expiry, draining runtime lease or ten-minute startup
+limit, using database time. A failed database or retryable Kubernetes request schedules
+another attempt with 250 ms exponential backoff capped at 30 seconds. Successful idle
+observation issues no periodic inventory query. Reconciliation reads deterministic
+resource identities before retrying an uncertain mutation and preserves their fencing.
+The manager does not inspect provider jobs or call a model.
 
 ## Installation Authority
 

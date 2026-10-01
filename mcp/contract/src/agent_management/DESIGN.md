@@ -56,7 +56,8 @@ it cannot supply an image or change retained storage, service authority or param
 The existing generation drain activates the new image and revision together.
 
 The existing contentless agent event stream includes authorized lifecycle changes.
-Durable event heads recover missed hints; observation does not call a model or query
+The event carries a checked SHA-256 `revision` of the current authorized view. Native
+changefeed recovery triggers reconciliation; observation does not call a model or query
 a provider's job status. Public projections omit deployment Secret and image details.
 
 ## Shared Installation Configuration

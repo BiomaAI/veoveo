@@ -369,7 +369,7 @@ async fn controller_recovery_fences_stale_workers_and_never_rotates_an_uncertain
         .await
         .unwrap();
     assert_eq!(
-        db.a.pending_managed_agent_operations("agents", 20, false)
+        db.a.pending_managed_agent_operations("agents", 20, false, None)
             .await
             .unwrap()
             .len(),
@@ -440,7 +440,7 @@ async fn controller_recovery_fences_stale_workers_and_never_rotates_an_uncertain
         .await
         .unwrap();
     assert!(
-        db.a.pending_managed_agent_operations("agents", 20, false)
+        db.a.pending_managed_agent_operations("agents", 20, false, None)
             .await
             .unwrap()
             .is_empty()
@@ -701,7 +701,7 @@ async fn controller_inventory_is_namespace_scoped_and_recovers_settled_generatio
         .await
         .unwrap();
     assert!(
-        db.a.pending_managed_agent_operations("another-namespace", 20, true)
+        db.a.pending_managed_agent_operations("another-namespace", 20, true, None)
             .await
             .unwrap()
             .is_empty()
@@ -717,13 +717,13 @@ async fn controller_inventory_is_namespace_scoped_and_recovers_settled_generatio
         .await
         .unwrap();
     assert!(
-        db.a.pending_managed_agent_operations("agents", 20, false)
+        db.a.pending_managed_agent_operations("agents", 20, false, None)
             .await
             .unwrap()
             .is_empty()
     );
     assert_eq!(
-        db.a.pending_managed_agent_operations("agents", 20, true)
+        db.a.pending_managed_agent_operations("agents", 20, true, None)
             .await
             .unwrap()
             .len(),
@@ -740,7 +740,7 @@ async fn controller_inventory_is_namespace_scoped_and_recovers_settled_generatio
         .unwrap();
     db.b.release_managed_agent_claim(&recovered).await.unwrap();
     assert_eq!(
-        db.a.pending_managed_agent_operations("agents", 20, false)
+        db.a.pending_managed_agent_operations("agents", 20, false, None)
             .await
             .unwrap()
             .len(),
@@ -750,4 +750,47 @@ async fn controller_inventory_is_namespace_scoped_and_recovers_settled_generatio
         db.b.renew_managed_agent_claim(&recovered).await,
         Err(AgentManagementError::Conflict)
     );
+}
+
+#[tokio::test]
+async fn manager_deadlines_follow_claims_startup_and_draining_leases() {
+    tokio::time::timeout(std::time::Duration::from_secs(60), async {
+        let db = TestDb::new().await;
+        let alice = identity(&db.a, "manager-deadlines", "alice").await;
+        context(&db.a, &alice, "operations").await;
+        let actor = authority(&db.a, &alice, "operations").await;
+        let definition = managed_definition(&db.a, &actor).await;
+        assert_eq!(db.a.next_managed_agent_delay("agents").await.unwrap(), None);
+        let mut operations = Vec::new();
+        for key in ["one", "two", "three"] {
+            operations.push(db.a.mutate_managed_agent(&actor, key, Uuid::now_v7(), None, plan(&definition, key), LIMITS).await.unwrap());
+        }
+        let first = db.a.pending_managed_agent_operations("agents", 2, true, None).await.unwrap();
+        let second = db.a.pending_managed_agent_operations("agents", 2, true, Some(first[1].cursor())).await.unwrap();
+        let mut ids = first.into_iter().chain(second).map(|op| op.id).collect::<Vec<_>>();
+        ids.sort(); ids.dedup();
+        assert_eq!(ids.len(), 3);
+        let operation = &operations[0];
+        let held = claim(&db.a, operation).await;
+        let due = db.a.next_managed_agent_delay("agents").await.unwrap().unwrap();
+        assert!(due > std::time::Duration::from_secs(20) && due <= std::time::Duration::from_secs(30));
+        assert_eq!(db.a.next_managed_agent_delay("other").await.unwrap(), None);
+        provision_through_workload(&db.a, &held).await;
+        db.a.release_managed_agent_claim(&held).await.unwrap();
+        let startup = db.a.next_managed_agent_delay("agents").await.unwrap().unwrap();
+        assert!(startup > std::time::Duration::from_secs(590) && startup <= std::time::Duration::from_secs(600));
+        db.a.client().query("UPDATE $instance SET updated_at = time::now() - 11m;")
+            .bind(("instance", operation.instance.clone())).await.unwrap().check().unwrap();
+        assert_eq!(db.a.next_managed_agent_delay("agents").await.unwrap(), Some(std::time::Duration::ZERO));
+        db.a.client().query("UPDATE $instance SET observed = 'draining';")
+            .bind(("instance", operation.instance.clone())).await.unwrap().check().unwrap();
+        db.a.client().query("CREATE agent SET tenant = $tenant, agent_key = 'one', display_name = 'One', profile = type::record('profile', rand::uuid::v7()), state = 'idle', manifest = {}, memory_database = 'memory.duckdb', work_context = $context, policy_revision = 'test-v1', authority = {context_key:'operations', membership:'contributor', policy_revision:'test-v1', owner_kind:'principal', owner_key:'alice', initial_grants:[], data_labels:[], invocation_mode:'automated'}, lease_owner = 'prior-kernel', lease_expires_at = time::now() + 10s;")
+            .bind(("tenant", actor.tenant.clone())).bind(("context", actor.work_context.clone()))
+            .await.unwrap().check().unwrap();
+        let drain = db.a.next_managed_agent_delay("agents").await.unwrap().unwrap();
+        assert!(drain > std::time::Duration::from_secs(5) && drain <= std::time::Duration::from_secs(10));
+        db.a.client().query("UPDATE agent SET lease_expires_at = time::now() - 1s WHERE tenant = $tenant;")
+            .bind(("tenant", actor.tenant.clone())).await.unwrap().check().unwrap();
+        assert_eq!(db.a.next_managed_agent_delay("agents").await.unwrap(), None);
+    }).await.expect("manager scheduling qualification deadline");
 }

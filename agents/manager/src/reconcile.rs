@@ -37,8 +37,21 @@ pub struct Manager {
     pub config: Arc<Config>,
 }
 
+fn retryable_reconciliation(error: &anyhow::Error) -> bool {
+    use veoveo_platform_store::agent_management::AgentManagementError;
+    kubernetes::retryable(error)
+        || error
+            .downcast_ref::<AgentManagementError>()
+            .is_some_and(|error| {
+                matches!(
+                    error,
+                    AgentManagementError::Unavailable | AgentManagementError::Conflict
+                )
+            })
+}
+
 impl Manager {
-    pub async fn process(&self, operation: ManagedAgentOperation) {
+    pub async fn process(&self, operation: ManagedAgentOperation) -> bool {
         let owner = uuid::Uuid::now_v7();
         let claim = match self
             .store
@@ -46,14 +59,16 @@ impl Manager {
             .await
         {
             Ok(Some(operation)) => operation.claim(owner).expect("claimed by this worker"),
-            Ok(None) => return,
+            Ok(None) => return false,
             Err(error) => {
                 tracing::warn!(%error, "managed operation claim unavailable");
-                return;
+                return true;
             }
         };
+        let mut retry = false;
         if let Err(error) = self.reconcile(&claim).await {
-            if kubernetes::retryable(&error) {
+            if retryable_reconciliation(&error) {
+                retry = true;
                 tracing::warn!(generation = claim.generation, %error, "managed operation will recover from inventory");
             } else {
                 // Console shows this message to operators. Known causes carry
@@ -69,11 +84,17 @@ impl Manager {
                     .observe_managed_agent(&claim, ManagedAgentPhase::Failed, Some(message))
                     .await
                 {
+                    retry = true;
                     tracing::warn!(%observation, "managed failure observation lost its claim");
                 }
             }
         }
-        let _ = self.store.release_managed_agent_claim(&claim).await;
+        retry |= self
+            .store
+            .release_managed_agent_claim(&claim)
+            .await
+            .is_err();
+        retry
     }
 
     async fn reconcile(&self, claim: &ManagedAgentClaim) -> Result<()> {
@@ -173,7 +194,7 @@ impl Manager {
                     self.observe(claim, ManagedAgentPhase::Workload).await?;
                 }
                 ManagedAgentPhase::Workload => {
-                    if (Utc::now() - instance.updated_at).num_seconds() > 600 {
+                    if (Utc::now() - instance.updated_at).num_seconds() >= 600 {
                         self.retire_workload(claim, instance).await?;
                         return Err(OperatorMessage(
                             "The agent didn't become ready within 10 minutes. Check pod scheduling, image availability, the runtime template, and credentials, then retry.",

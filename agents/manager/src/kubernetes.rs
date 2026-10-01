@@ -45,7 +45,7 @@ pub struct Kubernetes {
     token_file: PathBuf,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum Resource {
     Secrets,
     Claims,
@@ -54,6 +54,15 @@ pub enum Resource {
     Pods,
 }
 impl Resource {
+    fn selector(self) -> &'static str {
+        // Reviewed template ConfigMaps belong to the installation, while
+        // workloads, claims and signing Secrets carry the manager label.
+        match self {
+            Self::ConfigMaps => "",
+            _ => OWNER_LABEL,
+        }
+    }
+
     fn path(self) -> (&'static str, &'static str) {
         match self {
             Self::Secrets => ("api/v1", "secrets"),
@@ -197,43 +206,108 @@ impl Kubernetes {
         .await
     }
 
-    /// Inventory establishes the resource version before watch. A 410 or watch
-    /// loss triggers a fresh inventory and a reconciliation hint.
-    pub async fn watch_pods(self, changed: watch::Sender<u64>) {
+    /// Metadata-only inventories establish a version. Ordinary watch expiration
+    /// resumes that version; loss or 410 recovery relists before notifying.
+    pub async fn watch_resources(self, resource: Resource, changed: watch::Sender<u64>) {
+        let mut version = None;
+        let mut retry = Duration::from_millis(250);
         loop {
             let result = async {
-                let inventory = self.pods(None).await?;
-                changed.send_modify(|version| *version = version.wrapping_add(1));
-                self.watch_from(&inventory.metadata.resource_version, &changed)
-                    .await
+                if version.is_none() {
+                    version = Some(self.inventory_version(resource).await?);
+                    changed.send_modify(|epoch| *epoch = epoch.wrapping_add(1));
+                }
+                self.watch_from(
+                    resource,
+                    version.as_mut().expect("inventory version"),
+                    &changed,
+                )
+                .await
             }
             .await;
-            if let Err(error) = result {
-                tracing::warn!(%error, "managed Pod watch restarting from inventory");
-                tokio::time::sleep(Duration::from_secs(2)).await;
+            match result {
+                Ok(()) => retry = Duration::from_millis(250),
+                Err(error) => {
+                    tracing::warn!(?resource, %error, "managed resource watch restarting from inventory");
+                    version = None;
+                    tokio::time::sleep(retry).await;
+                    retry = (retry * 2).min(Duration::from_secs(30));
+                }
             }
         }
     }
 
-    async fn watch_from(&self, version: &str, changed: &watch::Sender<u64>) -> Result<()> {
+    async fn inventory_version(&self, resource: Resource) -> Result<String> {
+        let inventory = async {
+            let mut continuation = String::new();
+            let mut version = None;
+            loop {
+                let page: ResourceList<Bookmark> = decode(
+                    self.request(Method::GET, resource, None)
+                        .await?
+                        .header(
+                            reqwest::header::ACCEPT,
+                            "application/json;as=PartialObjectMetadataList;g=meta.k8s.io;v=v1",
+                        )
+                        .query(&[
+                            ("labelSelector", resource.selector()),
+                            ("limit", "200"),
+                            ("continue", continuation.as_str()),
+                        ])
+                        .send()
+                        .await?,
+                )
+                .await?;
+                if let Some(version) = &version {
+                    ensure!(
+                        version == &page.metadata.resource_version,
+                        "Kubernetes inventory changed version between pages"
+                    );
+                } else {
+                    version = Some(page.metadata.resource_version);
+                }
+                let next = page.metadata.continuation.unwrap_or_default();
+                if next.is_empty() {
+                    return version.context("Kubernetes inventory lacks version");
+                }
+                ensure!(
+                    next != continuation,
+                    "Kubernetes inventory repeated continuation"
+                );
+                continuation = next;
+            }
+        };
+        tokio::time::timeout(Duration::from_secs(30), inventory)
+            .await
+            .context("Kubernetes inventory exceeded 30 seconds")?
+    }
+
+    async fn watch_from(
+        &self,
+        resource: Resource,
+        version: &mut String,
+        changed: &watch::Sender<u64>,
+    ) -> Result<()> {
         let response = self
-            .request(Method::GET, Resource::Pods, None)
+            .request(Method::GET, resource, None)
             .await?
+            .header(
+                reqwest::header::ACCEPT,
+                "application/json;as=PartialObjectMetadata;g=meta.k8s.io;v=v1",
+            )
             .query(&[
                 ("watch", "true"),
-                ("resourceVersion", version),
+                ("resourceVersion", version.as_str()),
                 ("allowWatchBookmarks", "true"),
                 ("timeoutSeconds", "50"),
-                ("labelSelector", OWNER_LABEL),
+                ("labelSelector", resource.selector()),
             ])
             .timeout(Duration::from_secs(60))
             .send()
             .await?;
-        ensure!(
-            response.status().is_success(),
-            "Kubernetes watch rejected with {}",
-            response.status()
-        );
+        if !response.status().is_success() {
+            return Err(ApiFailure(response.status()).into());
+        }
         let mut stream = response.bytes_stream();
         let mut pending = Vec::new();
         while let Some(bytes) = stream.next().await {
@@ -248,20 +322,20 @@ impl Kubernetes {
                     continue;
                 }
                 match serde_json::from_slice::<WatchEvent>(&line)? {
-                    WatchEvent::Added(pod)
-                    | WatchEvent::Modified(pod)
-                    | WatchEvent::Deleted(pod) => {
-                        ensure!(
-                            pod.metadata.resource_version.is_some(),
-                            "Pod event lacks resource version"
-                        );
-                        changed.send_modify(|version| *version = version.wrapping_add(1));
+                    WatchEvent::Added(object)
+                    | WatchEvent::Modified(object)
+                    | WatchEvent::Deleted(object) => {
+                        *version = object
+                            .metadata
+                            .resource_version
+                            .context("resource event lacks version")?;
+                        changed.send_modify(|epoch| *epoch = epoch.wrapping_add(1));
                     }
                     WatchEvent::Bookmark(bookmark) => {
-                        ensure!(
-                            bookmark.metadata.resource_version.is_some(),
-                            "watch bookmark lacks resource version"
-                        );
+                        *version = bookmark
+                            .metadata
+                            .resource_version
+                            .context("watch bookmark lacks version")?;
                     }
                     WatchEvent::Error(status) => {
                         bail!("Kubernetes watch ended with {}", status.code)
@@ -269,6 +343,10 @@ impl Kubernetes {
                 }
             }
         }
+        ensure!(
+            pending.iter().all(u8::is_ascii_whitespace),
+            "truncated Kubernetes watch frame"
+        );
         Ok(())
     }
 }
@@ -345,5 +423,78 @@ mod tests {
             .labels
             .insert(OWNER_LABEL.into(), "agent-one".into());
         assert!(owned(&metadata, "agent-one").is_ok());
+    }
+}
+
+#[cfg(test)]
+mod watch_tests {
+    use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    struct Fixture {
+        token: std::path::PathBuf,
+        tasks: Vec<tokio::task::AbortHandle>,
+    }
+
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            for task in &self.tasks {
+                task.abort();
+            }
+            let _ = std::fs::remove_file(&self.token);
+        }
+    }
+
+    #[tokio::test]
+    async fn metadata_watch_resumes_bookmarks_and_relists_after_gone() {
+        tokio::time::timeout(Duration::from_secs(10), async {
+            let mut fixture = Fixture {
+                token: std::env::temp_dir().join(format!("manager-watch-{}", uuid::Uuid::now_v7())),
+                tasks: Vec::new(),
+            };
+            std::fs::write(&fixture.token, "fixture-token").unwrap();
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let address = listener.local_addr().unwrap();
+            let server = tokio::spawn(async move {
+                let responses = [
+                    (200, r#"{"metadata":{"resourceVersion":"10","continue":"next-page"},"items":[]}"#),
+                    (200, r#"{"metadata":{"resourceVersion":"10"},"items":[]}"#),
+                    (200, "{\"type\":\"BOOKMARK\",\"object\":{\"metadata\":{\"resourceVersion\":\"12\"}}}\n"),
+                    (410, "{}"),
+                    (200, r#"{"metadata":{"resourceVersion":"20"},"items":[]}"#),
+                    (200, "{\"type\":\"MODIFIED\",\"object\":{\"metadata\":{\"name\":\"owned\",\"resourceVersion\":\"21\"}}}\n"),
+                ];
+                let mut requests = Vec::new();
+                for (status, body) in responses {
+                    let (mut connection, _) = listener.accept().await.unwrap();
+                    let mut bytes = Vec::new();
+                    while !bytes.windows(4).any(|window| window == b"\r\n\r\n") {
+                        let mut buffer = [0; 4096];
+                        let count = connection.read(&mut buffer).await.unwrap();
+                        assert!(count > 0 && bytes.len() < 16_384);
+                        bytes.extend_from_slice(&buffer[..count]);
+                    }
+                    requests.push(String::from_utf8(bytes).unwrap());
+                    connection.write_all(format!("HTTP/1.1 {status} fixture\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).as_bytes()).await.unwrap();
+                }
+                requests
+            });
+            fixture.tasks.push(server.abort_handle());
+            let kube = Kubernetes { http: Client::new(), endpoint: format!("http://{address}"), namespace: "agents".into(), token_file: fixture.token.clone() };
+            let (changed, _changes) = watch::channel(0);
+            let observing = tokio::spawn(kube.watch_resources(Resource::Secrets, changed));
+            fixture.tasks.push(observing.abort_handle());
+            let requests = server.await.unwrap();
+            observing.abort();
+            let _ = observing.await;
+            assert!(requests[0].contains("/api/v1/namespaces/agents/secrets?"));
+            assert!(requests[0].contains("PartialObjectMetadataList"));
+            assert!(requests[1].contains("continue=next-page"));
+            assert!(requests[2].contains("watch=true") && requests[2].contains("resourceVersion=10"));
+            assert!(requests[2].contains("PartialObjectMetadata;"));
+            assert!(requests[3].contains("watch=true") && requests[3].contains("resourceVersion=12"));
+            assert!(!requests[4].contains("watch=true"));
+            assert!(requests[5].contains("watch=true") && requests[5].contains("resourceVersion=20"));
+        }).await.expect("Kubernetes metadata watch qualification deadline");
     }
 }

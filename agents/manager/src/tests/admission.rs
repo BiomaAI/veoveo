@@ -3,6 +3,7 @@
 //! qualifies retirement; executable workload requests use dry-run.
 use super::*;
 use crate::kubernetes::{GENERATION, OWNER_LABEL};
+use anyhow::Context;
 use serde::Deserialize;
 use serde_json::Value;
 use std::{
@@ -63,9 +64,7 @@ impl Installation {
 }
 impl Drop for Installation {
     fn drop(&mut self) {
-        if !self.objects.is_empty() {
-            let _ = self.cleanup();
-        }
+        let _ = self.cleanup();
     }
 }
 
@@ -86,8 +85,12 @@ fn rendered(
     snapshot.instance.resources.volume_claim = format!("{owner}-memory");
     let directory = std::env::temp_dir().join(namespace);
     std::fs::create_dir(&directory)?;
+    let installation = Installation {
+        directory,
+        objects: Vec::new(),
+    };
     let values = json!({"networkPolicy":{"enabled":network_policy},"global":{"publicBaseUrl":"https://gateway.test"},"gateway":{"controlPlaneRevision":"a".repeat(64),"auditRetentionDays":1,"agents":{"models":config.models,"templates":config.templates}},"agentManager":{"namespace":namespace,"existingControlPlaneConfigMap":"fixture-control","kubernetesApiEgress":[{"cidr":"10.43.0.1/32","port":443}]}});
-    let path = directory.join("values.json");
+    let path = installation.directory.join("values.json");
     std::fs::write(&path, serde_json::to_vec(&values)?)?;
     let bytes = success(command(
         "helm",
@@ -115,25 +118,12 @@ fn rendered(
             objects.push(object);
         }
     }
-    Ok((
-        Installation {
-            directory,
-            objects: Vec::new(),
-        },
-        config,
-        snapshot,
-        map,
-    ))
-    .map(|(mut installation, config, snapshot, map)| {
-        // Rendered objects are kept separately until the first successful write.
-        std::fs::write(
-            installation.directory.join("objects.json"),
-            serde_json::to_vec(&objects).unwrap(),
-        )
-        .unwrap();
-        installation.objects.clear();
-        (installation, config, snapshot, map)
-    })
+    // Rendered objects are kept separately until the first successful write.
+    std::fs::write(
+        installation.directory.join("objects.json"),
+        serde_json::to_vec(&objects)?,
+    )?;
+    Ok((installation, config, snapshot, map))
 }
 
 #[test]
@@ -502,12 +492,40 @@ fn installed_admission_rejects_workload_and_credential_escalation() -> Result<()
 }
 
 #[test]
-fn managed_network_isolation_preserves_the_installation_ingress_mode() -> Result<()> {
+fn managed_chart_preserves_watch_permissions_and_installation_ingress() -> Result<()> {
     for enabled in [false, true] {
         let namespace = format!("agent-network-{}", uuid::Uuid::now_v7().simple());
         let (mut installation, _, _, _) = rendered(&namespace, enabled)?;
         let objects: Vec<Value> =
             serde_json::from_slice(&std::fs::read(installation.directory.join("objects.json"))?)?;
+        let role = objects
+            .iter()
+            .find(|object| {
+                object["kind"] == "Role" && object["metadata"]["name"] == "veoveo-agent-manager"
+            })
+            .context("manager role")?;
+        let rules = role["rules"].as_array().context("manager rules")?;
+        for resource in [
+            "pods",
+            "deployments",
+            "persistentvolumeclaims",
+            "secrets",
+            "configmaps",
+        ] {
+            let rule = rules
+                .iter()
+                .find(|rule| {
+                    rule["resources"]
+                        .as_array()
+                        .is_some_and(|resources| resources.iter().any(|item| item == resource))
+                })
+                .with_context(|| format!("manager watch rule for {resource}"))?;
+            let verbs = rule["verbs"].as_array().context("manager verbs")?;
+            anyhow::ensure!(
+                verbs.iter().any(|verb| verb == "list") && verbs.iter().any(|verb| verb == "watch"),
+                "manager requires list/watch for {resource}"
+            );
+        }
         let policies: Vec<_> = objects
             .iter()
             .filter(|o| o["kind"] == "NetworkPolicy")

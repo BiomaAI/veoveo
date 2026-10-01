@@ -16,8 +16,8 @@
         "topology": "single_node",
         "database_ha": "out_of_scope",
         "durable_volume_required": true,
-        "changefeed_source_of_truth": "durable_outbox",
-        "live_queries": "best_effort_latency_path",
+        "changefeed_source_of_truth": "native_changefeed",
+        "live_queries": "changefeed_wake",
         "endpoint": "ws://veoveo-surrealdb:8000"
       },
       "object_store": {
@@ -103,8 +103,8 @@
         "topology": "single_node",
         "database_ha": "out_of_scope",
         "durable_volume_required": true,
-        "changefeed_source_of_truth": "durable_outbox",
-        "live_queries": "best_effort_latency_path",
+        "changefeed_source_of_truth": "native_changefeed",
+        "live_queries": "changefeed_wake",
         "endpoint": "ws://veoveo-surrealdb:8000"
       },
       "object_store": {

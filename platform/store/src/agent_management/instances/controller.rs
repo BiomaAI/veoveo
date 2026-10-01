@@ -29,6 +29,7 @@ impl PlatformStore {
         namespace: &str,
         limit: u32,
         include_settled: bool,
+        after: Option<ManagedAgentOperationCursor>,
     ) -> Result<Vec<ManagedAgentOperation>> {
         if !(1..=200).contains(&limit) {
             return Err(AgentManagementError::Invalid("page"));
@@ -38,10 +39,32 @@ impl PlatformStore {
             namespace: String,
             limit: u32,
             include_settled: bool,
+            after: Option<RecordId>,
         }
-        self.managed_query(Inventory { namespace: namespace.to_owned(), limit, include_settled },
-            "RETURN SELECT * FROM managed_agent_operation WHERE instance.resources.namespace = $command.namespace AND phase NOT IN ['archived', 'failed', 'superseded'] AND ($command.include_settled OR phase NOT IN ['ready', 'paused']) AND (lease_expires_at = NONE OR lease_expires_at <= time::now()) ORDER BY created_at LIMIT $command.limit;"
+        self.managed_query(Inventory { namespace: namespace.to_owned(), limit, include_settled, after: after.map(ManagedAgentOperationCursor::record) },
+            "RETURN SELECT * FROM managed_agent_operation WHERE instance.resources.namespace = $command.namespace AND phase NOT IN ['archived', 'failed', 'superseded'] AND instance.operation = id AND ($command.after = NONE OR id > $command.after) AND ($command.include_settled OR phase NOT IN ['ready', 'paused']) AND (lease_expires_at = NONE OR lease_expires_at <= time::now()) ORDER BY id LIMIT $command.limit;"
         ).await
+    }
+
+    /// Next known claim, startup or draining-runtime deadline, using database time.
+    pub async fn next_managed_agent_delay(&self, namespace: &str) -> Result<Option<Duration>> {
+        #[derive(SurrealValue)]
+        struct Deadlines {
+            now: chrono::DateTime<chrono::Utc>,
+            claim: Option<chrono::DateTime<chrono::Utc>>,
+            startup: Option<chrono::DateTime<chrono::Utc>>,
+            drain: Option<chrono::DateTime<chrono::Utc>>,
+        }
+        let times: Deadlines = self
+            .managed_query(namespace.to_owned(), include_str!("deadlines.surql"))
+            .await?;
+        Ok(times
+            .claim
+            .into_iter()
+            .chain(times.startup)
+            .chain(times.drain)
+            .min()
+            .map(|due| (due - times.now).to_std().unwrap_or(Duration::ZERO)))
     }
 
     pub async fn claim_managed_agent_operation(
