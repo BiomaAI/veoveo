@@ -466,9 +466,11 @@ comply.
 The Console renders these resources generically; the gateway generates an
 installation llms.txt from the catalog. Neither requires per-server work.
 
-The document bodies also form the server's `{slug}.docs` knowledge collection under
-`ai.veoveo/knowledge-source`. Each body is immutable for the running image, and its
-revision is the SHA-256 of the embedded bytes.
+Servers may adopt `ai.veoveo/knowledge-source` when their resources provide useful
+knowledge. An adopting server publishes its document bodies as the `{slug}.docs`
+collection. Each body is immutable for the running image, and its revision is the
+SHA-256 of the embedded bytes. C18–C21 still require ordinary documentation from every
+hosted server, independently of knowledge adoption.
 
 The Rust embedding macro computes document digests during compilation. Checked
 server setup attaches the docs collection to its template and declares the extension.
@@ -528,8 +530,7 @@ Server crates are named `*-mcp`.
 | C29 | MUST | Ordinary hosted servers and the gateway tolerate load-balanced replica changes; singleton workloads name the real exclusive state or GPU owner. |
 | C30 | MUST | Requests with equivalent upstream transport security share one catalog-revision-scoped HTTP connection pool and TLS trust store without sharing request authority. |
 | C31 | MUST | Readiness calls Discover and required list methods, compares the observed surface with installation allow/require policy, and fails closed on mismatch. |
-| C32 | MUST | Declare `ai.veoveo/knowledge-source` and the server's docs collection; satisfy K01–K10 for every declared collection under the [knowledge extension](../knowledge-extension/DESIGN.md). |
-| C32 | MUST | The server declares `ai.veoveo/knowledge-source`, publishes its `{slug}.docs` collection, and satisfies rules K01–K10 for every collection it declares. |
+| C32 | MUST when adopted | A server that declares `ai.veoveo/knowledge-source` publishes its `{slug}.docs` collection and satisfies K01–K10 for every declared collection under the [knowledge extension](../knowledge-extension/DESIGN.md). A server that does not declare the extension marks C32 not applicable. |
 
 ## Enforcement
 

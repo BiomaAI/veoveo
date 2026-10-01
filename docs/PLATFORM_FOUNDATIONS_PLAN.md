@@ -20,9 +20,18 @@ Python observation support, build-time document manifests and live K01–K06 che
 are implemented. Knowledge Store records and transactional generation/member APIs
 pass native SurrealDB 3.3 qualification. Node document observations and executable
 K07/K08 owner probes are implemented. Domain probe fixtures and installed qualification
-remain open. Chart docs and Time domain adoption are implemented. Optimization,
-Artifact and Map domain adoption and Phases 8–9 remain open. The cluster and BuildKit
+remain open. Chart docs and Time domain adoption are implemented. The selected domain
+work is Artifact, Map and Reason; the knowledge service is still open. Broader server
+adoption is postponed outside this plan's completion scope. The cluster and BuildKit
 are stopped.
+
+Scope decision (2026-10-01): prioritize collections that help users find places and
+authored features, discover files, and reuse completed analyses. Finish Map and Artifact
+in Phase 7, deliver the knowledge service in Phase 8, and add Reason's analyses and
+results in Phase 9. Keep the implemented Time collections and shared documentation
+support. Stop Optimization adoption. Knowledge publication is optional for a server;
+declaring the extension requires conformance for every collection it publishes. The
+postponed collections below do not block this plan and require a later product decision.
 
 The Phase 7 review requires explicit source read policies before domain adoption.
 Time's private events and Optimization's owner/context/profile-scoped Tasks cannot
@@ -1909,8 +1918,8 @@ second makes installed smoke checks run against any installation, not only the B
 reference installation. The third fixes resource contract violations found while
 surveying the servers. The fourth upgrades SurrealDB to 3.3 and replaces the separate audit paths with one
 audit log. The fifth replaces the outbox with SurrealDB change feeds and moves other
-hand-built mechanisms into the database. The sixth makes every server a knowledge
-source and adds the `knowledge-mcp` catalog and index.
+hand-built mechanisms into the database. The sixth adds selected knowledge sources
+and the `knowledge-mcp` catalog and index.
 
 The target contracts live in the owning documents:
 
@@ -3316,7 +3325,9 @@ while Phase 6 source development continues; visual acceptance remains unqualifie
    server that uses `server_docs!` declares it, and into `veoveo_mcp.contract.docs` in
    `sdk/python`, so `datasheet-mcp` in `templates/python-mcp` and fork Python servers
    declare it. Document revisions are SHA-256 digests computed at build time.
-3. Add C32 to `CHECKLIST_IDS` and declare it in every server's `AGENTS.md`.
+3. Add C32 to `CHECKLIST_IDS` and declare its applicability in each server's `AGENTS.md`.
+   Knowledge publication is optional. A server that declares the extension must
+   qualify its docs and domain collections; other servers mark C32 not applicable.
 4. Add checks K01 through K08 to the conformance client and run them in certification
    for every server that declares the extension.
 5. Add `platform/store/src/knowledge.rs` and the next ordered migration for catalog,
@@ -3340,20 +3351,22 @@ Acceptance:
 - Gateway tests prove that a declared read's audit record carries its observation and
   outcome and commits before the result returns.
 - A kernel test shows provenance lines within the byte budget.
-- Every Rust server and `datasheet-mcp` pass K01 through K08 for their docs
-  collections.
+- Existing Rust, Python and Node docs adapters pass K01 through K08 for the docs
+  collections they declare. New servers need not adopt the extension.
 
 ## Phase 7: First Adoption Wave
 
-Each server below declares its collections, fills observations from existing records,
-and makes its search results resource links. When a domain has no revision, use the
-content digest as the revision.
+Map and Artifact are the first new domain sources. Map makes places and authored
+geography discoverable across tasks. Artifact lets users find stored outputs and follow
+their provenance to the bytes. Keep the implemented Time collections and Chart docs.
+Each adopted source fills observations from existing records and makes declared search
+results resource links. When a domain has no revision, use the content digest as the
+revision.
 
 | Server | Collections | Existing provenance | Gaps to close |
 |---|---|---|---|
 | chart | `charts.docs` only | build-time document digests | Docs declaration, observations and conditional reads implemented; installed certification remains open |
 | time | events, calendar versions, epoch versions, acquired and packaged authority releases | stored creation tenant, owner and Work Context; content/access revisions, source digests and modification timestamps | Five collections, typed URI pages, observations and conditional reads implemented; installed qualification and event change/restart probes remain open |
-| optimization | problems and solutions (immutable), runs | `digest_sha256`, `authority`, timestamps, engine digest | Surface labels in observations; restart-safe hub from Phase 3 |
 | artifact | artifact metadata (`artifact://metadata/{id}`), never the bytes | compliance metadata: tenant, owner, Work Context, labels, provenance | Cursor paging for `artifact://index`; `modifiedBy` from the occurrence record |
 | map | feature layers, features, publications, locations, facilities, dataset releases | layer and feature revisions, `created_by`, Work Context, labels, changeset sequence, source digests | Return resource links from `search_locations`; declare the other collections from its templates |
 
@@ -3440,25 +3453,39 @@ Acceptance:
 - The reference installation indexes the approved Phase 7 collections, and a search
   returns links an agent can read.
 
-## Phase 9: Second Adoption Wave
+## Phase 9: Reusable Reason Analyses
 
-| Server | Collections | Prerequisite |
-|---|---|---|
-| frames | worlds, immutable revisions | Stamp Work Context on worlds from invocation authority; today owner and labels live only in the store |
-| recording | recordings, layers | Recording URIs in catalog entries; owner in observations |
-| reason | analyses and results; pipelines and models | Owner and labels in observations; link result artifacts instead of inlining them |
-| stream | runs and results | Owner in observations |
-| speech | transcripts | Transcript index and completion |
-| view | compositions | Frames and tiles are not knowledge |
-| uav-sim | control grants, mission plans | Live simulation state is not knowledge |
-| duckdb | database schemas with `indexing: metadata` | Table contents stay behind the `query` tool |
+Adopt Reason's completed analyses and results so users can find earlier findings and
+read their grounding without rerunning inference. Observations carry stored owner,
+Work Context, labels, model provenance and modification metadata. Return bounded
+analysis text and link result Artifacts for larger content. Keep source authorization
+in SQL before pagination and decoding.
 
-Media and timeseries declare only their docs collection until they hold records worth
-sharing. `showcase/sumo` has no well-known surface and is not part of the reference
-installation, so this plan leaves it out.
+Acceptance: Reason passes K01 through K10 for these collections. The reference
+installation indexes approved analyses and results, and the evaluation set includes
+queries that retrieve prior findings with their source and revision. Denied analyses
+must not expose a title, snippet or result link.
 
-Acceptance: each server passes K01 through K10, and `knowledge-mcp` indexes its
-approved collections.
+### Postponed Adoption Outside This Plan
+
+These candidates require a demonstrated user need before implementation. They are
+excluded from this plan's completion criteria and its Deferred Work register.
+
+| Server | Postponed domain collections |
+|---|---|
+| optimization | problems, runs, solutions |
+| frames | worlds and immutable revisions |
+| recording | recordings and layers |
+| reason | pipeline and model catalogs |
+| stream | runs and results |
+| speech | transcripts |
+| view | compositions |
+| uav-sim | control grants and mission plans |
+| duckdb | database schemas |
+
+Media, Timeseries, Computers and Datasheet receive no new domain collections in this
+plan. Their existing documentation support can stay. Chart stays documentation-only.
+`showcase/sumo` has no well-known surface and is outside the reference installation.
 
 ## Accepted Risks
 

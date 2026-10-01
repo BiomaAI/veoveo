@@ -1,10 +1,15 @@
 # Knowledge Sharing
 
-Veoveo servers share knowledge through MCP resources. Each server stays the system
-of record for its domain and publishes collections through the
+Veoveo servers can share knowledge through MCP resources. An adopting server stays
+the system of record for its domain and publishes selected collections through the
 [`ai.veoveo/knowledge-source`](../mcp/knowledge-extension/DESIGN.md) extension. The
 gateway records what each caller observed. The `knowledge-mcp` server catalogs every
 declared collection and indexes the approved ones for search.
+
+Knowledge publication is optional. Choose sources for the questions users need to
+answer across tasks; operational resources do not need a knowledge collection merely
+because they exist. Every declared collection must satisfy the extension's access,
+provenance and freshness rules.
 
 `knowledge-mcp` answers two questions for agents and people: where does the
 knowledge about a subject live, and how current is what Veoveo has seen of it.

@@ -8,6 +8,10 @@ and who may read each record. Every read then carries a typed observation that
 names the revision, content digest, modification time, and access descriptor of
 what the caller received.
 
+Adoption is optional. Servers declare collections when those resources improve
+knowledge discovery or reuse. A declaration commits its owner to every applicable
+extension rule; ordinary MCP resources need no knowledge metadata.
+
 Agents, the Console, and the knowledge service consume the same resources that any
 MCP client reads. The extension adds metadata. It adds no methods, and it never
 replaces a server's resources with a second copy. The
@@ -246,7 +250,8 @@ content.
 
 ## Well-Known Docs Collection
 
-Every server declares the `{slug}.docs` collection over `{scheme}://docs/{doc_id}`:
+Every server adopting the extension declares the `{slug}.docs` collection over
+`{scheme}://docs/{doc_id}`:
 
 | Field | Value |
 |---|---|

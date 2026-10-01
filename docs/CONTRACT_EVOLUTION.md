@@ -286,8 +286,10 @@ lists every identifier and the derived identities that change with it.
 
 ## CE-11: Knowledge Reaches Agents Through Resources
 
-Every server publishes its knowledge as MCP resources, and each server remains the
-system of record for its domain. The
+Servers that publish knowledge expose it as MCP resources and remain the system of
+record for their domains. Adoption is optional and follows a concrete discovery or
+reuse need. A hosted server can expose ordinary resources without knowledge
+collections. The
 [`ai.veoveo/knowledge-source`](../mcp/knowledge-extension/DESIGN.md) extension marks
 collections, and every read of a member returns a typed observation with a revision,
 content digest, modification time, and access descriptor. The gateway's audit records
