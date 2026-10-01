@@ -5,6 +5,15 @@ use surrealdb::types::{RecordId, SurrealValue, Value};
 
 use crate::{PlatformStore, PlatformTable, StoreError};
 
+mod artifacts;
+mod computers;
+mod consumer;
+mod tasks;
+pub use artifacts::ArtifactChange;
+pub use computers::ComputerChange;
+pub use consumer::{ChangefeedConsumerId, ChangefeedDelivery};
+pub use tasks::TaskChange;
+
 const MAX_CHANGEFEED_LIMIT: u32 = 1_000;
 
 /// SurrealDB single-node versionstamps are `unix_millis << 16 | logical`.
@@ -77,6 +86,19 @@ pub enum ChangefeedEntry {
 }
 
 impl ChangefeedEntry {
+    /// Record identity only. Public readers use this as a hint and read current
+    /// state through their SQL authorization predicate before decoding content.
+    pub fn record_id(&self) -> Option<&RecordId> {
+        match self {
+            Self::Upsert(row) => match row.get("id") {
+                Value::RecordId(record) => Some(record),
+                _ => None,
+            },
+            Self::Delete { record, .. } => Some(record),
+            Self::Definition => None,
+        }
+    }
+
     /// The owning table for row mutations; schema entries have no row projection.
     pub fn table(&self) -> Option<&str> {
         match self {
@@ -135,6 +157,31 @@ pub fn decode_changefeed_entry(change: &Value) -> Result<ChangefeedEntry, StoreE
 pub type LiveStream<T> = Stream<Vec<T>>;
 
 impl PlatformStore {
+    /// The next committed cursor at a finite observed tail, before a current-state
+    /// baseline. The LIVE source must already be registering to cover racing writes.
+    pub async fn changefeed_head(&self) -> Result<ChangefeedCursor, StoreError> {
+        let read = async {
+            let mut cursor = self.changefeed_cursor_now().await?;
+            loop {
+                let batches = self.replay_changes(cursor, MAX_CHANGEFEED_LIMIT).await?;
+                let Some(last) = batches.last() else {
+                    return Ok(cursor);
+                };
+                cursor = last
+                    .versionstamp
+                    .checked_add(1)
+                    .and_then(ChangefeedCursor::from_versionstamp)
+                    .filter(|next| *next > cursor)
+                    .ok_or(StoreError::InvalidChangefeedEntry {
+                        reason: "native head cursor did not advance",
+                    })?;
+            }
+        };
+        tokio::time::timeout(std::time::Duration::from_secs(15), read)
+            .await
+            .map_err(|_| StoreError::ChangefeedConnectionTimeout)?
+    }
+
     /// Subscribe to future changes. Consumers must replay the table changefeed
     /// from their durable cursor before treating LIVE delivery as current.
     pub async fn live<T>(&self, table: PlatformTable) -> Result<LiveStream<T>, StoreError>

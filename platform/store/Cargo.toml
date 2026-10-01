@@ -11,6 +11,7 @@ path = "src/lib.rs"
 veoveo-audit-contract.workspace = true
 veoveo-types.workspace = true
 veoveo-artifact-contract.workspace = true
+veoveo-computers-contract = { path = "../computers/contract" }
 async-stream = "=0.3.6"
 chrono.workspace = true
 futures.workspace = true
@@ -21,7 +22,7 @@ serde_json.workspace = true
 sha2.workspace = true
 surrealdb = { version = "=3.3.0", default-features = false, features = ["protocol-ws", "rustls"] }
 thiserror = "2.0.20"
-tokio = { workspace = true, features = ["time"] }
+tokio = { workspace = true, features = ["time", "rt"] }
 url.workspace = true
 uuid = { workspace = true, features = ["serde", "v5", "v7"] }
 

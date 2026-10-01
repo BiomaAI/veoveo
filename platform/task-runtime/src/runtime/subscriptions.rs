@@ -1,11 +1,9 @@
-//! Exact-filter Task observation. One projected database wake serves all listeners.
+//! One native-feed source wakes the runtime's current-state Task readers.
 use super::*;
-use surrealdb::Notification;
-use veoveo_platform_store::task_record_id;
-
-// Read the committed tail in sequence order. The available-at index scans and
-// sorts the entire historical outbox before LIMIT, delaying leases and readers.
-pub(super) const AVAILABLE_OUTBOX_TAIL: &str = "SELECT VALUE sequence FROM outbox_event WITH INDEX outbox_event_sequence_unique WHERE available_at <= $now ORDER BY sequence DESC LIMIT 1";
+use std::collections::BTreeSet;
+use veoveo_platform_store::{
+    ChangefeedConsumerId, ChangefeedCursor, ChangefeedDelivery, TaskChange, decode_changefeed_entry,
+};
 
 #[derive(Default)]
 pub(super) struct SharedWake {
@@ -14,163 +12,196 @@ pub(super) struct SharedWake {
 
 #[derive(Clone, Copy, Default)]
 pub(super) struct WakeGeneration {
-    activity: u64,
+    pub(super) cursor: ChangefeedCursor,
     pub(super) connections: u64,
-}
-#[derive(SurrealValue)]
-struct Hint {
-    sequence: i64,
 }
 
 impl SharedWake {
     pub(super) async fn subscribe(
         &self,
         store: PlatformStore,
-        server: String,
-    ) -> watch::Receiver<WakeGeneration> {
+        server: &str,
+        worker: &str,
+    ) -> Result<watch::Receiver<WakeGeneration>, TaskError> {
         let mut source = self.source.lock().await;
         if let Some(source) = source.as_ref().filter(|source| source.receiver_count() > 0) {
-            return source.subscribe();
+            return Ok(source.subscribe());
         }
-        let (sender, receiver) = watch::channel(WakeGeneration::default());
+        let consumer = ChangefeedConsumerId::new(format!("tasks/{server}/{worker}"))?;
+        let cursor = store.changefeed_checkpoint(&consumer).await?;
+        let (sender, receiver) = watch::channel(WakeGeneration {
+            cursor,
+            connections: 0,
+        });
         *source = Some(sender.clone());
         tokio::spawn(async move {
+            let mut changes = store.observe_changes(vec![PlatformTable::Task], cursor);
             loop {
-                let connect = async {
-                    let mut response = store.client().query("LIVE SELECT sequence FROM outbox_event WHERE aggregate_type = 'task' AND payload.snapshot.server = $server;")
-                        .bind(("server", server.clone())).await?.check()?;
-                    response.stream::<Notification<Hint>>(0)
-                };
-                let mut stream = tokio::select! {
+                let delivery = tokio::select! {
                     _ = sender.closed() => return,
-                    result = connect => match result {
-                        Ok(stream) => stream,
-                        Err(_) => { tokio::select! { _ = sender.closed() => return, _ = tokio::time::sleep(Duration::from_secs(1)) => {} } continue; }
+                    delivery = changes.next() => match delivery {
+                        Some(Ok(delivery)) => delivery,
+                        Some(Err(error)) => {
+                            tracing::warn!(%error, "Task changefeed reconnecting");
+                            continue;
+                        }
+                        None => return,
                     }
                 };
-                // Recover changes between the baseline and first LIVE establishment,
-                // and across every lost source. The durable cursor supplies content.
-                sender.send_modify(|generation| {
-                    generation.activity = generation.activity.wrapping_add(1);
-                    generation.connections = generation.connections.wrapping_add(1);
-                });
-                loop {
-                    tokio::select! {
-                        _ = sender.closed() => return,
-                        event = stream.next() => match event {
-                            Some(Ok(event)) => { let _ = event.data.sequence; sender.send_modify(|generation| generation.activity = generation.activity.wrapping_add(1)); }
-                            _ => break,
+                let cursor = delivery.cursor();
+                let reconcile = matches!(delivery, ChangefeedDelivery::Reconcile { .. });
+                let relevant = match &delivery {
+                    ChangefeedDelivery::Reconcile { .. } => true,
+                    ChangefeedDelivery::Changes { entries, .. } => !entries.is_empty(),
+                };
+                if relevant {
+                    // Readers replay from their own cursors and apply current SQL
+                    // admission. Coalescing these hints cannot discard Task state.
+                    sender.send_modify(|generation| {
+                        generation.cursor = cursor;
+                        if reconcile {
+                            generation.connections = generation.connections.wrapping_add(1);
                         }
-                    }
+                    });
+                }
+                if let Err(error) = store.checkpoint_changes(&consumer, cursor).await {
+                    // The in-memory source remains current. A restart replays the
+                    // older checkpoint and reconciles before accepting new changes.
+                    tracing::warn!(%error, "Task changefeed checkpoint was not persisted");
                 }
             }
         });
-        receiver
+        Ok(receiver)
     }
 }
 
 impl TaskRuntime {
-    /// Observe exact Tasks within this runtime's server. Trusted domain workers use
-    /// this for cross-replica cancellation; public callers must pass through the
-    /// authorized `subscribe_durable_tasks` projection.
+    pub(super) async fn task_wake(&self) -> Result<watch::Receiver<WakeGeneration>, TaskError> {
+        self.subscription_wake
+            .subscribe(self.store.clone(), &self.server, &self.worker_id)
+            .await
+    }
+
+    /// Trusted domain workers observe exact IDs. Public readers use OwnerTaskQuery.
     pub async fn live_updates_for(&self, ids: &[String]) -> Result<TaskUpdateStream, TaskError> {
+        let ids = ids
+            .iter()
+            .map(|id| parse_task_id(id))
+            .collect::<Result<BTreeSet<_>, _>>()?;
         if ids.is_empty() {
             return Ok(Box::pin(futures::stream::pending()));
         }
-        let mut ids = ids.to_vec();
-        ids.sort();
-        ids.dedup();
-        let records: Vec<_> = ids
-            .iter()
-            .map(|id| parse_task_id(id).map(task_record_id))
-            .collect::<Result<_, _>>()?;
-        let mut wake = self
-            .subscription_wake
-            .subscribe(self.store.clone(), self.server.clone())
-            .await;
-        let mut response = self.store.client().query(format!(
-            "RETURN {{ cursor: array::first(({AVAILABLE_OUTBOX_TAIL})), tasks: (SELECT * FROM $records WHERE server = $server) }};"))
-            .bind(("records", records)).bind(("server", RecordId::new("mcp_server", self.server.clone())))
-            .bind(("now", Utc::now())).await?.check()?;
-        let baseline: TaskUpdateBaseline = response
-            .take::<Option<TaskUpdateBaseline>>(0)?
-            .ok_or_else(|| TaskError::InvalidRecord("missing Task baseline".into()))?;
+        self.observe_tasks(Some(ids), None).await
+    }
+
+    async fn observe_tasks(
+        &self,
+        selected: Option<BTreeSet<TaskId>>,
+        after: Option<TaskUpdateCursor>,
+    ) -> Result<TaskUpdateStream, TaskError> {
+        let mut wake = self.task_wake().await?;
+        let mut generation = *wake.borrow_and_update();
+        let anchor = self.store.changefeed_cursor_now().await?;
+        let mut cursor = after.map_or(anchor, |cursor| {
+            ChangefeedCursor::from_versionstamp(cursor.versionstamp()).expect("checked Task cursor")
+        });
+        let initial = if after.is_none() {
+            self.current_tasks(selected.as_ref()).await?
+        } else {
+            vec![]
+        };
         let runtime = self.clone();
-        let mut cursor = TaskUpdateCursor::from_sequence(baseline.cursor.unwrap_or(0))
-            .expect("nonnegative sequence");
-        let initial = baseline
-            .tasks
-            .into_iter()
-            .map(record_to_snapshot)
-            .collect::<Result<Vec<_>, _>>()?;
         Ok(Box::pin(async_stream::stream! {
-            for snapshot in initial { yield Ok(TaskUpdate { cursor, snapshot }); }
-            // Reconciliation also covers lost LIVE notifications; it reads native
-            // state only and never invokes a provider or dispatches an operation.
-            let mut reconcile = tokio::time::interval(Duration::from_secs(15));
-            reconcile.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-            loop {
-                tokio::select! {
-                    changed = wake.changed() => if changed.is_err() { break; },
-                    _ = reconcile.tick() => {},
+            let task_cursor = TaskUpdateCursor::from_versionstamp(cursor.versionstamp()).expect("checked feed cursor");
+            for record in initial {
+                match record_to_snapshot(record) {
+                    Ok(snapshot) => yield Ok(TaskUpdate { cursor: task_cursor, snapshot }),
+                    Err(error) => { yield Err(error); return; }
                 }
-                loop {
-                    let page = runtime.filtered_page(cursor, &ids).await;
-                    let events = match page { Ok(events) => events, Err(error) => { yield Err(error); return; } };
-                    let full = events.len() == 256;
-                    for event in events {
-                        cursor = TaskUpdateCursor::from_sequence(event.sequence).expect("nonnegative sequence");
-                        match task_snapshot_from_event(&event) {
-                            Ok(snapshot) => yield Ok(TaskUpdate { cursor, snapshot }),
+            }
+            // Also replay immediately when resuming an established, idle source.
+            let mut resume = after.is_some();
+            loop {
+                if !resume && wake.changed().await.is_err() { return; }
+                resume = false;
+                let current = *wake.borrow_and_update();
+                let records = if current.connections != generation.connections {
+                    runtime.current_tasks(selected.as_ref()).await
+                } else {
+                    match runtime.changed_task_ids(cursor, current.cursor).await {
+                        Ok(mut ids) => {
+                            if let Some(selected) = &selected { ids.retain(|id| selected.contains(id)); }
+                            runtime.current_tasks(Some(&ids)).await
+                        }
+                        Err(error) => Err(error),
+                    }
+                };
+                generation = current;
+                cursor = cursor.max(current.cursor);
+                let task_cursor = TaskUpdateCursor::from_versionstamp(cursor.versionstamp()).expect("checked feed cursor");
+                match records {
+                    Ok(records) => for record in records {
+                        match record_to_snapshot(record) {
+                            Ok(snapshot) => yield Ok(TaskUpdate { cursor: task_cursor, snapshot }),
                             Err(error) => { yield Err(error); return; }
                         }
-                    }
-                    if !full { break; }
+                    },
+                    Err(error) => { yield Err(error); return; }
                 }
             }
         }))
     }
 
-    async fn filtered_page(
+    pub(super) async fn current_tasks(
         &self,
-        cursor: TaskUpdateCursor,
-        ids: &[String],
-    ) -> Result<Vec<OutboxEventRecord>, TaskError> {
-        let mut response = self.store.client().query("SELECT * FROM outbox_event WHERE sequence > $cursor AND available_at <= $now AND aggregate_type = 'task' AND aggregate_id IN $ids AND payload.snapshot.server = $server ORDER BY sequence ASC LIMIT 256;")
-            .bind(("cursor", cursor.sequence())).bind(("now", Utc::now())).bind(("ids", ids.to_vec())).bind(("server", self.server.clone())).await?.check()?;
+        ids: Option<&BTreeSet<TaskId>>,
+    ) -> Result<Vec<TaskRecord>, TaskError> {
+        if ids.is_some_and(BTreeSet::is_empty) {
+            return Ok(vec![]);
+        }
+        let sql = match ids {
+            Some(_) => "SELECT * FROM $records WHERE server = $server;",
+            None => "SELECT * FROM task WHERE server = $server ORDER BY created_at ASC;",
+        };
+        let mut query = self
+            .store
+            .client()
+            .query(sql)
+            .bind(("server", RecordId::new("mcp_server", self.server.clone())));
+        if let Some(ids) = ids {
+            query = query.bind((
+                "records",
+                ids.iter().copied().map(task_record_id).collect::<Vec<_>>(),
+            ));
+        }
+        let mut response = query.await?.check()?;
         Ok(response.take(0)?)
     }
-}
 
-#[cfg(test)]
-#[path = "../../../../testing/fixtures/store.rs"]
-mod fixture;
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    #[ignore = "requires the pinned disposable SurrealDB Docker fixture"]
-    async fn available_tail_uses_reverse_index_and_excludes_future_events() {
-        let db = fixture::TestDb::new().await;
-        db.a.client().query("CREATE outbox_event SET aggregate_type = 'fixture', aggregate_id = 'past', event_type = 'fixture', schema_version = 1, payload = {}; CREATE outbox_event SET aggregate_type = 'fixture', aggregate_id = 'future', event_type = 'fixture', schema_version = 1, payload = {}, available_at = time::now() + 1d;")
-            .await.unwrap().check().unwrap();
-        let mut response = db.b.client().query(format!("{AVAILABLE_OUTBOX_TAIL} EXPLAIN; {AVAILABLE_OUTBOX_TAIL}; SELECT VALUE sequence FROM outbox_event WHERE aggregate_id = 'past';"))
-            .bind(("now", Utc::now())).await.unwrap().check().unwrap();
-        let plan: surrealdb::types::Value = response.take(0).unwrap();
-        let plan = format!("{plan:?}");
-        assert!(
-            plan.contains("outbox_event_sequence_unique") && plan.contains("Backward"),
-            "{plan}"
-        );
-        assert!(
-            !plan.contains("Sort") && !plan.contains("TableScan"),
-            "{plan}"
-        );
-        let tail: Vec<i64> = response.take(1).unwrap();
-        let past: Vec<i64> = response.take(2).unwrap();
-        assert_eq!(tail, past);
-        assert_eq!(tail.len(), 1);
+    pub(super) async fn changed_task_ids(
+        &self,
+        mut after: ChangefeedCursor,
+        through: ChangefeedCursor,
+    ) -> Result<BTreeSet<TaskId>, TaskError> {
+        let mut ids = BTreeSet::new();
+        while after < through {
+            let batches = self.store.replay_changes(after, 1_000).await?;
+            if batches.is_empty() {
+                break;
+            }
+            for batch in batches {
+                if batch.versionstamp >= through.versionstamp() {
+                    return Ok(ids);
+                }
+                for change in batch.changes {
+                    if let Some(change) = TaskChange::decode(&decode_changefeed_entry(&change)?)? {
+                        ids.insert(change.task_id);
+                    }
+                }
+                after = ChangefeedCursor::from_versionstamp(batch.versionstamp + 1)
+                    .ok_or_else(|| TaskError::InvalidRecord("Task feed cursor overflow".into()))?;
+            }
+        }
+        Ok(ids)
     }
 }

@@ -473,7 +473,7 @@ async fn owner_reads_and_subscription_baselines_filter_before_decoding() {
 }
 
 #[tokio::test]
-async fn owner_updates_recheck_authority_and_advance_past_denied_event_pages() {
+async fn owner_updates_recheck_authority_and_advance_past_denied_change_pages() {
     tokio::time::timeout(Duration::from_secs(60), async {
         let db = fixture::TestDb::new().await;
         let reader = TaskRuntime::new(db.a.clone(), "integration-server", "reader");
@@ -484,11 +484,11 @@ async fn owner_updates_recheck_authority_and_advance_past_denied_event_pages() {
         for _ in 0..2 { stream.next().await.unwrap().unwrap(); }
         db.b.client().query("UPDATE ONLY $task SET request.owner.data_labels = ['restricted'], request.input = NONE RETURN NONE;")
             .bind(("task", task_record_id(revoked.task_id))).await.unwrap().check().unwrap();
-        // These payloads deliberately cannot decode as historical Task snapshots.
-        // They fill a replay page but cannot expose the revoked current Task.
-        for _ in 0..257 {
-            db.b.client().query("CREATE outbox_event SET aggregate_type = 'task', aggregate_id = $id, event_type = 'task.fixture', schema_version = 3, payload = { snapshot: { server: 'integration-server' } } RETURN NONE;")
-                .bind(("id", revoked.task_id.to_string())).await.unwrap().check().unwrap();
+        // These native Task versions deliberately cannot decode as Task snapshots.
+        // Recovery uses only their IDs before current SQL admission.
+        for ordinal in 0..257 {
+            db.b.client().query("UPDATE ONLY $task SET request.input = { ordinal: $ordinal } RETURN NONE;")
+                .bind(("task", task_record_id(revoked.task_id))).bind(("ordinal", ordinal)).await.unwrap().check().unwrap();
         }
         writer.claim(&target.task_id.to_string(), Duration::from_secs(30)).await.unwrap();
         writer.transition(&target.task_id.to_string(), TaskTransition::Succeeded { message: "finished".into(), result: json!({"value":42}) }).await.unwrap();
@@ -501,8 +501,8 @@ async fn owner_updates_recheck_authority_and_advance_past_denied_event_pages() {
             }
         }
         // Re-admission uses current SQL policy; an old denial is not cached authority.
-        db.b.client().query("UPDATE ONLY $task SET request.owner.data_labels = ['internal'], request.input = {value:7} RETURN NONE; CREATE outbox_event SET aggregate_type = 'task', aggregate_id = $id, event_type = 'task.fixture', schema_version = 3, payload = { snapshot: { server: 'integration-server' } } RETURN NONE;")
-            .bind(("task", task_record_id(revoked.task_id))).bind(("id", revoked.task_id.to_string())).await.unwrap().check().unwrap();
+        db.b.client().query("UPDATE ONLY $task SET request.owner.data_labels = ['internal'], request.input = {value:7} RETURN NONE;")
+            .bind(("task", task_record_id(revoked.task_id))).await.unwrap().check().unwrap();
         loop {
             let update = stream.next().await.unwrap().unwrap();
             if update.task.task_id == revoked.task_id.to_string() { break; }

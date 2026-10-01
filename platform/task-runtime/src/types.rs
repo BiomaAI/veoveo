@@ -282,11 +282,11 @@ impl TaskUpdateCursor {
         Self(0)
     }
 
-    pub const fn sequence(self) -> i64 {
+    pub const fn versionstamp(self) -> i64 {
         self.0
     }
 
-    pub const fn from_sequence(sequence: i64) -> Option<Self> {
+    pub const fn from_versionstamp(sequence: i64) -> Option<Self> {
         if sequence < 0 {
             None
         } else {
@@ -621,10 +621,10 @@ mod tests {
     }
 
     #[test]
-    fn task_update_cursors_reject_negative_sequences() {
-        assert_eq!(TaskUpdateCursor::from_sequence(-1), None);
+    fn task_update_cursors_reject_negative_versionstamps() {
+        assert_eq!(TaskUpdateCursor::from_versionstamp(-1), None);
         assert_eq!(
-            TaskUpdateCursor::from_sequence(42).map(TaskUpdateCursor::sequence),
+            TaskUpdateCursor::from_versionstamp(42).map(TaskUpdateCursor::versionstamp),
             Some(42)
         );
     }

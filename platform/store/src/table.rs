@@ -92,11 +92,20 @@ pub enum PlatformTable {
     AgentInputRequest,
     AuditRecord,
     AuditBlock,
+    AgentDefinition,
+    ManagedAgent,
+    ManagedAgentOperation,
+    WorkContext,
+    Computer,
+    ComputerAutomationGrant,
+    ComputerSessionGrant,
+    ComputerCliGrant,
+    ComputerMaintenance,
     OutboxEvent,
 }
 
 impl PlatformTable {
-    pub const ALL: [Self; 87] = [
+    pub const ALL: [Self; 96] = [
         Self::Enterprise,
         Self::Tenant,
         Self::Principal,
@@ -183,6 +192,15 @@ impl PlatformTable {
         Self::AgentInputRequest,
         Self::AuditRecord,
         Self::AuditBlock,
+        Self::AgentDefinition,
+        Self::ManagedAgent,
+        Self::ManagedAgentOperation,
+        Self::WorkContext,
+        Self::Computer,
+        Self::ComputerAutomationGrant,
+        Self::ComputerSessionGrant,
+        Self::ComputerCliGrant,
+        Self::ComputerMaintenance,
         Self::OutboxEvent,
     ];
 
@@ -274,6 +292,15 @@ impl PlatformTable {
             Self::AgentInputRequest => "agent_input_request",
             Self::AuditRecord => "audit_record",
             Self::AuditBlock => "audit_block",
+            Self::AgentDefinition => "agent_definition",
+            Self::ManagedAgent => "managed_agent",
+            Self::ManagedAgentOperation => "managed_agent_operation",
+            Self::WorkContext => "work_context",
+            Self::Computer => "computer",
+            Self::ComputerAutomationGrant => "computer_automation_grant",
+            Self::ComputerSessionGrant => "computer_session_grant",
+            Self::ComputerCliGrant => "computer_cli_grant",
+            Self::ComputerMaintenance => "computer_maintenance",
             Self::OutboxEvent => "outbox_event",
         }
     }

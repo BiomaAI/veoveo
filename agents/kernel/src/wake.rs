@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use chrono::{TimeDelta, Utc};
+use futures::{StreamExt, stream::BoxStream};
 use tokio::sync::mpsc;
 use veoveo_agent_runtime::{AgentRuntime, ClaimedWake, NewWake};
 use veoveo_platform_store::{OpenObject, WakeId, WakeKind};
@@ -153,6 +154,8 @@ pub struct WakeReceiver {
     min_wake_interval: Duration,
     claim_lease: Duration,
     last_episode_finished: Option<Instant>,
+    changes: Option<BoxStream<'static, Result<(), veoveo_platform_store::StoreError>>>,
+    local_open: bool,
 }
 
 impl WakeReceiver {
@@ -170,6 +173,8 @@ impl WakeReceiver {
             min_wake_interval,
             claim_lease,
             last_episode_finished: None,
+            changes: None,
+            local_open: true,
         }
     }
 
@@ -178,12 +183,30 @@ impl WakeReceiver {
     }
 
     pub async fn next_batch(&mut self) -> Result<WakeBatch> {
+        if self.changes.is_none() {
+            let mut changes = self.runtime.wake_changes().await?;
+            changes
+                .next()
+                .await
+                .ok_or_else(|| anyhow::anyhow!("wake changefeed ended"))??;
+            self.changes = Some(changes);
+        }
         loop {
             let mut claimed = self.runtime.claim_wakes(256, self.claim_lease).await?;
             if claimed.is_empty() {
+                let delay = self.runtime.next_wake_delay().await?;
+                let due = async {
+                    match delay {
+                        Some(delay) => tokio::time::sleep(delay).await,
+                        None => futures::future::pending().await,
+                    }
+                };
                 tokio::select! {
-                    _ = self.rx.recv() => {}
-                    () = tokio::time::sleep(Duration::from_secs(1)) => {}
+                    hint = self.rx.recv(), if self.local_open => { self.local_open = hint.is_some(); }
+                    change = self.changes.as_mut().expect("installed wake source").next() => {
+                        change.ok_or_else(|| anyhow::anyhow!("wake changefeed ended"))??;
+                    }
+                    () = due => {}
                 }
                 continue;
             }
@@ -210,7 +233,8 @@ impl WakeReceiver {
                         )
                         .await?;
                 }
-                tokio::time::sleep(wait).await;
+                // The queue deadline now owns the delay; LIVE can interrupt it
+                // when a priority wake arrives.
                 continue;
             }
             return Ok(WakeBatch { wakes: claimed });

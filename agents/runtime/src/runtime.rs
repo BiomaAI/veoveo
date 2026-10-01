@@ -19,8 +19,8 @@ use veoveo_platform_store::{
     AgentEpisodeId, AgentEpisodeRecord, AgentEpisodeState, AgentId, AgentInputRequestId,
     AgentInputRequestRecord, AgentInputRequestState, AgentRecord, AgentState, AgentTaskId,
     AgentTaskRecord, AgentTaskWatchState, InvocationAuthorityRecord, OpenObject, OutboxDraft,
-    OutboxEventRecord, PlatformIdentity, PlatformStore, PlatformTable, PrincipalKind,
-    StoreAuthLevel, WakeId, WakeKind, WakeRecord, WakeState, deterministic_work_context_id,
+    PlatformIdentity, PlatformStore, PlatformTable, PrincipalKind, StoreAuthLevel, WakeId,
+    WakeKind, WakeRecord, WakeState, deterministic_work_context_id,
 };
 use veoveo_task_runtime::TaskRetentionPin;
 
@@ -34,6 +34,7 @@ use veoveo_mcp_contract::CanonicalTaskId;
 
 mod episodes;
 mod managed;
+mod wake_observation;
 
 const EVENT_SCHEMA_VERSION: i64 = 1;
 
@@ -1311,27 +1312,19 @@ impl AgentRuntime {
         input_request_id: AgentInputRequestId,
         maximum_wait: Duration,
     ) -> Result<Option<AgentInputRequestRecord>> {
-        let mut live = self
+        let cursor = self.store.changefeed_cursor_now().await?;
+        let mut changes = self
             .store
-            .live::<OutboxEventRecord>(PlatformTable::OutboxEvent)
-            .await?;
-        let current = self.input_request_record(input_request_id).await?;
-        if current.state != AgentInputRequestState::Pending {
-            return Ok(Some(current));
-        }
+            .observe_changes(vec![PlatformTable::AgentInputRequest], cursor);
         let wait = async {
-            loop {
-                match live.next().await {
-                    Some(Ok(_)) => {
-                        let current = self.input_request_record(input_request_id).await?;
-                        if current.state != AgentInputRequestState::Pending {
-                            return Ok(Some(current));
-                        }
-                    }
-                    Some(Err(error)) => return Err(AgentRuntimeError::Database(error)),
-                    None => return Ok(None),
+            while let Some(change) = changes.next().await {
+                change?;
+                let current = self.input_request_record(input_request_id).await?;
+                if current.state != AgentInputRequestState::Pending {
+                    return Ok(Some(current));
                 }
             }
+            Ok(None)
         };
         match tokio::time::timeout(maximum_wait, wait).await {
             Ok(result) => result,

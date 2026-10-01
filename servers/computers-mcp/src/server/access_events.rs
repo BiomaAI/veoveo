@@ -5,8 +5,7 @@ use tokio::sync::{broadcast, watch};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 use veoveo_platform_store::{
-    GatewayControlActiveRecord, GatewayRefreshFamilyRecord, OutboxEventRecord, PlatformStore,
-    PlatformTable, RecordId,
+    ChangefeedCursor, ChangefeedDelivery, ComputerChange, PlatformStore, PlatformTable, RecordId,
 };
 
 #[derive(Clone)]
@@ -105,37 +104,50 @@ async fn observe(
     changes: &broadcast::Sender<Change>,
     connected: &watch::Sender<Option<Uuid>>,
 ) -> Result<(), ()> {
-    let (mut outbox, mut families, mut policy) =
-        tokio::time::timeout(Duration::from_secs(5), async {
-            tokio::try_join!(
-                platform.live::<OutboxEventRecord>(PlatformTable::OutboxEvent),
-                platform.live::<GatewayRefreshFamilyRecord>(PlatformTable::GatewayRefreshFamily),
-                platform.live::<GatewayControlActiveRecord>(PlatformTable::GatewayControlActive),
-            )
-        })
+    let mut source = platform.observe_changes(
+        vec![
+            PlatformTable::Computer,
+            PlatformTable::ComputerAutomationGrant,
+            PlatformTable::ComputerSessionGrant,
+            PlatformTable::ComputerCliGrant,
+            PlatformTable::ComputerMaintenance,
+            PlatformTable::GatewayRefreshFamily,
+            PlatformTable::GatewayControlActive,
+        ],
+        ChangefeedCursor::initial(),
+    );
+    let first = tokio::time::timeout(Duration::from_secs(5), source.next())
         .await
-        .map_err(|_| ())?
         .map_err(|_| ())?;
+    first.ok_or(())?.map_err(|_| ())?;
     connected.send_replace(Some(Uuid::now_v7()));
-    loop {
-        tokio::select! {
-            event = outbox.next() => {
-                let event = event.ok_or(())?.map_err(|_| ())?.data;
-                if event.aggregate_type == "computer" {
-                    let id = event.aggregate_id.parse::<veoveo_computers_contract::ComputerId>().map_err(|_| ())?;
-                    let _ = changes.send(Change::Computer(id));
+    while let Some(delivery) = source.next().await {
+        let delivery = delivery.map_err(|_| ())?;
+        let ChangefeedDelivery::Changes { entries, .. } = delivery else {
+            // Every source generation requires fresh attachment admission.
+            return Err(());
+        };
+        for entry in entries {
+            match entry.table() {
+                Some("gateway_refresh_family") => {
+                    let _ = changes.send(Change::Family(entry.record_id().ok_or(())?.clone()));
                 }
-            }
-            event = families.next() => {
-                let event = event.ok_or(())?.map_err(|_| ())?.data;
-                let _ = changes.send(Change::Family(event.id));
-            }
-            event = policy.next() => {
-                event.ok_or(())?.map_err(|_| ())?;
-                let _ = changes.send(Change::Policy);
+                Some("gateway_control_active") => {
+                    let _ = changes.send(Change::Policy);
+                }
+                _ => {
+                    if let Some(
+                        ComputerChange::Computer(id)
+                        | ComputerChange::Automation { computer: id, .. },
+                    ) = ComputerChange::decode(&entry).map_err(|_| ())?
+                    {
+                        let _ = changes.send(Change::Computer(id));
+                    }
+                }
             }
         }
     }
+    Err(())
 }
 
 #[cfg(test)]

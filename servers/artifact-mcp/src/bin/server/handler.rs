@@ -35,7 +35,7 @@ use super::{
     auth,
     prompts::ArtifactPrompt,
     setup::{SERVER_DOCS, SERVER_SETUP},
-    subscriptions::{ArtifactSubscriptions, SubscriptionKind, visible_ids},
+    subscriptions::{ArtifactInvalidation, ArtifactSubscriptions, SubscriptionKind, visible_ids},
 };
 
 const LIST_PAGE_SIZE: usize = 100;
@@ -604,6 +604,7 @@ impl ServerHandler for ArtifactMcp {
             || subscriptions
                 .iter()
                 .any(|(_, kind)| *kind == SubscriptionKind::Index);
+        let mut updates = self.state.subscriptions.listen();
         let mut visible = if tracks_list {
             visible_ids(&self.state.plane, &caller)
                 .await
@@ -611,18 +612,15 @@ impl ServerHandler for ArtifactMcp {
         } else {
             BTreeSet::new()
         };
-        let mut updates = self.state.subscriptions.listen();
         loop {
             let artifact_id = tokio::select! {
                 () = context.cancelled() => return Ok(()),
                 update = updates.recv() => match update {
-                    Ok(artifact_id) => artifact_id,
+                    Ok(ArtifactInvalidation::Changed(artifact_id)) => Some(artifact_id),
+                    Ok(ArtifactInvalidation::Reconcile) => None,
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
                         tracing::warn!(skipped, "artifact subscription updates lagged");
-                        if accepted.resources_list_changed == Some(true) {
-                            context.sink().notify_resource_list_changed().await.map_err(subscription_error)?;
-                        }
-                        continue;
+                        None
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => return Ok(()),
                 }
@@ -649,13 +647,17 @@ impl ServerHandler for ArtifactMcp {
             }
             for (uri, kind) in &subscriptions {
                 let notify = match kind {
-                    SubscriptionKind::Index => list_changed || visible.contains(&artifact_id),
+                    SubscriptionKind::Index => {
+                        list_changed || artifact_id.is_none_or(|id| visible.contains(&id))
+                    }
                     SubscriptionKind::Content(id) | SubscriptionKind::Metadata(id)
-                        if *id == artifact_id =>
+                        if artifact_id.is_none_or(|changed| *id == changed) =>
                     {
                         self.state.plane.head(&caller, id).await.is_ok()
                     }
-                    SubscriptionKind::Grants(id) if *id == artifact_id => {
+                    SubscriptionKind::Grants(id)
+                        if artifact_id.is_none_or(|changed| *id == changed) =>
+                    {
                         self.state.plane.list_grants(&caller, id).await.is_ok()
                     }
                     _ => false,

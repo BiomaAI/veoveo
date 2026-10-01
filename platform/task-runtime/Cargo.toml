@@ -22,6 +22,7 @@ surrealdb = { version = "=3.3.0", default-features = false, features = ["protoco
 thiserror = "2.0.20"
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync", "time"] }
 tokio-util.workspace = true
+tracing.workspace = true
 uuid = { workspace = true, features = ["serde", "v7"] }
 veoveo-mcp-contract.workspace = true
 veoveo-platform-store = { path = "../store" }

@@ -1,4 +1,5 @@
 mod context_scope;
+mod history;
 mod owner_query;
 mod owner_reads;
 mod owner_subscriptions;
@@ -25,8 +26,8 @@ use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use veoveo_platform_store::{
     ArtifactGrantSubjectKind, GrantPermission, InvocationAuthorityRecord,
-    InvocationMode as StoreInvocationMode, LiveStream, OpenObject, OutboxDraft, OutboxEventRecord,
-    PlatformStore, PlatformTable, RecoveryClass as StoreRecoveryClass, TaskInputRecord, TaskRecord,
+    InvocationMode as StoreInvocationMode, OpenObject, OutboxDraft, PlatformStore, PlatformTable,
+    RecoveryClass as StoreRecoveryClass, TaskInputRecord, TaskRecord,
     TaskStatus as StoreTaskStatus, WorkContextInitialGrantRecord,
     WorkContextMembershipLevel as StoreMembershipLevel, deterministic_principal_id,
     deterministic_tenant_id, deterministic_work_context_id,
@@ -99,12 +100,6 @@ struct TaskInputContent {
     response: Option<OpenObject>,
     created_at: DateTime<Utc>,
     responded_at: Option<DateTime<Utc>>,
-}
-
-#[derive(Clone, Debug, Deserialize, SurrealValue)]
-struct TaskUpdateBaseline {
-    cursor: Option<i64>,
-    tasks: Vec<TaskRecord>,
 }
 
 pub type TaskUpdateStream =
@@ -609,131 +604,6 @@ impl TaskRuntime {
             }
         }
         Ok(submission)
-    }
-
-    pub async fn live_updates(&self) -> Result<TaskUpdateStream, TaskError> {
-        let wake = self.outbox_wake().await?;
-        let (cursor, snapshots) = self.update_baseline().await?;
-        Ok(self.task_update_stream(wake, cursor, snapshots, false))
-    }
-
-    /// Resume strictly after a previously delivered durable cursor. The LIVE
-    /// query is opened before replay so writes racing the replay remain queued
-    /// as wake signals; the outbox, not LIVE delivery, supplies every update.
-    pub async fn live_updates_after(
-        &self,
-        cursor: TaskUpdateCursor,
-    ) -> Result<TaskUpdateStream, TaskError> {
-        let wake = self.outbox_wake().await?;
-        Ok(self.task_update_stream(wake, cursor, Vec::new(), true))
-    }
-
-    async fn outbox_wake(&self) -> Result<LiveStream<OutboxEventRecord>, TaskError> {
-        Ok(self
-            .store
-            .live::<OutboxEventRecord>(PlatformTable::OutboxEvent)
-            .await?)
-    }
-
-    async fn update_baseline(&self) -> Result<(TaskUpdateCursor, Vec<TaskSnapshot>), TaskError> {
-        let mut response = self
-            .store
-            .client()
-            .query(format!(
-                "RETURN {{ cursor: array::first(({})), tasks: (SELECT * FROM task WHERE server = $server ORDER BY created_at ASC) }};",
-                subscriptions::AVAILABLE_OUTBOX_TAIL,
-            ))
-            .bind(("server", RecordId::new("mcp_server", self.server.clone())))
-            .bind(("now", Utc::now()))
-            .await?
-            .check()?;
-        let baseline: TaskUpdateBaseline = response
-            .take::<Option<TaskUpdateBaseline>>(0)?
-            .ok_or_else(|| {
-                TaskError::InvalidRecord("task update baseline is missing".to_owned())
-            })?;
-        let snapshots = baseline
-            .tasks
-            .into_iter()
-            .map(record_to_snapshot)
-            .collect::<Result<_, _>>()?;
-        Ok((
-            TaskUpdateCursor::from_sequence(baseline.cursor.unwrap_or(0))
-                .expect("outbox sequences are non-negative"),
-            snapshots,
-        ))
-    }
-
-    fn task_update_stream(
-        &self,
-        mut wake: LiveStream<OutboxEventRecord>,
-        mut cursor: TaskUpdateCursor,
-        initial: Vec<TaskSnapshot>,
-        replay_immediately: bool,
-    ) -> TaskUpdateStream {
-        let runtime = self.clone();
-        Box::pin(async_stream::stream! {
-            for snapshot in initial {
-                yield Ok(TaskUpdate { cursor, snapshot });
-            }
-
-            let mut must_replay = replay_immediately;
-            loop {
-                if !must_replay {
-                    match wake.next().await {
-                        Some(Ok(_)) => {}
-                        Some(Err(_)) | None => match runtime.outbox_wake().await {
-                            Ok(reconnected) => wake = reconnected,
-                            Err(error) => {
-                                yield Err(error);
-                                break;
-                            }
-                        },
-                    }
-                }
-                must_replay = false;
-
-                match runtime.replay_task_updates(cursor).await {
-                    Ok(updates) => {
-                        for update in updates {
-                            cursor = update.cursor;
-                            yield Ok(update);
-                        }
-                    }
-                    Err(error) => {
-                        yield Err(error);
-                        break;
-                    }
-                }
-            }
-        })
-    }
-
-    async fn replay_task_updates(
-        &self,
-        mut cursor: TaskUpdateCursor,
-    ) -> Result<Vec<TaskUpdate>, TaskError> {
-        let mut updates = Vec::new();
-        loop {
-            let page = self.store.read_outbox(cursor.sequence(), 1_000).await?;
-            let event_count = page.events.len();
-            for event in page.events {
-                cursor = TaskUpdateCursor::from_sequence(event.sequence).ok_or_else(|| {
-                    TaskError::InvalidRecord("outbox sequence is negative".to_owned())
-                })?;
-                if event.aggregate_type != "task" {
-                    continue;
-                }
-                let snapshot = task_snapshot_from_event(&event)?;
-                if snapshot.server == self.server {
-                    updates.push(TaskUpdate { cursor, snapshot });
-                }
-            }
-            if event_count < 1_000 {
-                break;
-            }
-        }
-        Ok(updates)
     }
 
     pub async fn transition(
@@ -1294,31 +1164,6 @@ pub(super) fn task_event(
         TASK_EVENT_SCHEMA_VERSION,
         OpenObject::new(payload),
     ))
-}
-
-#[derive(Deserialize)]
-struct TaskEventPayload {
-    snapshot: TaskSnapshot,
-}
-
-pub(super) fn task_snapshot_from_event(
-    event: &OutboxEventRecord,
-) -> Result<TaskSnapshot, TaskError> {
-    if event.schema_version != TASK_EVENT_SCHEMA_VERSION {
-        return Err(TaskError::InvalidRecord(format!(
-            "task outbox event {} has schema version {}, expected {}",
-            event.sequence, event.schema_version, TASK_EVENT_SCHEMA_VERSION
-        )));
-    }
-    let payload: TaskEventPayload =
-        serde_json::from_value(open_object_to_value(event.payload.clone()))?;
-    if event.aggregate_id != payload.snapshot.task_id.to_string() {
-        return Err(TaskError::InvalidRecord(format!(
-            "task outbox event {} aggregate id does not match its snapshot",
-            event.sequence
-        )));
-    }
-    Ok(payload.snapshot)
 }
 
 fn idempotency_record(owner: &TaskOwner, server: &str, key: &str) -> RecordId {

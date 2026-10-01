@@ -5,7 +5,7 @@
 | Boundary | Supported profile |
 |---|---|
 | MCP `2026-07-28`, Tasks SEP-2663 | Official RMCP Task projection; internal recovery classes introduce no new MCP status or method |
-| SurrealDB / SurrealQL `3.3.0` | Shared durable Task records, lease compare-and-set, transactional outbox and additive schema migrations; the Python port uses the pinned SurrealDB Python SDK `2.0.0` |
+| SurrealDB / SurrealQL `3.3.0` | Shared durable Task records, lease compare-and-set, native changefeed observation and schema migrations; the Python port uses the pinned SurrealDB Python SDK `2.0.0` |
 | Veoveo Work Context | Canonical TaskOwner/InvocationAuthority, tenant and server ownership, retained result pins |
 | Internal recovery-class vocabulary | `resume`, `webhook_wait`, `provider_wait`, `interrupted_indeterminate`; domain-qualified completion semantics |
 | Native Task identity | `veoveo_types::TaskId` carries UUID identity; external runtime lookups require UUIDv7. MCP opaque handles have their own protocol profile. |
@@ -51,10 +51,11 @@ and external lookup admission; public identity consumers do not depend on this r
 or Store. UUID generation, serialization, persisted UUID keys and admission profiles
 are unchanged by this ownership split. It requires no data conversion or deployment drain.
 
-Subscription baselines read the newest available outbox sequence through the
-sequence index in reverse order. The available-time index would scan and sort
-historical events before applying the limit. A native query-plan regression checks
-the reverse scan and exclusion of future events against the pinned database.
+Rust subscription baselines anchor native versionstamp cursors before selecting Task
+state. One projected LIVE source per runtime wakes readers and persists its cursor
+under the server and worker identity. Separate replicas require distinct worker IDs.
+Store completes transaction tails before advancing a cursor. The checkpoint table
+has no changefeed, so acknowledgements cannot wake their own consumer.
 
 ## Task Operation Identity
 
@@ -233,10 +234,8 @@ validators belong to the owning server; the runtime imports no domain result mod
 
 The shared wake source tracks connection generations separately from write activity.
 On a new LIVE connection, each public listener rereads its admitted Task identities
-under current SQL owner predicates and advances to the current event tail without
-rewinding its cursor. This restores current state even when event history expired
-during the gap. Denied rows remain outside decoding. The 15-second recovery timer
-checks retained activity but does not emit unchanged state on an idle connection.
+under current SQL owner predicates and advances its native cursor without rewinding. This restores current state even when event history expired
+during the gap. Denied rows remain outside decoding. Idle Rust listeners issue no reconciliation queries.
 
 `tests/support/context_query_cases.rs` exercises mismatched indexed and envelope
 contexts with malformed payloads, page limits, protocol mutation admission, and
@@ -276,13 +275,12 @@ ordinary Tasks admission policy. Task status notifications require an explicit T
 subscription; a resource-only request receives only resource invalidations. Both
 signals use the current-owner SQL watch and the filter-enforcing RMCP sink.
 
-The existing outbox sequence, LIVE wake, 15-second reconciliation and reconnect
-baseline supply recovery. No domain-local broadcaster participates. Reconnection
+The shared native changefeed cursor, LIVE wake and reconnect baseline supply recovery. No domain-local broadcaster participates. Reconnection
 invalidates each admitted resource from current Task state, including a completed
 Task. Intermediate transitions can coalesce. Cancellation or a query error drops
 the request's watch; the shared LIVE source stops after its last listener leaves.
 This source covers Task-backed resources only. Other domain change sources keep their
-declared observation contracts. Phase 5 owns the outbox-to-change-feed migration.
+declared observation contracts.
 
 `tests/task_resources.rs` qualifies independent Store clients, mixed and resource-only
 filters, reconnect baselines, a broken TCP connection with deleted event history,
@@ -329,14 +327,18 @@ Domains with additional Work Context restrictions own their narrower queries.
 including excluded malformed envelopes, timestamp ties and cursor reuse by another
 caller.
 
-Native Task subscription baselines select only their requested record IDs.
-Outbox replay filters those aggregate identities and the hosted server in
-pages of 256. One projected LIVE source per runtime wakes all listeners; it carries only
-a sequence. Sources close after the last listener leaves. A new source wakes every
-reader after establishment, covering the baseline and reconnection races. Each
-listener retains its own durable cursor. Fifteen-second reconciliation covers a
-missed wake and never invokes a provider or model. General server-owned consumers
-retain the complete durable stream APIs.
+Native Task subscription baselines select only their requested record IDs. Public
+updates decode native change identities in Store, then select the current rows with
+owner, context and operation predicates in SQL. Intermediate states may coalesce.
+One projected LIVE source per runtime wakes all listeners. It closes after the last
+listener leaves and supplies a current-state baseline after every source reconnect.
+
+Trusted worker streams replay committed Task states through `runtime/history.rs`.
+Their typed cursors carry native versionstamps. Resuming repeats the final transaction,
+including every Task in that transaction; consumers must tolerate repeated states.
+A cursor older than the six-day recovery safety window requests current state instead.
+This stream is internal and does not establish public read permission. Python Task
+observation and the remaining event writers are tracked in the foundations plan.
 
 `tests/subscriptions.rs` owns a disposable real Store and separate connections. It
 qualifies concurrent listeners, cross-replica completion, reconnection, excluded

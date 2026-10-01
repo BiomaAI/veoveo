@@ -280,9 +280,9 @@ readers together and is now in runtime qualification.
 Status: Phase 0 accepted and published on 2026-09-27 at `1177185f`; documentation
 checks and reference GitOps convergence passed. Phases 1–3 are in progress.
 Phase 4's SurrealDB 3.3.0 hard cut and audit implementation are committed and
-native-qualified; their images and charts are published. Deployment and installed
-acceptance remain. Phases 5–9 are not
-implemented.
+native-qualified; their images and charts are published and deployed. Composed UAV
+acceptance remains open. Phase 5 has a measured baseline and a native-qualified Rust changefeed
+consumer batch. Its remaining consumers and writer removal are open. Phases 6–9 are not implemented.
 The database upgrade takes priority over the remaining phase 3 work. The unfinished
 Computers batch is preserved separately while the SDK, image and fresh-store
 qualification advance together. Remaining phase 3 work stays tracked and does not block
@@ -2880,6 +2880,30 @@ median elapsed time is 999 ms, the otherwise equivalent independent-event contro
 315 ms, and domain writes with only native feeds take 243 ms. No conflict reaches the
 client and no client retry occurs; internal retry counts are not observed. Production
 writer and consumer migration remains open.
+
+The 2026-10-01 consumer batch adds typed Store decoders and persisted native cursors,
+then moves Rust Task subscriptions, agent wake scheduling and managed revocation,
+Artifact notifications, and Computers notification sources onto that path. Public
+Task delivery selects current authorized rows in SQL; trusted workers replay committed
+Task states and repeat the last transaction on resume. Timers use the next wake
+availability or lease expiry. The six-package compile check and strict all-target Clippy pass. Thirty-eight native
+cases pass: two Store feed cases, 25 Task cases, eight Agent cases and three Computers
+subscription cases. Formatting, migration SQL validation and documentation checks pass.
+Computers subscriptions anchor their feed at the observed head before the baseline,
+preventing prior writes from producing a duplicate initial notification. Agent manager, gateway catalog heads, Python delivery, Map projection,
+writer removal, Computer authority recheck timers, relationship adoption and the final
+measurements remain open.
+
+The reference installation converged at `8e4b36e7` with both Helm releases and all 25
+Deployments current. The corrected composed flight harness used the existing headed
+Chrome profile on port 9222; WebGL reached the RTX 4090. The run failed during takeoff
+with a PX4 command deadline. Simulator logs show MAVLink poll timeouts and health-based
+arming refusals. Owned cleanup completed, and a fresh read confirmed `uav-1` in standby.
+Recording replay was not reached, so the new Stream/Reason Recording identity repair
+still needs installed acceptance. The cluster was stopped for development with about
+190 GiB free. Diagnostic files are under
+`output/development/foundations-audit-publication-e543e6e4/repair-installed/`:
+`uav-rollover.log`, `flight-px4-deadline.log`, and `landing-state.json`.
 
 Work:
 

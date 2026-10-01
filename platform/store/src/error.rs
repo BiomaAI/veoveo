@@ -69,6 +69,8 @@ pub enum MigrationError {
 
 #[derive(Debug, Error)]
 pub enum StoreError {
+    #[error("native changefeed LIVE connection exceeded 15 seconds")]
+    ChangefeedConnectionTimeout,
     #[error(transparent)]
     AuditValidation(#[from] veoveo_audit_contract::AuditValidationError),
     #[error("audit partition access denied")]
@@ -125,6 +127,8 @@ pub enum StoreError {
     InvalidChangefeedLimit { max: u32 },
     #[error("changefeed entry could not be decoded: {reason}")]
     InvalidChangefeedEntry { reason: &'static str },
+    #[error("change-feed consumer identity must contain 1–256 ASCII identifier characters")]
+    InvalidChangefeedConsumer,
     #[error("outbox page limit must be in 1..={max}")]
     InvalidOutboxLimit { max: u32 },
     #[error("SurrealDB returned no record for {operation}")]

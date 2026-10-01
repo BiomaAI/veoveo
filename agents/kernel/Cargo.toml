@@ -19,6 +19,7 @@ base64.workspace = true
 chrono.workspace = true
 clap.workspace = true
 dotenvy.workspace = true
+futures.workspace = true
 duckdb.workspace = true
 jsonwebtoken.workspace = true
 re_chunk_store.workspace = true

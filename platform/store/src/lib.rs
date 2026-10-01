@@ -53,7 +53,8 @@ pub use artifacts::{
     ArtifactWriteCapabilityDraft, ArtifactWriteReservation, PublicShareRedemption,
 };
 pub use changefeed::{
-    ChangefeedBatch, ChangefeedCursor, ChangefeedEntry, LiveStream, decode_changefeed_entry,
+    ArtifactChange, ChangefeedBatch, ChangefeedConsumerId, ChangefeedCursor, ChangefeedDelivery,
+    ChangefeedEntry, ComputerChange, LiveStream, TaskChange, decode_changefeed_entry,
 };
 pub use config::{StoreAuthLevel, StoreConfig, StoreConfigBuilder, StoreCredentials};
 pub use error::{MigrationError, RecordingIngestQuota, StoreConfigError, StoreError};

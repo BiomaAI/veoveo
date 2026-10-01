@@ -1,31 +1,17 @@
 //! Public Task streams observe current authorized state, never historical payloads.
-use super::{
-    OwnerTaskQuery, TaskUpdateBaseline, TaskUpdateStream, owner_reads::VISIBLE_TASK,
-    subscriptions::AVAILABLE_OUTBOX_TAIL,
-};
+use super::{OwnerTaskQuery, TaskUpdateStream, owner_reads::VISIBLE_TASK};
 use crate::types::{TaskError, TaskUpdate, TaskUpdateCursor, record_to_snapshot, validate_task_id};
-use chrono::Utc;
-use std::{collections::BTreeSet, time::Duration};
-use surrealdb::types::SurrealValue;
+use std::collections::BTreeSet;
 use veoveo_platform_store::{TaskRecord, task_record_id};
 use veoveo_types::TaskId;
 
-/// One SQL-authorized baseline and its current-state updates.
 pub struct OwnerTaskSubscription {
     pub accepted_task_ids: Vec<TaskId>,
     pub updates: TaskUpdateStream,
 }
 
-#[derive(SurrealValue)]
-struct UpdatePage {
-    cursor: Option<i64>,
-    full: bool,
-    tasks: Vec<TaskRecord>,
-}
-
 impl OwnerTaskQuery {
-    /// Admit at most 256 native identities and reapply current owner policy on updates.
-    /// Notifications can coalesce intermediate states; this is not an event-log API.
+    /// Admit at most 256 identities. Every delivery reapplies current SQL policy.
     pub async fn subscribe(&self, ids: &[TaskId]) -> Result<OwnerTaskSubscription, TaskError> {
         if ids.len() > 256 {
             return Err(TaskError::InvalidPageQuery);
@@ -41,17 +27,13 @@ impl OwnerTaskQuery {
                 updates: Box::pin(futures::stream::pending()),
             });
         }
-        let mut wake = self
-            .runtime
-            .subscription_wake
-            .subscribe(self.runtime.store.clone(), self.runtime.server.clone())
-            .await;
-        let mut connections = wake.borrow().connections;
-        let baseline = self
-            .owner_baseline(&ids.into_iter().collect::<Vec<_>>())
-            .await?;
-        let initial = baseline
-            .tasks
+        let mut wake = self.runtime.task_wake().await?;
+        let mut generation = *wake.borrow_and_update();
+        // Anchor before the baseline; first source establishment recovers any gap.
+        let mut cursor = self.runtime.store.changefeed_cursor_now().await?;
+        let initial = self
+            .owner_current_tasks(&ids)
+            .await?
             .into_iter()
             .map(record_to_snapshot)
             .collect::<Result<Vec<_>, _>>()?;
@@ -65,57 +47,32 @@ impl OwnerTaskQuery {
                 updates: Box::pin(futures::stream::pending()),
             });
         }
-        let ids = accepted_task_ids.clone();
-        let runtime = self.clone();
-        let mut cursor = TaskUpdateCursor::from_sequence(baseline.cursor.unwrap_or(0))
-            .ok_or_else(|| TaskError::InvalidRecord("invalid Task baseline cursor".into()))?;
+        let ids = accepted_task_ids.iter().copied().collect::<BTreeSet<_>>();
+        let query = self.clone();
         let updates = Box::pin(async_stream::stream! {
-            for snapshot in initial { yield Ok(TaskUpdate { cursor, snapshot }); }
-            let mut reconcile = tokio::time::interval(Duration::from_secs(15));
-            reconcile.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            let task_cursor = TaskUpdateCursor::from_versionstamp(cursor.versionstamp()).expect("checked feed cursor");
+            for snapshot in initial { yield Ok(TaskUpdate { cursor: task_cursor, snapshot }); }
             loop {
-                tokio::select! {
-                    changed = wake.changed() => if changed.is_err() { break; },
-                    _ = reconcile.tick() => {},
-                }
-                let current_connections = wake.borrow_and_update().connections;
-                if current_connections != connections {
-                    connections = current_connections;
-                    // A new LIVE source may follow a gap longer than retained events.
-                    // Reconcile admitted identities from current SQL-authorized state.
-                    let baseline = match runtime.owner_baseline(&ids).await {
-                        Ok(baseline) => baseline,
+                if wake.changed().await.is_err() { return; }
+                let current = *wake.borrow_and_update();
+                let changed = if current.connections != generation.connections {
+                    Ok(ids.clone())
+                } else {
+                    query.runtime.changed_task_ids(cursor, current.cursor).await.map(|changes| changes.intersection(&ids).copied().collect())
+                };
+                generation = current;
+                cursor = cursor.max(current.cursor);
+                let changed = match changed { Ok(ids) => ids, Err(error) => { yield Err(error); return; } };
+                let records = match query.owner_current_tasks(&changed).await {
+                    Ok(records) => records,
+                    Err(error) => { yield Err(error); return; }
+                };
+                let task_cursor = TaskUpdateCursor::from_versionstamp(cursor.versionstamp()).expect("checked feed cursor");
+                for record in records {
+                    match record_to_snapshot(record) {
+                        Ok(snapshot) => yield Ok(TaskUpdate { cursor: task_cursor, snapshot }),
                         Err(error) => { yield Err(error); return; }
-                    };
-                    let Some(tail) = TaskUpdateCursor::from_sequence(baseline.cursor.unwrap_or(0)) else {
-                        yield Err(TaskError::InvalidRecord("invalid Task recovery cursor".into())); return;
-                    };
-                    if tail.sequence() > cursor.sequence() { cursor = tail; }
-                    for record in baseline.tasks {
-                        match record_to_snapshot(record) {
-                            Ok(snapshot) => yield Ok(TaskUpdate { cursor, snapshot }),
-                            Err(error) => { yield Err(error); return; }
-                        }
                     }
-                }
-                loop {
-                    let page = match runtime.owner_update_page(&ids, cursor).await {
-                        Ok(page) => page,
-                        Err(error) => { yield Err(error); return; }
-                    };
-                    if let Some(sequence) = page.cursor {
-                        match TaskUpdateCursor::from_sequence(sequence) {
-                            Some(next) => cursor = next,
-                            None => { yield Err(TaskError::InvalidRecord("invalid Task update cursor".into())); return; }
-                        }
-                    }
-                    for record in page.tasks {
-                        match record_to_snapshot(record) {
-                            Ok(snapshot) => yield Ok(TaskUpdate { cursor, snapshot }),
-                            Err(error) => { yield Err(error); return; }
-                        }
-                    }
-                    if !page.full { break; }
                 }
             }
         });
@@ -125,50 +82,24 @@ impl OwnerTaskQuery {
         })
     }
 
-    async fn owner_baseline(&self, ids: &[TaskId]) -> Result<TaskUpdateBaseline, TaskError> {
-        let mut response = self.bind(self.runtime.store.client().query(format!(
-            "RETURN {{ cursor: array::first(({AVAILABLE_OUTBOX_TAIL})), tasks: (SELECT * FROM $records WHERE {VISIBLE_TASK} {}) }};"
-        , self.selection_predicate())))?
-            .bind(("records", ids.iter().copied().map(task_record_id).collect::<Vec<_>>()))
-            .bind(("now", Utc::now())).await?.check()?;
-        response
-            .take::<Option<TaskUpdateBaseline>>(0)?
-            .ok_or_else(|| TaskError::InvalidRecord("missing authorized Task baseline".into()))
-    }
-
-    async fn owner_update_page(
+    async fn owner_current_tasks(
         &self,
-        ids: &[TaskId],
-        cursor: TaskUpdateCursor,
-    ) -> Result<UpdatePage, TaskError> {
-        // Event identities wake current reads. Stored event snapshots are neither
-        // selected nor decoded, and cannot preserve authority that has been revoked.
+        ids: &BTreeSet<TaskId>,
+    ) -> Result<Vec<TaskRecord>, TaskError> {
+        if ids.is_empty() {
+            return Ok(vec![]);
+        }
         let mut response = self
             .bind(self.runtime.store.client().query(format!(
-                "LET $changes = SELECT sequence, aggregate_id FROM outbox_event
-                WHERE sequence > $cursor AND available_at <= $now
-                AND aggregate_type = 'task' AND aggregate_id IN $ids
-                AND payload.snapshot.server = $server_key ORDER BY sequence ASC LIMIT 256;
-             RETURN {{ cursor: array::last($changes.sequence), full: array::len($changes) = 256,
-                tasks: (SELECT * FROM $records WHERE {VISIBLE_TASK} {}
-                    AND <string> record::id(id) IN $changes.aggregate_id) }};",
+                "SELECT * FROM $records WHERE {VISIBLE_TASK} {};",
                 self.selection_predicate()
             )))?
-            .bind(("cursor", cursor.sequence()))
-            .bind(("now", Utc::now()))
-            .bind(("server_key", self.runtime.server.clone()))
-            .bind((
-                "ids",
-                ids.iter().map(ToString::to_string).collect::<Vec<_>>(),
-            ))
             .bind((
                 "records",
                 ids.iter().copied().map(task_record_id).collect::<Vec<_>>(),
             ))
             .await?
             .check()?;
-        response
-            .take::<Option<UpdatePage>>(1)?
-            .ok_or_else(|| TaskError::InvalidRecord("missing authorized Task update page".into()))
+        Ok(response.take(0)?)
     }
 }

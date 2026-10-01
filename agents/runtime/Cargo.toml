@@ -8,6 +8,7 @@ name = "veoveo_agent_runtime"
 path = "src/lib.rs"
 
 [dependencies]
+async-stream = "=0.3.6"
 chrono.workspace = true
 futures.workspace = true
 serde.workspace = true

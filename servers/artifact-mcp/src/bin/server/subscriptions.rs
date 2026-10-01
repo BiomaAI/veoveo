@@ -1,4 +1,4 @@
-use std::{collections::BTreeSet, time::Duration};
+use std::collections::BTreeSet;
 
 use futures::StreamExt;
 use tokio::sync::broadcast;
@@ -6,11 +6,10 @@ use tokio_util::sync::CancellationToken;
 use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_artifact_contract::ArtifactId;
 use veoveo_mcp_contract::{ArtifactPlane, ListArtifactsRequest, PlaneCaller};
-use veoveo_platform_store::{LiveStream, OutboxEventRecord, PlatformStore, PlatformTable};
+use veoveo_platform_store::{
+    ArtifactChange, ChangefeedConsumerId, ChangefeedDelivery, PlatformStore, PlatformTable,
+};
 
-const OUTBOX_PAGE_SIZE: u32 = 1_000;
-const RECONCILE_INTERVAL: Duration = Duration::from_secs(15);
-const LIVE_RECONNECT_DELAY: Duration = Duration::from_secs(1);
 const SUBSCRIPTION_BUFFER: usize = 256;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -21,9 +20,15 @@ pub(super) enum SubscriptionKind {
     Grants(ArtifactId),
 }
 
+#[derive(Clone, Copy)]
+pub(super) enum ArtifactInvalidation {
+    Reconcile,
+    Changed(ArtifactId),
+}
+
 #[derive(Clone)]
 pub(super) struct ArtifactSubscriptions {
-    updates: broadcast::Sender<ArtifactId>,
+    updates: broadcast::Sender<ArtifactInvalidation>,
 }
 
 impl Default for ArtifactSubscriptions {
@@ -34,12 +39,8 @@ impl Default for ArtifactSubscriptions {
 }
 
 impl ArtifactSubscriptions {
-    pub(super) fn listen(&self) -> broadcast::Receiver<ArtifactId> {
+    pub(super) fn listen(&self) -> broadcast::Receiver<ArtifactInvalidation> {
         self.updates.subscribe()
-    }
-
-    async fn notify_artifact(&self, artifact_id: ArtifactId) {
-        let _ = self.updates.send(artifact_id);
     }
 }
 
@@ -76,99 +77,61 @@ pub(super) async fn start_dispatcher(
     store: PlatformStore,
     subscriptions: ArtifactSubscriptions,
     cancellation: CancellationToken,
+    consumer: ChangefeedConsumerId,
 ) -> anyhow::Result<()> {
-    let live = store
-        .live::<OutboxEventRecord>(PlatformTable::OutboxEvent)
-        .await?;
-    let cursor = store.latest_outbox_sequence().await?;
-    tokio::spawn(dispatch_loop(
-        store,
-        subscriptions,
-        cancellation,
-        cursor,
-        live,
-    ));
-    Ok(())
-}
-
-async fn dispatch_loop(
-    store: PlatformStore,
-    subscriptions: ArtifactSubscriptions,
-    cancellation: CancellationToken,
-    mut cursor: i64,
-    mut live: LiveStream<OutboxEventRecord>,
-) {
-    let mut reconcile = tokio::time::interval(RECONCILE_INTERVAL);
-    reconcile.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-    loop {
-        let wake = tokio::select! {
-            _ = cancellation.cancelled() => return,
-            _ = reconcile.tick() => true,
-            item = live.next() => match item {
-                Some(Ok(_)) => true,
-                Some(Err(error)) => {
-                    tracing::warn!("artifact outbox LIVE stream failed: {error}");
-                    false
-                }
-                None => false,
-            }
-        };
-        if wake {
-            if let Err(error) = drain_outbox(&store, &subscriptions, &mut cursor).await {
-                tracing::warn!("artifact outbox replay failed: {error}");
-            }
-            continue;
-        }
-
-        if let Err(error) = drain_outbox(&store, &subscriptions, &mut cursor).await {
-            tracing::warn!("artifact outbox gap replay failed: {error}");
-        }
-        tokio::select! {
-            _ = cancellation.cancelled() => return,
-            _ = tokio::time::sleep(LIVE_RECONNECT_DELAY) => {}
-        }
+    let cursor = store.changefeed_checkpoint(&consumer).await?;
+    tokio::spawn(async move {
+        let mut changes = store.observe_changes(
+            vec![
+                PlatformTable::ArtifactOccurrence,
+                PlatformTable::ArtifactGrant,
+                PlatformTable::ShareLink,
+            ],
+            cursor,
+        );
         loop {
-            match store
-                .live::<OutboxEventRecord>(PlatformTable::OutboxEvent)
-                .await
-            {
-                Ok(reconnected) => {
-                    live = reconnected;
-                    break;
+            let delivery = tokio::select! {
+                _ = cancellation.cancelled() => return,
+                delivery = changes.next() => match delivery {
+                    Some(Ok(delivery)) => delivery,
+                    Some(Err(error)) => {
+                        tracing::warn!(%error, "Artifact changefeed needs reconciliation");
+                        let _ = subscriptions.updates.send(ArtifactInvalidation::Reconcile);
+                        continue;
+                    }
+                    None => return,
                 }
-                Err(error) => {
-                    tracing::warn!("artifact outbox LIVE reconnect failed: {error}");
-                    tokio::select! {
-                        _ = cancellation.cancelled() => return,
-                        _ = tokio::time::sleep(LIVE_RECONNECT_DELAY) => {}
+            };
+            let cursor = delivery.cursor();
+            match delivery {
+                ChangefeedDelivery::Reconcile { .. } => {
+                    let _ = subscriptions.updates.send(ArtifactInvalidation::Reconcile);
+                }
+                ChangefeedDelivery::Changes { entries, .. } => {
+                    let mut ids = BTreeSet::new();
+                    for entry in entries {
+                        match ArtifactChange::decode(&entry) {
+                            Ok(Some(change)) => {
+                                ids.insert(change.artifact_id);
+                            }
+                            Ok(None) => {}
+                            Err(error) => {
+                                tracing::warn!(%error, "Artifact change requires a current-state baseline");
+                                let _ = subscriptions.updates.send(ArtifactInvalidation::Reconcile);
+                            }
+                        }
+                    }
+                    for id in ids {
+                        let _ = subscriptions
+                            .updates
+                            .send(ArtifactInvalidation::Changed(id));
                     }
                 }
             }
-        }
-    }
-}
-
-async fn drain_outbox(
-    store: &PlatformStore,
-    subscriptions: &ArtifactSubscriptions,
-    cursor: &mut i64,
-) -> anyhow::Result<()> {
-    loop {
-        let page = store.read_outbox(*cursor, OUTBOX_PAGE_SIZE).await?;
-        if page.events.is_empty() {
-            return Ok(());
-        }
-        let count = page.events.len();
-        for event in page.events {
-            if event.aggregate_type == "artifact"
-                && let Ok(artifact_id) = ArtifactId::parse(&event.aggregate_id)
-            {
-                subscriptions.notify_artifact(artifact_id).await;
+            if let Err(error) = store.checkpoint_changes(&consumer, cursor).await {
+                tracing::warn!(%error, "Artifact changefeed checkpoint was not persisted");
             }
         }
-        *cursor = page.next_sequence;
-        if count < OUTBOX_PAGE_SIZE as usize {
-            return Ok(());
-        }
-    }
+    });
+    Ok(())
 }

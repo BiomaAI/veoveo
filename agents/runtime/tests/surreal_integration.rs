@@ -762,3 +762,65 @@ async fn task_settlement_survives_restart_and_is_consumed_once() {
         vec![task.task_id]
     );
 }
+
+#[tokio::test]
+async fn native_wake_deadlines_follow_remote_availability_and_claim_expiry() {
+    use futures::StreamExt;
+    tokio::time::timeout(Duration::from_secs(45), async {
+        let fixture = fixture().await;
+        fixture
+            .first
+            .acquire_lease(Duration::from_secs(30))
+            .await
+            .unwrap()
+            .unwrap();
+        let mut changes = fixture.first.wake_changes().await.unwrap();
+        changes.next().await.unwrap().unwrap();
+        assert_eq!(fixture.first.next_wake_delay().await.unwrap(), None);
+        let mut wake = NewWake::now(
+            WakeKind::Timer,
+            Some("future-native-wake".into()),
+            OpenObject::default(),
+        );
+        wake.available_at = Utc::now() + chrono::TimeDelta::seconds(10);
+        let id = fixture.second.enqueue_wake(wake).await.unwrap();
+        changes.next().await.unwrap().unwrap();
+        let delay = fixture.first.next_wake_delay().await.unwrap().unwrap();
+        assert!(delay > Duration::from_secs(5) && delay <= Duration::from_secs(10));
+        assert!(
+            fixture
+                .first
+                .claim_wakes(10, Duration::from_secs(5))
+                .await
+                .unwrap()
+                .is_empty()
+        );
+        // A remote producer advances availability. There is no local channel hint.
+        fixture
+            .root
+            .client()
+            .query("UPDATE ONLY $wake SET available_at = time::now();")
+            .bind(("wake", id.record_id()))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        loop {
+            changes.next().await.unwrap().unwrap();
+            if fixture.first.next_wake_delay().await.unwrap() == Some(Duration::ZERO) {
+                break;
+            }
+        }
+        let claimed = fixture
+            .first
+            .claim_wakes(10, Duration::from_secs(5))
+            .await
+            .unwrap();
+        assert_eq!(claimed.len(), 1);
+        assert_eq!(claimed[0].wake_id, id);
+        let expiry = fixture.first.next_wake_delay().await.unwrap().unwrap();
+        assert!(expiry > Duration::from_secs(2) && expiry <= Duration::from_secs(5));
+    })
+    .await
+    .expect("native wake deadline qualification exceeded 45 seconds");
+}

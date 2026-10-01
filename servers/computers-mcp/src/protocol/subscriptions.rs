@@ -9,8 +9,8 @@ use std::{
     time::{Duration, Instant},
 };
 use veoveo_computers::ComputerActor;
-use veoveo_computers_contract::{AutomationGrantId, ComputerId, ComputerResource};
-use veoveo_platform_store::{OutboxEventRecord, PlatformTable};
+use veoveo_computers_contract::ComputerResource;
+use veoveo_platform_store::{ChangefeedDelivery, ComputerChange, PlatformTable};
 use veoveo_task_runtime::{DurableTaskUpdateStream, TaskOwner};
 
 struct ListenerAuthority {
@@ -123,46 +123,40 @@ impl ComputersMcp {
             let mut tasks: DurableTaskUpdateStream = if task_ids.is_empty() {
                 Box::pin(futures::stream::pending())
             } else {
-                // One shared wake source serves independently authorized Task
-                // owners. Computer ownership and execution actor need not coincide.
-                let updates = self
-                    .app
-                    .tasks
-                    .live_updates()
-                    .await
-                    .map_err(|_| auth::unavailable())?;
-                let owners = std::sync::Arc::new(authority.tasks.clone());
-                let runtime = self.app.tasks.clone();
-                Box::pin(updates.filter_map(move |update| {
-                    let owners = owners.clone();
-                    let runtime = runtime.clone();
-                    async move {
-                        let snapshot = match update {
-                            Ok(update) => update.snapshot,
-                            Err(_) => return Some(Err(auth::unavailable())),
-                        };
-                        let owner = owners.get(&snapshot.task_id.to_string())?;
-                        if snapshot.server != "computers" || snapshot.owner != *owner {
-                            return Some(Err(auth::forbidden()));
-                        }
-                        Some(
-                            veoveo_task_runtime::project_snapshot(&runtime, snapshot)
-                                .await
-                                .map_err(|_| auth::unavailable()),
-                        )
+                let mut streams = Vec::new();
+                for (id, owner) in &authority.tasks {
+                    let admitted = veoveo_task_runtime::subscribe_durable_tasks(
+                        &self.app.tasks.for_owner(owner),
+                        vec![id.clone()],
+                    )
+                    .await?;
+                    if admitted.accepted_task_ids.len() != 1 {
+                        return Err(auth::forbidden());
                     }
-                }))
+                    streams.push(admitted.updates);
+                }
+                Box::pin(futures::stream::select_all(streams))
             };
-            // Establish the wake source before the baseline cursor. Each new listener
-            // receives an invalidation baseline, then reads committed outbox pages.
             let platform = self.app.tasks.platform_store();
-            let mut wake = platform
-                .live::<OutboxEventRecord>(PlatformTable::OutboxEvent)
+            let baseline_cursor = platform
+                .changefeed_head()
                 .await
                 .map_err(|_| auth::unavailable())?;
-            let mut cursor = platform
-                .latest_outbox_sequence()
+            let mut wake = platform.observe_changes(
+                vec![
+                    PlatformTable::Computer,
+                    PlatformTable::ComputerAutomationGrant,
+                    PlatformTable::ComputerSessionGrant,
+                    PlatformTable::ComputerCliGrant,
+                    PlatformTable::ComputerMaintenance,
+                    PlatformTable::Task,
+                ],
+                baseline_cursor,
+            );
+            // Install LIVE before reading the initial resource state.
+            wake.next()
                 .await
+                .ok_or_else(auth::unavailable)?
                 .map_err(|_| auth::unavailable())?;
             for (id, owner) in &authority.tasks {
                 let snapshot =
@@ -184,7 +178,6 @@ impl ComputersMcp {
                     .await
                     .map_err(|_| auth::unavailable())?;
             }
-            let mut replay = false;
             let mut health = self.app.capacity_health();
             let mut health_open = true;
             let mut availability = self.app.availability();
@@ -206,28 +199,27 @@ impl ComputersMcp {
                         let Some(update) = update else { return Err(auth::unavailable()); };
                         context.sink().notify_task_status(update?).await.map_err(|_| auth::unavailable())?;
                     }
-                    event = wake.next(), if !replay => {
-                        if !matches!(event, Some(Ok(_))) { return Err(auth::unavailable()); }
-                        replay = true;
-                    }
-                    _ = async {}, if replay => {
-                        let page = platform.read_outbox(cursor, 100).await.map_err(|_| auth::unavailable())?;
-                        replay = page.events.len() == 100;
-                        for event in page.events {
-                            let Some(id) = canonical_event_uuid(&event.aggregate_id) else { continue; };
-                            let id = if event.aggregate_type == "computer" {
-                                let Ok(id) = ComputerId::try_from(id) else { continue; };
-                                id
-                            } else if event.aggregate_type == "task" && event.event_type == "task.cancel_requested" {
-                                // Paused maintenance may have no active worker to emit
-                                // a Computer event. Current cancellation still changes
-                                // its recovery projection and must invalidate the UI.
-                                match self.app.store.maintenance(actor.owner(), id).await {
-                                    Ok(operation) => operation.computer_id,
-                                    Err(veoveo_computers::ComputerError::NotFound) => continue,
-                                    Err(_) => return Err(auth::unavailable()),
+                    event = wake.next() => {
+                        let delivery = event.ok_or_else(auth::unavailable)?.map_err(|_| auth::unavailable())?;
+                        let ChangefeedDelivery::Changes { entries, .. } = delivery else {
+                            // Reattachment must establish a fresh authority baseline.
+                            return Err(auth::unavailable());
+                        };
+                        for entry in entries {
+                            let change = ComputerChange::decode(&entry).map_err(|_| auth::unavailable())?;
+                            let (id, grant) = match change {
+                                Some(ComputerChange::Computer(id)) => (id, None),
+                                Some(ComputerChange::Automation { computer, grant }) => (computer, Some(grant)),
+                                Some(ComputerChange::Task(task)) => {
+                                    // Any Task mutation can alter maintenance recovery.
+                                    match self.app.store.maintenance(actor.owner(), task.as_uuid()).await {
+                                        Ok(operation) => (operation.computer_id, None),
+                                        Err(veoveo_computers::ComputerError::NotFound) => continue,
+                                        Err(_) => return Err(auth::unavailable()),
+                                    }
                                 }
-                            } else { continue; };
+                                None => continue,
+                            };
                             let control = self.app.store.control_authority(actor).await
                                 .map_err(|_| auth::forbidden())?;
                             match self.app.store.read_computer_access(actor, &control, id).await {
@@ -236,10 +228,7 @@ impl ComputersMcp {
                                     // A revoked Read grant must remove the row from its
                                     // recipient's view. Send only a collection hint,
                                     // never the revoked Computer or grant contents.
-                                    if event.event_type == "automation_revoked" {
-                                        let grant = event.payload.as_map().get("grant_id")
-                                            .and_then(serde_json::Value::as_str)
-                                            .and_then(|value| value.parse::<AutomationGrantId>().ok());
+                                    {
                                         if let Some(grant) = grant
                                             && self.app.store.automation_change_recipient(actor, &control, id, grant)
                                                 .await.map_err(|_| auth::unavailable())? {
@@ -265,7 +254,6 @@ impl ComputersMcp {
                                 }
                             }
                         }
-                        cursor = page.next_sequence;
                     }
                 }
                 let current = self.app.availability();
@@ -298,9 +286,4 @@ impl ComputersMcp {
         )
         .await
     }
-}
-
-fn canonical_event_uuid(text: &str) -> Option<uuid::Uuid> {
-    let id = uuid::Uuid::parse_str(text).ok()?;
-    (!id.is_nil() && id.to_string() == text).then_some(id)
 }

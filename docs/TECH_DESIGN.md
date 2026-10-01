@@ -283,6 +283,17 @@ in one transaction. Consumers checkpoint their position in the outbox. SurrealDB
 queries can cut latency, but after a reconnect a consumer always catches up from its
 checkpoint, because LIVE ordering and delivery are not guaranteed.
 
+Rust Task observation, agent wake scheduling, Artifact notifications and Computer
+notifications consume native table changefeeds. `changefeed/consumer.rs` registers
+projected LIVE queries before recovery and persists checked versionstamp cursors.
+Database-wide replay completes the final transaction before advancing, which avoids
+the pinned SurrealDB table-filter/LIMIT interaction. Consumers reconcile current state
+when the cursor exceeds the six-day safety window. Task public readers use identities
+only and reapply SQL admission before decoding; trusted workers can replay committed
+states. Domain ID decoders import their owning contract libraries. Checkpoint writes
+have no changefeed. Remaining outbox consumers and writer removal are tracked in the
+[foundations plan](PLATFORM_FOUNDATIONS_PLAN.md#phase-5-store-simplification).
+
 Resource hubs share a Store LIVE source per process. Each observed write anchors its
 cursor to the database clock, with a two-second overlap. Reconnection registers LIVE
 before replaying database changefeed pages up to the new anchor. One matching mutation

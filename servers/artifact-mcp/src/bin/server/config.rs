@@ -6,6 +6,8 @@ use veoveo_platform_store::{StoreAuthLevel, StoreConfig, StoreCredentials};
 #[derive(Parser)]
 #[command(name = "artifact-mcp", about = "Artifact MCP server")]
 pub(super) struct Args {
+    #[arg(long, env = "HOSTNAME", default_value = "local")]
+    pub(super) replica_id: String,
     #[arg(long, default_value_t = 8794)]
     pub(super) port: u16,
     #[arg(long, env = "PUBLIC_BASE_URL")]

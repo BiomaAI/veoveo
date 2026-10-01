@@ -42,3 +42,21 @@ An idle heartbeat is acknowledged without an episode. Task results and input
 answers persist independently of process lifetime. The integration suite starts
 an isolated database with the repository's exact image digest and database-scoped
 runtime credentials; missing test environment variables cannot silently skip it.
+
+## Wake And Authority Observation
+
+`wake_observation` reads the earliest pending availability and claimed lease expiry
+for the agent in SQL. Database time converts those deadlines to a delay. The kernel
+arms that delay and interrupts it on native LIVE changes; an empty queue has no timer.
+A closed local hint channel cannot create a busy loop. Remote writes wake the scheduler
+through the same source. Debounced work stays in the durable queue, allowing a priority
+wake to interrupt its delay.
+
+The native source persists its versionstamp after the scheduler resumes processing.
+Restart and expired history reconcile the current fenced queue. Managed pause removes
+the availability timer while authority changes can resume scheduling. Dispatch waits
+watch the managed instance, definition, tenant, principal, Work Context and runtime
+lease. They recheck dispatch at the known lease expiry and close on source failure.
+Input-request waits observe their own table and retain the caller's maximum wait.
+Work Context observation needs only an identity and a current authority read, so its
+feed does not retain prior row contents.

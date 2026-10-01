@@ -9,18 +9,32 @@ impl AgentRuntime {
     }
 
     /// Observe a live episode fence. Notifications reduce stop latency; the
-    /// bounded reread recovers a missed edge without any model/provider query.
+    /// native feed recovers missed changes; lease expiry arms the only timer.
     pub async fn wait_for_managed_dispatch_revocation(
         &self,
         binding: &veoveo_platform_store::agent_management::instances::ManagedEpisodeBinding,
     ) -> Result<()> {
-        let mut live = self
-            .store
-            .live::<OutboxEventRecord>(PlatformTable::OutboxEvent)
-            .await?;
-        let mut recovery = tokio::time::interval(Duration::from_secs(5));
-        recovery.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        let cursor = self.store.changefeed_cursor_now().await?;
+        let mut changes = self.store.observe_changes(
+            vec![
+                PlatformTable::ManagedAgent,
+                PlatformTable::AgentDefinition,
+                PlatformTable::Principal,
+                PlatformTable::Tenant,
+                PlatformTable::WorkContext,
+                PlatformTable::Agent,
+            ],
+            cursor,
+        );
+        changes.next().await.ok_or(AgentRuntimeError::LeaseLost)??;
         loop {
+            // Read the lease before admission. A concurrent renewal emits an Agent
+            // change and rearms this earlier deadline; expiry always rechecks SQL.
+            let lease = self
+                .agent_record()
+                .await?
+                .lease_expires_at
+                .ok_or(AgentRuntimeError::LeaseLost)?;
             if !self
                 .store
                 .managed_agent_kernel_dispatch(
@@ -38,16 +52,10 @@ impl AgentRuntime {
             {
                 return Ok(());
             }
-            loop {
-                tokio::select! {
-                    _ = recovery.tick() => break,
-                    event = live.next() => match event {
-                        Some(Ok(event)) if matches!(event.data.aggregate_type.as_str(), "managed_agent" | "agent_definition" | "principal" | "work_context" | "agent") => break,
-                        Some(Ok(_)) => {},
-                        Some(Err(error)) => return Err(AgentRuntimeError::Database(error)),
-                        None => return Err(AgentRuntimeError::LeaseLost),
-                    }
-                }
+            let delay = (lease - Utc::now()).to_std().unwrap_or(Duration::ZERO);
+            tokio::select! {
+                () = tokio::time::sleep(delay) => {},
+                change = changes.next() => { change.ok_or(AgentRuntimeError::LeaseLost)??; },
             }
         }
     }

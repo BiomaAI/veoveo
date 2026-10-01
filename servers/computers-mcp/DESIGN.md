@@ -498,7 +498,7 @@ the synchronous `revoke_access` tool accepts the same IDs as arguments. Both ret
 typed revocation receipt. Revocation is idempotent and needs no provider mutation or
 Tasks extension. The domain applies current owner/read authority even when new access
 is no longer admitted. Current service leases close the attachment; execution remains
-running. Grant outbox events invalidate the collection, Computer and access resource.
+running. Native grant changes invalidate the collection, Computer and access resource.
 
 Each request admits at most 64 KiB and has a thirty-second response deadline.
 A timeout does not certify whether admission committed; retry uses the same request
@@ -529,8 +529,8 @@ Computer before forwarding bytes. The runtime connection is published only after
 qualified handshake and successful current readiness probe. A lost publisher, stale
 probe or changed provider prevents attachment and renewal.
 
-The service owns one set of outbox, browser-family and active-policy LIVE listeners
-per replica. Their bounded fanout contains invalidations, never permission. Computer
+The service owns one native changefeed source for Computer state, grant tables,
+browser families and active policy per replica. Their bounded fanout contains invalidations, never permission. Computer
 and family wakes select the relevant attachments; policy changes invalidate all.
 An overrun requires a fresh authoritative baseline. Losing a listener ends its epoch,
 including when it reconnects before a consumer runs. The replacement epoch admits a
@@ -626,14 +626,16 @@ listeners, each with at most sixty-four resource/Task targets. It validates the 
 accepted set before sending private updates. A new resource listener receives an
 invalidation baseline and reads current state; transport replay IDs are absent.
 
-The shared platform outbox is authoritative across replicas. LIVE notifications wake a
-bounded persisted-page drain. LIVE loss closes the listener and requires a new baseline.
-Task notifications use one shared durable Task update source for all independently
-authorized targets. The listener establishes that source before projecting a current
-Task baseline, then uses the shared Task projector for updates. A Computer owner may
-observe Tasks owned by several execution actors without creating a watcher per actor.
-All notifications remain filtered by the exact authorized Task owner and requested IDs. Provider events and terminal
-contents never enter these streams.
+Native database changes supply Computer and grant invalidations across replicas.
+Store decoders reuse the Computer contract's IDs. Grant feeds keep delete originals
+for the parent Computer and grant identity. Source loss ends the listener epoch and
+requires a newly authorized baseline.
+
+Task listeners share the runtime's native source. Each admitted Task selects its
+current owner and requested identity in SQL before decoding. A Computer owner can
+observe several execution actors through these separate selections. The shared Task
+projector supplies official notifications. Provider events and terminal contents
+never enter these streams.
 
 Capacity health transitions also invalidate requested resources. Expiration of the
 fifteen-second health observation invalidates availability even without another

@@ -78,3 +78,17 @@ own authorization and transport qualification.
 <!-- TODO(foundations): Qualify installed Artifact reads/sharing, Computers hosted feature
 builds, and Speech's current identity profile through CUDA transcription/dictation at
 the next Phase 3 integration checkpoint; keep the reference cluster stopped during development. -->
+
+## Resource Observation
+
+The replica watches occurrence, grant and share-link tables through Store's native
+changefeed. Its checkpoint identity combines the configured replica ID and listening
+port. The replica ID defaults to `HOSTNAME` in deployment and `local` outside it;
+processes sharing a database and port must supply distinct replica IDs.
+
+Store decodes typed Artifact IDs before fanout. Grant and share-link feeds keep
+`INCLUDE ORIGINAL` because a deletion still needs its parent occurrence. Reconnection
+and channel overflow invalidate every admitted resource. Each listener registers its
+receiver before reading its baseline, then asks the Artifact service to authorize
+current metadata and grant reads before sending notifications. Idle listeners do not
+query on a timer.

@@ -69,7 +69,16 @@ async fn main() -> anyhow::Result<()> {
         GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?,
     );
     let cancellation = CancellationToken::new();
-    start_dispatcher(store, subscriptions, cancellation.child_token()).await?;
+    start_dispatcher(
+        store,
+        subscriptions,
+        cancellation.child_token(),
+        veoveo_platform_store::ChangefeedConsumerId::new(format!(
+            "artifact/{}/{}",
+            args.replica_id, args.port
+        ))?,
+    )
+    .await?;
 
     let mut allowed_hosts = public_allowed_hosts(&public_deployment, args.allow_loopback_hosts);
     allowed_hosts.extend(args.allowed_hosts);
