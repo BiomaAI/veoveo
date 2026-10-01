@@ -16454,11 +16454,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-embedding-client"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "futures",
+ "reqwest 0.13.5",
+ "rustls",
+ "secrecy",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tokio",
+ "url",
+ "veoveo-embedding-contract",
+ "veoveo-types",
+]
+
+[[package]]
 name = "veoveo-embedding-contract"
 version = "0.1.0"
 dependencies = [
  "schemars 1.2.2",
  "serde",
+ "serde_json",
  "veoveo-types",
 ]
 

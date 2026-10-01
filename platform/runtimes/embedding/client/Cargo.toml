@@ -1,0 +1,22 @@
+[package]
+name = "veoveo-embedding-client"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+veoveo-embedding-contract.workspace = true
+reqwest = { workspace = true, features = ["rustls-no-provider", "json", "stream"] }
+rustls.workspace = true
+secrecy.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["sync", "time"] }
+url.workspace = true
+
+[dev-dependencies]
+axum.workspace = true
+futures.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "net"] }
+veoveo-types.workspace = true

@@ -94,7 +94,8 @@ Component designs live beside the code whose contract they specify:
 | [`platform/computers/host/DESIGN.md`](../platform/computers/host/DESIGN.md) | private compute-host container: daemon, provider and storage process order, retained local state and installation trust |
 | [`platform/gateway/src/auth/DESIGN.md`](../platform/gateway/src/auth/DESIGN.md) | signed access-token session families, cross-replica revocation and rollout into renewable Computer grants |
 | [`platform/runtimes/simulation/DESIGN.md`](../platform/runtimes/simulation/DESIGN.md) | shared hardware-GPU Isaac Sim and Isaac Lab runtime, pinned dependency profile, and conformance probes |
-| [`platform/runtimes/embedding/DESIGN.md`](../platform/runtimes/embedding/DESIGN.md) | planned shared vLLM embedding runtime, platform-namespace access, `veoveo-embedding-client`, embedding spaces, priorities, and model selection |
+| [`platform/runtimes/embedding/DESIGN.md`](../platform/runtimes/embedding/DESIGN.md) | shared vLLM embedding design, implemented typed HTTP client, planned GPU serving, platform-namespace access, priorities and model selection |
+| [`platform/runtimes/embedding/client/DESIGN.md`](../platform/runtimes/embedding/client/DESIGN.md) | authenticated vLLM adapter, model discovery, Qwen query formatting, shared request limits, deadlines and vector validation; native fixtures in `client/tests/http.rs` |
 | [`servers/duckdb-mcp/DESIGN.md`](../servers/duckdb-mcp/DESIGN.md) | analytical SQL, Spatial, sandboxing, tasks, and data import/export |
 | [`platform/frames/contract/DESIGN.md`](../platform/frames/contract/DESIGN.md) | lightweight public Frames types and URI builders shared below Frames and Recording runtimes |
 | [`servers/frames-mcp/DESIGN.md`](../servers/frames-mcp/DESIGN.md) | local coordinate frames and transformations |

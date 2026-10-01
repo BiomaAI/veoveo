@@ -8,9 +8,11 @@ deduplication, and similarity features can call it without new infrastructure.
 
 ## Status
 
-The [shared contract](contract/DESIGN.md) implements embedding-space identities and
-vector admission without runtime dependencies. The runtime and the HTTP client crate
-do not exist yet. Phase 8 of the
+The [shared contract](contract/DESIGN.md) implements typed inputs, embedding-space
+identities and vector admission without runtime dependencies. The
+[HTTP client](client/DESIGN.md) implements authenticated requests, shared request limits,
+priorities, deadlines and response validation. GPU serving and installed qualification
+remain open. Phase 8 of the
 [implementation plan](../../../docs/PLATFORM_FOUNDATIONS_PLAN.md#phase-8-knowledge-service)
 delivers them before the knowledge service consumes them.
 
@@ -49,7 +51,7 @@ for Reason. The installation's GPU budget counts its share.
 The checkpoint follows the `reason-mcp` model-cache pattern. The installation stages
 the Hugging Face layout on a model-cache volume the same way it stages Reason's
 world-model checkpoint. An init container checks every file
-against its pinned SHA-256 with `sha256sum -c` before vLLM starts, and
+against [its pinned SHA-256](checkpoint.sha256) with `sha256sum -c` before vLLM starts, and
 `HF_HUB_OFFLINE=1` forbids downloads. The Pod uses the `nvidia` runtime class and
 requests `nvidia.com/gpu`, so the runtime has no CPU path. `/health` backs readiness.
 
@@ -83,15 +85,14 @@ same rules.
   themselves.
 - Requests are bounded in input count and total size. The client validates the vector
   count and dimension of every response.
-- Each request declares a priority. Interactive work, such as a search query, runs
-  ahead of bulk work, such as indexing. The client maps the priority onto vLLM's
-  scheduler; qualification confirms that the embeddings route honors it on the pinned
-  version. If it does not, the client caps the number of bulk requests in flight per
-  replica instead, so interactive requests still find free capacity.
+- Each request declares interactive or bulk priority, mapped to vLLM values 0 and 10.
+  Client clones share request permits and reserve capacity from bulk admission. Runtime
+  qualification measures whether interactive work completes ahead of queued indexing.
 
 Every response carries the shared contract's `EmbeddingSpace`: model name, checkpoint revision,
-dimension, and the vLLM image digest. The client reads it from `/v1/models` and the
-deployment's configuration. A consumer stores the space with its vectors and compares
+dimension, and the vLLM image digest. The client verifies the served model through
+`/v1/models`; deployment configuration supplies the revision, dimension and image digest.
+A consumer stores the space with its vectors and compares
 vectors only within one space. A model change therefore creates a new space, and each
 consumer rebuilds its vectors deliberately.
 

@@ -3,6 +3,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use veoveo_types::Sha256Digest;
 
+mod input;
+pub use input::{EmbeddingBatch, EmbeddingPriority, EmbeddingTask, EmbeddingText};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EmbeddingError(pub &'static str);
 impl std::fmt::Display for EmbeddingError {

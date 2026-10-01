@@ -21,7 +21,8 @@ are implemented. Knowledge Store records and transactional generation/member API
 pass native SurrealDB 3.3 qualification. Node document observations and executable
 K07/K08 owner probes are implemented. Domain probe fixtures and installed qualification
 remain open. Chart docs, Time domain adoption, Artifact metadata and Map summaries are
-implemented locally. Reason and the knowledge service are still open. Broader server
+implemented locally. The Phase 8 embedding HTTP client passes native contract checks;
+GPU serving, Reason and the knowledge service are still open. Broader server
 adoption is postponed outside this plan's completion scope. The cluster and BuildKit
 are stopped.
 
@@ -3435,6 +3436,18 @@ Acceptance: each server passes K01 through K10 review and conformance, and the a
 log records the observed revision for reads of each collection.
 
 ## Phase 8: Knowledge Service
+
+Client checkpoint (2026-10-01): upstream still lists vLLM 0.30.0 as its latest stable
+release. The typed HTTP client implements model discovery, document/query batches,
+Qwen query formatting, vLLM priority, shared bulk/request limits, complete-operation
+deadlines and streamed response bounds. Five native HTTP cases and two input/vector
+contract cases pass, together with affected strict Clippy and workspace all-target
+compilation. The provider's `/v1/models`
+response identifies the served model; revision, dimension and image identity come from
+deployment configuration. The pinned 0.6B checkpoint's ten runtime files are staged
+locally and verified against upstream Git/LFS identities; `checkpoint.sha256` records
+their SHA-256 digests. GPU serving, init-check qualification and reference vectors, scheduling
+load qualification, network isolation and the Knowledge service remain open.
 
 1. Deliver the shared [embedding runtime](../platform/runtimes/embedding/DESIGN.md)
    before the knowledge service consumes it. Re-verify the latest stable vLLM release
