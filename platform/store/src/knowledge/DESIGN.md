@@ -63,6 +63,14 @@ empty chunk table and indexes in the same transaction. Outstanding read tickets
 fail because their generation no longer exists. Operators choose when to reclaim a
 retired generation; retaining it does not authorize rolling the active pointer backward.
 
+## Catalog Reads
+
+`CatalogSelection` binds all approved collections, one source or one collection.
+`read_catalog.surql` checks tenant, full current approval equality and required scopes
+before decoding. `read_sources.surql` applies the same admission and cursor before
+source grouping, ordering and its 101-row limit. The service returns 100 rows and uses
+the lookahead to advertise a next cursor. Approval input is capped at 1,024 collections.
+
 ## Candidate Admission
 
 `CandidateScope` carries current caller policy, including the source collections exposed

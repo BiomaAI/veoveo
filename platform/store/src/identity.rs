@@ -22,6 +22,43 @@ pub struct PlatformIdentity {
     pub principal_key: String,
 }
 
+/// The signed identity being checked against the current installation directory.
+pub struct PrincipalIdentityRef<'a> {
+    pub tenant: &'a veoveo_types::TenantId,
+    pub principal: &'a veoveo_types::PrincipalId,
+    pub issuer: &'a veoveo_types::TokenIssuer,
+    pub subject: &'a veoveo_types::TokenSubject,
+    pub kind: PrincipalKind,
+}
+
+impl PlatformStore {
+    pub async fn identity_enabled(
+        &self,
+        identity: PrincipalIdentityRef<'_>,
+    ) -> Result<bool, StoreError> {
+        let mut result = self
+            .client()
+            .query(include_str!("identity_enabled.surql"))
+            .bind((
+                "principal",
+                deterministic_principal_id(identity.tenant.as_str(), identity.principal.as_str())?
+                    .record_id(),
+            ))
+            .bind((
+                "tenant",
+                deterministic_tenant_id(identity.tenant.as_str())?.record_id(),
+            ))
+            .bind(("enterprise", deterministic_enterprise_id().record_id()))
+            .bind(("tenant_key", identity.tenant.to_string()))
+            .bind(("issuer", identity.issuer.to_string()))
+            .bind(("subject", identity.subject.to_string()))
+            .bind(("kind", identity.kind))
+            .await?
+            .check()?;
+        Ok(result.take::<Option<bool>>(0)? == Some(true))
+    }
+}
+
 pub fn deterministic_enterprise_id() -> EnterpriseId {
     EnterpriseId::from_uuid(Uuid::new_v5(&PLATFORM_ID_NAMESPACE, b"veoveo-installation"))
 }

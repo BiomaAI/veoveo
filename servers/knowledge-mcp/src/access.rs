@@ -35,7 +35,43 @@ impl SearchCaller {
         authority: &veoveo_types::InvocationAuthority,
         descriptors: impl IntoIterator<Item = &'a CollectionDescriptor>,
     ) -> Result<Self, crate::ServiceError> {
-        if principal.tenant.as_ref() != Some(&authority.tenant) {
+        let memberships = catalog
+            .control_plane()
+            .work_contexts
+            .iter()
+            .filter_map(|context| {
+                context
+                    .membership_for(principal, client)
+                    .map(|level| (context.id.clone(), level))
+            })
+            .collect();
+        Self::from_current_memberships(
+            catalog,
+            principal,
+            principal,
+            profile,
+            authority,
+            &memberships,
+            descriptors,
+        )
+    }
+
+    /// Transport-owned current membership; never deserialized from tool input.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "signed actor and source policy remain distinct"
+    )]
+    pub(crate) fn from_current_memberships<'a>(
+        catalog: &veoveo_policy::PolicyCatalog,
+        principal: &veoveo_mcp_contract::Principal,
+        actor: &veoveo_mcp_contract::Principal,
+        profile: &GatewayProfileId,
+        authority: &veoveo_types::InvocationAuthority,
+        memberships: &BTreeMap<WorkContextId, WorkContextMembershipLevel>,
+        descriptors: impl IntoIterator<Item = &'a CollectionDescriptor>,
+    ) -> Result<Self, crate::ServiceError> {
+        if principal.tenant.as_ref() != Some(&authority.tenant) || actor.tenant != principal.tenant
+        {
             return Err(crate::ServiceError::AccessChanged);
         }
         let contexts = &catalog.control_plane().work_contexts;
@@ -45,7 +81,7 @@ impl SearchCaller {
             .ok_or(crate::ServiceError::AccessChanged)?;
         if current.tenant != authority.tenant
             || current.policy_revision != authority.policy_revision
-            || current.membership_for(principal, client) != Some(authority.membership)
+            || memberships.get(&authority.work_context) != Some(&authority.membership)
         {
             return Err(crate::ServiceError::AccessChanged);
         }
@@ -75,7 +111,7 @@ impl SearchCaller {
             })
             .collect();
         Ok(Self {
-            principal: principal.id.clone(),
+            principal: actor.id.clone(),
             tenant: authority.tenant.clone(),
             profile: profile.clone(),
             active_work_context: authority.work_context.clone(),
@@ -83,14 +119,13 @@ impl SearchCaller {
             work_contexts: contexts
                 .iter()
                 .filter(|context| {
-                    context.tenant == authority.tenant
-                        && context.membership_for(principal, client).is_some()
+                    context.tenant == authority.tenant && memberships.contains_key(&context.id)
                 })
                 .map(|context| context.id.clone())
                 .collect(),
-            memberships: principal.group_memberships(),
-            scopes: principal.scopes.clone(),
-            clearance: principal.data_labels.clone(),
+            memberships: actor.group_memberships(),
+            scopes: actor.scopes.clone(),
+            clearance: actor.data_labels.clone(),
         })
     }
 

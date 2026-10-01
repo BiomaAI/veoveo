@@ -13,6 +13,11 @@ pub trait Embeddings: Send + Sync {
         &self,
         texts: EmbeddingBatch,
     ) -> impl Future<Output = Result<Vec<EmbeddingVector>, ServiceError>> + Send;
+    fn queries(
+        &self,
+        task: EmbeddingTask,
+        texts: EmbeddingBatch,
+    ) -> impl Future<Output = Result<Vec<EmbeddingVector>, ServiceError>> + Send;
     fn query(
         &self,
         task: EmbeddingTask,
@@ -26,6 +31,15 @@ impl Embeddings for EmbeddingClient {
     async fn documents(&self, texts: EmbeddingBatch) -> Result<Vec<EmbeddingVector>, ServiceError> {
         Ok(self
             .embed_documents(&texts, EmbeddingPriority::Bulk)
+            .await?)
+    }
+    async fn queries(
+        &self,
+        task: EmbeddingTask,
+        texts: EmbeddingBatch,
+    ) -> Result<Vec<EmbeddingVector>, ServiceError> {
+        Ok(self
+            .embed_queries(&task, &texts, EmbeddingPriority::Interactive)
             .await?)
     }
     async fn query(

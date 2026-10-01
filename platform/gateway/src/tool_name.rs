@@ -17,7 +17,7 @@ impl GatewayToolProjection {
     }
 
     pub fn gateway_name(&self) -> Result<GatewayToolName, GatewayNameError> {
-        GatewayToolName::new(format!("{}__{}", self.server, self.tool))
+        GatewayToolName::from_parts(&self.server, &self.tool)
             .map_err(GatewayNameError::InvalidProjectedToolName)
     }
 

@@ -20,8 +20,9 @@ tools and scopes belong to that server; MCP core imports none of them.
 
 ## Catalog And Generations
 
-`CollectionRegistration` binds a tenant, source descriptor, installation approval and
-control-plane revision. Its SHA-256 fingerprint changes when any of these values
+`CollectionRegistration` binds a tenant, source descriptor, positive source contract
+revision, installation approval and control-plane revision. Discovery obtains the source
+revision from the server's contract declaration. Its SHA-256 fingerprint changes when any of these values
 changes. The Store compares this fingerprint in source-read and activation transactions.
 Approval authorizes indexing by the service; it grants no caller permission to read.
 

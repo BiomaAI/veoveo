@@ -305,6 +305,7 @@ async fn indexing_gate_binds_approval_enumeration_members_and_revocation() {
             }
         ));
         let registration = CollectionRegistration {
+            source_contract_revision: 3,
             tenant: subject.authority.tenant.clone(),
             approval: plane.servers[0].knowledge[0].clone(),
             control_revision: veoveo_types::Sha256Digest::from_bytes([1; 32]),

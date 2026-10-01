@@ -2,8 +2,8 @@
 
 Knowledge catalogs approved source collections and retrieves relevant source members
 with their revision, freshness and resource links. The service contract below defines
-its hosted surface. Hosted transport, the source subscription coordinator and packaging
-are pending; the library implements generation building and hybrid retrieval.
+its hosted surface. The HTTP adapter serves search, embedding and catalog reads through
+signed gateway identities. The source subscription coordinator and packaging are pending.
 
 ## Standards And Protocols
 
@@ -21,7 +21,7 @@ are pending; the library implements generation building and hybrid retrieval.
 
 `contract` exposes Knowledge scopes, resource addresses, search models and the shared
 Knowledge domain types. It excludes Store, MCP integration, HTTP and asynchronous
-runtime dependencies. `runtime` adds source ingestion and retrieval.
+runtime dependencies. `runtime` adds source ingestion, retrieval and the HTTP server.
 
 `Indexer::build` creates an inactive generation from the complete approved collection
 set. It traverses at most 10,000 pages and 100,000 unique members per collection under
@@ -65,6 +65,34 @@ foundational `AccessGrant` trait. An access discrepancy aborts the response; it 
 silently drops a decoded row and returns a shortened page. Source record/grant expiry
 is evaluated at query time and again before returning results.
 
+## Hosted Requests
+
+The `knowledge-mcp` binary mounts stateless Streamable HTTP and authenticated document
+HTTP routes under the installation's Knowledge mount. The shared transport enforces
+final MCP request metadata and the serialized response limit. Host admission and an
+internal JWT signature check run before protocol dispatch.
+
+`authority.rs` reads the active control-plane revision for each domain request. It
+checks the signed token's lifetime, current OAuth registration, Work Context membership,
+session-family revocation and individual JWT revocation. Store checks the enabled
+enterprise, tenant and both source and delegated actor identities in SQL. The gateway
+synchronizes those identities before forwarding. Managed requests also bind to the
+current instance, generation, dispatch epoch and published tool allowlist; the gateway
+owns runtime-template admission.
+
+Tool and resource discovery evaluate each descriptor with the shared policy evaluator.
+A narrow tool rule does not require a separate rule granting the whole server. Search
+and embedding recheck authority before delivery. A changed control revision or search
+collection registration aborts delivery. Tools allow 60 seconds for their domain work;
+each admission or delivery check has a separate 10-second deadline. Resource reads
+have a 60-second deadline and catalog SQL statements stop after 10 seconds.
+
+The binary reads Store credentials and internal public trust from installation
+configuration. It connects to the shared embedding endpoint using its API key and a
+JSON `EmbeddingSpace` file. Database migrations belong to installation bootstrap.
+`healthz` checks that Store has a current control revision; installed readiness and
+coordinator readiness require further qualification.
+
 ## Sources And Approval
 
 The service discovers candidate sources from the gateway catalog: every server in
@@ -95,11 +123,18 @@ the installation's indexing client are pending with coordinator delivery.
 |---|---|
 | `knowledge://sources{?cursor}` | Paged `DataService` entries: server slug, contract revision, and declared collections |
 | `knowledge://source/{server}` | One source with its collections and approval state |
-| `knowledge://collection/{collection}` | One `Dataset`: descriptor, approval, index generation, member count, newest observation, and last change event |
+| `knowledge://collection/{collection}` | One `Dataset`: descriptor, approval and index generation; indexing statistics pending |
 | `knowledge://docs`, `knowledge://docs/{doc_id}`, `knowledge://contract` | Well-known surface |
 
-Collection resources are subscribable, and the service notifies them as indexing
-progresses.
+Catalog queries match the tenant, current approval and required scopes before decoding.
+Source pages group and order in SQL, returning 100 sources plus one lookahead. Exact
+source and collection requests bind their selected collection IDs to the query.
+The source declaration revision comes from each stored registration; inconsistent
+revisions within one source require rediscovery.
+
+The current collection response includes its descriptor, approval and matching active
+generation. Member counts, observation/change statistics, collection subscriptions and
+completion are pending with coordinator integration.
 
 ## Index
 
@@ -200,13 +235,25 @@ agent's episode budget counts it. Platform services call the runtime directly in
 | `src/index.rs`, `src/chunk.rs` | fenced source reads, bounded enumeration, source-byte chunking and inactive generation builds |
 | `src/source.rs`, `src/source/gateway.rs` | checked source pages and bodies; authenticated gateway peer adapter |
 | `src/contract/` | owner scopes, typed routes, search models and shared domain re-exports |
-| `src/embed.rs` | index and search use of `veoveo-embedding-client`; hosted `embed` wiring pending |
+| `src/embed.rs` | shared embedding client, bulk documents and interactive query batches |
+| `src/authority.rs` | current policy, directory, session and registration checks |
+| `src/mcp/` | typed setup, per-descriptor discovery, search, embed and catalog reads |
+| `src/host.rs`, `src/bin/server.rs` | authenticated HTTP mount and installation configuration |
 | `src/search.rs` | hybrid query, rank fusion, effective-access filtering, and result links |
 | `platform/store/src/knowledge.rs` | typed catalog, chunk, and index-generation records |
 | `platform/gateway/src/mcp/resource_read.rs`, `knowledge_indexing.rs` | collection approval, observation and label admission, and per-read audit; indexing windows pending |
 | `agents/kernel/src/resource.rs` | observation retention and provenance lines in model context |
 
 ## Verification
+
+`tests/http.rs` runs the maintained MCP client against real HTTP listeners and owned
+SurrealDB fixtures. It checks search links, cross-replica reads, malformed hidden
+catalog rows, query batches, scope reduction, directory disablement, browser-session
+revocation and JWT revocation during an embedding call. Its vectors are synthetic;
+the shared runtime owns GPU inference qualification. `platform/store/tests/knowledge.rs`
+checks SQL source paging across 105 owners and exact selection before decoding.
+
+Installed acceptance also requires the following cases:
 
 - Contract rules K01 through K10 pass against this server's `knowledge.docs`
   collection.

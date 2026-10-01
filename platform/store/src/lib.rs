@@ -67,7 +67,7 @@ pub use gateway_runtime::{
     gateway_resource_subscription_record_id,
 };
 pub use identity::{
-    PlatformIdentity, deterministic_enterprise_id, deterministic_group_id,
+    PlatformIdentity, PrincipalIdentityRef, deterministic_enterprise_id, deterministic_group_id,
     deterministic_principal_id, deterministic_tenant_id, deterministic_work_context_id,
 };
 pub use ids::*;

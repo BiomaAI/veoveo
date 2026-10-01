@@ -7,11 +7,18 @@ publish = false
 [features]
 default = ["runtime"]
 contract = ["dep:veoveo-types", "dep:veoveo-knowledge-contract", "dep:veoveo-embedding-contract", "dep:veoveo-mcp-knowledge-extension", "dep:serde", "dep:schemars", "dep:chrono"]
-runtime = ["contract", "dep:rmcp", "veoveo-mcp-knowledge-extension/mcp", "dep:veoveo-platform-store", "dep:veoveo-mcp-contract", "dep:veoveo-policy", "dep:veoveo-embedding-client", "dep:serde_json", "dep:tokio", "dep:thiserror", "chrono/clock"]
+runtime = ["contract", "dep:rmcp", "veoveo-mcp-knowledge-extension/mcp", "dep:veoveo-platform-store", "dep:veoveo-mcp-contract", "dep:veoveo-policy", "dep:veoveo-embedding-client", "dep:serde_json", "dep:tokio", "dep:thiserror", "chrono/clock", "dep:axum", "dep:anyhow", "dep:sha2", "dep:tokio-util", "dep:clap", "dep:rustls", "dep:secrecy"]
 
 [dependencies]
+clap = { workspace = true, features = ["derive", "env"], optional = true }
+rustls = { workspace = true, optional = true }
+secrecy = { workspace = true, optional = true }
+axum = { workspace = true, optional = true }
+anyhow = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+tokio-util = { workspace = true, optional = true }
 veoveo-policy = { path = "../../platform/policy", optional = true }
-rmcp = { workspace = true, features = ["client"], optional = true }
+rmcp = { workspace = true, features = ["client", "transport-streamable-http-server"], optional = true }
 veoveo-types = { workspace = true, optional = true }
 veoveo-knowledge-contract = { workspace = true, optional = true }
 veoveo-embedding-contract = { workspace = true, optional = true }
@@ -27,6 +34,10 @@ tokio = { workspace = true, features = ["time"], optional = true }
 thiserror = { workspace = true, optional = true }
 
 [dev-dependencies]
+base64.workspace = true
+rcgen.workspace = true
+reqwest = { workspace = true, features = ["json"] }
+rmcp = { workspace = true, features = ["client", "transport-streamable-http-client-reqwest"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "process", "io-util"] }
 uuid = { workspace = true, features = ["v7"] }
 serde_json.workspace = true
@@ -45,4 +56,13 @@ required-features = ["runtime"]
 
 [[test]]
 name = "access"
+required-features = ["runtime"]
+
+[[bin]]
+name = "knowledge-mcp"
+path = "src/bin/server.rs"
+required-features = ["runtime"]
+
+[[test]]
+name = "http"
 required-features = ["runtime"]

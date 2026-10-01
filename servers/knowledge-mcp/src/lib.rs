@@ -17,3 +17,12 @@ pub mod search;
 pub mod source;
 #[cfg(feature = "runtime")]
 pub use error::ServiceError;
+
+#[cfg(feature = "runtime")]
+pub mod authority;
+
+#[cfg(feature = "runtime")]
+pub mod mcp;
+
+#[cfg(feature = "runtime")]
+pub mod host;

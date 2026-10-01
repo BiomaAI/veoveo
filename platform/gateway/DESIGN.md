@@ -24,6 +24,13 @@ The MCP Apps `_meta.ui.resourceUri` field receives the corresponding App address
 `referenced_resource_schemes` preserves protocol links owned by another registered
 server; installation validation checks that declaration against the registry.
 
+## Forwarded Identity Directory
+
+After authenticating a request, the gateway synchronizes the source principal and any
+distinct delegated actor into the platform directory. Store preserves security fields
+on existing entries. Hosted services can therefore check both identities against
+current enterprise and tenant enablement before delivering private data.
+
 ## Domain Payload Preservation
 
 Structured tool results, resource content and unknown extension metadata keep their

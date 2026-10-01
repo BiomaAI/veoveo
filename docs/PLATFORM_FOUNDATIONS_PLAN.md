@@ -25,9 +25,9 @@ implemented locally. The Phase 8 embedding HTTP client passes native contract ch
 The embedding Helm component and local GPU reference, priority and refusal checks pass.
 The Knowledge library now implements fenced source indexing and SQL hybrid retrieval.
 Typed installation approvals and gateway indexing-client admission pass native checks.
-Installed embedding qualification, Reason and the hosted Knowledge coordinator/API are
-still open. Broader server
-adoption is postponed outside this plan's completion scope. The cluster and BuildKit
+The hosted Knowledge API passes native HTTP and current-authority checks. Installed
+embedding qualification, Reason, source coordination and Knowledge packaging remain open.
+Broader server adoption is postponed outside this plan's completion scope. The cluster and BuildKit
 are stopped.
 
 Scope decision (2026-10-01): prioritize collections that help users find places and
@@ -3540,6 +3540,29 @@ discovery, hosted MCP, source subscription/revalidation/restart coordination and
 remain open. The cluster and BuildKit stayed stopped throughout this batch.
 Workspace all-target compilation, the Knowledge contract-only build and dependency
 isolation, expanded SurrealDB query validation and all 1,000 documentation links pass.
+
+Hosted API checkpoint (2026-10-01): `knowledge-mcp` serves typed search and embedding
+tools, source/collection catalog resources and embedded docs over the shared stateless
+HTTP transport. Real-JWT native tests use the maintained MCP client and isolated Store
+fixtures. Search links work across replicas. Current OAuth scope reductions, browser
+session revocation, enterprise/tenant/principal disablement and revocation during
+embedding prevent delivery. Discovery evaluates policy per descriptor. Gateway directory
+synchronization now includes a distinct delegated actor.
+
+Catalog approval and scope admission run in SQL before decoding. Source grouping and
+cursor selection run before the 101-row page limit; exact source and collection reads
+bind their selection. Tests cover 105 owners, malformed hidden registrations and changed
+approvals. Registrations include the source's positive contract-declaration revision in
+their fingerprint. This is a hard cut of the undeployed cache contract.
+
+Native qualification covers 13 Knowledge tests, six Store tests, two domain-contract
+tests, two affected gateway checks and 140 MCP contract tests. Strict affected Clippy,
+workspace all-target compilation and the contract-only dependency check pass. Synthetic
+vectors establish HTTP, indexing and access behavior; GPU retrieval quality and installed
+acceptance remain separate. Schema conformance, catalog completion/statistics/listeners,
+source discovery/reconciliation/restart coordination, five-minute indexing audit windows,
+machine-client provisioning and packaging remain open. The cluster and BuildKit stayed
+stopped during this batch.
 
 1. Deliver the shared [embedding runtime](../platform/runtimes/embedding/DESIGN.md)
    before the knowledge service consumes it. Re-verify the latest stable vLLM release

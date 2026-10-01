@@ -160,6 +160,13 @@ typed_id!(
     validate_gateway_name,
     "Gateway-scoped tool name after server namespace projection."
 );
+impl GatewayToolName {
+    /// Compose the gateway namespace from typed server and local tool names.
+    pub fn from_parts(server: &ServerSlug, tool: &LocalToolName) -> Result<Self, IdentifierError> {
+        Self::new(format!("{server}__{tool}"))
+    }
+}
+
 typed_id!(
     ArtifactAudience,
     validate_gateway_name,

@@ -21,7 +21,8 @@ records and source authorization with their owning servers.
 ## Build And Test
 
 Run `cargo test -p veoveo-knowledge-mcp --tests` for contract and isolated pipeline
-checks. The pipeline fixture needs Docker and the pinned SurrealDB image; it owns its
+checks. The HTTP suite adds signed gateway requests, current authority changes and
+cross-replica reads. The pipeline fixture needs Docker and the pinned SurrealDB image; it owns its
 containers and has a 180-second timeout per case. Run
 `cargo check -p veoveo-knowledge-mcp --no-default-features --features contract` to
 qualify the public library dependency boundary. Hosted and GPU acceptance follow the
@@ -33,5 +34,6 @@ Target contract revision: `veoveo.ai/hosted-mcp/v3`.
 
 | Items | Status | Scope |
 |---|---|---|
-| C09, C13, C14, C22, C23, C24 | met | typed library, platform Store, source links, crate identity and documents |
-| C01–C08, C10–C12, C15–C21, C25–C32 | pending | hosted transport, discovery, source coordination, packaging and installed conformance |
+| C02, C04–C06, C08–C10, C12–C14, C18–C26, C28–C30 | met | typed direct tools, SQL catalog pages, shared stateless transport, signed request authority and embedded documents; no durable tools or private byte routes |
+| C03, C11 | met | no domain Tasks, Artifact operations or recording operations |
+| C01, C07, C15–C17, C27, C31, C32 | pending | schema conformance, completion, catalog subscriptions, packaging, registration and installed conformance |

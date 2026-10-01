@@ -1,5 +1,4 @@
 //! Synthetic embeddings qualify indexing, SQL ranking and policy, never GPU inference.
-use chrono::Utc;
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Mutex,
@@ -7,185 +6,17 @@ use std::{
 };
 use veoveo_embedding_contract::*;
 use veoveo_knowledge_mcp::{
-    ServiceError, access::SearchCaller, contract::*, embed::Embeddings, index::Indexer,
-    search::SearchService, source::*,
+    contract::*, index::Indexer, search::SearchService, source::MemberLink,
 };
-use veoveo_mcp_knowledge_extension::{self as extension, *};
+use veoveo_mcp_knowledge_extension::*;
 use veoveo_types::*;
 
 #[path = "../../../testing/fixtures/store.rs"]
 mod fixture;
 
-struct SyntheticEmbeddings {
-    space: EmbeddingSpace,
-    inputs: Mutex<Vec<String>>,
-}
-impl SyntheticEmbeddings {
-    fn new() -> Self {
-        Self {
-            space: EmbeddingSpace {
-                model: EmbeddingModelId::new("synthetic-fixture").unwrap(),
-                revision: EmbeddingModelRevision::new("fixture-1").unwrap(),
-                dimension: EmbeddingDimension::new(3).unwrap(),
-                runtime_image: Sha256Digest::from_bytes([1; 32]),
-            },
-            inputs: Mutex::new(vec![]),
-        }
-    }
-}
-impl Embeddings for SyntheticEmbeddings {
-    fn space(&self) -> &EmbeddingSpace {
-        &self.space
-    }
-    async fn documents(&self, batch: EmbeddingBatch) -> Result<Vec<EmbeddingVector>, ServiceError> {
-        let mut inputs = self.inputs.lock().unwrap();
-        Ok(batch
-            .texts()
-            .iter()
-            .map(|t| {
-                inputs.push(t.as_str().to_owned());
-                EmbeddingVector::new(self.space.clone(), vec![1.0, 0.0, 0.0]).unwrap()
-            })
-            .collect())
-    }
-    async fn query(
-        &self,
-        _: EmbeddingTask,
-        _: EmbeddingText,
-    ) -> Result<EmbeddingVector, ServiceError> {
-        Ok(EmbeddingVector::new(self.space.clone(), vec![1.0, 0.0, 0.0]).unwrap())
-    }
-}
-#[derive(Clone)]
-struct Record {
-    registration: CollectionRegistration,
-    title: MemberTitle,
-    text: String,
-    access: AccessDescriptor,
-    revision: u32,
-    fail: bool,
-}
-struct Source(Mutex<BTreeMap<ResourceUri, Record>>);
-impl KnowledgeSource for Source {
-    async fn enumerate(
-        &self,
-        _collection: &CollectionDescriptor,
-        uri: ResourceUri,
-    ) -> Result<SourcePage, ServiceError> {
-        let parts = ResourceUriParts::parse(uri.as_str()).unwrap();
-        let after = parts
-            .query_parameters()
-            .get("cursor")
-            .map(|s| s.parse::<usize>().unwrap())
-            .unwrap_or_default();
-        let records = self.0.lock().unwrap();
-        let matches: Vec<_> = records
-            .iter()
-            .filter(|(_, record)| {
-                record.registration.descriptor.collection().name().as_str() == parts.authority()
-            })
-            .collect();
-        let items = matches
-            .iter()
-            .skip(after)
-            .take(100)
-            .map(|(uri, record)| MemberLink {
-                uri: (*uri).clone(),
-                title: Some(record.title.clone()),
-            })
-            .collect();
-        Ok(SourcePage::new(
-            items,
-            (matches.len() > after + 100).then(|| (after + 100).to_string()),
-        )?)
-    }
-    async fn read(
-        &self,
-        _collection: &CollectionDescriptor,
-        uri: ResourceUri,
-    ) -> Result<SourceDocument, ServiceError> {
-        let records = self.0.lock().unwrap();
-        let record = records.get(&uri).ok_or(ServiceError::SourceUnavailable)?;
-        if record.fail {
-            return Err(ServiceError::SourceUnavailable);
-        }
-        let observation = Observation::builder(
-            record.registration.descriptor.collection().clone(),
-            Revision::new(record.revision.to_string())?,
-            extension::content_digest(&record.text),
-            Utc::now(),
-        )
-        .access(record.access.clone())
-        .build(&record.registration.descriptor)?;
-        Ok(SourceDocument::new(record.text.clone(), observation)?)
-    }
-}
-fn registration(name: &str, indexing: IndexingMode) -> CollectionRegistration {
-    CollectionRegistration {
-        tenant: "knowledge-native".parse().unwrap(),
-        descriptor: CollectionDescriptor::new(
-            CollectionId::new("fixture".parse().unwrap(), name.parse().unwrap()).unwrap(),
-            "finding".parse().unwrap(),
-            ResourceTemplateUri::new(format!("fixture://{name}{{?cursor}}")).unwrap(),
-            Freshness::max_age(300),
-            ChangeSignal::Listen,
-            AccessModel::WorkContext,
-            indexing,
-        )
-        .unwrap()
-        .with_required_scopes([ScopeName::new("fixture:read").unwrap()]),
-        approval: KnowledgeCollectionApproval {
-            collection: CollectionId::new("fixture".parse().unwrap(), name.parse().unwrap())
-                .unwrap(),
-            mode: CollectionApproval::Index,
-            stewards: ["stewards".parse().unwrap()].into(),
-            authoritative_for: Default::default(),
-            data_labels: ["secret".parse().unwrap(), "restricted".parse().unwrap()].into(),
-        },
-        control_revision: Sha256Digest::from_bytes([2; 32]),
-    }
-}
-fn uri(id: &str) -> ResourceUri {
-    ResourceUriBuilder::new("fixture://members")
-        .unwrap()
-        .segment(UriSegment::new(id).unwrap())
-        .build()
-        .unwrap()
-}
-fn record(registration: &CollectionRegistration, text: &str) -> Record {
-    Record {
-        registration: registration.clone(),
-        title: MemberTitle::new("Facility inspection").unwrap(),
-        text: text.into(),
-        revision: 1,
-        fail: false,
-        access: AccessDescriptor {
-            tenant: registration.tenant.clone(),
-            work_context: "operations".parse().unwrap(),
-            read_policy: ReadPolicy::SelectedWorkContextMembers {},
-            owner: AccessSubject::Principal("author".parse().unwrap()),
-            grants: vec![],
-            data_labels: vec![],
-            expires_at: None,
-        },
-    }
-}
-fn caller(registrations: &[CollectionRegistration]) -> SearchCaller {
-    SearchCaller {
-        principal: "reader".parse().unwrap(),
-        tenant: registrations[0].tenant.clone(),
-        profile: "operations".parse().unwrap(),
-        active_work_context: "operations".parse().unwrap(),
-        collections: registrations
-            .iter()
-            .map(|r| (r.descriptor.collection().clone(), selection()))
-            .collect(),
-        work_contexts: BTreeSet::from(["operations".parse().unwrap()]),
-        memberships: BTreeSet::new(),
-        scopes: BTreeSet::from(["fixture:read".parse().unwrap()]),
-        clearance: BTreeSet::new(),
-    }
-}
+#[path = "support/indexing.rs"]
+mod indexing;
+use indexing::*;
 
 #[tokio::test]
 async fn source_to_hybrid_search_with_sql_policy_metadata_and_invalidation() {
@@ -345,15 +176,6 @@ async fn duplicate_chunks_expand_the_window_and_failed_rebuild_preserves_active(
     })
     .await
     .expect("knowledge window test exceeded 180 seconds");
-}
-
-fn selection() -> veoveo_types::ResourceSelection {
-    veoveo_types::ResourceSelection {
-        scheme: "fixture".parse().unwrap(),
-        selectors: vec![veoveo_types::ResourceSelector::Scheme {
-            scheme: "fixture".parse().unwrap(),
-        }],
-    }
 }
 
 #[tokio::test]

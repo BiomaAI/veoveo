@@ -420,6 +420,21 @@ async fn sync_principal_directory(
                 .await?;
         }
     }
+    if subject.actor.id != principal.id {
+        let actor = &subject.actor;
+        store
+            .ensure_identity(
+                tenant,
+                actor.id.as_str(),
+                actor.issuer.as_str(),
+                actor.subject.as_str(),
+                match actor.kind {
+                    PrincipalKind::User => StorePrincipalKind::User,
+                    PrincipalKind::Service => StorePrincipalKind::Service,
+                },
+            )
+            .await?;
+    }
     Ok(())
 }
 

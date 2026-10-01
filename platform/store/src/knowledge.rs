@@ -8,6 +8,7 @@ mod reads;
 mod resource_selection;
 mod search;
 use crate::StoreError;
+pub use catalog::{CatalogSelection, CatalogSource};
 pub use members::MemberReadTicket;
 pub use reads::{CandidateCursor, CandidateScope, KnowledgeCandidate};
 pub use search::{HybridSearchPage, RankedCandidate, SearchWindow};

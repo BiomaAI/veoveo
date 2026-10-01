@@ -29,6 +29,7 @@ fn space(revision: &str) -> EmbeddingSpace {
 }
 fn registration(tenant: &str) -> CollectionRegistration {
     CollectionRegistration {
+        source_contract_revision: 3,
         tenant: TenantId::new(tenant).unwrap(),
         descriptor: CollectionDescriptor::new(
             CollectionId::try_from("fixture.records".to_owned()).unwrap(),
@@ -927,4 +928,47 @@ async fn lexical_resource_selection_matches_policy_before_pagination() {
     })
     .await
     .expect("resource selection qualification exceeded 120 seconds");
+}
+
+#[tokio::test]
+async fn catalog_admits_before_source_paging_and_exact_record_decoding() {
+    tokio::time::timeout(Duration::from_secs(180), async {
+        use veoveo_platform_store::knowledge::CatalogSelection;
+        let db = fixture::TestDb::new().await;
+        let tenant = TenantId::new("catalog-native").unwrap();
+        let mut approvals = BTreeMap::new();
+        let mut expected = Vec::new();
+        for n in 0..105 {
+            let mut r = registration(tenant.as_str());
+            let owner = format!("source-{n:03}");
+            r.descriptor = CollectionDescriptor::new(
+                format!("{owner}.records").parse().unwrap(), "record".parse().unwrap(),
+                ResourceTemplateUri::new(format!("{owner}://records{{?cursor}}")).unwrap(),
+                Freshness::max_age(30), ChangeSignal::Listen, AccessModel::WorkContext, IndexingMode::Content,
+            ).unwrap().with_required_scopes(["catalog:read".parse().unwrap()]);
+            r.approval.collection = r.descriptor.collection().clone();
+            db.a.register_knowledge_collection(&r, None).await.unwrap();
+            approvals.insert(r.approval.collection.clone(), r.approval.clone());
+            expected.push(r);
+        }
+        let scopes = ["catalog:read".parse().unwrap()].into();
+        let first = db.b.readable_knowledge_sources(&tenant, &approvals, &scopes, None).await.unwrap();
+        assert_eq!(first.len(), 101, "one SQL page plus lookahead");
+        assert_eq!(first[0].server.as_str(), "source-000");
+        let next = db.b.readable_knowledge_sources(&tenant, &approvals, &scopes, Some(&first[99].server)).await.unwrap();
+        assert_eq!(next.len(), 5); assert_eq!(next[0].server.as_str(), "source-100");
+        let selected = expected[104].descriptor.collection();
+        // Corrupt another approved document: an exact read cannot decode it.
+        db.a.client().query("UPDATE knowledge_collection SET document.sourceContractRevision = 'malformed' WHERE collection = 'source-000.records';").await.unwrap().check().unwrap();
+        let exact = db.b.readable_knowledge_collections(&tenant, &approvals, &scopes, CatalogSelection::Collection(selected)).await.unwrap();
+        assert_eq!(exact, vec![expected[104].clone()]);
+        let source = db.b.readable_knowledge_collections(&tenant, &approvals, &scopes, CatalogSelection::Source(selected.server())).await.unwrap();
+        assert_eq!(source, exact);
+        // SQL scope admission and approval removal must exclude the corrupt row.
+        assert!(db.b.readable_knowledge_sources(&tenant, &approvals, &BTreeSet::new(), None).await.unwrap().is_empty());
+        approvals.remove(expected[0].descriptor.collection());
+        assert_eq!(db.b.readable_knowledge_sources(&tenant, &approvals, &scopes, None).await.unwrap()[0].server.as_str(), "source-001");
+        approvals.get_mut(selected).unwrap().data_labels.clear();
+        assert!(db.b.readable_knowledge_collections(&tenant, &approvals, &scopes, CatalogSelection::Collection(selected)).await.unwrap().is_empty(), "changed approval cannot reveal the old registration");
+    }).await.expect("catalog SQL qualification exceeded 180 seconds");
 }

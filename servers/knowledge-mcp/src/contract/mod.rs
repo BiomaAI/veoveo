@@ -1,3 +1,7 @@
+mod catalog;
+mod embed;
+pub use catalog::{CatalogEntity, CollectionCatalogEntry, SourceCatalogEntry, SourceCatalogPage};
+pub use embed::{EmbedRequest, EmbedResponse};
 mod resource;
 mod search;
 pub use resource::KnowledgeResource;
