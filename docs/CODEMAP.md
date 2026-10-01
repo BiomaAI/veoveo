@@ -545,6 +545,7 @@ Domain runtimes can own private queries and driver records over these connection
 | `usage.rs` | shared domain/media usage records |
 | `resource_changes.rs` | shared domain LIVE invalidations, coalescing, database-clock checkpoints and changefeed recovery; composed into Time, Recording, Frames, Media, Optimization, and UAV resource hubs |
 | `outbox.rs`, `changefeed.rs` | transactional events, checkpoints, LIVE acceleration and database-wide changefeed pages that complete transaction tails before cursor advancement |
+| `tests/write_cost.rs` | isolated RocksDB comparison of shared sequence allocation, indexed event rows and native-feed-only writes; [measurements](../platform/store/measurements/2026-10-01.md) |
 | `migrations/0040_uav_vehicle_authority.surql` | UAV-owned principal-to-vehicle grants, admitted single-vehicle mission plans, and exclusive command leases scoped by tenant and Work Context |
 | `store.rs` | connection and transaction helpers over domain records |
 

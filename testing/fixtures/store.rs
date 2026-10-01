@@ -35,6 +35,10 @@ impl TestDb {
     }
 
     pub async fn with_backend(backend: StoreBackend) -> Self {
+        Self::with_backend_and_schema(backend, "").await
+    }
+
+    pub async fn with_backend_and_schema(backend: StoreBackend, schema: &str) -> Self {
         let storage = match backend {
             StoreBackend::Memory => "memory",
             StoreBackend::RocksDb => "rocksdb:/tmp/veoveo-test.db",
@@ -74,6 +78,14 @@ impl TestDb {
         })
         .await
         .expect("isolated migrations/readiness failed");
+        if !schema.is_empty() {
+            tokio::time::timeout(Duration::from_secs(10), async {
+                admin.client().query(schema).await?.check()
+            })
+            .await
+            .expect("Store fixture schema setup exceeded 10 seconds")
+            .unwrap_or_else(|error| panic!("Store fixture schema setup failed: {error}"));
+        }
         let runtime_password = fixture_password();
         tokio::time::timeout(
             Duration::from_secs(10),

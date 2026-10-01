@@ -21,6 +21,11 @@ which avoids maintaining divergent copies of database lifecycle and cleanup code
 The fixture never connects to the installation database. It proves store behavior,
 not public deployment or provider execution.
 
+`with_backend_and_schema` applies an owning test's additional schema as fixture
+admin before creating runtime clients. Its ten-second deadline covers that setup.
+This permits sequence and schema measurements while keeping test operations on the
+database-editor role used by services.
+
 ## Lifecycle Bounds
 
 `store/container.rs` owns Docker creation, startup, port admission and removal. Each

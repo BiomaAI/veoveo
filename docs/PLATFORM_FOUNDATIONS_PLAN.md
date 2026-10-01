@@ -2871,6 +2871,14 @@ change in commit order, and `platform/store/src/changefeed.rs` reads them. The o
 `available_at` delay is unused: every writer sets it to the current time, and only a
 test sets a future time.
 
+The [native baseline](../platform/store/measurements/2026-10-01.md) records 5,184
+confirmed commits across 18 fresh RocksDB fixtures with the cluster and builder stopped.
+At eight concurrent writers on one WebSocket client, the shared-sequence profile's
+median elapsed time is 999 ms, the otherwise equivalent independent-event control is
+315 ms, and domain writes with only native feeds take 243 ms. No conflict reaches the
+client and no client retry occurs; internal retry counts are not observed. Production
+writer and consumer migration remains open.
+
 Work:
 
 1. Measure first. Record transaction conflicts, retries, and commit latency for outbox
