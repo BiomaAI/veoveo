@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from veoveo_mcp.tasks.store import OutboxWake, StoreError
+from veoveo_mcp.tasks.store import NativeWake, StoreError
 
 
 class LiveFixture:
@@ -30,7 +30,7 @@ class LiveFixture:
 @pytest.mark.asyncio
 async def test_idle_deadlines_preserve_later_live_delivery():
     fixture = LiveFixture()
-    wake = OutboxWake(fixture, "owned-live", fixture.changes())
+    wake = NativeWake(fixture, "owned-live", fixture.changes())
     try:
         for _ in range(3):
             await wake.wait(0.01)
@@ -47,7 +47,7 @@ async def test_idle_deadlines_preserve_later_live_delivery():
 @pytest.mark.asyncio
 async def test_close_releases_an_idle_live_reader():
     fixture = LiveFixture()
-    wake = OutboxWake(fixture, "owned-live", fixture.changes())
+    wake = NativeWake(fixture, "owned-live", fixture.changes())
     await wake.wait(0.01)
     await asyncio.wait_for(wake.close(), 1)
     await asyncio.wait_for(fixture.closed.wait(), 1)
@@ -57,7 +57,7 @@ async def test_close_releases_an_idle_live_reader():
 @pytest.mark.asyncio
 async def test_close_releases_a_reader_after_delivery_and_is_idempotent():
     fixture = LiveFixture()
-    wake = OutboxWake(fixture, "owned-live", fixture.changes())
+    wake = NativeWake(fixture, "owned-live", fixture.changes())
     fixture.queue.put_nowait("event")
     await wake.wait(0.5)
     await asyncio.wait_for(wake.close(), 1)
@@ -76,7 +76,7 @@ async def test_finished_live_source_requires_subscription_renewal():
         if False:
             yield None
 
-    wake = OutboxWake(fixture, "owned-live", finished())
+    wake = NativeWake(fixture, "owned-live", finished())
     try:
         with pytest.raises(StoreError, match="LIVE.*ended") as error:
             await wake.wait(0.1)
@@ -88,7 +88,7 @@ async def test_finished_live_source_requires_subscription_renewal():
 @pytest.mark.asyncio
 async def test_cancelled_consumer_closes_the_owned_live_reader():
     fixture = LiveFixture()
-    wake = OutboxWake(fixture, "owned-live", fixture.changes())
+    wake = NativeWake(fixture, "owned-live", fixture.changes())
 
     async def consume():
         try:
@@ -118,10 +118,27 @@ async def test_live_transport_failure_propagates(failure):
         raise failure
         yield None
 
-    wake = OutboxWake(fixture, "owned-live", failed())
+    wake = NativeWake(fixture, "owned-live", failed())
     try:
         with pytest.raises(type(failure)) as error:
             await wake.wait(0.1)
         assert error.value is failure
     finally:
         await asyncio.wait_for(wake.close(), 1)
+
+
+async def test_socket_loss_interrupts_an_idle_live_queue_without_polling():
+    fixture = LiveFixture()
+    disconnected = asyncio.Event()
+    fixture.recv_task = asyncio.create_task(disconnected.wait())
+    wake = NativeWake(fixture, "owned-live", fixture.changes())
+    waiter = asyncio.create_task(wake.wait())
+    try:
+        await asyncio.wait_for(fixture.started.wait(), 1)
+        disconnected.set()
+        with pytest.raises(StoreError, match="connection ended") as error:
+            await asyncio.wait_for(waiter, 1)
+        assert error.value.retryable
+    finally:
+        await wake.close()
+        await fixture.recv_task

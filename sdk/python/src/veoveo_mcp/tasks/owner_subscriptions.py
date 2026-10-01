@@ -1,22 +1,19 @@
-"""Owned Task notification readers with SQL admission on every current-state read."""
+"""Owned Task notifications with SQL admission on every current-state read."""
 
 from __future__ import annotations
 
 import uuid
 from collections import deque
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from time import monotonic
-from typing import Any, Sequence
+from typing import Sequence
 
+from .changefeed import changefeed_head, cursor_now, expired, replay_changes
 from .owner_query import OwnerTaskQuery, native_task_id
 from .runtime import _record_to_snapshot
-from .store import OutboxWake
-from .types import InvalidRecord, TaskError, TaskSnapshot, TaskUpdate, TaskUpdateCursor, task_record
+from .store import NativeWake
+from .types import TaskError, TaskSnapshot, TaskUpdate, TaskUpdateCursor, task_record
 
-_PAGE_SIZE = 256
-_RECONCILE_SECONDS = 15.0
-_WAKE_SECONDS = 2.0
+_MAX_IDENTITIES = 256
 
 
 @dataclass(frozen=True)
@@ -25,51 +22,31 @@ class OwnerTaskSubscription:
     updates: OwnerTaskUpdates
 
 
-@dataclass(frozen=True)
-class _UpdatePage:
-    cursor: TaskUpdateCursor
-    tasks: tuple[TaskSnapshot, ...]
-    full: bool
-
-    @classmethod
-    def from_store(cls, value: dict[str, Any]) -> _UpdatePage:
-        sequence = value["cursor"] if value["cursor"] is not None else 0
-        if type(sequence) is not int or type(value.get("full", False)) is not bool:
-            raise InvalidRecord("invalid owner Task update position")
-        return cls(
-            TaskUpdateCursor(sequence),
-            tuple(_record_to_snapshot(record) for record in value["tasks"]),
-            value.get("full", False),
-        )
-
-
-async def _baseline(query: OwnerTaskQuery, ids: Sequence[uuid.UUID]) -> _UpdatePage:
+async def _current(query: OwnerTaskQuery, ids: Sequence[uuid.UUID]) -> tuple[TaskSnapshot, ...]:
     rows = await query.runtime.store.query(
-        "RETURN { cursor: array::first((SELECT VALUE sequence FROM outbox_event "
-        "WHERE available_at <= $now ORDER BY sequence DESC LIMIT 1)), "
-        f"tasks: (SELECT * FROM $records WHERE {query.predicate()}) }};",
-        {**query.bindings(), "records": [task_record(task_id) for task_id in ids],
-         "now": datetime.now(timezone.utc)},
+        f"SELECT * FROM $records WHERE {query.predicate()};",
+        {**query.bindings(), "records": [task_record(task_id) for task_id in ids]},
     )
-    return _UpdatePage.from_store(rows[0])
+    return tuple(_record_to_snapshot(record) for record in rows[0] or [])
 
 
 async def subscribe(query: OwnerTaskQuery, ids: Sequence[uuid.UUID]) -> OwnerTaskSubscription:
-    if len(ids) > _PAGE_SIZE:
+    if len(ids) > _MAX_IDENTITIES:
         raise TaskError("Task subscription accepts at most 256 identities")
     ids = tuple(sorted({native_task_id(task_id) for task_id in ids}))
     if not ids:
-        return OwnerTaskSubscription((), OwnerTaskUpdates(query, (), None, 0, []))
-    wake = await query.runtime.store.outbox_wake()
+        return OwnerTaskSubscription((), OwnerTaskUpdates(query, (), None, TaskUpdateCursor(0), ()))
+    wake = await query.runtime.store.task_wake()
     try:
-        baseline = await _baseline(query, ids)
-        initial = baseline.tasks
+        cursor = await changefeed_head(query.runtime.store)
+        initial = await _current(query, ids)
         accepted = tuple(snapshot.task_id for snapshot in initial)
         if not accepted:
             await wake.close()
             wake = None
-        updates = OwnerTaskUpdates(query, accepted, wake, baseline.cursor.sequence, initial)
-        return OwnerTaskSubscription(accepted, updates)
+        return OwnerTaskSubscription(
+            accepted, OwnerTaskUpdates(query, accepted, wake, cursor, initial)
+        )
     except BaseException:
         if wake is not None:
             await wake.close()
@@ -77,20 +54,21 @@ async def subscribe(query: OwnerTaskQuery, ids: Sequence[uuid.UUID]) -> OwnerTas
 
 
 class OwnerTaskUpdates:
-    """Closeable even when the consumer never begins iteration."""
+    """Closeable before iteration. A lost connection requires fresh admission."""
 
     def __init__(
         self, query: OwnerTaskQuery, ids: tuple[uuid.UUID, ...],
-        wake: OutboxWake | None, sequence: int, initial: Sequence[TaskSnapshot],
+        wake: NativeWake | None, cursor: TaskUpdateCursor, initial: Sequence[TaskSnapshot],
     ) -> None:
         self._query = query
         self._ids = ids
         self._wake = wake
-        self._cursor = TaskUpdateCursor(sequence)
-        self._pending = deque(TaskUpdate(self._cursor, snapshot) for snapshot in initial)
-        self._reconcile_at = monotonic() + _RECONCILE_SECONDS
+        self._cursor = cursor
+        self._pending = deque(TaskUpdate(cursor, snapshot) for snapshot in initial)
         self._closed = False
-        self._replay_pending = False
+        # Drain after registration/baseline to cover writes before subscribe_live
+        # attached its SDK queue, even when no later LIVE hint arrives.
+        self._replay_pending = True
 
     def __aiter__(self) -> OwnerTaskUpdates:
         return self
@@ -103,44 +81,32 @@ class OwnerTaskUpdates:
                 if self._wake is None:
                     raise StopAsyncIteration
                 if not self._replay_pending:
-                    await self._wake.wait(_WAKE_SECONDS)
-                if monotonic() >= self._reconcile_at:
-                    baseline = await _baseline(self._query, self._ids)
-                    self._append(baseline)
-                    self._replay_pending = False
-                    self._reconcile_at = monotonic() + _RECONCILE_SECONDS
-                else:
-                    await self._replay()
+                    await self._wake.wait()
+                await self._replay()
             raise StopAsyncIteration
         except BaseException:
             await self.aclose()
             raise
 
-    def _append(self, page: _UpdatePage) -> None:
-        self._cursor = TaskUpdateCursor(max(self._cursor.sequence, page.cursor.sequence))
-        self._pending.extend(
-            TaskUpdate(self._cursor, snapshot) for snapshot in page.tasks
-        )
-
     async def _replay(self) -> None:
-        query = self._query
-        rows = await query.runtime.store.query(
-            "LET $changes = SELECT sequence, aggregate_id FROM outbox_event "
-            "WHERE sequence > $cursor AND available_at <= $now "
-            "AND aggregate_type = 'task' AND aggregate_id IN $ids "
-            "ORDER BY sequence ASC LIMIT $limit; "
-            "RETURN { cursor: array::last($changes.sequence), "
-            "full: array::len($changes) = $limit, "
-            f"tasks: (SELECT * FROM $records WHERE {query.predicate()} "
-            "AND <string> record::id(id) IN $changes.aggregate_id) };",
-            {**query.bindings(), "cursor": self._cursor.sequence,
-             "now": datetime.now(timezone.utc), "limit": _PAGE_SIZE,
-             "ids": [str(task_id) for task_id in self._ids],
-             "records": [task_record(task_id) for task_id in self._ids]},
-        )
-        page = _UpdatePage.from_store(rows[1])
-        self._append(page)
-        self._replay_pending = page.full
+        store = self._query.runtime.store
+        now = await cursor_now(store)
+        if expired(self._cursor, now):
+            self._cursor = await changefeed_head(store)
+            snapshots = await _current(self._query, self._ids)
+            self._replay_pending = True
+        else:
+            batches = await replay_changes(store, self._cursor)
+            self._replay_pending = bool(batches)
+            if not batches:
+                return
+            self._cursor = batches[-1].next_cursor
+            changed = {
+                task_id for batch in batches for change in batch.changes
+                if (task_id := change.task_id()) in self._ids
+            }
+            snapshots = await _current(self._query, sorted(changed)) if changed else ()
+        self._pending.extend(TaskUpdate(self._cursor, snapshot) for snapshot in snapshots)
 
     async def aclose(self) -> None:
         if self._closed:

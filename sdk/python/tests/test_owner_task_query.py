@@ -28,8 +28,6 @@ async def runtime(surreal_platform):
         from veoveo_mcp.tasks.types import server_record
         try:
             await instance.store.query(
-                "LET $ids = SELECT VALUE <string> record::id(id) FROM task WHERE server = $server; "
-                "DELETE outbox_event WHERE aggregate_type = 'task' AND aggregate_id IN $ids; "
                 "DELETE domain_usage WHERE task.server = $server; "
                 "DELETE task_input WHERE task.server = $server; DELETE task WHERE server = $server;",
                 {"server": server_record(instance.server)},
@@ -119,7 +117,7 @@ async def test_sql_pages_apply_clearance_before_limit_and_recheck_on_continuatio
         assert [row.task_id for row in remaining.items] == [second.items[1].task_id]
 
 
-async def test_notifications_read_current_state_and_ignore_malformed_event_snapshots(runtime):
+async def test_notifications_read_current_state_and_exclude_revoked_malformed_rows(runtime):
     async with asyncio.timeout(15):
         caller = owner(f"stream-{uuid.uuid4()}")
         a, b = [(await runtime.create(draft(server=runtime.server, owner=caller))).snapshot for _ in range(2)]
@@ -133,10 +131,8 @@ async def test_notifications_read_current_state_and_ignore_malformed_event_snaps
                 await runtime.transition(str(snapshot.task_id), TaskTransition.succeeded("done", {"ok": True}))
             await runtime.store.query(
                 "UPDATE $task SET request.owner.data_labels = ['restricted'], "
-                "request.owner.authority = {}; "
-                "UPDATE outbox_event SET payload.snapshot = {} "
-                "WHERE aggregate_id IN $ids;",
-                {"task": task_record(a.task_id), "ids": [str(a.task_id), str(b.task_id)]},
+                "request.owner.authority = {};",
+                {"task": task_record(a.task_id)},
             )
             update = await anext(subscription.updates)
             assert update.snapshot.task_id == b.task_id
@@ -157,8 +153,8 @@ async def test_retained_event_gap_reconciles_and_new_subscription_uses_current_b
             await anext(subscription.updates)
             await runtime.claim(str(task.task_id), timedelta(seconds=30))
             await runtime.transition(str(task.task_id), TaskTransition.succeeded("done", None))
-            await runtime.store.query("DELETE outbox_event WHERE aggregate_id = $id;", {"id": str(task.task_id)})
-            subscription.updates._reconcile_at = 0
+            from veoveo_mcp.tasks import TaskUpdateCursor
+            subscription.updates._cursor = TaskUpdateCursor(0)
             assert (await anext(subscription.updates)).snapshot.status == TaskStatus.SUCCEEDED
         finally:
             await subscription.updates.aclose()
@@ -188,7 +184,7 @@ async def test_subscription_close_before_iteration_and_cancellation_release_live
 
 
 @pytest.mark.parametrize("action", ["cancel", "input"])
-async def test_owner_revocation_inside_mutation_rolls_back_changes_and_events(runtime, monkeypatch, action):
+async def test_owner_revocation_inside_mutation_rolls_back_task_and_input_changes(runtime, monkeypatch, action):
     async with asyncio.timeout(15):
         caller = owner(f"mutation-{uuid.uuid4()}")
         task = (await runtime.create(draft(server=runtime.server, owner=caller))).snapshot
@@ -198,7 +194,6 @@ async def test_owner_revocation_inside_mutation_rolls_back_changes_and_events(ru
                 "elicitation/create", {"message": "Approve?", "requestedSchema": {"type": "object"}},
             ))
         query = runtime.for_owner(caller)
-        before = await runtime.store.latest_available_outbox_sequence()
         original = runtime.store.query
         revoked = False
 
@@ -221,7 +216,6 @@ async def test_owner_revocation_inside_mutation_rolls_back_changes_and_events(ru
             assert "approval" in await runtime.outstanding_inputs(str(task.task_id))
             assert await query.outstanding_inputs(task.task_id) == {}
         assert revoked
-        assert await runtime.store.latest_available_outbox_sequence() == before
 
 
 async def test_query_admission_rejects_untyped_ids_and_unbounded_selections(runtime):

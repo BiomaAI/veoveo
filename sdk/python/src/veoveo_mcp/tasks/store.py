@@ -2,7 +2,7 @@
 
 A focused port of the `veoveo-platform-store` surfaces the task runtime and
 domain servers need: checked multi-statement queries, canonical identity
-upserts, the transactional outbox, and domain usage. Schema migrations remain
+upserts, native LIVE wakeups, and domain usage. Schema migrations remain
 owned by the Rust `platform-store` crate; this module only reads and writes
 the existing schema with the database-level runtime user.
 """
@@ -14,7 +14,6 @@ import contextlib
 import re
 import uuid
 from collections.abc import AsyncGenerator, Awaitable, Callable
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
@@ -32,9 +31,7 @@ from .types import (
     server_record,
 )
 
-MAX_OUTBOX_LIMIT = 1_000
 MAX_TRANSACTION_ATTEMPTS = 8
-DOMAIN_USAGE_EVENT_SCHEMA_VERSION = 1
 
 ConnectionFactory = Callable[[], Awaitable[Any]]
 
@@ -93,39 +90,6 @@ def is_retryable_message(message: str) -> bool:
         or "Transaction conflict:" in message
         or "not executed due to a failed transaction" in message
     )
-
-
-@dataclass
-class OutboxEvent:
-    sequence: int
-    aggregate_type: str
-    aggregate_id: str
-    event_type: str
-    schema_version: int
-    payload: dict[str, Any]
-    occurred_at: datetime
-    available_at: datetime
-
-
-def outbox_draft(
-    tenant: RecordID | None,
-    aggregate_type: str,
-    aggregate_id: str,
-    event_type: str,
-    schema_version: int,
-    payload: dict[str, Any],
-) -> dict[str, Any]:
-    now = _now()
-    return {
-        "tenant": tenant,
-        "aggregate_type": aggregate_type,
-        "aggregate_id": aggregate_id,
-        "event_type": event_type,
-        "schema_version": schema_version,
-        "payload": _json_to_surreal(payload),
-        "occurred_at": now,
-        "available_at": now,
-    }
 
 
 class SurrealStore:
@@ -298,31 +262,12 @@ class SurrealStore:
             },
         )
 
-    async def read_outbox(self, after_sequence: int, limit: int) -> list[OutboxEvent]:
-        if limit == 0 or limit > MAX_OUTBOX_LIMIT:
-            raise StoreError(f"outbox read limit must be 1..={MAX_OUTBOX_LIMIT}")
-        rows = await self.query(
-            "SELECT * FROM outbox_event WHERE sequence > $after AND "
-            "available_at <= $now ORDER BY sequence ASC LIMIT $limit;",
-            {"after": max(after_sequence, 0), "now": _now(), "limit": limit},
-        )
-        return [_outbox_event(row) for row in rows[0] or []]
-
-    async def latest_available_outbox_sequence(self) -> int:
-        rows = await self.query(
-            "SELECT VALUE sequence FROM outbox_event WHERE available_at <= $now "
-            "ORDER BY sequence DESC LIMIT 1;",
-            {"now": _now()},
-        )
-        values = rows[0] or []
-        return values[0] if values else 0
-
-    async def outbox_wake(self) -> "OutboxWake":
+    async def task_wake(self) -> "NativeWake":
         async with self._lock:
             await self._replace_stale_connection()
-            live_id = await self._db.live("outbox_event")
+            live_id = await self._db.query("LIVE SELECT id FROM task;")
             stream = await self._db.subscribe_live(live_id)
-            return OutboxWake(self._db, live_id, stream)
+            return NativeWake(self._db, live_id, stream)
 
     def _connection_is_stale(self) -> bool:
         if not hasattr(self._db, "socket"):
@@ -393,27 +338,13 @@ class SurrealStore:
             "recorded_at": now,
             "updated_at": _now(),
         }
-        event = outbox_draft(
-            task["tenant"],
-            "domain_usage",
-            str(usage_id.id),
-            "domain.usage.recorded",
-            DOMAIN_USAGE_EVENT_SCHEMA_VERSION,
-            {
-                "task_id": str(task_id),
-                "server": server,
-                "model_id": model_id,
-                "kind": kind,
-            },
-        )
         await self.query_with_retries(
-            "BEGIN TRANSACTION; UPSERT ONLY $usage CONTENT $content RETURN NONE; "
-            "CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;",
-            {"usage": usage_id, "content": content, "outbox": event},
+            "UPSERT ONLY $usage CONTENT $content RETURN NONE;",
+            {"usage": usage_id, "content": content},
         )
 
 
-class OutboxWake:
+class NativeWake:
     """One owned LIVE reader; idle deadlines leave its next event pending."""
 
     def __init__(
@@ -422,18 +353,30 @@ class OutboxWake:
         self._db = db
         self._live_id = live_id
         self._stream = stream
+        self._receive = getattr(db, "recv_task", None)
         self._pending: asyncio.Future[Any] | None = None
         self._closed = False
 
-    async def wait(self, timeout_seconds: float) -> None:
+    async def wait(self, timeout_seconds: float | None = None) -> None:
         if self._closed:
             raise StoreError("LIVE query wake is closed")
         if self._pending is None:
             self._pending = asyncio.ensure_future(anext(self._stream))
         pending = self._pending
         try:
-            ready, _ = await asyncio.wait({pending}, timeout=timeout_seconds)
-            if ready:
+            receive = self._receive
+            sources = {pending}
+            if receive is not None:
+                sources.add(receive)
+            ready, _ = await asyncio.wait(
+                sources, timeout=timeout_seconds, return_when=asyncio.FIRST_COMPLETED
+            )
+            if receive is not None and receive in ready:
+                raise StoreError(
+                    "LIVE connection ended; reconnect and renew the subscription",
+                    retryable=True,
+                )
+            if pending in ready:
                 pending.result()
         except StopAsyncIteration as error:
             raise StoreError(
@@ -460,8 +403,9 @@ class OutboxWake:
             pass
         finally:
             try:
-                async with asyncio.timeout(5):
-                    await self._db.kill(self._live_id)
+                if self._receive is None or not self._receive.done():
+                    async with asyncio.timeout(5):
+                        await self._db.kill(self._live_id)
             except Exception:  # noqa: BLE001 — teardown only
                 pass
 
@@ -473,16 +417,3 @@ def _record_key(record: Any) -> str:
         _, _, key = record.partition(":")
         return key or record
     raise InvalidRecord(f"unsupported record key {record!r}")
-
-
-def _outbox_event(row: dict[str, Any]) -> OutboxEvent:
-    return OutboxEvent(
-        sequence=row["sequence"],
-        aggregate_type=row["aggregate_type"],
-        aggregate_id=row["aggregate_id"],
-        event_type=row["event_type"],
-        schema_version=row["schema_version"],
-        payload=_json_from_surreal(row["payload"]),
-        occurred_at=row["occurred_at"],
-        available_at=row["available_at"],
-    )

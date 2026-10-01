@@ -1,7 +1,7 @@
 """Live SurrealDB integration tests for the Python task runtime port.
 
 These mirror the behavior guaranteed by the Rust `veoveo-task-runtime` crate:
-durable creation with atomic outbox events, leases, CAS transitions,
+durable creation with native commit feeds, leases, CAS transitions,
 cancellation, idempotency, input exchange, recovery, and pruning.
 """
 
@@ -35,7 +35,8 @@ from veoveo_mcp.tasks import (
     new_task_id,
 )
 from veoveo_mcp.task_extension.projection import project_snapshot
-from veoveo_mcp.tasks.runtime import _task_snapshot_from_event
+from veoveo_mcp.tasks.runtime import _record_to_snapshot
+from veoveo_mcp.tasks.changefeed import changefeed_head, replay_changes
 from veoveo_mcp.tasks.types import profile_record, server_record, task_record
 
 SERVER = "datasheet"
@@ -145,7 +146,7 @@ async def test_create_claim_transition_succeed_roundtrip(runtime):
     assert pinned.retention_pins == frozenset()
 
 
-async def test_outbox_events_stream_snapshots(runtime):
+async def test_native_changes_stream_committed_snapshots(runtime):
     updates = await runtime.live_updates()
     created = await runtime.create(draft())
     task_id = str(created.snapshot.task_id)
@@ -162,7 +163,10 @@ async def test_outbox_events_stream_snapshots(runtime):
             if update.snapshot.status == TaskStatus.SUCCEEDED:
                 return
 
-    await asyncio.wait_for(watch(), timeout=15)
+    try:
+        await asyncio.wait_for(watch(), timeout=15)
+    finally:
+        await updates.aclose()
     assert TaskStatus.QUEUED in seen
     assert TaskStatus.RUNNING in seen
     assert seen[-1] == TaskStatus.SUCCEEDED
@@ -185,7 +189,7 @@ async def test_results_preserve_json_shape_through_store_replay_and_mcp(
     runtime, surreal_platform, payload
 ):
     async with asyncio.timeout(15):
-        start = await runtime.store.latest_available_outbox_sequence()
+        start = await changefeed_head(runtime.store)
         created = (await runtime.create(draft())).snapshot
         task_id = str(created.task_id)
         assert created.result is None
@@ -215,23 +219,20 @@ async def test_results_preserve_json_shape_through_store_replay_and_mcp(
         assert len(stored) == 1
         assert stored[0]["result"] == {"payload": payload}
 
-        events = [
-            event
-            for event in await runtime.store.read_outbox(start, 1000)
-            if event.aggregate_type == "task" and event.aggregate_id == task_id
+        changes = [
+            change
+            for batch in await replay_changes(runtime.store, start)
+            for change in batch.changes
+            if change.task_id() == created.task_id
         ]
-        assert len(events) == 3
-        assert all(event.schema_version == 3 for event in events)
-        assert "result" not in events[0].payload["snapshot"]
-        assert events[-1].payload["snapshot"]["result"] == payload
-        replay = _task_snapshot_from_event(events[-1])
+        assert len(changes) == 3
+        assert _record_to_snapshot(changes[0].current).result is None
+        replay = _record_to_snapshot(changes[-1].current)
         assert replay.result == expected
         projected = await project_snapshot(runtime, replay)
         expected_protocol = payload if isinstance(payload, dict) else {"value": payload}
         assert projected.result == expected_protocol
         assert projected.model_dump(mode="json")["result"] == projected.result
-        with pytest.raises(InvalidRecord, match="schema version"):
-            _task_snapshot_from_event(replace(events[-1], schema_version=2))
 
 
 async def test_idempotent_create_returns_existing(runtime):
@@ -538,7 +539,7 @@ async def test_live_wake_survives_idle_deadlines_and_closes_on_cancel(
     pending = None
     try:
         async with asyncio.timeout(15):
-            wake = await runtime.store.outbox_wake()
+            wake = await runtime.store.task_wake()
             for _ in range(3):
                 await wake.wait(0.01)
             for _ in range(2):

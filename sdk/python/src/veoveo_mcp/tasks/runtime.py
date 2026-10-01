@@ -1,8 +1,7 @@
 """Durable execution state for Veoveo MCP tasks, ported from `veoveo-task-runtime`.
 
-SurrealDB is the sole task authority. LIVE queries may reduce latency, but
-every read and transition is checked against durable state, and every state
-transition emits an ordered outbox event in the same transaction.
+SurrealDB is the sole task authority. Transactions commit execution state;
+native changefeeds supply ordered history and LIVE queries wake readers.
 """
 
 from __future__ import annotations
@@ -18,15 +17,12 @@ from .owner_query import OwnerTaskQuery
 
 from .store import (
     MAX_TRANSACTION_ATTEMPTS,
-    OutboxEvent,
     StoreError,
     SurrealStore,
-    outbox_draft,
     task_result_from_store,
     task_result_to_store,
 )
 from .types import (
-    EVENT_SCHEMA_VERSION,
     ClaimedTask,
     Conflict,
     CreateTask,
@@ -65,10 +61,6 @@ from .types import (
     validate_input_key,
     validate_input_method,
 )
-
-_OUTBOX_PAGE = 1_000
-_WAKE_TIMEOUT_SECONDS = 2.0
-_PAYLOAD_POLL_SECONDS = 0.5
 
 
 def _now() -> datetime:
@@ -125,7 +117,6 @@ class TaskRuntime:
         self.server = server
         self.worker_id = worker_id
         self._workers: dict[uuid.UUID, tuple[asyncio.Event, asyncio.Task]] = {}
-        self._changed = asyncio.Event()
 
     @classmethod
     async def connect(
@@ -197,33 +188,6 @@ class TaskRuntime:
             "retention_pins": sorted(draft.retention_pins),
             "search_text": f"{self.server} {draft.task_type} {draft.owner.principal_key}",
         }
-        initial_snapshot = TaskSnapshot(
-            task_id=draft.task_id,
-            owner=draft.owner,
-            server=self.server,
-            task_type=draft.task_type,
-            request=draft.request,
-            recovery_class=draft.recovery_class,
-            status=TaskStatus.QUEUED,
-            status_message="Queued",
-            progress=0.0,
-            result=None,
-            error=None,
-            idempotency_key=draft.idempotency_key,
-            lease_owner=None,
-            lease_expires_at=None,
-            cancel_requested_at=None,
-            created_at=now,
-            updated_at=now,
-            started_at=None,
-            completed_at=None,
-            retention_expires_at=retention,
-            retention_pins=frozenset(draft.retention_pins),
-            ttl_ms=draft.ttl_ms,
-            poll_interval_ms=draft.poll_interval_ms,
-        )
-        outbox = _task_event(initial_snapshot, "task.created")
-
         if draft.idempotency_key is not None:
             idempotency = idempotency_record(
                 draft.owner, self.server, draft.idempotency_key
@@ -241,14 +205,12 @@ class TaskRuntime:
                     await self.store.query(
                         "BEGIN TRANSACTION; CREATE ONLY $idempotency CONTENT $link "
                         "RETURN NONE; CREATE ONLY $task CONTENT $content RETURN NONE; "
-                        "CREATE outbox_event CONTENT $outbox RETURN NONE; "
                         "COMMIT TRANSACTION;",
                         {
                             "idempotency": idempotency,
                             "link": link,
                             "task": record,
                             "content": content,
-                            "outbox": outbox,
                         },
                     )
                     break
@@ -264,15 +226,14 @@ class TaskRuntime:
                     raise
         else:
             await self.store.query(
-                "BEGIN TRANSACTION; CREATE ONLY $task CONTENT $content RETURN NONE; "
-                "CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;",
-                {"task": record, "content": content, "outbox": outbox},
+                "CREATE ONLY $task CONTENT $content RETURN NONE;",
+                {"task": record, "content": content},
             )
 
         snapshot = await self.get(str(draft.task_id))
         if snapshot is None:
             raise TaskNotFound(str(draft.task_id))
-        self._note_change()
+
         return CreateTaskResult(snapshot=snapshot, created=True)
 
     async def get(self, task_id: str) -> TaskSnapshot | None:
@@ -352,11 +313,6 @@ class TaskRuntime:
             "ttl_ms": current.ttl_ms,
             "poll_interval_ms": current.poll_interval_ms,
         }
-        event_snapshot = _copy(current)
-        event_snapshot.status = TaskStatus.WAITING
-        event_snapshot.status_message = "Waiting for input"
-        event_snapshot.updated_at = now
-        event = _task_event(event_snapshot, "task.input_requested")
         try:
             await self.store.query(
                 "BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $task SET "
@@ -366,7 +322,7 @@ class TaskRuntime:
                 "tenant = $tenant AND owner = $owner AND lease_owner = $worker AND "
                 "lease_expires_at > $now RETURN AFTER); IF $updated = NONE { THROW "
                 "'task input transition conflict'; }; CREATE ONLY $input CONTENT "
-                "$content RETURN NONE; CREATE outbox_event CONTENT $event RETURN NONE; "
+                "$content RETURN NONE; "
                 "COMMIT TRANSACTION;",
                 {
                     "task": task_record(current.task_id),
@@ -379,7 +335,6 @@ class TaskRuntime:
                     "worker": self.worker_id,
                     "input": input_id,
                     "content": content,
-                    "event": event,
                 },
             )
         except StoreError as error:
@@ -389,7 +344,7 @@ class TaskRuntime:
             if recheck is None or recheck.updated_at != current.updated_at:
                 raise Conflict(task_id) from error
             raise
-        self._note_change()
+
         exchange = await self._input_exchange_by_id(input_id)
         if exchange is None:
             raise InvalidRecord("task input readback is missing")
@@ -428,9 +383,6 @@ class TaskRuntime:
             attempt = 0
             while True:
                 now = _now()
-                event_snapshot = _copy(current)
-                event_snapshot.updated_at = now
-                event = _task_event(event_snapshot, "task.input_received")
                 try:
                     results = await self.store.query(
                         "BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $input SET "
@@ -441,15 +393,13 @@ class TaskRuntime:
                         "'waiting'] "
                         + (f"AND {owner_query.predicate()} " if owner_query is not None else "")
                         + "RETURN AFTER); IF $task_updated = NONE { THROW "
-                        "'task cannot accept input'; }; CREATE outbox_event CONTENT "
-                        "$event RETURN NONE; }; RETURN $updated; COMMIT TRANSACTION;",
+                        "'task cannot accept input'; }; }; RETURN $updated; COMMIT TRANSACTION;",
                         {
                             "input": task_input_record(current.task_id, key),
                             "response": response_value,
                             "now": now,
                             "task": task_record(current.task_id),
                             "server": server_record(self.server),
-                            "event": event,
                             **(owner_query.bindings() if owner_query is not None else {}),
                         },
                     )
@@ -463,69 +413,22 @@ class TaskRuntime:
                     raise
             if accepted is not None:
                 submission.accepted += 1
-                self._note_change()
             else:
                 submission.ignored += 1
         return submission
 
     async def live_updates(self) -> AsyncIterator[TaskUpdate]:
-        wake = await self.store.outbox_wake()
-        cursor, snapshots = await self._update_baseline()
-        return self._task_update_stream(wake, cursor, snapshots, False)
+        from .history import history_updates
+
+        return await history_updates(self)
 
     async def live_updates_after(
         self, cursor: TaskUpdateCursor
     ) -> AsyncIterator[TaskUpdate]:
-        wake = await self.store.outbox_wake()
-        return self._task_update_stream(wake, cursor, [], True)
+        """Resume the complete final transaction; consumers accept duplicate states."""
+        from .history import history_updates
 
-    async def _update_baseline(self) -> tuple[TaskUpdateCursor, list[TaskSnapshot]]:
-        sequence = await self.store.latest_available_outbox_sequence()
-        snapshots = await self.list()
-        return TaskUpdateCursor(sequence), snapshots
-
-    async def _task_update_stream(
-        self,
-        wake: Any,
-        cursor: TaskUpdateCursor,
-        initial: list[TaskSnapshot],
-        replay_immediately: bool,
-    ) -> AsyncIterator[TaskUpdate]:
-        try:
-            for snapshot in initial:
-                yield TaskUpdate(cursor=cursor, snapshot=snapshot)
-            must_replay = replay_immediately
-            while True:
-                if not must_replay:
-                    await wake.wait(_WAKE_TIMEOUT_SECONDS)
-                must_replay = False
-                for update in await self._replay_task_updates(cursor):
-                    cursor = update.cursor
-                    yield update
-        finally:
-            await wake.close()
-
-    async def _replay_task_updates(
-        self, cursor: TaskUpdateCursor
-    ) -> list[TaskUpdate]:
-        updates: list[TaskUpdate] = []
-        sequence = cursor.sequence
-        while True:
-            events = await self.store.read_outbox(sequence, _OUTBOX_PAGE)
-            for event in events:
-                sequence = event.sequence
-                if event.aggregate_type != "task":
-                    continue
-                snapshot = _task_snapshot_from_event(event)
-                if snapshot.server == self.server:
-                    updates.append(
-                        TaskUpdate(
-                            cursor=TaskUpdateCursor(sequence), snapshot=snapshot
-                        )
-                    )
-            if len(events) < _OUTBOX_PAGE:
-                break
-        return updates
+        return await history_updates(self, cursor)
 
     async def claim(self, task_id: str, lease_duration: timedelta) -> ClaimedTask:
         if lease_duration <= timedelta(0):
@@ -545,14 +448,6 @@ class TaskRuntime:
         if snapshot.is_terminal() or snapshot.status == TaskStatus.CANCEL_REQUESTED:
             raise InvalidTransition(snapshot.status, TaskStatus.RUNNING)
         lease_expires_at = now + lease_duration
-        event_snapshot = _copy(snapshot)
-        event_snapshot.status = TaskStatus.RUNNING
-        event_snapshot.status_message = "Running"
-        event_snapshot.lease_owner = self.worker_id
-        event_snapshot.lease_expires_at = lease_expires_at
-        event_snapshot.started_at = snapshot.started_at or now
-        event_snapshot.updated_at = now
-        event = _task_event(event_snapshot, "task.claimed")
         envelope = {
             "input": snapshot.request,
             "owner": snapshot.owner.to_json(),
@@ -566,8 +461,7 @@ class TaskRuntime:
             "lease_expires_at = $lease_expires, started_at = started_at ?? $now, "
             "updated_at = $now WHERE status = $expected AND updated_at = "
             "$expected_updated_at AND (lease_expires_at = NONE OR lease_expires_at "
-            "<= $now OR lease_owner = $worker) RETURN AFTER); IF $updated != NONE { "
-            "CREATE outbox_event CONTENT $event RETURN NONE; }; RETURN $updated; "
+            "<= $now OR lease_owner = $worker) RETURN AFTER); RETURN $updated; "
             "COMMIT TRANSACTION;",
             {
                 "task": task_record(snapshot.task_id),
@@ -577,13 +471,12 @@ class TaskRuntime:
                 "now": now,
                 "expected": snapshot.status.value,
                 "expected_updated_at": snapshot.updated_at,
-                "event": event,
             },
         )
-        updated = results[3]
+        updated = results[2]
         if updated is None:
             raise Conflict(task_id)
-        self._note_change()
+
         return ClaimedTask(
             snapshot=_record_to_snapshot(updated),
             lease_owner=self.worker_id,
@@ -662,8 +555,6 @@ class TaskRuntime:
             "ttl_ms": current.ttl_ms,
             "poll_interval_ms": current.poll_interval_ms,
         }
-        event_snapshot = _transitioned_snapshot(durable, transition, now)
-        event = _task_event(event_snapshot, f"task.{next_status.value}")
         result = transition.result()
         failure = transition.failure()
         results = await self.store.query(
@@ -679,8 +570,7 @@ class TaskRuntime:
             "($expired_cancellation AND (lease_expires_at = NONE OR lease_expires_at "
             "<= $now))) "
             + (f"AND {owner_query.predicate()} " if owner_query is not None else "")
-            + "RETURN AFTER); IF $updated != NONE { CREATE outbox_event "
-            "CONTENT $event RETURN NONE; }; RETURN $updated; COMMIT TRANSACTION;",
+            + "RETURN AFTER); RETURN $updated; COMMIT TRANSACTION;",
             {
                 "task": task_record(current.task_id),
                 "next": next_status.value,
@@ -704,14 +594,13 @@ class TaskRuntime:
                 "worker": self.worker_id,
                 "control_transition": control_transition,
                 "expired_cancellation": expired_cancellation,
-                "event": event,
                 **(owner_query.bindings() if owner_query is not None else {}),
             },
         )
-        updated = results[3]
+        updated = results[2]
         if updated is None:
             raise Conflict(task_id)
-        self._note_change()
+
         return _record_to_snapshot(updated)
 
     async def cancel(
@@ -752,18 +641,18 @@ class TaskRuntime:
         return snapshot is not None and snapshot.status == TaskStatus.CANCEL_REQUESTED
 
     async def await_terminal(self, task_id: str) -> TaskSnapshot:
-        """Poll the durable row until the task leaves execution states."""
-        while True:
-            snapshot = await self.get(task_id)
-            if snapshot is None:
-                raise TaskNotFound(task_id)
-            if snapshot.is_terminal():
-                return snapshot
-            self._changed.clear()
-            try:
-                await asyncio.wait_for(self._changed.wait(), _PAYLOAD_POLL_SECONDS)
-            except TimeoutError:
-                pass
+        """Read current state on native Task changes, including other replicas."""
+        wake = await self.store.task_wake()
+        try:
+            while True:
+                snapshot = await self.get(task_id)
+                if snapshot is None:
+                    raise TaskNotFound(task_id)
+                if snapshot.is_terminal():
+                    return snapshot
+                await wake.wait()
+        finally:
+            await wake.close()
 
     def register_worker(
         self, task_id: str, cancellation: asyncio.Event, task: asyncio.Task
@@ -880,23 +769,13 @@ class TaskRuntime:
             "poll_interval_ms": task.poll_interval_ms,
         }
         terminal = status == TaskStatus.FAILED
-        event_snapshot = _copy(task)
-        event_snapshot.status = status
-        event_snapshot.status_message = message
-        event_snapshot.error = failure
-        event_snapshot.lease_owner = None
-        event_snapshot.lease_expires_at = None
-        event_snapshot.completed_at = now if terminal else None
-        event_snapshot.updated_at = now
-        event = _task_event(event_snapshot, f"task.{status.value}")
         results = await self.store.query(
             "BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $task SET "
             "status = $status, request = $request, error = $error, "
             "lease_owner = NONE, lease_expires_at = NONE, completed_at = "
             "$completed_at, updated_at = $now WHERE status = $expected AND "
             "updated_at = $expected_updated_at AND (lease_expires_at = NONE OR "
-            "lease_expires_at <= $now) RETURN AFTER); IF $updated != NONE { CREATE "
-            "outbox_event CONTENT $event RETURN NONE; }; RETURN $updated; "
+            "lease_expires_at <= $now) RETURN AFTER); RETURN $updated; "
             "COMMIT TRANSACTION;",
             {
                 "task": task_record(task.task_id),
@@ -907,13 +786,12 @@ class TaskRuntime:
                 "now": now,
                 "expected": task.status.value,
                 "expected_updated_at": task.updated_at,
-                "event": event,
             },
         )
-        updated = results[3]
+        updated = results[2]
         if updated is None:
             raise Conflict(str(task.task_id))
-        self._note_change()
+
         return _record_to_snapshot(updated)
 
     @staticmethod
@@ -922,61 +800,6 @@ class TaskRuntime:
             return await operation
         except Conflict:
             return None
-
-    def _note_change(self) -> None:
-        self._changed.set()
-
-
-def _copy(snapshot: TaskSnapshot) -> TaskSnapshot:
-    import copy
-
-    return copy.copy(snapshot)
-
-
-def _transitioned_snapshot(
-    current: TaskSnapshot, transition: TaskTransition, now: datetime
-) -> TaskSnapshot:
-    snapshot = _copy(current)
-    next_status = transition.status()
-    terminal = next_status.is_terminal()
-    snapshot.status = next_status
-    snapshot.status_message = transition.message()
-    snapshot.progress = transition.progress(current.progress)
-    snapshot.result = transition.result()
-    snapshot.error = transition.failure()
-    if next_status == TaskStatus.CANCEL_REQUESTED:
-        snapshot.cancel_requested_at = now
-    snapshot.completed_at = now if terminal else None
-    snapshot.updated_at = now
-    if terminal:
-        snapshot.lease_owner = None
-        snapshot.lease_expires_at = None
-    return snapshot
-
-
-def _task_event(snapshot: TaskSnapshot, event_type: str) -> dict[str, Any]:
-    return outbox_draft(
-        snapshot.owner.tenant_record(),
-        "task",
-        str(snapshot.task_id),
-        event_type,
-        EVENT_SCHEMA_VERSION,
-        {"snapshot": snapshot.to_json()},
-    )
-
-
-def _task_snapshot_from_event(event: OutboxEvent) -> TaskSnapshot:
-    if event.schema_version != EVENT_SCHEMA_VERSION:
-        raise InvalidRecord(
-            f"task outbox event {event.sequence} has schema version "
-            f"{event.schema_version}, expected {EVENT_SCHEMA_VERSION}"
-        )
-    snapshot = TaskSnapshot.from_json(event.payload["snapshot"])
-    if event.aggregate_id != str(snapshot.task_id):
-        raise InvalidRecord(
-            f"task outbox event {event.sequence} aggregate id does not match its snapshot"
-        )
-    return snapshot
 
 
 def _record_uuid(record: Any) -> str:

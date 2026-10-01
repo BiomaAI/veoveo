@@ -37,7 +37,7 @@ null. `snapshot.result is None` means that the Task has no result. Snapshot JSON
 an absent result and includes a completed null, following the shared
 [Task result format](../../platform/task-runtime/DESIGN.md#result-persistence-and-installation).
 The Store adapter preserves nested nulls and unsigned 64-bit integers in results and
-event snapshots. The official Tasks adapter returns object results directly and wraps
+native changefeed records. The official Tasks adapter returns object results directly and wraps
 other payloads in a `value` object.
 
 Public Task handlers use `runtime.for_owner(caller)` to construct an `OwnerTaskQuery`.
@@ -66,14 +66,20 @@ groups authorized rows by their linked Task and returns UUIDs plus a typed conti
 The usage row's server and tenant must agree with the selected parent. `complete`
 filters a Task-ID prefix in SQL before grouping and selecting up to 100 results.
 
-Owner subscriptions admit at most 256 requested Tasks. They select current authorized
-rows for notifications, using outbox identities as wake metadata without decoding old
-event snapshots. Intermediate states may coalesce. A 15-second current-state check
-recovers retained-event gaps. LIVE readers survive idle deadlines and close on
-cancellation, acknowledgement failure or notification delivery failure, including
-before the first iteration. A terminated source reaches the consumer; a replacement
-subscription admits its IDs again and reads a fresh baseline. Call `updates.aclose()`
-when consuming the reader outside the SDK's request-scoped Tasks adapter.
+Owner subscriptions admit at most 256 requested Tasks. A projected LIVE query wakes
+the reader, which replays native commit identities and selects current authorized rows
+in SQL. Intermediate states may coalesce. A cursor older than six days triggers a fresh
+baseline on the next wake. Idle readers issue no database queries. Connection loss ends
+the reader; a replacement subscription admits its IDs again and reads current state.
+Cancellation, acknowledgement failure and notification delivery failure close the owned
+LIVE source, including before the first iteration. Call `updates.aclose()` when consuming
+the reader outside the SDK's request-scoped Tasks adapter.
+
+Trusted `live_updates_after(TaskUpdateCursor(...))` readers replay committed Task states
+using the SurrealDB versionstamp. The returned cursor repeats its complete transaction
+on resume, so consumers accept duplicates and persist their acknowledgement after handling
+the records. Cursors outside retention start from current Task state. `await_terminal`
+reads the requested Task on LIVE changes and observes other replicas without polling.
 
 ## Development In A Fork
 

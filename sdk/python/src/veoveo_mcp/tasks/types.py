@@ -1,6 +1,6 @@
 """Durable task vocabulary, ported from the Rust `veoveo-task-runtime` crate.
 
-Every JSON shape here (snapshots, owners, failures, outbox payloads) must stay
+Every JSON shape here (snapshots, owners, failures) must stay
 byte-compatible with the Rust serde output: agents and the console consume
 these records regardless of which language wrote them.
 """
@@ -23,7 +23,6 @@ from ..contract.identity import InvocationAuthority
 PLATFORM_ID_NAMESPACE = uuid.UUID("7f7b11e2-3b9a-5c7a-9d51-2cf8e1bdfab4")
 INSTALLATION_TENANT = "installation"
 DEFAULT_RETENTION = timedelta(days=7)
-EVENT_SCHEMA_VERSION = 3
 
 
 class TaskStatus(str, Enum):
@@ -428,11 +427,11 @@ class RecoveryReport:
 
 @dataclass(frozen=True)
 class TaskUpdateCursor:
-    sequence: int = 0
+    versionstamp: int = 0
 
     def __post_init__(self) -> None:
-        if self.sequence < 0:
-            raise InvalidRecord("outbox sequence is negative")
+        if type(self.versionstamp) is not int or not 0 <= self.versionstamp < 2**63:
+            raise InvalidRecord("native changefeed versionstamp must be a nonnegative i64")
 
 
 @dataclass

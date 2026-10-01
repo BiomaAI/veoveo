@@ -8,7 +8,7 @@ from .runtime import TaskRuntime
 from .owner_query import OwnerTaskQuery, TaskPage, TaskPageCursor
 from .owner_subscriptions import OwnerTaskSubscription
 from .owner_usage import OwnerTaskUsageQuery, TaskUsageCompletion, TaskUsagePage
-from .store import OutboxEvent, OutboxWake, StoreError, SurrealStore, outbox_draft
+from .store import NativeWake, StoreError, SurrealStore
 from .types import (
     ClaimedTask,
     Conflict,
@@ -54,11 +54,9 @@ __all__ = [
     "TaskPage",
     "TaskPageCursor",
     "TaskTypeName",
-    "OutboxEvent",
-    "OutboxWake",
+    "NativeWake",
     "StoreError",
     "SurrealStore",
-    "outbox_draft",
     "ClaimedTask",
     "Conflict",
     "CreateTask",

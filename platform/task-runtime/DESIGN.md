@@ -253,11 +253,15 @@ The Python SDK exposes the same owner-query composition through
 `TaskRuntime.for_owner`, with native UUIDv7 inputs, `TaskTypeName` selections and
 typed creation-time/ID page cursors. Its cancellation and input-response transactions
 repeat the caller predicates. Pending-input projection uses the owner query too.
-Python subscriptions use their owned LIVE reader for wakeups and reread admitted IDs
-every 15 seconds to cover expired events; this reconciliation may repeat unchanged
-state. A terminated LIVE source ends that reader. A replacement subscription admits
-the requested IDs again and selects a fresh baseline. The MCP adapter closes readers
-when acknowledgement or delivery fails, including before their first iteration.
+Python subscriptions register an ID-only Task LIVE source before the current-state
+baseline and replay native commit pages after each wake. Every notification reads its
+current Task through the owner predicate. A cursor older than six days selects a fresh
+baseline on the next wake; idle readers issue no queries. Socket loss ends that reader.
+A replacement subscription admits the requested IDs again and selects current state.
+Trusted workers can resume native committed states with a checked versionstamp and
+repeat the final transaction in full. Python Task and domain-usage mutations write only
+their domain records. The MCP adapter closes readers when acknowledgement or delivery
+fails, including before their first iteration.
 The [Python SDK guide](../../sdk/python/README.md) documents public and trusted APIs.
 
 ## Task-Backed Resource Observation

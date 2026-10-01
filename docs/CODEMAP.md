@@ -1296,7 +1296,8 @@ shape and schema, and this package follows it.
 | `deployment.py`, `pagination.py` | mount identities and cursor pagination |
 | `schema.py` | self-contained JSON Schema 2020-12 generation for MCP tool inputs |
 | `task_extension/` | typed official Tasks SDK-hook adapter, models, and projection |
-| `tasks/` | durable SurrealDB task runtime port: leases, CAS transitions, typed result presence, JSON-preserving Store and event adapters, outbox, recovery, prune |
+| `tasks/` | durable SurrealDB task runtime port: leases, CAS transitions, typed result presence, JSON-preserving Store adapters, recovery, prune |
+| `tasks/changefeed.py`, `tasks/history.py` | checked native commit pages, complete transaction replay, typed versionstamp resume and trusted worker Task states |
 | `tasks/owner_query.py`, `tasks/owner_subscriptions.py` | Python current-owner Task selection, typed operation/page inputs, transactional caller mutations and request-owned current-state notifications |
 | `tasks/owner_usage.py` | SQL-selected usage point reads, grouped Task pages and prefix completion under the current parent Task's owner policy |
 | `artifacts.py` | artifact-plane HTTP client, capability redemption, size-capped in-memory reads, and streamed URI/file consumption with cancellation cleanup |

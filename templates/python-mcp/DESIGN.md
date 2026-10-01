@@ -72,10 +72,11 @@ Domains that require that restriction opt into `in_work_context()` in the SDK.
 
 Cancellation and input-response transactions repeat the owner and operation predicates.
 Waiting-task projections read pending input through the same query. Notifications
-coalesce to current authorized state and do not decode retained outbox snapshots.
-Subscriptions accept up to 256 Task IDs and reconcile current state every 15 seconds
-to cover event-retention gaps. A disconnected source ends the stream; a new request
-admits its IDs again. The SDK owns reader cleanup through acknowledgement and delivery.
+coalesce to current authorized state. Subscriptions accept up to 256 Task IDs and use
+native commit identities to select changed Tasks. LIVE queries wake readers; idle
+subscriptions issue no database queries. A cursor beyond retention selects a fresh
+baseline on the next wake. A disconnected source ends the stream; a new request admits
+its IDs again. The SDK owns reader cleanup through acknowledgement and delivery.
 
 ## Well-Known Surface
 

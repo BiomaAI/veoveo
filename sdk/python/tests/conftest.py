@@ -12,7 +12,7 @@ from surrealdb import AsyncSurreal
 MIGRATIONS_DIR = (
     Path(__file__).resolve().parents[3] / "platform" / "store" / "migrations"
 )
-SURREAL_IMAGE = "surrealdb/surrealdb:v3.3.0"
+SURREAL_IMAGE = "surrealdb/surrealdb@sha256:681c6c22c287421b5c7d99e0fde79b6e0d32c36c1ddeaab2762a1661cb04cd20"
 RUNTIME_USER = "veoveo_runtime"
 RUNTIME_PASSWORD = "runtime-secret"
 
@@ -31,9 +31,9 @@ def _docker_available() -> bool:
 def surreal_platform():
     """A SurrealDB v3.3.0 container with the real platform migrations applied."""
     if not _docker_available():
-        pytest.skip("docker is required for platform-store integration tests")
+        pytest.fail("docker is required for platform-store integration tests")
     if not MIGRATIONS_DIR.is_dir():
-        pytest.skip(f"platform migrations not found at {MIGRATIONS_DIR}")
+        pytest.fail(f"platform migrations not found at {MIGRATIONS_DIR}")
     port = _free_port()
     name = f"veoveo-pytest-surreal-{uuid.uuid4().hex[:12]}"
     subprocess.run(
@@ -42,6 +42,8 @@ def surreal_platform():
             "run",
             "-d",
             "--rm",
+            "--cpus=2",
+            "--memory=2g",
             "--name",
             name,
             "-p",
@@ -58,12 +60,13 @@ def surreal_platform():
         ],
         check=True,
         capture_output=True,
+        timeout=60,
     )
     endpoint = f"ws://127.0.0.1:{port}"
     try:
         _wait_ready(port)
         namespace, database = "veoveo_pytest", "platform"
-        asyncio.run(_apply_migrations(endpoint, namespace, database))
+        asyncio.run(asyncio.wait_for(_apply_migrations(endpoint, namespace, database), 60))
         yield {
             "endpoint": endpoint,
             "namespace": namespace,
@@ -72,7 +75,7 @@ def surreal_platform():
             "password": RUNTIME_PASSWORD,
         }
     finally:
-        subprocess.run(["docker", "stop", name], check=False, capture_output=True)
+        subprocess.run(["docker", "rm", "--force", name], check=False, capture_output=True, timeout=30)
 
 
 def _wait_ready(port: int) -> None:

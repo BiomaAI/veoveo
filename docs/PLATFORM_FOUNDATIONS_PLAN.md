@@ -2890,9 +2890,20 @@ availability or lease expiry. The six-package compile check and strict all-targe
 cases pass: two Store feed cases, 25 Task cases, eight Agent cases and three Computers
 subscription cases. Formatting, migration SQL validation and documentation checks pass.
 Computers subscriptions anchor their feed at the observed head before the baseline,
-preventing prior writes from producing a duplicate initial notification. Agent manager, gateway catalog heads, Python delivery, Map projection,
+preventing prior writes from producing a duplicate initial notification. Agent manager, gateway catalog heads, Map projection,
 writer removal, Computer authority recheck timers, relationship adoption and the final
 measurements remain open.
+
+The Python delivery batch removes its Task and domain-usage outbox writers and deletes
+the SDK's outbox API. ID-only LIVE queries wake native commit replay; public notifications
+read current SQL-authorized Tasks. Trusted worker cursors repeat the last complete
+transaction on resume. Request-owned readers start from fresh admission and do not
+persist a checkpoint across caller sessions. Socket loss interrupts an idle reader;
+renewal selects a current baseline. Native paging, multi-Task resume, retention recovery,
+cross-replica delivery and a zero-query idle interval pass against the pinned 3.3.0 image.
+The grouped SDK, Datasheet template and fork-fixture run passes 227 checks (191, 28 and
+eight). The temporary database is removed after the run; the cluster and builder stay
+stopped with about 178 GiB free. Installed acceptance remains open for this batch.
 
 The reference installation converged at `8e4b36e7` with both Helm releases and all 25
 Deployments current. The corrected composed flight harness used the existing headed
