@@ -10,7 +10,8 @@ Current release checkpoint (2026-09-30): the unified audit cut is committed at
 and paired development measurements pass. All 29 affected images and both Helm charts
 are published from that revision. The release inputs select their digests, including
 the agent kernel. The Computers guest digest and template fingerprint are unchanged.
-Deployment configuration and rollout checks pass; the reference cluster stays stopped.
+Deployment configuration and rollout checks pass. The fresh reference reset is underway;
+UAV reconciliation is suspended until Frames publishes the new world binding.
 Installed acceptance is pending. Phases 1–3 have
 remaining work, and phases 5–9 are not implemented.
 The pending reference release selects both S3 and OTLP audit destinations and enables

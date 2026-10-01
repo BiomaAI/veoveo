@@ -4,6 +4,7 @@ metadata:
   name: uav-sim
   namespace: flux-system
 spec:
+  suspend: true
   interval: 5m
   timeout: 30m
   releaseName: uav-sim
