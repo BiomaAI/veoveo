@@ -2,8 +2,7 @@
 //!
 //! SurrealDB is the sole task authority. In-process notifications and LIVE
 //! queries may reduce latency, but every read and transition is checked
-//! against durable state and every state transition emits an ordered outbox
-//! event in the same transaction.
+//! against durable state. Native changefeeds record committed Task transitions.
 
 mod admission;
 mod leases;
@@ -22,8 +21,8 @@ pub use resource_subscriptions::{
     TaskResourceSubscriptions, TaskResourceUpdate, TaskResourceUpdateStream,
 };
 pub use runtime::{
-    OwnerTaskQuery, OwnerTaskSubscription, TASK_EVENT_SCHEMA_VERSION, TaskRuntime,
-    TaskUpdateStream, TaskUsageAccess, TaskUsagePage,
+    OwnerTaskQuery, OwnerTaskSubscription, TaskRuntime, TaskUpdateStream, TaskUsageAccess,
+    TaskUsagePage,
 };
 pub use service::{
     DurableTaskService, DurableTaskSubscription, DurableTaskUpdateStream,

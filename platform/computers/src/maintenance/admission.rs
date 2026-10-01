@@ -15,8 +15,7 @@ use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
 use veoveo_platform_store::task_record_id;
 use veoveo_platform_store::{
-    OpenObject, OutboxDraft, deterministic_enterprise_id, deterministic_tenant_id,
-    gateway_refresh_family_record_id,
+    OpenObject, deterministic_enterprise_id, gateway_refresh_family_record_id,
 };
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRetentionPin, TaskRuntime};
 use veoveo_types::TaskTypeDefinition;
@@ -44,14 +43,6 @@ struct Content {
 struct Reference {
     computer_id: veoveo_computers_contract::ComputerId,
     maintenance_id: Uuid,
-}
-#[derive(Serialize)]
-struct AdmissionEvent<'a> {
-    computer_id: veoveo_computers_contract::ComputerId,
-    maintenance_id: Uuid,
-    actor: &'a str,
-    authority: &'a veoveo_types::InvocationAuthority,
-    target_template_id: &'a str,
 }
 
 fn request_record(
@@ -299,24 +290,7 @@ impl ComputersStore {
             target_template_id: target.template_id.clone(),
             target_template_fingerprint: target.template_fingerprint.clone(),
         };
-        let event = OutboxDraft::now(
-            Some(
-                deterministic_tenant_id(caller.tenant_key())
-                    .map_err(|_| ComputerError::InvalidInput)?
-                    .record_id(),
-            ),
-            "computer",
-            computer_id.to_string(),
-            "computer.maintenance_queued",
-            1,
-            object(&AdmissionEvent {
-                computer_id,
-                maintenance_id: id,
-                actor: &caller.principal_key,
-                authority: &caller.authority,
-                target_template_id: &target.template_id,
-            })?,
-        );
+
         let family = actor
             .accepted()
             .request_context
@@ -347,7 +321,6 @@ impl ComputersStore {
                 ),
                 ("maintenance", record(id).into_value()),
                 ("content", content.into_value()),
-                ("event", event.into_value()),
                 crate::audit::binding(
                     actor.accepted(),
                     computer_id,

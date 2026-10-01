@@ -17,7 +17,7 @@ use veoveo_agent_kernel::{
 };
 use veoveo_agent_runtime::{
     AgentInstanceId, AgentRuntime, AgentSpec, DEFAULT_AGENT_LEASE, DEFAULT_CLAIM_LEASE,
-    ManagedSchedulerMode, WakeAckReason, json_object,
+    ManagedSchedulerMode, json_object,
 };
 use veoveo_platform_store::{
     AgentInputRequestId, AgentTaskId, PlatformStore, StoreConfig, StoreCredentials, WakeKind,
@@ -254,7 +254,7 @@ pub(crate) async fn cmd_run(args: RunArgs) -> Result<()> {
         };
         if batch.is_heartbeat_only() {
             match runtime
-                .acknowledge_wakes_without_episode(&batch.ids(), WakeAckReason::NoActionableChange)
+                .acknowledge_wakes_without_episode(&batch.ids())
                 .await
             {
                 Ok(()) => tracing::info!(

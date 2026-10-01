@@ -6,7 +6,7 @@ use serde::Serialize;
 use std::time::{Duration, Instant};
 use surrealdb::types::{SurrealValue, Value};
 use uuid::Uuid;
-use veoveo_platform_store::{OutboxDraft, deterministic_enterprise_id, deterministic_tenant_id};
+use veoveo_platform_store::deterministic_enterprise_id;
 use veoveo_task_runtime::{ClaimedTask, ProviderCommit, TaskError, TaskRuntime};
 use veoveo_types::TaskTypeDefinition;
 
@@ -27,7 +27,7 @@ impl ClockedMaintenance {
 pub(super) struct JournalChange<'a> {
     pub kind: ProviderCommit,
     pub permit: Option<&'a ExecutionPermit>,
-    pub event: &'static str,
+
     pub checkpoint: Option<&'a crate::secrets::SealedMaintenanceCheckpoint>,
 }
 impl ComputersStore {
@@ -79,34 +79,7 @@ impl ComputersStore {
         change: JournalChange<'_>,
     ) -> Result<()> {
         after.validate_progress()?;
-        #[derive(Serialize)]
-        struct Event<'a> {
-            computer_id: veoveo_computers_contract::ComputerId,
-            maintenance_id: Uuid,
-            actor: &'a crate::AcceptedAuthority,
-            stage: super::MaintenanceStage,
-            step: Option<&'a super::MaintenanceStepRecord>,
-            recovery: Option<super::MaintenanceRecovery>,
-        }
-        let event = OutboxDraft::now(
-            Some(
-                deterministic_tenant_id(before.actor.tenant_key())
-                    .map_err(|_| ComputerError::InvalidInput)?
-                    .record_id(),
-            ),
-            "computer",
-            before.computer_id.to_string(),
-            change.event,
-            1,
-            object(&Event {
-                computer_id: before.computer_id,
-                maintenance_id: before.operation_id,
-                actor: &before.execution_authority,
-                stage: after.stage,
-                step: after.steps().last(),
-                recovery: after.recovery(),
-            })?,
-        );
+
         let computer = self.get(&before.actor, before.computer_id).await?;
         let policy = change.permit.map(|permit| &permit.evidence);
         let (resource, process) = after
@@ -128,7 +101,6 @@ impl ComputersStore {
             ("stage", enum_value(after.stage)?),
             ("computer_updated_at", computer.updated_at.into_value()),
             ("source_owner", object(&computer.owner)?.into_value()),
-            ("event", event.into_value()),
             crate::audit::binding(
                 &before.execution_authority,
                 before.computer_id,

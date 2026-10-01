@@ -16,8 +16,7 @@ IF $current.stage = "containing" {
         AND <string>(replacement_instance_id ?? computer_id) = $current.binding.instance_id
         AND provider_resource_id = $current.binding.resource_id AND process_id = $current.binding.process_id
         AND phase != "stopped";
-    CREATE outbox_event CONTENT $event;
-fn::append_audit($audit_rows);
+    fn::append_audit($audit_rows);
   } ELSE IF $current.next_containment_read = NONE OR $current.next_containment_read <= time::now() {
     LET $charged = (UPDATE ONLY $execution SET containment_reads += 1, last_containment_read_id = $read_id,
       next_containment_read = time::now() + $backoff, updated_at = time::now()

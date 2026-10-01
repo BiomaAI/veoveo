@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 mod audit;
 
 use anyhow::{Context, Result};
@@ -10,7 +9,7 @@ use veoveo_mcp_contract::{
 use veoveo_platform_store::{
     ArtifactGrantSubjectKind, GatewayControlActiveRecord, GatewayControlObjectContent,
     GatewayControlRevisionContent, GatewayControlRevisionRecord, GatewayControlRevisionSource,
-    GrantPermission, OpenObject, OutboxDraft, PlatformStore, RecordId, StoreConfig,
+    GrantPermission, OpenObject, PlatformStore, RecordId, StoreConfig,
     WorkContextInitialGrantRecord, WorkContextMembershipLevel, WorkContextMembershipRuleRecord,
     WorkContextOutputPolicyRecord, WorkContextRecord, deterministic_tenant_id,
     deterministic_work_context_id,
@@ -143,31 +142,6 @@ impl GatewayControlStore {
                 document: row.document,
             })
             .collect();
-        let outbox = OutboxDraft::now(
-            None,
-            "gateway_control_plane",
-            revision.revision_id.to_string(),
-            "gateway.control_plane.activated",
-            1,
-            OpenObject::new(BTreeMap::from([
-                (
-                    "revision_id".to_owned(),
-                    serde_json::Value::String(revision.revision_id.to_string()),
-                ),
-                (
-                    "sha256".to_owned(),
-                    serde_json::Value::String(revision.sha256.clone()),
-                ),
-                (
-                    "tenant".to_owned(),
-                    revision
-                        .tenant
-                        .as_ref()
-                        .map(|tenant| serde_json::Value::String(tenant.to_string()))
-                        .unwrap_or(serde_json::Value::Null),
-                ),
-            ])),
-        );
 
         self.platform
             .client()
@@ -197,7 +171,6 @@ impl GatewayControlStore {
                     revision_id: $revision_id,
                     updated_at: $applied_at
                 };
-                CREATE outbox_event CONTENT $outbox;
                 fn::append_audit($audit_rows);
                 COMMIT TRANSACTION;
                 "#,
@@ -211,7 +184,6 @@ impl GatewayControlStore {
             .bind(("objects", objects))
             .bind(("work_contexts", work_contexts))
             .bind(("work_context_ids", work_context_ids))
-            .bind(("outbox", outbox))
             .await
             .context("failed to publish gateway control-plane revision")?
             .check()

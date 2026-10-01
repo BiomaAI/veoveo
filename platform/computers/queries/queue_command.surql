@@ -43,7 +43,6 @@ IF $prior = NONE {
   CREATE $slot CONTENT {execution:$execution, computer_id:$content.computer_id};
   CREATE $execution CONTENT object::extend($content, {stage:"queued", created_at:$now, updated_at:$now});
   CREATE $request CONTENT {execution:$execution};
-  CREATE outbox_event CONTENT $event;
-fn::append_audit($audit_rows);
+  fn::append_audit($audit_rows);
 };
 COMMIT TRANSACTION;

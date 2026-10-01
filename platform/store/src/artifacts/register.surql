@@ -16,4 +16,3 @@
   };
   CREATE ONLY $artifact CONTENT $artifact_content RETURN NONE;
   INSERT RELATION INTO artifact_grant $grants RETURN NONE;
-  CREATE outbox_event CONTENT $outbox RETURN NONE;

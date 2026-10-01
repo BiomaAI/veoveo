@@ -246,7 +246,7 @@ async fn known_import_export_and_rejection_release_the_slot_and_preserve_exact_r
     }
     let mut read =
         db.a.client()
-            .query("SELECT * FROM outbox_event WHERE event_type='computer.file_transfer_finished';")
+            .query("SELECT * FROM audit_record WHERE activity = 'computer_file_transfer' AND draft.detail.stage = 'settled';")
             .await
             .unwrap()
             .check()

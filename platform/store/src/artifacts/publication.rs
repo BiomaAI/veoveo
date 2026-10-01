@@ -6,7 +6,6 @@ pub(crate) struct PreparedPublication {
     pub blob: ArtifactBlobRecord,
     pub occurrence: ArtifactOccurrenceRecord,
     pub grants: Vec<ArtifactGrantEdge>,
-    pub outbox: OutboxDraft,
 }
 
 pub(crate) fn prepare_publication(
@@ -84,21 +83,10 @@ pub(crate) fn prepare_publication(
             created_at: now,
         })
         .collect::<Vec<_>>();
-    let outbox = OutboxDraft::now(
-        Some(draft.identity.tenant_id.record_id()),
-        "artifact",
-        draft.artifact_id.to_string(),
-        "artifact.created",
-        1,
-        OpenObject::new(BTreeMap::from([(
-            "artifact_id".into(),
-            serde_json::json!(draft.artifact_id.to_string()),
-        )])),
-    );
+
     Ok(PreparedPublication {
         blob,
         occurrence,
         grants,
-        outbox,
     })
 }

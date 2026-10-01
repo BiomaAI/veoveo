@@ -18,25 +18,22 @@ use surrealdb::types::{RecordId, SurrealValue};
 use veoveo_platform_store::{
     AgentEpisodeId, AgentEpisodeRecord, AgentEpisodeState, AgentId, AgentInputRequestId,
     AgentInputRequestRecord, AgentInputRequestState, AgentRecord, AgentState, AgentTaskId,
-    AgentTaskRecord, AgentTaskWatchState, InvocationAuthorityRecord, OpenObject, OutboxDraft,
-    PlatformIdentity, PlatformStore, PlatformTable, PrincipalKind, StoreAuthLevel, WakeId,
-    WakeKind, WakeRecord, WakeState, deterministic_work_context_id,
+    AgentTaskRecord, AgentTaskWatchState, InvocationAuthorityRecord, OpenObject, PlatformIdentity,
+    PlatformStore, PlatformTable, PrincipalKind, StoreAuthLevel, WakeId, WakeKind, WakeRecord,
+    WakeState, deterministic_work_context_id,
 };
 use veoveo_task_runtime::TaskRetentionPin;
 
 use crate::types::{
     AgentInstanceId, AgentLease, AgentRuntimeError, AgentSpec, AgentTaskResult, ClaimedAgentTask,
     ClaimedWake, EpisodeCompletion, EpisodeHandle, InputRequestAnswer, NewAgentTask,
-    NewInputRequest, NewWake, PendingInputRequest, Result, WakeAckReason, checked_i64, object,
-    uuid_from_record,
+    NewInputRequest, NewWake, PendingInputRequest, Result, checked_i64, object, uuid_from_record,
 };
 use veoveo_mcp_contract::CanonicalTaskId;
 
 mod episodes;
 mod managed;
 mod wake_observation;
-
-const EVENT_SCHEMA_VERSION: i64 = 1;
 
 #[derive(Clone, Debug, Serialize, Deserialize, SurrealValue)]
 struct AgentContent {
@@ -134,7 +131,6 @@ LET $claimed_wakes = (SELECT VALUE id FROM wake WHERE id IN $wakes AND agent = $
 IF array::len($claimed_wakes) != array::len($wakes) { THROW 'wake claim lost'; };
 UPDATE wake SET state = 'acked', acked_at = $now, acked_by_episode = NONE, claimed_by = NONE, claimed_at = NONE, claim_expires_at = NONE, claim_fence = NONE, updated_at = $now, revision += 1 WHERE id IN $claimed_wakes RETURN NONE;
 UPDATE ONLY $agent SET state = 'idle', revision += 1, updated_at = $now WHERE lease_owner = $owner AND fence = $fence RETURN NONE;
-CREATE outbox_event CONTENT $event RETURN NONE;
 COMMIT TRANSACTION;
 "#;
 
@@ -176,25 +172,15 @@ impl AgentRuntime {
             validate_agent_record(&record, &spec)?;
             if record.manifest != spec.manifest {
                 let now = Utc::now();
-                let agent_id = agent_id_from_record(&record.id)?;
-                let event = outbox(
-                    &identity,
-                    "agent",
-                    agent_id.to_string(),
-                    "agent.manifest_updated",
-                    object([(
-                        "previous_revision".to_owned(),
-                        serde_json::json!(record.revision),
-                    )]),
-                );
+                agent_id_from_record(&record.id)?;
+
                 store
                     .client()
-                    .query("BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $agent SET manifest = $manifest, revision += 1, updated_at = $now WHERE revision = $revision AND (lease_owner = NONE OR lease_expires_at = NONE OR lease_expires_at <= $now) RETURN AFTER); IF $updated = NONE { THROW 'agent manifest update conflict'; }; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;")
+                    .query("BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $agent SET manifest = $manifest, revision += 1, updated_at = $now WHERE revision = $revision AND (lease_owner = NONE OR lease_expires_at = NONE OR lease_expires_at <= $now) RETURN AFTER); IF $updated = NONE { THROW 'agent manifest update conflict'; }; COMMIT TRANSACTION;")
                     .bind(("agent", record.id.clone()))
                     .bind(("manifest", spec.manifest.clone()))
                     .bind(("revision", record.revision))
                     .bind(("now", now))
-                    .bind(("event", event))
                     .await?
                     .check()?;
                 record = find_agent(&store, identity.tenant_id.record_id(), &spec.agent_key)
@@ -241,19 +227,12 @@ impl AgentRuntime {
             created_at: now,
             updated_at: now,
         };
-        let event = outbox(
-            &identity,
-            "agent",
-            agent_id.to_string(),
-            "agent.registered",
-            object([("agent_key".to_owned(), serde_json::json!(spec.agent_key))]),
-        );
+
         let created = store
             .client()
-            .query("BEGIN TRANSACTION; CREATE ONLY $agent CONTENT $content RETURN NONE; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; CREATE ONLY $agent CONTENT $content RETURN NONE; COMMIT TRANSACTION;")
             .bind(("agent", agent_id.record_id()))
             .bind(("content", content))
-            .bind(("event", event))
             .await
             .and_then(|response| response.check());
         if let Err(error) = created
@@ -314,27 +293,17 @@ impl AgentRuntime {
             record.fence + 1
         };
         let expires_at = deadline(now, duration)?;
-        let event = outbox(
-            &self.identity,
-            "agent",
-            self.agent_id.to_string(),
-            "agent.lease_acquired",
-            object([
-                ("instance_id".to_owned(), serde_json::json!(owner)),
-                ("fence".to_owned(), serde_json::json!(fence)),
-            ]),
-        );
+
         let result = self
             .store
             .client()
-            .query("BEGIN TRANSACTION; LET $leased = (UPDATE ONLY $agent SET lease_owner = $owner, lease_expires_at = $expires, heartbeat_at = $now, managed_ready = NONE, fence = $fence, revision += 1, updated_at = $now WHERE revision = $revision AND state != 'disabled' AND (lease_owner = NONE OR lease_expires_at = NONE OR lease_expires_at <= $now OR lease_owner = $owner) RETURN AFTER); IF $leased = NONE { THROW 'agent lease conflict'; }; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; LET $leased = (UPDATE ONLY $agent SET lease_owner = $owner, lease_expires_at = $expires, heartbeat_at = $now, managed_ready = NONE, fence = $fence, revision += 1, updated_at = $now WHERE revision = $revision AND state != 'disabled' AND (lease_owner = NONE OR lease_expires_at = NONE OR lease_expires_at <= $now OR lease_owner = $owner) RETURN AFTER); IF $leased = NONE { THROW 'agent lease conflict'; }; COMMIT TRANSACTION;")
             .bind(("agent", self.agent_id.record_id()))
             .bind(("owner", owner))
             .bind(("expires", expires_at))
             .bind(("now", now))
             .bind(("fence", fence))
             .bind(("revision", record.revision))
-            .bind(("event", event))
             .await
             .and_then(|response| response.check());
         if result.is_err() {
@@ -370,21 +339,14 @@ impl AgentRuntime {
     pub async fn release_lease(&self) -> Result<()> {
         let fence = self.fence()?;
         let now = Utc::now();
-        let event = outbox(
-            &self.identity,
-            "agent",
-            self.agent_id.to_string(),
-            "agent.lease_released",
-            object([("fence".to_owned(), serde_json::json!(fence))]),
-        );
+
         self.store
             .client()
-            .query("BEGIN TRANSACTION; LET $released = (UPDATE ONLY $agent SET lease_owner = NONE, lease_expires_at = NONE, heartbeat_at = $now, state = 'idle', revision += 1, updated_at = $now WHERE lease_owner = $owner AND fence = $fence RETURN AFTER); IF $released = NONE { THROW 'agent lease lost'; }; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; LET $released = (UPDATE ONLY $agent SET lease_owner = NONE, lease_expires_at = NONE, heartbeat_at = $now, state = 'idle', revision += 1, updated_at = $now WHERE lease_owner = $owner AND fence = $fence RETURN AFTER); IF $released = NONE { THROW 'agent lease lost'; }; COMMIT TRANSACTION;")
             .bind(("agent", self.agent_id.record_id()))
             .bind(("owner", self.instance_id.to_string()))
             .bind(("fence", fence))
             .bind(("now", now))
-            .bind(("event", event))
             .await?
             .check()?;
         self.active_fence.store(0, Ordering::Release);
@@ -394,13 +356,9 @@ impl AgentRuntime {
     /// Acknowledge a claimed wake batch without creating an LLM episode.
     ///
     /// This is the durable terminal path for scheduler signals that carry no
-    /// actionable work. It retains lease fencing and emits an outbox event,
-    /// while deliberately leaving `acked_by_episode` empty.
-    pub async fn acknowledge_wakes_without_episode(
-        &self,
-        wakes: &[WakeId],
-        reason: WakeAckReason,
-    ) -> Result<()> {
+    /// actionable work. It retains lease fencing and commits the acknowledgement
+    /// with `acked_by_episode` empty.
+    pub async fn acknowledge_wakes_without_episode(&self, wakes: &[WakeId]) -> Result<()> {
         if wakes.is_empty() {
             return Err(AgentRuntimeError::InvalidField {
                 field: "wake batch",
@@ -410,16 +368,7 @@ impl AgentRuntime {
         let fence = self.fence()?;
         let now = Utc::now();
         let wake_records = wakes.iter().map(|id| id.record_id()).collect::<Vec<_>>();
-        let event = outbox(
-            &self.identity,
-            "wake",
-            self.agent_id.to_string(),
-            "wake.batch_acked_without_episode",
-            object([
-                ("wake_ids".to_owned(), serde_json::json!(wakes)),
-                ("reason".to_owned(), serde_json::json!(reason.as_str())),
-            ]),
-        );
+
         self.store
             .client()
             .query(ACK_WAKES_WITHOUT_EPISODE_QUERY)
@@ -428,32 +377,21 @@ impl AgentRuntime {
             .bind(("fence", fence))
             .bind(("now", now))
             .bind(("wakes", wake_records))
-            .bind(("event", event))
             .await?
             .check()?;
         Ok(())
     }
 
-    /// Persist an accepted wake and its outbox event before any process-local hint is sent.
+    /// Persist an accepted wake before native changefeed delivery.
     pub async fn enqueue_wake(&self, wake: NewWake) -> Result<WakeId> {
         let now = Utc::now();
         let content = self.wake_content(&wake, now);
-        let event = outbox(
-            &self.identity,
-            "wake",
-            wake.wake_id.to_string(),
-            "wake.enqueued",
-            object([
-                ("kind".to_owned(), serde_json::json!(wake.kind)),
-                ("dedupe_key".to_owned(), serde_json::json!(wake.dedupe_key)),
-            ]),
-        );
+
         self.store
             .client()
-            .query("BEGIN TRANSACTION; CREATE ONLY $wake CONTENT $content RETURN NONE; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; CREATE ONLY $wake CONTENT $content RETURN NONE; COMMIT TRANSACTION;")
             .bind(("wake", wake.wake_id.record_id()))
             .bind(("content", content))
-            .bind(("event", event))
             .await?
             .check()?;
         Ok(wake.wake_id)
@@ -495,23 +433,16 @@ impl AgentRuntime {
     pub async fn coalesce_wake(&self, wake: WakeId, winner: WakeId) -> Result<()> {
         let fence = self.fence()?;
         let now = Utc::now();
-        let event = outbox(
-            &self.identity,
-            "wake",
-            wake.to_string(),
-            "wake.coalesced",
-            object([("winner".to_owned(), serde_json::json!(winner))]),
-        );
+
         self.store
             .client()
-            .query("BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $wake SET state = 'coalesced', coalesced_into = $winner, claimed_by = NONE, claimed_at = NONE, claim_expires_at = NONE, claim_fence = NONE, acked_at = $now, updated_at = $now, revision += 1 WHERE agent = $agent AND state = 'claimed' AND claimed_by = $owner AND claim_fence = $fence RETURN AFTER); IF $updated = NONE { THROW 'wake claim lost'; }; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $wake SET state = 'coalesced', coalesced_into = $winner, claimed_by = NONE, claimed_at = NONE, claim_expires_at = NONE, claim_fence = NONE, acked_at = $now, updated_at = $now, revision += 1 WHERE agent = $agent AND state = 'claimed' AND claimed_by = $owner AND claim_fence = $fence RETURN AFTER); IF $updated = NONE { THROW 'wake claim lost'; }; COMMIT TRANSACTION;")
             .bind(("wake", wake.record_id()))
             .bind(("winner", winner.record_id()))
             .bind(("agent", self.agent_id.record_id()))
             .bind(("owner", self.instance_id.to_string()))
             .bind(("fence", fence))
             .bind(("now", now))
-            .bind(("event", event))
             .await?
             .check()?;
         Ok(())
@@ -525,19 +456,10 @@ impl AgentRuntime {
     ) -> Result<()> {
         let fence = self.fence()?;
         let now = Utc::now();
-        let event = outbox(
-            &self.identity,
-            "wake",
-            wake.to_string(),
-            "wake.retry_scheduled",
-            object([
-                ("available_at".to_owned(), serde_json::json!(available_at)),
-                ("error".to_owned(), serde_json::json!(error)),
-            ]),
-        );
+
         self.store
             .client()
-            .query("BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $wake SET state = 'pending', available_at = $available, claimed_by = NONE, claimed_at = NONE, claim_expires_at = NONE, claim_fence = NONE, last_error = $error, updated_at = $now, revision += 1 WHERE agent = $agent AND state = 'claimed' AND claimed_by = $owner AND claim_fence = $fence RETURN AFTER); IF $updated = NONE { THROW 'wake claim lost'; }; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $wake SET state = 'pending', available_at = $available, claimed_by = NONE, claimed_at = NONE, claim_expires_at = NONE, claim_fence = NONE, last_error = $error, updated_at = $now, revision += 1 WHERE agent = $agent AND state = 'claimed' AND claimed_by = $owner AND claim_fence = $fence RETURN AFTER); IF $updated = NONE { THROW 'wake claim lost'; }; COMMIT TRANSACTION;")
             .bind(("wake", wake.record_id()))
             .bind(("available", available_at))
             .bind(("error", error.to_owned()))
@@ -545,7 +467,6 @@ impl AgentRuntime {
             .bind(("agent", self.agent_id.record_id()))
             .bind(("owner", self.instance_id.to_string()))
             .bind(("fence", fence))
-            .bind(("event", event))
             .await?
             .check()?;
         Ok(())
@@ -591,26 +512,13 @@ impl AgentRuntime {
             resolved_at: None,
             revision: 0,
         };
-        let event = outbox(
-            &self.identity,
-            "agent_task",
-            agent_task_id.to_string(),
-            "agent_task.recorded",
-            object([
-                ("task_id".to_owned(), serde_json::json!(draft.task_id)),
-                (
-                    "retention_pin".to_owned(),
-                    serde_json::json!(draft.retention_pin),
-                ),
-            ]),
-        );
+
         let result = self
             .store
             .client()
-            .query("BEGIN TRANSACTION; CREATE ONLY $agent_task CONTENT $content RETURN NONE; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; CREATE ONLY $agent_task CONTENT $content RETURN NONE; COMMIT TRANSACTION;")
             .bind(("agent_task", agent_task_id.record_id()))
             .bind(("content", content))
-            .bind(("event", event))
             .await;
         let result = match result {
             Ok(mut response) => {
@@ -739,29 +647,16 @@ impl AgentRuntime {
     ) -> Result<()> {
         let fence = self.fence()?;
         let now = Utc::now();
-        let event = outbox(
-            &self.identity,
-            "agent_task",
-            task.agent_task_id.to_string(),
-            "agent_task.retry_scheduled",
-            object([
-                ("next_retry_at".to_owned(), serde_json::json!(next_retry_at)),
-                (
-                    "attempt".to_owned(),
-                    serde_json::json!(task.attempt_count + 1),
-                ),
-            ]),
-        );
+
         self.store
             .client()
-            .query("BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $task SET state = 'pending', attempt_count += 1, next_retry_at = $retry, lease_owner = NONE, lease_expires_at = NONE, last_error = $error, updated_at = $now, revision += 1 WHERE agent = $agent AND state = 'watching' AND lease_owner = $owner RETURN AFTER); IF $updated = NONE { THROW 'agent task lease lost'; }; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $task SET state = 'pending', attempt_count += 1, next_retry_at = $retry, lease_owner = NONE, lease_expires_at = NONE, last_error = $error, updated_at = $now, revision += 1 WHERE agent = $agent AND state = 'watching' AND lease_owner = $owner RETURN AFTER); IF $updated = NONE { THROW 'agent task lease lost'; }; COMMIT TRANSACTION;")
             .bind(("task", task.agent_task_id.record_id()))
             .bind(("retry", next_retry_at))
             .bind(("error", error.to_owned()))
             .bind(("now", now))
             .bind(("agent", self.agent_id.record_id()))
             .bind(("owner", task_lease_owner(self.instance_id, fence)))
-            .bind(("event", event))
             .await?
             .check()?;
         Ok(())
@@ -774,11 +669,11 @@ impl AgentRuntime {
         result: OpenObject,
         is_error: bool,
     ) -> Result<WakeId> {
-        self.settle_task(task, result, is_error, false).await
+        self.settle_task(task, result, is_error).await
     }
 
     pub async fn fail_task(&self, task: &ClaimedAgentTask, result: OpenObject) -> Result<WakeId> {
-        self.settle_task(task, result, true, true).await
+        self.settle_task(task, result, true).await
     }
 
     pub async fn resolve_task_in_episode(
@@ -894,21 +789,14 @@ impl AgentRuntime {
             ]),
         );
         let wake_content = self.wake_content(&wake, now);
-        let event = outbox(
-            &self.identity,
-            "agent_input_request",
-            draft.input_request_id.to_string(),
-            "agent_input_request.pending",
-            object([("wake_id".to_owned(), serde_json::json!(wake.wake_id))]),
-        );
+
         self.store
             .client()
-            .query("BEGIN TRANSACTION; CREATE ONLY $input_request CONTENT $content RETURN NONE; CREATE ONLY $wake CONTENT $wake_content RETURN NONE; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; CREATE ONLY $input_request CONTENT $content RETURN NONE; CREATE ONLY $wake CONTENT $wake_content RETURN NONE; COMMIT TRANSACTION;")
             .bind(("input_request", draft.input_request_id.record_id()))
             .bind(("content", content))
             .bind(("wake", wake.wake_id.record_id()))
             .bind(("wake_content", wake_content))
-            .bind(("event", event))
             .await?
             .check()?;
         Ok(wake.wake_id)
@@ -944,16 +832,10 @@ impl AgentRuntime {
             ]),
         );
         let wake_content = self.wake_content(&wake, now);
-        let event = outbox(
-            &self.identity,
-            "agent_input_request",
-            input_request_id.to_string(),
-            "agent_input_request.answered",
-            object([("wake_id".to_owned(), serde_json::json!(wake.wake_id))]),
-        );
+
         self.store
             .client()
-            .query("BEGIN TRANSACTION; LET $answered = (UPDATE ONLY $input_request SET state = $state, answer = $answer, answered_by = $answered_by, answered_at = $now, revision += 1 WHERE state = 'pending' AND revision = $revision RETURN AFTER); IF $answered = NONE { THROW 'input_request answer conflict'; }; CREATE ONLY $wake CONTENT $wake_content RETURN NONE; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; LET $answered = (UPDATE ONLY $input_request SET state = $state, answer = $answer, answered_by = $answered_by, answered_at = $now, revision += 1 WHERE state = 'pending' AND revision = $revision RETURN AFTER); IF $answered = NONE { THROW 'input_request answer conflict'; }; CREATE ONLY $wake CONTENT $wake_content RETURN NONE; COMMIT TRANSACTION;")
             .bind(("input_request", input_request_id.record_id()))
             .bind(("state", answer.state))
             .bind(("answer", answer.answer))
@@ -962,7 +844,6 @@ impl AgentRuntime {
             .bind(("revision", existing.revision))
             .bind(("wake", wake.wake_id.record_id()))
             .bind(("wake_content", wake_content))
-            .bind(("event", event))
             .await?
             .check()?;
         Ok(wake.wake_id)
@@ -1002,7 +883,6 @@ impl AgentRuntime {
         task: &ClaimedAgentTask,
         result: OpenObject,
         is_error: bool,
-        terminal_failure: bool,
     ) -> Result<WakeId> {
         let fence = self.fence()?;
         let now = Utc::now();
@@ -1017,23 +897,10 @@ impl AgentRuntime {
         } else {
             AgentTaskWatchState::Resolved
         };
-        let event = outbox(
-            &self.identity,
-            "agent_task",
-            task.agent_task_id.to_string(),
-            if terminal_failure {
-                "agent_task.failed"
-            } else {
-                "agent_task.resolved"
-            },
-            object([
-                ("task_id".to_owned(), serde_json::json!(task.task_id)),
-                ("wake_id".to_owned(), serde_json::json!(wake.wake_id)),
-            ]),
-        );
+
         self.store
             .client()
-            .query("BEGIN TRANSACTION; LET $lease = (SELECT * FROM ONLY $agent WHERE lease_owner = $instance AND fence = $fence AND lease_expires_at > $now); IF $lease = NONE { THROW 'agent lease lost'; }; LET $settled = (UPDATE ONLY $agent_task SET state = $state, result = $result, result_is_error = $is_error, result_wake = $wake, lease_owner = NONE, lease_expires_at = NONE, resolved_at = $now, updated_at = $now, revision += 1 WHERE agent = $agent AND state = 'watching' AND lease_owner = $task_owner RETURN AFTER); IF $settled = NONE { THROW 'agent task lease lost'; }; CREATE ONLY $wake CONTENT $wake_content RETURN NONE; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; LET $lease = (SELECT * FROM ONLY $agent WHERE lease_owner = $instance AND fence = $fence AND lease_expires_at > $now); IF $lease = NONE { THROW 'agent lease lost'; }; LET $settled = (UPDATE ONLY $agent_task SET state = $state, result = $result, result_is_error = $is_error, result_wake = $wake, lease_owner = NONE, lease_expires_at = NONE, resolved_at = $now, updated_at = $now, revision += 1 WHERE agent = $agent AND state = 'watching' AND lease_owner = $task_owner RETURN AFTER); IF $settled = NONE { THROW 'agent task lease lost'; }; CREATE ONLY $wake CONTENT $wake_content RETURN NONE; COMMIT TRANSACTION;")
             .bind(("agent", self.agent_id.record_id()))
             .bind(("instance", self.instance_id.to_string()))
             .bind(("fence", fence))
@@ -1045,7 +912,6 @@ impl AgentRuntime {
             .bind(("wake", wake.wake_id.record_id()))
             .bind(("task_owner", task_lease_owner(self.instance_id, fence)))
             .bind(("wake_content", wake_content))
-            .bind(("event", event))
             .await?
             .check()?;
         Ok(wake.wake_id)
@@ -1060,23 +926,11 @@ impl AgentRuntime {
         let now = Utc::now();
         let expiry = deadline(now, duration)?;
         let wake_id = wake_id_from_record(&candidate.id)?;
-        let event = outbox(
-            &self.identity,
-            "wake",
-            wake_id.to_string(),
-            "wake.claimed",
-            object([
-                ("fence".to_owned(), serde_json::json!(fence)),
-                (
-                    "attempt".to_owned(),
-                    serde_json::json!(candidate.attempts + 1),
-                ),
-            ]),
-        );
+
         let result = self
             .store
             .client()
-            .query("BEGIN TRANSACTION; LET $lease = (SELECT * FROM ONLY $agent WHERE lease_owner = $owner AND fence = $fence AND lease_expires_at > $now); IF $lease = NONE { THROW 'agent lease lost'; }; LET $claimed = (UPDATE ONLY $wake SET state = 'claimed', claimed_by = $owner, claimed_at = $now, claim_expires_at = $expiry, claim_fence = $fence, attempts += 1, updated_at = $now, revision += 1 WHERE agent = $agent AND state = 'pending' AND available_at <= $now AND revision = $revision RETURN AFTER); IF $claimed = NONE { THROW 'wake claim conflict'; }; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; LET $lease = (SELECT * FROM ONLY $agent WHERE lease_owner = $owner AND fence = $fence AND lease_expires_at > $now); IF $lease = NONE { THROW 'agent lease lost'; }; LET $claimed = (UPDATE ONLY $wake SET state = 'claimed', claimed_by = $owner, claimed_at = $now, claim_expires_at = $expiry, claim_fence = $fence, attempts += 1, updated_at = $now, revision += 1 WHERE agent = $agent AND state = 'pending' AND available_at <= $now AND revision = $revision RETURN AFTER); IF $claimed = NONE { THROW 'wake claim conflict'; }; COMMIT TRANSACTION;")
             .bind(("agent", self.agent_id.record_id()))
             .bind(("owner", self.instance_id.to_string()))
             .bind(("fence", fence))
@@ -1084,7 +938,6 @@ impl AgentRuntime {
             .bind(("wake", candidate.id.clone()))
             .bind(("expiry", expiry))
             .bind(("revision", candidate.revision))
-            .bind(("event", event))
             .await
             .and_then(|response| response.check());
         if result.is_err() {
@@ -1103,23 +956,11 @@ impl AgentRuntime {
         let expiry = deadline(now, duration)?;
         let agent_task_id = agent_task_id_from_record(&candidate.id)?;
         let lease_owner = task_lease_owner(self.instance_id, fence);
-        let event = outbox(
-            &self.identity,
-            "agent_task",
-            agent_task_id.to_string(),
-            "agent_task.claimed",
-            object([
-                ("fence".to_owned(), serde_json::json!(fence)),
-                (
-                    "attempt".to_owned(),
-                    serde_json::json!(candidate.attempt_count),
-                ),
-            ]),
-        );
+
         let result = self
             .store
             .client()
-            .query("BEGIN TRANSACTION; LET $lease = (SELECT * FROM ONLY $agent WHERE lease_owner = $instance AND fence = $fence AND lease_expires_at > $now); IF $lease = NONE { THROW 'agent lease lost'; }; LET $claimed = (UPDATE ONLY $task SET state = 'watching', lease_owner = $task_owner, lease_expires_at = $expiry, updated_at = $now, revision += 1 WHERE agent = $agent AND state = 'pending' AND next_retry_at <= $now AND revision = $revision RETURN AFTER); IF $claimed = NONE { THROW 'agent task claim conflict'; }; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; LET $lease = (SELECT * FROM ONLY $agent WHERE lease_owner = $instance AND fence = $fence AND lease_expires_at > $now); IF $lease = NONE { THROW 'agent lease lost'; }; LET $claimed = (UPDATE ONLY $task SET state = 'watching', lease_owner = $task_owner, lease_expires_at = $expiry, updated_at = $now, revision += 1 WHERE agent = $agent AND state = 'pending' AND next_retry_at <= $now AND revision = $revision RETURN AFTER); IF $claimed = NONE { THROW 'agent task claim conflict'; }; COMMIT TRANSACTION;")
             .bind(("agent", self.agent_id.record_id()))
             .bind(("instance", self.instance_id.to_string()))
             .bind(("fence", fence))
@@ -1128,7 +969,6 @@ impl AgentRuntime {
             .bind(("task_owner", lease_owner))
             .bind(("expiry", expiry))
             .bind(("revision", candidate.revision))
-            .bind(("event", event))
             .await
             .and_then(|response| response.check());
         if result.is_err() {
@@ -1149,22 +989,12 @@ impl AgentRuntime {
         let episodes: Vec<AgentEpisodeRecord> = response.take(0)?;
         for episode in episodes {
             let episode_id = episode_id_from_record(&episode.id)?;
-            let event = outbox(
-                &self.identity,
-                "agent_episode",
-                episode_id.to_string(),
-                "agent_episode.crashed",
-                object([(
-                    "reason".to_owned(),
-                    serde_json::json!("scheduler lease was recovered"),
-                )]),
-            );
+
             self.store
                 .client()
-                .query("BEGIN TRANSACTION; UPDATE ONLY $episode SET state = 'crashed', error = 'scheduler lease was recovered', finished_at = $now, revision += 1 WHERE state = 'running' RETURN NONE; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;")
+                .query("BEGIN TRANSACTION; UPDATE ONLY $episode SET state = 'crashed', error = 'scheduler lease was recovered', finished_at = $now, revision += 1 WHERE state = 'running' RETURN NONE; COMMIT TRANSACTION;")
                 .bind(("episode", episode_id.record_id()))
                 .bind(("now", now))
-                .bind(("event", event))
                 .await?
                 .check()?;
         }
@@ -1187,21 +1017,14 @@ impl AgentRuntime {
             .check()?;
         let expired: Vec<WakeRecord> = response.take(0)?;
         for record in expired {
-            let wake_id = wake_id_from_record(&record.id)?;
-            let event = outbox(
-                &self.identity,
-                "wake",
-                wake_id.to_string(),
-                "wake.claim_recovered",
-                object([("attempts".to_owned(), serde_json::json!(record.attempts))]),
-            );
+            wake_id_from_record(&record.id)?;
+
             self.store
                 .client()
-                .query("BEGIN TRANSACTION; LET $recovered = (UPDATE ONLY $wake SET state = 'pending', claimed_by = NONE, claimed_at = NONE, claim_expires_at = NONE, claim_fence = NONE, available_at = $now, last_error = 'claim lease expired', updated_at = $now, revision += 1 WHERE state = 'claimed' AND revision = $revision RETURN AFTER); IF $recovered != NONE { CREATE outbox_event CONTENT $event RETURN NONE; }; COMMIT TRANSACTION;")
+                .query("BEGIN TRANSACTION; UPDATE ONLY $wake SET state = 'pending', claimed_by = NONE, claimed_at = NONE, claim_expires_at = NONE, claim_fence = NONE, available_at = $now, last_error = 'claim lease expired', updated_at = $now, revision += 1 WHERE state = 'claimed' AND revision = $revision RETURN NONE; COMMIT TRANSACTION;")
                 .bind(("wake", record.id))
                 .bind(("now", now))
                 .bind(("revision", record.revision))
-                .bind(("event", event))
                 .await?
                 .check()?;
         }
@@ -1221,24 +1044,14 @@ impl AgentRuntime {
             .check()?;
         let expired: Vec<AgentTaskRecord> = response.take(0)?;
         for record in expired {
-            let task_id = agent_task_id_from_record(&record.id)?;
-            let event = outbox(
-                &self.identity,
-                "agent_task",
-                task_id.to_string(),
-                "agent_task.claim_recovered",
-                object([(
-                    "attempt_count".to_owned(),
-                    serde_json::json!(record.attempt_count),
-                )]),
-            );
+            agent_task_id_from_record(&record.id)?;
+
             self.store
                 .client()
-                .query("BEGIN TRANSACTION; LET $recovered = (UPDATE ONLY $task SET state = 'pending', lease_owner = NONE, lease_expires_at = NONE, next_retry_at = $now, last_error = 'claim lease expired', updated_at = $now, revision += 1 WHERE state = 'watching' AND revision = $revision RETURN AFTER); IF $recovered != NONE { CREATE outbox_event CONTENT $event RETURN NONE; }; COMMIT TRANSACTION;")
+                .query("BEGIN TRANSACTION; UPDATE ONLY $task SET state = 'pending', lease_owner = NONE, lease_expires_at = NONE, next_retry_at = $now, last_error = 'claim lease expired', updated_at = $now, revision += 1 WHERE state = 'watching' AND revision = $revision RETURN NONE; COMMIT TRANSACTION;")
                 .bind(("task", record.id))
                 .bind(("now", now))
                 .bind(("revision", record.revision))
-                .bind(("event", event))
                 .await?
                 .check()?;
         }
@@ -1425,23 +1238,6 @@ fn deadline(now: DateTime<Utc>, duration: Duration) -> Result<DateTime<Utc>> {
         reason: error.to_string(),
     })?;
     Ok(now + delta)
-}
-
-fn outbox(
-    identity: &PlatformIdentity,
-    aggregate_type: &str,
-    aggregate_id: String,
-    event_type: &str,
-    payload: OpenObject,
-) -> OutboxDraft {
-    OutboxDraft::now(
-        Some(identity.tenant_id.record_id()),
-        aggregate_type,
-        aggregate_id,
-        event_type,
-        EVENT_SCHEMA_VERSION,
-        payload,
-    )
 }
 
 fn task_lease_owner(instance_id: AgentInstanceId, fence: i64) -> String {

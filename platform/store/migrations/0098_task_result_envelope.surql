@@ -1,6 +1,5 @@
 -- This format cut requires a fresh Task store. Ambiguous results are not converted.
-IF array::len((SELECT VALUE id FROM task LIMIT 1)) > 0
-    OR array::len((SELECT VALUE id FROM outbox_event WHERE aggregate_type = "task" LIMIT 1)) > 0 {
+IF array::len((SELECT VALUE id FROM task LIMIT 1)) > 0 {
     THROW "task_result_reset_required: stop Task writers and rebuild the platform database before installing this release";
 };
 

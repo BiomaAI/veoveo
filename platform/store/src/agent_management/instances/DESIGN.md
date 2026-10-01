@@ -7,7 +7,7 @@ controller fencing for phase 3 of the agent management plan.
 
 | Boundary | Profile |
 |---|---|
-| SurrealDB `3.3.0` | Migration 0090, typed bindings, transactions and the platform outbox |
+| SurrealDB `3.3.0` | Typed bindings, transactions and native table changefeeds |
 | Veoveo management | Current context authority, UUIDv7 mutation identities, immutable definition revisions and expected-generation updates |
 | OAuth 2.0 and private-key JWT | A durable registration binds one instance, service principal, approved scopes and public RSA JWK; private keys remain in Kubernetes Secrets |
 | Kubernetes | Recorded resource names precede external provisioning; the controller owns resource-version and generation checks at the API boundary |
@@ -49,8 +49,7 @@ on model execution.
 
 Only public key material enters the registration. Resource observations contain
 typed IDs, phases and bounded diagnostics. They cannot carry Kubernetes Secret
-payloads, provider keys or arbitrary objects into management responses or outbox
-events. The effective identity resolver must reject collisions between static and
+payloads, provider keys or arbitrary objects into management responses. The effective identity resolver must reject collisions between static and
 managed registrations and recheck this record for already-issued tokens.
 
 Mutation receipts can be recovered before repeating external configuration validation.

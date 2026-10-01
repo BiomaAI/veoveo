@@ -26,7 +26,7 @@ use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use veoveo_platform_store::{
     ArtifactGrantSubjectKind, GrantPermission, InvocationAuthorityRecord,
-    InvocationMode as StoreInvocationMode, OpenObject, OutboxDraft, PlatformStore, PlatformTable,
+    InvocationMode as StoreInvocationMode, OpenObject, PlatformStore, PlatformTable,
     RecoveryClass as StoreRecoveryClass, TaskInputRecord, TaskRecord,
     TaskStatus as StoreTaskStatus, WorkContextInitialGrantRecord,
     WorkContextMembershipLevel as StoreMembershipLevel, deterministic_principal_id,
@@ -44,7 +44,6 @@ use crate::types::{
     record_to_snapshot,
 };
 
-pub const TASK_EVENT_SCHEMA_VERSION: i64 = 3;
 const DEFAULT_RETENTION: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 const MAX_TRANSACTION_ATTEMPTS: u32 = 8;
 
@@ -249,32 +248,6 @@ impl TaskRuntime {
                 self.server, draft.task_type, draft.owner.principal_key
             ),
         };
-        let initial_snapshot = TaskSnapshot {
-            task_id,
-            owner: draft.owner.clone(),
-            server: self.server.clone(),
-            task_type: draft.task_type.clone(),
-            request: draft.request.clone(),
-            recovery_class: draft.recovery_class,
-            status: StoreTaskStatus::Queued,
-            status_message: Some("Queued".to_owned()),
-            progress: 0.0,
-            result: None,
-            error: None,
-            idempotency_key: draft.idempotency_key.clone(),
-            lease_owner: None,
-            lease_expires_at: None,
-            cancel_requested_at: None,
-            created_at: now,
-            updated_at: now,
-            started_at: None,
-            completed_at: None,
-            retention_expires_at: retention,
-            retention_pins: draft.retention_pins.clone(),
-            ttl_ms: draft.ttl_ms,
-            poll_interval_ms: draft.poll_interval_ms,
-        };
-        let outbox = task_event(&initial_snapshot, "task.created")?;
 
         if let Some(key) = draft.idempotency_key.as_deref() {
             let idempotency = idempotency_record(&draft.owner, &self.server, key);
@@ -291,13 +264,12 @@ impl TaskRuntime {
                     .store
                     .client()
                     .query(
-                        "BEGIN TRANSACTION; CREATE ONLY $idempotency CONTENT $link RETURN NONE; CREATE ONLY $task CONTENT $content RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;",
+                        "BEGIN TRANSACTION; CREATE ONLY $idempotency CONTENT $link RETURN NONE; CREATE ONLY $task CONTENT $content RETURN NONE; COMMIT TRANSACTION;",
                     )
                     .bind(("idempotency", idempotency.clone()))
                     .bind(("link", link.clone()))
                     .bind(("task", task_record_id(task_id)))
                     .bind(("content", content.clone()))
-                    .bind(("outbox", outbox.clone()))
                     .await
                     .and_then(|response| response.check());
                 match result {
@@ -323,11 +295,10 @@ impl TaskRuntime {
             self.store
                 .client()
                 .query(
-                    "BEGIN TRANSACTION; CREATE ONLY $task CONTENT $content RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;",
+                    "BEGIN TRANSACTION; CREATE ONLY $task CONTENT $content RETURN NONE; COMMIT TRANSACTION;",
                 )
                 .bind(("task", record))
                 .bind(("content", content))
-                .bind(("outbox", outbox))
                 .await?
                 .check()?;
         }
@@ -478,16 +449,12 @@ impl TaskRuntime {
             ttl_ms: current.ttl_ms,
             poll_interval_ms: current.poll_interval_ms,
         };
-        let mut event_snapshot = current.clone();
-        event_snapshot.status = StoreTaskStatus::Waiting;
-        event_snapshot.status_message = Some("Waiting for input".to_owned());
-        event_snapshot.updated_at = now;
-        let event = task_event(&event_snapshot, "task.input_requested")?;
+
         let result = self
             .store
             .client()
             .query(
-                "BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $task SET status = 'waiting', request = $request, updated_at = $now WHERE updated_at = $expected_updated_at AND status IN ['queued', 'running', 'waiting'] AND server = $server AND tenant = $tenant AND owner = $owner AND lease_owner = $worker AND lease_expires_at > $now RETURN AFTER); IF $updated = NONE { THROW 'task input transition conflict'; }; CREATE ONLY $input CONTENT $content RETURN NONE; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;",
+                "BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $task SET status = 'waiting', request = $request, updated_at = $now WHERE updated_at = $expected_updated_at AND status IN ['queued', 'running', 'waiting'] AND server = $server AND tenant = $tenant AND owner = $owner AND lease_owner = $worker AND lease_expires_at > $now RETURN AFTER); IF $updated = NONE { THROW 'task input transition conflict'; }; CREATE ONLY $input CONTENT $content RETURN NONE; COMMIT TRANSACTION;",
             )
             .bind(("task", task_record_id(current.task_id)))
             .bind(("request", envelope.into_open_object()?))
@@ -499,7 +466,6 @@ impl TaskRuntime {
             .bind(("worker", self.worker_id.clone()))
             .bind(("input", input_id.clone()))
             .bind(("content", content))
-            .bind(("event", event))
             .await
             .and_then(|response| response.check());
         if let Err(error) = result {
@@ -567,21 +533,18 @@ impl TaskRuntime {
             let mut attempt = 0;
             let accepted = loop {
                 let now = Utc::now();
-                let mut event_snapshot = current.clone();
-                event_snapshot.updated_at = now;
-                let event = task_event(&event_snapshot, "task.input_received")?;
+
                 let result = self
                     .store
                     .client()
                     .query(
-                        "BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $input SET response = $response, responded_at = $now WHERE task = $task AND response = NONE RETURN AFTER); IF $updated != NONE { LET $task_updated = (UPDATE ONLY $task SET updated_at = $now WHERE server = $server AND status IN ['queued', 'running', 'waiting'] RETURN AFTER); IF $task_updated = NONE { THROW 'task cannot accept input'; }; CREATE outbox_event CONTENT $event RETURN NONE; }; RETURN $updated; COMMIT TRANSACTION;",
+                        "BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $input SET response = $response, responded_at = $now WHERE task = $task AND response = NONE RETURN AFTER); IF $updated != NONE { LET $task_updated = (UPDATE ONLY $task SET updated_at = $now WHERE server = $server AND status IN ['queued', 'running', 'waiting'] RETURN AFTER); IF $task_updated = NONE { THROW 'task cannot accept input'; }; }; RETURN $updated; COMMIT TRANSACTION;",
                     )
                     .bind(("input", task_input_record(current.task_id, &key)))
                     .bind(("response", OpenObject::new(response_value.clone())))
                     .bind(("now", now))
                     .bind(("task", task_record_id(current.task_id)))
                     .bind(("server", RecordId::new("mcp_server", self.server.clone())))
-                    .bind(("event", event))
                     .await
                     .and_then(|response| response.check());
                 match result {
@@ -702,9 +665,7 @@ impl TaskRuntime {
             poll_interval_ms: current.poll_interval_ms,
         };
         envelope.status_message = Some(message.clone());
-        let event_type = format!("task.{}", status_name(next));
-        let event_snapshot = transitioned_snapshot(&durable, &transition, now);
-        let event = task_event(&event_snapshot, &event_type)?;
+
         let admission = selection
             .map(|query| {
                 format!(
@@ -753,14 +714,13 @@ impl TaskRuntime {
             .bind(("owner", owner_record(&current.owner)?))
             .bind(("worker", self.worker_id.clone()))
             .bind(("control_transition", control_transition))
-            .bind(("expired_cancellation", expired_cancellation))
-            .bind(("event", event));
+            .bind(("expired_cancellation", expired_cancellation));
         let query = match selection {
             Some(selection) => selection.bind(query)?,
             None => query,
         };
         let mut response = query.await?.check()?;
-        let updated: Option<TaskRecord> = response.take(3)?;
+        let updated: Option<TaskRecord> = response.take(2)?;
         let snapshot = updated
             .map(record_to_snapshot)
             .transpose()?
@@ -995,18 +955,6 @@ fn allowed_transition(from: StoreTaskStatus, to: StoreTaskStatus) -> bool {
     }
 }
 
-pub(super) fn status_name(status: StoreTaskStatus) -> &'static str {
-    match status {
-        StoreTaskStatus::Queued => "queued",
-        StoreTaskStatus::Running => "running",
-        StoreTaskStatus::Waiting => "waiting",
-        StoreTaskStatus::Succeeded => "succeeded",
-        StoreTaskStatus::Failed => "failed",
-        StoreTaskStatus::CancelRequested => "cancel_requested",
-        StoreTaskStatus::Cancelled => "cancelled",
-    }
-}
-
 pub(crate) fn authority_record(authority: &InvocationAuthority) -> InvocationAuthorityRecord {
     let (invocation_mode, initiator_key, delegation_id) = match &authority.provenance {
         InvocationProvenance::Direct { initiator } => (
@@ -1121,49 +1069,6 @@ fn tenant_record(owner: &TaskOwner) -> Result<RecordId, TaskError> {
 
 fn owner_record(owner: &TaskOwner) -> Result<RecordId, TaskError> {
     Ok(deterministic_principal_id(owner.tenant_key(), &owner.principal_key)?.record_id())
-}
-
-fn transitioned_snapshot(
-    current: &TaskSnapshot,
-    transition: &TaskTransition,
-    now: DateTime<Utc>,
-) -> TaskSnapshot {
-    let mut snapshot = current.clone();
-    let next = transition.status();
-    let terminal = matches!(
-        next,
-        StoreTaskStatus::Succeeded | StoreTaskStatus::Failed | StoreTaskStatus::Cancelled
-    );
-    snapshot.status = next;
-    snapshot.status_message = Some(transition.message());
-    snapshot.progress = transition.progress(current.progress);
-    snapshot.result = transition.result();
-    snapshot.error = transition.failure();
-    if next == StoreTaskStatus::CancelRequested {
-        snapshot.cancel_requested_at = Some(now);
-    }
-    snapshot.completed_at = terminal.then_some(now);
-    snapshot.updated_at = now;
-    if terminal {
-        snapshot.lease_owner = None;
-        snapshot.lease_expires_at = None;
-    }
-    snapshot
-}
-
-pub(super) fn task_event(
-    snapshot: &TaskSnapshot,
-    event_type: &str,
-) -> Result<OutboxDraft, TaskError> {
-    let payload = BTreeMap::from([("snapshot".to_owned(), serde_json::to_value(snapshot)?)]);
-    Ok(OutboxDraft::now(
-        Some(tenant_record(&snapshot.owner)?),
-        "task",
-        snapshot.task_id.to_string(),
-        event_type,
-        TASK_EVENT_SCHEMA_VERSION,
-        OpenObject::new(payload),
-    ))
 }
 
 fn idempotency_record(owner: &TaskOwner, server: &str, key: &str) -> RecordId {

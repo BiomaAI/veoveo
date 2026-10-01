@@ -98,7 +98,7 @@ async fn one_dispatch_survives_competing_workers_and_lost_ticket_without_replay(
         b.command_for_claim(&successor).await.unwrap().stage(),
         CommandStage::Dispatched
     );
-    let mut response = db.a.client().query("SELECT * FROM outbox_event WHERE event_type = 'computer.execution_dispatched'; SELECT * FROM computer_execution_slot;").await.unwrap().check().unwrap();
+    let mut response = db.a.client().query("SELECT * FROM audit_record WHERE activity = 'computer_command' AND draft.detail.stage = 'dispatched'; SELECT * FROM computer_execution_slot;").await.unwrap().check().unwrap();
     let events: Vec<surrealdb::types::Value> = response.take(0).unwrap();
     assert_eq!(events.len(), 1);
     let text = serde_json::to_string(&events[0]).unwrap();
@@ -193,7 +193,7 @@ async fn cancellation_revocation_and_changed_run_prevent_command_dispatch() {
             a.begin_command_dispatch(&claim, &keys()).await.is_err(),
             "{scenario}"
         );
-        let mut response = db.a.client().query("SELECT VALUE stage FROM computer_execution; SELECT * FROM computer_execution_slot; SELECT * FROM outbox_event WHERE event_type = 'computer.execution_dispatched';").await.unwrap().check().unwrap();
+        let mut response = db.a.client().query("SELECT VALUE stage FROM computer_execution; SELECT * FROM computer_execution_slot; SELECT * FROM audit_record WHERE activity = 'computer_command' AND draft.detail.stage = 'dispatched';").await.unwrap().check().unwrap();
         let stages: Vec<String> = response.take(0).unwrap();
         assert_eq!(stages, ["queued"], "{scenario}");
         let slots: Vec<surrealdb::types::Value> = response.take(1).unwrap();
@@ -308,7 +308,7 @@ async fn racing_command_retry_has_one_private_slot_event_and_recoverable_task() 
         serde_json::json!({"computerId":computer,"executionId":left.execution_id()})
     );
     assert_eq!(task.owner, *agent.owner());
-    let mut rows = db.a.client().query("SELECT * FROM computer_execution; SELECT * FROM computer_execution_slot; SELECT * FROM outbox_event WHERE event_type = 'computer.execution_queued';").await.unwrap().check().unwrap();
+    let mut rows = db.a.client().query("SELECT * FROM computer_execution; SELECT * FROM computer_execution_slot; SELECT * FROM audit_record WHERE activity = 'computer_command' AND draft.detail.stage = 'queued';").await.unwrap().check().unwrap();
     for i in 0..3 {
         let rows: Vec<surrealdb::types::Value> = rows.take(i).unwrap();
         assert_eq!(rows.len(), 1);

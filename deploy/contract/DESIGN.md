@@ -27,7 +27,7 @@
 The internal platform-store profile selects `native_changefeed` as the source of
 committed recovery and `changefeed_wake` as LIVE's role. The supported database is
 SurrealDB 3.3.0 on single-node RocksDB. Consumers reconcile after disconnect and use
-known deadlines for delayed work; the profile contains no periodic outbox recovery.
+known deadlines for delayed work.
 
 ## Responsibility
 

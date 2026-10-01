@@ -1,7 +1,6 @@
 //! Shared durable leases; provider observation never turns uncertainty into runnable work.
 use crate::{
     TaskRuntime,
-    runtime::task_event,
     types::{
         ClaimedTask, RecoveryClass, RequestEnvelope, TaskError, TaskSnapshot, parse_task_id,
         record_to_snapshot,
@@ -103,27 +102,16 @@ impl TaskRuntime {
             + TimeDelta::from_std(lease_duration)
                 .map_err(|_| TaskError::InvalidRecord("lease duration is too large".to_owned()))?;
         let task = task_record_id(snapshot.task_id);
-        let mut event_snapshot = snapshot.clone();
-        if !observation {
-            event_snapshot.status = StoreTaskStatus::Running;
-            event_snapshot.status_message = Some("Running".to_owned());
-        }
-        event_snapshot.lease_owner = Some(self.worker_id().to_owned());
-        event_snapshot.lease_expires_at = Some(lease_expires_at);
-        event_snapshot.started_at = snapshot.started_at.or(Some(now));
-        event_snapshot.updated_at = now;
-        let event = task_event(
-            &event_snapshot,
-            if observation {
-                "task.observer_claimed"
-            } else {
-                "task.claimed"
-            },
-        )?;
+        let (status, status_message) = if observation {
+            (snapshot.status, snapshot.status_message.clone())
+        } else {
+            (StoreTaskStatus::Running, Some("Running".to_owned()))
+        };
+
         let request = RequestEnvelope {
             input: snapshot.request.clone(),
             owner: snapshot.owner.clone(),
-            status_message: event_snapshot.status_message.clone(),
+            status_message,
             ttl_ms: snapshot.ttl_ms,
             poll_interval_ms: snapshot.poll_interval_ms,
         };
@@ -131,20 +119,19 @@ impl TaskRuntime {
             .platform_store()
             .client()
             .query(
-                "BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $task SET status = $next, request = $request, lease_owner = $worker, lease_expires_at = $lease_expires, started_at = started_at ?? $now, updated_at = $now WHERE status = $expected AND updated_at = $expected_updated_at AND (lease_expires_at = NONE OR lease_expires_at <= $now OR lease_owner = $worker) RETURN AFTER); IF $updated != NONE { CREATE outbox_event CONTENT $event RETURN NONE; }; RETURN $updated; COMMIT TRANSACTION;",
+                "BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $task SET status = $next, request = $request, lease_owner = $worker, lease_expires_at = $lease_expires, started_at = started_at ?? $now, updated_at = $now WHERE status = $expected AND updated_at = $expected_updated_at AND (lease_expires_at = NONE OR lease_expires_at <= $now OR lease_owner = $worker) RETURN AFTER); RETURN $updated; COMMIT TRANSACTION;",
             )
             .bind(("task", task))
-            .bind(("next", event_snapshot.status))
+            .bind(("next", status))
             .bind(("worker", self.worker_id().to_owned()))
             .bind(("request", request.into_open_object()?))
             .bind(("lease_expires", lease_expires_at))
             .bind(("now", now))
             .bind(("expected", snapshot.status))
             .bind(("expected_updated_at", snapshot.updated_at))
-            .bind(("event", event))
             .await?
             .check()?;
-        let updated: Option<TaskRecord> = response.take(3)?;
+        let updated: Option<TaskRecord> = response.take(2)?;
         let snapshot = updated
             .map(record_to_snapshot)
             .transpose()?

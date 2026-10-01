@@ -5,8 +5,8 @@ use surrealdb::types::{Array, RecordId, SurrealValue};
 use crate::store::primary_transaction_error;
 use crate::{
     ArtifactGrantSubjectKind, InvocationAuthorityRecord, MapCompositionRecord,
-    MapCompositionRevisionRecord, MapLayerProductRecord, OpenObject, OutboxDraft, PlatformIdentity,
-    PlatformStore, StoreError, deterministic_tenant_id, deterministic_work_context_id,
+    MapCompositionRevisionRecord, MapLayerProductRecord, PlatformIdentity, PlatformStore,
+    StoreError, deterministic_tenant_id, deterministic_work_context_id,
 };
 
 const MAX_CANONICAL_BYTES: usize = 2 * 1024 * 1024;
@@ -162,27 +162,16 @@ impl PlatformStore {
             created_by_key: draft.created_by_key.clone(),
             created_at: draft.created_at,
         };
-        let event = presentation_event(
-            &draft.identity,
-            "map_layer_product",
-            &draft.product_key,
-            "map.layer_product.created",
-            [
-                ("product_key", serde_json::json!(draft.product_key)),
-                ("publication_key", serde_json::json!(draft.publication_key)),
-                ("layer_key", serde_json::json!(draft.layer_key)),
-            ],
-        );
+
         let result = self
             .client()
-            .query("BEGIN TRANSACTION; LET $publication = (SELECT * FROM ONLY $publication_record WHERE tenant = $tenant AND work_context = $context AND layer_revision = $layer_revision); IF $publication = NONE { THROW 'map_layer_publication_conflict'; }; CREATE ONLY $product_record CONTENT $product RETURN NONE; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; LET $publication = (SELECT * FROM ONLY $publication_record WHERE tenant = $tenant AND work_context = $context AND layer_revision = $layer_revision); IF $publication = NONE { THROW 'map_layer_publication_conflict'; }; CREATE ONLY $product_record CONTENT $product RETURN NONE; COMMIT TRANSACTION;")
             .bind(("publication_record", publication_record))
             .bind(("tenant", draft.identity.tenant_id.record_id()))
             .bind(("context", context.clone()))
             .bind(("layer_revision", draft.layer_revision))
             .bind(("product_record", product_record.clone()))
             .bind(("product", content))
-            .bind(("event", event))
             .await
             .and_then(|mut response| match primary_transaction_error(response.take_errors()) {
                 Some(error) => Err(error),
@@ -253,20 +242,13 @@ impl PlatformStore {
             &draft.composition_key,
             draft.revision,
         )?;
-        let event = presentation_event(
-            &draft.identity,
-            "map_composition",
-            &draft.composition_key,
-            "map.composition.created",
-            [("composition_key", serde_json::json!(draft.composition_key))],
-        );
+
         self.client()
-            .query("BEGIN TRANSACTION; CREATE ONLY $revision_record CONTENT $revision RETURN NONE; CREATE ONLY $root_record CONTENT $root RETURN NONE; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; CREATE ONLY $revision_record CONTENT $revision RETURN NONE; CREATE ONLY $root_record CONTENT $root RETURN NONE; COMMIT TRANSACTION;")
             .bind(("revision_record", revision_record))
             .bind(("revision", revision))
             .bind(("root_record", root_record.clone()))
             .bind(("root", root))
-            .bind(("event", event))
             .await?
             .check()?;
         select_only(self, root_record)
@@ -308,15 +290,9 @@ impl PlatformStore {
             &draft.composition_key,
             draft.revision,
         )?;
-        let event = presentation_event(
-            &draft.identity,
-            "map_composition",
-            &draft.composition_key,
-            "map.composition.updated",
-            [("composition_key", serde_json::json!(draft.composition_key))],
-        );
+
         self.client()
-            .query("BEGIN TRANSACTION; CREATE ONLY $revision_record CONTENT $revision RETURN NONE; LET $updated = (UPDATE ONLY $root_record SET title = $title, current_revision = $current_revision, canonical_json = $canonical_json, archived_at = $archived_at, updated_at = $now WHERE tenant = $tenant AND work_context = $context AND current_revision = $expected RETURN AFTER); IF $updated = NONE { THROW 'map_composition_conflict'; }; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; CREATE ONLY $revision_record CONTENT $revision RETURN NONE; LET $updated = (UPDATE ONLY $root_record SET title = $title, current_revision = $current_revision, canonical_json = $canonical_json, archived_at = $archived_at, updated_at = $now WHERE tenant = $tenant AND work_context = $context AND current_revision = $expected RETURN AFTER); IF $updated = NONE { THROW 'map_composition_conflict'; }; COMMIT TRANSACTION;")
             .bind(("revision_record", revision_record))
             .bind(("revision", revision))
             .bind(("root_record", root_record.clone()))
@@ -328,7 +304,6 @@ impl PlatformStore {
             .bind(("tenant", draft.identity.tenant_id.record_id()))
             .bind(("context", context))
             .bind(("expected", expected_revision))
-            .bind(("event", event))
             .await?
             .check()?;
         select_only(self, root_record)
@@ -491,28 +466,6 @@ fn record(table: &str, tenant_key: &str, parts: &[&str]) -> RecordId {
 
 fn version_record(table: &str, tenant_key: &str, key: &str, version: i64) -> RecordId {
     record(table, tenant_key, &[key, &format!("{version:020}")])
-}
-
-fn presentation_event<const N: usize>(
-    identity: &PlatformIdentity,
-    aggregate_type: &str,
-    aggregate_id: &str,
-    event_type: &str,
-    payload: [(&str, serde_json::Value); N],
-) -> OutboxDraft {
-    OutboxDraft::now(
-        Some(identity.tenant_id.record_id()),
-        aggregate_type,
-        aggregate_id,
-        event_type,
-        1,
-        OpenObject::new(
-            payload
-                .into_iter()
-                .map(|(key, value)| (key.to_owned(), value))
-                .collect(),
-        ),
-    )
 }
 
 fn invalid(field: &'static str, reason: &'static str) -> StoreError {

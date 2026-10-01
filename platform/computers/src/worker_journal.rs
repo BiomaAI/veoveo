@@ -4,11 +4,9 @@ use crate::{
     operation::OperationRecord, operation_admission::operation_record,
 };
 use chrono::{DateTime, Utc};
-use serde::Serialize;
 use std::time::{Duration, Instant};
 use surrealdb::types::{SurrealValue, Value};
 use uuid::Uuid;
-use veoveo_platform_store::{OpenObject, OutboxDraft, deterministic_tenant_id};
 use veoveo_task_runtime::{ClaimedTask, ProviderCommit, TaskError, TaskRuntime};
 
 pub(crate) struct ClockedOperation {
@@ -81,10 +79,6 @@ impl ComputersStore {
                 computer_record(operation.computer_id).into_value(),
             ),
             ("provider", self.provider_instance_id.into_value()),
-            (
-                "event",
-                operation_event(operation, event.event())?.into_value(),
-            ),
         ]);
         bindings.push(crate::audit::binding(
             &operation.execution_authority,
@@ -101,42 +95,4 @@ impl ComputersStore {
                 _ => ComputerError::Unavailable,
             })
     }
-}
-
-fn operation_event(operation: &Operation, event: &str) -> Result<OutboxDraft> {
-    #[derive(Serialize)]
-    struct Event<'a> {
-        computer_id: veoveo_computers_contract::ComputerId,
-        operation_id: Uuid,
-        actor: &'a str,
-        authority: &'a veoveo_types::InvocationAuthority,
-        owner: &'a str,
-        grant_id: Option<crate::api::AutomationGrantId>,
-        dispatch_authority: Option<&'a crate::ExecutionDecision>,
-    }
-    let serde_json::Value::Object(fields) = serde_json::to_value(Event {
-        computer_id: operation.computer_id,
-        operation_id: operation.operation_id,
-        actor: &operation.actor.principal_key,
-        authority: &operation.actor.authority,
-        owner: &operation.owner.principal_key,
-        grant_id: operation.automation_grant_id,
-        dispatch_authority: operation.dispatch_authority.as_ref(),
-    })
-    .map_err(|_| ComputerError::Unavailable)?
-    else {
-        return Err(ComputerError::Unavailable);
-    };
-    Ok(OutboxDraft::now(
-        Some(
-            deterministic_tenant_id(operation.actor.tenant_key())
-                .map_err(|_| ComputerError::InvalidInput)?
-                .record_id(),
-        ),
-        "computer",
-        operation.computer_id.to_string(),
-        event,
-        1,
-        OpenObject::new(fields.into_iter().collect()),
-    ))
 }

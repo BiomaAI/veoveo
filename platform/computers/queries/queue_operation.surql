@@ -67,7 +67,6 @@ IF $prior != NONE {
     previous_process_id: $current.process_id
   });
   CREATE $request CONTENT {operation_id: $content.operation_id, fingerprint: $fingerprint};
-  CREATE outbox_event CONTENT $event;
   fn::append_audit($audit_rows);
 };
 COMMIT TRANSACTION;

@@ -72,8 +72,14 @@ async fn task(db: &TestDb, s: &FrameOperationScope, server: &str) -> TaskId {
 }
 
 async fn events(db: &TestDb, id: &CoordinateOperationId) -> usize {
-    let mut response = db.b.client().query("SELECT VALUE id FROM outbox_event WHERE aggregate_type = 'coordinate_operation' AND aggregate_id = $key;")
-        .bind(("key", id.to_string())).await.unwrap().check().unwrap();
+    let mut response =
+        db.b.client()
+            .query("SELECT VALUE id FROM coordinate_operation WHERE id = $key;")
+            .bind(("key", record_id(id).unwrap()))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
     response.take::<Vec<RecordId>>(0).unwrap().len()
 }
 
@@ -305,16 +311,16 @@ fn persisted_operation_keys_require_uuid_v7() {
 }
 
 #[tokio::test]
-async fn outbox_failure_rolls_back_operation_and_allows_retry() {
+async fn domain_failure_rolls_back_operation_and_allows_retry() {
     tokio::time::timeout(Duration::from_secs(60), async {
         let db=TestDb::new().await; let state=FramesState::new(db.a.clone());
         let caller=scope(Some("tenant-a"),"owner","operator", &[]);let p=provenance();
-        db.a.client().query("DEFINE EVENT reject_operation_event ON TABLE outbox_event WHEN $after.aggregate_type = 'coordinate_operation' THEN { THROW 'fixture rejected outbox publication'; };")
+        db.a.client().query("DEFINE EVENT reject_operation_event ON TABLE coordinate_operation WHEN $event = 'CREATE' THEN { THROW 'fixture rejected operation commit'; };")
             .await.unwrap().check().unwrap();
         assert!(state.record_operation(&caller,None,&p).await.is_err());
         assert!(state.get_operation(&caller,p.operation.operation_uri()).await.unwrap().is_none());
         assert_eq!(events(&db,p.operation.operation_id()).await,0);
-        db.a.client().query("REMOVE EVENT reject_operation_event ON TABLE outbox_event;").await.unwrap().check().unwrap();
+        db.a.client().query("REMOVE EVENT reject_operation_event ON TABLE coordinate_operation;").await.unwrap().check().unwrap();
         state.record_operation(&caller,None,&p).await.unwrap();
         assert!(state.get_operation(&caller,p.operation.operation_uri()).await.unwrap().is_some());
         assert_eq!(events(&db,p.operation.operation_id()).await,1);

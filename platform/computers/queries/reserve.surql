@@ -19,7 +19,6 @@ IF $prior != NONE {
   IF $providers = NONE { THROW "computer_capacity"; };
   CREATE $computer CONTENT $content;
   CREATE $request CONTENT {computer: $computer, fingerprint: $fingerprint};
-  CREATE outbox_event CONTENT $event;
   fn::append_audit($audit_rows);
 };
 COMMIT TRANSACTION;

@@ -709,7 +709,7 @@ writer's commit before publishing an active stream token. Close and expiry revok
 access immediately; the writer retries their completion records with stable identities.
 The session preserves verified actor, invocation authority and gateway correlation.
 Typed UAV URI builders identify each authorization. Tokens, media and provider
-credentials never enter audit data. These writes create no audit outbox projection.
+credentials never enter audit data. The native audit feed supplies committed changes.
 
 An audit-store outage rejects new authorizations and renewals. It cannot stop simulation
 or keep a closed authorization active.

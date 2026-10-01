@@ -473,7 +473,7 @@ their respective owners.*
 </a>
 
 SurrealDB is the required coordination store. It holds identity, policy,
-task, artifact, recording, agent, audit, and outbox records. S3-compatible
+task, artifact, recording, agent, and audit records. S3-compatible
 object storage holds artifact bytes, and immutable recording segments hold
 recording history. DuckDB runs separately as the analytical SQL engine.
 

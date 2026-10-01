@@ -3,7 +3,7 @@
 mod usage;
 pub use usage::MediaBillingPage;
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use veoveo_platform_store::task_record_id;
 
 use chrono::{DateTime, Utc};
@@ -15,13 +15,11 @@ use veoveo_mcp_contract::{
 };
 use veoveo_platform_store::{
     ArtifactWriteCapabilityId as StoreCapabilityId, MediaTaskContextId, MediaTaskContextRecord,
-    OpenObject, OutboxDraft, PlatformStore, ProviderEventId, ProviderEventRecord, ProviderJobId,
+    OpenObject, PlatformStore, ProviderEventId, ProviderEventRecord, ProviderJobId,
     ProviderJobRecord, ProviderJobState, RecordId, RecordIdKey, RedactedSecret, StoreError,
     TaskStatus,
 };
-use veoveo_task_runtime::{
-    RecoveryClass, TASK_EVENT_SCHEMA_VERSION, TaskFailure, TaskOwner, TaskRuntime, TaskSnapshot,
-};
+use veoveo_task_runtime::{RecoveryClass, TaskFailure, TaskOwner, TaskRuntime, TaskSnapshot};
 use veoveo_types::DataLabelId;
 use veoveo_types::TaskId;
 
@@ -31,7 +29,7 @@ use crate::{
 };
 
 const PROVIDER: &str = "media";
-const MEDIA_EVENT_SCHEMA_VERSION: i64 = 1;
+
 const STATE_ID_NAMESPACE: Uuid = Uuid::from_u128(0xc05a_75ed_011f_5234_9482_9e94_be0c_1cc1);
 
 #[derive(Clone)]
@@ -100,15 +98,6 @@ impl ProviderCancellationOutcome {
             }
         }
     }
-
-    fn event_type(&self) -> &'static str {
-        match self {
-            Self::Requested => "provider_job.cancel_requested",
-            Self::Accepted { .. } => "provider_job.cancel_accepted",
-            Self::NotDeleted { .. } => "provider_job.cancel_not_deleted",
-            Self::Failed { .. } => "provider_job.cancel_failed",
-        }
-    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -170,27 +159,13 @@ impl MediaState {
             created_at: now,
             updated_at: now,
         };
-        let outbox = OutboxDraft::now(
-            Some(tenant_record(owner)?),
-            "media_task_context",
-            task_id.to_string(),
-            "media.task_context.created",
-            MEDIA_EVENT_SCHEMA_VERSION,
-            OpenObject::new(BTreeMap::from([
-                ("task_id".into(), serde_json::json!(task_id.to_string())),
-                (
-                    "capability_id".into(),
-                    serde_json::json!(capability.capability_id.to_string()),
-                ),
-            ])),
-        );
+
         let result = self
             .store
             .client()
-            .query("BEGIN TRANSACTION; CREATE ONLY $context CONTENT $content RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; CREATE ONLY $context CONTENT $content RETURN NONE; COMMIT TRANSACTION;")
             .bind(("context", context_id.record_id()))
             .bind(("content", content))
-            .bind(("outbox", outbox))
             .await
             .and_then(|response| response.check());
         if let Err(error) = result
@@ -294,13 +269,12 @@ impl MediaState {
             ),
             now,
         );
-        let task_outbox = task_event(&waiting, "task.waiting")?;
-        let job_outbox = provider_job_event(&current, &job, "provider_job.bound")?;
+
         let request = request_envelope(&waiting)?;
         let result = self
             .store
             .client()
-            .query("BEGIN TRANSACTION; CREATE ONLY $job CONTENT $job_content RETURN NONE; LET $updated = (UPDATE ONLY $task SET status = 'waiting', request = $request, progress = $progress, lease_owner = NONE, lease_expires_at = NONE, updated_at = $now WHERE status = $expected_status AND updated_at = $expected_updated AND recovery_class = 'webhook_wait' AND lease_owner = $worker RETURN AFTER); IF $updated = NONE { THROW 'media task changed before provider binding'; }; CREATE outbox_event CONTENT $job_outbox RETURN NONE; CREATE outbox_event CONTENT $task_outbox RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; CREATE ONLY $job CONTENT $job_content RETURN NONE; LET $updated = (UPDATE ONLY $task SET status = 'waiting', request = $request, progress = $progress, lease_owner = NONE, lease_expires_at = NONE, updated_at = $now WHERE status = $expected_status AND updated_at = $expected_updated AND recovery_class = 'webhook_wait' AND lease_owner = $worker RETURN AFTER); IF $updated = NONE { THROW 'media task changed before provider binding'; }; COMMIT TRANSACTION;")
             .bind(("job", job_id.record_id()))
             .bind(("job_content", job))
             .bind(("task", task_record_id(current.task_id)))
@@ -310,8 +284,7 @@ impl MediaState {
             .bind(("expected_status", current.status))
             .bind(("expected_updated", current.updated_at))
             .bind(("worker", runtime.worker_id().to_owned()))
-            .bind(("job_outbox", job_outbox))
-            .bind(("task_outbox", task_outbox))
+
             .await
             .and_then(|response| response.check());
         if let Err(error) = result {
@@ -426,17 +399,12 @@ impl MediaState {
                     now,
                 )
             });
-        let event_outbox = provider_event_outbox(&current, &event, prediction)?;
-        let job_outbox = provider_job_event(&current, &job, "provider_job.webhook_received")?;
-        let task_outbox = waiting
-            .as_ref()
-            .map(|snapshot| task_event(snapshot, "task.waiting"))
-            .transpose()?;
+
         let request = waiting.as_ref().map(request_envelope).transpose()?;
         let result = self
             .store
             .client()
-            .query("BEGIN TRANSACTION; CREATE ONLY $event CONTENT $event_content RETURN NONE; UPSERT ONLY $job CONTENT $job_content RETURN NONE; IF $update_task { LET $updated = (UPDATE ONLY $task SET status = 'waiting', request = $request, progress = $progress, lease_owner = NONE, lease_expires_at = NONE, updated_at = $now WHERE updated_at = $expected_updated AND status IN ['queued', 'running', 'waiting'] AND recovery_class = 'webhook_wait' RETURN AFTER); IF $updated = NONE { THROW 'media webhook task changed'; }; CREATE outbox_event CONTENT $task_outbox RETURN NONE; }; CREATE outbox_event CONTENT $job_outbox RETURN NONE; CREATE outbox_event CONTENT $event_outbox RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; CREATE ONLY $event CONTENT $event_content RETURN NONE; UPSERT ONLY $job CONTENT $job_content RETURN NONE; IF $update_task { LET $updated = (UPDATE ONLY $task SET status = 'waiting', request = $request, progress = $progress, lease_owner = NONE, lease_expires_at = NONE, updated_at = $now WHERE updated_at = $expected_updated AND status IN ['queued', 'running', 'waiting'] AND recovery_class = 'webhook_wait' RETURN AFTER); IF $updated = NONE { THROW 'media webhook task changed'; }; }; COMMIT TRANSACTION;")
             .bind(("event", event_id.record_id()))
             .bind(("event_content", event))
             .bind(("job", job_id.record_id()))
@@ -447,9 +415,7 @@ impl MediaState {
             .bind(("progress", waiting.as_ref().map_or(current.progress, |task| task.progress)))
             .bind(("now", now))
             .bind(("expected_updated", current.updated_at))
-            .bind(("task_outbox", task_outbox))
-            .bind(("job_outbox", job_outbox))
-            .bind(("event_outbox", event_outbox))
+
             .await
             .and_then(|response| response.check());
         if let Err(error) = result {
@@ -546,35 +512,11 @@ impl MediaState {
         completed.lease_owner = None;
         completed.lease_expires_at = None;
         let request = request_envelope(&completed)?;
-        let task_outbox = task_event(
-            &completed,
-            if status == TaskStatus::Succeeded {
-                "task.succeeded"
-            } else {
-                "task.failed"
-            },
-        )?;
-        let processed_outbox = OutboxDraft::now(
-            Some(tenant_record(&current.owner)?),
-            "provider_event",
-            event.event_id.to_string(),
-            "provider_event.processed",
-            MEDIA_EVENT_SCHEMA_VERSION,
-            OpenObject::new(BTreeMap::from([
-                (
-                    "task_id".into(),
-                    serde_json::json!(current.task_id.to_string()),
-                ),
-                (
-                    "external_job_id".into(),
-                    serde_json::json!(&event.job.external_job_id),
-                ),
-            ])),
-        );
+
         let response = self
             .store
             .client()
-            .query("BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $task SET status = $status, request = $request, progress = $progress, result = $result, error = $error, completed_at = $now, lease_owner = NONE, lease_expires_at = NONE, updated_at = $now WHERE updated_at = $expected_updated AND status IN ['queued', 'running', 'waiting'] AND recovery_class = 'webhook_wait' RETURN AFTER); IF $updated = NONE { THROW 'media webhook completion conflict'; }; UPDATE ONLY $event SET processed_at = $now, processing_error = NONE WHERE processed_at = NONE RETURN NONE; UPDATE ONLY $job SET state = $job_state, completed_at = $now, updated_at = $now RETURN NONE; CREATE outbox_event CONTENT $task_outbox RETURN NONE; CREATE outbox_event CONTENT $processed_outbox RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $task SET status = $status, request = $request, progress = $progress, result = $result, error = $error, completed_at = $now, lease_owner = NONE, lease_expires_at = NONE, updated_at = $now WHERE updated_at = $expected_updated AND status IN ['queued', 'running', 'waiting'] AND recovery_class = 'webhook_wait' RETURN AFTER); IF $updated = NONE { THROW 'media webhook completion conflict'; }; UPDATE ONLY $event SET processed_at = $now, processing_error = NONE WHERE processed_at = NONE RETURN NONE; UPDATE ONLY $job SET state = $job_state, completed_at = $now, updated_at = $now RETURN NONE; COMMIT TRANSACTION;")
             .bind(("task", task_record_id(current.task_id)))
             .bind(("status", status))
             .bind(("request", request))
@@ -586,8 +528,7 @@ impl MediaState {
             .bind(("event", event.event_id.record_id()))
             .bind(("job", event.job.job_id.record_id()))
             .bind(("job_state", if status == TaskStatus::Succeeded { ProviderJobState::Succeeded } else { ProviderJobState::Failed }))
-            .bind(("task_outbox", task_outbox))
-            .bind(("processed_outbox", processed_outbox))
+
             .await
             .and_then(|response| response.check());
         if let Err(error) = response {
@@ -696,10 +637,10 @@ impl MediaState {
                 "result": &outcome,
             }),
         );
-        let outbox = provider_cancellation_event(task, job, &outcome, state)?;
+
         self.store
             .client()
-            .query("BEGIN TRANSACTION; UPDATE ONLY $job SET state = $state, provider_payload = $payload, completed_at = IF $terminal { $now } ELSE { completed_at }, updated_at = $now WHERE tenant = $tenant AND task = $task AND provider = $provider AND state IN ['submitted', 'waiting', 'cancel_requested'] RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; UPDATE ONLY $job SET state = $state, provider_payload = $payload, completed_at = IF $terminal { $now } ELSE { completed_at }, updated_at = $now WHERE tenant = $tenant AND task = $task AND provider = $provider AND state IN ['submitted', 'waiting', 'cancel_requested'] RETURN NONE; COMMIT TRANSACTION;")
             .bind(("job", job.job_id.record_id()))
             .bind(("state", state))
             .bind(("payload", OpenObject::new(payload)))
@@ -708,7 +649,6 @@ impl MediaState {
             .bind(("tenant", tenant_record(&task.owner)?))
             .bind(("task", task_record_id(task.task_id)))
             .bind(("provider", PROVIDER.to_owned()))
-            .bind(("outbox", outbox))
             .await?
             .check()?;
         self.provider_job(job.job_id)
@@ -793,16 +733,15 @@ impl MediaState {
             ),
             now,
         );
-        let outbox = task_event(&waiting, "task.waiting")?;
+
         self.store
             .client()
-            .query("BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $task SET status = 'waiting', request = $request, progress = $progress, lease_owner = NONE, lease_expires_at = NONE, updated_at = $now WHERE updated_at = $expected_updated AND status IN ['queued', 'running'] AND recovery_class = 'webhook_wait' RETURN AFTER); IF $updated != NONE { CREATE outbox_event CONTENT $outbox RETURN NONE; }; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; UPDATE ONLY $task SET status = 'waiting', request = $request, progress = $progress, lease_owner = NONE, lease_expires_at = NONE, updated_at = $now WHERE updated_at = $expected_updated AND status IN ['queued', 'running'] AND recovery_class = 'webhook_wait' RETURN NONE; COMMIT TRANSACTION;")
             .bind(("task", task_record_id(current.task_id)))
             .bind(("request", request_envelope(&waiting)?))
             .bind(("progress", waiting.progress))
             .bind(("now", now))
             .bind(("expected_updated", current.updated_at))
-            .bind(("outbox", outbox))
             .await?
             .check()?;
         Ok(())
@@ -971,103 +910,6 @@ fn request_envelope(snapshot: &TaskSnapshot) -> Result<OpenObject, StoreError> {
     serde_json::to_value(envelope)
         .map(open_object)
         .map_err(json_store_error)
-}
-
-fn task_event(snapshot: &TaskSnapshot, event_type: &str) -> Result<OutboxDraft, StoreError> {
-    Ok(OutboxDraft::now(
-        Some(tenant_record(&snapshot.owner)?),
-        "task",
-        snapshot.task_id.to_string(),
-        event_type,
-        TASK_EVENT_SCHEMA_VERSION,
-        OpenObject::new(BTreeMap::from([(
-            "snapshot".into(),
-            serde_json::to_value(snapshot).map_err(json_store_error)?,
-        )])),
-    ))
-}
-
-fn provider_job_event(
-    task: &TaskSnapshot,
-    job: &ProviderJobRecord,
-    event_type: &str,
-) -> Result<OutboxDraft, StoreError> {
-    Ok(OutboxDraft::now(
-        Some(tenant_record(&task.owner)?),
-        "provider_job",
-        record_uuid(&job.id)?.to_string(),
-        event_type,
-        MEDIA_EVENT_SCHEMA_VERSION,
-        OpenObject::new(BTreeMap::from([
-            (
-                "task_id".into(),
-                serde_json::json!(task.task_id.to_string()),
-            ),
-            (
-                "external_job_id".into(),
-                serde_json::json!(&job.external_job_id),
-            ),
-            (
-                "state".into(),
-                serde_json::to_value(job.state).map_err(json_store_error)?,
-            ),
-        ])),
-    ))
-}
-
-fn provider_cancellation_event(
-    task: &TaskSnapshot,
-    job: &MediaProviderJob,
-    outcome: &ProviderCancellationOutcome,
-    state: ProviderJobState,
-) -> Result<OutboxDraft, StoreError> {
-    Ok(OutboxDraft::now(
-        Some(tenant_record(&task.owner)?),
-        "provider_job",
-        job.job_id.to_string(),
-        outcome.event_type(),
-        MEDIA_EVENT_SCHEMA_VERSION,
-        OpenObject::new(BTreeMap::from([
-            (
-                "task_id".into(),
-                serde_json::json!(task.task_id.to_string()),
-            ),
-            (
-                "external_job_id".into(),
-                serde_json::json!(&job.external_job_id),
-            ),
-            (
-                "state".into(),
-                serde_json::to_value(state).map_err(json_store_error)?,
-            ),
-            (
-                "cancellation".into(),
-                serde_json::to_value(outcome).map_err(json_store_error)?,
-            ),
-        ])),
-    ))
-}
-
-fn provider_event_outbox(
-    task: &TaskSnapshot,
-    event: &ProviderEventRecord,
-    prediction: &Prediction,
-) -> Result<OutboxDraft, StoreError> {
-    Ok(OutboxDraft::now(
-        Some(tenant_record(&task.owner)?),
-        "provider_event",
-        record_uuid(&event.id)?.to_string(),
-        "provider_event.received",
-        MEDIA_EVENT_SCHEMA_VERSION,
-        OpenObject::new(BTreeMap::from([
-            (
-                "task_id".into(),
-                serde_json::json!(task.task_id.to_string()),
-            ),
-            ("external_job_id".into(), serde_json::json!(&prediction.id)),
-            ("webhook_id".into(), serde_json::json!(&event.event_id)),
-        ])),
-    ))
 }
 
 fn tenant_record(owner: &TaskOwner) -> Result<RecordId, StoreError> {

@@ -62,15 +62,6 @@ async fn concurrent_gateway_audit_writes_retry_transaction_conflicts() {
         audit_count(&state, &principal, AuditClass::ApiActivity).await,
         12
     );
-    let outbox = state.platform_store().read_outbox(0, 100).await.unwrap();
-    assert_eq!(
-        outbox
-            .events
-            .iter()
-            .filter(|event| event.event_type == "gateway.audit.recorded")
-            .count(),
-        0,
-    );
 }
 
 #[tokio::test]
@@ -381,27 +372,6 @@ async fn gateway_correctness_state_is_shared_and_single_use_across_replicas() {
         audit_count(&first, &principal, AuditClass::Authentication).await,
         3
     );
-    let outbox = first.platform_store().read_outbox(0, 100).await.unwrap();
-    assert!(
-        outbox
-            .events
-            .iter()
-            .all(|event| event.event_type != "gateway.audit.recorded")
-    );
-    for event_type in [
-        "gateway.refresh_family.issued",
-        "gateway.refresh_token.rotated",
-        "gateway.refresh_family.revoked",
-    ] {
-        assert!(
-            outbox
-                .events
-                .iter()
-                .any(|event| event.event_type == event_type),
-            "missing durable refresh outbox event {event_type}",
-        );
-    }
-
     let delivery_retention = second
         .prune_expired_refresh_tokens(now + TimeDelta::seconds(7))
         .await
@@ -743,17 +713,6 @@ async fn public_client_revocation_is_bound_idempotent_and_family_wide() {
             .unwrap(),
         GatewayRefreshExchange::Invalid
     ));
-
-    let outbox = state.platform_store().read_outbox(0, 100).await.unwrap();
-    assert_eq!(
-        outbox
-            .events
-            .iter()
-            .filter(|event| event.event_type == "gateway.refresh_family.revoked")
-            .count(),
-        1,
-        "idempotent revocation must publish one family-revoked event",
-    );
 }
 
 fn store_configs() -> (StoreConfig, StoreConfig) {

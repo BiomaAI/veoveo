@@ -28,10 +28,6 @@ FOR $entry IN $entries {
     IF $capacity.instances > 32 OR $capacity.storage_gib > 128 { THROW 'pilot adoption exceeds Bioma capacity'; };
     CREATE ONLY $instance.id CONTENT $instance;
     CREATE ONLY $entry.operation.id CONTENT $entry.operation;
-    CREATE outbox_event SET tenant = $instance.tenant, aggregate_type = 'managed_agent', aggregate_id = $instance.key,
-        event_type = 'managed_agent.adopt', schema_version = 1,
-        payload = {key: $instance.key, generation: 1, work_context: $instance.work_context,
-            actor: $instance.owner, operation: $instance.operation, runtime: $runtime.id};
 };
 RETURN $entries.map(|$entry| $entry.instance.id);
 COMMIT TRANSACTION;

@@ -3,7 +3,7 @@
 ## Standards And Protocols
 
 The runtime uses the pinned SurrealDB 3.3.0 WebSocket SDK and repository-owned
-schema migrations. Typed records, transaction fences, outbox events and managed
+schema migrations. Typed records, transaction fences, native changefeeds and managed
 generations are internal Veoveo contracts. Native MCP `2026-07-28` Tasks keep
 their canonical gateway identity and retention pin; this crate owns delivery to
 the agent, not the MCP transport or provider completion protocol.

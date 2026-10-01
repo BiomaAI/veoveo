@@ -224,18 +224,20 @@ async fn only_one_replica_receives_dispatch_and_domain_settles_before_task_proje
         TaskStatus::Queued
     );
     assert!(b.begin_dispatch(&claimed).await.is_err());
-    let events = db.a.read_outbox(0, 100).await.unwrap().events;
+    let events = db
+        .committed(veoveo_platform_store::PlatformTable::AuditRecord)
+        .await;
     assert_eq!(
         events
             .iter()
-            .filter(|e| e.event_type == "computer.operation_dispatched")
+            .filter(|e| e["draft"]["detail"]["stage"] == "dispatched")
             .count(),
         1
     );
     assert_eq!(
         events
             .iter()
-            .filter(|e| e.event_type == "computer.operation_succeeded")
+            .filter(|e| e["draft"]["detail"]["stage"] == "settled")
             .count(),
         1
     );
@@ -324,12 +326,10 @@ async fn exhausted_budget_survives_replica_change_and_retains_the_computer_fence
         8
     );
     assert_eq!(
-        db.a.read_outbox(0, 100)
+        db.committed(veoveo_platform_store::PlatformTable::AuditRecord)
             .await
-            .unwrap()
-            .events
             .iter()
-            .filter(|e| e.event_type == "computer.recovery_required")
+            .filter(|e| e["draft"]["detail"]["stage"] == "recovery_required")
             .count(),
         1
     );

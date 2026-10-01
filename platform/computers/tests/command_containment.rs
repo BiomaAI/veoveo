@@ -308,7 +308,7 @@ async fn wrong_run_evidence_and_exhausted_reads_keep_the_slot_across_workers() {
         .a
         .client()
         .query(
-            "SELECT * FROM outbox_event WHERE event_type = 'computer.execution_recovery_required';",
+            "SELECT * FROM audit_record WHERE activity = 'computer_command' AND draft.detail.stage = 'recovery_required';",
         )
         .await
         .unwrap()

@@ -77,7 +77,7 @@ async fn host_restart_preserves_resource_and_owner_and_rejects_old_grants_and_ob
     );
     let mut q =
         db.a.client()
-            .query("SELECT * FROM outbox_event WHERE event_type = 'computer.run_observed';")
+            .query("SELECT * FROM audit_record WHERE activity = 'computer_restart_observed';")
             .await
             .unwrap()
             .check()

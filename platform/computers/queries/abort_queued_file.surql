@@ -12,5 +12,4 @@ LET $aborted = (UPDATE ONLY $execution SET stage = $stage, refusal = $refusal, s
   WHERE stage = "queued" AND dispatch_id = NONE AND updated_at = $current.updated_at RETURN AFTER);
 IF $aborted = NONE { THROW "computer_state_conflict"; };
 DELETE $slot WHERE execution = $execution;
-CREATE outbox_event CONTENT $event;
 fn::append_audit($audit_rows);

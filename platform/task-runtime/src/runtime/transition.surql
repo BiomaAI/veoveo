@@ -21,6 +21,5 @@ LET $updated = (
         )
     RETURN AFTER
 );
-IF $updated != NONE { CREATE outbox_event CONTENT $event RETURN NONE; };
 RETURN $updated;
 COMMIT TRANSACTION;

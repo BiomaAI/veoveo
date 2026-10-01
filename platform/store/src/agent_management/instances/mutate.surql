@@ -60,9 +60,7 @@ IF $mutation.kind = 'provision' {
             fn::agent_consume_results($runtime.id, $wakes, $episode.id, $now);
             UPDATE ONLY $episode.id SET state = 'stopped', final_output = 'Stopped by an authorized operator.', error = NONE, finished_at = $now, revision += 1;
             UPDATE wake SET state = 'acked', acked_at = $now, acked_by_episode = $episode.id, claimed_by = NONE, claimed_at = NONE, claim_expires_at = NONE, claim_fence = NONE, updated_at = $now, revision += 1 WHERE id IN $wakes;
-            CREATE outbox_event SET tenant = $instance.tenant, aggregate_type = 'agent_episode', aggregate_id = type::string(record::id($episode.id)), event_type = 'agent_episode.stopped', schema_version = 1,
-                payload = { actor: $authority.principal, request_id: $command.request_id, managed_instance: $instance.id };
-        };
+            };
     } ELSE IF $mutation.kind = 'retry' {
         IF $instance.observed != 'failed' { THROW 'agent_conflict'; };
     } ELSE { THROW 'agent_conflict'; };
@@ -73,8 +71,4 @@ LET $current = SELECT * FROM ONLY $command.instance;
 LET $result = CREATE ONLY $command.operation SET instance = $command.instance, tenant = $authority.tenant,
     work_context = $authority.work_context, actor = $authority.principal, request_id = $command.request_id,
     fingerprint = $command.fingerprint, generation = $current.generation, phase = 'queued', lease_fence = 0;
-CREATE outbox_event SET tenant = $authority.tenant, aggregate_type = 'managed_agent', aggregate_id = $command.key,
-    event_type = string::concat('managed_agent.', $mutation.kind), schema_version = 1,
-    payload = { key: $command.key, generation: $current.generation, work_context: $authority.work_context,
-        actor: $authority.principal, request_id: $command.request_id, operation: $command.operation };
 RETURN $result;

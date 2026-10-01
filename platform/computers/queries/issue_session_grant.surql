@@ -40,7 +40,6 @@ CREATE $grant CONTENT {grant_id:$grant_id, computer_id:$computer_id, owner_key:$
   provider_instance_id:$provider, authority:$authority, family:$family, ticket_hash:$ticket_hash,
   ticket_expires_at:$ticket_end, issued_at:$now, expires_at:$expires, idle_expires_at:$idle_end,
   last_activity_at:$now, provider_resource_id:$resource, process_id:$process};
-CREATE outbox_event CONTENT $event;
-  fn::append_audit($audit_rows);
+fn::append_audit($audit_rows);
 COMMIT TRANSACTION;
 SELECT VALUE ticket_expires_at FROM ONLY $grant;

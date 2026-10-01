@@ -1,7 +1,7 @@
-use std::{collections::BTreeMap, time::Duration};
+use std::time::Duration;
 
 use chrono::{DateTime, Utc};
-use surrealdb::types::{RecordId, RecordIdKey};
+use surrealdb::types::RecordId;
 use uuid::Uuid;
 
 use crate::identity::PLATFORM_ID_NAMESPACE;
@@ -9,8 +9,8 @@ use crate::store::primary_transaction_error;
 use crate::{
     GatewayAuthorizationCodeStateRecord, GatewayAuthorizationRequestRecord,
     GatewayJwtRevocationRecord, GatewayRefreshFamilyRecord, GatewayRefreshTokenRecord,
-    GatewayReplayKind, GatewayReplayRecord, GatewayResourceSubscriptionRecord, OpenObject,
-    OutboxDraft, PlatformStore, StoreError,
+    GatewayReplayKind, GatewayReplayRecord, GatewayResourceSubscriptionRecord, PlatformStore,
+    StoreError,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -104,23 +104,10 @@ impl PlatformStore {
         &self,
         record: GatewayResourceSubscriptionRecord,
     ) -> Result<(), StoreError> {
-        let outbox = gateway_outbox(
-            "gateway_subscription",
-            &record.id,
-            "gateway.resource_subscription.upserted",
-            BTreeMap::from([
-                ("profile".into(), serde_json::json!(&record.profile)),
-                (
-                    "upstream_server".into(),
-                    serde_json::json!(&record.upstream_server),
-                ),
-            ]),
-        );
         self.db
-            .query("BEGIN TRANSACTION; UPSERT ONLY $record CONTENT $content RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; UPSERT ONLY $record CONTENT $content RETURN NONE; COMMIT TRANSACTION;")
             .bind(("record", record.id.clone()))
             .bind(("content", record))
-            .bind(("outbox", outbox))
             .await?
             .check()?;
         Ok(())
@@ -137,16 +124,9 @@ impl PlatformStore {
         &self,
         id: RecordId,
     ) -> Result<(), StoreError> {
-        let outbox = gateway_outbox(
-            "gateway_subscription",
-            &id,
-            "gateway.resource_subscription.deleted",
-            BTreeMap::new(),
-        );
         self.db
-            .query("BEGIN TRANSACTION; DELETE ONLY $record RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; DELETE ONLY $record RETURN NONE; COMMIT TRANSACTION;")
             .bind(("record", id))
-            .bind(("outbox", outbox))
             .await?
             .check()?;
         Ok(())
@@ -156,17 +136,10 @@ impl PlatformStore {
         &self,
         record: GatewayJwtRevocationRecord,
     ) -> Result<(), StoreError> {
-        let outbox = gateway_outbox(
-            "gateway_jwt_revocation",
-            &record.id,
-            "gateway.jwt.revoked",
-            BTreeMap::from([("profile".into(), serde_json::json!(&record.profile))]),
-        );
         self.db
-            .query("BEGIN TRANSACTION; UPSERT ONLY $record CONTENT $content RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; UPSERT ONLY $record CONTENT $content RETURN NONE; COMMIT TRANSACTION;")
             .bind(("record", record.id.clone()))
             .bind(("content", record))
-            .bind(("outbox", outbox))
             .await?
             .check()?;
         Ok(())
@@ -357,26 +330,13 @@ impl PlatformStore {
         token: GatewayRefreshTokenRecord,
     ) -> Result<(), StoreError> {
         validate_refresh_pair(&family, &token, 0)?;
-        let outbox = gateway_outbox(
-            "gateway_refresh_family",
-            &family.id,
-            "gateway.refresh_family.issued",
-            BTreeMap::from([
-                ("profile".into(), serde_json::json!(&family.profile)),
-                (
-                    "oauth_client_id".into(),
-                    serde_json::json!(&family.oauth_client_id),
-                ),
-                ("expires_at".into(), serde_json::json!(family.expires_at)),
-            ]),
-        );
+
         self.db
-            .query("BEGIN TRANSACTION; CREATE ONLY $family CONTENT $family_content RETURN NONE; CREATE ONLY $refresh_record CONTENT $refresh_content RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; CREATE ONLY $family CONTENT $family_content RETURN NONE; CREATE ONLY $refresh_record CONTENT $refresh_content RETURN NONE; COMMIT TRANSACTION;")
             .bind(("family", family.id.clone()))
             .bind(("family_content", family))
             .bind(("refresh_record", token.id.clone()))
             .bind(("refresh_content", token))
-            .bind(("outbox", outbox))
             .await?
             .check()?;
         Ok(())
@@ -423,23 +383,14 @@ impl PlatformStore {
         if family.revoked_at.is_some() {
             return Ok(Some(family));
         }
-        let outbox = gateway_outbox(
-            "gateway_refresh_family",
-            &family.id,
-            "gateway.refresh_family.revoked",
-            BTreeMap::from([
-                ("reason".into(), serde_json::json!("client_revocation")),
-                ("generation".into(), serde_json::json!(token.generation)),
-            ]),
-        );
+
         const MAX_ATTEMPTS: u32 = 8;
         for attempt in 0..MAX_ATTEMPTS {
             let response = self
                 .db
-                .query("BEGIN TRANSACTION; LET $revoked = (UPDATE ONLY $family SET revoked_at = $now, revocation_reason = 'client_revocation' WHERE revoked_at = NONE AND expires_at > $now RETURN AFTER); IF $revoked = NONE { THROW 'gateway_refresh_family_invalid'; }; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
+                .query("BEGIN TRANSACTION; LET $revoked = (UPDATE ONLY $family SET revoked_at = $now, revocation_reason = 'client_revocation' WHERE revoked_at = NONE AND expires_at > $now RETURN AFTER); IF $revoked = NONE { THROW 'gateway_refresh_family_invalid'; }; COMMIT TRANSACTION;")
                 .bind(("family", family.id.clone()))
                 .bind(("now", now))
-                .bind(("outbox", outbox.clone()))
                 .await
                 .and_then(|mut response| match primary_transaction_error(response.take_errors()) {
                     Some(error) => Err(error),
@@ -505,23 +456,11 @@ impl PlatformStore {
             return Ok(GatewayRefreshRotationOutcome::Invalid);
         }
 
-        let outbox = gateway_outbox(
-            "gateway_refresh_family",
-            &family.id,
-            "gateway.refresh_token.rotated",
-            BTreeMap::from([
-                (
-                    "generation".into(),
-                    serde_json::json!(replacement.generation),
-                ),
-                ("profile".into(), serde_json::json!(&family.profile)),
-            ]),
-        );
         const MAX_ATTEMPTS: u32 = 8;
         for attempt in 0..MAX_ATTEMPTS {
             let response = crate::audit::AuditTransactionWrite::new(success_audit.clone())?.append(self
                 .db
-                .query("BEGIN TRANSACTION; LET $consumed = (UPDATE ONLY $current SET consumed_at = $now, replacement = $replacement, delivery_envelope = NONE, delivery_expires_at = NONE WHERE consumed_at = NONE AND replay_detected_at = NONE AND expires_at > $now RETURN AFTER); IF $consumed = NONE { THROW 'gateway_refresh_token_replay'; }; LET $family_updated = (UPDATE ONLY $family SET current_generation = $next_generation WHERE revoked_at = NONE AND expires_at > $now AND current_generation = $current_generation RETURN AFTER); IF $family_updated = NONE { THROW 'gateway_refresh_family_invalid'; }; CREATE ONLY $replacement CONTENT $replacement_content RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; ")
+                .query("BEGIN TRANSACTION; LET $consumed = (UPDATE ONLY $current SET consumed_at = $now, replacement = $replacement, delivery_envelope = NONE, delivery_expires_at = NONE WHERE consumed_at = NONE AND replay_detected_at = NONE AND expires_at > $now RETURN AFTER); IF $consumed = NONE { THROW 'gateway_refresh_token_replay'; }; LET $family_updated = (UPDATE ONLY $family SET current_generation = $next_generation WHERE revoked_at = NONE AND expires_at > $now AND current_generation = $current_generation RETURN AFTER); IF $family_updated = NONE { THROW 'gateway_refresh_family_invalid'; }; CREATE ONLY $replacement CONTENT $replacement_content RETURN NONE; ")
                 .bind(("current", token.id.clone()))
                 .bind(("family", family.id.clone()))
                 .bind(("replacement", replacement.id.clone()))
@@ -529,7 +468,7 @@ impl PlatformStore {
                 .bind(("now", now))
                 .bind(("current_generation", token.generation))
                 .bind(("next_generation", replacement.generation))
-                .bind(("outbox", outbox.clone()))
+
                 ).query("COMMIT TRANSACTION;").await
                 .and_then(|mut response| match primary_transaction_error(response.take_errors()) {
                     Some(error) => Err(error),
@@ -727,24 +666,14 @@ impl PlatformStore {
         family: &GatewayRefreshFamilyRecord,
         now: DateTime<Utc>,
     ) -> Result<GatewayRefreshFamilyRecord, StoreError> {
-        let outbox = gateway_outbox(
-            "gateway_refresh_family",
-            &family.id,
-            "gateway.refresh_family.revoked",
-            BTreeMap::from([
-                ("reason".into(), serde_json::json!("token_replay")),
-                ("generation".into(), serde_json::json!(token.generation)),
-            ]),
-        );
         const MAX_ATTEMPTS: u32 = 8;
         for attempt in 0..MAX_ATTEMPTS {
             let response = self
                 .db
-                .query("BEGIN TRANSACTION; LET $revoked = (UPDATE ONLY $family SET revoked_at = $now, revocation_reason = 'token_replay' WHERE revoked_at = NONE RETURN AFTER); UPDATE ONLY $refresh_record SET replay_detected_at = $now WHERE replay_detected_at = NONE RETURN NONE; IF $revoked != NONE { CREATE outbox_event CONTENT $outbox RETURN NONE; }; COMMIT TRANSACTION;")
+                .query("BEGIN TRANSACTION; UPDATE ONLY $family SET revoked_at = $now, revocation_reason = 'token_replay' WHERE revoked_at = NONE RETURN NONE; UPDATE ONLY $refresh_record SET replay_detected_at = $now WHERE replay_detected_at = NONE RETURN NONE; COMMIT TRANSACTION;")
                 .bind(("family", family.id.clone()))
                 .bind(("refresh_record", token.id.clone()))
                 .bind(("now", now))
-                .bind(("outbox", outbox.clone()))
                 .await
                 .and_then(|mut response| match primary_transaction_error(response.take_errors()) {
                     Some(error) => Err(error),
@@ -792,31 +721,6 @@ fn deterministic_gateway_record_id(table: &str, kind: &str, values: &[&str]) -> 
     }
     let id = Uuid::new_v5(&PLATFORM_ID_NAMESPACE, identity.as_bytes());
     RecordId::new(table, surrealdb::types::Uuid::from(id))
-}
-
-fn gateway_outbox(
-    aggregate_type: &str,
-    record: &RecordId,
-    event_type: &str,
-    mut payload: BTreeMap<String, serde_json::Value>,
-) -> OutboxDraft {
-    let record_id = gateway_record_identity(record);
-    payload.insert("record_id".into(), serde_json::json!(&record_id));
-    OutboxDraft::now(
-        None,
-        aggregate_type,
-        record_id,
-        event_type,
-        1,
-        OpenObject::new(payload),
-    )
-}
-
-fn gateway_record_identity(record: &RecordId) -> String {
-    let RecordIdKey::Uuid(id) = &record.key else {
-        unreachable!("gateway runtime records always use UUID keys")
-    };
-    format!("{}:{id}", record.table.as_str())
 }
 
 async fn delete_count(

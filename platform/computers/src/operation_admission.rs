@@ -10,8 +10,8 @@ use serde::Serialize;
 use std::collections::BTreeSet;
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
+use veoveo_platform_store::OpenObject;
 use veoveo_platform_store::task_record_id;
-use veoveo_platform_store::{OpenObject, OutboxDraft, deterministic_tenant_id};
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRetentionPin, TaskRuntime};
 use veoveo_types::TaskTypeDefinition;
 
@@ -74,7 +74,7 @@ impl ComputersStore {
         }
         Ok(Some(operation))
     }
-    /// Commit the request, Computer fence and outbox before linking the shared Task.
+    /// Commit the request, Computer fence and audit record before linking the shared Task.
     /// This method never dispatches a provider effect.
     pub async fn queue_operation(
         &self,
@@ -162,26 +162,7 @@ impl ComputersStore {
             replacement_instance_id: computer.replacement_instance_id,
             action: action.into(),
         };
-        let event = OutboxDraft::now(
-            Some(
-                deterministic_tenant_id(caller.tenant_key())
-                    .map_err(|_| ComputerError::InvalidInput)?
-                    .record_id(),
-            ),
-            "computer",
-            computer_id.to_string(),
-            "computer.operation_queued",
-            1,
-            object(&Event {
-                computer_id,
-                operation_id: id,
-                action,
-                actor: &caller.principal_key,
-                authority: &caller.authority,
-                owner: &computer.owner.principal_key,
-                grant_id,
-            })?,
-        );
+
         let mut bindings = vec![
             ("request", request.clone().into_value()),
             (
@@ -205,7 +186,6 @@ impl ComputersStore {
             ("expected_updated_at", computer.updated_at.into_value()),
             ("previous_phase", phase(previous).into_value()),
             ("next_phase", phase(next).into_value()),
-            ("event", event.into_value()),
         ];
         bindings.push(crate::audit::binding(
             actor.accepted(),
@@ -324,16 +304,7 @@ fn phase(value: ComputerPhase) -> String {
     }
     .into()
 }
-#[derive(Serialize)]
-struct Event<'a> {
-    computer_id: veoveo_computers_contract::ComputerId,
-    operation_id: Uuid,
-    action: &'a str,
-    actor: &'a str,
-    authority: &'a veoveo_types::InvocationAuthority,
-    owner: &'a str,
-    grant_id: Option<crate::api::AutomationGrantId>,
-}
+
 fn object(value: &impl Serialize) -> Result<OpenObject> {
     let serde_json::Value::Object(fields) =
         serde_json::to_value(value).map_err(|_| ComputerError::InvalidInput)?

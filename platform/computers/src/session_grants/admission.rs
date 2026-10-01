@@ -107,11 +107,6 @@ impl ComputersStore {
                     veoveo_audit_contract::ComputerAuditStage::GrantIssued,
                 ),
             )?,
-            (
-                "event",
-                authority::event(actor.accepted(), computer_id, grant_id, "access_issued")?
-                    .into_value(),
-            ),
         ]);
         actor.check_admission()?;
         snapshot.check_fresh()?;
@@ -228,16 +223,6 @@ impl ComputersStore {
                             veoveo_audit_contract::ComputerAuditStage::Attached,
                         ),
                     )?,
-                    (
-                        "event",
-                        authority::event(
-                            actor.accepted(),
-                            row.computer_id()?,
-                            grant_id,
-                            "access_connected",
-                        )?
-                        .into_value(),
-                    ),
                 ],
             )
             .await?;

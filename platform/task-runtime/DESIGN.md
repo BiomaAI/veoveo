@@ -9,7 +9,7 @@
 | Veoveo Work Context | Canonical TaskOwner/InvocationAuthority, tenant and server ownership, retained result pins |
 | Internal recovery-class vocabulary | `resume`, `webhook_wait`, `provider_wait`, `interrupted_indeterminate`; domain-qualified completion semantics |
 | Native Task identity | `veoveo_types::TaskId` carries UUID identity; external runtime lookups require UUIDv7. MCP opaque handles have their own protocol profile. |
-| Internal Task result and event format | Store results have one required `payload` field. Task outbox schema 3 preserves absent and JSON-null results as distinct states. |
+| Internal Task result format | Store results have one required `payload` field. Native changefeed replay preserves absent and JSON-null results as distinct states. |
 
 This library is the shared Task authority used by hosted domain services. Public
 handlers delegate protocol projection to the official RMCP types and the shared
@@ -60,8 +60,8 @@ has no changefeed, so acknowledgements cannot wake their own consumer.
 ## Task Operation Identity
 
 `CreateTask`, `TaskSnapshot` and Store's `TaskRecord` carry `TaskTypeName` from admission
-through durable reads and outbox delivery. Server contract libraries own the closed
-enums that implement `TaskTypeDefinition`. Shared lifecycle code accepts their names
+through durable reads and native changefeed delivery. Server contract libraries own
+the closed enums that implement `TaskTypeDefinition`. Shared lifecycle code accepts their names
 without importing those libraries. The Console summary preserves the same typed value.
 SurrealDB field adapters use the type's Serde validation; stored fields and JSON events
 contain a plain string. SQL selectors bind the owning declaration's name and filter
@@ -152,10 +152,10 @@ SQL readers and indexes address domain fields beneath `result.payload`. An absen
 result is database `NONE`; a completed JSON null is `{payload: NULL}`. Envelope
 validation rejects missing or additional fields before returning a result.
 
-Task outbox events use the shared `TASK_EVENT_SCHEMA_VERSION`, currently 3. Snapshot
-JSON omits an absent result and includes a present result even when its value is null.
-Replay deserialization preserves that distinction. The official MCP adapter projects
-object results directly and wraps other JSON values as `{"value": payload}` because the Task
+Native changefeed replay decodes the same checked result envelope as direct reads.
+Snapshot JSON omits an absent result and includes a present result even when its
+value is null. Replay deserialization preserves that distinction. The official MCP
+adapter projects object results directly and wraps other JSON values as `{"value": payload}` because the Task
 protocol requires an object. That protocol projection does not alter stored results.
 
 The Python SDK represents a present result with `TaskResult`; its payload can be JSON
@@ -163,10 +163,10 @@ null. The Store adapter binds that null with the driver's CBOR null value becaus
 pinned driver maps ordinary Python `None` to database `NONE`. Unsigned integers above
 the signed 64-bit range use SurrealDB decimals, matching Rust's Store representation.
 Result reads and event replay restore those decimals to JSON numbers. Both languages
-write the same result envelope and event version. Python's native checks cover stored
+write the same result envelope. Python's native checks cover stored
 shape, independent-connection reads, replay and official Tasks projection.
 
-Store schema 99 requires an empty Task table and no Task outbox events before installing the result format.
+Installing the result format requires an empty Task table.
 Stop all Task writers and rebuild the platform database for this coordinated release.
 The disposable reference installation follows its documented reset runbook. Every
 reader and writer must use the same release; mixed execution is unsupported. Saved
@@ -219,10 +219,9 @@ also applies its server predicate in SQL, without adding caller authorization.
 
 `OwnerTaskQuery::subscribe` admits up to 256 typed Task IDs in one SQL baseline and
 reapplies the same owner, context and operation predicates during delivery. The shared hosted
-helper uses this stream. Outbox pages select only event sequence and Task identity;
-the database then selects current visible Tasks. Historical event payloads never
-supply public results or authorization. Pages advance past denied events without
-decoding their payloads. Intermediate states may coalesce because Tasks subscriptions
+helper uses this stream. Native replay supplies Task identities; the database then
+selects current visible Tasks under the same SQL admission. Replay payloads never
+supply public results or authorization. Denied Tasks are not decoded. Intermediate states may coalesce because Tasks subscriptions
 observe current state; callers that require every durable transition use the trusted
 internal event APIs. This API does not replace `tasks/get` as the correctness path.
 
@@ -235,11 +234,13 @@ validators belong to the owning server; the runtime imports no domain result mod
 The shared wake source tracks connection generations separately from write activity.
 On a new LIVE connection, each public listener rereads its admitted Task identities
 under current SQL owner predicates and advances its native cursor without rewinding. This restores current state even when event history expired
-during the gap. Denied rows remain outside decoding. Idle Rust listeners issue no reconciliation queries.
+during the gap. Native replay overlaps that baseline and may repeat a current-state
+notification. Denied rows remain outside decoding. Idle Rust listeners issue no
+reconciliation queries.
 
 `tests/support/context_query_cases.rs` exercises mismatched indexed and envelope
 contexts with malformed payloads, page limits, protocol mutation admission, and
-notification recovery after events expire. Each case uses disposable Store clients
+notification recovery after connection loss. Each case uses disposable Store clients
 and a 60-second deadline, extended to 90 seconds for connection fault injection.
 
 The change preserves Task storage and MCP wire models. Replace hosted replicas

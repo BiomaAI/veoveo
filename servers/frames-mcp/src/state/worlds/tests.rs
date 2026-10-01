@@ -27,12 +27,17 @@ fn publication(
         tree,
     }
 }
-async fn counts(db: &TestDb) -> (usize, usize, usize) {
-    let mut result = db.b.client().query("SELECT VALUE id FROM frame_world; SELECT VALUE id FROM frame_world_revision; SELECT VALUE id FROM outbox_event WHERE event_type IN ['frame.world.created', 'frame.world.revision.published', 'frame.world.head.changed'];").await.unwrap().check().unwrap();
+async fn counts(db: &TestDb) -> (usize, usize) {
+    let mut result =
+        db.b.client()
+            .query("SELECT VALUE id FROM frame_world; SELECT VALUE id FROM frame_world_revision;")
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
     (
         result.take::<Vec<RecordId>>(0).unwrap().len(),
         result.take::<Vec<RecordId>>(1).unwrap().len(),
-        result.take::<Vec<RecordId>>(2).unwrap().len(),
     )
 }
 
@@ -50,7 +55,7 @@ async fn concurrent_world_creation_preserves_visible_metadata_replay_and_limits(
             b.create_world(&owner, create_request("world"))
         );
         assert_eq!(first.unwrap(), replay.unwrap());
-        assert_eq!(counts(&db).await, (1, 0, 1));
+        assert_eq!(counts(&db).await, (1, 0));
         // An identical create is a metadata read within the shared tenant policy.
         b.create_world(&peer, create_request("world"))
             .await
@@ -82,7 +87,7 @@ async fn concurrent_world_creation_preserves_visible_metadata_replay_and_limits(
                 .await
                 .is_err()
         );
-        assert_eq!(counts(&db).await, (1, 0, 1));
+        assert_eq!(counts(&db).await, (1, 0));
     })
     .await
     .expect("world creation qualification exceeded 90 seconds");
@@ -108,7 +113,7 @@ async fn concurrent_publication_is_atomic_and_uses_the_expected_head() {
         assert_ne!(first.created, replay.created);
         assert_eq!(first.revision, replay.revision);
         assert_eq!(first.world, replay.world);
-        assert_eq!(counts(&db).await, (1, 1, 3));
+        assert_eq!(counts(&db).await, (1, 1));
         let restarted = FramesState::new(db.b.clone());
         assert!(
             !restarted
@@ -142,7 +147,7 @@ async fn concurrent_publication_is_atomic_and_uses_the_expected_head() {
                 .unwrap(),
             Some(accepted.revision)
         );
-        assert_eq!(counts(&db).await, (1, 2, 5));
+        assert_eq!(counts(&db).await, (1, 2));
     })
     .await
     .expect("world publication qualification exceeded 90 seconds");
@@ -202,7 +207,7 @@ async fn publication_and_replay_enforce_current_tenant_owner_and_labels() {
             .await
             .is_err()
         );
-        assert_eq!(counts(&db).await, (1, 1, 3));
+        assert_eq!(counts(&db).await, (1, 1));
     })
     .await
     .expect("world publication authority qualification exceeded 90 seconds");
@@ -236,27 +241,27 @@ async fn publication_rejects_deleted_or_mismatched_head_parents_without_events()
 }
 
 #[tokio::test]
-async fn outbox_failure_rolls_back_creation_revision_and_head_and_allows_retry() {
+async fn domain_failure_rolls_back_creation_revision_and_head_and_allows_retry() {
     tokio::time::timeout(Duration::from_secs(90), async {
         let db = TestDb::new().await; let a = FramesState::new(db.a.clone());
         let owner = scope(&db.a, "tenant", "owner", &[]).await;
-        db.a.client().query("DEFINE EVENT fail_world ON outbox_event WHEN $after.event_type = 'frame.world.created' THEN { THROW 'injected creation event failure'; };").await.unwrap().check().unwrap();
+        db.a.client().query("DEFINE EVENT fail_world ON frame_world WHEN $event = 'CREATE' THEN { THROW 'injected creation event failure'; };").await.unwrap().check().unwrap();
         assert!(a.create_world(&owner, create_request("world")).await.is_err());
-        assert_eq!(counts(&db).await, (0,0,0));
-        db.a.client().query("REMOVE EVENT fail_world ON outbox_event;").await.unwrap().check().unwrap();
+        assert_eq!(counts(&db).await, (0,0));
+        db.a.client().query("REMOVE EVENT IF EXISTS fail_world ON frame_world; REMOVE EVENT IF EXISTS fail_world ON frame_world_revision;").await.unwrap().check().unwrap();
         a.create_world(&owner, create_request("world")).await.unwrap();
         for query in [
-            "DEFINE EVENT fail_world ON outbox_event WHEN $after.event_type = 'frame.world.revision.published' THEN { THROW 'injected publication event failure'; };",
-            "DEFINE EVENT fail_world ON outbox_event WHEN $after.event_type = 'frame.world.head.changed' THEN { THROW 'injected publication event failure'; };",
+            "DEFINE EVENT fail_world ON frame_world_revision WHEN $event = 'CREATE' THEN { THROW 'injected publication event failure'; };",
+            "DEFINE EVENT fail_world ON frame_world WHEN $event = 'UPDATE' THEN { THROW 'injected publication event failure'; };",
         ] {
             db.a.client().query(query).await.unwrap().check().unwrap();
             assert!(a.publish_world(&owner, publication("world", "first", None)).await.is_err());
-            assert_eq!(counts(&db).await, (1,0,1));
+            assert_eq!(counts(&db).await, (1,0));
             let world = a.get_world(&owner, &FrameWorldId::new("world").unwrap()).await.unwrap().unwrap();
             assert_eq!(world.revision(), 0); assert!(world.head_revision_id().is_none());
-            db.a.client().query("REMOVE EVENT fail_world ON outbox_event;").await.unwrap().check().unwrap();
+            db.a.client().query("REMOVE EVENT IF EXISTS fail_world ON frame_world; REMOVE EVENT IF EXISTS fail_world ON frame_world_revision;").await.unwrap().check().unwrap();
         }
         assert!(a.publish_world(&owner, publication("world", "first", None)).await.unwrap().created);
-        assert_eq!(counts(&db).await, (1,1,3));
+        assert_eq!(counts(&db).await, (1,1));
     }).await.expect("world transaction rollback qualification exceeded 90 seconds");
 }

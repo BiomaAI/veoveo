@@ -69,7 +69,7 @@ impl ComputersStore {
             JournalChange {
                 kind: ProviderCommit::Dispatch,
                 permit: Some(&permit),
-                event: "computer.maintenance_step_dispatched",
+
                 checkpoint: None,
             },
         )
@@ -162,7 +162,7 @@ impl ComputersStore {
             JournalChange {
                 kind: ProviderCommit::Observe,
                 permit: None,
-                event: "computer.maintenance_observation_admitted",
+
                 checkpoint: None,
             },
         )
@@ -251,7 +251,7 @@ impl ComputersStore {
             JournalChange {
                 kind: ProviderCommit::Observe,
                 permit: None,
-                event: "computer.maintenance_step_reached",
+
                 checkpoint,
             },
         )
@@ -286,7 +286,7 @@ impl ComputersStore {
             JournalChange {
                 kind: ProviderCommit::Observe,
                 permit: None,
-                event: "computer.maintenance_recovery_required",
+
                 checkpoint: None,
             },
         )
@@ -310,7 +310,7 @@ impl ComputersStore {
             JournalChange {
                 kind: ProviderCommit::Observe,
                 permit: None,
-                event: "computer.maintenance_cancelled_before_dispatch",
+
                 checkpoint: None,
             },
         )
@@ -351,7 +351,7 @@ impl ComputersStore {
             JournalChange {
                 kind: ProviderCommit::Dispatch,
                 permit: Some(&permit),
-                event: "computer.maintenance_adopted",
+
                 checkpoint: None,
             },
         )

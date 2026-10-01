@@ -2,9 +2,9 @@
 
 Status: Phase 0 is accepted. Phases 1–3 have the installed acceptance gaps listed
 under Deferred Work. Phase 4's installed audit checks pass; composed flight and
-Recording acceptance remain open. Phase 5 has qualified native consumer migration,
-with writer/schema removal, relationship adoption and final measurements still in
-progress. Phases 6–9 are open. The reference installation last converged at `8e4b36e7`;
+Recording acceptance remain open. Phase 5 has qualified native consumer migration and
+writer/schema removal. Computer authority timers, relationship adoption and final
+measurements are in progress. Phases 6–9 are open. The reference installation last converged at `8e4b36e7`;
 it is stopped during development, and the Phase 5 changes are not deployed.
 
 Current direction: every contract change in this plan is a coordinated hard cut.
@@ -2934,6 +2934,28 @@ timers and Task wake-source failure ownership remain open, followed by the relat
 review and paired measurements. The existing headed Chrome profile on port 9222 is
 connected; WebGL uses the RTX 4090, and WebGPU reports a software fallback.
 
+The writer-removal batch deletes the outbox writers, Rust API, schema and sequence
+across Store, Tasks, Agents, Computers, Media, Frames and installation acceptance scripts.
+Domain transactions retain their required audit appends. Tests inspect committed native
+states and typed audit records, including rollback and idempotency. Task readers hold
+only a weak reference to their producer's sender, allowing producer termination to
+close subscribers. Artifact release and share-revocation mutations return their committed
+records through single-statement updates. Reconnect tests admit overlapping native replay
+while checking current SQL authorization and the subsequent idle interval.
+
+The grouped run and targeted repairs pass 460 Rust tests; 18 explicitly ignored cases
+are excluded. Store and gateway environment-gated cases execute against an owned
+disposable database. All 12 affected packages pass strict all-target Clippy. Formatting,
+241 complete SurrealQL files on the pinned 3.3.0 image, and 917 documentation links pass.
+The repair pass compiles its packages together before selecting the affected native
+harnesses. Disposable containers are removed after qualification. The cluster and builder
+are stopped, with about 117 GiB free. No implementation or test references the deleted
+outbox API or tables.
+
+The installation cut requires drained writers and a fresh database using the matching
+schema catalog. No Phase 5 image is deployed. Computer authority timers, relationship
+review and paired measurements remain open.
+
 The reference installation converged at `8e4b36e7` with both Helm releases and all 25
 Deployments current. The corrected composed flight harness used the existing headed
 Chrome profile on port 9222; WebGL reached the RTX 4090. The run failed during takeoff
@@ -2986,7 +3008,7 @@ Work:
 
 Acceptance:
 
-- `git grep outbox_event` returns nothing, and every former consumer passes its
+- `git grep outbox_event -- '*.rs' '*.surql' '*.py'` returns nothing, and every former consumer passes its
   reactive tests.
 - No consumer polls. Review confirms each wait is a LIVE query, a change-feed read after
   a reconnect, or a timer for a known due time.

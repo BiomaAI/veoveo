@@ -30,11 +30,6 @@ FOR $entry IN $entries {
         resources.template_config_map = $after.resources.template_config_map,
         operation = $after.operation, updated_at = $after.updated_at;
     CREATE ONLY $entry.operation.id CONTENT $entry.operation;
-    CREATE outbox_event SET tenant = $before.tenant, aggregate_type = 'managed_agent', aggregate_id = $before.key,
-        event_type = 'managed_agent.consolidate', schema_version = 1,
-        payload = {key: $before.key, generation: $after.generation, work_context: $before.work_context,
-            actor: $before.owner, operation: $after.operation, previous_definition: $before.definition,
-            definition: $after.definition};
 };
 RETURN $entries.map(|$entry| $entry.after.id);
 COMMIT TRANSACTION;

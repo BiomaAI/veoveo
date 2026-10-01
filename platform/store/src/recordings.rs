@@ -5,14 +5,12 @@ use std::collections::BTreeMap;
 use surrealdb::types::{RecordId, SurrealValue};
 
 use crate::{
-    ArtifactId, InvocationAuthorityRecord, OpenObject, OutboxDraft, PlatformIdentity,
-    PlatformStore, RecordingDatasetId, RecordingId, RecordingLayerState, RecordingRecord,
-    RecordingState, StoreError, TenantId, deterministic_principal_id,
-    deterministic_work_context_id,
+    ArtifactId, InvocationAuthorityRecord, OpenObject, PlatformIdentity, PlatformStore,
+    RecordingDatasetId, RecordingId, RecordingLayerState, RecordingRecord, RecordingState,
+    StoreError, TenantId, deterministic_principal_id, deterministic_work_context_id,
 };
 use veoveo_types::TaskId;
 
-const EVENT_SCHEMA_VERSION: i64 = 1;
 const MAX_RECORDING_LAYER_LIMIT: u32 = 10_000;
 
 mod reads;
@@ -137,18 +135,12 @@ impl PlatformStore {
             updated_at: now,
             revision: 0,
         };
-        let outbox = recording_event(
-            &draft.identity,
-            id,
-            "recording.created",
-            RecordingState::Live,
-        );
+
         let result = self
             .db
-            .query("BEGIN TRANSACTION; CREATE ONLY $recording CONTENT $content RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; CREATE ONLY $recording CONTENT $content RETURN NONE; COMMIT TRANSACTION;")
             .bind(("recording", id.record_id()))
             .bind(("content", content.clone()))
-            .bind(("outbox", outbox))
             .await
             .and_then(|response| response.check());
         if let Err(error) = result {
@@ -240,18 +232,12 @@ impl PlatformStore {
             });
         }
         let ended_at = ended_at.max(existing.last_data_at);
-        let outbox = recording_event(
-            identity,
-            recording_id,
-            "recording.ready",
-            RecordingState::Ready,
-        );
+
         self.db
-            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $recording); IF $current.revision != $revision OR $current.state != 'live' { THROW 'recording_revision_conflict'; }; UPDATE ONLY $recording SET state = 'ready', ended_at = $ended_at, failure_reason = NONE, updated_at = time::now(), revision += 1 RETURN AFTER; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $recording); IF $current.revision != $revision OR $current.state != 'live' { THROW 'recording_revision_conflict'; }; UPDATE ONLY $recording SET state = 'ready', ended_at = $ended_at, failure_reason = NONE, updated_at = time::now(), revision += 1 RETURN AFTER; COMMIT TRANSACTION;")
             .bind(("recording", recording_id.record_id()))
             .bind(("revision", existing.revision))
             .bind(("ended_at", ended_at))
-            .bind(("outbox", outbox))
             .await?
             .check()?;
         self.recording(identity.tenant_id, recording_id)
@@ -297,19 +283,13 @@ impl PlatformStore {
             });
         }
         let ended_at = ended_at.max(existing.last_data_at);
-        let outbox = recording_event(
-            identity,
-            recording_id,
-            "recording.interrupted",
-            RecordingState::Interrupted,
-        );
+
         self.db
-            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $recording); IF $current.revision != $revision OR $current.state != 'live' { THROW 'recording_revision_conflict'; }; UPDATE ONLY $recording SET state = 'interrupted', ended_at = $ended_at, failure_reason = $reason, updated_at = time::now(), revision += 1 RETURN AFTER; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $recording); IF $current.revision != $revision OR $current.state != 'live' { THROW 'recording_revision_conflict'; }; UPDATE ONLY $recording SET state = 'interrupted', ended_at = $ended_at, failure_reason = $reason, updated_at = time::now(), revision += 1 RETURN AFTER; COMMIT TRANSACTION;")
             .bind(("recording", recording_id.record_id()))
             .bind(("revision", existing.revision))
             .bind(("ended_at", ended_at))
             .bind(("reason", reason.to_owned()))
-            .bind(("outbox", outbox))
             .await?
             .check()?;
         self.recording(identity.tenant_id, recording_id)
@@ -341,17 +321,11 @@ impl PlatformStore {
                 target: "live",
             });
         }
-        let outbox = recording_event(
-            identity,
-            recording_id,
-            "recording.resumed",
-            RecordingState::Live,
-        );
+
         self.db
-            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $recording); IF $current.revision != $revision OR $current.state NOT IN ['ready', 'interrupted'] { THROW 'recording_revision_conflict'; }; UPDATE ONLY $recording SET state = 'live', ended_at = NONE, sealed_at = NONE, failure_reason = NONE, updated_at = time::now(), revision += 1 RETURN AFTER; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $recording); IF $current.revision != $revision OR $current.state NOT IN ['ready', 'interrupted'] { THROW 'recording_revision_conflict'; }; UPDATE ONLY $recording SET state = 'live', ended_at = NONE, sealed_at = NONE, failure_reason = NONE, updated_at = time::now(), revision += 1 RETURN AFTER; COMMIT TRANSACTION;")
             .bind(("recording", recording_id.record_id()))
             .bind(("revision", existing.revision))
-            .bind(("outbox", outbox))
             .await?
             .check()?;
         self.recording(identity.tenant_id, recording_id)
@@ -400,19 +374,13 @@ impl PlatformStore {
                 target: "sealing",
             });
         }
-        let outbox = recording_event(
-            identity,
-            recording_id,
-            "recording.sealing",
-            RecordingState::Sealing,
-        );
+
         self
             .db
-            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $recording); IF $current.revision != $revision OR $current.state NOT IN ['ready', 'interrupted'] { THROW 'recording_revision_conflict'; }; UPDATE ONLY $recording SET state = 'sealing', seal_task = $task, failure_reason = NONE, updated_at = time::now(), revision += 1 RETURN AFTER; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $recording); IF $current.revision != $revision OR $current.state NOT IN ['ready', 'interrupted'] { THROW 'recording_revision_conflict'; }; UPDATE ONLY $recording SET state = 'sealing', seal_task = $task, failure_reason = NONE, updated_at = time::now(), revision += 1 RETURN AFTER; COMMIT TRANSACTION;")
             .bind(("recording", recording_id.record_id()))
             .bind(("revision", existing.revision))
             .bind(("task", task_id.map(task_record_id)))
-            .bind(("outbox", outbox))
             .await?
             .check()?;
         self.recording(identity.tenant_id, recording_id)
@@ -463,19 +431,13 @@ impl PlatformStore {
                 target: "sealed",
             });
         }
-        let outbox = recording_event(
-            &seal.identity,
-            seal.recording_id,
-            "recording.sealed",
-            RecordingState::Sealed,
-        );
+
         self.db
-            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $recording); IF $current.revision != $revision OR $current.state != 'sealing' OR $current.manifest_artifact != $manifest { THROW 'recording_revision_conflict'; }; UPDATE ONLY $recording SET state = 'sealed', sealed_at = $sealed_at, failure_reason = NONE, updated_at = time::now(), revision += 1 RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $recording); IF $current.revision != $revision OR $current.state != 'sealing' OR $current.manifest_artifact != $manifest { THROW 'recording_revision_conflict'; }; UPDATE ONLY $recording SET state = 'sealed', sealed_at = $sealed_at, failure_reason = NONE, updated_at = time::now(), revision += 1 RETURN NONE; COMMIT TRANSACTION;")
             .bind(("recording", seal.recording_id.record_id()))
             .bind(("revision", existing.revision))
             .bind(("manifest", seal.manifest_artifact_id.record_id()))
             .bind(("sealed_at", seal.sealed_at))
-            .bind(("outbox", outbox))
             .await?
             .check()?;
         self.recording(seal.identity.tenant_id, seal.recording_id)
@@ -525,18 +487,12 @@ impl PlatformStore {
                 target: "stage recording manifest",
             });
         }
-        let outbox = recording_event(
-            identity,
-            recording_id,
-            "recording.manifest_staged",
-            RecordingState::Sealing,
-        );
+
         self.db
-            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $recording); IF $current.revision != $revision OR $current.state != 'sealing' OR $current.manifest_artifact != NONE { THROW 'recording_revision_conflict'; }; UPDATE ONLY $recording SET manifest_artifact = $artifact, updated_at = time::now(), revision += 1 RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $recording); IF $current.revision != $revision OR $current.state != 'sealing' OR $current.manifest_artifact != NONE { THROW 'recording_revision_conflict'; }; UPDATE ONLY $recording SET manifest_artifact = $artifact, updated_at = time::now(), revision += 1 RETURN NONE; COMMIT TRANSACTION;")
             .bind(("recording", recording_id.record_id()))
             .bind(("revision", recording.revision))
             .bind(("artifact", artifact_id.record_id()))
-            .bind(("outbox", outbox))
             .await?
             .check()?;
         self.recording(identity.tenant_id, recording_id)
@@ -564,19 +520,13 @@ impl PlatformStore {
                 target: "failed",
             });
         }
-        let outbox = recording_event(
-            identity,
-            recording_id,
-            "recording.seal_failed",
-            RecordingState::Failed,
-        );
+
         self
             .db
-            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $recording); IF $current.revision != $revision OR $current.state != 'sealing' { THROW 'recording_revision_conflict'; }; UPDATE ONLY $recording SET state = 'failed', failure_reason = $reason, updated_at = time::now(), revision += 1 RETURN AFTER; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $recording); IF $current.revision != $revision OR $current.state != 'sealing' { THROW 'recording_revision_conflict'; }; UPDATE ONLY $recording SET state = 'failed', failure_reason = $reason, updated_at = time::now(), revision += 1 RETURN AFTER; COMMIT TRANSACTION;")
             .bind(("recording", recording_id.record_id()))
             .bind(("revision", existing.revision))
             .bind(("reason", reason.to_owned()))
-            .bind(("outbox", outbox))
             .await?
             .check()?;
         self.recording(identity.tenant_id, recording_id)
@@ -671,25 +621,6 @@ fn validate_existing_recording(
         });
     }
     Ok(())
-}
-
-fn recording_event(
-    identity: &PlatformIdentity,
-    recording_id: RecordingId,
-    event_type: &str,
-    state: RecordingState,
-) -> OutboxDraft {
-    OutboxDraft::now(
-        Some(identity.tenant_id.record_id()),
-        "recording",
-        recording_id.to_string(),
-        event_type,
-        EVENT_SCHEMA_VERSION,
-        OpenObject::new(BTreeMap::from([
-            ("recording_id".to_owned(), serde_json::json!(recording_id)),
-            ("state".to_owned(), serde_json::json!(state)),
-        ])),
-    )
 }
 
 #[cfg(test)]

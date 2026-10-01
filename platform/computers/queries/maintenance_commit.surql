@@ -48,5 +48,4 @@ IF $stage = "succeeded" {
 } ELSE IF $stage = "stopping" AND array::last($progress.steps).evidence.kind = "stopped" {
   UPDATE ONLY $computer SET phase = "stopped", updated_at = $now;
 };
-CREATE outbox_event CONTENT $event;
 fn::append_audit($audit_rows);

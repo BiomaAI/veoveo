@@ -1,16 +1,15 @@
 //! Media ledger writes, retention and SQL selection for billing recovery.
 use super::{
-    MEDIA_EVENT_SCHEMA_VERSION, MediaProviderJob, MediaState, PROVIDER, STATE_ID_NAMESPACE,
-    open_object, provider_job, tenant_record,
+    MediaProviderJob, MediaState, PROVIDER, STATE_ID_NAMESPACE, open_object, provider_job,
+    tenant_record,
 };
 use crate::contract::MediaPredictionId;
 use chrono::{DateTime, Utc};
-use std::collections::BTreeMap;
 use uuid::Uuid;
 use veoveo_mcp_contract::{UsageKind, UsageRecord};
 use veoveo_platform_store::{
-    MediaUsageId, MediaUsageKind, MediaUsageRecord, OpenObject, OutboxDraft, ProviderJobId,
-    ProviderJobRecord, StoreError, task_record_id,
+    MediaUsageId, MediaUsageKind, MediaUsageRecord, ProviderJobId, ProviderJobRecord, StoreError,
+    task_record_id,
 };
 use veoveo_task_runtime::TaskSnapshot;
 use veoveo_types::TaskId;
@@ -65,23 +64,12 @@ impl MediaState {
             metadata: open_object(usage.metadata.clone()),
             recorded_at: usage.recorded_at,
         };
-        let outbox = OutboxDraft::now(
-            Some(tenant_record(&task.owner)?),
-            "media_usage",
-            id.to_string(),
-            "media.usage.recorded",
-            MEDIA_EVENT_SCHEMA_VERSION,
-            OpenObject::new(BTreeMap::from([(
-                "task_id".into(),
-                serde_json::json!(task.task_id.to_string()),
-            )])),
-        );
+
         self.store
             .client()
-            .query("BEGIN TRANSACTION; UPSERT ONLY $usage CONTENT $content RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; UPSERT ONLY $usage CONTENT $content RETURN NONE; COMMIT TRANSACTION;")
             .bind(("usage", id.record_id()))
             .bind(("content", record))
-            .bind(("outbox", outbox))
             .await?
             .check()?;
         Ok(())

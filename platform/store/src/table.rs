@@ -101,11 +101,10 @@ pub enum PlatformTable {
     ComputerSessionGrant,
     ComputerCliGrant,
     ComputerMaintenance,
-    OutboxEvent,
 }
 
 impl PlatformTable {
-    pub const ALL: [Self; 96] = [
+    pub const ALL: [Self; 95] = [
         Self::Enterprise,
         Self::Tenant,
         Self::Principal,
@@ -201,7 +200,6 @@ impl PlatformTable {
         Self::ComputerSessionGrant,
         Self::ComputerCliGrant,
         Self::ComputerMaintenance,
-        Self::OutboxEvent,
     ];
 
     pub const fn as_str(self) -> &'static str {
@@ -301,7 +299,6 @@ impl PlatformTable {
             Self::ComputerSessionGrant => "computer_session_grant",
             Self::ComputerCliGrant => "computer_cli_grant",
             Self::ComputerMaintenance => "computer_maintenance",
-            Self::OutboxEvent => "outbox_event",
         }
     }
 }

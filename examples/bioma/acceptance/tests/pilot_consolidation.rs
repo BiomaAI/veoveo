@@ -111,7 +111,7 @@ async fn rehearse() -> Result<()> {
         .check()?;
     let plan = prepare(&db.a, "uav-pilot-rehearsal").await?;
     let unchanged = protected_records(&db.a).await?;
-    // Last-row failure must roll back all earlier rows, operations and outbox events.
+    // Last-row failure must roll back all earlier rows and operations.
     db.a.client()
         .query("UPDATE ONLY $id SET name = 'concurrent edit';")
         .bind(("id", plan[3].before.id.clone()))

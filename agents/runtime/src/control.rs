@@ -2,7 +2,7 @@
 //!
 //! The gateway supplies actor and Work Context authority. This module resolves
 //! the tenant-unique public agent key inside that exact tenant/context tuple,
-//! then commits the wake and outbox edge atomically. The agent's stored MCP
+//! then commits the wake before native notification. The agent's stored MCP
 //! profile governs its own tool session and is not a human-control selector.
 //! This module never acquires the scheduler lease.
 
@@ -18,14 +18,13 @@ use veoveo_mcp_contract::{
 };
 use veoveo_platform_store::{
     AgentEpisodeRecord, AgentEpisodeState, AgentInputRequestId, AgentInputRequestRecord,
-    AgentInputRequestState, AgentRecord, AgentState, AgentTaskRecord, OpenObject, OutboxDraft,
-    PlatformStore, StoreAuthLevel, WakeId, WakeKind, WakeRecord, WakeState,
-    deterministic_tenant_id, deterministic_work_context_id,
+    AgentInputRequestState, AgentRecord, AgentState, AgentTaskRecord, OpenObject, PlatformStore,
+    StoreAuthLevel, WakeId, WakeKind, WakeRecord, WakeState, deterministic_tenant_id,
+    deterministic_work_context_id,
 };
 
 use crate::{AgentRuntimeError, InputRequestAnswer, Result, object, uuid_from_record};
 
-const EVENT_SCHEMA_VERSION: i64 = 1;
 const MAX_OPERATOR_MESSAGE_BYTES: usize = 16 * 1024;
 const MAX_ACTOR_ID_BYTES: usize = 2_048;
 
@@ -130,24 +129,8 @@ impl AgentControl {
             payload,
             now,
         );
-        let event = OutboxDraft::now(
-            Some(agent.tenant.clone()),
-            "wake",
-            wake_id.to_string(),
-            "wake.operator_message_enqueued",
-            EVENT_SCHEMA_VERSION,
-            object([
-                ("agent_key".to_owned(), serde_json::json!(agent.agent_key)),
-                ("actor_id".to_owned(), serde_json::json!(draft.actor_id)),
-                (
-                    "work_context".to_owned(),
-                    serde_json::json!(target.work_context_key),
-                ),
-            ]),
-        );
-        let accepted_at = self
-            .create_wake_idempotently(wake_id, &content, event)
-            .await?;
+
+        let accepted_at = self.create_wake_idempotently(wake_id, &content).await?;
         Ok(receipt(target, wake_id, draft.request_id, accepted_at))
     }
 
@@ -336,28 +319,11 @@ impl AgentControl {
             payload,
             now,
         );
-        let event = OutboxDraft::now(
-            Some(agent.tenant.clone()),
-            "agent_input_request",
-            draft.input_request_id.to_string(),
-            "agent_input_request.answered",
-            EVENT_SCHEMA_VERSION,
-            object([
-                ("wake_id".to_owned(), serde_json::json!(wake_id)),
-                (
-                    "actor_id".to_owned(),
-                    serde_json::json!(draft.answer.answered_by),
-                ),
-                (
-                    "work_context".to_owned(),
-                    serde_json::json!(target.work_context_key),
-                ),
-            ]),
-        );
+
         let result = self
             .store
             .client()
-            .query("BEGIN TRANSACTION; LET $answered = (UPDATE ONLY $input_request SET state = $state, answer = $answer, answered_by = $answered_by, answered_at = $now, revision += 1 WHERE agent = $agent AND tenant = $tenant AND state = 'pending' AND revision = $revision RETURN AFTER); IF $answered = NONE { THROW 'agent input_request answer conflict'; }; CREATE ONLY $wake CONTENT $wake_content RETURN NONE; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; LET $answered = (UPDATE ONLY $input_request SET state = $state, answer = $answer, answered_by = $answered_by, answered_at = $now, revision += 1 WHERE agent = $agent AND tenant = $tenant AND state = 'pending' AND revision = $revision RETURN AFTER); IF $answered = NONE { THROW 'agent input_request answer conflict'; }; CREATE ONLY $wake CONTENT $wake_content RETURN NONE; COMMIT TRANSACTION;")
             .bind(("input_request", draft.input_request_id.record_id()))
             .bind(("agent", agent.id.clone()))
             .bind(("tenant", agent.tenant.clone()))
@@ -368,7 +334,6 @@ impl AgentControl {
             .bind(("revision", existing.revision))
             .bind(("wake", wake_id.record_id()))
             .bind(("wake_content", wake_content))
-            .bind(("event", event))
             .await
             .and_then(|response| response.check());
         if let Err(error) = result {
@@ -482,15 +447,13 @@ impl AgentControl {
         &self,
         wake_id: WakeId,
         content: &ExternalWakeContent,
-        event: OutboxDraft,
     ) -> Result<DateTime<Utc>> {
         let result = self
             .store
             .client()
-            .query("BEGIN TRANSACTION; CREATE ONLY $wake CONTENT $content RETURN NONE; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; CREATE ONLY $wake CONTENT $content RETURN NONE; COMMIT TRANSACTION;")
             .bind(("wake", wake_id.record_id()))
             .bind(("content", content.clone()))
-            .bind(("event", event))
             .await
             .and_then(|response| response.check());
         if let Err(error) = result {

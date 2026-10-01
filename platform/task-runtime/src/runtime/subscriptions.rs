@@ -7,7 +7,7 @@ use veoveo_platform_store::{
 
 #[derive(Default)]
 pub(super) struct SharedWake {
-    source: Mutex<Option<watch::Sender<WakeGeneration>>>,
+    source: Mutex<std::sync::Weak<watch::Sender<WakeGeneration>>>,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -24,7 +24,10 @@ impl SharedWake {
         worker: &str,
     ) -> Result<watch::Receiver<WakeGeneration>, TaskError> {
         let mut source = self.source.lock().await;
-        if let Some(source) = source.as_ref().filter(|source| source.receiver_count() > 0) {
+        if let Some(source) = source
+            .upgrade()
+            .filter(|source| source.receiver_count() > 0)
+        {
             return Ok(source.subscribe());
         }
         let consumer = ChangefeedConsumerId::new(format!("tasks/{server}/{worker}"))?;
@@ -33,7 +36,8 @@ impl SharedWake {
             cursor,
             connections: 0,
         });
-        *source = Some(sender.clone());
+        let sender = Arc::new(sender);
+        *source = Arc::downgrade(&sender);
         tokio::spawn(async move {
             let mut changes = store.observe_changes(vec![PlatformTable::Task], cursor);
             loop {

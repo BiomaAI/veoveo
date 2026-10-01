@@ -329,12 +329,6 @@ async fn store_reconnect_reconciles_runs_without_interrupting_live_updates() {
         }
         switch.set_enabled(false).await;
         complete(&writer, id).await;
-        db.a.client()
-            .query("DELETE outbox_event WHERE aggregate_type = 'task' RETURN NONE;")
-            .await
-            .unwrap()
-            .check()
-            .unwrap();
         hub.notify_resource_updated(uris::session_preview_uri(session))
             .await;
         let update = next(&mut updates).await;

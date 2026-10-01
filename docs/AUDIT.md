@@ -122,7 +122,7 @@ When the audit store is unavailable, no new authorization is issued. An authoriz
 already issued keeps working until it expires or is revoked, and viewers and
 simulation continue.
 
-Audit writes produce no outbox events. `audit_record` has a change feed without
+`audit_record` has a native change feed without
 `INCLUDE ORIGINAL`, because a record never changes after commit. A reader that follows
 the log, such as the Console's live view or an agent that reacts to audit, holds a LIVE
 query filtered by partition and resumes from its change-feed cursor after a reconnect,

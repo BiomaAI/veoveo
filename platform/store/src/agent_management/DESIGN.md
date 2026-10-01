@@ -8,7 +8,7 @@ admission and controller fencing; its external provisioning integration is in pr
 
 | Boundary | Profile |
 |---|---|
-| SurrealDB `3.3.0` | Migration 0088, explicit transactions, typed bindings, current context digests and the existing transactional outbox |
+| SurrealDB `3.3.0` | Explicit transactions, typed bindings, current context digests and native table changefeeds |
 | Veoveo identity and Work Context | Caller-authenticated user or service principal, exact tenant/context and current action-policy admission |
 | UUID | Client UUIDv7 request identity; deterministic UUIDv5 internal definition/receipt identity |
 | JSON and SHA-256 | Canonical typed Rust content serialization binds a published revision; this is an internal digest, not a provider protocol |
@@ -36,7 +36,8 @@ identifier or from definition ownership alone.
 
 ## Transactions And Revisions
 
-One mutation commits the definition, its idempotency receipt and an outbox event.
+One mutation commits the definition and its idempotency receipt. Native table feeds
+carry the resulting changes.
 Create reserves one retained-definition slot in the context's shared counter. Concurrent
 creators contend on that counter, including when they choose different keys. Archive
 retains the record and its capacity reservation. The caller supplies an installation
@@ -53,8 +54,9 @@ a managed service through a draft edit; create a separate definition for that ro
 Request identity binds tenant, actor and payload. A repeated request returns its
 original response snapshot, even after a subsequent edit. A changed payload conflicts.
 Replay still requires current identity, context and ownership. Receipts contain private
-authoring data and have no public collection endpoint. Outbox payloads contain IDs and
-revisions only; no prompt or provider credential enters event payloads.
+authoring data and have no public collection endpoint. Public notifications contain
+only the digest of currently admitted metadata; private authoring content stays behind
+its SQL admission.
 
 Catalog observation computes a SHA-256 revision from rows admitted in SQL and ordered
 by domain key. The management revision includes the public catalog and only definitions

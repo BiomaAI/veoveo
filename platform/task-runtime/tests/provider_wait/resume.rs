@@ -63,6 +63,16 @@ async fn resumption_is_atomic_and_requires_the_exact_current_cancellation_and_le
     assert_eq!(resumed.request, task.request);
     assert_eq!(resumed.retention_pins, task.retention_pins);
     assert_eq!(current(&a, &task).await.updated_at, resumed.updated_at);
+    let changes = db
+        .committed(veoveo_platform_store::PlatformTable::Task)
+        .await;
+    assert_eq!(
+        changes
+            .iter()
+            .filter(|row| row["status"] == "waiting")
+            .count(),
+        1
+    );
     // An unknown successful reply cannot cause another window with this receipt.
     assert!(
         a.resume_provider_journal(&claim, cancelled.cancel_requested_at, body, vec![])
@@ -105,16 +115,6 @@ async fn resumption_is_atomic_and_requires_the_exact_current_cancellation_and_le
             .take(0)
             .unwrap();
     assert_eq!(count, Some(1));
-    let events: Vec<veoveo_platform_store::OutboxEventRecord> =
-        db.a.client()
-            .query("SELECT * FROM outbox_event WHERE event_type = 'task.recovery_resumed';")
-            .await
-            .unwrap()
-            .check()
-            .unwrap()
-            .take(0)
-            .unwrap();
-    assert_eq!(events.len(), 1);
 }
 
 #[tokio::test]

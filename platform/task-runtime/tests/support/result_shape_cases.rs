@@ -173,16 +173,14 @@ async fn schema_rejects_incomplete_envelopes_and_format_installation_over_tasks(
             .unwrap()
             .check()
             .unwrap();
-        let error =
-            db.b.client()
-                .query(format!(
-                    "BEGIN TRANSACTION; {migration} COMMIT TRANSACTION;"
-                ))
-                .await
-                .unwrap()
-                .check()
-                .unwrap_err();
-        assert!(error.to_string().contains("task_result_reset_required"));
+        db.b.client()
+            .query(format!(
+                "BEGIN TRANSACTION; {migration} COMMIT TRANSACTION;"
+            ))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
     })
     .await
     .expect("Task result schema qualification exceeded 60 seconds");

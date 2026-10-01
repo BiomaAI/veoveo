@@ -1,10 +1,8 @@
 use super::{CommandOperation, model};
 use crate::{ComputerError, ComputersStore, Result};
 use chrono::{DateTime, Utc};
-use serde::Serialize;
 use std::time::Instant;
 use surrealdb::types::{SurrealValue, Value};
-use veoveo_platform_store::{OutboxDraft, deterministic_tenant_id};
 use veoveo_task_runtime::{ClaimedTask, ProviderCommit, TaskError, TaskRuntime};
 use veoveo_types::TaskTypeDefinition;
 
@@ -66,45 +64,6 @@ impl ComputersStore {
         mut params: Vec<(&'static str, Value)>,
         event: crate::audit::ExecutionTransition,
     ) -> Result<()> {
-        #[derive(Serialize)]
-        struct Event<'a> {
-            execution_id: veoveo_computers_contract::ExecutionId,
-            computer_id: veoveo_computers_contract::ComputerId,
-            grant_id: veoveo_computers_contract::AutomationGrantId,
-            actor: &'a crate::AcceptedAuthority,
-            dispatch_authority: Option<&'a super::CommandDispatchDecision>,
-            interruption: Option<super::CommandInterruption>,
-            refusal: Option<super::CommandRefusal>,
-            termination_evidence: Option<super::outcome::TerminationEvidence>,
-            result: Option<crate::api::ExecutionResult>,
-        }
-        let payload = serde_json::from_value(
-            serde_json::to_value(Event {
-                execution_id: operation.execution_id(),
-                computer_id: operation.computer_id(),
-                grant_id: operation.binding.grant_id,
-                actor: &operation.authority,
-                dispatch_authority: operation.dispatch_authority.as_ref(),
-                interruption: operation.interruption,
-                refusal: operation.refusal,
-                termination_evidence: operation.termination_evidence,
-                result: operation.result,
-            })
-            .map_err(|_| ComputerError::Unavailable)?,
-        )
-        .map_err(|_| ComputerError::Unavailable)?;
-        let outbox = OutboxDraft::now(
-            Some(
-                deterministic_tenant_id(operation.actor().tenant_key())
-                    .map_err(|_| ComputerError::Unavailable)?
-                    .record_id(),
-            ),
-            "computer",
-            operation.computer_id().to_string(),
-            event.event(crate::audit::ExecutionDomain::Command),
-            1,
-            payload,
-        );
         params.extend([
             (
                 "execution",
@@ -120,7 +79,6 @@ impl ComputersStore {
             ),
             ("slot", super::slot(operation.computer_id()).into_value()),
             ("provider", self.provider_instance_id.into_value()),
-            ("event", outbox.into_value()),
         ]);
         use veoveo_audit_contract::AuditReason;
         let failure = match event {

@@ -26,6 +26,44 @@ pub struct TestDb {
 }
 
 impl TestDb {
+    /// Replay committed rows from an isolated fixture. Assertions inspect native
+    /// domain state; definitions and deletions do not represent a new row state.
+    #[allow(
+        dead_code,
+        reason = "Only transition qualification reads committed rows"
+    )]
+    pub async fn committed(
+        &self,
+        table: veoveo_platform_store::PlatformTable,
+    ) -> Vec<serde_json::Value> {
+        use veoveo_platform_store::{ChangefeedCursor, ChangefeedEntry, decode_changefeed_entry};
+        tokio::time::timeout(Duration::from_secs(30), async {
+            let mut cursor = ChangefeedCursor::initial();
+            let mut rows = Vec::new();
+            loop {
+                let batches = self.b.replay_changes(cursor, 1_000).await.unwrap();
+                let Some(last) = batches.last() else {
+                    return rows;
+                };
+                cursor =
+                    ChangefeedCursor::from_versionstamp(last.versionstamp.checked_add(1).unwrap())
+                        .unwrap();
+                for batch in batches {
+                    for value in batch.changes {
+                        let change = decode_changefeed_entry(&value).unwrap();
+                        if change.table() == Some(table.as_str())
+                            && let ChangefeedEntry::Upsert(row) = change
+                        {
+                            rows.push(row.into_json_value());
+                        }
+                    }
+                }
+            }
+        })
+        .await
+        .expect("fixture native replay exceeded 30 seconds")
+    }
+
     #[allow(
         dead_code,
         reason = "Fixture consumers select memory or RocksDB explicitly"

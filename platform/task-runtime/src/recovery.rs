@@ -1,7 +1,7 @@
 //! Recovery preserves each declared completion profile.
 use crate::{
     TaskRuntime,
-    runtime::{recovery_result, status_name, task_event},
+    runtime::recovery_result,
     types::{
         RecoveryClass, RecoveryReport, RequestEnvelope, TaskError, TaskFailure, TaskSnapshot,
         TaskTransition, failure_to_open_object, record_to_snapshot,
@@ -124,20 +124,12 @@ impl TaskRuntime {
             poll_interval_ms: task.poll_interval_ms,
         };
         let terminal = status == StoreTaskStatus::Failed;
-        let mut event_snapshot = task.clone();
-        event_snapshot.status = status;
-        event_snapshot.status_message = Some(message.to_owned());
-        event_snapshot.error = failure.clone();
-        event_snapshot.lease_owner = None;
-        event_snapshot.lease_expires_at = None;
-        event_snapshot.completed_at = terminal.then_some(now);
-        event_snapshot.updated_at = now;
-        let event = task_event(&event_snapshot, &format!("task.{}", status_name(status)))?;
+
         let mut response = self
             .platform_store()
             .client()
             .query(
-                "BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $task SET status = $status, request = $request, error = $error, lease_owner = NONE, lease_expires_at = NONE, completed_at = $completed_at, updated_at = $now WHERE status = $expected AND updated_at = $expected_updated_at AND (lease_expires_at = NONE OR lease_expires_at <= $now) RETURN AFTER); IF $updated != NONE { CREATE outbox_event CONTENT $event RETURN NONE; }; RETURN $updated; COMMIT TRANSACTION;",
+                "BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $task SET status = $status, request = $request, error = $error, lease_owner = NONE, lease_expires_at = NONE, completed_at = $completed_at, updated_at = $now WHERE status = $expected AND updated_at = $expected_updated_at AND (lease_expires_at = NONE OR lease_expires_at <= $now) RETURN AFTER); RETURN $updated; COMMIT TRANSACTION;",
             )
             .bind(("task", task_record_id(task.task_id)))
             .bind(("status", status))
@@ -147,10 +139,9 @@ impl TaskRuntime {
             .bind(("now", now))
             .bind(("expected", task.status))
             .bind(("expected_updated_at", task.updated_at))
-            .bind(("event", event))
             .await?
             .check()?;
-        let updated: Option<TaskRecord> = response.take(3)?;
+        let updated: Option<TaskRecord> = response.take(2)?;
         let snapshot = updated
             .map(record_to_snapshot)
             .transpose()?

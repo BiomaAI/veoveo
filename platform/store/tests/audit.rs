@@ -82,7 +82,6 @@ async fn batches_commit_across_replicas_and_conflicting_identity_rolls_back_the_
                 .iter()
                 .all(|record| record.draft.id() != pending.id())
         );
-        assert!(db.b.read_outbox(0, 1000).await.unwrap().events.is_empty());
     })
     .await
     .expect("audit batch fixture exceeded 90 seconds");

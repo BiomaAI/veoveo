@@ -61,10 +61,6 @@ impl TaskRuntime {
             ),
             ("_resume_now", now.into_value()),
             ("_resume_request", envelope.into_value()),
-            (
-                "_resume_event",
-                crate::runtime::task_event(&resumed, "task.recovery_resumed")?.into_value(),
-            ),
         ]);
         let body = format!(
             "IF $_provider_guard.status != $_resume_status \
@@ -73,7 +69,7 @@ impl TaskRuntime {
              {{ THROW 'provider_lease_lost'; }}; \
              {body}\n\
              UPDATE ONLY $_provider_task SET status = 'waiting', request = $_resume_request, updated_at = $_resume_now; \
-             CREATE outbox_event CONTENT $_resume_event;"
+             "
         );
         self.commit_provider_body(claimed, ProviderCommit::Observe, &body, bindings)
             .await?;

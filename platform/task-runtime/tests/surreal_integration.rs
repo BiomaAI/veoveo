@@ -77,7 +77,7 @@ async fn runtime(worker: &str) -> (fixture::TestDb, TaskRuntime) {
 #[tokio::test]
 async fn task_lifecycle_is_durable_atomic_and_idempotent() {
     tokio::time::timeout(Duration::from_secs(60), async {
-        let (_db, runtime) = runtime("worker-a").await;
+        let (db, runtime) = runtime("worker-a").await;
         let mut create = draft("forecast", RecoveryClass::Resume);
         create.idempotency_key = Some("same-request".to_owned());
         let first = runtime.create(create.clone()).await.unwrap();
@@ -110,15 +110,8 @@ async fn task_lifecycle_is_durable_atomic_and_idempotent() {
                 .unwrap(),
             TaskPayloadState::Completed(json!({"answer": 42}))
         );
-        let outbox = runtime.platform_store().read_outbox(0, 100).await.unwrap();
-        assert!(
-            outbox.events.iter().any(|event| {
-                event.aggregate_id == first.snapshot.task_id.to_string()
-                    && event.event_type == "task.succeeded"
-            }),
-            "outbox events: {:?}",
-            outbox.events
-        );
+        let states = db.committed(veoveo_platform_store::PlatformTable::Task).await;
+        assert!(states.iter().any(|row| row["status"] == "succeeded" && row["result"]["payload"]["answer"] == 42));
     })
     .await
     .expect("task_lifecycle_is_durable_atomic_and_idempotent exceeded 60 seconds");
@@ -246,7 +239,7 @@ async fn recovery_classes_and_leases_are_enforced() {
 }
 
 #[tokio::test]
-async fn replicas_use_revision_cas_and_emit_no_phantom_outbox_events() {
+async fn replicas_use_revision_cas_and_commit_only_accepted_transitions() {
     tokio::time::timeout(Duration::from_secs(60), async {
         let (db, first) = runtime("worker-a").await;
         let second = TaskRuntime::new(db.b.clone(), "integration-server", "worker-b");
@@ -272,8 +265,6 @@ async fn replicas_use_revision_cas_and_emit_no_phantom_outbox_events() {
             _ => unreachable!("exactly one replica claimed the task"),
         };
 
-        let page = first.platform_store().read_outbox(0, 1_000).await.unwrap();
-        let before = page.next_sequence;
         assert!(matches!(
             other_runtime
                 .transition_if_current(
@@ -316,23 +307,22 @@ async fn replicas_use_revision_cas_and_emit_no_phantom_outbox_events() {
                 .await
                 .is_err()
         );
-        let after = first
-            .platform_store()
-            .read_outbox(before, 100)
-            .await
-            .unwrap();
+        let changes = db
+            .committed(veoveo_platform_store::PlatformTable::Task)
+            .await;
         assert_eq!(
-            after
-                .events
+            changes.iter().filter(|row| row["progress"] == 0.25).count(),
+            1
+        );
+        assert!(
+            !changes
                 .iter()
-                .filter(|event| event.event_type == "task.running")
-                .count(),
-            1,
-            "failed CAS must not publish an outbox event"
+                .any(|row| row["progress"] == 0.1 || row["progress"] == 0.5),
+            "failed CAS committed a Task state"
         );
     })
     .await
-    .expect("replicas_use_revision_cas_and_emit_no_phantom_outbox_events exceeded 60 seconds");
+    .expect("replicas_use_revision_cas_and_commit_only_accepted_transitions exceeded 60 seconds");
 }
 
 #[tokio::test]

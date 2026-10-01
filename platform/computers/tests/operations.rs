@@ -134,21 +134,20 @@ async fn concurrent_operation_retry_has_one_fence_task_and_audit_identity() {
         .await,
         Err(ComputerError::OperationBusy)
     ));
-    let events = db.a.read_outbox(0, 100).await.unwrap().events;
+    let events = db
+        .committed(veoveo_platform_store::PlatformTable::AuditRecord)
+        .await;
     assert_eq!(
         events
             .iter()
-            .filter(|e| e.event_type == "computer.operation_queued")
+            .filter(|row| row["draft"]["detail"]["stage"] == "queued")
             .count(),
         1
     );
-    assert_eq!(
-        events
-            .iter()
-            .filter(|e| e.event_type == "task.created")
-            .count(),
-        1
-    );
+    let tasks = db
+        .committed(veoveo_platform_store::PlatformTable::Task)
+        .await;
+    assert_eq!(tasks.len(), 1);
     // Task recovery neither queues a second effect nor clears the Computer fence.
     assert_eq!(
         task_runtime.recover().await.unwrap().provider_waiting.len(),

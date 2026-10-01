@@ -340,9 +340,8 @@ async fn revoked_resource_updates_are_filtered_in_sql_before_malformed_payload_d
             .resource_subscriptions([uri(revoked, Kind::Status), uri(sentinel, Kind::Status)]).build();
         let mut updates = TaskResourceSubscriptions::from_filter::<Address>(&filter).unwrap().subscribe(&service, &owner()).await.unwrap();
         for _ in 0..2 { updates.next().await.unwrap().unwrap(); }
-        db.b.client().query("UPDATE ONLY $task SET request.owner.data_labels = ['restricted'], request.input = NONE RETURN NONE;
-            CREATE outbox_event SET aggregate_type = 'task', aggregate_id = $id, event_type = 'task.fixture', schema_version = 3, payload = {snapshot: {server: 'resource-fixture'}} RETURN NONE;")
-            .bind(("task", veoveo_platform_store::task_record_id(revoked))).bind(("id", revoked.to_string())).await.unwrap().check().unwrap();
+        db.b.client().query("UPDATE ONLY $task SET request.owner.data_labels = ['restricted'], request.input = NONE RETURN NONE;")
+            .bind(("task", veoveo_platform_store::task_record_id(revoked))).await.unwrap().check().unwrap();
         assert!(writer.get(&revoked.to_string()).await.is_err());
         writer.claim(&sentinel.to_string(), Duration::from_secs(30)).await.unwrap();
         writer.transition(&sentinel.to_string(), TaskTransition::Succeeded { message: "done".into(), result: json!({"value":42}) }).await.unwrap();
@@ -361,7 +360,7 @@ async fn revoked_resource_updates_are_filtered_in_sql_before_malformed_payload_d
 }
 
 #[tokio::test]
-async fn live_source_reconnection_reconciles_current_resources_after_history_loss() {
+async fn live_source_reconnection_reconciles_current_resources_after_connection_loss() {
     tokio::time::timeout(Duration::from_secs(60), async {
         let db = fixture::TestDb::new().await;
         let endpoint = db.a.config().endpoint();
@@ -378,15 +377,22 @@ async fn live_source_reconnection_reconciles_current_resources_after_history_los
         switch.set_enabled(false).await;
         writer.claim(&target.to_string(), Duration::from_secs(30)).await.unwrap();
         writer.transition(&target.to_string(), TaskTransition::Succeeded { message: "finished during source loss".into(), result: json!({"value":42}) }).await.unwrap();
-        db.b.client().query("UPDATE ONLY $task SET request.owner.data_labels = ['restricted'], request.input = NONE RETURN NONE;
-            DELETE outbox_event WHERE aggregate_type = 'task' RETURN NONE;")
+        db.b.client().query("UPDATE ONLY $task SET request.owner.data_labels = ['restricted'], request.input = NONE RETURN NONE;")
             .bind(("task", veoveo_platform_store::task_record_id(revoked))).await.unwrap().check().unwrap();
         switch.set_enabled(true).await;
-        let update = tokio::time::timeout(Duration::from_secs(15), updates.next()).await.expect("LIVE reconnect must reconcile after event retention loss").unwrap().unwrap();
+        let update = tokio::time::timeout(Duration::from_secs(15), updates.next()).await.expect("LIVE reconnect must reconcile current state").unwrap().unwrap();
         assert_eq!(update.task.unwrap().task.status, TaskStatus::Completed);
         assert_eq!(update.resources.len(), 1);
         assert_eq!(update.resources[0].as_str(), uri(target, Kind::Output));
-        // Reconciliation follows reconnection, never an idle agent-waking timer.
+        // Native replay overlaps the reconnect baseline and may repeat the current
+        // state. Every delivery must still exclude the revoked resource. Drain the
+        // recovery burst, then cover the former 15-second periodic wake interval.
+        let settled = tokio::time::Instant::now() + Duration::from_secs(3);
+        while let Ok(update) = tokio::time::timeout_at(settled, updates.next()).await {
+            let update = update.expect("Task source closed during recovery").unwrap();
+            assert_eq!(update.task.unwrap().task.status, TaskStatus::Completed);
+            assert_eq!(update.resources, [Address { id: target, kind: Kind::Output }.to_uri().unwrap()]);
+        }
         assert!(tokio::time::timeout(Duration::from_secs(16), updates.next()).await.is_err());
     }).await.expect("Task resource source recovery exceeded 60 seconds");
 }

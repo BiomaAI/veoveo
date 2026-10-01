@@ -129,8 +129,6 @@ pub enum StoreError {
     InvalidChangefeedEntry { reason: &'static str },
     #[error("change-feed consumer identity must contain 1–256 ASCII identifier characters")]
     InvalidChangefeedConsumer,
-    #[error("outbox page limit must be in 1..={max}")]
-    InvalidOutboxLimit { max: u32 },
     #[error("SurrealDB returned no record for {operation}")]
     MissingRecord { operation: &'static str },
     #[error("invalid platform identity field {field}: {reason}")]

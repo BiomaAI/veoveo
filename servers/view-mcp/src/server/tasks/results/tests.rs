@@ -16,7 +16,7 @@ fn assert_completed(task: DetailedTask, expected: &Value) {
 }
 
 #[tokio::test]
-async fn checked_completion_survives_cross_replica_reads_and_eventless_reconnect() {
+async fn checked_completion_survives_cross_replica_reads_and_reconnect() {
     tokio::time::timeout(Duration::from_secs(90), async {
         let db = fixture::TestDb::new().await;
         let endpoint = db.a.config().endpoint();
@@ -41,12 +41,7 @@ async fn checked_completion_survives_cross_replica_reads_and_eventless_reconnect
         ));
         switch.set_enabled(false).await;
         finish(&writer, id, expected.clone()).await;
-        db.b.client()
-            .query("DELETE outbox_event WHERE aggregate_type = 'task' RETURN NONE;")
-            .await
-            .unwrap()
-            .check()
-            .unwrap();
+
         switch.set_enabled(true).await;
         loop {
             let task = subscription.updates.next().await.unwrap().unwrap();
@@ -70,15 +65,9 @@ async fn checked_completion_survives_cross_replica_reads_and_eventless_reconnect
         let mut corrupt = expected;
         corrupt["content"][1]["data"] = json!(BASE64_STANDARD.encode(b"different capture bytes"));
         db.b.client()
-            .query(
-                "UPDATE ONLY $task SET result = { payload: $result } RETURN NONE;
-                 CREATE outbox_event SET aggregate_type = 'task', aggregate_id = $id,
-                 event_type = 'task.fixture', schema_version = 3,
-                 payload = { snapshot: { server: 'view' } } RETURN NONE;",
-            )
+            .query("UPDATE ONLY $task SET result = { payload: $result } RETURN NONE;")
             .bind(("task", task_record_id(id)))
             .bind(("result", corrupt))
-            .bind(("id", id.to_string()))
             .await
             .unwrap()
             .check()

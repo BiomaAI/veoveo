@@ -5,7 +5,7 @@
 | Boundary | Supported profile |
 |---|---|
 | Veoveo identity and Work Context | Canonical TaskOwner authority, named user/service principals, tenant and context isolation; current implementation admits private ownership |
-| SurrealDB / SurrealQL 3.3.0 | Existing qualified platform client/server pin; schema-full records, atomic multi-record admission and outbox, conflict-only bounded transaction retry |
+| SurrealDB / SurrealQL 3.3.0 | Existing qualified platform client/server pin; schema-full records, atomic multi-record admission and audit append, native table changefeeds, conflict-only bounded transaction retry |
 | Veoveo Computers JSON | Public DTOs live in `contract/`; provider identities and persisted authority remain internal |
 | Veoveo audit record v1 | Closed Computer activities and journal stages, verified request attribution and transactional append through the shared Store function |
 | XChaCha20-Poly1305 and HMAC-SHA-256 | Private command, output-capability and maintenance-checkpoint envelope v1; installation-owned keys, random 192-bit nonces, distinct derived encryption and fingerprint keys and authenticated purposes; no public wire extension |
@@ -41,7 +41,7 @@ Connection lease checks and activity timestamps belong to the access ledger and 
 create per-tick records. An observed host restart records the verified reader who
 triggered the observation. SQL fences reject stale observations before any record can
 commit. Audit records contain no command text, file bytes, credentials or provider
-payloads. The existing outbox still supplies domain notifications.
+payloads. Native table changefeeds supply domain notifications.
 
 ## Admission And Ownership
 
@@ -147,7 +147,7 @@ a host restart. Its input comes from an authenticated provider read of the same
 provider, resource, retained instance and template. The read must be less than ten
 seconds old. A transaction compares the previous process and row timestamp, refuses
 an active lifecycle operation or command/file slot, updates the process, revokes old
-browser grants and writes `computer.run_observed` to the outbox. Existing CLI
+browser grants and appends the typed restart-observed audit record. Existing CLI
 connections fail their process check on renewal. Ownership, resource grants and
 retained storage do not change. Concurrent or stale observations must reread; they
 cannot settle uncertain work. No persistent format changes or provider mutations
@@ -316,8 +316,8 @@ permission on the exact Computer URI. `computer_attach` has no MCP method. Lifec
 tool permission supplies no interactive access. The caller must own the Computer and
 retain clearance for its labels. The Computer must be Ready without an active operation.
 The transaction verifies the selected control revision, enabled identities, live family,
-current limits and exact provider resource/process before recording the grant and outbox
-event. Concurrent admissions serialize through the provider policy and Computer guard.
+current limits and exact provider resource/process before recording the grant and
+its audit record. Concurrent admissions serialize through the provider policy and Computer guard.
 
 A ticket contains a grant UUID and 256 random bits. Storage keeps only a domain-separated
 SHA-256 hash. Redemption requires the same authenticated owner, profile, OAuth client,
@@ -641,7 +641,7 @@ framing. No provider or installation is needed for these pure checks.
 transaction rechecks the control revision, enabled source and owner principals,
 caller session family, grant revision and installation policy fingerprint. The
 retained Computer owner context and exact provider run must still match. It commits
-the command, request identity, exclusive execution slot and outbox event together.
+the command, request identity, exclusive execution slot and audit record together.
 An authority read prepared before revocation or a policy reduction cannot admit work.
 
 Request identity binds the actual source principal and OAuth client as well as the
@@ -823,8 +823,8 @@ clearance. The installation, tenant, source principal and actor must exist with
 their recorded bindings and remain enabled. No positive policy or account result is
 cached. The complete read has a five-second deadline.
 
-Migration 0057 records the current policy revision and decision with the dispatch
-and its outbox event. The journal transaction rechecks the selected policy pointer
+The dispatch transaction records the current policy revision, decision and typed
+audit record. The journal transaction rechecks the selected policy pointer
 and current account enablement under the exact Task lease. The non-cloneable ticket
 expires monotonically thirty seconds after the authority read began; database and
 policy work consume that same interval. Provider submission must fit within it.

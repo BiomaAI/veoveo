@@ -21,7 +21,4 @@ FOR $entry IN $command.entries {
             chat = $before.chat, sequence = $head.sequence, kind = 'agent', target = $before.id;
     };
 };
-CREATE outbox_event SET tenant = $authority.tenant, aggregate_type = 'agent_catalog_import',
-    aggregate_id = <string> $authority.work_context, event_type = string::concat('agent_catalog_import.', $command.direction),
-    schema_version = 1, payload = { work_context: $authority.work_context, actor: $authority.principal, bindings: array::len($command.entries) };
 RETURN array::len($command.entries);

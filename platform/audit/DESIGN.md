@@ -29,7 +29,6 @@ Domain callers bind checked `AuditTransactionWrite` values and call Store's
 independent transaction. Its maximum is 4,096 records per domain transaction.
 Store compares an existing record's complete typed
 draft before accepting a repeated identity; a mismatched retry fails the transaction.
-Audit writes emit no outbox records.
 
 Upload publication constructs its audit draft from the completion request context
 stored on the upload and calls the append function inside the guarded publication

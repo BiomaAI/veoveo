@@ -95,7 +95,7 @@ async fn output_capability_precedes_dispatch_survives_replica_loss_and_never_ent
     let mut response = db
         .a
         .client()
-        .query("SELECT * FROM computer_execution; SELECT * FROM task; SELECT * FROM outbox_event;")
+        .query("SELECT * FROM computer_execution; SELECT * FROM task; SELECT * FROM audit_record;")
         .await
         .unwrap()
         .check()
@@ -170,7 +170,7 @@ async fn unavailable_or_short_lived_output_authority_never_dispatches_and_queued
             .await
             .is_err()
     );
-    let mut result = db.a.client().query("SELECT * FROM outbox_event WHERE event_type='computer.execution_dispatched'; SELECT * FROM computer_execution_slot;").await.unwrap().check().unwrap();
+    let mut result = db.a.client().query("SELECT * FROM audit_record WHERE activity = 'computer_command' AND draft.detail.stage = 'dispatched'; SELECT * FROM computer_execution_slot;").await.unwrap().check().unwrap();
     let events: Vec<surrealdb::types::Value> = result.take(0).unwrap();
     let slots: Vec<surrealdb::types::Value> = result.take(1).unwrap();
     assert!(events.is_empty());
@@ -215,7 +215,7 @@ async fn preparation_expiry_is_store_fenced_and_never_expires_a_dispatched_comma
             CommandRefusal::PreparationExpired
         ))
     ));
-    let mut response = db.a.client().query("SELECT * FROM computer_execution_slot; SELECT * FROM outbox_event WHERE event_type='computer.execution_dispatched';")
+    let mut response = db.a.client().query("SELECT * FROM computer_execution_slot; SELECT * FROM audit_record WHERE activity = 'computer_command' AND draft.detail.stage = 'dispatched';")
         .await.unwrap().check().unwrap();
     let slots: Vec<surrealdb::types::Value> = response.take(0).unwrap();
     let dispatches: Vec<surrealdb::types::Value> = response.take(1).unwrap();

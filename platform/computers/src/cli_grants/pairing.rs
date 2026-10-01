@@ -173,11 +173,7 @@ impl ComputersStore {
                         .into_value(),
                 ),
                 crate::audit::binding(actor.accepted(), computer_id, crate::audit::Transition::accepted(veoveo_audit_contract::ComputerActivity::Grant, veoveo_audit_contract::ComputerAuditStage::GrantIssued))?,
-                (
-                    "event",
-                    authority::event(actor.accepted(), computer_id, grant_id, "access_issued")?
-                        .into_value(),
-                ),
+
             ]);
             actor.check_admission()?;
             snapshot.check_fresh()?;

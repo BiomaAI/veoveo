@@ -3,12 +3,12 @@ use super::{FramesState, object_from_value, value_from_object};
 use crate::contract::{CoordinateOperationId, CoordinateOperationProvenance, FrameOperationUri};
 use anyhow::{Context, Result, bail};
 use chrono::{DateTime, Utc};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use surrealdb::{Connection, method::Query, types::SurrealValue};
 use veoveo_mcp_contract::GatewayProfileId;
 use veoveo_platform_store::{
-    OpenObject, OutboxDraft, PlatformTable, RecordId, deterministic_principal_id,
-    deterministic_tenant_id, task_record_id,
+    OpenObject, PlatformTable, RecordId, deterministic_principal_id, deterministic_tenant_id,
+    task_record_id,
 };
 use veoveo_types::{DataLabelId, PrincipalId, TaskId, TenantId};
 
@@ -135,17 +135,7 @@ impl FramesState {
             labels: scope.labels(),
             created_at: provenance.operation.created_at,
         };
-        let outbox = OutboxDraft::now(
-            Some(scope.tenant_record()?),
-            "coordinate_operation",
-            id.to_string(),
-            "coordinate.operation.recorded",
-            1,
-            OpenObject::new(BTreeMap::from([
-                ("tenant_key".into(), serde_json::json!(scope.tenant_key())),
-                ("principal_key".into(), serde_json::json!(scope.principal)),
-            ])),
-        );
+
         let result = scope
             .bind(
                 self.store
@@ -155,7 +145,6 @@ impl FramesState {
             .bind(("operation", operation))
             .bind(("task", task.map(task_record_id)))
             .bind(("content", content.clone()))
-            .bind(("outbox", outbox))
             .await
             .and_then(|response| response.check());
         if let Err(error) = result {

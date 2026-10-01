@@ -56,5 +56,4 @@ LET $dispatched = (UPDATE ONLY $execution SET stage = "dispatched", dispatch_id 
   dispatched_at = $now, execution_deadline = $deadline, updated_at = $now
   WHERE stage = "queued" AND dispatch_id = NONE AND updated_at = $current.updated_at RETURN AFTER);
 IF $dispatched = NONE { THROW "computer_state_conflict"; };
-CREATE outbox_event CONTENT $event;
 fn::append_audit($audit_rows);

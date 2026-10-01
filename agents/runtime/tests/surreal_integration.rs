@@ -13,7 +13,7 @@ use uuid::Uuid;
 use veoveo_agent_runtime::{
     AgentControl, AgentControlTarget, AgentInstanceId, AgentRuntime, AgentSpec,
     DEFAULT_CLAIM_LEASE, EpisodeCompletion, InputRequestAnswer, NewAgentTask, NewInputRequest,
-    NewWake, OperatorMessageDraft, WakeAckReason, json_object,
+    NewWake, OperatorMessageDraft, json_object,
 };
 use veoveo_platform_store::{
     AgentEpisodeState, AgentInputRequestId, AgentInputRequestState, AgentTaskRecord,
@@ -198,19 +198,17 @@ async fn two_replicas_fence_claims_and_recover_expired_work() {
             .is_empty(),
         "recovered wake was consumed more than once"
     );
-    let outbox = fixture.root.read_outbox(0, 100).await.unwrap();
+    let changes = fixture
+        ._database
+        .committed(veoveo_platform_store::PlatformTable::Wake)
+        .await;
     assert!(
-        outbox
-            .events
+        changes
             .iter()
-            .any(|event| event.event_type == "wake.claim_recovered")
+            .any(|row| row["state"] == "pending" && row["last_error"] == "claim lease expired")
     );
     assert_eq!(
-        outbox
-            .events
-            .iter()
-            .filter(|event| event.event_type == "wake.batch_acked")
-            .count(),
+        changes.iter().filter(|row| row["state"] == "acked").count(),
         1
     );
 }
@@ -240,7 +238,7 @@ async fn idle_wake_acknowledgement_is_terminal_without_an_episode() {
 
     fixture
         .first
-        .acknowledge_wakes_without_episode(&[wake_id], WakeAckReason::NoActionableChange)
+        .acknowledge_wakes_without_episode(&[wake_id])
         .await
         .unwrap();
 
@@ -290,21 +288,18 @@ async fn operator_message_is_untrusted_idempotent_and_restart_durable() {
     assert_eq!(duplicate, accepted);
     assert_eq!(accepted.wake_id.as_uuid(), request_id);
 
-    let events = fixture.root.read_outbox(0, 100).await.unwrap().events;
-    let message_events = events
-        .iter()
-        .filter(|event| event.event_type == "wake.operator_message_enqueued")
-        .collect::<Vec<_>>();
+    let changes = fixture
+        ._database
+        .committed(veoveo_platform_store::PlatformTable::Wake)
+        .await;
     assert_eq!(
-        message_events.len(),
+        changes.len(),
         1,
-        "idempotent retry emitted another event"
+        "idempotent message retry committed another wake"
     );
-    let public_event = serde_json::to_string(&message_events[0].payload).unwrap();
-    assert!(!public_event.contains(injection));
-    assert!(!public_event.contains("PRIVATE-CANARY"));
-    assert!(public_event.contains("operator-1"));
-    assert!(public_event.contains("integration-mission"));
+    let receipt = format!("{accepted:?}");
+    assert!(!receipt.contains(injection));
+    assert!(!receipt.contains("PRIVATE-CANARY"));
 
     fixture
         .first
@@ -544,15 +539,14 @@ async fn input_answer_and_wake_survive_restart_atomically() {
             .unwrap()
             .is_empty()
     );
+    let changes = fixture
+        ._database
+        .committed(veoveo_platform_store::PlatformTable::AgentInputRequest)
+        .await;
     assert_eq!(
-        fixture
-            .root
-            .read_outbox(0, 100)
-            .await
-            .unwrap()
-            .events
+        changes
             .iter()
-            .filter(|event| event.event_type == "agent_input_request.answered")
+            .filter(|row| row["answered_at"].is_string())
             .count(),
         1
     );

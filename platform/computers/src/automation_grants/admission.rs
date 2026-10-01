@@ -199,16 +199,6 @@ impl ComputersStore {
                     veoveo_audit_contract::ComputerAuditStage::GrantIssued,
                 ),
             )?,
-            (
-                "event",
-                crate::session_grants::authority::event(
-                    actor.accepted(),
-                    input.computer_id,
-                    grant_id.into_uuid(),
-                    "automation_granted",
-                )?
-                .into_value(),
-            ),
         ]);
         let mut response = self
             .query(
@@ -329,16 +319,6 @@ impl ComputersStore {
                         veoveo_audit_contract::ComputerAuditStage::GrantRevoked,
                     ),
                 )?,
-                (
-                    "event",
-                    crate::session_grants::authority::event(
-                        actor.accepted(),
-                        input.computer_id,
-                        input.grant_id.into_uuid(),
-                        "automation_revoked",
-                    )?
-                    .into_value(),
-                ),
             ]);
             let mut response = self
                 .query(

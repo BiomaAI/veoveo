@@ -20,6 +20,5 @@ IF $current.containment_dispatch_id = NONE AND $current.containment_deadline > t
   LET $fenced = (UPDATE ONLY $computer SET phase = "stopping", updated_at = time::now()
     WHERE phase = "ready" AND active_operation = NONE AND updated_at = $computer_state.updated_at RETURN AFTER);
   IF $fenced = NONE { THROW "computer_state_conflict"; };
-  CREATE outbox_event CONTENT $event;
-fn::append_audit($audit_rows);
+  fn::append_audit($audit_rows);
 };

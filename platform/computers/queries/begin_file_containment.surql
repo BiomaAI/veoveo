@@ -12,6 +12,5 @@ IF $current.stage = "dispatched" {
     interruption = $interruption, containment_started_at = $now, containment_deadline = $now + 180s,
     updated_at = $now WHERE stage = "dispatched" AND containment_id = NONE RETURN AFTER);
   IF $changed = NONE { THROW "computer_state_conflict"; };
-  CREATE outbox_event CONTENT $event;
-fn::append_audit($audit_rows);
+  fn::append_audit($audit_rows);
 };

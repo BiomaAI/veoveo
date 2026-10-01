@@ -71,14 +71,6 @@ pub(crate) enum LifecycleTransition {
     Abort(crate::UndispatchedOutcome),
 }
 impl LifecycleTransition {
-    pub fn event(self) -> &'static str {
-        match self {
-            Self::Dispatch => "computer.operation_dispatched",
-            Self::RecoveryRequired => "computer.recovery_required",
-            Self::Settle => "computer.operation_succeeded",
-            Self::Abort(_) => "computer.operation_undispatched",
-        }
-    }
     pub fn transition(self, operation: &crate::Operation) -> Transition {
         let mut transition = Transition::accepted(
             lifecycle_activity(operation.action),

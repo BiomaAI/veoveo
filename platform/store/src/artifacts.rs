@@ -11,9 +11,8 @@ use crate::{
     ArtifactOccurrenceRecord, ArtifactReleaseState, ArtifactWriteCapabilityId,
     ArtifactWriteCapabilityRecord, ArtifactWriteRedemptionId, ArtifactWriteRedemptionRecord,
     ArtifactWriteRedemptionState, GrantPermission, InvocationAuthorityRecord, OpenObject,
-    OutboxDraft, PlatformIdentity, PlatformStore, PrincipalId, PrincipalKind, ShareLinkId,
-    ShareLinkRecord, StoreError, TenantId, TenantRecord, deterministic_principal_id,
-    deterministic_work_context_id,
+    PlatformIdentity, PlatformStore, PrincipalId, PrincipalKind, ShareLinkId, ShareLinkRecord,
+    StoreError, TenantId, TenantRecord, deterministic_principal_id, deterministic_work_context_id,
 };
 use veoveo_types::TaskId;
 
@@ -111,7 +110,6 @@ impl PlatformStore {
             blob,
             occurrence,
             grants,
-            outbox,
         } = publication::prepare_publication(draft)?;
         // Equal concurrent writers keep the first object mapping. Retrying a
         // transaction conflict never rewrites the retained blob or its metadata.
@@ -129,7 +127,6 @@ impl PlatformStore {
                 .bind(("artifact", artifact_id.record_id()))
                 .bind(("artifact_content", occurrence.clone()))
                 .bind(("grants", grants.clone()))
-                .bind(("outbox", outbox.clone()))
                 .await?;
             let Some(error) = primary_transaction_error(response.take_errors()) else {
                 break;
@@ -255,30 +252,13 @@ impl PlatformStore {
             created_by: draft.created_by.record_id(),
             created_at: Utc::now(),
         };
-        let outbox = OutboxDraft::now(
-            None,
-            "artifact",
-            draft.artifact_id.to_string(),
-            "artifact.grant.updated",
-            1,
-            OpenObject::new(BTreeMap::from([
-                (
-                    "subject_key".into(),
-                    serde_json::json!(&content.subject_key),
-                ),
-                (
-                    "permission".into(),
-                    serde_json::to_value(content.permission).unwrap_or_default(),
-                ),
-            ])),
-        );
+
         let mut response = self.db
-            .query("BEGIN TRANSACTION; DELETE $record RETURN NONE; RELATE ONLY $artifact->$record->$subject CONTENT $content RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; DELETE $record RETURN NONE; RELATE ONLY $artifact->$record->$subject CONTENT $content RETURN NONE; COMMIT TRANSACTION;")
             .bind(("record", id))
             .bind(("artifact", draft.artifact_id.record_id()))
             .bind(("subject", content.out.clone()))
             .bind(("content", content))
-            .bind(("outbox", outbox))
             .await?;
         if let Some(error) = primary_transaction_error(response.take_errors()) {
             return Err(error.into());
@@ -297,21 +277,10 @@ impl PlatformStore {
             artifact_id.to_string(),
             format!("{subject_kind:?}:{subject_key}"),
         );
-        let outbox = OutboxDraft::now(
-            None,
-            "artifact",
-            artifact_id.to_string(),
-            "artifact.grant.removed",
-            1,
-            OpenObject::new(BTreeMap::from([(
-                "subject_key".into(),
-                serde_json::json!(subject_key),
-            )])),
-        );
+
         self.db
-            .query("BEGIN TRANSACTION; LET $removed = (DELETE ONLY $record RETURN BEFORE); IF $removed != NONE { CREATE outbox_event CONTENT $outbox RETURN NONE; }; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; DELETE ONLY $record RETURN NONE; COMMIT TRANSACTION;")
             .bind(("record", id))
-            .bind(("outbox", outbox))
             .await?
             .check()?;
         Ok(())
@@ -322,23 +291,11 @@ impl PlatformStore {
         artifact_id: ArtifactId,
         state: ArtifactReleaseState,
     ) -> Result<Option<ArtifactOccurrenceRecord>, StoreError> {
-        let outbox = OutboxDraft::now(
-            None,
-            "artifact",
-            artifact_id.to_string(),
-            "artifact.release_state.changed",
-            1,
-            OpenObject::new(BTreeMap::from([(
-                "release_state".into(),
-                serde_json::to_value(state).unwrap_or_default(),
-            )])),
-        );
         let mut response = self
             .db
-            .query("BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $artifact SET release_state = $state, updated_at = time::now() RETURN AFTER); IF $updated != NONE { CREATE outbox_event CONTENT $outbox RETURN NONE; }; RETURN $updated; COMMIT TRANSACTION;")
+            .query("UPDATE ONLY $artifact SET release_state = $state, updated_at = time::now() RETURN AFTER;")
             .bind(("artifact", artifact_id.record_id()))
             .bind(("state", state))
-            .bind(("outbox", outbox))
             .await?
             .check()?;
         Ok(response.take(0)?)
@@ -392,7 +349,7 @@ impl PlatformStore {
     }
 
     /// Reserve quota and one occurrence identity for a retryable capability
-    /// write. The quota increment and reservation/outbox record are atomic.
+    /// write. The quota increment and reservation record are atomic.
     /// Repeating an identical key returns the original reservation without
     /// incrementing counters again, including after capability expiry.
     #[allow(clippy::too_many_arguments)]
@@ -461,24 +418,11 @@ impl PlatformStore {
             reserved_at: now,
             finalized_at: None,
         };
-        let outbox = OutboxDraft::now(
-            None,
-            "artifact_write_redemption",
-            redemption_id.to_string(),
-            "artifact.write.reserved",
-            1,
-            OpenObject::new(BTreeMap::from([
-                ("task_id".into(), serde_json::json!(task_id)),
-                (
-                    "artifact_id".into(),
-                    serde_json::json!(proposed_artifact_id.to_string()),
-                ),
-            ])),
-        );
+
         let result = self
             .db
             .query(
-                "BEGIN TRANSACTION; LET $capability_rows = (UPDATE $capability SET used_artifact_count += 1, used_total_bytes += $byte_len WHERE token_hash = $token_hash AND task_id = $task_id AND labels CONTAINSALL $requested_labels AND revoked_at = NONE AND expires_at > $now AND used_artifact_count < max_artifact_count AND used_total_bytes + $byte_len <= max_total_bytes RETURN AFTER); LET $capability_row = array::first($capability_rows); IF $capability_row = NONE { THROW 'artifact write capability denied'; }; CREATE ONLY $redemption CONTENT { capability: $capability, tenant: $capability_row.tenant, task: $task, task_id: $task_id, idempotency_key: $idempotency_key, request_hash: $request_hash, byte_len: $byte_len, artifact: $artifact, state: 'reserved', reserved_at: $now, finalized_at: NONE } RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;",
+                "BEGIN TRANSACTION; LET $capability_rows = (UPDATE $capability SET used_artifact_count += 1, used_total_bytes += $byte_len WHERE token_hash = $token_hash AND task_id = $task_id AND labels CONTAINSALL $requested_labels AND revoked_at = NONE AND expires_at > $now AND used_artifact_count < max_artifact_count AND used_total_bytes + $byte_len <= max_total_bytes RETURN AFTER); LET $capability_row = array::first($capability_rows); IF $capability_row = NONE { THROW 'artifact write capability denied'; }; CREATE ONLY $redemption CONTENT { capability: $capability, tenant: $capability_row.tenant, task: $task, task_id: $task_id, idempotency_key: $idempotency_key, request_hash: $request_hash, byte_len: $byte_len, artifact: $artifact, state: 'reserved', reserved_at: $now, finalized_at: NONE } RETURN NONE; COMMIT TRANSACTION;",
             )
             .bind(("capability", capability_id.record_id()))
             .bind(("token_hash", token_hash.to_owned()))
@@ -491,7 +435,6 @@ impl PlatformStore {
             .bind(("idempotency_key", idempotency_key.to_owned()))
             .bind(("request_hash", request_hash.to_owned()))
             .bind(("artifact", proposed_artifact_id.record_id()))
-            .bind(("outbox", outbox))
             .await
             .and_then(|mut response| match primary_transaction_error(response.take_errors()) {
                 Some(error) => Err(error),
@@ -547,24 +490,13 @@ impl PlatformStore {
         artifact_id: ArtifactId,
     ) -> Result<bool, StoreError> {
         let now = Utc::now();
-        let outbox = OutboxDraft::now(
-            None,
-            "artifact_write_redemption",
-            redemption_id.to_string(),
-            "artifact.write.finalized",
-            1,
-            OpenObject::new(BTreeMap::from([(
-                "artifact_id".into(),
-                serde_json::json!(artifact_id.to_string()),
-            )])),
-        );
+
         self
             .db
-            .query("BEGIN TRANSACTION; LET $updated_rows = (UPDATE $redemption SET state = 'finalized', finalized_at = $now WHERE state = 'reserved' AND artifact = $artifact RETURN AFTER); LET $updated = array::first($updated_rows); IF $updated != NONE { UPDATE ONLY $artifact SET task = $updated.task RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; }; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; LET $updated_rows = (UPDATE $redemption SET state = 'finalized', finalized_at = $now WHERE state = 'reserved' AND artifact = $artifact RETURN AFTER); LET $updated = array::first($updated_rows); IF $updated != NONE { UPDATE ONLY $artifact SET task = $updated.task RETURN NONE; }; COMMIT TRANSACTION;")
             .bind(("redemption", redemption_id.record_id()))
             .bind(("artifact", artifact_id.record_id()))
             .bind(("now", now))
-            .bind(("outbox", outbox))
             .await?
             .check()?;
         let mut response = self
@@ -641,20 +573,9 @@ impl PlatformStore {
         byte_len: i64,
         requested_labels: &[String],
     ) -> Result<Option<ArtifactWriteReservation>, StoreError> {
-        let outbox = OutboxDraft::now(
-            Some(reservation.redemption.tenant.clone()),
-            "artifact_write_redemption",
-            record_uuid(&reservation.redemption.id)?.to_string(),
-            "artifact.write.reservation_rebound",
-            1,
-            OpenObject::new(BTreeMap::from([(
-                "artifact_id".into(),
-                serde_json::json!(record_uuid(&reservation.redemption.artifact)?.to_string()),
-            )])),
-        );
         let result = self
             .db
-            .query("BEGIN TRANSACTION; LET $current_rows = (SELECT * FROM $redemption WHERE state = 'reserved' AND request_hash = $expected_hash AND byte_len = $expected_bytes); LET $current = array::first($current_rows); IF $current = NONE { THROW 'artifact write reservation changed'; }; LET $occurrences = (SELECT * FROM $artifact); IF array::len($occurrences) > 0 { THROW 'artifact write occurrence already staged'; }; LET $capability_rows = (UPDATE $capability SET used_total_bytes = used_total_bytes - $expected_bytes + $byte_len WHERE token_hash = $token_hash AND task_id = $task_id AND labels CONTAINSALL $requested_labels AND revoked_at = NONE AND used_total_bytes - $expected_bytes + $byte_len <= max_total_bytes RETURN AFTER); LET $capability_row = array::first($capability_rows); IF $capability_row = NONE { THROW 'artifact write capability denied'; }; UPDATE ONLY $redemption SET request_hash = $request_hash, byte_len = $byte_len RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; LET $current_rows = (SELECT * FROM $redemption WHERE state = 'reserved' AND request_hash = $expected_hash AND byte_len = $expected_bytes); LET $current = array::first($current_rows); IF $current = NONE { THROW 'artifact write reservation changed'; }; LET $occurrences = (SELECT * FROM $artifact); IF array::len($occurrences) > 0 { THROW 'artifact write occurrence already staged'; }; LET $capability_rows = (UPDATE $capability SET used_total_bytes = used_total_bytes - $expected_bytes + $byte_len WHERE token_hash = $token_hash AND task_id = $task_id AND labels CONTAINSALL $requested_labels AND revoked_at = NONE AND used_total_bytes - $expected_bytes + $byte_len <= max_total_bytes RETURN AFTER); LET $capability_row = array::first($capability_rows); IF $capability_row = NONE { THROW 'artifact write capability denied'; }; UPDATE ONLY $redemption SET request_hash = $request_hash, byte_len = $byte_len RETURN NONE; COMMIT TRANSACTION;")
             .bind(("redemption", reservation.redemption.id.clone()))
             .bind(("expected_hash", reservation.redemption.request_hash.clone()))
             .bind(("expected_bytes", reservation.redemption.byte_len))
@@ -665,7 +586,6 @@ impl PlatformStore {
             .bind(("requested_labels", requested_labels.to_vec()))
             .bind(("request_hash", request_hash.to_owned()))
             .bind(("byte_len", byte_len))
-            .bind(("outbox", outbox))
             .await
             .and_then(|mut response| match primary_transaction_error(response.take_errors()) {
                 Some(error) => Err(error),
@@ -715,23 +635,12 @@ impl PlatformStore {
             revoked_at: None,
             created_at: Utc::now(),
         };
-        let outbox = OutboxDraft::now(
-            Some(draft.identity.tenant_id.record_id()),
-            "artifact",
-            draft.artifact_id.to_string(),
-            "artifact.share_link.created",
-            1,
-            OpenObject::new(BTreeMap::from([(
-                "link_id".into(),
-                serde_json::json!(draft.link_id.to_string()),
-            )])),
-        );
+
         let mut response = self
             .db
-            .query("BEGIN TRANSACTION; CREATE ONLY $record CONTENT $content RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; CREATE ONLY $record CONTENT $content RETURN NONE; COMMIT TRANSACTION;")
             .bind(("record", draft.link_id.record_id()))
             .bind(("content", record))
-            .bind(("outbox", outbox))
             .await?;
         if let Some(error) = primary_transaction_error(response.take_errors()) {
             return Err(error.into());
@@ -754,23 +663,11 @@ impl PlatformStore {
         link_id: ShareLinkId,
         artifact_id: ArtifactId,
     ) -> Result<bool, StoreError> {
-        let outbox = OutboxDraft::now(
-            None,
-            "artifact",
-            artifact_id.to_string(),
-            "artifact.share_link.revoked",
-            1,
-            OpenObject::new(BTreeMap::from([(
-                "link_id".into(),
-                serde_json::json!(link_id.to_string()),
-            )])),
-        );
         let mut response = self
             .db
-            .query("BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $record SET revoked_at = time::now() WHERE artifact = $artifact AND revoked_at = NONE RETURN AFTER); IF $updated != NONE { CREATE outbox_event CONTENT $outbox RETURN NONE; }; RETURN $updated; COMMIT TRANSACTION;")
+            .query("UPDATE ONLY $record SET revoked_at = time::now() WHERE artifact = $artifact AND revoked_at = NONE RETURN AFTER;")
             .bind(("record", link_id.record_id()))
             .bind(("artifact", artifact_id.record_id()))
-            .bind(("outbox", outbox))
             .await?
             .check()?;
         Ok(response.take::<Option<ShareLinkRecord>>(0)?.is_some())

@@ -12,14 +12,14 @@ use veoveo_platform_store::{
     GatewayReplayKind, GatewayReplayRecord, GrantPermission, InvocationAuthorityRecord,
     InvocationMode, MapCompositionDraft, MapCompositionRevisionDraft, MapCompositionUpdateDraft,
     MapFeatureCommitDraft, MapFeatureLayerDraft, MapFeatureRevisionDraft, MapFeatureSchemaDraft,
-    MapLayerProductDraft, MapLayerPublicationDraft, MapReleaseDraft, MapReleaseState, OpenObject,
-    OutboxDraft, PlatformIdentity, PlatformStore, PrincipalKind, RecordIdKey,
-    RecordingDatasetDraft, RecordingDraft, RecordingId, RecordingLayerDraft, RecordingLayerId,
-    RecordingLayerKind, RecordingLayerState, RecordingProjectionReceiptDraft,
-    RecordingProjectionState, RecordingReadGrantClass, RecordingReadGrantDraft, RecordingSeal,
-    RecordingState, ShareLinkId, StoreConfig, StoreCredentials, StoreError,
-    WorkContextInitialGrantRecord, WorkContextMembershipLevel, decode_changefeed_entry,
-    deterministic_work_context_id, gateway_replay_record_id, migrations,
+    MapLayerProductDraft, MapLayerPublicationDraft, MapReleaseDraft, MapReleaseState,
+    PlatformIdentity, PlatformStore, PrincipalKind, RecordIdKey, RecordingDatasetDraft,
+    RecordingDraft, RecordingId, RecordingLayerDraft, RecordingLayerId, RecordingLayerKind,
+    RecordingLayerState, RecordingProjectionReceiptDraft, RecordingProjectionState,
+    RecordingReadGrantClass, RecordingReadGrantDraft, RecordingSeal, RecordingState, ShareLinkId,
+    StoreConfig, StoreCredentials, StoreError, WorkContextInitialGrantRecord,
+    WorkContextMembershipLevel, decode_changefeed_entry, deterministic_work_context_id,
+    gateway_replay_record_id, migrations,
 };
 use veoveo_types::TaskId;
 
@@ -579,51 +579,21 @@ async fn applies_schema_to_surrealdb_3_3() {
         "recording",
         "time_authority_release",
         "time_temporal_event",
-        "outbox_event",
+        "changefeed_checkpoint",
     ] {
         assert!(rendered.contains(table), "missing {table} in INFO FOR DB");
     }
 
-    let event = store
-        .append_outbox(OutboxDraft::now(
-            None,
-            "integration_test",
-            "schema",
-            "integration.schema_ready",
-            1,
-            OpenObject::default(),
-        ))
-        .await
-        .unwrap();
-    assert!(event.sequence > 0);
-
-    let page = store.read_outbox(0, 10).await.unwrap();
-    assert_eq!(page.events.len(), 1);
-    assert_eq!(page.next_sequence, event.sequence);
-
+    let consumer =
+        veoveo_platform_store::ChangefeedConsumerId::new("integration-projection").unwrap();
+    let head = store.changefeed_head().await.unwrap();
+    assert!(head.versionstamp() > 0);
+    store.checkpoint_changes(&consumer, head).await.unwrap();
     store
-        .checkpoint_outbox("integration-projection", event.sequence)
+        .checkpoint_changes(&consumer, ChangefeedCursor::initial())
         .await
         .unwrap();
-    assert_eq!(
-        store
-            .outbox_checkpoint("integration-projection")
-            .await
-            .unwrap(),
-        event.sequence
-    );
-    store
-        .checkpoint_outbox("integration-projection", event.sequence - 1)
-        .await
-        .unwrap();
-    assert_eq!(
-        store
-            .outbox_checkpoint("integration-projection")
-            .await
-            .unwrap(),
-        event.sequence,
-        "checkpoint must not move backwards"
-    );
+    assert_eq!(store.changefeed_checkpoint(&consumer).await.unwrap(), head);
 
     let changes = store
         .replay_changes(ChangefeedCursor::initial(), 100)
@@ -840,17 +810,16 @@ async fn artifact_plane_counters_and_occurrence_dedup_are_durable() {
     assert!(aggregate.grants.iter().any(|grant| {
         grant.subject_key == requester.principal_key && grant.permission == GrantPermission::Read
     }));
-    assert!(
-        store
-            .read_outbox(0, 100)
-            .await
-            .unwrap()
-            .events
-            .iter()
-            .filter(|event| event.event_type == "artifact.created")
-            .count()
-            >= 2
-    );
+    let committed: Vec<veoveo_platform_store::RecordId> = store
+        .client()
+        .query("SELECT VALUE id FROM artifact_occurrence;")
+        .await
+        .unwrap()
+        .check()
+        .unwrap()
+        .take(0)
+        .unwrap();
+    assert!(committed.len() >= 2);
 
     let capability_id = ArtifactWriteCapabilityId::new();
     let capability_task_id = TaskId::new().to_string();
@@ -1133,10 +1102,13 @@ async fn artifact_plane_counters_and_occurrence_dedup_are_durable() {
             .is_none(),
         "private artifacts must not redeem public links"
     );
-    store
+    let released = store
         .set_artifact_release_state(first_id, ArtifactReleaseState::Releasable)
         .await
-        .unwrap();
+        .unwrap()
+        .expect("release-state mutation returns its committed occurrence");
+    assert_eq!(released.id, first_id.record_id());
+    assert_eq!(released.release_state, ArtifactReleaseState::Releasable);
     assert!(
         store
             .redeem_public_share_link(&"c".repeat(64))
@@ -1152,6 +1124,24 @@ async fn artifact_plane_counters_and_occurrence_dedup_are_durable() {
             .is_none(),
         "share max_downloads must be atomic"
     );
+    assert!(
+        !store
+            .revoke_artifact_share_link(link_id, ArtifactId::new())
+            .await
+            .unwrap()
+    );
+    assert!(
+        store
+            .revoke_artifact_share_link(link_id, first_id)
+            .await
+            .unwrap()
+    );
+    assert!(
+        !store
+            .revoke_artifact_share_link(link_id, first_id)
+            .await
+            .unwrap()
+    );
 }
 
 #[tokio::test]
@@ -1163,6 +1153,10 @@ async fn recording_catalog_commits_layers_and_governed_authority_atomically() {
     )
     .await
     .expect("Recording catalog qualification exceeded 90 seconds");
+    let changes = db
+        .committed(veoveo_platform_store::PlatformTable::Recording)
+        .await;
+    assert!(changes.iter().any(|row| row["state"] == "sealed"));
 }
 
 async fn qualify_recording_catalog(store: &PlatformStore, reader: &PlatformStore) {
@@ -1499,11 +1493,6 @@ async fn qualify_recording_catalog(store: &PlatformStore, reader: &PlatformStore
         .unwrap();
     assert_eq!(cleanup.projection_receipts, 1);
     assert_eq!(cleanup.read_grants, 1);
-    let outbox = store.read_outbox(0, 100).await.unwrap();
-    assert!(outbox.events.iter().any(|event| {
-        event.aggregate_id == recording_id.to_string() && event.event_type == "recording.sealed"
-    }));
-
     let other = store
         .ensure_identity(
             "other-tenant",

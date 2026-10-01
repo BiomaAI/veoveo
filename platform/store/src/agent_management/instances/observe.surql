@@ -32,8 +32,4 @@ UPDATE ONLY $instance.id SET observed = $phase, updated_at = time::now();
 LET $result = UPDATE ONLY $operation.id SET phase = $phase, message = $command.message, updated_at = time::now(),
     lease_owner = IF $phase IN ['ready', 'paused', 'archived', 'failed'] { NONE } ELSE { lease_owner },
     lease_expires_at = IF $phase IN ['ready', 'paused', 'archived', 'failed'] { NONE } ELSE { lease_expires_at };
-CREATE outbox_event SET tenant = $instance.tenant, aggregate_type = 'managed_agent', aggregate_id = $instance.key,
-    event_type = 'managed_agent.observed', schema_version = 1,
-    payload = { key: $instance.key, generation: $instance.generation, phase: $phase,
-        work_context: $instance.work_context, operation: $operation.id };
 RETURN $result;

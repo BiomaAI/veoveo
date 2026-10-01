@@ -1,17 +1,15 @@
 use crate::task_record_id;
-use std::collections::BTreeMap;
 
 use chrono::{DateTime, Utc};
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
 
 use crate::{
-    DomainUsageId, DomainUsageKind, DomainUsageRecord, OpenObject, OutboxDraft, PlatformStore,
-    StoreError, TaskRecord,
+    DomainUsageId, DomainUsageKind, DomainUsageRecord, OpenObject, PlatformStore, StoreError,
+    TaskRecord,
 };
 use veoveo_types::TaskId;
 
-const DOMAIN_USAGE_EVENT_SCHEMA_VERSION: i64 = 1;
 #[derive(Clone, Debug, PartialEq)]
 pub struct DomainUsageDraft {
     pub task_id: TaskId,
@@ -81,30 +79,11 @@ impl PlatformStore {
             recorded_at: draft.recorded_at,
             updated_at: now,
         };
-        let outbox = OutboxDraft::now(
-            Some(task.tenant),
-            "domain_usage",
-            usage_id.to_string(),
-            "domain.usage.recorded",
-            DOMAIN_USAGE_EVENT_SCHEMA_VERSION,
-            OpenObject::new(BTreeMap::from([
-                (
-                    "task_id".into(),
-                    serde_json::json!(draft.task_id.to_string()),
-                ),
-                ("server".into(), serde_json::json!(draft.server)),
-                ("model_id".into(), serde_json::json!(draft.model_id)),
-                (
-                    "kind".into(),
-                    serde_json::json!(usage_kind_name(draft.kind)),
-                ),
-            ])),
-        );
+
         self.client()
-            .query("BEGIN TRANSACTION; UPSERT ONLY $usage CONTENT $content RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; UPSERT ONLY $usage CONTENT $content RETURN NONE; COMMIT TRANSACTION;")
             .bind(("usage", usage_id.record_id()))
             .bind(("content", content))
-            .bind(("outbox", outbox))
             .await?
             .check()?;
         let mut response = self

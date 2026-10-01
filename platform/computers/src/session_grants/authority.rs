@@ -4,7 +4,7 @@ use crate::{
 use surrealdb::types::{SurrealValue, Value};
 use uuid::Uuid;
 use veoveo_mcp_contract::{GatewayAction, PolicyEffect, PolicyTarget, ServerSlug, TraceId};
-use veoveo_platform_store::{OutboxDraft, deterministic_enterprise_id, deterministic_tenant_id};
+use veoveo_platform_store::deterministic_enterprise_id;
 use veoveo_types::ResourceUri;
 use veoveo_types::WorkContextMembershipLevel;
 
@@ -68,35 +68,4 @@ pub(crate) fn bindings(snapshot: &AuthoritySnapshot) -> Vec<(&'static str, Value
         ("authority_source", snapshot.source.clone().into_value()),
         ("authority_actor", snapshot.actor.clone().into_value()),
     ]
-}
-pub(crate) fn event(
-    accepted: &crate::AcceptedAuthority,
-    computer: veoveo_computers_contract::ComputerId,
-    grant: Uuid,
-    kind: &str,
-) -> Result<OutboxDraft> {
-    #[derive(serde::Serialize)]
-    struct Payload<'a> {
-        computer_id: veoveo_computers_contract::ComputerId,
-        grant_id: Uuid,
-        actor: &'a veoveo_types::PrincipalId,
-        authority: &'a veoveo_types::InvocationAuthority,
-    }
-    Ok(OutboxDraft::now(
-        Some(
-            deterministic_tenant_id(accepted.invocation.tenant.as_str())
-                .map_err(|_| ComputerError::InvalidInput)?
-                .record_id(),
-        ),
-        "computer",
-        computer.to_string(),
-        kind,
-        1,
-        super::object(&Payload {
-            computer_id: computer,
-            grant_id: grant,
-            actor: &accepted.actor.id,
-            authority: &accepted.invocation,
-        })?,
-    ))
 }

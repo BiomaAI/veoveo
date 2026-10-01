@@ -151,8 +151,8 @@ segments, and stamped metadata make regulated data findable. Nothing makes
 it selectively erasable: no deletion path exists for artifact occurrences,
 blobs (`BlobStore::delete` has zero call sites), recordings, RRD segments
 (append-only by design), or DuckDB owner workspaces; blob dedup has no
-reference count, so even out-of-band S3 deletion is unsafe; the outbox
-retains mutation history. The only documented erasure is a whole-installation
+reference count, so even out-of-band S3 deletion is unsafe; native changefeeds
+retain mutation history within their configured retention. The only documented erasure is a whole-installation
 reset. No data residency control exists beyond an S3 region string.
 
 **Pillar 6 — best-in-class posture, three leaks.** Default-deny

@@ -16,6 +16,5 @@ LET $leased = UPDATE ONLY $agent SET next_episode_sequence += 1, last_episode = 
 IF $leased = NONE { THROW 'agent lease lost'; };
 CREATE ONLY $episode CONTENT $content RETURN NONE;
 UPDATE ONLY $episode SET managed = $binding RETURN NONE;
-CREATE outbox_event CONTENT $event RETURN NONE;
 RETURN $binding;
 COMMIT TRANSACTION;

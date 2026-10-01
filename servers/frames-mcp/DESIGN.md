@@ -258,7 +258,7 @@ response. Task changes invalidate accepted usage references even when no usage r
 ## Operation Authority And Storage
 
 Frames owns operation persistence in `state/operations`; Store provides its client,
-schema migrations, record primitives, and transactional outbox. The runtime uses
+schema migrations, record primitives and native table changefeeds. The runtime uses
 SurrealDB SDK 3.3.0 to match Store's driver types.
 
 `FrameOperationScope` requires typed principal, optional tenant, gateway profile,
@@ -275,8 +275,8 @@ owner-envelope identities and label clearance. Deleted or inconsistent parents d
 access. Unauthorized and absent operations share the resource-not-found response.
 
 Recording checks Task authority inside the operation transaction, then creates the
-immutable operation and its outbox event together. Replaying identical authority and
-provenance produces no event. Stored labels keep their 256-byte limit. Any changed authority, Task link, labels or provenance
+immutable operation. Native changefeeds record its commit. Replaying identical
+authority and provenance performs no mutation. Stored labels keep their 256-byte limit. Any changed authority, Task link, labels or provenance
 conflicts. A failed transaction is accepted as a concurrent or acknowledged-late replay
 only after reading the identical committed record under current access policy.
 
@@ -369,7 +369,7 @@ SurrealDB stores:
 - `frame_world` authoring identities and mutable heads;
 - `frame_world_revision` immutable trees and digests;
 - coordinate operations and provenance;
-- task state, inputs, usage, ownership, and outbox events.
+- task state, inputs, usage and ownership.
 
 Migration `0027_frame_world_graphs.surql` removes the old flat `frame` table and
 defines the world and revision tables. This is a hard cut. No alias or legacy

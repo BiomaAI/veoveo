@@ -19,6 +19,5 @@ IF $existing != NONE {
     };
 } ELSE {
     CREATE ONLY $operation CONTENT $content RETURN NONE;
-    CREATE outbox_event CONTENT $outbox RETURN NONE;
-};
+    };
 COMMIT TRANSACTION;

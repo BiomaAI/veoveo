@@ -317,7 +317,8 @@ mod tests {
                 .and_then(|tail| tail.split(';').next())
                 .unwrap();
             assert!(
-                definition.contains("CHANGEFEED"),
+                definition.contains("CHANGEFEED")
+                    || sql.contains(&format!("ALTER TABLE {table} CHANGEFEED ")),
                 "{} has no changefeed",
                 table
             );
@@ -343,7 +344,6 @@ mod tests {
             "share_link_token_hash_unique",
             "provider_event_unique",
             "task_status_lease",
-            "outbox_event_sequence_unique",
             "artifact_occurrence_search",
             "task_queued_count",
             "uav_control_grant_context_id_unique",

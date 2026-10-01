@@ -34,5 +34,4 @@ CREATE $request CONTENT $content;
 UPDATE ONLY $maintenance SET progress = $progress, stage = $stage, updated_at = $now;
 -- The owner, physical instance, retained quota and exclusive fence remain intact.
 UPDATE ONLY $computer SET updated_at = $now;
-CREATE outbox_event CONTENT $event;
 fn::append_audit($audit_rows);

@@ -158,7 +158,7 @@ async fn revocation_and_native_run_replacement_interrupt_continuation_without_an
             )),
             _ => assert!(continuation.is_err()),
         }
-        let mut response = db.a.client().query("SELECT * FROM outbox_event WHERE event_type='computer.execution_dispatched'; SELECT * FROM computer_execution_slot;").await.unwrap().check().unwrap();
+        let mut response = db.a.client().query("SELECT * FROM audit_record WHERE activity = 'computer_command' AND draft.detail.stage = 'dispatched'; SELECT * FROM computer_execution_slot;").await.unwrap().check().unwrap();
         let events: Vec<surrealdb::types::Value> = response.take(0).unwrap();
         let slots: Vec<surrealdb::types::Value> = response.take(1).unwrap();
         assert_eq!(events.len(), 1);

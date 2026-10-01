@@ -21,8 +21,7 @@ IF $current.stage = "dispatched" {
     LET $marked = (UPDATE ONLY $computer SET phase = "recovery_required", updated_at = time::now()
       WHERE active_operation = $operation_id AND updated_at = $computer_state.updated_at RETURN AFTER);
     IF $marked = NONE { THROW "computer_state_conflict"; };
-    CREATE outbox_event CONTENT $event;
-  fn::append_audit($audit_rows);
+    fn::append_audit($audit_rows);
   } ELSE IF $current.next_observation_at = NONE OR $current.next_observation_at <= time::now() {
     LET $charged = (UPDATE ONLY $operation SET observation_reads += 1, last_observation_id = $observation_id,
       next_observation_at = time::now() + $backoff, updated_at = time::now()

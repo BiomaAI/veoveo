@@ -305,8 +305,8 @@ async fn context_selection_survives_updates_and_store_reconnect_without_events()
         let query = reader.for_owner(&owner()).of_type(SELECTED).in_work_context().unwrap();
         let mut updates = query.subscribe(&ids).await.unwrap().updates;
         for _ in 0..3 { updates.next().await.unwrap().unwrap(); }
-        db.b.client().query("UPDATE ONLY $task SET authority.context_key = 'another-context', request.input = NONE RETURN NONE; CREATE outbox_event SET aggregate_type = 'task', aggregate_id = $id, event_type = 'task.fixture', schema_version = 3, payload = { snapshot: { server: 'integration-server' } } RETURN NONE;")
-            .bind(("task", task_record_id(ids[0]))).bind(("id", ids[0].to_string())).await.unwrap().check().unwrap();
+        db.b.client().query("UPDATE ONLY $task SET authority.context_key = 'another-context', request.input = NONE RETURN NONE;")
+            .bind(("task", task_record_id(ids[0]))).await.unwrap().check().unwrap();
         writer.transition(&ids[2].to_string(), TaskTransition::Running { progress: 0.5, message: "halfway".into() }).await.unwrap();
         loop {
             let update = updates.next().await.unwrap().unwrap();
@@ -317,7 +317,7 @@ async fn context_selection_survives_updates_and_store_reconnect_without_events()
         db.b.client().query("UPDATE ONLY $task SET request.owner.authority.work_context = 'another-context', request.input = NONE RETURN NONE;")
             .bind(("task", task_record_id(ids[1]))).await.unwrap().check().unwrap();
         writer.transition(&ids[2].to_string(), TaskTransition::Succeeded { message: "finished".into(), result: json!({"answer":42}) }).await.unwrap();
-        db.b.client().query("DELETE outbox_event WHERE aggregate_type = 'task' RETURN NONE;").await.unwrap().check().unwrap();
+
         switch.set_enabled(true).await;
         loop {
             let update = updates.next().await.unwrap().unwrap();

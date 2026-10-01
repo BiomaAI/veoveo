@@ -386,7 +386,10 @@ async fn provider_recovery_preserves_every_nonterminal_state_and_cancel_intent()
         }
         originals.push(current(&a, &task).await);
     }
-    let before = db.a.read_outbox(0, 100).await.unwrap().events.len();
+    let before = db
+        .committed(veoveo_platform_store::PlatformTable::Task)
+        .await
+        .len();
     for _ in 0..2 {
         let report = b.recover().await.unwrap();
         assert_eq!(report.provider_waiting.len(), 4);
@@ -410,7 +413,12 @@ async fn provider_recovery_preserves_every_nonterminal_state_and_cancel_intent()
             assert_eq!(seen.retention_pins, original.retention_pins);
         }
     }
-    assert_eq!(db.a.read_outbox(0, 100).await.unwrap().events.len(), before);
+    assert_eq!(
+        db.committed(veoveo_platform_store::PlatformTable::Task)
+            .await
+            .len(),
+        before
+    );
     let cancelled = originals.last().unwrap();
     let id = cancelled.task_id.to_string();
     assert!(

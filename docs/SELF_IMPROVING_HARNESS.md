@@ -436,7 +436,7 @@ without policy, safety, or data-governance regressions.
 - Should a strategy be tied to one model, a model family, or an execution harness?
 - Which observations can be normalized without losing the causal information required
   for learning?
-- Can domain state effects be derived from existing outbox and recording evidence, or do
+- Can domain state effects be derived from committed domain changes and recordings, or do
   evaluation servers need explicit effect reports?
 - What mixture of deterministic checks and model judges provides an acceptable activation
   gate?

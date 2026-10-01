@@ -8,8 +8,8 @@ use crate::{
 use serde::Serialize;
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
+use veoveo_platform_store::OpenObject;
 use veoveo_platform_store::task_record_id;
-use veoveo_platform_store::{OpenObject, OutboxDraft, deterministic_tenant_id};
 
 #[derive(Serialize, SurrealValue)]
 struct Content {
@@ -112,30 +112,7 @@ impl ComputersStore {
             sealed: super::object(&sealed)?,
             task: task_record_id(binding.transfer_id.task_id()),
         };
-        #[derive(Serialize)]
-        struct Event<'a> {
-            transfer_id: veoveo_computers_contract::FileTransferId,
-            computer_id: veoveo_computers_contract::ComputerId,
-            direction: crate::api::FileTransferDirection,
-            actor: &'a crate::AcceptedAuthority,
-        }
-        let event = OutboxDraft::now(
-            Some(
-                deterministic_tenant_id(actor.owner().tenant_key())
-                    .map_err(|_| ComputerError::InvalidInput)?
-                    .record_id(),
-            ),
-            "computer",
-            binding.computer_id.to_string(),
-            "computer.file_transfer_queued",
-            1,
-            super::object(&Event {
-                transfer_id: binding.transfer_id,
-                computer_id: binding.computer_id,
-                direction: binding.direction,
-                actor: actor.accepted(),
-            })?,
-        );
+
         let mut params = authority.transaction_bindings()?;
         params.extend([
             ("request", request.clone().into_value()),
@@ -149,7 +126,6 @@ impl ComputersStore {
                 crate::commands::slot(binding.computer_id).into_value(),
             ),
             ("content", content.into_value()),
-            ("event", event.into_value()),
             crate::audit::binding(
                 actor.accepted(),
                 binding.computer_id,

@@ -1,10 +1,8 @@
 use super::{FileOperation, model};
 use crate::{ComputerError, ComputersStore, Result};
 use chrono::{DateTime, Utc};
-use serde::Serialize;
 use std::time::Instant;
 use surrealdb::types::{SurrealValue, Value};
-use veoveo_platform_store::{OutboxDraft, deterministic_tenant_id};
 use veoveo_task_runtime::{ClaimedTask, ProviderCommit, TaskError, TaskRuntime};
 use veoveo_types::TaskTypeDefinition;
 
@@ -66,47 +64,6 @@ impl ComputersStore {
         mut params: Vec<(&'static str, Value)>,
         event: crate::audit::ExecutionTransition,
     ) -> Result<()> {
-        #[derive(Serialize)]
-        struct Event<'a> {
-            transfer_id: veoveo_computers_contract::FileTransferId,
-            computer_id: veoveo_computers_contract::ComputerId,
-            grant_id: Option<veoveo_computers_contract::AutomationGrantId>,
-            actor: &'a crate::AcceptedAuthority,
-            dispatch_authority: Option<&'a super::FileDispatchDecision>,
-            interruption: Option<super::FileInterruption>,
-            refusal: Option<super::FileRefusal>,
-            termination_evidence: Option<super::outcome::TerminationEvidence>,
-            result: Option<crate::api::FileTransferResult>,
-            rejection: Option<veoveo_computer_execution::FileFailure>,
-        }
-        let payload = serde_json::from_value(
-            serde_json::to_value(Event {
-                transfer_id: operation.transfer_id(),
-                computer_id: operation.computer_id(),
-                grant_id: operation.binding.grant_id,
-                actor: &operation.authority,
-                dispatch_authority: operation.dispatch_authority.as_ref(),
-                interruption: operation.interruption,
-                refusal: operation.refusal,
-                termination_evidence: operation.termination_evidence,
-                result: operation.result.clone(),
-                rejection: operation.rejection,
-            })
-            .map_err(|_| ComputerError::Unavailable)?,
-        )
-        .map_err(|_| ComputerError::Unavailable)?;
-        let outbox = OutboxDraft::now(
-            Some(
-                deterministic_tenant_id(operation.actor().tenant_key())
-                    .map_err(|_| ComputerError::Unavailable)?
-                    .record_id(),
-            ),
-            "computer",
-            operation.computer_id().to_string(),
-            event.event(crate::audit::ExecutionDomain::File),
-            1,
-            payload,
-        );
         params.extend([
             (
                 "execution",
@@ -125,7 +82,6 @@ impl ComputersStore {
                 crate::commands::slot(operation.computer_id()).into_value(),
             ),
             ("provider", self.provider_instance_id.into_value()),
-            ("event", outbox.into_value()),
         ]);
         use veoveo_audit_contract::AuditReason;
         let failure = match event {

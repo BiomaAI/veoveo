@@ -72,7 +72,7 @@ DEFINE FIELD block ON audit_record_seal TYPE record<audit_block> READONLY;
 DEFINE FIELD audit ON artifact_upload TYPE object FLEXIBLE;
 
 -- One first-request receipt per admitted actor, occurrence and five-minute interval.
--- The guard is domain deduplication state; it emits no outbox or changefeed record.
+-- The guard is domain deduplication state; it emits no changefeed record.
 DEFINE TABLE audit_download_window SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD record ON audit_download_window TYPE record<audit_record> READONLY;
 DEFINE FIELD window_start ON audit_download_window TYPE datetime READONLY;

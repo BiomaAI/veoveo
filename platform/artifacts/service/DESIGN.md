@@ -177,7 +177,7 @@ Session leases carry a generation; takeover invalidates prior workers. The publi
 transaction checks current authority and the active verification lease, then commits
 the immutable blob mapping, governed occurrence and grants, unified completion audit,
 and durable receipt fields together. The audit append runs inside the existing publication
-transaction and emits no audit outbox event. Matching publication replay retains the same
+transaction. Matching publication replay retains the same
 occurrence and completion timestamp. Ordinary writes and upload publication share the
 typed content builder and SQL registration fragment.
 

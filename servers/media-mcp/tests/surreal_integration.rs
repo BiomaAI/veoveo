@@ -347,22 +347,12 @@ async fn cancellation_is_audited_and_late_webhook_cannot_replace_the_task_result
         assert_eq!(actual_job.prediction.status, "completed");
         assert!(first_state.pending_events(10).await.unwrap().is_empty());
 
-        let outbox = first.platform_store().read_outbox(0, 1_000).await.unwrap();
-        for event_type in [
-            "provider_job.cancel_requested",
-            "provider_job.cancel_not_deleted",
-            "provider_job.cancel_failed",
-            "provider_job.cancel_accepted",
-            "provider_job.webhook_received",
-        ] {
-            assert!(
-                outbox
-                    .events
-                    .iter()
-                    .any(|event| event.event_type == event_type),
-                "missing durable cancellation event {event_type}"
-            );
-        }
+        let jobs = _db
+            .committed(veoveo_platform_store::PlatformTable::ProviderJob)
+            .await;
+        assert!(jobs.iter().any(|row| row["state"] == "cancel_requested"));
+        assert!(jobs.iter().any(|row| row["state"] == "cancelled"));
+        assert!(jobs.iter().any(|row| row["state"] == "succeeded"));
     })
     .await
     .expect("Media lifecycle qualification exceeded 90 seconds");

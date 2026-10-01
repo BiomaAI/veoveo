@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::path::{Component, Path};
 use std::str::FromStr as _;
 
@@ -8,10 +7,9 @@ use surrealdb::types::{RecordId, RecordIdKey, SurrealValue};
 use uuid::Uuid;
 
 use crate::{
-    ArtifactId, OpenObject, OutboxDraft, PlatformIdentity, PlatformStore, RecordingDatasetId,
-    RecordingDatasetRecord, RecordingId, RecordingLayerId, RecordingLayerKind,
-    RecordingLayerRecord, RecordingLayerState, RecordingRetentionMode, RecordingState, StoreError,
-    TenantId,
+    ArtifactId, PlatformIdentity, PlatformStore, RecordingDatasetId, RecordingDatasetRecord,
+    RecordingId, RecordingLayerId, RecordingLayerKind, RecordingLayerRecord, RecordingLayerState,
+    RecordingRetentionMode, RecordingState, StoreError, TenantId,
 };
 
 mod access;
@@ -21,7 +19,6 @@ pub use access::RecordingAccessScope;
 pub use grants::{RecordingReadGrantDraft, RecordingReadGrantRequest};
 pub use projections::{RecordingProjectionReceiptDraft, RecordingProjectionRequest};
 
-const EVENT_SCHEMA_VERSION: i64 = 1;
 const MAX_DATASET_KEY_BYTES: usize = 128;
 const MAX_DISPLAY_LABEL_BYTES: usize = 256;
 const MAX_LAYER_NAME_BYTES: usize = 256;
@@ -182,22 +179,12 @@ impl PlatformStore {
             created_at: now,
             updated_at: now,
         };
-        let outbox = catalog_event(
-            &draft.identity,
-            "recording_dataset",
-            id.to_string(),
-            "recording.dataset_created",
-            BTreeMap::from([(
-                "dataset_key".to_owned(),
-                serde_json::json!(draft.dataset_key),
-            )]),
-        );
+
         let result = self
             .db
-            .query("BEGIN TRANSACTION; CREATE ONLY $dataset CONTENT $content RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; CREATE ONLY $dataset CONTENT $content RETURN NONE; COMMIT TRANSACTION;")
             .bind(("dataset", id.record_id()))
             .bind(("content", content))
-            .bind(("outbox", outbox))
             .await
             .and_then(|response| response.check());
         if let Err(error) = result {
@@ -325,19 +312,12 @@ impl PlatformStore {
             updated_at: now,
             revision: 0,
         };
-        let outbox = layer_event(
-            &draft.identity,
-            draft.recording_id,
-            id,
-            "recording.layer_opened",
-            RecordingLayerState::Writing,
-        );
+
         let result = self
             .db
-            .query("BEGIN TRANSACTION; CREATE ONLY $layer CONTENT $content RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; CREATE ONLY $layer CONTENT $content RETURN NONE; COMMIT TRANSACTION;")
             .bind(("layer", id.record_id()))
             .bind(("content", content))
-            .bind(("outbox", outbox))
             .await
             .and_then(|response| response.check());
         if let Err(error) = result {
@@ -407,15 +387,9 @@ impl PlatformStore {
             });
         }
         let recording_id = recording_id_from_record(&existing.recording)?;
-        let outbox = layer_event(
-            identity,
-            recording_id,
-            layer_id,
-            "recording.layer_staged",
-            RecordingLayerState::Staged,
-        );
+
         self.db
-            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $layer); IF $current.revision != $revision OR $current.state != 'writing' { THROW 'recording_layer_revision_conflict'; }; UPDATE ONLY $layer SET state = 'staged', byte_len = $byte_len, message_count = $message_count, sha256 = $sha256, rrd_version = $rrd_version, schema_digest = $schema_digest, end_time = $end_time, failure_reason = NONE, updated_at = time::now(), revision += 1 RETURN NONE; UPDATE ONLY $recording SET last_data_at = $activity_at, updated_at = time::now(), revision += 1 WHERE tenant = $tenant AND state = 'live' RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $layer); IF $current.revision != $revision OR $current.state != 'writing' { THROW 'recording_layer_revision_conflict'; }; UPDATE ONLY $layer SET state = 'staged', byte_len = $byte_len, message_count = $message_count, sha256 = $sha256, rrd_version = $rrd_version, schema_digest = $schema_digest, end_time = $end_time, failure_reason = NONE, updated_at = time::now(), revision += 1 RETURN NONE; UPDATE ONLY $recording SET last_data_at = $activity_at, updated_at = time::now(), revision += 1 WHERE tenant = $tenant AND state = 'live' RETURN NONE; COMMIT TRANSACTION;")
             .bind(("layer", layer_id.record_id()))
             .bind(("revision", existing.revision))
             .bind(("byte_len", byte_len))
@@ -427,7 +401,6 @@ impl PlatformStore {
             .bind(("recording", recording_id.record_id()))
             .bind(("tenant", identity.tenant_id.record_id()))
             .bind(("activity_at", end_time.unwrap_or_else(Utc::now)))
-            .bind(("outbox", outbox))
             .await?
             .check()?;
         self.recording_layer(identity.tenant_id, layer_id)
@@ -478,20 +451,13 @@ impl PlatformStore {
             .recording(identity.tenant_id, recording_id)
             .await?
             .ok_or_else(|| StoreError::RecordingNotFound(recording_id.to_string()))?;
-        let outbox = layer_event(
-            identity,
-            recording_id,
-            layer_id,
-            "recording.layer_committed",
-            RecordingLayerState::Committed,
-        );
+
         self.db
-            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $layer); IF $current.revision != $revision OR $current.state != 'staged' OR $current.artifact != NONE { THROW 'recording_layer_revision_conflict'; }; UPDATE ONLY $layer SET state = 'committed', artifact = $artifact, staging_path = NONE, failure_reason = NONE, updated_at = time::now(), revision += 1 RETURN NONE; UPDATE ONLY $dataset SET revision += 1, updated_at = time::now() RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $layer); IF $current.revision != $revision OR $current.state != 'staged' OR $current.artifact != NONE { THROW 'recording_layer_revision_conflict'; }; UPDATE ONLY $layer SET state = 'committed', artifact = $artifact, staging_path = NONE, failure_reason = NONE, updated_at = time::now(), revision += 1 RETURN NONE; UPDATE ONLY $dataset SET revision += 1, updated_at = time::now() RETURN NONE; COMMIT TRANSACTION;")
             .bind(("layer", layer_id.record_id()))
             .bind(("revision", existing.revision))
             .bind(("artifact", artifact_id.record_id()))
             .bind(("dataset", recording.dataset))
-            .bind(("outbox", outbox))
             .await?
             .check()?;
         self.recording_layer(identity.tenant_id, layer_id)
@@ -527,20 +493,13 @@ impl PlatformStore {
                 layer_id: layer_id.to_string(),
             });
         }
-        let recording_id = recording_id_from_record(&existing.recording)?;
-        let outbox = layer_event(
-            identity,
-            recording_id,
-            layer_id,
-            "recording.layer_failed",
-            RecordingLayerState::Failed,
-        );
+        recording_id_from_record(&existing.recording)?;
+
         self.db
-            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $layer); IF $current.revision != $revision OR $current.state IN ['committed', 'failed'] { THROW 'recording_layer_revision_conflict'; }; UPDATE ONLY $layer SET state = 'failed', failure_reason = $reason, staging_path = NONE, updated_at = time::now(), revision += 1 RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $layer); IF $current.revision != $revision OR $current.state IN ['committed', 'failed'] { THROW 'recording_layer_revision_conflict'; }; UPDATE ONLY $layer SET state = 'failed', failure_reason = $reason, staging_path = NONE, updated_at = time::now(), revision += 1 RETURN NONE; COMMIT TRANSACTION;")
             .bind(("layer", layer_id.record_id()))
             .bind(("revision", existing.revision))
             .bind(("reason", reason.to_owned()))
-            .bind(("outbox", outbox))
             .await?
             .check()?;
         self.recording_layer(identity.tenant_id, layer_id)
@@ -863,43 +822,6 @@ fn validate_sha256(field: &'static str, value: &str) -> Result<(), StoreError> {
         });
     }
     Ok(())
-}
-
-fn catalog_event(
-    identity: &PlatformIdentity,
-    aggregate_type: &str,
-    aggregate_id: String,
-    event_type: &str,
-    payload: BTreeMap<String, serde_json::Value>,
-) -> OutboxDraft {
-    OutboxDraft::now(
-        Some(identity.tenant_id.record_id()),
-        aggregate_type,
-        aggregate_id,
-        event_type,
-        EVENT_SCHEMA_VERSION,
-        OpenObject::new(payload),
-    )
-}
-
-fn layer_event(
-    identity: &PlatformIdentity,
-    recording_id: RecordingId,
-    layer_id: RecordingLayerId,
-    event_type: &str,
-    state: RecordingLayerState,
-) -> OutboxDraft {
-    catalog_event(
-        identity,
-        "recording_layer",
-        layer_id.to_string(),
-        event_type,
-        BTreeMap::from([
-            ("recording_id".to_owned(), serde_json::json!(recording_id)),
-            ("layer_id".to_owned(), serde_json::json!(layer_id)),
-            ("state".to_owned(), serde_json::json!(state)),
-        ]),
-    )
 }
 
 fn recording_id_from_record(record: &RecordId) -> Result<RecordingId, StoreError> {

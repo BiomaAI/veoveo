@@ -255,7 +255,7 @@ migrations.
 Store's `json_value` adapter preserves JSON unsigned integers above `i64::MAX` as
 SurrealDB decimals instead of routing them through the driver's floating-point
 conversion. Nested objects and arrays use the same adapter. `OpenObject` and Task
-result records share it, including the JSON snapshots inside outbox events.
+result records share it, including native changefeed replay.
 Task results use a checked `{payload: ...}` envelope whose installation and replay
 profiles are defined by the [Task runtime](../platform/task-runtime/DESIGN.md#result-persistence-and-installation).
 
@@ -276,7 +276,7 @@ select different `serde_json` object-order features.
 - tasks, owners, leases, results, retention pins, provider jobs/events, and usage;
 - artifact blobs, occurrences, grants, share links, and write capabilities;
 - coordinate frames/operations, recording datasets/layers, agents/episodes/wakes;
-- audit events and the transactional outbox.
+- audit records and native changefeed checkpoints.
 
 Task observation in Rust and Python, agent wake scheduling, Agent Manager, gateway
 catalog and Console invalidations, Artifact notifications and Computer notifications
@@ -287,8 +287,8 @@ the pinned SurrealDB table-filter/LIMIT interaction. Consumers reconcile current
 when the cursor exceeds the six-day safety window. Task public readers use identities
 only and reapply SQL admission before decoding; trusted workers can replay committed
 states. Domain ID decoders import their owning contract libraries. Checkpoint writes
-have no changefeed. The remaining outbox writers and their removal are tracked in the
-[foundations plan](PLATFORM_FOUNDATIONS_PLAN.md#phase-5-store-simplification).
+have no changefeed. Domain mutations write their state and required audit records
+in one transaction; the database records the resulting changes.
 
 Gateway agent revisions hash metadata selected under the caller's current SQL admission.
 Private writes leave other callers' revisions unchanged, and removal changes the
@@ -335,7 +335,7 @@ before limits, and qualify statements against the pinned database.
 
 `veoveo-task-runtime` knows nothing about MCP. It handles UUIDv7 task creation,
 idempotency, leases, claims, progress, input requests, cancellation, terminal results,
-retention, recovery, and outbox transitions. Idempotency is scoped by tenant,
+retention, recovery and native change observation. Idempotency is scoped by tenant,
 principal, profile, server, and operation.
 
 `rmcp` handlers expose official MCP Tasks `2026-07-28` directly: discovery,
@@ -376,7 +376,7 @@ separately:
 3. The task enters `WebhookWait`.
 4. The provider sends a signed terminal webhook.
 5. The server records the event once, redeems the artifact capability issued in step
-   1, stores usage, commits the task result, and emits outbox events.
+   1, stores usage and commits the task result. Native table feeds carry the changes.
 
 The Media callback handler accepts signed events. Duplicate events have no extra
 effect, and after a restart the server replays any recorded events it had not yet
@@ -572,7 +572,7 @@ just consumed receives that same successor, and the gateway records an audit eve
 with reason code `refresh_token_duplicate_delivery`. After the window, reusing the
 token counts as replay and revokes the whole family. The delivery key is a separate
 base64-encoded 32-byte installation secret. Plaintext tokens and delivery envelopes
-never appear in logs, audit payloads, outbox events, or Console snapshots. Envelopes
+never appear in logs, audit payloads or Console snapshots. Envelopes
 stop being deliverable at their deadline. Consuming the successor clears its envelope
 in the same transaction, and a dedicated one-minute garbage-collection pass removes
 any expired ciphertext.
@@ -665,9 +665,9 @@ watcher leases, retry schedules, retention pins, results, and wakes all survive 
 process restart. The gateway route keeps the upstream Task ID opaque, as the protocol
 requires, and for Tasks from the shared first-party runtime it also keeps a direct
 record reference. The episode that consumes a wake verifies it, releases the Task's
-retention pin, marks the delivery consumed, acknowledges the wakes, and writes the
-outbox receipt, all in one SurrealDB transaction. Outbox and changefeed events wake
-the next episode. DuckDB and RRD recordings serve as the agent's analytical memory.
+retention pin, marks the delivery consumed and acknowledges the wakes in one
+SurrealDB transaction. Native changefeeds wake the next episode. DuckDB and RRD
+recordings serve as the agent's analytical memory.
 Chat history is not the source of truth.
 
 A periodic scheduler heartbeat shows that the wake path is working. A batch that

@@ -177,7 +177,7 @@ async fn replicas_reserve_one_file_slot_and_recover_the_same_private_task() {
         .await,
         Err(ComputerError::OperationBusy)
     ));
-    let mut response=db.a.client().query("SELECT * FROM computer_file_transfer; SELECT * FROM outbox_event WHERE event_type='computer.file_transfer_queued'; SELECT * FROM computer_execution_slot;").await.unwrap().check().unwrap();
+    let mut response=db.a.client().query("SELECT * FROM computer_file_transfer; SELECT * FROM audit_record WHERE activity = 'computer_file_transfer' AND draft.detail.stage = 'queued'; SELECT * FROM computer_execution_slot;").await.unwrap().check().unwrap();
     for i in 0..3 {
         let rows: Vec<veoveo_platform_store::OpenObject> = response.take(i).unwrap();
         assert_eq!(rows.len(), 1);

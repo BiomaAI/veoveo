@@ -6,14 +6,13 @@ use crate::{
     identity::{can_mutate, digest, owner_key},
     model::computer_record,
 };
-use chrono::{TimeDelta, Utc};
+use chrono::TimeDelta;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
 use veoveo_platform_store::{
-    OpenObject, OutboxDraft, deterministic_enterprise_id, deterministic_tenant_id,
-    gateway_refresh_family_record_id,
+    OpenObject, deterministic_enterprise_id, gateway_refresh_family_record_id,
 };
 use veoveo_task_runtime::{TaskError, TaskRuntime};
 
@@ -187,32 +186,7 @@ impl ComputersStore {
                 })?,
                 previous_progress: object(&before.progress)?,
             };
-            #[derive(Serialize)]
-            struct Event<'a> {
-                computer_id: veoveo_computers_contract::ComputerId,
-                maintenance_id: Uuid,
-                request_id: Uuid,
-                authority: &'a crate::AcceptedAuthority,
-                acknowledged_cancellation_at: Option<chrono::DateTime<Utc>>,
-            }
-            let event = OutboxDraft::now(
-                Some(
-                    deterministic_tenant_id(actor.owner().tenant_key())
-                        .map_err(|_| ComputerError::InvalidInput)?
-                        .record_id(),
-                ),
-                "computer",
-                input.computer_id.to_string(),
-                "computer.maintenance_resumed",
-                1,
-                object(&Event {
-                    computer_id: input.computer_id,
-                    maintenance_id: input.task_id,
-                    request_id: input.request_id,
-                    authority: actor.accepted(),
-                    acknowledged_cancellation_at: input.acknowledged_cancellation_at,
-                })?,
-            );
+
             let family = actor
                 .accepted()
                 .request_context
@@ -254,7 +228,6 @@ impl ComputersStore {
                         ),
                         ("computer_updated_at", computer.updated_at.into_value()),
                         ("source_owner", object(&computer.owner)?.into_value()),
-                        ("event", event.into_value()),
                         crate::audit::binding(
                             actor.accepted(),
                             input.computer_id,

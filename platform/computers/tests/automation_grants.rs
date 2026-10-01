@@ -110,7 +110,7 @@ async fn concurrent_grants_are_idempotent_bounded_and_revocation_never_reissues_
         a.issue_automation_grant(&owner, &request).await.unwrap(),
         revoked
     );
-    let mut events = db.b.client().query("SELECT VALUE event_type FROM outbox_event WHERE aggregate_id = $id AND event_type = 'automation_revoked';").bind(("id", computer.to_string())).await.unwrap().check().unwrap();
+    let mut events = db.b.client().query("SELECT VALUE activity FROM audit_record WHERE target_ref = $computer AND activity = 'computer_revoke' AND draft.detail.stage = 'grant_revoked';").bind(("computer", RecordId::new("computer", surrealdb::types::Uuid::from(computer.into_uuid())))).await.unwrap().check().unwrap();
     let events: Vec<String> = events.take(0).unwrap();
     assert_eq!(events.len(), 1);
 }

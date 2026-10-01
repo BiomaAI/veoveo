@@ -127,27 +127,3 @@ DEFINE INDEX IF NOT EXISTS audit_event_tenant_time ON TABLE audit_event FIELDS t
 DEFINE INDEX IF NOT EXISTS audit_event_actor_time ON TABLE audit_event FIELDS actor, occurred_at;
 DEFINE INDEX IF NOT EXISTS audit_event_action_time ON TABLE audit_event FIELDS action, occurred_at;
 DEFINE INDEX IF NOT EXISTS audit_event_request_id ON TABLE audit_event FIELDS request_id;
-
-DEFINE SEQUENCE IF NOT EXISTS platform_outbox_sequence BATCH 1 START 1;
-DEFINE TABLE IF NOT EXISTS outbox_event SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
-DEFINE FIELD IF NOT EXISTS id ON TABLE outbox_event TYPE uuid DEFAULT rand::uuid();
-DEFINE FIELD IF NOT EXISTS sequence ON TABLE outbox_event TYPE int DEFAULT sequence::nextval("platform_outbox_sequence") READONLY;
-DEFINE FIELD IF NOT EXISTS tenant ON TABLE outbox_event TYPE option<record<tenant>>;
-DEFINE FIELD IF NOT EXISTS aggregate_type ON TABLE outbox_event TYPE string;
-DEFINE FIELD IF NOT EXISTS aggregate_id ON TABLE outbox_event TYPE string;
-DEFINE FIELD IF NOT EXISTS event_type ON TABLE outbox_event TYPE string;
-DEFINE FIELD IF NOT EXISTS schema_version ON TABLE outbox_event TYPE int ASSERT $value > 0;
-DEFINE FIELD IF NOT EXISTS payload ON TABLE outbox_event TYPE object FLEXIBLE;
-DEFINE FIELD IF NOT EXISTS occurred_at ON TABLE outbox_event TYPE datetime DEFAULT time::now();
-DEFINE FIELD IF NOT EXISTS available_at ON TABLE outbox_event TYPE datetime DEFAULT time::now();
-DEFINE INDEX IF NOT EXISTS outbox_event_sequence_unique ON TABLE outbox_event FIELDS sequence UNIQUE;
-DEFINE INDEX IF NOT EXISTS outbox_event_available ON TABLE outbox_event FIELDS available_at, sequence;
-DEFINE INDEX IF NOT EXISTS outbox_event_aggregate ON TABLE outbox_event FIELDS aggregate_type, aggregate_id, sequence;
-DEFINE INDEX IF NOT EXISTS outbox_event_tenant_sequence ON TABLE outbox_event FIELDS tenant, sequence;
-
-DEFINE TABLE IF NOT EXISTS outbox_checkpoint SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
-DEFINE FIELD IF NOT EXISTS id ON TABLE outbox_checkpoint TYPE string;
-DEFINE FIELD IF NOT EXISTS consumer ON TABLE outbox_checkpoint TYPE string;
-DEFINE FIELD IF NOT EXISTS last_sequence ON TABLE outbox_checkpoint TYPE int DEFAULT 0 ASSERT $value >= 0;
-DEFINE FIELD IF NOT EXISTS updated_at ON TABLE outbox_checkpoint TYPE datetime DEFAULT time::now();
-DEFINE INDEX IF NOT EXISTS outbox_checkpoint_consumer_unique ON TABLE outbox_checkpoint FIELDS consumer UNIQUE;

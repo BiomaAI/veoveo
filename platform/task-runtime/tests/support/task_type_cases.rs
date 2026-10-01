@@ -44,18 +44,11 @@ async fn operation_names_survive_storage_and_reject_unvalidated_admission() {
         invalid["task_type"] = json!("invalid operation");
         assert!(serde_json::from_value::<TaskSnapshot>(invalid).is_err());
 
-        let events = reader.platform_store().read_outbox(0, 100).await.unwrap();
-        let created = events
-            .events
-            .iter()
-            .find(|event| {
-                event.aggregate_id == task.task_id.to_string() && event.event_type == "task.created"
-            })
-            .unwrap();
-        assert_eq!(
-            serde_json::to_value(&created.payload).unwrap()["snapshot"]["task_type"],
-            "checked-operation"
-        );
+        let changes = db
+            .committed(veoveo_platform_store::PlatformTable::Task)
+            .await;
+        assert_eq!(changes.len(), 1);
+        assert_eq!(changes[0]["task_type"], "checked-operation");
 
         db.b.client()
             .query("UPDATE ONLY $task SET task_type = 'invalid operation' RETURN NONE;")

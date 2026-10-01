@@ -184,16 +184,6 @@ impl ComputersStore {
                             veoveo_audit_contract::ComputerAuditStage::GrantRevoked,
                         ),
                     )?,
-                    (
-                        "event",
-                        authority::event(
-                            actor.accepted(),
-                            row.computer_id()?,
-                            grant_id,
-                            "access_revoked",
-                        )?
-                        .into_value(),
-                    ),
                 ],
             )
             .await?;
@@ -227,16 +217,7 @@ impl ComputersStore {
                         Option::<DateTime<Utc>>::None.into_value(),
                     ),
                     crate::audit::binding(&accepted, row.computer_id()?, crate::audit::Transition::accepted(veoveo_audit_contract::ComputerActivity::Close, veoveo_audit_contract::ComputerAuditStage::Closed))?,
-                    (
-                        "event",
-                        authority::event(
-                            &accepted,
-                            row.computer_id()?,
-                            handle.grant_id,
-                            "access_closed",
-                        )?
-                        .into_value(),
-                    ),
+
                 ],
             )
             .await?;

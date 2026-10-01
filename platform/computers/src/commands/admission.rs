@@ -10,8 +10,8 @@ use crate::{
 use serde::Serialize;
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
+use veoveo_platform_store::OpenObject;
 use veoveo_platform_store::task_record_id;
-use veoveo_platform_store::{OpenObject, OutboxDraft, deterministic_tenant_id};
 
 #[derive(Serialize, SurrealValue)]
 struct Content {
@@ -138,30 +138,7 @@ impl ComputersStore {
             sealed: object(&sealed)?,
             task: task_record_id(binding.execution_id.task_id()),
         };
-        #[derive(Serialize)]
-        struct Event<'a> {
-            execution_id: veoveo_computers_contract::ExecutionId,
-            computer_id: veoveo_computers_contract::ComputerId,
-            grant_id: veoveo_computers_contract::AutomationGrantId,
-            actor: &'a crate::AcceptedAuthority,
-        }
-        let event = OutboxDraft::now(
-            Some(
-                deterministic_tenant_id(actor.owner().tenant_key())
-                    .map_err(|_| ComputerError::InvalidInput)?
-                    .record_id(),
-            ),
-            "computer",
-            computer_id.to_string(),
-            "computer.execution_queued",
-            1,
-            object(&Event {
-                execution_id: binding.execution_id,
-                computer_id,
-                grant_id: binding.grant_id,
-                actor: actor.accepted(),
-            })?,
-        );
+
         let mut params = authority.transaction_bindings()?;
         params.extend([
             ("computer", computer_record(computer_id).into_value()),
@@ -178,7 +155,6 @@ impl ComputersStore {
                 "expected_owner_context",
                 object(&computer.owner)?.into_value(),
             ),
-            ("event", event.into_value()),
             crate::audit::binding(
                 actor.accepted(),
                 binding.computer_id,

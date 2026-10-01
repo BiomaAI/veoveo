@@ -18,25 +18,6 @@ pub(crate) enum ExecutionTransition {
     RecoveryRequired,
 }
 impl ExecutionTransition {
-    pub fn event(self, domain: ExecutionDomain) -> String {
-        let prefix = match domain {
-            ExecutionDomain::Command => "execution",
-            ExecutionDomain::File => "file_transfer",
-        };
-        let suffix = match self {
-            Self::Dispatch => "dispatched",
-            Self::Undispatched => "undispatched",
-            Self::Terminated => "terminated",
-            Self::Completed => match domain {
-                ExecutionDomain::Command => "completed",
-                ExecutionDomain::File => "finished",
-            },
-            Self::ContainmentRequested => "containment_requested",
-            Self::StopDispatched => "stop_dispatched",
-            Self::RecoveryRequired => "recovery_required",
-        };
-        format!("computer.{prefix}_{suffix}")
-    }
     pub fn transition(
         self,
         domain: ExecutionDomain,

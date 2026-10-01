@@ -39,7 +39,6 @@ LET $idle_end = IF $now + $idle < $expires { $now + $idle } ELSE { $expires };
 CREATE $grant CONTENT {grant_id:$grant_id, computer_id:$computer_id, owner_key:$owner_key,
   provider_instance_id:$provider, authority:$authority, family:$family, credential_hash:$credential_hash,
   name:$consumed.name, issued_at:$now, expires_at:$expires, idle_expires_at:$idle_end, last_activity_at:$now};
-CREATE outbox_event CONTENT $event;
-  fn::append_audit($audit_rows);
+fn::append_audit($audit_rows);
 COMMIT TRANSACTION;
 SELECT VALUE expires_at FROM ONLY $grant;

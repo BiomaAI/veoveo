@@ -116,13 +116,16 @@ async fn replicas_share_one_replacement_task_fence_and_retained_capacity() {
         .await,
         Err(ComputerError::OperationBusy)
     ));
-    let mut reply = db.a.client().query("SELECT VALUE retained FROM computer_usage; SELECT VALUE aggregate_id FROM outbox_event WHERE event_type = 'computer.maintenance_queued'; SELECT VALUE operation_id FROM computer_maintenance;")
+    let mut reply = db.a.client().query("SELECT VALUE retained FROM computer_usage; SELECT VALUE target_ref FROM audit_record WHERE activity = 'computer_maintain' AND draft.detail.stage = 'queued'; SELECT VALUE operation_id FROM computer_maintenance;")
         .await.unwrap().check().unwrap();
     let retained: Vec<i64> = reply.take(0).unwrap();
     assert_eq!(retained, vec![1, 1, 1]);
     assert_eq!(
-        reply.take::<Vec<String>>(1).unwrap(),
-        vec![computer_id.to_string()]
+        reply.take::<Vec<RecordId>>(1).unwrap(),
+        vec![RecordId::new(
+            "computer",
+            StoreUuid::from(computer_id.into_uuid())
+        )]
     );
     assert_eq!(
         reply.take::<Vec<Uuid>>(2).unwrap(),

@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::types::{RecordId, SurrealValue, Uuid as SurrealUuid};
@@ -8,8 +6,8 @@ use uuid::Uuid;
 use crate::identity::PLATFORM_ID_NAMESPACE;
 use crate::{
     ArtifactAccessRequestId, ArtifactAccessRequestRecord, ArtifactAccessRequestState,
-    ArtifactGrantEdge, ArtifactGrantSubjectKind, ArtifactId, GrantPermission, OpenObject,
-    OutboxDraft, PlatformIdentity, PlatformStore, PrincipalId, StoreError, TenantId, WorkContextId,
+    ArtifactGrantEdge, ArtifactGrantSubjectKind, ArtifactId, GrantPermission, PlatformIdentity,
+    PlatformStore, PrincipalId, StoreError, TenantId, WorkContextId,
 };
 
 const MAX_ACCESS_REQUEST_LIMIT: u32 = 500;
@@ -95,13 +93,7 @@ impl PlatformStore {
                     return Ok(existing);
                 }
                 let now = Utc::now();
-                let event = access_request_event(
-                    &draft.identity,
-                    draft.request_id,
-                    draft.artifact_id,
-                    "artifact.access_requested",
-                    ArtifactAccessRequestState::Pending,
-                );
+
                 self.db
                     .query(
                         "BEGIN TRANSACTION; \
@@ -111,7 +103,6 @@ impl PlatformStore {
                            justification = $justification, state = 'pending', decided_by = NONE, \
                            decided_by_key = NONE, decision_note = NONE, decided_at = NONE, created_at = $now, \
                            updated_at = $now, revision += 1 RETURN NONE; \
-                         CREATE outbox_event CONTENT $event RETURN NONE; \
                          COMMIT TRANSACTION;",
                     )
                     .bind(("request", existing.id.clone()))
@@ -119,7 +110,6 @@ impl PlatformStore {
                     .bind(("requested_level", draft.requested_level))
                     .bind(("justification", draft.justification.clone()))
                     .bind(("now", now))
-                    .bind(("event", event))
                     .await?
                     .check()?;
                 return self
@@ -152,24 +142,16 @@ impl PlatformStore {
                 decided_at: None,
                 revision: 0,
             };
-            let event = access_request_event(
-                &draft.identity,
-                draft.request_id,
-                draft.artifact_id,
-                "artifact.access_requested",
-                ArtifactAccessRequestState::Pending,
-            );
+
             let created = self
                 .db
                 .query(
                     "BEGIN TRANSACTION; \
                      CREATE ONLY $request CONTENT $content RETURN NONE; \
-                     CREATE outbox_event CONTENT $event RETURN NONE; \
                      COMMIT TRANSACTION;",
                 )
                 .bind(("request", draft.request_id.record_id()))
                 .bind(("content", content))
-                .bind(("event", event))
                 .await
                 .and_then(|response| response.check());
             if created.is_ok() {
@@ -281,19 +263,7 @@ impl PlatformStore {
             ));
         }
         let now = Utc::now();
-        let event_type = match draft.state {
-            ArtifactAccessRequestState::Approved => "artifact.access_request_approved",
-            ArtifactAccessRequestState::Denied => "artifact.access_request_denied",
-            ArtifactAccessRequestState::Cancelled => "artifact.access_request_cancelled",
-            ArtifactAccessRequestState::Pending => unreachable!(),
-        };
-        let request_event = access_request_event(
-            &draft.identity,
-            draft.request_id,
-            record_artifact_id(&existing.artifact)?,
-            event_type,
-            draft.state,
-        );
+
         let mut query = if draft.state == ArtifactAccessRequestState::Approved {
             let grant_id = deterministic_grant_id(
                 record_artifact_id(&existing.artifact)?,
@@ -312,27 +282,7 @@ impl PlatformStore {
                 created_by: draft.identity.principal_id.record_id(),
                 created_at: now,
             };
-            let grant_event = OutboxDraft::now(
-                Some(draft.identity.tenant_id.record_id()),
-                "artifact",
-                record_artifact_id(&existing.artifact)?.to_string(),
-                "artifact.grant.updated",
-                1,
-                OpenObject::new(BTreeMap::from([
-                    (
-                        "subject_key".to_owned(),
-                        serde_json::json!(existing.requester_key),
-                    ),
-                    (
-                        "permission".to_owned(),
-                        serde_json::to_value(existing.requested_level).unwrap_or_default(),
-                    ),
-                    (
-                        "access_request_id".to_owned(),
-                        serde_json::json!(draft.request_id.to_string()),
-                    ),
-                ])),
-            );
+
             self.db
                 .query(
                     "BEGIN TRANSACTION; \
@@ -343,15 +293,13 @@ impl PlatformStore {
                      UPDATE ONLY $request SET state = $state, decided_by = $decided_by, \
                        decided_by_key = $decided_by_key, \
                        decision_note = $note, decided_at = $now, updated_at = $now, revision += 1 RETURN NONE; \
-                     CREATE outbox_event CONTENT $request_event RETURN NONE; \
-                     CREATE outbox_event CONTENT $grant_event RETURN NONE; \
+                     \
                      COMMIT TRANSACTION;",
                 )
                 .bind(("grant_id", grant_id))
                 .bind(("artifact", existing.artifact.clone()))
                 .bind(("requester", existing.requester.clone()))
                 .bind(("grant", grant))
-                .bind(("grant_event", grant_event))
         } else {
             self.db.query(
                 "BEGIN TRANSACTION; \
@@ -360,7 +308,6 @@ impl PlatformStore {
                  UPDATE ONLY $request SET state = $state, decided_by = $decided_by, \
                    decided_by_key = $decided_by_key, \
                    decision_note = $note, decided_at = $now, updated_at = $now, revision += 1 RETURN NONE; \
-                 CREATE outbox_event CONTENT $request_event RETURN NONE; \
                  COMMIT TRANSACTION;",
             )
         };
@@ -371,8 +318,7 @@ impl PlatformStore {
             .bind(("decided_by", draft.identity.principal_id.record_id()))
             .bind(("decided_by_key", draft.identity.principal_key.clone()))
             .bind(("note", draft.note))
-            .bind(("now", now))
-            .bind(("request_event", request_event));
+            .bind(("now", now));
         query.await?.check()?;
         self.artifact_access_request(draft.identity.tenant_id, draft.request_id)
             .await?
@@ -401,29 +347,6 @@ impl PlatformStore {
         let records: Vec<ArtifactAccessRequestRecord> = response.take(0)?;
         Ok(records.into_iter().next())
     }
-}
-
-fn access_request_event(
-    identity: &PlatformIdentity,
-    request_id: ArtifactAccessRequestId,
-    artifact_id: ArtifactId,
-    event_type: &str,
-    state: ArtifactAccessRequestState,
-) -> OutboxDraft {
-    OutboxDraft::now(
-        Some(identity.tenant_id.record_id()),
-        "artifact_access_request",
-        request_id.to_string(),
-        event_type,
-        1,
-        OpenObject::new(BTreeMap::from([
-            (
-                "artifact_id".to_owned(),
-                serde_json::json!(artifact_id.to_string()),
-            ),
-            ("state".to_owned(), serde_json::json!(state)),
-        ])),
-    )
 }
 
 fn deterministic_grant_id(

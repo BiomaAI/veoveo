@@ -5,7 +5,7 @@ authority independent of the provider transport. Only a Computers worker may inv
 the private runtime; a Console or MCP projection calls this domain.
 
 Retained Computers are a collection. Human and service ownership use canonical
-identity and Work Context. Admission, operation fences and audit/outbox changes
+identity and Work Context. Admission, operation fences and audit records
 must commit atomically. An uncertain provider effect never releases a fence.
 
 Use isolated real-store tests for concurrent admission and durable transitions.

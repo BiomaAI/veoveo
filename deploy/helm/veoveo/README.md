@@ -277,7 +277,7 @@ the first rotates it and stores the new token encrypted under the delivery key. 
 request arriving inside the window receives that same new token. A later use is a
 replay and revokes the token family. The plaintext token is never persisted. The
 encrypted envelope is bound to the authorization server, profile, OAuth client,
-family, and generation, and is never copied to logs, audit payloads, outbox events,
+family, and generation, and is never copied to logs, audit payloads,
 or console snapshots. It stops being deliverable at the deadline. The gateway deletes
 it in the same transaction that consumes the new token, or on the next one-minute GC
 pass once it expires.

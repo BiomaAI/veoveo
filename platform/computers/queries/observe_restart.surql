@@ -14,6 +14,5 @@ IF $current.active_operation != NONE OR (SELECT * FROM ONLY $slot) != NONE {
 UPDATE $computer SET process_id = $process, updated_at = $now;
 UPDATE computer_session_grant SET revoked_at = $now
   WHERE computer_id = $computer_id AND process_id = $previous_process AND revoked_at = NONE;
-CREATE outbox_event CONTENT $event;
 fn::append_audit($audit_rows);
 COMMIT TRANSACTION;

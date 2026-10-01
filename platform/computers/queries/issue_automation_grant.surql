@@ -40,7 +40,6 @@ IF $prior != NONE {
   IF array::len($active) >= $limits.max_grants { THROW "computer_access_limit"; };
   CREATE $grant CONTENT object::extend($content, {issued_at:$now, revision:0});
   CREATE $request CONTENT {grant:$grant, fingerprint:$fingerprint};
-  CREATE outbox_event CONTENT $event;
   fn::append_audit($audit_rows);
 };
 COMMIT TRANSACTION;

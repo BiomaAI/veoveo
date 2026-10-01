@@ -17,7 +17,7 @@ the repository's ordinary component modules and existing runtime authorization.
 | MCP, JSON-RPC, JSON Schema, OAuth and OpenID Connect | Versions and supported subsets in the normative [MCP server contract](../mcp/contract/DESIGN.md) |
 | HTTP, WebSocket, SSH and internal gRPC | Policy-checked control, artifact transfer, and Computers access; [contract evolution](CONTRACT_EVOLUTION.md) records the new profile requirements |
 | UUIDv7, SHA-256 and Git identity | Opaque domain identities, integrity, and exact source provenance |
-| SurrealQL and transactional outbox | Durable store and recovery under the pinned SurrealDB implementation; no database HA claim |
+| SurrealQL, LIVE queries and changefeeds | Durable store and recovery under the pinned SurrealDB implementation; no database HA claim |
 | OCI, Helm, Kubernetes and GitOps | Immutable release artifacts and installation-owned reconciliation |
 | S3-compatible object APIs | Private Artifact storage under the [Artifact service design](../platform/artifacts/service/DESIGN.md) |
 | Rerun RRD/Data Protocol, Arrow, H.264 and Media Capabilities | Recording and playback subsets under [Recordings](RECORDINGS.md) and the owning component designs |
@@ -123,8 +123,8 @@ tenants. A tenant is a hard partition of data and authorization inside that
 installation. It is not a customer account in a vendor service.
 
 Tenant and principal identities resolve through one platform identity mapping.
-Tasks, artifacts, frames, recordings, agents, grants, audit events, and outbox
-events all use those record identities. No subsystem may define its own tenant or
+Tasks, artifacts, frames, recordings, agents, grants and audit records all use
+those record identities. No subsystem may define its own tenant or
 principal namespace.
 
 ## Durable platform store
@@ -135,12 +135,12 @@ release makes no claim of database high availability.
 
 SurrealDB stores identity, control-plane revisions, policies, tasks, provider jobs
 and webhook events, artifact metadata and grants, coordinate registries, recordings
-and segments, agents and wakes, audit records, and the transactional outbox.
+and segments, agents and wakes, and audit records.
 
-Cross-process work is driven by the transactional outbox and its replayable
-changefeed. SurrealDB LIVE queries only reduce latency, because their delivery order
-is best effort. After a disconnect or restart, a consumer resumes from its outbox
-checkpoint.
+Cross-process work observes native table changefeeds. SurrealDB LIVE queries wake
+replay because their delivery order is best effort. Consumers register LIVE before
+recovery, process whole committed transactions and checkpoint their versionstamp.
+After retained history expires, they reconcile current state under domain admission.
 
 Schema migrations run with installation-admin credentials. Runtime workloads connect
 as a database-level runtime user and never run migrations.
@@ -218,7 +218,8 @@ task never reads a partial Hub write and never attaches to a producer proxy.
 ## Task execution and provider completion
 
 Long-running work uses the shared task runtime. Task IDs are UUIDv7. State
-transitions, leases, cancellation, results, and outbox events commit atomically.
+transitions, leases, cancellation and results commit atomically; native changefeeds
+record those committed changes.
 Idempotency keys are scoped by tenant, principal, profile, server, and operation.
 
 Each task declares how it recovers:
@@ -337,8 +338,8 @@ just-consumed token can receive the same successor token again, delivered from a
 authenticated, encrypted envelope. After that window, reusing the token counts as
 replay and revokes the whole token family. The envelope key is separate from the
 signing and browser-session keys. Plaintext tokens are never persisted, and the
-delivery ciphertext never appears in logs, audit records, outbox events, or Console
-data. Consuming the successor clears its envelope in the same transaction. Expired
+delivery ciphertext never appears in logs, audit records or Console data. Consuming
+the successor clears its envelope in the same transaction. Expired
 envelopes can no longer be delivered, and a dedicated garbage-collection pass removes
 them every minute.
 

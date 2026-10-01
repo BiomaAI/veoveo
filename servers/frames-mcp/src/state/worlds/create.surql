@@ -8,6 +8,5 @@ IF $existing != NONE {
     RETURN $existing;
 };
 LET $world = CREATE ONLY $world_record CONTENT $content;
-CREATE outbox_event CONTENT $outbox RETURN NONE;
 RETURN $world;
 COMMIT TRANSACTION;

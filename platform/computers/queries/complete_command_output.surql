@@ -21,5 +21,4 @@ LET $completed = (UPDATE ONLY $execution SET stage = "completed", result = $resu
 IF $completed = NONE { THROW "computer_state_conflict"; };
 -- Foreground completion does not change the Computer run or an owner's Stop.
 DELETE $slot WHERE execution = $execution;
-CREATE outbox_event CONTENT $event;
 fn::append_audit($audit_rows);

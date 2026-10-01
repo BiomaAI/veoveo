@@ -78,11 +78,7 @@ impl ComputersStore {
                     ("process", computer.process_id.into_value()),
                     ("authority_expires_at", end.into_value()),
                     crate::audit::binding(&accepted, computer_id, crate::audit::Transition::accepted(veoveo_audit_contract::ComputerActivity::Attach, veoveo_audit_contract::ComputerAuditStage::Attached))?,
-                    (
-                        "event",
-                        authority::event(&accepted, computer_id, grant_id, "access_connected")?
-                            .into_value(),
-                    ),
+
                 ],
             )
             .await?;
@@ -215,16 +211,6 @@ impl ComputersStore {
                             veoveo_audit_contract::ComputerAuditStage::GrantRevoked,
                         ),
                     )?,
-                    (
-                        "event",
-                        authority::event(
-                            actor.accepted(),
-                            computer_id,
-                            grant_id,
-                            "access_revoked",
-                        )?
-                        .into_value(),
-                    ),
                 ],
             )
             .await?;

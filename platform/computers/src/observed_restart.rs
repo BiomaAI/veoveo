@@ -5,7 +5,6 @@ use crate::{
 use chrono::Utc;
 use std::time::{Duration, Instant};
 use surrealdb::types::SurrealValue;
-use veoveo_platform_store::{OutboxDraft, deterministic_tenant_id};
 
 impl ComputersStore {
     /// Internal provider observation, never a client-supplied process identity.
@@ -45,28 +44,7 @@ impl ComputersStore {
         if before.active_operation.is_some() {
             return Err(ComputerError::OperationBusy);
         }
-        #[derive(serde::Serialize)]
-        struct Payload<'a> {
-            computer_id: uuid::Uuid,
-            previous_process_id: &'a str,
-            process_id: &'a str,
-        }
-        let event = OutboxDraft::now(
-            Some(
-                deterministic_tenant_id(before.owner.tenant_key())
-                    .map_err(|_| ComputerError::InvalidInput)?
-                    .record_id(),
-            ),
-            "computer",
-            before.computer_id.to_string(),
-            "computer.run_observed",
-            1,
-            crate::session_grants::object(&Payload {
-                computer_id: before.computer_id.into_uuid(),
-                previous_process_id: before.process_id.as_deref().unwrap(),
-                process_id: &observed.process_id,
-            })?,
-        );
+
         self.query(
             include_str!("../queries/observe_restart.surql"),
             vec![
@@ -101,7 +79,6 @@ impl ComputersStore {
                             .map_err(|_| ComputerError::Unavailable)?)
                     .into_value(),
                 ),
-                ("event", event.into_value()),
                 crate::audit::binding(
                     actor.accepted(),
                     before.computer_id,

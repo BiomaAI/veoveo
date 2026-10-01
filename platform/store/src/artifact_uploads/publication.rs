@@ -64,7 +64,6 @@ impl PlatformStore {
                 .bind(("artifact", upload.artifact.clone()))
                 .bind(("artifact_content", publication.occurrence.clone()))
                 .bind(("grants", publication.grants.clone()))
-                .bind(("outbox", publication.outbox.clone()))
                 .bind(AuditTransactionWrite::new(audit.clone())?.into_binding())
                 .bind((
                     "storage_usage",

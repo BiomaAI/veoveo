@@ -399,7 +399,7 @@ The canonical Veoveo boundaries remain:
 - the shared durable Task runtime for long-running lifecycle, idempotency, recovery,
   cancellation, results, retention, and subscriptions.
 - the agent runtime for episodes, tasks, wakes, leases, and consumption.
-- the platform store and transactional outbox for durable control state.
+- the platform store and native changefeeds for durable control state.
 - the artifact plane for governed trajectory, dataset, evaluation, and candidate bytes.
 - installation-owned Kubernetes reconciliation for admitted execution.
 

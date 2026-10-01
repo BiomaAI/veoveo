@@ -2,7 +2,7 @@ use crate::{Computer, ComputerError, ComputersStore, Result, identity::*, model:
 use serde::{Deserialize, Serialize};
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
-use veoveo_platform_store::{OpenObject, OutboxDraft, deterministic_tenant_id};
+use veoveo_platform_store::{OpenObject, deterministic_tenant_id};
 use veoveo_task_runtime::TaskOwner;
 
 /// Installation policy, never a caller-controlled request field. Zero closes admission.
@@ -131,18 +131,7 @@ impl ComputersStore {
         };
         let tenant =
             deterministic_tenant_id(owner.tenant_key()).map_err(|_| ComputerError::InvalidInput)?;
-        let event = OutboxDraft::now(
-            Some(tenant.record_id()),
-            "computer",
-            id.to_string(),
-            "computer.reserved",
-            1,
-            object(&Event {
-                computer_id: id,
-                actor_key: &owner.principal_key,
-                authority: &owner.authority,
-            })?,
-        );
+
         let params = vec![
             crate::audit::binding(
                 actor.accepted(),
@@ -174,7 +163,6 @@ impl ComputersStore {
                 .into_value(),
             ),
             ("capacity", self.capacity_record().into_value()),
-            ("event", event.into_value()),
         ];
         self.query(include_str!("../queries/reserve.surql"), params)
             .await?;
@@ -201,13 +189,6 @@ impl ComputersStore {
         permits(&computer.owner, owner)?;
         Ok(computer)
     }
-}
-
-#[derive(Serialize)]
-struct Event<'a> {
-    computer_id: veoveo_computers_contract::ComputerId,
-    actor_key: &'a str,
-    authority: &'a veoveo_types::InvocationAuthority,
 }
 
 fn object(value: &impl Serialize) -> Result<OpenObject> {

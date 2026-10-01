@@ -7,8 +7,8 @@ use surrealdb::{
     types::{RecordId, SurrealValue},
 };
 
-/// Closed native-LIVE sources. Registry tables use durable outbox events rather
-/// than a database changefeed; watching them does not claim changefeed support.
+/// Closed native-LIVE sources for domain invalidation. Recoverable consumers
+/// replay each table through its native changefeed.
 #[derive(Clone, Copy)]
 pub enum ResourceChangeTable {
     Platform(PlatformTable),

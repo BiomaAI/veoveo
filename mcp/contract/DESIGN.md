@@ -347,7 +347,7 @@ change. Discovery caches per-item admission decisions with the caller authority,
 policy revision and catalog generation. Native catalog subscriptions invalidate those
 decisions on change. Each list request commits one audit record with visible and denied
 counts and the visible-set digest before returning. A warm list evaluates no policy.
-Audit writes emit no outbox rows. A failed fetch becomes eligible on the next explicit
+A failed fetch becomes eligible on the next explicit
 list call.
 
 A profile whose work requires a complete tool catalog sets

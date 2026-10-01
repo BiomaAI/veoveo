@@ -299,21 +299,18 @@ async fn mutation_replay_conflicts_and_concurrent_edits_preserve_one_result() {
         .await,
         Err(AgentManagementError::Conflict)
     );
-    let events =
-        db.a.client()
-            .query("SELECT * FROM outbox_event WHERE aggregate_type = 'agent_definition';")
-            .await
-            .unwrap()
-            .check()
-            .unwrap()
-            .take::<Vec<veoveo_platform_store::OutboxEventRecord>>(0)
-            .unwrap();
-    assert_eq!(events.len(), 2);
-    assert!(
-        !serde_json::to_string(&events)
-            .unwrap()
-            .contains("Instruction")
-    );
+    let changes = db
+        .committed(veoveo_platform_store::PlatformTable::AgentDefinition)
+        .await;
+    let revisions = changes
+        .iter()
+        .map(|row| {
+            row["revision"]
+                .as_u64()
+                .expect("committed definition revision")
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(revisions, std::collections::BTreeSet::from([1, 2]));
 }
 
 #[tokio::test]

@@ -65,7 +65,7 @@ Offline installations use the same five-second default for
 connected ones. Within that window, concurrent BFF requests that present the same
 just-rotated refresh token all receive the same new token, decrypted from an encrypted
 envelope. Reuse after the window counts as replay and revokes the refresh-token family. The
-plaintext token never reaches storage, logs, audit, the outbox, or snapshots. Consuming
+plaintext token never reaches storage, logs, audit or snapshots. Consuming
 the new token deletes its envelope in the same transaction; a one-minute GC pass deletes
 envelopes that expire unused.
 

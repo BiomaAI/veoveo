@@ -129,8 +129,8 @@ Settlement in a different tenant cannot suppress a job with the same provider ID
 Ledger writes reject mismatched Task or provider identities before recording usage.
 
 The signed webhook and existing pending-event/billing reconciliation mechanisms keep
-their current completion semantics. Finite recovery budgets and the replacement of
-outbox delivery remain work in the foundations plan. Cancellation cannot turn a late
+their current completion semantics. Native table feeds carry committed Task and
+provider-job changes. Finite recovery budgets remain work in the foundations plan. Cancellation cannot turn a late
 webhook into a successful Task result or permit Artifact capability redemption.
 
 ## Catalog And Result Contracts

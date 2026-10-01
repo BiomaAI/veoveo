@@ -43,10 +43,16 @@ with an older catalog to a newer database fails schema validation. Mixed-version
 migration jobs are unsupported: drain the previous migration owner before upgrading.
 Ordinary service rollout follows the data compatibility of the qualified release.
 
+The foundations plan authorizes a coordinated fresh-database cut for its schema
+replacement. Drain every writer, bootstrap the current catalog into an empty store
+and start only the matching release. An existing database is not an upgrade target
+for that cut; checksum validation rejects its earlier catalog. Native qualification
+uses disposable stores, and the plan tracks the reference installation reset.
+
 ## Task Result Format
 
-The Task result envelope installation requires an empty Task table and no Task
-outbox events. It stops with `task_result_reset_required` otherwise. Operators stop all writers and rebuild the
+The Task result envelope installation requires an empty Task table. It stops with
+`task_result_reset_required` otherwise. Operators stop all writers and rebuild the
 platform database for the coordinated release. The current schema admits only one
 required `payload` key in a result and indexes Optimization result URIs beneath it.
 No stored Task result is converted. The [Task runtime design](../../../task-runtime/DESIGN.md#result-persistence-and-installation)

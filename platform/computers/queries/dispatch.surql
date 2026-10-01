@@ -59,5 +59,4 @@ LET $dispatched = (UPDATE ONLY $operation SET stage = "dispatched", dispatch_id 
   updated_at = time::now() WHERE stage = "queued" AND dispatch_id = NONE
     AND updated_at = $current.updated_at RETURN AFTER);
 IF $dispatched = NONE { THROW "computer_state_conflict"; };
-CREATE outbox_event CONTENT $event;
-  fn::append_audit($audit_rows);
+fn::append_audit($audit_rows);

@@ -42,8 +42,9 @@ listeners and publishes the new epoch to Task watchers. This maintenance admits 
 episode and makes no model call. Each attempt is bounded to six seconds; failed
 renewal leaves request dispatch subject to the same fail-closed preflight.
 
-Active episodes observe their durable dispatch fence through outbox LIVE events.
-A five-second recovery read covers missed events. Stop drops the active runner
+Active episodes observe their dispatch fence through native table feeds, replaying
+commits after reconnect and rechecking current authority at the known lease expiry.
+A failed source closes dispatch. Stop drops the active runner
 without cancelling an already accepted domain Task. A whole-episode deadline also
 bounds model and tool work. DuckDB represents a stopped projection as an error
 with an explicit stop reason; the canonical runtime state remains `stopped`.

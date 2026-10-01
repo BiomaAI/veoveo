@@ -520,7 +520,7 @@ Domain runtimes can own private queries and driver records over these connection
 | `config.rs` | root/database auth configuration and validation |
 | `migrations.rs` | ordered SurrealDB 3.2 schema migrations |
 | `models.rs` | persisted Rust record and enum definitions |
-| `task_result.rs`, `json_value.rs` | checked Task result envelopes and JSON driver conversion that preserves unsigned integer precision, including nested outbox payloads |
+| `task_result.rs`, `json_value.rs` | checked Task result envelopes and JSON driver conversion that preserves unsigned integer precision, including nested native replay payloads |
 | `ids.rs`, `table.rs` | domain-specific record IDs and table identities |
 | [`workspace/`](../platform/store/src/workspace/DESIGN.md) | shared-chat persistence: transactional membership and invitations, immutable messages, committed event order, and replay; clients and agent execution both read and write through it |
 | `recording_catalog.rs` | recording datasets and layers, expiry, and cleanup |
@@ -530,7 +530,7 @@ Domain runtimes can own private queries and driver records over these connection
 | `identity.rs`, `identity/ensure.surql` | tenant/principal/group resolution; transactional identity creation and presentation-only principal updates that preserve current disablement and security fields |
 | `gateway_runtime.rs` | control revisions, auth state, refresh/JWT runtime records |
 | `artifacts.rs` | blob, occurrence, grant, share, capability transactions |
-| `artifacts/publication.rs` and `artifacts/register.surql` | shared typed publication content and transactional occurrence, grants, and outbox registration with immutable tenant/digest blob reuse |
+| `artifacts/publication.rs` and `artifacts/register.surql` | shared typed publication content and transactional occurrence and grant registration with immutable tenant/digest blob reuse |
 | `artifact_uploads.rs` and `artifact_uploads/` | typed upload ledger, policy-bound idempotent admission, and atomic tenant reservations |
 | `artifact_uploads/parts.rs` and its SurrealQL statements | immutable part descriptors, generation-fenced receipts, shared transfer budgets, and unknown-length reservation windows |
 | `artifact_uploads/lifecycle.rs` and `artifact_uploads/publication.rs` | fenced initialization/finalization, manifest freeze, atomic occurrence and receipt publication, cancellation, and retained cleanup accounting |
@@ -545,7 +545,6 @@ Domain runtimes can own private queries and driver records over these connection
 | `usage.rs` | shared domain/media usage records |
 | `resource_changes.rs` | shared domain LIVE invalidations, coalescing, database-clock checkpoints and changefeed recovery; composed into Time, Recording, Frames, Media, Optimization, and UAV resource hubs |
 | `agent_management/revision.rs` and `agent_management/revision.surql` | SHA-256 revisions of SQL-authorized catalog and management views |
-| `outbox.rs` | event writers and consumers awaiting the foundations Store cut |
 | `changefeed.rs`, `changefeed/` | complete transaction-tail replay, consumer checkpoints and LIVE recovery; typed Task, Artifact and Computer change decoding imports the owning contract types |
 | `platform/task-runtime/src/runtime/history.rs`, `subscriptions.rs`, `owner_subscriptions.rs` | committed-state replay for trusted workers, shared native-feed wakeups and current SQL-authorized public Task reads |
 | `agents/runtime/src/runtime/wake_observation.rs`, `agents/kernel/src/wake.rs` | native queue invalidations and timers for the next available wake or expired claim |
@@ -1367,7 +1366,7 @@ dispatch preflights and budgeted execution.
 | `background_tasks.rs` | immediate model-visible handoff from accepted task-backed tool calls to credential-rotating kernel watchers |
 | `tools.rs` | MCP tool dispatch and durable task descriptor capture |
 | `tasks.rs` | detached watcher lease/resume/result-to-wake flow |
-| `wake.rs` | outbox/changefeed wake delivery, including heartbeat-only batches acknowledged without an episode |
+| `wake.rs` | native changefeed wake delivery, including heartbeat-only batches acknowledged without an episode |
 | `memory.rs` | persistent memory API over analytical stores; SQL quoting consumes DuckDB's isolated library contract |
 | `timeline.rs` | snapshot dataframe read-back over the agent's RRD segments capped to the most recent rows because rows become model input |
 | `context.rs` | per-episode context assembly as a view over the memory planes |
@@ -1434,7 +1433,7 @@ dispatch preflights and budgeted execution.
 | Path | Responsibility |
 |---|---|
 | `mcp/conformance` | reusable domain-neutral MCP certification library, thin CLI, schemas, profiles, authenticated same-origin well-known-surface checks, live declaration binding, and standalone image |
-| `testing/fixtures/store.rs`, `store/container.rs`, `connection_switch.rs` | owned disposable database setup, cancellable Docker subprocesses and acknowledged TCP connection loss for native recovery tests; `platform/store/tests/fixture_lifecycle.rs` owns CLI lifecycle fault injection |
+| `testing/fixtures/store.rs`, `store/container.rs`, `connection_switch.rs` | owned disposable database setup, committed-row replay, cancellable Docker subprocesses and acknowledged TCP connection loss for native recovery tests; `platform/store/tests/fixture_lifecycle.rs` owns CLI lifecycle fault injection |
 | [`testing/fixtures/modular-mcp/`](../testing/fixtures/modular-mcp/DESIGN.md) | independent scope/resource library with isolated contract and MCP features; `mcp/conformance/tests/modular_server.rs` owns hosted qualification and fixture cleanup |
 | [`testing/fixtures/server-contract-consumer/`](../testing/fixtures/server-contract-consumer/DESIGN.md) | independently resolved Artifact, Computers, Speech, Frames, Timeseries and Media library consumer; rejects service dependencies in their contract features |
 | `testing/flight-smoke/` | [focused composed-flight harness](../testing/flight-smoke/DESIGN.md), with server-owned wire types and client-only dependency closure |

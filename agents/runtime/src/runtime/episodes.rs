@@ -37,8 +37,6 @@ LET $finished = (UPDATE ONLY $episode SET state = $state, final_output = $output
 IF $finished = NONE { THROW 'episode completion conflict'; };
 UPDATE wake SET state = 'acked', acked_at = $now, acked_by_episode = $episode, claimed_by = NONE, claimed_at = NONE, claim_expires_at = NONE, claim_fence = NONE, updated_at = $now, revision += 1 WHERE id IN $claimed_wakes RETURN NONE;
 UPDATE ONLY $agent SET state = 'idle', revision += 1, updated_at = $now WHERE lease_owner = $owner AND fence = $fence RETURN NONE;
-CREATE outbox_event CONTENT $episode_event RETURN NONE;
-CREATE outbox_event CONTENT $wake_event RETURN NONE;
 COMMIT TRANSACTION;
 "#;
 
@@ -73,16 +71,7 @@ impl AgentRuntime {
             finished_at: None,
             revision: 0,
         };
-        let event = outbox(
-            &self.identity,
-            "agent_episode",
-            episode_id.to_string(),
-            "agent_episode.started",
-            object([
-                ("sequence".to_owned(), serde_json::json!(sequence)),
-                ("retention_pin".to_owned(), serde_json::json!(retention_pin)),
-            ]),
-        );
+
         let mut response = self
             .store
             .client()
@@ -102,7 +91,6 @@ impl AgentRuntime {
             .bind(("revision", agent.revision))
             .bind(("owner", self.instance_id.to_string()))
             .bind(("fence", fence))
-            .bind(("event", event))
             .await?
             .check()?;
         let result = response.num_statements().saturating_sub(2);
@@ -154,23 +142,7 @@ impl AgentRuntime {
         let fence = self.fence()?;
         let now = Utc::now();
         let wake_records = wakes.iter().map(|id| id.record_id()).collect::<Vec<_>>();
-        let episode_event = outbox(
-            &self.identity,
-            "agent_episode",
-            episode_id.to_string(),
-            "agent_episode.completed",
-            object([
-                ("state".to_owned(), serde_json::json!(completion.state)),
-                ("wake_ids".to_owned(), serde_json::json!(wakes)),
-            ]),
-        );
-        let wake_event = outbox(
-            &self.identity,
-            "wake",
-            episode_id.to_string(),
-            "wake.batch_acked",
-            object([("wake_ids".to_owned(), serde_json::json!(wakes))]),
-        );
+
         let mut response = self
             .store
             .client()
@@ -201,8 +173,6 @@ impl AgentRuntime {
             ))
             .bind(("error", completion.error))
             .bind(("wakes", wake_records))
-            .bind(("episode_event", episode_event))
-            .bind(("wake_event", wake_event))
             .await?;
         let mut errors = response.take_errors().into_iter().collect::<Vec<_>>();
         errors.sort_by_key(|(statement, _)| *statement);

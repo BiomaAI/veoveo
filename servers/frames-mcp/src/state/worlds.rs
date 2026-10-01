@@ -1,5 +1,4 @@
 //! Typed world mutations and their transactional policy belong to Frames.
-use std::collections::BTreeMap;
 
 use anyhow::{Context, Result, bail};
 use chrono::{DateTime, Utc};
@@ -7,12 +6,11 @@ use surrealdb::{
     IndexedResults,
     types::{RecordId, SurrealValue, Uuid as SurrealUuid, Value},
 };
-use veoveo_platform_store::{OpenObject, OutboxDraft};
 
 use super::records::{FrameWorldRecord, FrameWorldRevisionRecord};
 use super::{FrameScope, FramesState, object_from_value, world_revision, world_summary};
 use crate::contract::{
-    CreateWorldRequest, FrameWorldId, FrameWorldRevisionId, FrameWorldSummary, PublishWorldOutput,
+    CreateWorldRequest, FrameWorldRevisionId, FrameWorldSummary, PublishWorldOutput,
     PublishWorldRequest, ValidatedWorldTree,
 };
 
@@ -105,10 +103,6 @@ impl FramesState {
                 RecordId::new("frame_world", SurrealUuid::from(uuid::Uuid::now_v7())),
             ))
             .bind(("content", content))
-            .bind((
-                "outbox",
-                event(scope, WorldEvent::Created(&request.world_id)),
-            ))
             .await
             .map_err(anyhow::Error::from)
             .and_then(transaction_result::<FrameWorldRecord>);
@@ -171,14 +165,6 @@ impl FramesState {
                 object_from_value(serde_json::to_value(validated.into_tree())?)?,
             ))
             .bind(("now", Utc::now()))
-            .bind((
-                "revision_outbox",
-                event(scope, WorldEvent::RevisionPublished(&revision_id)),
-            ))
-            .bind((
-                "world_outbox",
-                event(scope, WorldEvent::HeadChanged(&request.world_id)),
-            ))
             .await
             .map_err(anyhow::Error::from)
             .and_then(transaction_result::<Publication>);
@@ -222,41 +208,6 @@ fn transaction_result<T: SurrealValue>(response: IndexedResults) -> Result<T> {
         .context("missing Frames transaction result")?;
     let value: Value = response.take(index)?;
     T::from_value(value).map_err(Into::into)
-}
-
-enum WorldEvent<'a> {
-    Created(&'a FrameWorldId),
-    RevisionPublished(&'a FrameWorldRevisionId),
-    HeadChanged(&'a FrameWorldId),
-}
-
-fn event(scope: &FrameScope, event: WorldEvent<'_>) -> OutboxDraft {
-    let (aggregate, id, kind) = match event {
-        WorldEvent::Created(id) => ("frame_world", id.to_string(), "frame.world.created"),
-        WorldEvent::RevisionPublished(id) => (
-            "frame_world_revision",
-            id.to_string(),
-            "frame.world.revision.published",
-        ),
-        WorldEvent::HeadChanged(id) => ("frame_world", id.to_string(), "frame.world.head.changed"),
-    };
-    OutboxDraft::now(
-        Some(scope.identity.tenant_id.record_id()),
-        aggregate,
-        id,
-        kind,
-        1,
-        OpenObject::new(BTreeMap::from([
-            (
-                "tenant_key".into(),
-                serde_json::json!(scope.identity.tenant_key),
-            ),
-            (
-                "principal_key".into(),
-                serde_json::json!(scope.identity.principal_key),
-            ),
-        ])),
-    )
 }
 
 fn validate_text(field: &str, value: &str, max: usize) -> Result<()> {

@@ -7,7 +7,6 @@ IF ($connection != NONE AND $current.connection_id != $connection)
 };
 IF $current.revoked_at = NONE {
   UPDATE $grant SET revoked_at = time::now();
-  CREATE outbox_event CONTENT $event;
   fn::append_audit($audit_rows);
 };
 COMMIT TRANSACTION;

@@ -20,7 +20,5 @@ LET $revision = CREATE ONLY $revision_record CONTENT {
 };
 LET $published = UPDATE ONLY $world.id SET head_revision = $revision_record,
     head_revision_key = $revision_key, revision = $world.revision + 1, updated_at = $now;
-CREATE outbox_event CONTENT $revision_outbox RETURN NONE;
-CREATE outbox_event CONTENT $world_outbox RETURN NONE;
 RETURN { world: $published, revision: $revision, created: true };
 COMMIT TRANSACTION;

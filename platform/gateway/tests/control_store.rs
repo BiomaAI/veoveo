@@ -175,13 +175,6 @@ async fn publishes_immutable_revisions_and_moves_active_pointer_atomically() {
         ["account_create", "account_delete"],
         "failed re-publication must not recreate or re-audit a deleted Work Context"
     );
-
-    let outbox = store.platform_store().read_outbox(0, 10).await.unwrap();
-    assert_eq!(outbox.events.len(), 3);
-    assert_eq!(
-        outbox.events.last().unwrap().aggregate_id,
-        third.revision_id.as_str()
-    );
 }
 
 fn revision(

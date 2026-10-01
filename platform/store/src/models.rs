@@ -1583,20 +1583,6 @@ pub struct GatewayRefreshTokenRecord {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
-pub struct OutboxEventRecord {
-    pub id: RecordId,
-    pub sequence: i64,
-    pub tenant: Option<RecordId>,
-    pub aggregate_type: String,
-    pub aggregate_id: String,
-    pub event_type: String,
-    pub schema_version: i64,
-    pub payload: OpenObject,
-    pub occurred_at: DateTime<Utc>,
-    pub available_at: DateTime<Utc>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
 pub struct MembershipEdge {
     pub id: RecordId,
     pub r#in: RecordId,

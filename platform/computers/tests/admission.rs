@@ -84,8 +84,8 @@ async fn racing_same_request_reserves_once_and_changed_input_is_rejected() {
             .await,
         Err(ComputerError::RequestConflict)
     ));
-    // An exact request creates one outbox entry and consumes one retained slot.
-    let mut response = db.a.client().query("SELECT * FROM outbox_event WHERE aggregate_type = 'computer'; SELECT * FROM computer_usage;").await.unwrap().check().unwrap();
+    // An exact request creates one audit record and consumes one retained slot.
+    let mut response = db.a.client().query("SELECT * FROM audit_record WHERE activity = 'computer_create' AND draft.detail.stage = 'reserved'; SELECT * FROM computer_usage;").await.unwrap().check().unwrap();
     let events: Vec<surrealdb::types::Value> = response.take(0).unwrap();
     assert_eq!(events.len(), 1);
     let usage: Vec<surrealdb::types::Value> = response.take(1).unwrap();

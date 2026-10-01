@@ -134,7 +134,7 @@ async fn known_exit_and_outputs_settle_once_before_task_projection_and_allow_the
         assert!(b.pending_commands(None, 100).await.unwrap().is_empty());
         assert!(b.ensure_command_task(&completed).await.is_err());
     }
-    let mut response = db.a.client().query("SELECT * FROM computer_execution_slot; SELECT * FROM outbox_event WHERE event_type='computer.execution_completed';").await.unwrap().check().unwrap();
+    let mut response = db.a.client().query("SELECT * FROM computer_execution_slot; SELECT * FROM audit_record WHERE activity = 'computer_command' AND draft.detail.stage = 'settled';").await.unwrap().check().unwrap();
     let slots: Vec<surrealdb::types::Value> = response.take(0).unwrap();
     let events: Vec<surrealdb::types::Value> = response.take(1).unwrap();
     assert!(slots.is_empty());
@@ -205,7 +205,7 @@ async fn invalid_outputs_lease_loss_replacement_and_containment_never_settle_a_k
         let command = a.command_for_claim(&claim).await.unwrap();
         assert!(command.outcome().is_none(), "{scenario}");
         assert!(!command.is_terminal());
-        let mut response = db.a.client().query("SELECT * FROM computer_execution_slot; SELECT * FROM outbox_event WHERE event_type='computer.execution_completed';").await.unwrap().check().unwrap();
+        let mut response = db.a.client().query("SELECT * FROM computer_execution_slot; SELECT * FROM audit_record WHERE activity = 'computer_command' AND draft.detail.stage = 'settled';").await.unwrap().check().unwrap();
         let slots: Vec<surrealdb::types::Value> = response.take(0).unwrap();
         let events: Vec<surrealdb::types::Value> = response.take(1).unwrap();
         assert_eq!(slots.len(), 1);

@@ -20,13 +20,12 @@ fn draft() -> AuditDraft {
     .build()
     .unwrap()
 }
-async fn counts(store: &PlatformStore) -> (u64, u64, u64) {
+async fn counts(store: &PlatformStore) -> (u64, u64) {
     let mut rows = store
         .client()
         .query(
             "RETURN array::len(SELECT id FROM audit_record);
-        RETURN array::len(SELECT id FROM audit_domain_fixture);
-        RETURN array::len(SELECT id FROM outbox_event);",
+        RETURN array::len(SELECT id FROM audit_domain_fixture);",
         )
         .await
         .unwrap()
@@ -35,7 +34,6 @@ async fn counts(store: &PlatformStore) -> (u64, u64, u64) {
     (
         rows.take::<Option<u64>>(0).unwrap().unwrap(),
         rows.take::<Option<u64>>(1).unwrap().unwrap(),
-        rows.take::<Option<u64>>(2).unwrap().unwrap(),
     )
 }
 
@@ -67,7 +65,7 @@ async fn domain_and_audit_commit_or_rollback_together_and_retries_keep_one_recor
                 .unwrap()
                 .check();
         assert!(result.is_err());
-        assert_eq!(counts(&db.b).await, (0, 0, 0));
+        assert_eq!(counts(&db.b).await, (0, 0));
 
         db.a.client()
             .query(
@@ -89,8 +87,8 @@ async fn domain_and_audit_commit_or_rollback_together_and_retries_keep_one_recor
             .unwrap();
         assert_eq!(
             counts(&db.a).await,
-            (1, 1, 0),
-            "retries create neither a duplicate nor an outbox event"
+            (1, 1),
+            "retries preserve one domain row and one audit record"
         );
 
         let conflict = AuditDraft::builder(
@@ -125,7 +123,7 @@ async fn domain_and_audit_commit_or_rollback_together_and_retries_keep_one_recor
         );
         assert_eq!(
             counts(&db.b).await,
-            (1, 1, 0),
+            (1, 1),
             "both the domain write and earlier batch members roll back"
         );
     })

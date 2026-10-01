@@ -1,7 +1,7 @@
 //! Authoritative SurrealDB-backed platform state for Veoveo installations.
 //!
 //! Domain services own their behavior. This crate owns the shared typed records,
-//! schema migrations, durable outbox, changefeed replay, and LIVE subscriptions
+//! schema migrations, changefeed replay and LIVE subscriptions
 //! used to coordinate those services.
 
 mod administration;
@@ -27,7 +27,6 @@ mod map_presentations;
 mod map_projection;
 mod migrations;
 mod models;
-mod outbox;
 mod recording_blueprints;
 mod recording_catalog;
 mod recording_ingest;
@@ -96,7 +95,6 @@ pub use migrations::{
     Migration, MigrationReport, SchemaStatus, migrations, schema_sql, validate_catalog,
 };
 pub use models::*;
-pub use outbox::{OutboxDraft, OutboxPage};
 pub use recording_blueprints::{
     RecordingBlueprintCommit, RecordingBlueprintDraft, RecordingBlueprintOutcome,
 };

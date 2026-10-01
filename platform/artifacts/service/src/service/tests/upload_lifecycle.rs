@@ -177,9 +177,15 @@ async fn upload_publication_commits_receipt_grants_audit_and_duplicate_cleanup_a
                 ..
             }
         ));
-        let mut response = first.client().query("SELECT * FROM outbox_event WHERE event_type = 'artifact.created' AND aggregate_id = $artifact;")
-            .bind(("artifact", id(&row.artifact).to_string())).await.unwrap().check().unwrap();
-        let events: Vec<platform::OutboxEventRecord> = response.take(0).unwrap();
+        let mut response = first
+            .client()
+            .query("SELECT * FROM artifact_occurrence WHERE id = $artifact;")
+            .bind(("artifact", row.artifact.clone()))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        let events: Vec<platform::ArtifactOccurrenceRecord> = response.take(0).unwrap();
         assert_eq!(events.len(), 1);
     }
     let (duplicate, retained) = if a.cleanup_pending {
