@@ -276,7 +276,12 @@ async fn verify(
         ensure!(
             search.generation == Some(generation)
                 && search.results.iter().any(|r| r.uri == document.uri),
-            "document title search did not retrieve its indexed source in the active generation"
+            "document title search for {} in {} expected generation {}, got {:?} with members {:?}",
+            document.uri,
+            docs.collection(),
+            generation,
+            search.generation,
+            search.results.iter().map(|r| &r.uri).collect::<Vec<_>>()
         );
         let links: BTreeSet<_> = response
             .content

@@ -28,10 +28,12 @@ Typed installation approvals and gateway indexing-client admission pass native c
 The hosted Knowledge API passes native HTTP and current-authority checks. Knowledge
 and its embedding runtime are published and deployed with the reference machine client.
 Public catalog, source-linked retrieval, embedding and network-isolation checks pass.
-Catalog completion, caller-visible statistics and request-scoped subscriptions have
-native qualification. Indexing audit windows now commit before delivery and recover
-across writer restarts in native tests. Their installed exposure, domain retrieval
-evaluation, installed mutation/restart qualification and Reason remain open.
+Catalog completion, caller-visible statistics and request-scoped subscriptions pass
+native and public installed checks. Indexing audit windows commit before delivery,
+recover across writer restarts in native tests, and finalize in the reference installation
+with a verified signed audit chain. Domain retrieval evaluation, installed source
+mutation/restart qualification and Reason's hosted collections remain open. Reason's
+reusable finding selection passes native Artifact access and pagination qualification.
 The gateway source adapter discovers approved
 collections and waits for catalog/resource observation readiness before reading.
 The library coordinator qualifies lease renewal, source invalidation, conditional
@@ -39,8 +41,8 @@ reconciliation and restart reuse against isolated Store fixtures.
 The binary runs machine-authenticated tenant workers, rotates credentials and publishes
 complete catalogs against current control authority. Native host qualification covers
 connection recovery, catalog-only approval, readiness and shutdown.
-Broader server adoption is postponed outside this plan's completion scope. The cluster and BuildKit
-are stopped.
+Broader server adoption is postponed outside this plan's completion scope. BuildKit and
+the reference cluster are stopped after the catalog and audit acceptance batch.
 
 Scope decision (2026-10-01): prioritize collections that help users find places and
 authored features, discover files, and reuse completed analyses. Finish Map and Artifact
@@ -3796,6 +3798,27 @@ platform Helm release suspended, the installation stopped its Knowledge worker a
 drained every gateway and Console pod before activating these inputs. The bootstrap
 Job applies Store migrations using the matching gateway image. Installed catalog and
 indexing-window acceptance follow reconciliation.
+
+Installed catalog and audit checkpoint (2026-10-01): `07542b24` converges with both
+Helm releases at revision 3 and all 24 changed Deployments Ready. The expanded public
+Knowledge check passes sixteen approved collections, their statistics and completion
+values, initial catalog notifications, eleven search-result/source-revision links and
+the embedding tool. The embedding container reports CUDA 13.0 on an RTX 4090. Its
+active generation matches the generation from before this deployment. An initial
+retrieval assertion failed during source reconciliation; the subsequent check passes,
+and failure diagnostics now name the source URI, expected generation and returned
+members. Source mutation and fault-recovery probes remain separate acceptance work.
+
+The installed gateway finalized sixteen collection windows for 22:30–22:35 UTC,
+covering 144 reads, 93 unchanged responses and two failed source reads during rollout.
+Each window has a member digest and a distinct collection/actor/authority identity.
+The native audit CLI verifies 890 signed blocks containing 2,473 tenant records with
+zero clock findings. A sealed export through block 911 contains all sixteen observed
+window identities. The reference installation check also passes declared deployment
+readiness, GPU capacity, public Console and authorization endpoints, and full, HEAD
+and ranged Artifact delivery. This proves installed finalization and chain integrity;
+native race and retry cases supply the separate aggregation correctness checks.
+The temporary caller token is removed and the cluster is stopped after acceptance.
 
 Hosted conformance repair (2026-10-01): the Knowledge HTTP suite now runs the shared
 hosted checker. It found two delivery defects: the embedding request schema omitted
