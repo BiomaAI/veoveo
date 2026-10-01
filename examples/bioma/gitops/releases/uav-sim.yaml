@@ -4,6 +4,7 @@ metadata:
   name: uav-sim
   namespace: flux-system
 spec:
+  suspend: true
   interval: 5m
   timeout: 30m
   releaseName: uav-sim
@@ -13,7 +14,7 @@ spec:
     - name: veoveo
   chartRef:
     kind: OCIRepository
-    name: uav-sim-chart-dacd339a6e0f8bd9e10d628aece69fd6331184b01edb73384a60f854451d7114
+    name: uav-sim-chart-faadca5d31bf6fcf971949f49616dad4bca94853d36fa52c4de0a4bb754cf33e
   valuesFrom:
     - kind: ConfigMap
       name: bioma-uav-sim-values

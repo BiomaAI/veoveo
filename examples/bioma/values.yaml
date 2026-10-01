@@ -127,7 +127,7 @@ gateway:
         namespace: veoveo-agents
         config_map: uav-pilot-01b19f5aa87b
         config_digest: sha256:01b19f5aa87bd953be64f55f6c9acd91b6ec9439d3106d0f4547924ad15fa9f0
-        image: k3d-veoveo-registry.localhost:5000/veoveo/agent-kernel@sha256:d736b5adb9e320d96afbb4a6147d39ed7b6299be01f4ddca36be130f3993df07
+        image: k3d-veoveo-registry.localhost:5000/veoveo/agent-kernel@sha256:4b16bffbe3f5f30c49acf287f5f248a26b90e1432594087890e7f5ab99cb8791
         database_secret: veoveo-surreal-runtime
         storage_class: local-path
         storage_gib: 2
@@ -198,13 +198,13 @@ computers:
   resources:
     requests: {cpu: "0", memory: "0"}
   existingConfigMap: bioma-computers-configuration
-  configurationRevision: 810579e8c20545b9901c4a2f5275fd5ff387e62e69c58a5a79478c3234c8705c
+  configurationRevision: ca686a72212ec793b7f5962ddb342318a204e4e740e2f7a2d0ca1589c8b1d229
   existingTrustSecret: bioma-computers-worker-trust
   host:
     existingConfigMap: bioma-computer-host-configuration
     resources:
       requests: {cpu: "0", memory: "0"}
-    configurationRevision: 8d4d5ef2497f547f681f12b0b0cccd6ca81b4b83036effe330b6f44dba0a1416
+    configurationRevision: 905c738ccb41a1d100a8fcaf21a080a3a123e0752459ac5e4ffcabec2b0b2dd5
     existingTrustSecret: bioma-computer-host-trust
     persistence:
       size: 100Gi

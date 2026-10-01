@@ -5,7 +5,8 @@ under Deferred Work. Phase 4's installed audit checks pass; composed flight and
 Recording acceptance remain open. Phase 5 has qualified native consumer migration and
 writer/schema removal. Computer authority observation and the database-feature review
 are qualified locally. Private command/file payload separation passes native tests
-and repeated storage measurements. Phase 5 publication and installed acceptance remain.
+and repeated storage measurements. Phase 5 images and charts are published from
+`6ec504d8`; fresh reference bootstrap and installed acceptance remain.
 Phases 6–9 are open. The reference installation last converged at `8e4b36e7`;
 it is stopped during development, and the Phase 5 changes are not deployed.
 
@@ -3059,6 +3060,18 @@ stdin, median attributed block writes fall from 132.195 to 0.465 MiB and median 
 time from 317.705 to 19.379 ms. All owned fixtures are removed. About 117 GiB is free;
 the cluster and builder are stopped. Phase 5 publication and installed acceptance are
 the next checkpoint.
+
+The Phase 5 release publishes 29 affected reference and verification images and both
+charts from `6ec504d8`. Reference locks select their runnable digests, including the
+agent kernel and the Computer guest's recomputed template fingerprint. Fresh Computers
+trust is prepared outside Git. UAV desired state is suspended until the fresh Frames
+world is published. Before publication, 56 superseded test executables release 18.2 GiB;
+current executables, dependency libraries and compiler caches are preserved. The current
+Reason, Stream and simulator caches are copied and byte-compared before the node reset.
+Publication completes in 925 seconds with a minimum 150 GiB free, and the builder stops.
+The grouped installed-tool build, ten release-rollout tests, Helm configuration and
+documentation checks pass. Fresh credential preparation and rendered Secret coverage
+pass. The reference reset and installed acceptance are next.
 
 Work:
 
