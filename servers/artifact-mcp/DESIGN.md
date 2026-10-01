@@ -127,6 +127,9 @@ The collection declares `listen` changes and a 300-second freshness lifetime. So
 deadlines remain effective regardless of that lifetime. Index pages and metadata members
 are subscribable. A member listener terminates if a change makes its resource unreadable,
 allowing the consumer to invalidate and reconcile after the stream closes.
+The listener registers its receiver before authorization and the visible-ID query,
+then emits initial invalidations for each admitted URI and requested catalog filter.
+Indexing starts enumeration after these signals, preserving changes made during subscription setup.
 
 Native tests qualify snapshot mapping, policy and deadline preservation, content/access
 revisions, metadata bounds and conditional responses. Installed K01–K10 qualification

@@ -76,18 +76,39 @@ approved source resources and subscriptions. Its policy cannot allow mutations,
 administration, tools, prompts or Tasks.
 
 `mcp/knowledge_indexing.rs` applies the client restriction alongside ordinary policy.
-A read supplies a collection and enumeration/member intent. The gateway compares the
+A read supplies a collection and source-contract, enumeration or member intent.
+Source-contract admission permits only the owning scheme's checked `contract` URI
+under an explicit installation approval, including catalog-only approval. It works
+before Store registration and never admits domain content or contract subscriptions.
+For enumeration and member reads, the gateway compares the
 current source approval with Store's registration before forwarding. Enumeration URIs
 must match the declared page address. Member delivery requires a verified observation
 from that collection within the approved tenant and label set. Rechecking approval
 after the read prevents a changed registration from delivering an in-flight result.
 
-Resource subscriptions use the same collection admission. Enumeration subscriptions
+Discovery validates a collection's owner and enumeration scheme against its source
+manifest and requires the upstream server to declare the Knowledge extension.
+
+Resource subscriptions use the same collection admission. A metadata-free root filter
+selects its registration in SQL by tenant, exact enumeration root, current approval
+and required scopes. Multiple matching approved collections reject the request.
+Enumeration subscriptions
 can precede a build; member subscriptions require a non-stale observed member in the
 active generation. Indexing clients cannot subscribe to tool/prompt changes or Tasks.
 Rejected subscription admission records a denial before returning. The raw Artifact
 download route denies indexing clients because byte delivery cannot establish this
 collection-bound observation contract.
+
+The SDK acknowledges a subscription before its asynchronous handler starts. Indexing
+resource listeners therefore wait up to 20 seconds for an initial invalidation of
+every accepted URI from the upstream source. The gateway forwards those invalidations
+after observation starts, preserving any intervening catalog change. Its indexing
+catalog listener emits an initial list invalidation after registering the discovery
+change receiver. Knowledge waits for these signals before reading catalog or member
+pages. Internal source catalog watchers also wait for the source's initial list
+invalidation within their ten-second opening deadline, then discard the cached
+baseline before discovery. Source loss ends the stream and requires fresh admission
+on reconnect.
 
 Indexing reads currently commit ordinary per-read audit records. Five-minute collection
 aggregation and installation of the indexing client are pending with the hosted

@@ -1,5 +1,7 @@
 //! Reuses an authenticated gateway connection owned by the service coordinator.
-use super::{KnowledgeSource, SourceDocument, SourcePage, SourceRead};
+use super::{
+    KnowledgeSource, ObservableSource, SourceDocument, SourceListener, SourcePage, SourceRead,
+};
 use crate::ServiceError;
 use rmcp::{
     Peer, RoleClient,
@@ -16,7 +18,7 @@ use veoveo_mcp_knowledge_extension::{
 use veoveo_types::ResourceUri;
 
 pub struct GatewaySource {
-    peer: Peer<RoleClient>,
+    pub(super) peer: Peer<RoleClient>,
 }
 impl GatewaySource {
     /// The caller owns machine-client authentication, profile selection and the
@@ -25,7 +27,7 @@ impl GatewaySource {
         Self { peer }
     }
 
-    async fn read_result(
+    pub(super) async fn read_result(
         &self,
         collection: &CollectionDescriptor,
         kind: IndexingReadKind,
@@ -100,7 +102,7 @@ impl KnowledgeSource for GatewaySource {
         )?))
     }
 }
-fn text<'a>(
+pub(super) fn text<'a>(
     result: &'a ReadResourceResult,
     uri: &ResourceUri,
     cap: usize,
@@ -118,4 +120,46 @@ fn text<'a>(
         return Ok(text);
     }
     Err(KnowledgeError("source requires one URI-matching text item within its byte cap").into())
+}
+
+pub struct GatewayListener {
+    subscription: rmcp::service::Subscription,
+    root: ResourceUri,
+}
+impl SourceListener for GatewayListener {
+    async fn changed(&mut self) -> Result<(), ServiceError> {
+        match self.subscription.next().await {
+            Ok(Some(rmcp::model::ServerNotification::ResourceUpdatedNotification(update)))
+                if update.params.uri == self.root.as_str() =>
+            {
+                Ok(())
+            }
+            _ => Err(ServiceError::SourceUnavailable),
+        }
+    }
+}
+impl ObservableSource for GatewaySource {
+    type Listener = GatewayListener;
+    async fn listen(
+        &self,
+        collection: &CollectionDescriptor,
+    ) -> Result<GatewayListener, ServiceError> {
+        let root = super::enumeration_uri(collection, None)?;
+        let filter = rmcp::model::SubscriptionFilter::builder()
+            .resource_subscriptions(vec![root.to_string()])
+            .build();
+        let subscription = self
+            .peer
+            .listen(filter.clone())
+            .await
+            .map_err(|_| ServiceError::SourceUnavailable)?;
+        if subscription.acknowledged() != &filter {
+            return Err(ServiceError::SourceUnavailable);
+        }
+        let mut listener = GatewayListener { subscription, root };
+        // The gateway sends this only after upstream admission and establishment.
+        // MCP filter acknowledgement alone precedes that asynchronous setup.
+        listener.changed().await?;
+        Ok(listener)
+    }
 }

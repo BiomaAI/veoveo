@@ -1003,6 +1003,48 @@ async fn catalog_admits_before_source_paging_and_exact_record_decoding() {
     }).await.expect("catalog SQL qualification exceeded 180 seconds");
 }
 
+#[tokio::test]
+async fn subscription_root_selection_applies_current_approval_scopes_and_tenant_in_sql() {
+    tokio::time::timeout(Duration::from_secs(120), async {
+        let db = fixture::TestDb::new().await;
+        let mut allowed = registration("root-native");
+        allowed.descriptor = allowed.descriptor.with_required_scopes(["fixture:read".parse().unwrap()]);
+        db.a.register_knowledge_collection(&allowed, None).await.unwrap();
+        let root = source::enumeration_uri(&allowed.descriptor, None).unwrap();
+        let scopes = ["fixture:read".parse().unwrap()].into();
+        let mut approvals = BTreeMap::from([(allowed.approval.collection.clone(), allowed.approval.clone())]);
+        assert_eq!(db.b.knowledge_collection_at_root(&allowed.tenant, &root, &approvals, &scopes).await.unwrap(), Some(allowed.clone()));
+        assert!(db.b.knowledge_collection_at_root(&allowed.tenant, &root, &approvals, &BTreeSet::new()).await.unwrap().is_none());
+        assert!(db.b.knowledge_collection_at_root(&"another".parse().unwrap(), &root, &approvals, &scopes).await.unwrap().is_none());
+        assert!(db.b.knowledge_collection_at_root(&allowed.tenant, &ResourceUri::new("fixture://records?cursor=next").unwrap(), &approvals, &scopes).await.unwrap().is_none());
+        let mut changed = approvals.clone();
+        changed.get_mut(&allowed.approval.collection).unwrap().data_labels.clear();
+        assert!(db.b.knowledge_collection_at_root(&allowed.tenant, &root, &changed, &scopes).await.unwrap().is_none());
+
+        let mut alias = allowed.clone();
+        alias.descriptor = CollectionDescriptor::new("fixture.alias".parse().unwrap(), "record".parse().unwrap(),
+            ResourceTemplateUri::new("fixture://records{?cursor}").unwrap(), Freshness::max_age(30),
+            ChangeSignal::Listen, AccessModel::WorkContext, IndexingMode::Content).unwrap()
+            .with_required_scopes(["fixture:read".parse().unwrap()]);
+        alias.approval.collection = alias.descriptor.collection().clone();
+        alias.approval.mode = CollectionApproval::CatalogOnly;
+        db.a.register_knowledge_collection(&alias, None).await.unwrap();
+        approvals.insert(alias.approval.collection.clone(), alias.approval.clone());
+        assert_eq!(db.b.knowledge_collection_at_root(&allowed.tenant, &root, &approvals, &scopes).await.unwrap(), Some(allowed.clone()), "catalog-only registrations cannot authorize resource observation");
+        let prior = alias.revision();
+        alias.approval.mode = CollectionApproval::Index;
+        db.a.register_knowledge_collection(&alias, Some(&prior)).await.unwrap();
+        approvals.insert(alias.approval.collection.clone(), alias.approval.clone());
+        assert!(db.b.knowledge_collection_at_root(&allowed.tenant, &root, &approvals, &scopes).await.is_err(), "ambiguous approved roots cannot select an arbitrary collection");
+        // Poison the denied document: decoding before SQL admission would fail.
+        db.a.client().query("UPDATE knowledge_collection SET document.sourceContractRevision = 'malformed' WHERE collection = 'fixture.alias';").await.unwrap().check().unwrap();
+        approvals.remove(&alias.approval.collection);
+        assert_eq!(db.b.knowledge_collection_at_root(&allowed.tenant, &root, &approvals, &scopes).await.unwrap(), Some(allowed.clone()));
+        approvals.insert(alias.approval.collection.clone(), alias.approval.clone());
+        assert!(db.b.knowledge_collection_at_root(&allowed.tenant, &root, &approvals, &BTreeSet::new()).await.unwrap().is_none());
+    }).await.expect("root SQL qualification exceeded 120 seconds");
+}
+
 async fn complete(
     store: &PlatformStore,
     lease: &veoveo_platform_store::knowledge::CoordinatorLease,

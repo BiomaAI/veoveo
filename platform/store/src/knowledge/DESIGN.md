@@ -94,6 +94,12 @@ before decoding. `read_sources.surql` applies the same admission and cursor befo
 source grouping, ordering and its 101-row limit. The service returns 100 rows and uses
 the lookahead to advertise a next cursor. Approval input is capped at 1,024 collections.
 
+Registration stores the checked enumeration root alongside the document.
+`read_root.surql` selects subscription admission by tenant and exact root, indexing
+approval, current approval equality and required scopes before decoding. Its two-row
+limit detects ambiguous approved roots, which the Store rejects. Catalog-only
+collections never authorize enumeration subscriptions.
+
 ## Candidate Admission
 
 `CandidateScope` carries current caller policy, including the source collections exposed

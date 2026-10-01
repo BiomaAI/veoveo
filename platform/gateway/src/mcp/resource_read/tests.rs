@@ -320,9 +320,6 @@ async fn indexing_gate_binds_approval_enumeration_members_and_revocation() {
             )
             .unwrap(),
         };
-        db.a.register_knowledge_collection(&registration, None)
-            .await
-            .unwrap();
         let project = |text: &str| GatewayResourceProjection {
             server: "media".parse().unwrap(),
             gateway_uri: ResourceUri::new(text).unwrap(),
@@ -340,6 +337,38 @@ async fn indexing_gate_binds_approval_enumeration_members_and_revocation() {
             );
             meta
         };
+        let contract = project("media://contract");
+        let contract_meta = meta(IndexingReadKind::SourceContract);
+        let contract_permit = gateway
+            .admit_indexing_read(&subject, &contract, &contract_meta)
+            .await
+            .unwrap()
+            .unwrap();
+        gateway
+            .validate_indexing_delivery(&subject, &contract, &contract_permit, None)
+            .await
+            .unwrap();
+        for uri in [
+            "media://private",
+            "media://contract?cursor=next",
+            "media://contract/extra",
+        ] {
+            assert!(
+                gateway
+                    .admit_indexing_read(&subject, &project(uri), &contract_meta)
+                    .await
+                    .is_err()
+            );
+        }
+        assert!(
+            gateway
+                .admit_indexing_subscription(&subject, &contract, &contract_meta)
+                .await
+                .is_err()
+        );
+        db.a.register_knowledge_collection(&registration, None)
+            .await
+            .unwrap();
         let enumeration = meta(IndexingReadKind::Enumeration);
         assert!(
             gateway
@@ -378,6 +407,22 @@ async fn indexing_gate_binds_approval_enumeration_members_and_revocation() {
             .admit_indexing_subscription(&subject, &project("media://records"), &enumeration)
             .await
             .unwrap();
+        gateway
+            .admit_indexing_subscription(&subject, &project("media://records"), &Default::default())
+            .await
+            .unwrap();
+        for uri in [
+            "media://private",
+            "media://records?cursor=next",
+            "media://record/one",
+        ] {
+            assert!(
+                gateway
+                    .admit_indexing_subscription(&subject, &project(uri), &Default::default())
+                    .await
+                    .is_err()
+            );
+        }
         let member = project("media://record/one");
         let member_meta = meta(IndexingReadKind::Member);
         assert!(
@@ -479,6 +524,41 @@ async fn indexing_gate_binds_approval_enumeration_members_and_revocation() {
                 .await
                 .is_err(),
             "approval changed while source read was in flight"
+        );
+        assert!(
+            gateway
+                .validate_indexing_delivery(&subject, &contract, &contract_permit, None)
+                .await
+                .is_err()
+        );
+        let mut catalog_only = plane.clone();
+        catalog_only.servers[0].knowledge[0].mode =
+            veoveo_knowledge_contract::CollectionApproval::CatalogOnly;
+        gateway.catalog.replace(Arc::new(
+            crate::GatewayCatalog::from_control_plane(catalog_only).unwrap(),
+        ));
+        assert!(
+            gateway
+                .admit_indexing_read(&subject, &contract, &contract_meta)
+                .await
+                .unwrap()
+                .is_some()
+        );
+        assert!(
+            gateway
+                .admit_indexing_read(&subject, &member, &member_meta)
+                .await
+                .is_err()
+        );
+        assert!(
+            gateway
+                .admit_indexing_subscription(
+                    &subject,
+                    &project("media://records"),
+                    &Default::default()
+                )
+                .await
+                .is_err()
         );
         let mut ordinary = subject.clone();
         ordinary.access_token.oauth_client_id = "operator-local-public".parse().unwrap();

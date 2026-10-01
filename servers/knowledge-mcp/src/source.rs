@@ -4,7 +4,11 @@ use std::{collections::BTreeSet, future::Future};
 use veoveo_knowledge_contract::{KnowledgeError, MemberTitle};
 use veoveo_mcp_knowledge_extension::{CollectionDescriptor, Observation, content_digest};
 use veoveo_types::{ResourceUri, ResourceUriParts};
+mod discovery;
 mod gateway;
+pub use discovery::{
+    ApprovedCollection, DiscoveredCollections, DiscoveryScope, GatewayCatalogListener,
+};
 pub use gateway::GatewaySource;
 
 /// Owners may add fields to enumeration items. This reader consumes the shared

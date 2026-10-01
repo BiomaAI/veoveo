@@ -6,16 +6,24 @@ use crate::{
     mcp_support::{mcp_internal, mcp_invalid_request},
 };
 use rmcp::model::{ErrorData, RequestMetaObject};
-use veoveo_knowledge_contract::{CollectionApproval, CollectionRegistration};
+use veoveo_knowledge_contract::{
+    CollectionApproval, CollectionRegistration, KnowledgeCollectionApproval,
+};
 use veoveo_mcp_contract::{GatewayAction, GatewayResourceProjection, PolicyTarget, PrincipalKind};
 use veoveo_mcp_knowledge_extension::{
     INDEXING_READ_KEY, IndexingReadIntent, IndexingReadKind, Observation, is_enumeration_uri,
 };
 use veoveo_types::InvocationMode;
 
+#[derive(PartialEq, Eq)]
 pub(super) struct IndexingReadPermit {
     intent: IndexingReadIntent,
-    registration: CollectionRegistration,
+    admission: IndexingAdmission,
+}
+#[derive(PartialEq, Eq)]
+enum IndexingAdmission {
+    SourceContract(KnowledgeCollectionApproval),
+    Collection(Box<CollectionRegistration>),
 }
 fn denied() -> ErrorData {
     mcp_invalid_request(
@@ -143,9 +151,23 @@ impl GatewayMcp {
             .knowledge
             .iter()
             .find(|entry| {
-                entry.collection == intent.collection && entry.mode == CollectionApproval::Index
+                entry.collection == intent.collection
+                    && (entry.mode == CollectionApproval::Index
+                        || intent.kind == IndexingReadKind::SourceContract)
             })
             .ok_or_else(denied)?;
+        if intent.kind == IndexingReadKind::SourceContract {
+            let expected =
+                veoveo_mcp_contract::ServerResourceUris::new(manifest.uri_scheme.clone())
+                    .contract_uri();
+            if projection.upstream_uri != expected {
+                return Err(denied());
+            }
+            return Ok(Some(IndexingReadPermit {
+                intent,
+                admission: IndexingAdmission::SourceContract(approval.clone()),
+            }));
+        }
         let registration = self
             .state
             .platform_store()
@@ -163,7 +185,7 @@ impl GatewayMcp {
         }
         Ok(Some(IndexingReadPermit {
             intent,
-            registration,
+            admission: IndexingAdmission::Collection(Box::new(registration)),
         }))
     }
 
@@ -173,20 +195,77 @@ impl GatewayMcp {
         projection: &GatewayResourceProjection,
         meta: &RequestMetaObject,
     ) -> Result<(), ErrorData> {
+        let inferred;
+        let meta = if !meta.contains_key(INDEXING_READ_KEY) {
+            inferred = self.indexing_root_intent(subject, projection, meta).await?;
+            &inferred
+        } else {
+            meta
+        };
         let Some(permit) = self.admit_indexing_read(subject, projection, meta).await? else {
             return Ok(());
+        };
+        let IndexingAdmission::Collection(registration) = &permit.admission else {
+            return Err(denied());
         };
         if permit.intent.kind == IndexingReadKind::Member
             && !self
                 .state
                 .platform_store()
-                .knowledge_member_observed(&permit.registration, &projection.upstream_uri)
+                .knowledge_member_observed(registration, &projection.upstream_uri)
                 .await
                 .map_err(|_| mcp_internal("knowledge member subscription admission unavailable"))?
         {
             return Err(denied());
         }
         Ok(())
+    }
+
+    async fn indexing_root_intent(
+        &self,
+        subject: &AuthenticatedSubject,
+        projection: &GatewayResourceProjection,
+        meta: &RequestMetaObject,
+    ) -> Result<RequestMetaObject, ErrorData> {
+        let catalog = self.catalog.current();
+        let Some(indexing) = catalog
+            .oauth_client(&subject.access_token.oauth_client_id)
+            .and_then(|client| client.knowledge_indexing.as_ref())
+        else {
+            return Ok(meta.clone());
+        };
+        let manifest = catalog.server(&projection.server).ok_or_else(denied)?;
+        let approvals = manifest
+            .knowledge
+            .iter()
+            .filter(|approval| {
+                approval.mode == CollectionApproval::Index
+                    && indexing.collections.contains(&approval.collection)
+            })
+            .map(|approval| (approval.collection.clone(), approval.clone()))
+            .collect();
+        let registration = self
+            .state
+            .platform_store()
+            .knowledge_collection_at_root(
+                &subject.authority.tenant,
+                &projection.upstream_uri,
+                &approvals,
+                &subject.actor.scopes,
+            )
+            .await
+            .map_err(|_| mcp_internal("knowledge root subscription admission unavailable"))?
+            .ok_or_else(denied)?;
+        let mut meta = meta.clone();
+        meta.insert(
+            INDEXING_READ_KEY.into(),
+            serde_json::to_value(IndexingReadIntent {
+                collection: registration.descriptor.collection().clone(),
+                kind: IndexingReadKind::Enumeration,
+            })
+            .expect("typed indexing intent"),
+        );
+        Ok(meta)
     }
 
     pub(super) async fn validate_indexing_delivery(
@@ -207,16 +286,27 @@ impl GatewayMcp {
             .admit_indexing_read(subject, projection, &meta)
             .await?
             .ok_or_else(denied)?;
-        if current.registration.revision() != permit.registration.revision() {
+        if &current != permit {
             return Err(denied());
         }
-        match (permit.intent.kind, observation) {
-            (IndexingReadKind::Member, None) => Err(denied()),
-            (_, Some(observation)) => permit
-                .registration
-                .admit_observation(observation)
-                .map_err(|_| denied()),
-            (IndexingReadKind::Enumeration, None) => Ok(()),
+        match &permit.admission {
+            IndexingAdmission::SourceContract(_) => {
+                if observation.is_none() {
+                    Ok(())
+                } else {
+                    Err(denied())
+                }
+            }
+            IndexingAdmission::Collection(registration) => {
+                match (permit.intent.kind, observation) {
+                    (IndexingReadKind::Member, None) => Err(denied()),
+                    (_, Some(observation)) => registration
+                        .admit_observation(observation)
+                        .map_err(|_| denied()),
+                    (IndexingReadKind::Enumeration, None) => Ok(()),
+                    (IndexingReadKind::SourceContract, None) => Err(denied()),
+                }
+            }
         }
     }
 }

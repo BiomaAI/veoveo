@@ -122,6 +122,21 @@ The service discovers candidate sources from the gateway catalog: every server i
 its profile whose `server/discover` result declares `ai.veoveo/knowledge-source`.
 Discovery alone does not admit a source.
 
+`source/discovery.rs` consumes an authenticated gateway peer and a typed set of
+installation approvals. It starts a catalog listener, waits for its initial
+invalidation, and traverses resource-template pages without the SDK catalog cache.
+Pending discovery waits for native completion events. Any catalog change restarts
+traversal. Unavailable sources, repeated cursors, duplicate approved descriptors and
+missing approved collections fail the operation. Discovery allows 60 seconds, 1,000
+cursors and 10,000 templates. It checks each source's scheme and hosted contract
+revision through the approved source-contract read path before returning registrations.
+
+`GatewaySource` opens each collection's root listener and waits for its first resource
+invalidation before returning it to the coordinator. Later invalidations trigger
+reconciliation; stream loss fails the source connection. The binary must still create
+and rotate the machine-authenticated connection and persist the discovered catalog
+against the current control revision.
+
 The control-plane document approves each collection with a typed knowledge entry.
 The entry names the collection, whether the service may index it, the groups that
 steward it, the subjects for which it is authoritative, and the data labels it may
@@ -258,7 +273,7 @@ agent's episode budget counts it. Platform services call the runtime directly in
 |---|---|
 | `src/index.rs`, `src/chunk.rs` | fenced source reads, bounded enumeration, source-byte chunking and inactive generation builds |
 | `src/coordinator.rs` | tenant lease renewal, listener ownership, change reconciliation, freshness timers and generation recovery |
-| `src/source.rs`, `src/source/gateway.rs` | checked source pages and bodies; authenticated gateway peer adapter |
+| `src/source.rs`, `src/source/gateway.rs`, `src/source/discovery.rs` | checked source pages and bodies, approved catalog discovery, and native listeners over an authenticated gateway peer |
 | `src/contract/` | owner scopes, typed routes, search models and shared domain re-exports |
 | `src/embed.rs` | shared embedding client, bulk documents and interactive query batches |
 | `src/authority.rs` | current policy, directory, session and registration checks |
@@ -282,6 +297,9 @@ lease renewal during that read, scheduled revalidation, source-loss recovery, ge
 embedding reuse and rejection of unchanged revisions with changed access. Store's
 coordinator tests qualify takeover, late member/coverage rejection and SQL freshness
 exclusion before decoding malformed cached rows. These fixtures use synthetic embeddings.
+`tests/source_gateway.rs` uses native MCP duplex streams to check discovery completion,
+invalid catalogs and observation readiness after the SDK acknowledgement. Gateway tests
+qualify mixed catalog/root filters and sources that end before observation starts.
 
 Installed acceptance also requires the following cases:
 

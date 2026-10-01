@@ -149,6 +149,14 @@ pub async fn listen_resources(
     let mut updates = Some(resources.listen());
     let mut hub_lists = Some(resources.listen_resource_list_changes());
     let mut extra_lists = extra_list_changes.map(ResourceListObservers::listen);
+    send_resource_update(&context, ResourceUpdate::Reconcile).await?;
+    if accepted.resources_list_changed == Some(true) {
+        context
+            .sink()
+            .notify_resource_list_changed()
+            .await
+            .map_err(send_error)?;
+    }
     loop {
         tokio::select! {
             () = context.cancelled() => return Ok(()),

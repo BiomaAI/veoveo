@@ -10,6 +10,7 @@ pub const INDEXING_READ_KEY: &str = "ai.veoveo/indexing-read";
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum IndexingReadKind {
+    SourceContract,
     Enumeration,
     Member,
 }

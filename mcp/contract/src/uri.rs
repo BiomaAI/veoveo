@@ -67,8 +67,14 @@ impl ServerResourceUris {
     }
 
     /// The machine-readable contract declaration (contract C19).
-    pub fn contract_uri(&self) -> String {
-        format!("{}://contract", self.scheme)
+    pub fn contract_uri(&self) -> veoveo_types::ResourceUri {
+        veoveo_types::ResourceUriBuilder::from_components(
+            &self.scheme,
+            veoveo_types::UriAuthority::new("contract").expect("fixed authority"),
+        )
+        .expect("validated scheme")
+        .build()
+        .expect("contract URI")
     }
 
     pub fn model_uri(&self, model_id: &str) -> String {

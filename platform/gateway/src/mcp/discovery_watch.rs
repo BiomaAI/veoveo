@@ -62,6 +62,10 @@ impl GatewayMcp {
             .catalog()
             .server(&key.server)
             .ok_or_else(|| mcp_internal("unknown catalog server"))?;
+        let indexing = snapshot
+            .catalog()
+            .oauth_client(&subject.access_token.oauth_client_id)
+            .is_some_and(|client| client.knowledge_indexing.is_some());
         let mut filter = SubscriptionFilter::new();
         filter.tools_list_changed = manifest.capabilities.tools_list_changed.then_some(true);
         filter.resources_list_changed =
@@ -99,8 +103,11 @@ impl GatewayMcp {
             let mut generation = self.catalog.subscribe();
             let (connection, mut subscription) = tokio::time::timeout(OPEN_DEADLINE, async {
                 let connection = self.upstream(&key.server, downstream, subject).await?;
-                let subscription = connection.peer.listen(filter.clone()).await.map_err(upstream_error)?;
+                let mut subscription = connection.peer.listen(filter.clone()).await.map_err(upstream_error)?;
                 if subscription.acknowledged() != &filter { return Err(mcp_internal("upstream narrowed its catalog subscription")); }
+                if indexing {
+                    super::subscriptions::wait_for_source_baseline(&mut subscription, &filter).await?;
+                }
                 Ok::<_,McpError>((connection, subscription))
             }).await.map_err(|_| mcp_internal("catalog subscription open deadline exceeded"))??;
             if *generation.borrow_and_update() != key.catalog_generation { return Err(mcp_internal("catalog changed while opening subscription")); }

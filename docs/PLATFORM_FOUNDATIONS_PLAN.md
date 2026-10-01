@@ -26,7 +26,9 @@ The embedding Helm component and local GPU reference, priority and refusal check
 The Knowledge library now implements fenced source indexing and SQL hybrid retrieval.
 Typed installation approvals and gateway indexing-client admission pass native checks.
 The hosted Knowledge API passes native HTTP and current-authority checks. Installed
-embedding qualification, Reason, production gateway source integration and Knowledge packaging remain open.
+embedding qualification, Reason, machine connection wiring, catalog persistence and
+Knowledge packaging remain open. The gateway source adapter discovers approved
+collections and waits for catalog/resource observation readiness before reading.
 The library coordinator qualifies lease renewal, source invalidation, conditional
 reconciliation and restart reuse against isolated Store fixtures.
 Broader server adoption is postponed outside this plan's completion scope. The cluster and BuildKit
@@ -3587,6 +3589,33 @@ source discovery, authenticated connection rotation/recovery, catalog subscripti
 five-minute audit windows and installed delivery remain open. This batch hard-cuts the
 undeployed Knowledge cache schema; it adds no historical-data adapter. The reference
 publication still predates that schema.
+
+Source-integration checkpoint (2026-10-01): Knowledge discovers its approved collections
+through a native gateway catalog listener, waits for pending discovery to complete,
+and verifies source ownership, URI scheme and hosted contract revision. A typed
+source-contract read permits discovery before Store registration, including catalog-only
+approvals. Domain reads and root subscriptions still require indexing approval.
+Subscription roots are selected in SQL by tenant, current approval, required scopes
+and exact enumeration URI. Ambiguous approved roots fail closed. Native tests prove
+denied malformed registrations are excluded before decoding.
+
+The pinned SDK acknowledges filters before asynchronous listener setup. Sources now
+send initial resource/catalog invalidations after registering their receivers and
+admitting the caller. Gateway indexing listeners and internal catalog watchers wait
+for these signals before exposing observation readiness. Mixed filters preserve catalog
+changes during startup. K07 separately checks initial readiness and mutation delivery;
+baseline-only streams cannot qualify as change delivery. Native qualification covers
+18 Knowledge tests, nine Store Knowledge tests, 39 gateway MCP tests, 140 MCP contract
+tests, nine extension tests, the live conformance-checker fixture, 13 Artifact tests
+and five Task resource tests. Strict affected Clippy, workspace all-target compilation,
+the Knowledge contract-only build and all 999 documentation links pass. Cleanup removed
+22 superseded test executables (4.43 GiB), preserving compiler and incremental caches.
+
+The source adapter consumes an authenticated peer; machine OAuth provisioning and
+rotation, catalog persistence bound to the active control revision, binary coordinator
+wiring, public catalog subscriptions/completion/statistics, five-minute audit windows
+and installed delivery remain open. This checkpoint adds no historical cache adapter.
+The cluster and BuildKit stayed stopped throughout the native batch.
 
 1. Deliver the shared [embedding runtime](../platform/runtimes/embedding/DESIGN.md)
    before the knowledge service consumes it. Re-verify the latest stable vLLM release

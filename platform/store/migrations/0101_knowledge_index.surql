@@ -2,11 +2,13 @@ DEFINE TABLE knowledge_collection SCHEMAFULL CHANGEFEED 7d PERMISSIONS NONE;
 DEFINE FIELD id ON knowledge_collection TYPE array;
 DEFINE FIELD tenant ON knowledge_collection TYPE string;
 DEFINE FIELD collection ON knowledge_collection TYPE string;
+DEFINE FIELD enumeration_root ON knowledge_collection TYPE string;
 DEFINE FIELD revision ON knowledge_collection TYPE string;
 DEFINE FIELD approved ON knowledge_collection TYPE bool;
 DEFINE FIELD document ON knowledge_collection TYPE object FLEXIBLE;
 DEFINE INDEX knowledge_collection_scope ON knowledge_collection FIELDS tenant, collection
     UNIQUE;
+DEFINE INDEX knowledge_collection_root ON knowledge_collection FIELDS tenant, enumeration_root;
 
 DEFINE TABLE knowledge_generation SCHEMAFULL CHANGEFEED 7d PERMISSIONS NONE;
 DEFINE FIELD id ON knowledge_generation TYPE uuid;

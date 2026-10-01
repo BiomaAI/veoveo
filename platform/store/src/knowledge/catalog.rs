@@ -54,16 +54,64 @@ impl PlatformStore {
         self.client().query("BEGIN TRANSACTION;
             LET $prior = (SELECT * FROM ONLY $record);
             IF $prior.revision != $expected AND $prior.revision != $revision { THROW 'knowledge_catalog_revision_changed'; };
-            UPSERT $record CONTENT {tenant: $tenant, collection: $collection, revision: $revision, approved: $approved, document: $document};
+            UPSERT $record CONTENT {tenant: $tenant, collection: $collection, enumeration_root: $root, revision: $revision, approved: $approved, document: $document};
             COMMIT TRANSACTION;")
             .bind(("record", collection_record(&registration.tenant, registration.descriptor.collection())))
             .bind(("tenant", registration.tenant.to_string()))
             .bind(("collection", registration.descriptor.collection().to_string()))
+            .bind(("root", veoveo_mcp_knowledge_extension::enumeration_uri(&registration.descriptor, None)
+                .map_err(|error| StoreError::Knowledge(error.0))?.to_string()))
             .bind(("revision", registration.revision().to_string()))
             .bind(("expected", expected.map(ToString::to_string)))
             .bind(("approved", registration.approval.mode == CollectionApproval::Index))
             .bind(("document", Document(registration.clone()))).await?.knowledge_check()?;
         Ok(())
+    }
+
+    /// Subscription roots are selected by URI, current approval and scopes in
+    /// SQL. Ambiguous declarations fail closed instead of choosing one owner.
+    pub async fn knowledge_collection_at_root(
+        &self,
+        tenant: &TenantId,
+        root: &veoveo_types::ResourceUri,
+        approvals: &BTreeMap<CollectionId, KnowledgeCollectionApproval>,
+        scopes: &BTreeSet<ScopeName>,
+    ) -> Result<Option<CollectionRegistration>, StoreError> {
+        approvals_valid(approvals, scopes)?;
+        let mut result = self
+            .client()
+            .query(include_str!("read_root.surql"))
+            .bind(("tenant", tenant.to_string()))
+            .bind(("root", root.to_string()))
+            .bind((
+                "approvals",
+                approvals
+                    .iter()
+                    .map(|(id, approval)| (id.to_string(), Document(approval.clone())))
+                    .collect::<Vec<_>>(),
+            ))
+            .bind((
+                "scopes",
+                scopes.iter().map(ToString::to_string).collect::<Vec<_>>(),
+            ))
+            .await?
+            .knowledge_check()?;
+        let rows: Vec<Document<CollectionRegistration>> = result.take(0)?;
+        let mut rows = rows.into_iter();
+        let Some(Document(registration)) = rows.next() else {
+            return Ok(None);
+        };
+        if rows.next().is_some()
+            || registration.tenant != *tenant
+            || registration.validate().is_err()
+            || veoveo_mcp_knowledge_extension::enumeration_uri(&registration.descriptor, None)
+                .ok()
+                .as_ref()
+                != Some(root)
+        {
+            return integrity();
+        }
+        Ok(Some(registration))
     }
 
     /// Confirm a previously admitted active member for an indexing subscription.

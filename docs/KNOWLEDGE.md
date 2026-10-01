@@ -25,7 +25,9 @@ pages through the [knowledge storage contract](../platform/store/src/knowledge/D
 Installed qualification is in progress.
 The `knowledge-mcp` library implements chunking, generation building, hybrid search and
 source-listener reconciliation under Store leases. Its authenticated HTTP adapter serves
-search, embeddings and catalog resources. Production gateway discovery/reconnection,
+search, embeddings and catalog resources. Its gateway adapter discovers approved
+collections and waits for source observation readiness. Machine connection wiring,
+catalog persistence against current control revisions, reconnection,
 packaging and installed qualification remain in the
 [implementation plan](PLATFORM_FOUNDATIONS_PLAN.md).
 

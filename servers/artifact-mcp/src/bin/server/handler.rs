@@ -635,6 +635,22 @@ impl ServerHandler for ArtifactMcp {
         } else {
             BTreeSet::new()
         };
+        // Receivers and visibility baseline are established before consumers
+        // treat the stream as ready for source enumeration.
+        if accepted.resources_list_changed == Some(true) {
+            context
+                .sink()
+                .notify_resource_list_changed()
+                .await
+                .map_err(subscription_error)?;
+        }
+        for (uri, _) in &subscriptions {
+            context
+                .sink()
+                .notify_resource_updated(uri.clone())
+                .await
+                .map_err(subscription_error)?;
+        }
         loop {
             let artifact_id = tokio::select! {
                 () = context.cancelled() => return Ok(()),

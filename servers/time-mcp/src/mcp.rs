@@ -751,7 +751,7 @@ mod tests {
             veoveo_types::ResourceScheme::new("time").expect("declared resource scheme"),
         );
         assert_eq!(uris::DOCS_URI, conventions.docs_root_uri());
-        assert_eq!(uris::CONTRACT_URI, conventions.contract_uri());
+        assert_eq!(uris::CONTRACT_URI, conventions.contract_uri().as_str());
         assert_eq!(uris::DOC_TEMPLATE, conventions.doc_template());
         assert!(
             TimeResource::parse(ResourceUri::new(uris::TIMELINE_APP_URI).unwrap().as_str()).is_ok()

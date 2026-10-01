@@ -272,6 +272,19 @@ pub async fn listen_durable_subscriptions<S: DurableTaskService>(
     let mut hub_list_changes = resources.map(SubscriptionHub::listen_resource_list_changes);
     let mut extra_list_changes = resource_lists.map(ResourceListObservers::listen);
 
+    veoveo_mcp_contract::send_resource_update(
+        &context,
+        veoveo_mcp_contract::ResourceUpdate::Reconcile,
+    )
+    .await?;
+
+    if accepted.resources_list_changed == Some(true) {
+        context
+            .sink()
+            .notify_resource_list_changed()
+            .await
+            .map_err(subscription_send_error)?;
+    }
     loop {
         tokio::select! {
             () = context.cancelled() => return Ok(()),

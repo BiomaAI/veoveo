@@ -25,7 +25,8 @@ records and source authorization with their owning servers.
 
 Run `cargo test -p veoveo-knowledge-mcp --tests` for contract and isolated pipeline
 checks. The coordination suite adds source-loss restart, conditional reuse and lease
-renewal during slow reads. The HTTP suite adds signed gateway requests, current authority
+renewal during slow reads. The source-gateway suite checks native discovery events and
+listener readiness with in-process MCP transports. The HTTP suite adds signed gateway requests, current authority
 changes and cross-replica reads. The fixtures need Docker and the pinned SurrealDB image; each owns its
 containers and has a 180-second timeout per case. Run
 `cargo check -p veoveo-knowledge-mcp --no-default-features --features contract` to

@@ -38,6 +38,8 @@ const LOST_STATE: u8 = 3;
 const NO_CHANGE: u8 = 4;
 const PARTIAL_ACK: u8 = 5;
 const CONDITIONAL_LEAK: u8 = 6;
+const BASELINE_ONLY: u8 = 7;
+const NO_BASELINE: u8 = 8;
 
 fn descriptor() -> CollectionDescriptor {
     CollectionDescriptor::new(
@@ -224,6 +226,18 @@ impl ServerHandler for Fixture {
         }
     }
     async fn listen(&self, context: SubscriptionContext) -> std::result::Result<(), ErrorData> {
+        match self.0.fault.load(Ordering::Relaxed) {
+            BASELINE_ONLY => {
+                veoveo_mcp_contract::send_resource_update(
+                    &context,
+                    veoveo_mcp_contract::ResourceUpdate::Reconcile,
+                )
+                .await?;
+                return Ok(());
+            }
+            NO_BASELINE => return Ok(()),
+            _ => {}
+        }
         let hub = self.0.active.lock().unwrap().hub.clone();
         listen_resources(context, &hub, None).await
     }
@@ -377,6 +391,8 @@ async fn qualify() -> Result<()> {
         (NO_CHANGE, "K07"),
         (PARTIAL_ACK, "K07"),
         (CONDITIONAL_LEAK, "K08"),
+        (BASELINE_ONLY, "K07"),
+        (NO_BASELINE, "K07"),
     ] {
         state.fault.store(fault, Ordering::Relaxed);
         checks.clear();

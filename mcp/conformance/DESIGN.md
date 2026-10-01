@@ -97,8 +97,9 @@ The ordinary runner and CLI fail these checks when a required probe is absent.
 They never select domain mutations or restart commands from server names.
 
 For K07, the owner supplies a populated member, a mutation and a restart operation.
-The runner requires acknowledgement of member and collection subscriptions, observes
-notifications and a changed revision, then checks that text and access survive the
+The runner requires acknowledgement of member and collection subscriptions, waits
+for both initial observation invalidations, then performs the mutation. Separate
+notifications and a changed revision prove mutation delivery. It checks that text and access survive the
 restart. It subscribes again and verifies another committed change. Each probe has
 90 seconds, with 15 seconds for each notification window. The owner must restart the
 actual service or source and preserve only declared persistence. Database recovery,
@@ -115,7 +116,8 @@ as a successful resource denial.
 
 The synthetic checker fixture recreates its source from a temporary document and
 qualifies rejection of missing probes, lost state, ineffective mutations, incomplete
-acknowledgements, missing links, search leakage and conditional authorization bypass.
+acknowledgements, missing readiness, baseline-only notification streams, missing links,
+search leakage and conditional authorization bypass.
 It establishes checker behavior; it does not qualify production Store recovery.
 
 ## Authoritative Live-View Profile

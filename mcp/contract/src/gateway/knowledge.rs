@@ -1,6 +1,5 @@
 //! Installation validation for generic source approval and indexing registrations.
 use super::*;
-use veoveo_knowledge_contract::CollectionApproval;
 
 pub(super) fn validate_knowledge_approvals(
     server: &ServerManifest,
@@ -113,10 +112,10 @@ pub(super) fn validate_indexing_client(
         if !server
             .knowledge
             .iter()
-            .any(|entry| &entry.collection == collection && entry.mode == CollectionApproval::Index)
+            .any(|entry| &entry.collection == collection)
         {
             return Err(invalid(
-                "indexing collection requires an explicit Index approval",
+                "knowledge client collection requires an explicit installation approval",
             ));
         }
         let exposure = profile

@@ -277,6 +277,11 @@ The [Python SDK guide](../../sdk/python/README.md) documents public and trusted 
 
 ## Task-Backed Resource Observation
 
+`listen_durable_subscriptions` combines native Task observation with domain resource
+hubs. After Task admission and resource receiver registration, it sends initial
+invalidations for the accepted resource URIs and resource catalog filter. Consumers
+can then read their baseline while subsequent hub changes remain queued for the listener.
+
 `TaskResourceSubscriptions` checks one request's typed resource addresses and native
 Task handles. It admits at most 256 Task handles, 256 resource addresses and 256 distinct
 backing Tasks. Duplicate addresses coalesce. A domain address supplies its backing Task

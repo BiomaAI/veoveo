@@ -102,7 +102,7 @@ Component designs live beside the code whose contract they specify:
 | [`servers/frames-mcp/DESIGN.md`](../servers/frames-mcp/DESIGN.md) | local coordinate frames and transformations |
 | [`mcp/apps-extension/DESIGN.md`](../mcp/apps-extension/DESIGN.md) | the MCP Apps server↔core↔UI contract for domain views and administration, including the reusable structured-resource workbench shell |
 | [`mcp/knowledge-extension/DESIGN.md`](../mcp/knowledge-extension/DESIGN.md) | `ai.veoveo/knowledge-source` typed extension: collection descriptors, read observations, conditional reads, docs paging and build digests; hosted integration and K01–K10 adoption are in progress |
-| [`servers/knowledge-mcp/DESIGN.md`](../servers/knowledge-mcp/DESIGN.md) | Knowledge-owned scopes/routes and contract-only library; source-byte chunking, fenced coordinator/reconciliation, SQL hybrid retrieval and authenticated hosted tools/catalog; production gateway discovery/reconnection and packaging pending |
+| [`servers/knowledge-mcp/DESIGN.md`](../servers/knowledge-mcp/DESIGN.md) | Knowledge-owned scopes/routes and contract-only library; source-byte chunking, fenced coordinator/reconciliation, SQL hybrid retrieval, authenticated hosted tools/catalog and gateway discovery/listeners; machine connection wiring and packaging pending |
 | [`platform/knowledge/contract/DESIGN.md`](../platform/knowledge/contract/DESIGN.md) | knowledge-owned collection approvals, generation identities/specifications and source-bound chunks shared below Store and the MCP service |
 | [`platform/runtimes/embedding/contract/DESIGN.md`](../platform/runtimes/embedding/contract/DESIGN.md) | transport-independent embedding spaces, checked dimensions and normalized vectors |
 | [`platform/store/src/knowledge/DESIGN.md`](../platform/store/src/knowledge/DESIGN.md) | catalog compare-and-set, generation-specific BM25/HNSW tables, fenced source reads, coverage, activation, source-policy SQL admission with selected-context and record/grant deadlines through `admission.rs`, and reclamation |
@@ -633,7 +633,7 @@ Task state lives in this runtime. RMCP defines the Tasks wire types.
 | `mcp/tools.rs` | aggregated tool list with opt-in compatibility helpers; isolates a failing server by default and fails the whole list for `fail_closed` discovery profiles |
 | `mcp/resources.rs` | failure-isolated resource lists and native Task status resource projection |
 | `mcp/resource_read.rs` | fresh resource authorization, source observation validation, negotiated metadata delivery and commit-before-delivery audit records |
-| `mcp/knowledge_indexing.rs` | machine-client collection approval, enumeration/member admission, delivery recheck and subscription restrictions |
+| `mcp/knowledge_indexing.rs` | machine-client collection approval, source-contract bootstrap, enumeration/member admission, SQL-selected subscription roots and delivery recheck |
 | `mcp/prompts.rs`, `completion.rs` | prompt and completion aggregation |
 | `mcp/tasks.rs` | upstream Task client and the opt-in Task tools for clients with weak Task support |
 | `mcp/health.rs` | `health_url` GET probes; only a success status counts as healthy |

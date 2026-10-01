@@ -31,6 +31,8 @@ type RoutedNotificationStream = Pin<
 >;
 
 struct OpenedUpstreamSubscription {
+    initial_resources: Vec<String>,
+    initial_catalog_change: bool,
     task_ids: BTreeMap<String, String>,
     connection: super::RequestUpstream,
     notifications: RoutedNotificationStream,
@@ -86,9 +88,22 @@ impl GatewayMcp {
         self.admit_indexing_subscription_filter(&subject, &accepted)
             .await?;
         let snapshot = self.catalog.snapshot();
+        let indexing = snapshot
+            .catalog()
+            .oauth_client(&subject.access_token.oauth_client_id)
+            .is_some_and(|client| client.knowledge_indexing.is_some());
         let catalog_generation = snapshot.generation();
         let authorization_fingerprint = super::discovery_authorization_fingerprint(&subject)?;
         let mut discovery_changes = self.discovery.subscribe();
+        if indexing && accepted.resources_list_changed == Some(true) {
+            context
+                .sink()
+                .notify_resource_list_changed()
+                .await
+                .map_err(|_| {
+                    mcp_internal("indexing catalog observation readiness delivery failed")
+                })?;
+        }
 
         // A catalog listener primes discovery on the same replica that owns the
         // stream. Each server completes independently and wakes the caller through
@@ -233,6 +248,7 @@ impl GatewayMcp {
                         downstream,
                         subject,
                         required,
+                        indexing,
                     )
                     .await;
                 (server, required, result)
@@ -249,6 +265,22 @@ impl GatewayMcp {
                 opened = pending.next(), if !pending_done => {
                     match opened {
                         Some((server, _, Ok(opened))) => {
+                            // SDK acknowledgement precedes asynchronous upstream
+                            // setup. Indexers wait for this initial invalidation
+                            // before enumeration, after the route is established.
+                            if indexing {
+                                if opened.initial_catalog_change {
+                                    self.discovery.invalidate_resource_surfaces(&server).await;
+                                    context.sink().notify_resource_list_changed().await.map_err(|_| {
+                                        mcp_internal("indexing catalog readiness delivery failed")
+                                    })?;
+                                }
+                                for uri in &opened.initial_resources {
+                                    let projection = self.project_upstream_resource(&server, uri)?;
+                                    context.sink().notify_resource_updated(projection.gateway_uri.to_string())
+                                        .await.map_err(|_| mcp_internal("indexing subscription readiness delivery failed"))?;
+                                }
+                            }
                             task_routes.insert(server, opened.task_ids);
                             notifications.push(opened.notifications);
                             upstream_connections.push(opened.connection);
@@ -332,6 +364,7 @@ impl GatewayMcp {
         downstream: rmcp::service::Peer<rmcp::service::RoleServer>,
         subject: crate::AuthenticatedSubject,
         required: bool,
+        indexing: bool,
     ) -> Result<OpenedUpstreamSubscription, McpError> {
         let needs_tasks = route.filter.task_ids.is_some();
         let upstream = self
@@ -347,7 +380,7 @@ impl GatewayMcp {
                 "upstream `{server}` does not support the accepted subscription filter"
             )));
         }
-        let subscription = upstream
+        let mut subscription = upstream
             .peer
             .listen(effective)
             .await
@@ -357,7 +390,11 @@ impl GatewayMcp {
                 "upstream `{server}` narrowed the accepted subscription filter"
             )));
         }
+        let initial_catalog_change =
+            indexing && wait_for_source_baseline(&mut subscription, &route.filter).await?;
         Ok(OpenedUpstreamSubscription {
+            initial_resources: route.filter.resource_subscriptions.unwrap_or_default(),
+            initial_catalog_change,
             task_ids: route.task_ids,
             connection: upstream,
             notifications: Box::pin(routed_notifications(server, required, subscription)),
@@ -438,4 +475,56 @@ fn routed_notifications(
             }
         }
     }
+}
+
+pub(super) async fn wait_for_source_baseline(
+    subscription: &mut rmcp::service::Subscription,
+    filter: &SubscriptionFilter,
+) -> Result<bool, McpError> {
+    tokio::time::timeout(std::time::Duration::from_secs(20), async {
+        let mut catalog_changed = false;
+        let mut pending: std::collections::BTreeSet<_> = filter
+            .resource_subscriptions
+            .iter()
+            .flatten()
+            .cloned()
+            .collect();
+        while !pending.is_empty()
+            || (filter.resources_list_changed == Some(true) && !catalog_changed)
+        {
+            match subscription.next().await.map_err(upstream_error)? {
+                Some(ServerNotification::ResourceUpdatedNotification(update)) => {
+                    if !filter
+                        .resource_subscriptions
+                        .as_ref()
+                        .is_some_and(|uris| uris.contains(&update.params.uri))
+                    {
+                        return Err(mcp_internal(
+                            "source readiness names an unrequested resource",
+                        ));
+                    }
+                    pending.remove(&update.params.uri);
+                }
+                Some(ServerNotification::ResourceListChangedNotification(_))
+                    if filter.resources_list_changed == Some(true) =>
+                {
+                    catalog_changed = true;
+                }
+                // Internal discovery watches cover all catalog surfaces and
+                // discard their cached baseline after this function returns.
+                Some(ServerNotification::ToolListChangedNotification(_))
+                    if filter.tools_list_changed == Some(true) => {}
+                Some(ServerNotification::PromptListChangedNotification(_))
+                    if filter.prompts_list_changed == Some(true) => {}
+                _ => {
+                    return Err(mcp_internal(
+                        "knowledge source ended before observation readiness",
+                    ));
+                }
+            }
+        }
+        Ok::<_, McpError>(catalog_changed)
+    })
+    .await
+    .map_err(|_| mcp_internal("knowledge source did not establish observation within 20 seconds"))?
 }

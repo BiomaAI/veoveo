@@ -51,6 +51,10 @@ name = "coordination"
 required-features = ["runtime"]
 
 [[test]]
+name = "source_gateway"
+required-features = ["runtime"]
+
+[[test]]
 name = "contract"
 required-features = ["contract"]
 

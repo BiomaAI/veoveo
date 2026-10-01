@@ -197,6 +197,12 @@ async fn mutate(
             subscription.acknowledged() == &filter,
             "member and collection subscriptions were not both accepted"
         );
+        tokio::time::timeout(
+            Duration::from_secs(15),
+            notifications(&mut subscription, &probe.member, enumeration),
+        )
+        .await
+        .context("member/collection observation readiness exceeded 15 seconds")??;
         probe
             .driver
             .mutate()
@@ -237,11 +243,12 @@ async fn notifications(
     while let Some(notification) = subscription.next().await? {
         match notification {
             ServerNotification::ResourceUpdatedNotification(value) => {
+                ensure!(
+                    value.params.uri == member.as_str() || value.params.uri == enumeration.as_str(),
+                    "source notified an unrequested resource"
+                );
                 pending.remove(value.params.uri.as_str());
             }
-            // Reconciliation still requires an acknowledged member/collection
-            // filter. Other notification classes cannot prove a resource change.
-            ServerNotification::ResourceListChangedNotification(_) => pending.clear(),
             _ => anyhow::bail!("unexpected notification during knowledge change probe"),
         }
         if pending.is_empty() {

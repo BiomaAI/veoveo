@@ -60,7 +60,7 @@ compilation and emits `include_str!` to track the document as a build input.
 | [W3C DCAT 3](https://www.w3.org/TR/vocab-dcat-3/) | Collection descriptors map to `dcat:Dataset`; this extension uses DCAT terms for alignment and does not serialize RDF |
 | [JSON Schema 2020-12](https://json-schema.org/draft/2020-12/) | Closed schemas generated from the crate's Rust types for every descriptor and observation |
 | Veoveo Work Context | Access descriptors use the tenant, Work Context, grant, and data-label model in [Work Context governance](../../docs/WORK_CONTEXT_GOVERNANCE.md#output-ownership-and-access) |
-| `ai.veoveo/indexing-read` | Gateway request metadata selecting an approved collection and enumeration/member intent; installation client registration establishes authority |
+| `ai.veoveo/indexing-read` | Gateway request metadata selecting an approved collection and source-contract, enumeration or member intent; installation client registration establishes authority |
 
 Veoveo owns and versions this extension outside the MCP SEP process.
 
@@ -140,11 +140,17 @@ concrete URI. The source selects readable members before ordering and pagination
 ## Indexing Requests
 
 An installation-registered indexing client includes `_meta["ai.veoveo/indexing-read"]`
-on source reads and resource subscriptions. `IndexingReadIntent` carries a typed
-collection ID and the `enumeration` or `member` kind. The gateway checks the machine
+on source reads. `IndexingReadIntent` carries a typed collection ID and the
+`source_contract`, `enumeration` or `member` kind. The gateway checks the machine
 client's registered collection set and current installation approval. Ordinary clients
 cannot acquire indexing authority by supplying this metadata. Sources apply their
 ordinary authorization and observation contract; the intent requires no source handler.
+
+`source_contract` permits the exact owning scheme's `contract` resource before a
+collection has a Store registration. Catalog-only approval permits that metadata read;
+enumeration, member reads and resource subscriptions require indexing approval.
+Root subscriptions can omit intent metadata: the gateway selects the unique approved
+registration for the exact root under current tenant and scope predicates in SQL.
 
 `enumeration_uri` expands the declared template through the shared URI implementation.
 It validates the cursor and supports a concrete enumeration URI by adding its cursor
@@ -275,7 +281,15 @@ with change-feed recovery through the shared `SubscriptionHub`, which satisfies
 contract rule C27 across restarts and replicas. A process-local broadcast alone does not qualify.
 A notification names the changed URI, or requests reconciliation, and carries no
 content. The enumeration root signals changes to membership and to any member's
-content or access descriptor. A consumer can therefore subscribe before enumerating
+content or access descriptor. After registering its change receiver and completing
+authorization, the source emits an initial invalidation for every accepted member
+and enumeration URI. The SDK's filter acknowledgement precedes handler setup; consumers
+wait for these invalidations before reading. Conformance drains initial invalidations
+before mutation and separately requires the resulting member and root changes.
+When the source accepts a resource-catalog filter, it also emits an initial list
+invalidation after registering the inventory observer. Gateway indexing discovery
+waits for this signal before caching the catalog.
+A consumer can therefore subscribe before enumerating
 without first discovering every member URI. Conditional consumers preserve cached
 content only when the complete observation, excluding `observedAt` and `notModified`,
 matches the preceding full observation. An unchanged revision with changed access
@@ -323,7 +337,7 @@ running server. Review enforces K09 and K10.
 | K04 | MUST | Return bounded text or JSON members, and link bytes as `artifact://` resources. |
 | K05 | MUST | Attach a complete observation to every member read whose request declares the extension. |
 | K06 | MUST | Answer a matching `ifNoneMatch` with empty contents and `notModified`, after the same authorization as a full read. |
-| K07 | MUST | For `listen` collections, make members and the collection subscribable from a restart-safe source. The enumeration root signals every member content, access or membership change. |
+| K07 | MUST | For `listen` collections, make members and the collection subscribable from a restart-safe source. Emit initial invalidations after observation starts; the enumeration root then signals every member content, access or membership change. |
 | K08 | MUST | Return resource links from declared search tools, restricted to readable resources. |
 | K09 | MUST | Fill observations from domain records only, and keep caller input out of provenance. |
 | K10 | MUST | Change `revision`, and signal the change for `listen` collections, whenever the returned text or the member's access descriptor changes. |

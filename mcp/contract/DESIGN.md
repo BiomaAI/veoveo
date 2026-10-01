@@ -590,6 +590,11 @@ those two surfaces without copying observations into the contract resource.
 
 `SubscriptionHub` carries either an exact changed URI or a reconciliation signal.
 A listener projects reconciliation only onto its accepted resource identities.
+The shared resource listener sends initial invalidations after registering its
+receivers. Its initial list invalidation allows a catalog consumer to wait for
+observation setup before listing. Task-runtime resource fan-out also sends initial
+resource and requested catalog invalidations. The SDK filter acknowledgement alone
+precedes asynchronous source setup. Knowledge sources implement the readiness requirement in K07.
 Content-only reconciliation does not emit a resource-list change. Servers emit list
 changes when discovery membership or descriptor metadata changes, independently of
 updates to an existing resource's contents.

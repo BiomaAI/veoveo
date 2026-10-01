@@ -389,7 +389,7 @@ mod tests {
     fn well_known_uris_match_the_shared_contract_conventions() {
         let conventions = veoveo_mcp_contract::ServerResourceUris::new(SCHEME.clone());
         assert_eq!(DOCS_URI, conventions.docs_root_uri());
-        assert_eq!(CONTRACT_URI, conventions.contract_uri());
+        assert_eq!(CONTRACT_URI, conventions.contract_uri().as_str());
         assert_eq!(DOC_TEMPLATE, conventions.doc_template());
         assert_eq!(doc_uri("agents"), conventions.doc_uri("agents"));
         assert_eq!(parse_doc("map://docs/agents"), Some("agents"));
