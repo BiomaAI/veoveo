@@ -347,9 +347,13 @@ async def test_recovery_fails_interrupted_indeterminate(runtime):
 
 
 async def test_prune_removes_expired_unpinned_terminal_tasks(runtime):
-    created = await runtime.create(draft(ttl_ms=1))
+    request = draft(ttl_ms=1, idempotency_key="prune-key")
+    created = await runtime.create(request)
     task_id = str(created.snapshot.task_id)
     await runtime.claim(task_id, timedelta(seconds=30))
+    await runtime.request_input(
+        task_id, "prune-input", TaskInputRequest("elicitation/create", {})
+    )
     await runtime.transition(
         task_id, TaskTransition.failed(TaskFailure("boom", "exploded"))
     )
@@ -357,6 +361,14 @@ async def test_prune_removes_expired_unpinned_terminal_tasks(runtime):
     pruned = await runtime.prune_expired()
     assert created.snapshot.task_id in pruned
     assert await runtime.get(task_id) is None
+    rows = await runtime.store.query(
+        "SELECT VALUE id FROM task_input WHERE task = $task;",
+        {"task": task_record(created.snapshot.task_id)},
+    )
+    assert rows[0] == []
+    recreated = await runtime.create(replace(request, task_id=new_task_id()))
+    assert recreated.created
+    assert recreated.snapshot.task_id != created.snapshot.task_id
 
 
 async def test_domain_usage_rows_are_recorded_and_queryable(runtime):

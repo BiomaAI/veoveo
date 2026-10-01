@@ -186,6 +186,14 @@ Each installation sets audit retention in days in its configuration. The gateway
 refuses to start without it, so no default ever deletes records silently. Retention
 applies to every class.
 
+Store admits each whole-block deletion under the current sealer lease, the cutoff,
+contiguous retention order and every configured destination's receipt. Deleting a
+record cascades its `audit_record_seal` membership; deleting the block cascades its
+`audit_export_delivery` rows. The transaction preserves the signed retention anchor
+and export cursors. Download-window guards expire independently. Required audit writes
+commit with their domain mutation, and `audit_daily` is a database-maintained view;
+neither uses asynchronous events.
+
 The gateway's retention worker deletes whole blocks: a block's records, then the
 block itself, once the block is older than the retention period. When export is
 configured, it deletes only blocks that reached the export destination, and

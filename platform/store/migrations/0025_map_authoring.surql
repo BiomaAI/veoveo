@@ -1,7 +1,7 @@
 -- Authored map feature layers. SurrealDB is the canonical revision catalog;
 -- DuckDB Spatial remains a rebuildable query projection.
 
-DEFINE TABLE IF NOT EXISTS map_feature_layer SCHEMAFULL TYPE NORMAL CHANGEFEED 90d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS map_feature_layer SCHEMAFULL TYPE NORMAL CHANGEFEED 90d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE map_feature_layer TYPE array;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE map_feature_layer TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS owner ON TABLE map_feature_layer TYPE record<principal>;
@@ -42,7 +42,7 @@ DEFINE FIELD IF NOT EXISTS updated_at ON TABLE map_feature_layer TYPE datetime;
 DEFINE INDEX IF NOT EXISTS map_feature_layer_tenant_key_unique ON TABLE map_feature_layer FIELDS tenant, layer_key UNIQUE;
 DEFINE INDEX IF NOT EXISTS map_feature_layer_context_updated ON TABLE map_feature_layer FIELDS tenant, work_context, archived_at, updated_at;
 
-DEFINE TABLE IF NOT EXISTS map_feature_schema_revision SCHEMAFULL TYPE NORMAL CHANGEFEED 90d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS map_feature_schema_revision SCHEMAFULL TYPE NORMAL CHANGEFEED 90d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE map_feature_schema_revision TYPE array;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE map_feature_schema_revision TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS work_context ON TABLE map_feature_schema_revision TYPE record<work_context>;
@@ -56,7 +56,7 @@ DEFINE FIELD IF NOT EXISTS created_at ON TABLE map_feature_schema_revision TYPE 
 DEFINE INDEX IF NOT EXISTS map_feature_schema_version_unique ON TABLE map_feature_schema_revision FIELDS tenant, layer_key, schema_version UNIQUE;
 DEFINE INDEX IF NOT EXISTS map_feature_schema_key_unique ON TABLE map_feature_schema_revision FIELDS tenant, schema_revision_key UNIQUE;
 
-DEFINE TABLE IF NOT EXISTS map_style_revision SCHEMAFULL TYPE NORMAL CHANGEFEED 90d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS map_style_revision SCHEMAFULL TYPE NORMAL CHANGEFEED 90d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE map_style_revision TYPE array;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE map_style_revision TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS work_context ON TABLE map_style_revision TYPE record<work_context>;
@@ -69,7 +69,7 @@ DEFINE FIELD IF NOT EXISTS created_at ON TABLE map_style_revision TYPE datetime;
 DEFINE INDEX IF NOT EXISTS map_style_version_unique ON TABLE map_style_revision FIELDS tenant, layer_key, style_version UNIQUE;
 DEFINE INDEX IF NOT EXISTS map_style_key_unique ON TABLE map_style_revision FIELDS tenant, style_revision_key UNIQUE;
 
-DEFINE TABLE IF NOT EXISTS map_feature_head SCHEMAFULL TYPE NORMAL CHANGEFEED 90d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS map_feature_head SCHEMAFULL TYPE NORMAL CHANGEFEED 90d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE map_feature_head TYPE array;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE map_feature_head TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS work_context ON TABLE map_feature_head TYPE record<work_context>;
@@ -96,7 +96,7 @@ DEFINE INDEX IF NOT EXISTS map_feature_head_tenant_key_unique ON TABLE map_featu
 DEFINE INDEX IF NOT EXISTS map_feature_head_layer_updated ON TABLE map_feature_head FIELDS tenant, layer_key, deleted, updated_at;
 DEFINE INDEX IF NOT EXISTS map_feature_head_layer_type ON TABLE map_feature_head FIELDS tenant, layer_key, geometry_type;
 
-DEFINE TABLE IF NOT EXISTS map_feature_revision SCHEMAFULL TYPE NORMAL CHANGEFEED 90d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS map_feature_revision SCHEMAFULL TYPE NORMAL CHANGEFEED 90d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE map_feature_revision TYPE array;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE map_feature_revision TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS work_context ON TABLE map_feature_revision TYPE record<work_context>;
@@ -123,7 +123,7 @@ DEFINE INDEX IF NOT EXISTS map_feature_revision_unique ON TABLE map_feature_revi
 DEFINE INDEX IF NOT EXISTS map_feature_revision_layer_revision ON TABLE map_feature_revision FIELDS tenant, layer_key, layer_revision, feature_key;
 DEFINE INDEX IF NOT EXISTS map_feature_revision_changeset ON TABLE map_feature_revision FIELDS tenant, changeset_key;
 
-DEFINE TABLE IF NOT EXISTS map_feature_changeset SCHEMAFULL TYPE NORMAL CHANGEFEED 90d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS map_feature_changeset SCHEMAFULL TYPE NORMAL CHANGEFEED 90d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE map_feature_changeset TYPE array;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE map_feature_changeset TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS owner ON TABLE map_feature_changeset TYPE record<principal>;
@@ -159,7 +159,7 @@ DEFINE INDEX IF NOT EXISTS map_feature_changeset_key_unique ON TABLE map_feature
 DEFINE INDEX IF NOT EXISTS map_feature_changeset_idempotency_unique ON TABLE map_feature_changeset FIELDS tenant, work_context, layer_key, idempotency_key UNIQUE;
 DEFINE INDEX IF NOT EXISTS map_feature_changeset_layer_sequence ON TABLE map_feature_changeset FIELDS tenant, layer_key, commit_sequence;
 
-DEFINE TABLE IF NOT EXISTS map_layer_publication SCHEMAFULL TYPE NORMAL CHANGEFEED 90d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS map_layer_publication SCHEMAFULL TYPE NORMAL CHANGEFEED 90d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE map_layer_publication TYPE array;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE map_layer_publication TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS owner ON TABLE map_layer_publication TYPE record<principal>;
@@ -192,7 +192,7 @@ DEFINE FIELD IF NOT EXISTS published_at ON TABLE map_layer_publication TYPE date
 DEFINE INDEX IF NOT EXISTS map_layer_publication_key_unique ON TABLE map_layer_publication FIELDS tenant, publication_key UNIQUE;
 DEFINE INDEX IF NOT EXISTS map_layer_publication_layer_revision ON TABLE map_layer_publication FIELDS tenant, layer_key, layer_revision, published_at;
 
-DEFINE TABLE IF NOT EXISTS map_composition SCHEMAFULL TYPE NORMAL CHANGEFEED 90d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS map_composition SCHEMAFULL TYPE NORMAL CHANGEFEED 90d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE map_composition TYPE array;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE map_composition TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS owner ON TABLE map_composition TYPE record<principal>;
@@ -207,7 +207,7 @@ DEFINE FIELD IF NOT EXISTS updated_at ON TABLE map_composition TYPE datetime;
 DEFINE INDEX IF NOT EXISTS map_composition_key_unique ON TABLE map_composition FIELDS tenant, composition_key UNIQUE;
 DEFINE INDEX IF NOT EXISTS map_composition_context_updated ON TABLE map_composition FIELDS tenant, work_context, archived_at, updated_at;
 
-DEFINE TABLE IF NOT EXISTS map_composition_revision SCHEMAFULL TYPE NORMAL CHANGEFEED 90d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS map_composition_revision SCHEMAFULL TYPE NORMAL CHANGEFEED 90d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE map_composition_revision TYPE array;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE map_composition_revision TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS work_context ON TABLE map_composition_revision TYPE record<work_context>;

@@ -1,6 +1,6 @@
 -- Mission admission creates one exact Task link in the plan/lease transaction.
 DEFINE TABLE IF NOT EXISTS uav_mission_execution SCHEMAFULL TYPE NORMAL
-  CHANGEFEED 30d INCLUDE ORIGINAL
+  CHANGEFEED 30d
   PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE uav_mission_execution TYPE uuid;
 DEFINE FIELD IF NOT EXISTS task ON TABLE uav_mission_execution TYPE record<task>;

@@ -12,12 +12,17 @@ impl ArtifactChange {
         let record = match entry.table() {
             Some("artifact_occurrence") => entry.record_id(),
             Some("artifact_grant" | "share_link") => {
+                let parent_field = if entry.table() == Some("artifact_grant") {
+                    "in"
+                } else {
+                    "artifact"
+                };
                 let row = match entry {
                     ChangefeedEntry::Upsert(row) => Some(row),
                     ChangefeedEntry::Delete { original, .. } => original.as_ref(),
                     ChangefeedEntry::Definition => None,
                 };
-                match row.map(|row| row.get("artifact")) {
+                match row.map(|row| row.get(parent_field)) {
                     Some(Value::RecordId(record)) => Some(record),
                     _ => None,
                 }

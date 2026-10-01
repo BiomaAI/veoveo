@@ -35,6 +35,8 @@ mod map_projection;
 mod query_semantics;
 #[path = "surreal_integration/recording_ingest.rs"]
 mod recording_ingest;
+#[path = "surreal_integration/relationships.rs"]
+mod relationships;
 
 fn artifact_audit_context(
     identity: &veoveo_platform_store::PlatformIdentity,

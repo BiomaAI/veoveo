@@ -57,6 +57,16 @@ under the server and worker identity. Separate replicas require distinct worker 
 Store completes transaction tails before advancing a cursor. The checkpoint table
 has no changefeed, so acknowledgements cannot wake their own consumer.
 
+## Retention
+
+Retention deletes terminal Tasks only after their expiry and the release of every
+retention pin. Rust and Python use the same SQL predicate. Reference cascades remove
+the Task's idempotency claim and input exchanges in the parent deletion transaction.
+A rollback preserves all three records. Provider jobs and observations keep their
+separate recovery lifetime; deleting a Task does not discard an unresolved provider
+outcome. Task changefeeds keep original rows for Console's tenant-scoped deletes;
+input and idempotency feeds need only committed state and deletion identities.
+
 ## Task Operation Identity
 
 `CreateTask`, `TaskSnapshot` and Store's `TaskRecord` carry `TaskTypeName` from admission

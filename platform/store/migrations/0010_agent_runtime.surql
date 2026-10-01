@@ -21,7 +21,7 @@ DEFINE FIELD IF NOT EXISTS revision ON TABLE wake TYPE int DEFAULT 0 ASSERT $val
 DEFINE FIELD IF NOT EXISTS coalesced_into ON TABLE wake TYPE option<record<wake>>;
 DEFINE INDEX IF NOT EXISTS wake_claim_expires ON TABLE wake FIELDS agent, state, claim_expires_at;
 
-DEFINE TABLE IF NOT EXISTS agent_episode SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS agent_episode SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE agent_episode TYPE uuid DEFAULT rand::uuid();
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE agent_episode TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS agent ON TABLE agent_episode TYPE record<agent>;
@@ -42,7 +42,7 @@ DEFINE FIELD IF NOT EXISTS revision ON TABLE agent_episode TYPE int DEFAULT 0 AS
 DEFINE INDEX IF NOT EXISTS agent_episode_sequence_unique ON TABLE agent_episode FIELDS agent, sequence UNIQUE;
 DEFINE INDEX IF NOT EXISTS agent_episode_state_started ON TABLE agent_episode FIELDS agent, state, started_at;
 
-DEFINE TABLE IF NOT EXISTS agent_task SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS agent_task SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE agent_task TYPE uuid DEFAULT rand::uuid();
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE agent_task TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS agent ON TABLE agent_task TYPE record<agent>;
@@ -72,7 +72,7 @@ DEFINE INDEX IF NOT EXISTS agent_task_available ON TABLE agent_task FIELDS agent
 DEFINE INDEX IF NOT EXISTS agent_task_lease ON TABLE agent_task FIELDS agent, lease_expires_at;
 DEFINE INDEX IF NOT EXISTS agent_task_retention_pin ON TABLE agent_task FIELDS task, retention_pin_active;
 
-DEFINE TABLE IF NOT EXISTS agent_elicitation SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS agent_elicitation SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE agent_elicitation TYPE uuid DEFAULT rand::uuid();
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE agent_elicitation TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS agent ON TABLE agent_elicitation TYPE record<agent>;

@@ -2,7 +2,7 @@
 -- protected value at the protocol boundary; the database stores its digest
 -- beside the typed outstanding requests and accepted responses.
 
-DEFINE TABLE IF NOT EXISTS mcp_interaction SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS mcp_interaction SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE mcp_interaction TYPE string;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE mcp_interaction TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS owner ON TABLE mcp_interaction TYPE record<principal>;
@@ -36,7 +36,7 @@ DEFINE FIELD OVERWRITE kind ON TABLE wake TYPE "task_result" | "resource_changed
 -- Agent-facing form input is application state for Rig deferred executions.
 -- It is deliberately named independently of the removed MCP elicitation wire
 -- feature and is addressed by an opaque input-request identifier.
-DEFINE TABLE IF NOT EXISTS agent_input_request SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS agent_input_request SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE agent_input_request TYPE uuid DEFAULT rand::uuid();
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE agent_input_request TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS agent ON TABLE agent_input_request TYPE record<agent>;

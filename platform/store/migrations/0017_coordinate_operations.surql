@@ -1,6 +1,6 @@
 -- Durable coordinate operation provenance keyed by the public UUIDv7 operation id.
 
-DEFINE TABLE IF NOT EXISTS coordinate_operation SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS coordinate_operation SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE coordinate_operation TYPE uuid;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE coordinate_operation TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS owner ON TABLE coordinate_operation TYPE record<principal>;

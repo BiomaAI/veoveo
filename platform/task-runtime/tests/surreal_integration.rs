@@ -646,6 +646,21 @@ async fn pruning_a_terminal_task_also_releases_its_idempotency_key() {
                 .unwrap()
                 .is_some()
         );
+        let rolled_back = runtime.platform_store().client()
+            .query("BEGIN; DELETE $task; THROW 'qualification_rollback'; COMMIT;")
+            .bind(("task", task_record_id(first.task_id)))
+            .await.unwrap().check();
+        assert!(rolled_back.is_err());
+        let mut children = runtime.platform_store().client()
+            .query("SELECT VALUE id FROM task_input WHERE task = $task; SELECT VALUE id FROM task_idempotency WHERE task = $task;")
+            .bind(("task", task_record_id(first.task_id)))
+            .await.unwrap().check().unwrap();
+        assert_eq!(children.take::<Vec<surrealdb::types::RecordId>>(0).unwrap().len(), 1);
+        assert_eq!(children.take::<Vec<surrealdb::types::RecordId>>(1).unwrap().len(), 1);
+        // An unrelated active Task and its idempotency claim outlive this prune.
+        let mut active_request = draft("active-retained", RecoveryClass::Resume);
+        active_request.idempotency_key = Some("active-key".into());
+        let active = runtime.create(active_request.clone()).await.unwrap().snapshot;
         let acknowledged = runtime
             .acknowledge_retention_pin(&first.task_id.to_string(), &pin)
             .await
@@ -673,6 +688,9 @@ async fn pruning_a_terminal_task_also_releases_its_idempotency_key() {
             .unwrap();
         let input_ids: Vec<surrealdb::types::RecordId> = response.take(0).unwrap();
         assert!(input_ids.is_empty());
+        let active_retry = runtime.create(active_request).await.unwrap();
+        assert!(!active_retry.created);
+        assert_eq!(active_retry.snapshot.task_id, active.task_id);
         request.task_id = veoveo_types::TaskId::new();
         let second = runtime.create(request).await.unwrap();
         assert!(second.created);

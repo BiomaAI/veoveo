@@ -1,6 +1,6 @@
 -- Governed Map sources, releases, operational state, and durable planning identities.
 
-DEFINE TABLE IF NOT EXISTS map_source SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS map_source SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE map_source TYPE string;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE map_source TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS owner ON TABLE map_source TYPE record<principal>;
@@ -19,7 +19,7 @@ DEFINE INDEX IF NOT EXISTS map_source_tenant_key_unique ON TABLE map_source FIEL
 DEFINE INDEX IF NOT EXISTS map_source_tenant_dataset ON TABLE map_source FIELDS tenant, dataset_key;
 DEFINE INDEX IF NOT EXISTS map_source_tenant_enabled ON TABLE map_source FIELDS tenant, enabled;
 
-DEFINE TABLE IF NOT EXISTS map_dataset_release SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS map_dataset_release SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE map_dataset_release TYPE string;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE map_dataset_release TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS release_key ON TABLE map_dataset_release TYPE string;
@@ -38,7 +38,7 @@ DEFINE INDEX IF NOT EXISTS map_release_tenant_key_unique ON TABLE map_dataset_re
 DEFINE INDEX IF NOT EXISTS map_release_dataset_state ON TABLE map_dataset_release FIELDS tenant, dataset_key, state;
 DEFINE INDEX IF NOT EXISTS map_release_source_time ON TABLE map_dataset_release FIELDS tenant, source_key, created_at;
 
-DEFINE TABLE IF NOT EXISTS map_active_release SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS map_active_release SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE map_active_release TYPE string;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE map_active_release TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS dataset_key ON TABLE map_active_release TYPE string;
@@ -49,7 +49,7 @@ DEFINE FIELD IF NOT EXISTS activated_at ON TABLE map_active_release TYPE datetim
 DEFINE FIELD IF NOT EXISTS record_version ON TABLE map_active_release TYPE int;
 DEFINE INDEX IF NOT EXISTS map_active_release_tenant_dataset_unique ON TABLE map_active_release FIELDS tenant, dataset_key UNIQUE;
 
-DEFINE TABLE IF NOT EXISTS map_mobility_profile SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS map_mobility_profile SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE map_mobility_profile TYPE string;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE map_mobility_profile TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS owner ON TABLE map_mobility_profile TYPE record<principal>;
@@ -65,7 +65,7 @@ DEFINE FIELD IF NOT EXISTS updated_at ON TABLE map_mobility_profile TYPE datetim
 DEFINE INDEX IF NOT EXISTS map_profile_tenant_version_unique ON TABLE map_mobility_profile FIELDS tenant, profile_key, profile_version UNIQUE;
 DEFINE INDEX IF NOT EXISTS map_profile_tenant_family ON TABLE map_mobility_profile FIELDS tenant, family;
 
-DEFINE TABLE IF NOT EXISTS map_restriction SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS map_restriction SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE map_restriction TYPE string;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE map_restriction TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS owner ON TABLE map_restriction TYPE record<principal>;
@@ -83,7 +83,7 @@ DEFINE FIELD IF NOT EXISTS updated_at ON TABLE map_restriction TYPE datetime;
 DEFINE INDEX IF NOT EXISTS map_restriction_tenant_key_unique ON TABLE map_restriction FIELDS tenant, restriction_key UNIQUE;
 DEFINE INDEX IF NOT EXISTS map_restriction_tenant_validity ON TABLE map_restriction FIELDS tenant, valid_from, valid_until;
 
-DEFINE TABLE IF NOT EXISTS map_operational_snapshot SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS map_operational_snapshot SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE map_operational_snapshot TYPE string;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE map_operational_snapshot TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS snapshot_key ON TABLE map_operational_snapshot TYPE string;
@@ -93,7 +93,7 @@ DEFINE FIELD IF NOT EXISTS created_at ON TABLE map_operational_snapshot TYPE dat
 DEFINE INDEX IF NOT EXISTS map_snapshot_tenant_key_unique ON TABLE map_operational_snapshot FIELDS tenant, snapshot_key UNIQUE;
 DEFINE INDEX IF NOT EXISTS map_snapshot_tenant_departure ON TABLE map_operational_snapshot FIELDS tenant, departure_time;
 
-DEFINE TABLE IF NOT EXISTS map_route SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS map_route SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE map_route TYPE string;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE map_route TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS owner ON TABLE map_route TYPE record<principal>;
@@ -113,7 +113,7 @@ DEFINE INDEX IF NOT EXISTS map_route_owner_time ON TABLE map_route FIELDS tenant
 DEFINE INDEX IF NOT EXISTS map_route_cache ON TABLE map_route FIELDS tenant, cache_digest_sha256;
 DEFINE INDEX IF NOT EXISTS map_route_snapshot ON TABLE map_route FIELDS tenant, operational_snapshot_key;
 
-DEFINE TABLE IF NOT EXISTS map_route_dependency SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS map_route_dependency SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE map_route_dependency TYPE string;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE map_route_dependency TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS route_key ON TABLE map_route_dependency TYPE string;
@@ -123,7 +123,7 @@ DEFINE FIELD IF NOT EXISTS created_at ON TABLE map_route_dependency TYPE datetim
 DEFINE INDEX IF NOT EXISTS map_route_dependency_unique ON TABLE map_route_dependency FIELDS tenant, route_key, dependency_kind, dependency_key UNIQUE;
 DEFINE INDEX IF NOT EXISTS map_route_dependency_lookup ON TABLE map_route_dependency FIELDS tenant, dependency_kind, dependency_key;
 
-DEFINE TABLE IF NOT EXISTS map_route_matrix SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS map_route_matrix SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE map_route_matrix TYPE string;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE map_route_matrix TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS owner ON TABLE map_route_matrix TYPE record<principal>;
@@ -136,7 +136,7 @@ DEFINE FIELD IF NOT EXISTS canonical_json ON TABLE map_route_matrix TYPE option<
 DEFINE FIELD IF NOT EXISTS created_at ON TABLE map_route_matrix TYPE datetime;
 DEFINE INDEX IF NOT EXISTS map_matrix_tenant_key_unique ON TABLE map_route_matrix FIELDS tenant, matrix_key UNIQUE;
 
-DEFINE TABLE IF NOT EXISTS map_acquisition SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS map_acquisition SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE map_acquisition TYPE string;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE map_acquisition TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS owner ON TABLE map_acquisition TYPE record<principal>;

@@ -29,7 +29,7 @@ DEFINE INDEX IF NOT EXISTS task_status_lease ON TABLE task FIELDS status, lease_
 DEFINE INDEX IF NOT EXISTS task_tenant_created ON TABLE task FIELDS tenant, created_at;
 DEFINE INDEX IF NOT EXISTS task_retention ON TABLE task FIELDS retention_expires_at;
 
-DEFINE TABLE IF NOT EXISTS provider_job SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS provider_job SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE provider_job TYPE uuid DEFAULT rand::uuid();
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE provider_job TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS task ON TABLE provider_job TYPE record<task>;
@@ -44,7 +44,7 @@ DEFINE INDEX IF NOT EXISTS provider_job_external_unique ON TABLE provider_job FI
 DEFINE INDEX IF NOT EXISTS provider_job_task ON TABLE provider_job FIELDS task;
 DEFINE INDEX IF NOT EXISTS provider_job_state_updated ON TABLE provider_job FIELDS state, updated_at;
 
-DEFINE TABLE IF NOT EXISTS provider_event SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS provider_event SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE provider_event TYPE uuid DEFAULT rand::uuid();
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE provider_event TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS provider_job ON TABLE provider_event TYPE record<provider_job>;
@@ -96,7 +96,7 @@ DEFINE INDEX IF NOT EXISTS artifact_occurrence_release ON TABLE artifact_occurre
 DEFINE TABLE IF NOT EXISTS share_link SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE share_link TYPE uuid DEFAULT rand::uuid();
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE share_link TYPE record<tenant>;
-DEFINE FIELD IF NOT EXISTS artifact ON TABLE share_link TYPE record<artifact_occurrence>;
+DEFINE FIELD IF NOT EXISTS artifact ON TABLE share_link TYPE record<artifact_occurrence> REFERENCE ON DELETE CASCADE;
 DEFINE FIELD IF NOT EXISTS created_by ON TABLE share_link TYPE record<principal>;
 DEFINE FIELD IF NOT EXISTS token_hash ON TABLE share_link TYPE string;
 DEFINE FIELD IF NOT EXISTS permission ON TABLE share_link TYPE "read" | "write" | "admin" DEFAULT "read";
@@ -109,7 +109,7 @@ DEFINE INDEX IF NOT EXISTS share_link_token_hash_unique ON TABLE share_link FIEL
 DEFINE INDEX IF NOT EXISTS share_link_artifact ON TABLE share_link FIELDS artifact, created_at;
 DEFINE INDEX IF NOT EXISTS share_link_expiry_revocation ON TABLE share_link FIELDS expires_at, revoked_at;
 
-DEFINE TABLE IF NOT EXISTS audit_event SCHEMAFULL TYPE NORMAL CHANGEFEED 90d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS audit_event SCHEMAFULL TYPE NORMAL CHANGEFEED 90d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE audit_event TYPE uuid DEFAULT rand::uuid();
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE audit_event TYPE option<record<tenant>>;
 DEFINE FIELD IF NOT EXISTS actor ON TABLE audit_event TYPE option<record<principal>>;

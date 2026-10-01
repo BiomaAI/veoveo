@@ -1,6 +1,6 @@
 -- Core Computers: retained collection identity and transactional admission.
 DEFINE TABLE computer SCHEMAFULL TYPE NORMAL
-  CHANGEFEED 30d INCLUDE ORIGINAL
+  CHANGEFEED 30d
   PERMISSIONS NONE;
 DEFINE FIELD computer_id ON computer TYPE uuid;
 DEFINE FIELD owner_key ON computer TYPE string ASSERT string::len($value) = 64;

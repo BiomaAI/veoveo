@@ -66,6 +66,14 @@ readback through the public gateway before configuring a simulator.
 
 ## Audit And Catalog Cache
 
+Console's native inventory stream retains prior rows for tenant-scoped deletions of
+principals, Tasks, Artifact blobs/occurrences/access requests, agents, wakes and
+Recordings/layers. Grant and share deletions resolve their parent through the admitted
+Artifact inventory. Upload deletions do not update this inventory. The complete
+[Store feed policy](../../docs/TECH_DESIGN.md#changefeed-payloads-and-relationships)
+lists the tables that require original rows; other gateway feeds carry identities
+and committed current state.
+
 The gateway hosts the [audit exporter](../audit/src/export/DESIGN.md) under the sealer
 lease. `VEOVEO_AUDIT_EXPORT_CONFIG` selects public S3/OTLP destination configuration;
 credential values come from the installation's Secret environment. Export runs beside

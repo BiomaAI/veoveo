@@ -30,7 +30,7 @@ DELETE gateway_authorization_code;
 DELETE gateway_refresh_token;
 DELETE gateway_refresh_family;
 
-DEFINE TABLE IF NOT EXISTS work_context SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS work_context SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE work_context TYPE uuid DEFAULT rand::uuid();
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE work_context TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS context_key ON TABLE work_context TYPE string;

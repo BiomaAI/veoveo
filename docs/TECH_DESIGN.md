@@ -309,6 +309,64 @@ changefeed. Callers reread under current authorization. The source coalesces wri
 DuckDB is not used for platform coordination. It serves arbitrary analytical SQL and
 local agent analysis.
 
+### Changefeed Payloads And Relationships
+
+Changefeeds contain the committed row after each write. `INCLUDE ORIGINAL` additionally
+preserves the prior row. Only these deletion consumers require that copy:
+
+| Tables | Deleted fields the consumer needs |
+|---|---|
+| `principal`, `task`, `artifact_blob`, `artifact_occurrence`, `artifact_access_request`, `agent`, `wake`, `recording`, `recording_layer` | Console checks the deleted tenant before changing its inventory; principal/agent summaries and wake/Recording parent invalidations also use prior fields |
+| `artifact_grant`, `share_link` | Artifact notifications and Console resolve the occurrence parent; Console selects that parent from its admitted inventory |
+| `computer_automation_grant`, `computer_session_grant`, `computer_cli_grant`, `computer_maintenance` | Computer notifications resolve the Computer parent; automation invalidation also carries its grant identity |
+
+Other feeds omit the prior row. Identity consumers can still decode a deletion,
+while public readers select current records through SQL admission. The native schema
+test checks the complete installed table inventory against this list. Console's
+`artifact_upload` source ignores deletes and therefore requires no original row.
+
+The following fields use SurrealDB `REFERENCE ON DELETE CASCADE`. Parent deletion
+and child cleanup commit or roll back together.
+
+| Referencing field | Parent lifetime |
+|---|---|
+| `task_idempotency.task`, `task_input.task` | The retained Task owns its request claim and input exchanges |
+| `share_link.artifact` | A public share has no independent lifetime after its occurrence is deleted |
+| `gateway_refresh_token.family` | Refresh credentials belong to their session family |
+| `audit_record_seal.record` | Seal membership belongs to its retained audit record |
+| `audit_export_delivery.block` | Per-block export intent and receipts belong to the retained block |
+
+The database already removes graph edges when an endpoint is deleted. Grant replacement
+and explicit revocation still execute inside their authorized transactions. The native
+Artifact fixture checks both graph cleanup and reference cleanup, including the deleted
+parent information in their changefeeds.
+
+Other deletion paths have different owners:
+
+| Candidate | Decision |
+|---|---|
+| Task provider jobs/events and Computer journals | Preserve operation correlation, deduplication and unresolved outcomes independently of Task retention |
+| Computer execution slots | Settlement releases a slot while retaining the journal; the execution identity fences that release |
+| Audit records/blocks, retention anchors and export cursors | The lease, contiguous block order, cutoff and destination receipts admit deletion; anchors and cursors must survive it |
+| Recording grants/projection receipts, ingest quota windows, Media usage/context, gateway replay/authentication state | Their own expiration, consumption or window rollover drives cleanup while the associated domain record may still exist |
+| Work Context configuration reconciliation | The active configuration selects current entries; domain records keep their accepted identity |
+| Artifact blob storage and Map DuckDB projections | Their owning services coordinate external storage and recovery; a database cascade cannot complete that work |
+
+### Database-Local Derived State
+
+SurrealDB's [asynchronous events](https://surrealdb.com/docs/reference/query-language/statements/define/event)
+execute outside the triggering transaction. `RETRY` does not give the result the
+source transaction's commit guarantee. Required audit appends therefore stay in the
+mutation transaction. The `audit_daily` view and filtered COUNT indexes already
+maintain database-local aggregates without an application worker.
+
+Map's head event stays synchronous because readers use it to capture all accepted
+changesets. Its DuckDB projection runs in the Map service, as the
+[projection design](../servers/map-mcp/DESIGN.md) specifies. Audit signing and export
+use a private signing key and external destinations, and provider completion observes
+another service. None of these candidates can move to an asynchronous database event
+while preserving its current contract.
+
 ### SurrealDB Features Under Watch
 
 These SurrealDB features are candidates under the Database First rule in

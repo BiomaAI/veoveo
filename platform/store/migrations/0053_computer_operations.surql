@@ -1,6 +1,6 @@
 -- Durable operation intent is separate from a Task's worker lease.
 DEFINE TABLE computer_operation SCHEMAFULL TYPE NORMAL
-  CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+  CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD operation_id ON computer_operation TYPE uuid;
 DEFINE FIELD computer_id ON computer_operation TYPE uuid;
 DEFINE FIELD task ON computer_operation TYPE record<task>;

@@ -7,7 +7,7 @@ DEFINE FIELD IF NOT EXISTS subject_kind ON TABLE artifact_grant TYPE "user" | "g
 DEFINE FIELD IF NOT EXISTS subject_key ON TABLE artifact_grant TYPE string;
 DEFINE INDEX IF NOT EXISTS artifact_grant_external_subject ON TABLE artifact_grant FIELDS in, subject_kind, subject_key UNIQUE;
 
-DEFINE TABLE IF NOT EXISTS artifact_write_capability SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS artifact_write_capability SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE artifact_write_capability TYPE uuid DEFAULT rand::uuid();
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE artifact_write_capability TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS owner ON TABLE artifact_write_capability TYPE record<principal>;

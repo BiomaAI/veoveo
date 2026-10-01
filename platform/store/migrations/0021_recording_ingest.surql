@@ -1,7 +1,7 @@
 -- Durable checkpoints for authenticated recording ingest. Journal files are
 -- written and synced before these records advance the accepted sequence.
 
-DEFINE TABLE IF NOT EXISTS recording_ingest_stream SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS recording_ingest_stream SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE recording_ingest_stream TYPE uuid DEFAULT rand::uuid();
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE recording_ingest_stream TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS owner ON TABLE recording_ingest_stream TYPE record<principal>;
@@ -26,7 +26,7 @@ DEFINE INDEX IF NOT EXISTS recording_ingest_stream_source_unique ON TABLE record
 DEFINE INDEX IF NOT EXISTS recording_ingest_stream_recording ON TABLE recording_ingest_stream FIELDS recording, opened_at;
 DEFINE INDEX IF NOT EXISTS recording_ingest_stream_state ON TABLE recording_ingest_stream FIELDS state, updated_at;
 
-DEFINE TABLE IF NOT EXISTS recording_ingest_batch SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS recording_ingest_batch SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE recording_ingest_batch TYPE uuid DEFAULT rand::uuid();
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE recording_ingest_batch TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS stream ON TABLE recording_ingest_batch TYPE record<recording_ingest_stream>;

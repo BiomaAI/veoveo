@@ -3,8 +3,9 @@
 Status: Phase 0 is accepted. Phases 1–3 have the installed acceptance gaps listed
 under Deferred Work. Phase 4's installed audit checks pass; composed flight and
 Recording acceptance remain open. Phase 5 has qualified native consumer migration and
-writer/schema removal. Computer authority observation is qualified locally.
-The database-feature review and final measurements remain. Phases 6–9 are open. The reference installation last converged at `8e4b36e7`;
+writer/schema removal. Computer authority observation and the database-feature review
+are qualified locally. Final measurements and installed acceptance remain. Phases 6–9
+are open. The reference installation last converged at `8e4b36e7`;
 it is stopped during development, and the Phase 5 changes are not deployed.
 
 Current direction: every contract change in this plan is a coordinated hard cut.
@@ -2873,20 +2874,18 @@ Acceptance:
 ## Phase 5: Store Simplification
 
 This phase applies [Database First](../AGENTS.md#database-first) to the platform store.
-Veoveo keeps two event-delivery mechanisms today. The outbox writes a second row for each
-domain change and numbers it from `platform_outbox_sequence`, defined with `BATCH 1`, so
-every outbox row writes the same sequence key. Change feeds already record every table
-change in commit order, and `platform/store/src/changefeed.rs` reads them. The outbox's
-`available_at` delay is unused: every writer sets it to the current time, and only a
-test sets a future time.
+Native changefeeds deliver committed mutations to typed consumers, and database
+references own child cleanup where the parent controls the child's lifetime. The
+outbox API, writers, tables and shared sequence have been removed. The remaining
+acceptance work records final costs and deploys the cut.
 
 The [native baseline](../platform/store/measurements/2026-10-01.md) records 5,184
 confirmed commits across 18 fresh RocksDB fixtures with the cluster and builder stopped.
 At eight concurrent writers on one WebSocket client, the shared-sequence profile's
 median elapsed time is 999 ms, the otherwise equivalent independent-event control is
 315 ms, and domain writes with only native feeds take 243 ms. No conflict reaches the
-client and no client retry occurs; internal retry counts are not observed. Production
-writer and consumer migration remains open.
+client and no client retry occurs; internal retry counts are not observed. This is
+the pre-change baseline; final measurements remain open.
 
 The 2026-10-01 consumer batch adds typed Store decoders and persisted native cursors,
 then moves Rust Task subscriptions, agent wake scheduling and managed revocation,
@@ -2992,6 +2991,34 @@ BuildKit remain stopped, with about 85 GiB free after qualification. The databas
 review and paired measurements are next; measurements must include the encrypted
 execution-journal payloads copied by their new feeds.
 
+The schema review keeps original rows on the 15 tables whose deletion consumers need
+a tenant or parent. Native `INFO FOR DB` checks all 154 tables and 113 feeds against
+that policy. Six reference fields cascade Task idempotency/input children, Artifact
+shares, refresh tokens, audit seal memberships and export deliveries. Task retention
+uses one admitted parent deletion in both SDKs. Audit keeps its lease, contiguous
+block order, cutoff and destination receipts before deleting records and blocks;
+database cascades remove their dependent rows. Native cases prove rollback and
+unrelated-parent isolation. The owning designs record rejected relationships and
+the reasons to keep database-local views and the Map-head event synchronous.
+
+Full-schema qualification exposes and repairs an Artifact feed decoder error: grants
+carry the parent in their graph `in` endpoint, while shares use `artifact`. The earlier
+synthetic fixture used the wrong grant field too. The repaired fixture and full-schema
+creation/deletion cases now cover both representations.
+
+The seven-package grouped run and focused repairs qualify 569 distinct Rust tests;
+ten explicitly ignored provider, external-service, native-binary, fork and measurement
+cases are excluded. Five affected feed/relationship rechecks pass after the decoder
+repair. The Python SDK run and its 34-case Task recheck qualify 191 distinct tests.
+Strict all-target Clippy, formatting, 241 SQL files and documentation links pass.
+Docker creation briefly stalls under post-link disk I/O pressure, then the native
+fixtures complete and remove their containers. Cleanup removes 268 superseded linked
+test executables, recovering 96 GiB while preserving the current executable outputs,
+compiled libraries, Rust dependencies, BuildKit caches, images and volumes. About
+136 GiB is free after qualification. The cluster and builder are stopped; no Phase 5
+image is deployed. Final latency/storage measurements, including encrypted journal
+payloads, and installed acceptance remain open.
+
 Work:
 
 1. Measure first. Record transaction conflicts, retries, and commit latency for outbox
@@ -3018,8 +3045,8 @@ Work:
    due wake and re-armed by LIVE changes on `wake`. Do not poll.
 5. Delete `outbox_event`, `outbox_checkpoint`, `platform_outbox_sequence`,
    `OutboxDraft`, and `platform/store/src/outbox.rs` once no consumer remains.
-6. Review the change feed on each of the tables that set `INCLUDE ORIGINAL`, about 40
-   of them. Keep it only where a consumer needs the prior state of a change, and record
+6. Review each changefeed that sets `INCLUDE ORIGINAL`.
+   Keep it only where a consumer needs the prior state of a change, and record
    the reason in the owning design.
 7. Survey code that deletes or repairs related records by hand, such as grants, shares,
    and relation edges. Replace each case with `REFERENCE` fields and `ON DELETE` rules

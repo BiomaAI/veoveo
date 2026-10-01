@@ -2,7 +2,7 @@
 -- provider identifiers. The authority digest binds the route to the exact
 -- tenant, actor, Work Context, profile, and source server checked on every use.
 
-DEFINE TABLE IF NOT EXISTS gateway_task_route SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS gateway_task_route SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE gateway_task_route TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS owner ON TABLE gateway_task_route TYPE record<principal>;
 DEFINE FIELD IF NOT EXISTS work_context ON TABLE gateway_task_route TYPE record<work_context>;

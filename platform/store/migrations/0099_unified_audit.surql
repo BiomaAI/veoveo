@@ -34,7 +34,7 @@ DEFINE FIELD block ON audit_block TYPE object FLEXIBLE READONLY;
 DEFINE FIELD sealed_at ON audit_block TYPE datetime READONLY;
 DEFINE FIELD exported_to ON audit_block TYPE array<string> DEFAULT [];
 DEFINE TABLE audit_export_delivery SCHEMAFULL PERMISSIONS NONE;
-DEFINE FIELD block ON audit_export_delivery TYPE record<audit_block> READONLY;
+DEFINE FIELD block ON audit_export_delivery TYPE record<audit_block> READONLY REFERENCE ON DELETE CASCADE;
 DEFINE FIELD destination ON audit_export_delivery TYPE string READONLY;
 DEFINE FIELD payload ON audit_export_delivery TYPE object FLEXIBLE READONLY;
 DEFINE FIELD created_at ON audit_export_delivery TYPE datetime DEFAULT time::now() READONLY;
@@ -65,7 +65,7 @@ DEFINE FIELD block ON audit_retention_anchor TYPE object FLEXIBLE;
 CREATE audit_sealer:active SET owner = rand::uuid::v7(), generation = 0,
     lease_until = time::now(), cursor = 0, replayed_at = time::now();
 DEFINE TABLE audit_record_seal SCHEMAFULL PERMISSIONS NONE;
-DEFINE FIELD record ON audit_record_seal TYPE record<audit_record> READONLY;
+DEFINE FIELD record ON audit_record_seal TYPE record<audit_record> READONLY REFERENCE ON DELETE CASCADE;
 DEFINE FIELD block ON audit_record_seal TYPE record<audit_block> READONLY;
 
 -- Publication keeps the signed completion request through asynchronous finalization.

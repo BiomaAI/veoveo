@@ -10,11 +10,7 @@ IF $block = NONE OR $block.sealed_at >= $cutoff OR !($destinations ALLINSIDE $bl
     OR ($anchor != NONE AND $anchor.sequence + 1 != $block.sequence) {
     THROW 'audit_retention_not_admitted';
 };
-FOR $member IN $block.records {
-    DELETE type::record('audit_record_seal', record::id($member));
-};
 DELETE $block.records;
 UPSERT $anchor_id SET partition = $block.partition, sequence = $block.sequence, block = $block.block;
-DELETE audit_export_delivery WHERE block = $id;
 DELETE $id;
 COMMIT TRANSACTION;

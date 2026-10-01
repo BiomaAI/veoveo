@@ -415,13 +415,21 @@ async fn export_intent_receipts_and_rejections_fence_retention_across_replicas()
         db.a.release_audit_seal_lease(&lease).await.unwrap();
         let next_lease = db.b.acquire_audit_seal_lease(uuid::Uuid::now_v7()).await.unwrap();
         assert!(matches!(db.a.retain_audit_block(&lease, &block, cutoff, std::slice::from_ref(&first)).await, Err(StoreError::AuditLeaseLost)));
+        // Both reference cascades participate in the deleting transaction. A
+        // later abort must preserve seal membership and every export intent.
+        assert!(db.a.client().query("BEGIN; DELETE audit_record; DELETE audit_block; THROW 'qualification_rollback'; COMMIT;").await.unwrap().check().is_err());
+        let mut retained = db.b.client().query("RETURN array::len(SELECT id FROM audit_record); RETURN array::len(SELECT id FROM audit_record_seal); RETURN array::len(SELECT id FROM audit_export_delivery); RETURN array::len(SELECT id FROM audit_block);").await.unwrap().check().unwrap();
+        for (index, count) in [1_u64, 1, 2, 1].into_iter().enumerate() {
+            assert_eq!(retained.take::<Option<u64>>(index).unwrap(), Some(count));
+        }
         // The operator selects the destination that delivered successfully. The
         // retired signed anchor and its delivery cursor outlive record deletion.
         db.b.retain_audit_block(&next_lease, &block, cutoff, std::slice::from_ref(&first)).await.unwrap();
-        let mut counts = db.a.client().query("RETURN array::len(SELECT id FROM audit_record); RETURN array::len(SELECT id FROM audit_export_delivery); RETURN array::len(SELECT id FROM audit_export_cursor); RETURN array::len(SELECT id FROM audit_retention_anchor);").await.unwrap().check().unwrap();
+        let mut counts = db.a.client().query("RETURN array::len(SELECT id FROM audit_record); RETURN array::len(SELECT id FROM audit_export_delivery); RETURN array::len(SELECT id FROM audit_export_cursor); RETURN array::len(SELECT id FROM audit_retention_anchor); RETURN array::len(SELECT id FROM audit_record_seal);").await.unwrap().check().unwrap();
         assert_eq!(counts.take::<Option<u64>>(0).unwrap(), Some(0));
         assert_eq!(counts.take::<Option<u64>>(1).unwrap(), Some(0));
         assert_eq!(counts.take::<Option<u64>>(2).unwrap(), Some(1));
         assert_eq!(counts.take::<Option<u64>>(3).unwrap(), Some(1));
+        assert_eq!(counts.take::<Option<u64>>(4).unwrap(), Some(0));
     }).await.expect("export retention qualification exceeded 90 seconds");
 }

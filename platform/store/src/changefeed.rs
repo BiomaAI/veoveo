@@ -70,10 +70,9 @@ pub struct ChangefeedBatch {
 
 /// One decoded change inside a [`ChangefeedBatch`].
 ///
-/// Tables are defined `CHANGEFEED … INCLUDE ORIGINAL`, so `Upsert` carries
-/// the full record value after the mutation and `Delete` carries the record
-/// id plus the full record as it existed before deletion — consumers can
-/// tenant-filter deletes by the original's content. `Definition` covers
+/// `Upsert` carries the complete post-mutation record. `Delete` always carries
+/// its identity; tables whose consumers need the deleted tenant or parent also
+/// enable `INCLUDE ORIGINAL` and supply the prior row. `Definition` covers
 /// schema entries such as `define_table` and carries no row data.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ChangefeedEntry {

@@ -21,7 +21,7 @@ REMOVE INDEX IF EXISTS recording_tenant_dataset_started ON TABLE recording;
 REMOVE FIELD IF EXISTS dataset ON TABLE recording;
 
 DEFINE TABLE IF NOT EXISTS recording_dataset SCHEMAFULL TYPE NORMAL
-  CHANGEFEED 30d INCLUDE ORIGINAL
+  CHANGEFEED 30d
   PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE recording_dataset TYPE uuid
   DEFAULT rand::uuid();
@@ -94,7 +94,7 @@ DEFINE INDEX IF NOT EXISTS recording_layer_artifact ON TABLE recording_layer
   FIELDS artifact;
 
 DEFINE TABLE IF NOT EXISTS recording_read_grant SCHEMAFULL TYPE NORMAL
-  CHANGEFEED 30d INCLUDE ORIGINAL
+  CHANGEFEED 30d
   PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE recording_read_grant TYPE uuid
   DEFAULT rand::uuid();
@@ -118,7 +118,7 @@ DEFINE INDEX IF NOT EXISTS recording_read_grant_catalog ON TABLE recording_read_
   FIELDS tenant, dataset, admitted_set_digest, grant_class, policy_revision;
 
 DEFINE TABLE IF NOT EXISTS recording_projection_receipt SCHEMAFULL TYPE NORMAL
-  CHANGEFEED 30d INCLUDE ORIGINAL
+  CHANGEFEED 30d
   PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE recording_projection_receipt TYPE uuid
   DEFAULT rand::uuid();

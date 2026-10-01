@@ -4,9 +4,9 @@
 -- the caller-provided key. CREATE ONLY makes concurrent submissions converge
 -- on exactly one UUIDv7 task without placing optional values in a unique index.
 
-DEFINE TABLE IF NOT EXISTS task_idempotency SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS task_idempotency SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE task_idempotency TYPE string;
-DEFINE FIELD IF NOT EXISTS task ON TABLE task_idempotency TYPE record<task>;
+DEFINE FIELD IF NOT EXISTS task ON TABLE task_idempotency TYPE record<task> REFERENCE ON DELETE CASCADE;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE task_idempotency TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS owner ON TABLE task_idempotency TYPE record<principal>;
 DEFINE FIELD IF NOT EXISTS server ON TABLE task_idempotency TYPE record<mcp_server>;

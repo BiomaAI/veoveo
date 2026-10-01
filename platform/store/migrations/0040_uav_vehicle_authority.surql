@@ -2,7 +2,7 @@
 -- and exclusive command leases. The platform store supplies persistence; the
 -- UAV Simulation MCP server owns every policy and lifecycle transition.
 
-DEFINE TABLE IF NOT EXISTS uav_vehicle_control_grant SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS uav_vehicle_control_grant SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE uav_vehicle_control_grant TYPE string;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE uav_vehicle_control_grant TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS work_context ON TABLE uav_vehicle_control_grant TYPE record<work_context>;
@@ -24,7 +24,7 @@ DEFINE FIELD IF NOT EXISTS updated_at ON TABLE uav_vehicle_control_grant TYPE da
 DEFINE INDEX IF NOT EXISTS uav_control_grant_context_id_unique ON TABLE uav_vehicle_control_grant FIELDS tenant, work_context, grant_id UNIQUE;
 DEFINE INDEX IF NOT EXISTS uav_control_grant_principal_vehicle ON TABLE uav_vehicle_control_grant FIELDS tenant, work_context, principal_key, session_id, vehicle_id;
 
-DEFINE TABLE IF NOT EXISTS uav_vehicle_mission_plan SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS uav_vehicle_mission_plan SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE uav_vehicle_mission_plan TYPE string;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE uav_vehicle_mission_plan TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS work_context ON TABLE uav_vehicle_mission_plan TYPE record<work_context>;
@@ -46,7 +46,7 @@ DEFINE INDEX IF NOT EXISTS uav_mission_plan_context_id_unique ON TABLE uav_vehic
 DEFINE INDEX IF NOT EXISTS uav_mission_plan_principal_time ON TABLE uav_vehicle_mission_plan FIELDS tenant, work_context, principal_key, created_at;
 DEFINE INDEX IF NOT EXISTS uav_mission_plan_route_digest ON TABLE uav_vehicle_mission_plan FIELDS tenant, work_context, map_route_digest_sha256;
 
-DEFINE TABLE IF NOT EXISTS uav_vehicle_command_lease SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS uav_vehicle_command_lease SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE uav_vehicle_command_lease TYPE string;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE uav_vehicle_command_lease TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS work_context ON TABLE uav_vehicle_command_lease TYPE record<work_context>;

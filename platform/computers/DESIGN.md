@@ -57,6 +57,10 @@ Connection loss ends the listener epoch even if the source reconnects before the
 consumer runs. Dropping the last store stops observation and closes its listeners.
 Command and file journal deletions need only their typed record IDs, so their feeds
 omit original payloads. Grant deletion consumers need the original Computer parent.
+Automation, session and CLI grants and maintenance records keep that prior parent.
+Computer records themselves use their record identity. Execution-slot cleanup stays
+in the fenced settlement transaction: it releases capacity while preserving the
+execution journal, which a parent-delete cascade cannot express.
 
 The service keeps authority expiry armed during I/O and renewal. Commands and file
 transfers retain their five-second freshness bound; MCP subscriptions use their

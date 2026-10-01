@@ -44,6 +44,16 @@ the supported mode and identity combinations.
 
 ## Blob Backend Profiles
 
+Deleting an occurrence cascades its `share_link` children. SurrealDB also removes its
+grant graph edges. A failed deletion transaction preserves the occurrence and both
+kinds of child. Grant replacement and explicit revocation keep their policy and audit
+transactions. Blob storage has an independent lifetime because multiple occurrences
+can reference the same bytes; physical cleanup belongs to the storage owner.
+Occurrence, blob and access-request changefeeds retain prior rows for Console's tenant
+filter. Grant and share feeds retain the occurrence parent for deletion notifications.
+The shared decoder reads a grant's graph `in` endpoint and a share's `artifact` field.
+Native Store qualification exercises their creation and deletion on the full schema.
+
 S3 and memory stores receive private object attributes for cache policy, content
 presentation and disposition. The explicitly selected filesystem profile omits those
 attributes because its upstream adapter rejects them. This selection happens before

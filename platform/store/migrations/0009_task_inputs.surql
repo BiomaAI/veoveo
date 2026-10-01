@@ -1,8 +1,8 @@
 -- Durable, lifetime-unique client input exchanges for final MCP tasks.
 
-DEFINE TABLE IF NOT EXISTS task_input SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS task_input SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE task_input TYPE string;
-DEFINE FIELD IF NOT EXISTS task ON TABLE task_input TYPE record<task>;
+DEFINE FIELD IF NOT EXISTS task ON TABLE task_input TYPE record<task> REFERENCE ON DELETE CASCADE;
 DEFINE FIELD IF NOT EXISTS request_key ON TABLE task_input TYPE string ASSERT string::len($value) > 0 AND string::len($value) <= 256;
 DEFINE FIELD IF NOT EXISTS request ON TABLE task_input TYPE object FLEXIBLE;
 DEFINE FIELD IF NOT EXISTS response ON TABLE task_input TYPE option<object> FLEXIBLE;

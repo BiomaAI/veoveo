@@ -1,6 +1,6 @@
 -- Replica-safe usage projections for deterministic domain MCP servers.
 
-DEFINE TABLE IF NOT EXISTS domain_usage SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS domain_usage SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE domain_usage TYPE uuid DEFAULT rand::uuid();
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE domain_usage TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS task ON TABLE domain_usage TYPE record<task>;

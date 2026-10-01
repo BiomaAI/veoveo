@@ -47,7 +47,7 @@ async fn native_source_catches_baseline_races_restarts_and_delete_parents() {
             .query(
                 "BEGIN TRANSACTION;
             CREATE ONLY $task SET content = 'never decoded by the identity reader';
-            CREATE ONLY $artifact_grant SET artifact = $artifact;
+            CREATE ONLY $artifact_grant SET in = $artifact;
             CREATE ONLY $computer_grant SET computer_id = $computer, grant_id = $grant;
             COMMIT TRANSACTION;",
             )

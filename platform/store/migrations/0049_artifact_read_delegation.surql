@@ -1,5 +1,5 @@
 DEFINE TABLE IF NOT EXISTS artifact_read_capability SCHEMAFULL TYPE NORMAL
-  CHANGEFEED 30d INCLUDE ORIGINAL
+  CHANGEFEED 30d
   PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE artifact_read_capability TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS actor ON TABLE artifact_read_capability TYPE record<principal>;

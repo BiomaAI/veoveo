@@ -1,6 +1,6 @@
 -- Immutable derived products and governed, versioned map compositions.
 
-DEFINE TABLE IF NOT EXISTS map_layer_product SCHEMAFULL TYPE NORMAL CHANGEFEED 90d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS map_layer_product SCHEMAFULL TYPE NORMAL CHANGEFEED 90d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE map_layer_product TYPE array;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE map_layer_product TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS owner ON TABLE map_layer_product TYPE record<principal>;

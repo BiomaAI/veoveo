@@ -3,7 +3,7 @@
 -- boundary; Blueprint bytes remain distinct presentation stores.
 
 DEFINE TABLE IF NOT EXISTS recording_blueprint SCHEMAFULL TYPE NORMAL
-  CHANGEFEED 30d INCLUDE ORIGINAL
+  CHANGEFEED 30d
   PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE recording_blueprint TYPE uuid
   DEFAULT rand::uuid();

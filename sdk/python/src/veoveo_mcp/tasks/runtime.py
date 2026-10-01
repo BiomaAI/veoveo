@@ -706,16 +706,12 @@ class TaskRuntime:
 
     async def prune_expired(self) -> list[uuid.UUID]:
         results = await self.store.query(
-            "BEGIN TRANSACTION; LET $expired = (SELECT VALUE id FROM task WHERE "
-            "retention_expires_at != NONE AND retention_expires_at <= $now AND "
-            "array::len(retention_pins) = 0 AND status IN ['succeeded', 'failed', "
-            "'cancelled']); DELETE task_idempotency WHERE task IN $expired RETURN "
-            "NONE; DELETE task_input WHERE task IN $expired RETURN NONE; LET "
-            "$deleted = (DELETE task WHERE id IN $expired RETURN BEFORE); RETURN "
-            "$deleted; COMMIT TRANSACTION;",
+            "DELETE task WHERE retention_expires_at != NONE AND "
+            "retention_expires_at <= $now AND array::len(retention_pins) = 0 AND "
+            "status IN ['succeeded', 'failed', 'cancelled'] RETURN BEFORE;",
             {"now": _now()},
         )
-        return [_record_to_snapshot(record).task_id for record in results[5] or []]
+        return [_record_to_snapshot(record).task_id for record in results[0] or []]
 
     async def _idempotent_task(self, owner: TaskOwner, key: str) -> TaskSnapshot | None:
         record = idempotency_record(owner, self.server, key)

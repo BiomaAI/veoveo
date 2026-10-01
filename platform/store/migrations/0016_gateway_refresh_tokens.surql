@@ -1,6 +1,6 @@
 -- Rotating, replay-detecting OAuth refresh-token families.
 
-DEFINE TABLE IF NOT EXISTS gateway_refresh_family SCHEMAFULL TYPE NORMAL CHANGEFEED 90d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS gateway_refresh_family SCHEMAFULL TYPE NORMAL CHANGEFEED 90d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE gateway_refresh_family TYPE uuid;
 DEFINE FIELD IF NOT EXISTS authorization_server ON TABLE gateway_refresh_family TYPE string;
 DEFINE FIELD IF NOT EXISTS profile ON TABLE gateway_refresh_family TYPE string;
@@ -17,9 +17,9 @@ DEFINE FIELD IF NOT EXISTS revocation_reason ON TABLE gateway_refresh_family TYP
 DEFINE INDEX IF NOT EXISTS gateway_refresh_family_client ON TABLE gateway_refresh_family FIELDS authorization_server, profile, oauth_client_id, principal_id, issued_at;
 DEFINE INDEX IF NOT EXISTS gateway_refresh_family_expiry ON TABLE gateway_refresh_family FIELDS expires_at;
 
-DEFINE TABLE IF NOT EXISTS gateway_refresh_token SCHEMAFULL TYPE NORMAL CHANGEFEED 90d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS gateway_refresh_token SCHEMAFULL TYPE NORMAL CHANGEFEED 90d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE gateway_refresh_token TYPE uuid;
-DEFINE FIELD IF NOT EXISTS family ON TABLE gateway_refresh_token TYPE record<gateway_refresh_family> READONLY;
+DEFINE FIELD IF NOT EXISTS family ON TABLE gateway_refresh_token TYPE record<gateway_refresh_family> READONLY REFERENCE ON DELETE CASCADE;
 DEFINE FIELD IF NOT EXISTS token_hash ON TABLE gateway_refresh_token TYPE string READONLY ASSERT $value.len() = 64;
 DEFINE FIELD IF NOT EXISTS generation ON TABLE gateway_refresh_token TYPE int READONLY ASSERT $value >= 0;
 DEFINE FIELD IF NOT EXISTS issued_at ON TABLE gateway_refresh_token TYPE datetime READONLY;

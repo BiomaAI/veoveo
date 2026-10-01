@@ -1,4 +1,4 @@
-DEFINE TABLE IF NOT EXISTS time_source SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS time_source SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE time_source TYPE string;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE time_source TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS owner ON TABLE time_source TYPE record<principal>;
@@ -14,7 +14,7 @@ DEFINE FIELD IF NOT EXISTS created_at ON TABLE time_source TYPE datetime;
 DEFINE FIELD IF NOT EXISTS updated_at ON TABLE time_source TYPE datetime;
 DEFINE INDEX IF NOT EXISTS time_source_tenant_key_unique ON TABLE time_source FIELDS tenant, source_key UNIQUE;
 
-DEFINE TABLE IF NOT EXISTS time_authority_release SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS time_authority_release SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE time_authority_release TYPE string;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE time_authority_release TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS owner ON TABLE time_authority_release TYPE record<principal>;
@@ -35,7 +35,7 @@ DEFINE FIELD IF NOT EXISTS updated_at ON TABLE time_authority_release TYPE datet
 DEFINE INDEX IF NOT EXISTS time_release_tenant_key_unique ON TABLE time_authority_release FIELDS tenant, release_key UNIQUE;
 DEFINE INDEX IF NOT EXISTS time_release_source_digest_unique ON TABLE time_authority_release FIELDS tenant, source_key, source_digest_sha256 UNIQUE;
 
-DEFINE TABLE IF NOT EXISTS time_active_authority SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS time_active_authority SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE time_active_authority TYPE string;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE time_active_authority TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS dataset_kind ON TABLE time_active_authority TYPE "tzdb" | "leap_seconds";
@@ -46,7 +46,7 @@ DEFINE FIELD IF NOT EXISTS activated_at ON TABLE time_active_authority TYPE date
 DEFINE FIELD IF NOT EXISTS record_version ON TABLE time_active_authority TYPE int;
 DEFINE INDEX IF NOT EXISTS time_active_authority_tenant_kind_unique ON TABLE time_active_authority FIELDS tenant, dataset_kind UNIQUE;
 
-DEFINE TABLE IF NOT EXISTS time_acquisition SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS time_acquisition SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE time_acquisition TYPE string;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE time_acquisition TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS owner ON TABLE time_acquisition TYPE record<principal>;
@@ -64,7 +64,7 @@ DEFINE FIELD IF NOT EXISTS updated_at ON TABLE time_acquisition TYPE datetime;
 DEFINE INDEX IF NOT EXISTS time_acquisition_tenant_key_unique ON TABLE time_acquisition FIELDS tenant, acquisition_key UNIQUE;
 DEFINE INDEX IF NOT EXISTS time_acquisition_idempotency_unique ON TABLE time_acquisition FIELDS tenant, owner, idempotency_key UNIQUE;
 
-DEFINE TABLE IF NOT EXISTS time_calendar_version SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS time_calendar_version SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE time_calendar_version TYPE string;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE time_calendar_version TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS owner ON TABLE time_calendar_version TYPE record<principal>;
@@ -78,7 +78,7 @@ DEFINE FIELD IF NOT EXISTS created_at ON TABLE time_calendar_version TYPE dateti
 DEFINE FIELD IF NOT EXISTS updated_at ON TABLE time_calendar_version TYPE datetime;
 DEFINE INDEX IF NOT EXISTS time_calendar_tenant_version_unique ON TABLE time_calendar_version FIELDS tenant, calendar_key, calendar_version UNIQUE;
 
-DEFINE TABLE IF NOT EXISTS time_mission_epoch SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS time_mission_epoch SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE time_mission_epoch TYPE string;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE time_mission_epoch TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS owner ON TABLE time_mission_epoch TYPE record<principal>;
@@ -92,7 +92,7 @@ DEFINE FIELD IF NOT EXISTS created_at ON TABLE time_mission_epoch TYPE datetime;
 DEFINE FIELD IF NOT EXISTS updated_at ON TABLE time_mission_epoch TYPE datetime;
 DEFINE INDEX IF NOT EXISTS time_epoch_tenant_version_unique ON TABLE time_mission_epoch FIELDS tenant, epoch_key, epoch_version UNIQUE;
 
-DEFINE TABLE IF NOT EXISTS time_temporal_event SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS time_temporal_event SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE time_temporal_event TYPE string;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE time_temporal_event TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS owner ON TABLE time_temporal_event TYPE record<principal>;
@@ -110,7 +110,7 @@ DEFINE INDEX IF NOT EXISTS time_event_tenant_key_unique ON TABLE time_temporal_e
 DEFINE INDEX IF NOT EXISTS time_event_idempotency_unique ON TABLE time_temporal_event FIELDS tenant, owner, idempotency_key UNIQUE;
 DEFINE INDEX IF NOT EXISTS time_event_due ON TABLE time_temporal_event FIELDS tenant, state, due_tai_seconds_since_1970, due_nanosecond;
 
-DEFINE TABLE IF NOT EXISTS time_clock_policy SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS time_clock_policy SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE time_clock_policy TYPE string;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE time_clock_policy TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS owner ON TABLE time_clock_policy TYPE record<principal>;

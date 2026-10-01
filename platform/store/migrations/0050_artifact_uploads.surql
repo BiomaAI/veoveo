@@ -18,7 +18,7 @@ DEFINE FUNCTION fn::artifact_upload_authority_matches($upload: object) -> bool {
     AND fn::artifact_upload_profile_digest($upload.profile_key) = $upload.profile_policy_digest;
 };
 DEFINE TABLE IF NOT EXISTS artifact_upload SCHEMAFULL TYPE NORMAL
-  CHANGEFEED 30d INCLUDE ORIGINAL
+  CHANGEFEED 30d
   PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE artifact_upload TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS actor ON TABLE artifact_upload TYPE record<principal>;
@@ -124,7 +124,7 @@ DEFINE INDEX IF NOT EXISTS artifact_upload_recovery ON artifact_upload FIELDS st
 DEFINE INDEX IF NOT EXISTS artifact_upload_expiry ON artifact_upload FIELDS expires_at;
 DEFINE INDEX IF NOT EXISTS artifact_upload_cleanup ON artifact_upload FIELDS cleanup_pending, lease_until;
 DEFINE TABLE IF NOT EXISTS artifact_upload_part SCHEMAFULL TYPE NORMAL
-  CHANGEFEED 30d INCLUDE ORIGINAL
+  CHANGEFEED 30d
   PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS upload ON TABLE artifact_upload_part TYPE record<artifact_upload>;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE artifact_upload_part TYPE record<tenant>;
@@ -149,7 +149,7 @@ DEFINE INDEX IF NOT EXISTS artifact_upload_part_number ON artifact_upload_part F
   UNIQUE;
 DEFINE INDEX IF NOT EXISTS artifact_upload_part_lease ON artifact_upload_part FIELDS lease_until;
 DEFINE TABLE IF NOT EXISTS artifact_storage_usage SCHEMAFULL TYPE NORMAL
-  CHANGEFEED 30d INCLUDE ORIGINAL
+  CHANGEFEED 30d
   PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE artifact_storage_usage TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS committed_bytes ON TABLE artifact_storage_usage TYPE int
@@ -173,7 +173,7 @@ DEFINE FIELD IF NOT EXISTS inflight_parts ON TABLE artifact_storage_usage TYPE i
 DEFINE INDEX IF NOT EXISTS artifact_storage_usage_tenant ON artifact_storage_usage FIELDS tenant
   UNIQUE;
 DEFINE TABLE IF NOT EXISTS artifact_upload_memory SCHEMAFULL TYPE NORMAL
-  CHANGEFEED 30d INCLUDE ORIGINAL
+  CHANGEFEED 30d
   PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS inflight_bytes ON TABLE artifact_upload_memory TYPE int
   ASSERT $value >= 0

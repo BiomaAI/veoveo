@@ -1,5 +1,5 @@
 -- Shared durable identity for Map outputs formerly retained only in local DuckDB.
-DEFINE TABLE IF NOT EXISTS map_derivation SCHEMAFULL TYPE NORMAL CHANGEFEED 90d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS map_derivation SCHEMAFULL TYPE NORMAL CHANGEFEED 90d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE map_derivation TYPE array;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE map_derivation TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS work_context ON TABLE map_derivation TYPE record<work_context>;

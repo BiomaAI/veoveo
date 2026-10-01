@@ -1,6 +1,6 @@
 -- Recoverable artifact capability redemptions and media webhook task state.
 
-DEFINE TABLE IF NOT EXISTS artifact_write_redemption SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS artifact_write_redemption SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE artifact_write_redemption TYPE uuid DEFAULT rand::uuid();
 DEFINE FIELD IF NOT EXISTS capability ON TABLE artifact_write_redemption TYPE record<artifact_write_capability>;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE artifact_write_redemption TYPE record<tenant>;
@@ -17,7 +17,7 @@ DEFINE INDEX IF NOT EXISTS artifact_write_redemption_capability_key ON TABLE art
 DEFINE INDEX IF NOT EXISTS artifact_write_redemption_artifact ON TABLE artifact_write_redemption FIELDS artifact UNIQUE;
 DEFINE INDEX IF NOT EXISTS artifact_write_redemption_state ON TABLE artifact_write_redemption FIELDS state, reserved_at;
 
-DEFINE TABLE IF NOT EXISTS media_task_context SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS media_task_context SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE media_task_context TYPE uuid DEFAULT rand::uuid();
 DEFINE FIELD IF NOT EXISTS task ON TABLE media_task_context TYPE record<task>;
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE media_task_context TYPE record<tenant>;
@@ -29,7 +29,7 @@ DEFINE FIELD IF NOT EXISTS updated_at ON TABLE media_task_context TYPE datetime 
 DEFINE INDEX IF NOT EXISTS media_task_context_task ON TABLE media_task_context FIELDS task UNIQUE;
 DEFINE INDEX IF NOT EXISTS media_task_context_expiry ON TABLE media_task_context FIELDS capability_expires_at;
 
-DEFINE TABLE IF NOT EXISTS media_usage SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE TABLE IF NOT EXISTS media_usage SCHEMAFULL TYPE NORMAL CHANGEFEED 30d PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS id ON TABLE media_usage TYPE uuid DEFAULT rand::uuid();
 DEFINE FIELD IF NOT EXISTS tenant ON TABLE media_usage TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS task ON TABLE media_usage TYPE record<task>;

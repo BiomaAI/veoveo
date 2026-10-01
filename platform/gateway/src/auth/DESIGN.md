@@ -63,6 +63,17 @@ records identify the invocation actor. A delegated request records the OAuth ser
 as its actor and the source user as `delegating_principal`; the actor carries the
 admitted scopes and data labels. Direct requests use the verified principal as actor.
 
+## Refresh Retention
+
+Refresh tokens reference their family with `ON DELETE CASCADE`. Deleting a family
+removes its tokens in the same transaction. Issuance binds token expiry to family
+expiry; the expiration worker still removes tokens explicitly to report its cleanup
+counts and clear shorter-lived delivery envelopes. Token replacement links do not
+cascade because removing one generation must not remove its successor. Revocation
+updates the family and preserves replay detection until expiration. These feeds omit
+original rows because authority invalidations use the family identity. Single-use
+authorization state and replay guards keep their own consumption and expiry rules.
+
 ## Rollout And Qualification
 
 The gateway owns this claim extension. Existing family records need no migration.
