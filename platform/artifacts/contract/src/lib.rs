@@ -7,6 +7,7 @@ mod identity;
 mod ledger;
 mod metadata;
 mod provenance;
+mod snapshot;
 mod uri;
 
 pub use identity::{ARTIFACT_PLANE_SCHEME, ArtifactId, ArtifactIdError, parse_artifact_plane_uri};
@@ -20,4 +21,5 @@ pub use metadata::{
     ComplianceMetadata,
 };
 pub use provenance::ArtifactProvenance;
+pub use snapshot::{ArtifactMetadataSnapshot, ArtifactReadGrant, ArtifactSnapshotError};
 pub use uri::{ArtifactAddress, ArtifactUri, ArtifactUriError};

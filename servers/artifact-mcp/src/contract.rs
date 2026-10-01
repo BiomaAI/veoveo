@@ -4,8 +4,8 @@ use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 pub use veoveo_artifact_contract::{
-    ArtifactId, ArtifactMetadata, ArtifactReleaseState, ArtifactShareLink, ArtifactShareLinkId,
-    Grant,
+    ArtifactId, ArtifactMetadata, ArtifactMetadataSnapshot, ArtifactReleaseState,
+    ArtifactShareLink, ArtifactShareLinkId, Grant,
 };
 
 use veoveo_types::AccessLevel;

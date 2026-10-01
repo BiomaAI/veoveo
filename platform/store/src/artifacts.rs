@@ -5,7 +5,7 @@ pub use reads::ArtifactReadScope;
 use std::collections::BTreeMap;
 
 use chrono::{DateTime, Utc};
-use surrealdb::types::{RecordId, RecordIdKey};
+use surrealdb::types::{RecordId, RecordIdKey, SurrealValue};
 use uuid::Uuid;
 
 use crate::{
@@ -51,7 +51,7 @@ pub struct ArtifactGrantDraft {
     pub created_by: PrincipalId,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, SurrealValue)]
 pub struct ArtifactAggregate {
     pub occurrence: ArtifactOccurrenceRecord,
     pub blob: ArtifactBlobRecord,

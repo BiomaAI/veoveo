@@ -38,9 +38,30 @@ impl ArtifactReadScope {
 }
 
 impl PlatformStore {
+    pub async fn artifact_read(
+        &self,
+        scope: ArtifactReadScope,
+        artifact: ArtifactId,
+    ) -> Result<Option<ArtifactAggregate>, StoreError> {
+        Ok(self
+            .artifact_reads(scope, Some(artifact), None, 1)
+            .await?
+            .pop())
+    }
+
     pub async fn artifact_read_page(
         &self,
         scope: ArtifactReadScope,
+        cursor: Option<ArtifactId>,
+        limit: usize,
+    ) -> Result<Vec<ArtifactAggregate>, StoreError> {
+        self.artifact_reads(scope, None, cursor, limit).await
+    }
+
+    async fn artifact_reads(
+        &self,
+        scope: ArtifactReadScope,
+        artifact: Option<ArtifactId>,
         cursor: Option<ArtifactId>,
         limit: usize,
     ) -> Result<Vec<ArtifactAggregate>, StoreError> {
@@ -59,15 +80,11 @@ impl PlatformStore {
             ))
             .bind(("context", scope.context.map(|id| id.record_id())))
             .bind(("context_key", scope.context_key.map(String::from)))
+            .bind(("artifact", artifact.map(|id| id.record_id())))
             .bind(("cursor", cursor.map(|id| id.record_id())))
             .bind(("limit", i64::try_from(limit.min(101)).unwrap()))
             .await?
             .check()?;
-        let occurrences: Vec<ArtifactOccurrenceRecord> = response.take(0)?;
-        let mut artifacts = Vec::with_capacity(occurrences.len());
-        for occurrence in occurrences {
-            artifacts.push(self.artifact_aggregate_from_occurrence(occurrence).await?);
-        }
-        Ok(artifacts)
+        Ok(response.take(0)?)
     }
 }

@@ -72,6 +72,12 @@ authorized occurrence page includes these fixed resources and the Artifact index
 `ArtifactScope` declares an empty vocabulary; gateway policy and Artifact service
 access decisions authorize operations.
 
+Exact metadata reads use Artifact service's SQL admission for tenant, clearance,
+retention and selected-context or live-grant access. Inaccessible records return
+`NotFound` before their metadata is decoded. The plane client also exposes a checked
+`ArtifactMetadataSnapshot` with read subjects, expiry and the stored metadata update
+time for source observations; Artifact service owns its authorization and assembly.
+
 The index returns at most 100 metadata links in `items`, with `uri`, `title` and an
 optional `mimeType`. An optional `nextCursor` continues from the last occurrence in
 descending identity order; absence ends traversal. `ArtifactIndexCursor` binds the

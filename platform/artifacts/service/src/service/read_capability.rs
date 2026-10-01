@@ -152,6 +152,7 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
         // Delegation is an access ceiling, never a replacement gateway identity.
         // The occurrence and its grants/labels are loaded for every read.
         let decision = decide(&AccessRequest {
+            now: chrono::Utc::now(),
             caller_id: &capability.actor.principal,
             caller_tenant: Some(&capability.actor.tenant),
             caller_labels: &capability.labels,

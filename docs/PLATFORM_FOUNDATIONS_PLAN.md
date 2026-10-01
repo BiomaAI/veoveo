@@ -70,6 +70,21 @@ Workbench navigation cases pass. Artifact observations and installed conformance
 open; observations must express its selected-context sharing and retention deadline
 without broadening access to every context the reader belongs to.
 
+Artifact exact metadata reads now share the discovery SQL predicate and assemble the
+occurrence, blob, tenant and grants in one database statement. The typed snapshot
+validates record relationships and exposes read subjects with expiry through the
+service and HTTP client. Metadata reads audit denied or absent records without decoding
+their payloads. The shared access evaluator now receives an evaluation instant and
+rejects expired grants for service, delegated-read and Console consumers. The snapshot
+contains no administrative grant levels or plane download location. Its timestamp
+identifies the metadata update; grant changes remain separate revision inputs.
+Qualification passes 18 Artifact contract tests, 36 service tests, 11 shared access
+policy tests, the three focused discovery checks including native SurrealDB 3.3, and
+five independently resolved contract-consumer checks. Affected all-target/all-feature
+strict Clippy, workspace all-target compilation, SQL validation, formatting and docs
+checks pass. MCP observations and knowledge selected-context/expiry admission remain
+open. The cluster and BuildKit stayed stopped; 130 GiB remained free after the batch.
+
 Current direction: every contract change in this plan is a coordinated hard cut.
 Historical data requires no support or migration. Remove compatibility adapters
 introduced during earlier checkpoints; those checkpoint descriptions are not
@@ -3377,7 +3392,7 @@ revision.
 |---|---|---|---|
 | chart | `charts.docs` only | build-time document digests | Docs declaration, observations and conditional reads implemented; installed certification remains open |
 | time | events, calendar versions, epoch versions, acquired and packaged authority releases | stored creation tenant, owner and Work Context; content/access revisions, source digests and modification timestamps | Five collections, typed URI pages, observations and conditional reads implemented; installed qualification and event change/restart probes remain open |
-| artifact | artifact metadata (`artifact://metadata/{id}`), never the bytes | compliance metadata: tenant, owner, Work Context, labels, provenance | SQL-admitted cursor pages and Library navigation implemented; service-owned observations, exact metadata admission, selected-context/expiry policy and installed qualification remain open |
+| artifact | artifact metadata (`artifact://metadata/{id}`), never the bytes | compliance metadata: tenant, owner, Work Context, labels, provenance | SQL-admitted exact metadata reads, service-owned read-access snapshots, cursor pages and Library navigation implemented; MCP observations, selected-context/expiry policy and installed qualification remain open |
 | map | feature layers, features, publications, locations, facilities, dataset releases | layer and feature revisions, `created_by`, Work Context, labels, changeset sequence, source digests | Return resource links from `search_locations`; declare the other collections from its templates |
 
 Acceptance: each server passes K01 through K10 review and conformance, and the audit

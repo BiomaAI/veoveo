@@ -75,6 +75,10 @@ where
         .route("/artifacts/{artifact_id}", get(get_artifact::<R, S>))
         .route("/artifacts/{artifact_id}/meta", get(head_artifact::<R, S>))
         .route(
+            "/artifacts/{artifact_id}/snapshot",
+            get(metadata_snapshot::<R, S>),
+        )
+        .route(
             "/artifacts/{artifact_id}/download",
             get(download_artifact::<R, S>),
         )
@@ -469,6 +473,20 @@ async fn head_artifact<R: ArtifactRepository, S: BlobStore>(
         state
             .service
             .head(&caller, &parse_artifact_id(&artifact_id)?)
+            .await?,
+    ))
+}
+
+async fn metadata_snapshot<R: ArtifactRepository, S: BlobStore>(
+    State(state): State<AppState<R, S>>,
+    Path(artifact_id): Path<String>,
+    headers: HeaderMap,
+) -> Result<Json<veoveo_artifact_contract::ArtifactMetadataSnapshot>, ApiError> {
+    let caller = caller(&state, &headers)?;
+    Ok(Json(
+        state
+            .service
+            .metadata_snapshot(&caller, &parse_artifact_id(&artifact_id)?)
             .await?,
     ))
 }

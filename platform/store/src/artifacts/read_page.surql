@@ -1,5 +1,6 @@
-SELECT * FROM artifact_occurrence
+RETURN (SELECT * FROM artifact_occurrence
 WHERE tenant = $tenant
+    AND ($artifact = NONE OR id = $artifact)
     AND labels ALLINSIDE $clearance
     AND (classification = '' OR classification IN $clearance)
     AND (retention_expires_at = NONE OR retention_expires_at > time::now())
@@ -14,4 +15,9 @@ WHERE tenant = $tenant
     )
     AND ($cursor = NONE OR id < $cursor)
 ORDER BY id DESC
-LIMIT $limit;
+LIMIT $limit).map(|$occurrence| {
+    occurrence: $occurrence,
+    blob: (SELECT * FROM ONLY $occurrence.blob),
+    tenant: (SELECT * FROM ONLY $occurrence.tenant),
+    grants: (SELECT * FROM artifact_grant WHERE in = $occurrence.id ORDER BY id)
+});

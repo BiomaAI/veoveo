@@ -42,16 +42,34 @@ infers a missing initiator or delegation identity. The model's
 [attribution wire profile](../contract/DESIGN.md#attribution-wire-profile) specifies
 the supported mode and identity combinations.
 
-## Artifact Discovery
+## Artifact Metadata And Discovery
 
-`ArtifactListQuery` carries the verified tenant and principal, group memberships,
-clearance and selected Work Context into the repository. Store's `ArtifactReadScope`
-converts those typed identities at the database boundary. The occurrence query applies
+`ArtifactReadAuthority` carries the verified tenant and principal, group memberships,
+clearance and selected Work Context into exact metadata reads and `ArtifactListQuery`.
+Store's `ArtifactReadScope` converts those typed identities at the database boundary. The occurrence query applies
 tenant, classification and labels, retention deadline and either a live subject grant
 or the selected context before decoding rows and applying the page limit. Indexed
 context and stored invocation context must agree. Every group role can confer read
 access, so read discovery needs the group identities; higher access levels still use
 the shared evaluator.
+
+Exact reads and pages use the same parameterized SQL predicate. One database statement
+selects the admitted occurrence and its blob, tenant and grant records. The repository
+rejects disagreement between native record links and stored identity or authority.
+
+`ArtifactPlane::metadata_snapshot` and authenticated `GET /artifacts/{id}/snapshot`
+return a domain-owned `ArtifactMetadataSnapshot`. The snapshot contains neutral
+metadata, read subjects with their expiry, and the stored metadata update time. These
+read subjects let an authorized consumer preserve source access when indexing metadata.
+Grant mutation and administrative grant listing retain their existing authorization.
+The snapshot carries no plane download location or bearer share link. The metadata
+update time describes metadata changes; it does not claim who last modified a record
+or when grants changed. Index revisions must include the observed access state.
+
+Ordinary `head` uses this admitted read. An absent, expired or inaccessible occurrence
+returns `NotFound` and commits a denied inspection audit record without decoding its
+payload. The shared pure evaluator takes an explicit evaluation time and rejects expired
+grants. A matching selected Work Context can independently confer access.
 
 Pages read one extra admitted occurrence and expose a continuation only when that row
 exists. Selected aggregates are checked with `access::decide` before delivery. A policy
@@ -60,7 +78,10 @@ service does not scan and discard denied candidates in Rust.
 
 `service/tests/discovery.rs` qualifies this path with an owned SurrealDB 3.3.0 process.
 It covers direct and group grants, selected-context access, foreign tenants, clearance,
-expired retention and grants, and malformed denied rows ahead of the visible page.
+expired retention and grants, exact metadata reads, snapshot release/grant changes,
+and malformed denied rows ahead of the visible page. HTTP tests exercise snapshot
+authentication and client round trips. Contract tests check snapshot identity and wire
+admission; access tests cover direct and group grant expiry at the exact deadline.
 Run it with `VEOVEO_SURREAL_BINARY` set to the qualified executable and
 `cargo test -p veoveo-artifact-service --lib discovery -- --include-ignored`.
 

@@ -72,6 +72,21 @@ decoding. `TryFrom<Uuid>` checks version and variant when a driver provides a UU
 Optional `download_url` typing and remaining access/service contracts are work in the
 [foundations plan](../../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 
+## Metadata Snapshots
+
+`ArtifactMetadataSnapshot` carries service-owned neutral metadata, read-grant subjects
+and their expiry, and the stored metadata update time. Its constructor validates the
+grant occurrence and tenant before reducing administrative grants to read information.
+The wire decoder requires stored tenant, owner, Work Context and provenance. It rejects
+transfer URLs, repeated subjects and update times preceding creation. Grants serialize
+in subject order. The timestamp describes metadata; access revisions also include the
+read grants and their deadlines.
+
+The Artifact service admits the caller before returning a snapshot. The type confers
+no authority by itself and introduces no knowledge-extension dependency. Consumers
+can map it into their own protocol observations while keeping Artifact policy in the
+service. `tests/snapshot.rs` qualifies construction, decoding and schema output.
+
 ## Address And Identity Profile
 
 Generated URIs use lowercase hyphenated UUIDs. The parser preserves accepted input

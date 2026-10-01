@@ -125,6 +125,8 @@ pub fn mac_satisfied(
 /// Everything an access decision needs. Borrowed so callers assemble it from
 /// the ledger and the signed identity without cloning.
 pub struct AccessRequest<'a> {
+    /// Evaluation instant supplied by the caller; expired grants confer no access.
+    pub now: chrono::DateTime<chrono::Utc>,
     pub caller_id: &'a PrincipalId,
     pub caller_tenant: Option<&'a TenantId>,
     pub caller_labels: &'a BTreeSet<DataLabelId>,
@@ -154,6 +156,11 @@ pub fn decide(req: &AccessRequest<'_>) -> AccessDecision {
     let best_dac = req
         .grants
         .iter()
+        .filter(|grant| {
+            grant
+                .retention_expires_at
+                .is_none_or(|expires| expires > req.now)
+        })
         .filter_map(|grant| grant_level_for_caller(grant, req.caller_id, req.memberships))
         .chain(req.context_membership.map(|level| level.artifact_access()))
         .max();
@@ -230,6 +237,7 @@ mod tests {
         requested: AccessLevel,
     ) -> AccessRequest<'a> {
         AccessRequest {
+            now: chrono::Utc::now(),
             caller_id: caller,
             caller_tenant: tenant,
             caller_labels: labels,
@@ -467,6 +475,45 @@ mod tests {
             AccessLevel::Read,
         );
         assert_eq!(decide(&req), AccessDecision::DenyTenant);
+    }
+
+    #[test]
+    fn expired_grants_stop_conferring_access_at_the_evaluation_instant() {
+        let caller = pid("alice");
+        let tenant = tid("acme");
+        let labels = no_labels();
+        let memberships = member("operators", GroupRole::Admin);
+        let now = chrono::Utc::now();
+        for mut grant in [
+            user_grant("alice", AccessLevel::Admin),
+            group_grant("operators", AccessLevel::Admin, no_labels()),
+        ] {
+            for (expiry, expected) in [
+                (
+                    now - chrono::TimeDelta::seconds(1),
+                    AccessDecision::DenyNeedToKnow,
+                ),
+                (now, AccessDecision::DenyNeedToKnow),
+                (now + chrono::TimeDelta::seconds(1), AccessDecision::Allow),
+            ] {
+                grant.retention_expires_at = Some(expiry);
+                let grants = [grant.clone()];
+                let mut req = request(
+                    &caller,
+                    Some(&tenant),
+                    &labels,
+                    &memberships,
+                    &tenant,
+                    &labels,
+                    &grants,
+                    AccessLevel::Read,
+                );
+                req.now = now;
+                assert_eq!(decide(&req), expected);
+                req.context_membership = Some(WorkContextMembershipLevel::Viewer);
+                assert_eq!(decide(&req), AccessDecision::Allow);
+            }
+        }
     }
 
     #[test]

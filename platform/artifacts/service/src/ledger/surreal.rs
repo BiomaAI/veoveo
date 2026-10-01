@@ -26,9 +26,9 @@ use veoveo_types::{
 
 use super::{
     ArtifactAccessRequestCancellation, ArtifactAccessRequestDecisionDraft,
-    ArtifactAccessRequestListQuery, ArtifactListQuery, ArtifactRepository, BlobSha256, NewArtifact,
-    NewArtifactAccessRequest, RedeemedWriteCapability, RepositoryActor, RepositoryError,
-    ShareLinkDraft, ShareRedemption, StoredArtifact, WriteCapabilityDraft,
+    ArtifactAccessRequestListQuery, ArtifactListQuery, ArtifactReadAuthority, ArtifactRepository,
+    BlobSha256, NewArtifact, NewArtifactAccessRequest, RedeemedWriteCapability, RepositoryActor,
+    RepositoryError, ShareLinkDraft, ShareRedemption, StoredArtifact, WriteCapabilityDraft,
     WriteCapabilityReservation,
 };
 
@@ -94,6 +94,20 @@ impl SurrealArtifactRepository {
         }
     }
 
+    async fn read_scope(
+        &self,
+        authority: ArtifactReadAuthority,
+    ) -> Result<platform::ArtifactReadScope, RepositoryError> {
+        let identity = self.identity(&authority.actor).await?;
+        platform::ArtifactReadScope::new(
+            &identity,
+            authority.groups,
+            authority.clearance,
+            Some(authority.work_context),
+        )
+        .map_err(repository_error)
+    }
+
     async fn map_aggregate(
         &self,
         artifact_id: ArtifactId,
@@ -102,7 +116,40 @@ impl SurrealArtifactRepository {
         let tenant = TenantId::new(aggregate.tenant.slug)
             .map_err(|error| RepositoryError::Corrupt(error.to_string()))?;
         let authority = contract_authority(tenant.clone(), aggregate.occurrence.authority.clone())?;
-        let labels = parse_labels(aggregate.occurrence.labels)?;
+        let occurrence = &aggregate.occurrence;
+        let owner = &authority.output_policy.owner;
+        let expected_owner = match owner {
+            AccessSubject::Principal(id) => {
+                platform::deterministic_principal_id(tenant.as_str(), id.as_str())
+                    .map_err(repository_error)?
+                    .record_id()
+            }
+            AccessSubject::Group(id) => {
+                platform::deterministic_group_id(tenant.as_str(), id.as_str())
+                    .map_err(repository_error)?
+                    .record_id()
+            }
+        };
+        if occurrence.id != platform::ArtifactId::from_uuid(artifact_id.as_uuid()).record_id()
+            || occurrence.tenant != aggregate.tenant.id
+            || aggregate.blob.tenant != occurrence.tenant
+            || occurrence.blob != aggregate.blob.id
+            || occurrence.work_context
+                != platform::deterministic_work_context_id(
+                    tenant.as_str(),
+                    authority.work_context.as_str(),
+                )
+                .map_err(repository_error)?
+                .record_id()
+            || occurrence.owner != expected_owner
+            || occurrence.owner_kind != platform_subject_kind(owner)
+            || occurrence.owner_key != subject_key(owner)
+        {
+            return Err(RepositoryError::Corrupt(
+                "artifact indexed identity and stored authority disagree".into(),
+            ));
+        }
+        let mut labels = parse_labels(aggregate.occurrence.labels)?;
         let classification = if aggregate.occurrence.classification.is_empty() {
             None
         } else {
@@ -111,6 +158,7 @@ impl SurrealArtifactRepository {
                     .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
             )
         };
+        labels.extend(classification.iter().cloned());
         let mut data_labels = labels.clone();
         if let Some(classification) = &classification {
             data_labels.remove(classification);
@@ -130,6 +178,23 @@ impl SurrealArtifactRepository {
                             .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
                     ),
                 };
+                let expected_subject = match &subject {
+                    AccessSubject::Principal(id) => {
+                        platform::deterministic_principal_id(tenant.as_str(), id.as_str())
+                            .map_err(repository_error)?
+                            .record_id()
+                    }
+                    AccessSubject::Group(id) => {
+                        platform::deterministic_group_id(tenant.as_str(), id.as_str())
+                            .map_err(repository_error)?
+                            .record_id()
+                    }
+                };
+                if edge.out != expected_subject || edge.r#in != aggregate.occurrence.id {
+                    return Err(RepositoryError::Corrupt(
+                        "artifact grant identity and subject disagree".into(),
+                    ));
+                }
                 Ok(Grant {
                     artifact: artifact_id,
                     subject,
@@ -175,6 +240,7 @@ impl SurrealArtifactRepository {
         };
         Ok(StoredArtifact {
             metadata,
+            metadata_updated_at: aggregate.occurrence.updated_at,
             tenant,
             labels,
             grants,
@@ -284,18 +350,31 @@ impl ArtifactRepository for SurrealArtifactRepository {
         }
     }
 
+    async fn read_artifact(
+        &self,
+        authority: ArtifactReadAuthority,
+        artifact_id: ArtifactId,
+    ) -> Result<Option<StoredArtifact>, RepositoryError> {
+        let scope = self.read_scope(authority).await?;
+        let aggregate = self
+            .store
+            .artifact_read(
+                scope,
+                platform::ArtifactId::from_uuid(artifact_id.as_uuid()),
+            )
+            .await
+            .map_err(repository_error)?;
+        match aggregate {
+            Some(aggregate) => self.map_aggregate(artifact_id, aggregate).await.map(Some),
+            None => Ok(None),
+        }
+    }
+
     async fn list_artifacts(
         &self,
         query: ArtifactListQuery,
     ) -> Result<Vec<StoredArtifact>, RepositoryError> {
-        let identity = self.identity(&query.actor).await?;
-        let scope = platform::ArtifactReadScope::new(
-            &identity,
-            query.groups,
-            query.clearance,
-            Some(query.work_context),
-        )
-        .map_err(repository_error)?;
+        let scope = self.read_scope(query.authority).await?;
         let aggregates = self
             .store
             .artifact_read_page(

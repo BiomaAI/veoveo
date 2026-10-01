@@ -56,6 +56,7 @@ impl BlobSha256 {
 #[derive(Debug, Clone)]
 pub struct StoredArtifact {
     pub metadata: ArtifactMetadata,
+    pub metadata_updated_at: DateTime<Utc>,
     pub tenant: TenantId,
     pub labels: BTreeSet<DataLabelId>,
     pub grants: Vec<Grant>,
@@ -71,11 +72,16 @@ pub struct NewArtifact {
 }
 
 #[derive(Debug, Clone)]
-pub struct ArtifactListQuery {
+pub struct ArtifactReadAuthority {
     pub actor: RepositoryActor,
     pub groups: BTreeSet<GroupId>,
     pub clearance: BTreeSet<DataLabelId>,
     pub work_context: WorkContextId,
+}
+
+#[derive(Debug, Clone)]
+pub struct ArtifactListQuery {
+    pub authority: ArtifactReadAuthority,
     pub cursor: Option<ArtifactId>,
     pub limit: usize,
 }
@@ -204,6 +210,12 @@ pub trait ArtifactRepository: Send + Sync + ReadCapabilityRepository {
         &self,
         query: ArtifactListQuery,
     ) -> impl std::future::Future<Output = Result<Vec<StoredArtifact>, RepositoryError>> + Send;
+
+    fn read_artifact(
+        &self,
+        authority: ArtifactReadAuthority,
+        artifact_id: ArtifactId,
+    ) -> impl std::future::Future<Output = Result<Option<StoredArtifact>, RepositoryError>> + Send;
 
     fn upsert_grant(
         &self,
@@ -381,6 +393,30 @@ pub(crate) mod testing {
         revoked: bool,
     }
 
+    impl ArtifactReadAuthority {
+        fn admits(&self, artifact: &StoredArtifact) -> bool {
+            let now = Utc::now();
+            artifact.tenant == self.actor.tenant
+                && artifact.labels.is_subset(&self.clearance)
+                && artifact
+                    .metadata
+                    .compliance
+                    .retention_expires_at
+                    .is_none_or(|expiry| expiry > now)
+                && (artifact.metadata.compliance.work_context.as_ref() == Some(&self.work_context)
+                    || artifact
+                        .grants
+                        .iter()
+                        .filter(|grant| {
+                            grant.retention_expires_at.is_none_or(|expiry| expiry > now)
+                        })
+                        .any(|grant| match &grant.subject {
+                            AccessSubject::Principal(user) => user == &self.actor.principal,
+                            AccessSubject::Group(group) => self.groups.contains(group),
+                        }))
+        }
+    }
+
     impl InMemoryRepository {
         pub fn audit_records(&self) -> Vec<veoveo_mcp_contract::audit::AuditDraft> {
             self.state.lock().unwrap().audits.clone()
@@ -422,6 +458,21 @@ pub(crate) mod testing {
                 .cloned())
         }
 
+        async fn read_artifact(
+            &self,
+            authority: ArtifactReadAuthority,
+            artifact_id: ArtifactId,
+        ) -> Result<Option<StoredArtifact>, RepositoryError> {
+            Ok(self
+                .state
+                .lock()
+                .unwrap()
+                .artifacts
+                .get(&artifact_id)
+                .filter(|artifact| authority.admits(artifact))
+                .cloned())
+        }
+
         async fn list_artifacts(
             &self,
             query: ArtifactListQuery,
@@ -432,30 +483,7 @@ pub(crate) mod testing {
                 .unwrap()
                 .artifacts
                 .values()
-                .filter(|artifact| artifact.tenant == query.actor.tenant)
-                .filter(|artifact| artifact.labels.is_subset(&query.clearance))
-                .filter(|artifact| {
-                    artifact
-                        .metadata
-                        .compliance
-                        .retention_expires_at
-                        .is_none_or(|expiry| expiry > Utc::now())
-                })
-                .filter(|artifact| {
-                    artifact.metadata.compliance.work_context.as_ref() == Some(&query.work_context)
-                        || artifact
-                            .grants
-                            .iter()
-                            .filter(|grant| {
-                                grant
-                                    .retention_expires_at
-                                    .is_none_or(|expiry| expiry > Utc::now())
-                            })
-                            .any(|grant| match &grant.subject {
-                                AccessSubject::Principal(user) => user == &query.actor.principal,
-                                AccessSubject::Group(group) => query.groups.contains(group),
-                            })
-                })
+                .filter(|artifact| query.authority.admits(artifact))
                 .cloned()
                 .collect::<Vec<_>>();
             artifacts.sort_by_key(|artifact| std::cmp::Reverse(artifact.metadata.artifact_id()));
@@ -504,6 +532,7 @@ pub(crate) mod testing {
                 return Ok(None);
             };
             artifact.metadata.release_state = release_state;
+            artifact.metadata_updated_at = Utc::now();
             Ok(Some(artifact.clone()))
         }
 

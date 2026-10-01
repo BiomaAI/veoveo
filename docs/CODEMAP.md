@@ -540,7 +540,7 @@ Domain runtimes can own private queries and driver records over these connection
 | `identity.rs`, `identity/ensure.surql` | tenant/principal/group resolution; transactional identity creation and presentation-only principal updates that preserve current disablement and security fields |
 | `gateway_runtime.rs` | control revisions, auth state, refresh/JWT runtime records |
 | `artifacts.rs` | blob, occurrence, grant, share, capability transactions |
-| `artifacts/reads.rs` and `artifacts/read_page.surql` | typed Artifact discovery admission: tenant, clearance, retention, selected Work Context and live grants before decoding and page limits |
+| `artifacts/reads.rs` and `artifacts/read_page.surql` | typed Artifact exact metadata and discovery admission in one database statement: tenant, clearance, retention, selected Work Context and live grants before decoding and page limits |
 | `artifacts/publication.rs` and `artifacts/register.surql` | shared typed publication content and transactional occurrence and grant registration with immutable tenant/digest blob reuse |
 | `artifact_uploads.rs` and `artifact_uploads/` | typed upload ledger, policy-bound idempotent admission, and atomic tenant reservations |
 | `artifact_uploads/parts.rs` and its SurrealQL statements | immutable part descriptors, generation-fenced receipts, shared transfer budgets, and unknown-length reservation windows |
@@ -673,7 +673,8 @@ on foundational identity, UUID, date/time, and serialization/schema support. The
 for separating the plane model from its MCP adapter. `src/identity.rs` owns occurrence
 IDs; `src/access.rs` owns public grant and share values below MCP and HTTP;
 `src/uri.rs` owns typed neutral and server-presented addresses and construction;
-`src/metadata.rs` owns the public model, and `src/provenance.rs`
+`src/metadata.rs` owns the public model; `src/snapshot.rs` owns checked metadata and
+read-access snapshots. `src/provenance.rs`
 maps foundational invocation attribution to Artifact's flat wire profile. Access
 evaluation and transport-facing service interfaces currently live in `mcp/contract`.
 
@@ -685,6 +686,7 @@ plane and task-read delegation.
 | File | Responsibility |
 |---|---|
 | `service.rs` | policy enforcement, grants, release, shares, quotas, retention |
+| `service/metadata.rs` | SQL-admitted exact metadata reads and read-access snapshots |
 | `service/audit.rs` | typed Artifact activities and private ledger addresses, acknowledged download windows, and completion routing |
 | `ledger.rs` | repository contract and in-memory test implementation |
 | `ledger/surreal.rs` | SurrealDB repository adapter |

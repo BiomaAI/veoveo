@@ -327,6 +327,31 @@ impl ArtifactPlane for HttpArtifactPlane {
         }
     }
 
+    async fn metadata_snapshot(
+        &self,
+        caller: &PlaneCaller,
+        artifact_id: &ArtifactId,
+    ) -> Result<veoveo_artifact_contract::ArtifactMetadataSnapshot, ArtifactPlaneError> {
+        let response = self
+            .http
+            .get(self.url(&format!("/artifacts/{artifact_id}/snapshot")))
+            .bearer_auth(&caller.bearer_token)
+            .send()
+            .await
+            .map_err(transport)?;
+        if !response.status().is_success() {
+            return response_error(response).await;
+        }
+        let snapshot: veoveo_artifact_contract::ArtifactMetadataSnapshot =
+            response.json().await.map_err(transport)?;
+        if snapshot.metadata().artifact_id() != *artifact_id {
+            return Err(ArtifactPlaneError::Transport(
+                "artifact snapshot identity does not match the request".into(),
+            ));
+        }
+        Ok(snapshot)
+    }
+
     async fn list(
         &self,
         caller: &PlaneCaller,

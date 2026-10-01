@@ -1,6 +1,7 @@
 //! Artifact-plane policy enforcement and security workflows.
 
 mod audit;
+mod metadata;
 mod read_capability;
 
 use audit::{ArtifactAction, access_reason};
@@ -34,9 +35,9 @@ use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel};
 
 use crate::ledger::{
     ArtifactAccessRequestCancellation, ArtifactAccessRequestDecisionDraft,
-    ArtifactAccessRequestListQuery, ArtifactListQuery, ArtifactRepository, BlobSha256, NewArtifact,
-    NewArtifactAccessRequest, RepositoryActor, RepositoryError, ShareLinkDraft, StoredArtifact,
-    WriteCapabilityDraft, WriteCapabilityReservation,
+    ArtifactAccessRequestListQuery, ArtifactListQuery, ArtifactReadAuthority, ArtifactRepository,
+    BlobSha256, NewArtifact, NewArtifactAccessRequest, RepositoryActor, RepositoryError,
+    ShareLinkDraft, StoredArtifact, WriteCapabilityDraft, WriteCapabilityReservation,
 };
 use crate::store::{BlobStore, BlobStream};
 
@@ -183,6 +184,7 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
         level: AccessLevel,
     ) -> AccessDecision {
         let request = AccessRequest {
+            now: chrono::Utc::now(),
             caller_id: &caller.identity.actor.id,
             caller_tenant: caller.tenant(),
             caller_labels: caller.clearance(),
@@ -387,6 +389,7 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
             .create_artifact(NewArtifact {
                 actor: actor.clone(),
                 stored: StoredArtifact {
+                    metadata_updated_at: metadata.created_at,
                     metadata,
                     tenant: actor.tenant.clone(),
                     labels,
@@ -690,15 +693,18 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
         caller: &PlaneCaller,
         artifact_id: &ArtifactId,
     ) -> Result<ArtifactMetadata, ArtifactPlaneError> {
-        let stored = self.load(*artifact_id).await?;
-        self.authorize(
-            caller,
-            &stored,
-            ArtifactActivity::Inspect,
-            AccessLevel::Read,
-        )
-        .await?;
-        Ok(stored.metadata)
+        Ok(self
+            .metadata_snapshot(caller, artifact_id)
+            .await?
+            .into_metadata())
+    }
+
+    async fn metadata_snapshot(
+        &self,
+        caller: &PlaneCaller,
+        artifact_id: &ArtifactId,
+    ) -> Result<veoveo_artifact_contract::ArtifactMetadataSnapshot, ArtifactPlaneError> {
+        self.read_metadata_snapshot(caller, *artifact_id).await
     }
 
     async fn list(
@@ -713,18 +719,10 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
             )));
         }
         let actor = Self::actor(caller)?;
-        let groups: BTreeSet<_> = caller
-            .memberships
-            .iter()
-            .map(|membership| membership.group.clone())
-            .collect();
         let mut admitted = self
             .repository
             .list_artifacts(ArtifactListQuery {
-                actor: actor.clone(),
-                groups,
-                clearance: caller.clearance().clone(),
-                work_context: caller.identity.authority.work_context.clone(),
+                authority: Self::read_authority(caller)?,
                 cursor: request.cursor,
                 limit: limit + 1,
             })

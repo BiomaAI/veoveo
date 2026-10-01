@@ -480,6 +480,16 @@ pub trait ArtifactPlane {
         artifact_id: &ArtifactId,
     ) -> impl std::future::Future<Output = Result<ArtifactMetadata, ArtifactPlaneError>> + Send;
 
+    /// Metadata and recorded access state from one repository snapshot, gated at
+    /// Read. This contains no transfer locations or bearer share links.
+    fn metadata_snapshot(
+        &self,
+        caller: &PlaneCaller,
+        artifact_id: &ArtifactId,
+    ) -> impl std::future::Future<
+        Output = Result<veoveo_artifact_contract::ArtifactMetadataSnapshot, ArtifactPlaneError>,
+    > + Send;
+
     /// Discover metadata for artifacts on which the caller has at least read
     /// access. Results are ordered newest first and keyset-paginated.
     fn list(

@@ -534,7 +534,6 @@ fn effective_artifact_access(
         .collect::<Result<BTreeSet<_>, _>>()?;
     let grants = summaries
         .iter()
-        .filter(|grant| grant.expires_at.is_none_or(|expires| expires > now))
         .map(|grant| {
             Ok(Grant {
                 artifact: artifact_id,
@@ -561,6 +560,7 @@ fn effective_artifact_access(
         .then_some(context.membership);
     let decision = |requested| {
         veoveo_mcp_contract::decide(&AccessRequest {
+            now,
             caller_id: &context.actor,
             caller_tenant: Some(&context.tenant),
             caller_labels: &context.clearance,

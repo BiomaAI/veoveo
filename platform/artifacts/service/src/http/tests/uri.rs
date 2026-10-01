@@ -16,6 +16,21 @@ async fn typed_resolution_round_trips_and_http_rejects_malformed_addresses() {
             .await
             .unwrap();
         let id = metadata.artifact_id();
+        let snapshot = plane.metadata_snapshot(&caller, &id).await.unwrap();
+        assert_eq!(snapshot.metadata(), &metadata);
+        assert_eq!(snapshot.read_grants().len(), 1);
+        assert_eq!(plane.head(&caller, &id).await.unwrap(), metadata);
+        assert_eq!(
+            plane.metadata_snapshot(&caller, &ArtifactId::new()).await,
+            Err(ArtifactPlaneError::NotFound)
+        );
+        let unauthenticated = reqwest::Client::new()
+            .get(format!("{base}/artifacts/{id}/snapshot"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(unauthenticated.status(), reqwest::StatusCode::UNAUTHORIZED);
+
         let presentation =
             ArtifactUri::presented(&ResourceScheme::new("independent-fixture").unwrap(), id);
         for uri in [id.plane_uri(), presentation] {
