@@ -16,7 +16,11 @@ Installed acceptance is pending. Phases 1–3 have
 remaining work, and phases 5–9 are not implemented.
 The pending reference release selects both S3 and OTLP audit destinations and enables
 the existing Collector. Rendered workload Secret coverage passes. Model and simulator
-caches are copied and verified for restoration after the fresh installation reset.
+caches are restored into the fresh PVCs and pass byte comparisons with the preserved copies.
+The new node is Ready with eight NVIDIA GPU shares. Flux and all 15 application Secrets
+are provisioned; sequential image preparation precedes application reconciliation.
+The existing headed Chrome acceptance profile is open. Its WebGL context uses the RTX
+4090; WebGPU reports SwiftShader and supplies no hardware qualification.
 The release fixes the gateway bundle checksum, supplies explicit audit-retention values
 in all four affected installation fixtures, and updates Console scope expectations.
 The S3 initializer now uses its existing version's manifest digest; every image in the
@@ -2151,7 +2155,7 @@ execution separately from the stable compilation graph; they are not runtime bud
 | Batch | Implementation checkpoint | Qualification checkpoint |
 |---|---|---|
 | SurrealDB 3.3.0 upgrade (committed) | Client/server pins and fresh-store behavior select 3.3.0 | Native qualification passes; group installed smoke with audit integration |
-| Unified audit (current) | Phase 4 audit types, writer, producers and readers are implemented together; native repairs and queued-record batching are qualified | Native checks and paired measurements pass; publish and run composed installed acceptance |
+| Unified audit (current) | Phase 4 audit types, writer, producers and readers are committed; their images and charts are published | Native checks, paired measurements and deployment configuration pass; run composed installed acceptance on the fresh installation |
 | Computers ownership and public identities (preserved) | Complete maintenance SQL admission, accepted-request and worker lookup review, lifecycle/access IDs and their direct consumers together | First run SQL denial, replay/conflict and identity regressions. Then run the affected domain, service, gateway/BFF and generated-schema checks once for the completed batch |
 | Provider identities | Trace private runtime and retained-instance identity requirements, then update the owning types and all transport consumers together | Native runtime and provider fixtures, including current-format recovery; preserve required GPU acceptance |
 | Composed Phase 3 delivery | Finish remaining Map/template setup and cross-component contract work | Run the shared contract closure and installed acceptance against the complete deployment, then stop the cluster |
@@ -2533,7 +2537,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Time authority contexts | Each engine request validates the joined active selection and provenance before reusing loaded files. Cache keys use the Store tenant type, engine epoch maps are independent, Store signals evict contexts and failures remove cached values. Native restart, isolation, disconnected-observation, provenance and file-recovery cases pass | Qualify installed restart/replica behavior and the declared coordinated upgrade |
 | Time authority metadata | Checked references derive release identity from typed URIs. Effective pairs require the correct dataset roles and distinct IDs, and derive instant bindings. Wire adapters preserve valid fields; the runtime context keeps metadata and bindings private. Native retained-row and independent-consumer admission checks pass | Qualify current binding validation and installed startup |
 | Time resolution metadata | `ResolveTimeOutput` admits matching instant/release pairs and protects them with read-only accessors; its wire adapter preserves flat projection fields. Engine epoch keys remain typed, relative calculations reject foreign authority and preserve uncertainty, and additional uncertainty checks overflow. Native and independent-consumer cases qualify these relationships | Qualify installed resolve/convert decoding and epoch behavior after authority activation; computed representations remain the engine's responsibility |
-| Time activation preflight | A private draft carries the candidate and both admitted active families through file loading to SQL commit. A shared tenant write fences different-family decisions on 3.2.4; the transaction compares the observed metadata and rolls back every mutation on conflict. Native cases cover RocksDB contention, retained schema upgrades, stale inputs and failed file loads | Qualify installed activation; qualify 3.3 locked reads before retiring the concurrency fence |
+| Time activation preflight | A private draft carries the candidate and both admitted active families through file loading to SQL commit. SurrealDB 3.3.0 `FOR UPDATE` locks the selected pointer and release records, including absent identities. The shared tenant-write fence is removed. Native RocksDB contention, pointer/release repair and rollback checks pass | Qualify installed activation and concurrent conflict rollback |
 | Digest wire profiles | Time's `AuthoritySourceDigest` preserves bare hexadecimal spelling through metadata, requests and typed persistence drafts; canonical content comparison and shared provenance use the foundational `sha256:` value. Native cases preserve uppercase retained data and idempotency while rejecting malformed matching rows. View still uses bare hexadecimal text | Qualify current digest admission in installed Time; migrate remaining owners and callers by hard cut |
 | Computers | The isolated contract owns distinct Computer, execution, file-transfer and automation-grant IDs, the complete resource vocabulary and an empty scope enum. Domain APIs, gateway routes, relays and generated browser schemas adopt those types. Checked hosted setup supplies startup and discovery. Owned and granted Computer reads admit identity, clearance and current policy before decoding; final SQL rechecks authority before public ordering and limits. Lifecycle and command/file Tasks resolve scoped policy inputs before reading private state. Browser/CLI grant reads bind credentials, sessions, parents and providers in SQL | Complete maintenance SQL admission and audit accepted-request receipts and internal worker lookups; remaining lifecycle/access/provider identities and DTO relationships; installed qualification |
 | Speech | The isolated contract owns distinct transcription/dictation IDs, every public resource family and an empty scope vocabulary. Checked hosted setup supplies initialization and discovery. Application execution, resource subscriptions, Gateway targets and Console routes retain the owner types; receipt decoding and completed output reads check parent identity. Independent consumers, compile-fail cases and native callers pass; generated browser schemas use the qualified shared converter | Qualify current-profile CUDA transcription/dictation and installed delivery; strengthen remaining transcript result relationships |
@@ -2593,8 +2597,9 @@ Foundation tests cover wire strings, schema descriptions, lexical rejection, ind
 trait implementations, and compile-fail examples. A separately resolved consumer builds
 without MCP, runtime, database, GPU, or provider dependencies. The shared MCP contract,
 policy, and gateway library suites pass, as does strict workspace Clippy across all
-targets and features. These checks qualify the extraction. Remaining server contract-only
-features, broader checked-setup adoption, and repository-wide builders are pending.
+targets and features. These checks qualify the extraction. All 15 Rust server packages
+expose isolated contract features. Map and templates still need checked-setup adoption; remaining
+domain builders and field-relationship checks are tracked in the owner rows above.
 Time's independent consumer passes its public-contract tests with only the Time
 library, foundational types and URI libraries, serialization/schema support, and Chrono's
 date/time types. The resolved graph excludes the clock feature as well as server, database,
@@ -2622,9 +2627,9 @@ Time's resource migration uses one enum for parsing, building, and subscription
 eligibility. Calendar, epoch, and event cursors preserve their v1 wire payloads and
 carry distinct domain ID types. Catalog and admin APIs consume those cursor types;
 event recovery follows the returned cursor directly. Native SQL cases round-trip the
-emitted tokens before following pages. The low-level Store DTOs still erase IDs to
-strings, and Time DTO zone fields outside resource addresses still need review.
-These are remaining type-adoption work, not a completed Store boundary.
+emitted tokens before following pages. Time owns its persistence DTOs and carries domain
+IDs through query construction until driver conversion. Expression/projection scalar types, zone fields outside
+resource addresses and acquisition-state relationships still need review.
 
 Authority-only root tests exposed an incorrect path-segment assumption in the
 foundation helper. Roots now yield no segments; an explicit slash is distinct. Time
