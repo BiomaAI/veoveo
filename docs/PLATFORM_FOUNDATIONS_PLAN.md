@@ -3684,8 +3684,8 @@ seconds. All 32 platform images and both UAV images published with SBOM and prov
 from that revision. Both OCI charts published as `0.1.0-c66fabdc2b70`; the reference
 selects their immutable digests together with the image locks and managed-kernel pin.
 Ten rollout checks and the complete Helm configuration smoke pass. The rendered
-platform has 25 Deployments, and installed readiness now includes the existing agent
-manager. The generic full-render fixture supplies explicit Knowledge configuration
+platform has 25 Deployments across its platform and managed-agent namespaces.
+The generic full-render fixture supplies explicit Knowledge configuration
 and signing references. Secret provisioning and deployed acceptance remain open.
 The reference nodes stayed stopped during publication, and BuildKit stopped afterward.
 Obsolete simulation certification images freed 23 GiB; BuildKit's configured collection
@@ -3700,6 +3700,14 @@ tool. The five-minute read-only check writes a private JSON report. Execution aw
 the rollout; hardware execution, domain recall and mutation/restart acceptance remain
 separate requirements. The unchanged Computers guest keeps its qualified image and
 template identity through this rollout.
+
+Installed rollout checkpoint (2026-10-01): Flux fetched `9ab558d8` after the reference
+node restarted. Both new signing/API-key Secrets were provisioned from private local
+files. All ten embedding checkpoint files passed their manifest hashes on the host
+and in the new model PVC; the transfer Pod was deleted after the directory was
+published. Embedding startup, Knowledge indexing and installed acceptance are pending.
+The agent manager is Ready in `veoveo-agents`; its separate namespace keeps it outside
+the platform namespace's installation-target Deployment list.
 
 1. Deliver the shared [embedding runtime](../platform/runtimes/embedding/DESIGN.md)
    before the knowledge service consumes it. Re-verify the latest stable vLLM release

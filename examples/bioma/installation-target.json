@@ -34,7 +34,6 @@
     "timeseries-mcp",
     "uav-sim",
     "uav-sim-mcp",
-    "veoveo-agent-manager",
     "view-mcp"
   ],
   "minimumGpuShares": 8,
