@@ -16,7 +16,7 @@ use crate::grounding::grounded_track_ids;
 
 pub const RUNNER_REQUEST_SCHEMA: &str = "veoveo.reason-runner-request/v3";
 pub const RUNNER_RESPONSE_SCHEMA: &str = "veoveo.reason-runner-response/v1";
-pub const REASONING_RESULTS_SCHEMA: &str = "veoveo.reason-results/v1";
+use crate::contract::REASONING_RESULTS_SCHEMA;
 
 pub const MAX_EVENT_LABEL_BYTES: usize = 256;
 pub const MAX_EVENT_DESCRIPTION_BYTES: usize = 4_096;

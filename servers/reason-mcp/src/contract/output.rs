@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use veoveo_artifact_contract::ArtifactMetadata;
 
 use super::{
-    AnalysisId, AnalysisUri, ModelId, ModelUri, PipelineId, PipelineUri, ReasonContractError,
+    AnalysisId, AnalysisUri, FindingData, ModelUri, PipelineUri, ReasonContractError,
     ReasoningSummary, ResultsUri,
 };
 
@@ -24,6 +24,7 @@ pub struct AnalyzeRecordingOutput {
     pub pipeline_uri: PipelineUri,
     pub model_uri: ModelUri,
     pub summary: ReasoningSummary,
+    pub finding: FindingData,
     pub results_artifact: ArtifactMetadata,
     pub annotations_artifact: ArtifactMetadata,
     pub source_clip_artifact: Option<ArtifactMetadata>,
@@ -32,17 +33,17 @@ pub struct AnalyzeRecordingOutput {
 impl AnalyzeRecordingOutput {
     pub fn new(
         analysis: AnalysisId,
-        pipeline: PipelineId,
-        model: ModelId,
+        finding: FindingData,
         summary: ReasoningSummary,
         results: ArtifactMetadata,
         annotations: ArtifactMetadata,
     ) -> Self {
         Self {
             analysis_uri: AnalysisUri::new(analysis),
-            pipeline_uri: PipelineUri::new(pipeline),
-            model_uri: ModelUri::new(model),
+            pipeline_uri: PipelineUri::new(finding.pipeline_id().clone()),
+            model_uri: ModelUri::new(finding.model_id().clone()),
             summary,
+            finding,
             results_artifact: results,
             annotations_artifact: annotations,
             source_clip_artifact: None,
@@ -69,6 +70,7 @@ struct AnalyzeRecordingOutputWire {
     pipeline_uri: PipelineUri,
     model_uri: ModelUri,
     summary: ReasoningSummary,
+    finding: FindingData,
     results_artifact: ArtifactMetadata,
     annotations_artifact: ArtifactMetadata,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -84,10 +86,16 @@ impl TryFrom<AnalyzeRecordingOutputWire> for AnalyzeRecordingOutput {
                 "analysis and results URIs",
             ));
         }
+        if wire.pipeline_uri.id() != wire.finding.pipeline_id()
+            || wire.model_uri.id() != wire.finding.model_id()
+        {
+            return Err(ReasonContractError::InvalidRelationship(
+                "finding pipeline and model",
+            ));
+        }
         Ok(Self::new(
             *wire.analysis_uri.id(),
-            wire.pipeline_uri.id().clone(),
-            wire.model_uri.id().clone(),
+            wire.finding,
             wire.summary,
             wire.results_artifact,
             wire.annotations_artifact,
@@ -104,6 +112,7 @@ impl From<AnalyzeRecordingOutput> for AnalyzeRecordingOutputWire {
             pipeline_uri: output.pipeline_uri,
             model_uri: output.model_uri,
             summary: output.summary,
+            finding: output.finding,
             results_artifact: output.results_artifact,
             annotations_artifact: output.annotations_artifact,
             source_clip_artifact: output.source_clip_artifact,

@@ -1,5 +1,7 @@
 {
+  "schema": "veoveo.ai/reason-analysis/v1",
   "analysis_uri": "reason://analysis/01983da0-0000-7000-8000-000000000001",
+  "result_uri": "reason://analysis/01983da0-0000-7000-8000-000000000001/results",
   "pipeline_uri": "reason://pipeline/traffic-events",
   "model_uri": "reason://model/world-model",
   "summary": {
@@ -10,20 +12,73 @@
     "requested_start_index": 10,
     "requested_end_index": 20
   },
+  "finding": {
+    "pipeline_id": "traffic-events",
+    "model_id": "world-model",
+    "model_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "prompt_revision": "traffic-v1",
+    "decode": {
+      "mode": "greedy"
+    },
+    "confidence_basis": "model_reported",
+    "recording_uri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
+    "entity_path": "/camera/front",
+    "timeline": "sensor_time",
+    "timeline_kind": "duration_nanoseconds",
+    "requested_range": {
+      "start": 10,
+      "end": 20
+    },
+    "source_snapshot_sha256": "sha256:b39375df89fabab90acb1982bea5a06b8c42758f6c02e9c2d0b952701afe95c1",
+    "task": {
+      "kind": "detect_events",
+      "prompt": "Vehicles entering the intersection"
+    },
+    "answer": {
+      "kind": "events",
+      "events": [
+        {
+          "range": {
+            "start": 10,
+            "end": 20
+          },
+          "label": {
+            "text": "entry",
+            "truncated": false
+          },
+          "description": {
+            "text": "Vehicle enters.",
+            "truncated": false
+          },
+          "track_ids": [
+            7
+          ]
+        }
+      ],
+      "total": 1,
+      "truncated": false
+    }
+  },
   "results_artifact": {
     "artifact_id": "01983da0-0000-7000-8000-000000000001",
-    "artifact_uri": "reason://artifact/01983da0-0000-7000-8000-000000000001",
     "byte_len": 12,
     "mime_type": "application/vnd.veoveo.reason-results+json",
-    "created_at": "2026-09-28T00:00:00Z"
+    "filename": null,
+    "artifact_uri": "reason://artifact/01983da0-0000-7000-8000-000000000001",
+    "created_at": "2026-09-28T00:00:00Z",
+    "release_state": "private",
+    "compliance": {},
+    "metadata": null
   },
   "annotations_artifact": {
     "artifact_id": "01983da0-0000-7000-8000-000000000003",
-    "artifact_uri": "reason://artifact/01983da0-0000-7000-8000-000000000003",
     "byte_len": 12,
     "mime_type": "application/vnd.rerun.rrd",
-    "created_at": "2026-09-28T00:00:00Z"
-  },
-  "schema": "veoveo.ai/reason-analysis/v1",
-  "result_uri": "reason://analysis/01983da0-0000-7000-8000-000000000001/results"
+    "filename": null,
+    "artifact_uri": "reason://artifact/01983da0-0000-7000-8000-000000000003",
+    "created_at": "2026-09-28T00:00:00Z",
+    "release_state": "private",
+    "compliance": {},
+    "metadata": null
+  }
 }

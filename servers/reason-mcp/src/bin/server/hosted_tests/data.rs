@@ -14,6 +14,10 @@ pub struct Finding {
 }
 impl Fixture {
     pub async fn finding(&self) -> Finding {
+        self.finding_with_results(result_fixture::results()).await
+    }
+    pub async fn finding_with_results(&self, results: ReasoningResults) -> Finding {
+        let data = FindingData::from_results(&results).unwrap();
         let analysis = AnalysisId::try_from(TaskId::new()).unwrap();
         let tasks = TaskRuntime::new(self.store.clone(), "reason", "fixture-publisher");
         tasks
@@ -31,7 +35,6 @@ impl Fixture {
             })
             .await
             .unwrap();
-        let results = result_fixture::results();
         let result = self
             .artifacts
             .put(
@@ -76,8 +79,7 @@ impl Fixture {
         };
         let output = AnalyzeRecordingOutput::new(
             analysis,
-            results.pipeline_id,
-            results.model_id,
+            data,
             ReasoningSummary {
                 observed_frames: 32,
                 event_count: 0,

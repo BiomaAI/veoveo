@@ -66,6 +66,7 @@ pub struct Fixture {
     pub artifacts: Artifacts,
     pub owner: PlaneCaller,
     pub signing: Signing,
+    pub content_reads: Arc<std::sync::atomic::AtomicUsize>,
     artifact_http: HttpServer,
     temp: tempfile::TempDir,
 }
@@ -85,19 +86,34 @@ impl Fixture {
             signing.trust.clone(),
         );
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let artifact_http = HttpServer::serve(
-            listener,
-            veoveo_artifact_service::http::router(veoveo_artifact_service::http::AppState::new(
-                service, auth,
-            )),
-            CancellationToken::new(),
+        let content_reads = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let count_reads = content_reads.clone();
+        let artifact_router = veoveo_artifact_service::http::router(
+            veoveo_artifact_service::http::AppState::new(service, auth),
         )
-        .await;
+        .layer(axum::middleware::from_fn(
+            move |request: axum::extract::Request, next: axum::middleware::Next| {
+                let counter = count_reads.clone();
+                async move {
+                    let path = request.uri().path();
+                    if request.method() == axum::http::Method::GET
+                        && path.starts_with("/artifacts/")
+                        && (path.split('/').count() == 3 || path.ends_with("/download"))
+                    {
+                        counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    }
+                    next.run(request).await
+                }
+            },
+        ));
+        let artifact_http =
+            HttpServer::serve(listener, artifact_router, CancellationToken::new()).await;
         Arc::new(Self {
             store,
             artifacts,
             owner,
             signing,
+            content_reads,
             artifact_http,
             temp: tempfile::tempdir().unwrap(),
         })

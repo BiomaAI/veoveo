@@ -10,14 +10,14 @@ use veoveo_types::Sha256Digest;
 pub const FINDING_SUMMARY_BYTES: usize = 64 * 1024;
 const EXCERPT_BYTES: usize = 4096;
 
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct FindingExcerpt {
     text: String,
     truncated: bool,
 }
 impl FindingExcerpt {
-    fn new(text: &str, limit: usize) -> Self {
+    pub(super) fn new(text: &str, limit: usize) -> Self {
         let mut end = text.len().min(limit);
         while !text.is_char_boundary(end) {
             end -= 1;
@@ -35,7 +35,7 @@ impl FindingExcerpt {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum FindingContent {
     Analysis {
@@ -53,7 +53,7 @@ pub enum FindingContent {
         truncated: bool,
     },
 }
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct FindingEvent {
     pub range: IndexRange,
@@ -62,11 +62,11 @@ pub struct FindingEvent {
     pub track_ids: Vec<u64>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(try_from = "FindingSummaryWire", into = "FindingSummaryWire")]
 pub struct FindingSummary(FindingSummaryWire);
 
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 struct FindingSummaryWire {
     uri: FindingResource,
@@ -95,61 +95,13 @@ impl FindingSummary {
         artifact: ArtifactId,
         created_at: DateTime<Utc>,
         modified_at: DateTime<Utc>,
-        results: &ReasoningResults,
+        finding: &FindingData,
     ) -> Result<Self> {
-        validate_reasoning_task(&results.task)?;
-        validate_decode(results.decode)?;
-        ensure!(
-            modified_at >= created_at,
-            "finding timestamps are inconsistent"
-        );
-        ensure!(
-            results.task.kind() == results.answer.kind(),
-            "finding answer differs from its task"
-        );
-        ensure!(
-            results.source_snapshot.recording_id == results.recording_uri.id(),
-            "finding recording differs from source snapshot"
-        );
-        if let ReasoningAnswer::Events { events } = &results.answer {
-            for event in events {
-                ensure!(
-                    event.track_ids.len() <= 64,
-                    "finding event has too many track citations"
-                );
-                ensure!(
-                    event.range.start <= event.range.end
-                        && results.requested_range.contains(event.range),
-                    "finding event is outside its recording range"
-                );
-            }
-        }
         let content = match collection {
             FindingCollection::Analyses => FindingContent::Analysis {
-                task: results.task.clone(),
+                task: finding.task().clone(),
             },
-            FindingCollection::Results => match &results.answer {
-                ReasoningAnswer::Description { text } => FindingContent::Description {
-                    excerpt: FindingExcerpt::new(text, EXCERPT_BYTES),
-                },
-                ReasoningAnswer::Answer { text } => FindingContent::Answer {
-                    excerpt: FindingExcerpt::new(text, EXCERPT_BYTES),
-                },
-                ReasoningAnswer::Events { events } => FindingContent::Events {
-                    total: events.len() as u64,
-                    truncated: events.len() > 8,
-                    events: events
-                        .iter()
-                        .take(8)
-                        .map(|e| FindingEvent {
-                            range: e.range,
-                            label: FindingExcerpt::new(&e.label, 256),
-                            description: FindingExcerpt::new(&e.description, 512),
-                            track_ids: e.track_ids.clone(),
-                        })
-                        .collect(),
-                },
-            },
+            FindingCollection::Results => FindingContent::from(finding.answer()),
         };
         let value = FindingSummaryWire {
             uri: FindingResource::Member {
@@ -160,18 +112,18 @@ impl FindingSummary {
             result_artifact: ArtifactUri::plane(artifact),
             created_at,
             modified_at,
-            pipeline_id: results.pipeline_id.clone(),
-            model_id: results.model_id.clone(),
-            model_digest: results.model_digest.clone(),
-            prompt_revision: results.prompt_revision.clone(),
-            decode: results.decode,
-            confidence_basis: results.confidence_basis,
-            recording_uri: results.recording_uri.clone(),
-            entity_path: results.entity_path.clone(),
-            timeline: results.timeline.clone(),
-            timeline_kind: results.timeline_kind,
-            requested_range: results.requested_range,
-            source_snapshot_sha256: results.source_snapshot.digest_sha256()?,
+            pipeline_id: finding.0.pipeline_id.clone(),
+            model_id: finding.0.model_id.clone(),
+            model_digest: finding.0.model_digest.clone(),
+            prompt_revision: finding.0.prompt_revision.clone(),
+            decode: finding.0.decode,
+            confidence_basis: finding.0.confidence_basis,
+            recording_uri: finding.0.recording_uri.clone(),
+            entity_path: finding.0.entity_path.clone(),
+            timeline: finding.0.timeline.clone(),
+            timeline_kind: finding.0.timeline_kind,
+            requested_range: finding.0.requested_range,
+            source_snapshot_sha256: finding.0.source_snapshot_sha256.clone(),
             content,
         };
         value.try_into()
@@ -259,7 +211,23 @@ impl TryFrom<FindingSummaryWire> for FindingSummary {
             "finding range is reversed"
         );
         validate_decode(value.decode)?;
-        match (&value.content, collection) {
+        value.content.validate(collection, value.requested_range)?;
+        ensure!(
+            serde_json::to_vec(&value)?.len() <= FINDING_SUMMARY_BYTES,
+            "finding member exceeds 64 KiB"
+        );
+        Ok(Self(value))
+    }
+}
+impl From<FindingSummary> for FindingSummaryWire {
+    fn from(value: FindingSummary) -> Self {
+        value.0
+    }
+}
+
+impl FindingContent {
+    pub(super) fn validate(&self, collection: FindingCollection, range: IndexRange) -> Result<()> {
+        match (self, collection) {
             (FindingContent::Analysis { task }, FindingCollection::Analyses) => {
                 validate_reasoning_task(task)?
             }
@@ -294,23 +262,34 @@ impl TryFrom<FindingSummaryWire> for FindingSummary {
                         "finding event exceeds its limits"
                     );
                     ensure!(
-                        event.range.start <= event.range.end
-                            && value.requested_range.contains(event.range),
+                        event.range.start <= event.range.end && range.contains(event.range),
                         "finding event is outside its recording range"
                     );
                 }
             }
             _ => anyhow::bail!("finding content disagrees with its collection"),
         }
-        ensure!(
-            serde_json::to_vec(&value)?.len() <= FINDING_SUMMARY_BYTES,
-            "finding member exceeds 64 KiB"
-        );
-        Ok(Self(value))
+        Ok(())
     }
 }
-impl From<FindingSummary> for FindingSummaryWire {
-    fn from(value: FindingSummary) -> Self {
-        value.0
+impl From<&FindingAnswer> for FindingContent {
+    fn from(answer: &FindingAnswer) -> Self {
+        match answer {
+            FindingAnswer::Description { excerpt } => Self::Description {
+                excerpt: excerpt.clone(),
+            },
+            FindingAnswer::Answer { excerpt } => Self::Answer {
+                excerpt: excerpt.clone(),
+            },
+            FindingAnswer::Events {
+                events,
+                total,
+                truncated,
+            } => Self::Events {
+                events: events.clone(),
+                total: *total,
+                truncated: *truncated,
+            },
+        }
     }
 }

@@ -112,5 +112,7 @@ fn schemas_preserve_the_published_contract() {
         RecordingSourceSnapshot,
         RecordingVideoSelection,
         VideoTimelineKind,
+        FindingData,
+        FindingSummary,
     );
 }

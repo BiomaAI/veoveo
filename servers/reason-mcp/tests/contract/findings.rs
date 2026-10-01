@@ -2,7 +2,7 @@ use veoveo_artifact_contract::ArtifactId;
 use veoveo_reason_mcp::contract::*;
 use veoveo_types::ResourceAddress;
 #[path = "../support/finding.rs"]
-mod fixture;
+pub(super) mod fixture;
 
 fn analysis() -> AnalysisId {
     "01983da0-0000-7000-8000-000000000001".parse().unwrap()
@@ -79,7 +79,7 @@ fn summaries_bound_unicode_and_preserve_full_result_provenance() {
         artifact,
         time,
         time,
-        &results,
+        &FindingData::from_results(&results).unwrap(),
     )
     .unwrap();
     let FindingContent::Answer { excerpt } = summary.content() else {
@@ -123,7 +123,7 @@ fn event_summary_declares_omissions_and_checks_source_relationships() {
             ArtifactId::new(),
             time,
             time,
-            r,
+            &FindingData::from_results(r)?,
         )
     };
     let summary = make(&results).unwrap();
@@ -157,7 +157,7 @@ fn decoded_summaries_reject_conflicting_identity_collection_and_bounds() {
         ArtifactId::new(),
         time,
         time,
-        &fixture::results(),
+        &FindingData::from_results(&fixture::results()).unwrap(),
     )
     .unwrap();
     let original = serde_json::to_value(&summary).unwrap();
@@ -189,4 +189,35 @@ fn decoded_summaries_reject_conflicting_identity_collection_and_bounds() {
             "{pointer}"
         );
     }
+}
+
+#[test]
+fn retained_findings_reject_invalid_content_and_unbounded_provenance() {
+    let results = fixture::results();
+    let data = FindingData::from_results(&results).unwrap();
+    let original = serde_json::to_value(&data).unwrap();
+    assert_eq!(
+        serde_json::from_value::<FindingData>(original.clone()).unwrap(),
+        data
+    );
+    assert!(serde_json::to_vec(&data).unwrap().len() <= FINDING_DATA_BYTES);
+    for (pointer, replacement) in [
+        ("/answer/kind", serde_json::json!("description")),
+        ("/answer/excerpt/text", serde_json::json!("x".repeat(4097))),
+        ("/requested_range/end", serde_json::json!(-1)),
+        (
+            "/prompt_revision",
+            serde_json::json!("x".repeat(FINDING_DATA_BYTES)),
+        ),
+    ] {
+        let mut wire = original.clone();
+        *wire.pointer_mut(pointer).unwrap() = replacement;
+        assert!(
+            serde_json::from_value::<FindingData>(wire).is_err(),
+            "{pointer}"
+        );
+    }
+    let mut unsupported = results;
+    unsupported.schema = "unsupported".into();
+    assert!(FindingData::from_results(&unsupported).is_err());
 }

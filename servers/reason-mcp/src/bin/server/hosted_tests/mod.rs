@@ -177,6 +177,27 @@ async fn findings_conform_across_service_restarts_and_artifact_grant_revocation(
         assert!(chrono::Utc::now() >= expiry, "expiry notification arrived before the deadline");
         assert!(read(&client, &member, Some(observed.revision())).await.is_err());
         let _ = expiring.cancel().await;
+        let mut large_results = result_fixture::results();
+        large_results.answer = ReasoningAnswer::Answer { text: "交通🚘".repeat(120_000) };
+        assert!(serde_json::to_vec(&large_results).unwrap().len() > 1024 * 1024);
+        let large = fixture.finding_with_results(large_results).await;
+        fixture.grant(large.artifact, "reader").await.unwrap();
+        for collection in FindingCollection::ALL {
+            let uri = FindingResource::Member { collection, analysis: large.analysis }.to_uri().unwrap();
+            let response = read(&client, &uri, None).await.unwrap();
+            extension::client::validate_read(&response, &uri, None).unwrap().unwrap();
+            let ResourceContents::TextResourceContents { text, .. } = &response.contents[0] else { panic!("finding text") };
+            assert!(text.len() <= FINDING_SUMMARY_BYTES);
+            let summary: FindingSummary = serde_json::from_str(text).unwrap();
+            assert_eq!(summary.result_artifact().artifact_id(), large.artifact);
+            if collection == FindingCollection::Results {
+                let FindingContent::Answer { excerpt } = summary.content() else { panic!("answer excerpt") };
+                assert!(excerpt.truncated());
+                assert!(excerpt.text().len() <= 4096);
+            }
+        }
+        assert_eq!(fixture.content_reads.load(std::sync::atomic::Ordering::Relaxed), 0,
+            "finding reads must not download full Artifact contents");
         client.cancel().await.unwrap();
         denied.cancel().await.unwrap();
         driver.server.lock().await.take().unwrap().stop().await;

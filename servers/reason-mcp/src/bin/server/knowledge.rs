@@ -77,7 +77,7 @@ pub(super) async fn read(
                         .map(|f| FindingIndexEntry {
                             title: format!(
                                 "{} {} {}",
-                                f.pipeline,
+                                f.data.pipeline_id(),
                                 collection.segment(),
                                 f.position.analysis
                             ),
@@ -113,32 +113,7 @@ pub(super) async fn read(
                     .metadata_snapshot(&caller, &finding.results)
                     .await
                     .map_err(internal)?;
-                // TODO(foundations): Read bounded finding data captured at publication;
-                // valid full results can exceed this inline response ceiling.
-                if before.metadata().byte_len > state.max_inline_resource_bytes {
-                    return Err(McpError::invalid_request(
-                        "Reason result exceeds the configured source-read byte limit",
-                        None,
-                    ));
-                }
-                let object = state
-                    .artifacts
-                    .get(&caller, &finding.results)
-                    .await
-                    .map_err(internal)?
-                    .ok_or_else(not_found)?;
-                if object.bytes.len() as u64 != before.metadata().byte_len
-                    || object.bytes.len() as u64 > state.max_inline_resource_bytes
-                {
-                    return Err(internal(
-                        "Reason result byte length differs from its metadata",
-                    ));
-                }
-                let results: ReasoningResults =
-                    serde_json::from_slice(&object.bytes).map_err(|_| {
-                        internal("Reason result does not satisfy the current result contract")
-                    })?;
-                // Recheck grants and Task retention after byte I/O. Conditional reads
+                // Recheck current access after metadata I/O. Conditional reads
                 // follow the same path and cannot reuse a revoked observation.
                 let current = state
                     .artifacts
@@ -156,7 +131,7 @@ pub(super) async fn read(
                 }
                 self::scope(&caller).map_err(internal)?;
                 let (text, observation) =
-                    summary::summarize(collection, &finding, &current, &results, Utc::now())
+                    summary::summarize(collection, &finding, &current, Utc::now())
                         .map_err(internal)?;
                 veoveo_mcp_knowledge_extension::server::member_result(
                     &uri,

@@ -8,7 +8,7 @@ use veoveo_platform_store::{
 };
 use veoveo_types::TaskTypeDefinition;
 
-use crate::contract::{AnalysisId, AnalyzeRecordingOutput, ModelId, PipelineId, ReasonTaskKind};
+use crate::contract::{AnalysisId, AnalyzeRecordingOutput, FindingData, ReasonTaskKind};
 pub mod observe;
 pub mod summary;
 
@@ -27,14 +27,13 @@ pub enum FindingSelection<'a> {
     Complete(&'a str),
 }
 
-/// Only identities and stored times leave the admitted Task row. Other output
+/// Bounded finding data leaves the admitted Task row with its identity. Other output
 /// Artifacts can have different grants and are not part of this read grant.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AdmittedFinding {
     pub position: FindingPosition,
     pub updated_at: DateTime<Utc>,
-    pub pipeline: PipelineId,
-    pub model: ModelId,
+    pub data: FindingData,
     pub results: ArtifactId,
     pub expires_at: Option<DateTime<Utc>>,
 }
@@ -101,8 +100,7 @@ pub async fn readable_findings(
                     analysis,
                 },
                 updated_at,
-                pipeline: output.pipeline_uri.id().clone(),
-                model: output.model_uri.id().clone(),
+                data: output.finding,
                 results: output.results_artifact.artifact_id(),
                 expires_at,
             })

@@ -37,7 +37,9 @@ appear in its public MCP identities.
   `ArtifactReadScope`; keep that predicate before SQL limits and output decoding.
   A result grant does not confer Task control or access to other output Artifacts.
   Finding observations use Artifact's access mapping and recheck source admission
-  after byte reads. Collection notifications cover every admitted member, including
+  after Artifact metadata reads. Capture checked `FindingData` before publishing
+  Artifacts and require it in successful Task outputs; summary reads never download
+  result bytes. Collection notifications cover every admitted member, including
   those beyond the first page, through the Store observer and SQL fingerprints.
   A lost member invalidates its previously admitted URI and collection before
   ending the subscription; it cannot continue observing inaccessible state.

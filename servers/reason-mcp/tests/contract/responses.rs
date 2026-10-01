@@ -11,10 +11,11 @@ pub(super) fn output(id: &str, pipeline: &str) -> AnalyzeRecordingOutput {
         "byte_len": 12,
         "created_at": "2026-09-28T00:00:00Z"
     });
+    let mut results = super::findings::fixture::results();
+    results.pipeline_id = PipelineId::parse(pipeline).unwrap();
     AnalyzeRecordingOutput::new(
         AnalysisId::parse(id).unwrap(),
-        PipelineId::parse(pipeline).unwrap(),
-        ModelId::parse("world-model").unwrap(),
+        FindingData::from_results(&results).unwrap(),
         ReasoningSummary {
             observed_frames: 10,
             event_count: 1,
@@ -215,4 +216,25 @@ fn recording_references_use_the_recording_owner_admission() {
         let error = serde_json::from_value::<AnalysisView>(invalid).unwrap_err();
         assert!(!error.to_string().contains(address));
     }
+}
+
+#[test]
+fn terminal_output_requires_current_finding_and_matching_model_identity() {
+    let wire = serde_json::to_value(output(ID, "traffic-events")).unwrap();
+    for (pointer, replacement) in [
+        ("/pipeline_uri", json!("reason://pipeline/other")),
+        ("/model_uri", json!("reason://model/other")),
+        ("/finding/pipeline_id", json!("other")),
+        ("/finding/model_id", json!("other")),
+    ] {
+        let mut corrupt = wire.clone();
+        *corrupt.pointer_mut(pointer).unwrap() = replacement;
+        assert!(
+            serde_json::from_value::<AnalyzeRecordingOutput>(corrupt).is_err(),
+            "{pointer}"
+        );
+    }
+    let mut missing = wire;
+    missing.as_object_mut().unwrap().remove("finding");
+    assert!(serde_json::from_value::<AnalyzeRecordingOutput>(missing).is_err());
 }

@@ -12,13 +12,7 @@ use veoveo_reason_mcp::{
 };
 use veoveo_types::{AccessLevel, AccessSubject, ResourceAddress};
 
-fn source() -> (
-    AdmittedFinding,
-    ArtifactMetadata,
-    Vec<Grant>,
-    ReasoningResults,
-    DateTime<Utc>,
-) {
+fn source() -> (AdmittedFinding, ArtifactMetadata, Vec<Grant>, DateTime<Utc>) {
     let time = "2026-10-01T00:00:00Z".parse().unwrap();
     let results = fixture::results();
     let analysis = "01983da0-0000-7000-8000-000000000010".parse().unwrap();
@@ -48,26 +42,23 @@ fn source() -> (
                 analysis,
             },
             updated_at: time,
-            pipeline: results.pipeline_id.clone(),
-            model: results.model_id.clone(),
+            data: FindingData::from_results(&results).unwrap(),
             results: artifact,
             expires_at: None,
         },
         metadata,
         grants,
-        results,
         time,
     )
 }
 
 #[test]
 fn findings_negotiate_conditions_and_access_changes_without_changing_content() {
-    let (mut finding, metadata, mut grants, results, time) = source();
+    let (mut finding, metadata, mut grants, time) = source();
     for kind in FindingCollection::ALL {
         let snapshot =
             ArtifactMetadataSnapshot::new(metadata.clone(), grants.clone(), time).unwrap();
-        let (text, observation) =
-            summary::summarize(kind, &finding, &snapshot, &results, time).unwrap();
+        let (text, observation) = summary::summarize(kind, &finding, &snapshot, time).unwrap();
         let uri = FindingResource::Member {
             collection: kind,
             analysis: finding.position.analysis,
@@ -123,7 +114,7 @@ fn findings_negotiate_conditions_and_access_changes_without_changing_content() {
         grant.retention_expires_at = Some(time + chrono::TimeDelta::hours(1));
         grants.push(grant);
         let shared = ArtifactMetadataSnapshot::new(metadata.clone(), grants.clone(), time).unwrap();
-        let (same, changed) = summary::summarize(kind, &finding, &shared, &results, time).unwrap();
+        let (same, changed) = summary::summarize(kind, &finding, &shared, time).unwrap();
         assert_eq!(same, text);
         assert_eq!(changed.content_sha256(), observation.content_sha256());
         assert_ne!(changed.revision(), observation.revision());
@@ -139,18 +130,11 @@ fn findings_negotiate_conditions_and_access_changes_without_changing_content() {
         assert_eq!(changed_result.contents.len(), 1);
         grants.pop();
         finding.expires_at = Some(time + chrono::TimeDelta::minutes(20));
-        let (_, retained) = summary::summarize(kind, &finding, &snapshot, &results, time).unwrap();
+        let (_, retained) = summary::summarize(kind, &finding, &snapshot, time).unwrap();
         assert_eq!(retained.access().unwrap().expires_at, finding.expires_at);
         assert_ne!(retained.revision(), observation.revision());
         assert!(
-            summary::summarize(
-                kind,
-                &finding,
-                &snapshot,
-                &results,
-                finding.expires_at.unwrap()
-            )
-            .is_err()
+            summary::summarize(kind, &finding, &snapshot, finding.expires_at.unwrap()).is_err()
         );
         finding.expires_at = None;
     }
@@ -158,7 +142,7 @@ fn findings_negotiate_conditions_and_access_changes_without_changing_content() {
 
 #[test]
 fn stored_results_must_agree_with_task_artifact_and_provenance() {
-    let (finding, metadata, grants, results, time) = source();
+    let (finding, metadata, grants, time) = source();
     for mutation in [
         "analysis_id",
         "model_id",
@@ -173,40 +157,12 @@ fn stored_results_must_agree_with_task_artifact_and_provenance() {
         };
         let snapshot = ArtifactMetadataSnapshot::new(corrupted, grants.clone(), time).unwrap();
         assert!(
-            summary::summarize(
-                FindingCollection::Results,
-                &finding,
-                &snapshot,
-                &results,
-                time
-            )
-            .is_err(),
+            summary::summarize(FindingCollection::Results, &finding, &snapshot, time).is_err(),
             "{mutation}"
         );
     }
     let snapshot = ArtifactMetadataSnapshot::new(metadata, grants, time).unwrap();
     let mut wrong = finding.clone();
     wrong.results = ArtifactId::new();
-    assert!(
-        summary::summarize(
-            FindingCollection::Results,
-            &wrong,
-            &snapshot,
-            &results,
-            time
-        )
-        .is_err()
-    );
-    let mut wrong = results;
-    wrong.schema = "unsupported".into();
-    assert!(
-        summary::summarize(
-            FindingCollection::Results,
-            &finding,
-            &snapshot,
-            &wrong,
-            time
-        )
-        .is_err()
-    );
+    assert!(summary::summarize(FindingCollection::Results, &wrong, &snapshot, time).is_err());
 }

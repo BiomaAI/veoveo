@@ -8,7 +8,7 @@ use veoveo_mcp_contract::{ArtifactWriteIdempotencyKey, IssuedArtifactWriteCapabi
 use veoveo_platform_store::{DomainUsageDraft, DomainUsageKind, OpenObject};
 use veoveo_reason_mcp::{
     annotation::{MP4_MIME_TYPE, RESULTS_MIME_TYPE, RRD_MIME_TYPE},
-    contract::{AnalyzeRecordingOutput, ReasoningResults, ReasoningSummary},
+    contract::{AnalyzeRecordingOutput, FindingData, ReasoningResults, ReasoningSummary},
 };
 use veoveo_recording_video::runtime::MaterializedVideo;
 use veoveo_types::DataLabelId;
@@ -28,6 +28,7 @@ pub(super) async fn publish_analysis(
     task_id: AnalysisId,
     products: AnalysisProducts,
 ) -> Result<CallToolResult> {
+    let finding = FindingData::from_results(&products.results)?;
     let compliance = compliance(&products.source.classification, &products.source.labels)?;
     let source_snapshot_sha256 = products.results.source_snapshot.digest_sha256()?;
     let results_bytes = serde_json::to_vec_pretty(&products.results)?;
@@ -97,8 +98,7 @@ pub(super) async fn publish_analysis(
     let event_count = products.results.answer.event_count();
     let output = AnalyzeRecordingOutput::new(
         task_id,
-        products.results.pipeline_id.clone(),
-        products.results.model_id.clone(),
+        finding,
         ReasoningSummary {
             observed_frames: products.results.observed_frames,
             event_count,

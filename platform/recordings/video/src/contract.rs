@@ -22,7 +22,7 @@ pub struct RecordingVideoSelection {
     pub range: IndexRange,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct IndexRange {
     pub start: i64,

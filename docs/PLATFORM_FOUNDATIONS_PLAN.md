@@ -33,8 +33,8 @@ native and public installed checks. Indexing audit windows commit before deliver
 recover across writer restarts in native tests, and finalize in the reference installation
 with a verified signed audit chain. Domain retrieval evaluation, installed source
 mutation/restart qualification remain open. Reason's completed analyses and results
-pass native Artifact access, pagination and hosted K01–K07 checks. Retaining bounded
-finding data at publication and reference source adoption remain open.
+pass native Artifact access, pagination and hosted K01–K07 checks. Publication retains
+bounded finding data; reference source adoption and installed acceptance remain open.
 The gateway source adapter discovers approved
 collections and waits for catalog/resource observation readiness before reading.
 The library coordinator qualifies lease renewal, source invalidation, conditional
@@ -3940,7 +3940,7 @@ Artifact's lightweight `knowledge` feature owns access-descriptor conversion wit
 bringing its service or transport into consumers.
 
 Member reads check stored result provenance and recheck Task and Artifact access after
-byte I/O, including conditional reads. Revisions cover both summary bytes and access.
+metadata I/O, including conditional reads. Revisions cover both summary bytes and access.
 A process-wide Store observer wakes listener-specific SQL fingerprints over every
 admitted finding, including members outside the first page. Grant and retention
 deadlines participate in wakeups. These handlers require hosted stream qualification,
@@ -3974,8 +3974,18 @@ Revisions cover both the returned summary and access descriptor, and grant mutat
 change them through the public HTTP path. The source listens to Task, occurrence and
 grant tables; the gateway owns caller authentication and the source checks token expiry.
 Reference approvals, installed source acceptance and retrieval evaluation remain open.
-The current member reader also fetches result bytes under the inline byte ceiling;
-publication must retain the bounded finding data before admitting larger result Artifacts.
+
+Bounded finding publication (2026-10-01): `FindingData` captures the task, truncated
+answer or events, recording grounding and model provenance before Artifact publication.
+Successful Task outputs require that checked value and derive model and pipeline
+addresses from it. Missing findings or conflicting identities fail decoding; no old
+output adapter is provided. Summary reads use the stored finding and current Artifact
+access snapshots without downloading result bytes. The hosted fixture reads both
+collections for a 1.2 MB result above its 1 MiB inline limit and asserts zero content
+downloads across conformance, sharing, revocation, expiry and large-result reads.
+The owning design declares the coordinated Reason admission/indexing drain and reset
+of disposable Task/index state before installing the required output field. All 62
+Reason tests and the isolated consumer's 24 contract cases pass.
 
 Adopt Reason's completed analyses and results so users can find earlier findings and
 read their grounding without rerunning inference. Observations carry stored owner,
@@ -4036,7 +4046,6 @@ not complete while a row remains.
 
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
-| Phase 9 bounded finding persistence | `servers/reason-mcp/src/bin/server/knowledge.rs` | Retain bounded finding data at publication and read it without fetching the full result Artifact | The hosted source passes medium-size result fixtures, but its inline byte ceiling excludes larger valid results; this must be resolved before source rollout |
 | Phase 3 Task result installation | `platform/task-runtime/DESIGN.md` | Qualify cross-replica delivery of the installed shared result envelope and event schema 3 | The fresh Store and linked Stream/Reason result acceptance pass; multiple installed replicas still need qualification |
 | Phase 3 final server library gates | `servers/artifact-mcp/DESIGN.md` | Finish installed Artifact sharing and Computers hosted feature qualification | Publication, all hosted catalogs, public full/HEAD/range Artifact delivery and headed Speech CUDA transcription/dictation pass at `5dd357c4`; the remaining domain assertions join composed acceptance |
 | Phase 1 reference reset | `testing/flight-smoke/src/domain.rs` | Finish composed visual and timing acceptance | The composed flight domain sequence passes at `442ba70b`, including Recording, replay, Reason and cross-context denial. The subsequent visual stage rejects a black live-camera App frame and still requires diagnosis and qualification |

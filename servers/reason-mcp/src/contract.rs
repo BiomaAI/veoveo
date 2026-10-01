@@ -15,9 +15,11 @@ mod resources;
 mod scopes;
 mod subscriptions;
 pub use artifact_provenance::{ReasonArtifactMetadata, ReasonArtifactProvenance, ReasoningKind};
+mod finding_data;
 mod finding_summary;
 mod findings;
 pub use cursor::AnalysisCursor;
+pub use finding_data::{FINDING_DATA_BYTES, FindingAnswer, FindingData};
 pub use finding_summary::{
     FINDING_SUMMARY_BYTES, FindingContent, FindingEvent, FindingExcerpt, FindingSummary,
 };
@@ -40,6 +42,8 @@ pub use veoveo_recording_video::contract::{
     RecordingVideoSelection, VideoTimelineKind,
 };
 
+pub const REASONING_RESULTS_SCHEMA: &str = "veoveo.reason-results/v1";
+
 pub const MAX_PROMPT_BYTES: usize = 8_192;
 pub const MAX_OBSERVATION_FRAMES: u32 = 1_024;
 
@@ -60,7 +64,7 @@ pub struct AnalyzeRecordingRequest {
 }
 
 /// One typed reasoning task over the selected video range.
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ReasoningTask {
     /// Describe what happens in the selected range.

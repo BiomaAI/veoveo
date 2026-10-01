@@ -1,4 +1,4 @@
-//! Source bytes, recorded provenance and Artifact-owned access form one finding.
+//! Retained findings, recorded provenance and Artifact-owned access form one finding.
 use super::AdmittedFinding;
 use crate::contract::*;
 use anyhow::{Result, ensure};
@@ -33,21 +33,13 @@ pub fn summarize(
     kind: FindingCollection,
     finding: &AdmittedFinding,
     snapshot: &ArtifactMetadataSnapshot,
-    results: &ReasoningResults,
     observed_at: DateTime<Utc>,
 ) -> Result<(String, Observation)> {
     ensure!(
         snapshot.metadata().artifact_id() == finding.results,
         "finding Artifact changed"
     );
-    ensure!(
-        results.schema == crate::executor::REASONING_RESULTS_SCHEMA,
-        "unsupported Reason result schema"
-    );
-    ensure!(
-        results.pipeline_id == finding.pipeline && results.model_id == finding.model,
-        "finding result disagrees with Task output"
-    );
+    let data = &finding.data;
     let metadata: ReasonArtifactMetadata =
         serde_json::from_value(snapshot.metadata().metadata.clone())?;
     let ReasonArtifactProvenance::Results {
@@ -64,12 +56,12 @@ pub fn summarize(
     };
     ensure!(
         analysis_id == finding.position.analysis
-            && recording_id == results.recording_uri.id()
-            && pipeline_id == results.pipeline_id
-            && model_id == results.model_id
-            && prompt_revision == results.prompt_revision
-            && task_kind == ReasoningKind::from(&results.task)
-            && source_snapshot_sha256 == results.source_snapshot.digest_sha256()?,
+            && recording_id == data.recording_uri().id()
+            && &pipeline_id == data.pipeline_id()
+            && &model_id == data.model_id()
+            && prompt_revision == data.prompt_revision()
+            && task_kind == ReasoningKind::from(data.task())
+            && &source_snapshot_sha256 == data.source_snapshot_sha256(),
         "finding provenance disagrees with its result"
     );
     let mut access = veoveo_artifact_mcp::knowledge::access_descriptor(snapshot)?;
@@ -90,7 +82,7 @@ pub fn summarize(
         finding.results,
         finding.position.created_at,
         finding.updated_at,
-        results,
+        data,
     )?)?;
     let descriptor = collection(kind);
     let revision = content_digest(&serde_json::to_string(&(&text, &access))?);

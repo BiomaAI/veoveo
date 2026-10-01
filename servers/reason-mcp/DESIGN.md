@@ -120,14 +120,15 @@ model, recorded model digest, prompt revision, decode policy and confidence basi
 The full result link uses the Artifact owner's URI builder. A summary occupies at
 most 64 KiB. Answer excerpts stop at a UTF-8 boundary within 4096 bytes. Event
 summaries include at most eight events and declare the total and any omissions;
-shortened descriptions also declare truncation. The source read honors the configured
-`max_inline_resource_bytes` ceiling, which defaults to 16 MiB. Larger retained result
-Artifacts require the byte-access route; a summary read fails with a size diagnostic.
+shortened descriptions also declare truncation. Publication captures checked `FindingData`
+in the successful Task output before writing any Artifacts. Its 60 KiB limit leaves
+space for member addresses and timestamps. Summary reads use that retained content
+and never download the full result Artifact; result size does not constrain discovery.
 
 Publication and retrieval share `ReasonArtifactMetadata` and its typed provenance
-variants. A member read checks the result against its Task and stored Artifact
-provenance, then rechecks both Task admission and Artifact metadata after fetching
-bytes. An access change during the read requires a retry. Artifact's lightweight
+variants. A member read checks the retained finding against stored Artifact
+provenance, then rechecks both Task admission and Artifact metadata after service I/O.
+An access change during the read requires a retry. Artifact's lightweight
 `knowledge` feature owns conversion of its service snapshot into the access descriptor.
 Reason limits that descriptor's retention to the Task's retention as well.
 
@@ -228,7 +229,7 @@ parser. The server fetches that Artifact with the caller's authority at submissi
 and checks both the reported size and returned bytes against its configured limit.
 It decodes the complete Stream replay result and runs the producer-owned validation.
 The recording, entity and timeline must match the requested video, and the replay
-range must cover the requested range. Admission caps the whole document at 100,000
+range must cover the requested range. Admission caps the complete result at 100,000
 detections and selects only frames inside the requested range. Reason owns the
 resulting subset; the runner may cite only track IDs present in that subset.
 
@@ -411,10 +412,11 @@ servers and consumers. Rebuild the disposable reference data for installation ch
 
 `AnalyzeRecordingOutput` publishes `veoveo.ai/reason-analysis/v1`. Its `result_uri`
 identifies `reason://analysis/{analysis_id}/results`, whose authorized reader returns
-the immutable reasoning result document. The adjacent content says `Analysis completed.`
+the immutable reasoning result. The adjacent content says `Analysis completed.`
 and links that resource once. Structured content carries the analysis address, model,
-pipeline, summary and Artifact descriptors. The result builder derives the product
-address from the same analysis identity as the parent address.
+pipeline, completion metrics, required `FindingData` and Artifact descriptors. The
+result builder derives the product address from the same analysis identity as the parent address. Pipeline and model
+addresses derive from the checked finding; decoding rejects mismatched identities.
 
 Task reads and subscriptions authorize through the shared SQL owner read before
 decoding the request or output. A completed result must match the native Task ID and
@@ -426,6 +428,11 @@ The producer constructs terminal success through one result builder. Authorized 
 and subscription reconnects deliver the stored current result without rewriting it.
 Task recovery reuses the current request, validated grounding subset and issued
 capabilities. There are no readers or migrations for historical result formats.
+The finding requirement ships through a coordinated installation drain: stop Reason
+Task admission and indexing, settle or cancel running analyses, discard disposable
+Reason Tasks and their derived knowledge indexes, then install producers and consumers
+together before reopening admission. Old Task outputs fail validation. Full result
+Artifacts keep their existing format and access policy.
 
 The installed smoke imports Reason's contract-only library and checks the completion,
 status text and product link. It reads that link through MCP and verifies the typed
@@ -438,7 +445,7 @@ Analysis publishes immutable occurrences through the shared artifact plane:
 typed JSON results, a Rerun annotation layer, and optionally the remuxed
 source clip. The annotation layer places each detected event on the source
 timeline as a text log entry and records the full provenance block as a
-static document, so events appear in the console viewer beside Stream
+static annotation, so events appear in the console viewer beside Stream
 bounding boxes. Large bytes are never returned inline; oversized occurrences
 use the governed artifact download path.
 
@@ -495,7 +502,7 @@ Implemented crate tests cover:
 - typed runner request construction and source-index preservation
 - rejection of runner responses whose kind, order, range, or size violates
   the contract
-- grounding subset extraction from a perception results document
+- grounding subset extraction from a perception result
 
 The GPU smoke is a Rust scenario over the production service boundaries,
 mirroring the perception smoke: real H.264 ingress through Recording Hub,

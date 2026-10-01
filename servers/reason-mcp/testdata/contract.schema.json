@@ -1118,6 +1118,9 @@
       },
       "schema": {
         "$ref": "#/$defs/AnalysisOutputSchema"
+      },
+      "finding": {
+        "$ref": "#/$defs/FindingData"
       }
     },
     "required": [
@@ -1127,6 +1130,7 @@
       "pipeline_uri",
       "model_uri",
       "summary",
+      "finding",
       "results_artifact",
       "annotations_artifact"
     ],
@@ -1493,6 +1497,327 @@
           "veoveo.ai/reason-analysis/v1"
         ],
         "type": "string"
+      },
+      "ConfidenceBasis": {
+        "description": "Confidence provenance of a reasoning result. Reasoning output is\nmodel-reported and never calibrated detector output.",
+        "enum": [
+          "model_reported"
+        ],
+        "type": "string"
+      },
+      "DecodePolicy": {
+        "description": "Decode parameters. Greedy decoding is the deterministic default; sampled\ndecoding is opt-in and its parameters are recorded in the result.",
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "mode": {
+                "const": "greedy",
+                "type": "string"
+              }
+            },
+            "required": [
+              "mode"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "mode": {
+                "const": "sampled",
+                "type": "string"
+              },
+              "seed": {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "temperature": {
+                "format": "float",
+                "type": "number"
+              },
+              "top_p": {
+                "format": "float",
+                "type": "number"
+              }
+            },
+            "required": [
+              "mode",
+              "temperature",
+              "top_p",
+              "seed"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "FindingAnswer": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "excerpt": {
+                "$ref": "#/$defs/FindingExcerpt"
+              },
+              "kind": {
+                "const": "description",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "excerpt"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "excerpt": {
+                "$ref": "#/$defs/FindingExcerpt"
+              },
+              "kind": {
+                "const": "answer",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "excerpt"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "events": {
+                "items": {
+                  "$ref": "#/$defs/FindingEvent"
+                },
+                "type": "array"
+              },
+              "kind": {
+                "const": "events",
+                "type": "string"
+              },
+              "total": {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "truncated": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "events",
+              "total",
+              "truncated"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "FindingData": {
+        "additionalProperties": false,
+        "properties": {
+          "answer": {
+            "$ref": "#/$defs/FindingAnswer"
+          },
+          "confidence_basis": {
+            "$ref": "#/$defs/ConfidenceBasis"
+          },
+          "decode": {
+            "$ref": "#/$defs/DecodePolicy"
+          },
+          "entity_path": {
+            "type": "string"
+          },
+          "model_digest": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model_id": {
+            "type": "string"
+          },
+          "pipeline_id": {
+            "type": "string"
+          },
+          "prompt_revision": {
+            "type": "string"
+          },
+          "recording_uri": {
+            "type": "string"
+          },
+          "requested_range": {
+            "$ref": "#/$defs/IndexRange"
+          },
+          "source_snapshot_sha256": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "task": {
+            "$ref": "#/$defs/ReasoningTask"
+          },
+          "timeline": {
+            "type": "string"
+          },
+          "timeline_kind": {
+            "$ref": "#/$defs/VideoTimelineKind"
+          }
+        },
+        "required": [
+          "pipeline_id",
+          "model_id",
+          "prompt_revision",
+          "decode",
+          "confidence_basis",
+          "recording_uri",
+          "entity_path",
+          "timeline",
+          "timeline_kind",
+          "requested_range",
+          "source_snapshot_sha256",
+          "task",
+          "answer"
+        ],
+        "type": "object"
+      },
+      "FindingEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "$ref": "#/$defs/FindingExcerpt"
+          },
+          "label": {
+            "$ref": "#/$defs/FindingExcerpt"
+          },
+          "range": {
+            "$ref": "#/$defs/IndexRange"
+          },
+          "track_ids": {
+            "items": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "range",
+          "label",
+          "description",
+          "track_ids"
+        ],
+        "type": "object"
+      },
+      "FindingExcerpt": {
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "text",
+          "truncated"
+        ],
+        "type": "object"
+      },
+      "IndexRange": {
+        "additionalProperties": false,
+        "properties": {
+          "end": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "start": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ],
+        "type": "object"
+      },
+      "ReasoningTask": {
+        "description": "One typed reasoning task over the selected video range.",
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "description": "Describe what happens in the selected range.",
+            "properties": {
+              "kind": {
+                "const": "describe_segment",
+                "type": "string"
+              },
+              "prompt": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Detect events matching the prompt inside the selected range.",
+            "properties": {
+              "kind": {
+                "const": "detect_events",
+                "type": "string"
+              },
+              "prompt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "prompt"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Answer one question about the selected range.",
+            "properties": {
+              "kind": {
+                "const": "answer_question",
+                "type": "string"
+              },
+              "question": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "question"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "VideoTimelineKind": {
+        "description": "Timeline kinds a remuxed clip can preserve. Sequence timelines carry no\nmedia time and are rejected at materialization mapping.",
+        "enum": [
+          "duration_nanoseconds",
+          "timestamp_nanoseconds"
+        ],
+        "type": "string"
       }
     },
     "additionalProperties": false
@@ -1771,6 +2096,9 @@
           },
           "schema": {
             "$ref": "#/$defs/AnalysisOutputSchema"
+          },
+          "finding": {
+            "$ref": "#/$defs/FindingData"
           }
         },
         "required": [
@@ -1780,6 +2108,7 @@
           "pipeline_uri",
           "model_uri",
           "summary",
+          "finding",
           "results_artifact",
           "annotations_artifact"
         ],
@@ -2147,6 +2476,327 @@
           "veoveo.ai/reason-analysis/v1"
         ],
         "type": "string"
+      },
+      "ConfidenceBasis": {
+        "description": "Confidence provenance of a reasoning result. Reasoning output is\nmodel-reported and never calibrated detector output.",
+        "enum": [
+          "model_reported"
+        ],
+        "type": "string"
+      },
+      "DecodePolicy": {
+        "description": "Decode parameters. Greedy decoding is the deterministic default; sampled\ndecoding is opt-in and its parameters are recorded in the result.",
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "mode": {
+                "const": "greedy",
+                "type": "string"
+              }
+            },
+            "required": [
+              "mode"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "mode": {
+                "const": "sampled",
+                "type": "string"
+              },
+              "seed": {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "temperature": {
+                "format": "float",
+                "type": "number"
+              },
+              "top_p": {
+                "format": "float",
+                "type": "number"
+              }
+            },
+            "required": [
+              "mode",
+              "temperature",
+              "top_p",
+              "seed"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "FindingAnswer": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "excerpt": {
+                "$ref": "#/$defs/FindingExcerpt"
+              },
+              "kind": {
+                "const": "description",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "excerpt"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "excerpt": {
+                "$ref": "#/$defs/FindingExcerpt"
+              },
+              "kind": {
+                "const": "answer",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "excerpt"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "events": {
+                "items": {
+                  "$ref": "#/$defs/FindingEvent"
+                },
+                "type": "array"
+              },
+              "kind": {
+                "const": "events",
+                "type": "string"
+              },
+              "total": {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "truncated": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "events",
+              "total",
+              "truncated"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "FindingData": {
+        "additionalProperties": false,
+        "properties": {
+          "answer": {
+            "$ref": "#/$defs/FindingAnswer"
+          },
+          "confidence_basis": {
+            "$ref": "#/$defs/ConfidenceBasis"
+          },
+          "decode": {
+            "$ref": "#/$defs/DecodePolicy"
+          },
+          "entity_path": {
+            "type": "string"
+          },
+          "model_digest": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model_id": {
+            "type": "string"
+          },
+          "pipeline_id": {
+            "type": "string"
+          },
+          "prompt_revision": {
+            "type": "string"
+          },
+          "recording_uri": {
+            "type": "string"
+          },
+          "requested_range": {
+            "$ref": "#/$defs/IndexRange"
+          },
+          "source_snapshot_sha256": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "task": {
+            "$ref": "#/$defs/ReasoningTask"
+          },
+          "timeline": {
+            "type": "string"
+          },
+          "timeline_kind": {
+            "$ref": "#/$defs/VideoTimelineKind"
+          }
+        },
+        "required": [
+          "pipeline_id",
+          "model_id",
+          "prompt_revision",
+          "decode",
+          "confidence_basis",
+          "recording_uri",
+          "entity_path",
+          "timeline",
+          "timeline_kind",
+          "requested_range",
+          "source_snapshot_sha256",
+          "task",
+          "answer"
+        ],
+        "type": "object"
+      },
+      "FindingEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "$ref": "#/$defs/FindingExcerpt"
+          },
+          "label": {
+            "$ref": "#/$defs/FindingExcerpt"
+          },
+          "range": {
+            "$ref": "#/$defs/IndexRange"
+          },
+          "track_ids": {
+            "items": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "range",
+          "label",
+          "description",
+          "track_ids"
+        ],
+        "type": "object"
+      },
+      "FindingExcerpt": {
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "text",
+          "truncated"
+        ],
+        "type": "object"
+      },
+      "IndexRange": {
+        "additionalProperties": false,
+        "properties": {
+          "end": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "start": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ],
+        "type": "object"
+      },
+      "ReasoningTask": {
+        "description": "One typed reasoning task over the selected video range.",
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "description": "Describe what happens in the selected range.",
+            "properties": {
+              "kind": {
+                "const": "describe_segment",
+                "type": "string"
+              },
+              "prompt": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Detect events matching the prompt inside the selected range.",
+            "properties": {
+              "kind": {
+                "const": "detect_events",
+                "type": "string"
+              },
+              "prompt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "prompt"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Answer one question about the selected range.",
+            "properties": {
+              "kind": {
+                "const": "answer_question",
+                "type": "string"
+              },
+              "question": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "question"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "VideoTimelineKind": {
+        "description": "Timeline kinds a remuxed clip can preserve. Sequence timelines carry no\nmedia time and are rejected at materialization mapping.",
+        "enum": [
+          "duration_nanoseconds",
+          "timestamp_nanoseconds"
+        ],
+        "type": "string"
       }
     }
   },
@@ -2391,5 +3041,694 @@
       "duration_nanoseconds",
       "timestamp_nanoseconds"
     ]
+  },
+  "FindingData": {
+    "$defs": {
+      "ConfidenceBasis": {
+        "description": "Confidence provenance of a reasoning result. Reasoning output is\nmodel-reported and never calibrated detector output.",
+        "enum": [
+          "model_reported"
+        ],
+        "type": "string"
+      },
+      "DecodePolicy": {
+        "description": "Decode parameters. Greedy decoding is the deterministic default; sampled\ndecoding is opt-in and its parameters are recorded in the result.",
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "mode": {
+                "const": "greedy",
+                "type": "string"
+              }
+            },
+            "required": [
+              "mode"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "mode": {
+                "const": "sampled",
+                "type": "string"
+              },
+              "seed": {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "temperature": {
+                "format": "float",
+                "type": "number"
+              },
+              "top_p": {
+                "format": "float",
+                "type": "number"
+              }
+            },
+            "required": [
+              "mode",
+              "temperature",
+              "top_p",
+              "seed"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "FindingAnswer": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "excerpt": {
+                "$ref": "#/$defs/FindingExcerpt"
+              },
+              "kind": {
+                "const": "description",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "excerpt"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "excerpt": {
+                "$ref": "#/$defs/FindingExcerpt"
+              },
+              "kind": {
+                "const": "answer",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "excerpt"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "events": {
+                "items": {
+                  "$ref": "#/$defs/FindingEvent"
+                },
+                "type": "array"
+              },
+              "kind": {
+                "const": "events",
+                "type": "string"
+              },
+              "total": {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "truncated": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "events",
+              "total",
+              "truncated"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "FindingEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "$ref": "#/$defs/FindingExcerpt"
+          },
+          "label": {
+            "$ref": "#/$defs/FindingExcerpt"
+          },
+          "range": {
+            "$ref": "#/$defs/IndexRange"
+          },
+          "track_ids": {
+            "items": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "range",
+          "label",
+          "description",
+          "track_ids"
+        ],
+        "type": "object"
+      },
+      "FindingExcerpt": {
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "text",
+          "truncated"
+        ],
+        "type": "object"
+      },
+      "IndexRange": {
+        "additionalProperties": false,
+        "properties": {
+          "end": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "start": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ],
+        "type": "object"
+      },
+      "ReasoningTask": {
+        "description": "One typed reasoning task over the selected video range.",
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "description": "Describe what happens in the selected range.",
+            "properties": {
+              "kind": {
+                "const": "describe_segment",
+                "type": "string"
+              },
+              "prompt": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Detect events matching the prompt inside the selected range.",
+            "properties": {
+              "kind": {
+                "const": "detect_events",
+                "type": "string"
+              },
+              "prompt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "prompt"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Answer one question about the selected range.",
+            "properties": {
+              "kind": {
+                "const": "answer_question",
+                "type": "string"
+              },
+              "question": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "question"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "VideoTimelineKind": {
+        "description": "Timeline kinds a remuxed clip can preserve. Sequence timelines carry no\nmedia time and are rejected at materialization mapping.",
+        "enum": [
+          "duration_nanoseconds",
+          "timestamp_nanoseconds"
+        ],
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "answer": {
+        "$ref": "#/$defs/FindingAnswer"
+      },
+      "confidence_basis": {
+        "$ref": "#/$defs/ConfidenceBasis"
+      },
+      "decode": {
+        "$ref": "#/$defs/DecodePolicy"
+      },
+      "entity_path": {
+        "type": "string"
+      },
+      "model_digest": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "model_id": {
+        "type": "string"
+      },
+      "pipeline_id": {
+        "type": "string"
+      },
+      "prompt_revision": {
+        "type": "string"
+      },
+      "recording_uri": {
+        "type": "string"
+      },
+      "requested_range": {
+        "$ref": "#/$defs/IndexRange"
+      },
+      "source_snapshot_sha256": {
+        "pattern": "^sha256:[0-9a-f]{64}$",
+        "type": "string"
+      },
+      "task": {
+        "$ref": "#/$defs/ReasoningTask"
+      },
+      "timeline": {
+        "type": "string"
+      },
+      "timeline_kind": {
+        "$ref": "#/$defs/VideoTimelineKind"
+      }
+    },
+    "required": [
+      "pipeline_id",
+      "model_id",
+      "prompt_revision",
+      "decode",
+      "confidence_basis",
+      "recording_uri",
+      "entity_path",
+      "timeline",
+      "timeline_kind",
+      "requested_range",
+      "source_snapshot_sha256",
+      "task",
+      "answer"
+    ],
+    "title": "FindingData",
+    "type": "object"
+  },
+  "FindingSummary": {
+    "$defs": {
+      "ArtifactUri": {
+        "description": "Neutral or server-presented Artifact occurrence URI.",
+        "type": "string"
+      },
+      "ConfidenceBasis": {
+        "description": "Confidence provenance of a reasoning result. Reasoning output is\nmodel-reported and never calibrated detector output.",
+        "enum": [
+          "model_reported"
+        ],
+        "type": "string"
+      },
+      "DecodePolicy": {
+        "description": "Decode parameters. Greedy decoding is the deterministic default; sampled\ndecoding is opt-in and its parameters are recorded in the result.",
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "mode": {
+                "const": "greedy",
+                "type": "string"
+              }
+            },
+            "required": [
+              "mode"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "mode": {
+                "const": "sampled",
+                "type": "string"
+              },
+              "seed": {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "temperature": {
+                "format": "float",
+                "type": "number"
+              },
+              "top_p": {
+                "format": "float",
+                "type": "number"
+              }
+            },
+            "required": [
+              "mode",
+              "temperature",
+              "top_p",
+              "seed"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "FindingContent": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "analysis",
+                "type": "string"
+              },
+              "task": {
+                "$ref": "#/$defs/ReasoningTask"
+              }
+            },
+            "required": [
+              "kind",
+              "task"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "excerpt": {
+                "$ref": "#/$defs/FindingExcerpt"
+              },
+              "kind": {
+                "const": "description",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "excerpt"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "excerpt": {
+                "$ref": "#/$defs/FindingExcerpt"
+              },
+              "kind": {
+                "const": "answer",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "excerpt"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "events": {
+                "items": {
+                  "$ref": "#/$defs/FindingEvent"
+                },
+                "type": "array"
+              },
+              "kind": {
+                "const": "events",
+                "type": "string"
+              },
+              "total": {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "truncated": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "events",
+              "total",
+              "truncated"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "FindingEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "$ref": "#/$defs/FindingExcerpt"
+          },
+          "label": {
+            "$ref": "#/$defs/FindingExcerpt"
+          },
+          "range": {
+            "$ref": "#/$defs/IndexRange"
+          },
+          "track_ids": {
+            "items": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "range",
+          "label",
+          "description",
+          "track_ids"
+        ],
+        "type": "object"
+      },
+      "FindingExcerpt": {
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "text",
+          "truncated"
+        ],
+        "type": "object"
+      },
+      "IndexRange": {
+        "additionalProperties": false,
+        "properties": {
+          "end": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "start": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ],
+        "type": "object"
+      },
+      "ReasoningTask": {
+        "description": "One typed reasoning task over the selected video range.",
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "description": "Describe what happens in the selected range.",
+            "properties": {
+              "kind": {
+                "const": "describe_segment",
+                "type": "string"
+              },
+              "prompt": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Detect events matching the prompt inside the selected range.",
+            "properties": {
+              "kind": {
+                "const": "detect_events",
+                "type": "string"
+              },
+              "prompt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "prompt"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Answer one question about the selected range.",
+            "properties": {
+              "kind": {
+                "const": "answer_question",
+                "type": "string"
+              },
+              "question": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "question"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "VideoTimelineKind": {
+        "description": "Timeline kinds a remuxed clip can preserve. Sequence timelines carry no\nmedia time and are rejected at materialization mapping.",
+        "enum": [
+          "duration_nanoseconds",
+          "timestamp_nanoseconds"
+        ],
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "analysis_id": {
+        "type": "string"
+      },
+      "confidence_basis": {
+        "$ref": "#/$defs/ConfidenceBasis"
+      },
+      "content": {
+        "$ref": "#/$defs/FindingContent"
+      },
+      "created_at": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "decode": {
+        "$ref": "#/$defs/DecodePolicy"
+      },
+      "entity_path": {
+        "type": "string"
+      },
+      "model_digest": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "model_id": {
+        "type": "string"
+      },
+      "modified_at": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "pipeline_id": {
+        "type": "string"
+      },
+      "prompt_revision": {
+        "type": "string"
+      },
+      "recording_uri": {
+        "type": "string"
+      },
+      "requested_range": {
+        "$ref": "#/$defs/IndexRange"
+      },
+      "result_artifact": {
+        "$ref": "#/$defs/ArtifactUri"
+      },
+      "source_snapshot_sha256": {
+        "pattern": "^sha256:[0-9a-f]{64}$",
+        "type": "string"
+      },
+      "timeline": {
+        "type": "string"
+      },
+      "timeline_kind": {
+        "$ref": "#/$defs/VideoTimelineKind"
+      },
+      "uri": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "uri",
+      "analysis_id",
+      "result_artifact",
+      "created_at",
+      "modified_at",
+      "pipeline_id",
+      "model_id",
+      "prompt_revision",
+      "decode",
+      "confidence_basis",
+      "recording_uri",
+      "entity_path",
+      "timeline",
+      "timeline_kind",
+      "requested_range",
+      "source_snapshot_sha256",
+      "content"
+    ],
+    "title": "FindingSummary",
+    "type": "object"
   }
 }
