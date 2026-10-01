@@ -12,6 +12,11 @@ pub struct ArtifactReadScope {
 }
 
 impl ArtifactReadScope {
+    /// Artifact-owned SQL predicate for the `artifact_occurrence` row in scope.
+    /// Use inside that table's WHERE clause, before projection and pagination.
+    /// Bind its parameters with `bind`; consumers must not copy the policy.
+    pub const ADMISSION: &'static str = include_str!("read_admission.surql");
+
     pub fn new(
         identity: &PlatformIdentity,
         groups: impl IntoIterator<Item = GroupKey>,
@@ -34,6 +39,28 @@ impl ArtifactReadScope {
                 .transpose()?,
             context_key: context,
         })
+    }
+
+    /// Bind one checked caller scope to an Artifact query or an admitting subquery.
+    pub fn bind<'a, C: surrealdb::Connection>(
+        &self,
+        query: surrealdb::method::Query<'a, C>,
+    ) -> surrealdb::method::Query<'a, C> {
+        query
+            .bind(("tenant", self.tenant.record_id()))
+            .bind(("subjects", self.subjects.clone()))
+            .bind((
+                "clearance",
+                self.clearance
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>(),
+            ))
+            .bind(("context", self.context.map(|id| id.record_id())))
+            .bind((
+                "context_key",
+                self.context_key.as_ref().map(ToString::to_string),
+            ))
     }
 }
 
@@ -65,21 +92,13 @@ impl PlatformStore {
         cursor: Option<ArtifactId>,
         limit: usize,
     ) -> Result<Vec<ArtifactAggregate>, StoreError> {
-        let mut response = self
-            .db
-            .query(include_str!("read_page.surql"))
-            .bind(("tenant", scope.tenant.record_id()))
-            .bind(("subjects", scope.subjects))
-            .bind((
-                "clearance",
-                scope
-                    .clearance
-                    .into_iter()
-                    .map(String::from)
-                    .collect::<Vec<_>>(),
-            ))
-            .bind(("context", scope.context.map(|id| id.record_id())))
-            .bind(("context_key", scope.context_key.map(String::from)))
+        let mut response = scope
+            .bind(
+                self.db.query(
+                    include_str!("read_page.surql")
+                        .replace("{{ADMISSION}}", ArtifactReadScope::ADMISSION),
+                ),
+            )
             .bind(("artifact", artifact.map(|id| id.record_id())))
             .bind(("cursor", cursor.map(|id| id.record_id())))
             .bind(("limit", i64::try_from(limit.min(101)).unwrap()))

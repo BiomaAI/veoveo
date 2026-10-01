@@ -546,7 +546,7 @@ Domain runtimes can own private queries and driver records over these connection
 | `identity.rs`, `identity/ensure.surql` | tenant/principal/group resolution; transactional identity creation and presentation-only principal updates that preserve current disablement and security fields |
 | `gateway_runtime.rs` | control revisions, auth state, refresh/JWT runtime records |
 | `artifacts.rs` | blob, occurrence, grant, share, capability transactions |
-| `artifacts/reads.rs` and `artifacts/read_page.surql` | typed Artifact exact metadata and discovery admission in one database statement: tenant, clearance, retention, selected Work Context and live grants before decoding and page limits |
+| `artifacts/reads.rs`, `artifacts/read_admission.surql` and `artifacts/read_page.surql` | typed Artifact exact metadata and discovery admission; shared predicate and scope bindings let domain readers join readable results before decoding and page limits |
 | `artifacts/publication.rs` and `artifacts/register.surql` | shared typed publication content and transactional occurrence and grant registration with immutable tenant/digest blob reuse |
 | `artifact_uploads.rs` and `artifact_uploads/` | typed upload ledger, policy-bound idempotent admission, and atomic tenant reservations |
 | `artifact_uploads/parts.rs` and its SurrealQL statements | immutable part descriptors, generation-fenced receipts, shared transfer budgets, and unknown-length reservation windows |
@@ -1298,6 +1298,7 @@ depend on Recording Hub.
 | `src/grounding.rs`, `tests/contract/grounding.rs` | contract-only consumption of Stream's complete replay model, matching video selection and extraction of selected track citations |
 | `src/annotation.rs` | derived Rerun provenance and event annotation layers |
 | `src/artifacts.rs` | shared artifact-plane adapter |
+| `src/knowledge.rs`, `src/knowledge/read.surql`, `tests/knowledge.rs` | completed finding selection through Artifact-owned SQL admission, checked Task/output identity, cursor positions and native access qualification |
 | `src/uris.rs` | contract-only typed resource builders and matching fixed discovery declarations |
 | `src/bin/server/` | auth, tasks, prompts, resources, notifications, and composition |
 | `src/bin/server/resources.rs` | exhaustive typed resource dispatch and SQL-authorized analysis reads and subscription admission |

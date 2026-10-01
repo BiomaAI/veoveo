@@ -30,6 +30,9 @@ appear in its public MCP identities.
 - Analysis and result notifications use the shared Task-backed resource listener.
   Do not restore process-local broadcasts or emit Task status for resource-only
   listeners. Additional Task-backed routes implement the owning contract trait.
+- Reusable finding queries inherit current access from the result Artifact through
+  `ArtifactReadScope`; keep that predicate before SQL limits and output decoding.
+  A result grant does not confer Task control or access to other output Artifacts.
 - Recording authorization matches stream: authorize the canonical
   `recording://recordings/{uuidv7}` identity, re-resolve it inside the
   durable task, and capture one bounded source snapshot. The snapshot may
@@ -62,6 +65,9 @@ appear in its public MCP identities.
 
 - `cargo check -p veoveo-reason-mcp`
 - `cargo test -p veoveo-reason-mcp` — crate tests run without a GPU.
+- `cargo test -p veoveo-reason-mcp --test knowledge` checks the finding query with
+  isolated SurrealDB containers, readable pages behind malformed denied rows, result
+  provenance and grant deadlines. Its completed outputs are inert fixtures.
 - The GPU smoke requires an NVIDIA driver compatible with the image's CUDA
   and vLLM build, NVIDIA Container Toolkit, the device plugin, and a world
   model checkpoint in Hugging Face layout loaded into the model cache. The

@@ -307,6 +307,23 @@ qualify filtered limits, owner isolation and artifact deduplication without infe
 Install the server and collection consumers together; consumers must read the page
 object and follow its continuation cursor.
 
+### Reusable Finding Queries
+
+The library's `knowledge::readable_findings` selects completed analyses whose result
+Artifacts the caller can read. `FindingSelection` distinguishes exact analysis identity
+from a creation-time and analysis-ID page position. Pages contain at most 101 rows,
+including one lookahead. The query combines successful Task status and retention with
+Artifact's shared SQL admission predicate before ordering, limits and decoding.
+The result occurrence's stored provenance must name the same analysis and identify a
+Reason result. The reader validates the Task/output identity and returns only the
+analysis, pipeline, model and result Artifact identities with stored timestamps.
+Other output Artifacts require their own access checks.
+
+`ArtifactReadScope` supplies tenant, subjects, clearance and selected context through
+bound parameters. Source reads use the current result grants even when the reader is
+an indexing service. The Task runtime continues to authorize Task control by owner.
+Hosted analysis and result routes use the Task admission described above.
+
 ### Identity Admission And Rollout
 
 Pipeline and model identifiers accept 1–128 lowercase ASCII letters, digits and

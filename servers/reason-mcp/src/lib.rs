@@ -13,5 +13,7 @@ pub mod contract;
 pub mod executor;
 #[cfg(feature = "contract")]
 pub mod grounding;
+#[cfg(feature = "mcp")]
+pub mod knowledge;
 #[cfg(feature = "contract")]
 pub mod uris;

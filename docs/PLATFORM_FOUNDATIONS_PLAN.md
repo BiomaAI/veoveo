@@ -3886,6 +3886,19 @@ Acceptance:
 
 ## Phase 9: Reusable Reason Analyses
 
+Finding admission checkpoint (2026-10-01): Reason's library selects successful Tasks
+and their readable result Artifacts in one SQL query, using Artifact's extracted
+predicate and typed caller bindings. Current result provenance must match the analysis.
+The query applies retention, clearance, current grants and selected-context access
+before decoding or its 101-row page limit. Task control keeps its owner checks.
+The new native case exercises 105 readable findings behind 120 malformed denied
+outputs, mismatched provenance, unsuccessful and expired Tasks, grant expiry and
+revocation, and cross-replica pagination. The complete run passes with fixture cleanup
+after image publication stopped. Artifact's native service admission regression passes,
+as do query validation on SurrealDB 3.3.0 and strict all-target Store and Reason Clippy. Hosted summary
+resources, observations, invalidations, installation approvals and retrieval evaluation
+still need implementation and acceptance.
+
 Adopt Reason's completed analyses and results so users can find earlier findings and
 read their grounding without rerunning inference. Observations carry stored owner,
 Work Context, labels, model provenance and modification metadata. Return bounded

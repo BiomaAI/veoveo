@@ -56,6 +56,10 @@ the shared evaluator.
 Exact reads and pages use the same parameterized SQL predicate. One database statement
 selects the admitted occurrence and its blob, tenant and grant records. The repository
 rejects disagreement between native record links and stored identity or authority.
+`ArtifactReadScope::ADMISSION` exposes that predicate for subqueries over
+`artifact_occurrence`; `bind` supplies its typed caller parameters. Domain readers can
+join records to readable outputs before pagination while Artifact keeps ownership of
+tenant, clearance, context, grant and retention rules.
 
 `ArtifactPlane::metadata_snapshot` and authenticated `GET /artifacts/{id}/snapshot`
 return a domain-owned `ArtifactMetadataSnapshot`. The snapshot contains neutral
