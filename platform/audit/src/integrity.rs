@@ -6,6 +6,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use veoveo_audit_contract::*;
+use veoveo_platform_store::ChangefeedCursor;
 use veoveo_types::Sha256Digest;
 
 const HEAD_DOMAIN: &[u8] = b"veoveo.ai/audit-block/v1\0";
@@ -215,11 +216,11 @@ impl AuditKeyRing {
 pub enum AuditFinding {
     BackdatedRecord {
         id: AuditRecordId,
-        sealed_at: DateTime<Utc>,
+        committed_at: DateTime<Utc>,
     },
     FutureRecord {
         id: AuditRecordId,
-        sealed_at: DateTime<Utc>,
+        committed_at: DateTime<Utc>,
     },
 }
 /// A verifier consumes one partition in order. A retained prefix requires its
@@ -286,7 +287,13 @@ impl<'a> AuditVerifier<'a> {
         key.verify_strict(&bytes, &Signature::from_bytes(&block.signature.to_bytes()))
             .map_err(|_| IntegrityError::Signature)?;
         let mut findings = Vec::new();
-        for record in records {
+        for (record, member) in records.iter().zip(&head.members) {
+            // The signed feed stamp anchors commit time independently of mutable
+            // database credentials. Sealer downtime must not look like backdating.
+            let committed_at =
+                ChangefeedCursor::from_versionstamp(member.versionstamp.get() as i64)
+                    .and_then(ChangefeedCursor::timestamp)
+                    .ok_or(IntegrityError::Membership)?;
             let uuid_time = record
                 .draft
                 .id()
@@ -302,16 +309,16 @@ impl<'a> AuditVerifier<'a> {
             let latest = id_time
                 .max(record.draft.occurred_at())
                 .max(record.recorded_at);
-            if head.sealed_at - earliest > self.clock_skew {
+            if committed_at - earliest > self.clock_skew {
                 findings.push(AuditFinding::BackdatedRecord {
                     id: record.draft.id(),
-                    sealed_at: head.sealed_at,
+                    committed_at,
                 });
             }
-            if latest - head.sealed_at > self.clock_skew {
+            if latest - committed_at > self.clock_skew {
                 findings.push(AuditFinding::FutureRecord {
                     id: record.draft.id(),
-                    sealed_at: head.sealed_at,
+                    committed_at,
                 });
             }
         }
@@ -350,7 +357,10 @@ mod tests {
             .iter()
             .map(|record| AuditBlockMember {
                 id: record.draft.id(),
-                versionstamp: AuditVersionstamp::new(stamp).unwrap(),
+                versionstamp: AuditVersionstamp::new(
+                    ((records[0].recorded_at.timestamp_millis() as u64) << 16) | stamp,
+                )
+                .unwrap(),
             })
             .collect()
     }
@@ -457,7 +467,8 @@ mod tests {
         .unwrap();
         let records = vec![fixture(), old];
         let mut members = members(&records, 42);
-        members[1].versionstamp = AuditVersionstamp::new(43).unwrap();
+        members[1].versionstamp =
+            AuditVersionstamp::new(members[0].versionstamp.get() + 1).unwrap();
         let block = key
             .seal(
                 AuditPartition::Installation,
@@ -481,6 +492,65 @@ mod tests {
         ));
         verifier.finish(&block.checkpoint()).unwrap();
     }
+    #[test]
+    fn commit_clock_distinguishes_delayed_sealing_from_forged_record_times() {
+        let key = AuditSigningKey::from_seed(&[17; 32]);
+        let mut keys = AuditKeyRing::default();
+        keys.insert(key.public_key()).unwrap();
+        for offset in [0, -1, 1] {
+            let mut record = fixture();
+            // Preserve the actual commit stamp when both timestamp fields are
+            // forged. The sealer may legitimately be offline for two hours.
+            let members = members(std::slice::from_ref(&record), 1);
+            let now = record.recorded_at;
+            let supplied = now + TimeDelta::hours(offset);
+            record.draft = AuditDraft::builder(
+                record.draft.request().clone(),
+                AuditTarget::Installation,
+                AuditDetail::Read {
+                    method: AuditReadMethod::AuditView,
+                },
+                AuditOutcome::Allowed,
+                AuditReason::Accepted,
+            )
+            .identity(record.draft.id())
+            .occurred_at(supplied)
+            .build()
+            .unwrap();
+            record.recorded_at = supplied;
+            let block = key
+                .seal(
+                    AuditPartition::Installation,
+                    None,
+                    members,
+                    std::slice::from_ref(&record),
+                    now + TimeDelta::hours(2),
+                )
+                .unwrap();
+            let findings = AuditVerifier::new(
+                &keys,
+                AuditPartition::Installation,
+                None,
+                TimeDelta::minutes(5),
+            )
+            .unwrap()
+            .verify(&block, &[record])
+            .unwrap();
+            match offset {
+                0 => assert!(findings.is_empty()),
+                -1 => assert!(matches!(
+                    findings.as_slice(),
+                    [AuditFinding::BackdatedRecord { .. }]
+                )),
+                1 => assert!(matches!(
+                    findings.as_slice(),
+                    [AuditFinding::FutureRecord { .. }]
+                )),
+                _ => unreachable!(),
+            }
+        }
+    }
+
     #[test]
     fn canonicalization_never_rounds_database_versionstamps() {
         let stamp = AuditVersionstamp::new(117_300_000_000_000_001).unwrap();

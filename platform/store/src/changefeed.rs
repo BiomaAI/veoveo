@@ -44,6 +44,13 @@ impl ChangefeedCursor {
     pub const fn versionstamp(self) -> i64 {
         self.0
     }
+
+    /// Decode the clock component of the qualified single-node oracle layout.
+    /// A feed-returned versionstamp identifies its database commit time. A cursor
+    /// made with `from_instant` instead includes that constructor's replay margin.
+    pub fn timestamp(self) -> Option<DateTime<Utc>> {
+        DateTime::from_timestamp_millis(self.0 >> ORACLE_VERSIONSTAMP_SHIFT)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
@@ -235,6 +242,11 @@ mod tests {
         );
         let epoch = ChangefeedCursor::from_instant(DateTime::from_timestamp_millis(0).unwrap());
         assert_eq!(epoch.versionstamp(), 0, "pre-epoch anchors clamp to zero");
+        let committed = ChangefeedCursor::from_versionstamp(
+            (instant.timestamp_millis() << ORACLE_VERSIONSTAMP_SHIFT) | 7,
+        )
+        .unwrap();
+        assert_eq!(committed.timestamp(), Some(instant));
     }
 
     #[test]

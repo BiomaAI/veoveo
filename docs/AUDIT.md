@@ -155,8 +155,8 @@ catalog overhead and read-tail variation. Installed latency requires its own mea
 
 The gateway runs the sealer under a store lease, so one replica seals at a time. The
 sealer follows the `audit_record` change feed, which lists records in commit order,
-including a record whose writer clock lagged behind other writers. At most once per
-second it takes each partition's newly committed records and writes an
+including a record whose writer clock lagged behind other writers. A LIVE notification
+opens a one-second batching window; the worker then drains pending feed pages and writes an
 `audit_block`: partition, block sequence, the change-feed versionstamp range, the IDs
 of its records in commit order, the RFC 9162 Merkle root over their canonical hashes,
 the previous block's hash, and an Ed25519 signature over the block head. The signing
@@ -167,12 +167,16 @@ checks the links and signatures for a partition and time range. It detects a sea
 record that was changed or deleted, a removed block, and a forged signature.
 `audit_record` fields are `READONLY`, and only the retention worker deletes records.
 A record inserted directly with database credentials is sealed like any other record,
-so verification also flags any record whose ID time precedes its block by more than
-the clock-skew bound, which is how a back-dated insertion appears. An attacker who
+so verification compares the record's ID, occurrence and database timestamps with the
+commit time encoded in its signed change-feed versionstamp. The Store adapter owns
+this qualified single-node SurrealDB clock layout. A difference beyond the configured
+clock-skew bound flags a backdated or future record. Sealer downtime can delay a block
+without changing that commit time. An attacker who
 holds both database root credentials and the signing key can rewrite history that has
 not been exported yet; the write-once export protects everything exported before.
 
-The sealing interval bounds the unsealed window to about one second. Sealing runs
+An available, caught-up sealer batches for about one second. An outage or backlog
+extends the unsealed window, and export waits for its own committed marker. Sealing runs
 outside the request path, so it adds no latency to writes and needs no shared
 sequence at commit time.
 

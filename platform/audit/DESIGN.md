@@ -85,7 +85,9 @@ Verification hashes the complete typed record, including its database timestamp,
 RFC 8785. RFC 9162 leaf and node prefixes prevent the two node kinds from colliding.
 Ed25519 signs a domain-separated canonical block head. Verification checks the selected
 partition, sequence continuity, the previous hash, membership order and signatures. It
-reports record timestamps outside the caller's clock-skew allowance. An external tail
+compares record timestamps with their signed database commit versionstamps, decoded
+through Store's qualified single-node oracle layout. It reports differences beyond
+the caller's clock-skew allowance; delayed sealing does not imply a clock error. An external tail
 checkpoint detects rollback of both the database blocks and its current-head pointer;
 a database-only verification cannot establish that external fact.
 

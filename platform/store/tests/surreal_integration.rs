@@ -1639,6 +1639,14 @@ async fn changefeed_replay_contract_is_pinned() {
     // upgrade that changes the layout must fail here, not in production.
     let last_versionstamp = *versionstamps.last().unwrap();
     let last_millis = last_versionstamp >> 16;
+    assert_eq!(
+        veoveo_platform_store::ChangefeedCursor::from_versionstamp(last_versionstamp)
+            .unwrap()
+            .timestamp()
+            .unwrap()
+            .timestamp_millis(),
+        last_millis
+    );
     assert!(
         (db_before_writes_ms - 1_000..=db_after_writes_ms + 1_000).contains(&last_millis),
         "versionstamp >> 16 must be unix millis: {last_millis} outside          [{db_before_writes_ms}, {db_after_writes_ms}]"
