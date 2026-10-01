@@ -4,7 +4,7 @@
 //! `docs/TECH_DESIGN.md`, "Access control model"). This module owns the pure,
 //! I/O-free core:
 //!
-//! - **DAC / ACL** — [`Grant`] scopes one artifact to one [`AccessSubject`] at one
+//! - **DAC / ACL** — [`AccessGrant`] scopes one artifact to one [`AccessSubject`] at one
 //!   [`AccessLevel`]. This is the discretionary "share with those people" layer.
 //! - **Groups** — an [`AccessSubject::Group`] grant plus the caller's
 //!   [`GroupMembership`] set (the `(GroupId, GroupRole)` pairing) resolve to an
@@ -23,7 +23,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 #[cfg(test)]
 use veoveo_artifact_contract::ArtifactId;
+#[cfg(test)]
 use veoveo_artifact_contract::Grant;
+use veoveo_types::AccessGrant;
 
 use veoveo_types::WorkContextMembershipLevel;
 use veoveo_types::{AccessLevel, AccessSubject, DataLabelId, GroupId, PrincipalId, TenantId};
@@ -99,16 +101,16 @@ pub fn role_in_group(
 /// - A `User` grant confers its level directly to the named principal.
 /// - A `Group` grant confers `min(role in group, grant level)` — the meet of
 ///   the two independent caps.
-pub fn grant_level_for_caller(
-    grant: &Grant,
+pub fn grant_level_for_caller<G: AccessGrant>(
+    grant: &G,
     caller_id: &PrincipalId,
     memberships: &BTreeSet<GroupMembership>,
 ) -> Option<AccessLevel> {
-    match &grant.subject {
-        AccessSubject::Principal(principal) if principal == caller_id => Some(grant.level),
+    match grant.subject() {
+        AccessSubject::Principal(principal) if principal == caller_id => Some(grant.level()),
         AccessSubject::Principal(_) => None,
         AccessSubject::Group(group) => {
-            role_in_group(memberships, group).map(|role| role.access_level().min(grant.level))
+            role_in_group(memberships, group).map(|role| role.access_level().min(grant.level()))
         }
     }
 }
@@ -116,15 +118,15 @@ pub fn grant_level_for_caller(
 /// MAC: the caller's clearance dominates the artifact's labels iff every label
 /// on the artifact is also held by the caller.
 pub fn mac_satisfied(
-    artifact_labels: &BTreeSet<DataLabelId>,
+    resource_labels: &BTreeSet<DataLabelId>,
     caller_labels: &BTreeSet<DataLabelId>,
 ) -> bool {
-    artifact_labels.is_subset(caller_labels)
+    resource_labels.is_subset(caller_labels)
 }
 
 /// Everything an access decision needs. Borrowed so callers assemble it from
 /// the ledger and the signed identity without cloning.
-pub struct AccessRequest<'a> {
+pub struct AccessRequest<'a, G: AccessGrant> {
     /// Evaluation instant supplied by the caller; expired grants confer no access.
     pub now: chrono::DateTime<chrono::Utc>,
     pub caller_id: &'a PrincipalId,
@@ -132,11 +134,11 @@ pub struct AccessRequest<'a> {
     pub caller_labels: &'a BTreeSet<DataLabelId>,
     pub memberships: &'a BTreeSet<GroupMembership>,
     /// Tenant the artifact lives in.
-    pub artifact_tenant: &'a TenantId,
+    pub resource_tenant: &'a TenantId,
     /// Labels the artifact carries (classification unioned into data labels).
-    pub artifact_labels: &'a BTreeSet<DataLabelId>,
+    pub resource_labels: &'a BTreeSet<DataLabelId>,
     /// Grants recorded for this artifact.
-    pub grants: &'a [Grant],
+    pub grants: &'a [G],
     /// Matching Work Context membership, when the caller selected the same
     /// context stamped on the artifact.
     pub context_membership: Option<WorkContextMembershipLevel>,
@@ -148,24 +150,20 @@ pub struct AccessRequest<'a> {
 /// Order encodes the invariants: tenant isolation is the hard boundary and is
 /// checked first; then both need-to-know (DAC) *and* clearance (MAC) must hold,
 /// with a MAC failure reported as `DenyClearance` even if a grant would suffice.
-pub fn decide(req: &AccessRequest<'_>) -> AccessDecision {
-    if req.caller_tenant != Some(req.artifact_tenant) {
+pub fn decide<G: AccessGrant>(req: &AccessRequest<'_, G>) -> AccessDecision {
+    if req.caller_tenant != Some(req.resource_tenant) {
         return AccessDecision::DenyTenant;
     }
 
     let best_dac = req
         .grants
         .iter()
-        .filter(|grant| {
-            grant
-                .retention_expires_at
-                .is_none_or(|expires| expires > req.now)
-        })
+        .filter(|grant| grant.expires_at().is_none_or(|expires| expires > req.now))
         .filter_map(|grant| grant_level_for_caller(grant, req.caller_id, req.memberships))
         .chain(req.context_membership.map(|level| level.artifact_access()))
         .max();
 
-    let mac = mac_satisfied(req.artifact_labels, req.caller_labels);
+    let mac = mac_satisfied(req.resource_labels, req.caller_labels);
 
     match best_dac {
         _ if !mac => AccessDecision::DenyClearance,
@@ -231,19 +229,19 @@ mod tests {
         tenant: Option<&'a TenantId>,
         labels: &'a BTreeSet<DataLabelId>,
         memberships: &'a BTreeSet<GroupMembership>,
-        artifact_tenant: &'a TenantId,
-        artifact_labels: &'a BTreeSet<DataLabelId>,
+        resource_tenant: &'a TenantId,
+        resource_labels: &'a BTreeSet<DataLabelId>,
         grants: &'a [Grant],
         requested: AccessLevel,
-    ) -> AccessRequest<'a> {
+    ) -> AccessRequest<'a, Grant> {
         AccessRequest {
             now: chrono::Utc::now(),
             caller_id: caller,
             caller_tenant: tenant,
             caller_labels: labels,
             memberships,
-            artifact_tenant,
-            artifact_labels,
+            resource_tenant,
+            resource_labels,
             grants,
             context_membership: None,
             requested,
@@ -390,12 +388,12 @@ mod tests {
         let caller = pid("alice");
         let tenant = tid("acme");
         let caller_labels = BTreeSet::new(); // no clearance
-        let artifact_labels: BTreeSet<_> = [lid("cui")].into_iter().collect();
+        let resource_labels: BTreeSet<_> = [lid("cui")].into_iter().collect();
         let memberships = member("eng", GroupRole::Admin);
         let grants = [group_grant(
             "eng",
             AccessLevel::Admin,
-            artifact_labels.clone(),
+            resource_labels.clone(),
         )];
         let req = request(
             &caller,
@@ -403,7 +401,7 @@ mod tests {
             &caller_labels,
             &memberships,
             &tenant,
-            &artifact_labels,
+            &resource_labels,
             &grants,
             AccessLevel::Read,
         );
@@ -415,12 +413,12 @@ mod tests {
         let caller = pid("alice");
         let tenant = tid("acme");
         let caller_labels: BTreeSet<_> = [lid("cui"), lid("us_only")].into_iter().collect();
-        let artifact_labels: BTreeSet<_> = [lid("cui")].into_iter().collect();
+        let resource_labels: BTreeSet<_> = [lid("cui")].into_iter().collect();
         let memberships = member("eng", GroupRole::Write);
         let grants = [group_grant(
             "eng",
             AccessLevel::Write,
-            artifact_labels.clone(),
+            resource_labels.clone(),
         )];
         let req = request(
             &caller,
@@ -428,7 +426,7 @@ mod tests {
             &caller_labels,
             &memberships,
             &tenant,
-            &artifact_labels,
+            &resource_labels,
             &grants,
             AccessLevel::Write,
         );
@@ -439,7 +437,7 @@ mod tests {
     fn different_tenant_is_denied_before_anything_else() {
         let caller = pid("alice");
         let caller_tenant = tid("evil");
-        let artifact_tenant = tid("acme");
+        let resource_tenant = tid("acme");
         let nl = no_labels();
         let nm = no_members();
         // A grant that would otherwise allow, plus full clearance.
@@ -449,7 +447,7 @@ mod tests {
             Some(&caller_tenant),
             &nl,
             &nm,
-            &artifact_tenant,
+            &resource_tenant,
             &nl,
             &grants,
             AccessLevel::Read,
@@ -460,7 +458,7 @@ mod tests {
     #[test]
     fn tenantless_caller_is_denied() {
         let caller = pid("alice");
-        let artifact_tenant = tid("acme");
+        let resource_tenant = tid("acme");
         let nl = no_labels();
         let nm = no_members();
         let grants = [user_grant("alice", AccessLevel::Admin)];
@@ -469,7 +467,7 @@ mod tests {
             None,
             &nl,
             &nm,
-            &artifact_tenant,
+            &resource_tenant,
             &nl,
             &grants,
             AccessLevel::Read,

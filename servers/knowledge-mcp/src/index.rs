@@ -1,0 +1,220 @@
+use crate::{
+    ServiceError, chunk,
+    embed::Embeddings,
+    source::{KnowledgeSource, MemberLink, enumeration_uri},
+};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    time::Duration,
+};
+use veoveo_embedding_contract::{EmbeddingBatch, EmbeddingText};
+use veoveo_knowledge_contract::{
+    CollectionApproval, CollectionRegistration, GenerationId, GenerationSpec, IndexedChunk,
+    IndexedMember, KnowledgeError, MemberTitle, metadata_text,
+};
+use veoveo_mcp_knowledge_extension::IndexingMode;
+use veoveo_platform_store::PlatformStore;
+use veoveo_types::TenantId;
+
+pub struct Indexer<'a, S, E> {
+    pub store: &'a PlatformStore,
+    pub source: &'a S,
+    pub embeddings: &'a E,
+}
+impl<S: KnowledgeSource, E: Embeddings> Indexer<'_, S, E> {
+    /// Build an inactive generation. The coordinator owns source listeners and
+    /// activation after enumeration and queued invalidations have settled.
+    pub async fn build(
+        &self,
+        tenant: &TenantId,
+        registrations: &[CollectionRegistration],
+        specification: &GenerationSpec,
+    ) -> Result<GenerationId, ServiceError> {
+        self.validate_specification(specification)?;
+        if self.embeddings.space() != specification.space() {
+            return Err(ServiceError::EmbeddingSpace);
+        }
+        let expected: BTreeMap<_, _> = registrations
+            .iter()
+            .map(|r| (r.descriptor.collection().clone(), r.revision()))
+            .collect();
+        if registrations.len() != expected.len()
+            || &expected != specification.collections()
+            || registrations
+                .iter()
+                .any(|r| &r.tenant != tenant || r.approval != CollectionApproval::Index)
+        {
+            return Err(KnowledgeError(
+                "generation must name each approved tenant collection once",
+            )
+            .into());
+        }
+        let generation = GenerationId::new();
+        self.store
+            .create_knowledge_generation(tenant, generation, specification)
+            .await?;
+        // Failed builds stay inactive and can be explicitly reclaimed. Never
+        // replace the active index with a partially traversed source.
+        tokio::time::timeout(Duration::from_secs(3600), async {
+            for registration in registrations {
+                self.populate(registration, generation, specification)
+                    .await?;
+            }
+            Ok::<_, ServiceError>(())
+        })
+        .await
+        .map_err(|_| ServiceError::Deadline)??;
+        Ok(generation)
+    }
+
+    async fn populate(
+        &self,
+        registration: &CollectionRegistration,
+        generation: GenerationId,
+        specification: &GenerationSpec,
+    ) -> Result<(), ServiceError> {
+        let mut cursor = None;
+        let mut cursors = BTreeSet::new();
+        let mut seen = BTreeSet::new();
+        for _ in 0..10_000 {
+            let uri = enumeration_uri(&registration.descriptor, cursor.as_deref())?;
+            let page = tokio::time::timeout(Duration::from_secs(30), self.source.enumerate(uri))
+                .await
+                .map_err(|_| ServiceError::Deadline)??;
+            for member in page.items() {
+                if !seen.insert(member.uri.clone()) || seen.len() > 100_000 {
+                    return Err(ServiceError::Traversal);
+                }
+                self.refresh(registration, generation, specification, member)
+                    .await?;
+            }
+            let Some(next) = page.next_cursor() else {
+                self.store
+                    .complete_knowledge_collection(
+                        &registration.tenant,
+                        generation,
+                        registration.descriptor.collection(),
+                        &registration.revision(),
+                    )
+                    .await?;
+                return Ok(());
+            };
+            if !cursors.insert(next.to_owned()) {
+                return Err(ServiceError::Traversal);
+            }
+            cursor = Some(next.to_owned());
+        }
+        Err(ServiceError::Traversal)
+    }
+
+    /// Invalidation fences old chunks before any source I/O. A failed read,
+    /// embedding error or cancellation leaves those chunks unavailable to search.
+    pub async fn refresh(
+        &self,
+        registration: &CollectionRegistration,
+        generation: GenerationId,
+        specification: &GenerationSpec,
+        link: &MemberLink,
+    ) -> Result<(), ServiceError> {
+        self.validate_specification(specification)?;
+        if self.embeddings.space() != specification.space() {
+            return Err(ServiceError::EmbeddingSpace);
+        }
+        let ticket = self
+            .store
+            .begin_knowledge_member_read(registration, generation, specification, &link.uri)
+            .await?;
+        tokio::time::timeout(Duration::from_secs(120), async {
+            let document = self.source.read(link.uri.clone()).await?;
+            document
+                .observation()
+                .validate_collection(&registration.descriptor)?;
+            let title = link.title.clone().unwrap_or(MemberTitle::new(
+                link.uri.as_str().chars().take(256).collect::<String>(),
+            )?);
+            let metadata;
+            let text = match registration.descriptor.indexing() {
+                IndexingMode::Content => document.text(),
+                IndexingMode::Metadata => {
+                    metadata = metadata_text(&title, document.observation());
+                    &metadata
+                }
+                IndexingMode::None => {
+                    return Err(KnowledgeError("collection disallows indexing").into());
+                }
+            };
+            let ranges = chunk::ranges(text, specification.chunking())?;
+            let mut chunks = Vec::new();
+            let mut offset = 0;
+            while offset < ranges.len() {
+                let mut bytes = 0;
+                let mut end = offset;
+                while end < ranges.len() && end - offset < EmbeddingBatch::MAX_INPUTS {
+                    let length = ranges[end].len();
+                    if bytes + length > EmbeddingBatch::MAX_BYTES {
+                        break;
+                    }
+                    bytes += length;
+                    end += 1;
+                }
+                let batch = EmbeddingBatch::new(
+                    ranges[offset..end]
+                        .iter()
+                        .map(|r| EmbeddingText::new(&text[r.clone()]))
+                        .collect::<Result<_, _>>()?,
+                )?;
+                let vectors = self.embeddings.documents(batch).await?;
+                if vectors.len() != end - offset {
+                    return Err(
+                        KnowledgeError("embedding batch returned the wrong vector count").into(),
+                    );
+                }
+                for (range, vector) in ranges[offset..end].iter().zip(vectors) {
+                    chunks.push(IndexedChunk::from_range(
+                        text,
+                        range.clone(),
+                        vector,
+                        specification,
+                    )?);
+                }
+                offset = end;
+            }
+            let member = match registration.descriptor.indexing() {
+                IndexingMode::Metadata => IndexedMember::metadata(
+                    registration,
+                    specification,
+                    link.uri.clone(),
+                    document.observation().clone(),
+                    document.text(),
+                    title,
+                    chunks,
+                )?,
+                IndexingMode::Content => IndexedMember::new(
+                    registration,
+                    specification,
+                    link.uri.clone(),
+                    document.observation().clone(),
+                    document.text(),
+                    title,
+                    chunks,
+                )?,
+                IndexingMode::None => unreachable!("checked before embedding"),
+            };
+            self.store
+                .replace_knowledge_member(&ticket, &member)
+                .await?;
+            Ok(())
+        })
+        .await
+        .map_err(|_| ServiceError::Deadline)?
+    }
+
+    fn validate_specification(&self, specification: &GenerationSpec) -> Result<(), ServiceError> {
+        if specification.chunking().version() != chunk::VERSION {
+            return Err(
+                KnowledgeError("index generation requires the installed chunker version").into(),
+            );
+        }
+        Ok(())
+    }
+}

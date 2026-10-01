@@ -135,6 +135,7 @@ impl PlatformStore {
                 Admission::from(member.observation().access()).into_value(),
             );
             row.insert("text", chunk.text().to_owned().into_value());
+            row.insert("title", member.title().as_str().to_owned().into_value());
             row.insert("embedding", chunk.vector().values().to_vec().into_value());
             row.insert(
                 "observation",

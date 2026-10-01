@@ -12,7 +12,7 @@
 | HTTPS URL profile | `HttpsUrl` uses the same URL parser for canonical ASCII HTTPS addresses without credentials or fragments. Ports and repeated query names are admitted, and input query bytes are preserved. Runtime network policy owns host and address authorization. |
 | Percent encoding and form query encoding | [`percent-encoding` 2.3.2](https://docs.rs/percent-encoding/2.3.2/percent_encoding/) decodes UTF-8 components and encodes path characters left unescaped by the URL setter. URL query pairs use form semantics: `+` represents space and `%2B` represents plus. |
 | [RFC 6570 URI Templates](https://www.rfc-editor.org/rfc/rfc6570) | `ResourceTemplateUri` uses [`iri-string` 0.7.14](https://docs.rs/crate/iri-string/0.7.14) for all four expression levels and expansion. The profile admits ASCII literals with a literal lowercase scheme, `://`, and a nonempty suffix. Local guards enforce prefix lengths `1..=9999` without leading zeroes and nonempty dotted variable-name components. Expanded results must also pass the concrete resource profile. |
-| Rust extension interfaces | Public `ScopeDefinition`, `TaskTypeDefinition`, `ResourceAddress` and `TaskResourceAddress` traits permit implementations in independent libraries |
+| Rust extension interfaces | Public `AccessGrant`, `ScopeDefinition`, `TaskTypeDefinition`, `ResourceAddress` and `TaskResourceAddress` traits permit implementations in independent libraries |
 | Task operation names | Veoveo names contain 1–128 ASCII bytes: a lowercase initial letter followed by lowercase letters, digits, dots, underscores or hyphens. Validation establishes syntax, not implementation or authority. |
 | SHA-256 provenance strings | `Sha256Digest` serializes as `sha256:` followed by 64 lowercase hexadecimal digits. Explicit `sha256_hex` Serde adapters serve fields whose owner declares bare lowercase hex. The type validates supplied digests and performs no hashing. |
 | Native Task UUIDs, RFC 9562 | `TaskId` generates UUIDv7 and preserves the UUID parser and Serde profile from `uuid` 1.25.0; parsing does not establish a version, Task existence, or authority |
@@ -23,6 +23,8 @@
 `Sha256Digest`, `Sha256DigestError`, `HttpsUrl` and `HttpsUrlError`. A digest can be constructed from a checked
 32-byte SHA-256 output without parsing text; the type performs no hashing. `ResourceUriParts`, `ResourceUriBuilder`,
 `UriAuthority`, `UriSegment`, and `ResourceUriError` implement concrete component handling.
+`ResourceUriBuilder::from_parts` extends checked addresses while preserving their
+existing query pairs and rejecting duplicate added names.
 `ResourceTemplateUri` and `ResourceTemplateError` own template admission and expansion.
 `expand_scalars` accepts a standard string map for scalar variables and delegates to
 the same iri-string expansion engine. Consumers need no URI-library context for this
@@ -34,7 +36,7 @@ and `TokenSubject` are distinct
 validated newtypes. `AccessSubject` identifies a principal or group. `InvocationMode`
 and `InvocationProvenance` describe direct, delegated, or automated attribution.
 `TaskId` identifies a native platform Task independently of its database record or MCP handle.
-It depends on Serde, Schemars, URL, percent encoding, iri-string, and UUID. It contains no protocol transport, asynchronous
+It depends on Serde, Schemars, URL, percent encoding, iri-string, UUID and Chrono date/time values. It contains no protocol transport, asynchronous
 runtime, database client, provider integration, or server vocabulary.
 
 Resolved invocation values also belong here: `InvocationAuthority`,
@@ -50,6 +52,11 @@ Identity syntax and attribution establish no authority. Authentication, policy
 evaluation, Work Context membership, and access decisions stay with their existing
 owners. Artifact metadata and coordinate vocabularies have domain owners; their use
 by several servers does not make them foundational identity types.
+
+`AccessGrant` exposes a domain grant's subject, access level and expiry to the shared
+access evaluator. Artifact grants and Knowledge read grants implement it in their own
+contracts. The evaluator needs no invented domain ID and does not import either grant
+record shape. Chrono supplies date/time values with its clock feature disabled here.
 
 A server library owns its scope enum and resource variants. Its `ScopeDefinition`
 implementation maps a domain value to a validated name. Its `ResourceAddress`

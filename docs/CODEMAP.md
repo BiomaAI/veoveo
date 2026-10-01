@@ -22,7 +22,7 @@ component:
 | [`TECH_DESIGN.md`](TECH_DESIGN.md) | current implementation of those architecture decisions |
 | [`AUTONOMY_HARNESS.md`](AUTONOMY_HARNESS.md) | shared-responsibility model for containing always-on autonomous agents, and how an installation demonstrates it |
 | [`WORK_CONTEXT_GOVERNANCE.md`](WORK_CONTEXT_GOVERNANCE.md) | invocation authority, output ownership, effective access, and rollout |
-| [`KNOWLEDGE.md`](KNOWLEDGE.md) | how servers share knowledge as resources: the knowledge-source extension, knowledge reads in the audit log, and the planned `knowledge-mcp` catalog, index, and GPU embedding |
+| [`KNOWLEDGE.md`](KNOWLEDGE.md) | how servers share knowledge as resources: the knowledge-source extension, knowledge reads in the audit log, and the Knowledge service integration |
 | [`AUDIT.md`](AUDIT.md) | target design for the single audit log: typed records with compound IDs and record links, one record per logical action, group-commit writer, LIVE and change-feed readers, sealed Merkle blocks, required retention, OCSF export, and partition-scoped access |
 | [`ENTERPRISE_DEPLOYMENT.md`](ENTERPRISE_DEPLOYMENT.md) | OCI release, enterprise configuration, secrets, GitOps, fork workloads, and acceptance |
 | [`FORK_DEVELOPMENT.md`](FORK_DEVELOPMENT.md) | fork layout, reviewed upstream merges, local SDK development and installation ownership |
@@ -102,6 +102,7 @@ Component designs live beside the code whose contract they specify:
 | [`servers/frames-mcp/DESIGN.md`](../servers/frames-mcp/DESIGN.md) | local coordinate frames and transformations |
 | [`mcp/apps-extension/DESIGN.md`](../mcp/apps-extension/DESIGN.md) | the MCP Apps server↔core↔UI contract for domain views and administration, including the reusable structured-resource workbench shell |
 | [`mcp/knowledge-extension/DESIGN.md`](../mcp/knowledge-extension/DESIGN.md) | `ai.veoveo/knowledge-source` typed extension: collection descriptors, read observations, conditional reads, docs paging and build digests; hosted integration and K01–K10 adoption are in progress |
+| [`servers/knowledge-mcp/DESIGN.md`](../servers/knowledge-mcp/DESIGN.md) | Knowledge-owned scopes/routes and contract-only library; source-byte chunking, fenced generation builder, SQL hybrid retrieval and shared access evaluation; hosted integration pending |
 | [`platform/knowledge/contract/DESIGN.md`](../platform/knowledge/contract/DESIGN.md) | knowledge-owned collection approvals, generation identities/specifications and source-bound chunks shared below Store and the MCP service |
 | [`platform/runtimes/embedding/contract/DESIGN.md`](../platform/runtimes/embedding/contract/DESIGN.md) | transport-independent embedding spaces, checked dimensions and normalized vectors |
 | [`platform/store/src/knowledge/DESIGN.md`](../platform/store/src/knowledge/DESIGN.md) | catalog compare-and-set, generation-specific BM25/HNSW tables, fenced source reads, coverage, activation, source-policy SQL admission with selected-context and record/grant deadlines through `admission.rs`, and reclamation |
@@ -557,7 +558,7 @@ Domain runtimes can own private queries and driver records over these connection
 | `recording_ingest.rs`, `recording_blueprints.rs` | producer streams, idempotent batch checkpoints, immutable producer Blueprint revisions, and journal state |
 | `usage.rs` | shared domain/media usage records |
 | `resource_changes.rs` | shared domain LIVE invalidations, coalescing, database-clock checkpoints and changefeed recovery; composed into Time, Recording, Frames, Media, Optimization, and UAV resource hubs |
-| `knowledge.rs`, `knowledge/` | typed catalog and generation persistence, member-read epochs, source-bound chunks and current approval/access predicates before candidate pagination |
+| `knowledge.rs`, `knowledge/` | typed catalog and generation persistence, member-read epochs, source-bound chunks, shared SQL admission, BM25/HNSW ranking and native reciprocal rank fusion before result selection |
 | `agent_management/revision.rs` and `agent_management/revision.surql` | SHA-256 revisions of SQL-authorized catalog and management views |
 | `changefeed.rs`, `changefeed/` | complete transaction-tail replay, consumer checkpoints and LIVE recovery; typed Task, Artifact and Computer change decoding imports the owning contract types |
 | `platform/task-runtime/src/runtime/history.rs`, `subscriptions.rs`, `owner_subscriptions.rs` | committed-state replay for trusted workers, shared native-feed wakeups and current SQL-authorized public Task reads |

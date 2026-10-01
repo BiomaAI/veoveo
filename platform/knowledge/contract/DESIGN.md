@@ -13,9 +13,9 @@
 ## Ownership
 
 The knowledge service and Store share catalog and indexing types through this crate.
-A separate contract prevents a dependency cycle between the future MCP server and
+A separate contract prevents a dependency cycle between the MCP server and
 Store, while clients can import its types without a database driver or MCP runtime.
-The MCP server will re-export this contract from its library. Server-owned routes,
+The MCP server re-exports this contract from its library. Server-owned routes,
 tools and scopes belong to that server; MCP core imports none of them.
 
 ## Catalog And Generations
@@ -37,12 +37,15 @@ observation, verifies its content digest and collection/tenant relationships, an
 checks every chunk against the source and generation. It accepts at most 256 chunks
 from a 64 KiB source item. Its retained generation fingerprint prevents attaching an
 admitted member to a read ticket for another embedding space or chunker configuration.
-This constructor accepts `content` indexing. Metadata-only ingestion requires its own
-checked construction when that collection profile is implemented.
+This constructor accepts `content` indexing. `IndexedMember::metadata` checks the same
+source digest and admits chunks only from `metadata_text`: title, collection, revision,
+modification time and external system/native identity. Source bodies and navigation URLs
+cannot enter those chunks. `MemberTitle` bounds titles to 256 printable characters.
+Generation query instructions use the embedding contract's 1,024-byte task bound.
 
 ## Persistence
 
 [Knowledge storage](../../store/src/knowledge/DESIGN.md) owns schema, transactional
 fencing, activation and SQL candidate admission. The service owns source discovery,
 enumeration, change recovery, chunk selection and the final canonical access decision.
-The [knowledge design](../../../docs/KNOWLEDGE.md) specifies that service work.
+The [service design](../../../servers/knowledge-mcp/DESIGN.md) specifies that service work.

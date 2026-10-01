@@ -20,6 +20,7 @@
 //! };
 //! ```
 
+mod access_grant;
 mod authority;
 mod digest;
 mod error;
@@ -37,6 +38,7 @@ pub mod sha256_hex;
 mod task;
 mod task_type;
 
+pub use access_grant::AccessGrant;
 pub use authority::{
     AccessLevel, InvocationAuthority, WorkContextGrant, WorkContextMembershipLevel,
     WorkContextOutputPolicy,

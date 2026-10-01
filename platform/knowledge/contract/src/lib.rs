@@ -1,11 +1,13 @@
 //! Knowledge catalog and index contracts shared by persistence and service adapters.
 mod generation;
 mod member;
+mod title;
 pub use generation::{ChunkSettings, GenerationId, GenerationSpec};
-pub use member::{IndexedChunk, IndexedMember};
+pub use member::{IndexedChunk, IndexedMember, metadata_text};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+pub use title::MemberTitle;
 use veoveo_mcp_knowledge_extension::CollectionDescriptor;
 use veoveo_types::{Sha256Digest, TenantId};
 

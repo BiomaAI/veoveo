@@ -51,17 +51,17 @@ impl KnowledgeCandidate {
     }
 }
 #[derive(SurrealValue)]
-struct Row {
-    tenant: String,
-    collection_id: String,
-    uri: String,
-    ordinal: i64,
-    text: String,
-    admission: Admission,
-    observation: Document<Observation>,
+pub(super) struct Row {
+    pub(super) tenant: String,
+    pub(super) collection_id: String,
+    pub(super) uri: String,
+    pub(super) ordinal: i64,
+    pub(super) text: String,
+    pub(super) admission: Admission,
+    pub(super) observation: Document<Observation>,
 }
 impl Row {
-    fn checked(
+    pub(super) fn checked(
         self,
         scope: &CandidateScope,
         generation: GenerationId,
@@ -99,16 +99,9 @@ impl PlatformStore {
         after: Option<&CandidateCursor>,
         limit: u16,
     ) -> Result<Vec<KnowledgeCandidate>, StoreError> {
-        if !(1..=100).contains(&limit)
-            || scope.collections.len() > 1024
-            || scope.work_contexts.len() > 1024
-            || scope.subjects.len() > 1024
-            || scope.clearance.len() > 1024
-            || scope.scopes.len() > 1024
-        {
-            return Err(StoreError::Knowledge(
-                "candidate scope or page exceeds its bound",
-            ));
+        scope.validate()?;
+        if !(1..=100).contains(&limit) {
+            return Err(StoreError::Knowledge("candidate page exceeds its bound"));
         }
         if after.is_some_and(|cursor| {
             cursor.tenant != scope.tenant
@@ -120,58 +113,11 @@ impl PlatformStore {
                 "candidate cursor belongs to another tenant, generation or collection",
             ));
         }
-        let sql = include_str!("candidates.surql").replace("__TABLE__", &chunk_table(generation));
-        let mut response = self
-            .client()
-            .query(sql)
-            .bind(("tenant", scope.tenant.to_string()))
-            .bind(("profile", scope.profile.to_string()))
-            .bind((
-                "scopes",
-                scope
-                    .scopes
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>(),
-            ))
-            .bind(("active_context", scope.active_work_context.to_string()))
-            .bind(("generation", generation_record(generation)))
-            .bind((
-                "active",
-                RecordId::new("knowledge_active", scope.tenant.as_str()),
-            ))
-            .bind((
-                "collections",
-                scope
-                    .collections
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>(),
-            ))
-            .bind((
-                "contexts",
-                scope
-                    .work_contexts
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>(),
-            ))
-            .bind((
-                "subjects",
-                scope
-                    .subjects
-                    .iter()
-                    .map(serialize_subject)
-                    .collect::<Vec<_>>(),
-            ))
-            .bind((
-                "clearance",
-                scope
-                    .clearance
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>(),
-            ))
+        let sql = include_str!("candidates.surql")
+            .replace("__ADMISSION__", include_str!("admitted.surql"))
+            .replace("__TABLE__", &chunk_table(generation));
+        let mut response = scope
+            .bind(self.client().query(sql), generation)
             .bind(("after_collection", after.map(|c| c.collection.to_string())))
             .bind(("after_uri", after.map(|c| c.uri.to_string())))
             .bind(("after_ordinal", after.map(|c| i64::from(c.ordinal))))
@@ -182,5 +128,69 @@ impl PlatformStore {
         rows.into_iter()
             .map(|row| row.checked(scope, generation))
             .collect()
+    }
+}
+
+impl CandidateScope {
+    pub(super) fn validate(&self) -> Result<(), StoreError> {
+        if self.collections.len() > 1024
+            || self.work_contexts.len() > 1024
+            || self.subjects.len() > 1024
+            || self.clearance.len() > 1024
+            || self.scopes.len() > 1024
+        {
+            return Err(StoreError::Knowledge("candidate scope exceeds its bound"));
+        }
+        Ok(())
+    }
+    pub(super) fn bind<'a, C: surrealdb::Connection>(
+        &self,
+        query: surrealdb::method::Query<'a, C>,
+        generation: GenerationId,
+    ) -> surrealdb::method::Query<'a, C> {
+        query
+            .bind(("tenant", self.tenant.to_string()))
+            .bind(("profile", self.profile.to_string()))
+            .bind((
+                "scopes",
+                self.scopes
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>(),
+            ))
+            .bind(("active_context", self.active_work_context.to_string()))
+            .bind(("generation", generation_record(generation)))
+            .bind((
+                "active",
+                RecordId::new("knowledge_active", self.tenant.as_str()),
+            ))
+            .bind((
+                "collections",
+                self.collections
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>(),
+            ))
+            .bind((
+                "contexts",
+                self.work_contexts
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>(),
+            ))
+            .bind((
+                "subjects",
+                self.subjects
+                    .iter()
+                    .map(serialize_subject)
+                    .collect::<Vec<_>>(),
+            ))
+            .bind((
+                "clearance",
+                self.clearance
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>(),
+            ))
     }
 }

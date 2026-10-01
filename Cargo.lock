@@ -16603,6 +16603,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-knowledge-mcp"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "rmcp",
+ "schemars 1.2.2",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tokio",
+ "uuid",
+ "veoveo-embedding-client",
+ "veoveo-embedding-contract",
+ "veoveo-knowledge-contract",
+ "veoveo-mcp-contract",
+ "veoveo-mcp-knowledge-extension",
+ "veoveo-platform-store",
+ "veoveo-types",
+]
+
+[[package]]
 name = "veoveo-map-mcp"
 version = "0.1.0"
 dependencies = [
@@ -17568,6 +17589,7 @@ dependencies = [
 name = "veoveo-types"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "iri-string",
  "percent-encoding",
  "schemars 1.2.2",

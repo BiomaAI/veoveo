@@ -37,6 +37,8 @@ objects. These addresses grant no access and declare no public MCP read route.
 The service and gateway import the same builder; MCP transport DTOs re-export its IDs.
 This library neither authenticates metadata nor authorizes a read or mutation.
 Artifact service continues to enforce current tenant, context, clearance, and grants.
+`Grant` implements the foundational `AccessGrant` trait for the shared evaluator;
+its persisted and public fields keep their Artifact-specific identity.
 
 ## Wire And Construction
 

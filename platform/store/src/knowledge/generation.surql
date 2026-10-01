@@ -45,6 +45,7 @@ BEGIN TRANSACTION;
     DEFINE FIELD text ON __TABLE__ TYPE string
         ASSERT string::len($value) > 0
         AND string::len($value) <= 32768;
+    DEFINE FIELD title ON __TABLE__ TYPE string;
     DEFINE FIELD embedding ON __TABLE__ TYPE array<float, __DIMENSION__>;
     DEFINE FIELD observation ON __TABLE__ TYPE object FLEXIBLE;
     DEFINE INDEX member_ordinal ON __TABLE__ FIELDS member, ordinal UNIQUE;

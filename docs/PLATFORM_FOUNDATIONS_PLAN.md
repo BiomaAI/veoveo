@@ -23,7 +23,9 @@ K07/K08 owner probes are implemented. Domain probe fixtures and installed qualif
 remain open. Chart docs, Time domain adoption, Artifact metadata and Map summaries are
 implemented locally. The Phase 8 embedding HTTP client passes native contract checks.
 The embedding Helm component and local GPU reference, priority and refusal checks pass.
-Installed embedding qualification, Reason and the knowledge service are still open. Broader server
+The Knowledge library now implements fenced source indexing and SQL hybrid retrieval.
+Installed embedding qualification, Reason and the hosted Knowledge coordinator/API are
+still open. Broader server
 adoption is postponed outside this plan's completion scope. The cluster and BuildKit
 are stopped.
 
@@ -3466,6 +3468,30 @@ resizing, so the client requests native dimensions and checks the resulting vect
 The owned runtime was stopped and removed after qualification, preserving its compilation
 cache. Installed namespace isolation, simultaneous GPU memory qualification,
 Knowledge retrieval evaluation and model-size comparison remain open.
+
+Library checkpoint (2026-10-01): `servers/knowledge-mcp` now owns an isolated contract
+feature with typed scopes, resource routes and search inputs. Its runtime implements
+bounded source enumeration, authenticated gateway reads, source-byte chunking, bulk
+embeddings, metadata-only ingestion and inactive generation builds. Member refreshes
+fence old chunks before I/O. The shared access evaluator accepts owner grant types
+through `AccessGrant`; Knowledge uses the same decision function as Artifact without
+creating Artifact identities. Store shares one SQL admission fragment across candidate
+pages and search, uses native BM25/HNSW and `search::rrf`, and groups results by member
+before returning rows. A 128/512/2,048/8,192 candidate sequence handles duplicate chunks.
+
+The native pipeline qualifies source-to-search behavior with synthetic vectors, including
+140 malformed denied rows, three readable members, vector-only retrieval, required source
+scopes, selected-context membership, metadata body exclusion, failed-refresh invalidation,
+changed labels and 200 chunks for one member. A failed rebuild preserves the active index.
+This is library qualification. Control-plane approvals and indexing-client registration,
+catalog discovery, subscription/revalidation/restart coordination, the hosted MCP surface,
+Helm/image delivery, actual-model retrieval evaluation and installed qualification remain
+open. All 42 focused native tests pass, together with strict affected Clippy, workspace
+all-target compilation, the contract-only dependency/build checks, SurrealDB 3.3 query
+validation and 997 documentation links. The cluster and BuildKit stayed stopped. The
+shared-type compilation created additional Rust artifacts; removing an abandoned
+September 29 linker temporary reclaimed 1.27 GiB without deleting library or incremental
+caches. About 68 GiB remains free before publication work.
 
 1. Deliver the shared [embedding runtime](../platform/runtimes/embedding/DESIGN.md)
    before the knowledge service consumes it. Re-verify the latest stable vLLM release

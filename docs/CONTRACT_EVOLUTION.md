@@ -407,6 +407,12 @@ server depends on the plane's HTTP client, so placing that client's required mod
 in the server package would create a Cargo dependency cycle. The separate library
 owns Artifact identities and metadata below both adapters; it adds no process.
 
+The foundational `AccessGrant` trait supplies subject, level and expiry to the shared
+access evaluator. Domain grant records implement it without importing MCP. The generic
+`AccessRequest` names resource tenant and labels and borrows the owner's grant type;
+Knowledge can reuse the Artifact service's policy evaluator without manufacturing an
+Artifact identity. This is an internal hard cut with unchanged authorization behavior.
+
 Scope mapping has one declared wire spelling per variant. Generic policy accepts
 validated names because an installation may introduce scopes unknown to core. Domain
 authorization helpers accept the owning enum. A caller's grants remain a set of

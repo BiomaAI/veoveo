@@ -47,10 +47,6 @@ Photorealistic 3D Tiles, rendered on cluster GPUs.*
 - **Ask what happened.** Ask questions about synchronized recordings of world
   state, sensors, poses, and annotations. Each answer links back to the
   recordings it used, and each query is audited.
-- **Search everything the installation knows.** Live and recorded data is
-  indexed in space, time and meaning alongside the knowledge each server
-  publishes. Humans and agents search sensor data, video, decisions and
-  documents with multi-modal queries, and each result links to its source.
 - **Forecast, optimize, and query.** Timeseries forecasts with uncertainty
   bands, GPU vehicle routing and mathematical optimization with solutions
   checked independently of the solver, and SQL over operational data.
@@ -60,6 +56,19 @@ Photorealistic 3D Tiles, rendered on cluster GPUs.*
 - **Build agentic apps.** Ship interactive apps in which an agent does
   the work behind a live interface. Apps use the installation's sign-in,
   policy, and audit log from their first request.
+
+## Knowledge
+
+Servers can publish selected resources with their revision, access rules and freshness
+through the [knowledge-source extension](mcp/knowledge-extension/DESIGN.md). The
+[Knowledge library](servers/knowledge-mcp/DESIGN.md) indexes approved collections and
+combines keyword and semantic retrieval. Search results link to the owning resources.
+Its hosted catalog and search API are under development.
+
+The catalog contract uses W3C DCAT 3 field names. Text embeddings use
+`Qwen/Qwen3-Embedding-0.6B` served by the shared vLLM GPU runtime. The selected adoption
+scope covers Map, Artifact metadata and completed Reason analyses/results, with Time
+and documentation collections already supported by their source servers.
 
 ## Connect Robots And Simulators
 

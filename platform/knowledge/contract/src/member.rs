@@ -49,6 +49,7 @@ pub struct IndexedMember {
     uri: ResourceUri,
     observation: Observation,
     chunks: Vec<IndexedChunk>,
+    title: crate::MemberTitle,
 }
 impl IndexedMember {
     pub fn new(
@@ -57,8 +58,60 @@ impl IndexedMember {
         uri: ResourceUri,
         observation: Observation,
         text: &str,
+        title: crate::MemberTitle,
         chunks: Vec<IndexedChunk>,
     ) -> Result<Self, KnowledgeError> {
+        Self::admit(
+            registration,
+            generation,
+            uri,
+            observation,
+            text,
+            title,
+            IndexingMode::Content,
+            chunks,
+        )
+    }
+
+    /// Metadata mode never accepts arbitrary body text as its chunk source.
+    pub fn metadata(
+        registration: &CollectionRegistration,
+        generation: &GenerationSpec,
+        uri: ResourceUri,
+        observation: Observation,
+        source_text: &str,
+        title: crate::MemberTitle,
+        chunks: Vec<IndexedChunk>,
+    ) -> Result<Self, KnowledgeError> {
+        Self::admit(
+            registration,
+            generation,
+            uri,
+            observation,
+            source_text,
+            title,
+            IndexingMode::Metadata,
+            chunks,
+        )
+    }
+
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "one shared checked constructor for two index modes"
+    )]
+    fn admit(
+        registration: &CollectionRegistration,
+        generation: &GenerationSpec,
+        uri: ResourceUri,
+        observation: Observation,
+        source_text: &str,
+        title: crate::MemberTitle,
+        expected_mode: IndexingMode,
+        chunks: Vec<IndexedChunk>,
+    ) -> Result<Self, KnowledgeError> {
+        let metadata =
+            (expected_mode == IndexingMode::Metadata).then(|| metadata_text(&title, &observation));
+        let text = metadata.as_deref().unwrap_or(source_text);
         observation
             .validate_collection(&registration.descriptor)
             .map_err(|_| KnowledgeError("member observation disagrees with its collection"))?;
@@ -74,8 +127,8 @@ impl IndexedMember {
             ));
         }
         if observation.not_modified()
-            || content_digest(text) != *observation.content_sha256()
-            || text.len() > 64 * 1024
+            || content_digest(source_text) != *observation.content_sha256()
+            || source_text.len() > 64 * 1024
             || observation
                 .access()
                 .is_some_and(|access| access.tenant != registration.tenant)
@@ -113,15 +166,14 @@ impl IndexedMember {
                 ));
             }
         }
-        // Metadata indexing uses a separately constructed metadata document in
-        // the service; admitting arbitrary source text here would index its body.
-        if registration.descriptor.indexing() != IndexingMode::Content {
+        if registration.descriptor.indexing() != expected_mode {
             return Err(KnowledgeError(
-                "content ingestion requires content indexing; metadata ingestion is separate",
+                "index text does not match the collection indexing mode",
             ));
         }
         Ok(Self {
             generation_revision: generation.revision(),
+            title,
             uri,
             observation,
             chunks,
@@ -129,6 +181,9 @@ impl IndexedMember {
     }
     pub fn uri(&self) -> &ResourceUri {
         &self.uri
+    }
+    pub fn title(&self) -> &crate::MemberTitle {
+        &self.title
     }
     pub fn generation_revision(&self) -> &Sha256Digest {
         &self.generation_revision
@@ -139,4 +194,28 @@ impl IndexedMember {
     pub fn chunks(&self) -> &[IndexedChunk] {
         &self.chunks
     }
+}
+
+/// Index only the title and this closed subset of provenance. Source body, access
+/// subjects and external URLs (which may be signed) never enter metadata chunks.
+pub fn metadata_text(title: &crate::MemberTitle, observation: &Observation) -> String {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Metadata<'a> {
+        title: &'a crate::MemberTitle,
+        collection: &'a veoveo_mcp_knowledge_extension::CollectionId,
+        revision: &'a veoveo_mcp_knowledge_extension::Revision,
+        modified_at: Option<String>,
+        external_system: Option<&'a veoveo_mcp_knowledge_extension::ExternalSystemId>,
+        external_record: Option<&'a veoveo_mcp_knowledge_extension::ExternalRecordId>,
+    }
+    serde_json::to_string(&Metadata {
+        title,
+        collection: observation.collection(),
+        revision: observation.revision(),
+        modified_at: observation.modified_at().map(|v| v.to_rfc3339()),
+        external_system: observation.external().map(|v| &v.system),
+        external_record: observation.external().map(|v| &v.native_id),
+    })
+    .expect("typed metadata serializes")
 }

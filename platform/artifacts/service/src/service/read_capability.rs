@@ -157,8 +157,8 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
             caller_tenant: Some(&capability.actor.tenant),
             caller_labels: &capability.labels,
             memberships: &capability.memberships,
-            artifact_tenant: &stored.tenant,
-            artifact_labels: &stored.labels,
+            resource_tenant: &stored.tenant,
+            resource_labels: &stored.labels,
             grants: &stored.grants,
             context_membership: (stored.metadata.compliance.work_context.as_ref()
                 == Some(&capability.authority.work_context))

@@ -83,10 +83,16 @@ impl ResourceUriBuilder {
         if base.has_query() {
             return Err(ResourceUriError::BaseHasQuery);
         }
-        Ok(Self {
-            url: base.url,
-            query_names: BTreeSet::new(),
-        })
+        Ok(Self::from_parts(base))
+    }
+
+    /// Extend an already checked address while preserving existing query pairs.
+    /// Duplicate names remain invalid when adding a new pair.
+    pub fn from_parts(parts: ResourceUriParts) -> Self {
+        Self {
+            query_names: parts.query.keys().cloned().collect(),
+            url: parts.url,
+        }
     }
 
     pub fn segment(mut self, segment: UriSegment) -> Self {

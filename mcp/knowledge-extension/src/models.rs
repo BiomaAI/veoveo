@@ -208,6 +208,18 @@ impl ReadGrant {
     }
 }
 
+impl veoveo_types::AccessGrant for ReadGrant {
+    fn subject(&self) -> &AccessSubject {
+        &self.subject
+    }
+    fn level(&self) -> veoveo_types::AccessLevel {
+        veoveo_types::AccessLevel::Read
+    }
+    fn expires_at(&self) -> Option<DateTime<Utc>> {
+        self.expires_at
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AccessDescriptor {

@@ -83,9 +83,11 @@ selected observation/projection agreement; it does not
 discard unauthorized rows after pagination.
 
 The knowledge service still applies the shared canonical access decision before
-returning results. Candidate paging does not implement search ranking, source-current
-revalidation, metadata-only ingestion or the service's enumeration loop. Those belong
-to the knowledge service phase of the [foundations plan](../../../../docs/PLATFORM_FOUNDATIONS_PLAN.md).
+returning results. `search_knowledge` uses the same admission fragment in its BM25 and HNSW queries.
+The database executes native `search::rrf`, groups chunks by member and selects the
+best result per member in one transaction. Its HNSW K/EF values come from a closed
+expansion-window enum. Query vectors must match the complete generation embedding
+space. Source-current reconciliation belongs to the service coordinator.
 
 ## Qualification
 
@@ -97,3 +99,9 @@ group-grant reads, selected-context and profile restrictions, record and grant e
 without reindexing, tenant sharing, stale-reader
 fencing, approval revocation, space separation, active-pointer compare-and-set,
 definitive deletion, and generation reclamation with native referential cleanup.
+
+`servers/knowledge-mcp/tests/pipeline.rs` exercises the complete source-to-search
+library path with synthetic vectors, including 140 malformed denied rows before three
+readable members, metadata-only indexing, source-scope and selected-context denial,
+failed-refresh invalidation, changed labels, entity-kind selection, 200 chunks for one
+member and a failed rebuild that preserves the active generation.

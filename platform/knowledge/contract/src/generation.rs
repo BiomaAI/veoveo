@@ -150,7 +150,7 @@ impl TryFrom<GenerationWire> for GenerationSpec {
     type Error = KnowledgeError;
     fn try_from(w: GenerationWire) -> Result<Self, Self::Error> {
         if w.query_task.trim().is_empty()
-            || w.query_task.len() > 2048
+            || veoveo_embedding_contract::EmbeddingTask::new(w.query_task.clone()).is_err()
             || w.query_task.chars().any(char::is_control)
             || w.collections.is_empty()
             || w.collections.len() > 1024

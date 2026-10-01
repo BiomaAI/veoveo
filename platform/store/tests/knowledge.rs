@@ -124,7 +124,16 @@ fn member_with_access(
         .segment(veoveo_types::UriSegment::new(id).unwrap())
         .build()
         .unwrap();
-    IndexedMember::new(registration, spec, uri, observation, text, vec![chunk]).unwrap()
+    IndexedMember::new(
+        registration,
+        spec,
+        uri,
+        observation,
+        text,
+        MemberTitle::new("Fixture knowledge").unwrap(),
+        vec![chunk],
+    )
+    .unwrap()
 }
 async fn insert(
     store: &PlatformStore,

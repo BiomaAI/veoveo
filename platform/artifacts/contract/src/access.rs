@@ -23,6 +23,18 @@ pub struct Grant {
     pub retention_expires_at: Option<DateTime<Utc>>,
 }
 
+impl veoveo_types::AccessGrant for Grant {
+    fn subject(&self) -> &AccessSubject {
+        &self.subject
+    }
+    fn level(&self) -> AccessLevel {
+        self.level
+    }
+    fn expires_at(&self) -> Option<DateTime<Utc>> {
+        self.retention_expires_at
+    }
+}
+
 /// Identity of an expiring Artifact share, distinct from an occurrence.
 /// ```compile_fail
 /// use veoveo_artifact_contract::{ArtifactId, ArtifactShareLinkId};
