@@ -1,3 +1,5 @@
+mod knowledge;
+
 use std::collections::BTreeSet;
 
 use anyhow::{Context, Result, anyhow};
@@ -378,6 +380,14 @@ pub async fn run_hosted_server_conformance(
         profile,
         &implementation,
         &observed_surface,
+        &mut checks,
+    )
+    .await;
+    knowledge::check(
+        &client,
+        profile,
+        templates.as_deref().unwrap_or_default(),
+        tools.as_deref().unwrap_or_default(),
         &mut checks,
     )
     .await;

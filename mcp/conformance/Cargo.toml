@@ -21,6 +21,7 @@ veoveo-media-mcp = { path = "../../servers/media-mcp", default-features = false,
 veoveo-frames-mcp = { path = "../../servers/frames-mcp", default-features = false, features = ["contract"] }
 veoveo-artifact-contract.workspace = true
 veoveo-types.workspace = true
+veoveo-mcp-knowledge-extension = { workspace = true, features = ["mcp"] }
 anyhow.workspace = true
 axum.workspace = true
 axum-server.workspace = true

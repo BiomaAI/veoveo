@@ -16653,6 +16653,7 @@ dependencies = [
  "veoveo-frames-mcp",
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
+ "veoveo-mcp-knowledge-extension",
  "veoveo-media-mcp",
  "veoveo-modular-fixture-mcp",
  "veoveo-types",

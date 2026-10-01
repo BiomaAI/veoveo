@@ -13,7 +13,9 @@ freshness of the cached revision behind it.
 
 ## Status
 
-Designed. Neither the extension crate nor `knowledge-mcp` exists. The
+The extension crate, shared Rust and Python document adapters, gateway read auditing,
+and kernel provenance are implemented. Installed qualification is in progress.
+The `knowledge-mcp` service has not been implemented. The
 [implementation plan](PLATFORM_FOUNDATIONS_PLAN.md) sequences delivery. When the
 `servers/knowledge-mcp` crate is created, the service sections of this document move
 into its `DESIGN.md`, and this document keeps the cross-component flow.

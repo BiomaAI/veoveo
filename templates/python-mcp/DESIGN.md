@@ -86,7 +86,10 @@ The server serves its document index at `datasheet://docs`, the `agents` and
 mount projects the same material read-only at `/datasheet/admin/docs/llms.txt`
 and `/datasheet/admin/docs/{doc_id}`. The projection requires the same
 gateway-issued internal identity as MCP. This directory's `AGENTS.md` and
-`DESIGN.md` are embedded into the wheel at build time, so a deployed container
+`DESIGN.md` and their SHA-256 manifest are embedded by the SDK's Hatch build hook.
+The shared reader declares `datasheet.docs`, attaches observations for negotiated
+reads and checks matching revisions after gateway identity admission. Package loading
+verifies the embedded bytes against the manifest. A deployed container
 serves the manual of exactly the version it runs.
 
 ## Deployment

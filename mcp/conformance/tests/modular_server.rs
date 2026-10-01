@@ -141,6 +141,13 @@ async fn qualify() -> anyhow::Result<()> {
             .await?;
     println!("{}", serde_json::to_string(&report)?);
     assert!(report.passed(), "{:#?}", report.checks);
+    for id in ["K01", "K02", "K03", "K04", "K05", "K06"] {
+        assert!(
+            report.checks.iter().any(|check| check.requirement_id == id
+                && check.status == veoveo_mcp_conformance::CheckStatus::Passed),
+            "missing {id}"
+        );
+    }
 
     let resource = ObservatoryResource::Reading(ReadingId::new("sensor-a")?).to_uri()?;
     let mut document_revision = None;

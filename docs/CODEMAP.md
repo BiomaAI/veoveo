@@ -80,7 +80,7 @@ Component designs live beside the code whose contract they specify:
 | [`platform/audit/contract/DESIGN.md`](../platform/audit/contract/DESIGN.md) | protocol-independent checked audit records, closed details, typed identities and partition-scoped reads; `src/knowledge.rs` admits source observations without external navigation URLs |
 | [`platform/types/DESIGN.md`](../platform/types/DESIGN.md) | protocol-independent identity and attribution, installation and agent names, authentication vocabulary and issuer/subject identities, scope names, resource references, URI component parsing and builders, validation errors, and public extension traits |
 | [`platform/runtimes/duckdb/DESIGN.md`](../platform/runtimes/duckdb/DESIGN.md) | shared analytical sandbox, typed HTTPS materialization, network policy and query limits |
-| [`mcp/conformance/DESIGN.md`](../mcp/conformance/DESIGN.md) | typed domain-neutral hosted-server certification profiles, reports, and standalone distribution |
+| [`mcp/conformance/DESIGN.md`](../mcp/conformance/DESIGN.md) | typed domain-neutral hosted-server certification profiles, reports, standalone distribution and live knowledge checks in `src/runner/knowledge.rs` |
 | [`servers/artifact-mcp/DESIGN.md`](../servers/artifact-mcp/DESIGN.md) | artifact discovery, access, publication and the Artifact App |
 | [`platform/artifacts/contract/DESIGN.md`](../platform/artifacts/contract/DESIGN.md) | lightweight Artifact-plane identity, typed addresses and builders, metadata, compliance, provenance, and byte handoff values |
 | [`servers/chart-mcp/DESIGN.md`](../servers/chart-mcp/DESIGN.md) | chart generation and the Chart MCP App |
@@ -102,6 +102,9 @@ Component designs live beside the code whose contract they specify:
 | [`mcp/knowledge-extension/DESIGN.md`](../mcp/knowledge-extension/DESIGN.md) | `ai.veoveo/knowledge-source` typed extension: collection descriptors, read observations, conditional reads, docs paging and build digests; hosted integration and K01–K10 adoption are in progress |
 | [`MAP_APP_INTEGRATION.md`](MAP_APP_INTEGRATION.md) | consumer guide for using Map MCP resources and the reusable Map App from another MCP server |
 | [`servers/map-mcp/DESIGN.md`](../servers/map-mcp/DESIGN.md) | Earth geography, map data administration, logistics routing, and immutable Optimization travel models |
+| [`servers/map-mcp/AUTHORING.md`](../servers/map-mcp/AUTHORING.md) | authored feature layers, revisions, publications and Work Context access |
+| [`servers/map-mcp/ACQUISITION.md`](../servers/map-mcp/ACQUISITION.md) | source acquisition, immutable releases and activation |
+| [`servers/map-mcp/ROUTING.md`](../servers/map-mcp/ROUTING.md) | routing, mobility profiles, matrices and travel models |
 | [`servers/optimization-mcp/DESIGN.md`](../servers/optimization-mcp/DESIGN.md) | NVIDIA cuOpt routing, route scenarios, convex and MILP models, independent verification, and GPU execution |
 | [`servers/stream-mcp/DESIGN.md`](../servers/stream-mcp/DESIGN.md) | admitted live and replay GStreamer graphs, typed pipeline profiles, live results, and the Stream MCP App |
 | [`servers/reason-mcp/DESIGN.md`](../servers/reason-mcp/DESIGN.md) | video reasoning, grounding, and audited world-model output |
@@ -1296,6 +1299,8 @@ shape and schema, and this package follows it.
 | Module | Responsibility |
 |---|---|
 | `contract/` | identity, artifact-plane, and usage wire models |
+| `contract/knowledge.py`, `contract/docs.py` | typed knowledge observations, authorized conditional document reads and shared document paging |
+| `build_docs.py` | Hatch build hook for embedded documents and build-time SHA-256 manifests |
 | `internal_auth.py` | gateway Ed25519 assertion verification and ASGI middleware |
 | `host.py` | host-authority validation and 421 rejection |
 | `deployment.py`, `pagination.py` | mount identities and cursor pagination |

@@ -65,4 +65,4 @@ Contract revision: 3.
 - C28: met
 - C29: met
 - C30: met
-- C32: pending — Python docs observation support and K01–K08 qualification are in progress
+- C32: pending — shared Python docs observations and build digests are wired; installed qualification remains

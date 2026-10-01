@@ -18,6 +18,7 @@ from mcp.shared.exceptions import MCPError
 from pydantic import ValidationError
 
 from veoveo_mcp.contract import UsageReport
+from veoveo_mcp.contract.knowledge import EXTENSION_ID
 from veoveo_mcp.pagination import PaginationError, paginate
 from veoveo_mcp.schema import mcp_input_schema
 from veoveo_mcp.tasks import TaskError
@@ -235,6 +236,7 @@ def build_mcp_server(state: AppState) -> Server:
     ) -> types.ListResourceTemplatesResult:
         return types.ListResourceTemplatesResult(
             resource_templates=[
+                SERVER_DOCS.knowledge_template(),
                 types.ResourceTemplate(
                     uri_template=uris.REPORTS_TEMPLATE, name="report-pages",
                     title="Profile report pages", mime_type="application/json",
@@ -270,8 +272,13 @@ def build_mcp_server(state: AppState) -> Server:
     ) -> types.ReadResourceResult:
         text = params.uri
         identity = identity_from_scope(request_scope(ctx))
-        if text == uris.DOCS_URI:
-            return _json_result(text, SERVER_DOCS.index_wire())
+        try:
+            document = SERVER_DOCS.read_authorized(text, capabilities=ctx.session.client_capabilities,
+                metadata=ctx.meta)
+        except ValueError as error:
+            raise _invalid(str(error)) from error
+        if document is not None:
+            return document
         if text == uris.CONTRACT_URI:
             return _json_result(text, CONTRACT_DECLARATION.wire())
         if text == uris.WORKBENCH_APP_URI:
@@ -288,18 +295,6 @@ def build_mcp_server(state: AppState) -> Server:
             resource = uris.parse_resource_uri(text)
         except (ValueError, TaskError) as error:
             raise _invalid(str(error)) from error
-        if isinstance(resource, uris.DocumentResource):
-            doc_id = resource.document_id
-            doc = SERVER_DOCS.doc(doc_id)
-            if doc is None:
-                raise _invalid(f"unknown server document `{doc_id}`")
-            return types.ReadResourceResult(
-                contents=[
-                    types.TextResourceContents(
-                        uri=text, text=doc.body, mime_type="text/markdown"
-                    )
-                ]
-            )
         query = state.tasks.for_owner(runtime_owner(identity)).of_type(TASK_TYPE)
         if isinstance(resource, uris.ReportCatalogResource):
             page = await query.page(resource.after.position() if resource.after else None, PAGE_SIZE)
@@ -404,6 +399,7 @@ def build_mcp_server(state: AppState) -> Server:
         on_get_prompt=get_prompt,
         on_ping=None,
     )
+    server.extensions[EXTENSION_ID] = {}
     server.extensions["io.modelcontextprotocol/ui"] = {
         "mimeTypes": ["text/html;profile=mcp-app"]
     }

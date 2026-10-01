@@ -16,9 +16,15 @@ from dataclasses import dataclass
 from enum import Enum
 from importlib.resources import files
 from pathlib import Path, PurePosixPath
-from typing import Any, Iterator, NotRequired, TypedDict
+from typing import Any, Iterator, Mapping, NotRequired, TypedDict
 from urllib.parse import urlunsplit, quote
 import re
+import json
+from urllib.parse import urlsplit, parse_qs, unquote
+import mcp.types as types
+
+from .knowledge import (AccessModel, ChangeSignal, CollectionDescriptor, CollectionId,
+    ContentDigest, EntityKind, ImmutableFreshness, IndexingMode, docs_observation, member_result)
 
 CONTRACT_REVISION = 3
 """The normative contract revision this package implements."""
@@ -71,6 +77,7 @@ class ServerDoc:
     id: str
     title: str
     body: str
+    digest: ContentDigest | None = None
 
     def __post_init__(self) -> None:
         if not re.fullmatch(r"[a-z][a-z0-9-]{0,127}", self.id):
@@ -79,6 +86,10 @@ class ServerDoc:
             raise ServerDocsError(f"server document `{self.id}` title must be non-empty")
         if not self.body.strip():
             raise ServerDocsError(f"server document `{self.id}` body must be non-empty")
+        actual = ContentDigest.of(self.body)
+        if self.digest is not None and self.digest != actual:
+            raise ServerDocsError("embedded document digest mismatch; rebuild the package")
+        object.__setattr__(self, "digest", actual)
 
     def wire(self) -> dict[str, str]:
         """The index entry shape, matching the Rust `ServerDoc` serialization
@@ -105,6 +116,48 @@ class ServerDocs:
 
     def __iter__(self) -> Iterator[ServerDoc]:
         return iter(self.docs)
+
+    def collection(self, scheme: str | None = None) -> CollectionDescriptor:
+        return CollectionDescriptor(
+            collection=CollectionId(f"{self.server}.docs"), entity_kind=EntityKind("document"),
+            enumerate=urlunsplit((scheme or self.server, "docs", "", "", "")),
+            freshness=ImmutableFreshness(immutable=True), change_signal=ChangeSignal.IMMUTABLE,
+            access=AccessModel.PROFILE, indexing=IndexingMode.CONTENT,
+        )
+
+    def knowledge_template(self, scheme: str | None = None) -> types.ResourceTemplate:
+        collection = self.collection(scheme)
+        return types.ResourceTemplate(uri_template=urlunsplit((scheme or self.server, "docs", "/{doc_id}", "", "")),
+            name="documents", title="Server documentation", mime_type="text/markdown",
+            meta={"ai.veoveo/knowledge-source": collection.wire()})
+
+    def read_authorized(self, uri: str, *, capabilities: types.ClientCapabilities | None = None,
+                        metadata: Mapping[str, object] | None = None,
+                        scheme: str | None = None) -> types.ReadResourceResult | None:
+        """Read docs after the server has authenticated and admitted this caller."""
+        parsed = urlsplit(uri)
+        if parsed.scheme != (scheme or self.server) or parsed.netloc != "docs":
+            return None
+        if parsed.fragment or parsed.username or parsed.password:
+            raise ServerDocsError("invalid documentation URI")
+        if not parsed.path or parsed.path == "/":
+            query = parse_qs(parsed.query, keep_blank_values=True, strict_parsing=True)
+            if set(query) - {"cursor"} or any(len(values) != 1 for values in query.values()):
+                raise ServerDocsError("invalid documentation cursor")
+            cursor = query.get("cursor", [None])[0]
+            return types.ReadResourceResult(contents=[types.TextResourceContents(uri=uri,
+                text=json.dumps(self.index_wire(cursor, scheme=scheme)), mime_type="application/json")],
+                ttl_ms=0, cache_scope="private")
+        if parsed.query:
+            raise ServerDocsError("document members do not accept query parameters")
+        doc = self.doc(unquote(parsed.path.removeprefix("/")))
+        if doc is None:
+            raise ServerDocsError("unknown server document")
+        assert doc.digest is not None
+        collection = self.collection(scheme)
+        return member_result(uri=uri, text=doc.body, mime_type="text/markdown",
+            observation=docs_observation(collection, doc.digest), collection=collection,
+            capabilities=capabilities, metadata=metadata)
 
     def index_wire(self, cursor: str | None = None, *, scheme: str | None = None) -> DocumentPage:
         """Stable pages of at most 32 document identities and concrete URIs."""
@@ -239,11 +292,18 @@ def server_docs(
     `source_root` when running from a source tree. Missing and empty
     documents raise :class:`ServerDocsError`, so a server that would serve an
     incomplete manual fails at import instead."""
+    package_root = files(package)
+    manifest_file = package_root.joinpath("_documents.json")
+    manifest = json.loads(manifest_file.read_text(encoding="utf-8")) if manifest_file.is_file() else None
+    if manifest is not None:
+        if not isinstance(manifest, dict) or set(manifest) != {DOC_ID_AGENTS, DOC_ID_DESIGN}:
+            raise ServerDocsError("invalid packaged document manifest")
+        manifest = {doc_id: ContentDigest.model_validate(value) for doc_id, value in manifest.items()}
     return ServerDocs(
         server=server,
         docs=(
-            _load_doc(DOC_ID_AGENTS, DOC_TITLE_AGENTS, package, "AGENTS.md", source_root),
-            _load_doc(DOC_ID_DESIGN, DOC_TITLE_DESIGN, package, "DESIGN.md", source_root),
+            _load_doc(DOC_ID_AGENTS, DOC_TITLE_AGENTS, package, "AGENTS.md", source_root, manifest),
+            _load_doc(DOC_ID_DESIGN, DOC_TITLE_DESIGN, package, "DESIGN.md", source_root, manifest),
         ),
     )
 
@@ -254,18 +314,23 @@ def _load_doc(
     package: str,
     filename: str,
     source_root: Path | None,
+    manifest: dict[str, ContentDigest] | None,
 ) -> ServerDoc:
     candidates: list[Any] = [files(package).joinpath(filename)]
     if source_root is not None:
         candidates.append(source_root / filename)
     for candidate in candidates:
         if candidate.is_file():
-            body = candidate.read_text(encoding="utf-8")
+            packaged = candidate == candidates[0]
+            if packaged and manifest is None:
+                raise ServerDocsError("packaged documents require build digests; enable the document build hook")
+            body = candidate.read_bytes().decode("utf-8")
             if not body.strip():
                 raise ServerDocsError(
                     f"server document `{doc_id}` at `{candidate}` is empty"
                 )
-            return ServerDoc(id=doc_id, title=title, body=body)
+            return ServerDoc(id=doc_id, title=title, body=body,
+                digest=manifest[doc_id] if packaged and manifest else None)
     searched = ", ".join(str(candidate) for candidate in candidates)
     raise ServerDocsError(
         f"server document `{doc_id}` ({filename}) not found; searched: {searched}"

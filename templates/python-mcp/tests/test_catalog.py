@@ -108,10 +108,11 @@ async def test_report_handler_follows_typed_cursor_and_emits_checked_pages(monke
 
     server = authenticated_server(SimpleNamespace(for_owner=lambda _owner: Query()), monkeypatch)
     read = server.get_request_handler("resources/read").handler
-    first = json.loads((await read(None, types.ReadResourceRequestParams(uri=uris.REPORTS_URI))).contents[0].text)
+    context = SimpleNamespace(session=SimpleNamespace(client_capabilities=None), meta=None)
+    first = json.loads((await read(context, types.ReadResourceRequestParams(uri=uris.REPORTS_URI))).contents[0].text)
     assert len(first["items"]) == 100
     assert first["next_cursor"]
-    second = json.loads((await read(None, types.ReadResourceRequestParams(uri=first["next_uri"]))).contents[0].text)
+    second = json.loads((await read(context, types.ReadResourceRequestParams(uri=first["next_uri"]))).contents[0].text)
     assert len(second["items"]) == 3
     assert second["next_cursor"] is None and second["next_uri"] is None
     assert len(calls) == 2

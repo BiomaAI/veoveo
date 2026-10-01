@@ -12,6 +12,7 @@
 | `veoveo.ai/mcp-conformance-profile/v1` | domain-neutral declaration of applicable hosted-server checks |
 | `veoveo.ai/mcp-conformance-report/v1` | machine-readable implementation identity, capabilities, requirement results, and evidence |
 | `veoveo.ai/hosted-mcp/v3` | Veoveo hosted-server contract revision for MCP `2026-07-28` |
+| `ai.veoveo/knowledge-source` | typed collection declarations, enumeration, observations and conditional document reads; [extension rules](../knowledge-extension/DESIGN.md#server-rules) |
 | `veoveo.ai/live-view/v4` | optional provider-neutral authoritative cameras, typed camera regions in shared encoded products, actor/browser authorization, Annex B H.264 WebSocket fanout, and redaction profile layered on a domain-owned simulation server |
 
 ## Boundary
@@ -39,7 +40,7 @@ access and scope denial separately. A 60-second deadline and owned loopback list
 bound the test. It uses synthetic credentials and requires no cluster or GPU.
 
 Repository checks discover hosted servers under `servers/*-mcp` and include the
-Python server template. Each manual declares C01–C31; a pending item states its
+Python server template. Each manual declares C01–C32; a pending item states its
 qualification gap. C18–C21 must be met for every hosted server.
 
 Tool input schemas retain the ordinary SDK representation. Conformance permits
@@ -71,6 +72,27 @@ scopes and thirty-minute expiry through the shared issuer's validation. Its sour
 issuer and resource are `https://conformance.veoveo.local`; it has no browser session
 family or delegation. This synthetic identity supports direct protocol certification.
 Public OAuth and current installation policy require separate installed acceptance.
+
+## Knowledge Checks
+
+`src/runner/knowledge.rs` runs when Discover declares the knowledge-source extension.
+K01 rejects unsupported settings, duplicate collections and unowned URI schemes.
+K02 requires the shared immutable docs descriptor and matching member template.
+K03 traverses at most eight pages of 100 members within 30 seconds; a larger
+qualification fixture fails explicitly. It rejects repeated cursors and member URIs.
+The required docs check also verifies document-ID ordering across every docs page.
+
+K04–K06 allow 60 seconds per collection. Each member must return one admitted text
+or JSON item within 64 KiB, a content-bound observation and an empty response to its
+matching validator. An unauthenticated conditional HTTP read must return 401.
+The independent fixture also checks conditional denial for an authenticated caller
+without its required scope. These checks do not qualify arbitrary domain access
+policies; domain tests own those cases.
+
+K07 and K08 skip collections without change subscriptions or search declarations.
+Declaring either capability currently fails certification with a diagnostic requiring
+domain change/restart or search/denial probes. Probe execution remains implementation
+work in the foundations plan; declaration parsing alone cannot qualify those rules.
 
 ## Authoritative Live-View Profile
 

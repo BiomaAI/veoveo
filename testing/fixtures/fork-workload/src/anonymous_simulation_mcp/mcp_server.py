@@ -12,6 +12,7 @@ from mcp.server.caching import CacheHint
 from mcp.shared.exceptions import MCPError
 from pydantic import ValidationError
 
+from veoveo_mcp.contract.knowledge import EXTENSION_ID
 from veoveo_mcp.contract import (
     ContractDeclaration,
     DOC_ID_AGENTS,
@@ -201,17 +202,21 @@ def build_mcp_server(runtime: FixtureRuntime) -> Server:
             return _json_result(uri, (await runtime.fixture_state()).model_dump(mode="json", by_alias=True))
         if uri == APP_URI:
             return _text_result(uri, _APP_HTML, APP_MIME)
-        if uri == DOCS_URI:
-            return _json_result(uri, DOCS_INDEX)
-        if uri == DESIGN_URI:
-            return _text_result(uri, DESIGN_DOCUMENT.body, "text/markdown")
-        if uri == AGENTS_URI:
-            return _text_result(uri, AGENTS_DOCUMENT.body, "text/markdown")
+        try:
+            document = SERVER_DOCS.read_authorized(uri, capabilities=ctx.session.client_capabilities,
+                metadata=ctx.meta)
+        except ValueError as error:
+            raise _invalid(str(error)) from error
+        if document is not None:
+            return document
         if uri == CONTRACT_URI:
             return _json_result(uri, CONTRACT_DECLARATION.wire())
         raise _invalid(f"unknown resource URI `{uri}`")
 
-    return Server(
+    async def list_templates(_ctx: Context, _params: types.PaginatedRequestParams | None):
+        return types.ListResourceTemplatesResult(resource_templates=[SERVER_DOCS.knowledge_template()])
+
+    server = Server(
         SERVER_NAME,
         version="0.1.0",
         instructions=INSTRUCTIONS,
@@ -225,8 +230,11 @@ def build_mcp_server(runtime: FixtureRuntime) -> Server:
         on_call_tool=call_tool,
         on_list_resources=list_resources,
         on_read_resource=read_resource,
+        on_list_resource_templates=list_templates,
         on_ping=None,
     )
+    server.extensions[EXTENSION_ID] = {}
+    return server
 
 
 def _identity(scope: dict[str, Any]) -> GatewayInternalIdentity:

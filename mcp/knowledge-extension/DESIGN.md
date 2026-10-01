@@ -25,10 +25,12 @@ delivery.
 Typed models, MCP negotiation and conditional-read helpers, document collection
 paging, and compile-time document hashing are implemented. Rust hosted servers
 declare their docs collections and share authenticated reads. Python and Node
-document indexes use the same page shape. Gateway reads validate source observations
+document indexes use the same page shape. Python servers use the shared observation
+adapter and package SHA-256 document manifests through the SDK's Hatch build hook.
+Gateway reads validate source observations
 and commit their audit records before delivery. The kernel retains observations and
-provenance inside its existing byte budgets. Python and Node extension negotiation
-and installed conformance are in progress under Phase 6 of the implementation plan.
+provenance inside its existing byte budgets. Node extension negotiation and installed
+conformance are in progress under Phase 6 of the implementation plan.
 No deployed server declares the extension yet.
 
 The `contract` feature builds with default features disabled and depends only on
@@ -42,7 +44,7 @@ compilation and emits `include_str!` to track the document as a build input.
 
 | Standard or protocol | Profile |
 |---|---|
-| [Model Context Protocol](https://modelcontextprotocol.io/specification/draft) `2026-07-28` | Resources, resource templates, completion, resource links, `annotations.lastModified`, and `subscriptions/listen`, under the [hosted-server contract](../contract/DESIGN.md) |
+| [Model Context Protocol](https://modelcontextprotocol.io/specification/draft) `2026-07-28` | Resources, resource templates, completion, resource links, resource/link `annotations.lastModified`, and `subscriptions/listen`, under the [hosted-server contract](../contract/DESIGN.md) |
 | [MCP extensions](https://modelcontextprotocol.io/extensions/overview), SEP-2133 | Identifier `ai.veoveo/knowledge-source` in `capabilities.extensions` on `server/discover`, and in `_meta["io.modelcontextprotocol/clientCapabilities"].extensions` per request; the settings object is empty in this revision |
 | MCP `_meta` key rules | Repository-owned keys `ai.veoveo/knowledge-source` and `ai.veoveo/knowledge-observation`; `veoveo.ai` is the owned domain |
 | [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html) HTTP semantics | Strong-validator semantics for `revision` and `ifNoneMatch`, carried in `_meta` rather than HTTP headers |
@@ -120,20 +122,29 @@ A member is bounded text or JSON that the governed agent read adapter admits.
 Binary content is never a member. A record that owns bytes returns an
 `artifact://` resource link in its JSON body.
 
+Enumeration returns one JSON text item with an `items` array and an optional
+`nextCursor`. Each item has a concrete `uri`; the owner may add typed domain fields
+such as a title or identifier. Pages contain at most 100 items. An absent cursor
+ends traversal. A continuation cursor is nonempty, at most 4,096 UTF-8 bytes, and
+never repeats during a traversal. Consumers bind it to the declared enumeration
+template's `cursor` variable, or add that query parameter when the declaration is a
+concrete URI. The source selects readable members before ordering and pagination.
+
 ## Observations
 
 A read of a collection member returns ordinary contents. When the request declares
-the extension, the result also carries one observation in its `_meta`. The member's
-text item carries `annotations.lastModified` whenever the domain records a
-modification time.
+the extension, the result also carries one observation in its `_meta`. The observation
+carries `modifiedAt` whenever the domain records a modification time. Discovery
+resources and resource links may also carry `annotations.lastModified`.
+[MCP TextResourceContents](https://modelcontextprotocol.io/specification/draft/schema#textresourcecontents)
+has no annotations field; read-time modification metadata belongs in the observation.
 
 ```json
 {
   "contents": [{
     "uri": "time://events/0199b0f5-7b1e-7cc4-9a3d-5c1f7e0b2a91",
     "mimeType": "application/json",
-    "text": "{…}",
-    "annotations": { "lastModified": "2026-09-25T14:02:11Z" }
+    "text": "{…}"
   }],
   "_meta": {
     "ai.veoveo/knowledge-observation": {
@@ -141,6 +152,7 @@ modification time.
       "revision": "7",
       "contentSha256": "4b1f…e09c",
       "observedAt": "2026-09-26T21:40:03Z",
+      "modifiedAt": "2026-09-25T14:02:11Z",
       "modifiedBy": { "kind": "principal", "id": "0199…" },
       "access": {
         "tenant": "0199…",
@@ -226,6 +238,13 @@ The shared crate implements this collection once for every Rust server through
 `veoveo_mcp_contract::docs`, and the Python SDK implements it in
 `veoveo_mcp.contract.docs` for Python servers such as `datasheet-mcp`. The Node server
 `chart-mcp` implements the same declaration in its own package.
+
+Python wheel builds load `sdk/python/src/veoveo_mcp/build_docs.py` as a Hatch custom
+hook and set its `package` to the server's import package. The hook embeds both
+documents and `_documents.json`, containing their build-time digests. Package loading
+checks those digests against the original UTF-8 bytes and fails on missing or altered
+content. Explicit source-tree development computes digests when loading documents;
+deployed packages require the build manifest.
 
 ## Server Rules
 

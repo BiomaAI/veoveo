@@ -16,8 +16,10 @@ Phase 6 has typed extension models, negotiation/read helpers, docs paging and a
 compile-time digest macro. All 15 Rust servers use shared authenticated docs reads;
 Python and Node indexes use the same page shape. Gateway source validation, read audit
 completion and kernel provenance pass grouped native checks.
-Python observation support, Store records, K01–K08 and installed qualification remain
-open. Phases 7–9 are not implemented. The cluster and BuildKit are stopped.
+Python observation support, build-time document manifests and live K01–K06 checks
+are implemented. Store records, K07/K08 domain probes, Node observations and installed
+qualification remain open. Phases 7–9 are not implemented. The cluster and BuildKit
+are stopped.
 
 Current direction: every contract change in this plan is a coordinated hard cut.
 Historical data requires no support or migration. Remove compatibility adapters
@@ -3174,8 +3176,9 @@ The extension crate now provides separate contract and MCP features. Its depende
 direction is foundational types → knowledge extension → MCP core, with no dependency
 on domain servers. Six grouped native tests qualify closed declarations, collection
 and access checks, content-bound conditional responses, stable docs paging, bounded
-search snippets and compile-time document digests. Python observation support,
-K01–K08 conformance, Store schema and installed integration remain open.
+search snippets and compile-time document digests. Python observation support and
+live document conformance are implemented. Store schema, change/search qualification
+probes and installed integration remain open.
 
 The gateway records successful resource reads after validating the source observation
 and before delivery. It checks the source URI, bytes, collection owner and conditional
@@ -3199,7 +3202,7 @@ library, incremental, BuildKit and model caches are preserved.
 The Rust docs integration declares the extension through checked setup and routes
 ordinary and conditional reads through the same authenticated path. Map uses the
 shared helper through its existing discovery adapter. Python and Node document indexes
-use the current typed page shape; their observation adapters remain open. C32 is now
+use the current typed page shape; the Node observation adapter remains open. C32 is now
 in the checklist and every server declares its pending qualification explicitly.
 The repository compiles with `cargo check --workspace --all-targets`; 19 Python
 document tests, the fork fixture's document checks and the Node syntax check pass.
@@ -3210,9 +3213,27 @@ discover lifecycle overwrites capabilities in request params. The client helper 
 forces conditional reads through the server instead of its response cache.
 Workspace Clippy passes; the subsequent full-workspace test/doc sweep from
 `enforce rust` was stopped because the affected checks run in the focused batch.
-The remaining conformance work must
-resolve Map's 99,113-byte design document against the kernel's 64 KiB per-item limit
-without increasing the kernel budget or claiming that oversized reads are admitted.
+Map's authoring, acquisition and routing designs are separate embedded documents;
+the main design fits within the kernel's 64 KiB item limit with provenance overhead.
+Its document test guards that budget for every embedded document.
+
+Python's shared adapter negotiates observations per request and reauthorizes matching
+conditional reads through each server's existing identity admission. The Hatch hook
+embeds SHA-256 manifests in both Datasheet and the independent fixture; package loading
+rejects missing manifests and modified bytes. Source-tree development is explicit.
+Native conformance validates K01–K06 through live declarations, enumeration, reads,
+content hashes, matching conditions and unauthenticated conditional denial. The
+independent fixture also qualifies an authenticated caller without the required scope.
+K07/K08 skip capabilities that are absent and fail declared capabilities until their
+change/restart and search/denial probes are implemented. Store records and installed
+integration are the next Phase 6 work.
+
+The grouped document batch passes 42 Python tests, including real stateless HTTP
+negotiation and conditional denial. Both wheels load embedded documents without a
+source-tree fallback and match their build-time hashes. The independent Rust server
+passes live K01–K06, and Map's document-budget test passes. Affected all-target Clippy,
+Rust formatting and documentation links pass. The cluster and BuildKit stay stopped;
+about 170 GiB is free and useful build caches are preserved.
 
 The installed composed run at `442ba70b` completed mission execution, live inference,
 Recording retention, Stream replay, grounded Reason and cross-context access checks.

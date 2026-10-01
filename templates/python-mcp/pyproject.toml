@@ -28,9 +28,9 @@ packages = ["src/datasheet_mcp"]
 
 # Embed the server documents in the wheel so a deployed container serves the
 # manual of exactly the version it was built from (contract C21).
-[tool.hatch.build.targets.wheel.force-include]
-"AGENTS.md" = "datasheet_mcp/AGENTS.md"
-"DESIGN.md" = "datasheet_mcp/DESIGN.md"
+[tool.hatch.build.hooks.custom]
+path = "../../sdk/python/src/veoveo_mcp/build_docs.py"
+package = "datasheet_mcp"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

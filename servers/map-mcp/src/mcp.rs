@@ -65,8 +65,24 @@ const LIST_PAGE_SIZE: usize = 100;
 /// The crate documents embedded at build time and served under the well-known
 /// surface: `map://docs`, `map://docs/{doc_id}`, `map://contract`, and the
 /// administrative `admin/docs` routes (contract C18-C21).
-pub(crate) static SERVER_DOCS: LazyLock<ServerDocs> =
-    LazyLock::new(|| veoveo_mcp_contract::server_docs!("map"));
+pub(crate) static SERVER_DOCS: LazyLock<ServerDocs> = LazyLock::new(|| {
+    veoveo_mcp_contract::server_docs!("map")
+        .with_embedded_doc(
+            "routing",
+            "Map routing",
+            veoveo_mcp_contract::docs::embedded_document!("ROUTING.md"),
+        )
+        .with_embedded_doc(
+            "authoring",
+            "Map feature authoring",
+            veoveo_mcp_contract::docs::embedded_document!("AUTHORING.md"),
+        )
+        .with_embedded_doc(
+            "acquisition",
+            "Map source acquisition",
+            veoveo_mcp_contract::docs::embedded_document!("ACQUISITION.md"),
+        )
+});
 
 /// Scopes that may read the well-known surface; the same set gates
 /// `list_resources`, so any identity able to list resources can read the
@@ -1325,6 +1341,17 @@ mod well_known_tests {
         let index = SERVER_DOCS.llms_txt();
         assert!(index.contains("(agents)"));
         assert!(index.contains("(design)"));
+        for id in ["authoring", "acquisition", "routing"] {
+            assert!(SERVER_DOCS.doc(id).is_some(), "missing Map document {id}");
+        }
+        for document in SERVER_DOCS.iter() {
+            // Leave space for the observation and the kernel's provenance line.
+            assert!(
+                document.body.len() + 1024 <= 64 * 1024,
+                "Map document {} exceeds the knowledge item budget",
+                document.id
+            );
+        }
     }
 
     #[test]
