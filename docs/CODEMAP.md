@@ -99,7 +99,7 @@ Component designs live beside the code whose contract they specify:
 | [`platform/frames/contract/DESIGN.md`](../platform/frames/contract/DESIGN.md) | lightweight public Frames types and URI builders shared below Frames and Recording runtimes |
 | [`servers/frames-mcp/DESIGN.md`](../servers/frames-mcp/DESIGN.md) | local coordinate frames and transformations |
 | [`mcp/apps-extension/DESIGN.md`](../mcp/apps-extension/DESIGN.md) | the MCP Apps server↔core↔UI contract for domain views and administration, including the reusable structured-resource workbench shell |
-| [`mcp/knowledge-extension/DESIGN.md`](../mcp/knowledge-extension/DESIGN.md) | planned `ai.veoveo/knowledge-source` extension: collection descriptors, read observations, conditional reads, search links, and server rules K01–K10 |
+| [`mcp/knowledge-extension/DESIGN.md`](../mcp/knowledge-extension/DESIGN.md) | `ai.veoveo/knowledge-source` typed extension: collection descriptors, read observations, conditional reads, docs paging and build digests; hosted integration and K01–K10 adoption are in progress |
 | [`MAP_APP_INTEGRATION.md`](MAP_APP_INTEGRATION.md) | consumer guide for using Map MCP resources and the reusable Map App from another MCP server |
 | [`servers/map-mcp/DESIGN.md`](../servers/map-mcp/DESIGN.md) | Earth geography, map data administration, logistics routing, and immutable Optimization travel models |
 | [`servers/optimization-mcp/DESIGN.md`](../servers/optimization-mcp/DESIGN.md) | NVIDIA cuOpt routing, route scenarios, convex and MILP models, independent verification, and GPU execution |
@@ -430,7 +430,7 @@ views are `ui://` apps rather than bespoke admin REST or hardcoded console pages
 
 ### `mcp/knowledge-extension`
 
-Planned. The crate will own the typed `ai.veoveo/knowledge-source` descriptors and
+The crate owns the typed `ai.veoveo/knowledge-source` descriptors and
 observations, server and client helpers, and the shared `{slug}.docs` collection.
 [`mcp/knowledge-extension/DESIGN.md`](../mcp/knowledge-extension/DESIGN.md) defines the
 contract, and [`PLATFORM_FOUNDATIONS_PLAN.md`](PLATFORM_FOUNDATIONS_PLAN.md)

@@ -16549,6 +16549,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-knowledge-macros"
+version = "0.1.0"
+dependencies = [
+ "quote",
+ "sha2 0.11.0",
+ "syn 3.0.4",
+]
+
+[[package]]
 name = "veoveo-map-mcp"
 version = "0.1.0"
 dependencies = [
@@ -16743,6 +16752,21 @@ dependencies = [
  "veoveo-task-runtime",
  "veoveo-types",
  "zeroize",
+]
+
+[[package]]
+name = "veoveo-mcp-knowledge-extension"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "jsonschema",
+ "rmcp",
+ "schemars 1.2.2",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "veoveo-knowledge-macros",
+ "veoveo-types",
 ]
 
 [[package]]

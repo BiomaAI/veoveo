@@ -14,7 +14,7 @@ replaces a server's resources with a second copy. The
 [knowledge sharing design](../../docs/KNOWLEDGE.md) describes how the audit log records
 knowledge reads and the `knowledge-mcp` catalog and index built on this extension.
 
-The crate `veoveo-mcp-knowledge-extension` in this directory will own the typed
+The crate `veoveo-mcp-knowledge-extension` in this directory owns the typed
 models, the capability declaration, the read and search helpers, and the shared
 implementation of the well-known docs collection. The
 [implementation plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md) tracks its
@@ -22,7 +22,18 @@ delivery.
 
 ## Status
 
-Designed. No server declares the extension yet, and the crate does not exist.
+Typed models, MCP negotiation and conditional-read helpers, document collection
+paging, and compile-time document hashing are implemented. Hosted adoption,
+gateway audit integration, kernel provenance, and installed conformance are in
+progress under Phase 6 of the implementation plan. No deployed server declares
+the extension yet.
+
+The `contract` feature builds with default features disabled and depends only on
+foundational Veoveo types, serialization, timestamps, and hashing. The `mcp`
+feature adds the pinned Rust MCP SDK. Neither feature depends on MCP core or any
+domain server. Audit and Store can therefore share observations without a runtime
+dependency on MCP. The macro package hashes embedded document bytes during Rust
+compilation and emits `include_str!` to track the document as a build input.
 
 ## Standards And Protocols
 
@@ -127,11 +138,11 @@ modification time.
       "revision": "7",
       "contentSha256": "4b1f…e09c",
       "observedAt": "2026-09-26T21:40:03Z",
-      "modifiedBy": { "kind": "user", "id": "0199…" },
+      "modifiedBy": { "kind": "principal", "id": "0199…" },
       "access": {
         "tenant": "0199…",
         "workContext": "0199…",
-        "owner": { "kind": "user", "id": "0199…" },
+        "owner": { "kind": "principal", "id": "0199…" },
         "dataLabels": ["operations"]
       }
     }
@@ -145,13 +156,22 @@ modification time.
 | `revision` | yes | Opaque strong validator. It changes whenever the returned text or the access descriptor changes. Immutable members may use their content digest |
 | `contentSha256` | yes | Lowercase hex SHA-256 of the exact UTF-8 bytes of the returned text |
 | `observedAt` | yes | Server time when the domain produced this read |
-| `modifiedBy` | when recorded | Principal kind and ID that produced the current revision |
+| `modifiedAt` | when recorded | Time at which the domain last modified the current revision |
+| `modifiedBy` | when recorded | Principal ID that produced the current revision, in the platform's shared human and service principal namespace |
 | `access` | for `work-context` collections | Tenant, Work Context, owner, direct grants when the domain stores them, and data labels |
 | `external` | for connector projections | `system`, `nativeId`, and optional `url` of the record in an external system of record, plus `mirroredAt` when the connector served a stored copy |
 
 A domain server fills observations from its own records. The caller never supplies
 provenance. An observation describes the read that produced it and grants no
 authority.
+
+The owner and direct grants use the foundational `AccessSubject` variants
+`principal` and `group`. Modification attribution accepts a principal only.
+Collection IDs, revisions, document IDs, entity kinds, external-system IDs and
+external-record IDs are distinct validated types. Builders enforce collection and
+access-model agreement before a server can attach an observation. Client helpers
+verify that the digest describes the returned text and that a not-modified response
+matches the validator the client sent.
 
 ### Conditional reads
 
@@ -230,4 +250,6 @@ running server. Review enforces K09 and K10.
 | `src/models.rs` | `CollectionDescriptor`, `Freshness`, `ChangeSignal`, `AccessModel`, `IndexingMode`, `Observation`, `AccessDescriptor`, `ExternalRecord`, and `SearchDeclaration` |
 | `src/server.rs` | capability declaration, descriptor attachment, observation attachment, and conditional-read evaluation |
 | `src/client.rs` | client capability declaration and typed observation parsing |
-| `src/docs.rs` | the `{slug}.docs` collection over `veoveo_mcp_contract::docs` |
+| `src/docs.rs` | protocol-independent `{slug}.docs` descriptors, typed document addresses and stable pages, consumed by `veoveo_mcp_contract::docs` |
+| `src/identity.rs` | collection, document, revision and external-record identities |
+| `macros/src/lib.rs` | compile-time document embedding and SHA-256, using the workspace's existing hashing implementation |

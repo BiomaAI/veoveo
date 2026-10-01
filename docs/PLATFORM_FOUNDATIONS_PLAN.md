@@ -11,7 +11,9 @@ all 25 Deployments Ready. Installed certification, public Artifact delivery, hea
 Speech CUDA transcription/dictation, audit export readback, live Recording replay with
 grounded Reason, and live Stream inference pass. Composed flight and the deferred
 cross-replica/domain checks remain open.
-Phases 6–9 are not implemented. BuildKit is stopped during installed qualification.
+Phase 6 has typed extension models, negotiation/read helpers, docs paging and a
+compile-time digest macro; shared hosted integration and qualification are in progress.
+Phases 7–9 are not implemented. BuildKit is stopped during installed qualification.
 
 Current direction: every contract change in this plan is a coordinated hard cut.
 Historical data requires no support or migration. Remove compatibility adapters
@@ -3163,6 +3165,13 @@ Acceptance:
   candidate has its reason recorded.
 
 ## Phase 6: Extension Crate And Shared Plumbing
+
+The extension crate now provides separate contract and MCP features. Its dependency
+direction is foundational types → knowledge extension → MCP core, with no dependency
+on domain servers. Six grouped native tests qualify closed declarations, collection
+and access checks, content-bound conditional responses, stable docs paging, bounded
+search snippets and compile-time document digests. Hosted Rust/Python adoption,
+conformance, Store schema, gateway audit and kernel integration remain to implement.
 
 1. Create `mcp/knowledge-extension` as a workspace crate with the models, server and
    client helpers, and docs collection listed in its design's implementation map.
