@@ -15,14 +15,15 @@ The platform Helm release, its 23 Deployments and both bootstrap Jobs are Ready.
 Public Frames publication passes with binding digest
 `26bb4b786097e08ce9c57ff0cfcaad03d394d6f36f96d77b05803b740d2b9646`;
 the activation change selects that binding and removes UAV's Git suspension together.
-Installed acceptance is pending. Phases 1–3 have
+Installed acceptance is in progress. Phases 1–3 have
 remaining work, and phases 5–9 are not implemented.
 The pending reference release selects both S3 and OTLP audit destinations and enables
 the existing Collector. Rendered workload Secret coverage passes. Model and simulator
 caches are restored into the fresh PVCs and pass byte comparisons with the preserved copies.
 The new node is Ready with eight NVIDIA GPU shares. Flux and all 15 application Secrets
 are provisioned. All 38 required images pass CRI presence and cleanup-protection checks,
-with 215 GiB free on the host. Application reconciliation has started at `39149f71`.
+with 215 GiB free on the host at preparation completion. Both Helm releases converge
+at `7ad6115f`; all 25 Deployments, two StatefulSets and both bootstrap Jobs are Ready.
 The existing headed Chrome acceptance profile is open. Its WebGL context uses the RTX
 4090; WebGPU reports SwiftShader and supplies no hardware qualification.
 The release fixes the gateway bundle checksum, supplies explicit audit-retention values
@@ -34,6 +35,22 @@ shared host disk crossed its 85% threshold. Recovery pulls only missing images a
 checks containerd's pinned flag after each pull. A node-local K3s import manifest keeps
 the selected release available across restarts. This protection covers the installation's
 required images; Rust and BuildKit caches are preserved.
+
+The installed pass verifies public installation health, OAuth and ranged Artifact
+delivery. Audit verification passes for both partitions (8 installation blocks and
+23 tenant blocks), with no clock findings. S3 object and seal readback matches the
+database for four blocks per partition; both S3 and OTLP have committed receipts and
+cursors. Hosted certification passes for 16 of 17 servers. The grouped source repair
+adds Python's missing typed audit correlation and managed-agent fields, sends CLI
+diagnostics to stderr without starting hosted exporters, validates browser JSON Schema
+with the existing SDK's CSP-compatible interpreter, and corrects Map/Time registration
+to match their static catalogs. Native CLI tamper and export checks, shared Rust
+request-context fixtures, Python SDK/template tests, both browser applications and
+Helm configuration qualify the changes. The cluster is stopped before publication;
+installed rechecks remain open.
+The submitted Map acquisition `acquisition-01a0f4ff-18ee-7871-8205-13b887aae208`
+must be observed after the catalog repair rather than submitted again. Composed flight
+and Console LIVE/reconnect acceptance remain open.
 
 The unified audit cut spans the contract, Store, writer, gateway and deployment inputs.
 `platform/audit/contract` sits below Store

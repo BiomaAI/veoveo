@@ -72,6 +72,11 @@ credential values come from the installation's Secret environment. Export runs b
 lease renewal and sealing. A permanent destination rejection fails audit readiness,
 and retention waits for every configured destination's receipt.
 
+Operator CLI commands write diagnostics to stderr and reserve stdout for their
+documented result format. Only `serve` initializes the hosted OTLP exporters;
+running an audit command inside a configured gateway Pod keeps its JSON or JSON Lines
+output parseable.
+
 Recording ingress uses the gateway-owned private resource addresses
 `recording-ingest://producers/{producer}` and
 `recording-ingest://producers/{producer}/streams/{stream}` in audit targets. Typed
@@ -110,3 +115,8 @@ stream precedes fresh discovery, covering notifications missed during the discon
 The gateway keeps no five-second expiry for admitted decisions. The private MCP TTL
 sent to clients continues to describe their protocol cache, independently of the
 internal subscription lifetime.
+
+Installation capability flags must match each server's advertised catalog changes.
+A static resource catalog can offer resource-specific updates without announcing list
+changes. Map and Time use that profile. A server that narrows a requested catalog
+subscription fails discovery because the gateway cannot safely cache those changes.

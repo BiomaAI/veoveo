@@ -59,6 +59,20 @@ async fn connect(endpoint: &str, password: &SecretString) -> PlatformStore {
 }
 
 async fn verify(store: &PlatformStore, password: &SecretString, key: &AuditSigningKey) -> Output {
+    audit_command(
+        store,
+        password,
+        &[
+            "verify",
+            "--installation",
+            "--public-key",
+            &STANDARD.encode(key.public_key()),
+        ],
+    )
+    .await
+}
+
+async fn audit_command(store: &PlatformStore, password: &SecretString, args: &[&str]) -> Output {
     let config = store.config();
     let mut command = Command::new(env!("CARGO_BIN_EXE_gateway"));
     // A fixture must neither load the worktree .env nor inherit installation credentials.
@@ -66,13 +80,12 @@ async fn verify(store: &PlatformStore, password: &SecretString, key: &AuditSigni
         .env_clear()
         .current_dir("/")
         .kill_on_drop(true)
-        .args([
-            "audit",
-            "verify",
-            "--installation",
-            "--public-key",
-            &STANDARD.encode(key.public_key()),
-        ])
+        .arg("audit")
+        .args(args)
+        // Match the hosted environment without borrowing installation services.
+        // CLI commands must not initialize server exporters or put logs on stdout.
+        .env("OTEL_EXPORTER_OTLP_ENDPOINT", "http://127.0.0.1:9")
+        .env("RUST_LOG", "info")
         .env("VEOVEO_SURREAL_ENDPOINT", config.endpoint().as_str())
         .env("VEOVEO_SURREAL_NAMESPACE", config.namespace())
         .env("VEOVEO_SURREAL_DATABASE", config.database())
@@ -84,7 +97,7 @@ async fn verify(store: &PlatformStore, password: &SecretString, key: &AuditSigni
     }
     let output = tokio::time::timeout(Duration::from_secs(30), command.output())
         .await
-        .expect("audit verify exceeded 30 seconds")
+        .expect("audit command exceeded 30 seconds")
         .expect("cannot execute gateway");
     assert!(
         output.stdout.len() <= 65_536 && output.stderr.len() <= 65_536,
@@ -95,6 +108,49 @@ async fn verify(store: &PlatformStore, password: &SecretString, key: &AuditSigni
 
 fn diagnostic(output: &Output, password: &SecretString) -> String {
     String::from_utf8_lossy(&output.stderr).replace(password.expose_secret(), "[REDACTED]")
+}
+
+async fn qualify_export(store: &PlatformStore, password: &SecretString) {
+    let service = AuditService::start(
+        store.clone(),
+        Arc::new(AuditSigningKey::from_seed(&[38; 32])),
+        NonZeroU32::new(7).unwrap(),
+        Default::default(),
+    )
+    .unwrap();
+    let output = audit_command(store, password, &["export", "--installation"]).await;
+    service.shutdown(Duration::from_secs(15)).await.unwrap();
+    assert!(
+        output.status.success(),
+        "audit export failed: {}",
+        diagnostic(&output, password)
+    );
+    let lines: Vec<AuditExportLine> = String::from_utf8(output.stdout)
+        .unwrap()
+        .lines()
+        .map(|line| serde_json::from_str(line).expect("every stdout line must be audit JSONL"))
+        .collect();
+    let Some(AuditExportLine::Header {
+        checkpoint: first, ..
+    }) = lines.first()
+    else {
+        panic!("export must begin with its header")
+    };
+    let Some(AuditExportLine::Complete {
+        records,
+        checkpoint: last,
+    }) = lines.last()
+    else {
+        panic!("export must end with its completion footer")
+    };
+    assert_eq!(first, last);
+    assert!(*records > 0, "export includes its committed access record");
+    assert_eq!(*records as usize, lines.len() - 2);
+    assert!(
+        lines[1..lines.len() - 1]
+            .iter()
+            .all(|line| matches!(line, AuditExportLine::Record { .. }))
+    );
 }
 
 async fn qualify(store: &PlatformStore, password: &SecretString, attack: Attack) {
@@ -241,6 +297,8 @@ async fn public_verify_detects_root_tampering_and_backdated_inserts() {
             let store = connect(&endpoint, &password).await;
             qualify(&store, &password, attack).await;
         }
+        let store = connect(&endpoint, &password).await;
+        qualify_export(&store, &password).await;
     })
     .await
     .expect("audit CLI acceptance exceeded 240 seconds");

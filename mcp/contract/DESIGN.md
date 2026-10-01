@@ -28,7 +28,7 @@ complies with in its crate documents and in its contract resource.
 | Veoveo resumable artifact HTTP upload | repository-owned JSON admission/completion and raw part PUT contract, UUIDv7 idempotency, SHA-256 integrity, and bounded browser-safe 64-bit counters; independent of MCP methods |
 | Veoveo upload assertion | EdDSA JWT with `artifact-upload` audience and signed control-plane/context digests; restricted to the HTTP upload service |
 | Veoveo access-token `session_family` | Signed UUIDv7 refresh-family binding for browser tokens; current family revocation is enforced by the gateway, and absence supplies no renewable session authority |
-| Veoveo internal `request_context` | Signed source principal and verified access-token metadata, including OAuth client and optional session family; contains no bearer value and grants no independent renewal permission |
+| Veoveo internal `request_context` | Signed source principal, verified access-token metadata and required audit request correlation; includes OAuth client, optional session family and managed-agent execution metadata; contains no bearer value and grants no independent renewal permission |
 | Veoveo `computer_attach` policy action | Interactive access to an exact `computer://computers/{id}` resource; a platform action evaluated alongside current resource-read permission, without an MCP method |
 | `ai.veoveo/app-resource-dependencies` | deterministic gateway projection of exact cross-server App resource-read requirements admitted under active profile and actor authority |
 | `ai.veoveo/knowledge-source` | Veoveo extension that declares resource collections as knowledge, with typed read observations and conditional reads; specified in [the knowledge source extension](../knowledge-extension/DESIGN.md) |
@@ -295,7 +295,9 @@ Authenticated MCP and HTTP proxy requests include typed `request_context` in the
 internal assertion. It preserves the JWT-verified principal before delegated actor
 derivation and its access-token metadata. Rust and Python verify the context against
 the actor, tenant, Work Context, scopes and invocation provenance. The assertion's
-expiration cannot exceed the source access token's expiration. Reusing a transport
+expiration cannot exceed the source access token's expiration. Every supplied context
+also carries the platform audit contract's checked request, trace and span IDs and
+optional source IP address. Reusing a transport
 never supplies another browser family's request context.
 
 Bootstrap fixtures, reconstructed Task owners and upload-only assertions may omit
@@ -365,8 +367,8 @@ forwarding its list-change notification. RMCP routes these notifications separat
 from ordinary client callbacks; both delivery paths enforce the same invalidation.
 Discovery fetches carry an exact claim. Invalidation retires both cached data and
 pending claims, preventing late results from reinstalling old contents or settling a
-replacement fetch. Cache entries expire on use within the public five-second catalog
-freshness bound. A missed notification cannot leave a successful entry permanent.
+replacement fetch. A disconnected catalog subscription invalidates its cache, and
+recovery establishes a new subscription before fetching the catalog again.
 
 ## Schemas And Types
 

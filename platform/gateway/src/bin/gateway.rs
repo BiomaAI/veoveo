@@ -274,10 +274,28 @@ enum ConnectivityMode {
 async fn main() -> anyhow::Result<()> {
     install_rustls_provider();
     let _ = dotenvy::dotenv();
-    let _telemetry: TelemetryGuard =
-        init_server_telemetry("veoveo-mcp-gateway", "info,veoveo_mcp_gateway=debug")?;
+    let command = Args::parse().command;
+    let _telemetry: Option<TelemetryGuard> = if matches!(&command, Command::Serve { .. }) {
+        Some(init_server_telemetry(
+            "veoveo-mcp-gateway",
+            "info,veoveo_mcp_gateway=debug",
+        )?)
+    } else {
+        // Operator commands reserve stdout for their result, even inside a Pod
+        // whose environment configures the hosted service's OTLP exporters.
+        tracing_subscriber::fmt()
+            .with_env_filter(
+                tracing_subscriber::EnvFilter::try_from_default_env()
+                    .unwrap_or_else(|_| "warn".into()),
+            )
+            .with_writer(std::io::stderr)
+            .with_ansi(false)
+            .try_init()
+            .map_err(|error| anyhow::anyhow!("initialize CLI logging: {error}"))?;
+        None
+    };
 
-    match Args::parse().command {
+    match command {
         Command::AgentCatalogImport(args) => agent_management::import::run(args).await,
         Command::Validate { control_plane } => {
             let catalog = GatewayCatalog::load_json(&control_plane)?;
