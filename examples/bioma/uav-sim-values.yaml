@@ -18,7 +18,7 @@ recording:
 world:
   bootstrap:
     existingConfigMap: uav-sim-world-binding
-    contentSha256: 26bb4b786097e08ce9c57ff0cfcaad03d394d6f36f96d77b05803b740d2b9646
+    contentSha256: 506c4676f8b5daaf9b92db9bd0354dfbfeca914e561dfb21fb1830cb34d68c42
     key: world.json
 
 session:

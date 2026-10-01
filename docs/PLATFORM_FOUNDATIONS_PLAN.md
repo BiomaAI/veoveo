@@ -7,8 +7,9 @@ writer/schema removal. Computer authority observation and the database-feature r
 are qualified locally. Private command/file payload separation passes native tests
 and repeated storage measurements. Phase 5 images and charts are published from
 `6ec504d8`. The fresh GPU node has all 38 required images and verified model caches;
-Flux is installing the release selected by `bec449cb`. UAV desired state stays
-suspended until fresh Frames publication. Installed acceptance remains open.
+The platform release selected by `bec449cb`, its 23 Deployments and both bootstrap
+Jobs are Ready. Fresh Frames publication passes; the new world binding and UAV
+activation are selected together. Installed acceptance remains open.
 Phases 6–9 are not implemented. BuildKit is stopped during installed qualification.
 
 Current direction: every contract change in this plan is a coordinated hard cut.
@@ -3078,8 +3079,11 @@ downloaded, pinned and recorded in a byte-verified restart import manifest. Reas
 Stream and simulator caches are restored to fresh claims and byte-compared in 74.54
 seconds. Another 137 obsolete test executables release 49.97 GiB while current
 executables and compiler caches are preserved. About 216 GiB is free after restoration.
-Flux has fetched `bec449cb` and started the platform install. Fresh Frames publication,
-UAV activation and installed acceptance remain.
+The platform Helm release, its 23 Deployments and both bootstrap Jobs are Ready.
+Public Frames publication passes with binding digest
+`506c4676f8b5daaf9b92db9bd0354dfbfeca914e561dfb21fb1830cb34d68c42`.
+The activation commit selects that binding and removes the reviewed UAV suspension.
+UAV startup and installed acceptance remain.
 
 Work:
 
