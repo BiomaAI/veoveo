@@ -11,11 +11,47 @@
 | Rerun Data Protocol `rerun.cloud.v1alpha1` | Read-only Redap route on a separate Ingress with native HTTP/2 gRPC to the recording service; browser gRPC-Web uses the same path |
 | SurrealDB 3.3.0 | One RocksDB node, digest-pinned image, `/ready` for traffic admission and `/health` for process liveness |
 | OCI image digests | Veoveo image ownership and production digest enforcement through the shared chart helpers |
+| vLLM 0.30.0 pooling and OpenAI Embeddings API subset | Private GPU embedding runtime with an installation API key, local Qwen3 checkpoint and priority scheduling |
 | Amazon S3 API | Private Artifact object storage through RustFS 1.0.0 or an installation-owned compatible store; multipart write, object metadata and ranged reads are exercised by the Artifact client |
 | OTLP gRPC and HTTP; OpenTelemetry Collector 0.161.0 | Optional telemetry receiver with installation-owned pipeline configuration; the checked-in receiver, batch processor and debug exporter profile is qualified with an OTLP/HTTP log |
 | `veoveo.ai/computers-service/v3` | Private Computers JSON configuration; the typed service validates the selected capacity and trust before store mutation |
 | `veoveo.ai/computer-host/v1` | Private compute-container configuration; dedicated daemon, provider and retained ext4 storage |
 | RFC 9562 UUIDv8 | Deterministic identity for explicitly unconfigured Computers; configured provider identity remains an installation input |
+
+## Embedding Runtime
+
+The `embedding-runtime` component renders the `embedding` Deployment and Service,
+its model-cache PVC, a checkpoint ConfigMap and a NetworkPolicy. The `full` preset
+includes it. Custom selections may select it independently of MCP servers. The
+deployment contract requires an `embedding` GPU placement when that component is
+selected; the chart supports the same NVIDIA device-plugin and DRA allocations as
+the other GPU workloads.
+
+The official vLLM image uses the same digest as Reason's base image. Its startup check
+refuses an unavailable CUDA device. The pooling runner serves the pinned Qwen3
+Embedding 0.6B checkpoint with priority scheduling. Installations set the fraction of
+GPU memory under `embedding.engine.gpuMemoryUtilization`; the default is 0.25.
+Changing that value requires measuring the installation's simultaneous GPU workloads.
+
+An init container verifies every entry in `embedding-checkpoint` before starting the
+server. The packaged manifest is copied from the runtime's `checkpoint.sha256`; the
+native Helm check requires byte equality. Checkpoints are installation-staged under
+`/models/qwen3-embedding-0.6b-97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3`.
+The model mount is read-only, and `HF_HUB_OFFLINE=1` prevents runtime acquisition.
+The 4 GiB PVC request describes model storage, without reserving host free disk space.
+Recreate updates drain the previous instance before its replacement starts.
+
+`embedding.apiKeySecret` selects an installation-owned Secret and key. The chart
+passes that key to vLLM without putting it in values, ConfigMaps or command arguments.
+Only platform consumers of the embedding client receive the same Secret reference.
+The dedicated ingress policy permits port 8000 from pods in the same namespace,
+excluding `computer-host`. It renders even when general network policies are disabled.
+General internal, DNS and external-egress policies exclude Embedding to preserve that
+isolation. The service has no external route and needs no outbound connection.
+
+`cargo test -p veoveo-deployment-smoke --test embedding_helm` checks rendered objects,
+pins, source-manifest agreement, both GPU allocation modes and rejected CPU or unpinned
+configuration. Installed network denial and GPU measurements are separate acceptance.
 
 ## Audit Service
 

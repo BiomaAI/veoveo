@@ -21,6 +21,10 @@ spec:
   podSelector:
     matchLabels:
       {{- include "veoveo.selectorLabels" . | nindent 6 }}
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: NotIn
+        values: [embedding]
   policyTypes: [Egress]
   egress:
     - to:
@@ -50,6 +54,7 @@ spec:
           - object-store
           - object-store-init
           - computer-host
+          - embedding
           {{- if include "veoveo.componentEnabled" (list . "recording-data-plane") }}
           - recording
           {{- end }}
@@ -166,7 +171,7 @@ spec:
     matchExpressions:
       - key: app.kubernetes.io/component
         operator: NotIn
-        values: [computer-host]
+        values: [computer-host, embedding]
   policyTypes: [Egress]
   egress:
     - to:

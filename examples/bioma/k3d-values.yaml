@@ -42,9 +42,12 @@ reason:
     digest: sha256:ade82a1c4a95530cab23bd9b74daab8c1093cd6cbb8066145ac0862dcf79da6f
   engine:
     # Reserve 42% for vLLM so its 8192-token world-model pass has a complete KV
-    # cache while all seven required GPU workloads remain on the shared 24 GiB
+    # cache while the required GPU workloads share the 24 GiB
     # development device.
     gpuMemoryUtilization: 0.42
+embedding:
+  engine:
+    gpuMemoryUtilization: 0.25
 telemetry:
   enabled: true
   existingConfigMap: bioma-otel-collector

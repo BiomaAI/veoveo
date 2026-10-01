@@ -11,8 +11,10 @@ deduplication, and similarity features can call it without new infrastructure.
 The [shared contract](contract/DESIGN.md) implements typed inputs, embedding-space
 identities and vector admission without runtime dependencies. The
 [HTTP client](client/DESIGN.md) implements authenticated requests, shared request limits,
-priorities, deadlines and response validation. GPU serving and installed qualification
-remain open. Phase 8 of the
+priorities, deadlines and response validation. The Helm component implements GPU
+serving, checkpoint verification and namespace isolation. Local CUDA reference,
+scheduling and refusal checks pass. Installed namespace isolation, composed GPU-memory
+qualification and retrieval evaluation remain open. Phase 8 of the
 [implementation plan](../../../docs/PLATFORM_FOUNDATIONS_PLAN.md#phase-8-knowledge-service)
 delivers them before the knowledge service consumes them.
 
@@ -32,7 +34,7 @@ The runtime is a Deployment of the official vLLM image with no Veoveo code in it
 
 ```text
 VLLM_API_KEY=<from Secret> HF_HUB_OFFLINE=1 \
-vllm serve /models/qwen3-embedding-0.6b --runner pooling \
+vllm serve /models/qwen3-embedding-0.6b-97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3 --runner pooling \
   --served-model-name qwen3-embedding-0.6b --scheduling-policy priority \
   --gpu-memory-utilization <installation value>
 ```
@@ -41,8 +43,8 @@ vllm serve /models/qwen3-embedding-0.6b --runner pooling \
 without it vLLM loads a generative model and mounts no `/v1/embeddings` route. vLLM
 owns tokenization, batching, padding, pooling, and GPU scheduling. The pooler uses
 last-token pooling with L2 normalization, which the checkpoint's sentence-transformers
-configuration declares. Qualification confirms that vLLM applies it, and the
-deployment sets the pooler configuration explicitly if it does not.
+configuration declares. The served-vector comparison against the CUDA Transformers
+fixture confirms that vLLM applies this configuration without a pooler override.
 
 The runtime shares GPUs with the installation's other workloads, so it claims only the
 memory fraction the installation sets, as `reason.engine.gpuMemoryUtilization` does
@@ -57,6 +59,8 @@ requests `nvidia.com/gpu`, so the runtime has no CPU path. `/health` backs readi
 
 The runtime is a separate deployment because it is a GPU workload with its own image,
 scaling, and failure behavior, shared by every consumer.
+The chart's `embedding-runtime` component belongs to the full installation. Its
+dedicated NetworkPolicy applies independently of the general policy switch.
 
 ## Access
 
@@ -106,6 +110,23 @@ inputs per second. The runtime ships 0.6B unless a larger model shows a retrieva
 that justifies its memory on the installation's shared GPUs.
 
 ## Verification
+
+The local RTX 4090 check uses the pinned official image with its PyTorch 2.13.0,
+Transformers 5.17.0 and CUDA 13.0 packages. All four reference comparisons exceed
+0.999 cosine similarity; the smallest is 0.9997335. The runtime selects FlashAttention
+2, while the padded reference batch uses cuDNN attention. Both execute on CUDA.
+The 25% memory fraction supports the full 32,768-token context on this 24 GiB device.
+The full context requires 3.5 GiB of KV cache.
+
+With six queued 32-input bulk requests, an interactive query completed in 81 ms,
+before the first bulk batch completed at 126 ms. The 192-input fixture processed about
+300 inputs/second. This checks the shipped combination of vLLM priority and shared
+client admission. It does not isolate scheduler priority from the client's bulk cap,
+or establish Knowledge retrieval throughput. The runtime rejects a corrupted checkpoint,
+startup without CUDA and unauthenticated model discovery. Installed namespace denial
+and memory coexistence with the other workloads require reference-installation checks.
+
+The [verification guide](verification/README.md) owns regeneration and execution.
 
 - On a hardware GPU the runtime becomes ready. It refuses readiness without a CUDA
   device or with a checkpoint whose digests differ from the pin.

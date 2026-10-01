@@ -37,6 +37,11 @@ pure validation used by operational tooling. Configured Computer capacity requir
 for governed command outputs. Unconfigured core control has no output-storage dependency.
 This crate does not execute Git, Docker, Buildx, k3d, Kubernetes, or Helm commands.
 
+`embedding-runtime` is selectable infrastructure and belongs to the full preset.
+It requires an `embedding` GPU workload in placement. Its image is the pinned external
+vLLM image from the installation chart and offline catalog; it adds no Veoveo-owned
+image target to the build closure.
+
 The sibling `../runtime` crate owns shared execution for the release publisher and the
 disposable profile installer. It consumes this crate's contracts and digest encodings.
 

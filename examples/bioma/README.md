@@ -310,21 +310,22 @@ kubectl --context k3d-veoveo-bioma -n kube-system rollout status   daemonset/nvi
 kubectl --context k3d-veoveo-bioma get nodes   -o 'custom-columns=NAME:.metadata.name,GPU:.status.allocatable.nvidia\.com/gpu'
 ~~~
 
-The node must report at least seven allocatable GPU shares before application bootstrap.
+The node must report at least eight allocatable GPU shares before application bootstrap.
 The local time-slicing profile keeps the UAV simulator, View, Stream,
-Reason, Speech, the cuOpt executor, and the Rerun viewer MCP in separate GPU-requesting
+Reason, Speech, Embedding, the cuOpt executor, and the Rerun viewer MCP in separate GPU-requesting
 workloads. Fielded installations use their measured exclusive,
 MIG, or time-slicing placement instead of inheriting this development profile.
 Each required workload still requests nvidia.com/gpu: 1 and the nvidia runtime
-class. The shares make all seven render and GPU-compute workloads schedulable
-together; they are not a CPU fallback.
+class. Every GPU workload requires a hardware allocation.
 
 The local Reason profile reserves 42% of the 24 GiB NVIDIA device for vLLM. This
 bound preserves device-memory headroom for the six-frame multimodal pass while
 the Isaac simulator, cuOpt, Rerun, and the other GPU services stay
 resident. Installations with different checkpoints, solver pools, or GPU capacity
 size `reason.engine.gpuMemoryUtilization` and
-`VEOVEO_CUOPT_POOL_GIB` against all seven concurrently resident workloads.
+`embedding.engine.gpuMemoryUtilization` and `VEOVEO_CUOPT_POOL_GIB` against all
+concurrently resident workloads. The embedding profile requests 25% of device memory;
+its composed memory budget requires installed qualification with the other workloads.
 The development chart requests 4 GiB of host memory for the cuOpt executor. The
 simulator's operator-camera products run inside the simulator allocation. Higher
 memory limits allow bursts without making the seven-workload placement unschedulable on
@@ -395,6 +396,16 @@ The command refuses an existing seed file and writes it with mode `0600`. Both g
 replicas use this Secret. Store the seed in the installation's secret manager; retain
 public keys needed to verify older blocks when rotating it. Audit retention is the
 explicit `gateway.auditRetentionDays` value in this installation's Helm values.
+
+Embedding uses a separate installation key. Generate it once in the secret manager and
+set `VEOVEO_EMBEDDING_API_KEY` in the provisioning environment. Create its Secret in
+the platform namespace; agent kernels and Computers receive no copy:
+
+~~~bash
+: "${VEOVEO_EMBEDDING_API_KEY:?set the installation embedding API key}"
+jq -n '{apiVersion:"v1",kind:"Secret",metadata:{name:"veoveo-embedding",namespace:"veoveo"},type:"Opaque",stringData:{"api-key":env.VEOVEO_EMBEDDING_API_KEY}}' |
+  kubectl --context k3d-veoveo-bioma apply -f -
+~~~
 
 The enterprise owns Secret creation. For this local reference, load the main
 worktree .env and create the required Secret objects before the root Kustomization.
@@ -687,6 +698,24 @@ Publish a different checkpoint with a new manifest, digest and directory. Never 
 files under a directory that a running Reason workload reads. A failed transfer leaves
 `.checkpoint-staging` for inspection; remove only that incomplete directory before
 retrying. A cluster reset deletes the model PVC, so repeat this step during each rebuild.
+
+## Stage the embedding checkpoint
+
+The full installation includes `embedding`. Its init container waits for the pinned
+checkpoint under `embedding-model-cache`. Stage revision
+`97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3` of `Qwen/Qwen3-Embedding-0.6B` using
+[the runtime manifest](../../platform/runtimes/embedding/checkpoint.sha256).
+Use the temporary transfer Pod procedure above with PVC `embedding-model-cache`,
+Deployment `embedding`, transfer Pod `embedding-model-stage`, and final directory
+`qwen3-embedding-0.6b-97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3`. The manifest's ten
+files are the complete runtime checkpoint. Verify the staging directory before moving
+it into place, delete the transfer Pod, and restart `deployment/embedding`.
+
+Readiness requires checkpoint verification, a visible NVIDIA CUDA device and vLLM's
+`/health`. The runtime serves internal requests at `http://embedding:8000`, authenticated
+with `veoveo-embedding`'s `api-key`. The namespace policy excludes the Computers host
+and all other namespaces. Qualify those denied paths from pods before treating the
+installation as accepted.
 
 ## Public edge
 

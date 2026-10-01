@@ -358,6 +358,8 @@ pub enum PlatformComponent {
     RecordingDataPlane,
     /// Canonical simulation runtime compatibility artifacts and conformance gates.
     SimulationRuntimeSupport,
+    /// Shared GPU text embedding service, using the pinned external vLLM image.
+    EmbeddingRuntime,
     /// Continuously scheduled agent kernel artifact for external agent workloads.
     AgentRuntimeSupport,
     Console,
@@ -1300,6 +1302,7 @@ impl PlatformComponent {
             Self::ArtifactService,
             Self::RecordingDataPlane,
             Self::SimulationRuntimeSupport,
+            Self::EmbeddingRuntime,
             Self::AgentRuntimeSupport,
             Self::Console,
             Self::Telemetry,
@@ -1541,6 +1544,12 @@ impl ResolvedPlatformSelection {
 
     fn validate_gpu_scheduling(&self) -> Result<()> {
         let mut required = BTreeSet::new();
+        if self
+            .components
+            .contains(&PlatformComponent::EmbeddingRuntime)
+        {
+            required.insert("embedding");
+        }
         if self.mcp_servers.contains(&FirstPartyMcpServer::View) {
             required.insert("view-renderer");
         }
@@ -1782,7 +1791,11 @@ impl PlatformComponent {
             Self::SimulationRuntimeSupport => &["simulation-runtime"],
             Self::AgentRuntimeSupport => &["agent-kernel", "agent-manager"],
             Self::Console => &["console-bff"],
-            Self::PlatformStore | Self::ObjectStore | Self::Telemetry | Self::Ingress => &[],
+            Self::PlatformStore
+            | Self::ObjectStore
+            | Self::EmbeddingRuntime
+            | Self::Telemetry
+            | Self::Ingress => &[],
         }
     }
 }
@@ -2791,6 +2804,28 @@ mod tests {
                 "optimization-mcp".to_owned(),
             ])
         );
+    }
+
+    #[test]
+    fn embedding_requires_gpu_placement_and_uses_an_external_image() {
+        let mut selection = PlatformSelection {
+            computer_capacity: Default::default(),
+            installation_preset: InstallationPreset::Custom,
+            components: BTreeSet::from([PlatformComponent::EmbeddingRuntime]),
+            mcp_servers: BTreeSet::new(),
+            artifact_audiences: BTreeSet::new(),
+            workloads: BTreeSet::new(),
+            gpu_scheduling: None,
+        };
+        assert!(
+            selection
+                .resolve()
+                .unwrap_err()
+                .to_string()
+                .contains("gpuScheduling")
+        );
+        selection.gpu_scheduling = Some(exclusive_gpu_scheduling(["embedding"], 1));
+        assert!(selection.resolve().unwrap().required_images().is_empty());
     }
 
     #[test]

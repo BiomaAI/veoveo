@@ -5,7 +5,7 @@
 | Standard or format | Supported profile |
 |---|---|
 | HTTP and JSON | Internal authenticated `GET /v1/models` and `POST /v1/embeddings`; no redirects or proxy routing |
-| [vLLM 0.30.0 pooling API](https://github.com/vllm-project/vllm/blob/v0.30.0/vllm/entrypoints/pooling/base/protocol.py) | String batches, float output, explicit dimensions, `use_activation` and scalar request priority |
+| [vLLM 0.30.0 pooling API](https://github.com/vllm-project/vllm/blob/v0.30.0/vllm/entrypoints/pooling/base/protocol.py) | String batches, native-dimension float output, `use_activation` and scalar request priority |
 | [Qwen3 Embedding model card](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B/blob/97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3/README.md) | Document text unchanged; queries use the model's instruction prefix and `Query:` without an added space |
 | [Veoveo embedding contract](../contract/DESIGN.md) | Typed input bounds, model identity, embedding spaces and finite normalized vectors |
 
@@ -34,8 +34,11 @@ vLLM priorities 0 and 10. The server must run its priority scheduler.
 
 The contract admits 1–32 texts, at most 16 KiB each and 128 KiB combined. Tasks contain
 1–1,024 printable UTF-8 bytes. The client also checks the 128 KiB bound after adding
-query instructions. It requests float output at the configured dimension and enables
-the model's pooling activation. It never requests input truncation.
+query instructions. It requests native-dimension float output and enables the model's
+pooling activation. vLLM reserves the `dimensions` request parameter for models whose
+configuration advertises Matryoshka resizing; the pinned checkpoint does not advertise
+it. The client omits that parameter and checks every returned vector against the
+configured dimension. It never requests input truncation.
 
 One shared client serves each replica. Clones share four request permits, with at most
 one occupied by bulk work. Configuration may change these limits while reserving at

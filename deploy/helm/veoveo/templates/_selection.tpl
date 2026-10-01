@@ -1,6 +1,6 @@
 {{- define "veoveo.selectedComponents" -}}
 {{- if eq .Values.installationPreset "full" -}}
-{{- toYaml (list "gateway" "platform-store" "object-store" "artifact-service" "recording-data-plane" "simulation-runtime-support" "agent-runtime-support" "console" "telemetry" "ingress") -}}
+{{- toYaml (list "gateway" "platform-store" "object-store" "artifact-service" "recording-data-plane" "simulation-runtime-support" "embedding-runtime" "agent-runtime-support" "console" "telemetry" "ingress") -}}
 {{- else if eq .Values.installationPreset "foundation" -}}
 {{- toYaml (list "gateway" "platform-store" "object-store" "artifact-service" "recording-data-plane") -}}
 {{- else -}}

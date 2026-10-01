@@ -33,7 +33,7 @@ argument, storage, and GPU definitions for every first-party server under
 copies those definitions.
 
 The typed components distinguish `recording-data-plane`,
-`simulation-runtime-support`, and `agent-runtime-support` from hosted MCP servers.
+`simulation-runtime-support`, `embedding-runtime`, and `agent-runtime-support` from hosted MCP servers.
 Simulation applications and continuously scheduled agents ship their own workloads in
 separate releases. A support component only adds the platform runtime images those
 releases need to the deployment lock; it renders no workload of its own. The Rust

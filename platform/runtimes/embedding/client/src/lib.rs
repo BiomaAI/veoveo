@@ -183,7 +183,6 @@ impl EmbeddingClient {
                 model: &self.0.space.model,
                 input: &input,
                 encoding_format: "float",
-                dimensions: self.0.space.dimension.get(),
                 use_activation: true,
                 priority: match priority {
                     EmbeddingPriority::Interactive => 0,

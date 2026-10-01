@@ -17,6 +17,7 @@
     "console-bff",
     "datasheet-mcp",
     "duckdb-mcp",
+    "embedding",
     "frames-mcp",
     "map-mcp",
     "mcp-gateway",
@@ -34,7 +35,7 @@
     "uav-sim-mcp",
     "view-mcp"
   ],
-  "minimumGpuShares": 7,
+  "minimumGpuShares": 8,
   "operator": {
     "clientId": "operator-service",
     "profile": "operator",

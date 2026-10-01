@@ -1,0 +1,208 @@
+{{- if include "veoveo.componentEnabled" (list . "embedding-runtime") }}
+{{- if and (not .Values.global.gpuPlacement.enabled) (ne .Values.embedding.runtimeClassName "nvidia") }}
+{{- fail "embedding requires the nvidia runtime class" }}
+{{- end }}
+{{- if or (ne (toString (index .Values.embedding.resources.requests "nvidia.com/gpu")) "1") (ne (toString (index .Values.embedding.resources.limits "nvidia.com/gpu")) "1") }}
+{{- fail "embedding requires one NVIDIA GPU allocation" }}
+{{- end }}
+{{- $manifest := required "embedding checkpoint manifest is missing" (.Files.Get "files/embedding-checkpoint.sha256") }}
+{{- $model := "qwen3-embedding-0.6b-97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3" }}
+{{- if not .Values.embedding.modelCache.existingClaim }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: embedding-model-cache
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: embedding
+spec:
+  accessModes:
+    {{- toYaml .Values.embedding.modelCache.accessModes | nindent 4 }}
+  {{- if .Values.embedding.modelCache.storageClass }}
+  storageClassName: {{ .Values.embedding.modelCache.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.embedding.modelCache.size }}
+---
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: embedding-checkpoint
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: embedding
+data:
+  checkpoint.sha256: |
+    {{- $manifest | nindent 4 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: embedding
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: embedding
+spec:
+  selector:
+    {{- include "veoveo.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: embedding
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: embedding
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: embedding
+spec:
+  replicas: {{ include "veoveo.gpuReplicas" (list . "embedding") }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "veoveo.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: embedding
+  template:
+    metadata:
+      labels:
+        {{- include "veoveo.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: embedding
+      annotations:
+        {{- include "veoveo.podAnnotations" . | nindent 8 }}
+        {{- include "veoveo.gpuPodAnnotations" (list . "embedding") | nindent 8 }}
+        checksum/embedding-checkpoint: {{ $manifest | sha256sum | quote }}
+    spec:
+      runtimeClassName: {{ include "veoveo.gpuRuntimeClass" (list . .Values.embedding.runtimeClassName) }}
+      {{- include "veoveo.gpuPodClaim" (list . "embedding") | nindent 6 }}
+      serviceAccountName: {{ include "veoveo.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 90
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "veoveo.podSecurityContext" . | nindent 8 }}
+      initContainers:
+        - name: verify-checkpoint
+          image: {{ include "veoveo.image" (list . .Values.embedding.image) }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          command: [/bin/sh, -ec]
+          args:
+            - exec sha256sum --check --strict /checkpoint/checkpoint.sha256
+          workingDir: /models/{{ $model }}
+          securityContext:
+            {{- include "veoveo.containerSecurityContext" . | nindent 12 }}
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: "1", memory: 256Mi}
+          volumeMounts:
+            - {name: models, mountPath: /models, readOnly: true}
+            - {name: checkpoint, mountPath: /checkpoint, readOnly: true}
+      containers:
+        - name: embedding
+          image: {{ include "veoveo.image" (list . .Values.embedding.image) }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          command: [/bin/sh, -ec]
+          args:
+            - |
+              python3 -c 'import sys, torch; sys.exit(0 if torch.cuda.is_available() else "Embedding runtime requires NVIDIA CUDA")'
+              exec vllm serve "$@"
+            - embedding
+            - /models/{{ $model }}
+            - --runner
+            - pooling
+            - --served-model-name
+            - qwen3-embedding-0.6b
+            - --scheduling-policy
+            - priority
+            - --gpu-memory-utilization
+            - {{ .Values.embedding.engine.gpuMemoryUtilization | quote }}
+            - --max-model-len
+            - "32768"
+            - --max-num-batched-tokens
+            - {{ .Values.embedding.engine.maxNumBatchedTokens | quote }}
+            - --max-num-seqs
+            - {{ .Values.embedding.engine.maxNumSeqs | quote }}
+            - --host
+            - 0.0.0.0
+            - --port
+            - "8000"
+          env:
+            - name: VLLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.embedding.apiKeySecret.name | quote }}
+                  key: {{ .Values.embedding.apiKeySecret.key | quote }}
+            - {name: HF_HUB_OFFLINE, value: "1"}
+            - {name: HF_HUB_DISABLE_TELEMETRY, value: "1"}
+            - {name: NVIDIA_DRIVER_CAPABILITIES, value: "compute,utility"}
+            - {name: HOME, value: /tmp}
+            - {name: VLLM_CACHE_ROOT, value: /tmp/vllm}
+          ports:
+            - {name: http, containerPort: 8000}
+          startupProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 5
+            failureThreshold: 120
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          securityContext:
+            {{- include "veoveo.containerSecurityContext" . | nindent 12 }}
+          resources:
+            {{- include "veoveo.gpuResources" (list . "embedding" .Values.embedding.resources) | nindent 12 }}
+          volumeMounts:
+            - {name: models, mountPath: /models, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+            - {name: shm, mountPath: /dev/shm}
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: {{ default "embedding-model-cache" .Values.embedding.modelCache.existingClaim | quote }}
+        - name: checkpoint
+          configMap:
+            name: embedding-checkpoint
+        - name: tmp
+          emptyDir: {sizeLimit: 2Gi}
+        - name: shm
+          emptyDir: {medium: Memory, sizeLimit: 1Gi}
+---
+# This policy applies even when the installation disables its general policies.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: embedding
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: embedding
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "veoveo.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: embedding
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: NotIn
+                values: [computer-host]
+      ports:
+        - {protocol: TCP, port: 8000}
+  egress: []
+{{- end }}

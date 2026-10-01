@@ -35,11 +35,11 @@ struct Runtime {
     release: Arc<Semaphore>,
 }
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Request {
     model: String,
     input: Vec<String>,
     encoding_format: String,
-    dimensions: u16,
     use_activation: bool,
     priority: i32,
 }
@@ -135,7 +135,6 @@ async fn embed(
     assert_eq!(headers["authorization"], "Bearer fixture-key");
     assert_eq!(request.model, "fixture");
     assert_eq!(request.encoding_format, "float");
-    assert_eq!(request.dimensions, 3);
     assert!(request.use_activation);
     state.calls.fetch_add(1, Ordering::SeqCst);
     state.seen.send(request.priority).unwrap();

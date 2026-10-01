@@ -17,6 +17,10 @@
     {
       "ref": "otel/opentelemetry-collector:0.161.0",
       "source": "otel/opentelemetry-collector@sha256:b6d2b9a85b1029d05b5ad913150c1f014eed4ae99be81a1813ca5ade4a191913"
+    },
+    {
+      "ref": "vllm/vllm-openai:v0.30.0",
+      "source": "vllm/vllm-openai@sha256:8a69ffad015f138d7170c4ddc429e230a3bc1c1719f67e14324749df200a4b90"
     }
   ],
   "veoveo_images": [

@@ -8,7 +8,6 @@ pub(crate) struct EmbeddingRequest<'a> {
     pub model: &'a EmbeddingModelId,
     pub input: &'a [String],
     pub encoding_format: &'static str,
-    pub dimensions: u16,
     pub use_activation: bool,
     pub priority: i32,
 }

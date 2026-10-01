@@ -21,8 +21,9 @@ are implemented. Knowledge Store records and transactional generation/member API
 pass native SurrealDB 3.3 qualification. Node document observations and executable
 K07/K08 owner probes are implemented. Domain probe fixtures and installed qualification
 remain open. Chart docs, Time domain adoption, Artifact metadata and Map summaries are
-implemented locally. The Phase 8 embedding HTTP client passes native contract checks;
-GPU serving, Reason and the knowledge service are still open. Broader server
+implemented locally. The Phase 8 embedding HTTP client passes native contract checks.
+The embedding Helm component and local GPU reference, priority and refusal checks pass.
+Installed embedding qualification, Reason and the knowledge service are still open. Broader server
 adoption is postponed outside this plan's completion scope. The cluster and BuildKit
 are stopped.
 
@@ -3446,8 +3447,25 @@ compilation. The provider's `/v1/models`
 response identifies the served model; revision, dimension and image identity come from
 deployment configuration. The pinned 0.6B checkpoint's ten runtime files are staged
 locally and verified against upstream Git/LFS identities; `checkpoint.sha256` records
-their SHA-256 digests. GPU serving, init-check qualification and reference vectors, scheduling
-load qualification, network isolation and the Knowledge service remain open.
+their SHA-256 digests. This checkpoint covers the client and local artifact staging.
+
+Runtime checkpoint (2026-10-01): the full Helm preset now
+includes `embedding-runtime`, with a pinned official vLLM image, model-cache PVC,
+checksum init, NVIDIA allocation, private API-key Secret and a dedicated network policy.
+The reference installation accounts for eight GPU shares. Three rendered Helm checks
+and all 31 deployment-contract tests pass. The CUDA reference generator has produced
+four 1,024-dimensional vectors using the pinned image's PyTorch 2.13.0, Transformers
+5.17.0 and cuDNN attention on the RTX 4090. The initial 0.12 GPU-memory fraction could
+not allocate the 3.5 GiB KV cache required by the model's full 32,768-token context;
+the declared fraction is 0.25. All four served vectors pass the 0.999 cosine threshold
+(minimum 0.9997335). The interactive request completed in 81 ms before all six bulk
+batches; this 192-input fixture measured about 300 inputs/second. The runtime refuses
+a corrupted checkpoint and missing CUDA; unauthenticated model discovery returns 401.
+The real provider rejects `dimensions` unless its model metadata enables Matryoshka
+resizing, so the client requests native dimensions and checks the resulting vectors.
+The owned runtime was stopped and removed after qualification, preserving its compilation
+cache. Installed namespace isolation, simultaneous GPU memory qualification,
+Knowledge retrieval evaluation and model-size comparison remain open.
 
 1. Deliver the shared [embedding runtime](../platform/runtimes/embedding/DESIGN.md)
    before the knowledge service consumes it. Re-verify the latest stable vLLM release
@@ -3473,7 +3491,8 @@ load qualification, network isolation and the Knowledge service remain open.
       record the result in the runtime design.
    3. Create `platform/runtimes/embedding/client` as the `veoveo-embedding-client`
       workspace crate: `embed_documents`, `embed_query`, priorities, request bounds,
-      response validation, and `EmbeddingSpace` read from `/v1/models`.
+      response validation, and `EmbeddingSpace` built from model discovery and deployment
+      identity.
    4. Generate the reference vectors with the model card's `transformers` recipe
       through `uv run`, commit them as a fixture, and make the reference test pass
       against the runtime on a hardware GPU.
