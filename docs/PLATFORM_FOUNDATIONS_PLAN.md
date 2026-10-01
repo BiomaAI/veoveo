@@ -3787,6 +3787,16 @@ The four native HTTP checks and Helm configuration smoke pass. Deployment and th
 expanded ignored installed check remain pending; the cluster stays stopped while images
 are prepared.
 
+Catalog activation inputs (2026-10-01): platform and UAV images and both OCI charts
+published from `1a92901d`; the hosted Knowledge repair published from `97921a7b`.
+The reference pins select those manifests, including the managed agent template and
+the recording forwarder. Existing Computers guest images are preserved. Ten rollout
+checks and final Helm configuration smoke pass. With root reconciliation and the
+platform Helm release suspended, the installation stopped its Knowledge worker and
+drained every gateway and Console pod before activating these inputs. The bootstrap
+Job applies Store migrations using the matching gateway image. Installed catalog and
+indexing-window acceptance follow reconciliation.
+
 Hosted conformance repair (2026-10-01): the Knowledge HTTP suite now runs the shared
 hosted checker. It found two delivery defects: the embedding request schema omitted
 its root object declaration, and `knowledge://contract` had no read handler. Both
