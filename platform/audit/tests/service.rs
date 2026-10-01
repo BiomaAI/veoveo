@@ -31,6 +31,63 @@ async fn state(health: &mut AuditHealth, expected: AuditHealthState) {
     .await
     .expect("audit replica did not reach its expected state");
 }
+
+#[tokio::test]
+async fn replay_drains_unrelated_changes_before_the_export_deadline() {
+    tokio::time::timeout(Duration::from_secs(60), async {
+        let db = fixture::TestDb::with_backend(fixture::StoreBackend::RocksDb).await;
+        db.a.client()
+            .query("DEFINE TABLE audit_sealer_noise CHANGEFEED 7d;")
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        // Separate commits model recording traffic ahead of an audit marker.
+        // A one-second delay per 32-entry replay page cannot meet the reader deadline.
+        for index in 0..768_u32 {
+            db.a.client()
+                .query("CREATE type::record('audit_sealer_noise', $index) SET value = $index;")
+                .bind(("index", index))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+        }
+        let record = draft();
+        db.a.append_audit_records(std::slice::from_ref(&record))
+            .await
+            .unwrap();
+        let started = std::time::Instant::now();
+        let service = AuditService::start(
+            db.a.clone(),
+            Arc::new(AuditSigningKey::from_seed(&[43; 32])),
+            NonZeroU32::new(1).unwrap(),
+            Default::default(),
+        )
+        .unwrap();
+        let sealed = tokio::time::timeout(
+            Duration::from_secs(10),
+            db.b.audit_wait_sealed(
+                &AuditReadScope::new(None, true),
+                &AuditPartition::Installation,
+                record.id(),
+            ),
+        )
+        .await;
+        let elapsed = started.elapsed();
+        // Always stop the service before reporting the result.
+        service.shutdown(Duration::from_secs(15)).await.unwrap();
+        sealed
+            .expect("unrelated feed pages delayed an export marker beyond ten seconds")
+            .unwrap();
+        println!(
+            "{{\"unrelated_commits\":768,\"seal_millis\":{}}}",
+            elapsed.as_millis()
+        );
+    })
+    .await
+    .expect("audit replay backlog qualification exceeded 60 seconds");
+}
 #[tokio::test]
 async fn a_standby_seals_after_takeover_and_shutdown_drains_all_committed_pages() {
     tokio::time::timeout(Duration::from_secs(90), async {

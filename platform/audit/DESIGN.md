@@ -54,8 +54,11 @@ Their terminal records therefore enter the queue before the writer closes it.
 
 The sealer owns a 30-second database lease, renewed every ten seconds. Every block
 transaction checks its owner, generation, expiry and previous cursor. A new replica
-continues from that cursor. Native LIVE notifications wake the worker, and a one-second
-timer groups pending changes. Idle timers renew the lease without scanning records.
+continues from that cursor. Native LIVE notifications open a one-second batching
+window. The worker then drains consecutive feed pages without another timer delay,
+yielding between pages for shutdown, export and lease renewal. Initial recovery reaches
+the end of the feed before reporting active readiness. Idle timers renew the lease
+without scanning records.
 The worker refuses a recovery cursor left unprocessed for six days, before the
 seven-day change-feed window can disappear silently.
 

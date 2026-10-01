@@ -75,8 +75,9 @@ impl AuditSealer {
         );
         Ok((count, committed.next.get() > lease.cursor as u64))
     }
-    /// Native LIVE is the wake source. The one-second timer coalesces seal work;
-    /// an idle timer never polls records. Lease renewal has a separate 10 s clock.
+    /// Native LIVE starts one one-second batching window. Once that window ends,
+    /// replay drains without a delay between pages. An idle worker never polls
+    /// records. Lease renewal has a separate 10 s clock.
     /// A stream disconnect exits so the gateway supervisor can reconnect and replay
     /// the persisted cursor. Integrity failures must make that supervisor unhealthy.
     pub(crate) async fn run(
@@ -91,14 +92,13 @@ impl AuditSealer {
         let export_lease = lease.clone();
         let export = maintenance.exporter.run(&self.store, &export_lease);
         tokio::pin!(export);
-        let mut flush = tokio::time::interval(Duration::from_secs(1));
-        flush.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         let mut renew = tokio::time::interval(Duration::from_secs(10));
         renew.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         let mut maintain = tokio::time::interval(Duration::from_secs(60));
         maintain.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         let mut pending = true;
-        let mut sealed_once = false;
+        let mut flush_at = tokio::time::Instant::now();
+        let mut caught_up_once = false;
         loop {
             if *shutdown.borrow() {
                 self.drain(&lease).await?;
@@ -120,23 +120,34 @@ impl AuditSealer {
                     }
                 }
                 next = wake.next() => match next {
-                    Some(Ok(())) => pending = true,
+                    Some(Ok(())) => {
+                        if !pending {
+                            pending = true;
+                            flush_at = tokio::time::Instant::now() + Duration::from_secs(1);
+                        }
+                    },
                     Some(Err(error)) => return Err(error.into()),
                     None => return Err(SealError::Disconnected),
                 },
                 _ = renew.tick() => {
                     lease = self.store.renew_audit_seal_lease(&lease, !pending).await?;
-                    if sealed_once { health.send_replace(HealthUpdate::now(AuditHealthState::Active)); }
+                    if caught_up_once { health.send_replace(HealthUpdate::now(AuditHealthState::Active)); }
                 }
                 _ = maintain.tick() => {
                     maintenance.run(&lease).await?;
                 }
-                _ = flush.tick(), if pending => {
+                _ = tokio::time::sleep_until(flush_at), if pending => {
                     // A zero-record page may contain unrelated table changes. Keep
                     // draining until Store reports that the database cursor is idle.
                     pending = self.seal_page().await?.1;
-                    sealed_once = true;
-                    health.send_replace(HealthUpdate::now(AuditHealthState::Active));
+                    flush_at = tokio::time::Instant::now();
+                    caught_up_once |= !pending;
+                    if caught_up_once {
+                        health.send_replace(HealthUpdate::now(AuditHealthState::Active));
+                    }
+                    // Return to select between pages so shutdown, export and lease
+                    // renewal still progress while a busy database is catching up.
+                    tokio::task::yield_now().await;
                 }
             }
         }
