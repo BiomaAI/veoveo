@@ -84,6 +84,7 @@ group "platform-full" {
     "recording-mcp",
     "console-bff",
     "artifact-mcp",
+    "knowledge-mcp",
     "media-mcp",
     "stream-mcp",
     "reason-mcp",
@@ -541,6 +542,19 @@ target "time-mcp" {
     "ai.veoveo.build.package"   = "veoveo-time-mcp"
     "ai.veoveo.build.binaries"  = "time-mcp"
     "ai.veoveo.build.family"    = "rust-bookworm-v1"
+    "ai.veoveo.build.auxiliary" = ""
+  }
+}
+
+target "knowledge-mcp" {
+  inherits   = ["_rust-trixie-runtime"]
+  dockerfile = "servers/knowledge-mcp/Dockerfile"
+  tags       = [image_ref("knowledge-mcp")]
+  labels = {
+    "ai.veoveo.build.mode"      = "rust-shared"
+    "ai.veoveo.build.package"   = "veoveo-knowledge-mcp"
+    "ai.veoveo.build.binaries"  = "knowledge-mcp"
+    "ai.veoveo.build.family"    = "rust-trixie-v1"
     "ai.veoveo.build.auxiliary" = ""
   }
 }

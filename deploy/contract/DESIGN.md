@@ -42,6 +42,10 @@ It requires an `embedding` GPU workload in placement. Its image is the pinned ex
 vLLM image from the installation chart and offline catalog; it adds no Veoveo-owned
 image target to the build closure.
 
+The `knowledge` server belongs to the full preset and requires Gateway, Store and
+`embedding-runtime`. Its `knowledge-mcp` image uses the shared Rust build. GPU placement
+belongs to the embedding runtime; the Knowledge service requests no GPU of its own.
+
 The sibling `../runtime` crate owns shared execution for the release publisher and the
 disposable profile installer. It consumes this crate's contracts and digest encodings.
 

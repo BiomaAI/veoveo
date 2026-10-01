@@ -5,7 +5,8 @@ with their revision, freshness and resource links. The service contract below de
 its hosted surface. The HTTP adapter serves search, embedding and catalog reads through
 signed gateway identities. The library coordinates source listeners and reconciliation.
 The binary runs tenant indexing workers with machine authentication and connection
-rotation. Packaging and installed qualification are pending.
+rotation. Its Helm workload uses the shared embedding runtime. Image publication and
+installed qualification are pending.
 
 ## Standards And Protocols
 
@@ -117,7 +118,38 @@ configuration. It connects to the shared embedding endpoint using its API key an
 JSON `EmbeddingSpace` file. Database migrations belong to installation bootstrap.
 `healthz` requires every configured tenant worker to have an active index or a complete
 catalog-only selection, and checks Store's control pointer within two seconds.
-Installed readiness requires further qualification.
+`livez` reports HTTP process liveness independently of indexing. Installed readiness
+requires further qualification.
+
+## Packaging And Deployment
+
+The image contains the shared-build Rust binary and CA certificates, using the existing
+qualified Debian Trixie runtime family. It runs as UID 10001. The `knowledge` Helm
+selection requires Gateway, Store and the shared GPU embedding runtime. Knowledge
+requests CPU and memory; its index lives in Store and its embeddings run in the shared
+GPU service. It requires no local volume or free-disk reservation.
+
+The chart deploys one replica with a Recreate strategy. An update drains the worker
+before starting its replacement. Store leases still fence an unexpectedly overlapping
+process. Multiple active indexing replicas and standby workers are outside this hosting
+profile. Public read APIs can use the library's separately qualified replica support.
+
+`knowledge.existingConfigMap` supplies the tenant configuration files named by
+`knowledge.indexingConfigKeys`. The chart mounts them under
+`/etc/veoveo/knowledge/config`. `knowledge.configurationRevision` identifies those
+public bytes and controls Pod rollout. Private keys and optional additional CA
+certificates come from `knowledge.existingSigningSecret`, mounted read-only with mode
+0440 under `/etc/veoveo/knowledge/signing`. Workers reread key files on connection
+rotation. The embedding key comes from `embedding.apiKeySecret`; the chart generates
+the embedding-space document from the qualified model, revision, dimension and runtime
+image. Helm rejects inline credentials and missing deployment dependencies.
+
+Startup and liveness probes use `livez`; readiness uses `healthz`. The 45-second
+termination allowance covers worker cleanup and HTTP draining. Configuration changes
+use a new public bundle revision; key rotation uses Kubernetes Secret projection and
+the worker's next authenticated connection. The installation registers the service at
+`http://knowledge-mcp:8800/knowledge/mcp` with health URL
+`http://knowledge-mcp:8800/knowledge/healthz`.
 
 ## Indexing Configuration And Lifecycle
 
@@ -133,7 +165,7 @@ The service rejects missing, ambiguous or invalid registrations before authentic
   "client_id": "knowledge-indexer",
   "key_id": "indexer-v1",
   "signing_algorithm": "ed_dsa",
-  "private_key_file": "/etc/veoveo/indexing/private.pem",
+  "private_key_file": "/etc/veoveo/knowledge/signing/private.pem",
   "trusted_ca_file": null,
   "chunk_settings": {
     "version": "structure-v1",
@@ -331,6 +363,7 @@ agent's episode budget counts it. Platform services call the runtime directly in
 | `src/authority.rs` | current policy, directory, session and registration checks |
 | `src/mcp/` | typed setup, per-descriptor discovery, search, embed and catalog reads |
 | `src/host.rs`, `src/bin/server.rs` | authenticated HTTP mount and installation configuration |
+| `Dockerfile`, `deploy/helm/veoveo/templates/knowledge.yaml` | CPU service image, public configuration and private key mounts, shared embedding identity and deployment probes |
 | `src/search.rs` | hybrid query, rank fusion, effective-access filtering, and result links |
 | `platform/store/src/knowledge.rs` | typed catalog, chunk, and index-generation records |
 | `platform/gateway/src/mcp/resource_read.rs`, `knowledge_indexing.rs` | collection approval, observation and label admission, and per-read audit; indexing windows pending |
@@ -359,6 +392,9 @@ empty tokens and redirects, and verifies generation and vector reuse after an un
 control edit. Its source and vectors are isolated fixtures. Store's catalog test races
 two discoveries, rejects an obsolete control revision and removes a tenant's revoked
 registrations without changing another tenant's catalog.
+`testing/deployment-smoke/tests/knowledge_helm.rs` renders the actual chart to check
+dependencies, secret references, model identity, liveness/readiness separation,
+configuration-driven rollout and the absence of local storage or GPU requests.
 
 Installed acceptance also requires the following cases:
 

@@ -435,6 +435,24 @@ embedding:
       memory: 8Gi
       nvidia.com/gpu: "1"
 
+knowledge:
+  image:
+    repository: veoveo/knowledge-mcp
+    tag: 0.1.0
+    digest: ""
+  # Public IndexingConfig documents. Credentials live in the separate Secret.
+  existingConfigMap: ""
+  configurationRevision: ""
+  indexingConfigKeys: [indexing.json]
+  existingSigningSecret: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "2"
+      memory: 1Gi
+
 # Installation-time server bootstrap documents, keyed by domain-service
 # name. Each entry renders a `{name}-bootstrap` ConfigMap mounted at the
 # canonical /etc/veoveo/bootstrap/catalog.json and passed to the server via

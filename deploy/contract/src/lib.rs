@@ -374,6 +374,7 @@ pub enum PlatformComponent {
 #[serde(rename_all = "kebab-case")]
 pub enum FirstPartyMcpServer {
     Computers,
+    Knowledge,
     Artifact,
     Media,
     Timeseries,
@@ -1315,6 +1316,7 @@ impl FirstPartyMcpServer {
     fn all_supported() -> BTreeSet<Self> {
         BTreeSet::from([
             Self::Computers,
+            Self::Knowledge,
             Self::Artifact,
             Self::Media,
             Self::Timeseries,
@@ -1426,6 +1428,7 @@ impl ResolvedPlatformSelection {
         }
         let platform_store_servers = [
             FirstPartyMcpServer::Computers,
+            FirstPartyMcpServer::Knowledge,
             FirstPartyMcpServer::Artifact,
             FirstPartyMcpServer::Media,
             FirstPartyMcpServer::Timeseries,
@@ -1480,6 +1483,12 @@ impl ResolvedPlatformSelection {
         }
         if self.mcp_servers.contains(&FirstPartyMcpServer::Reason) {
             self.require_server(FirstPartyMcpServer::Recording, "reason requires recording")?;
+        }
+        if self.mcp_servers.contains(&FirstPartyMcpServer::Knowledge) {
+            self.require_component(
+                PlatformComponent::EmbeddingRuntime,
+                "Knowledge requires the embedding runtime",
+            )?;
         }
         if self.mcp_servers.contains(&FirstPartyMcpServer::Recording) {
             self.require_component(
@@ -1804,6 +1813,7 @@ impl FirstPartyMcpServer {
     fn images(self) -> &'static [&'static str] {
         match self {
             Self::Computers => &["computers-mcp"],
+            Self::Knowledge => &["knowledge-mcp"],
             Self::Artifact => &["artifact-mcp"],
             Self::Media => &["media-mcp"],
             Self::Timeseries => &["timeseries-mcp"],
@@ -2826,6 +2836,50 @@ mod tests {
         );
         selection.gpu_scheduling = Some(exclusive_gpu_scheduling(["embedding"], 1));
         assert!(selection.resolve().unwrap().required_images().is_empty());
+    }
+
+    #[test]
+    fn knowledge_requires_store_and_embedding_but_has_no_gpu_allocation_of_its_own() {
+        let mut selection = PlatformSelection {
+            computer_capacity: Default::default(),
+            installation_preset: InstallationPreset::Custom,
+            components: BTreeSet::from([
+                PlatformComponent::Gateway,
+                PlatformComponent::PlatformStore,
+            ]),
+            mcp_servers: BTreeSet::from([FirstPartyMcpServer::Knowledge]),
+            artifact_audiences: BTreeSet::new(),
+            workloads: BTreeSet::new(),
+            gpu_scheduling: None,
+        };
+        assert!(
+            selection
+                .resolve()
+                .unwrap_err()
+                .to_string()
+                .contains("embedding runtime")
+        );
+        selection
+            .components
+            .insert(PlatformComponent::EmbeddingRuntime);
+        selection.gpu_scheduling = Some(exclusive_gpu_scheduling(["embedding"], 1));
+        assert!(
+            selection
+                .resolve()
+                .unwrap()
+                .required_images()
+                .contains("knowledge-mcp")
+        );
+        selection
+            .components
+            .remove(&PlatformComponent::PlatformStore);
+        assert!(
+            selection
+                .resolve()
+                .unwrap_err()
+                .to_string()
+                .contains("platform store")
+        );
     }
 
     #[test]

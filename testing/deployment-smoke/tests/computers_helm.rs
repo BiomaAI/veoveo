@@ -5,8 +5,10 @@ use serde_json::Value;
 use std::process::Command;
 
 fn render(extra: &[&str]) -> std::process::Output {
-    Command::new("helm")
+    Command::new("timeout")
         .args([
+            "25s",
+            "helm",
             "template",
             "computers-test",
             "deploy/helm/veoveo",
@@ -16,6 +18,7 @@ fn render(extra: &[&str]) -> std::process::Output {
             "gateway.controlPlaneRevision=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "--set",
             "gateway.auditRetentionDays=1",
+            "--set", "knowledge.existingConfigMap=knowledge-test,knowledge.existingSigningSecret=knowledge-test,knowledge.configurationRevision=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
         ])
         .args(extra)
         .current_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."))

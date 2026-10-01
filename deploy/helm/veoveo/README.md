@@ -32,6 +32,26 @@ argument, storage, and GPU definitions for every first-party server under
 `definitions/domain-services.yaml`. An installation names the servers it wants and never
 copies those definitions.
 
+`knowledge` requires the gateway, platform store and `embedding-runtime`. The full
+preset includes it. Supply `knowledge.existingConfigMap` with the tenant JSON files
+listed in `knowledge.indexingConfigKeys`, and put their signing keys in the separate
+`knowledge.existingSigningSecret`. File paths in each [indexing configuration](../../../servers/knowledge-mcp/DESIGN.md#indexing-configuration-and-lifecycle)
+refer to `/etc/veoveo/knowledge/signing`. The chart stores no private key in values.
+
+Compute `knowledge.configurationRevision` from the public ConfigMap data:
+
+```sh
+kubectl -n "$VEOVEO_NAMESPACE" get configmap "$VEOVEO_KNOWLEDGE_CONFIGMAP" -o json |
+  jq -cS '.data' | sha256sum
+```
+
+Use the resulting 64-character hash in installation values. Updating that revision
+rolls the single Knowledge replica with a drain before replacement. Signing Secret
+updates are read at the next OAuth connection rotation. The chart supplies the shared
+embedding endpoint, key reference and qualified embedding-space identity. Knowledge
+has no GPU or local disk request. Its readiness probe waits for the approved catalog
+and index; liveness is independent of that work.
+
 The typed components distinguish `recording-data-plane`,
 `simulation-runtime-support`, `embedding-runtime`, and `agent-runtime-support` from hosted MCP servers.
 Simulation applications and continuously scheduled agents ship their own workloads in

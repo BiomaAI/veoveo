@@ -47,6 +47,7 @@ pub fn router<E: Embeddings + 'static>(
     Router::new()
         .nest("/admin", admin)
         .nest("/mcp", mcp)
+        .route("/livez", get(|| async { StatusCode::OK }))
         .route(
             "/healthz",
             get(move || {

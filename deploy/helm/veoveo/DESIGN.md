@@ -53,6 +53,35 @@ isolation. The service has no external route and needs no outbound connection.
 pins, source-manifest agreement, both GPU allocation modes and rejected CPU or unpinned
 configuration. Installed network denial and GPU measurements are separate acceptance.
 
+## Knowledge Service
+
+The `knowledge` server renders one CPU Deployment and a Service on port 8800.
+The full preset selects it; custom selection requires Gateway, Store and the embedding
+runtime. Recreate updates drain the indexing worker before replacement. The service
+stores its catalog and index in Store and requests no persistent or ephemeral storage.
+
+`knowledge.existingConfigMap` supplies one JSON `IndexingConfig` per tenant. The
+`indexingConfigKeys` list names 1–128 distinct JSON filenames under the read-only
+configuration mount. The installation hashes the public ConfigMap's `data` object as
+sorted compact JSON with its trailing newline; that SHA-256 becomes
+`knowledge.configurationRevision` and enters the Pod template. The installation owns
+validation of the file contents against the [service configuration](../../../servers/knowledge-mcp/DESIGN.md#indexing-configuration-and-lifecycle).
+
+`knowledge.existingSigningSecret` contains the private signing keys and optional CA
+files referenced by those configurations. It mounts only in Knowledge, read-only with
+mode 0440; the pod's fsGroup permits UID 10001 to read it. The chart renders no Secret
+contents. The embedding API key references the shared runtime's installation Secret.
+The generated embedding-space document binds its model identity to the qualified
+checkpoint and vLLM image digest. A changed public configuration or embedding space
+changes the Pod template. Key rotation is read on each new machine connection.
+
+Startup and liveness use `/knowledge/livez`; readiness uses `/knowledge/healthz`.
+An initial index build or reconnection can remove readiness while HTTP liveness stays
+healthy. Termination allows 45 seconds for the service's worker and HTTP drain.
+The [native chart suite](../../../testing/deployment-smoke/tests/knowledge_helm.rs)
+checks rendered objects and refused configurations. Image publication, machine-client
+provisioning and installed acceptance remain in the foundations plan.
+
 ## Audit Service
 
 Gateway rendering requires an explicit `gateway.auditRetentionDays`. The gateway also

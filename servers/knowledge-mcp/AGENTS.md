@@ -34,6 +34,9 @@ containers and has a 180-second timeout per case. Run
 `cargo check -p veoveo-knowledge-mcp --no-default-features --features contract` to
 qualify the public library dependency boundary. Hosted and GPU acceptance follow the
 [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#phase-8-knowledge-service).
+Packaging checks use `cargo test -p veoveo-deployment-smoke --test knowledge_helm` and
+`cargo xtask image plan --target knowledge-mcp`. The chart's single indexing replica
+uses Recreate, distinct liveness/readiness probes and installation-owned credentials.
 
 ## Contract Compliance
 
@@ -43,4 +46,4 @@ Target contract revision: `veoveo.ai/hosted-mcp/v3`.
 |---|---|---|
 | C02, C04–C06, C08–C10, C12–C14, C18–C26, C28–C30 | met | typed direct tools, SQL catalog pages, shared stateless transport, signed request authority and embedded documents; no durable tools or private byte routes |
 | C03, C11 | met | no domain Tasks, Artifact operations or recording operations |
-| C01, C07, C15–C17, C27, C31, C32 | pending | schema conformance, completion, catalog subscriptions, packaging, registration and installed conformance |
+| C01, C07, C15–C17, C27, C31, C32 | pending | schema conformance, completion, catalog subscriptions, image publication, registration and installed conformance; Helm packaging passes native checks |

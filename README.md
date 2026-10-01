@@ -61,9 +61,10 @@ Photorealistic 3D Tiles, rendered on cluster GPUs.*
 
 Servers can publish selected resources with their revision, access rules and freshness
 through the [knowledge-source extension](mcp/knowledge-extension/DESIGN.md). The
-[Knowledge library](servers/knowledge-mcp/DESIGN.md) indexes approved collections and
+[Knowledge service](servers/knowledge-mcp/DESIGN.md) indexes approved collections and
 combines keyword and semantic retrieval. Search results link to the owning resources.
-Its hosted catalog and search API are under development.
+Its catalog, search and indexing workers pass native checks; installation qualification
+is in progress.
 
 The catalog contract uses W3C DCAT 3 field names. Text embeddings use
 `Qwen/Qwen3-Embedding-0.6B` served by the shared vLLM GPU runtime. The selected adoption

@@ -10,7 +10,7 @@
 
 {{- define "veoveo.selectedMcpServers" -}}
 {{- if eq .Values.installationPreset "full" -}}
-{{- toYaml (list "computers" "artifact" "media" "timeseries" "optimization" "frames" "map" "time" "view" "datasheet" "duckdb" "chart" "rerun" "recording" "stream" "reason" "speech") -}}
+{{- toYaml (list "computers" "knowledge" "artifact" "media" "timeseries" "optimization" "frames" "map" "time" "view" "datasheet" "duckdb" "chart" "rerun" "recording" "stream" "reason" "speech") -}}
 {{- else if eq .Values.installationPreset "foundation" -}}
 {{- toYaml (list "computers" "artifact" "frames" "recording") -}}
 {{- else -}}
@@ -52,6 +52,14 @@
 {{- end -}}
 {{- if and (has "computers" $servers) (not (has "platform-store" $components)) -}}
 {{- fail "mcpServer computers requires component platform-store" -}}
+{{- end -}}
+{{- if has "knowledge" $servers -}}
+{{- if not (has "platform-store" $components) -}}
+{{- fail "mcpServer knowledge requires component platform-store" -}}
+{{- end -}}
+{{- if not (has "embedding-runtime" $components) -}}
+{{- fail "mcpServer knowledge requires component embedding-runtime" -}}
+{{- end -}}
 {{- end -}}
 {{- if and (has "artifact-service" $components) (not (has "platform-store" $components)) -}}
 {{- fail "component artifact-service requires component platform-store" -}}

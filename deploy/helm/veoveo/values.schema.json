@@ -23,7 +23,8 @@
     "podDisruptionBudget",
     "computers",
     "computerCapacity",
-    "embedding"
+    "embedding",
+    "knowledge"
   ],
   "properties": {
     "veoveo-common": {
@@ -76,7 +77,8 @@
           "stream",
           "reason",
           "speech",
-          "computers"
+          "computers",
+          "knowledge"
         ]
       }
     },
@@ -2275,6 +2277,99 @@
         },
         "resources": {
           "type": "object"
+        }
+      }
+    },
+    "knowledge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "image",
+        "existingConfigMap",
+        "configurationRevision",
+        "indexingConfigKeys",
+        "existingSigningSecret",
+        "resources"
+      ],
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/image"
+        },
+        "existingConfigMap": {
+          "type": "string",
+          "pattern": "^([a-z0-9]([-a-z0-9.]*[a-z0-9])?)?$"
+        },
+        "configurationRevision": {
+          "type": "string",
+          "pattern": "^([a-f0-9]{64})?$"
+        },
+        "existingSigningSecret": {
+          "type": "string",
+          "pattern": "^([a-z0-9]([-a-z0-9.]*[a-z0-9])?)?$"
+        },
+        "indexingConfigKeys": {
+          "type": "array",
+          "uniqueItems": true,
+          "minItems": 1,
+          "maxItems": 128,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]*\\.json$"
+          }
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "requests",
+            "limits"
+          ],
+          "properties": {
+            "requests": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "cpu",
+                "memory"
+              ],
+              "properties": {
+                "cpu": {
+                  "type": [
+                    "string",
+                    "integer"
+                  ]
+                },
+                "memory": {
+                  "type": [
+                    "string",
+                    "integer"
+                  ]
+                }
+              }
+            },
+            "limits": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "cpu",
+                "memory"
+              ],
+              "properties": {
+                "cpu": {
+                  "type": [
+                    "string",
+                    "integer"
+                  ]
+                },
+                "memory": {
+                  "type": [
+                    "string",
+                    "integer"
+                  ]
+                }
+              }
+            }
+          }
         }
       }
     }

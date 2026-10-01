@@ -11,7 +11,8 @@ fn render(values: &Value) -> Result<std::process::Output> {
     file.flush()?;
     Command::new("timeout").args(["25s", "helm", "template", "workspace-test", "deploy/helm/veoveo", "--namespace", "workspace-test",
         "--set", "gateway.controlPlaneRevision=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        "--set", "gateway.auditRetentionDays=1"])
+        "--set", "gateway.auditRetentionDays=1",
+            "--set", "knowledge.existingConfigMap=knowledge-test,knowledge.existingSigningSecret=knowledge-test,knowledge.configurationRevision=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"])
         .arg("--values").arg(file.path())
         .current_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."))
         .output().context("Workspace chart qualification requires Helm and GNU timeout")

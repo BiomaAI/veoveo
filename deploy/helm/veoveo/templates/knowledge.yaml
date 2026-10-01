@@ -1,0 +1,135 @@
+{{- if include "veoveo.mcpServerEnabled" (list . "knowledge") }}
+{{- $configuration := required "Knowledge requires knowledge.existingConfigMap" .Values.knowledge.existingConfigMap }}
+{{- $signing := required "Knowledge requires knowledge.existingSigningSecret" .Values.knowledge.existingSigningSecret }}
+{{- if not (regexMatch "^[a-f0-9]{64}$" .Values.knowledge.configurationRevision) }}
+{{- fail "Knowledge requires knowledge.configurationRevision (SHA-256 of the public configuration bundle)" }}
+{{- end }}
+{{- $space := dict "model" "qwen3-embedding-0.6b" "revision" "97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3" "dimension" 1024 "runtimeImage" .Values.embedding.image.digest | toJson }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: knowledge-embedding-space
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: knowledge-mcp
+data:
+  space.json: {{ $space | quote }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: knowledge-mcp
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: knowledge-mcp
+spec:
+  selector:
+    {{- include "veoveo.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: knowledge-mcp
+  ports:
+    - {name: http, port: 8800, targetPort: http}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: knowledge-mcp
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: knowledge-mcp
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "veoveo.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: knowledge-mcp
+  template:
+    metadata:
+      labels:
+        {{- include "veoveo.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: knowledge-mcp
+      annotations:
+        {{- include "veoveo.podAnnotations" . | nindent 8 }}
+        checksum/knowledge-configuration: {{ .Values.knowledge.configurationRevision | quote }}
+        checksum/embedding-space: {{ $space | sha256sum | quote }}
+    spec:
+      serviceAccountName: {{ include "veoveo.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 45
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "veoveo.podSecurityContext" . | nindent 8 }}
+      containers:
+        - name: knowledge-mcp
+          image: {{ include "veoveo.ownedImage" (list . .Values.knowledge.image) }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          args:
+            - --allowed-host
+            - knowledge-mcp:8800
+            {{- range .Values.knowledge.indexingConfigKeys }}
+            - --indexing-config
+            - {{ printf "/etc/veoveo/knowledge/config/%s" . | quote }}
+            {{- end }}
+          env:
+            {{- include "veoveo.commonEnv" . | nindent 12 }}
+            - name: PUBLIC_BASE_URL
+              value: {{ .Values.global.publicBaseUrl | quote }}
+            - name: VEOVEO_EMBEDDING_ENDPOINT
+              value: http://embedding:8000
+            - name: VEOVEO_EMBEDDING_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.embedding.apiKeySecret.name | quote }}
+                  key: {{ .Values.embedding.apiKeySecret.key | quote }}
+            - name: VEOVEO_EMBEDDING_SPACE_FILE
+              value: /etc/veoveo/knowledge/embedding/space.json
+            - name: OTEL_SERVICE_NAME
+              value: veoveo-knowledge-mcp
+          ports:
+            - {name: http, containerPort: 8800}
+          startupProbe:
+            httpGet:
+              path: /knowledge/livez
+              port: http
+              httpHeaders: [{name: Host, value: 'knowledge-mcp:8800'}]
+            failureThreshold: 60
+            periodSeconds: 5
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /knowledge/healthz
+              port: http
+              httpHeaders: [{name: Host, value: 'knowledge-mcp:8800'}]
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /knowledge/livez
+              port: http
+              httpHeaders: [{name: Host, value: 'knowledge-mcp:8800'}]
+            periodSeconds: 10
+            timeoutSeconds: 3
+          securityContext:
+            {{- include "veoveo.containerSecurityContext" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.knowledge.resources | nindent 12 }}
+          volumeMounts:
+            - {name: configuration, mountPath: /etc/veoveo/knowledge/config, readOnly: true}
+            - {name: signing, mountPath: /etc/veoveo/knowledge/signing, readOnly: true}
+            - {name: embedding-space, mountPath: /etc/veoveo/knowledge/embedding, readOnly: true}
+      volumes:
+        - name: configuration
+          configMap:
+            name: {{ $configuration | quote }}
+        - name: signing
+          secret:
+            secretName: {{ $signing | quote }}
+            defaultMode: 288 # 0440, expressed as decimal for YAML 1.2 readers.
+        - name: embedding-space
+          configMap:
+            name: knowledge-embedding-space
+{{- end }}

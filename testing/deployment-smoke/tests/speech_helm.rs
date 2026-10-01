@@ -11,7 +11,8 @@ fn render(values: Value) -> Result<std::process::Output> {
     Ok(Command::new("timeout")
         .args(["25s", "helm", "template", "speech-test", "deploy/helm/veoveo",
             "--set", "gateway.controlPlaneRevision=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            "--set", "gateway.auditRetentionDays=1"])
+            "--set", "gateway.auditRetentionDays=1",
+            "--set", "knowledge.existingConfigMap=knowledge-test,knowledge.existingSigningSecret=knowledge-test,knowledge.configurationRevision=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"])
         .arg("--values").arg(file.path())
         .current_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/../..")).output()?)
 }

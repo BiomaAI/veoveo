@@ -66,6 +66,7 @@ async fn hosted_search_links_catalog_and_embedding_follow_current_sql_authority(
         assert_eq!(reqwest::get(&health).await.unwrap().status(), reqwest::StatusCode::OK);
         server.indexing.send_replace(veoveo_knowledge_mcp::coordinator::CoordinatorState::Starting);
         assert_eq!(reqwest::get(&health).await.unwrap().status(), reqwest::StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(reqwest::get(format!("{}/livez", server.base)).await.unwrap().status(), reqwest::StatusCode::OK);
         server.indexing.send_replace(veoveo_knowledge_mcp::coordinator::CoordinatorState::CatalogReady);
         let mut client=server.sdk(signing.issue(identity.clone()).bearer_token).await;
         let list=client.list_tools(None).await.unwrap();assert_eq!(list.tools.len(),2);

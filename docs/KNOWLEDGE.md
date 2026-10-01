@@ -28,7 +28,9 @@ source-listener reconciliation under Store leases. Its authenticated HTTP adapte
 search, embeddings and catalog resources. Its gateway adapter discovers approved
 collections and waits for source observation readiness. Machine connection wiring,
 atomic catalog publication and reconnection run in the binary's tenant workers.
-Machine-client provisioning, packaging and installed qualification remain in the
+The Helm component mounts tenant configuration and private machine keys separately and
+uses the shared GPU embedding runtime. Machine-client provisioning, image publication
+and installed qualification remain in the
 [implementation plan](PLATFORM_FOUNDATIONS_PLAN.md).
 
 ```text

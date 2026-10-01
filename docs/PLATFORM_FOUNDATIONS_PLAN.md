@@ -26,7 +26,7 @@ The embedding Helm component and local GPU reference, priority and refusal check
 The Knowledge library now implements fenced source indexing and SQL hybrid retrieval.
 Typed installation approvals and gateway indexing-client admission pass native checks.
 The hosted Knowledge API passes native HTTP and current-authority checks. Installed
-embedding qualification, Reason, machine-client provisioning and Knowledge packaging
+embedding qualification, Reason, machine-client provisioning and Knowledge image publication
 remain open. The gateway source adapter discovers approved
 collections and waits for catalog/resource observation readiness before reading.
 The library coordinator qualifies lease renewal, source invalidation, conditional
@@ -3628,6 +3628,8 @@ Control and catalog notifications restart discovery. Source loss releases the in
 lease and starts bounded connection recovery. Shutdown drains workers and HTTP serving.
 Readiness requires every configured tenant to have an active index or a complete
 catalog-only selection.
+Knowledge's CPU Helm workload, shared embedding identity, configuration/Secret mounts
+and independent liveness/readiness probes pass native rendering checks.
 
 Store captures control authority and the previous tenant catalog before discovery, then
 checks both inside the transaction that publishes its complete replacement. Removed
@@ -3645,6 +3647,26 @@ Clippy, workspace all-target compilation, contract-only dependency isolation and
 999 documentation links pass. Cleanup removed 18 superseded test executables
 (3.58 GiB); compiler and incremental caches were preserved. The cluster and BuildKit
 stayed stopped.
+
+Packaging checkpoint (2026-10-01): `knowledge` joins the full deployment selection and
+requires Gateway, Store and the shared embedding runtime. Its OCI target participates
+in the existing Rust Trixie build family and offline catalog. The chart renders one
+replica with Recreate updates, installation-owned tenant JSON configuration and a
+separate read-only signing Secret. The qualified embedding-space identity agrees with
+the GPU reference fixture. Knowledge requests no GPU or local storage; the shared
+runtime keeps its mandatory GPU allocation. Independent liveness permits initial
+indexing and reconnection to proceed without a probe-triggered restart. Configuration
+changes advance a public bundle revision in the Pod template.
+
+Native qualification passes 32 deployment-contract tests, twelve rendered Helm tests
+covering Knowledge and the existing Computers, Embedding, Speech and Workspace charts,
+and three hosted Knowledge HTTP tests. The image planner resolves one shared-build
+Rust binary. The offline catalog test, strict affected Clippy, workspace all-target
+compilation and all 1,002 documentation links pass. Image build/publication,
+reference machine-client provisioning and gateway
+registration, installed source/embedding acceptance, public catalog subscriptions,
+completion/statistics and five-minute audit windows remain open. The cluster and
+BuildKit stayed stopped during packaging development.
 
 1. Deliver the shared [embedding runtime](../platform/runtimes/embedding/DESIGN.md)
    before the knowledge service consumes it. Re-verify the latest stable vLLM release
