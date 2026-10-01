@@ -46,8 +46,9 @@ diagnostics to stderr without starting hosted exporters, validates browser JSON 
 with the existing SDK's CSP-compatible interpreter, and corrects Map/Time registration
 to match their static catalogs. Native CLI tamper and export checks, shared Rust
 request-context fixtures, Python SDK/template tests, both browser applications and
-Helm configuration qualify the changes. The cluster is stopped before publication;
-installed rechecks remain open.
+Helm configuration qualify the changes. The three affected images are published from
+`b5457e91`; the installation selects their runtime digests. BuildKit is stopped and
+the cluster is restarted for installed rechecks, which remain open.
 The submitted Map acquisition `acquisition-01a0f4ff-18ee-7871-8205-13b887aae208`
 must be observed after the catalog repair rather than submitted again. Composed flight
 and Console LIVE/reconnect acceptance remain open.
