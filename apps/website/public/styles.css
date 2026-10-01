@@ -158,6 +158,20 @@ footer a { color: var(--body); }
   .factory { flex-direction: column; align-items: flex-start; gap: 0.6rem; }
   .hero-inner { min-height: 40rem; }
   .hero-art { background-size: 210% auto; background-position: 42% 100%; }
+  /* The comparison stacks each row, so Palantir and Veoveo read top to bottom. */
+  table { min-width: 0; }
+  thead { display: none; }
+  tbody, tbody tr, tbody td { display: block; }
+  tbody tr { padding: 1rem 0; border-bottom: 1px solid var(--line); }
+  tbody tr:last-child { border-bottom: 0; }
+  tbody td, tbody td:first-child { width: auto; padding: 0; border-bottom: 0; }
+  tbody td:first-child { font-size: 1.05rem; }
+  tbody td:nth-child(n+2)::before {
+    display: block; margin: 0.7rem 0 0.2rem; font-size: 0.7rem; font-weight: 700;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+  }
+  tbody td:nth-child(2)::before { content: "Palantir"; }
+  tbody td.v::before { content: "Veoveo"; color: var(--violet); }
 }
 
 /* ---------- live world: the whole page sits over the 3D scene ---------- */
@@ -207,7 +221,7 @@ html.has-world .usecase { position: relative; isolation: isolate; padding: 0.7re
 html.has-world .usecase::before { content: ""; position: absolute; inset: 0; z-index: -1; }
 html.has-world .usecase figcaption { padding: 0 0.3rem; }
 html.has-world thead td { color: var(--muted); }
-html.has-world thead td.v { color: var(--violet-soft); }
+html.has-world thead td.v, html.has-world tbody td.v::before { color: var(--violet-soft); }
 html.has-world .factory { background: rgba(78, 26, 106, 0.42); border-left-color: var(--violet-bright); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
 html.has-world .factory .tag { color: var(--violet-soft); }
 html.has-world .card.dark { border-color: var(--line); }
