@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use veoveo_types::{
     AccessSubject, DataLabelId, GatewayProfileId, HttpsUrl, PrincipalId, ResourceTemplateUri,
-    ResourceUri, Sha256Digest, TenantId, WorkContextId,
+    ResourceUri, ScopeName, Sha256Digest, TenantId, WorkContextId,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -88,6 +88,8 @@ struct CollectionWire {
     change_signal: ChangeSignal,
     access: AccessModel,
     indexing: IndexingMode,
+    #[serde(default)]
+    required_scopes: std::collections::BTreeSet<ScopeName>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "CollectionWire", into = "CollectionWire")]
@@ -110,8 +112,16 @@ impl CollectionDescriptor {
             change_signal,
             access,
             indexing,
+            required_scopes: Default::default(),
         }
         .try_into()
+    }
+    pub fn with_required_scopes(mut self, scopes: impl IntoIterator<Item = ScopeName>) -> Self {
+        self.0.required_scopes = scopes.into_iter().collect();
+        self
+    }
+    pub fn required_scopes(&self) -> &std::collections::BTreeSet<ScopeName> {
+        &self.0.required_scopes
     }
     pub fn collection(&self) -> &CollectionId {
         &self.0.collection
@@ -166,6 +176,9 @@ pub enum ReadPolicy {
     /// Membership grants read only in the caller's selected Work Context.
     /// Owner and live subject grants independently permit read.
     SelectedWorkContext {},
+    /// Read membership in the selected stored Work Context is mandatory.
+    /// Ownership or a subject grant cannot bypass membership.
+    SelectedWorkContextMembers {},
     /// Owner/grant access additionally requires the active Work Context and,
     /// when recorded, the same gateway profile as the source operation.
     SubjectsInContext {

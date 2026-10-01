@@ -480,6 +480,9 @@ export type ReadPolicy =
       kind: "selected-work-context";
     }
   | {
+      kind: "selected-work-context-members";
+    }
+  | {
       kind: "subjects-in-context";
       profile?: GatewayProfileId | null;
     };

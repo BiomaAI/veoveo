@@ -62,17 +62,19 @@ retired generation; retaining it does not authorize rolling the active pointer b
 
 `CandidateScope` carries current caller policy, including the source collections exposed
 by its profile. SQL selects the tenant and active generation, current collection
-approval fingerprint, non-stale member, source read policy and every required
+approval fingerprint, collection-required scopes, non-stale member, source read policy and every required
 clearance label before ordering and LIMIT. `admission.rs` derives the typed SQL fields
 from the observation. The `work-context` policy permits read membership in the stored
 context. The `selected-work-context` policy additionally requires that the caller
-selects it; owner and live grants remain independent read paths. The `subjects` policy requires an owner/grant match even when
+selects it; owner and live grants remain independent read paths.
+`selected-work-context-members` requires selected-context membership for owners and
+grant holders too. The `subjects` policy requires an owner/grant match even when
 the caller shares that context. `subjects-in-context` additionally matches the current
 selected context and the source profile when recorded; membership in another context
 cannot satisfy that condition. `tenant` permits readers admitted to the collection
 within its tenant. Every policy stops at the source's record deadline. SQL tests
 principal and group grant deadlines at query time; it never turns an expiring grant
-into a permanent subject in the index. Profile-wide docs have no record access descriptor and use the
+into a permanent subject in the index. Profile collections have no record access descriptor and use the
 collection's current profile admission.
 
 Cursor pages contain at most 100

@@ -16,6 +16,16 @@ pub fn public_requests(id: ArtifactId) -> (ArtifactReference, Action, Transcribe
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn map_knowledge_addresses_are_available_without_runtime_dependencies() {
+        use veoveo_map_mcp::contract::{FeatureLayerId, MapFeatureId, MapKnowledgeCollection, MapKnowledgeCursor, MapKnowledgeMember, MapKnowledgePageUri};
+        let member = MapKnowledgeMember::Feature { layer: FeatureLayerId::new(), feature: MapFeatureId::new() };
+        assert_eq!(MapKnowledgeMember::parse(member.to_uri().as_str()).unwrap(), member);
+        assert_ne!(member.source_uri(), member.to_uri());
+        let page = MapKnowledgePageUri::new(MapKnowledgeCollection::Features).with_cursor(MapKnowledgeCursor::after(member)).unwrap();
+        assert_eq!(MapKnowledgePageUri::parse(page.to_uri().as_str()).unwrap(), page);
+    }
+
     use veoveo_artifact_mcp::contract::ArtifactResource;
     #[test]
     fn computers_consumers_share_owned_ids_and_addresses() {

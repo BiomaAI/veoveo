@@ -50,6 +50,12 @@ impl From<Option<&AccessDescriptor>> for Admission {
                 expires_at: None,
             }))
             .collect();
+        if matches!(
+            access.read_policy,
+            ReadPolicy::SelectedWorkContextMembers {}
+        ) {
+            grants.clear();
+        }
         grants.sort();
         grants.dedup();
         let (tenant_read, context_read, required_context, required_profile) =
@@ -57,7 +63,9 @@ impl From<Option<&AccessDescriptor>> for Admission {
                 ReadPolicy::Tenant {} => (true, false, None, None),
                 ReadPolicy::Subjects {} => (false, false, None, None),
                 ReadPolicy::WorkContext {} => (false, true, None, None),
-                ReadPolicy::SelectedWorkContext {} => (false, false, None, None),
+                ReadPolicy::SelectedWorkContext {} | ReadPolicy::SelectedWorkContextMembers {} => {
+                    (false, false, None, None)
+                }
                 ReadPolicy::SubjectsInContext { profile } => (
                     false,
                     false,
@@ -68,7 +76,10 @@ impl From<Option<&AccessDescriptor>> for Admission {
         Self {
             tenant_read,
             context_read,
-            selected_context_read: matches!(access.read_policy, ReadPolicy::SelectedWorkContext {}),
+            selected_context_read: matches!(
+                access.read_policy,
+                ReadPolicy::SelectedWorkContext {} | ReadPolicy::SelectedWorkContextMembers {}
+            ),
             expires_at: access.expires_at,
             work_context: Some(access.work_context.to_string()),
             required_context,

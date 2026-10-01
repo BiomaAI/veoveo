@@ -54,6 +54,11 @@ Map Explorer App.
 - Routing authority uses the domain SQL reader across active pointers, releases and
   enabled sources. Preserve tenant/dataset agreement, active state, departure validity
   and map-family selection; selected retained documents must agree with indexed fields.
+- Knowledge collections use `contract/knowledge.rs` addresses and cursors. Summary
+  resources end in `/knowledge`, link to the full source, and hash its serialized body.
+  Keep geometry and unbounded property data in the full resources. Authoring summaries
+  require membership in the selected Work Context; ownership grants no shortcut.
+  Collection scopes come from `MapScope`, and SQL applies access before decoding or limits.
 - Domain profile pins (DESIGN.md, Standards And Protocols): GeoJSON RFC 7946,
   OGC JSON-FG 1.0, RFC 8142 text sequences, OGC GeoPackage 1.4, Basic
   CQL2-JSON from OGC CQL2 1.0, GeoParquet 1.0.0, Mapbox Vector Tile 2.1,

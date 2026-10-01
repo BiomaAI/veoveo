@@ -145,9 +145,11 @@ collection's freshness. Its content carries one `resource_link` per result.
 
 Before returning a result, the service applies the caller's effective access to the
 chunk's access descriptor. Every policy requires the same tenant and clearance for
-every data label. The source's explicit `readPolicy` selects tenant sharing,
+every data label, and the caller must hold the collection's `requiredScopes`.
+The source's explicit `readPolicy` selects tenant sharing,
 owner/grant access, Work Context sharing, sharing in the selected Work Context, or
-subject access constrained to the current context and optional profile. Record expiry
+subject access constrained to the current context and optional profile. A membership-only
+policy requires membership in the selected context even for the owner. Record expiry
 ends every read path; an individual grant's expiry ends access through that grant.
 A stored Work Context alone grants no read permission.
 The search query applies these predicates and current collection exposure inside

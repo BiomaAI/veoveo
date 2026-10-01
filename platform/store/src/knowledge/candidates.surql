@@ -14,6 +14,7 @@ WHERE
   AND $active.generation = $generation
   AND collection_id IN $collections
   AND collection.approved = true
+  AND $scopes CONTAINSALL collection.document.descriptor.requiredScopes
   AND collection.tenant = $tenant
   AND collection.collection = collection_id
   AND collection.revision = approval_revision

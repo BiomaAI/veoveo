@@ -27,6 +27,8 @@ pub mod feature_packages;
 pub mod geodesy;
 #[cfg(feature = "runtime")]
 pub mod geography;
+#[cfg(feature = "runtime")]
+pub mod knowledge;
 #[cfg(feature = "mcp")]
 pub mod mcp;
 #[cfg(feature = "mcp")]
@@ -35,7 +37,7 @@ pub mod prompts;
 pub mod raster;
 #[cfg(feature = "runtime")]
 pub mod release_products;
-#[cfg(feature = "mcp")]
+#[cfg(any(feature = "mcp", all(test, feature = "runtime")))]
 mod resource_changes;
 #[cfg(feature = "runtime")]
 pub mod routes;

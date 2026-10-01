@@ -13,8 +13,8 @@ use veoveo_duckdb_runtime::{
 use crate::contract::{
     Facility, MapBoundaryId, MapFamily, MapLocation, Meters, NearbyFacility, NearbyLocation,
     QuerySourceFeaturesOutput, QuerySourceFeaturesRequest, RasterProduct, RasterProductId,
-    SearchLocationsOutput, SearchLocationsRequest, SourceFeature, SourceFeatureId,
-    SourceFeatureMatch, SourceSpatialQuery, Wgs84BoundingBox, Wgs84LineString, Wgs84Position,
+    SourceFeature, SourceFeatureId, SourceFeatureMatch, SourceSpatialQuery, Wgs84BoundingBox,
+    Wgs84LineString, Wgs84Position,
 };
 
 #[cfg(any(test, feature = "mcp"))]
@@ -140,85 +140,6 @@ impl MapAnalytics {
             bail!("DuckDB Spatial verification returned {text:?}");
         }
         Ok(())
-    }
-
-    pub fn search_locations(
-        &self,
-        tenant_key: &str,
-        request: &SearchLocationsRequest,
-    ) -> Result<SearchLocationsOutput> {
-        request.coverage.validate()?;
-        if request.query.trim().is_empty() || request.query.len() > 256 {
-            bail!("location query must be non-empty and at most 256 bytes");
-        }
-        if !(1..=100).contains(&request.limit) {
-            bail!("location search limit must be within 1..=100");
-        }
-        let connection = self.read_connection()?;
-        let mut locations = Vec::new();
-        let location_longitude_predicate = longitude_predicate(&request.coverage, "longitude_deg");
-        let sql = format!(
-            "SELECT canonical_json FROM map_visible_location WHERE tenant_key = ? AND source_release_key IN (SELECT release_key FROM map_active_release WHERE tenant_key = ?) AND name ILIKE '%' || ? || '%' AND latitude_deg BETWEEN ? AND ? AND {location_longitude_predicate} ORDER BY name ASC, location_key ASC, source_release_key ASC LIMIT ?"
-        );
-        let mut statement = connection.prepare(&sql)?;
-        let mut rows = if request.coverage.west <= request.coverage.east {
-            statement.query(params![
-                tenant_key,
-                tenant_key,
-                request.query.trim(),
-                request.coverage.south,
-                request.coverage.north,
-                request.coverage.west,
-                request.coverage.east,
-                request.limit,
-            ])?
-        } else {
-            statement.query(params![
-                tenant_key,
-                tenant_key,
-                request.query.trim(),
-                request.coverage.south,
-                request.coverage.north,
-                request.coverage.west,
-                request.coverage.east,
-                request.limit,
-            ])?
-        };
-        while let Some(row) = rows.next()? {
-            let json: String = row.get(0)?;
-            locations.push(serde_json::from_str::<MapLocation>(&json)?);
-        }
-
-        let facilities = if request.include_facilities {
-            let mut facilities = Vec::new();
-            let facility_longitude_predicate =
-                longitude_predicate(&request.coverage, "longitude_deg");
-            let sql = format!(
-                "SELECT canonical_json FROM map_visible_facility WHERE tenant_key = ? AND source_release_key IN (SELECT release_key FROM map_active_release WHERE tenant_key = ?) AND name ILIKE '%' || ? || '%' AND latitude_deg BETWEEN ? AND ? AND {facility_longitude_predicate} ORDER BY name ASC, facility_key ASC, source_release_key ASC LIMIT ?"
-            );
-            let mut statement = connection.prepare(&sql)?;
-            let mut rows = statement.query(params![
-                tenant_key,
-                tenant_key,
-                request.query.trim(),
-                request.coverage.south,
-                request.coverage.north,
-                request.coverage.west,
-                request.coverage.east,
-                request.limit,
-            ])?;
-            while let Some(row) = rows.next()? {
-                let json: String = row.get(0)?;
-                facilities.push(serde_json::from_str::<Facility>(&json)?);
-            }
-            facilities
-        } else {
-            Vec::new()
-        };
-        Ok(SearchLocationsOutput {
-            locations,
-            facilities,
-        })
     }
 
     pub fn location(
@@ -1237,14 +1158,6 @@ fn validate_nearby_query(
     Ok(())
 }
 
-fn longitude_predicate(coverage: &Wgs84BoundingBox, column: &str) -> String {
-    if coverage.west <= coverage.east {
-        format!("{column} BETWEEN ? AND ?")
-    } else {
-        format!("({column} >= ? OR {column} <= ?)")
-    }
-}
-
 fn select_canonical<T: serde::de::DeserializeOwned>(
     connection: &Connection,
     table: &'static str,
@@ -1359,20 +1272,6 @@ mod tests {
             },
             acquired_at: Utc::now(),
         }
-    }
-
-    #[test]
-    fn longitude_predicate_supports_dateline_crossing() {
-        let crossing = Wgs84BoundingBox {
-            west: 170.0,
-            south: -10.0,
-            east: -170.0,
-            north: 10.0,
-        };
-        assert_eq!(
-            longitude_predicate(&crossing, "longitude_deg"),
-            "(longitude_deg >= ? OR longitude_deg <= ?)"
-        );
     }
 
     #[test]

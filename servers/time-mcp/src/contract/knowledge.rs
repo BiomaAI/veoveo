@@ -67,6 +67,7 @@ impl TimeKnowledgeCollection {
             IndexingMode::Content,
         )
         .expect("Time collection contract")
+        .with_required_scopes([super::TimeScope::Read.into()])
     }
 }
 

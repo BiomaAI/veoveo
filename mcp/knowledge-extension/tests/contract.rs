@@ -98,6 +98,7 @@ fn read_policy_requires_explicit_closed_source_semantics() {
         json!({"kind": "subjects"}),
         json!({"kind": "work-context"}),
         json!({"kind": "selected-work-context"}),
+        json!({"kind": "selected-work-context-members"}),
         json!({"kind": "subjects-in-context"}),
         json!({"kind": "subjects-in-context", "profile": "operations"}),
     ] {

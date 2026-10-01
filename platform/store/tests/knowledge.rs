@@ -144,6 +144,7 @@ async fn insert(
 }
 fn scope(registration: &CollectionRegistration) -> CandidateScope {
     CandidateScope {
+        scopes: BTreeSet::new(),
         profile: "operations".parse().unwrap(),
         active_work_context: "operations".parse().unwrap(),
         tenant: registration.tenant.clone(),
@@ -161,6 +162,79 @@ async fn generations_fence_reads_and_apply_current_approval_and_access_in_sql() 
     tokio::time::timeout(Duration::from_secs(120), qualify())
         .await
         .expect("knowledge qualification exceeded 120 seconds");
+}
+
+#[tokio::test]
+async fn source_scopes_and_selected_context_membership_cannot_be_bypassed_by_ownership() {
+    tokio::time::timeout(Duration::from_secs(120), async {
+        let db = fixture::TestDb::new().await;
+        let mut registration = registration("knowledge-members");
+        registration.descriptor = registration
+            .descriptor
+            .with_required_scopes(["fixture:read".parse().unwrap()]);
+        let specification = spec(&registration, "members");
+        let generation = GenerationId::new();
+        db.a.register_knowledge_collection(&registration, None)
+            .await
+            .unwrap();
+        db.a.create_knowledge_generation(&registration.tenant, generation, &specification)
+            .await
+            .unwrap();
+        let member = member_with_policy(
+            &registration,
+            &specification,
+            "member",
+            "operations",
+            &[],
+            source::ReadPolicy::SelectedWorkContextMembers {},
+            vec![AccessSubject::Principal("reader".parse().unwrap())],
+        );
+        insert(&db.a, &registration, generation, &specification, &member).await;
+        db.a.complete_knowledge_collection(
+            &registration.tenant,
+            generation,
+            registration.descriptor.collection(),
+            &registration.revision(),
+        )
+        .await
+        .unwrap();
+        db.a.activate_knowledge_generation(&registration.tenant, generation, None)
+            .await
+            .unwrap();
+        let mut caller = scope(&registration);
+        assert_candidates(&db.b, &caller, generation, &[]).await;
+        caller.scopes.insert("fixture:read".parse().unwrap());
+        assert_candidates(&db.b, &caller, generation, &["member"]).await;
+        caller.active_work_context = "other".parse().unwrap();
+        assert_candidates(&db.b, &caller, generation, &[]).await;
+        caller
+            .subjects
+            .insert(AccessSubject::Principal("author".parse().unwrap()));
+        assert_candidates(&db.b, &caller, generation, &[]).await;
+        caller.active_work_context = "operations".parse().unwrap();
+        caller.work_contexts.clear();
+        assert_candidates(&db.b, &caller, generation, &[]).await;
+        caller.work_contexts.insert("operations".parse().unwrap());
+        let table = format!("knowledge_chunk_{}", generation.as_uuid().simple());
+        db.a.client()
+            .query(format!(
+                "UPDATE {table} SET observation = {{malformed: true}};"
+            ))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        caller.scopes.clear();
+        assert_candidates(&db.b, &caller, generation, &[]).await;
+        caller.scopes.insert("fixture:read".parse().unwrap());
+        assert!(
+            db.b.knowledge_candidates_page(&caller, generation, None, 1)
+                .await
+                .is_err()
+        );
+    })
+    .await
+    .expect("knowledge membership qualification exceeded 120 seconds");
 }
 
 #[tokio::test]

@@ -1885,6 +1885,20 @@
         },
         {
           "additionalProperties": false,
+          "description": "Read membership in the selected stored Work Context is mandatory.\nOwnership or a subject grant cannot bypass membership.",
+          "properties": {
+            "kind": {
+              "const": "selected-work-context-members",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "description": "Owner/grant access additionally requires the active Work Context and,\nwhen recorded, the same gateway profile as the source operation.",
           "properties": {
             "kind": {

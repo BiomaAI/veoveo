@@ -8,6 +8,7 @@ publish = false
 resolver = "3"
 
 [dependencies]
+veoveo-map-mcp = { path = "../../../servers/map-mcp", default-features = false, features = ["contract"] }
 veoveo-artifact-mcp = { path = "../../../servers/artifact-mcp", default-features = false, features = ["contract"] }
 veoveo-computers-mcp = { path = "../../../servers/computers-mcp", default-features = false, features = ["contract"] }
 veoveo-speech-mcp = { path = "../../../servers/speech-mcp", default-features = false, features = ["contract"] }

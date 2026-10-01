@@ -96,13 +96,6 @@ pub struct SearchLocationsRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct SearchLocationsOutput {
-    pub locations: Vec<MapLocation>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub facilities: Vec<Facility>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct InspectLocationRequest {
     pub location_id: LocationId,
     pub nearby_radius: Meters,

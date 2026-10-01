@@ -301,6 +301,8 @@ truth.
 Observations explicitly describe the source's read policy. The recorded Work Context
 does not imply sharing: tenant-wide, owner/grant, context-sharing, selected-context
 sharing and context/profile-constrained subject policies are distinct typed variants.
+Sources may require selected-context membership without an owner or grant shortcut.
+Collection declarations carry the source's required typed scope names.
 Typed read grants carry optional deadlines; a record deadline applies to every read
 path. The index enforces these conditions in SQL before decoding and pagination. A
 domain whose policy cannot be expressed must extend the shared contract before it

@@ -115,7 +115,8 @@ addresses its members:
 | `enumerate` | Bounded, cursor-paged collection resource that lists member URIs in stable order, per contract rule C04 |
 | `freshness` | Either `{ "immutable": true }` or `{ "maxAgeSeconds": n }` |
 | `changeSignal` | `listen`: member and collection URIs are subscribable and a restart-safe source emits their changes. `immutable`: members never change after creation. `revalidate`: the server emits no changes, and consumers revalidate after `maxAgeSeconds` |
-| `access` | `work-context`: each observation carries a Work Context access descriptor. `profile`: any caller whose profile exposes the server may read every member |
+| `access` | `work-context`: each observation carries a Work Context access descriptor. `profile`: members share the current tenant and collection exposure, without per-record access restrictions |
+| `requiredScopes` | Typed scope names every reader must hold, in addition to collection exposure and record access. An empty set adds no scope requirement. The source owns these names |
 | `indexing` | `content`: the knowledge service may index returned text. `metadata`: it may index titles and observation fields only. `none`: it catalogs the collection without indexing it |
 
 The template's own `title`, `description`, and `mimeType` describe the collection
@@ -197,6 +198,7 @@ exposure of the collection.
 | `subjects` | The caller matches the owner or a direct principal/group grant |
 | `work-context` | The caller has read membership in the stored Work Context, or matches an owner/grant subject |
 | `selected-work-context` | The caller selects the stored Work Context and has read membership there, or matches an owner/grant subject |
+| `selected-work-context-members` | The caller selects the stored Work Context and has read membership there. Ownership and subject grants do not bypass membership |
 | `subjects-in-context` | The caller matches an owner/grant subject and selects the stored Work Context; an optional typed `profile` additionally requires that gateway profile |
 
 Servers select the policy from their persistence contract. Tenant-shared calendars

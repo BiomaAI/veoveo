@@ -887,6 +887,12 @@ types and bounds, while `src/contract/compositions.rs` owns publication products
 composition contracts. `src/contract/transfers.rs` owns durable import, export, and
 vector-product task contracts. `src/contract/metadata.rs` owns typed metadata addresses,
 page envelopes, and parent-bound cursors through the shared URI builder.
+`src/contract/knowledge.rs` and `knowledge_summary.rs` own six collection addresses,
+keysets and bounded summary types. `src/knowledge/` builds observations, selects authored
+members with their current layer policy in SQL, and reads geographic pages through
+DuckDB. `src/mcp/knowledge.rs` owns conditional summary reads. Its native tests live in
+`src/knowledge/tests.rs`. MCP discovery and App contract checks live in
+`src/mcp/well_known_tests.rs` and `src/mcp/workspace_app_tests.rs`.
 `src/contract/scopes.rs` owns Map's authorization vocabulary; database identity travels
 through `MapAccessContext`. `src/authoring/pages.rs` executes metadata queries and
 `src/mcp/metadata.rs` dispatches those resources. `src/mcp/resources.rs` owns resource

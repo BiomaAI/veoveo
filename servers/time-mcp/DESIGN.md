@@ -545,7 +545,8 @@ qualify the current template against the typed zone builder.
 ### Knowledge Collections
 
 Time declares calendar versions, epoch versions, events, acquired authority releases
-and packaged bootstrap authorities through `ai.veoveo/knowledge-source`. Collection
+and packaged bootstrap authorities through `ai.veoveo/knowledge-source`. Every domain
+collection declares `time:read` as a required scope, matching its source read gate. Collection
 pages contain at most 100 `items`, each with a typed `uri` and `title`, and an optional
 `nextCursor`. Source SQL selects tenant and event owner before ordering and LIMIT.
 Every epoch version has its own member URI; the unversioned epoch resource selects

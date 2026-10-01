@@ -78,6 +78,7 @@ runtime = [
     "dep:veoveo-artifact-client",
     "dep:veoveo-duckdb-runtime",
     "dep:veoveo-mcp-contract",
+    "dep:veoveo-mcp-knowledge-extension",
     "dep:veoveo-platform-store",
     "dep:veoveo-task-runtime",
 ]
@@ -90,6 +91,7 @@ mcp = [
     "dep:secrecy",
     "dep:tower-http",
     "dep:veoveo-mcp-apps-extension",
+    "veoveo-mcp-knowledge-extension/mcp",
 ]
 
 [dependencies]
@@ -140,6 +142,8 @@ veoveo-mcp-apps-extension = { path = "../../mcp/apps-extension", optional = true
 veoveo-mcp-contract = { workspace = true, optional = true }
 veoveo-platform-store = { path = "../../platform/store", optional = true }
 veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
+
+veoveo-mcp-knowledge-extension = { workspace = true, features = ["contract"], optional = true }
 
 [dev-dependencies]
 iri-string = { workspace = true }

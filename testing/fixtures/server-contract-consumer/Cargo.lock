@@ -1222,6 +1222,7 @@ dependencies = [
  "veoveo-artifact-mcp",
  "veoveo-computers-mcp",
  "veoveo-frames-mcp",
+ "veoveo-map-mcp",
  "veoveo-media-mcp",
  "veoveo-speech-mcp",
  "veoveo-timeseries-mcp",

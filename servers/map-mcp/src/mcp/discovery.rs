@@ -325,6 +325,33 @@ pub(super) fn resource_templates() -> Vec<ResourceTemplate> {
             "Immutable map composition revision.",
         ),
     ];
+    templates.extend(
+        crate::contract::MapKnowledgeCollection::ALL
+            .into_iter()
+            .map(|collection| {
+                template(
+                    collection.page_template(),
+                    "Knowledge collection page",
+                    "Up to 100 readable member resource links with a continuation cursor.",
+                )
+            }),
+    );
+    templates.extend(
+        crate::contract::MapKnowledgeCollection::ALL
+            .into_iter()
+            .map(|collection| {
+                let mut member = template(
+                    collection.member_template(),
+                    "Knowledge summary",
+                    "Bounded source summary with a link to its full Map resource.",
+                );
+                veoveo_mcp_knowledge_extension::server::attach_collection(
+                    &mut member,
+                    &collection.descriptor(),
+                );
+                member
+            }),
+    );
     for template in &mut templates {
         if template.uri_template == uris::DOC_TEMPLATE {
             SERVER_DOCS

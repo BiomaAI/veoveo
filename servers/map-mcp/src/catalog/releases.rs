@@ -54,7 +54,7 @@ impl MapCatalog {
         self.store()
             .map_release_in_dataset(scope.identity.tenant_id, dataset.as_str(), release.as_str())
             .await?
-            .map(|record| decode(&record.canonical_json, "dataset release"))
+            .map(checked_release)
             .transpose()
     }
 
@@ -92,12 +92,30 @@ impl MapCatalog {
         Ok(ReleasePage {
             items: rows
                 .into_iter()
-                .map(|row| decode(&row.canonical_json, "dataset release"))
+                .map(checked_release)
                 .collect::<Result<_>>()?,
             limit: PAGE_SIZE,
             next_cursor,
         })
     }
+}
+
+fn checked_release(row: veoveo_platform_store::MapDatasetReleaseRecord) -> Result<DatasetRelease> {
+    let release: DatasetRelease = decode(&row.canonical_json, "dataset release")?;
+    release.validate()?;
+    ensure!(
+        release.release_id.as_str() == row.release_key
+            && release.dataset_id.as_str() == row.dataset_key
+            && release.source_id.as_str() == row.source_key
+            && release.source_digest_sha256 == row.source_digest_sha256
+            && release.version_label == row.version_label
+            && release.valid_from == row.valid_from
+            && release.valid_until == row.valid_until
+            && i64::try_from(release.record_version)? == row.record_version
+            && super::release_state_to_store(release.state) == row.state,
+        "release document disagrees with selected identity or metadata"
+    );
+    Ok(release)
 }
 
 #[cfg(test)]

@@ -18,7 +18,7 @@ def documents():
 def test_read_policy_is_explicit_and_closed():
     fields = dict(tenant="tenant", workContext="context", owner={"kind": "principal", "id": "author"}, dataLabels=[])
     for policy in ({"kind": "tenant"}, {"kind": "subjects"}, {"kind": "work-context"},
-                   {"kind": "selected-work-context"}, {"kind": "subjects-in-context"}, {"kind": "subjects-in-context", "profile": "operations"}):
+                   {"kind": "selected-work-context"}, {"kind": "selected-work-context-members"}, {"kind": "subjects-in-context"}, {"kind": "subjects-in-context", "profile": "operations"}):
         value = AccessDescriptor.model_validate({**fields, "readPolicy": policy})
         assert value.wire()["readPolicy"] == policy
     with pytest.raises(ValidationError):

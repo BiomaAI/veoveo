@@ -36,10 +36,9 @@ use crate::{
         QuerySourceFeaturesRequest, RasterDerivation, ReachableArea, ReachableAreaRequest,
         RegisteredSource, ReleaseMutationRequest, ReleaseMutationResponse, ReplaceSourceRequest,
         RestrictionMutationOutput, RouteMatrix, RouteMatrixId, RouteMatrixRequest, RoutePlan,
-        RouteRequest, RouteValidation, SearchLocationsOutput, SearchLocationsRequest,
-        SpatialDerivation, TransformCrsOutput, TransformCrsRequest, TravelModelRecord,
-        ValidateGeofenceOutput, ValidateGeofenceRequest, ValidateRouteRequest,
-        WithdrawRestrictionRequest,
+        RouteRequest, RouteValidation, SearchLocationsRequest, SpatialDerivation,
+        TransformCrsOutput, TransformCrsRequest, TravelModelRecord, ValidateGeofenceOutput,
+        ValidateGeofenceRequest, ValidateRouteRequest, WithdrawRestrictionRequest,
     },
     geodesy,
     prompts::MapPrompt,
@@ -56,6 +55,7 @@ mod resources;
 #[cfg(test)]
 use discovery::stable_resource_uris;
 use discovery::{ResourceDiscoveryAccess, discoverable_resources, resource_templates};
+mod knowledge;
 mod metadata;
 mod owned;
 mod releases;
@@ -163,7 +163,7 @@ impl MapMcp {
     #[tool(
         title = "Search map locations",
         description = "Find authorized named locations and facilities inside an explicit WGS84 bounding box.",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<SearchLocationsOutput>(),
+        output_schema = rmcp::handler::server::tool::schema_for_type::<veoveo_mcp_knowledge_extension::SearchResults>(),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
     async fn search_locations(
@@ -178,10 +178,9 @@ impl MapMcp {
             .analytics
             .search_locations(&scope.tenant_key(), &request)
             .map_err(invalid_params)?;
-        structured_result(
-            format!("found {} location(s)", output.locations.len()),
-            &output,
-        )
+        Ok(veoveo_mcp_knowledge_extension::server::search_result(
+            output,
+        ))
     }
 
     #[tool(
@@ -957,6 +956,14 @@ impl ServerHandler for MapMcp {
         _context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, McpError> {
         let mut tools = self.tool_router.list_all();
+        for tool in &mut tools {
+            if tool.name == "search_locations" {
+                veoveo_mcp_knowledge_extension::server::attach_search(
+                    tool,
+                    &crate::knowledge::search_declaration(),
+                );
+            }
+        }
         tools.sort_by(|left, right| left.name.cmp(&right.name));
         // The #[tool] macro has no meta attribute; app links attach here.
         tools = tools
@@ -1035,6 +1042,9 @@ impl ServerHandler for MapMcp {
             &context,
         )? {
             return Ok(result);
+        }
+        if let Some(result) = self.read_knowledge_resource(&request.uri, &context).await? {
+            return Ok(result.into());
         }
         self.read_map_resource(request, context).await
     }
@@ -1120,6 +1130,9 @@ impl ServerHandler for MapMcp {
     async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
         let request_context = context.request_context().clone();
         for uri in context.accepted().resource_subscriptions.iter().flatten() {
+            if crate::contract::MapKnowledgeMember::parse(uri).is_ok() {
+                self.read_knowledge_resource(uri, &request_context).await?;
+            }
             if !is_subscribable(uri) {
                 return Err(McpError::invalid_params(
                     "resource is immutable or not subscribable",
@@ -1262,6 +1275,11 @@ fn not_found(kind: &str) -> McpError {
 /// them in the `map://contract` capability inventory, so the two cannot
 /// diverge.
 fn is_subscribable(uri: &str) -> bool {
+    if crate::contract::MapKnowledgePageUri::parse(uri).is_ok()
+        || crate::contract::MapKnowledgeMember::parse(uri).is_ok()
+    {
+        return true;
+    }
     matches!(
         uri,
         uris::ACTIVE_RELEASES_URI
@@ -1280,6 +1298,12 @@ fn is_subscribable(uri: &str) -> bool {
 }
 
 fn is_feature_subscribable(uri: &str) -> bool {
+    if let Ok(page) = crate::contract::MapKnowledgePageUri::parse(uri) {
+        return page.collection().scope() == MapScope::FeatureRead;
+    }
+    if let Ok(member) = crate::contract::MapKnowledgeMember::parse(uri) {
+        return member.collection().scope() == MapScope::FeatureRead;
+    }
     matches!(
         uri,
         uris::FEATURE_LAYERS_URI
@@ -1299,295 +1323,9 @@ fn is_feature_template(uri: &str) -> bool {
 }
 
 #[cfg(test)]
-mod well_known_tests {
-    use veoveo_mcp_contract::docs::{
-        CONTRACT_REVISION, ComplianceStatus, DOC_ID_AGENTS, DOC_ID_DESIGN,
-    };
-
-    use super::{
-        ResourceDiscoveryAccess, SERVER_DOCS, discoverable_resources, stable_resource_uris,
-    };
-    use crate::{contract::MapWorkspaceBasemap, uris};
-
-    #[test]
-    fn derivation_collections_accept_the_notifications_the_workers_emit() {
-        assert!(super::is_subscribable(uris::RASTER_DERIVATIONS_URI));
-        assert!(super::is_subscribable(uris::SPATIAL_DERIVATIONS_URI));
-        assert!(!super::is_subscribable("map://spatial-derivations/extra"));
-        assert!(!super::is_subscribable(uris::DOCS_URI));
-    }
-
-    #[test]
-    fn subscription_addresses_apply_the_resource_owners_admission() {
-        let route = crate::contract::MapRouteUri::new(crate::contract::RouteId::new());
-        let restriction =
-            crate::contract::MapRestrictionUri::new(crate::contract::RestrictionId::new());
-        for address in [route.as_str(), restriction.as_str()] {
-            assert!(super::is_subscribable(address));
-            assert!(!super::is_subscribable(&format!("{address}?secret=value")));
-            assert!(!super::is_subscribable(&format!("{address}#fragment")));
-        }
-        assert!(!super::is_subscribable("map://route/arbitrary"));
-        assert!(!super::is_subscribable("map://restriction/arbitrary"));
-    }
-
-    #[test]
-    fn embedded_documents_carry_the_crate_manual_and_design() {
-        assert_eq!(SERVER_DOCS.server(), "map");
-        let agents = SERVER_DOCS.doc(DOC_ID_AGENTS).expect("agents document");
-        assert!(agents.body.contains("## Contract Compliance"));
-        let design = SERVER_DOCS.doc(DOC_ID_DESIGN).expect("design document");
-        assert!(!design.body.is_empty());
-        let index = SERVER_DOCS.llms_txt();
-        assert!(index.contains("(agents)"));
-        assert!(index.contains("(design)"));
-        for id in ["authoring", "acquisition", "routing"] {
-            assert!(SERVER_DOCS.doc(id).is_some(), "missing Map document {id}");
-        }
-        for document in SERVER_DOCS.iter() {
-            // Leave space for the observation and the kernel's provenance line.
-            assert!(
-                document.body.len() + 1024 <= 64 * 1024,
-                "Map document {} exceeds the knowledge item budget",
-                document.id
-            );
-        }
-    }
-
-    #[test]
-    fn contract_declaration_resolves_from_the_embedded_manual() {
-        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(&SERVER_DOCS);
-        assert_eq!(declaration.server, "map");
-        assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
-        for id in ["C17", "C18", "C19", "C20", "C21"] {
-            let item = declaration
-                .compliance
-                .iter()
-                .find(|item| item.id == id)
-                .expect("declared checklist item");
-            assert_eq!(item.status, ComplianceStatus::Met, "{id} must be met");
-        }
-        let json = serde_json::to_value(&declaration).expect("declaration serializes");
-        assert_eq!(json["server"], "map");
-    }
-
-    #[test]
-    fn contract_declaration_defers_runtime_surface_to_discover() {
-        let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(&SERVER_DOCS);
-        let json = serde_json::to_value(declaration).unwrap();
-        assert!(json.get("capabilities").is_none());
-    }
-
-    #[test]
-    fn resource_discovery_is_bounded_by_the_protocol_surface() {
-        let basemap = MapWorkspaceBasemap::open_free_map(
-            "https://tiles.openfreemap.org/styles/positron",
-            "https://tiles.openfreemap.org/styles/dark",
-        )
-        .unwrap();
-        let resources = discoverable_resources(
-            ResourceDiscoveryAccess {
-                admin: true,
-                dataset_read: true,
-                feature_read: true,
-                spatial_derive: true,
-            },
-            &basemap,
-        );
-        assert_eq!(resources.len(), stable_resource_uris().len());
-        assert!(resources.len() < 32);
-        assert!(resources.windows(2).all(|pair| pair[0].uri < pair[1].uri));
-        assert!(
-            resources
-                .iter()
-                .any(|resource| resource.uri == uris::DATASETS_URI)
-        );
-        assert!(
-            resources
-                .iter()
-                .all(|resource| !resource.uri.starts_with("map://release/"))
-        );
-    }
-}
+#[path = "mcp/well_known_tests.rs"]
+mod well_known_tests;
 
 #[cfg(test)]
-mod workspace_app_tests {
-    use super::{MapMcp, ResourceDiscoveryAccess, discoverable_resources};
-    use crate::{contract::MapWorkspaceBasemap, uris};
-
-    fn basemap() -> MapWorkspaceBasemap {
-        MapWorkspaceBasemap::open_free_map(
-            "https://tiles.openfreemap.org/styles/positron",
-            "https://tiles.openfreemap.org/styles/dark",
-        )
-        .unwrap()
-    }
-
-    #[test]
-    fn workspace_tools_exist_in_the_canonical_router() {
-        let tools = MapMcp::full_tool_router().list_all();
-        assert!(!tools.is_empty());
-        for expected in super::WORKSPACE_TOOLS {
-            assert!(
-                tools.iter().any(|tool| tool.name.as_ref() == *expected),
-                "workspace tool {expected} is absent from the canonical router"
-            );
-        }
-    }
-
-    const WORKSPACE_APP: &str = include_str!("../assets/workspace-app.html");
-
-    #[test]
-    fn workspace_uses_sans_serif_typography() {
-        assert!(WORKSPACE_APP.contains("--sans:"));
-        for obsolete_family in [
-            "--serif",
-            "ui-serif",
-            "Iowan Old Style",
-            "Palatino",
-            "Georgia",
-        ] {
-            assert!(
-                !WORKSPACE_APP.contains(obsolete_family),
-                "workspace retains obsolete serif family {obsolete_family}"
-            );
-        }
-    }
-
-    #[test]
-    fn workspace_applies_host_context_and_uses_only_the_mcp_bridge() {
-        assert!(WORKSPACE_APP.contains("ui/initialize"));
-        assert!(WORKSPACE_APP.contains("ui/notifications/host-context-changed"));
-        assert!(WORKSPACE_APP.contains("resources/read"));
-        assert!(WORKSPACE_APP.contains("tools/call"));
-        assert!(!WORKSPACE_APP.contains("<script src="));
-        assert!(!WORKSPACE_APP.contains("<link href="));
-        for external_reference in [
-            "src=\"http://",
-            "src=\"https://",
-            "href=\"http://",
-            "href=\"https://",
-            "url(http://",
-            "url(https://",
-            "@import",
-        ] {
-            assert!(
-                !WORKSPACE_APP
-                    .to_ascii_lowercase()
-                    .contains(external_reference),
-                "workspace contains external fetch reference {external_reference}"
-            );
-        }
-    }
-
-    #[test]
-    fn workspace_is_permission_aware() {
-        assert!(WORKSPACE_APP.contains("map://workspace"));
-        for capability in [
-            "administration",
-            "dataset_read",
-            "feature_read",
-            "feature_write",
-            "feature_publish",
-        ] {
-            assert!(WORKSPACE_APP.contains(capability));
-        }
-    }
-
-    #[test]
-    fn workspace_preserves_admin_and_authoring_operations() {
-        for tool in [
-            "register_source",
-            "start_acquisition",
-            "activate_release",
-            "register_mobility_profile",
-            "create_feature_layer",
-            "validate_feature_changes",
-            "commit_feature_changes",
-            "query_features",
-            "query_source_features",
-            "publish_feature_layer",
-            "create_map_composition",
-            "inspect_geopackage",
-            "import_feature_layer",
-        ] {
-            assert!(WORKSPACE_APP.contains(tool), "workspace is missing {tool}");
-        }
-    }
-
-    #[test]
-    fn workspace_is_a_persistent_hardware_map_with_bounded_synchronized_previews() {
-        for marker in [
-            "hardware-backed WebGL2",
-            "WEBGL_debug_renderer_info",
-            "swiftshader",
-            "publication_id",
-            "query_features",
-            "query_source_features",
-            "Persistent map",
-            "Data preview",
-            "preview cap reached",
-            "light_style_url",
-            "dark_style_url",
-            "subscriptions/listen",
-            "maplibre-gl@6.6.0",
-            "maplibre-worker.cjs",
-            "renderedFeatureCount",
-            "without painting any returned feature",
-        ] {
-            assert!(
-                WORKSPACE_APP.contains(marker),
-                "workspace is missing {marker}"
-            );
-        }
-    }
-
-    #[test]
-    fn one_workspace_is_discoverable_for_dataset_feature_or_admin_access() {
-        for access in [
-            ResourceDiscoveryAccess {
-                admin: true,
-                dataset_read: false,
-                feature_read: false,
-                spatial_derive: false,
-            },
-            ResourceDiscoveryAccess {
-                admin: false,
-                dataset_read: false,
-                feature_read: true,
-                spatial_derive: false,
-            },
-            ResourceDiscoveryAccess {
-                admin: false,
-                dataset_read: true,
-                feature_read: false,
-                spatial_derive: false,
-            },
-        ] {
-            let apps = discoverable_resources(access, &basemap())
-                .into_iter()
-                .filter(|resource| resource.uri.starts_with("ui://"))
-                .collect::<Vec<_>>();
-            assert_eq!(apps.len(), 1);
-            assert_eq!(apps[0].uri, uris::WORKSPACE_APP_URI);
-        }
-        let workspace = discoverable_resources(
-            ResourceDiscoveryAccess {
-                admin: false,
-                dataset_read: false,
-                feature_read: true,
-                spatial_derive: false,
-            },
-            &basemap(),
-        )
-        .into_iter()
-        .find(|resource| resource.uri == uris::WORKSPACE_APP_URI)
-        .expect("map workspace is discoverable");
-        let metadata = veoveo_mcp_apps_extension::resource_ui_meta(&workspace)
-            .expect("map workspace UI metadata is valid");
-        assert_eq!(metadata.prefers_border, None);
-        let csp = metadata.csp.unwrap();
-        assert_eq!(csp.connect_domains, ["https://tiles.openfreemap.org"]);
-        assert_eq!(csp.resource_domains, ["https://tiles.openfreemap.org"]);
-    }
-}
+#[path = "mcp/workspace_app_tests.rs"]
+mod workspace_app_tests;

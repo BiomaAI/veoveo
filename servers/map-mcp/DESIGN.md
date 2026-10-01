@@ -53,6 +53,7 @@ the `map://` scheme.
 | MCP Tasks extension `io.modelcontextprotocol/tasks` | Version `2026-07-28`; acquisition, routing, import, export, publication, and vector-product operations use durable task semantics where declared. |
 | [MCP Apps SEP-1865](../../mcp/apps-extension/DESIGN.md) | `ext-apps` version `2026-01-26`; `ui://map/workspace.html` uses the sandboxed host bridge and canonical Map tools and resources. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | MCP schemas and immutable authored-layer property contracts. Layer schemas reject remote references. |
+| [`ai.veoveo/knowledge-source`](../../mcp/knowledge-extension/DESIGN.md) | Six optional collections expose bounded JSON summaries, source SHA-256 digests, typed scopes, observations and conditional reads. Summary addresses append `/knowledge` to the full source address. |
 | [Veoveo resource components](../../platform/types/DESIGN.md#concrete-resource-components) and URI Template RFC 6570 | Authoring metadata pages use the shared URL parser and builder with typed IDs and cursors. Discovery declares form-style parent and cursor query parameters. Other resource families are tracked for migration in the foundations plan. |
 | WGS 84 and EPSG identifiers | Longitude, latitude, and ellipsoidal height are the geographic exchange. PROJ handles bounded projected-CRS conversion; EPSG:4978 and vertical transformations are outside that 2D operation. |
 | SurrealDB 3.3.0 | Internal catalog queries, transactions, LIVE/change-feed delivery, and [JSON decoding](https://surrealdb.com/docs/reference/query-language/functions/database-functions/encoding#encodingjsondecode) for selection against complete route documents. |
@@ -74,7 +75,7 @@ the `map://` scheme.
 | Valhalla HTTP/JSON | A supervised loopback-only routing-engine protocol. The travel-model adapter uses one concise many-to-many request per requested vehicle type. It is an internal projection, never a public Map API. |
 | `veoveo.ai/travel-model-artifact/v1` | Repository-owned immutable exchange from Map to Optimization. It carries shared location order, per-vehicle-type cost and transit-time matrices, unavailable cells, and exact Map resource attestation. |
 
-The workspace pins `geo` 0.32.0 because SurrealDB 3.2 uses the same release
+The workspace pins `geo` 0.32.0 because SurrealDB 3.3 uses the same release
 line and requires `i_overlay <4.1`. `geo` 0.33.1 requires `i_overlay >=4.5`,
 which Cargo cannot resolve in this workspace. The selected release contains
 the signed buffer operation used by the spatial profile.
@@ -101,6 +102,49 @@ Map embeds the hardened DuckDB runtime as a library and owns its analytical
 database and SQL policy.
 
 ## Architecture
+
+### Knowledge Collections
+
+Map publishes `map.layers`, `map.features`, `map.publications`, `map.locations`,
+`map.facilities` and `map.releases`. Each collection enumerates up to 100 summary
+links through `map://knowledge/{collection}{?cursor}`. Map owns the collection enum,
+member addresses and collection-bound cursors in `contract/knowledge.rs`; consumers
+can use those types with the public `contract` feature. Link titles contain at most
+128 bytes after JSON escaping, keeping 100-item pages within the response budget.
+
+Summary resources append `/knowledge` to the full resource address. Each JSON document
+links to that source and records the SHA-256 digest of its complete serialized body.
+The digest changes when geometry or omitted properties change. Feature summaries carry
+the bounding box and up to 32 property excerpts, with 128-byte names and values,
+truncation flags and an omitted-property count. Full geometry stays in the source
+resource. The summary types keep every member below 64 KiB without reducing Map's
+50,000-coordinate feature limit.
+
+Layers, features and publications require `map:feature:read`. Their SQL selects the
+current tenant, selected Work Context and label clearance before decoding or pagination.
+A feature or publication read selects its body and current parent layer in one database
+statement. The observation records `selected-work-context-members`: owners and grant
+holders still need membership in the selected context. Layer changes revise child access
+observations. Feature attribution names the actor recorded on its current revision;
+publication attribution names its publisher. A layer omits `modifiedBy` because it
+records its creator, rather than the actor responsible for every later update.
+
+Locations, facilities and releases require `map:dataset:read` and share data within
+the tenant. Location and facility SQL selects completed projections in active releases.
+When active releases repeat an ID, the lowest release ID supplies its resource, page
+entry and search hit. SQL resolves that choice before applying the query and limit.
+`search_locations` returns the extension's result shape and one summary resource link
+per hit, with a combined limit of 100 locations and facilities.
+
+Authoring and release summaries use Store-backed subscriptions. Locations and facilities
+declare 300-second revalidation because projection visibility can follow the catalog's
+activation signal. Their source records contain validity dates, but do not record a
+modification timestamp; observations leave that timestamp absent. Other observations use
+stored modification times. Reads authorize before evaluating conditional validators.
+
+Native tests cover source observations, paging, active-release selection and denied
+malformed records. Installed knowledge conformance and mutation/restart qualification
+are tracked in the foundations plan.
 
 ### Public Types And Authorization
 
@@ -505,7 +549,7 @@ as every other raster derivation.
 
 | Tool | Invocation | Required scope | Result |
 |---|---|---|---|
-| `search_locations` | direct | `map:dataset:read` | bounded named locations and optional facilities |
+| `search_locations` | direct | `map:dataset:read` | summary resource links for named locations and optional facilities |
 | `list_active_dataset_releases` | direct | `map:dataset:read` | bounded active immutable release identities, digests, and pointer revisions |
 | `query_source_features` | direct | `map:dataset:read` | deterministic page from one immutable complete source release |
 | `inspect_location` | direct | `map:dataset:read` | location, nearby facilities, containing boundaries, lineage, gaps |
@@ -1022,7 +1066,7 @@ The implementation is checked at several boundaries:
 - Python tests cover typed contracts, a bounded GTFS acquisition with validator
   execution, unsafe ZIP rejection, subprocess timeout, process-group
   termination, and bounded diagnostics;
-- SurrealDB integration tests apply the schema to SurrealDB 3.2 and verify
+- SurrealDB integration tests apply the schema to SurrealDB 3.3 and verify
   atomic release activation under record versions;
 - Console TypeScript and production Vite builds validate the administrative
   projection;
@@ -1040,7 +1084,7 @@ The implementation is checked at several boundaries:
   and emits screenshot evidence;
 - the container build verifies the pinned Spatial extension and packages GDAL,
   Osmium, Valhalla, and the Python application;
-- the Rust Map smoke launches that image with a real SurrealDB 3.2 catalog and
+- the Rust Map smoke launches that image with a real SurrealDB 3.3 catalog and
   artifact service. It acquires and activates authority, OSM, and governed
   network fixtures, rejects a bad source digest before staging, and exercises
   named-location, facility, boundary, and corridor queries;

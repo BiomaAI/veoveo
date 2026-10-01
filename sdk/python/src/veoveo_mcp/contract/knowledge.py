@@ -11,7 +11,7 @@ import mcp.types as mcp
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, RootModel, StringConstraints, field_validator, model_validator
 from pydantic.alias_generators import to_camel
 
-from .identity import AccessSubject, DataLabelId, GatewayProfileId, PrincipalId, TenantId, WorkContextId
+from .identity import AccessSubject, DataLabelId, GatewayProfileId, PrincipalId, ScopeName, TenantId, WorkContextId
 
 EXTENSION_ID = "ai.veoveo/knowledge-source"
 OBSERVATION_KEY = "ai.veoveo/knowledge-observation"
@@ -119,6 +119,7 @@ class CollectionDescriptor(WireModel):
     change_signal: ChangeSignal
     access: AccessModel
     indexing: IndexingMode
+    required_scopes: frozenset[ScopeName] = frozenset()
 
     @field_validator("enumerate")
     @classmethod
@@ -136,7 +137,7 @@ class CollectionDescriptor(WireModel):
 
 
 class AudienceReadPolicy(WireModel):
-    kind: Literal["tenant", "subjects", "work-context", "selected-work-context"]
+    kind: Literal["tenant", "subjects", "work-context", "selected-work-context", "selected-work-context-members"]
 
 
 class SubjectsInContextReadPolicy(WireModel):

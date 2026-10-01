@@ -16632,6 +16632,7 @@ dependencies = [
  "veoveo-duckdb-runtime",
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
+ "veoveo-mcp-knowledge-extension",
  "veoveo-platform-store",
  "veoveo-task-runtime",
  "veoveo-types",

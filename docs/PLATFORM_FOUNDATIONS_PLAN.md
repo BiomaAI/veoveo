@@ -20,8 +20,8 @@ Python observation support, build-time document manifests and live K01–K06 che
 are implemented. Knowledge Store records and transactional generation/member APIs
 pass native SurrealDB 3.3 qualification. Node document observations and executable
 K07/K08 owner probes are implemented. Domain probe fixtures and installed qualification
-remain open. Chart docs, Time domain adoption and Artifact metadata adoption are
-implemented locally. Map, Reason and the knowledge service are still open. Broader server
+remain open. Chart docs, Time domain adoption, Artifact metadata and Map summaries are
+implemented locally. Reason and the knowledge service are still open. Broader server
 adoption is postponed outside this plan's completion scope. The cluster and BuildKit
 are stopped.
 
@@ -104,6 +104,22 @@ five independent contract-consumer checks and six generated Console contract che
 Affected all-target/all-feature and Artifact runtime-only strict Clippy, workspace
 all-target compilation, TypeScript and SurrealDB 3.3 SQL validation pass.
 Installed Artifact knowledge conformance and mutation/restart probes remain open.
+
+Map now exposes all six selected domain collections through dedicated summary resources.
+The summaries link to full records and hash their complete serialized content, preserving
+large geometry support while keeping knowledge members below 64 KiB. Typed collection
+cursors enumerate source-admitted rows. Authoring SQL selects a feature or publication
+and its current parent layer together; observations require membership in the selected
+Work Context. Location/facility search uses one SQL limit after active-release identity
+selection and returns summary resource links. Source-required scopes are now part of
+collection declarations and index SQL admission; Time declares its existing read scope.
+Local qualification passes all 138 Map library checks, 19 Map contract checks,
+four native Store knowledge checks, eight extension
+checks, three Time knowledge checks, six Python checks, six independent contract-consumer
+checks and six generated Console checks. Affected strict Clippy, Map runtime-only strict
+Clippy, workspace all-target compilation, TypeScript and SurrealDB 3.3 query validation
+pass. Installed Map knowledge conformance and mutation/restart probes remain open.
+The cluster and BuildKit stayed stopped; 116 GiB remained free after the batch.
 
 Current direction: every contract change in this plan is a coordinated hard cut.
 Historical data requires no support or migration. Remove compatibility adapters
@@ -3413,7 +3429,7 @@ revision.
 | chart | `charts.docs` only | build-time document digests | Docs declaration, observations and conditional reads implemented; installed certification remains open |
 | time | events, calendar versions, epoch versions, acquired and packaged authority releases | stored creation tenant, owner and Work Context; content/access revisions, source digests and modification timestamps | Five collections, typed URI pages, observations and conditional reads implemented; installed qualification and event change/restart probes remain open |
 | artifact | artifact metadata (`artifact://metadata/{id}`), never the bytes | compliance metadata: tenant, owner, Work Context, labels, provenance | SQL-admitted metadata snapshots, cursor pages, Library navigation, bounded observations and conditional reads implemented; selected-context and record/grant deadlines are represented in the shared contract and enforced in index SQL; installed conformance and mutation/restart probes remain open |
-| map | feature layers, features, publications, locations, facilities, dataset releases | layer and feature revisions, `created_by`, Work Context, labels, changeset sequence, source digests | Return resource links from `search_locations`; declare the other collections from its templates |
+| map | bounded summaries of feature layers, features, publications, locations, facilities and dataset releases | full source content digests, layer and feature revisions, Work Context, labels, stored timestamps and recorded modifying actors | Six declarations, typed member links and cursors, source observations, conditional reads and SQL-selected location search pass local qualification; installed conformance and mutation/restart probes remain open |
 
 Acceptance: each server passes K01 through K10 review and conformance, and the audit
 log records the observed revision for reads of each collection.

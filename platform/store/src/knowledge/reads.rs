@@ -4,7 +4,9 @@ use crate::PlatformStore;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use veoveo_mcp_knowledge_extension::Observation;
-use veoveo_types::{AccessSubject, DataLabelId, GatewayProfileId, ResourceUri, WorkContextId};
+use veoveo_types::{
+    AccessSubject, DataLabelId, GatewayProfileId, ResourceUri, ScopeName, WorkContextId,
+};
 
 /// Constructed from current caller policy, including source-profile admission.
 /// The service applies its canonical access decision to these narrowed candidates.
@@ -16,6 +18,7 @@ pub struct CandidateScope {
     pub collections: BTreeSet<CollectionId>,
     pub work_contexts: BTreeSet<WorkContextId>,
     pub subjects: BTreeSet<AccessSubject>,
+    pub scopes: BTreeSet<ScopeName>,
     pub clearance: BTreeSet<DataLabelId>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -101,6 +104,7 @@ impl PlatformStore {
             || scope.work_contexts.len() > 1024
             || scope.subjects.len() > 1024
             || scope.clearance.len() > 1024
+            || scope.scopes.len() > 1024
         {
             return Err(StoreError::Knowledge(
                 "candidate scope or page exceeds its bound",
@@ -122,6 +126,14 @@ impl PlatformStore {
             .query(sql)
             .bind(("tenant", scope.tenant.to_string()))
             .bind(("profile", scope.profile.to_string()))
+            .bind((
+                "scopes",
+                scope
+                    .scopes
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>(),
+            ))
             .bind(("active_context", scope.active_work_context.to_string()))
             .bind(("generation", generation_record(generation)))
             .bind((
