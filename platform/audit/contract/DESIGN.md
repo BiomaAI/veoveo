@@ -36,6 +36,10 @@ credentials. The closed audit schema rejects those URLs on input as well.
 The access descriptor includes the source's closed read policy and its optional
 `GatewayProfileId` restriction. That identifier is an installation profile route token
 validated by the foundational type; it carries no credential or free-form description.
+`IndexingRead` admits only collection-matching resource reads by a tenant service
+client. Denials cannot enter an aggregate. `IndexingWindow` requires a matching server
+target, five-minute UTC bounds, positive reads and consistent outcome counters. Its
+occurrence time equals the window end. Constructor and decode checks share these rules.
 Store owns conversion to compound record IDs and native record links. A partition key
 distinguishes the installation partition from a tenant literally named `installation`.
 

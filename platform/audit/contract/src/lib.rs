@@ -4,6 +4,8 @@ mod activity;
 mod destination;
 pub use destination::*;
 mod ids;
+mod indexing;
+pub use indexing::*;
 mod knowledge;
 mod model;
 mod query;

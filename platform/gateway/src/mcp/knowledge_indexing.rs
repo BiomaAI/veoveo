@@ -20,6 +20,11 @@ pub(super) struct IndexingReadPermit {
     intent: IndexingReadIntent,
     admission: IndexingAdmission,
 }
+impl IndexingReadPermit {
+    pub(super) fn collection(&self) -> &veoveo_mcp_knowledge_extension::CollectionId {
+        &self.intent.collection
+    }
+}
 #[derive(PartialEq, Eq)]
 enum IndexingAdmission {
     SourceContract(KnowledgeCollectionApproval),

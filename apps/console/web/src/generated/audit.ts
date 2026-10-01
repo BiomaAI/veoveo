@@ -152,10 +152,14 @@ export type AuditDetail =
       status: KnowledgeReadStatus;
     }
   | {
-      denials: number;
+      collection: CollectionId;
+      end: string;
+      failed: number;
       kind: "indexing_window";
       members_digest: string;
+      not_modified: number;
       reads: number;
+      start: string;
     };
 /**
  * This interface was referenced by `AuditReaderApi`'s JSON-Schema

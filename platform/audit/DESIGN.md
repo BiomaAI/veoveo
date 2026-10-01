@@ -8,6 +8,7 @@
 | SurrealDB 3.3.0 | Store-owned atomic batches and caller-owned domain transactions |
 | RFC 8785 | Canonical JSON bytes for hashing, with `serde_json_canonicalizer` 0.3.2 |
 | RFC 9162 section 2.1 | SHA-256 Merkle leaves and interior nodes |
+| `veoveo.ai/audit-indexing-members/v1` | Internal SHA-256 chain over admitted member URI/revision pairs |
 | RFC 8032 | Ed25519 signing through `ed25519-dalek` 3.0.0 |
 | OCSF 1.9.0 and S3 Object Lock | [Destination export](src/export/DESIGN.md), JSON Lines and optional compliance-mode retention |
 | W3C Trace Context and OTLP/HTTP | Request correlation and policy, audit and upstream histograms |
@@ -48,6 +49,59 @@ with delays from 100 ms to five seconds. A caller waits for queue capacity and r
 its original tool result. Speech stops and joins dictation session workers before
 draining audit. UAV stops expiry workers and closes retained live-view sessions first.
 Their terminal records therefore enter the queue before the writer closes it.
+
+## Indexing Read Windows
+
+The gateway supplies `IndexingRead` only after admitting a registered indexing client
+and validating its collection. Denials keep their individual audit records. Successful
+reads and admitted source failures enter the required queue. Store commits their
+window counters and retry receipts before the gateway releases the response. A required
+group has a 15-second commit deadline; ordinary records and indexing updates share its
+transaction.
+
+The database clock assigns reads to UTC intervals of five minutes. Each window groups
+one collection, actor and complete authorization context, so a client, Work Context or
+policy change creates a separate attribution group. Its final record carries a generated
+background request identity instead of claiming that the first read represents every
+request. The summary outcome reports successful aggregation; `reads`, `not_modified`
+and `failed` describe the source outcomes. Successful full reads equal
+`reads - not_modified - failed`. Enumeration and contract reads count even when they
+carry no source observation.
+
+Store keeps open windows outside the immutable audit table. A worker selects up to 32
+elapsed windows through an expiry index every five seconds and drains full batches.
+It constructs checked summaries in Rust, then compares the read count and atomically
+appends each summary and removes its accumulator. Transactions resolve competing
+replicas. The ordinary sealer signs those records. Startup recovers elapsed windows;
+shutdown preserves open windows for the next writer. Finalization has a 30-second
+batch deadline. A failure closes writer admission and fails gateway readiness.
+
+The member digest uses SHA-256 with domain `veoveo.ai/audit-indexing-members/v1`.
+Its initial value hashes the domain bytes. Each successful observed read hashes the
+compact JSON array `[memberUri, revision]`, then updates the chain with the UTF-8
+bytes of `domain + ":" + previousHex + memberHex`. The two hex fields have fixed length
+64. Database serialization determines order, and conditional reads contribute again.
+Unobserved enumeration reads and failed reads change counters only. This commits the
+sequence without storing member bodies or retaining per-read audit records.
+
+A retry receipt binds the draft identity to a SHA-256 fingerprint of its collection and
+complete typed draft. Reusing an identity with different fields aborts the transaction.
+Receipts live for one day. New first commits must have an occurrence time within the
+previous hour, with at most one minute of future clock skew; removing an expired receipt
+therefore cannot admit an old read again. Cleanup wakes every five seconds and deletes batches of at most 1,024 receipts.
+It stops starting batches after two seconds and gives each commit a 15-second deadline. Pending accumulators have no expiry and survive
+receipt cleanup. The writer stops admission if cleanup cannot commit.
+
+## Deployment
+
+An installation applies the Store schema before starting these writers. The indexing
+summary contract requires a coordinated gateway drain: stop indexing workers, drain all
+gateway replicas, update gateway and audit readers together, then restart indexing.
+Console's generated reader types and native audit CLI ship with the matching contract.
+Mixed gateway versions are outside this upgrade profile. Retain committed accumulator
+and receipt tables through process replacement; removing them can lose acknowledged
+reads or admit duplicate retries. The schema change adds staging tables and converts no
+existing audit records.
 
 ## Integrity And Readers
 

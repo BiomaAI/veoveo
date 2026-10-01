@@ -1,7 +1,9 @@
 use std::{sync::Arc, time::Duration};
 use tokio::sync::{Mutex, mpsc, oneshot, watch};
-use veoveo_audit_contract::AuditDraft;
+use veoveo_audit_contract::{AuditDraft, IndexingRead};
 use veoveo_platform_store::PlatformStore;
+mod indexing;
+use indexing::indexing_windows;
 
 const GROUP_LIMIT: usize = 64;
 const QUEUE_LIMIT: usize = 1024;
@@ -23,12 +25,16 @@ pub enum AuditShutdownError {
     Worker,
 }
 struct Pending {
-    draft: AuditDraft,
+    entry: Entry,
     reply: oneshot::Sender<Result<(), AuditWriteError>>,
+}
+enum Entry {
+    Record(AuditDraft),
+    Indexing(IndexingRead),
 }
 #[derive(Debug)]
 struct Drain {
-    task: Option<tokio::task::JoinHandle<()>>,
+    task: Option<tokio::task::JoinHandle<Result<(), AuditShutdownError>>>,
     result: Option<Result<(), AuditShutdownError>>,
 }
 #[derive(Debug)]
@@ -48,12 +54,20 @@ impl AuditWriter {
         let (completions, completion_receiver) = mpsc::channel::<AuditDraft>(QUEUE_LIMIT);
         let (stop, stopped) = watch::channel(false);
         let task = tokio::spawn(async move {
-            // One task owns both futures. A panic or forced shutdown drops both
+            // One task owns all three workers. A panic or forced shutdown drops both
             // receivers and rejects new writes; no detached child keeps running.
-            tokio::join!(
-                required(store.clone(), receiver, stopped.clone()),
-                completed(store, completion_receiver, stopped),
-            );
+            tokio::try_join!(
+                async {
+                    required(store.clone(), receiver, stopped.clone()).await;
+                    Ok(())
+                },
+                async {
+                    completed(store.clone(), completion_receiver, stopped.clone()).await;
+                    Ok(())
+                },
+                indexing_windows(store.clone(), stopped.clone()),
+            )
+            .map(|_| ())
         });
         Self {
             sender,
@@ -87,7 +101,7 @@ impl AuditWriter {
             .as_mut()
             .expect("audit drain owns its task until settlement");
         let result = match tokio::time::timeout(timeout, &mut *task).await {
-            Ok(Ok(())) => Ok(()),
+            Ok(Ok(result)) => result,
             Ok(Err(_)) => Err(AuditShutdownError::Worker),
             Err(_) => {
                 task.abort();
@@ -112,11 +126,17 @@ impl AuditWriter {
     /// Return only after this caller's record has committed. Cancelling the caller
     /// does not cancel a group containing other callers' records.
     pub async fn record(&self, draft: AuditDraft) -> Result<(), AuditWriteError> {
+        self.enqueue(Entry::Record(draft)).await
+    }
+    pub async fn record_indexing(&self, read: IndexingRead) -> Result<(), AuditWriteError> {
+        self.enqueue(Entry::Indexing(read)).await
+    }
+    async fn enqueue(&self, entry: Entry) -> Result<(), AuditWriteError> {
         if !self.is_running() {
             return Err(AuditWriteError::Closed);
         }
         let (reply, committed) = oneshot::channel();
-        tokio::time::timeout(QUEUE_DEADLINE, self.sender.send(Pending { draft, reply }))
+        tokio::time::timeout(QUEUE_DEADLINE, self.sender.send(Pending { entry, reply }))
             .await
             .map_err(|_| AuditWriteError::QueueDeadline)?
             .map_err(|_| AuditWriteError::Closed)?;
@@ -150,15 +170,26 @@ async fn required(
                 Err(_) => break,
             }
         }
-        let records = pending.iter().map(|p| p.draft.clone()).collect::<Vec<_>>();
+        let mut records = Vec::new();
+        let mut indexing = Vec::new();
+        for request in &pending {
+            match &request.entry {
+                Entry::Record(draft) => records.push(draft.clone()),
+                Entry::Indexing(read) => indexing.push(read.clone()),
+            }
+        }
         let started = tokio::time::Instant::now();
-        let result = store
-            .append_audit_records(&records)
-            .await
-            .map_err(|_| AuditWriteError::Commit);
+        let result = tokio::time::timeout(
+            Duration::from_secs(15),
+            store.append_audit_group(&records, &indexing),
+        )
+        .await
+        .map_err(|_| AuditWriteError::Commit)
+        .and_then(|result| result.map_err(|_| AuditWriteError::Commit));
         tracing::info!(
             audit_commit_ms = started.elapsed().as_secs_f64() * 1000.,
             audit_records = records.len(),
+            audit_indexing_reads = indexing.len(),
             audit_success = result.is_ok(),
             "audit group commit"
         );

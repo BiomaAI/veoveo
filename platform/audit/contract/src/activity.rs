@@ -334,8 +334,12 @@ pub enum AuditDetail {
         status: KnowledgeReadStatus,
     },
     IndexingWindow {
+        collection: veoveo_mcp_knowledge_extension::CollectionId,
+        start: chrono::DateTime<chrono::Utc>,
+        end: chrono::DateTime<chrono::Utc>,
         reads: u64,
-        denials: u64,
+        not_modified: u64,
+        failed: u64,
         members_digest: Sha256Digest,
     },
 }

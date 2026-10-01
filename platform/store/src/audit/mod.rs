@@ -8,6 +8,7 @@ use surrealdb::{
 use veoveo_audit_contract::*;
 mod codec;
 mod delivery;
+mod indexing;
 mod maintenance;
 pub use codec::AuditContextRecord;
 use codec::{Document, Row, scalar};
@@ -148,10 +149,17 @@ impl AuditTransactionWrite {
 }
 impl PlatformStore {
     pub async fn append_audit_records(&self, records: &[AuditDraft]) -> Result<(), StoreError> {
-        if records.is_empty() {
+        self.append_audit_group(records, &[]).await
+    }
+    pub async fn append_audit_group(
+        &self,
+        records: &[AuditDraft],
+        indexing: &[IndexingRead],
+    ) -> Result<(), StoreError> {
+        if records.is_empty() && indexing.is_empty() {
             return Ok(());
         }
-        if records.len() > 64 {
+        if records.len() + indexing.len() > 64 {
             return Err(StoreError::AuditBatchLimit);
         }
         let rows = records
@@ -160,13 +168,19 @@ impl PlatformStore {
             .map(encode)
             .collect::<Result<Vec<_>, _>>()?;
         let mut last = None;
+        let indexing = indexing
+            .iter()
+            .map(indexing::encode_read)
+            .collect::<Result<Vec<_>, _>>()?;
         for attempt in 0..4 {
             let result = self
                 .db
                 .query("BEGIN TRANSACTION;")
                 .query(APPEND)
+                .query("fn::append_audit_indexing($indexing);")
                 .query("COMMIT TRANSACTION;")
                 .bind(("audit_rows", rows.clone()))
+                .bind(("indexing", indexing.clone()))
                 .await
                 .and_then(|mut response| {
                     match crate::primary_transaction_error(response.take_errors()) {

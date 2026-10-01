@@ -233,10 +233,11 @@ installation label ceiling. `GatewaySource` attaches the typed collection and
 enumeration/member intent to each read. The indexer checks observation admission before
 chunking or embedding; member construction checks it again before storage.
 
-Indexing reads currently commit one audit record per read. The hosted integration must
-add one record per collection and five-minute window, as
-[the audit design](../../docs/AUDIT.md#event-selection) specifies. That aggregation is
-pending. The reference installation provisions its indexing client and signing Secret
+Indexing reads commit window counters and retry receipts before delivery. The gateway
+writer finalizes one record per collection, service actor and authorization context in
+each five-minute interval. Denials keep individual records. The
+[audit writer](../../platform/audit/DESIGN.md#indexing-read-windows) owns restart recovery,
+window finalization and digest construction. The reference installation provisions its indexing client and signing Secret
 separately from public worker configuration.
 
 ## Catalog
@@ -397,7 +398,7 @@ agent's episode budget counts it. Platform services call the runtime directly in
 | `Dockerfile`, `deploy/helm/veoveo/templates/knowledge.yaml` | CPU service image, public configuration and private key mounts, shared embedding identity and deployment probes |
 | `src/search.rs` | hybrid query, rank fusion, effective-access filtering, and result links |
 | `platform/store/src/knowledge.rs` | typed catalog, chunk, and index-generation records |
-| `platform/gateway/src/mcp/resource_read.rs`, `knowledge_indexing.rs` | collection approval, observation and label admission, and per-read audit; indexing windows pending |
+| `platform/gateway/src/mcp/resource_read.rs`, `knowledge_indexing.rs` | collection approval, observation and label admission, and durable indexing audit windows |
 | `agents/kernel/src/resource.rs` | observation retention and provenance lines in model context |
 
 ## Verification

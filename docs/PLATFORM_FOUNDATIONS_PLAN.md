@@ -29,8 +29,9 @@ The hosted Knowledge API passes native HTTP and current-authority checks. Knowle
 and its embedding runtime are published and deployed with the reference machine client.
 Public catalog, source-linked retrieval, embedding and network-isolation checks pass.
 Catalog completion, caller-visible statistics and request-scoped subscriptions have
-native qualification. Their installed exposure, domain retrieval evaluation,
-mutation/restart qualification, indexing audit aggregation and Reason remain open.
+native qualification. Indexing audit windows now commit before delivery and recover
+across writer restarts in native tests. Their installed exposure, domain retrieval
+evaluation, installed mutation/restart qualification and Reason remain open.
 The gateway source adapter discovers approved
 collections and waits for catalog/resource observation readiness before reading.
 The library coordinator qualifies lease renewal, source invalidation, conditional
@@ -3754,6 +3755,27 @@ SurrealDB 3.3 query validation pass. The installed ignored test is not claimed f
 unpublished change. Completion/subscription gateway exposure will activate with the
 next service image, batched with indexing audit aggregation. Nodes and BuildKit stay
 stopped during this development batch; about 152 GiB remains free.
+
+Indexing audit checkpoint (2026-10-01): admitted resource reads now commit mutable
+five-minute collection counters and retry receipts before delivery. Windows separate
+service actors and authorization contexts; denials keep individual records. The database
+clock selects each interval. A worker recovers elapsed windows, constructs checked
+summaries and atomically appends them to the immutable audit log. The existing sealer
+then includes them in signed blocks. Member URI/revision hashes form an ordered SHA-256
+chain. Open windows survive shutdown; expired retry receipts are removed in limited
+batches. The unused aggregate shape receives a hard cut with regenerated Console types.
+
+Native qualification covers duplicate reads racing across replicas, changed-identity
+rollback, outcome counts, digest reproduction, separate authority groups, concurrent
+finalization and receipt cleanup. Writer replacement preserves acknowledged reads and
+seals one summary. Gateway tests prove committed accumulation before successful delivery
+and individual denial records. Existing audit service and Knowledge Store checks pass.
+Console TypeScript compilation, affected all-target strict Clippy, SurrealDB 3.3 query
+validation and documentation-link checks pass. This batch still requires publication and
+installed acceptance together with the catalog completion/subscription exposure. Apply
+the additive Store migration, stop indexing, drain all gateway replicas and update the
+gateway, Console and native audit readers together before restarting indexing. Mixed
+gateway versions are outside this coordinated hard-cut profile.
 
 1. Deliver the shared [embedding runtime](../platform/runtimes/embedding/DESIGN.md)
    before the knowledge service consumes it. Re-verify the latest stable vLLM release

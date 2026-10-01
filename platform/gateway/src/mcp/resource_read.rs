@@ -28,6 +28,7 @@ impl GatewayMcp {
         &self,
         subject: &AuthenticatedSubject,
         projection: &GatewayResourceProjection,
+        indexing: Option<&super::knowledge_indexing::IndexingReadPermit>,
         result: Result<(ReadResourceResult, Option<Observation>), McpError>,
     ) -> Result<ReadResourceResult, McpError> {
         let ordinary = || AuditDetail::Read {
@@ -77,10 +78,19 @@ impl GatewayMcp {
                 reason,
             )
             .map_err(|_| mcp_internal("invalid resource read audit attribution"))?;
-        self.state
-            .record_audit(draft)
-            .await
-            .map_err(|_| mcp_internal("required resource read audit unavailable"))?;
+        if let Some(permit) = indexing.filter(|_| outcome != AuditOutcome::Denied) {
+            let read = veoveo_audit_contract::IndexingRead::new(draft, permit.collection().clone())
+                .map_err(|_| mcp_internal("invalid indexing audit attribution"))?;
+            self.state
+                .record_indexing_audit(read)
+                .await
+                .map_err(|_| mcp_internal("required indexing audit unavailable"))?;
+        } else {
+            self.state
+                .record_audit(draft)
+                .await
+                .map_err(|_| mcp_internal("required resource read audit unavailable"))?;
+        }
         result.map(|(result, _)| result)
     }
     pub(super) async fn handle_read_resource(
@@ -96,8 +106,9 @@ impl GatewayMcp {
         let server = self.server_for_resource(&request.uri)?;
         let projection = self.project_resource_for_upstream(&request.uri)?;
         let subject = self.admit_resource_read(&context, &projection).await?;
+        let mut indexing = None;
         let result = async {
-            let indexing = self
+            indexing = self
                 .admit_indexing_read(&subject, &projection, &context.meta)
                 .await?;
             let declaring_caller = knowledge::server::requested(Some(&context.meta))
@@ -223,7 +234,7 @@ impl GatewayMcp {
             Ok((result, observation))
         }
         .await;
-        self.finish_resource_read(&subject, &projection, result)
+        self.finish_resource_read(&subject, &projection, indexing.as_ref(), result)
             .await
     }
 }

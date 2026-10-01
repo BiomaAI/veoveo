@@ -194,6 +194,10 @@ pub enum AuditValidationError {
     Outcome,
     #[error("knowledge read outcome and observation disagree")]
     KnowledgeRead,
+    #[error(
+        "indexing audit requires a service client, matching collection and valid five-minute counts"
+    )]
+    IndexingWindow,
     #[error("audit cursor belongs to a different partition")]
     Cursor,
     #[error("audit time range must increase")]
@@ -253,6 +257,10 @@ impl TryFrom<AuditDraftWire> for AuditDraft {
                         .is_none_or(|o| o.collection.server() == server)
             }
             (AuditDetail::KnowledgeRead { .. }, _) => false,
+            (AuditDetail::IndexingWindow { collection, .. }, AuditTarget::Server { server }) => {
+                collection.server() == server
+            }
+            (AuditDetail::IndexingWindow { .. }, _) => false,
             _ => true,
         };
         if !target_matches {
@@ -288,6 +296,31 @@ impl TryFrom<AuditDraftWire> for AuditDraft {
             }
         }
         const MAX_COUNTER: u64 = (1u64 << 53) - 1;
+        if let AuditDetail::IndexingWindow {
+            start,
+            end,
+            reads,
+            not_modified,
+            failed,
+            ..
+        } = &wire.detail
+            && (start.timestamp().rem_euclid(300) != 0
+                || start.timestamp_subsec_nanos() != 0
+                || end.signed_duration_since(*start) != chrono::Duration::minutes(5)
+                || *reads == 0
+                || *reads > MAX_COUNTER
+                || *failed > *reads
+                || *not_modified > reads - failed
+                || wire.occurred_at != *end
+                || wire.outcome != AuditOutcome::Succeeded
+                || !wire.actor.as_ref().is_some_and(|actor| {
+                    actor.kind == AuditPrincipalKind::Service
+                        && actor.tenant.is_some()
+                        && actor.oauth_client.is_some()
+                }))
+        {
+            return Err(AuditValidationError::IndexingWindow);
+        }
         let counters_ok = wire.latency_ms.is_none_or(|value| value <= MAX_COUNTER)
             && wire
                 .actor
@@ -307,9 +340,6 @@ impl TryFrom<AuditDraftWire> for AuditDraft {
                     duration_ms,
                     ..
                 } => *chunks <= MAX_COUNTER && *duration_ms <= MAX_COUNTER,
-                AuditDetail::IndexingWindow { reads, denials, .. } => {
-                    *reads <= MAX_COUNTER && *denials <= MAX_COUNTER
-                }
                 _ => true,
             };
         if !counters_ok {

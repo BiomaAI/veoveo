@@ -819,7 +819,14 @@
         {
           "additionalProperties": false,
           "properties": {
-            "denials": {
+            "collection": {
+              "$ref": "#/$defs/CollectionId"
+            },
+            "end": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "failed": {
               "format": "uint64",
               "minimum": 0,
               "type": "integer"
@@ -832,16 +839,29 @@
               "pattern": "^sha256:[0-9a-f]{64}$",
               "type": "string"
             },
+            "not_modified": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
             "reads": {
               "format": "uint64",
               "minimum": 0,
               "type": "integer"
+            },
+            "start": {
+              "format": "date-time",
+              "type": "string"
             }
           },
           "required": [
             "kind",
+            "collection",
+            "start",
+            "end",
             "reads",
-            "denials",
+            "not_modified",
+            "failed",
             "members_digest"
           ],
           "type": "object"

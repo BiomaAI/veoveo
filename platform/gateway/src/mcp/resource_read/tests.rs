@@ -157,6 +157,7 @@ async fn qualify() {
         .finish_resource_read(
             &subject,
             &projection(),
+            None,
             Ok((full, Some(observation.clone()))),
         )
         .await
@@ -181,7 +182,7 @@ async fn qualify() {
     .unwrap();
     assert!(conditional.contents.is_empty());
     gateway
-        .finish_resource_read(&subject, &projection(), Ok((conditional, observed)))
+        .finish_resource_read(&subject, &projection(), None, Ok((conditional, observed)))
         .await
         .unwrap();
     assert_eq!(
@@ -210,7 +211,7 @@ async fn qualify() {
         panic!("source must reject the revoked conditional read");
     };
     gateway
-        .finish_resource_read(&subject, &projection(), Err(denial))
+        .finish_resource_read(&subject, &projection(), None, Err(denial))
         .await
         .unwrap_err();
     assert_eq!(calls.load(Ordering::SeqCst), 3);
@@ -221,6 +222,7 @@ async fn qualify() {
         .finish_resource_read(
             &subject,
             &projection(),
+            None,
             Err(McpError::resource_not_found("fixture member missing", None)),
         )
         .await
@@ -239,7 +241,7 @@ async fn qualify() {
         .await
         .unwrap();
     let error = gateway
-        .finish_resource_read(&subject, &projection(), Ok((full, observed)))
+        .finish_resource_read(&subject, &projection(), None, Ok((full, observed)))
         .await
         .unwrap_err();
     assert!(!error.to_string().contains("source content"));
@@ -477,7 +479,7 @@ async fn indexing_gate_binds_approval_enumeration_members_and_revocation() {
             .unwrap_err();
         assert!(
             gateway
-                .finish_resource_read(&subject, &member, Err(error))
+                .finish_resource_read(&subject, &member, Some(&permit), Err(error))
                 .await
                 .is_err()
         );
@@ -490,6 +492,27 @@ async fn indexing_gate_binds_approval_enumeration_members_and_revocation() {
             .unwrap();
         assert_eq!(page.records.len(), 1);
         assert_eq!(page.records[0].draft.outcome(), AuditOutcome::Denied);
+        gateway
+            .finish_resource_read(
+                &subject,
+                &member,
+                Some(&permit),
+                Ok((ReadResourceResult::new(vec![]), Some(observation(vec![])))),
+            )
+            .await
+            .unwrap();
+        let mut committed =
+            db.b.client()
+                .query("SELECT VALUE reads FROM audit_indexing_window;")
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+        assert_eq!(
+            committed.take::<Vec<u64>>(0).unwrap(),
+            vec![1],
+            "delivery requires a committed window update"
+        );
         let mut filter = rmcp::model::SubscriptionFilter::new();
         filter.tools_list_changed = Some(true);
         assert!(

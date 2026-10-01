@@ -79,7 +79,7 @@ execution of the same request share that record.
 | Dictation session | One record when the session opens, one when it ends with chunk counts and durations, and one for every denial; chunks write no record |
 | Live-view authorization | One record for each issuance, renewal, close, expiry, and revocation, and one for every denial |
 | Artifact range downloads | One record per actor, artifact, and five-minute window, and one for every denial |
-| Reads by an approved indexing client | One record per collection and five-minute window with read and outcome counts and a SHA-256 over the member URIs and revisions read; the index's chunk records hold each member's revision |
+| Reads by an approved indexing client | One record per collection, service actor, authorization context and five-minute window with read and outcome counts and a SHA-256 over the member URIs and revisions read; the index's chunk records hold each member's revision |
 | Token lifecycle: issue, refresh, revoke, replay, credential denial | One `authentication` record each |
 | Successful bearer verification | No record; the actor block of the request's record carries it |
 | Polling a caller's own Task or operation status | No record; the Task's creation and terminal outcome are recorded |
@@ -91,6 +91,9 @@ window. Artifact service coalesces concurrent requests through a cache of at mos
 acknowledged windows. Store atomically claims each actor/artifact/window with its record,
 so cache eviction and replica changes preserve the same window. Denials bypass that
 cache. Indexing reads use collection windows because one sync is one logical action.
+Each read commits its accumulator update before delivery. The
+[writer design](../platform/audit/DESIGN.md#indexing-read-windows) defines restart recovery,
+retry receipts, window finalization and the member/revision digest.
 
 Each action has one owner. The gateway records requests. A domain service records the
 state changes it owns, such as an authorization issuance, a publication, or a Computer
