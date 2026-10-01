@@ -100,6 +100,9 @@ Component designs live beside the code whose contract they specify:
 | [`servers/frames-mcp/DESIGN.md`](../servers/frames-mcp/DESIGN.md) | local coordinate frames and transformations |
 | [`mcp/apps-extension/DESIGN.md`](../mcp/apps-extension/DESIGN.md) | the MCP Apps server↔core↔UI contract for domain views and administration, including the reusable structured-resource workbench shell |
 | [`mcp/knowledge-extension/DESIGN.md`](../mcp/knowledge-extension/DESIGN.md) | `ai.veoveo/knowledge-source` typed extension: collection descriptors, read observations, conditional reads, docs paging and build digests; hosted integration and K01–K10 adoption are in progress |
+| [`platform/knowledge/contract/DESIGN.md`](../platform/knowledge/contract/DESIGN.md) | knowledge-owned collection approvals, generation identities/specifications and source-bound chunks shared below Store and the MCP service |
+| [`platform/runtimes/embedding/contract/DESIGN.md`](../platform/runtimes/embedding/contract/DESIGN.md) | transport-independent embedding spaces, checked dimensions and normalized vectors |
+| [`platform/store/src/knowledge/DESIGN.md`](../platform/store/src/knowledge/DESIGN.md) | catalog compare-and-set, generation-specific BM25/HNSW tables, fenced source reads, coverage, activation, SQL candidate admission and reclamation |
 | [`MAP_APP_INTEGRATION.md`](MAP_APP_INTEGRATION.md) | consumer guide for using Map MCP resources and the reusable Map App from another MCP server |
 | [`servers/map-mcp/DESIGN.md`](../servers/map-mcp/DESIGN.md) | Earth geography, map data administration, logistics routing, and immutable Optimization travel models |
 | [`servers/map-mcp/AUTHORING.md`](../servers/map-mcp/AUTHORING.md) | authored feature layers, revisions, publications and Work Context access |
@@ -551,6 +554,7 @@ Domain runtimes can own private queries and driver records over these connection
 | `recording_ingest.rs`, `recording_blueprints.rs` | producer streams, idempotent batch checkpoints, immutable producer Blueprint revisions, and journal state |
 | `usage.rs` | shared domain/media usage records |
 | `resource_changes.rs` | shared domain LIVE invalidations, coalescing, database-clock checkpoints and changefeed recovery; composed into Time, Recording, Frames, Media, Optimization, and UAV resource hubs |
+| `knowledge.rs`, `knowledge/` | typed catalog and generation persistence, member-read epochs, source-bound chunks and current approval/access predicates before candidate pagination |
 | `agent_management/revision.rs` and `agent_management/revision.surql` | SHA-256 revisions of SQL-authorized catalog and management views |
 | `changefeed.rs`, `changefeed/` | complete transaction-tail replay, consumer checkpoints and LIVE recovery; typed Task, Artifact and Computer change decoding imports the owning contract types |
 | `platform/task-runtime/src/runtime/history.rs`, `subscriptions.rs`, `owner_subscriptions.rs` | committed-state replay for trusted workers, shared native-feed wakeups and current SQL-authorized public Task reads |

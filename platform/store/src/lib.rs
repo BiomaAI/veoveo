@@ -20,6 +20,7 @@ mod governance;
 mod identity;
 mod ids;
 mod json_value;
+pub mod knowledge;
 mod map;
 mod map_authoring;
 mod map_derivations;

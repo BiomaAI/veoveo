@@ -16453,6 +16453,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-embedding-contract"
+version = "0.1.0"
+dependencies = [
+ "schemars 1.2.2",
+ "serde",
+ "veoveo-types",
+]
+
+[[package]]
 name = "veoveo-flight-smoke"
 version = "0.1.0"
 dependencies = [
@@ -16548,6 +16557,20 @@ dependencies = [
  "sha2 0.11.0",
  "tempfile",
  "veoveo-deploy-contract",
+]
+
+[[package]]
+name = "veoveo-knowledge-contract"
+version = "0.1.0"
+dependencies = [
+ "schemars 1.2.2",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "uuid",
+ "veoveo-embedding-contract",
+ "veoveo-mcp-knowledge-extension",
+ "veoveo-types",
 ]
 
 [[package]]
@@ -16916,6 +16939,9 @@ dependencies = [
  "veoveo-artifact-contract",
  "veoveo-audit-contract",
  "veoveo-computers-contract",
+ "veoveo-embedding-contract",
+ "veoveo-knowledge-contract",
+ "veoveo-mcp-knowledge-extension",
  "veoveo-types",
 ]
 

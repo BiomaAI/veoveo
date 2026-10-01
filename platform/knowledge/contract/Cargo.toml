@@ -1,0 +1,15 @@
+[package]
+name = "veoveo-knowledge-contract"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+veoveo-types.workspace = true
+veoveo-embedding-contract.workspace = true
+veoveo-mcp-knowledge-extension = { workspace = true, features = ["contract"] }
+serde.workspace = true
+serde_json.workspace = true
+schemars = { workspace = true, features = ["uuid1"] }
+uuid = { workspace = true, features = ["serde", "v7"] }
+sha2.workspace = true

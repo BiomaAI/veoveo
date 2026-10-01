@@ -1,0 +1,10 @@
+[package]
+name = "veoveo-embedding-contract"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+veoveo-types.workspace = true
+serde.workspace = true
+schemars.workspace = true

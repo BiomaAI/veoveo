@@ -14,7 +14,10 @@ freshness of the cached revision behind it.
 ## Status
 
 The extension crate, shared Rust and Python document adapters, gateway read auditing,
-and kernel provenance are implemented. Installed qualification is in progress.
+and kernel provenance are implemented. Store implements approval fingerprints,
+generation-specific indexes, fenced member replacement and SQL-selected candidate
+pages through the [knowledge storage contract](../platform/store/src/knowledge/DESIGN.md).
+Installed qualification is in progress.
 The `knowledge-mcp` service has not been implemented. The
 [implementation plan](PLATFORM_FOUNDATIONS_PLAN.md) sequences delivery. When the
 `servers/knowledge-mcp` crate is created, the service sections of this document move
@@ -121,6 +124,11 @@ A change to any of them builds a new generation beside the active one. The activ
 pointer moves when the new generation covers every approved collection, and vectors
 from different spaces never share an index. The knowledge evaluation set is the
 workload the runtime's model selection uses.
+
+The [knowledge domain contract](../platform/knowledge/contract/DESIGN.md) owns generation
+identities and specifications below both Store and the service. Store creates a
+separate chunk table and vector index for each generation, checks current approval
+fingerprints before writes and activation, and reclaims retired generations explicitly.
 
 ## Search
 

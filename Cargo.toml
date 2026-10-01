@@ -27,6 +27,7 @@ members = [
     "platform/computers/storage",
     "platform/computers/transport",
     "platform/frames/contract",
+    "platform/knowledge/contract",
     "platform/gateway",
     "platform/policy",
     "platform/recordings/contract",
@@ -37,6 +38,7 @@ members = [
     "platform/recordings/reader",
     "platform/recordings/video",
     "platform/runtimes/duckdb",
+    "platform/runtimes/embedding/contract",
     "platform/runtimes/computers",
     "platform/store",
     "platform/task-runtime",
@@ -76,6 +78,8 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
+veoveo-embedding-contract = { path = "platform/runtimes/embedding/contract" }
+veoveo-knowledge-contract = { path = "platform/knowledge/contract" }
 veoveo-mcp-knowledge-extension = { path = "mcp/knowledge-extension", default-features = false }
 veoveo-knowledge-macros = { path = "mcp/knowledge-extension/macros" }
 veoveo-audit-contract = { path = "platform/audit/contract" }

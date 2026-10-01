@@ -18,6 +18,7 @@ version.
 | MCP Tasks extension `io.modelcontextprotocol/tasks` | Version `2026-07-28`; task creation, discovery, lifecycle updates, cancellation, terminal payloads, and subscriptions use official MCP messages rather than a job REST API. |
 | [MCP Apps SEP-1865](../mcp/apps-extension/DESIGN.md) | `ext-apps` version `2026-01-26`; server-owned `ui://` resources use the sandboxed MCP Apps host bridge. |
 | [`ai.veoveo/knowledge-source`](../mcp/knowledge-extension/DESIGN.md) | Repository-owned MCP extension with RFC 9110 strong-validator semantics, RFC 9111 freshness lifetimes and RFC 8246 immutability. Typed read observations bind resource bytes to revisions and access descriptors; Phase 6 owns consumer integration and qualification. |
+| SurrealDB 3.3 `FULLTEXT` BM25 and HNSW cosine indexes | [Knowledge storage](../platform/store/src/knowledge/DESIGN.md) creates separate chunk tables and indexes for each typed embedding-space generation, with current approval and access selection in SQL. The search service and GPU embedding runtime require their own qualification. |
 | OpenID Connect and OAuth 2.0 | OIDC Core login; S256 PKCE; Client Credentials and JWT Bearer grants; RFC 8414 authorization-server metadata; RFC 9728 protected-resource metadata; RFC 8707 resource indicators; signed JWT/JWS/JWK tokens and key discovery. |
 | MCP Enterprise-Managed Authorization / ID-JAG | Explicit enterprise grant profile with durable replay protection, client binding, tenant mapping, and scope reduction. |
 | HTTPS and HTTP range semantics | External acquisition, MCP transport, provider webhooks, and artifact delivery. Cleartext HTTP is used only inside declared cluster trust boundaries. |
@@ -337,6 +338,8 @@ and child cleanup commit or roll back together.
 | `audit_record_seal.record` | Seal membership belongs to its retained audit record |
 | `audit_export_delivery.block` | Per-block export intent and receipts belong to the retained block |
 | `computer_execution_payload.journal`, `computer_file_transfer_payload.journal` | Immutable encrypted request input follows its command or file journal's lifetime |
+| `knowledge_member.generation`, `knowledge_coverage.generation` | Reclaiming a non-active generation removes its member and coverage records |
+| Generation-specific knowledge chunk `member` references | Chunks belong to their indexed member; generation cleanup also drops the owned chunk table and indexes |
 
 The database already removes graph edges when an endpoint is deleted. Grant replacement
 and explicit revocation still execute inside their authorized transactions. The native

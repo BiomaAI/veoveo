@@ -1,0 +1,83 @@
+# Knowledge Storage
+
+## Standards And Protocols
+
+| Standard or format | Supported profile |
+|---|---|
+| SurrealDB 3.3.0 / SurrealQL | schemafull catalog records, transactions, native record-reference cleanup, FULLTEXT BM25 and HNSW cosine indexes |
+| [Knowledge domain contract](../../../knowledge/contract/DESIGN.md) | typed approvals, generation specifications and source-bound chunks |
+| [Knowledge-source extension](../../../../mcp/knowledge-extension/DESIGN.md) | typed source observations; the Store imports its contract feature without MCP runtime |
+| RFC 9562 / SHA-256 | generation identity and checked specification/approval fingerprints |
+
+## Tables And Ownership
+
+The ordered Store migration defines `knowledge_collection`, `knowledge_generation`,
+`knowledge_active`, `knowledge_member`, and `knowledge_coverage`. Catalog and member
+state use the native seven-day change feed. The indexing service must reconcile from
+source enumeration when its saved cursor falls outside retention.
+
+Each generation creates one schemafull `knowledge_chunk_<uuid>` table with its own
+BM25 and HNSW indexes. A table contains vectors from one embedding space. Its dimension
+comes from the checked generation specification. The schema uses `PERMISSIONS NONE`;
+only authenticated system users with the existing database-editor role can operate it.
+This generation-owned DDL is a domain operation, separate from installation migrations.
+All interpolated identifiers derive from a canonical UUID, and the dimension is a
+checked integer. Resource URIs, collection names and caller values use bound parameters.
+
+The [SurrealDB index reference](https://surrealdb.com/docs/reference/query-language/statements/define/indexes)
+defines each HNSW index over a field with a fixed dimension. Separate generation
+tables keep both vectors and index structures apart during rebuilds.
+
+## Transactions And Recovery
+
+Catalog registration compares the previous fingerprint. Concurrent discovery cannot
+overwrite a newer approval or revocation. An identical registration is idempotent.
+Generation creation checks every selected approval and creates its schema and immutable
+specification in one transaction. Its state begins at `building`.
+
+`begin_knowledge_member_read` increments the member's epoch, marks it stale and removes
+its collection-coverage receipt before a source request begins. Search excludes stale
+members immediately. A replacement checks the epoch, tenant, current approval and
+generation specification, then replaces the chunks and observation atomically. A
+late source response cannot restore content after another invalidation. Failed source
+reads leave the member stale. Only definitive owner confirmation permits deletion;
+timeouts, unavailable reads and subscription loss do not establish that fact.
+
+The service records collection coverage after complete source enumeration and deletion
+reconciliation. Store rejects coverage while any admitted member is unresolved.
+Activation checks the full current approval set and every coverage receipt, compares
+the previous active generation, retires it and switches the tenant's active pointer
+in one transaction. New reads and approval changes conflict with activation through
+the rows that both operations access. The service can recover the active generation
+after process restart without reconstructing it from local memory.
+
+Reclamation accepts only a building or retired generation that is absent from the
+active pointer. It deletes generation metadata while the chunk schema exists, allowing
+native references to cascade member, coverage and chunk records. It then drops the
+empty chunk table and indexes in the same transaction. Outstanding read tickets
+fail because their generation no longer exists. Operators choose when to reclaim a
+retired generation; retaining it does not authorize rolling the active pointer backward.
+
+## Candidate Admission
+
+`CandidateScope` carries current caller policy, including the source collections exposed
+by its profile. SQL selects the tenant and active generation, current collection
+approval fingerprint, non-stale member, Work Context or grant/owner subject, and every
+required clearance label before ordering and LIMIT. Cursor pages contain at most 100
+chunks; cursors bind the tenant, generation and collection. The decoder checks
+selected observation/projection agreement; it does not
+discard unauthorized rows after pagination.
+
+The knowledge service still applies the shared canonical access decision before
+returning results. Candidate paging does not implement search ranking, source-current
+revalidation, metadata-only ingestion or the service's enumeration loop. Those belong
+to the knowledge service phase of the [foundations plan](../../../../docs/PLATFORM_FOUNDATIONS_PLAN.md).
+
+## Qualification
+
+`platform/store/tests/knowledge.rs` runs against an isolated pinned SurrealDB container
+with two database-editor connections and a 120-second timeout. Synthetic normalized
+vectors qualify storage, not inference or GPU execution. The fixture owns cleanup.
+It checks incomplete activation, SQL denial before decoding and limits, stale-reader
+fencing, approval revocation, space separation, active-pointer compare-and-set,
+definitive deletion, and generation reclamation with native referential cleanup.

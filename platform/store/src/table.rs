@@ -6,6 +6,10 @@ use std::fmt;
 /// interpolated into `LIVE SELECT` or `SHOW CHANGES` statements.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum PlatformTable {
+    KnowledgeCollection,
+    KnowledgeGeneration,
+    KnowledgeActive,
+    KnowledgeMember,
     Enterprise,
     Tenant,
     Principal,
@@ -212,6 +216,10 @@ impl PlatformTable {
 
     pub const fn as_str(self) -> &'static str {
         match self {
+            Self::KnowledgeCollection => "knowledge_collection",
+            Self::KnowledgeGeneration => "knowledge_generation",
+            Self::KnowledgeActive => "knowledge_active",
+            Self::KnowledgeMember => "knowledge_member",
             Self::Enterprise => "enterprise",
             Self::Tenant => "tenant",
             Self::Principal => "principal",

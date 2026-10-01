@@ -69,6 +69,8 @@ pub enum MigrationError {
 
 #[derive(Debug, Error)]
 pub enum StoreError {
+    #[error("knowledge persistence rejected the operation: {0}")]
+    Knowledge(&'static str),
     #[error("native changefeed LIVE connection exceeded 15 seconds")]
     ChangefeedConnectionTimeout,
     #[error(transparent)]

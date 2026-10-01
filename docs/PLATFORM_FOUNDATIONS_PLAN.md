@@ -17,7 +17,8 @@ compile-time digest macro. All 15 Rust servers use shared authenticated docs rea
 Python and Node indexes use the same page shape. Gateway source validation, read audit
 completion and kernel provenance pass grouped native checks.
 Python observation support, build-time document manifests and live K01–K06 checks
-are implemented. Store records, K07/K08 domain probes, Node observations and installed
+are implemented. Knowledge Store records and transactional generation/member APIs
+pass native SurrealDB 3.3 qualification. K07/K08 domain probes, Node observations and installed
 qualification remain open. Phases 7–9 are not implemented. The cluster and BuildKit
 are stopped.
 
@@ -3177,8 +3178,8 @@ direction is foundational types → knowledge extension → MCP core, with no de
 on domain servers. Six grouped native tests qualify closed declarations, collection
 and access checks, content-bound conditional responses, stable docs paging, bounded
 search snippets and compile-time document digests. Python observation support and
-live document conformance are implemented. Store schema, change/search qualification
-probes and installed integration remain open.
+live document conformance are implemented. Store schema and transactional APIs pass
+native qualification. Change/search probes and installed integration remain open.
 
 The gateway records successful resource reads after validating the source observation
 and before delivery. It checks the source URI, bytes, collection owner and conditional
@@ -3225,8 +3226,8 @@ Native conformance validates K01–K06 through live declarations, enumeration, r
 content hashes, matching conditions and unauthenticated conditional denial. The
 independent fixture also qualifies an authenticated caller without the required scope.
 K07/K08 skip capabilities that are absent and fail declared capabilities until their
-change/restart and search/denial probes are implemented. Store records and installed
-integration are the next Phase 6 work.
+change/restart and search/denial probes are implemented. Node observations, those
+probes and installed integration are the remaining Phase 6 work.
 
 The grouped document batch passes 42 Python tests, including real stateless HTTP
 negotiation and conditional denial. Both wheels load embedded documents without a
@@ -3234,6 +3235,27 @@ source-tree fallback and match their build-time hashes. The independent Rust ser
 passes live K01–K06, and Map's document-budget test passes. Affected all-target Clippy,
 Rust formatting and documentation links pass. The cluster and BuildKit stay stopped;
 about 170 GiB is free and useful build caches are preserved.
+
+The Store batch adds typed knowledge and embedding contract crates below persistence
+and the future service. This avoids a Store/server dependency cycle and keeps runtime
+dependencies out of consumers. The dependency tree contains neither SurrealDB nor an
+MCP runtime for either contract. Index generation IDs, approval fingerprints, embedding
+spaces, vector dimensions and chunk settings are checked at construction and decoding.
+Migration 0101 defines the catalog, generation, member, coverage and active-pointer
+records. Each generation owns a separate BM25/HNSW chunk table. Source-read epochs
+fence late results; SQL checks current approval and access before candidate decoding
+and limits. Coverage and active-pointer compare-and-set gate generation activation.
+Native references reclaim retired members and chunks before the empty table is dropped.
+
+The native fixture passes incomplete activation, malformed denied rows before LIMIT,
+Work Context and tenant isolation, stale-reader fencing, definitive deletion, embedding
+space separation, generation-bound cursors, approval revocation and stale catalog writes,
+active-generation cleanup refusal and retired-generation cascades. It uses two editor
+connections to an isolated SurrealDB 3.3 container and synthetic vectors; it claims no
+embedding or GPU qualification. The contract tests, workspace all-target compilation,
+affected all-target Clippy, SQL validation, formatting and documentation links pass.
+The cluster and BuildKit stay stopped, and about 162 GiB is free. The indexing loop,
+metadata-only ingestion, ranking, evaluation receipts and GPU runtime belong to Phase 8.
 
 The installed composed run at `442ba70b` completed mission execution, live inference,
 Recording retention, Stream replay, grounded Reason and cross-context access checks.

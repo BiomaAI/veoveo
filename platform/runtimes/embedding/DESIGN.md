@@ -8,7 +8,9 @@ deduplication, and similarity features can call it without new infrastructure.
 
 ## Status
 
-Designed. The runtime and the client crate do not exist yet. Phase 8 of the
+The [shared contract](contract/DESIGN.md) implements embedding-space identities and
+vector admission without runtime dependencies. The runtime and the HTTP client crate
+do not exist yet. Phase 8 of the
 [implementation plan](../../../docs/PLATFORM_FOUNDATIONS_PLAN.md#phase-8-knowledge-service)
 delivers them before the knowledge service consumes them.
 
@@ -87,7 +89,7 @@ same rules.
   version. If it does not, the client caps the number of bulk requests in flight per
   replica instead, so interactive requests still find free capacity.
 
-Every response carries an `EmbeddingSpace`: model name, checkpoint revision,
+Every response carries the shared contract's `EmbeddingSpace`: model name, checkpoint revision,
 dimension, and the vLLM image digest. The client reads it from `/v1/models` and the
 deployment's configuration. A consumer stores the space with its vectors and compares
 vectors only within one space. A model change therefore creates a new space, and each
@@ -121,6 +123,7 @@ that justifies its memory on the installation's shared GPUs.
 
 | Path | Responsibility |
 |---|---|
+| `platform/runtimes/embedding/contract` | model/revision identities, checked dimensions, embedding-space equality and normalized vector admission shared below the client and Store |
 | `platform/runtimes/embedding/client` | `veoveo-embedding-client`: typed requests, query formatting, priorities, bounds, validation, and `EmbeddingSpace` |
 | `deploy/helm/veoveo` | runtime Deployment, model cache, init-container digest check, GPU request, NetworkPolicy, and API key Secret |
 | `platform/runtimes/embedding/checkpoint.sha256` | pinned file digests for the checkpoint revision |
