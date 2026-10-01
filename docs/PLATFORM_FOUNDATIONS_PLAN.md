@@ -3668,6 +3668,39 @@ registration, installed source/embedding acceptance, public catalog subscription
 completion/statistics and five-minute audit windows remain open. The cluster and
 BuildKit stayed stopped during packaging development.
 
+Reference wiring checkpoint (2026-10-01): the installation configuration registers Knowledge
+and a dedicated `knowledge-indexer` client, with viewer membership in Operations and
+sixteen approved collections from Map, Artifact, Time and Chart documents. Catalog
+discovery and mutable-source subscriptions have separate policy grants. Public worker
+configuration and its rollout digest are separate from the private signing Secret.
+The installation's new public Ed25519 JWK matches its mode-0600 private key outside
+the repository. User profiles request Knowledge read, search and embedding scopes;
+source resource links preserve their owning schemes.
+
+Eight owner-local composition checks, four gateway fixture checks, strict affected
+Clippy and 1,005 documentation links pass. Kustomize's public worker data matches its
+configured digest. The Knowledge image staged successfully from `c66fabdc` in 101
+seconds. All 32 platform images and both UAV images published with SBOM and provenance
+from that revision. Both OCI charts published as `0.1.0-c66fabdc2b70`; the reference
+selects their immutable digests together with the image locks and managed-kernel pin.
+Ten rollout checks and the complete Helm configuration smoke pass. The rendered
+platform has 25 Deployments, and installed readiness now includes the existing agent
+manager. The generic full-render fixture supplies explicit Knowledge configuration
+and signing references. Secret provisioning and deployed acceptance remain open.
+The reference nodes stayed stopped during publication, and BuildKit stopped afterward.
+Obsolete simulation certification images freed 23 GiB; BuildKit's configured collection
+reclaimed old layers while retaining compiler mounts. Publication finished with more
+than 160 GiB free.
+
+The installed retrieval harness compiles and passes strict Clippy. It uses an ordinary
+caller token through the public HTTPS gateway, checks the complete approved catalog
+and active generation, searches each indexed documentation collection, and verifies
+every returned source link's content digest and revision. It also calls the embedding
+tool. The five-minute read-only check writes a private JSON report. Execution awaits
+the rollout; hardware execution, domain recall and mutation/restart acceptance remain
+separate requirements. The unchanged Computers guest keeps its qualified image and
+template identity through this rollout.
+
 1. Deliver the shared [embedding runtime](../platform/runtimes/embedding/DESIGN.md)
    before the knowledge service consumes it. Re-verify the latest stable vLLM release
    first, and keep one vLLM pin shared with `reason-mcp`. Do not add candle, fastembed,
@@ -3754,6 +3787,14 @@ read their grounding without rerunning inference. Observations carry stored owne
 Work Context, labels, model provenance and modification metadata. Return bounded
 analysis text and link result Artifacts for larger content. Keep source authorization
 in SQL before pagination and decoding.
+
+The existing analysis and result resources use Task-owner admission. Reusable findings
+must derive visibility from the published result Artifact's current grants, selected
+Work Context, labels and retention. Keep Task control owner-scoped. Select successful
+analyses and their readable result Artifacts together in SQL before decoding or LIMIT;
+an indexing-client registration cannot bypass source authorization. Reuse Artifact's
+admission contract, and carry its access changes into Reason observations and collection
+invalidations. Summary resources must link larger result content to the owning Artifact.
 
 Acceptance: Reason passes K01 through K10 for these collections. The reference
 installation indexes approved analyses and results, and the evaluation set includes

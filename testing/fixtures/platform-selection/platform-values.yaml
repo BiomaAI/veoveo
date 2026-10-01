@@ -3,3 +3,9 @@
 gateway:
   auditRetentionDays: 365
   controlPlaneRevision: "1111111111111111111111111111111111111111111111111111111111111111"
+# Render-only references; the fixture creates neither credentials nor an index.
+knowledge:
+  existingConfigMap: fixture-knowledge-configuration
+  indexingConfigKeys: [indexing.json]
+  configurationRevision: "2222222222222222222222222222222222222222222222222222222222222222"
+  existingSigningSecret: fixture-knowledge-indexer

@@ -182,6 +182,7 @@ pub(crate) fn helm_config() -> Result<()> {
         "duckdb-mcp",
         "optimization-mcp",
         "frames-mcp",
+        "knowledge-mcp",
         "map-mcp",
         "view-mcp",
         "time-mcp",

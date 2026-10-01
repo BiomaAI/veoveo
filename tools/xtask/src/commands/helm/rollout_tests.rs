@@ -211,7 +211,7 @@ fn bioma_compute_host_admits_every_control_plane_template() {
 #[test]
 fn chart_publication_metadata_preserves_every_bioma_pod_template() {
     for (chart, name, extension, expected_pods) in [
-        ("deploy/helm/veoveo", "veoveo", false, 23),
+        ("deploy/helm/veoveo", "veoveo", false, 25),
         ("showcase/uav-sim/deploy/helm", "uav-sim", true, 2),
     ] {
         let directory = tempfile::tempdir().unwrap();

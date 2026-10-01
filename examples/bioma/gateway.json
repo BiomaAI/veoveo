@@ -478,9 +478,74 @@
         "operator:use"
       ],
       "metadata": {
-        "contract_revision": 2
+        "contract_revision": 3
       },
-      "resource_projection": "server_owned"
+      "resource_projection": "server_owned",
+      "knowledge": [
+        {
+          "collection": "map.docs",
+          "mode": "index",
+          "stewards": [
+            "operations"
+          ],
+          "authoritative_for": [],
+          "data_labels": []
+        },
+        {
+          "collection": "map.layers",
+          "mode": "index",
+          "stewards": [
+            "operations"
+          ],
+          "authoritative_for": [],
+          "data_labels": []
+        },
+        {
+          "collection": "map.features",
+          "mode": "index",
+          "stewards": [
+            "operations"
+          ],
+          "authoritative_for": [],
+          "data_labels": []
+        },
+        {
+          "collection": "map.publications",
+          "mode": "index",
+          "stewards": [
+            "operations"
+          ],
+          "authoritative_for": [],
+          "data_labels": []
+        },
+        {
+          "collection": "map.locations",
+          "mode": "index",
+          "stewards": [
+            "operations"
+          ],
+          "authoritative_for": [],
+          "data_labels": []
+        },
+        {
+          "collection": "map.facilities",
+          "mode": "index",
+          "stewards": [
+            "operations"
+          ],
+          "authoritative_for": [],
+          "data_labels": []
+        },
+        {
+          "collection": "map.releases",
+          "mode": "index",
+          "stewards": [
+            "operations"
+          ],
+          "authoritative_for": [],
+          "data_labels": []
+        }
+      ]
     },
     {
       "slug": "view",
@@ -563,7 +628,63 @@
       "metadata": {
         "contract_revision": 3
       },
-      "resource_projection": "server_owned"
+      "resource_projection": "server_owned",
+      "knowledge": [
+        {
+          "collection": "time.docs",
+          "mode": "index",
+          "stewards": [
+            "operations"
+          ],
+          "authoritative_for": [],
+          "data_labels": []
+        },
+        {
+          "collection": "time.calendars",
+          "mode": "index",
+          "stewards": [
+            "operations"
+          ],
+          "authoritative_for": [],
+          "data_labels": []
+        },
+        {
+          "collection": "time.epochs",
+          "mode": "index",
+          "stewards": [
+            "operations"
+          ],
+          "authoritative_for": [],
+          "data_labels": []
+        },
+        {
+          "collection": "time.events",
+          "mode": "index",
+          "stewards": [
+            "operations"
+          ],
+          "authoritative_for": [],
+          "data_labels": []
+        },
+        {
+          "collection": "time.authority-releases",
+          "mode": "index",
+          "stewards": [
+            "operations"
+          ],
+          "authoritative_for": [],
+          "data_labels": []
+        },
+        {
+          "collection": "time.bootstrap-authorities",
+          "mode": "index",
+          "stewards": [
+            "operations"
+          ],
+          "authoritative_for": [],
+          "data_labels": []
+        }
+      ]
     },
     {
       "slug": "datasheet",
@@ -644,7 +765,27 @@
       "metadata": {
         "contract_revision": 3
       },
-      "resource_projection": "server_owned"
+      "resource_projection": "server_owned",
+      "knowledge": [
+        {
+          "collection": "artifact.docs",
+          "mode": "index",
+          "stewards": [
+            "operations"
+          ],
+          "authoritative_for": [],
+          "data_labels": []
+        },
+        {
+          "collection": "artifact.metadata",
+          "mode": "index",
+          "stewards": [
+            "operations"
+          ],
+          "authoritative_for": [],
+          "data_labels": []
+        }
+      ]
     },
     {
       "slug": "recording",
@@ -706,7 +847,7 @@
       "capabilities": {
         "tools": true,
         "resources": true,
-        "resource_templates": false,
+        "resource_templates": true,
         "resource_subscriptions": false,
         "prompts": true,
         "completions": false,
@@ -731,8 +872,20 @@
       ],
       "metadata": {
         "upstream_kind": "external_http",
-        "runtime": "node"
-      }
+        "runtime": "node",
+        "contract_revision": 3
+      },
+      "knowledge": [
+        {
+          "collection": "charts.docs",
+          "mode": "index",
+          "stewards": [
+            "operations"
+          ],
+          "authoritative_for": [],
+          "data_labels": []
+        }
+      ]
     },
     {
       "slug": "rerun",
@@ -847,6 +1000,46 @@
       "resource_projection": "server_owned",
       "referenced_resource_schemes": [
         "artifact"
+      ]
+    },
+    {
+      "slug": "knowledge",
+      "uri_scheme": "knowledge",
+      "mount_path": "/knowledge",
+      "mcp_path": "/knowledge/mcp",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://knowledge-mcp:8800/knowledge/mcp",
+        "health_url": "http://knowledge-mcp:8800/knowledge/healthz",
+        "security": "cluster_internal_http"
+      },
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "resource_templates": true,
+        "resource_subscriptions": false,
+        "prompts": false,
+        "completions": false,
+        "tasks": false,
+        "resources_list_changed": false,
+        "apps": false
+      },
+      "tools": [
+        "search",
+        "embed"
+      ],
+      "prompts": [],
+      "required_scopes": [],
+      "metadata": {
+        "contract_revision": 3
+      },
+      "resource_projection": "server_owned",
+      "knowledge": [],
+      "referenced_resource_schemes": [
+        "artifact",
+        "charts",
+        "map",
+        "time"
       ]
     }
   ],
@@ -1395,6 +1588,30 @@
           },
           "completions": "enabled",
           "tasks": "enabled"
+        },
+        {
+          "server": "knowledge",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "search",
+              "embed"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "knowledge"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "disabled",
+          "tasks": "disabled"
         }
       ],
       "metadata": {
@@ -1595,6 +1812,30 @@
           },
           "completions": "enabled",
           "tasks": "enabled"
+        },
+        {
+          "server": "knowledge",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "search",
+              "embed"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "knowledge"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "disabled",
+          "tasks": "disabled"
         }
       ],
       "metadata": {
@@ -2101,6 +2342,30 @@
           },
           "completions": "enabled",
           "tasks": "enabled"
+        },
+        {
+          "server": "knowledge",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "search",
+              "embed"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "knowledge"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "disabled",
+          "tasks": "disabled"
         }
       ],
       "metadata": {
@@ -2739,6 +3004,30 @@
           },
           "completions": "enabled",
           "tasks": "enabled"
+        },
+        {
+          "server": "knowledge",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "search",
+              "embed"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "knowledge"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "disabled",
+          "tasks": "disabled"
         }
       ],
       "metadata": {
@@ -2775,6 +3064,105 @@
           "video/mp4"
         ]
       }
+    },
+    {
+      "id": "knowledge-indexing",
+      "identity_provider": "enterprise",
+      "authorization_server": "veoveo",
+      "protected_resource": "https://veoveo.bioma.ai/mcp/knowledge-indexing",
+      "policy_version": "knowledge-indexing-v1",
+      "auth_modes": [
+        "oauth_client_credentials"
+      ],
+      "required_scopes": [
+        "operator:use",
+        "map:dataset:read",
+        "map:feature:read",
+        "time:read"
+      ],
+      "servers": [
+        {
+          "server": "map",
+          "tools": {
+            "mode": "none"
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "map"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "disabled",
+          "tasks": "disabled"
+        },
+        {
+          "server": "artifact",
+          "tools": {
+            "mode": "none"
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "artifact"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "disabled",
+          "tasks": "disabled"
+        },
+        {
+          "server": "time",
+          "tools": {
+            "mode": "none"
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "time"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "disabled",
+          "tasks": "disabled"
+        },
+        {
+          "server": "charts",
+          "tools": {
+            "mode": "none"
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "charts"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "disabled",
+          "tasks": "disabled"
+        }
+      ],
+      "metadata": {}
     }
   ],
   "recording_ingest_resources": [
@@ -6281,9 +6669,183 @@
             "administrator"
           ],
           "metadata": {}
+        },
+        {
+          "id": "allow_knowledge_discovery",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read"
+          ],
+          "profiles": [
+            "operator",
+            "admin",
+            "workspace",
+            "agent"
+          ],
+          "servers": [
+            "knowledge"
+          ],
+          "tools": [],
+          "required_scopes": [
+            "knowledge:read"
+          ],
+          "tenant_ids": [
+            "bioma"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_knowledge_search",
+          "effect": "allow",
+          "actions": [
+            "tools_call"
+          ],
+          "profiles": [
+            "operator",
+            "admin",
+            "workspace",
+            "agent"
+          ],
+          "servers": [
+            "knowledge"
+          ],
+          "tools": [
+            "search"
+          ],
+          "resource_schemes": [
+            "knowledge"
+          ],
+          "required_scopes": [
+            "knowledge:search"
+          ],
+          "tenant_ids": [
+            "bioma"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_knowledge_embed",
+          "effect": "allow",
+          "actions": [
+            "tools_call"
+          ],
+          "profiles": [
+            "operator",
+            "admin",
+            "workspace",
+            "agent"
+          ],
+          "servers": [
+            "knowledge"
+          ],
+          "tools": [
+            "embed"
+          ],
+          "resource_schemes": [
+            "knowledge"
+          ],
+          "required_scopes": [
+            "knowledge:embed"
+          ],
+          "tenant_ids": [
+            "bioma"
+          ],
+          "metadata": {}
         }
       ],
       "metadata": {}
+    },
+    {
+      "version": "knowledge-indexing-v1",
+      "rules": [
+        {
+          "id": "discover_approved_knowledge",
+          "effect": "allow",
+          "actions": [
+            "resources_list",
+            "resources_templates_list",
+            "subscriptions_listen"
+          ],
+          "profiles": [
+            "knowledge-indexing"
+          ],
+          "principal_ids": [
+            "https://veoveo.bioma.ai/oauth#knowledge-indexer"
+          ],
+          "tenant_ids": [
+            "bioma"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "map:dataset:read",
+            "map:feature:read",
+            "time:read"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "read_approved_knowledge",
+          "effect": "allow",
+          "actions": [
+            "resources_list",
+            "resources_templates_list",
+            "resources_read"
+          ],
+          "profiles": [
+            "knowledge-indexing"
+          ],
+          "servers": [
+            "artifact",
+            "charts",
+            "map",
+            "time"
+          ],
+          "principal_ids": [
+            "https://veoveo.bioma.ai/oauth#knowledge-indexer"
+          ],
+          "tenant_ids": [
+            "bioma"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "map:dataset:read",
+            "map:feature:read",
+            "time:read"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "observe_mutable_knowledge",
+          "effect": "allow",
+          "actions": [
+            "subscriptions_listen"
+          ],
+          "profiles": [
+            "knowledge-indexing"
+          ],
+          "servers": [
+            "artifact",
+            "map",
+            "time"
+          ],
+          "principal_ids": [
+            "https://veoveo.bioma.ai/oauth#knowledge-indexer"
+          ],
+          "tenant_ids": [
+            "bioma"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "map:dataset:read",
+            "map:feature:read",
+            "time:read"
+          ],
+          "metadata": {}
+        }
+      ]
     }
   ],
   "data_labels": [
@@ -6363,6 +6925,12 @@
           "level": "contributor",
           "oauth_clients": [
             "workspace"
+          ]
+        },
+        {
+          "level": "viewer",
+          "oauth_clients": [
+            "knowledge-indexer"
           ]
         }
       ]
@@ -6514,7 +7082,10 @@
         "time:read",
         "time:schedule",
         "time:timeline",
-        "artifact:upload"
+        "artifact:upload",
+        "knowledge:embed",
+        "knowledge:read",
+        "knowledge:search"
       ],
       "metadata": {
         "client_boundary": "local_public"
@@ -6580,7 +7151,10 @@
         "time:read",
         "time:schedule",
         "time:timeline",
-        "artifact:upload"
+        "artifact:upload",
+        "knowledge:embed",
+        "knowledge:read",
+        "knowledge:search"
       ],
       "metadata": {
         "client_boundary": "hosted_public"
@@ -6640,7 +7214,10 @@
         "time:schedule",
         "time:timeline",
         "artifact:upload",
-        "recording:seal"
+        "recording:seal",
+        "knowledge:embed",
+        "knowledge:read",
+        "knowledge:search"
       ],
       "metadata": {
         "client_boundary": "admin_console"
@@ -6693,7 +7270,10 @@
         "time:read",
         "time:schedule",
         "time:timeline",
-        "artifact:upload"
+        "artifact:upload",
+        "knowledge:embed",
+        "knowledge:read",
+        "knowledge:search"
       ],
       "metadata": {
         "client_boundary": "operator_service"
@@ -6749,7 +7329,10 @@
         "time:schedule",
         "time:timeline",
         "artifact:upload",
-        "recording:seal"
+        "recording:seal",
+        "knowledge:embed",
+        "knowledge:read",
+        "knowledge:search"
       ],
       "metadata": {
         "client_boundary": "admin_service"
@@ -6799,7 +7382,10 @@
         "uav-sim:stream",
         "view:capture",
         "view:read",
-        "view:write"
+        "view:write",
+        "knowledge:embed",
+        "knowledge:read",
+        "knowledge:search"
       ],
       "metadata": {
         "client_boundary": "workspace"
@@ -6811,6 +7397,55 @@
       "jwks": {
         "source": "remote",
         "jwks_uri": "https://bioma.ai/.well-known/veoveo-service-jwks.json"
+      }
+    },
+    {
+      "id": "knowledge-indexer",
+      "authorization_server": "veoveo",
+      "default_work_context": "operations",
+      "invocation_mode": "automated",
+      "display_name": "Knowledge collection indexer",
+      "client_surface": "full_mcp",
+      "allowed_resources": [
+        "https://veoveo.bioma.ai/mcp/knowledge-indexing"
+      ],
+      "grant_types": [
+        "client_credentials"
+      ],
+      "auth_methods": [
+        "private_key_jwt"
+      ],
+      "allowed_scopes": [
+        "operator:use",
+        "map:dataset:read",
+        "map:feature:read",
+        "time:read"
+      ],
+      "metadata": {},
+      "jwks": {
+        "source": "file",
+        "path": "/etc/veoveo/gateway/knowledge-indexer-jwks.json"
+      },
+      "tenant": "bioma",
+      "knowledge_indexing": {
+        "collections": [
+          "artifact.docs",
+          "artifact.metadata",
+          "charts.docs",
+          "map.docs",
+          "map.facilities",
+          "map.features",
+          "map.layers",
+          "map.locations",
+          "map.publications",
+          "map.releases",
+          "time.authority-releases",
+          "time.bootstrap-authorities",
+          "time.calendars",
+          "time.docs",
+          "time.epochs",
+          "time.events"
+        ]
       }
     }
   ],

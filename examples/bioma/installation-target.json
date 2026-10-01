@@ -19,6 +19,7 @@
     "duckdb-mcp",
     "embedding",
     "frames-mcp",
+    "knowledge-mcp",
     "map-mcp",
     "mcp-gateway",
     "media-mcp",
@@ -33,6 +34,7 @@
     "timeseries-mcp",
     "uav-sim",
     "uav-sim-mcp",
+    "veoveo-agent-manager",
     "view-mcp"
   ],
   "minimumGpuShares": 8,
@@ -52,7 +54,11 @@
       "map:dataset:read",
       "map:route",
       "time:read",
-      "artifact:upload"
+      "artifact:upload",
+      "knowledge:embed",
+      "knowledge:read",
+      "knowledge:search",
+      "map:feature:read"
     ]
   },
   "recordingCatalog": {
@@ -80,7 +86,11 @@
       "uav-sim:admin",
       "time:read",
       "map:admin",
-      "map:dataset:read"
+      "map:dataset:read",
+      "knowledge:embed",
+      "knowledge:read",
+      "knowledge:search",
+      "map:feature:read"
     ]
   }
 }

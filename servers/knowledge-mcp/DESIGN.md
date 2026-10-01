@@ -5,8 +5,8 @@ with their revision, freshness and resource links. The service contract below de
 its hosted surface. The HTTP adapter serves search, embedding and catalog reads through
 signed gateway identities. The library coordinates source listeners and reconciliation.
 The binary runs tenant indexing workers with machine authentication and connection
-rotation. Its Helm workload uses the shared embedding runtime. Image publication and
-installed qualification are pending.
+rotation. Its Helm workload uses the shared embedding runtime and installation-owned
+collection approvals and signing credentials.
 
 ## Standards And Protocols
 
@@ -395,6 +395,19 @@ registrations without changing another tenant's catalog.
 `testing/deployment-smoke/tests/knowledge_helm.rs` renders the actual chart to check
 dependencies, secret references, model identity, liveness/readiness separation,
 configuration-driven rollout and the absence of local storage or GPU requests.
+
+The ignored `http::installed` test reads an installation's public control plane and
+connects through its HTTPS gateway with an ordinary caller token. The caller must
+have read access to every approved collection. It compares the complete paged catalog
+with those approvals, checks that indexed collections share an active generation,
+and searches each approved documentation collection by a source document's title.
+Every returned link is read through the source server and checked against its content
+digest and indexed revision. The test also exercises the public embedding tool.
+It allows five minutes, performs no source mutations, closes its MCP connection, and
+writes a private, create-only JSON report without tokens or document text. A running
+hardware embedding workload is a prerequisite; the shared runtime's GPU acceptance
+establishes hardware execution. These retrieval checks do not measure recall on the
+domain evaluation set.
 
 Installed acceptance also requires the following cases:
 

@@ -8,6 +8,12 @@ resources:
   - gitops/releases
   - gitops/cloudflared.yaml
 configMapGenerator:
+  - name: bioma-knowledge-configuration
+    namespace: veoveo
+    options:
+      disableNameSuffixHash: true
+    files:
+      - indexing.json=knowledge/indexing.json
   - name: bioma-otel-collector
     namespace: veoveo
     options:
@@ -37,6 +43,7 @@ configMapGenerator:
       - recording-mcp-publisher-jwks.json
       - operator-client-jwks.json
       - admin-client-jwks.json
+      - knowledge-indexer-jwks.json
   - name: bioma-gateway-control-plane
     namespace: veoveo-agents
     options:

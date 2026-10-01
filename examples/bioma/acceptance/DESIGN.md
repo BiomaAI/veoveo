@@ -17,6 +17,12 @@ This crate validates the Bioma reference installation. Generic agent authoring a
 runtime lifecycle remain in the gateway, platform store and agent manager. No Bioma
 identity or migration procedure enters those components.
 
+`knowledge_config` checks that the installation's indexer can discover its approved
+sources, that every registered tool call is denied, and that its membership ends at
+the Operations viewer role. User profiles expose Knowledge reads independently of
+the machine's indexing profile. Collection approvals belong to this installation;
+server protocol declarations are compared with the generic development catalog.
+
 `pilot_cutover` performs the one-time ownership transfer of the four existing UAV
 pilots. Its input binds each retained runtime and OAuth principal to the published
 managed definition. The transaction creates only lifecycle records and their audit

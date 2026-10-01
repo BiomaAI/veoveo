@@ -64,7 +64,18 @@ mod tests {
         );
 
         normalize_bioma(&mut bioma);
-        for key in ["servers", "recording_ingest_resources", "data_labels"] {
+        let server_surface = |value: &Value| {
+            let mut servers: Vec<veoveo_mcp_contract::ServerManifest> =
+                serde_json::from_value(value["servers"].clone()).unwrap();
+            // Collection approval belongs to the installation, independently of
+            // the source server's protocol and resource contract.
+            for server in &mut servers {
+                server.knowledge.clear();
+            }
+            servers
+        };
+        assert_eq!(server_surface(&bioma), server_surface(&local));
+        for key in ["recording_ingest_resources", "data_labels"] {
             assert_eq!(
                 bioma[key], local[key],
                 "Bioma `{key}` drifted from the canonical platform surface"

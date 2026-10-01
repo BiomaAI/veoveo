@@ -477,7 +477,7 @@
         "operator:use"
       ],
       "metadata": {
-        "contract_revision": 2
+        "contract_revision": 3
       },
       "resource_projection": "server_owned"
     },
@@ -705,7 +705,7 @@
       "capabilities": {
         "tools": true,
         "resources": true,
-        "resource_templates": false,
+        "resource_templates": true,
         "resource_subscriptions": false,
         "prompts": true,
         "completions": false,
@@ -730,7 +730,8 @@
       ],
       "metadata": {
         "upstream_kind": "external_http",
-        "runtime": "node"
+        "runtime": "node",
+        "contract_revision": 3
       }
     },
     {
@@ -846,6 +847,45 @@
       "resource_projection": "server_owned",
       "referenced_resource_schemes": [
         "artifact"
+      ]
+    },
+    {
+      "slug": "knowledge",
+      "uri_scheme": "knowledge",
+      "mount_path": "/knowledge",
+      "mcp_path": "/knowledge/mcp",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://knowledge-mcp:8800/knowledge/mcp",
+        "health_url": "http://knowledge-mcp:8800/knowledge/healthz",
+        "security": "cluster_internal_http"
+      },
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "resource_templates": true,
+        "resource_subscriptions": false,
+        "prompts": false,
+        "completions": false,
+        "tasks": false,
+        "resources_list_changed": false,
+        "apps": false
+      },
+      "tools": [
+        "search",
+        "embed"
+      ],
+      "prompts": [],
+      "required_scopes": [],
+      "metadata": {
+        "contract_revision": 3
+      },
+      "resource_projection": "server_owned",
+      "referenced_resource_schemes": [
+        "artifact",
+        "charts",
+        "map",
+        "time"
       ]
     }
   ],
@@ -1388,6 +1428,30 @@
           },
           "completions": "enabled",
           "tasks": "enabled"
+        },
+        {
+          "server": "knowledge",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "search",
+              "embed"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "knowledge"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "disabled",
+          "tasks": "disabled"
         }
       ],
       "metadata": {
@@ -1551,6 +1615,30 @@
           },
           "completions": "enabled",
           "tasks": "enabled"
+        },
+        {
+          "server": "knowledge",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "search",
+              "embed"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "knowledge"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "disabled",
+          "tasks": "disabled"
         }
       ],
       "metadata": {
@@ -2051,6 +2139,30 @@
           },
           "completions": "enabled",
           "tasks": "enabled"
+        },
+        {
+          "server": "knowledge",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "search",
+              "embed"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "knowledge"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "disabled",
+          "tasks": "disabled"
         }
       ],
       "metadata": {
@@ -2619,6 +2731,30 @@
           },
           "completions": "enabled",
           "tasks": "enabled"
+        },
+        {
+          "server": "knowledge",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "search",
+              "embed"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "knowledge"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "disabled",
+          "tasks": "disabled"
         }
       ],
       "metadata": {
@@ -5923,6 +6059,91 @@
             "administrator"
           ],
           "metadata": {}
+        },
+        {
+          "id": "allow_knowledge_discovery",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read"
+          ],
+          "profiles": [
+            "operator",
+            "admin",
+            "workspace",
+            "agent"
+          ],
+          "servers": [
+            "knowledge"
+          ],
+          "tools": [],
+          "required_scopes": [
+            "knowledge:read"
+          ],
+          "tenant_ids": [
+            "enterprise"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_knowledge_search",
+          "effect": "allow",
+          "actions": [
+            "tools_call"
+          ],
+          "profiles": [
+            "operator",
+            "admin",
+            "workspace",
+            "agent"
+          ],
+          "servers": [
+            "knowledge"
+          ],
+          "tools": [
+            "search"
+          ],
+          "resource_schemes": [
+            "knowledge"
+          ],
+          "required_scopes": [
+            "knowledge:search"
+          ],
+          "tenant_ids": [
+            "enterprise"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_knowledge_embed",
+          "effect": "allow",
+          "actions": [
+            "tools_call"
+          ],
+          "profiles": [
+            "operator",
+            "admin",
+            "workspace",
+            "agent"
+          ],
+          "servers": [
+            "knowledge"
+          ],
+          "tools": [
+            "embed"
+          ],
+          "resource_schemes": [
+            "knowledge"
+          ],
+          "required_scopes": [
+            "knowledge:embed"
+          ],
+          "tenant_ids": [
+            "enterprise"
+          ],
+          "metadata": {}
         }
       ],
       "metadata": {}
@@ -6096,7 +6317,10 @@
         "time:event:write",
         "time:read",
         "time:schedule",
-        "time:timeline"
+        "time:timeline",
+        "knowledge:read",
+        "knowledge:search",
+        "knowledge:embed"
       ],
       "metadata": {
         "client_boundary": "local_public"
@@ -6156,7 +6380,10 @@
         "time:event:write",
         "time:read",
         "time:schedule",
-        "time:timeline"
+        "time:timeline",
+        "knowledge:read",
+        "knowledge:search",
+        "knowledge:embed"
       ],
       "metadata": {
         "client_boundary": "hosted_public"
@@ -6210,7 +6437,10 @@
         "time:read",
         "time:schedule",
         "time:timeline",
-        "recording:seal"
+        "recording:seal",
+        "knowledge:read",
+        "knowledge:search",
+        "knowledge:embed"
       ],
       "metadata": {
         "client_boundary": "admin_console"
@@ -6257,7 +6487,10 @@
         "time:event:write",
         "time:read",
         "time:schedule",
-        "time:timeline"
+        "time:timeline",
+        "knowledge:read",
+        "knowledge:search",
+        "knowledge:embed"
       ],
       "metadata": {
         "client_boundary": "operator_service"
@@ -6312,7 +6545,10 @@
         "time:read",
         "time:schedule",
         "time:timeline",
-        "recording:seal"
+        "recording:seal",
+        "knowledge:read",
+        "knowledge:search",
+        "knowledge:embed"
       ],
       "metadata": {
         "client_boundary": "admin_service"
@@ -6362,7 +6598,10 @@
         "uav-sim:stream",
         "view:capture",
         "view:read",
-        "view:write"
+        "view:write",
+        "knowledge:read",
+        "knowledge:search",
+        "knowledge:embed"
       ],
       "metadata": {
         "client_boundary": "workspace"

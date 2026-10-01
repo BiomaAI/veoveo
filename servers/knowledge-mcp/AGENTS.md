@@ -37,6 +37,11 @@ qualify the public library dependency boundary. Hosted and GPU acceptance follow
 Packaging checks use `cargo test -p veoveo-deployment-smoke --test knowledge_helm` and
 `cargo xtask image plan --target knowledge-mcp`. The chart's single indexing replica
 uses Recreate, distinct liveness/readiness probes and installation-owned credentials.
+The ignored installed check in `tests/support/installed.rs` exercises the deployed
+catalog, document retrieval, source revisions and embedding tool through HTTPS. Use
+the installation's ordinary caller token and public control plane as described in
+the [reference runbook](../../examples/bioma/README.md#acceptance). It requires a
+running hardware embedding runtime and leaves source records unchanged.
 
 ## Contract Compliance
 
@@ -44,6 +49,6 @@ Target contract revision: `veoveo.ai/hosted-mcp/v3`.
 
 | Items | Status | Scope |
 |---|---|---|
-| C02, C04–C06, C08–C10, C12–C14, C18–C26, C28–C30 | met | typed direct tools, SQL catalog pages, shared stateless transport, signed request authority and embedded documents; no durable tools or private byte routes |
+| C02, C04–C06, C08–C10, C12–C26, C28–C30 | met | typed direct tools, SQL catalog pages, shared stateless transport, signed request authority, embedded documents, OCI/chart publications and typed gateway registration; no durable tools or private byte routes |
 | C03, C11 | met | no domain Tasks, Artifact operations or recording operations |
-| C01, C07, C15–C17, C27, C31, C32 | pending | schema conformance, completion, catalog subscriptions, image publication, registration and installed conformance; Helm packaging passes native checks |
+| C01, C07, C27, C31, C32 | pending | schema conformance, completion, catalog subscriptions and installed conformance; Helm packaging and registration pass native checks |

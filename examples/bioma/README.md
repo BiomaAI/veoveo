@@ -93,6 +93,8 @@ examples/bioma/
   recording-producer-jwks.json  public producer key
   operator-client-jwks.json     public operator client key
   admin-client-jwks.json        public administrator client key
+  knowledge-indexer-jwks.json  public collection-indexing key
+  knowledge/indexing.json      tenant indexing and chunk configuration
 ~~~
 
 The local platform fixture installs Flux and the registry address because this
@@ -363,6 +365,36 @@ remediation enabled to exercise that controller path. Verify cancellation with t
 `cargo xtask smoke gitops-cancel-verify` scenario described in
 [`testing/deployment-smoke/DESIGN.md`](../../testing/deployment-smoke/DESIGN.md).
 
+## Knowledge Collections
+
+The installation approves sixteen collections: Map's six summary collections and
+documents, Artifact metadata and documents, Time's five collections and documents,
+and Chart documents. The `operations` group stewards these collections. Their empty
+label ceilings permit unlabelled content only. Reason analyses will join after the
+server implements its collection contract.
+
+The `knowledge-indexer` machine client uses a dedicated resource-only profile and
+viewer membership in Operations. Its collection registration limits source reads;
+the source servers still decide which records it can read. Operator, administrator
+and Workspace clients receive Knowledge catalog, search and embedding scopes.
+Search additionally requires each result's source scopes and permissions.
+The agent profile exposes the same Knowledge surface. An approved agent template
+must grant its Knowledge scopes and tool allowlist before a managed kernel can use it.
+
+The public [worker configuration](knowledge/indexing.json) names the signing key
+file mounted from `bioma-knowledge-indexer`. Kustomize includes the public JWKS in
+the gateway bundle and mounts the worker configuration separately. Update
+`knowledge.configurationRevision` when its ConfigMap data changes:
+
+~~~bash
+jq -cnS --rawfile config examples/bioma/knowledge/indexing.json \
+  '{"indexing.json":$config}' | sha256sum
+~~~
+
+Use the resulting 64-character digest in `values.yaml`. The gateway's
+`controlPlaneRevision` covers its complete public bundle, including the indexing JWKS,
+through the deployment contract's separate digest encoding.
+
 ## Provision Secrets
 
 The reference gateway exports sealed audit blocks to `artifact-plane/audit` on the
@@ -406,6 +438,22 @@ the platform namespace; agent kernels and Computers receive no copy:
 jq -n '{apiVersion:"v1",kind:"Secret",metadata:{name:"veoveo-embedding",namespace:"veoveo"},type:"Opaque",stringData:{"api-key":env.VEOVEO_EMBEDDING_API_KEY}}' |
   kubectl --context k3d-veoveo-bioma apply -f -
 ~~~
+
+Knowledge authenticates with its own Ed25519 private key. The matching public key is
+in [knowledge-indexer-jwks.json](knowledge-indexer-jwks.json), with key ID
+`bioma-knowledge-indexer-v1`. Provision the installation-held private key before
+starting Knowledge:
+
+~~~bash
+kubectl --context k3d-veoveo-bioma -n veoveo create secret generic bioma-knowledge-indexer \
+  --from-file=private.pem=/private/installation/knowledge/private.pem
+~~~
+
+Keep the key in the installation's secret manager. A new installation generates its
+own key pair and replaces the public JWKS and worker key ID together. Rotation first
+publishes both public keys, then updates the signing Secret and worker configuration;
+remove the retired public key after existing connections drain. The service rereads
+the mounted key when authenticating a new connection.
 
 The enterprise owns Secret creation. For this local reference, load the main
 worktree .env and create the required Secret objects before the root Kustomization.
@@ -787,6 +835,28 @@ This gate uses the public machine-client contract to export a deterministic arti
 larger than 8 MiB through DuckDB. It then verifies full, HEAD, and ranged delivery at
 the installation origin with redirect following disabled, exact content and SHA-256
 checks, and no object-storage address in metadata or response headers.
+
+After Knowledge finishes indexing, verify its catalog and retrieval through the
+public gateway. Obtain an operator token with the installation target's requested
+scopes using `conformance gateway-token-exchange`, and redirect it into a private
+mode-0600 file. The embedding workload must be running on its allocated NVIDIA GPU.
+
+~~~bash
+VEOVEO_KNOWLEDGE_ACCEPTANCE_CONTROL_PLANE=examples/bioma/gateway.json \
+VEOVEO_KNOWLEDGE_ACCEPTANCE_PROFILE=operator \
+VEOVEO_KNOWLEDGE_ACCEPTANCE_TOKEN_FILE=/private/installation/knowledge/operator-token \
+VEOVEO_KNOWLEDGE_ACCEPTANCE_OUTPUT=output/development/knowledge-installed.json \
+  cargo test -p veoveo-knowledge-mcp --test http \
+    installed::catalog_search_and_source_revisions_agree_through_the_installed_gateway \
+    -- --ignored --exact
+~~~
+
+This read-only test checks every approved collection, searches each source's indexed
+documentation, follows the returned links and compares their observed revisions.
+It also calls the embedding tool. Its report contains collection identities and
+verified links; each run requires a new output path. Remove the temporary token file
+after the check. Domain retrieval quality and GPU execution have their own acceptance
+cases in the Knowledge and embedding designs.
 
 Prepare the [aviation release](#prepare-the-aviation-release), then check Map admission
 before the full GPU delivery proof:

@@ -6,6 +6,8 @@ mod hosted;
 #[path = "support/indexing.rs"]
 #[allow(dead_code)]
 mod indexing;
+#[path = "support/installed.rs"]
+mod installed;
 use hosted::*;
 use indexing::*;
 use rmcp::model::{CallToolRequestParams, ReadResourceRequestParams};

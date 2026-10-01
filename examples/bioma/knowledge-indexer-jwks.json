@@ -1,0 +1,12 @@
+{
+  "keys": [
+    {
+      "kty": "OKP",
+      "crv": "Ed25519",
+      "alg": "EdDSA",
+      "use": "sig",
+      "kid": "bioma-knowledge-indexer-v1",
+      "x": "KgnpIOWiDoQbJYrn5ANEgULh7f0YWGkqgqjwFoZoZpo"
+    }
+  ]
+}
