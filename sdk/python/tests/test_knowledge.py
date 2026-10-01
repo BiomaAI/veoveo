@@ -6,13 +6,29 @@ import pytest
 from pydantic import ValidationError
 from veoveo_mcp.contract.docs import ServerDoc, ServerDocs, ServerDocsError
 from veoveo_mcp.contract.knowledge import (
-    EXTENSION_ID, OBSERVATION_KEY, CollectionDescriptor, ContentDigest, ImmutableFreshness,
+    EXTENSION_ID, OBSERVATION_KEY, AccessDescriptor, CollectionDescriptor, ContentDigest, ImmutableFreshness,
     Observation, Revision, member_result,
 )
 
 
 def documents():
     return ServerDocs(server="fixture", docs=(ServerDoc(id="design", title="Design", body="# Design\r\nExact bytes.\n"),))
+
+
+def test_read_policy_is_explicit_and_closed():
+    fields = dict(tenant="tenant", workContext="context", owner={"kind": "principal", "id": "author"}, dataLabels=[])
+    for policy in ({"kind": "tenant"}, {"kind": "subjects"}, {"kind": "work-context"},
+                   {"kind": "subjects-in-context"}, {"kind": "subjects-in-context", "profile": "operations"}):
+        value = AccessDescriptor.model_validate({**fields, "readPolicy": policy})
+        assert value.wire()["readPolicy"] == policy
+    with pytest.raises(ValidationError):
+        AccessDescriptor.model_validate(fields)
+    for policy in ({"kind": "unknown"}, {"kind": "subjects", "profile": "operations"},
+                   {"kind": "subjects-in-context", "caller": "author"},
+                   {"kind": "subjects-in-context", "profile": "Operations"},
+                   {"kind": "subjects-in-context", "profile": "operations/read"}):
+        with pytest.raises(ValidationError):
+            AccessDescriptor.model_validate({**fields, "readPolicy": policy})
 
 
 def test_closed_collection_and_observation_models_reject_invalid_relationships():

@@ -1,3 +1,4 @@
+use super::admission::Admission;
 use super::*;
 use crate::PlatformStore;
 use veoveo_knowledge_contract::{CollectionRegistration, GenerationSpec, IndexedMember};
@@ -115,26 +116,6 @@ impl PlatformStore {
         let table = chunk_table(ticket.generation);
         let mut chunks = Vec::new();
         for (ordinal, chunk) in member.chunks().iter().enumerate() {
-            let access = member.observation().access();
-            let mut subjects = access
-                .map(|a| {
-                    a.grants
-                        .iter()
-                        .chain(std::iter::once(&a.owner))
-                        .map(serialize_subject)
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default();
-            subjects.sort();
-            subjects.dedup();
-            let labels = access
-                .map(|a| {
-                    a.data_labels
-                        .iter()
-                        .map(ToString::to_string)
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default();
             let mut row = surrealdb::types::Object::new();
             row.insert("member", ticket.record().into_value());
             row.insert("tenant", ticket.tenant.to_string().into_value());
@@ -149,13 +130,10 @@ impl PlatformStore {
             );
             row.insert("uri", ticket.uri.to_string().into_value());
             row.insert("ordinal", (ordinal as i64).into_value());
-            row.insert("profile_access", access.is_none().into_value());
             row.insert(
-                "work_context",
-                access.map(|a| a.work_context.to_string()).into_value(),
+                "admission",
+                Admission::from(member.observation().access()).into_value(),
             );
-            row.insert("subjects", subjects.into_value());
-            row.insert("labels", labels.into_value());
             row.insert("text", chunk.text().to_owned().into_value());
             row.insert("embedding", chunk.vector().values().to_vec().into_value());
             row.insert(

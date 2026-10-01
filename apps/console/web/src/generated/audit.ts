@@ -463,6 +463,31 @@ export type DictationEnd = "completed" | "cancelled" | "timed_out" | "disconnect
  */
 export type DataLabelId = string;
 /**
+ * This interface was referenced by `AuditReaderApi`'s JSON-Schema
+ * via the `definition` "ReadPolicy".
+ */
+export type ReadPolicy =
+  | {
+      kind: "tenant";
+    }
+  | {
+      kind: "subjects";
+    }
+  | {
+      kind: "work-context";
+    }
+  | {
+      kind: "subjects-in-context";
+      profile?: GatewayProfileId | null;
+    };
+/**
+ * Veoveo profile id exposed under `/mcp/{profile}`.
+ *
+ * This interface was referenced by `AuditReaderApi`'s JSON-Schema
+ * via the `definition` "GatewayProfileId".
+ */
+export type GatewayProfileId = string;
+/**
  * Tenant-local boundary that governs related work and every output it produces.
  *
  * This interface was referenced by `AuditReaderApi`'s JSON-Schema
@@ -692,13 +717,6 @@ export type ResourceTemplateUri = string;
  */
 export type PromptName = string;
 /**
- * Veoveo profile id exposed under `/mcp/{profile}`.
- *
- * This interface was referenced by `AuditReaderApi`'s JSON-Schema
- * via the `definition` "GatewayProfileId".
- */
-export type GatewayProfileId = string;
-/**
  * Registered OAuth client id allowed to request gateway-profile tokens.
  *
  * This interface was referenced by `AuditReaderApi`'s JSON-Schema
@@ -821,6 +839,7 @@ export interface AccessDescriptor {
   dataLabels: DataLabelId[];
   grants?: AccessSubject[];
   owner: AccessSubject;
+  readPolicy: ReadPolicy;
   tenant: TenantId;
   workContext: WorkContextId;
 }

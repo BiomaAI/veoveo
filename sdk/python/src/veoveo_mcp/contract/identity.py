@@ -11,7 +11,7 @@ from enum import Enum
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import AfterValidator, AwareDatetime, BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, AwareDatetime, BaseModel, ConfigDict, Field, StringConstraints
 
 from .audit import AuditRequest
 
@@ -43,7 +43,7 @@ GroupId = Annotated[str, _identifier(512)]
 RoleId = Annotated[str, _identifier(256)]
 ScopeName = Annotated[str, _identifier(256)]
 DataLabelId = Annotated[str, _identifier(256)]
-GatewayProfileId = Annotated[str, _identifier(256)]
+GatewayProfileId = Annotated[str, _identifier(256), StringConstraints(strict=True, pattern=r"^[a-z0-9_-]+$")]
 ServerSlug = Annotated[str, _identifier(128)]
 JwtId = Annotated[str, _identifier(512)]
 PolicyVersion = Annotated[str, _identifier(256)]

@@ -23,6 +23,20 @@ K07/K08 owner probes are implemented. Domain probe fixtures and installed qualif
 remain open. Chart docs adoption is implemented; the remaining Phase 7 collections
 and Phases 8–9 are not implemented. The cluster and BuildKit are stopped.
 
+The Phase 7 review requires explicit source read policies before domain adoption.
+Time's private events and Optimization's owner/context/profile-scoped Tasks cannot
+inherit membership sharing from a recorded Work Context. `AccessDescriptor.readPolicy`
+now distinguishes tenant, subjects, Work Context sharing and subjects constrained to
+the active context and optional profile. Store derives typed admission fields and
+enforces each condition in SQL before decoding and LIMIT. This is a coordinated hard
+cut of the undeployed knowledge format; old observations and indexes require no adapter.
+Time still needs stored creation authority, and the four domain adapters remain open.
+Native qualification covers the source-policy matrix, malformed denied rows before
+LIMIT, Rust/Python closed models and audit disclosure review. Twelve Rust tests,
+26 Python tests and six Console schema tests pass. Workspace all-target compilation,
+affected all-target/all-feature Clippy, TypeScript and SurrealDB 3.3 SQL validation
+pass. The cluster and BuildKit stay stopped; 151 GiB is free after this batch.
+
 Current direction: every contract change in this plan is a coordinated hard cut.
 Historical data requires no support or migration. Remove compatibility adapters
 introduced during earlier checkpoints; those checkpoint descriptions are not

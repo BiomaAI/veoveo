@@ -1,15 +1,18 @@
+use super::admission::Admission;
 use super::*;
 use crate::PlatformStore;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use veoveo_mcp_knowledge_extension::Observation;
-use veoveo_types::{AccessSubject, DataLabelId, ResourceUri, WorkContextId};
+use veoveo_types::{AccessSubject, DataLabelId, GatewayProfileId, ResourceUri, WorkContextId};
 
 /// Constructed from current caller policy, including source-profile admission.
 /// The service applies its canonical access decision to these narrowed candidates.
 #[derive(Debug, Clone)]
 pub struct CandidateScope {
     pub tenant: TenantId,
+    pub profile: GatewayProfileId,
+    pub active_work_context: WorkContextId,
     pub collections: BTreeSet<CollectionId>,
     pub work_contexts: BTreeSet<WorkContextId>,
     pub subjects: BTreeSet<AccessSubject>,
@@ -51,10 +54,7 @@ struct Row {
     uri: String,
     ordinal: i64,
     text: String,
-    profile_access: bool,
-    work_context: Option<String>,
-    subjects: Vec<String>,
-    labels: Vec<String>,
+    admission: Admission,
     observation: Document<Observation>,
 }
 impl Row {
@@ -66,38 +66,14 @@ impl Row {
         let observation = self.observation.0;
         if self.tenant != scope.tenant.as_str()
             || self.collection_id != observation.collection().to_string()
-            || self.profile_access != observation.access().is_none()
+            || self.admission != Admission::from(observation.access())
             || !(0..256).contains(&self.ordinal)
         {
             return integrity();
         }
-        let mut expected_subjects = observation
+        if observation
             .access()
-            .map(|a| {
-                a.grants
-                    .iter()
-                    .chain(std::iter::once(&a.owner))
-                    .map(serialize_subject)
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
-        expected_subjects.sort();
-        expected_subjects.dedup();
-        let expected_labels = observation
-            .access()
-            .map(|a| {
-                a.data_labels
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
-        if self.work_context != observation.access().map(|a| a.work_context.to_string())
-            || self.subjects != expected_subjects
-            || self.labels != expected_labels
-            || observation
-                .access()
-                .is_some_and(|a| a.tenant != scope.tenant)
+            .is_some_and(|a| a.tenant != scope.tenant)
         {
             return integrity();
         }
@@ -145,6 +121,8 @@ impl PlatformStore {
             .client()
             .query(sql)
             .bind(("tenant", scope.tenant.to_string()))
+            .bind(("profile", scope.profile.to_string()))
+            .bind(("active_context", scope.active_work_context.to_string()))
             .bind(("generation", generation_record(generation)))
             .bind((
                 "active",

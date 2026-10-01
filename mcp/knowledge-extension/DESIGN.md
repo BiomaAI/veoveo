@@ -158,6 +158,7 @@ has no annotations field; read-time modification metadata belongs in the observa
       "access": {
         "tenant": "0199…",
         "workContext": "0199…",
+        "readPolicy": { "kind": "subjects" },
         "owner": { "kind": "principal", "id": "0199…" },
         "dataLabels": ["operations"]
       }
@@ -174,12 +175,30 @@ has no annotations field; read-time modification metadata belongs in the observa
 | `observedAt` | yes | Server time when the domain produced this read |
 | `modifiedAt` | when recorded | Time at which the domain last modified the current revision |
 | `modifiedBy` | when recorded | Principal ID that produced the current revision, in the platform's shared human and service principal namespace |
-| `access` | for `work-context` collections | Tenant, Work Context, owner, direct grants when the domain stores them, and data labels |
+| `access` | for `work-context` collections | Tenant, stored Work Context, explicit read policy, owner, direct grants when the domain stores them, and data labels |
 | `external` | for connector projections | `system`, `nativeId`, and optional `url` of the record in an external system of record, plus `mirroredAt` when the connector served a stored copy |
 
 A domain server fills observations from its own records. The caller never supplies
 provenance. An observation describes the read that produced it and grants no
 authority.
+
+`readPolicy` is required. The recorded Work Context identifies the source operation;
+it grants membership-based read access only when the source declares that policy.
+Every policy requires the same tenant, clearance for all labels and current profile
+exposure of the collection.
+
+| `readPolicy.kind` | Additional admission |
+|---|---|
+| `tenant` | Every caller admitted to this collection in the tenant may read |
+| `subjects` | The caller matches the owner or a direct principal/group grant |
+| `work-context` | The caller has read membership in the stored Work Context, or matches an owner/grant subject |
+| `subjects-in-context` | The caller matches an owner/grant subject and selects the stored Work Context; an optional typed `profile` additionally requires that gateway profile |
+
+Servers select the policy from their persistence contract. Tenant-shared calendars
+can declare `tenant`; private events use `subjects`. Owner-scoped Tasks whose source
+also checks the selected context and profile use `subjects-in-context`. None of these
+declarations expands the source's read policy. A source policy outside these forms
+requires an extension of the contract before that collection can be indexed.
 
 The owner and direct grants use the foundational `AccessSubject` variants
 `principal` and `group`. Modification attribution accepts a principal only.
@@ -275,7 +294,7 @@ running server. Review enforces K09 and K10.
 
 | Path | Responsibility |
 |---|---|
-| `src/models.rs` | `CollectionDescriptor`, `Freshness`, `ChangeSignal`, `AccessModel`, `IndexingMode`, `Observation`, `AccessDescriptor`, `ExternalRecord`, `SearchDeclaration`, `SearchHit` and bounded `SearchResults` |
+| `src/models.rs` | `CollectionDescriptor`, `Freshness`, `ChangeSignal`, `AccessModel`, `IndexingMode`, `Observation`, `AccessDescriptor`, explicit `ReadPolicy`, `ExternalRecord`, `SearchDeclaration`, `SearchHit` and bounded `SearchResults` |
 | `src/server.rs` | capability declaration, descriptor attachment, observation attachment, conditional-read evaluation and search resource-link construction |
 | `src/client.rs` | client capability declaration and typed observation parsing |
 | `src/docs.rs` | protocol-independent `{slug}.docs` descriptors, typed document addresses and stable pages, consumed by `veoveo_mcp_contract::docs` |

@@ -33,6 +33,9 @@ Denied or failed reads cannot claim a returned revision. `KnowledgeReadObservati
 copies source identity, revision, digest, times, attribution and access fields. Its
 external identity excludes navigation URLs because they can carry signed query
 credentials. The closed audit schema rejects those URLs on input as well.
+The access descriptor includes the source's closed read policy and its optional
+`GatewayProfileId` restriction. That identifier is an installation profile route token
+validated by the foundational type; it carries no credential or free-form description.
 Store owns conversion to compound record IDs and native record links. A partition key
 distinguishes the installation partition from a tenant literally named `installation`.
 

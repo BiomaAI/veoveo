@@ -16,6 +16,8 @@ const IDENTIFIERS: &[&str] = &[
     "Revision",
     "TenantId",
     "WorkContextId",
+    // Installation profile route id: validated path token, never a credential or URI.
+    "GatewayProfileId",
     "DataLabelId",
     "ExternalSystemId",
     "ExternalRecordId",

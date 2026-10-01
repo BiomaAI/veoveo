@@ -62,8 +62,17 @@ retired generation; retaining it does not authorize rolling the active pointer b
 
 `CandidateScope` carries current caller policy, including the source collections exposed
 by its profile. SQL selects the tenant and active generation, current collection
-approval fingerprint, non-stale member, Work Context or grant/owner subject, and every
-required clearance label before ordering and LIMIT. Cursor pages contain at most 100
+approval fingerprint, non-stale member, source read policy and every required
+clearance label before ordering and LIMIT. `admission.rs` derives the typed SQL fields
+from the observation. A stored Work Context permits membership reads only for the
+`work-context` policy. The `subjects` policy requires an owner/grant match even when
+the caller shares that context. `subjects-in-context` additionally matches the current
+selected context and the source profile when recorded; membership in another context
+cannot satisfy that condition. `tenant` permits readers admitted to the collection
+within its tenant. Profile-wide docs have no record access descriptor and use the
+collection's current profile admission.
+
+Cursor pages contain at most 100
 chunks; cursors bind the tenant, generation and collection. The decoder checks
 selected observation/projection agreement; it does not
 discard unauthorized rows after pagination.
@@ -78,6 +87,7 @@ to the knowledge service phase of the [foundations plan](../../../../docs/PLATFO
 `platform/store/tests/knowledge.rs` runs against an isolated pinned SurrealDB container
 with two database-editor connections and a 120-second timeout. Synthetic normalized
 vectors qualify storage, not inference or GPU execution. The fixture owns cleanup.
-It checks incomplete activation, SQL denial before decoding and limits, stale-reader
+It checks incomplete activation, SQL denial before decoding and limits, owner-only and
+group-grant reads, selected-context and profile restrictions, tenant sharing, stale-reader
 fencing, approval revocation, space separation, active-pointer compare-and-set,
 definitive deletion, and generation reclamation with native referential cleanup.

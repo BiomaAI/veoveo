@@ -11,7 +11,7 @@ import mcp.types as mcp
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, RootModel, StringConstraints, field_validator, model_validator
 from pydantic.alias_generators import to_camel
 
-from .identity import AccessSubject, DataLabelId, PrincipalId, TenantId, WorkContextId
+from .identity import AccessSubject, DataLabelId, GatewayProfileId, PrincipalId, TenantId, WorkContextId
 
 EXTENSION_ID = "ai.veoveo/knowledge-source"
 OBSERVATION_KEY = "ai.veoveo/knowledge-observation"
@@ -135,9 +135,22 @@ class CollectionDescriptor(WireModel):
         return self
 
 
+class AudienceReadPolicy(WireModel):
+    kind: Literal["tenant", "subjects", "work-context"]
+
+
+class SubjectsInContextReadPolicy(WireModel):
+    kind: Literal["subjects-in-context"]
+    profile: GatewayProfileId | None = None
+
+
+ReadPolicy = Annotated[AudienceReadPolicy | SubjectsInContextReadPolicy, Field(discriminator="kind")]
+
+
 class AccessDescriptor(WireModel):
     tenant: TenantId
     work_context: WorkContextId
+    read_policy: ReadPolicy
     owner: AccessSubject
     grants: tuple[AccessSubject, ...] = ()
     data_labels: tuple[DataLabelId, ...]

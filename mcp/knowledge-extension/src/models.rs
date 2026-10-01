@@ -7,8 +7,8 @@ use schemars::{JsonSchema, Schema, SchemaGenerator};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use veoveo_types::{
-    AccessSubject, DataLabelId, HttpsUrl, PrincipalId, ResourceTemplateUri, ResourceUri,
-    Sha256Digest, TenantId, WorkContextId,
+    AccessSubject, DataLabelId, GatewayProfileId, HttpsUrl, PrincipalId, ResourceTemplateUri,
+    ResourceUri, Sha256Digest, TenantId, WorkContextId,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -155,10 +155,28 @@ impl From<CollectionDescriptor> for CollectionWire {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+pub enum ReadPolicy {
+    /// Any reader admitted to the collection in the record's tenant.
+    Tenant {},
+    /// Only the owner and explicit grant subjects.
+    Subjects {},
+    /// Work Context members, the owner, or explicit grant subjects.
+    WorkContext {},
+    /// Owner/grant access additionally requires the active Work Context and,
+    /// when recorded, the same gateway profile as the source operation.
+    SubjectsInContext {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        profile: Option<GatewayProfileId>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AccessDescriptor {
     pub tenant: TenantId,
     pub work_context: WorkContextId,
+    pub read_policy: ReadPolicy,
     pub owner: AccessSubject,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub grants: Vec<AccessSubject>,

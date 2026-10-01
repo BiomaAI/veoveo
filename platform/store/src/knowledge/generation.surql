@@ -30,10 +30,14 @@ BEGIN TRANSACTION;
     DEFINE FIELD ordinal ON __TABLE__ TYPE int
         ASSERT $value >= 0
         AND $value < 256;
-    DEFINE FIELD profile_access ON __TABLE__ TYPE bool;
-    DEFINE FIELD work_context ON __TABLE__ TYPE option<string>;
-    DEFINE FIELD subjects ON __TABLE__ TYPE array<string>;
-    DEFINE FIELD labels ON __TABLE__ TYPE array<string>;
+    DEFINE FIELD admission ON __TABLE__ TYPE object;
+    DEFINE FIELD admission.tenant_read ON __TABLE__ TYPE bool;
+    DEFINE FIELD admission.context_read ON __TABLE__ TYPE bool;
+    DEFINE FIELD admission.work_context ON __TABLE__ TYPE option<string>;
+    DEFINE FIELD admission.required_context ON __TABLE__ TYPE option<string>;
+    DEFINE FIELD admission.required_profile ON __TABLE__ TYPE option<string>;
+    DEFINE FIELD admission.subjects ON __TABLE__ TYPE array<string>;
+    DEFINE FIELD admission.labels ON __TABLE__ TYPE array<string>;
     DEFINE FIELD text ON __TABLE__ TYPE string
         ASSERT string::len($value) > 0
         AND string::len($value) <= 32768;

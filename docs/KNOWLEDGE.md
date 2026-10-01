@@ -139,15 +139,19 @@ title, a snippet of at most 320 characters, the fused score, and a freshness sum
 collection's freshness. Its content carries one `resource_link` per result.
 
 Before returning a result, the service applies the caller's effective access to the
-chunk's access descriptor: same tenant, Work Context membership or a grant with
-`read`, and clearance for every data label. The search query narrows candidates inside
-SurrealDB by tenant, the caller's Work Contexts and grant subjects, and the caller's
-clearance labels, and it fetches more candidates than the result limit because these
-filters apply after the vector search. The service then decides each remaining
-candidate with `veoveo_mcp_contract::access::decide`, the predicate the Artifact service
-uses, and fetches more when too few pass. `profile` collections require only that the
-caller's profile exposes the source server. A result the caller may not read never
-appears, including its title and snippet.
+chunk's access descriptor. Every policy requires the same tenant and clearance for
+every data label. The source's explicit `readPolicy` selects tenant sharing,
+owner/grant access, Work Context sharing, or subject access constrained to the current
+context and optional profile. A stored Work Context alone grants no read permission.
+The search query applies these predicates and current collection exposure inside
+SurrealDB before candidate decoding, ordering and LIMIT. Vector retrieval may require
+additional candidate pages to fill the result limit after database filtering.
+
+The service uses `veoveo_mcp_contract::access::decide` for the final tenant, clearance
+and subject/context decision, enabling context membership only when the source policy
+allows it. It also enforces the source's selected-context and profile requirements.
+`profile` collections require that the caller's profile exposes the source collection.
+A result the caller may not read never appears, including its title and snippet.
 
 A caller who needs current content reads the member URI. That read goes to the
 owning server, which applies its own authorization and returns a fresh observation.

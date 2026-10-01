@@ -68,6 +68,7 @@ fn access_descriptor_is_required_by_collection_and_cannot_cross_owners() {
     assert!(builder().build(&descriptor).is_err());
     let observed = builder()
         .access(AccessDescriptor {
+            read_policy: veoveo_mcp_knowledge_extension::ReadPolicy::WorkContext {},
             tenant: "tenant".parse().unwrap(),
             work_context: "work".parse().unwrap(),
             owner: AccessSubject::Principal("owner".parse().unwrap()),
@@ -86,6 +87,42 @@ fn access_descriptor_is_required_by_collection_and_cannot_cross_owners() {
     malformed["contentSha256"] = json!("sha256:wrong");
     assert!(jsonschema::validate(&schema, &malformed).is_err());
     assert!(serde_json::from_value::<Observation>(malformed).is_err());
+}
+
+#[test]
+fn read_policy_requires_explicit_closed_source_semantics() {
+    let schema = serde_json::to_value(schemars::schema_for!(ReadPolicy)).unwrap();
+    for wire in [
+        json!({"kind": "tenant"}),
+        json!({"kind": "subjects"}),
+        json!({"kind": "work-context"}),
+        json!({"kind": "subjects-in-context"}),
+        json!({"kind": "subjects-in-context", "profile": "operations"}),
+    ] {
+        let policy: ReadPolicy = serde_json::from_value(wire.clone()).unwrap();
+        assert_eq!(serde_json::to_value(policy).unwrap(), wire);
+        jsonschema::validate(&schema, &wire).unwrap();
+    }
+    for wire in [
+        json!({"kind": "unknown"}),
+        json!({"kind": "subjects", "profile": "operations"}),
+        json!({"kind": "subjects-in-context", "caller": "author"}),
+    ] {
+        assert!(serde_json::from_value::<ReadPolicy>(wire.clone()).is_err());
+        assert!(jsonschema::validate(&schema, &wire).is_err());
+    }
+    assert!(serde_json::from_value::<AccessDescriptor>(json!({
+        "tenant": "tenant", "workContext": "work", "owner": {"kind": "principal", "id": "owner"},
+        "dataLabels": []
+    })).is_err());
+    for profile in ["Operations", "operations/read", "operations read", ""] {
+        assert!(
+            serde_json::from_value::<ReadPolicy>(json!({
+                "kind": "subjects-in-context", "profile": profile,
+            }))
+            .is_err()
+        );
+    }
 }
 
 #[test]

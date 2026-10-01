@@ -63,6 +63,25 @@ fn member(
     context: &str,
     labels: &[&str],
 ) -> IndexedMember {
+    member_with_policy(
+        registration,
+        spec,
+        id,
+        context,
+        labels,
+        source::ReadPolicy::WorkContext {},
+        vec![],
+    )
+}
+fn member_with_policy(
+    registration: &CollectionRegistration,
+    spec: &GenerationSpec,
+    id: &str,
+    context: &str,
+    labels: &[&str],
+    read_policy: source::ReadPolicy,
+    grants: Vec<AccessSubject>,
+) -> IndexedMember {
     let text = "Fixture knowledge content";
     let observation = Observation::builder(
         registration.descriptor.collection().clone(),
@@ -71,10 +90,11 @@ fn member(
         Utc::now(),
     )
     .access(AccessDescriptor {
+        read_policy,
         tenant: registration.tenant.clone(),
         work_context: WorkContextId::new(context).unwrap(),
         owner: AccessSubject::Principal(PrincipalId::new("author").unwrap()),
-        grants: vec![],
+        grants,
         data_labels: labels
             .iter()
             .map(|v| DataLabelId::new(*v).unwrap())
@@ -109,6 +129,8 @@ async fn insert(
 }
 fn scope(registration: &CollectionRegistration) -> CandidateScope {
     CandidateScope {
+        profile: "operations".parse().unwrap(),
+        active_work_context: "operations".parse().unwrap(),
         tenant: registration.tenant.clone(),
         collections: BTreeSet::from([registration.descriptor.collection().clone()]),
         work_contexts: BTreeSet::from([WorkContextId::new("operations").unwrap()]),
@@ -125,6 +147,184 @@ async fn generations_fence_reads_and_apply_current_approval_and_access_in_sql() 
         .await
         .expect("knowledge qualification exceeded 120 seconds");
 }
+
+#[tokio::test]
+async fn source_read_policies_preserve_subject_context_and_profile_restrictions() {
+    tokio::time::timeout(Duration::from_secs(120), qualify_read_policies())
+        .await
+        .expect("source policy qualification exceeded 120 seconds");
+}
+
+async fn qualify_read_policies() {
+    use source::ReadPolicy;
+    let db = fixture::TestDb::new().await;
+    let registration = registration("knowledge-policies");
+    let specification = spec(&registration, "policies");
+    let generation = GenerationId::new();
+    db.a.register_knowledge_collection(&registration, None)
+        .await
+        .unwrap();
+    db.a.create_knowledge_generation(&registration.tenant, generation, &specification)
+        .await
+        .unwrap();
+    let records = [
+        ("aaa-owner", ReadPolicy::Subjects {}, vec![]),
+        (
+            "bbb-task",
+            ReadPolicy::SubjectsInContext {
+                profile: Some("operations".parse().unwrap()),
+            },
+            vec![],
+        ),
+        (
+            "ccc-context-subjects",
+            ReadPolicy::SubjectsInContext { profile: None },
+            vec![],
+        ),
+        (
+            "ddd-grant",
+            ReadPolicy::Subjects {},
+            vec![AccessSubject::Group("reviewers".parse().unwrap())],
+        ),
+        ("eee-shared", ReadPolicy::WorkContext {}, vec![]),
+        ("zzz-tenant", ReadPolicy::Tenant {}, vec![]),
+    ];
+    for (id, policy, grants) in records {
+        let member = member_with_policy(
+            &registration,
+            &specification,
+            id,
+            "operations",
+            &[],
+            policy,
+            grants,
+        );
+        insert(&db.a, &registration, generation, &specification, &member).await;
+    }
+    db.a.complete_knowledge_collection(
+        &registration.tenant,
+        generation,
+        registration.descriptor.collection(),
+        &registration.revision(),
+    )
+    .await
+    .unwrap();
+    db.a.activate_knowledge_generation(&registration.tenant, generation, None)
+        .await
+        .unwrap();
+
+    let reader = scope(&registration);
+    assert_candidates(&db.b, &reader, generation, &["eee-shared", "zzz-tenant"]).await;
+    let mut owner = reader.clone();
+    owner.subjects = BTreeSet::from([AccessSubject::Principal("author".parse().unwrap())]);
+    assert_candidates(
+        &db.b,
+        &owner,
+        generation,
+        &[
+            "aaa-owner",
+            "bbb-task",
+            "ccc-context-subjects",
+            "ddd-grant",
+            "eee-shared",
+            "zzz-tenant",
+        ],
+    )
+    .await;
+
+    let mut wrong_profile = owner.clone();
+    wrong_profile.profile = "another".parse().unwrap();
+    assert_candidates(
+        &db.b,
+        &wrong_profile,
+        generation,
+        &[
+            "aaa-owner",
+            "ccc-context-subjects",
+            "ddd-grant",
+            "eee-shared",
+            "zzz-tenant",
+        ],
+    )
+    .await;
+    // Membership in operations does not replace the Task's selected-context requirement.
+    let mut wrong_context = owner.clone();
+    wrong_context.active_work_context = "another".parse().unwrap();
+    assert_candidates(
+        &db.b,
+        &wrong_context,
+        generation,
+        &["aaa-owner", "ddd-grant", "eee-shared", "zzz-tenant"],
+    )
+    .await;
+    let mut grantee = reader.clone();
+    grantee.work_contexts.clear();
+    grantee
+        .subjects
+        .insert(AccessSubject::Group("reviewers".parse().unwrap()));
+    assert_candidates(&db.b, &grantee, generation, &["ddd-grant", "zzz-tenant"]).await;
+    let mut no_membership = reader.clone();
+    no_membership.work_contexts.clear();
+    assert_candidates(&db.b, &no_membership, generation, &["zzz-tenant"]).await;
+    let mut unexposed = owner.clone();
+    unexposed.collections.clear();
+    assert_candidates(&db.b, &unexposed, generation, &[]).await;
+    let mut foreign = owner.clone();
+    foreign.tenant = "another".parse().unwrap();
+    assert_candidates(&db.b, &foreign, generation, &[]).await;
+
+    // These earlier-sorting private rows are malformed. A reader must still get
+    // its full page; decoding and then discarding a denied row cannot pass.
+    let table = format!("knowledge_chunk_{}", generation.as_uuid().simple());
+    db.a.client().query(format!(
+        "UPDATE {table} SET observation = {{malformed: true}} WHERE admission.tenant_read = false AND admission.context_read = false;"
+    )).await.unwrap().check().unwrap();
+    let page =
+        db.b.knowledge_candidates_page(&reader, generation, None, 1)
+            .await
+            .unwrap();
+    assert_eq!(page.len(), 1);
+    assert_eq!(page[0].uri.as_str(), "fixture://records/eee-shared");
+    let next =
+        db.b.knowledge_candidates_page(&reader, generation, Some(&page[0].cursor()), 1)
+            .await
+            .unwrap();
+    assert_eq!(next.len(), 1);
+    assert_eq!(next[0].uri.as_str(), "fixture://records/zzz-tenant");
+    assert!(
+        db.b.knowledge_candidates_page(&owner, generation, None, 1)
+            .await
+            .is_err()
+    );
+}
+
+async fn assert_candidates(
+    store: &PlatformStore,
+    scope: &CandidateScope,
+    generation: GenerationId,
+    expected: &[&str],
+) {
+    let actual = store
+        .knowledge_candidates_page(scope, generation, None, 100)
+        .await
+        .unwrap();
+    let uris: Vec<_> = actual.iter().map(|row| row.uri.as_str()).collect();
+    let expected: Vec<_> = expected
+        .iter()
+        .map(|id| {
+            veoveo_types::ResourceUriBuilder::new("fixture://records")
+                .unwrap()
+                .segment(veoveo_types::UriSegment::new(*id).unwrap())
+                .build()
+                .unwrap()
+        })
+        .collect();
+    assert_eq!(
+        uris,
+        expected.iter().map(|uri| uri.as_str()).collect::<Vec<_>>()
+    );
+}
+
 async fn qualify() {
     let db = fixture::TestDb::new().await;
     let registration = registration("knowledge-a");
@@ -202,7 +402,7 @@ async fn qualify() {
     let table = format!("knowledge_chunk_{}", first.as_uuid().simple());
     db.a.client()
         .query(format!(
-            "UPDATE {table} SET observation = {{malformed: true}} WHERE labels CONTAINS 'secret';"
+            "UPDATE {table} SET observation = {{malformed: true}} WHERE admission.labels CONTAINS 'secret';"
         ))
         .await
         .unwrap()

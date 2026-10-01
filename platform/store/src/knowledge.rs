@@ -1,5 +1,6 @@
 //! Knowledge persistence. Source policy stays in the service; SQL narrows every
 //! caller-visible candidate before decoding and pagination.
+mod admission;
 mod catalog;
 mod generations;
 mod members;

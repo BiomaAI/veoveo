@@ -18,6 +18,9 @@
         "owner": {
           "$ref": "#/$defs/AccessSubject"
         },
+        "readPolicy": {
+          "$ref": "#/$defs/ReadPolicy"
+        },
         "tenant": {
           "$ref": "#/$defs/TenantId"
         },
@@ -28,6 +31,7 @@
       "required": [
         "tenant",
         "workContext",
+        "readPolicy",
         "owner",
         "dataLabels"
       ],
@@ -1793,6 +1797,76 @@
     "PromptName": {
       "description": "Prompt name as exposed by one direct MCP server or gateway profile.",
       "type": "string"
+    },
+    "ReadPolicy": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Any reader admitted to the collection in the record's tenant.",
+          "properties": {
+            "kind": {
+              "const": "tenant",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Only the owner and explicit grant subjects.",
+          "properties": {
+            "kind": {
+              "const": "subjects",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Work Context members, the owner, or explicit grant subjects.",
+          "properties": {
+            "kind": {
+              "const": "work-context",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Owner/grant access additionally requires the active Work Context and,\nwhen recorded, the same gateway profile as the source operation.",
+          "properties": {
+            "kind": {
+              "const": "subjects-in-context",
+              "type": "string"
+            },
+            "profile": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/GatewayProfileId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        }
+      ]
     },
     "RecordingActivity": {
       "enum": [
