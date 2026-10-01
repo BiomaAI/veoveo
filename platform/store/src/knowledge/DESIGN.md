@@ -12,7 +12,8 @@
 ## Tables And Ownership
 
 The ordered Store migration defines `knowledge_collection`, `knowledge_generation`,
-`knowledge_active`, `knowledge_member`, and `knowledge_coverage`. Catalog and member
+`knowledge_active`, `knowledge_member`, `knowledge_coverage`, `knowledge_coordinator`
+and `knowledge_sync`. Catalog, source-sync and member
 state use the native seven-day change feed. The indexing service must reconcile from
 source enumeration when its saved cursor falls outside retention.
 
@@ -30,12 +31,26 @@ tables keep both vectors and index structures apart during rebuilds.
 
 ## Transactions And Recovery
 
+`claim_knowledge_coordinator` claims a tenant's 30-second lease and advances its
+process epoch after expiry. A live different owner prevents acquisition. Every
+generation, collection and member mutation checks the owner, process epoch and lease
+expiry inside its transaction. The transaction writes the lease row to conflict with
+takeover. Cloned lease handles serialize their local mutations and renewal to avoid
+conflicts within one worker. Store still arbitrates independent workers. Release checks
+owner and epoch; an old process cannot expire its successor's lease.
+
+`knowledge_sync` records a source epoch for each generation and collection. Invalidation
+advances it and marks the collection unready. A Store-issued `CollectionSyncTicket`
+captures the epoch before enumeration. Completion checks that ticket, current approval
+and coordinator, preventing an old traversal from marking a newer one ready.
+
 Catalog registration compares the previous fingerprint. Concurrent discovery cannot
 overwrite a newer approval or revocation. An identical registration is idempotent.
 Writes and exact reads validate the full typed approval against its descriptor.
 `knowledge_member_observed` selects a member in SQL against the tenant's active
 generation and current approved registration fingerprint. It admits only an observed,
-non-stale, non-deleted member. Gateway indexing subscriptions use this check; an initial
+non-stale, non-deleted member in a ready source epoch with a valid freshness deadline.
+Mutable sources also require a live coordinator lease. Gateway indexing subscriptions use this check; an initial
 build subscribes to the declared collection enumeration resource instead.
 Generation creation checks every selected approval and creates its schema and immutable
 specification in one transaction. Its state begins at `building`.
@@ -44,12 +59,20 @@ specification in one transaction. Its state begins at `building`.
 its collection-coverage receipt before a source request begins. Search excludes stale
 members immediately. A replacement checks the epoch, tenant, current approval and
 generation specification, then replaces the chunks and observation atomically. A
-late source response cannot restore content after another invalidation. Failed source
+late source response cannot restore content after another member, source or coordinator
+invalidation. Failed source
 reads leave the member stale. Only definitive owner confirmation permits deletion;
 timeouts, unavailable reads and subscription loss do not establish that fact.
 
-The service records collection coverage after complete source enumeration and deletion
-reconciliation. Store rejects coverage while any admitted member is unresolved.
+Conditional replacement reuses the existing text and vectors only when the observation
+preserves revision, digest, access and provenance. It updates observation timestamps
+and the member's freshness deadline in the same transaction. The ticket's member,
+source and process epochs must still match.
+
+The service records collection coverage after complete source enumeration. Store rejects
+coverage while any admitted member from that source epoch is unresolved. Members absent
+from this traversal keep their earlier epoch and are excluded from search; absence does
+not establish deletion.
 Activation checks the full current approval set and every coverage receipt, compares
 the previous active generation, retires it and switches the tenant's active pointer
 in one transaction. New reads and approval changes conflict with activation through
@@ -79,7 +102,8 @@ current profile selectors. `resource_selection.rs` binds schemes, prefixes and c
 template literal segments as values. The SQL closure in `resource_selection.surql`
 uses first-delimiter consumption to match the foundational template semantics. It
 executes within candidate admission in both ranking queries. SQL selects the tenant and active generation, current collection
-approval fingerprint, collection-required scopes, non-stale member, source read policy and every required
+approval fingerprint, collection-required scopes, ready source epoch, live mutable-source
+coordinator, observation freshness, non-stale member, source read policy and every required
 clearance label before ordering and LIMIT. `admission.rs` derives the typed SQL fields
 from the observation. The `work-context` policy permits read membership in the stored
 context. The `selected-work-context` policy additionally requires that the caller

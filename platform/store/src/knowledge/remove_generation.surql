@@ -1,4 +1,5 @@
 BEGIN TRANSACTION;
+__LEASE__
     LET $gen = (
         SELECT *
         FROM ONLY $generation

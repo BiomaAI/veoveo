@@ -1,4 +1,5 @@
 BEGIN TRANSACTION;
+__LEASE__
     LET $catalog = (
         SELECT *
         FROM ONLY $collection
@@ -21,6 +22,8 @@ BEGIN TRANSACTION;
     ) {
         THROW 'knowledge_read_not_admitted';
     };
+    LET $source = (SELECT * FROM ONLY $sync WHERE owner_epoch = $owner_epoch AND coordinator = $coordinator);
+    IF $source = NONE { THROW 'knowledge_source_not_reconciled'; };
     LET $old = (
         SELECT *
         FROM ONLY $member
@@ -30,14 +33,13 @@ BEGIN TRANSACTION;
         generation = $generation,
         collection = $collection,
         uri = $uri,
+        sync = $sync,
+        source_epoch = $source.epoch,
         epoch = (
             $old.epoch ?? 0
         ) + 1,
         stale = true,
         deleted = false;
     DELETE $coverage;
-    RETURN (
-        SELECT VALUE epoch
-        FROM ONLY $member
-    );
+    RETURN {epoch: $member.epoch, source_epoch: $source.epoch, observation: $old.observation, title: $old.title};
 COMMIT TRANSACTION;

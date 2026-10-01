@@ -48,3 +48,25 @@ DEFINE FIELD collection ON knowledge_coverage TYPE record<knowledge_collection>;
 DEFINE FIELD revision ON knowledge_coverage TYPE string;
 
 DEFINE ANALYZER knowledge_text TOKENIZERS blank, class FILTERS lowercase, ascii;
+
+DEFINE TABLE knowledge_coordinator SCHEMAFULL PERMISSIONS NONE;
+DEFINE FIELD id ON knowledge_coordinator TYPE string;
+DEFINE FIELD owner ON knowledge_coordinator TYPE uuid;
+DEFINE FIELD epoch ON knowledge_coordinator TYPE int ASSERT $value > 0;
+DEFINE FIELD expires_at ON knowledge_coordinator TYPE datetime;
+
+DEFINE TABLE knowledge_sync SCHEMAFULL CHANGEFEED 7d PERMISSIONS NONE;
+DEFINE FIELD id ON knowledge_sync TYPE array;
+DEFINE FIELD generation ON knowledge_sync TYPE record<knowledge_generation> REFERENCE ON DELETE CASCADE;
+DEFINE FIELD collection ON knowledge_sync TYPE record<knowledge_collection>;
+DEFINE FIELD coordinator ON knowledge_sync TYPE record<knowledge_coordinator>;
+DEFINE FIELD owner_epoch ON knowledge_sync TYPE int ASSERT $value > 0;
+DEFINE FIELD epoch ON knowledge_sync TYPE int ASSERT $value > 0;
+DEFINE FIELD ready ON knowledge_sync TYPE bool;
+DEFINE FIELD changed_at ON knowledge_sync TYPE datetime;
+DEFINE INDEX knowledge_sync_generation ON knowledge_sync FIELDS generation, collection UNIQUE;
+
+DEFINE FIELD sync ON knowledge_member TYPE record<knowledge_sync> READONLY;
+DEFINE FIELD source_epoch ON knowledge_member TYPE int ASSERT $value > 0;
+DEFINE FIELD valid_until ON knowledge_member TYPE option<datetime>;
+DEFINE FIELD title ON knowledge_member TYPE option<string>;

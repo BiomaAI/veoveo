@@ -16,6 +16,8 @@ use veoveo_types::{
     TenantId, WorkContextId,
 };
 
+#[path = "knowledge/coordinator.rs"]
+mod coordinator;
 #[path = "../../../testing/fixtures/store.rs"]
 mod fixture;
 
@@ -144,13 +146,14 @@ fn member_with_access(
 }
 async fn insert(
     store: &PlatformStore,
+    lease: &veoveo_platform_store::knowledge::CoordinatorLease,
     registration: &CollectionRegistration,
     gen_id: GenerationId,
     spec: &GenerationSpec,
     member: &IndexedMember,
 ) {
     let ticket = store
-        .begin_knowledge_member_read(registration, gen_id, spec, member.uri())
+        .begin_knowledge_member_read(lease, registration, gen_id, spec, member.uri())
         .await
         .unwrap();
     store
@@ -185,6 +188,14 @@ async fn source_scopes_and_selected_context_membership_cannot_be_bypassed_by_own
     tokio::time::timeout(Duration::from_secs(120), async {
         let db = fixture::TestDb::new().await;
         let mut registration = registration("knowledge-members");
+        let lease =
+            db.a.claim_knowledge_coordinator(
+                &registration.tenant,
+                veoveo_platform_store::knowledge::CoordinatorId::new(),
+            )
+            .await
+            .unwrap()
+            .unwrap();
         registration.descriptor = registration
             .descriptor
             .with_required_scopes(["fixture:read".parse().unwrap()]);
@@ -193,7 +204,7 @@ async fn source_scopes_and_selected_context_membership_cannot_be_bypassed_by_own
         db.a.register_knowledge_collection(&registration, None)
             .await
             .unwrap();
-        db.a.create_knowledge_generation(&registration.tenant, generation, &specification)
+        db.a.create_knowledge_generation(&lease, &registration.tenant, generation, &specification)
             .await
             .unwrap();
         let member = member_with_policy(
@@ -205,16 +216,19 @@ async fn source_scopes_and_selected_context_membership_cannot_be_bypassed_by_own
             source::ReadPolicy::SelectedWorkContextMembers {},
             vec![AccessSubject::Principal("reader".parse().unwrap())],
         );
-        insert(&db.a, &registration, generation, &specification, &member).await;
-        db.a.complete_knowledge_collection(
-            &registration.tenant,
+        insert(
+            &db.a,
+            &lease,
+            &registration,
             generation,
-            registration.descriptor.collection(),
-            &registration.revision(),
+            &specification,
+            &member,
         )
-        .await
-        .unwrap();
-        db.a.activate_knowledge_generation(&registration.tenant, generation, None)
+        .await;
+        complete(&db.a, &lease, &registration, generation)
+            .await
+            .unwrap();
+        db.a.activate_knowledge_generation(&lease, &registration.tenant, generation, None)
             .await
             .unwrap();
         let mut caller = scope(&registration);
@@ -265,10 +279,11 @@ async fn selected_context_and_expiry_are_admitted_in_sql_before_decoding() {
     tokio::time::timeout(Duration::from_secs(120), async {
         let db = fixture::TestDb::new().await;
         let registration = registration("knowledge-expiry");
+        let lease = db.a.claim_knowledge_coordinator(&registration.tenant, veoveo_platform_store::knowledge::CoordinatorId::new()).await.unwrap().unwrap();
         let specification = spec(&registration, "expiry");
         let generation = GenerationId::new();
         db.a.register_knowledge_collection(&registration, None).await.unwrap();
-        db.a.create_knowledge_generation(&registration.tenant, generation, &specification).await.unwrap();
+        db.a.create_knowledge_generation(&lease, &registration.tenant, generation, &specification).await.unwrap();
         let past = Utc::now() - chrono::TimeDelta::minutes(1);
         let deadline = Utc::now() + chrono::TimeDelta::seconds(4);
         let reader = AccessSubject::Principal("reader".parse().unwrap());
@@ -287,11 +302,10 @@ async fn selected_context_and_expiry_are_admitted_in_sql_before_decoding() {
                 read_policy: policy, owner: AccessSubject::Principal("author".parse().unwrap()),
                 grants, data_labels: vec![], expires_at,
             });
-            insert(&db.a, &registration, generation, &specification, &member).await;
+            insert(&db.a, &lease, &registration, generation, &specification, &member).await;
         }
-        db.a.complete_knowledge_collection(&registration.tenant, generation,
-            registration.descriptor.collection(), &registration.revision()).await.unwrap();
-        db.a.activate_knowledge_generation(&registration.tenant, generation, None).await.unwrap();
+        complete(&db.a, &lease, &registration, generation).await.unwrap();
+        db.a.activate_knowledge_generation(&lease, &registration.tenant, generation, None).await.unwrap();
         let mut reader = scope(&registration);
         reader.subjects.insert(group);
         assert_candidates(&db.b, &reader, generation, &["eee-selected", "fff-live-grant", "zzz-visible"]).await;
@@ -324,12 +338,20 @@ async fn qualify_read_policies() {
     use source::ReadPolicy;
     let db = fixture::TestDb::new().await;
     let registration = registration("knowledge-policies");
+    let lease =
+        db.a.claim_knowledge_coordinator(
+            &registration.tenant,
+            veoveo_platform_store::knowledge::CoordinatorId::new(),
+        )
+        .await
+        .unwrap()
+        .unwrap();
     let specification = spec(&registration, "policies");
     let generation = GenerationId::new();
     db.a.register_knowledge_collection(&registration, None)
         .await
         .unwrap();
-    db.a.create_knowledge_generation(&registration.tenant, generation, &specification)
+    db.a.create_knowledge_generation(&lease, &registration.tenant, generation, &specification)
         .await
         .unwrap();
     let records = [
@@ -364,17 +386,20 @@ async fn qualify_read_policies() {
             policy,
             grants,
         );
-        insert(&db.a, &registration, generation, &specification, &member).await;
+        insert(
+            &db.a,
+            &lease,
+            &registration,
+            generation,
+            &specification,
+            &member,
+        )
+        .await;
     }
-    db.a.complete_knowledge_collection(
-        &registration.tenant,
-        generation,
-        registration.descriptor.collection(),
-        &registration.revision(),
-    )
-    .await
-    .unwrap();
-    db.a.activate_knowledge_generation(&registration.tenant, generation, None)
+    complete(&db.a, &lease, &registration, generation)
+        .await
+        .unwrap();
+    db.a.activate_knowledge_generation(&lease, &registration.tenant, generation, None)
         .await
         .unwrap();
 
@@ -493,6 +518,14 @@ async fn assert_candidates(
 async fn qualify() {
     let db = fixture::TestDb::new().await;
     let registration = registration("knowledge-a");
+    let lease =
+        db.a.claim_knowledge_coordinator(
+            &registration.tenant,
+            veoveo_platform_store::knowledge::CoordinatorId::new(),
+        )
+        .await
+        .unwrap()
+        .unwrap();
     let tenant = &registration.tenant;
     let collection = registration.descriptor.collection();
     db.a.register_knowledge_collection(&registration, None)
@@ -504,11 +537,11 @@ async fn qualify() {
     );
     let first = GenerationId::new();
     let first_spec = spec(&registration, "space-one");
-    db.a.create_knowledge_generation(tenant, first, &first_spec)
+    db.a.create_knowledge_generation(&lease, tenant, first, &first_spec)
         .await
         .unwrap();
     assert!(
-        db.b.activate_knowledge_generation(tenant, first, None)
+        db.b.activate_knowledge_generation(&lease, tenant, first, None)
             .await
             .is_err()
     );
@@ -522,11 +555,9 @@ async fn qualify() {
     );
     let other_context = member(&registration, &first_spec, "aaa-other", "other", &[]);
     for m in [&hidden, &other_context, &visible] {
-        insert(&db.a, &registration, first, &first_spec, m).await;
+        insert(&db.a, &lease, &registration, first, &first_spec, m).await;
     }
-    db.a.complete_knowledge_collection(tenant, first, collection, &registration.revision())
-        .await
-        .unwrap();
+    complete(&db.a, &lease, &registration, first).await.unwrap();
     assert!(
         !db.b
             .knowledge_member_observed(&registration, visible.uri())
@@ -534,7 +565,7 @@ async fn qualify() {
             .unwrap(),
         "building members cannot authorize subscriptions"
     );
-    db.a.activate_knowledge_generation(tenant, first, None)
+    db.a.activate_knowledge_generation(&lease, tenant, first, None)
         .await
         .unwrap();
     assert_eq!(
@@ -602,11 +633,11 @@ async fn qualify() {
     );
 
     let late =
-        db.a.begin_knowledge_member_read(&registration, first, &first_spec, visible.uri())
+        db.a.begin_knowledge_member_read(&lease, &registration, first, &first_spec, visible.uri())
             .await
             .unwrap();
     let current =
-        db.b.begin_knowledge_member_read(&registration, first, &first_spec, visible.uri())
+        db.b.begin_knowledge_member_read(&lease, &registration, first, &first_spec, visible.uri())
             .await
             .unwrap();
     assert!(
@@ -627,11 +658,7 @@ async fn qualify() {
             .unwrap()
             .is_empty()
     );
-    assert!(
-        db.a.complete_knowledge_collection(tenant, first, collection, &registration.revision())
-            .await
-            .is_err()
-    );
+    assert!(complete(&db.a, &lease, &registration, first).await.is_err());
     db.a.replace_knowledge_member(&current, &visible)
         .await
         .unwrap();
@@ -649,7 +676,7 @@ async fn qualify() {
     );
 
     let deletion =
-        db.b.begin_knowledge_member_read(&registration, first, &first_spec, visible.uri())
+        db.b.begin_knowledge_member_read(&lease, &registration, first, &first_spec, visible.uri())
             .await
             .unwrap();
     db.a.confirm_knowledge_member_deleted(&deletion)
@@ -672,19 +699,18 @@ async fn qualify() {
             .unwrap()
             .is_empty()
     );
-    db.a.complete_knowledge_collection(tenant, first, collection, &registration.revision())
-        .await
-        .unwrap();
+    complete(&db.a, &lease, &registration, first).await.unwrap();
 
     let second = GenerationId::new();
     let second_spec = spec(&registration, "space-two");
-    db.a.create_knowledge_generation(tenant, second, &second_spec)
+    db.a.create_knowledge_generation(&lease, tenant, second, &second_spec)
         .await
         .unwrap();
-    let ticket =
-        db.a.begin_knowledge_member_read(&registration, second, &second_spec, visible.uri())
-            .await
-            .unwrap();
+    let ticket = db
+        .a
+        .begin_knowledge_member_read(&lease, &registration, second, &second_spec, visible.uri())
+        .await
+        .unwrap();
     assert!(
         db.a.replace_knowledge_member(&ticket, &visible)
             .await
@@ -695,15 +721,15 @@ async fn qualify() {
     db.a.replace_knowledge_member(&ticket, &updated)
         .await
         .unwrap();
-    db.a.complete_knowledge_collection(tenant, second, collection, &registration.revision())
+    complete(&db.a, &lease, &registration, second)
         .await
         .unwrap();
     assert!(
-        db.b.activate_knowledge_generation(tenant, second, None)
+        db.b.activate_knowledge_generation(&lease, tenant, second, None)
             .await
             .is_err()
     );
-    db.b.activate_knowledge_generation(tenant, second, Some(first))
+    db.b.activate_knowledge_generation(&lease, tenant, second, Some(first))
         .await
         .unwrap();
     assert!(
@@ -761,6 +787,7 @@ async fn qualify() {
     );
     assert!(
         db.b.begin_knowledge_member_read(
+            &lease,
             &registration,
             second,
             &second_spec,
@@ -770,12 +797,12 @@ async fn qualify() {
         .is_err()
     );
     assert!(
-        db.a.remove_knowledge_generation(tenant, second)
+        db.a.remove_knowledge_generation(&lease, tenant, second)
             .await
             .is_err(),
         "active generations are fenced from cleanup"
     );
-    db.a.remove_knowledge_generation(tenant, first)
+    db.a.remove_knowledge_generation(&lease, tenant, first)
         .await
         .unwrap();
     assert!(
@@ -820,12 +847,20 @@ async fn lexical_resource_selection_matches_policy_before_pagination() {
     tokio::time::timeout(Duration::from_secs(120), async {
         let db = fixture::TestDb::new().await;
         let registration = registration("knowledge-selectors");
+        let lease =
+            db.a.claim_knowledge_coordinator(
+                &registration.tenant,
+                veoveo_platform_store::knowledge::CoordinatorId::new(),
+            )
+            .await
+            .unwrap()
+            .unwrap();
         let spec = spec(&registration, "selection");
         db.a.register_knowledge_collection(&registration, None)
             .await
             .unwrap();
         let generation = GenerationId::new();
-        db.a.create_knowledge_generation(&registration.tenant, generation, &spec)
+        db.a.create_knowledge_generation(&lease, &registration.tenant, generation, &spec)
             .await
             .unwrap();
         let mut uris = Vec::new();
@@ -845,17 +880,12 @@ async fn lexical_resource_selection_matches_policy_before_pagination() {
         ] {
             let member = member(&registration, &spec, id, "operations", &[]);
             uris.push(member.uri().clone());
-            insert(&db.a, &registration, generation, &spec, &member).await;
+            insert(&db.a, &lease, &registration, generation, &spec, &member).await;
         }
-        db.a.complete_knowledge_collection(
-            &registration.tenant,
-            generation,
-            registration.descriptor.collection(),
-            &registration.revision(),
-        )
-        .await
-        .unwrap();
-        db.a.activate_knowledge_generation(&registration.tenant, generation, None)
+        complete(&db.a, &lease, &registration, generation)
+            .await
+            .unwrap();
+        db.a.activate_knowledge_generation(&lease, &registration.tenant, generation, None)
             .await
             .unwrap();
         uris.sort();
@@ -971,4 +1001,16 @@ async fn catalog_admits_before_source_paging_and_exact_record_decoding() {
         approvals.get_mut(selected).unwrap().data_labels.clear();
         assert!(db.b.readable_knowledge_collections(&tenant, &approvals, &scopes, CatalogSelection::Collection(selected)).await.unwrap().is_empty(), "changed approval cannot reveal the old registration");
     }).await.expect("catalog SQL qualification exceeded 180 seconds");
+}
+
+async fn complete(
+    store: &PlatformStore,
+    lease: &veoveo_platform_store::knowledge::CoordinatorLease,
+    registration: &CollectionRegistration,
+    generation: GenerationId,
+) -> Result<(), veoveo_platform_store::StoreError> {
+    let ticket = store
+        .knowledge_collection_sync(lease, registration, generation)
+        .await?;
+    store.complete_knowledge_collection(&ticket).await
 }

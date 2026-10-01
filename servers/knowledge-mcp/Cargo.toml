@@ -47,6 +47,10 @@ name = "pipeline"
 required-features = ["runtime"]
 
 [[test]]
+name = "coordination"
+required-features = ["runtime"]
+
+[[test]]
 name = "contract"
 required-features = ["contract"]
 

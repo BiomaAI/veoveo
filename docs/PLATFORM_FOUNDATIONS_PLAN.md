@@ -26,7 +26,9 @@ The embedding Helm component and local GPU reference, priority and refusal check
 The Knowledge library now implements fenced source indexing and SQL hybrid retrieval.
 Typed installation approvals and gateway indexing-client admission pass native checks.
 The hosted Knowledge API passes native HTTP and current-authority checks. Installed
-embedding qualification, Reason, source coordination and Knowledge packaging remain open.
+embedding qualification, Reason, production gateway source integration and Knowledge packaging remain open.
+The library coordinator qualifies lease renewal, source invalidation, conditional
+reconciliation and restart reuse against isolated Store fixtures.
 Broader server adoption is postponed outside this plan's completion scope. The cluster and BuildKit
 are stopped.
 
@@ -3563,6 +3565,28 @@ acceptance remain separate. Schema conformance, catalog completion/statistics/li
 source discovery/reconciliation/restart coordination, five-minute indexing audit windows,
 machine-client provisioning and packaging remain open. The cluster and BuildKit stayed
 stopped during this batch.
+
+Coordinator checkpoint (2026-10-01): the library establishes listeners before source
+enumeration, renews a tenant lease during slow reads, reconciles queued changes before
+activation and reuses a matching generation after restart. Store checks process,
+collection and member epochs in index transactions. Collection-completion tickets
+reject late traversal receipts. SQL excludes unready source epochs, expired mutable
+leases and expired observations before decoding or ranking. Missing members from a
+fresh enumeration stay hidden under their earlier epoch without asserting deletion.
+
+Conditional reads reuse text and embeddings only when revision, digest, access,
+provenance and title agree. Source loss and cancellation exclude mutable results;
+unchanged revisions with changed access fail closed. Native qualification covers
+16 Knowledge tests, eight Store Knowledge tests, nine extension tests and eight migration
+checks. The coordinator suite also qualifies scheduled conditional revalidation without
+a listener. Strict affected Clippy, workspace all-target compilation and the contract-only
+build pass. Cleanup removed 17 superseded test executables (3 GiB), preserving compiler
+and incremental caches; the cluster and BuildKit stayed stopped. The core
+coordinator is not yet wired into the binary: gateway listener admission, automatic
+source discovery, authenticated connection rotation/recovery, catalog subscriptions,
+five-minute audit windows and installed delivery remain open. This batch hard-cuts the
+undeployed Knowledge cache schema; it adds no historical-data adapter. The reference
+publication still predates that schema.
 
 1. Deliver the shared [embedding runtime](../platform/runtimes/embedding/DESIGN.md)
    before the knowledge service consumes it. Re-verify the latest stable vLLM release

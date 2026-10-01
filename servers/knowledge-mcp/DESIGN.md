@@ -3,7 +3,8 @@
 Knowledge catalogs approved source collections and retrieves relevant source members
 with their revision, freshness and resource links. The service contract below defines
 its hosted surface. The HTTP adapter serves search, embedding and catalog reads through
-signed gateway identities. The source subscription coordinator and packaging are pending.
+signed gateway identities. The library coordinates source listeners and reconciliation.
+The binary's authenticated discovery/reconnection wiring and packaging are pending.
 
 ## Standards And Protocols
 
@@ -23,20 +24,42 @@ signed gateway identities. The source subscription coordinator and packaging are
 Knowledge domain types. It excludes Store, MCP integration, HTTP and asynchronous
 runtime dependencies. `runtime` adds source ingestion, retrieval and the HTTP server.
 
-`Indexer::build` creates an inactive generation from the complete approved collection
+`Indexer::prepare` creates an inactive generation from the complete approved collection
+set; `build` also populates it. The coordinator uses `prepare` and reconciles that
 set. It traverses at most 10,000 pages and 100,000 unique members per collection under
 a one-hour build deadline. Each enumeration call has 30 seconds; each source read,
 embedding and replacement has 120 seconds. Duplicate members, repeated cursors and
 failed reads prevent coverage. The coordinator must establish source listeners before
 building, settle queued invalidations and activate through Store's compare-and-set.
-A failed build leaves the active generation untouched and can be explicitly reclaimed.
+A failed build leaves the active generation pointer untouched and can be explicitly reclaimed.
+
+`Coordinator::run` owns one authenticated source connection lifetime. It claims the
+tenant's 30-second Store lease and renews every ten seconds, including during slow
+source reads. Store-issued lease and collection tickets carry process and source epochs.
+Every index mutation checks them in its transaction. Listener loss or cancellation
+releases the lease, which hides mutable results; an unreachable process loses its lease
+through expiry. A later run acknowledges fresh listeners and fully enumerates the
+collections before serving the matching active generation again. A changed specification
+builds another generation. The host must discover registrations and reconnect the
+authenticated gateway client; that production wiring is pending.
+
+The coordinator requires 1–1,024 collections and positive mutable freshness lifetimes.
+It queues at most 1,024 source invalidations and starts listeners within one hour, with
+30 seconds per acknowledgement. Reconciliation must settle within one hour. Changes
+interrupt an ongoing traversal and advance the affected collection's epoch before
+another read begins. The source adapter must invalidate the enumeration root on any
+member content, access or membership change. Mutable collections also receive conditional
+revalidation half a freshness lifetime after their last traversal completes. SQL hides
+members whose freshness deadline passes before that traversal reaches them.
 
 `Indexer::refresh` fences a member before source I/O. The same operation replaces its
 chunks after a verified full read. `GatewaySource` uses an authenticated gateway peer, declares the extension on each
 read and verifies the returned URI, observation and digest. It never connects to the
 host named by a resource URI. Unavailable and unqualified not-found responses leave
-the member stale. Subscription recovery, conditional refresh and restart coordination
-are tracked in the [active plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#phase-8-knowledge-service).
+the member stale. A conditional response reuses chunks only when every observation
+field except `observedAt` matches the cached observation and the enumeration title is
+unchanged. Store normalizes `notModified` before updating the cached observation.
+Changed titles require a full read and new embeddings.
 
 The indexer accepts only the installed `structure-v1` chunker version.
 The chunker preserves source-byte ranges and starts sections at Markdown headings or
@@ -149,9 +172,9 @@ A change notification marks the member's chunks stale. The service then re-reads
 member and replaces its chunks with ones keyed by the new revision. A lost event
 stream triggers reconciliation by conditional reads over the collection's pages. A
 `not_found` or unavailable read leaves the chunks marked stale; the service removes
-them only after a change event, a newer revision, or a definitive deletion from the
-owning server. The chunk records are the service's whole account of what it cached
-and from which revision.
+them only after the owning server definitively confirms deletion. A member absent from
+a fresh enumeration keeps its cached rows under the older source epoch, which SQL
+excludes. Generation reclamation removes those rows with the rest of the cache.
 
 A change to a member's access descriptor is a change like any other: the owning
 server changes the revision and signals it (rule K10), and the service re-reads the
@@ -195,8 +218,9 @@ fingerprints before writes and activation, and reclaims retired generations expl
 `search` is a direct tool. Its input takes a query, optional collections and entity
 kinds, and a result limit of at most 20. Its output lists results with member URI,
 title, a snippet of at most 320 characters, the fused score, and a freshness summary: revision,
-`lastModified`, `observedAt`, and whether the cached revision has outlived its
-collection's freshness. Its content carries one `resource_link` per result.
+`lastModified`, `observedAt`, and `stale`. SQL excludes expired observations; the
+delivery check rejects a response if a result expires after selection. Returned results
+therefore have `stale: false`. Its content carries one `resource_link` per result.
 
 Before returning a result, the service applies the caller's effective access to the
 chunk's access descriptor. Every policy requires the same tenant and clearance for
@@ -233,6 +257,7 @@ agent's episode budget counts it. Platform services call the runtime directly in
 | Path | Responsibility |
 |---|---|
 | `src/index.rs`, `src/chunk.rs` | fenced source reads, bounded enumeration, source-byte chunking and inactive generation builds |
+| `src/coordinator.rs` | tenant lease renewal, listener ownership, change reconciliation, freshness timers and generation recovery |
 | `src/source.rs`, `src/source/gateway.rs` | checked source pages and bodies; authenticated gateway peer adapter |
 | `src/contract/` | owner scopes, typed routes, search models and shared domain re-exports |
 | `src/embed.rs` | shared embedding client, bulk documents and interactive query batches |
@@ -252,6 +277,11 @@ catalog rows, query batches, scope reduction, directory disablement, browser-ses
 revocation and JWT revocation during an embedding call. Its vectors are synthetic;
 the shared runtime owns GPU inference qualification. `platform/store/tests/knowledge.rs`
 checks SQL source paging across 105 owners and exact selection before decoding.
+`tests/coordination.rs` checks listener ordering, changes during a paused source read,
+lease renewal during that read, scheduled revalidation, source-loss recovery, generation reuse, conditional
+embedding reuse and rejection of unchanged revisions with changed access. Store's
+coordinator tests qualify takeover, late member/coverage rejection and SQL freshness
+exclusion before decoding malformed cached rows. These fixtures use synthetic embeddings.
 
 Installed acceptance also requires the following cases:
 

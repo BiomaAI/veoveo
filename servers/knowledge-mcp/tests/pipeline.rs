@@ -22,6 +22,7 @@ use indexing::*;
 async fn source_to_hybrid_search_with_sql_policy_metadata_and_invalidation() {
     tokio::time::timeout(Duration::from_secs(180), async {
         let db = fixture::TestDb::new().await;
+        let lease = db.a.claim_knowledge_coordinator(&"knowledge-native".parse().unwrap(), veoveo_platform_store::knowledge::CoordinatorId::new()).await.unwrap().unwrap();
         let content = registration("records", IndexingMode::Content);
         let metadata = registration("metadata", IndexingMode::Metadata);
         let registrations = vec![content.clone(), metadata.clone()];
@@ -39,10 +40,10 @@ async fn source_to_hybrid_search_with_sql_policy_metadata_and_invalidation() {
         records.insert(uri("public-b"), record(&content, "facility inspection identifies safety issues"));
         records.insert(uri("metadata"), record(&metadata, "BODY-MUST-NEVER-BE-EMBEDDED"));
         let source = Source(Mutex::new(records));
-        let indexer = Indexer { store: &db.a, source: &source, embeddings: &embedding };
+        let indexer = Indexer { lease: &lease, store: &db.a, source: &source, embeddings: &embedding };
         let generation = indexer.build(&content.tenant, &registrations, &spec).await.unwrap();
         assert!(!embedding.inputs.lock().unwrap().iter().any(|text| text.contains("BODY-MUST-NEVER")));
-        db.a.activate_knowledge_generation(&content.tenant, generation, None).await.unwrap();
+        db.a.activate_knowledge_generation(&lease, &content.tenant, generation, None).await.unwrap();
 
         // A denied row that cannot be decoded proves SQL admits before decoding.
         let table = format!("knowledge_chunk_{}", generation.as_uuid().simple());
@@ -85,6 +86,14 @@ async fn source_to_hybrid_search_with_sql_policy_metadata_and_invalidation() {
 async fn duplicate_chunks_expand_the_window_and_failed_rebuild_preserves_active() {
     tokio::time::timeout(Duration::from_secs(180), async {
         let db = fixture::TestDb::new().await;
+        let lease =
+            db.a.claim_knowledge_coordinator(
+                &"knowledge-native".parse().unwrap(),
+                veoveo_platform_store::knowledge::CoordinatorId::new(),
+            )
+            .await
+            .unwrap()
+            .unwrap();
         let registration = registration("records", IndexingMode::Content);
         db.a.register_knowledge_collection(&registration, None)
             .await
@@ -109,6 +118,7 @@ async fn duplicate_chunks_expand_the_window_and_failed_rebuild_preserves_active(
             (uri("c-one"), record(&registration, "facility exit")),
         ])));
         let indexer = Indexer {
+            lease: &lease,
             store: &db.a,
             source: &source,
             embeddings: &embedding,
@@ -121,7 +131,7 @@ async fn duplicate_chunks_expand_the_window_and_failed_rebuild_preserves_active(
             )
             .await
             .unwrap();
-        db.a.activate_knowledge_generation(&registration.tenant, generation, None)
+        db.a.activate_knowledge_generation(&lease, &registration.tenant, generation, None)
             .await
             .unwrap();
         for query in ["facility", "unmatchedkeyword"] {
@@ -182,6 +192,7 @@ async fn duplicate_chunks_expand_the_window_and_failed_rebuild_preserves_active(
 async fn profile_uri_selection_precedes_both_rankings_and_denied_row_decoding() {
     tokio::time::timeout(Duration::from_secs(180), async {
         let db = fixture::TestDb::new().await;
+        let lease = db.a.claim_knowledge_coordinator(&"knowledge-native".parse().unwrap(), veoveo_platform_store::knowledge::CoordinatorId::new()).await.unwrap().unwrap();
         let registration = registration("records", IndexingMode::Content);
         db.a.register_knowledge_collection(&registration, None).await.unwrap();
         let embedding = SyntheticEmbeddings::new();
@@ -195,9 +206,9 @@ async fn profile_uri_selection_precedes_both_rankings_and_denied_row_decoding() 
             records.insert(uri(id), record(&registration, "facility inspection"));
         }
         let source = Source(Mutex::new(records));
-        let generation = Indexer { store: &db.a, source: &source, embeddings: &embedding }
+        let generation = Indexer { lease: &lease, store: &db.a, source: &source, embeddings: &embedding }
             .build(&registration.tenant, std::slice::from_ref(&registration), &spec).await.unwrap();
-        db.a.activate_knowledge_generation(&registration.tenant, generation, None).await.unwrap();
+        db.a.activate_knowledge_generation(&lease, &registration.tenant, generation, None).await.unwrap();
         let table = format!("knowledge_chunk_{}", generation.as_uuid().simple());
         db.a.client().query(format!("UPDATE {table} SET observation = {{malformed: true}} WHERE string::contains(uri, 'aaa-denied') OR string::ends_with(uri, 'x-end-end');"))
             .await.unwrap().check().unwrap();
@@ -226,6 +237,14 @@ async fn profile_uri_selection_precedes_both_rankings_and_denied_row_decoding() 
 async fn installation_label_ceiling_stops_source_text_before_embedding() {
     tokio::time::timeout(Duration::from_secs(180), async {
         let db = fixture::TestDb::new().await;
+        let lease =
+            db.a.claim_knowledge_coordinator(
+                &"knowledge-native".parse().unwrap(),
+                veoveo_platform_store::knowledge::CoordinatorId::new(),
+            )
+            .await
+            .unwrap()
+            .unwrap();
         let registration = registration("records", IndexingMode::Content);
         db.a.register_knowledge_collection(&registration, None)
             .await
@@ -250,6 +269,7 @@ async fn installation_label_ceiling_stops_source_text_before_embedding() {
         let source = Source(Mutex::new([(uri("restricted"), restricted)].into()));
         assert!(
             Indexer {
+                lease: &lease,
                 store: &db.a,
                 source: &source,
                 embeddings: &embedding

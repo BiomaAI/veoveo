@@ -1,4 +1,5 @@
 BEGIN TRANSACTION;
+__LEASE__
     LET $catalog = (
         SELECT *
         FROM ONLY $collection
@@ -15,6 +16,7 @@ BEGIN TRANSACTION;
             AND state IN ['building', 'active']
             AND revision = $specification
     );
+    IF $sync.epoch != $source_epoch OR $sync.owner_epoch != $owner_epoch { THROW 'knowledge_source_changed'; };
     LET $slot = (
         SELECT *
         FROM ONLY $member
@@ -35,5 +37,7 @@ BEGIN TRANSACTION;
     UPDATE ONLY $member SET
         stale = false,
         deleted = false,
-        observation = $observation;
+        observation = $observation,
+        title = $title,
+        valid_until = $valid_until;
 COMMIT TRANSACTION;

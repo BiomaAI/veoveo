@@ -2,6 +2,8 @@
 //! caller-visible candidate before decoding and pagination.
 mod admission;
 mod catalog;
+mod collections;
+mod coordinator;
 mod generations;
 mod members;
 mod reads;
@@ -9,6 +11,9 @@ mod resource_selection;
 mod search;
 use crate::StoreError;
 pub use catalog::{CatalogSelection, CatalogSource};
+pub use collections::CollectionSyncTicket;
+pub use coordinator::{CoordinatorId, CoordinatorLease};
+use coordinator::{fenced, sync_record};
 pub use members::MemberReadTicket;
 pub use reads::{CandidateCursor, CandidateScope, KnowledgeCandidate};
 pub use search::{HybridSearchPage, RankedCandidate, SearchWindow};

@@ -274,7 +274,12 @@ subscribable through `subscriptions/listen`. Its events come from Store LIVE que
 with change-feed recovery through the shared `SubscriptionHub`, which satisfies
 contract rule C27 across restarts and replicas. A process-local broadcast alone does not qualify.
 A notification names the changed URI, or requests reconciliation, and carries no
-content.
+content. The enumeration root signals changes to membership and to any member's
+content or access descriptor. A consumer can therefore subscribe before enumerating
+without first discovering every member URI. Conditional consumers preserve cached
+content only when the complete observation, excluding `observedAt` and `notModified`,
+matches the preceding full observation. An unchanged revision with changed access
+violates K10 and cannot authorize cache reuse.
 
 ## Well-Known Docs Collection
 
@@ -318,7 +323,7 @@ running server. Review enforces K09 and K10.
 | K04 | MUST | Return bounded text or JSON members, and link bytes as `artifact://` resources. |
 | K05 | MUST | Attach a complete observation to every member read whose request declares the extension. |
 | K06 | MUST | Answer a matching `ifNoneMatch` with empty contents and `notModified`, after the same authorization as a full read. |
-| K07 | MUST | For `listen` collections, make members and the collection subscribable, and emit changes from a restart-safe source. |
+| K07 | MUST | For `listen` collections, make members and the collection subscribable from a restart-safe source. The enumeration root signals every member content, access or membership change. |
 | K08 | MUST | Return resource links from declared search tools, restricted to readable resources. |
 | K09 | MUST | Fill observations from domain records only, and keep caller input out of provenance. |
 | K10 | MUST | Change `revision`, and signal the change for `listen` collections, whenever the returned text or the member's access descriptor changes. |

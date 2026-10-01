@@ -103,7 +103,8 @@ impl KnowledgeSource for Source {
         &self,
         _collection: &CollectionDescriptor,
         uri: ResourceUri,
-    ) -> Result<SourceDocument, ServiceError> {
+        previous: Option<&Observation>,
+    ) -> Result<SourceRead, ServiceError> {
         let records = self.0.lock().unwrap();
         let record = records.get(&uri).ok_or(ServiceError::SourceUnavailable)?;
         if record.fail {
@@ -117,7 +118,27 @@ impl KnowledgeSource for Source {
         )
         .access(record.access.clone())
         .build(&record.registration.descriptor)?;
-        Ok(SourceDocument::new(record.text.clone(), observation)?)
+        if let Some(previous) = previous {
+            let mut meta = rmcp::model::RequestMetaObject::default();
+            client::declare_read(&mut meta, Some(previous.revision()));
+            let response = server::member_result(
+                &uri,
+                "text/plain",
+                record.text.clone(),
+                observation.clone(),
+                &record.registration.descriptor,
+                Some(&meta),
+            )?;
+            let conditional =
+                client::validate_read(&response, &uri, Some(previous.revision()))?.unwrap();
+            if conditional.not_modified() {
+                return Ok(SourceRead::NotModified(conditional));
+            }
+        }
+        Ok(SourceRead::Modified(SourceDocument::new(
+            record.text.clone(),
+            observation,
+        )?))
     }
 }
 pub(crate) fn registration(name: &str, indexing: IndexingMode) -> CollectionRegistration {

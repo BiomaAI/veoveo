@@ -339,6 +339,23 @@ impl Observation {
     pub(crate) fn set_not_modified(&mut self, value: bool) {
         self.0.not_modified = value;
     }
+    /// Admit a conditional response without trusting a revision alone to preserve access.
+    pub fn revalidated(&self, previous: &Self) -> Result<Self, KnowledgeError> {
+        let mut normalized = self.clone();
+        normalized.0.not_modified = false;
+        let mut expected = previous.clone();
+        expected.0.observed_at = self.observed_at();
+        if !self.not_modified()
+            || previous.not_modified()
+            || self.observed_at() < previous.observed_at()
+            || normalized != expected
+        {
+            return Err(KnowledgeError(
+                "not-modified observation changed content or access",
+            ));
+        }
+        Ok(normalized)
+    }
     pub fn validate_collection(
         &self,
         collection: &CollectionDescriptor,

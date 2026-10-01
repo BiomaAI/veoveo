@@ -46,6 +46,7 @@ async fn hosted_search_links_catalog_and_embedding_follow_current_sql_authority(
     tokio::time::timeout(Duration::from_secs(180),async {
         let db=fixture::TestDb::new().await;
         let content=collection("records");
+        let lease = db.a.claim_knowledge_coordinator(&content.tenant, veoveo_platform_store::knowledge::CoordinatorId::new()).await.unwrap().unwrap();
         let mut hidden=collection("private");
         hidden.descriptor=hidden.descriptor.with_required_scopes(["media:private".parse().unwrap()]);
         let registrations=vec![content.clone(),hidden.clone()];
@@ -56,8 +57,8 @@ async fn hosted_search_links_catalog_and_embedding_follow_current_sql_authority(
         let member=ResourceUri::new("media://members/flood-inspection").unwrap();
         let source=Source(Mutex::new(BTreeMap::from([(member.clone(),record(&content,"Flood inspection identifies safe access routes"))])));
         let spec=GenerationSpec::new(embedding.space().clone(),"Find passages",ChunkSettings::new("structure-v1",500,0).unwrap(),registrations.iter().map(|r|(r.descriptor.collection().clone(),r.revision())).collect()).unwrap();
-        let generation=Indexer {store:&db.a, source:&source,embeddings:embedding.as_ref()}.build(&content.tenant,&registrations,&spec).await.unwrap();
-        db.a.activate_knowledge_generation(&content.tenant,generation,None).await.unwrap();
+        let generation=Indexer { lease: &lease,store:&db.a, source:&source,embeddings:embedding.as_ref()}.build(&content.tenant,&registrations,&spec).await.unwrap();
+        db.a.activate_knowledge_generation(&lease, &content.tenant,generation,None).await.unwrap();
         // Approval and scope predicates must exclude an undecodable hidden row.
         db.a.client().query("UPDATE knowledge_collection SET document.sourceContractRevision = 'invalid' WHERE collection = 'media.private';").await.unwrap().check().unwrap();
         let server=Server::new(db.b.clone(),embedding,&signing).await;

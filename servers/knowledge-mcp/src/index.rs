@@ -18,18 +18,33 @@ use veoveo_types::TenantId;
 
 pub struct Indexer<'a, S, E> {
     pub store: &'a PlatformStore,
+    pub lease: &'a veoveo_platform_store::knowledge::CoordinatorLease,
     pub source: &'a S,
     pub embeddings: &'a E,
 }
 impl<S: KnowledgeSource, E: Embeddings> Indexer<'_, S, E> {
     /// Build an inactive generation. The coordinator owns source listeners and
     /// activation after enumeration and queued invalidations have settled.
-    pub async fn build(
+    pub async fn prepare(
         &self,
         tenant: &TenantId,
         registrations: &[CollectionRegistration],
         specification: &GenerationSpec,
     ) -> Result<GenerationId, ServiceError> {
+        self.validate_inputs(tenant, registrations, specification)?;
+        let generation = GenerationId::new();
+        self.store
+            .create_knowledge_generation(self.lease, tenant, generation, specification)
+            .await?;
+        Ok(generation)
+    }
+
+    pub(crate) fn validate_inputs(
+        &self,
+        tenant: &TenantId,
+        registrations: &[CollectionRegistration],
+        specification: &GenerationSpec,
+    ) -> Result<(), ServiceError> {
         self.validate_specification(specification)?;
         if self.embeddings.space() != specification.space() {
             return Err(ServiceError::EmbeddingSpace);
@@ -49,15 +64,24 @@ impl<S: KnowledgeSource, E: Embeddings> Indexer<'_, S, E> {
             )
             .into());
         }
-        let generation = GenerationId::new();
-        self.store
-            .create_knowledge_generation(tenant, generation, specification)
-            .await?;
-        // Failed builds stay inactive and can be explicitly reclaimed. Never
-        // replace the active index with a partially traversed source.
+        Ok(())
+    }
+
+    pub async fn build(
+        &self,
+        tenant: &TenantId,
+        registrations: &[CollectionRegistration],
+        specification: &GenerationSpec,
+    ) -> Result<GenerationId, ServiceError> {
+        let generation = self.prepare(tenant, registrations, specification).await?;
+        // Failed builds stay inactive and can be explicitly reclaimed.
         tokio::time::timeout(Duration::from_secs(3600), async {
             for registration in registrations {
-                self.populate(registration, generation, specification)
+                let sync = self
+                    .store
+                    .knowledge_collection_sync(self.lease, registration, generation)
+                    .await?;
+                self.populate(registration, generation, specification, &sync)
                     .await?;
             }
             Ok::<_, ServiceError>(())
@@ -72,6 +96,7 @@ impl<S: KnowledgeSource, E: Embeddings> Indexer<'_, S, E> {
         registration: &CollectionRegistration,
         generation: GenerationId,
         specification: &GenerationSpec,
+        sync: &veoveo_platform_store::knowledge::CollectionSyncTicket,
     ) -> Result<(), ServiceError> {
         let mut cursor = None;
         let mut cursors = BTreeSet::new();
@@ -92,14 +117,7 @@ impl<S: KnowledgeSource, E: Embeddings> Indexer<'_, S, E> {
                     .await?;
             }
             let Some(next) = page.next_cursor() else {
-                self.store
-                    .complete_knowledge_collection(
-                        &registration.tenant,
-                        generation,
-                        registration.descriptor.collection(),
-                        &registration.revision(),
-                    )
-                    .await?;
+                self.store.complete_knowledge_collection(sync).await?;
                 return Ok(());
             };
             if !cursors.insert(next.to_owned()) {
@@ -108,6 +126,26 @@ impl<S: KnowledgeSource, E: Embeddings> Indexer<'_, S, E> {
             cursor = Some(next.to_owned());
         }
         Err(ServiceError::Traversal)
+    }
+
+    /// Reconcile a complete source enumeration under a new source epoch. Missing
+    /// old members stay hidden; enumeration absence does not assert deletion.
+    pub async fn reconcile(
+        &self,
+        registration: &CollectionRegistration,
+        generation: GenerationId,
+        specification: &GenerationSpec,
+    ) -> Result<(), ServiceError> {
+        let sync = self
+            .store
+            .invalidate_knowledge_collection(self.lease, registration, generation)
+            .await?;
+        tokio::time::timeout(
+            Duration::from_secs(3600),
+            self.populate(registration, generation, specification, &sync),
+        )
+        .await
+        .map_err(|_| ServiceError::Deadline)?
     }
 
     /// Invalidation fences old chunks before any source I/O. A failed read,
@@ -125,20 +163,42 @@ impl<S: KnowledgeSource, E: Embeddings> Indexer<'_, S, E> {
         }
         let ticket = self
             .store
-            .begin_knowledge_member_read(registration, generation, specification, &link.uri)
+            .begin_knowledge_member_read(
+                self.lease,
+                registration,
+                generation,
+                specification,
+                &link.uri,
+            )
             .await?;
         tokio::time::timeout(Duration::from_secs(120), async {
-            let document = self
+            let title = link.title.clone().unwrap_or(MemberTitle::new(
+                link.uri.as_str().chars().take(256).collect::<String>(),
+            )?);
+            let previous = ticket.previous().filter(|_| ticket.title() == Some(&title));
+            let read = self
                 .source
-                .read(&registration.descriptor, link.uri.clone())
+                .read(&registration.descriptor, link.uri.clone(), previous)
                 .await?;
+            let document = match read {
+                crate::source::SourceRead::NotModified(observation) => {
+                    let previous = previous.ok_or(KnowledgeError(
+                        "source returned not-modified without a conditional request",
+                    ))?;
+                    observation.revalidated(previous)?;
+                    registration.admit_observation(&observation)?;
+                    observation.validate_collection(&registration.descriptor)?;
+                    self.store
+                        .revalidate_knowledge_member(&ticket, &observation)
+                        .await?;
+                    return Ok(());
+                }
+                crate::source::SourceRead::Modified(document) => document,
+            };
             registration.admit_observation(document.observation())?;
             document
                 .observation()
                 .validate_collection(&registration.descriptor)?;
-            let title = link.title.clone().unwrap_or(MemberTitle::new(
-                link.uri.as_str().chars().take(256).collect::<String>(),
-            )?);
             let metadata;
             let text = match registration.descriptor.indexing() {
                 IndexingMode::Content => document.text(),

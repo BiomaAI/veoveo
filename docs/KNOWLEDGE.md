@@ -23,8 +23,10 @@ and kernel provenance are implemented. Store implements approval fingerprints,
 generation-specific indexes, fenced member replacement and SQL-selected candidate
 pages through the [knowledge storage contract](../platform/store/src/knowledge/DESIGN.md).
 Installed qualification is in progress.
-The `knowledge-mcp` library implements chunking, generation building and hybrid search.
-Hosted transport, source coordination and installed qualification remain in the
+The `knowledge-mcp` library implements chunking, generation building, hybrid search and
+source-listener reconciliation under Store leases. Its authenticated HTTP adapter serves
+search, embeddings and catalog resources. Production gateway discovery/reconnection,
+packaging and installed qualification remain in the
 [implementation plan](PLATFORM_FOUNDATIONS_PLAN.md).
 
 ```text

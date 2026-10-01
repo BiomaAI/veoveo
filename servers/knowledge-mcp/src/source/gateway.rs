@@ -1,5 +1,5 @@
 //! Reuses an authenticated gateway connection owned by the service coordinator.
-use super::{KnowledgeSource, SourceDocument, SourcePage};
+use super::{KnowledgeSource, SourceDocument, SourcePage, SourceRead};
 use crate::ServiceError;
 use rmcp::{
     Peer, RoleClient,
@@ -30,11 +30,12 @@ impl GatewaySource {
         collection: &CollectionDescriptor,
         kind: IndexingReadKind,
         uri: &ResourceUri,
+        previous: Option<&veoveo_mcp_knowledge_extension::Observation>,
     ) -> Result<ReadResourceResult, ServiceError> {
         let (request, mut options) = client::read_request(
             ReadResourceRequestParams::new(uri.as_str()),
             ClientCapabilities::default(),
-            None,
+            previous.map(|observation| observation.revision()),
             PeerRequestOptions::default(),
         );
         options.meta.get_or_insert_default().insert(
@@ -66,7 +67,7 @@ impl KnowledgeSource for GatewaySource {
         uri: ResourceUri,
     ) -> Result<SourcePage, ServiceError> {
         let result = self
-            .read_result(collection, IndexingReadKind::Enumeration, &uri)
+            .read_result(collection, IndexingReadKind::Enumeration, &uri, None)
             .await?;
         let text = text(&result, &uri, 512 * 1024)?;
         serde_json::from_str(text)
@@ -76,14 +77,27 @@ impl KnowledgeSource for GatewaySource {
         &self,
         collection: &CollectionDescriptor,
         uri: ResourceUri,
-    ) -> Result<SourceDocument, ServiceError> {
+        previous: Option<&veoveo_mcp_knowledge_extension::Observation>,
+    ) -> Result<SourceRead, ServiceError> {
         let result = self
-            .read_result(collection, IndexingReadKind::Member, &uri)
+            .read_result(collection, IndexingReadKind::Member, &uri, previous)
             .await?;
-        let observation = client::validate_read(&result, &uri, None)?
-            .ok_or(KnowledgeError("source omitted its knowledge observation"))?;
+        let observation = client::validate_read(
+            &result,
+            &uri,
+            previous.map(|observation| observation.revision()),
+        )?
+        .ok_or(KnowledgeError("source omitted its knowledge observation"))?;
+        if observation.not_modified() {
+            let prior = previous.ok_or(KnowledgeError("unexpected conditional response"))?;
+            observation.revalidated(prior)?;
+            return Ok(SourceRead::NotModified(observation));
+        }
         let text = text(&result, &uri, 64 * 1024)?;
-        Ok(SourceDocument::new(text.to_owned(), observation)?)
+        Ok(SourceRead::Modified(SourceDocument::new(
+            text.to_owned(),
+            observation,
+        )?))
     }
 }
 fn text<'a>(

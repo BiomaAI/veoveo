@@ -1,5 +1,7 @@
 #[derive(Debug, thiserror::Error)]
 pub enum ServiceError {
+    #[error("another knowledge coordinator holds this tenant's lease")]
+    CoordinatorBusy,
     #[error("knowledge input: {0}")]
     Contract(#[from] veoveo_knowledge_contract::KnowledgeError),
     #[error("knowledge source contract is invalid")]

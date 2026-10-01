@@ -8,6 +8,11 @@
   AND collection.tenant = $tenant
   AND collection.collection = collection_id
   AND collection.revision = approval_revision
+  AND member.sync.ready = true
+  AND member.source_epoch = member.sync.epoch
+  AND member.sync.owner_epoch = member.sync.coordinator.epoch
+  AND (collection.document.descriptor.changeSignal = 'immutable' OR member.sync.coordinator.expires_at > time::now())
+  AND (member.valid_until = NONE OR member.valid_until > time::now())
   AND member.stale = false
   AND member.deleted = false
   AND member.generation = $generation

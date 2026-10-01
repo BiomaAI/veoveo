@@ -94,6 +94,11 @@ impl SourceDocument {
     }
 }
 
+pub enum SourceRead {
+    Modified(SourceDocument),
+    NotModified(Observation),
+}
+
 /// The adapter must use the gateway's authenticated knowledge read path and
 /// enforce the requested resource URI. Failures include unqualified not-found;
 /// they never certify deletion. Each call runs under the indexer's deadline.
@@ -107,7 +112,24 @@ pub trait KnowledgeSource: Send + Sync {
         &self,
         collection: &CollectionDescriptor,
         uri: ResourceUri,
-    ) -> impl Future<Output = Result<SourceDocument, ServiceError>> + Send;
+        previous: Option<&Observation>,
+    ) -> impl Future<Output = Result<SourceRead, ServiceError>> + Send;
+}
+
+/// `listen` acknowledges the collection root before returning. Every member
+/// content/access change and enumeration change must invalidate this listener.
+pub trait ObservableSource: KnowledgeSource {
+    type Listener: SourceListener + Send + 'static;
+    fn listen(
+        &self,
+        collection: &CollectionDescriptor,
+    ) -> impl Future<Output = Result<Self::Listener, ServiceError>> + Send;
+}
+
+/// A stream gap or termination is an error and requires a new listener followed
+/// by complete enumeration. No source failure certifies deletion.
+pub trait SourceListener {
+    fn changed(&mut self) -> impl Future<Output = Result<(), ServiceError>> + Send;
 }
 
 pub use veoveo_mcp_knowledge_extension::enumeration_uri;

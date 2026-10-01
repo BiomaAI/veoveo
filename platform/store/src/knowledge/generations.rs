@@ -7,13 +7,16 @@ impl PlatformStore {
     /// in the same transaction that cascades member records and drops its indexes.
     pub async fn remove_knowledge_generation(
         &self,
+        lease: &CoordinatorLease,
         tenant: &TenantId,
         generation: GenerationId,
     ) -> Result<(), StoreError> {
+        let _mutation = lease.mutation().await;
+        lease.check_tenant(tenant)?;
         let sql =
             include_str!("remove_generation.surql").replace("__TABLE__", &chunk_table(generation));
-        self.client()
-            .query(sql)
+        lease
+            .bind(self.client().query(fenced(&sql)))
             .bind(("tenant", tenant.to_string()))
             .bind(("generation", generation_record(generation)))
             .bind(("active", RecordId::new("knowledge_active", tenant.as_str())))
@@ -37,10 +40,13 @@ impl PlatformStore {
     }
     pub async fn create_knowledge_generation(
         &self,
+        lease: &CoordinatorLease,
         tenant: &TenantId,
         id: GenerationId,
         spec: &GenerationSpec,
     ) -> Result<(), StoreError> {
+        let _mutation = lease.mutation().await;
+        lease.check_tenant(tenant)?;
         // DDL cannot bind identifiers or index dimensions. Both substitutions
         // come from closed checked types, never a caller-controlled SQL fragment.
         let table = chunk_table(id);
@@ -54,8 +60,8 @@ impl PlatformStore {
             value.insert("revision", revision.to_string().into_value());
             collections.push(Value::Object(value));
         }
-        self.client()
-            .query(schema)
+        lease
+            .bind(self.client().query(fenced(&schema)))
             .bind(("generation", generation_record(id)))
             .bind(("tenant", tenant.to_string()))
             .bind(("document", Document(spec.clone())))
@@ -82,35 +88,17 @@ impl PlatformStore {
         Ok(document.map(|d| d.0))
     }
 
-    /// The caller finished a complete source enumeration, including deletions.
-    /// Any unresolved or invalidated member prevents this receipt and activation.
-    pub async fn complete_knowledge_collection(
-        &self,
-        tenant: &TenantId,
-        generation: GenerationId,
-        collection: &CollectionId,
-        revision: &veoveo_types::Sha256Digest,
-    ) -> Result<(), StoreError> {
-        self.client()
-            .query(include_str!("coverage.surql"))
-            .bind(("tenant", tenant.to_string()))
-            .bind(("generation", generation_record(generation)))
-            .bind(("collection", collection_record(tenant, collection)))
-            .bind(("coverage", coverage_record(generation, collection)))
-            .bind(("revision", revision.to_string()))
-            .await?
-            .knowledge_check()?;
-        Ok(())
-    }
-
     pub async fn activate_knowledge_generation(
         &self,
+        lease: &CoordinatorLease,
         tenant: &TenantId,
         generation: GenerationId,
         previous: Option<GenerationId>,
     ) -> Result<(), StoreError> {
-        self.client()
-            .query(include_str!("activate.surql"))
+        let _mutation = lease.mutation().await;
+        lease.check_tenant(tenant)?;
+        lease
+            .bind(self.client().query(fenced(include_str!("activate.surql"))))
             .bind(("tenant", tenant.to_string()))
             .bind(("generation", generation_record(generation)))
             .bind(("active", RecordId::new("knowledge_active", tenant.as_str())))

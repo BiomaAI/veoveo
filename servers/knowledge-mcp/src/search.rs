@@ -95,6 +95,9 @@ impl<E: Embeddings> SearchService<'_, E> {
                             >= i64::from(max_age_seconds)
                     }
                 };
+                if stale {
+                    return Err(ServiceError::AccessChanged);
+                }
                 Ok(SearchResult {
                     uri: row.candidate.uri,
                     collection: observation.collection().clone(),

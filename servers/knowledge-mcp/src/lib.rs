@@ -6,6 +6,8 @@ pub mod chunk;
 #[cfg(feature = "contract")]
 pub mod contract;
 #[cfg(feature = "runtime")]
+pub mod coordinator;
+#[cfg(feature = "runtime")]
 pub mod embed;
 #[cfg(feature = "runtime")]
 mod error;

@@ -1,4 +1,5 @@
 BEGIN TRANSACTION;
+__LEASE__
     LET $old = (
         SELECT *
         FROM ONLY $active
@@ -27,6 +28,8 @@ BEGIN TRANSACTION;
         THROW 'knowledge_approval_set_changed';
     };
     FOR $required IN $gen.collections {
+        LET $sync = type::record('knowledge_sync', [<string>record::id($generation), $required.record.collection]);
+        IF $sync.ready != true OR $sync.owner_epoch != $owner_epoch { THROW 'knowledge_source_changed'; };
         LET $catalog = (
             SELECT *
             FROM ONLY $required.record

@@ -219,6 +219,44 @@ fn compiled_document_digest_matches_exact_embedded_bytes() {
     assert_eq!(EMBEDDED.0, include_str!("../DESIGN.md"));
 }
 
+#[test]
+fn conditional_revalidation_requires_unchanged_content_access_and_provenance() {
+    let descriptor = docs_collection();
+    let previous = docs::observation(&descriptor, content_digest("text"), Utc::now());
+    let mut wire = serde_json::to_value(&previous).unwrap();
+    wire["notModified"] = json!(true);
+    wire["observedAt"] = json!(previous.observed_at() + chrono::TimeDelta::seconds(1));
+    let conditional: Observation = serde_json::from_value(wire.clone()).unwrap();
+    let normalized = conditional.revalidated(&previous).unwrap();
+    assert!(!normalized.not_modified());
+    assert_eq!(normalized.observed_at(), conditional.observed_at());
+    assert!(conditional.revalidated(&conditional).is_err());
+    for (field, value) in [
+        ("revision", json!("changed")),
+        ("contentSha256", json!("00".repeat(32))),
+        ("collection", json!("independent.other")),
+        (
+            "observedAt",
+            json!(previous.observed_at() - chrono::TimeDelta::seconds(1)),
+        ),
+        ("modifiedAt", json!(previous.observed_at())),
+        ("notModified", json!(false)),
+        (
+            "access",
+            json!({"tenant":"tenant", "workContext":"work", "owner":{"kind":"principal","id":"owner"},
+            "readPolicy":{"kind":"tenant"}, "dataLabels":[]}),
+        ),
+    ] {
+        let mut changed = wire.clone();
+        changed[field] = value;
+        let changed: Observation = serde_json::from_value(changed).unwrap();
+        assert!(
+            changed.revalidated(&previous).is_err(),
+            "{field} must stay unchanged"
+        );
+    }
+}
+
 #[cfg(feature = "mcp")]
 #[test]
 fn negotiated_reads_validate_content_and_conditionals_preserve_other_capabilities() {

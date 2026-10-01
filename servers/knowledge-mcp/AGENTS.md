@@ -10,19 +10,23 @@ records and source authorization with their owning servers.
 - Source reads go through the gateway with the Knowledge extension declared.
 - Caller collection exposure and access predicates run in SQL before ranking limits
   and decoding. Final access checks reuse the shared evaluator.
-- Fence member reads before source I/O. Failures leave cached chunks stale.
+- Fence member reads before source I/O. Coordinator leases and source/member epochs
+  reject late writes; collection completion requires its Store-issued sync ticket.
+  Failures leave cached chunks stale.
 - Metadata indexing admits only the closed metadata document; source bodies and
   external navigation URLs cannot enter its embeddings.
 - Use the shared GPU embedding client. Contract-only builds exclude service runtime
   dependencies, and source fixtures never count as GPU inference qualification.
 - Start source listeners before building a generation. Activate after complete
-  traversal and reconciliation; keep the prior generation active on failure.
+  traversal and reconciliation. Preserve the prior generation pointer on failure;
+  source loss and expired freshness must still hide its unsafe cached results in SQL.
 
 ## Build And Test
 
 Run `cargo test -p veoveo-knowledge-mcp --tests` for contract and isolated pipeline
-checks. The HTTP suite adds signed gateway requests, current authority changes and
-cross-replica reads. The pipeline fixture needs Docker and the pinned SurrealDB image; it owns its
+checks. The coordination suite adds source-loss restart, conditional reuse and lease
+renewal during slow reads. The HTTP suite adds signed gateway requests, current authority
+changes and cross-replica reads. The fixtures need Docker and the pinned SurrealDB image; each owns its
 containers and has a 180-second timeout per case. Run
 `cargo check -p veoveo-knowledge-mcp --no-default-features --features contract` to
 qualify the public library dependency boundary. Hosted and GPU acceptance follow the

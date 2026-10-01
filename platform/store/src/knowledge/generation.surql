@@ -1,4 +1,5 @@
 BEGIN TRANSACTION;
+__LEASE__
     FOR $required IN $collections {
         LET $catalog = (
             SELECT *
@@ -18,6 +19,11 @@ BEGIN TRANSACTION;
         revision: $revision,
         collections: $collections,
         state: 'building',
+    };
+    FOR $required IN $collections {
+        LET $sync = type::record('knowledge_sync', [<string>record::id($generation), $required.record.collection]);
+        CREATE ONLY $sync CONTENT {generation: $generation, collection: $required.record,
+            coordinator: $coordinator, owner_epoch: $owner_epoch, epoch: 1, ready: false, changed_at: time::now()};
     };
     DEFINE TABLE __TABLE__ SCHEMAFULL PERMISSIONS NONE;
     DEFINE FIELD member ON __TABLE__ TYPE record<knowledge_member>

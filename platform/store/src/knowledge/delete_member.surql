@@ -1,4 +1,5 @@
 BEGIN TRANSACTION;
+__LEASE__
     LET $catalog = (
         SELECT *
         FROM ONLY $collection
@@ -14,6 +15,7 @@ BEGIN TRANSACTION;
             tenant = $tenant
             AND state IN ['building', 'active']
     );
+    IF $sync.epoch != $source_epoch OR $sync.owner_epoch != $owner_epoch { THROW 'knowledge_source_changed'; };
     LET $slot = (
         SELECT *
         FROM ONLY $member
