@@ -26,6 +26,7 @@ pub const MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION: &str =
     "io.modelcontextprotocol/enterprise-managed-authorization";
 pub const MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION: &str =
     "io.modelcontextprotocol/oauth-client-credentials";
+mod knowledge;
 mod policy;
 mod validation;
 mod wire;
@@ -258,6 +259,7 @@ impl GatewayControlPlane {
             }
         }
         for server in &self.servers {
+            knowledge::validate_knowledge_approvals(server, &data_labels)?;
             validate_app_resource_dependencies(server, &servers, &data_labels)?;
             validate_app_tool_dependencies(server, &servers, &data_labels)?;
         }
@@ -627,6 +629,7 @@ impl GatewayControlPlane {
                 &servers,
                 &secret_refs,
             )?;
+            knowledge::validate_indexing_client(client, &profile_by_id, &servers, &policy_by_id)?;
             let Some(context) = work_contexts.get(&client.default_work_context) else {
                 return Err(GatewayControlPlaneError::UnknownOAuthClientWorkContext {
                     client: client.id.clone(),

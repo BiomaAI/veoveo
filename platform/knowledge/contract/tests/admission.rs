@@ -36,7 +36,13 @@ fn metadata_constructor_rejects_body_chunks_and_mismatched_mode() {
             IndexingMode::Metadata,
         )
         .unwrap(),
-        approval: CollectionApproval::Index,
+        approval: KnowledgeCollectionApproval {
+            collection: "fixture.records".parse().unwrap(),
+            mode: CollectionApproval::Index,
+            stewards: ["stewards".parse().unwrap()].into(),
+            authoritative_for: Default::default(),
+            data_labels: ["secret".parse().unwrap(), "restricted".parse().unwrap()].into(),
+        },
         control_revision: Sha256Digest::from_bytes([1; 32]),
     };
     let space = EmbeddingSpace {

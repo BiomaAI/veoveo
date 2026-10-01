@@ -4,6 +4,7 @@ mod discovery;
 mod discovery_watch;
 mod health;
 mod info;
+mod knowledge_indexing;
 mod progress;
 mod prompts;
 mod resource_read;

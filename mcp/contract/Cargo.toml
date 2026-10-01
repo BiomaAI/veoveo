@@ -12,6 +12,7 @@ default = ["analytics"]
 analytics = ["dep:duckdb"]
 
 [dependencies]
+veoveo-knowledge-contract.workspace = true
 veoveo-mcp-knowledge-extension = { workspace = true, features = ["mcp"] }
 veoveo-knowledge-macros.workspace = true
 veoveo-audit-contract.workspace = true

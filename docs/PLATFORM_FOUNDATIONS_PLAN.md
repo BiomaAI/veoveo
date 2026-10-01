@@ -24,6 +24,7 @@ remain open. Chart docs, Time domain adoption, Artifact metadata and Map summari
 implemented locally. The Phase 8 embedding HTTP client passes native contract checks.
 The embedding Helm component and local GPU reference, priority and refusal checks pass.
 The Knowledge library now implements fenced source indexing and SQL hybrid retrieval.
+Typed installation approvals and gateway indexing-client admission pass native checks.
 Installed embedding qualification, Reason and the hosted Knowledge coordinator/API are
 still open. Broader server
 adoption is postponed outside this plan's completion scope. The cluster and BuildKit
@@ -3513,6 +3514,32 @@ concrete-read/selection comparisons, 140 shared MCP contract tests and the found
 suites pass. Strict affected Clippy, workspace all-target compilation, contract-only
 compilation and dependency isolation, SurrealDB 3.3 query parsing and documentation
 validation pass. The cluster and BuildKit stayed stopped; about 61 GiB remains free.
+
+Indexing-admission checkpoint (2026-10-01): source manifests now carry typed collection
+approval, steward groups, authoritative subjects and a retained-data label ceiling.
+OAuth registration binds an automated private-key machine client to approved collections
+and a dedicated read-only resource profile. MCP core imports generic Knowledge domain
+types; source-owned scopes and resource vocabulary stay in their libraries. Source reads
+carry collection and enumeration/member intent. Gateway admission verifies current
+approval before reading and again before delivery. Returned observations must match the
+collection, tenant and label ceiling. The indexer rejects outside-approval text before
+embedding. Member subscriptions require a non-stale observed active member; enumeration
+subscriptions may precede the initial build. Raw Artifact bytes and unrelated operations
+are denied for indexing clients. Native configuration, Store lifecycle, gateway audit
+and source-to-search checks pass in one 170-case batch; strict affected Clippy passes.
+
+The batch exposed short HNSW results for identical vectors on SurrealDB 3.3.0. An isolated
+database reproduction confirmed the failure with the predicate pushed into `KnnScan`.
+Search now completes a short ANN candidate window with exact cosine-distance ranking
+inside SQL, applying the same admission predicate and a 10-second query timeout.
+Semantic-only tests cover denied malformed observations and 200 chunks for one member.
+No Rust post-filter or permission bypass was introduced. Actual-model retrieval quality
+and installed performance still require qualification. Indexing reads retain per-read
+audit until five-minute aggregation ships. Installation client provisioning, catalog
+discovery, hosted MCP, source subscription/revalidation/restart coordination and packaging
+remain open. The cluster and BuildKit stayed stopped throughout this batch.
+Workspace all-target compilation, the Knowledge contract-only build and dependency
+isolation, expanded SurrealDB query validation and all 1,000 documentation links pass.
 
 1. Deliver the shared [embedding runtime](../platform/runtimes/embedding/DESIGN.md)
    before the knowledge service consumes it. Re-verify the latest stable vLLM release

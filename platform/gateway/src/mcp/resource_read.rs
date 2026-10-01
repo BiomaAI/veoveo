@@ -97,6 +97,9 @@ impl GatewayMcp {
         let projection = self.project_resource_for_upstream(&request.uri)?;
         let subject = self.admit_resource_read(&context, &projection).await?;
         let result = async {
+            let indexing = self
+                .admit_indexing_read(&subject, &projection, &context.meta)
+                .await?;
             let declaring_caller = knowledge::server::requested(Some(&context.meta))
                 .map_err(|_| mcp_invalid_params("invalid knowledge capability"))?;
             let condition = knowledge::server::condition(Some(&context.meta))
@@ -207,6 +210,15 @@ impl GatewayMcp {
                     },
                 )
                 .await?;
+            if let Some(permit) = &indexing {
+                self.validate_indexing_delivery(
+                    &subject,
+                    &projection,
+                    permit,
+                    observation.as_ref(),
+                )
+                .await?;
+            }
             prepare_delivery(&mut result, &projection, declaring_caller)?;
             Ok((result, observation))
         }

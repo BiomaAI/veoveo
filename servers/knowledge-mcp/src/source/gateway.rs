@@ -10,7 +10,9 @@ use rmcp::{
     service::PeerRequestOptions,
 };
 use veoveo_knowledge_contract::KnowledgeError;
-use veoveo_mcp_knowledge_extension::client;
+use veoveo_mcp_knowledge_extension::{
+    CollectionDescriptor, INDEXING_READ_KEY, IndexingReadIntent, IndexingReadKind, client,
+};
 use veoveo_types::ResourceUri;
 
 pub struct GatewaySource {
@@ -23,12 +25,25 @@ impl GatewaySource {
         Self { peer }
     }
 
-    async fn read_result(&self, uri: &ResourceUri) -> Result<ReadResourceResult, ServiceError> {
-        let (request, options) = client::read_request(
+    async fn read_result(
+        &self,
+        collection: &CollectionDescriptor,
+        kind: IndexingReadKind,
+        uri: &ResourceUri,
+    ) -> Result<ReadResourceResult, ServiceError> {
+        let (request, mut options) = client::read_request(
             ReadResourceRequestParams::new(uri.as_str()),
             ClientCapabilities::default(),
             None,
             PeerRequestOptions::default(),
+        );
+        options.meta.get_or_insert_default().insert(
+            INDEXING_READ_KEY.into(),
+            serde_json::to_value(IndexingReadIntent {
+                collection: collection.collection().clone(),
+                kind,
+            })
+            .expect("typed indexing intent"),
         );
         let result = self
             .peer
@@ -45,14 +60,26 @@ impl GatewaySource {
     }
 }
 impl KnowledgeSource for GatewaySource {
-    async fn enumerate(&self, uri: ResourceUri) -> Result<SourcePage, ServiceError> {
-        let result = self.read_result(&uri).await?;
+    async fn enumerate(
+        &self,
+        collection: &CollectionDescriptor,
+        uri: ResourceUri,
+    ) -> Result<SourcePage, ServiceError> {
+        let result = self
+            .read_result(collection, IndexingReadKind::Enumeration, &uri)
+            .await?;
         let text = text(&result, &uri, 512 * 1024)?;
         serde_json::from_str(text)
             .map_err(|_| KnowledgeError("invalid source enumeration response").into())
     }
-    async fn read(&self, uri: ResourceUri) -> Result<SourceDocument, ServiceError> {
-        let result = self.read_result(&uri).await?;
+    async fn read(
+        &self,
+        collection: &CollectionDescriptor,
+        uri: ResourceUri,
+    ) -> Result<SourceDocument, ServiceError> {
+        let result = self
+            .read_result(collection, IndexingReadKind::Member, &uri)
+            .await?;
         let observation = client::validate_read(&result, &uri, None)?
             .ok_or(KnowledgeError("source omitted its knowledge observation"))?;
         let text = text(&result, &uri, 64 * 1024)?;

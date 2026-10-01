@@ -83,6 +83,8 @@ impl GatewayMcp {
         let request_context = context.request_context();
         let subject = self.authenticated(request_context)?;
         let accepted = context.accepted().clone();
+        self.admit_indexing_subscription_filter(&subject, &accepted)
+            .await?;
         let snapshot = self.catalog.snapshot();
         let catalog_generation = snapshot.generation();
         let authorization_fingerprint = super::discovery_authorization_fingerprint(&subject)?;
@@ -132,6 +134,41 @@ impl GatewayMcp {
 
         for uri in accepted.resource_subscriptions.iter().flatten() {
             let projection = self.project_resource_for_upstream(uri)?;
+            if let Err(error) = self
+                .admit_indexing_subscription(&subject, &projection, &request_context.meta)
+                .await
+            {
+                use veoveo_audit_contract::{
+                    AuditDetail, AuditOutcome, AuditReadMethod, AuditReason, AuditTarget,
+                };
+                let denied = error.code == rmcp::model::ErrorCode::INVALID_REQUEST;
+                let draft = subject
+                    .audit_draft(
+                        &self.profile_id,
+                        AuditTarget::Resource {
+                            server: projection.server.clone(),
+                            uri: projection.gateway_uri.clone(),
+                        },
+                        AuditDetail::Read {
+                            method: AuditReadMethod::Subscription,
+                        },
+                        if denied {
+                            AuditOutcome::Denied
+                        } else {
+                            AuditOutcome::Failed
+                        },
+                        if denied {
+                            AuditReason::PolicyDenied
+                        } else {
+                            AuditReason::UpstreamFailure
+                        },
+                    )
+                    .map_err(|_| mcp_internal("invalid indexing subscription audit"))?;
+                self.state.record_audit(draft).await.map_err(|_| {
+                    mcp_internal("required indexing subscription audit unavailable")
+                })?;
+                return Err(error);
+            }
             self.authorize_projected_resource(
                 request_context,
                 GatewayAction::SubscriptionsListen,

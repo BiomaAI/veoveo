@@ -15,6 +15,9 @@ pub struct ServerManifest {
     pub mcp_path: MountPath,
     pub upstream: UpstreamEndpoint,
     pub capabilities: McpSurfaceCapabilities,
+    /// Installation approval for this server's declared Knowledge collections.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub knowledge: Vec<veoveo_knowledge_contract::KnowledgeCollectionApproval>,
     #[serde(default)]
     pub resource_projection: ResourceProjectionMode,
     /// Canonical schemes owned by other registered servers that remain unchanged when

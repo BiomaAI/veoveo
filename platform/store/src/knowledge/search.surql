@@ -9,7 +9,7 @@ LET $lexical = (
     ORDER BY score DESC, collection_id ASC, uri ASC, ordinal ASC
     LIMIT $candidates TIMEOUT 10s
 );
-LET $semantic = (
+LET $approximate = (
     SELECT id, collection_id, uri, ordinal, vector::distance::knn() AS distance
     FROM __TABLE__
     WHERE __ADMISSION__
@@ -18,6 +18,18 @@ LET $semantic = (
     ORDER BY distance ASC, collection_id ASC, uri ASC, ordinal ASC
     LIMIT $candidates TIMEOUT 10s
 );
+-- A short ANN page is not proof that the admitted set is exhausted. Equal
+-- vectors and selective predicates can leave the HNSW graph with fewer hits.
+-- Recover the candidate window with an exact SQL scan under the same admission.
+LET $semantic = IF array::len($approximate) < $candidates {
+    SELECT id, collection_id, uri, ordinal,
+        1 - vector::similarity::cosine(embedding, $vector) AS distance
+    FROM __TABLE__
+    WHERE __ADMISSION__
+      AND (array::len($entity_kinds) = 0 OR collection.document.descriptor.entityKind IN $entity_kinds)
+    ORDER BY distance ASC, collection_id ASC, uri ASC, ordinal ASC
+    LIMIT $candidates TIMEOUT 10s
+} ELSE { $approximate };
 LET $fused = search::rrf([$lexical, $semantic], $candidates * 2, 60);
 LET $members = (SELECT collection_id, uri FROM $fused GROUP BY collection_id, uri);
 LET $best = $members.map(|$member| $fused[WHERE collection_id = $member.collection_id AND uri = $member.uri][0]);

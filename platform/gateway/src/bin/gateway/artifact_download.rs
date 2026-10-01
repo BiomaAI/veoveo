@@ -47,13 +47,22 @@ pub(super) async fn download_artifact(
         server: state.artifact_server.clone(),
         artifact_uri,
     };
-    let decision = catalog.decide(PolicyRequest {
+    let mut decision = catalog.decide(PolicyRequest {
         principal: &subject.principal,
         profile: &profile,
         action: GatewayAction::ArtifactRead,
         target: &target,
         trace_id: &trace_id,
     });
+    // Indexing reads require a source observation bound to an approved collection.
+    // The raw byte route has no such observation and cannot serve an indexing client.
+    if catalog
+        .oauth_client(&subject.access_token.oauth_client_id)
+        .is_some_and(|client| client.knowledge_indexing.is_some())
+    {
+        decision.effect = PolicyEffect::Deny;
+        decision.reason = veoveo_mcp_contract::PolicyReasonCode::PolicyDeny;
+    }
     if decision.effect != PolicyEffect::Allow {
         let recorded = async {
             let draft = subject.audit_draft(

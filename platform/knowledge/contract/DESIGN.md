@@ -25,6 +25,20 @@ control-plane revision. Its SHA-256 fingerprint changes when any of these values
 changes. The Store compares this fingerprint in source-read and activation transactions.
 Approval authorizes indexing by the service; it grants no caller permission to read.
 
+`KnowledgeCollectionApproval` names the collection, its `index` or `catalog-only`
+mode, 1–64 steward groups, up to 64 authoritative subjects and up to 64 allowed data
+labels. `KnowledgeSubject` checks a nonempty printable topic of at most 256 UTF-8
+bytes. An empty label set permits unlabelled records only. Registration validates
+collection identity and rejects indexing when the source declares `none`.
+`admit_observation` checks the source descriptor, tenant and label ceiling before
+embedding; member construction repeats the check before storage. All approval fields
+contribute to the registration fingerprint.
+
+`KnowledgeIndexingRegistration` names the 1–1,024 collections that a machine client
+may index. The gateway control-plane contract imports these generic domain types and
+validates the client's authentication and profile. It imports no server-owned scope,
+resource route or tool schema.
+
 `GenerationSpec` binds an embedding space, query task, chunker version and character
 settings, and 1–1,024 collection fingerprints. A new specification creates a new
 generation. Chunk limits allow at most 8,192 characters, and overlap must be smaller

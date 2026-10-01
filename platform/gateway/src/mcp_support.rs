@@ -467,6 +467,7 @@ mod tests {
         resource_projection: ResourceProjectionMode,
     ) -> ServerManifest {
         ServerManifest {
+            knowledge: Vec::new(),
             slug: ServerSlug::new(slug).unwrap(),
             uri_scheme: ResourceScheme::new(uri_scheme).unwrap(),
             mount_path: MountPath::new(format!("/{slug}")).unwrap(),

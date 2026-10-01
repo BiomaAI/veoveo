@@ -441,6 +441,8 @@ views are `ui://` apps rather than bespoke admin REST or hardcoded console pages
 
 The crate owns the typed `ai.veoveo/knowledge-source` descriptors and
 observations, server and client helpers, and the shared `{slug}.docs` collection.
+`src/indexing.rs` owns typed indexing intent and checked enumeration URI expansion
+shared by the source reader and gateway admission.
 [`mcp/knowledge-extension/DESIGN.md`](../mcp/knowledge-extension/DESIGN.md) defines the
 contract, and [`PLATFORM_FOUNDATIONS_PLAN.md`](PLATFORM_FOUNDATIONS_PLAN.md)
 sequences delivery.
@@ -477,6 +479,7 @@ even when that server is first-party.
 | `gateway/runtime_state.rs` | durable auth/runtime record contracts, including display metadata continuity across authorization-code and refresh grants |
 | `internal_auth/request.rs` | signed request-context consistency, original JWT principal and source-token metadata for consumers that recheck current authority; shared Rust/Python fixtures in `testing/fixtures/gateway-request-context.json` |
 | `gateway/validation.rs` | fail-closed cross-reference and invariant validation |
+| `gateway/knowledge.rs` | installation collection approvals and dedicated indexing-client profile validation using Knowledge domain types |
 | `internal_auth.rs` | Ed25519 signing keys, JWKS trust, internal issuer/verifier |
 | `deployment.rs` | Connected/offline Kubernetes topology contract |
 | `bootstrap.rs` | generic installation-time server bootstrap envelope, constants, and semantics |
@@ -629,6 +632,7 @@ Task state lives in this runtime. RMCP defines the Tasks wire types.
 | `mcp/tools.rs` | aggregated tool list with opt-in compatibility helpers; isolates a failing server by default and fails the whole list for `fail_closed` discovery profiles |
 | `mcp/resources.rs` | failure-isolated resource lists and native Task status resource projection |
 | `mcp/resource_read.rs` | fresh resource authorization, source observation validation, negotiated metadata delivery and commit-before-delivery audit records |
+| `mcp/knowledge_indexing.rs` | machine-client collection approval, enumeration/member admission, delivery recheck and subscription restrictions |
 | `mcp/prompts.rs`, `completion.rs` | prompt and completion aggregation |
 | `mcp/tasks.rs` | upstream Task client and the opt-in Task tools for clients with weak Task support |
 | `mcp/health.rs` | `health_url` GET probes; only a success status counts as healthy |

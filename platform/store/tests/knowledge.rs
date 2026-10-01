@@ -40,7 +40,13 @@ fn registration(tenant: &str) -> CollectionRegistration {
             IndexingMode::Content,
         )
         .unwrap(),
-        approval: CollectionApproval::Index,
+        approval: KnowledgeCollectionApproval {
+            collection: "fixture.records".parse().unwrap(),
+            mode: CollectionApproval::Index,
+            stewards: ["stewards".parse().unwrap()].into(),
+            authoritative_for: Default::default(),
+            data_labels: ["secret".parse().unwrap(), "restricted".parse().unwrap()].into(),
+        },
         control_revision: Sha256Digest::from_bytes([1; 32]),
     }
 }
@@ -520,12 +526,32 @@ async fn qualify() {
     db.a.complete_knowledge_collection(tenant, first, collection, &registration.revision())
         .await
         .unwrap();
+    assert!(
+        !db.b
+            .knowledge_member_observed(&registration, visible.uri())
+            .await
+            .unwrap(),
+        "building members cannot authorize subscriptions"
+    );
     db.a.activate_knowledge_generation(tenant, first, None)
         .await
         .unwrap();
     assert_eq!(
         db.b.active_knowledge_generation(tenant).await.unwrap(),
         Some(first)
+    );
+    assert!(
+        db.b.knowledge_member_observed(&registration, visible.uri())
+            .await
+            .unwrap()
+    );
+    let mut foreign_registration = registration.clone();
+    foreign_registration.tenant = "foreign".parse().unwrap();
+    assert!(
+        !db.b
+            .knowledge_member_observed(&foreign_registration, visible.uri())
+            .await
+            .unwrap()
     );
     let scope = scope(&registration);
     let rows =
@@ -583,6 +609,13 @@ async fn qualify() {
             .await
             .unwrap();
     assert!(
+        !db.a
+            .knowledge_member_observed(&registration, visible.uri())
+            .await
+            .unwrap(),
+        "in-flight refresh fences subscription admission"
+    );
+    assert!(
         db.a.replace_knowledge_member(&late, &visible)
             .await
             .is_err()
@@ -601,6 +634,11 @@ async fn qualify() {
     db.a.replace_knowledge_member(&current, &visible)
         .await
         .unwrap();
+    assert!(
+        db.b.knowledge_member_observed(&registration, visible.uri())
+            .await
+            .unwrap()
+    );
     assert_eq!(
         db.b.knowledge_candidates_page(&scope, first, None, 1)
             .await
@@ -616,6 +654,12 @@ async fn qualify() {
     db.a.confirm_knowledge_member_deleted(&deletion)
         .await
         .unwrap();
+    assert!(
+        !db.b
+            .knowledge_member_observed(&registration, visible.uri())
+            .await
+            .unwrap()
+    );
     assert!(
         db.a.replace_knowledge_member(&deletion, &visible)
             .await
@@ -662,6 +706,11 @@ async fn qualify() {
         .await
         .unwrap();
     assert!(
+        db.a.knowledge_member_observed(&registration, visible.uri())
+            .await
+            .unwrap()
+    );
+    assert!(
         db.a.knowledge_candidates_page(&scope, second, Some(&rows[0].cursor()), 1)
             .await
             .is_err(),
@@ -682,10 +731,22 @@ async fn qualify() {
     );
 
     let mut revoked = registration.clone();
-    revoked.approval = CollectionApproval::CatalogOnly;
+    revoked.approval.mode = CollectionApproval::CatalogOnly;
     db.a.register_knowledge_collection(&revoked, Some(&registration.revision()))
         .await
         .unwrap();
+    assert!(
+        !db.b
+            .knowledge_member_observed(&registration, visible.uri())
+            .await
+            .unwrap()
+    );
+    assert!(
+        !db.b
+            .knowledge_member_observed(&revoked, visible.uri())
+            .await
+            .unwrap()
+    );
     assert!(
         db.b.register_knowledge_collection(&registration, Some(&registration.revision()))
             .await

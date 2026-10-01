@@ -67,7 +67,11 @@ struct Record {
 }
 struct Source(Mutex<BTreeMap<ResourceUri, Record>>);
 impl KnowledgeSource for Source {
-    async fn enumerate(&self, uri: ResourceUri) -> Result<SourcePage, ServiceError> {
+    async fn enumerate(
+        &self,
+        _collection: &CollectionDescriptor,
+        uri: ResourceUri,
+    ) -> Result<SourcePage, ServiceError> {
         let parts = ResourceUriParts::parse(uri.as_str()).unwrap();
         let after = parts
             .query_parameters()
@@ -95,7 +99,11 @@ impl KnowledgeSource for Source {
             (matches.len() > after + 100).then(|| (after + 100).to_string()),
         )?)
     }
-    async fn read(&self, uri: ResourceUri) -> Result<SourceDocument, ServiceError> {
+    async fn read(
+        &self,
+        _collection: &CollectionDescriptor,
+        uri: ResourceUri,
+    ) -> Result<SourceDocument, ServiceError> {
         let records = self.0.lock().unwrap();
         let record = records.get(&uri).ok_or(ServiceError::SourceUnavailable)?;
         if record.fail {
@@ -126,7 +134,14 @@ fn registration(name: &str, indexing: IndexingMode) -> CollectionRegistration {
         )
         .unwrap()
         .with_required_scopes([ScopeName::new("fixture:read").unwrap()]),
-        approval: CollectionApproval::Index,
+        approval: KnowledgeCollectionApproval {
+            collection: CollectionId::new("fixture".parse().unwrap(), name.parse().unwrap())
+                .unwrap(),
+            mode: CollectionApproval::Index,
+            stewards: ["stewards".parse().unwrap()].into(),
+            authoritative_for: Default::default(),
+            data_labels: ["secret".parse().unwrap(), "restricted".parse().unwrap()].into(),
+        },
         control_revision: Sha256Digest::from_bytes([2; 32]),
     }
 }
@@ -278,30 +293,32 @@ async fn duplicate_chunks_expand_the_window_and_failed_rebuild_preserves_active(
         db.a.activate_knowledge_generation(&registration.tenant, generation, None)
             .await
             .unwrap();
-        let request = SearchRequest::new(
-            EmbeddingText::new("facility").unwrap(),
-            BTreeSet::new(),
-            BTreeSet::new(),
-            3,
-        )
-        .unwrap();
-        let results = SearchService {
-            store: &db.b,
-            embeddings: &embedding,
+        for query in ["facility", "unmatchedkeyword"] {
+            let request = SearchRequest::new(
+                EmbeddingText::new(query).unwrap(),
+                BTreeSet::new(),
+                BTreeSet::new(),
+                3,
+            )
+            .unwrap();
+            let results = SearchService {
+                store: &db.b,
+                embeddings: &embedding,
+            }
+            .search(&caller(std::slice::from_ref(&registration)), &request)
+            .await
+            .unwrap();
+            assert_eq!(results.results.len(), 3);
+            assert_eq!(
+                results
+                    .results
+                    .iter()
+                    .map(|r| &r.uri)
+                    .collect::<BTreeSet<_>>()
+                    .len(),
+                3
+            );
         }
-        .search(&caller(std::slice::from_ref(&registration)), &request)
-        .await
-        .unwrap();
-        assert_eq!(results.results.len(), 3);
-        assert_eq!(
-            results
-                .results
-                .iter()
-                .map(|r| &r.uri)
-                .collect::<BTreeSet<_>>()
-                .len(),
-            3
-        );
         source
             .0
             .lock()
@@ -381,4 +398,59 @@ async fn profile_uri_selection_precedes_both_rankings_and_denied_row_decoding() 
         let request = SearchRequest::new(EmbeddingText::new("facility").unwrap(), BTreeSet::new(), BTreeSet::new(), 3).unwrap();
         assert!(search.search(&reader, &request).await.unwrap().results.is_empty());
     }).await.expect("profile URI retrieval exceeded 180 seconds");
+}
+
+#[tokio::test]
+async fn installation_label_ceiling_stops_source_text_before_embedding() {
+    tokio::time::timeout(Duration::from_secs(180), async {
+        let db = fixture::TestDb::new().await;
+        let registration = registration("records", IndexingMode::Content);
+        db.a.register_knowledge_collection(&registration, None)
+            .await
+            .unwrap();
+        let embedding = SyntheticEmbeddings::new();
+        let spec = GenerationSpec::new(
+            embedding.space.clone(),
+            "Find passages",
+            ChunkSettings::new("structure-v1", 500, 0).unwrap(),
+            [(
+                registration.descriptor.collection().clone(),
+                registration.revision(),
+            )]
+            .into(),
+        )
+        .unwrap();
+        let mut restricted = record(&registration, "CONTENT-OUTSIDE-INSTALLATION-APPROVAL");
+        restricted
+            .access
+            .data_labels
+            .push("unapproved".parse().unwrap());
+        let source = Source(Mutex::new([(uri("restricted"), restricted)].into()));
+        assert!(
+            Indexer {
+                store: &db.a,
+                source: &source,
+                embeddings: &embedding
+            }
+            .build(
+                &registration.tenant,
+                std::slice::from_ref(&registration),
+                &spec
+            )
+            .await
+            .is_err()
+        );
+        assert!(
+            embedding.inputs.lock().unwrap().is_empty(),
+            "no outside-approval content may reach embeddings"
+        );
+        assert!(
+            db.a.active_knowledge_generation(&registration.tenant)
+                .await
+                .unwrap()
+                .is_none()
+        );
+    })
+    .await
+    .expect("installation approval qualification exceeded 180 seconds");
 }

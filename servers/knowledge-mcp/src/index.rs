@@ -42,7 +42,7 @@ impl<S: KnowledgeSource, E: Embeddings> Indexer<'_, S, E> {
             || &expected != specification.collections()
             || registrations
                 .iter()
-                .any(|r| &r.tenant != tenant || r.approval != CollectionApproval::Index)
+                .any(|r| &r.tenant != tenant || r.approval.mode != CollectionApproval::Index)
         {
             return Err(KnowledgeError(
                 "generation must name each approved tenant collection once",
@@ -78,9 +78,12 @@ impl<S: KnowledgeSource, E: Embeddings> Indexer<'_, S, E> {
         let mut seen = BTreeSet::new();
         for _ in 0..10_000 {
             let uri = enumeration_uri(&registration.descriptor, cursor.as_deref())?;
-            let page = tokio::time::timeout(Duration::from_secs(30), self.source.enumerate(uri))
-                .await
-                .map_err(|_| ServiceError::Deadline)??;
+            let page = tokio::time::timeout(
+                Duration::from_secs(30),
+                self.source.enumerate(&registration.descriptor, uri),
+            )
+            .await
+            .map_err(|_| ServiceError::Deadline)??;
             for member in page.items() {
                 if !seen.insert(member.uri.clone()) || seen.len() > 100_000 {
                     return Err(ServiceError::Traversal);
@@ -125,7 +128,11 @@ impl<S: KnowledgeSource, E: Embeddings> Indexer<'_, S, E> {
             .begin_knowledge_member_read(registration, generation, specification, &link.uri)
             .await?;
         tokio::time::timeout(Duration::from_secs(120), async {
-            let document = self.source.read(link.uri.clone()).await?;
+            let document = self
+                .source
+                .read(&registration.descriptor, link.uri.clone())
+                .await?;
+            registration.admit_observation(document.observation())?;
             document
                 .observation()
                 .validate_collection(&registration.descriptor)?;

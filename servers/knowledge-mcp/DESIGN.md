@@ -57,6 +57,8 @@ member before returning rows. Search begins with 128 candidates per ranking and 
 to 512, 2,048 and 8,192 when chunk duplication prevents a full result page. Exhausting
 that budget returns a diagnostic that asks the caller to narrow collection selection.
 Every search has a 60-second deadline.
+When HNSW returns fewer candidates than its window, Store completes that ranking with
+an exact SQL cosine-distance query under the same permissions and a 10-second timeout.
 
 The final access check uses the existing shared `decide` implementation through the
 foundational `AccessGrant` trait. An access discrepancy aborts the response; it never
@@ -77,10 +79,15 @@ or refuse a collection whose labels exceed the service's clearance.
 
 The service reads sources through the gateway as its own registered machine client.
 Control-plane policy grants that client read access to approved collections only.
-The gateway authorizes those reads exactly as it does for any other caller. It
-audits them as an approved indexing client: one record per collection and five-minute
-window, as [the audit design](../../docs/AUDIT.md#event-selection) specifies, because the chunk
-records already hold each member's revision.
+The gateway applies ordinary caller authorization plus the registered collection and
+installation label ceiling. `GatewaySource` attaches the typed collection and
+enumeration/member intent to each read. The indexer checks observation admission before
+chunking or embedding; member construction checks it again before storage.
+
+Indexing reads currently commit one audit record per read. The hosted integration must
+add one record per collection and five-minute window, as
+[the audit design](../../docs/AUDIT.md#event-selection) specifies. That aggregation and
+the installation's indexing client are pending with coordinator delivery.
 
 ## Catalog
 
@@ -196,7 +203,7 @@ agent's episode budget counts it. Platform services call the runtime directly in
 | `src/embed.rs` | index and search use of `veoveo-embedding-client`; hosted `embed` wiring pending |
 | `src/search.rs` | hybrid query, rank fusion, effective-access filtering, and result links |
 | `platform/store/src/knowledge.rs` | typed catalog, chunk, and index-generation records |
-| `platform/gateway/src/mcp/resource_read.rs` | observation attached to the read's audit record, and indexing-client windows |
+| `platform/gateway/src/mcp/resource_read.rs`, `knowledge_indexing.rs` | collection approval, observation and label admission, and per-read audit; indexing windows pending |
 | `agents/kernel/src/resource.rs` | observation retention and provenance lines in model context |
 
 ## Verification

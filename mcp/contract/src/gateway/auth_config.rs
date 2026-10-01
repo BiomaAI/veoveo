@@ -106,6 +106,9 @@ pub enum CertificateAuthoritySource {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct OAuthClientRegistration {
+    /// Explicit collection grant for the installation's indexing machine client.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub knowledge_indexing: Option<veoveo_knowledge_contract::KnowledgeIndexingRegistration>,
     pub id: OAuthClientId,
     pub authorization_server: AuthorizationServerId,
     /// Canonical context used when this client does not explicitly select a

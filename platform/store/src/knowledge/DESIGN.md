@@ -32,6 +32,11 @@ tables keep both vectors and index structures apart during rebuilds.
 
 Catalog registration compares the previous fingerprint. Concurrent discovery cannot
 overwrite a newer approval or revocation. An identical registration is idempotent.
+Writes and exact reads validate the full typed approval against its descriptor.
+`knowledge_member_observed` selects a member in SQL against the tenant's active
+generation and current approved registration fingerprint. It admits only an observed,
+non-stale, non-deleted member. Gateway indexing subscriptions use this check; an initial
+build subscribes to the declared collection enumeration resource instead.
 Generation creation checks every selected approval and creates its schema and immutable
 specification in one transaction. Its state begins at `building`.
 
@@ -92,6 +97,14 @@ The database executes native `search::rrf`, groups chunks by member and selects 
 best result per member in one transaction. Its HNSW K/EF values come from a closed
 expansion-window enum. Query vectors must match the complete generation embedding
 space. Source-current reconciliation belongs to the service coordinator.
+
+An HNSW response shorter than the candidate window triggers exact cosine-distance
+ranking in SurrealQL with the same admission predicate, ordering and candidate limit.
+That query has a 10-second timeout within the service's 60-second search deadline.
+An approximate graph's short page cannot establish that all readable candidates were
+considered. The explicit exact query recovers those candidates before rank fusion;
+it never loads denied observations into the service. This follows SurrealDB's
+[filtered-search guidance](https://surrealdb.com/blog/why-does-my-vector-search-return-nothing-when-i-add-a-filter-2).
 
 ## Qualification
 

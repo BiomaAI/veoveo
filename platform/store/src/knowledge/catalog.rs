@@ -1,7 +1,6 @@
 use super::*;
 use crate::PlatformStore;
 use veoveo_knowledge_contract::{CollectionApproval, CollectionRegistration};
-use veoveo_mcp_knowledge_extension::IndexingMode;
 
 impl PlatformStore {
     pub async fn register_knowledge_collection(
@@ -9,13 +8,9 @@ impl PlatformStore {
         registration: &CollectionRegistration,
         expected: Option<&veoveo_types::Sha256Digest>,
     ) -> Result<(), StoreError> {
-        if registration.approval == CollectionApproval::Index
-            && registration.descriptor.indexing() == IndexingMode::None
-        {
-            return Err(StoreError::Knowledge(
-                "a non-indexable collection cannot be approved for indexing",
-            ));
-        }
+        registration
+            .validate()
+            .map_err(|e| StoreError::Knowledge(e.0))?;
         self.client().query("BEGIN TRANSACTION;
             LET $prior = (SELECT * FROM ONLY $record);
             IF $prior.revision != $expected AND $prior.revision != $revision { THROW 'knowledge_catalog_revision_changed'; };
@@ -26,9 +21,36 @@ impl PlatformStore {
             .bind(("collection", registration.descriptor.collection().to_string()))
             .bind(("revision", registration.revision().to_string()))
             .bind(("expected", expected.map(ToString::to_string)))
-            .bind(("approved", registration.approval == CollectionApproval::Index))
+            .bind(("approved", registration.approval.mode == CollectionApproval::Index))
             .bind(("document", Document(registration.clone()))).await?.knowledge_check()?;
         Ok(())
+    }
+
+    /// Confirm a previously admitted active member for an indexing subscription.
+    /// Initial generation builds subscribe to collection roots before source reads.
+    pub async fn knowledge_member_observed(
+        &self,
+        registration: &CollectionRegistration,
+        uri: &veoveo_types::ResourceUri,
+    ) -> Result<bool, StoreError> {
+        let mut response = self
+            .client()
+            .query(include_str!("observed_member.surql"))
+            .bind(("tenant", registration.tenant.to_string()))
+            .bind((
+                "active",
+                RecordId::new("knowledge_active", registration.tenant.as_str()),
+            ))
+            .bind((
+                "collection",
+                collection_record(&registration.tenant, registration.descriptor.collection()),
+            ))
+            .bind(("revision", registration.revision().to_string()))
+            .bind(("uri", uri.to_string()))
+            .await?
+            .knowledge_check()?;
+        let matched: Vec<bool> = response.take(0)?;
+        Ok(matched == [true])
     }
 
     pub async fn knowledge_collection(
@@ -43,7 +65,10 @@ impl PlatformStore {
         let Some(Document(document)) = document else {
             return Ok(None);
         };
-        if &document.tenant != tenant || document.descriptor.collection() != collection {
+        if &document.tenant != tenant
+            || document.descriptor.collection() != collection
+            || document.validate().is_err()
+        {
             return integrity();
         }
         Ok(Some(document))

@@ -1,12 +1,9 @@
 use crate::ServiceError;
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    future::Future,
-};
+use std::{collections::BTreeSet, future::Future};
 use veoveo_knowledge_contract::{KnowledgeError, MemberTitle};
 use veoveo_mcp_knowledge_extension::{CollectionDescriptor, Observation, content_digest};
-use veoveo_types::{ResourceUri, ResourceUriBuilder, ResourceUriParts};
+use veoveo_types::{ResourceUri, ResourceUriParts};
 mod gateway;
 pub use gateway::GatewaySource;
 
@@ -103,41 +100,14 @@ impl SourceDocument {
 pub trait KnowledgeSource: Send + Sync {
     fn enumerate(
         &self,
+        collection: &CollectionDescriptor,
         uri: ResourceUri,
     ) -> impl Future<Output = Result<SourcePage, ServiceError>> + Send;
     fn read(
         &self,
+        collection: &CollectionDescriptor,
         uri: ResourceUri,
     ) -> impl Future<Output = Result<SourceDocument, ServiceError>> + Send;
 }
 
-pub fn enumeration_uri(
-    descriptor: &CollectionDescriptor,
-    cursor: Option<&str>,
-) -> Result<ResourceUri, KnowledgeError> {
-    let mut parameters = BTreeMap::new();
-    if let Some(cursor) = cursor {
-        parameters.insert("cursor".to_owned(), cursor.to_owned());
-    }
-    let template = descriptor.enumerate();
-    let uri = template
-        .expand_scalars(&parameters)
-        .map_err(|_| KnowledgeError("invalid enumeration template"))?;
-    // Docs may declare a concrete enumeration URI with no cursor variable.
-    if let Some(cursor) = cursor {
-        let parts = ResourceUriParts::parse(uri.as_str())
-            .map_err(|_| KnowledgeError("invalid enumeration address"))?;
-        if parts.query_parameters().get("cursor").is_none() {
-            return ResourceUriBuilder::from_parts(parts)
-                .query_pair("cursor", cursor)
-                .and_then(|b| b.build())
-                .map_err(|_| KnowledgeError("enumeration must declare a cursor parameter"));
-        }
-        if parts.query_parameters().get("cursor").map(String::as_str) != Some(cursor) {
-            return Err(KnowledgeError(
-                "enumeration template does not bind the requested cursor",
-            ));
-        }
-    }
-    Ok(uri)
-}
+pub use veoveo_mcp_knowledge_extension::enumeration_uri;

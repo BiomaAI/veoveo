@@ -5,6 +5,14 @@ use super::*;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GatewayControlPlaneError {
+    InvalidKnowledgeApproval {
+        server: ServerSlug,
+        reason: &'static str,
+    },
+    InvalidKnowledgeIndexing {
+        client: OAuthClientId,
+        reason: &'static str,
+    },
     DuplicateIdentityProvider(IdentityProviderId),
     DuplicateAuthorizationServer(AuthorizationServerId),
     DuplicateServer(ServerSlug),
@@ -398,6 +406,12 @@ impl AuthorizationServerEndpoint {
 impl fmt::Display for GatewayControlPlaneError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::InvalidKnowledgeApproval { server, reason } => {
+                write!(f, "invalid knowledge approval for {server}: {reason}")
+            }
+            Self::InvalidKnowledgeIndexing { client, reason } => {
+                write!(f, "invalid knowledge indexing client {client}: {reason}")
+            }
             Self::DuplicateIdentityProvider(identity_provider) => {
                 write!(f, "duplicate identity provider `{identity_provider}`")
             }

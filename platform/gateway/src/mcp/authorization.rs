@@ -423,7 +423,9 @@ impl GatewayMcp {
             target,
             trace_id: &trace_id,
         });
-        if !managed_admitted {
+        if !managed_admitted
+            || !super::knowledge_indexing::allows_action(&catalog, subject, action, target)
+        {
             decision.effect = PolicyEffect::Deny;
             decision.reason = PolicyReasonCode::PolicyDeny;
         }

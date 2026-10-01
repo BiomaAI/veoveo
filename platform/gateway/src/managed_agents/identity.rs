@@ -231,6 +231,7 @@ impl GatewayState {
                     }],
                 };
                 let registration = OAuthClientRegistration {
+                    knowledge_indexing: None,
                     id: id.clone(),
                     authorization_server: profile.authorization_server.clone(),
                     default_work_context: context,

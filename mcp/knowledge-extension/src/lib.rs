@@ -4,6 +4,10 @@
 pub mod client;
 pub mod docs;
 mod identity;
+mod indexing;
+pub use indexing::{
+    INDEXING_READ_KEY, IndexingReadIntent, IndexingReadKind, enumeration_uri, is_enumeration_uri,
+};
 pub mod models;
 #[cfg(feature = "mcp")]
 pub mod server;

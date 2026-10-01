@@ -59,6 +59,33 @@ Read results carry private cache scope and zero TTL, allowing current authorizat
 and audit recording on each read. The explicit upstream request path also prevents
 a URI-only SDK cache from substituting for conditional authorization.
 
+## Knowledge Indexing Clients
+
+Server manifests carry optional typed collection approvals. An OAuth client's
+`knowledge_indexing` registration identifies its allowed collections. Control-plane
+validation requires a tenant-bound automated client with `private_key_jwt`, only the
+client-credentials grant and one dedicated resource profile. That profile exposes
+approved source resources and subscriptions. Its policy cannot allow mutations,
+administration, tools, prompts or Tasks.
+
+`mcp/knowledge_indexing.rs` applies the client restriction alongside ordinary policy.
+A read supplies a collection and enumeration/member intent. The gateway compares the
+current source approval with Store's registration before forwarding. Enumeration URIs
+must match the declared page address. Member delivery requires a verified observation
+from that collection within the approved tenant and label set. Rechecking approval
+after the read prevents a changed registration from delivering an in-flight result.
+
+Resource subscriptions use the same collection admission. Enumeration subscriptions
+can precede a build; member subscriptions require a non-stale observed member in the
+active generation. Indexing clients cannot subscribe to tool/prompt changes or Tasks.
+Rejected subscription admission records a denial before returning. The raw Artifact
+download route denies indexing clients because byte delivery cannot establish this
+collection-bound observation contract.
+
+Indexing reads currently commit ordinary per-read audit records. Five-minute collection
+aggregation and installation of the indexing client are pending with the hosted
+Knowledge coordinator in the [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#phase-8-knowledge-service).
+
 ## Qualification
 
 `tests/audit_cli.rs` exercises the public `audit verify` command against disposable

@@ -11,6 +11,7 @@ use std::{
     time::Duration,
 };
 use veoveo_audit_contract::{AuditPartition, AuditQuery, AuditReadScope};
+use veoveo_mcp_contract::GatewayAction;
 use veoveo_types::{ResourceScheme, ResourceUri, ServerSlug};
 
 fn projection() -> GatewayResourceProjection {
@@ -248,4 +249,253 @@ async fn qualify() {
     );
     client.cancel().await.unwrap();
     source.cancel().await.unwrap();
+}
+
+#[path = "../../../../../testing/fixtures/knowledge_control.rs"]
+mod indexing_fixture;
+
+#[tokio::test]
+async fn indexing_gate_binds_approval_enumeration_members_and_revocation() {
+    use veoveo_knowledge_contract::CollectionRegistration;
+    use veoveo_mcp_knowledge_extension::{
+        AccessDescriptor, AccessModel, ChangeSignal, CollectionDescriptor, Freshness,
+        INDEXING_READ_KEY, IndexingMode, IndexingReadIntent, IndexingReadKind, ReadPolicy,
+    };
+    use veoveo_types::{AccessSubject, InvocationMode, InvocationProvenance};
+    tokio::time::timeout(Duration::from_secs(180), async {
+        let db = crate::test_store::TestDb::new().await;
+        let plane = indexing_fixture::plane();
+        plane.validate().unwrap();
+        let mut gateway = super::super::task_ownership_tests::gateway(
+            crate::GatewayState::new(db.a.clone()),
+            plane.clone(),
+        );
+        gateway.profile_id = "knowledge-indexing".parse().unwrap();
+        let mut subject = super::super::task_ownership_tests::subject();
+        subject.principal.kind = veoveo_mcp_contract::PrincipalKind::Service;
+        subject.principal.tenant = Some("tenant-a".parse().unwrap());
+        subject.actor = subject.principal.clone();
+        subject.access_token.oauth_client_id = "operator-service".parse().unwrap();
+        subject.access_token.invocation_mode = InvocationMode::Automated;
+        subject.access_token.initiator = None;
+        subject.authority.tenant = "tenant-a".parse().unwrap();
+        subject.authority.provenance = InvocationProvenance::Automated;
+        let catalog = gateway.catalog.current();
+        let target = veoveo_mcp_contract::PolicyTarget::Server {
+            server: "media".parse().unwrap(),
+        };
+        assert!(super::super::knowledge_indexing::allows_action(
+            &catalog,
+            &subject,
+            GatewayAction::ResourcesRead,
+            &target
+        ));
+        assert!(!super::super::knowledge_indexing::allows_action(
+            &catalog,
+            &subject,
+            GatewayAction::ToolsCall,
+            &target
+        ));
+        assert!(!super::super::knowledge_indexing::allows_action(
+            &catalog,
+            &subject,
+            GatewayAction::ResourcesRead,
+            &veoveo_mcp_contract::PolicyTarget::Server {
+                server: "foreign".parse().unwrap()
+            }
+        ));
+        let registration = CollectionRegistration {
+            tenant: subject.authority.tenant.clone(),
+            approval: plane.servers[0].knowledge[0].clone(),
+            control_revision: veoveo_types::Sha256Digest::from_bytes([1; 32]),
+            descriptor: CollectionDescriptor::new(
+                "media.records".parse().unwrap(),
+                "record".parse().unwrap(),
+                veoveo_types::ResourceTemplateUri::new("media://records{?cursor}").unwrap(),
+                Freshness::max_age(30),
+                ChangeSignal::Listen,
+                AccessModel::WorkContext,
+                IndexingMode::Content,
+            )
+            .unwrap(),
+        };
+        db.a.register_knowledge_collection(&registration, None)
+            .await
+            .unwrap();
+        let project = |text: &str| GatewayResourceProjection {
+            server: "media".parse().unwrap(),
+            gateway_uri: ResourceUri::new(text).unwrap(),
+            upstream_uri: ResourceUri::new(text).unwrap(),
+        };
+        let meta = |kind| {
+            let mut meta = rmcp::model::RequestMetaObject::default();
+            meta.insert(
+                INDEXING_READ_KEY.into(),
+                serde_json::to_value(IndexingReadIntent {
+                    collection: registration.descriptor.collection().clone(),
+                    kind,
+                })
+                .unwrap(),
+            );
+            meta
+        };
+        let enumeration = meta(IndexingReadKind::Enumeration);
+        assert!(
+            gateway
+                .admit_indexing_read(
+                    &subject,
+                    &project("media://records?cursor=next"),
+                    &enumeration
+                )
+                .await
+                .unwrap()
+                .is_some()
+        );
+        assert!(
+            gateway
+                .admit_indexing_read(&subject, &project("media://private"), &enumeration)
+                .await
+                .is_err()
+        );
+        assert!(
+            gateway
+                .admit_indexing_read(
+                    &subject,
+                    &project("media://records?extra=secret"),
+                    &enumeration
+                )
+                .await
+                .is_err()
+        );
+        assert!(
+            gateway
+                .admit_indexing_read(&subject, &project("media://records"), &Default::default())
+                .await
+                .is_err()
+        );
+        gateway
+            .admit_indexing_subscription(&subject, &project("media://records"), &enumeration)
+            .await
+            .unwrap();
+        let member = project("media://record/one");
+        let member_meta = meta(IndexingReadKind::Member);
+        assert!(
+            gateway
+                .admit_indexing_subscription(&subject, &member, &member_meta)
+                .await
+                .is_err(),
+            "unobserved members cannot be subscribed"
+        );
+        let permit = gateway
+            .admit_indexing_read(&subject, &member, &member_meta)
+            .await
+            .unwrap()
+            .unwrap();
+        let observation = |labels: Vec<veoveo_types::DataLabelId>| {
+            Observation::builder(
+                registration.descriptor.collection().clone(),
+                Revision::new("v1").unwrap(),
+                knowledge::content_digest("record"),
+                chrono::Utc::now(),
+            )
+            .access(AccessDescriptor {
+                tenant: subject.authority.tenant.clone(),
+                work_context: subject.authority.work_context.clone(),
+                read_policy: ReadPolicy::Tenant {},
+                owner: AccessSubject::Principal(subject.actor.id.clone()),
+                grants: vec![],
+                data_labels: labels,
+                expires_at: None,
+            })
+            .build(&registration.descriptor)
+            .unwrap()
+        };
+        gateway
+            .validate_indexing_delivery(&subject, &member, &permit, Some(&observation(vec![])))
+            .await
+            .unwrap();
+        assert!(
+            gateway
+                .validate_indexing_delivery(&subject, &member, &permit, None)
+                .await
+                .is_err()
+        );
+        let error = gateway
+            .validate_indexing_delivery(
+                &subject,
+                &member,
+                &permit,
+                Some(&observation(vec!["secret".parse().unwrap()])),
+            )
+            .await
+            .unwrap_err();
+        assert!(
+            gateway
+                .finish_resource_read(&subject, &member, Err(error))
+                .await
+                .is_err()
+        );
+        let page =
+            db.b.audit_page(
+                &AuditReadScope::new(Some(subject.authority.tenant.clone()), false),
+                &AuditQuery::new(AuditPartition::Tenant(subject.authority.tenant.clone())),
+            )
+            .await
+            .unwrap();
+        assert_eq!(page.records.len(), 1);
+        assert_eq!(page.records[0].draft.outcome(), AuditOutcome::Denied);
+        let mut filter = rmcp::model::SubscriptionFilter::new();
+        filter.tools_list_changed = Some(true);
+        assert!(
+            gateway
+                .admit_indexing_subscription_filter(&subject, &filter)
+                .await
+                .is_err()
+        );
+        let page =
+            db.b.audit_page(
+                &AuditReadScope::new(Some(subject.authority.tenant.clone()), false),
+                &AuditQuery::new(AuditPartition::Tenant(subject.authority.tenant.clone())),
+            )
+            .await
+            .unwrap();
+        assert_eq!(page.records.len(), 2);
+        assert!(
+            page.records
+                .iter()
+                .all(|record| record.draft.outcome() == AuditOutcome::Denied)
+        );
+        let mut changed = plane.clone();
+        changed.servers[0].knowledge[0]
+            .authoritative_for
+            .insert(veoveo_knowledge_contract::KnowledgeSubject::new("New approval").unwrap());
+        gateway.catalog.replace(Arc::new(
+            crate::GatewayCatalog::from_control_plane(changed).unwrap(),
+        ));
+        assert!(
+            gateway
+                .validate_indexing_delivery(&subject, &member, &permit, Some(&observation(vec![])))
+                .await
+                .is_err(),
+            "approval changed while source read was in flight"
+        );
+        let mut ordinary = subject.clone();
+        ordinary.access_token.oauth_client_id = "operator-local-public".parse().unwrap();
+        assert!(
+            gateway
+                .admit_indexing_read(&ordinary, &member, &member_meta)
+                .await
+                .is_err(),
+            "ordinary clients cannot assert indexing authority"
+        );
+        gateway
+            .state
+            .audit_writer()
+            .await
+            .shutdown(Duration::from_secs(5))
+            .await
+            .unwrap();
+    })
+    .await
+    .expect("indexing admission exceeded 180 seconds");
 }

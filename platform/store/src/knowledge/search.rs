@@ -41,7 +41,8 @@ pub struct RankedCandidate {
 #[derive(Debug, Clone)]
 pub struct HybridSearchPage {
     pub results: Vec<RankedCandidate>,
-    /// Expand only when chunk duplication consumed the candidate window.
+    /// A full SQL ranking window may need expansion after grouping chunks.
+    /// Short ANN pages are completed by exact SQL distance ranking first.
     pub window_full: bool,
 }
 #[derive(SurrealValue)]

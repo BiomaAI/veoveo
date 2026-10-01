@@ -94,6 +94,7 @@ fn oidc_client_secret() -> SecretReference {
 
 fn media_manifest() -> ServerManifest {
     ServerManifest {
+        knowledge: Vec::new(),
         slug: ServerSlug::new("media").unwrap(),
         uri_scheme: ResourceScheme::new("media").unwrap(),
         mount_path: MountPath::new("/media").unwrap(),
@@ -261,6 +262,7 @@ fn profile() -> GatewayProfile {
 fn oauth_clients() -> Vec<OAuthClientRegistration> {
     vec![
         OAuthClientRegistration {
+            knowledge_indexing: None,
             id: OAuthClientId::new("operator-local-public").unwrap(),
             authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
             default_work_context: WorkContextId::new("mission").unwrap(),
@@ -294,6 +296,7 @@ fn oauth_clients() -> Vec<OAuthClientRegistration> {
             metadata: Value::Null,
         },
         OAuthClientRegistration {
+            knowledge_indexing: None,
             id: OAuthClientId::new("operator-service").unwrap(),
             authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
             default_work_context: WorkContextId::new("mission").unwrap(),

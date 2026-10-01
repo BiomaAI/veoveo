@@ -60,6 +60,7 @@ compilation and emits `include_str!` to track the document as a build input.
 | [W3C DCAT 3](https://www.w3.org/TR/vocab-dcat-3/) | Collection descriptors map to `dcat:Dataset`; this extension uses DCAT terms for alignment and does not serialize RDF |
 | [JSON Schema 2020-12](https://json-schema.org/draft/2020-12/) | Closed schemas generated from the crate's Rust types for every descriptor and observation |
 | Veoveo Work Context | Access descriptors use the tenant, Work Context, grant, and data-label model in [Work Context governance](../../docs/WORK_CONTEXT_GOVERNANCE.md#output-ownership-and-access) |
+| `ai.veoveo/indexing-read` | Gateway request metadata selecting an approved collection and enumeration/member intent; installation client registration establishes authority |
 
 Veoveo owns and versions this extension outside the MCP SEP process.
 
@@ -135,6 +136,23 @@ ends traversal. A continuation cursor is nonempty, at most 4,096 UTF-8 bytes, an
 never repeats during a traversal. Consumers bind it to the declared enumeration
 template's `cursor` variable, or add that query parameter when the declaration is a
 concrete URI. The source selects readable members before ordering and pagination.
+
+## Indexing Requests
+
+An installation-registered indexing client includes `_meta["ai.veoveo/indexing-read"]`
+on source reads and resource subscriptions. `IndexingReadIntent` carries a typed
+collection ID and the `enumeration` or `member` kind. The gateway checks the machine
+client's registered collection set and current installation approval. Ordinary clients
+cannot acquire indexing authority by supplying this metadata. Sources apply their
+ordinary authorization and observation contract; the intent requires no source handler.
+
+`enumeration_uri` expands the declared template through the shared URI implementation.
+It validates the cursor and supports a concrete enumeration URI by adding its cursor
+query parameter. `is_enumeration_uri` rebuilds that address to reject additional paths
+or query parameters. Member delivery requires a collection-matching observation whose
+tenant and labels fit the installation approval. The gateway checks approval again
+after the read. Subscription admission accepts an enumeration resource before building;
+a member requires a current observation in the active index.
 
 ## Observations
 

@@ -115,7 +115,8 @@ impl IndexedMember {
         observation
             .validate_collection(&registration.descriptor)
             .map_err(|_| KnowledgeError("member observation disagrees with its collection"))?;
-        if registration.approval != CollectionApproval::Index
+        registration.admit_observation(&observation)?;
+        if registration.approval.mode != CollectionApproval::Index
             || registration.descriptor.indexing() == IndexingMode::None
             || generation
                 .collections()

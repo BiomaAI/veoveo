@@ -12,6 +12,7 @@ name = "gateway"
 path = "src/bin/gateway.rs"
 
 [dependencies]
+veoveo-knowledge-contract.workspace = true
 veoveo-audit.workspace = true
 veoveo-audit-contract.workspace = true
 opentelemetry.workspace = true

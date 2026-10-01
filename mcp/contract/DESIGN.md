@@ -432,6 +432,20 @@ session locality is never a reason for singleton deployment.
 
 ## Packaging And Registration
 
+Server manifests may approve Knowledge collections through the generic domain types
+in [the Knowledge contract](../../platform/knowledge/contract/DESIGN.md). Each approval
+belongs to the manifest's server and names registered data labels. The manifest must
+offer resources and resource templates. Approvals do not add source-owned vocabulary
+to MCP core.
+
+An OAuth client's optional `knowledge_indexing` registration requires a tenant-bound
+automated `private_key_jwt` client using only `client_credentials` and one dedicated
+profile. Every granted collection needs an explicit `index` approval and source
+resource exposure. The profile disables tools, prompts, Tasks, completion and Artifact
+upload. Its policy allows only resource discovery, reads and subscriptions.
+The [gateway](../../platform/gateway/DESIGN.md#knowledge-indexing-clients) enforces
+collection and observation admission at runtime.
+
 A server ships as an OCI image with a versioned Helm chart. Its gateway entry
 is registered in the typed control plane with its routes and capabilities, and
 states the contract revision the server complies with. Developers add hosted servers

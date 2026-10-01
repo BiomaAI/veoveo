@@ -1,4 +1,6 @@
 //! Knowledge catalog and index contracts shared by persistence and service adapters.
+mod approval;
+pub use approval::{KnowledgeCollectionApproval, KnowledgeIndexingRegistration, KnowledgeSubject};
 mod generation;
 mod member;
 mod title;
@@ -32,10 +34,48 @@ pub enum CollectionApproval {
 pub struct CollectionRegistration {
     pub tenant: TenantId,
     pub descriptor: CollectionDescriptor,
-    pub approval: CollectionApproval,
+    pub approval: KnowledgeCollectionApproval,
     pub control_revision: Sha256Digest,
 }
 impl CollectionRegistration {
+    pub fn validate(&self) -> Result<(), KnowledgeError> {
+        self.approval.validate()?;
+        if &self.approval.collection != self.descriptor.collection() {
+            return Err(KnowledgeError("approval belongs to another collection"));
+        }
+        if self.approval.mode == CollectionApproval::Index
+            && self.descriptor.indexing() == veoveo_mcp_knowledge_extension::IndexingMode::None
+        {
+            return Err(KnowledgeError(
+                "a non-indexable collection cannot be approved for indexing",
+            ));
+        }
+        Ok(())
+    }
+    /// Apply the installation's retained-data ceiling before sending source text
+    /// to embeddings and again when accepting source-bound chunks for storage.
+    pub fn admit_observation(
+        &self,
+        observation: &veoveo_mcp_knowledge_extension::Observation,
+    ) -> Result<(), KnowledgeError> {
+        self.validate()?;
+        observation
+            .validate_collection(&self.descriptor)
+            .map_err(|_| KnowledgeError("observation belongs to another collection"))?;
+        if let Some(access) = observation.access()
+            && (access.tenant != self.tenant
+                || !access
+                    .data_labels
+                    .iter()
+                    .all(|label| self.approval.data_labels.contains(label)))
+        {
+            return Err(KnowledgeError(
+                "source observation exceeds the installation's tenant or data-label approval",
+            ));
+        }
+        Ok(())
+    }
+
     /// Binds source declaration and control-plane approval, including descriptor changes.
     pub fn revision(&self) -> Sha256Digest {
         digest(self)
