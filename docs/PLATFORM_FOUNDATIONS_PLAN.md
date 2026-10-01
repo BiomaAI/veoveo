@@ -25,9 +25,12 @@ implemented locally. The Phase 8 embedding HTTP client passes native contract ch
 The embedding Helm component and local GPU reference, priority and refusal checks pass.
 The Knowledge library now implements fenced source indexing and SQL hybrid retrieval.
 Typed installation approvals and gateway indexing-client admission pass native checks.
-The hosted Knowledge API passes native HTTP and current-authority checks. Installed
-embedding qualification, Reason, machine-client provisioning and Knowledge image publication
-remain open. The gateway source adapter discovers approved
+The hosted Knowledge API passes native HTTP and current-authority checks. Knowledge
+and its embedding runtime are published and deployed with the reference machine client.
+Public catalog, source-linked retrieval, embedding and network-isolation checks pass.
+Domain retrieval evaluation, mutation/restart qualification, public catalog completion
+and subscriptions, indexing audit aggregation and Reason remain open.
+The gateway source adapter discovers approved
 collections and waits for catalog/resource observation readiness before reading.
 The library coordinator qualifies lease renewal, source invalidation, conditional
 reconciliation and restart reuse against isolated Store fixtures.
@@ -3705,9 +3708,28 @@ Installed rollout checkpoint (2026-10-01): Flux fetched `9ab558d8` after the ref
 node restarted. Both new signing/API-key Secrets were provisioned from private local
 files. All ten embedding checkpoint files passed their manifest hashes on the host
 and in the new model PVC; the transfer Pod was deleted after the directory was
-published. Embedding startup, Knowledge indexing and installed acceptance are pending.
+published. Embedding and Knowledge reach readiness, and both Helm releases converge
+on the published charts at reference revision `7da7f84b`.
 The agent manager is Ready in `veoveo-agents`; its separate namespace keeps it outside
 the platform namespace's installation-target Deployment list.
+
+Installed retrieval checkpoint (2026-10-01): an ordinary operator client traverses all
+sixteen approved collections through the public HTTPS gateway and finds one active
+generation. Searches across the approved documentation collections return eleven source
+links whose content digests and indexed revisions match fresh source reads. The public
+embedding tool returns the declared 1,024-dimensional space. The check completes in
+6.70 seconds. The running embedding container reports an RTX 4090 and CUDA 13.0.
+These checks establish initial delivery; domain recall, mutable-source changes,
+revocation, restart recovery and composed load remain separate acceptance work.
+
+Four installed network probes qualify the embedding API's access: an authenticated
+platform request succeeds, an unauthenticated request receives HTTP 401, and pods with
+the excluded `computer-host` label or in another namespace cannot connect. The live CNI
+firewall uses ICMP port-unreachable rejection. The verification guide accepts that
+denial as well as a timeout, with a successful control request against the same Service
+IP and port. All owned probe pods and the temporary namespace are deleted. Cargo's
+installed harness resolves relative configuration and report paths from the repository
+root, independent of its package working directory.
 
 1. Deliver the shared [embedding runtime](../platform/runtimes/embedding/DESIGN.md)
    before the knowledge service consumes it. Re-verify the latest stable vLLM release

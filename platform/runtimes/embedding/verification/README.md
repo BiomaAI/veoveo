@@ -62,6 +62,10 @@ fixtures, and remove every owned test container after it stops.
 
 An unauthenticated `/v1/models` request must return 401. In Kubernetes, check the
 authenticated route from a platform pod, then try it from a `computer-host` pod and
-a pod in a different namespace. Both denied connections must time out within the probe's
-deadline. Test the real CNI policy; Docker networking and Helm rendering cannot qualify
-namespace isolation.
+a pod in a different namespace. Both denied connections must fail before the probe's
+deadline, by rejection or timeout according to the installed CNI. Use the same Service
+IP and port for allowed and denied probes, and require an allowed request to succeed
+in the same run. Confirm that the denied pods ran the client and that the network
+policy caused the failure; missing binaries, DNS failures and unavailable endpoints
+do not qualify. Remove owned probe pods and namespaces afterward. Test the real CNI
+policy; Docker networking and Helm rendering cannot qualify namespace isolation.

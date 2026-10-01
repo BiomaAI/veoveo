@@ -13,8 +13,9 @@ identities and vector admission without runtime dependencies. The
 [HTTP client](client/DESIGN.md) implements authenticated requests, shared request limits,
 priorities, deadlines and response validation. The Helm component implements GPU
 serving, checkpoint verification and namespace isolation. Local CUDA reference,
-scheduling and refusal checks pass. Installed namespace isolation, composed GPU-memory
-qualification and retrieval evaluation remain open. Phase 8 of the
+scheduling and refusal checks pass. Installed namespace isolation and authenticated
+model access pass on the reference cluster. Composed GPU-memory qualification and
+retrieval evaluation remain open. Phase 8 of the
 [implementation plan](../../../docs/PLATFORM_FOUNDATIONS_PLAN.md#phase-8-knowledge-service)
 delivers them before the knowledge service consumes them.
 
@@ -123,8 +124,11 @@ before the first bulk batch completed at 126 ms. The 192-input fixture processed
 300 inputs/second. This checks the shipped combination of vLLM priority and shared
 client admission. It does not isolate scheduler priority from the client's bulk cap,
 or establish Knowledge retrieval throughput. The runtime rejects a corrupted checkpoint,
-startup without CUDA and unauthenticated model discovery. Installed namespace denial
-and memory coexistence with the other workloads require reference-installation checks.
+startup without CUDA and unauthenticated model discovery. Installed probes reach model
+discovery from a platform pod with the API key and receive HTTP 401 without it.
+The same image cannot connect from a `computer-host`-labelled pod or another namespace.
+The reference CNI rejects these connections through its Pod firewall; a connection
+timeout is not required. Memory coexistence under load still requires qualification.
 
 The [verification guide](verification/README.md) owns regeneration and execution.
 

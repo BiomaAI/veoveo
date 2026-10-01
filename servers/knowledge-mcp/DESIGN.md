@@ -118,8 +118,8 @@ configuration. It connects to the shared embedding endpoint using its API key an
 JSON `EmbeddingSpace` file. Database migrations belong to installation bootstrap.
 `healthz` requires every configured tenant worker to have an active index or a complete
 catalog-only selection, and checks Store's control pointer within two seconds.
-`livez` reports HTTP process liveness independently of indexing. Installed readiness
-requires further qualification.
+`livez` reports HTTP process liveness independently of indexing. The reference
+installation reaches readiness after indexing its sixteen approved collections.
 
 ## Packaging And Deployment
 
@@ -235,8 +235,9 @@ chunking or embedding; member construction checks it again before storage.
 
 Indexing reads currently commit one audit record per read. The hosted integration must
 add one record per collection and five-minute window, as
-[the audit design](../../docs/AUDIT.md#event-selection) specifies. That aggregation and
-provisioning the installation's indexing client are pending.
+[the audit design](../../docs/AUDIT.md#event-selection) specifies. That aggregation is
+pending. The reference installation provisions its indexing client and signing Secret
+separately from public worker configuration.
 
 ## Catalog
 
@@ -404,7 +405,8 @@ and searches each approved documentation collection by a source document's title
 Every returned link is read through the source server and checked against its content
 digest and indexed revision. The test also exercises the public embedding tool.
 It allows five minutes, performs no source mutations, closes its MCP connection, and
-writes a private, create-only JSON report without tokens or document text. A running
+writes a private, create-only JSON report without tokens or document text.
+Relative input and report paths resolve from the repository root. A running
 hardware embedding workload is a prerequisite; the shared runtime's GPU acceptance
 establishes hardware execution. These retrieval checks do not measure recall on the
 domain evaluation set.

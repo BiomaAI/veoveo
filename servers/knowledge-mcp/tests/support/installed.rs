@@ -10,7 +10,13 @@ use rmcp::{
     },
 };
 use serde::{Serialize, de::DeserializeOwned};
-use std::{collections::BTreeSet, fs, io::Write, path::PathBuf, time::Duration};
+use std::{
+    collections::BTreeSet,
+    fs,
+    io::Write,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 use veoveo_embedding_contract::{EmbeddingBatch, EmbeddingSpace, EmbeddingText};
 use veoveo_knowledge_mcp::contract::*;
 use veoveo_mcp_contract::{GatewayControlPlane, GatewayProfileId};
@@ -30,9 +36,18 @@ struct InstalledReport {
 }
 
 fn env_path(name: &str) -> Result<PathBuf> {
-    std::env::var_os(name)
+    let path = std::env::var_os(name)
         .map(PathBuf::from)
-        .with_context(|| format!("{name} must name an installation-owned file"))
+        .with_context(|| format!("{name} must name an installation-owned file"))?;
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(Path::parent)
+        .context("Knowledge crate must be under servers/")?;
+    Ok(if path.is_absolute() {
+        path
+    } else {
+        root.join(path)
+    })
 }
 
 #[tokio::test]
