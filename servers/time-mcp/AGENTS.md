@@ -50,7 +50,8 @@ leap second assumptions.
   checks runtime composition independently from the MCP feature.
 - Time owns its private `src/persistence/` queries, driver records and mutation
   validation. Store owns migrations `0019_time_domain.surql` and
-  `0043_time_acquisition_release_index.surql`. Activation uses exact-ID locked reads
+  `0043_time_acquisition_release_index.surql`, and
+  `0102_time_provenance.surql`. Activation uses exact-ID locked reads
   of both pointers, including absence, and their preflight releases. Preserve full
   snapshot comparison and qualify cross-family contention on RocksDB.
   Runtime library tests use the shared
@@ -74,10 +75,13 @@ leap second assumptions.
   All public metadata and immutable calendar/epoch versions use `TimeVersion`.
   Source creation takes `NewTimeSource` with the zero-only `SourceCreationVersion`.
   Check every increment; avoid converting a metadata version back through a raw integer.
-- `catalog/records/lifecycle.rs` preserves unsigned historical body versions while
-  current columns supply typed versions. Keep that stored profile separate from public
-  metadata admission. `tests/metadata_versions.rs` checks schemas and wire boundaries;
-  `src/registry/tests/lifecycle.rs` checks retained bodies and current column authority.
+- Catalog bodies decode through the current public metadata types. Lifecycle columns
+  supply current state and version; zero and overflowing body versions are rejected.
+  Historical formats have no adapter. The foundations installation drains and resets.
+- `catalog/knowledge.rs` binds observations to SQL-admitted records and stored creation
+  provenance. Calendar/epoch/release reads are tenant-shared; events are owner-only.
+  Keep packaged bootstrap references separate from tenant-acquired releases, and keep
+  epoch version URIs distinct in enumeration. Source access and content both affect revisions.
 - `contract/instant.rs` owns subsecond admission and checked total-coordinate
   construction. Keep `SubsecondNanoseconds` through requests, cursors and persistence
   drafts; convert at protocol-library and database-driver adapters. Durations have
@@ -169,4 +173,4 @@ DTO typing and installed qualification remain work in the
 - C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection
 - C24: met
 - C31: pending — installed Discover and list readiness qualification is pending
-- C32: pending — shared typed docs support is wired; K01–K08 qualification is in progress
+- C32: pending — typed docs and five domain collections are implemented; source-policy, provenance, URI and paging checks pass natively; installed K01–K08 qualification and event change/restart probes remain open

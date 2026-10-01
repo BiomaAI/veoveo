@@ -81,7 +81,7 @@ impl AuthorityFiles {
 fn bootstrap_reference(id: &str, kind: AuthorityDatasetKind) -> TimeAuthorityReference {
     let release_id = AuthorityReleaseId::new(id).unwrap();
     TimeAuthorityReference::new(
-        TimeAuthorityReleaseUri::new(&release_id),
+        TimeAuthorityReleaseUri::bootstrap(&release_id),
         kind,
         TimeAuthoritySource::Bootstrap,
         Sha256Digest::from_hex("a".repeat(64)).unwrap(),
@@ -92,6 +92,7 @@ fn bootstrap_reference(id: &str, kind: AuthorityDatasetKind) -> TimeAuthorityRef
 
 async fn scope(store: &PlatformStore, tenant: &str) -> TimeAccessContext {
     TimeAccessContext {
+        work_context: "fixture-context".parse().unwrap(),
         identity: store
             .ensure_identity(
                 tenant,
@@ -602,3 +603,5 @@ async fn event_batches_reuse_authority_and_skip_registered_or_terminal_events() 
     .await
     .expect("event authority batch qualification exceeded 90 seconds");
 }
+
+mod knowledge;

@@ -249,4 +249,13 @@ impl AuthorityRegistry {
         .find(|reference| reference.release_id() == id)
         .cloned()
     }
+
+    pub fn bootstrap_references(&self) -> Vec<TimeAuthorityReference> {
+        let mut references = vec![
+            self.bootstrap.effective().tzdb().clone(),
+            self.bootstrap.effective().leap_seconds().clone(),
+        ];
+        references.sort_by(|a, b| a.release_id().cmp(b.release_id()));
+        references
+    }
 }

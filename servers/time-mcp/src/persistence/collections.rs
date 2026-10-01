@@ -9,6 +9,20 @@ fn validate_limit(limit: u32) -> Result<(), PersistenceError> {
 }
 
 impl TimePersistence {
+    pub(crate) async fn time_authority_releases_page(
+        &self,
+        tenant: TenantId,
+        after: Option<&crate::AuthorityCursor>,
+    ) -> Result<Vec<TimeAuthorityReleaseRecord>, PersistenceError> {
+        let mut result = self
+            .client()
+            .query(include_str!("release_page.surql"))
+            .bind(("tenant", tenant.record_id()))
+            .bind(("after", after.map(|cursor| cursor.release_id().to_string())))
+            .await?
+            .check()?;
+        Ok(result.take(0)?)
+    }
     pub(crate) async fn list_time_calendar_versions(
         &self,
         tenant_id: TenantId,

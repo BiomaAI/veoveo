@@ -24,6 +24,7 @@ impl TimePersistence {
         }
         let now = Utc::now();
         let content = TimeTemporalEventContent {
+            provenance: TimeProvenanceRecord::new(&draft.identity, &draft.work_context),
             tenant: draft.identity.tenant_id.record_id(),
             owner: draft.identity.principal_id.record_id(),
             event_key: draft.event_key.to_string(),

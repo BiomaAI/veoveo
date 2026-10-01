@@ -80,6 +80,7 @@ pub(crate) struct TimeSourceRecord {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
 pub(crate) struct TimeAuthorityReleaseRecord {
+    pub(crate) provenance: TimeProvenanceRecord,
     pub(crate) id: RecordId,
     pub(crate) tenant: RecordId,
     pub(crate) owner: RecordId,
@@ -131,6 +132,7 @@ pub(crate) struct TimeAcquisitionRecord {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
 pub(crate) struct TimeCalendarVersionRecord {
+    pub(crate) provenance: TimeProvenanceRecord,
     pub(crate) id: RecordId,
     pub(crate) tenant: RecordId,
     pub(crate) owner: RecordId,
@@ -146,6 +148,7 @@ pub(crate) struct TimeCalendarVersionRecord {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
 pub(crate) struct TimeMissionEpochRecord {
+    pub(crate) provenance: TimeProvenanceRecord,
     pub(crate) id: RecordId,
     pub(crate) tenant: RecordId,
     pub(crate) owner: RecordId,
@@ -161,6 +164,7 @@ pub(crate) struct TimeMissionEpochRecord {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
 pub(crate) struct TimeTemporalEventRecord {
+    pub(crate) provenance: TimeProvenanceRecord,
     pub(crate) id: RecordId,
     pub(crate) tenant: RecordId,
     pub(crate) owner: RecordId,
@@ -208,6 +212,7 @@ pub(super) struct TimeSourceContent {
 
 #[derive(Clone, Debug, Serialize, Deserialize, SurrealValue)]
 pub(super) struct TimeAuthorityReleaseContent {
+    pub(super) provenance: TimeProvenanceRecord,
     pub(super) tenant: RecordId,
     pub(super) owner: RecordId,
     pub(super) release_key: String,
@@ -245,6 +250,7 @@ pub(super) struct TimeAcquisitionContent {
 
 #[derive(Clone, Debug, Serialize, Deserialize, SurrealValue)]
 pub(super) struct TimeCalendarVersionContent {
+    pub(super) provenance: TimeProvenanceRecord,
     pub(super) tenant: RecordId,
     pub(super) owner: RecordId,
     pub(super) calendar_key: String,
@@ -259,6 +265,7 @@ pub(super) struct TimeCalendarVersionContent {
 
 #[derive(Clone, Debug, Serialize, Deserialize, SurrealValue)]
 pub(super) struct TimeMissionEpochContent {
+    pub(super) provenance: TimeProvenanceRecord,
     pub(super) tenant: RecordId,
     pub(super) owner: RecordId,
     pub(super) epoch_key: String,
@@ -273,6 +280,7 @@ pub(super) struct TimeMissionEpochContent {
 
 #[derive(Clone, Debug, Serialize, Deserialize, SurrealValue)]
 pub(super) struct TimeTemporalEventContent {
+    pub(super) provenance: TimeProvenanceRecord,
     pub(super) tenant: RecordId,
     pub(super) owner: RecordId,
     pub(super) event_key: String,

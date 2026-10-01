@@ -20,8 +20,9 @@ Python observation support, build-time document manifests and live K01–K06 che
 are implemented. Knowledge Store records and transactional generation/member APIs
 pass native SurrealDB 3.3 qualification. Node document observations and executable
 K07/K08 owner probes are implemented. Domain probe fixtures and installed qualification
-remain open. Chart docs adoption is implemented; the remaining Phase 7 collections
-and Phases 8–9 are not implemented. The cluster and BuildKit are stopped.
+remain open. Chart docs and Time domain adoption are implemented. Optimization,
+Artifact and Map domain adoption and Phases 8–9 remain open. The cluster and BuildKit
+are stopped.
 
 The Phase 7 review requires explicit source read policies before domain adoption.
 Time's private events and Optimization's owner/context/profile-scoped Tasks cannot
@@ -30,12 +31,25 @@ now distinguishes tenant, subjects, Work Context sharing and subjects constraine
 the active context and optional profile. Store derives typed admission fields and
 enforces each condition in SQL before decoding and LIMIT. This is a coordinated hard
 cut of the undeployed knowledge format; old observations and indexes require no adapter.
-Time still needs stored creation authority, and the four domain adapters remain open.
 Native qualification covers the source-policy matrix, malformed denied rows before
 LIMIT, Rust/Python closed models and audit disclosure review. Twelve Rust tests,
 26 Python tests and six Console schema tests pass. Workspace all-target compilation,
 affected all-target/all-feature Clippy, TypeScript and SurrealDB 3.3 SQL validation
-pass. The cluster and BuildKit stay stopped; 151 GiB is free after this batch.
+pass.
+
+Time now persists creation provenance for calendars, epochs, events and acquired
+authority releases. Observations preserve tenant sharing or owner-only access from
+the source SQL policy. Versioned epoch URIs enumerate every immutable version.
+Packaged bootstrap authorities have separate profile-readable resources, without an
+invented owner or Work Context. All five domain collections use typed URI pages and
+conditional member reads. Calendar creation rejects documents above the 64 KiB member
+limit. The old zero-version body decoder is removed; this batch requires the planned
+fresh installation reset. Time's native suite, source-policy and authority-page tests,
+URI/authority contracts, Store migration checks and headless Workbench navigation pass.
+Affected strict Clippy and workspace all-target compilation pass. Contract-only tests, compile-fail examples, runtime-only strict Clippy and a
+separately resolved contract consumer pass. The isolated dependency graph excludes
+MCP, Store, HTTP and asynchronous service runtimes. Installed collection qualification and
+event change/restart probes remain open. The cluster and BuildKit stay stopped.
 
 Current direction: every contract change in this plan is a coordinated hard cut.
 Historical data requires no support or migration. Remove compatibility adapters
@@ -2657,9 +2671,9 @@ default owner; the inventory must not become a central domain-type registry.
 | Map | `MapScope` owns handler, Task, and default administrative scope spellings; authoring metadata requests and cursors use typed IDs and shared URI components; identity, Artifact metadata, and geodetic IDs now come from their owning contract libraries; the contract feature excludes runtime dependencies | Migrate remaining addresses and Store query IDs; qualify installed behavior |
 | Coordinate vocabulary | Map owns geodetic IDs; Frames owns worlds, conversions, and typed world/revision/frame addresses; RRD owns recorded frame/geofence metadata. Shared MCP coordinates are removed. Independent contract consumption and schema compatibility pass | Qualify installed consumers with the current absolute frame-ID profile |
 | Map identity admission | Source, restriction, mobility, travel-model and six product-address families use canonical RFC UUIDv5/v7 IDs. Other domain IDs accept broader UUID-library spellings; Store authoring keys check only a prefix, byte bound, and slash exclusion | Apply the owner admission profile to remaining IDs and Store query APIs; qualify current-format installed consumption |
-| Time | The contract feature excludes runtime dependencies; handlers, Tasks, and configuration defaults use `TimeScope`; `TimeResource` owns every URI family and the three collection cursor types. Checked server setup supplies startup, discovery and scope membership. Private runtime persistence owns SQL, mutation drafts and driver records; catalog calls retain domain IDs, versions, completion parents and cursors until driver conversion. Checked catalog decoding binds JSON identity, versions and indexed fields to the stored row; native corruption and immutable-acquisition checks pass | Complete broader DTO types and qualify current-format installed behavior; completion now requires the advertised reserved-expansion zone template |
+| Time | The contract feature excludes runtime dependencies; handlers, Tasks, and configuration defaults use `TimeScope`; `TimeResource` owns every URI family and the five collection cursor types. Checked server setup supplies startup, discovery and scope membership. Private runtime persistence owns SQL, mutation drafts and driver records; catalog calls retain domain IDs, versions, completion parents and cursors until driver conversion. Checked catalog decoding binds JSON identity, versions and indexed fields to the stored row; native corruption and immutable-acquisition checks pass | Complete broader DTO types and qualify current-format installed behavior; completion now requires the advertised reserved-expansion zone template |
 | Time identity admission | Time owns both profiles: public IDs accept bounded prefixed names, including bootstrap authority references, while stored catalog keys require UUIDv7 suffixes. Persistence validates the stored profile without narrowing public provenance; Store has no Time query or draft API and owns the shared connection and migrations | Qualify installed admission; use the distinct current public and stored ID profiles when strengthening metadata construction |
-| Time scalar admission | Clock policies have a checked builder. Metadata versions use `TimeVersion`, with a distinct zero-only source-creation input and private retained-body decoding. `SubsecondNanoseconds` covers instants, expressions, cursors and persistence drafts. Total-coordinate conversion and NTP/UTC epoch arithmetic check seconds overflow; native boundary, transition and retained-row cases pass. JSON keeps its numeric shape. Requests and persistence keep typed guards; exhaustion checks preserve rows and atomically roll back failed retirement | Qualify installed numeric admission; finish remaining expression/projection scalar types and acquisition-state relationships |
+| Time scalar admission | Clock policies have a checked builder. Metadata versions use `TimeVersion`, with a distinct zero-only source-creation input and current-format body decoding. `SubsecondNanoseconds` covers instants, expressions, cursors and persistence drafts. Total-coordinate conversion and NTP/UTC epoch arithmetic check seconds overflow; native boundary, transition and retained-row cases pass. JSON keeps its numeric shape. Requests and persistence keep typed guards; exhaustion checks preserve rows and atomically roll back failed retirement | Qualify installed numeric admission; finish remaining expression/projection scalar types and acquisition-state relationships |
 | Time intervals | `TimeWindow` checks increasing bounds and a common authority at construction and decoding; accessors preserve these invariants. Algebra keeps endpoint uncertainty, selecting the maximum at tied coordinates. Schedule expansion clips to the horizon while preserving recurrence limits and labels. Native membership, metadata, authority and clipping cases pass; independent contract consumption qualifies the unchanged valid wire shape | Qualify current-format installed schedule Tasks and restart recovery |
 | Time active-pointer admission | One SQL statement resolves each visible pointer to an active release with matching tenant, family and key. Pointer identity, history and versions are checked; activation rechecks parent and lifecycle relationships in the transaction. Native corruption, SQL payload exclusion and ten interleaved-mutation rollback cases pass | Qualify installed parent admission and transactional conflict rollback |
 | Time authority contexts | Each engine request validates the joined active selection and provenance before reusing loaded files. Cache keys use the Store tenant type, engine epoch maps are independent, Store signals evict contexts and failures remove cached values. Native restart, isolation, disconnected-observation, provenance and file-recovery cases pass | Qualify installed restart/replica behavior and the declared coordinated upgrade |
@@ -3338,7 +3352,7 @@ content digest as the revision.
 | Server | Collections | Existing provenance | Gaps to close |
 |---|---|---|---|
 | chart | `charts.docs` only | build-time document digests | Docs declaration, observations and conditional reads implemented; installed certification remains open |
-| time | events, calendar versions, epochs, authority releases | `record_version`, calendar `version`, `source_digest`, admin timestamps; owner only in the store | Surface owner and Work Context in observations; paging from Phase 3 |
+| time | events, calendar versions, epoch versions, acquired and packaged authority releases | stored creation tenant, owner and Work Context; content/access revisions, source digests and modification timestamps | Five collections, typed URI pages, observations and conditional reads implemented; installed qualification and event change/restart probes remain open |
 | optimization | problems and solutions (immutable), runs | `digest_sha256`, `authority`, timestamps, engine digest | Surface labels in observations; restart-safe hub from Phase 3 |
 | artifact | artifact metadata (`artifact://metadata/{id}`), never the bytes | compliance metadata: tenant, owner, Work Context, labels, provenance | Cursor paging for `artifact://index`; `modifiedBy` from the occurrence record |
 | map | feature layers, features, publications, locations, facilities, dataset releases | layer and feature revisions, `created_by`, Work Context, labels, changeset sequence, source digests | Return resource links from `search_locations`; declare the other collections from its templates |

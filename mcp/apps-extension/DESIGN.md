@@ -98,7 +98,9 @@ introduce another parameter or fragment. The configured root supplies the scheme
 authority and path.
 
 The shared operational workbench recognizes JSON collection pages with an `items`
-array, a positive integral `limit`, and a `next_cursor` string or null. The item
+array, a positive integral `limit`, and a `next_cursor` string or null. Knowledge
+collections instead use at most 100 URI-bearing `items` and an optional `nextCursor`. The pager recognizes these two current domain contracts and tracks
+the selected resource and cursor together. The item
 count cannot exceed the declared limit. This presentation profile uses the current
 resource's configured root and a `cursor` query parameter; it accepts no replacement
 resource URL from the payload. Domains that use another page shape own their page

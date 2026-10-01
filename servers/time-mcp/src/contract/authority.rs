@@ -12,6 +12,7 @@ use super::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TimeAuthorityError {
     ReleaseIdentity,
+    SourceLocation,
     DatasetKind,
     DuplicateRelease,
     BlankVersionLabel,
@@ -20,6 +21,7 @@ pub enum TimeAuthorityError {
 impl fmt::Display for TimeAuthorityError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
+            Self::SourceLocation => "time authority source and resource location must agree",
             Self::ReleaseIdentity => "time authority release URI and identity must agree",
             Self::DatasetKind => "effective time authority requires TZDB and leap-second references in their declared roles",
             Self::DuplicateRelease => "TZDB and leap-second authority must have distinct release identities",
@@ -134,6 +136,9 @@ impl TimeAuthorityReference {
         source_digest: Sha256Digest,
         version_label: String,
     ) -> Result<Self, TimeAuthorityError> {
+        if release_uri.is_bootstrap() != matches!(source, TimeAuthoritySource::Bootstrap) {
+            return Err(TimeAuthorityError::SourceLocation);
+        }
         if version_label.trim().is_empty() {
             return Err(TimeAuthorityError::BlankVersionLabel);
         }

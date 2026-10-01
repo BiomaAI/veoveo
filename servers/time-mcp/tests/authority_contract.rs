@@ -4,7 +4,7 @@ use veoveo_types::Sha256Digest;
 
 fn reference(name: &str, kind: AuthorityDatasetKind) -> TimeAuthorityReference {
     TimeAuthorityReference::new(
-        TimeAuthorityReleaseUri::new(&AuthorityReleaseId::new(name).unwrap()),
+        TimeAuthorityReleaseUri::bootstrap(&AuthorityReleaseId::new(name).unwrap()),
         kind,
         TimeAuthoritySource::Bootstrap,
         Sha256Digest::from_hex("a".repeat(64)).unwrap(),
@@ -23,7 +23,10 @@ fn reference_construction_preserves_wire_fields_and_derives_identity() {
         },
     ] {
         let id = AuthorityReleaseId::new("time-release-2026b:published").unwrap();
-        let uri = TimeAuthorityReleaseUri::new(&id);
+        let uri = match source {
+            TimeAuthoritySource::Bootstrap => TimeAuthorityReleaseUri::bootstrap(&id),
+            _ => TimeAuthorityReleaseUri::new(&id),
+        };
         let reference = TimeAuthorityReference::new(
             uri.clone(),
             AuthorityDatasetKind::Tzdb,
@@ -294,6 +297,35 @@ fn resolved_and_converted_outputs_reject_either_mismatched_authority_family() {
                 json!({"canonical":wire,"zoned":[],"scales":[]})
             )
             .is_err()
+        );
+    }
+}
+
+#[test]
+fn bootstrap_and_acquired_source_locations_cannot_be_interchanged() {
+    let id = AuthorityReleaseId::new("time-release-fixture").unwrap();
+    for (uri, source) in [
+        (
+            TimeAuthorityReleaseUri::new(&id),
+            TimeAuthoritySource::Bootstrap,
+        ),
+        (
+            TimeAuthorityReleaseUri::bootstrap(&id),
+            TimeAuthoritySource::Acquisition {
+                source_id: TimeSourceId::new("time-source-fixture").unwrap(),
+                acquisition_id: TimeAcquisitionId::new("time-acquisition-fixture").unwrap(),
+            },
+        ),
+    ] {
+        assert_eq!(
+            TimeAuthorityReference::new(
+                uri,
+                AuthorityDatasetKind::Tzdb,
+                source,
+                Sha256Digest::from_bytes([1; 32]),
+                "fixture".into()
+            ),
+            Err(TimeAuthorityError::SourceLocation)
         );
     }
 }

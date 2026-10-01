@@ -4,7 +4,9 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use super::{TimeResourceError, TimeVersion};
 use crate::{
-    contract::{CalendarId, MissionEpochId, SubsecondNanoseconds, TemporalEventId},
+    contract::{
+        AuthorityReleaseId, CalendarId, MissionEpochId, SubsecondNanoseconds, TemporalEventId,
+    },
     uris,
 };
 
@@ -159,5 +161,32 @@ impl EventCursor {
     }
     pub fn nanosecond(&self) -> SubsecondNanoseconds {
         self.position.nanosecond
+    }
+}
+
+cursor_type!(
+    AuthorityCursor,
+    AuthorityReleaseId,
+    uris::AUTHORITY_RELEASES_URI
+);
+cursor_type!(
+    BootstrapAuthorityCursor,
+    AuthorityReleaseId,
+    uris::BOOTSTRAP_AUTHORITIES_URI
+);
+impl AuthorityCursor {
+    pub fn new(id: &AuthorityReleaseId) -> Self {
+        Self::from_position(id.clone())
+    }
+    pub fn release_id(&self) -> &AuthorityReleaseId {
+        &self.position
+    }
+}
+impl BootstrapAuthorityCursor {
+    pub fn new(id: &AuthorityReleaseId) -> Self {
+        Self::from_position(id.clone())
+    }
+    pub fn release_id(&self) -> &AuthorityReleaseId {
+        &self.position
     }
 }

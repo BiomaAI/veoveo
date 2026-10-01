@@ -33,6 +33,7 @@ async fn time_authority_activation_retires_the_previous_release_atomically() {
             .unwrap();
         let create_release =
             |release_key: AuthorityReleaseId, digest: String| TimeAuthorityReleaseDraft {
+                work_context: "fixture-context".parse().unwrap(),
                 identity: identity.clone(),
                 release_key,
                 source_key: source_key.clone(),

@@ -12,6 +12,7 @@ use veoveo_types::{ResourceAddress, ResourceUri};
 pub struct TimeAuthorityReleaseUri {
     wire: String,
     release_id: AuthorityReleaseId,
+    bootstrap: bool,
 }
 
 impl TimeAuthorityReleaseUri {
@@ -26,17 +27,33 @@ impl TimeAuthorityReleaseUri {
         Self {
             wire: uri.into(),
             release_id: release_id.clone(),
+            bootstrap: false,
         }
+    }
+
+    pub fn bootstrap(release_id: &AuthorityReleaseId) -> Self {
+        Self {
+            wire: TimeResource::BootstrapAuthority(release_id.clone()).to_string(),
+            release_id: release_id.clone(),
+            bootstrap: true,
+        }
+    }
+
+    pub fn is_bootstrap(&self) -> bool {
+        self.bootstrap
     }
 
     pub fn parse(value: impl Into<String>) -> Result<Self, TimeResourceError> {
         let value = value.into();
-        let TimeResource::AuthorityRelease(id) = TimeResource::parse(&value)? else {
-            return Err(TimeResourceError::UnknownResource);
+        let (id, bootstrap) = match TimeResource::parse(&value)? {
+            TimeResource::AuthorityRelease(id) => (id, false),
+            TimeResource::BootstrapAuthority(id) => (id, true),
+            _ => return Err(TimeResourceError::UnknownResource),
         };
         Ok(Self {
             wire: value,
             release_id: id,
+            bootstrap,
         })
     }
 

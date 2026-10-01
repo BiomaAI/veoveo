@@ -87,6 +87,14 @@ fn resources() -> Result<Vec<McpResource<TimeResource>>, McpSetupError> {
         (TimeResource::ClockQuality, "Clock quality"),
         (TimeResource::AuthoritiesCurrent, "Active time authorities"),
         (
+            TimeResource::AuthorityReleases { cursor: None },
+            "Acquired time authorities",
+        ),
+        (
+            TimeResource::BootstrapAuthorities { cursor: None },
+            "Packaged time authorities",
+        ),
+        (
             TimeResource::Calendars { cursor: None },
             "Operational calendars",
         ),
@@ -137,15 +145,47 @@ fn template(
 ) -> Result<McpResourceTemplate, McpSetupError> {
     let template = ResourceTemplateUri::new(uri).map_err(|_| McpSetupError::InvalidTemplate)?;
     McpResourceTemplate::new(template, |uri| {
-        ResourceTemplate::new(uri, title)
+        let collection = crate::TimeKnowledgeCollection::for_template(uri);
+        let mut descriptor = ResourceTemplate::new(uri, title)
             .with_title(title)
             .with_description(description)
-            .with_mime_type(mime)
+            .with_mime_type(mime);
+        if let Some(collection) = collection {
+            veoveo_mcp_knowledge_extension::server::attach_collection(
+                &mut descriptor,
+                &collection.descriptor(),
+            );
+        }
+        descriptor
     })
 }
 
 fn resource_templates() -> Result<Vec<McpResourceTemplate>, McpSetupError> {
     [
+        (
+            uris::AUTHORITY_RELEASES_TEMPLATE,
+            "Acquired authority page",
+            "Tenant-scoped authority references.",
+            "application/json",
+        ),
+        (
+            uris::BOOTSTRAP_AUTHORITIES_TEMPLATE,
+            "Packaged authority page",
+            "Packaged authority references.",
+            "application/json",
+        ),
+        (
+            uris::BOOTSTRAP_AUTHORITY_TEMPLATE,
+            "Packaged authority",
+            "Immutable packaged compiler provenance.",
+            "application/json",
+        ),
+        (
+            uris::EPOCH_VERSION_TEMPLATE,
+            "Mission epoch version",
+            "One immutable mission epoch version.",
+            "application/json",
+        ),
         (
             uris::CALENDARS_TEMPLATE,
             "Calendar page",

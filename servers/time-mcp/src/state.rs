@@ -60,6 +60,7 @@ impl TimeApplication {
             .await?;
         Ok(TimeAccessContext {
             identity: platform_identity,
+            work_context: identity.authority.work_context.clone(),
         })
     }
 
@@ -78,7 +79,10 @@ impl TimeApplication {
                 },
             )
             .await?;
-        Ok(TimeAccessContext { identity })
+        Ok(TimeAccessContext {
+            identity,
+            work_context: owner.authority.work_context.clone(),
+        })
     }
 
     pub async fn engine(&self, scope: &TimeAccessContext) -> Result<TemporalEngine> {

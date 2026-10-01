@@ -21,12 +21,14 @@ mod collections;
 mod completion;
 mod drafts;
 mod events;
+mod provenance;
 mod records;
 mod validation;
 
 pub(crate) use activation::AuthorityActivation;
 pub(crate) use active::ActiveAuthoritySnapshot;
 pub(crate) use drafts::*;
+pub(crate) use provenance::TimeProvenanceRecord;
 pub(crate) use records::*;
 pub(crate) use validation::validate_key;
 use validation::*;

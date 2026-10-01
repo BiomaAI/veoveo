@@ -1026,7 +1026,7 @@ admission and recovery synchronize the local worker inventory in
 | `servers/time-mcp/src/contract/digest.rs` | bare-hexadecimal wire adapter, preserved request spelling and canonical SHA-256 content values; contract and retained-record qualification live in `tests/digest_contract.rs` and `src/registry/tests/digest.rs` |
 | `servers/time-mcp/src/catalog/clock.rs` | stored clock-policy identity, scalar and version admission |
 | `servers/time-mcp/src/catalog/records.rs` | checked retained identity, version and indexed metadata decoding; lifecycle-column authority and redacted body diagnostics |
-| `servers/time-mcp/src/catalog/records/lifecycle.rs` | private retained-body decoding that constructs public metadata with the current checked column version; native qualification lives in `src/registry/tests/lifecycle.rs` |
+| `servers/time-mcp/src/catalog/knowledge.rs` and `src/persistence/provenance.rs` | source observations built from SQL-admitted rows and stored creation context; native qualification lives in `src/catalog/tests/knowledge.rs` |
 | `servers/time-mcp/src/registry.rs`, `servers/time-mcp/src/registry/tests.rs` | request-validated tenant authority contexts, cache eviction, isolated epoch maps and replica/file-load qualification; `registry/tests/activation.rs` qualifies preflight conflicts and RocksDB contention |
 | `servers/time-mcp/src/catalog/activation.rs` | private observed activation drafts, catalog admission and publication after registry file preflight |
 | `servers/time-mcp/src/persistence/active.rs`, `servers/time-mcp/src/persistence/activation.rs` | joined active-pointer/release admission, whole-pair snapshot checks and a tenant fence written with activation |

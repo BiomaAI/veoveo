@@ -79,6 +79,7 @@ impl TimePersistence {
         validate_release(&draft)?;
         let now = Utc::now();
         let content = TimeAuthorityReleaseContent {
+            provenance: TimeProvenanceRecord::new(&draft.identity, &draft.work_context),
             tenant: draft.identity.tenant_id.record_id(),
             owner: draft.identity.principal_id.record_id(),
             release_key: draft.release_key.to_string(),

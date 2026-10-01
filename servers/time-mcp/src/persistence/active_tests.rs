@@ -11,6 +11,7 @@ use veoveo_platform_store::PrincipalKind;
 
 async fn scope(store: &PlatformStore, tenant: &str) -> TimeAccessContext {
     TimeAccessContext {
+        work_context: "fixture-context".parse().unwrap(),
         identity: store
             .ensure_identity(
                 tenant,

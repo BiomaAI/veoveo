@@ -1,6 +1,7 @@
 mod activation;
 pub(crate) use activation::ActivationDraft;
 mod clock;
+pub mod knowledge;
 mod pages;
 mod records;
 
@@ -25,8 +26,14 @@ mod tests;
 #[derive(Clone, Debug)]
 pub enum TimeCompletion {
     CalendarId,
-    CalendarVersion { calendar_key: Option<CalendarId> },
+    CalendarVersion {
+        calendar_key: Option<CalendarId>,
+    },
     EpochId,
+    EpochVersion {
+        epoch_key: Option<crate::MissionEpochId>,
+    },
+    AuthorityReleaseId,
     EventId,
 }
 
@@ -49,6 +56,7 @@ use crate::contract::{
 #[derive(Clone, Debug)]
 pub struct TimeAccessContext {
     pub identity: PlatformIdentity,
+    pub work_context: veoveo_types::WorkContextId,
 }
 
 impl TimeAccessContext {
@@ -170,6 +178,7 @@ impl TimeCatalog {
         let record = self
             .persistence
             .create_time_authority_release(TimeAuthorityReleaseDraft {
+                work_context: scope.work_context.clone(),
                 identity: scope.identity.clone(),
                 release_key: release.release_id.clone(),
                 source_key: release.source_id.clone(),
@@ -375,6 +384,7 @@ impl TimeCatalog {
         let record = self
             .persistence
             .create_time_calendar_version(TimeCalendarVersionDraft {
+                work_context: scope.work_context.clone(),
                 identity: scope.identity.clone(),
                 calendar_key: calendar.calendar_id.clone(),
                 calendar_version: calendar.version,
@@ -409,6 +419,7 @@ impl TimeCatalog {
         let record = self
             .persistence
             .create_time_mission_epoch(TimeMissionEpochDraft {
+                work_context: scope.work_context.clone(),
                 identity: scope.identity.clone(),
                 epoch_key: epoch.epoch_id.clone(),
                 name: epoch.name.clone(),
@@ -443,6 +454,7 @@ impl TimeCatalog {
         let record = self
             .persistence
             .create_time_temporal_event(TimeTemporalEventDraft {
+                work_context: scope.work_context.clone(),
                 identity: scope.identity.clone(),
                 event_key: event.event_id.clone(),
                 name: event.name.clone(),

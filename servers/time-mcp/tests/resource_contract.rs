@@ -1,6 +1,7 @@
 use veoveo_time_mcp::contract::{
-    AuthorityReleaseId, CalendarCursor, CalendarId, EpochCursor, EventCursor, MissionEpochId,
-    SubsecondNanoseconds, TemporalEventId, TimeDocument, TimeResource, TimeVersion, TimeZoneId,
+    AuthorityCursor, AuthorityReleaseId, BootstrapAuthorityCursor, CalendarCursor, CalendarId,
+    EpochCursor, EventCursor, MissionEpochId, SubsecondNanoseconds, TemporalEventId, TimeDocument,
+    TimeResource, TimeVersion, TimeZoneId,
 };
 use veoveo_types::{ResourceAddress, ResourceUri};
 
@@ -36,6 +37,39 @@ fn rfc6570_declarations_expand_to_the_typed_domain_builders() {
             uris::ZONE_TEMPLATE,
             TimeResource::Zone(TimeZoneId::new("Etc/GMT+5").unwrap()),
             vec![("zone_id", "Etc/GMT+5".into())],
+        ),
+        (
+            uris::BOOTSTRAP_AUTHORITY_TEMPLATE,
+            TimeResource::BootstrapAuthority(release.clone()),
+            vec![("release_id", release.to_string())],
+        ),
+        (
+            uris::AUTHORITY_RELEASES_TEMPLATE,
+            TimeResource::AuthorityReleases {
+                cursor: Some(AuthorityCursor::new(&release)),
+            },
+            vec![("cursor", AuthorityCursor::new(&release).as_str().to_owned())],
+        ),
+        (
+            uris::BOOTSTRAP_AUTHORITIES_TEMPLATE,
+            TimeResource::BootstrapAuthorities {
+                cursor: Some(BootstrapAuthorityCursor::new(&release)),
+            },
+            vec![(
+                "cursor",
+                BootstrapAuthorityCursor::new(&release).as_str().to_owned(),
+            )],
+        ),
+        (
+            uris::EPOCH_VERSION_TEMPLATE,
+            TimeResource::EpochVersion {
+                id: epoch.clone(),
+                version: version(),
+            },
+            vec![
+                ("epoch_id", epoch.to_string()),
+                ("version", version().get().to_string()),
+            ],
         ),
         (
             uris::AUTHORITY_RELEASE_TEMPLATE,
@@ -356,4 +390,13 @@ fn version_schema_and_admin_paths_enforce_the_database_range() {
     }))
     .unwrap();
     assert_eq!(path.version, version());
+}
+
+#[test]
+fn authority_cursors_cannot_cross_collection_roots() {
+    let release = AuthorityReleaseId::new("time-release-fixture").unwrap();
+    let acquired = AuthorityCursor::new(&release);
+    let bootstrap = BootstrapAuthorityCursor::new(&release);
+    assert!(AuthorityCursor::parse(bootstrap.as_str()).is_err());
+    assert!(BootstrapAuthorityCursor::parse(acquired.as_str()).is_err());
 }

@@ -21,3 +21,10 @@ pub const EVENTS_TEMPLATE: &str = "time://events{?cursor}";
 pub const CALENDAR_TEMPLATE: &str = "time://calendars/{calendar_id}/versions/{version}";
 pub const EPOCH_TEMPLATE: &str = "time://epochs/{epoch_id}";
 pub const EVENT_TEMPLATE: &str = "time://events/{event_id}";
+
+pub const AUTHORITY_RELEASES_URI: &str = "time://authorities/releases";
+pub const BOOTSTRAP_AUTHORITIES_URI: &str = "time://authorities/bootstrap";
+pub const AUTHORITY_RELEASES_TEMPLATE: &str = "time://authorities/releases{?cursor}";
+pub const BOOTSTRAP_AUTHORITIES_TEMPLATE: &str = "time://authorities/bootstrap{?cursor}";
+pub const BOOTSTRAP_AUTHORITY_TEMPLATE: &str = "time://authorities/bootstrap/{release_id}";
+pub const EPOCH_VERSION_TEMPLATE: &str = "time://epochs/{epoch_id}/versions/{version}";

@@ -725,7 +725,7 @@ mod tests {
         dataset_kind: AuthorityDatasetKind,
     ) -> TimeAuthorityReference {
         TimeAuthorityReference::new(
-            TimeAuthorityReleaseUri::new(&release_id),
+            TimeAuthorityReleaseUri::bootstrap(&release_id),
             dataset_kind,
             TimeAuthoritySource::Bootstrap,
             veoveo_types::Sha256Digest::from_hex("a".repeat(64)).unwrap(),

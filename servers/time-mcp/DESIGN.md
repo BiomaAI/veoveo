@@ -45,6 +45,7 @@ retain the `time://` scheme.
 | [Veoveo concrete resource components](../../platform/types/DESIGN.md#concrete-resource-components) | All resource addresses use the shared URL 2.5.8 and percent-encoding 2.3.2 profile with Time's route, ID, and cursor validation. |
 | [URI Template RFC 6570](https://www.rfc-editor.org/rfc/rfc6570) | Discovery declares simple ID variables, reserved expansion for slash-separated zone keys, and form-style cursor queries. The server parses concrete addresses through its typed resource contract. |
 | MCP Tasks extension `io.modelcontextprotocol/tasks` | Version `2026-07-28`; schedule expansion and timeline validation use durable, resumable task operations. |
+| [Veoveo knowledge source extension](../../mcp/knowledge-extension/DESIGN.md) | `ai.veoveo/knowledge-source` declares documentation and Time-owned collections, typed source observations, conditional reads, and URI enumeration. Events use Store-backed change notifications. |
 | [RFC 3339](https://www.rfc-editor.org/rfc/rfc3339.html) | UTC and numeric-offset timestamp input and canonical UTC output, including explicit leap-second handling. |
 | [RFC 9557](https://www.rfc-editor.org/rfc/rfc9557.html) | Timestamp input with an IANA time-zone annotation and explicit ambiguity policy. |
 | IANA Time Zone Database and [TZif RFC 8536](https://www.rfc-editor.org/rfc/rfc8536.html) | Versioned civil-time authority, compiled release products, zone completion, and fold/gap resolution. |
@@ -193,8 +194,9 @@ carry the corresponding ID, version, zone key, or collection cursor. The parser 
 the shared URI components and the builder emits one spelling for each address. Reads
 and subscriptions use this same contract. Unsupported parameters, fragments, encoded
 ID aliases, relative paths, and incorrect ID families are rejected before dispatch.
-`TimeAuthorityReleaseUri` restricts provenance fields to the authority-release variant
-and requires an `AuthorityReleaseId` when constructed.
+`TimeAuthorityReleaseUri` restricts provenance fields to acquired or packaged authority
+references and requires an `AuthorityReleaseId` when constructed. The reference builder
+checks that the URI variant agrees with the source kind.
 
 `TimeVersion` validates the positive signed database range. `TimeZoneId` validates a
 relative TZDB key with nonempty ASCII name components and a maximum of 1024 bytes;
@@ -258,7 +260,7 @@ current release of the other family. The engine reloads the pair as one context,
 which keeps civil and physical projections coherent.
 
 Every effective family also carries a compiler-ready `TimeAuthorityReference`.
-The reference names its immutable `time://authorities/releases/{release_id}` URI,
+The reference names its immutable acquired-release or packaged-bootstrap URI,
 release id, dataset kind, version label, and canonical SHA-256 digest. Acquired
 releases name the registered source and producing acquisition. Image-provided
 authorities use the explicit `bootstrap` source kind and a digest of the packaged
@@ -540,6 +542,33 @@ check. Clients obtain the reference through `resources/templates/list`; other te
 spellings do not select the zone completion handler. Contract and discovery tests
 qualify the current template against the typed zone builder.
 
+### Knowledge Collections
+
+Time declares calendar versions, epoch versions, events, acquired authority releases
+and packaged bootstrap authorities through `ai.veoveo/knowledge-source`. Collection
+pages contain at most 100 `items`, each with a typed `uri` and `title`, and an optional
+`nextCursor`. Source SQL selects tenant and event owner before ordering and LIMIT.
+Every epoch version has its own member URI; the unversioned epoch resource selects
+the current version for operational callers.
+
+Calendar, epoch and acquired-release observations carry the stored tenant, creating
+principal and Work Context with `readPolicy: {kind: "tenant"}`. Events use `subjects`
+and remain readable only by their owner. A reader's selected context never supplies
+provenance. The source checks logical identities against the native ownership links.
+Revisions bind both the returned JSON and its access descriptor. Conditional reads
+follow the same SQL admission as full reads and use private zero-TTL delivery.
+
+The packaged bootstrap collection uses profile access and carries no invented record
+owner or context. Its member addresses use `time://authorities/bootstrap/{release_id}`;
+tenant-acquired references use `time://authorities/releases/{release_id}`. The typed
+reference builder rejects disagreement between source kind and resource address.
+Both kinds retain their original compiler digests. Calendar and epoch versions and
+compiler references are immutable. Event observations include the current stored
+modification time, and event changes use the existing Store-backed subscriptions.
+Events do not claim a last-modifying principal because scheduler transitions record
+no actor. Immutable members attribute creation to their stored owner. Member JSON is
+limited to 64 KiB; calendar creation rejects a larger document before writing it.
+
 ### Resources
 
 | URI | Content |
@@ -575,11 +604,15 @@ Resource templates expose:
 ```text
 time://zones/{+zone_id}
 time://authorities/releases/{release_id}
+time://authorities/releases{?cursor}
+time://authorities/bootstrap/{release_id}
+time://authorities/bootstrap{?cursor}
 time://calendars{?cursor}
 time://epochs{?cursor}
 time://events{?cursor}
 time://calendars/{calendar_id}/versions/{version}
 time://epochs/{epoch_id}
+time://epochs/{epoch_id}/versions/{version}
 time://events/{event_id}
 ```
 
@@ -729,54 +762,30 @@ from the results. Reads never repair or rewrite retained data.
 | Mission epoch | ID, version, name, TAI seconds and nanosecond | none |
 | Temporal event | ID, name, due TAI seconds and nanosecond | state, record version |
 
-Lifecycle columns can advance while a historical JSON body keeps its earlier values.
-Retirement uses this rule for release state and version. Acquisition creation time
-in the public body records enqueue time; the row's creation time records insertion.
-Acquisition updates preserve the public creation time, source and expected digest.
-The catalog checks those values before dispatch, and the SQL version predicate fences
-competing updates. Stored lifecycle versions must be positive. A staged acquisition
-release reference must satisfy the stored release-ID profile. Body decoding and
-consistency errors identify the entity and field without quoting stored content.
-
-`catalog/records/lifecycle.rs` owns decoding of the existing unversioned lifecycle
-body representation. Its private DTOs admit the historical unsigned `record_version`
-field, including zero and values above the database range, while the checked column
-supplies the public `TimeVersion`. Bodies with negative, missing or nonnumeric
-counters still fail admission. The decoder preserves the same field shape and reads
-without rewriting storage. Calendar and epoch versions describe immutable identities
-and must agree with their columns; they use the positive type in both representations.
-These decoders remain necessary while stored lifecycle bodies can trail their columns;
-retiring them requires an explicit persisted-format migration with recovery and rollback.
-
-Public metadata and inline calendar/epoch inputs require positive versions within
-the database range. Clients must use the creation shape only when creating a source.
-The Time owner qualifies this stricter input profile through the coordinated drain
-and retained-data preflight below. Valid response and creation wire values are unchanged.
+Lifecycle columns can advance while a valid JSON body keeps its earlier state and
+version. Retirement uses this rule for release state and version. Public contract
+models decode every body; zero, overflowing, missing and nonnumeric versions fail.
+Calendar and epoch versions describe immutable identities and must agree with their
+columns. Acquisition updates preserve creation time, source and expected digest,
+and SQL version predicates fence competing updates. Diagnostics identify the entity
+and field without quoting stored content.
 
 `catalog/clock.rs` checks the physical clock-policy ID and tenant, converts stored
 signed scalars without narrowing, and admits the policy and version through their
 contract types. Invalid scalar diagnostics name the field without quoting stored
 values. Reads leave rejected rows unchanged.
 
-The metadata admission profile uses the existing tables and JSON representation.
-The Time owner must preflight retained catalogs before an installation upgrade,
-checking bodies and keys under each tenant and event owner, plus clock scalar bounds
-and positive lifecycle versions. Every stored instant fraction must be within
-`0..=999999999`; matching out-of-range JSON and indexed columns still fail admission.
-Each instant binding and configured bootstrap pair must use distinct release IDs for
-TZDB and leap seconds. Preflight retained instant bodies and bootstrap configuration
-for this condition before the coordinated upgrade. Reference decoding checks repeated
-URI/ID agreement, dataset roles and nonblank labels without rewriting persisted data.
-The public instant and Unix/TAI schemas declare this same subsecond range. Clients must
-send policies within the declared bounds;
-zero-version update requests are supported only where the absence guard applies. Export rejected rows
-for investigation and correct them through an explicit operator repair before retrying.
-Drain Time requests, acquisition workers and event watchers during the coordinated
-upgrade; overlapping readers could otherwise disagree about corrupt records. Keep a
-database snapshot and the prior image for rollback. The upgrade performs no conversion,
-and rollback restores that snapshot with the prior image. The disposable reference
-installation uses the foundations plan's authorized reset. Installed preflight and
-rollback qualification remain pending.
+Every stored instant fraction must be within `0..=999999999`. Each instant binding
+and configured bootstrap pair must use distinct release IDs for TZDB and leap seconds.
+Reference decoding checks repeated URI/ID agreement, source location, dataset roles
+and nonblank labels. The public instant and Unix/TAI schemas declare the same
+subsecond range. Zero-version update requests apply only to an absence guard.
+
+The foundations installation takes a coordinated reset. Drain Time requests,
+acquisition workers and event watchers before deploying the required provenance
+fields and distinct bootstrap resource addresses. Start from a fresh Store and
+reacquire tenant releases. The implementation supplies no historical-body adapter
+or mixed-version rollout. Current-format restart recovery uses the persisted records.
 
 `persistence/active.rs` selects tenant pointers and resolves their releases within
 one SQL statement. The release subquery applies tenant, family, key and active-state
@@ -784,8 +793,7 @@ predicates. A visible pointer without a matching release fails the read; only an
 absent pointer permits bootstrap selection during reload. Pointer admission checks
 its physical tenant/family key, positive version, stored release-ID syntax and
 previous-release history. Catalog decoding then checks the selected release body.
-These checks leave retained records unchanged. Preflight must include both pointers
-and their referenced releases under the same upgrade and rollback procedure.
+These checks leave stored records unchanged and apply after every restart.
 
 Broader public DTO construction and installed activation qualification have work in
 the foundations inventory.
@@ -863,8 +871,8 @@ Examples of agent requests include:
 | `src/contract/resolution.rs` | resolved instant/release agreement, read-only metadata and flat projection wire fields |
 | `src/contract/window.rs` | checked half-open bounds, authority agreement and metadata-preserving intersection |
 | `src/catalog.rs`, `src/catalog/pages.rs` | typed catalog operations, domain body decoding, collection envelopes and completion |
-| `src/catalog/records.rs` | retained body/key and indexed-field checks, lifecycle-column decoding and redacted metadata errors |
-| `src/catalog/records/lifecycle.rs` | retained lifecycle-body DTOs and construction with the checked current column version |
+| `src/catalog/records.rs` | current body/key and indexed-field checks, lifecycle-column decoding and redacted metadata errors |
+| `src/catalog/knowledge.rs` and `src/persistence/provenance.rs` | source-owned knowledge reads, stored creation context and checked observation attribution |
 | `src/persistence/` | private typed query/mutation interfaces, SurrealDB driver records, admission and SQL visibility |
 | `src/persistence/active.rs`, `src/persistence/activation.rs` | joined pointer/release admission and transactional activation relationship checks |
 | `src/index.rs` | collection-bound opaque cursors and page envelopes |

@@ -14,7 +14,9 @@ use crate::uris;
 mod cursor;
 mod identifiers;
 mod release;
-pub use cursor::{CalendarCursor, EpochCursor, EventCursor};
+pub use cursor::{
+    AuthorityCursor, BootstrapAuthorityCursor, CalendarCursor, EpochCursor, EventCursor,
+};
 pub use identifiers::{TimeDocument, TimeZoneId};
 pub use release::TimeAuthorityReleaseUri;
 
@@ -76,6 +78,13 @@ pub enum TimeResource {
     ClockQuality,
     AuthoritiesCurrent,
     AuthorityRelease(AuthorityReleaseId),
+    AuthorityReleases {
+        cursor: Option<AuthorityCursor>,
+    },
+    BootstrapAuthority(AuthorityReleaseId),
+    BootstrapAuthorities {
+        cursor: Option<BootstrapAuthorityCursor>,
+    },
     Zone(TimeZoneId),
     Calendars {
         cursor: Option<CalendarCursor>,
@@ -88,6 +97,10 @@ pub enum TimeResource {
         cursor: Option<EpochCursor>,
     },
     Epoch(MissionEpochId),
+    EpochVersion {
+        id: MissionEpochId,
+        version: TimeVersion,
+    },
     Events {
         cursor: Option<EventCursor>,
     },
@@ -105,6 +118,12 @@ impl TimeResource {
             }),
             ("time", "epochs", []) => Some(Self::Epochs {
                 cursor: page_cursor(&parts, EpochCursor::parse)?,
+            }),
+            ("time", "authorities", ["releases"]) => Some(Self::AuthorityReleases {
+                cursor: page_cursor(&parts, AuthorityCursor::parse)?,
+            }),
+            ("time", "authorities", ["bootstrap"]) => Some(Self::BootstrapAuthorities {
+                cursor: page_cursor(&parts, BootstrapAuthorityCursor::parse)?,
             }),
             ("time", "events", []) => Some(Self::Events {
                 cursor: page_cursor(&parts, EventCursor::parse)?,
@@ -128,6 +147,17 @@ impl TimeResource {
                 ("time", "authorities", ["releases", id]) => Self::AuthorityRelease(
                     AuthorityReleaseId::new(*id).map_err(|_| TimeResourceError::InvalidId)?,
                 ),
+                ("time", "authorities", ["bootstrap", id]) => Self::BootstrapAuthority(
+                    AuthorityReleaseId::new(*id).map_err(|_| TimeResourceError::InvalidId)?,
+                ),
+                ("time", "epochs", [id, "versions", version]) => Self::EpochVersion {
+                    id: MissionEpochId::new(*id).map_err(|_| TimeResourceError::InvalidId)?,
+                    version: TimeVersion::new(
+                        version
+                            .parse()
+                            .map_err(|_| TimeResourceError::InvalidVersion)?,
+                    )?,
+                },
                 ("time", "zones", components) => {
                     // A TZDB key is itself a slash-separated domain name. URI
                     // splitting/decoding has already happened in the shared parser.
@@ -209,6 +239,24 @@ impl ResourceAddress for TimeResource {
             Self::AuthorityRelease(id) => {
                 ("time://authorities/releases", vec![id.to_string()], None)
             }
+            Self::AuthorityReleases { cursor } => (
+                uris::AUTHORITY_RELEASES_URI,
+                vec![],
+                cursor.as_ref().map(AuthorityCursor::as_str),
+            ),
+            Self::BootstrapAuthorities { cursor } => (
+                uris::BOOTSTRAP_AUTHORITIES_URI,
+                vec![],
+                cursor.as_ref().map(BootstrapAuthorityCursor::as_str),
+            ),
+            Self::BootstrapAuthority(id) => {
+                (uris::BOOTSTRAP_AUTHORITIES_URI, vec![id.to_string()], None)
+            }
+            Self::EpochVersion { id, version } => (
+                uris::EPOCHS_URI,
+                vec![id.to_string(), "versions".into(), version.get().to_string()],
+                None,
+            ),
             Self::Zone(id) => (
                 "time://zones",
                 id.components().map(str::to_owned).collect(),

@@ -9,10 +9,14 @@ impl TimePersistence {
         validate_positive("calendar_version", draft.calendar_version.get() as i64)?;
         validate_text("name", &draft.name, 256)?;
         validate_zone_id(&draft.zone_id)?;
+        if draft.canonical_json.len() > 64 * 1024 {
+            return Err(invalid("calendar", "must fit the 64 KiB resource limit"));
+        }
         validate_json(&draft.canonical_json)?;
         let now = Utc::now();
         let record_key = format!("{}:{}", draft.calendar_key, draft.calendar_version.get());
         let content = TimeCalendarVersionContent {
+            provenance: TimeProvenanceRecord::new(&draft.identity, &draft.work_context),
             tenant: draft.identity.tenant_id.record_id(),
             owner: draft.identity.principal_id.record_id(),
             calendar_key: draft.calendar_key.to_string(),
@@ -71,6 +75,7 @@ impl TimePersistence {
         let now = Utc::now();
         let record_key = format!("{}:{}", draft.epoch_key, draft.epoch_version.get());
         let content = TimeMissionEpochContent {
+            provenance: TimeProvenanceRecord::new(&draft.identity, &draft.work_context),
             tenant: draft.identity.tenant_id.record_id(),
             owner: draft.identity.principal_id.record_id(),
             epoch_key: draft.epoch_key.to_string(),

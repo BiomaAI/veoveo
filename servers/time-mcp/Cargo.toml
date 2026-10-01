@@ -53,6 +53,7 @@ contract = [
     "dep:serde",
     "dep:serde_json",
     "dep:veoveo-types",
+    "dep:veoveo-mcp-knowledge-extension",
 ]
 runtime = [
     "contract",
@@ -80,6 +81,7 @@ runtime = [
 ]
 mcp = [
     "runtime",
+    "veoveo-mcp-knowledge-extension/mcp",
     "dep:axum",
     "dep:clap",
     "dep:dotenvy",
@@ -90,6 +92,7 @@ mcp = [
 ]
 
 [dependencies]
+veoveo-mcp-knowledge-extension = { workspace = true, features = ["contract"], optional = true }
 veoveo-types = { workspace = true, optional = true }
 anyhow = { workspace = true, optional = true }
 axum = { workspace = true, optional = true }

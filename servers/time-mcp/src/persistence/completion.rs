@@ -11,7 +11,7 @@ impl TimePersistence {
         if !(1..=101).contains(&limit) {
             return Err(invalid("limit", "must be in 1..=101"));
         }
-        let (table, field, predicate, calendar_key) = match domain {
+        let (table, field, predicate, parent_key) = match domain {
             TimeCompletion::CalendarId => ("time_calendar_version", "calendar_key", "true", None),
             TimeCompletion::CalendarVersion { calendar_key } => {
                 if let Some(key) = calendar_key.as_ref() {
@@ -20,11 +20,20 @@ impl TimePersistence {
                 (
                     "time_calendar_version",
                     "type::string(calendar_version)",
-                    "($calendar_key = NONE OR calendar_key = $calendar_key)",
-                    calendar_key,
+                    "($parent_key = NONE OR calendar_key = $parent_key)",
+                    calendar_key.map(|key| key.to_string()),
                 )
             }
             TimeCompletion::EpochId => ("time_mission_epoch", "epoch_key", "true", None),
+            TimeCompletion::EpochVersion { epoch_key } => (
+                "time_mission_epoch",
+                "type::string(epoch_version)",
+                "($parent_key = NONE OR epoch_key = $parent_key)",
+                epoch_key.map(|key| key.to_string()),
+            ),
+            TimeCompletion::AuthorityReleaseId => {
+                ("time_authority_release", "release_key", "true", None)
+            }
             TimeCompletion::EventId => ("time_temporal_event", "event_key", "owner = $owner", None),
         };
         // Only fixed repository-owned expressions enter the statement. All input is bound.
@@ -36,7 +45,7 @@ impl TimePersistence {
             .query(statement)
             .bind(("tenant", identity.tenant_id.record_id()))
             .bind(("owner", identity.principal_id.record_id()))
-            .bind(("calendar_key", calendar_key.map(String::from)))
+            .bind(("parent_key", parent_key))
             .bind(("needle", needle.to_lowercase()))
             .bind(("limit", limit))
             .await?

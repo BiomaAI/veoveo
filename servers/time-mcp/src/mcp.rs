@@ -504,7 +504,21 @@ impl ServerHandler for TimeMcp {
                     .transpose()
                     .map_err(invalid_params)?,
             }),
-            (uris::EPOCH_TEMPLATE, "epoch_id") => Some(TimeCompletion::EpochId),
+            (uris::EPOCH_TEMPLATE | uris::EPOCH_VERSION_TEMPLATE, "epoch_id") => {
+                Some(TimeCompletion::EpochId)
+            }
+            (uris::EPOCH_VERSION_TEMPLATE, "version") => Some(TimeCompletion::EpochVersion {
+                epoch_key: request
+                    .context
+                    .as_ref()
+                    .and_then(|context| context.get_argument("epoch_id"))
+                    .map(|key| crate::MissionEpochId::new(key.clone()))
+                    .transpose()
+                    .map_err(invalid_params)?,
+            }),
+            (uris::AUTHORITY_RELEASE_TEMPLATE, "release_id") => {
+                Some(TimeCompletion::AuthorityReleaseId)
+            }
             (uris::EVENT_TEMPLATE, "event_id") => Some(TimeCompletion::EventId),
             _ => None,
         };
@@ -534,6 +548,13 @@ impl ServerHandler for TimeMcp {
             (uris::DOC_TEMPLATE, "doc_id") => {
                 SERVER_DOCS.iter().map(|doc| doc.id.to_owned()).collect()
             }
+            (uris::BOOTSTRAP_AUTHORITY_TEMPLATE, "release_id") => self
+                .state
+                .authorities
+                .bootstrap_references()
+                .into_iter()
+                .map(|reference| reference.release_id().to_string())
+                .collect(),
             (uris::ZONE_TEMPLATE, "zone_id") => self
                 .state
                 .engine(&scope)
@@ -675,6 +696,24 @@ fn default_clock_policy() -> ClockQualityPolicy {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn knowledge_templates_declare_each_owned_collection() {
+        use veoveo_mcp_knowledge_extension::{CollectionDescriptor, EXTENSION_ID};
+        let mut collections = std::collections::BTreeSet::new();
+        for template in SERVER_SETUP.resource_templates() {
+            if let Some(collection) =
+                crate::TimeKnowledgeCollection::for_template(template.template().as_str())
+            {
+                let descriptor = template.descriptor();
+                let wire = descriptor.meta.as_ref().unwrap().get(EXTENSION_ID).unwrap();
+                let declared: CollectionDescriptor = serde_json::from_value(wire.clone()).unwrap();
+                assert_eq!(declared, collection.descriptor());
+                assert!(collections.insert(declared.collection().clone()));
+            }
+        }
+        assert_eq!(collections.len(), 5);
+    }
 
     #[test]
     fn advertised_resources_and_simple_templates_agree_with_typed_addresses() {

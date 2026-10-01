@@ -246,7 +246,7 @@ async fn bootstrap_authority_reference(
     })?;
     let source_digest = veoveo_types::Sha256Digest::from_hex(hex::encode(Sha256::digest(source)))?;
     Ok(TimeAuthorityReference::new(
-        TimeAuthorityReleaseUri::new(&release_id),
+        TimeAuthorityReleaseUri::bootstrap(&release_id),
         dataset_kind,
         TimeAuthoritySource::Bootstrap,
         source_digest,

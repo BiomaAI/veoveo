@@ -13,7 +13,7 @@ const cases = [
     cursor: Buffer.from(JSON.stringify({version: 1, collection: 'duckdb://dbs', after: 'db_099'})).toString('base64url')},
   {domain: 'time', title: 'Timeline', collection: 'time://events', label: 'Events',
     other: 'time://clock/current', otherLabel: 'Clock', otherValue: {clock: 'current'},
-    entry: index => ({event_id: index}), cursor: 'page +two/&?=#'},
+    knowledge: true, entry: index => ({uri: `time://events/event-${taskId(index)}`, title: `Event ${index}`}), cursor: 'page +two/&?=#'},
   {domain: 'duckdb', title: 'Workbench', collection: 'duckdb://usage', label: 'Usage',
     other: 'duckdb://dbs', otherLabel: 'Databases', otherValue: {items: [{db_id: 'metrics', db_uri: 'duckdb://db/metrics'}], limit: 100, next_cursor: null},
     entry: index => ({task_id: taskId(index), usage_uri: `duckdb://usage/task/${taskId(index)}`}),
@@ -52,10 +52,12 @@ for (const fixture of cases) {
         const uri = request.params.uri;
         reads.push(uri);
         let value;
-        if (uri === fixture.collection) value = {items: Array.from({length: 100}, (_, i) => fixture.entry(i)), limit: 100, next_cursor: fixture.cursor};
+        if (uri === fixture.collection) value = fixture.knowledge
+          ? {items: Array.from({length: 100}, (_, i) => fixture.entry(i)), nextCursor: fixture.cursor}
+          : {items: Array.from({length: 100}, (_, i) => fixture.entry(i)), limit: 100, next_cursor: fixture.cursor};
         else if (uri === nextPage.href) {
           if (hold) {hold = false; await new Promise(resolve => {release = resolve; arrived();});}
-          value = {items: [fixture.entry(100)], limit: 100, next_cursor: null};
+          value = fixture.knowledge ? {items: [fixture.entry(100)]} : {items: [fixture.entry(100)], limit: 100, next_cursor: null};
         } else if (uri === fixture.other) value = fixture.otherValue;
         else throw new Error(`Unexpected read ${uri}`);
         return {contents: [{uri, mimeType: 'application/json', text: JSON.stringify(value)}]};

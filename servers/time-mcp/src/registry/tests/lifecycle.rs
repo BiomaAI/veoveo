@@ -14,7 +14,7 @@ async fn read_body(db: &PlatformStore, record: &RecordId) -> String {
 }
 
 #[tokio::test]
-async fn stored_columns_supply_versions_without_rewriting_historical_bodies() {
+async fn stored_columns_supply_versions_with_current_body_validation() {
     tokio::time::timeout(Duration::from_secs(90), async {
         let db = TestDb::new().await;
         let files = AuthorityFiles::new().await;
@@ -53,54 +53,9 @@ async fn stored_columns_supply_versions_without_rewriting_historical_bodies() {
                 serde_json::from_str::<serde_json::Value>(&read_body(&db.a, record).await).unwrap(),
             );
         }
-        for historical in [0, u64::MAX] {
-            for (record, body) in records.iter().zip(&mut bodies) {
-                body["record_version"] = historical.into();
-                set(&db.a, record.clone(), "canonical_json", body.to_string()).await;
-            }
-            assert_eq!(
-                catalog
-                    .source(&owner, &release.source_id)
-                    .await
-                    .unwrap()
-                    .unwrap()
-                    .record_version,
-                TimeVersion::FIRST
-            );
-            assert_eq!(
-                catalog
-                    .release(&owner, &release.release_id)
-                    .await
-                    .unwrap()
-                    .unwrap()
-                    .record_version,
-                TimeVersion::FIRST
-            );
-            assert_eq!(
-                catalog
-                    .acquisition(&owner, &acquisition.acquisition_id)
-                    .await
-                    .unwrap()
-                    .unwrap()
-                    .record_version,
-                TimeVersion::FIRST
-            );
-            assert_eq!(
-                catalog
-                    .event(&owner, &event.event_id)
-                    .await
-                    .unwrap()
-                    .unwrap()
-                    .record_version,
-                TimeVersion::FIRST
-            );
-            for (record, body) in records.iter().zip(&bodies) {
-                assert_eq!(read_body(&db.a, record).await, body.to_string());
-            }
-        }
-        // Preserve the old retained-body profile: unsigned numeric counters are
-        // historical, but malformed counter representations still reject the read.
         for malformed in [
+            serde_json::json!(0),
+            serde_json::json!(u64::MAX),
             serde_json::json!(-1),
             serde_json::json!("1"),
             serde_json::Value::Null,
@@ -120,7 +75,7 @@ async fn stored_columns_supply_versions_without_rewriting_historical_bodies() {
             assert!(catalog.event(&owner, &event.event_id).await.is_err());
         }
         for (record, body) in records.iter().zip(&mut bodies) {
-            body["record_version"] = 0.into();
+            body["record_version"] = 1.into();
             set(&db.a, record.clone(), "canonical_json", body.to_string()).await;
             set(&db.a, record.clone(), "record_version", 0_i64).await;
         }
@@ -135,5 +90,5 @@ async fn stored_columns_supply_versions_without_rewriting_historical_bodies() {
         assert!(catalog.event(&owner, &event.event_id).await.is_err());
     })
     .await
-    .expect("retained lifecycle version qualification exceeded 90 seconds");
+    .expect("current lifecycle version qualification exceeded 90 seconds");
 }
