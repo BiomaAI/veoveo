@@ -107,6 +107,20 @@ approval, current approval equality and required scopes before decoding. Its two
 limit detects ambiguous approved roots, which the Store rejects. Catalog-only
 collections never authorize enumeration subscriptions.
 
+`CatalogCompletion` selects source or collection identities. Its query applies the
+same catalog admission, a bound prefix, deduplication and ordering before a 101-value
+limit. Store parses results into `ServerSlug` or `CollectionId`; the MCP adapter
+converts them to completion strings at delivery.
+
+`knowledge_collection_statistics` requires one caller-admitted collection and uses
+the candidate admission fragment before aggregation. It counts first chunks for member
+totals and all chunks for chunk totals, then selects the latest observation and optional
+modification timestamps. Its ten-second SQL deadline bounds the scan. The result also
+carries the earliest future grant, record, freshness or mutable-coordinator deadline
+among admitted rows, allowing catalog listeners to schedule a re-read when visibility
+can expire. Missing timestamps use SQL sentinels within aggregation and return `NONE`
+at the result boundary; sentinels never enter the public contract.
+
 ## Candidate Admission
 
 `CandidateScope` carries current caller policy, including the source collections exposed

@@ -64,3 +64,41 @@ fn search_bounds_apply_to_deserialization_and_builders() {
         10
     );
 }
+
+#[test]
+fn statistics_decode_checks_count_and_timestamp_relationships() {
+    use veoveo_knowledge_mcp::contract::CollectionStatistics;
+    let empty = serde_json::to_value(CollectionStatistics::empty()).unwrap();
+    assert_eq!(
+        serde_json::from_value::<CollectionStatistics>(empty.clone()).unwrap(),
+        CollectionStatistics::empty()
+    );
+    for (field, value) in [
+        ("indexedMembers", serde_json::json!(1)),
+        ("indexedChunks", serde_json::json!(1)),
+        ("lastModifiedAt", serde_json::json!("2026-10-01T00:00:00Z")),
+        ("forged", serde_json::json!(true)),
+    ] {
+        let mut invalid = empty.clone();
+        invalid[field] = value;
+        assert!(serde_json::from_value::<CollectionStatistics>(invalid).is_err());
+    }
+}
+
+#[cfg(feature = "runtime")]
+#[test]
+fn contract_declaration_exposes_every_compliance_status() {
+    use veoveo_mcp_contract::{docs::CHECKLIST_IDS, server_contract::McpServerContract};
+    let declaration =
+        veoveo_knowledge_mcp::mcp::KnowledgeContract::documents().contract_declaration();
+    assert_eq!(declaration.server, "knowledge");
+    assert_eq!(declaration.contract_revision, 3);
+    assert_eq!(
+        declaration
+            .compliance
+            .iter()
+            .map(|item| item.id.as_str())
+            .collect::<Vec<_>>(),
+        CHECKLIST_IDS
+    );
+}

@@ -35,6 +35,9 @@ impl McpServerContract for KnowledgeContract {
         config.capabilities = ServerCapabilities::builder()
             .enable_tools()
             .enable_resources()
+            .enable_resources_subscribe()
+            .enable_resources_list_changed()
+            .enable_completions()
             .build();
         veoveo_mcp_knowledge_extension::server::declare(&mut config.capabilities);
         config.instructions = Some("Search approved collections for reusable findings. Read result resource links from their owning servers for current content. Source servers decide access. Embed creates vectors in the installation's declared embedding space.".into());

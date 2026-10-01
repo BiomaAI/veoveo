@@ -21,6 +21,7 @@ pub fn router<E: Embeddings + 'static>(
 ) -> Router {
     std::sync::LazyLock::force(&crate::mcp::SETUP);
     let store = server.store.clone();
+    server.observe_catalog(cancellation.child_token());
     let service = StreamableHttpService::new(
         move || Ok(server.clone()),
         veoveo_mcp_contract::stateless_session_manager(),

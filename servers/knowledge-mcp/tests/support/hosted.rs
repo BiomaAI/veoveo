@@ -34,7 +34,7 @@ pub fn plane(registrations: &[CollectionRegistration]) -> GatewayControlPlane {
     server["tools"] = serde_json::json!(["search", "embed"]);
     server["prompts"] = serde_json::json!([]);
     server["compatibility_helpers"] = serde_json::json!([]);
-    server["capabilities"] = serde_json::json!({"tools":true,"resources":true,"resource_templates":true,"resource_subscriptions":false,"prompts":false,"completions":false,"tasks":false});
+    server["capabilities"] = serde_json::json!({"tools":true,"resources":true,"resource_templates":true,"resource_subscriptions":true,"prompts":false,"completions":true,"tasks":false});
     value["servers"].as_array_mut().unwrap().push(server);
     value["servers"][0]["knowledge"] = serde_json::to_value(
         registrations
@@ -43,7 +43,7 @@ pub fn plane(registrations: &[CollectionRegistration]) -> GatewayControlPlane {
             .collect::<Vec<_>>(),
     )
     .unwrap();
-    value["profiles"][0]["servers"].as_array_mut().unwrap().push(serde_json::json!({"server":"knowledge", "tools":{"mode":"all"}, "resources":{"mode":"all"}, "prompts":{"mode":"none"}, "completions":"disabled", "tasks":"disabled"}));
+    value["profiles"][0]["servers"].as_array_mut().unwrap().push(serde_json::json!({"server":"knowledge", "tools":{"mode":"all"}, "resources":{"mode":"all"}, "prompts":{"mode":"none"}, "completions":"enabled", "tasks":"disabled"}));
     let mut rule = value["policies"][0]["rules"][0].clone();
     rule["id"] = "allow_knowledge".into();
     rule["servers"] = serde_json::json!(["knowledge"]);
@@ -55,8 +55,20 @@ pub fn plane(registrations: &[CollectionRegistration]) -> GatewayControlPlane {
         "tools_call",
         "resources_list",
         "resources_templates_list",
-        "resources_read"
+        "resources_read",
+        "subscriptions_listen",
+        "completion_complete"
     ]);
+    value["policies"][0]["rules"]
+        .as_array_mut()
+        .unwrap()
+        .push(rule.clone());
+    // Catalog observation is a server target. A resource-scoped read rule does
+    // not grant the separate catalog subscription permission.
+    rule["id"] = "allow_knowledge_catalog_observation".into();
+    rule["actions"] = serde_json::json!(["subscriptions_listen"]);
+    rule["tools"] = serde_json::json!([]);
+    rule["resource_schemes"] = serde_json::json!([]);
     value["policies"][0]["rules"]
         .as_array_mut()
         .unwrap()

@@ -245,7 +245,7 @@ separately from public worker configuration.
 |---|---|
 | `knowledge://sources{?cursor}` | Paged `DataService` entries: server slug, contract revision, and declared collections |
 | `knowledge://source/{server}` | One source with its collections and approval state |
-| `knowledge://collection/{collection}` | One `Dataset`: descriptor, approval and index generation; indexing statistics pending |
+| `knowledge://collection/{collection}` | One `Dataset`: descriptor, approval, matching active generation and caller-visible indexing statistics |
 | `knowledge://docs`, `knowledge://docs/{doc_id}`, `knowledge://contract` | Well-known surface |
 
 Catalog queries match the tenant, current approval and required scopes before decoding.
@@ -254,9 +254,39 @@ source and collection requests bind their selected collection IDs to the query.
 The source declaration revision comes from each stored registration; inconsistent
 revisions within one source require rediscovery.
 
-The current collection response includes its descriptor, approval and matching active
-generation. Member counts, observation/change statistics, collection subscriptions and
-completion are pending.
+Collection statistics count readable indexed members and chunks. They report the
+latest source observation and modification timestamps among those members. Store
+applies the search admission predicate before aggregation, including profile URI
+selection, current grants, source epochs, freshness and retention. Statistics are
+absent without a matching active generation; an indexed collection with no readable
+members has zero counts and no timestamps. Responses are private with a zero cache TTL.
+
+Completion accepts the declared source, collection and document template arguments,
+including page cursors. Source and collection candidates use current approvals,
+required scopes and Knowledge resource policy. SQL applies the case-sensitive prefix,
+deduplication, ordering and 101-row lookahead. The MCP response returns at most 100
+values. Document completion uses the embedded document catalog. Both paths recheck
+current request authority before delivery.
+
+`subscriptions/listen` accepts up to 32 catalog resource addresses and optional
+resource-list changes. Embedded documents are immutable and do not accept content
+subscriptions. Catalog-list observation requires a server-target subscription grant;
+individual addresses require read and subscription grants for that resource.
+One host observer consumes Store LIVE invalidations and changefeed
+recovery for catalog, member, source-sync, coordinator and authorization changes.
+Each listener registers before its baseline read, waits for the database observation
+to start, and then sends initial invalidations. Later writes trigger authorized SQL
+snapshots; changed snapshots notify their requested identities. Hidden member activity
+does not invalidate readable statistics. Domain content changes do not invalidate the
+static discovery list.
+
+Reconnection requests a fresh snapshot and invalidates accepted identities even when
+the resulting bytes match. A watch channel coalesces writes without keeping a queue of
+record payloads. The next grant, record, freshness or coordinator deadline schedules
+one re-read; idle listeners do not poll. Token expiry and lost authority end the stream.
+Snapshot work has a 60-second deadline, initial observation has ten seconds, and sink
+delivery has ten seconds with request cancellation. The reference gateway must enable
+completion and subscription exposure with the corresponding service image rollout.
 
 ## Index
 
@@ -396,6 +426,10 @@ registrations without changing another tenant's catalog.
 `testing/deployment-smoke/tests/knowledge_helm.rs` renders the actual chart to check
 dependencies, secret references, model identity, liveness/readiness separation,
 configuration-driven rollout and the absence of local storage or GPU requests.
+`tests/support/catalog.rs` qualifies completion and caller-visible statistics through
+signed HTTP requests. It corrupts excluded catalog and chunk metadata, checks two
+replicas' source-sync invalidations, suppresses hidden writes and static-list wakes,
+observes lease expiry without another mutation, and revokes an active listener.
 
 The ignored `http::installed` test reads an installation's public control plane and
 connects through its HTTPS gateway with an ordinary caller token. The caller must

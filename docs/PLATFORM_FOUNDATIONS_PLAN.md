@@ -28,8 +28,9 @@ Typed installation approvals and gateway indexing-client admission pass native c
 The hosted Knowledge API passes native HTTP and current-authority checks. Knowledge
 and its embedding runtime are published and deployed with the reference machine client.
 Public catalog, source-linked retrieval, embedding and network-isolation checks pass.
-Domain retrieval evaluation, mutation/restart qualification, public catalog completion
-and subscriptions, indexing audit aggregation and Reason remain open.
+Catalog completion, caller-visible statistics and request-scoped subscriptions have
+native qualification. Their installed exposure, domain retrieval evaluation,
+mutation/restart qualification, indexing audit aggregation and Reason remain open.
 The gateway source adapter discovers approved
 collections and waits for catalog/resource observation readiness before reading.
 The library coordinator qualifies lease renewal, source invalidation, conditional
@@ -3730,6 +3731,29 @@ denial as well as a timeout, with a successful control request against the same 
 IP and port. All owned probe pods and the temporary namespace are deleted. Cargo's
 installed harness resolves relative configuration and report paths from the repository
 root, independent of its package working directory.
+
+Catalog checkpoint (2026-10-01): Knowledge completes source, collection and document
+arguments. Source/collection prefix matching, deduplication and pagination run in SQL
+after approval and scope admission. Store returns typed source or collection identities.
+Collection resources report caller-visible member/chunk counts and source timestamps
+using the search admission predicate before aggregation. Checked statistics are shared
+through the domain contract, with no MCP runtime in its dependency boundary.
+
+Catalog listeners share one Store LIVE/changefeed observer per host and compare
+authorized snapshots. The two-replica HTTP fixture proves initial invalidation,
+source-sync changes, hidden-write suppression, unchanged discovery lists, lease expiry
+without a new mutation, and revocation. Finite watch state coalesces writes; expiry
+deadlines schedule re-reads without periodic polling. Catalog-list observation requires
+its own server-target grant. The declaration now exports all 32 compliance statuses
+from the required checklist syntax, replacing an unparsed table.
+
+The grouped Knowledge/domain-contract suites and ten Store tests pass, including
+malformed denied records, source pagination and completion lookahead. Final HTTP and
+contract checks, contract-only compilation, affected all-target strict Clippy and
+SurrealDB 3.3 query validation pass. The installed ignored test is not claimed for this
+unpublished change. Completion/subscription gateway exposure will activate with the
+next service image, batched with indexing audit aggregation. Nodes and BuildKit stay
+stopped during this development batch; about 152 GiB remains free.
 
 1. Deliver the shared [embedding runtime](../platform/runtimes/embedding/DESIGN.md)
    before the knowledge service consumes it. Re-verify the latest stable vLLM release

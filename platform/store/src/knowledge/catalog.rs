@@ -24,7 +24,7 @@ struct CatalogRow {
     document: CollectionRegistration,
 }
 
-fn approvals_valid(
+pub(super) fn approvals_valid(
     approvals: &BTreeMap<CollectionId, KnowledgeCollectionApproval>,
     scopes: &BTreeSet<ScopeName>,
 ) -> Result<(), StoreError> {

@@ -30,6 +30,40 @@ impl<E: Embeddings + 'static> KnowledgeMcp<E> {
         if let Some(result) = SETUP.read_documents(&request, &context)? {
             return Ok(result);
         }
+        let snapshot = self.catalog(&identity, &admitted, &uri, address).await?;
+        let current = authorize(
+            &self.store,
+            &identity,
+            KnowledgeScope::Read,
+            GatewayAction::ResourcesRead,
+            &target,
+        )
+        .await
+        .map_err(error)?;
+        if current.control_digest != admitted.control_digest
+            || current.approvals != admitted.approvals
+            || snapshot
+                .next_expiry
+                .is_some_and(|at| at <= chrono::Utc::now())
+        {
+            return Err(error(crate::ServiceError::AccessChanged));
+        }
+        Ok(ReadResourceResult::new(vec![
+            ResourceContents::text(snapshot.body, uri.as_str()).with_mime_type("application/json"),
+        ])
+        .with_ttl_ms(0)
+        .with_cache_scope(CacheScope::Private)
+        .into())
+    }
+
+    pub(super) async fn catalog(
+        &self,
+        identity: &GatewayInternalIdentity,
+        admitted: &RequestAuthority,
+        uri: &ResourceUri,
+        address: KnowledgeResource,
+    ) -> Result<CatalogSnapshot, ErrorData> {
+        let mut next_expiry = None;
         let body = match address {
             KnowledgeResource::Sources { after } => {
                 let mut sources = self
@@ -92,6 +126,7 @@ impl<E: Embeddings + 'static> KnowledgeMcp<E> {
                     .map_err(crate::ServiceError::from)
                     .map_err(error)?;
                 let mut generation = None;
+                let mut statistics = None;
                 if let Some(active) = active {
                     let spec = self
                         .store
@@ -103,6 +138,27 @@ impl<E: Embeddings + 'static> KnowledgeMcp<E> {
                         spec.collections().get(&collection) == Some(&registration.revision())
                     }) {
                         generation = Some(active);
+                        let scope = admitted
+                            .collection_scope(identity, registration)
+                            .map_err(error)?;
+                        let snapshot = self
+                            .store
+                            .knowledge_collection_statistics(&scope, active)
+                            .await
+                            .map_err(crate::ServiceError::from)
+                            .map_err(error)?;
+                        statistics = Some(snapshot.statistics);
+                        next_expiry = snapshot.next_expiry;
+                        if self
+                            .store
+                            .active_knowledge_generation(&identity.authority.tenant)
+                            .await
+                            .map_err(crate::ServiceError::from)
+                            .map_err(error)?
+                            != Some(active)
+                        {
+                            return Err(error(crate::ServiceError::AccessChanged));
+                        }
                     }
                 }
                 serde_json::to_string(&CollectionCatalogEntry {
@@ -111,6 +167,7 @@ impl<E: Embeddings + 'static> KnowledgeMcp<E> {
                     descriptor: registration.descriptor.clone(),
                     approval: registration.approval.clone(),
                     generation,
+                    statistics,
                 })
             }
             _ => {
@@ -121,27 +178,12 @@ impl<E: Embeddings + 'static> KnowledgeMcp<E> {
             }
         }
         .map_err(|_| ErrorData::internal_error("invalid Knowledge catalog", None))?;
-        let current = authorize(
-            &self.store,
-            &identity,
-            KnowledgeScope::Read,
-            GatewayAction::ResourcesRead,
-            &target,
-        )
-        .await
-        .map_err(error)?;
-        if current.control_digest != admitted.control_digest
-            || current.approvals != admitted.approvals
-        {
-            return Err(error(crate::ServiceError::AccessChanged));
-        }
-        Ok(ReadResourceResult::new(vec![
-            ResourceContents::text(body, uri.as_str()).with_mime_type("application/json"),
-        ])
-        .with_ttl_ms(0)
-        .with_cache_scope(CacheScope::Private)
-        .into())
+        Ok(CatalogSnapshot { body, next_expiry })
     }
+}
+pub(super) struct CatalogSnapshot {
+    pub body: String,
+    pub next_expiry: Option<chrono::DateTime<chrono::Utc>>,
 }
 fn source(
     server: ServerSlug,

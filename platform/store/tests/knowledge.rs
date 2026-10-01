@@ -984,6 +984,13 @@ async fn catalog_admits_before_source_paging_and_exact_record_decoding() {
             expected.push(r);
         }
         let scopes = ["catalog:read".parse().unwrap()].into();
+        use veoveo_platform_store::knowledge::CatalogCompletion;
+        let values = db.b.complete_knowledge_catalog(&tenant, &approvals, &scopes, CatalogCompletion::Source, "source-").await.unwrap();
+        assert_eq!(values.len(), 101, "completion uses one lookahead beyond the protocol bound");
+        assert_eq!(values[0].to_string(), "source-000");
+        assert_eq!(db.b.complete_knowledge_catalog(&tenant, &approvals, &scopes, CatalogCompletion::Collection, "source-10").await.unwrap().len(), 5);
+        assert!(db.b.complete_knowledge_catalog(&tenant, &approvals, &BTreeSet::new(), CatalogCompletion::Source, "").await.unwrap().is_empty());
+        assert!(db.b.complete_knowledge_catalog(&"wrong-tenant".parse().unwrap(), &approvals, &scopes, CatalogCompletion::Source, "").await.unwrap().is_empty());
         let first = db.b.readable_knowledge_sources(&tenant, &approvals, &scopes, None).await.unwrap();
         assert_eq!(first.len(), 101, "one SQL page plus lookahead");
         assert_eq!(first[0].server.as_str(), "source-000");
@@ -999,6 +1006,7 @@ async fn catalog_admits_before_source_paging_and_exact_record_decoding() {
         // SQL scope admission and approval removal must exclude the corrupt row.
         assert!(db.b.readable_knowledge_sources(&tenant, &approvals, &BTreeSet::new(), None).await.unwrap().is_empty());
         approvals.remove(expected[0].descriptor.collection());
+        assert_eq!(db.b.complete_knowledge_catalog(&tenant, &approvals, &scopes, CatalogCompletion::Source, "").await.unwrap()[0].to_string(), "source-001");
         assert_eq!(db.b.readable_knowledge_sources(&tenant, &approvals, &scopes, None).await.unwrap()[0].server.as_str(), "source-001");
         approvals.get_mut(selected).unwrap().data_labels.clear();
         assert!(db.b.readable_knowledge_collections(&tenant, &approvals, &scopes, CatalogSelection::Collection(selected)).await.unwrap().is_empty(), "changed approval cannot reveal the old registration");

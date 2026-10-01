@@ -61,6 +61,12 @@ modification time and external system/native identity. Source bodies and navigat
 cannot enter those chunks. `MemberTitle` bounds titles to 256 printable characters.
 Generation query instructions use the embedding contract's 1,024-byte task bound.
 
+`CollectionStatistics` carries caller-visible indexed member and chunk counts with
+optional source observation and modification timestamps. Construction and JSON decoding
+check that each member accounts for 1–256 chunks, that populated statistics have an
+observation timestamp, and that empty statistics have no timestamps. Store computes
+these values after admission; the type itself grants no read authority.
+
 ## Persistence
 
 [Knowledge storage](../../store/src/knowledge/DESIGN.md) owns schema, transactional

@@ -47,8 +47,35 @@ running hardware embedding runtime and leaves source records unchanged.
 
 Target contract revision: `veoveo.ai/hosted-mcp/v3`.
 
-| Items | Status | Scope |
-|---|---|---|
-| C02, C04–C06, C08–C10, C12–C26, C28–C30 | met | typed direct tools, SQL catalog pages, shared stateless transport, signed request authority, embedded documents, OCI/chart publications and typed gateway registration; no durable tools or private byte routes |
-| C03, C11 | met | no domain Tasks, Artifact operations or recording operations |
-| C01, C07, C27, C31, C32 | pending | schema conformance, completion, catalog subscriptions and installed conformance; Helm packaging and registration pass native checks |
+- C01: pending — full hosted conformance; tools, resources, completion and subscriptions have native qualification.
+- C02: met — direct tools declare generated input and output schemas.
+- C03: met — the domain has no task-augmented operations.
+- C04: met — typed exact addresses and SQL-admitted catalog pages.
+- C05: met — resources and templates accompany tools.
+- C06: met — no compatibility helpers.
+- C07: pending — shared schema-profile conformance.
+- C08: met — rmcp and Schemars generate schemas.
+- C09: met — server-owned scopes, resource builders and checked domain models.
+- C10: met — shared HTTP construction and serialized response enforcement.
+- C11: met — no Artifact or Recording operations.
+- C12: met — authenticated documents use the mounted admin routes.
+- C13: met — persistence uses the platform Store.
+- C14: met — no byte routes.
+- C15: met — OCI and Helm publications exist.
+- C16: pending — enable catalog subscription and completion exposure with the next image rollout; search, embedding and resources are registered.
+- C17: met — the typed registration and crate documents declare revision 3.
+- C18: met — shared document resources.
+- C19: met — the shared declaration includes every checklist status.
+- C20: met — authenticated document index and bodies.
+- C21: met — documents and digests are embedded at build time.
+- C22: met — the owning design declares its standards and supported profile.
+- C23: met — this manual supplies the required sections.
+- C24: met — the crate uses the MCP server naming convention.
+- C25: met — Streamable HTTP is the hosted transport.
+- C26: met — shared stateless final-profile transport.
+- C27: pending — native catalog observation qualifies admission, two replicas, expiry, revocation and cancellation; installed recovery qualification remains open.
+- C28: met — resource-list changes are independent of content notifications; tool and prompt list changes are absent.
+- C29: met — read replicas share Store; the single indexing worker uses a Store lease and Recreate updates.
+- C30: met — source consumers reuse the gateway's shared upstream transport.
+- C31: pending — installed discovery and readiness qualification for the completed catalog surface.
+- C32: pending — installed K01–K10 qualification for `knowledge.docs`.

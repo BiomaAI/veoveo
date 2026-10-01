@@ -46,6 +46,26 @@ pub async fn authorize(
 }
 
 impl RequestAuthority {
+    pub(crate) fn collection_scope(
+        &self,
+        identity: &GatewayInternalIdentity,
+        registration: &CollectionRegistration,
+    ) -> Result<veoveo_platform_store::knowledge::CandidateScope, ServiceError> {
+        let request = identity
+            .request_context
+            .as_ref()
+            .ok_or(ServiceError::AccessChanged)?;
+        let selection = veoveo_policy::admit_resource_reads(
+            &self.catalog,
+            &request.principal,
+            &identity.profile,
+            registration.descriptor.collection().server(),
+        )
+        .map_err(|_| ServiceError::AccessChanged)?;
+        let mut scope = self.caller.scope(&Default::default());
+        scope.collections = [(registration.descriptor.collection().clone(), selection)].into();
+        Ok(scope)
+    }
     pub(crate) fn allows(
         &self,
         identity: &GatewayInternalIdentity,

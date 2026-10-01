@@ -38,4 +38,6 @@ pub struct CollectionCatalogEntry {
     pub approval: KnowledgeCollectionApproval,
     /// Present only when the active generation includes this registration.
     pub generation: Option<GenerationId>,
+    /// Counts and timestamps cover only indexed members readable by this caller.
+    pub statistics: Option<veoveo_knowledge_contract::CollectionStatistics>,
 }

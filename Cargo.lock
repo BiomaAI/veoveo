@@ -16583,6 +16583,7 @@ dependencies = [
 name = "veoveo-knowledge-contract"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "schemars 1.2.2",
  "serde",
  "serde_json",

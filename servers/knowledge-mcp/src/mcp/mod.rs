@@ -1,6 +1,8 @@
 //! Authenticated hosted MCP methods. The HTTP adapter inserts verified identities.
+mod completion;
 mod resources;
 mod setup;
+mod subscriptions;
 mod tools;
 use crate::{
     authority::{RequestAuthority, authorize},
@@ -16,18 +18,24 @@ use veoveo_platform_store::PlatformStore;
 pub struct KnowledgeMcp<E> {
     pub(crate) store: PlatformStore,
     pub(crate) embeddings: Arc<E>,
+    changes: tokio::sync::watch::Sender<Option<veoveo_platform_store::ResourceInvalidation>>,
 }
 impl<E> Clone for KnowledgeMcp<E> {
     fn clone(&self) -> Self {
         Self {
             store: self.store.clone(),
             embeddings: self.embeddings.clone(),
+            changes: self.changes.clone(),
         }
     }
 }
 impl<E: Embeddings + 'static> KnowledgeMcp<E> {
     pub fn new(store: PlatformStore, embeddings: Arc<E>) -> Self {
-        Self { store, embeddings }
+        Self {
+            store,
+            embeddings,
+            changes: tokio::sync::watch::channel(None).0,
+        }
     }
     async fn authority(
         &self,
@@ -51,6 +59,34 @@ impl<E: Embeddings + 'static> KnowledgeMcp<E> {
     }
 }
 impl<E: Embeddings + 'static> ServerHandler for KnowledgeMcp<E> {
+    async fn complete(
+        &self,
+        request: CompleteRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CompleteResult, ErrorData> {
+        tokio::time::timeout(
+            std::time::Duration::from_secs(60),
+            self.completion(request, context),
+        )
+        .await
+        .map_err(|_| error(crate::ServiceError::Deadline))?
+    }
+    fn accepted_subscription_filter(
+        &self,
+        requested: &SubscriptionFilter,
+    ) -> Option<SubscriptionFilter> {
+        let mut accepted = SubscriptionFilter::builder();
+        if let Some(resources) = &requested.resource_subscriptions {
+            accepted = accepted.resource_subscriptions(resources.clone());
+        }
+        if requested.resources_list_changed == Some(true) {
+            accepted = accepted.resources_list_changed();
+        }
+        Some(accepted.build())
+    }
+    async fn listen(&self, context: rmcp::service::SubscriptionContext) -> Result<(), ErrorData> {
+        self.listen_catalog(context).await
+    }
     fn supported_protocol_versions(&self) -> std::borrow::Cow<'static, [ProtocolVersion]> {
         veoveo_mcp_contract::final_protocol_versions()
     }
