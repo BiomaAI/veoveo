@@ -74,6 +74,8 @@ pub struct NewArtifact {
 pub struct ArtifactListQuery {
     pub actor: RepositoryActor,
     pub groups: BTreeSet<GroupId>,
+    pub clearance: BTreeSet<DataLabelId>,
+    pub work_context: WorkContextId,
     pub cursor: Option<ArtifactId>,
     pub limit: usize,
 }
@@ -431,11 +433,28 @@ pub(crate) mod testing {
                 .artifacts
                 .values()
                 .filter(|artifact| artifact.tenant == query.actor.tenant)
+                .filter(|artifact| artifact.labels.is_subset(&query.clearance))
                 .filter(|artifact| {
-                    artifact.grants.iter().any(|grant| match &grant.subject {
-                        AccessSubject::Principal(user) => user == &query.actor.principal,
-                        AccessSubject::Group(group) => query.groups.contains(group),
-                    })
+                    artifact
+                        .metadata
+                        .compliance
+                        .retention_expires_at
+                        .is_none_or(|expiry| expiry > Utc::now())
+                })
+                .filter(|artifact| {
+                    artifact.metadata.compliance.work_context.as_ref() == Some(&query.work_context)
+                        || artifact
+                            .grants
+                            .iter()
+                            .filter(|grant| {
+                                grant
+                                    .retention_expires_at
+                                    .is_none_or(|expiry| expiry > Utc::now())
+                            })
+                            .any(|grant| match &grant.subject {
+                                AccessSubject::Principal(user) => user == &query.actor.principal,
+                                AccessSubject::Group(group) => query.groups.contains(group),
+                            })
                 })
                 .cloned()
                 .collect::<Vec<_>>();

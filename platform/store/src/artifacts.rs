@@ -1,4 +1,6 @@
 pub(crate) mod publication;
+mod reads;
+pub use reads::ArtifactReadScope;
 
 use std::collections::BTreeMap;
 
@@ -169,12 +171,21 @@ impl PlatformStore {
         let Some(occurrence) = occurrence else {
             return Ok(None);
         };
+        self.artifact_aggregate_from_occurrence(occurrence)
+            .await
+            .map(Some)
+    }
+
+    async fn artifact_aggregate_from_occurrence(
+        &self,
+        occurrence: ArtifactOccurrenceRecord,
+    ) -> Result<ArtifactAggregate, StoreError> {
         let mut response = self
             .db
             .query("SELECT * FROM ONLY $blob; SELECT * FROM ONLY $tenant; SELECT * FROM artifact_grant WHERE in = $artifact;")
             .bind(("blob", occurrence.blob.clone()))
             .bind(("tenant", occurrence.tenant.clone()))
-            .bind(("artifact", artifact_id.record_id()))
+            .bind(("artifact", occurrence.id.clone()))
             .await?
             .check()?;
         let blob =
@@ -190,48 +201,12 @@ impl PlatformStore {
                     operation: "artifact tenant lookup",
                 })?;
         let grants = response.take(2)?;
-        Ok(Some(ArtifactAggregate {
+        Ok(ArtifactAggregate {
             occurrence,
             blob,
             tenant,
             grants,
-        }))
-    }
-
-    /// Return occurrence ids connected to one of `subjects` by a live grant.
-    /// The caller-facing artifact service remains responsible for evaluating
-    /// tenant, clearance, group-role, and requested-level policy on each
-    /// aggregate before exposing it.
-    pub async fn artifact_ids_for_subjects(
-        &self,
-        tenant: TenantId,
-        subjects: Vec<RecordId>,
-        cursor: Option<ArtifactId>,
-        limit: usize,
-    ) -> Result<Vec<ArtifactId>, StoreError> {
-        if subjects.is_empty() || limit == 0 {
-            return Ok(Vec::new());
-        }
-        let query = if cursor.is_some() {
-            "SELECT VALUE id FROM artifact_occurrence WHERE tenant = $tenant AND id < $cursor AND id IN (SELECT VALUE in FROM artifact_grant WHERE out IN $subjects AND (expires_at = NONE OR expires_at > time::now())) ORDER BY id DESC LIMIT $limit;"
-        } else {
-            "SELECT VALUE id FROM artifact_occurrence WHERE tenant = $tenant AND id IN (SELECT VALUE in FROM artifact_grant WHERE out IN $subjects AND (expires_at = NONE OR expires_at > time::now())) ORDER BY id DESC LIMIT $limit;"
-        };
-        let mut request = self
-            .db
-            .query(query)
-            .bind(("tenant", tenant.record_id()))
-            .bind(("subjects", subjects))
-            .bind(("limit", i64::try_from(limit).unwrap_or(i64::MAX)));
-        if let Some(cursor) = cursor {
-            request = request.bind(("cursor", cursor.record_id()));
-        }
-        let mut response = request.await?.check()?;
-        response
-            .take::<Vec<RecordId>>(0)?
-            .into_iter()
-            .map(|record| record_uuid(&record).map(ArtifactId::from_uuid))
-            .collect()
+        })
     }
 
     pub async fn upsert_artifact_grant(&self, draft: ArtifactGrantDraft) -> Result<(), StoreError> {

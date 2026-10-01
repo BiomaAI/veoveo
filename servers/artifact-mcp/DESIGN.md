@@ -24,7 +24,7 @@ The server owns the `artifact://` scheme:
 
 | Surface | Identity |
 |---|---|
-| index resource | `artifact://index` |
+| index resource | `artifact://index{?cursor}` |
 | Library App | `ui://artifact/library.html` |
 | occurrence template | `artifact://{artifact_id}` |
 | metadata template | `artifact://metadata/{artifact_id}` |
@@ -59,17 +59,31 @@ libraries. The `runtime` feature supplies service clients and persistence depend
 
 `ArtifactResource` covers occurrences, metadata, grants, document roots, the Library App and the
 contract resource. Constructors take `ArtifactId` or the closed `ArtifactDocument`
-enum, and use the foundation URI builder. Parsers reject query strings, fragments,
+enum, and use the foundation URI builder. The index accepts one typed continuation
+cursor; other resources reject query strings. Parsers reject fragments,
 encoded aliases, unrelated schemes and extra segments. A URI locates an occurrence;
 current service authorization still decides whether the caller can read it.
 Prompt inputs decode the same Artifact ID and use these builders for references.
 
 `src/bin/server/setup.rs` binds those types to `McpServerContract`. Startup validates
-the document owner, fixed resource descriptors and all four templates before connecting
+the document owner, fixed resource descriptors and all five templates before connecting
 to Store. The handlers consume this setup for initialization and discovery. The first
 authorized occurrence page includes these fixed resources and the Artifact index.
 `ArtifactScope` declares an empty vocabulary; gateway policy and Artifact service
 access decisions authorize operations.
+
+The index returns at most 100 metadata links in `items`, with `uri`, `title` and an
+optional `mimeType`. An optional `nextCursor` continues from the last occurrence in
+descending identity order; absence ends traversal. `ArtifactIndexCursor` binds the
+position to the index's version 1 token format, and the URI builder encodes its query
+parameter. Metadata links lead to `artifact://metadata/{id}`. Index entries contain
+no download location. The Library App follows these pages through the shared Workbench.
+
+Artifact service selects tenant, clearance, retention and either a live direct/group
+grant or the caller's selected Work Context in SQL before decoding, ordering and LIMIT.
+It fetches one extra admitted row to decide whether a continuation exists. The service
+checks the selected rows with its shared access evaluator and fails the page on a
+policy disagreement or concurrent revocation.
 
 The independent [contract consumer](../../testing/fixtures/server-contract-consumer/DESIGN.md)
 checks the public library without runtime feature unification. Native service tests

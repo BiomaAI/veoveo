@@ -30,6 +30,9 @@ links. It fronts `artifact-service` and holds no bytes of its own.
   served under the well-known surface.
 - Hosted declarations belong to `src/bin/server/setup.rs`; initialization and
   discovery consume the shared checked setup. Domain authorization stays in the service.
+- Index resources use `ArtifactIndexCursor` and `ArtifactIndexPage`; return metadata
+  links and the optional continuation cursor. Selection belongs to Artifact service's
+  SQL admission, before paging and decoding. Keep transfer locations out of the index.
 
 ## Public Library
 
@@ -43,6 +46,8 @@ these gates. Public types keep their existing domain owners.
 
 - `cargo check -p veoveo-artifact-mcp`
 - `cargo test -p veoveo-artifact-mcp`
+- `node --test tests/workbench-pagination.test.mjs` in `apps/console/web` verifies
+  headless page navigation behavior; it is not visual or GPU acceptance.
 - Docker is required for SurrealDB backed tests and smoke work (root README,
   Develop And Verify).
 - The container image builds from `servers/artifact-mcp/Dockerfile`.

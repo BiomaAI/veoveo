@@ -7,6 +7,9 @@ import {chromium} from 'playwright';
 const template = await readFile(new URL('../../../../mcp/apps-extension/src/workbench.html', import.meta.url), 'utf8');
 const taskId = index => `0195dabe-7777-7abc-8def-${index.toString(16).padStart(12, '0')}`;
 const cases = [
+  {domain: 'artifact', title: 'Library', collection: 'artifact://index', label: 'Artifact index',
+    other: 'artifact://docs', otherLabel: 'Documentation', otherValue: {items: [{uri: 'artifact://docs/design', title: 'Design'}]},
+    knowledge: true, entry: index => ({uri: `artifact://metadata/${taskId(index)}`, title: `Output ${index}`}), cursor: `artifact-index-v1_${taskId(99)}`},
   {domain: 'duckdb-databases', title: 'Workbench', collection: 'duckdb://dbs', label: 'Databases',
     other: 'duckdb://usage', otherLabel: 'Usage ledger', otherValue: {items: [], limit: 100, next_cursor: null},
     entry: index => ({db_id: `db_${String(index).padStart(3, '0')}`, db_uri: `duckdb://db/db_${String(index).padStart(3, '0')}`}),

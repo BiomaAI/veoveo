@@ -49,7 +49,6 @@ const DEFAULT_LIST_LIMIT: usize = 50;
 const MAX_LIST_LIMIT: usize = 100;
 const DEFAULT_ACCESS_REQUEST_LIMIT: usize = 50;
 const MAX_ACCESS_REQUEST_LIMIT: usize = 100;
-const LIST_SCAN_BATCH: usize = 100;
 const OBJECT_KEY_NAMESPACE: uuid::Uuid =
     uuid::Uuid::from_u128(0x78115f34_7753_5b1f_a22c_6cc48885dbf9);
 
@@ -719,49 +718,30 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
             .iter()
             .map(|membership| membership.group.clone())
             .collect();
-        let mut scan_cursor = request.cursor;
-        let mut artifacts = Vec::with_capacity(limit);
-
-        loop {
-            let candidates = self
-                .repository
-                .list_artifacts(ArtifactListQuery {
-                    actor: actor.clone(),
-                    groups: groups.clone(),
-                    cursor: scan_cursor,
-                    limit: LIST_SCAN_BATCH,
-                })
-                .await
-                .map_err(transport)?;
-            if candidates.is_empty() {
-                break;
-            }
-            let exhausted = candidates.len() < LIST_SCAN_BATCH;
-            let previous_cursor = scan_cursor;
-            for stored in candidates {
-                scan_cursor = Some(stored.metadata.artifact_id());
-                let retained = stored
-                    .metadata
-                    .compliance
-                    .retention_expires_at
-                    .is_none_or(|expires| expires > Utc::now());
-                if retained
-                    && Self::access_decision(caller, &stored, AccessLevel::Read).is_allowed()
-                {
-                    artifacts.push(stored.metadata);
-                    if artifacts.len() == limit {
-                        break;
-                    }
-                }
-            }
-            if artifacts.len() == limit || exhausted {
-                break;
-            }
-            if scan_cursor == previous_cursor {
+        let mut admitted = self
+            .repository
+            .list_artifacts(ArtifactListQuery {
+                actor: actor.clone(),
+                groups,
+                clearance: caller.clearance().clone(),
+                work_context: caller.identity.authority.work_context.clone(),
+                cursor: request.cursor,
+                limit: limit + 1,
+            })
+            .await
+            .map_err(transport)?;
+        let has_more = admitted.len() > limit;
+        admitted.truncate(limit);
+        let mut artifacts = Vec::with_capacity(admitted.len());
+        for stored in admitted {
+            // SQL owns selection. A disagreement or concurrent revocation fails
+            // the page; it never becomes post-query filtering or a partial page.
+            if !Self::access_decision(caller, &stored, AccessLevel::Read).is_allowed() {
                 return Err(ArtifactPlaneError::Transport(
-                    "artifact discovery cursor did not advance".into(),
+                    "artifact visibility changed; retry discovery".into(),
                 ));
             }
+            artifacts.push(stored.metadata);
         }
 
         self.audit(
@@ -771,7 +751,7 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
             AuditReason::Accepted,
         )
         .await?;
-        let next_cursor = (artifacts.len() == limit).then(|| {
+        let next_cursor = has_more.then(|| {
             artifacts
                 .last()
                 .expect("full page has a last artifact")
@@ -1302,6 +1282,7 @@ fn repository_mutation_error(error: RepositoryError) -> ArtifactPlaneError {
 #[cfg(test)]
 pub(crate) mod tests {
     mod audit_windows;
+    mod discovery;
     mod identity;
     mod immutable_blob;
     pub(crate) use identity::request_context;
@@ -1536,7 +1517,9 @@ pub(crate) mod tests {
     async fn discovery_is_grant_filtered_and_keyset_paginated() {
         let (service, _) = service();
         let alice = caller("alice", "acme", &[]);
-        let bob = caller("bob", "acme", &[]);
+        let mut bob = caller("bob", "acme", &[]);
+        bob.identity.authority.work_context = WorkContextId::new("other-work").unwrap();
+        bind_request_context(&mut bob.identity);
         let first = service
             .put(&alice, PutArtifactRequest::default(), b"first".to_vec())
             .await

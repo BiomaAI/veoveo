@@ -19,11 +19,12 @@ use serde::Serialize;
 use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_artifact_contract::{ArtifactId, ArtifactMetadata, parse_artifact_plane_uri};
 use veoveo_artifact_mcp::contract::{
-    ARTIFACT_TEMPLATE, ArtifactGrantsOutput, ArtifactMetadataOutput, ArtifactMutationOutput,
-    ArtifactReference, ArtifactShareOutput, CONTRACT_URI, CreateArtifactShareRequest, DOC_TEMPLATE,
-    DOCS_URI, GRANTS_TEMPLATE, GrantArtifactRequest, INDEX_URI, LIBRARY_APP_URI, METADATA_TEMPLATE,
-    RevokeArtifactGrantRequest, RevokeArtifactShareRequest, SetArtifactReleaseRequest,
-    parse_doc_uri, parse_grants_uri, parse_metadata_uri,
+    ARTIFACT_TEMPLATE, ArtifactGrantsOutput, ArtifactIndexPage, ArtifactMetadataOutput,
+    ArtifactMutationOutput, ArtifactReference, ArtifactResource, ArtifactShareOutput, CONTRACT_URI,
+    CreateArtifactShareRequest, DOC_TEMPLATE, DOCS_URI, GRANTS_TEMPLATE, GrantArtifactRequest,
+    INDEX_URI, LIBRARY_APP_URI, METADATA_TEMPLATE, RevokeArtifactGrantRequest,
+    RevokeArtifactShareRequest, SetArtifactReleaseRequest, parse_doc_uri, parse_grants_uri,
+    parse_metadata_uri,
 };
 use veoveo_mcp_contract::{
     ArtifactPlane, ArtifactPlaneError, CreateArtifactShareLinkRequest, ListArtifactsRequest, Page,
@@ -495,23 +496,22 @@ impl ServerHandler for ArtifactMcp {
                 .into(),
             );
         }
-        if uri == INDEX_URI {
-            let mut page = self
+        if let Ok(ArtifactResource::Index { cursor }) = ArtifactResource::parse(uri) {
+            let page = self
                 .state
                 .plane
                 .list(
                     &caller,
                     ListArtifactsRequest {
-                        cursor: None,
+                        cursor: cursor.map(|cursor| cursor.after()),
                         limit: Some(100),
                     },
                 )
                 .await
                 .map_err(plane_error)?;
-            for artifact in &mut page.artifacts {
-                *artifact = self.state.expose_download(&caller, artifact.clone());
-            }
-            return json_resource(uri, &page);
+            let index = ArtifactIndexPage::new(page.artifacts, page.next_cursor)
+                .map_err(|error| McpError::internal_error(error.to_string(), None))?;
+            return json_resource(uri, &index);
         }
         if let Some(artifact_id) = parse_metadata_uri(uri) {
             let metadata = self

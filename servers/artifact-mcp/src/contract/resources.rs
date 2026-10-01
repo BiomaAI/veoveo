@@ -36,7 +36,9 @@ impl TryFrom<&str> for ArtifactDocument {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ArtifactResource {
     LibraryApp,
-    Index,
+    Index {
+        cursor: Option<super::ArtifactIndexCursor>,
+    },
     Docs,
     Document(ArtifactDocument),
     Contract,
@@ -51,6 +53,29 @@ impl ArtifactResource {
         if value == super::LIBRARY_APP_URI {
             return Ok(Self::LibraryApp);
         }
+        if parts.scheme() == "artifact"
+            && parts.authority() == "index"
+            && parts.path_segments().next().is_none()
+        {
+            let query = parts.query_parameters();
+            let cursor = if parts.has_query() {
+                if query.len() != 1 {
+                    return Err(ResourceUriError::DisallowedComponent);
+                }
+                Some(super::ArtifactIndexCursor::parse(
+                    query
+                        .get("cursor")
+                        .ok_or(ResourceUriError::DisallowedComponent)?,
+                )?)
+            } else {
+                None
+            };
+            let address = Self::Index { cursor };
+            if address.to_uri().as_str() != value {
+                return Err(ResourceUriError::DisallowedComponent);
+            }
+            return Ok(address);
+        }
         if parts.scheme() != "artifact" || parts.has_query() || value.contains('%') {
             return Err(ResourceUriError::DisallowedComponent);
         }
@@ -62,7 +87,6 @@ impl ArtifactResource {
         let id =
             |value| ArtifactId::parse(value).map_err(|_| ResourceUriError::DisallowedComponent);
         match (parts.authority(), path.as_slice()) {
-            ("index", []) => Ok(Self::Index),
             ("docs", []) => Ok(Self::Docs),
             ("docs", [doc]) => Ok(Self::Document(ArtifactDocument::try_from(*doc)?)),
             ("contract", []) => Ok(Self::Contract),
@@ -74,6 +98,16 @@ impl ArtifactResource {
     }
 
     pub fn to_uri(self) -> ResourceUri {
+        if let Self::Index { cursor } = self {
+            let mut builder =
+                ResourceUriBuilder::new(super::INDEX_URI).expect("Artifact index root");
+            if let Some(cursor) = cursor {
+                builder = builder
+                    .query_pair("cursor", &String::from(cursor))
+                    .expect("Artifact cursor");
+            }
+            return builder.build().expect("Artifact index address");
+        }
         if self == Self::LibraryApp {
             return ResourceUriBuilder::new("ui://artifact")
                 .expect("declared App root")
@@ -83,7 +117,7 @@ impl ArtifactResource {
         }
         let (authority, segment) = match self {
             Self::LibraryApp => unreachable!("App address handled above"),
-            Self::Index => ("index".into(), None),
+            Self::Index { .. } => unreachable!("index handled above"),
             Self::Docs => ("docs".into(), None),
             Self::Contract => ("contract".into(), None),
             Self::Document(doc) => ("docs".into(), Some(doc.as_str().to_owned())),
@@ -144,11 +178,40 @@ pub fn parse_grants_uri(uri: &str) -> Option<ArtifactId> {
 mod tests {
     use super::*;
     #[test]
+    fn index_cursors_round_trip_and_cannot_be_used_on_members() {
+        let id = ArtifactId::new();
+        let cursor = super::super::ArtifactIndexCursor::new(id);
+        let token = String::from(cursor);
+        let page = ArtifactResource::Index {
+            cursor: Some(cursor),
+        };
+        assert_eq!(
+            ArtifactResource::parse(page.to_uri().as_str()).unwrap(),
+            page
+        );
+        assert_eq!(
+            super::super::ArtifactIndexCursor::parse(&token)
+                .unwrap()
+                .after(),
+            id
+        );
+        assert!(super::super::ArtifactIndexCursor::parse(&id.to_string()).is_err());
+        for uri in [
+            format!("artifact://index?cursor={token}&cursor={token}"),
+            format!("artifact://index?cursor={token}&limit=100"),
+            format!("artifact://metadata/{id}?cursor={token}"),
+            "artifact://index?cursor=".into(),
+            "artifact://index?cursor=time-cursor".into(),
+        ] {
+            assert!(ArtifactResource::parse(&uri).is_err());
+        }
+    }
+    #[test]
     fn public_families_round_trip_and_reject_ambiguous_components() {
         let id = ArtifactId::new();
         for resource in [
             ArtifactResource::LibraryApp,
-            ArtifactResource::Index,
+            ArtifactResource::Index { cursor: None },
             ArtifactResource::Docs,
             ArtifactResource::Contract,
             ArtifactResource::Document(ArtifactDocument::Agents),

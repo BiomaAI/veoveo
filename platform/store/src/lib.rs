@@ -49,8 +49,9 @@ pub use artifact_reads::{
 };
 pub use artifact_uploads::*;
 pub use artifacts::{
-    ArtifactAggregate, ArtifactGrantDraft, ArtifactOccurrenceDraft, ArtifactShareLinkDraft,
-    ArtifactWriteCapabilityDraft, ArtifactWriteReservation, PublicShareRedemption,
+    ArtifactAggregate, ArtifactGrantDraft, ArtifactOccurrenceDraft, ArtifactReadScope,
+    ArtifactShareLinkDraft, ArtifactWriteCapabilityDraft, ArtifactWriteReservation,
+    PublicShareRedemption,
 };
 pub use changefeed::{
     ArtifactChange, ChangefeedBatch, ChangefeedConsumerId, ChangefeedCursor, ChangefeedDelivery,

@@ -12,6 +12,7 @@ use veoveo_types::AccessLevel;
 use veoveo_types::AccessSubject;
 
 pub const INDEX_URI: &str = "artifact://index";
+pub const INDEX_TEMPLATE: &str = "artifact://index{?cursor}";
 pub const LIBRARY_APP_URI: &str = "ui://artifact/library.html";
 pub const ARTIFACT_TEMPLATE: &str = "artifact://{artifact_id}";
 pub const METADATA_TEMPLATE: &str = "artifact://metadata/{artifact_id}";
@@ -23,6 +24,8 @@ pub const DOCS_URI: &str = "artifact://docs";
 pub const CONTRACT_URI: &str = "artifact://contract";
 pub const DOC_TEMPLATE: &str = "artifact://docs/{doc_id}";
 
+mod index;
+pub use index::{ArtifactIndexCursor, ArtifactIndexEntry, ArtifactIndexPage};
 mod resources;
 mod scopes;
 pub use resources::{

@@ -42,6 +42,28 @@ infers a missing initiator or delegation identity. The model's
 [attribution wire profile](../contract/DESIGN.md#attribution-wire-profile) specifies
 the supported mode and identity combinations.
 
+## Artifact Discovery
+
+`ArtifactListQuery` carries the verified tenant and principal, group memberships,
+clearance and selected Work Context into the repository. Store's `ArtifactReadScope`
+converts those typed identities at the database boundary. The occurrence query applies
+tenant, classification and labels, retention deadline and either a live subject grant
+or the selected context before decoding rows and applying the page limit. Indexed
+context and stored invocation context must agree. Every group role can confer read
+access, so read discovery needs the group identities; higher access levels still use
+the shared evaluator.
+
+Pages read one extra admitted occurrence and expose a continuation only when that row
+exists. Selected aggregates are checked with `access::decide` before delivery. A policy
+disagreement or concurrent revocation fails the page and permits a fresh read. The
+service does not scan and discard denied candidates in Rust.
+
+`service/tests/discovery.rs` qualifies this path with an owned SurrealDB 3.3.0 process.
+It covers direct and group grants, selected-context access, foreign tenants, clearance,
+expired retention and grants, and malformed denied rows ahead of the visible page.
+Run it with `VEOVEO_SURREAL_BINARY` set to the qualified executable and
+`cargo test -p veoveo-artifact-service --lib discovery -- --include-ignored`.
+
 ## Blob Backend Profiles
 
 Deleting an occurrence cascades its `share_link` children. SurrealDB also removes its

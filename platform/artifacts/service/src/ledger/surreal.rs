@@ -289,19 +289,17 @@ impl ArtifactRepository for SurrealArtifactRepository {
         query: ArtifactListQuery,
     ) -> Result<Vec<StoredArtifact>, RepositoryError> {
         let identity = self.identity(&query.actor).await?;
-        let mut subjects = vec![identity.principal_id.record_id()];
-        for group in &query.groups {
-            subjects.push(
-                platform::deterministic_group_id(&identity.tenant_key, group.as_str())
-                    .map_err(repository_error)?
-                    .record_id(),
-            );
-        }
-        let ids = self
+        let scope = platform::ArtifactReadScope::new(
+            &identity,
+            query.groups,
+            query.clearance,
+            Some(query.work_context),
+        )
+        .map_err(repository_error)?;
+        let aggregates = self
             .store
-            .artifact_ids_for_subjects(
-                identity.tenant_id,
-                subjects,
+            .artifact_read_page(
+                scope,
                 query
                     .cursor
                     .map(|id| platform::ArtifactId::from_uuid(id.as_uuid())),
@@ -309,20 +307,10 @@ impl ArtifactRepository for SurrealArtifactRepository {
             )
             .await
             .map_err(repository_error)?;
-        let mut artifacts = Vec::with_capacity(ids.len());
-        for id in ids {
-            let contract_id = ArtifactId::parse(id.to_string())
+        let mut artifacts = Vec::with_capacity(aggregates.len());
+        for aggregate in aggregates {
+            let contract_id = ArtifactId::parse(record_uuid(&aggregate.occurrence.id)?.to_string())
                 .map_err(|error| RepositoryError::Corrupt(error.to_string()))?;
-            let aggregate = self
-                .store
-                .artifact_aggregate(id)
-                .await
-                .map_err(repository_error)?
-                .ok_or_else(|| {
-                    RepositoryError::Corrupt(
-                        "artifact disappeared while building discovery page".into(),
-                    )
-                })?;
             artifacts.push(self.map_aggregate(contract_id, aggregate).await?);
         }
         Ok(artifacts)

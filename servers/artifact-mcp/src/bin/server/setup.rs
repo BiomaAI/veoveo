@@ -131,6 +131,12 @@ fn resource_templates() -> Vec<ResourceTemplate> {
             .with_title("Artifact grants")
             .with_description("Administrative artifact access-control entries.")
             .with_mime_type("application/json"),
+        ResourceTemplate::new(INDEX_TEMPLATE, "artifact-index-page")
+            .with_title("Artifact metadata page")
+            .with_description(
+                "Up to 100 readable metadata resource links with a continuation cursor.",
+            )
+            .with_mime_type("application/json"),
     ]
 }
 
@@ -141,7 +147,7 @@ mod tests {
     fn checked_surface_preserves_app_metadata_and_matches_every_template() {
         let setup = &*SERVER_SETUP;
         assert_eq!(setup.resources().len(), 6);
-        assert_eq!(setup.resource_templates().len(), 4);
+        assert_eq!(setup.resource_templates().len(), 5);
         assert!(setup.scope_names().is_empty());
         let app = setup
             .resources()
@@ -160,6 +166,7 @@ mod tests {
                 .template()
                 .as_str()
                 .replace("{artifact_id}", &id.to_string())
+                .replace("{?cursor}", "")
                 .replace("{doc_id}", "agents");
             assert_eq!(
                 ArtifactResource::parse(&uri).unwrap().to_uri().as_str(),

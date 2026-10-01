@@ -60,6 +60,16 @@ separately resolved contract consumer pass. The isolated dependency graph exclud
 MCP, Store, HTTP and asynchronous service runtimes. Installed collection qualification and
 event change/restart probes remain open. The cluster and BuildKit stay stopped.
 
+Artifact discovery now selects clearance, retention, live grants and the selected
+Work Context in SQL before decoding and LIMIT. The previous grant-only candidate
+scan and Rust post-filter loop are removed. The metadata index has typed cursor URLs
+and bounded URI pages, and the Library App follows them. Native SurrealDB qualification
+covers malformed denied rows, tenant isolation, context and grant access, expiry and
+page boundaries. Service and MCP checks, affected strict Clippy and six headless
+Workbench navigation cases pass. Artifact observations and installed conformance remain
+open; observations must express its selected-context sharing and retention deadline
+without broadening access to every context the reader belongs to.
+
 Current direction: every contract change in this plan is a coordinated hard cut.
 Historical data requires no support or migration. Remove compatibility adapters
 introduced during earlier checkpoints; those checkpoint descriptions are not
@@ -3367,7 +3377,7 @@ revision.
 |---|---|---|---|
 | chart | `charts.docs` only | build-time document digests | Docs declaration, observations and conditional reads implemented; installed certification remains open |
 | time | events, calendar versions, epoch versions, acquired and packaged authority releases | stored creation tenant, owner and Work Context; content/access revisions, source digests and modification timestamps | Five collections, typed URI pages, observations and conditional reads implemented; installed qualification and event change/restart probes remain open |
-| artifact | artifact metadata (`artifact://metadata/{id}`), never the bytes | compliance metadata: tenant, owner, Work Context, labels, provenance | Cursor paging for `artifact://index`; `modifiedBy` from the occurrence record |
+| artifact | artifact metadata (`artifact://metadata/{id}`), never the bytes | compliance metadata: tenant, owner, Work Context, labels, provenance | SQL-admitted cursor pages and Library navigation implemented; service-owned observations, exact metadata admission, selected-context/expiry policy and installed qualification remain open |
 | map | feature layers, features, publications, locations, facilities, dataset releases | layer and feature revisions, `created_by`, Work Context, labels, changeset sequence, source digests | Return resource links from `search_locations`; declare the other collections from its templates |
 
 Acceptance: each server passes K01 through K10 review and conformance, and the audit

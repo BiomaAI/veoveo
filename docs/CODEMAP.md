@@ -540,6 +540,7 @@ Domain runtimes can own private queries and driver records over these connection
 | `identity.rs`, `identity/ensure.surql` | tenant/principal/group resolution; transactional identity creation and presentation-only principal updates that preserve current disablement and security fields |
 | `gateway_runtime.rs` | control revisions, auth state, refresh/JWT runtime records |
 | `artifacts.rs` | blob, occurrence, grant, share, capability transactions |
+| `artifacts/reads.rs` and `artifacts/read_page.surql` | typed Artifact discovery admission: tenant, clearance, retention, selected Work Context and live grants before decoding and page limits |
 | `artifacts/publication.rs` and `artifacts/register.surql` | shared typed publication content and transactional occurrence and grant registration with immutable tenant/digest blob reuse |
 | `artifact_uploads.rs` and `artifact_uploads/` | typed upload ledger, policy-bound idempotent admission, and atomic tenant reservations |
 | `artifact_uploads/parts.rs` and its SurrealQL statements | immutable part descriptors, generation-fenced receipts, shared transfer budgets, and unknown-length reservation windows |
@@ -713,6 +714,9 @@ The MCP server for the artifact plane. `handler.rs` owns tools/resources,
 plumbing. `src/contract.rs` exposes tool values and plane-owned public types through
 an isolated contract feature. `src/contract/resources.rs` owns Artifact resource
 families and typed component construction.
+`src/contract/index.rs` owns the index cursor and bounded metadata-link pages;
+`platform/artifacts/service/src/service/tests/discovery.rs` qualifies their service
+selection against native SurrealDB.
 `src/bin/server/setup.rs` binds those addresses, documents and templates to the shared
 checked MCP setup used by startup and discovery.
 

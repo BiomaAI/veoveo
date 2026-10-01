@@ -752,16 +752,20 @@ async fn artifact_plane_counters_and_occurrence_dedup_are_durable() {
     assert_eq!(artifact.blob.id, second.blob.id);
     assert_eq!(artifact.grants[0].subject_key, "alice");
     let visible = store
-        .artifact_ids_for_subjects(
-            identity.tenant_id,
-            vec![identity.principal_id.record_id()],
+        .artifact_read_page(
+            veoveo_platform_store::ArtifactReadScope::new(&identity, [], Default::default(), None)
+                .unwrap(),
             None,
             10,
         )
         .await
         .unwrap();
     assert_eq!(visible.len(), 2);
-    assert!(visible.contains(&first_id));
+    assert!(
+        visible
+            .iter()
+            .any(|item| item.occurrence.id == first_id.record_id())
+    );
 
     let requester = store
         .ensure_identity(
