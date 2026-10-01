@@ -123,7 +123,8 @@ pub(super) struct Record {
     actor_key: String,
     binding: OpenObject,
     authority: OpenObject,
-    sealed: OpenObject,
+    #[surreal(wrap)]
+    sealed: SealedCommand,
     output_access: Option<OpenObject>,
     task: RecordId,
     stage: String,
@@ -155,7 +156,7 @@ impl TryFrom<Record> for CommandOperation {
             Ok(Self {
                 binding: serde_json::from_value(serde_json::to_value(row.binding)?)?,
                 authority: serde_json::from_value(serde_json::to_value(row.authority)?)?,
-                sealed: serde_json::from_value(serde_json::to_value(row.sealed)?)?,
+                sealed: row.sealed,
                 output_access: row
                     .output_access
                     .map(|v| serde_json::from_value(serde_json::to_value(v)?))

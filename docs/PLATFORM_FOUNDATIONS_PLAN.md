@@ -4,8 +4,8 @@ Status: Phase 0 is accepted. Phases 1–3 have the installed acceptance gaps lis
 under Deferred Work. Phase 4's installed audit checks pass; composed flight and
 Recording acceptance remain open. Phase 5 has qualified native consumer migration and
 writer/schema removal. Computer authority observation and the database-feature review
-are qualified locally. Paired measurements are recorded and expose excessive copying
-of encrypted command payloads; payload separation and installed acceptance remain.
+are qualified locally. Private command/file payload separation passes native tests
+and repeated storage measurements. Phase 5 publication and installed acceptance remain.
 Phases 6–9 are open. The reference installation last converged at `8e4b36e7`;
 it is stopped during development, and the Phase 5 changes are not deployed.
 
@@ -3037,6 +3037,28 @@ reads, retry identity, current-format recovery and parent-owned cleanup. Qualify
 that pass as one batch and repeat the affected payload measurements before
 publication. The measurement targets pass strict Clippy; the fixtures are removed,
 the cluster and builder are stopped, and 134 GiB is free. Phase 5 is not deployed.
+
+The payload-separation batch stores command and file request envelopes in private,
+read-only rows without changefeeds. Admission commits each payload with its journal,
+request identity, execution slot and audit record. Private reads resolve the typed
+envelope through the journal's read-only link; parent deletion cascades to the payload.
+The full schema rejects payload mutation, preserves payloads on rollback and leaves
+the execution fence intact when missing input prevents recovery.
+
+The grouped Store/Computers/Computers MCP run and affected repairs qualify 296 distinct
+functional Rust tests. Initial admission exposed a SurrealQL projection over `NONE`;
+both request lookups now filter absent records in SQL before decoding. Existing
+concurrent retries, corruption, policy, active renewal, containment, completion and
+HTTP admission pass. The complete 241-file SQL validation, strict all-target Clippy,
+formatting and documentation checks pass. Provider/installed cases are not claimed.
+
+The [repeated journal experiment](../platform/store/measurements/journal-separated-2026-10-01.md)
+commits all 288 metadata updates across 18 fresh RocksDB fixtures. Each native-feed
+run emits 39,232 normalized JSON bytes and zero request ciphertext bytes. At 1 MiB
+stdin, median attributed block writes fall from 132.195 to 0.465 MiB and median update
+time from 317.705 to 19.379 ms. All owned fixtures are removed. About 117 GiB is free;
+the cluster and builder are stopped. Phase 5 publication and installed acceptance are
+the next checkpoint.
 
 Work:
 

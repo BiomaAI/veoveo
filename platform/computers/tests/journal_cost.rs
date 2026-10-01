@@ -80,16 +80,17 @@ async fn measure(profile: Profile, round: usize, stdin_bytes: usize) -> Measurem
         "computer_execution",
         surrealdb::types::Uuid::from(operation.execution_id().into_uuid()),
     );
-    let ciphertext_bytes: Option<u64> =
-        db.a.client()
-            .query("RETURN string::len((SELECT VALUE sealed.ciphertext FROM ONLY $record));")
-            .bind(("record", record.clone()))
-            .await
-            .unwrap()
-            .check()
-            .unwrap()
-            .take(0)
-            .unwrap();
+    let ciphertext_bytes: Option<u64> = db
+        .a
+        .client()
+        .query("RETURN string::len((SELECT VALUE payload.sealed.ciphertext FROM ONLY $record));")
+        .bind(("record", record.clone()))
+        .await
+        .unwrap()
+        .check()
+        .unwrap()
+        .take(0)
+        .unwrap();
     let ciphertext_bytes = usize::try_from(ciphertext_bytes.unwrap()).unwrap();
     assert!(
         ciphertext_bytes > stdin_bytes,
@@ -122,7 +123,6 @@ async fn measure(profile: Profile, round: usize, stdin_bytes: usize) -> Measurem
 
     let mut feed_rows = 0;
     let mut feed_json_bytes = 0;
-    let mut feed_ciphertext_bytes = 0;
     let mut replay_us = 0;
     loop {
         let start = Instant::now();
@@ -136,6 +136,7 @@ async fn measure(profile: Profile, round: usize, stdin_bytes: usize) -> Measurem
         for batch in batches {
             for value in batch.changes {
                 let change = decode_changefeed_entry(&value).unwrap();
+                assert_ne!(change.table(), Some("computer_execution_payload"));
                 if change.record_id() == Some(&record)
                     && let ChangefeedEntry::Upsert(row) = change
                 {
@@ -143,11 +144,14 @@ async fn measure(profile: Profile, round: usize, stdin_bytes: usize) -> Measurem
                     feed_json_bytes += serde_json::to_vec(&row.clone().into_json_value())
                         .unwrap()
                         .len();
-                    let Value::String(ciphertext) = row.get("sealed").get("ciphertext") else {
-                        panic!("journal replay must preserve the encrypted envelope");
-                    };
-                    assert_eq!(ciphertext.len(), ciphertext_bytes);
-                    feed_ciphertext_bytes += ciphertext.len();
+                    assert!(row.get("sealed").is_nullish());
+                    assert_eq!(
+                        row.get("payload"),
+                        &Value::RecordId(RecordId::new(
+                            "computer_execution_payload",
+                            surrealdb::types::Uuid::from(operation.execution_id().into_uuid()),
+                        ))
+                    );
                 }
             }
         }
@@ -170,7 +174,7 @@ async fn measure(profile: Profile, round: usize, stdin_bytes: usize) -> Measurem
         replay_us,
         feed_rows,
         feed_json_bytes,
-        feed_ciphertext_bytes,
+        feed_ciphertext_bytes: 0,
         storage_before_bytes,
         storage_after_bytes,
         device_writes,

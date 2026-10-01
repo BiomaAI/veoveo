@@ -33,6 +33,12 @@ fn record(id: crate::api::FileTransferId) -> surrealdb::types::RecordId {
         surrealdb::types::Uuid::from(id.into_uuid()),
     )
 }
+fn payload_record(id: crate::api::FileTransferId) -> surrealdb::types::RecordId {
+    surrealdb::types::RecordId::new(
+        "computer_file_transfer_payload",
+        surrealdb::types::Uuid::from(id.into_uuid()),
+    )
+}
 fn object(value: &impl serde::Serialize) -> crate::Result<veoveo_platform_store::OpenObject> {
     serde_json::from_value(
         serde_json::to_value(value).map_err(|_| crate::ComputerError::Unavailable)?,

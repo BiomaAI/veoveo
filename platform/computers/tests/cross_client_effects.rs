@@ -133,7 +133,7 @@ async fn file_task_recovery_preserves_ciphertext_and_original_actor() {
     );
     let mut read =
         db.a.client()
-            .query("SELECT VALUE sealed FROM ONLY $record;")
+            .query("SELECT VALUE payload.sealed FROM ONLY $record;")
             .bind(("record", record.clone()))
             .await
             .unwrap()
@@ -157,7 +157,7 @@ async fn file_task_recovery_preserves_ciphertext_and_original_actor() {
     );
     let mut read =
         db.b.client()
-            .query("SELECT VALUE sealed FROM ONLY $record;")
+            .query("SELECT VALUE payload.sealed FROM ONLY $record;")
             .bind(("record", record))
             .await
             .unwrap()

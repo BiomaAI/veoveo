@@ -34,7 +34,7 @@ impl ComputersStore {
         let started = Instant::now();
         let mut read = self
             .query(
-                "SELECT * FROM ONLY $execution; RETURN time::now();",
+                "SELECT *, payload.sealed AS sealed FROM ONLY $execution; RETURN time::now();",
                 vec![("execution", super::record(id).into_value())],
             )
             .await?;

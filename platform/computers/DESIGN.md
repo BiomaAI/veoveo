@@ -5,7 +5,7 @@
 | Boundary | Supported profile |
 |---|---|
 | Veoveo identity and Work Context | Canonical TaskOwner authority, named user/service principals, tenant and context isolation; current implementation admits private ownership |
-| SurrealDB / SurrealQL 3.3.0 | Existing qualified platform client/server pin; schema-full records, atomic multi-record admission and audit append, native table changefeeds, conflict-only bounded transaction retry |
+| SurrealDB / SurrealQL 3.3.0 | Existing qualified platform client/server pin; schema-full records, read-only envelopes, reference cascades, atomic multi-record admission and audit append, native table changefeeds, conflict-only bounded transaction retry |
 | Veoveo Computers JSON | Public DTOs live in `contract/`; provider identities and persisted authority remain internal |
 | Veoveo audit record v1 | Closed Computer activities and journal stages, verified request attribution and transactional append through the shared Store function |
 | XChaCha20-Poly1305 and HMAC-SHA-256 | Private command, output-capability and maintenance-checkpoint envelope v1; installation-owned keys, random 192-bit nonces, distinct derived encryption and fingerprint keys and authenticated purposes; no public wire extension |
@@ -62,12 +62,9 @@ Computer records themselves use their record identity. Execution-slot cleanup st
 in the fenced settlement transaction: it releases capacity while preserving the
 execution journal, which a parent-delete cascade cannot express.
 
-The current command journal stores encrypted input beside changing metadata.
-Its feed copies that input on every update. The
-[journal measurement](../store/measurements/native-after-2026-10-01.md#encrypted-command-journals)
-quantifies the storage and replay cost. Payload separation, atomic admission and
-recovery qualification are required before these feeds pass installed acceptance;
-the foundations plan tracks that work.
+Command and file journals carry a read-only link to their
+[private request payload](#private-request-storage). Their feeds carry metadata
+and that link. The payload tables have no changefeed.
 
 The service keeps authority expiry armed during I/O and renewal. Commands and file
 transfers retain their five-second freshness bound; MCP subscriptions use their
@@ -669,13 +666,42 @@ the selected releases. Tests cover run/owner/grant rebinding, authenticated limi
 randomized ciphertext, retained-key retry, key removal, corrupt envelopes and strict
 framing. No provider or installation is needed for these pure checks.
 
+## Private Request Storage
+
+`computer_execution_payload` and `computer_file_transfer_payload` hold the encrypted
+request envelopes. Each row uses its journal's domain UUID as its record key. The
+journal's read-only `payload` link and the payload's read-only `journal` reference
+must have that key. The envelope has a closed object schema and is read-only.
+Its Rust persistence field uses `SealedCommand` or `SealedFileTransfer` through the
+driver's serde adapter, preserving the crypto codec's types and wire representation.
+
+Admission creates the journal, payload, request claim, execution slot and audit record
+in one transaction. Private reads select `payload.sealed` explicitly when reconstructing
+an operation. Missing input fails recovery and preserves the execution fence. Active
+authority renewal reads metadata and does not retrieve the accepted request again.
+Public resources, shared Tasks and native feeds contain no request envelope.
+
+Each payload reference uses `REFERENCE ON DELETE CASCADE`; deleting its journal
+removes the payload in the same transaction. Payloads have no independent retention
+deadline. A surviving journal can require its accepted input for exact retry matching
+or recovery, including unresolved provider outcomes. Payload tables have no changefeed,
+so metadata transitions do not duplicate input ciphertext in database-wide replay.
+
+The storage profile requires matching readers and writers and a fresh schema catalog
+under the foundations plan's coordinated installation cut. Writers must be drained
+before that reset. Tests qualify atomic failure, read-only envelopes, metadata-only
+feeds, missing-input fencing, rollback and parent-owned cleanup. The
+[cost measurements](../store/measurements/journal-separated-2026-10-01.md) record
+metadata-update writes and feed size across the admitted stdin range.
+
 ## Durable Command Admission
 
 `commands/` consumes a current Execute authority read and an encrypted payload. Its
 transaction rechecks the control revision, enabled source and owner principals,
 caller session family, grant revision and installation policy fingerprint. The
 retained Computer owner context and exact provider run must still match. It commits
-the command, request identity, exclusive execution slot and audit record together.
+the command, private request payload, request identity, exclusive execution slot
+and audit record together.
 An authority read prepared before revocation or a policy reduction cannot admit work.
 
 Request identity binds the actual source principal and OAuth client as well as the

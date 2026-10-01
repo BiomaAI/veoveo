@@ -29,6 +29,12 @@ fn record(id: crate::api::ExecutionId) -> RecordId {
         surrealdb::types::Uuid::from(id.into_uuid()),
     )
 }
+fn payload_record(id: crate::api::ExecutionId) -> RecordId {
+    RecordId::new(
+        "computer_execution_payload",
+        surrealdb::types::Uuid::from(id.into_uuid()),
+    )
+}
 pub(crate) fn slot(computer: veoveo_computers_contract::ComputerId) -> RecordId {
     RecordId::new(
         "computer_execution_slot",

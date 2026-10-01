@@ -69,7 +69,7 @@ async fn live_authority_is_short_and_rechecks_policy_under_the_current_task_leas
     // The active worker already holds the authenticated request. Refresh compares
     // immutable metadata without downloading or decrypting file ciphertext.
     db.a.client()
-        .query("UPDATE computer_file_transfer SET sealed.ciphertext='not-read-by-active-refresh';")
+        .query("DELETE computer_file_transfer_payload;")
         .await
         .unwrap()
         .check()

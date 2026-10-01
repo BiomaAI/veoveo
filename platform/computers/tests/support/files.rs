@@ -2,6 +2,10 @@
 use crate::support;
 #[path = "commands.rs"]
 pub(crate) mod command_fixture;
+#[allow(
+    unused_imports,
+    reason = "Fixture consumers select their required helpers"
+)]
 pub use command_fixture::{computer_record, keys};
 use uuid::Uuid;
 use veoveo_computers::{

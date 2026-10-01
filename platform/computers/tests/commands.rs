@@ -181,7 +181,13 @@ async fn cancellation_revocation_and_changed_run_prevent_command_dispatch() {
             }
             "corrupt" => {
                 db.a.client()
-                    .query("UPDATE computer_execution SET sealed.ciphertext='invalid-ciphertext';")
+                    .query(
+                        "BEGIN; LET $saved = (SELECT * FROM computer_execution_payload)[0];
+                    DELETE $saved.id;
+                    CREATE $saved.id CONTENT { journal: $saved.journal,
+                        sealed: object::extend($saved.sealed, {ciphertext: 'invalid-ciphertext'}) };
+                    COMMIT;",
+                    )
                     .await
                     .unwrap()
                     .check()
@@ -308,8 +314,8 @@ async fn racing_command_retry_has_one_private_slot_event_and_recoverable_task() 
         serde_json::json!({"computerId":computer,"executionId":left.execution_id()})
     );
     assert_eq!(task.owner, *agent.owner());
-    let mut rows = db.a.client().query("SELECT * FROM computer_execution; SELECT * FROM computer_execution_slot; SELECT * FROM audit_record WHERE activity = 'computer_command' AND draft.detail.stage = 'queued';").await.unwrap().check().unwrap();
-    for i in 0..3 {
+    let mut rows = db.a.client().query("SELECT * FROM computer_execution; SELECT * FROM computer_execution_slot; SELECT * FROM audit_record WHERE activity = 'computer_command' AND draft.detail.stage = 'queued'; SELECT * FROM computer_execution_payload;").await.unwrap().check().unwrap();
+    for i in 0..4 {
         let rows: Vec<surrealdb::types::Value> = rows.take(i).unwrap();
         assert_eq!(rows.len(), 1);
         let text = serde_json::to_string(&rows[0]).unwrap();

@@ -40,6 +40,7 @@ IF $prior = NONE {
   UPDATE $computer SET updated_at = updated_at;
   CREATE $slot CONTENT {execution:$transfer, computer_id:$content.computer_id};
   CREATE $transfer CONTENT object::extend($content, {stage:"queued", created_at:$now, updated_at:$now});
+  CREATE $payload CONTENT $payload_content;
   CREATE $request CONTENT {transfer:$transfer};
   fn::append_audit($audit_rows);
 };

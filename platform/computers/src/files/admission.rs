@@ -3,7 +3,7 @@ use crate::{
     ComputerActor, ComputerError, ComputersStore, Result,
     api::ComputerPhase,
     identity::owner_key,
-    secrets::{ComputerKeyRing, FileTransferBinding, FileTransferPayload},
+    secrets::{ComputerKeyRing, FileTransferBinding, FileTransferPayload, SealedFileTransfer},
 };
 use serde::Serialize;
 use surrealdb::types::{RecordId, SurrealValue};
@@ -20,8 +20,14 @@ struct Content {
     actor_key: String,
     binding: OpenObject,
     authority: OpenObject,
-    sealed: OpenObject,
+    payload: RecordId,
     task: RecordId,
+}
+#[derive(SurrealValue)]
+struct Payload {
+    journal: RecordId,
+    #[surreal(wrap)]
+    sealed: SealedFileTransfer,
 }
 impl ComputersStore {
     pub async fn queue_file_transfer(
@@ -109,7 +115,7 @@ impl ComputersStore {
             actor_key,
             binding: super::object(&binding)?,
             authority: super::object(actor.accepted())?,
-            sealed: super::object(&sealed)?,
+            payload: super::payload_record(binding.transfer_id),
             task: task_record_id(binding.transfer_id.task_id()),
         };
 
@@ -126,6 +132,18 @@ impl ComputersStore {
                 crate::commands::slot(binding.computer_id).into_value(),
             ),
             ("content", content.into_value()),
+            (
+                "payload",
+                super::payload_record(binding.transfer_id).into_value(),
+            ),
+            (
+                "payload_content",
+                Payload {
+                    journal: super::record(binding.transfer_id),
+                    sealed,
+                }
+                .into_value(),
+            ),
             crate::audit::binding(
                 actor.accepted(),
                 binding.computer_id,
@@ -154,9 +172,10 @@ impl ComputersStore {
         self.match_file(selected, actor, &authority, request_id, payload, keys)
     }
     async fn file_request(&self, request: &RecordId) -> Result<Option<FileOperation>> {
+        // Filter a missing request before projection can turn NONE into {sealed: NONE}.
         let mut response = self
             .query(
-                "SELECT * FROM ONLY (SELECT VALUE transfer FROM ONLY $request);",
+                "SELECT *, payload.sealed AS sealed FROM ONLY (SELECT VALUE transfer FROM ONLY $request) WHERE id != NONE;",
                 vec![("request", request.clone().into_value())],
             )
             .await?;

@@ -18,7 +18,7 @@ impl ComputersStore {
         }
         let mut response = self
             .query(
-                "SELECT * FROM computer_execution WHERE provider_instance_id = $provider
+                "SELECT *, payload.sealed AS sealed FROM computer_execution WHERE provider_instance_id = $provider
              AND ($after = NONE OR execution_id > $after)
              AND (stage != 'recovery_required' OR task.status = NONE OR task.status IN ['queued', 'running'])
              AND (task_projected_at = NONE OR task.retention_pins CONTAINS string::concat('computer-execution/', <string>execution_id))
@@ -45,7 +45,7 @@ impl ComputersStore {
         }
         let mut read = self
             .query(
-                "SELECT * FROM ONLY $execution;",
+                "SELECT *, payload.sealed AS sealed FROM ONLY $execution;",
                 vec![(
                     "execution",
                     super::record(command.execution_id()).into_value(),

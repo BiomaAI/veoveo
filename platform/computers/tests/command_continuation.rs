@@ -69,7 +69,7 @@ async fn live_authority_is_short_and_rechecks_policy_under_the_current_task_leas
     // The active worker already holds the authenticated request. Refresh compares
     // immutable metadata without downloading or decrypting command ciphertext.
     db.a.client()
-        .query("UPDATE computer_execution SET sealed.ciphertext='not-read-by-active-refresh';")
+        .query("DELETE computer_execution_payload;")
         .await
         .unwrap()
         .check()

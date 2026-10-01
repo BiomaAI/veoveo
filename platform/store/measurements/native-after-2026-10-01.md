@@ -124,6 +124,8 @@ metadata before deployment. Admission must still commit payload and journal
 together, exact retries must compare the accepted input, and recovery must retain
 the payload for the journal's lifetime. Metadata feeds must continue to invalidate
 authority. Disabling the feed is only the measurement control.
+The [separated-payload measurement](journal-separated-2026-10-01.md) records the
+qualification of that storage layout.
 
 The [per-run CSV](journal-2026-10-01.csv) and
 [operation/device samples](journal-2026-10-01.jsonl) preserve all 288 metadata
@@ -133,6 +135,8 @@ updates across 18 fixtures. All fixtures are removed after observation.
 
 Use the qualified native build environment, a local Linux Docker engine with
 cgroup-v2 accounting, and the cached SurrealDB image pinned by the shared fixture.
+Commit `07f349f2` contains the harness for this inline-payload observation; the
+current journal harness measures the separated layout.
 Stop the cluster and builder. Run without concurrent builds or cleanup:
 
 ```sh

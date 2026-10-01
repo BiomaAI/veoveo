@@ -209,7 +209,8 @@ designs above.
 | `platform/computers/src/computer_access.rs` | merged owner/grantee discovery, Read access checks, named action scopes and batch owner lookup |
 | `servers/computers-mcp/src/application/lifecycle.rs` | named Start/Stop grants over the shared operation journal, retry authorization and owner Task recovery |
 | `platform/computers/src/authority_changes.rs` | shared native authority invalidations for worker I/O, MCP subscriptions and HTTP attachments; typed identity selectors and source-loss epochs |
-| `platform/computers/tests/journal_cost.rs` | encrypted command admission, metadata-update feed volume and container-attributed writes; [measurement record](../platform/store/measurements/native-after-2026-10-01.md#encrypted-command-journals) |
+| `platform/computers/tests/journal_cost.rs` | encrypted command admission, metadata-update feed volume and container-attributed writes; [separated-payload measurement](../platform/store/measurements/journal-separated-2026-10-01.md) |
+| `platform/computers/tests/journal_payloads.rs` | private command/file payload lifetime, atomic admission failure, read-only enforcement, metadata-only feeds and missing-input fencing |
 | `platform/computers/src/authority_snapshot.rs` and `control_authority.rs` | policy/directory snapshot and request-scoped action/read permissions; public read paths cannot obtain a dispatch ticket |
 | `platform/computers/src/control_session.rs` | signed browser session-family read and shared binding decision; logout and family expiry stop new control without cancelling accepted work |
 | `platform/computers/` | Computer records, tenant/principal/Work Context ownership across clients, immutable creation and encryption bindings, capacity and fence admission, Task linking, dispatch receipts, observation budgets and settlement; `tests/{resource_ownership,cross_client_effects}.rs` cover client isolation; worker integration lives in `servers/computers-mcp` |

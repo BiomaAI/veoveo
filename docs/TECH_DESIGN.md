@@ -335,6 +335,7 @@ and child cleanup commit or roll back together.
 | `gateway_refresh_token.family` | Refresh credentials belong to their session family |
 | `audit_record_seal.record` | Seal membership belongs to its retained audit record |
 | `audit_export_delivery.block` | Per-block export intent and receipts belong to the retained block |
+| `computer_execution_payload.journal`, `computer_file_transfer_payload.journal` | Immutable encrypted request input follows its command or file journal's lifetime |
 
 The database already removes graph edges when an endpoint is deleted. Grant replacement
 and explicit revocation still execute inside their authorized transactions. The native
@@ -376,12 +377,14 @@ block writes in the controlled workload. The storage observation includes reques
 compaction; it does not establish installed throughput or steady-state amplification.
 No client-visible conflict occurs in either latency measurement.
 
-Computer command journals carry immutable encrypted input in the changing row.
-Their native feed therefore repeats the envelope on metadata updates. The same
-measurement record quantifies this cost through actual encrypted admission and the
-shared replay reader. Payload separation and its qualification are required before
-the [foundations plan](PLATFORM_FOUNDATIONS_PLAN.md#phase-5-store-simplification)
-deploys those feeds.
+Computer command and file journals link to immutable encrypted input in private
+payload tables without changefeeds. Metadata updates and native replay carry that
+link. The [Computer storage design](../platform/computers/DESIGN.md#private-request-storage)
+specifies atomic admission, typed private reads and parent-owned cleanup.
+The [journal measurement](../platform/store/measurements/journal-separated-2026-10-01.md)
+records 39,232 feed JSON bytes for 16 updates at every tested input size. With 1 MiB
+stdin, the separated layout reduces measured block writes from 132.195 to 0.465 MiB
+and median update time from 317.705 to 19.379 ms under the compaction profile.
 
 ### SurrealDB Features Under Watch
 

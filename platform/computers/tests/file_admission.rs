@@ -96,7 +96,7 @@ async fn replicas_reserve_one_file_slot_and_recover_the_same_private_task() {
         keys.open_file_transfer(found[0].binding(), &{
             let mut row =
                 db.a.client()
-                    .query("SELECT VALUE sealed FROM ONLY $record;")
+                    .query("SELECT VALUE payload.sealed FROM ONLY $record;")
                     .bind((
                         "record",
                         surrealdb::types::RecordId::new(
@@ -177,8 +177,8 @@ async fn replicas_reserve_one_file_slot_and_recover_the_same_private_task() {
         .await,
         Err(ComputerError::OperationBusy)
     ));
-    let mut response=db.a.client().query("SELECT * FROM computer_file_transfer; SELECT * FROM audit_record WHERE activity = 'computer_file_transfer' AND draft.detail.stage = 'queued'; SELECT * FROM computer_execution_slot;").await.unwrap().check().unwrap();
-    for i in 0..3 {
+    let mut response=db.a.client().query("SELECT * FROM computer_file_transfer; SELECT * FROM audit_record WHERE activity = 'computer_file_transfer' AND draft.detail.stage = 'queued'; SELECT * FROM computer_execution_slot; SELECT * FROM computer_file_transfer_payload;").await.unwrap().check().unwrap();
+    for i in 0..4 {
         let rows: Vec<veoveo_platform_store::OpenObject> = response.take(i).unwrap();
         assert_eq!(rows.len(), 1);
         let encoded = serde_json::to_string(&rows).unwrap();

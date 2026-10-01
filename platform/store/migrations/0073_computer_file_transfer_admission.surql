@@ -6,7 +6,8 @@ DEFINE FIELD owner_key ON computer_file_transfer TYPE string ASSERT string::len(
 DEFINE FIELD actor_key ON computer_file_transfer TYPE string ASSERT string::len($value) = 64;
 DEFINE FIELD binding ON computer_file_transfer TYPE object FLEXIBLE;
 DEFINE FIELD authority ON computer_file_transfer TYPE object FLEXIBLE;
-DEFINE FIELD sealed ON computer_file_transfer TYPE object FLEXIBLE;
+DEFINE FIELD payload ON computer_file_transfer TYPE record<computer_file_transfer_payload> READONLY
+  ASSERT record::id($value) = $this.transfer_id;
 DEFINE FIELD artifact_access ON computer_file_transfer TYPE option<object> FLEXIBLE;
 DEFINE FIELD task ON computer_file_transfer TYPE record<task>;
 DEFINE FIELD stage ON computer_file_transfer TYPE "queued";
@@ -16,6 +17,12 @@ DEFINE INDEX file_transfer_identity ON computer_file_transfer FIELDS transfer_id
 DEFINE INDEX file_transfer_pending ON computer_file_transfer FIELDS provider_instance_id, transfer_id;
 DEFINE INDEX file_transfer_actor ON computer_file_transfer FIELDS actor_key, computer_id, transfer_id;
 DEFINE INDEX file_transfer_owner ON computer_file_transfer FIELDS owner_key, computer_id, transfer_id;
+DEFINE TABLE computer_file_transfer_payload SCHEMAFULL PERMISSIONS NONE;
+DEFINE FIELD journal ON computer_file_transfer_payload TYPE record<computer_file_transfer>
+  REFERENCE ON DELETE CASCADE READONLY ASSERT record::id($value) = record::id($this.id);
+DEFINE FIELD sealed ON computer_file_transfer_payload
+  TYPE {version: int, key_id: string, nonce: string, ciphertext: string, fingerprint: string}
+  READONLY;
 DEFINE TABLE computer_file_transfer_request SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD transfer ON computer_file_transfer_request TYPE record<computer_file_transfer>;
 DEFINE FIELD OVERWRITE execution ON computer_execution_slot TYPE record<computer_execution | computer_file_transfer>;

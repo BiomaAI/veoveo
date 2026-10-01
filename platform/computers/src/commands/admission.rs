@@ -5,7 +5,7 @@ use crate::{
     automation_grants::AutomationAuthority,
     identity::owner_key,
     model::computer_record,
-    secrets::{CommandBinding, CommandPayload, ComputerKeyRing},
+    secrets::{CommandBinding, CommandPayload, ComputerKeyRing, SealedCommand},
 };
 use serde::Serialize;
 use surrealdb::types::{RecordId, SurrealValue};
@@ -21,8 +21,14 @@ struct Content {
     actor_key: String,
     binding: OpenObject,
     authority: OpenObject,
-    sealed: OpenObject,
+    payload: RecordId,
     task: RecordId,
+}
+#[derive(SurrealValue)]
+struct Payload {
+    journal: RecordId,
+    #[surreal(wrap)]
+    sealed: SealedCommand,
 }
 fn object(value: &impl Serialize) -> Result<OpenObject> {
     serde_json::from_value(serde_json::to_value(value).map_err(|_| ComputerError::Unavailable)?)
@@ -135,7 +141,7 @@ impl ComputersStore {
             actor_key,
             binding: object(&binding)?,
             authority: object(actor.accepted())?,
-            sealed: object(&sealed)?,
+            payload: super::payload_record(binding.execution_id),
             task: task_record_id(binding.execution_id.task_id()),
         };
 
@@ -149,6 +155,18 @@ impl ComputersStore {
             ),
             ("slot", super::slot(computer_id).into_value()),
             ("content", content.into_value()),
+            (
+                "payload",
+                super::payload_record(binding.execution_id).into_value(),
+            ),
+            (
+                "payload_content",
+                Payload {
+                    journal: super::record(binding.execution_id),
+                    sealed,
+                }
+                .into_value(),
+            ),
             ("policy", self.automation_policy_record().into_value()),
             ("expected_updated_at", computer.updated_at.into_value()),
             (
@@ -182,9 +200,10 @@ impl ComputersStore {
         )
     }
     async fn command_request(&self, request: &RecordId) -> Result<Option<CommandOperation>> {
+        // Filter a missing request before projection can turn NONE into {sealed: NONE}.
         let mut response = self
             .query(
-                "SELECT * FROM ONLY (SELECT VALUE execution FROM ONLY $request);",
+                "SELECT *, payload.sealed AS sealed FROM ONLY (SELECT VALUE execution FROM ONLY $request) WHERE id != NONE;",
                 vec![("request", request.clone().into_value())],
             )
             .await?;

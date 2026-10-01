@@ -162,7 +162,7 @@ impl ComputersStore {
         }
         let mut response = self
             .query(
-                "SELECT * FROM ONLY $execution;",
+                "SELECT *, payload.sealed AS sealed FROM ONLY $execution;",
                 vec![(
                     "execution",
                     super::record(command.execution_id()).into_value(),
