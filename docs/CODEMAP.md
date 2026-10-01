@@ -209,6 +209,7 @@ designs above.
 | `platform/computers/src/computer_access.rs` | merged owner/grantee discovery, Read access checks, named action scopes and batch owner lookup |
 | `servers/computers-mcp/src/application/lifecycle.rs` | named Start/Stop grants over the shared operation journal, retry authorization and owner Task recovery |
 | `platform/computers/src/authority_changes.rs` | shared native authority invalidations for worker I/O, MCP subscriptions and HTTP attachments; typed identity selectors and source-loss epochs |
+| `platform/computers/tests/journal_cost.rs` | encrypted command admission, metadata-update feed volume and container-attributed writes; [measurement record](../platform/store/measurements/native-after-2026-10-01.md#encrypted-command-journals) |
 | `platform/computers/src/authority_snapshot.rs` and `control_authority.rs` | policy/directory snapshot and request-scoped action/read permissions; public read paths cannot obtain a dispatch ticket |
 | `platform/computers/src/control_session.rs` | signed browser session-family read and shared binding decision; logout and family expiry stop new control without cancelling accepted work |
 | `platform/computers/` | Computer records, tenant/principal/Work Context ownership across clients, immutable creation and encryption bindings, capacity and fence admission, Task linking, dispatch receipts, observation budgets and settlement; `tests/{resource_ownership,cross_client_effects}.rs` cover client isolation; worker integration lives in `servers/computers-mcp` |
@@ -519,7 +520,7 @@ Domain runtimes can own private queries and driver records over these connection
 | File | Responsibility |
 |---|---|
 | `config.rs` | root/database auth configuration and validation |
-| `migrations.rs` | ordered SurrealDB 3.2 schema migrations |
+| `migrations.rs` | ordered SurrealDB 3.3 schema migrations |
 | `models.rs` | persisted Rust record and enum definitions |
 | `task_result.rs`, `json_value.rs` | checked Task result envelopes and JSON driver conversion that preserves unsigned integer precision, including nested native replay payloads |
 | `ids.rs`, `table.rs` | domain-specific record IDs and table identities |
@@ -549,7 +550,7 @@ Domain runtimes can own private queries and driver records over these connection
 | `changefeed.rs`, `changefeed/` | complete transaction-tail replay, consumer checkpoints and LIVE recovery; typed Task, Artifact and Computer change decoding imports the owning contract types |
 | `platform/task-runtime/src/runtime/history.rs`, `subscriptions.rs`, `owner_subscriptions.rs` | committed-state replay for trusted workers, shared native-feed wakeups and current SQL-authorized public Task reads |
 | `agents/runtime/src/runtime/wake_observation.rs`, `agents/kernel/src/wake.rs` | native queue invalidations and timers for the next available wake or expired claim |
-| `tests/write_cost.rs` | isolated RocksDB comparison of shared sequence allocation, indexed event rows and native-feed-only writes; [measurements](../platform/store/measurements/2026-10-01.md) |
+| `tests/write_cost.rs` | isolated RocksDB comparison of shared sequence allocation, indexed event rows and native-feed-only writes; [before](../platform/store/measurements/2026-10-01.md) and [after latency/storage measurements](../platform/store/measurements/native-after-2026-10-01.md) |
 | `migrations/0040_uav_vehicle_authority.surql` | UAV-owned principal-to-vehicle grants, admitted single-vehicle mission plans, and exclusive command leases scoped by tenant and Work Context |
 | `store.rs` | connection and transaction helpers over domain records |
 

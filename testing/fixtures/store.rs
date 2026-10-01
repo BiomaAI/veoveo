@@ -2,6 +2,8 @@
 use std::time::Duration;
 #[path = "store/container.rs"]
 mod container;
+#[path = "store/io.rs"]
+pub mod io;
 use container::{Container, Docker};
 use uuid::Uuid;
 use veoveo_platform_store::{PlatformStore, StoreConfig, StoreCredentials};
@@ -19,6 +21,11 @@ fn fixture_password() -> String {
 }
 pub struct TestDb {
     _container: Container,
+    #[allow(
+        dead_code,
+        reason = "Only storage measurements reconnect as fixture admin"
+    )]
+    admin_config: StoreConfig,
     runtime_credentials: StoreCredentials,
     pub a: PlatformStore,
     #[allow(dead_code, reason = "Only replica fixtures use the second connection")]
@@ -26,6 +33,42 @@ pub struct TestDb {
 }
 
 impl TestDb {
+    /// Storage maintenance is outside the workload and uses fixture administration.
+    /// Measured domain operations keep their database-editor credentials.
+    #[allow(dead_code, reason = "Only RocksDB measurements request compaction")]
+    pub async fn compact(&self) {
+        tokio::time::timeout(Duration::from_secs(30), async {
+            let admin = PlatformStore::connect(self.admin_config.clone())
+                .await
+                .unwrap();
+            admin
+                .client()
+                .query("ALTER DATABASE COMPACT;")
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+        })
+        .await
+        .expect("measurement compaction exceeded 30 seconds");
+    }
+
+    #[allow(
+        dead_code,
+        reason = "Only write-cost measurements inspect retained storage"
+    )]
+    pub async fn storage_bytes(&self) -> u64 {
+        self._container.storage_bytes().await.unwrap()
+    }
+
+    #[allow(
+        dead_code,
+        reason = "Only write-cost measurements collect Linux I/O counters"
+    )]
+    pub async fn io_probe(&self) -> io::IoProbe {
+        io::IoProbe::for_process(self._container.local_process_id().await.unwrap())
+    }
+
     /// Replay committed rows from an isolated fixture. Assertions inspect native
     /// domain state; definitions and deletions do not represent a new row state.
     #[allow(
@@ -86,11 +129,12 @@ impl TestDb {
             .await
             .unwrap_or_else(|error| panic!("{error}"));
         let database = format!("fixture_{}", Uuid::now_v7().simple());
+        let admin_credentials = StoreCredentials::root("fixture_admin", password);
         let config = StoreConfig::builder(
             &endpoint,
             "veoveo_fixture",
             &database,
-            StoreCredentials::root("fixture_admin", password),
+            admin_credentials.clone(),
         )
         .migrate_on_connect(true)
         .build()
@@ -116,6 +160,10 @@ impl TestDb {
         })
         .await
         .expect("isolated migrations/readiness failed");
+        let admin_config =
+            StoreConfig::builder(&endpoint, "veoveo_fixture", &database, admin_credentials)
+                .build()
+                .unwrap();
         if !schema.is_empty() {
             tokio::time::timeout(Duration::from_secs(10), async {
                 admin.client().query(schema).await?.check()
@@ -145,6 +193,7 @@ impl TestDb {
         let b = connect(config, "second runtime client").await;
         Self {
             _container: container,
+            admin_config,
             runtime_credentials,
             a,
             b,

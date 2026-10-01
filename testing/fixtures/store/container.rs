@@ -59,6 +59,68 @@ enum Creation {
 }
 
 impl Container {
+    #[allow(
+        dead_code,
+        reason = "Only write-cost measurements inspect retained storage"
+    )]
+    pub async fn storage_bytes(&self) -> Result<u64, Failure> {
+        let mut inspect = self.command();
+        inspect.args(["inspect", "--size", "--format", "{{.SizeRw}}", &self.name]);
+        let value = self
+            .run(
+                inspect,
+                "measurement writable-layer size",
+                self.docker.command_timeout,
+            )
+            .await?;
+        std::str::from_utf8(&value)
+            .ok()
+            .and_then(|value| value.trim().parse::<u64>().ok())
+            .ok_or_else(|| self.failure("measurement writable-layer size", "expected a byte count"))
+    }
+
+    #[allow(
+        dead_code,
+        reason = "Only Linux write-cost measurements inspect host I/O"
+    )]
+    pub async fn local_process_id(&self) -> Result<u32, Failure> {
+        let mut context = self.command();
+        context.args([
+            "context",
+            "inspect",
+            "--format",
+            "{{.Endpoints.docker.Host}}",
+        ]);
+        let endpoint = self
+            .run(
+                context,
+                "measurement Docker context",
+                self.docker.command_timeout,
+            )
+            .await?;
+        if !endpoint.starts_with(b"unix://")
+            || std::env::var("DOCKER_HOST").is_ok_and(|host| !host.starts_with("unix://"))
+        {
+            return Err(self.failure("measurement Docker context", "requires a local Unix socket"));
+        }
+        let mut inspect = self.command();
+        inspect.args(["inspect", "--format", "{{.State.Pid}}", &self.name]);
+        let value = self
+            .run(
+                inspect,
+                "measurement process identity",
+                self.docker.command_timeout,
+            )
+            .await?;
+        std::str::from_utf8(&value)
+            .ok()
+            .and_then(|value| value.trim().parse::<u32>().ok())
+            .filter(|pid| *pid > 0)
+            .ok_or_else(|| {
+                self.failure("measurement process identity", "expected a running process")
+            })
+    }
+
     pub async fn start(
         docker: Docker,
         storage: &'static str,

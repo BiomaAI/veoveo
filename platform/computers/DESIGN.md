@@ -62,6 +62,13 @@ Computer records themselves use their record identity. Execution-slot cleanup st
 in the fenced settlement transaction: it releases capacity while preserving the
 execution journal, which a parent-delete cascade cannot express.
 
+The current command journal stores encrypted input beside changing metadata.
+Its feed copies that input on every update. The
+[journal measurement](../store/measurements/native-after-2026-10-01.md#encrypted-command-journals)
+quantifies the storage and replay cost. Payload separation, atomic admission and
+recovery qualification are required before these feeds pass installed acceptance;
+the foundations plan tracks that work.
+
 The service keeps authority expiry armed during I/O and renewal. Commands and file
 transfers retain their five-second freshness bound; MCP subscriptions use their
 admitted deadline. Renewal starts halfway through the remaining permit lifetime.

@@ -367,6 +367,22 @@ use a private signing key and external destinations, and provider completion obs
 another service. None of these candidates can move to an asynchronous database event
 while preserving its current contract.
 
+### Store Write Costs
+
+The [paired Store measurements](../platform/store/measurements/native-after-2026-10-01.md)
+compare shared-sequence/event transactions with native-feed-only writes. At eight
+writers, the latter use 83.3% less elapsed time and 80.4% fewer container-attributed
+block writes in the controlled workload. The storage observation includes requested
+compaction; it does not establish installed throughput or steady-state amplification.
+No client-visible conflict occurs in either latency measurement.
+
+Computer command journals carry immutable encrypted input in the changing row.
+Their native feed therefore repeats the envelope on metadata updates. The same
+measurement record quantifies this cost through actual encrypted admission and the
+shared replay reader. Payload separation and its qualification are required before
+the [foundations plan](PLATFORM_FOUNDATIONS_PLAN.md#phase-5-store-simplification)
+deploys those feeds.
+
 ### SurrealDB Features Under Watch
 
 These SurrealDB features are candidates under the Database First rule in

@@ -4,8 +4,9 @@ Status: Phase 0 is accepted. Phases 1–3 have the installed acceptance gaps lis
 under Deferred Work. Phase 4's installed audit checks pass; composed flight and
 Recording acceptance remain open. Phase 5 has qualified native consumer migration and
 writer/schema removal. Computer authority observation and the database-feature review
-are qualified locally. Final measurements and installed acceptance remain. Phases 6–9
-are open. The reference installation last converged at `8e4b36e7`;
+are qualified locally. Paired measurements are recorded and expose excessive copying
+of encrypted command payloads; payload separation and installed acceptance remain.
+Phases 6–9 are open. The reference installation last converged at `8e4b36e7`;
 it is stopped during development, and the Phase 5 changes are not deployed.
 
 Current direction: every contract change in this plan is a coordinated hard cut.
@@ -3019,6 +3020,24 @@ compiled libraries, Rust dependencies, BuildKit caches, images and volumes. Abou
 image is deployed. Final latency/storage measurements, including encrypted journal
 payloads, and installed acceptance remain open.
 
+The paired measurement batch completes 45 successful RocksDB fixtures: 5,184
+latency-comparison transactions, 4,608 storage-comparison transactions and 288
+encrypted-journal metadata updates. Eight-writer native-feed-only transactions take
+83.3% less elapsed time and 80.4% fewer attributed block writes than the recreated
+shared-sequence/event control. No client-visible conflicts or retries occur.
+The [measurement record](../platform/store/measurements/native-after-2026-10-01.md)
+preserves per-run and per-operation data and the observation limits.
+
+The real command-journal workload exposes a separate storage problem. Sixteen
+metadata updates with 1 MiB stdin copy 28.4 MiB of unchanged ciphertext into the
+feed. Median attributed writes are 132.2 MiB with the feed and 34.2 MiB in the
+feed-disabled control. The next source pass separates immutable command/file
+request payloads from changing journals while preserving atomic admission, typed
+reads, retry identity, current-format recovery and parent-owned cleanup. Qualify
+that pass as one batch and repeat the affected payload measurements before
+publication. The measurement targets pass strict Clippy; the fixtures are removed,
+the cluster and builder are stopped, and 134 GiB is free. Phase 5 is not deployed.
+
 Work:
 
 1. Measure first. Record transaction conflicts, retries, and commit latency for outbox
@@ -3054,7 +3073,12 @@ Work:
 8. Evaluate `DEFINE EVENT … ASYNC` with `RETRY` for projections that stay inside the
    database, starting with the Map changeset projection. Work that calls another
    service stays in that service.
-9. Update `platform/store`, `platform/task-runtime`, `agents/runtime`, the Durable
+9. Separate immutable encrypted Computer command/file request payloads from changing
+   journal rows. Keep admission atomic, resolve typed private reads without exposing
+   ciphertext to metadata consumers, preserve exact retries and restart recovery,
+   and use a parent-owned reference for cleanup. Prove metadata changes do not copy
+   request ciphertext into their feeds, then repeat the affected storage measurements.
+10. Update `platform/store`, `platform/task-runtime`, `agents/runtime`, the Durable
    Platform Store section of `docs/TECH_DESIGN.md`, every other affected design, and
    the CODEMAP rows for `outbox.rs` and `changefeed.rs`.
 

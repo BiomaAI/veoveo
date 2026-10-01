@@ -79,6 +79,21 @@ struct Measurement {
     event_rows: usize,
     elapsed_us: u64,
     samples: Samples,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    storage: Option<StorageCost>,
+}
+
+#[derive(Serialize)]
+struct StorageCost {
+    before_bytes: u64,
+    after_bytes: u64,
+    device_writes: Vec<fixture::io::DeviceWrites>,
+}
+
+#[derive(Clone, Copy)]
+enum Observation {
+    Latency,
+    HostIo,
 }
 
 #[derive(SurrealValue)]
@@ -138,7 +153,12 @@ async fn writer(
     samples
 }
 
-async fn measure(profile: Profile, round: usize, writers: usize) -> Measurement {
+async fn measure(
+    profile: Profile,
+    round: usize,
+    writers: usize,
+    observation: Observation,
+) -> Measurement {
     let db = fixture::TestDb::with_backend_and_schema(fixture::StoreBackend::RocksDb, SCHEMA).await;
     for writer in 0..writers {
         db.a.client()
@@ -152,6 +172,16 @@ async fn measure(profile: Profile, round: usize, writers: usize) -> Measurement 
             .check()
             .unwrap();
     }
+    let io = match observation {
+        Observation::Latency => None,
+        Observation::HostIo => {
+            db.compact().await;
+            let probe = db.io_probe().await;
+            let before = probe.settled().await;
+            let before_bytes = db.storage_bytes().await;
+            Some((probe, before, before_bytes))
+        }
+    };
     let barrier = Arc::new(Barrier::new(writers + 1));
     let mut workers = JoinSet::new();
     for ordinal in 0..writers {
@@ -167,6 +197,21 @@ async fn measure(profile: Profile, round: usize, writers: usize) -> Measurement 
         samples.operations_us.append(&mut worker.operations_us);
     }
     let elapsed_us = start.elapsed().as_micros() as u64;
+    let storage = if let Some((probe, before, before_bytes)) = io {
+        db.compact().await;
+        let writes = fixture::io::delta(&before, &probe.settled().await);
+        assert!(
+            writes.iter().any(|device| device.bytes > 0),
+            "database writes were not attributed to the measured cgroup"
+        );
+        Some(StorageCost {
+            before_bytes,
+            after_bytes: db.storage_bytes().await,
+            device_writes: writes,
+        })
+    } else {
+        None
+    };
     let mut response = db.a.client()
         .query("SELECT VALUE revision FROM measurement_state; SELECT count() AS total FROM measurement_event GROUP ALL;")
         .await.unwrap().check().unwrap();
@@ -198,6 +243,7 @@ async fn measure(profile: Profile, round: usize, writers: usize) -> Measurement 
         event_rows,
         elapsed_us,
         samples,
+        storage,
     }
 }
 
@@ -215,7 +261,7 @@ async fn compare_shared_sequence_and_native_feed_writes() {
                 // Rotate order so each profile runs first once per writer count.
                 for offset in 0..profiles.len() {
                     let profile = profiles[(round + offset) % profiles.len()];
-                    let measurement = measure(profile, round, writers).await;
+                    let measurement = measure(profile, round, writers, Observation::Latency).await;
                     println!(
                         "WRITE_COST {}",
                         serde_json::to_string(&measurement).unwrap()
@@ -226,4 +272,30 @@ async fn compare_shared_sequence_and_native_feed_writes() {
     })
     .await
     .expect("write-cost measurement exceeded ten minutes");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "measurement: local Linux Docker/cgroup-v2 RocksDB; stop cluster and builders first"]
+async fn compare_write_io_profiles() {
+    tokio::time::timeout(Duration::from_secs(600), async {
+        let profiles = [
+            Profile::SharedSequence,
+            Profile::IndependentEvent,
+            Profile::ChangefeedOnly,
+        ];
+        for round in 0..3 {
+            for offset in 0..profiles.len() {
+                let measurement = measure(
+                    profiles[(round + offset) % profiles.len()],
+                    round,
+                    8,
+                    Observation::HostIo,
+                )
+                .await;
+                println!("WRITE_IO {}", serde_json::to_string(&measurement).unwrap());
+            }
+        }
+    })
+    .await
+    .expect("write-I/O measurement exceeded ten minutes");
 }
