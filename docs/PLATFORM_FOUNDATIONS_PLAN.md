@@ -6,10 +6,11 @@ Recording acceptance remain open. Phase 5 has qualified native consumer migratio
 writer/schema removal. Computer authority observation and the database-feature review
 are qualified locally. Private command/file payload separation passes native tests
 and repeated storage measurements. Phase 5 images and charts are published from
-`6ec504d8`. The fresh GPU node has all 38 required images and verified model caches;
-The platform release selected by `bec449cb`, its 23 Deployments and both bootstrap
-Jobs are Ready. Fresh Frames publication passes; the new world binding and UAV
-activation are selected together. Installed acceptance remains open.
+`6ec504d8`. The fresh reference converges at `5dd357c4` with both Helm releases and
+all 25 Deployments Ready. Installed certification, public Artifact delivery, headed
+Speech CUDA transcription/dictation, audit export readback, live Recording replay with
+grounded Reason, and live Stream inference pass. Composed flight and the deferred
+cross-replica/domain checks remain open.
 Phases 6–9 are not implemented. BuildKit is stopped during installed qualification.
 
 Current direction: every contract change in this plan is a coordinated hard cut.
@@ -3083,7 +3084,28 @@ The platform Helm release, its 23 Deployments and both bootstrap Jobs are Ready.
 Public Frames publication passes with binding digest
 `506c4676f8b5daaf9b92db9bd0354dfbfeca914e561dfb21fb1830cb34d68c42`.
 The activation commit selects that binding and removes the reviewed UAV suspension.
-UAV startup and installed acceptance remain.
+Both Helm releases and all 25 Deployments converge at `5dd357c4`. The installed batch
+passes 421 hosted checks across 17 servers, with 17 declared skips, and removes its
+temporary Pod and NetworkPolicy. Public full/HEAD/range Artifact delivery passes.
+Headed Chrome uses the RTX 4090 through WebGL; its software WebGPU adapter is excluded
+from hardware evidence. Speech dictation, a 2.5-second injected chunk delay,
+cancellation, explicit send, recording transcription, reload observation and verified
+JSON/VTT downloads pass in 19.75 seconds. Audit CLI verification passes both partitions;
+export readback matches eight S3 blocks and observes 2,163 collector log records.
+Live Recording acceptance passes Stream replay over acknowledged parts and grounded
+Reason over the same selection in 156.63 seconds. Live Stream inference and its encoded
+preview pass in 7.08 seconds. Map acquisition, activation and route admission pass.
+Composed flight and the deferred cross-replica/domain assertions remain.
+
+The first image-import manifest used shorthand repositories and tag-plus-digest
+references. K3s pulled them but failed its image-store lookup, leaving the imported
+references unpinned after CRI replaced their labels. Garbage collection removed four
+unused installation images, including the simulator. The corrected manifest uses
+fully qualified digest references; K3s completes the import and pins all 38 images.
+Speech backpressure and audit-readback observations made during the repeated simulator
+extraction fail. Both pass after extraction finishes, with unchanged assertions.
+The failed observations remain in local diagnostics. About 212 GiB is free, and BuildKit
+is stopped.
 
 Work:
 
@@ -3312,6 +3334,6 @@ not complete while a row remains.
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
 | Phase 3 Task result installation | `platform/task-runtime/DESIGN.md` | Qualify cross-replica delivery of the installed shared result envelope and event schema 3 | The fresh Store and linked Stream/Reason result acceptance pass; multiple installed replicas still need qualification |
-| Phase 3 final server library gates | `servers/artifact-mcp/DESIGN.md` | Publish and qualify Artifact reads/sharing, Computers hosted feature builds and Speech's typed identity profile through CUDA transcription/dictation at the next integration checkpoint | Contract and direct consumer qualification stays separate from GPU workload acceptance; publication and installed runs are grouped with the next Phase 3 batch |
+| Phase 3 final server library gates | `servers/artifact-mcp/DESIGN.md` | Finish installed Artifact sharing and Computers hosted feature qualification | Publication, all hosted catalogs, public full/HEAD/range Artifact delivery and headed Speech CUDA transcription/dictation pass at `5dd357c4`; the remaining domain assertions join composed acceptance |
 | Phase 1 reference reset | `testing/flight-smoke/src/domain.rs` | Finish composed flight, timing and installed workload acceptance with the corrected shared recording path | Map recovery, route and mission execution, live Stream, and independent live-part Stream replay and grounded Reason pass. The composed run has not yet exercised its corrected recording stage or reached final acceptance |
 | Phase 3 Stream C27 installation | `servers/stream-mcp/src/bin/server/subscriptions.rs` | Qualify cross-replica run invalidations and live-session notifications on the rebuilt reference installation | Native mixed-source, reconnect and MCP cancellation checks pass; reference workloads are stopped during development |

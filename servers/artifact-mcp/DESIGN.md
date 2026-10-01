@@ -75,9 +75,9 @@ The independent [contract consumer](../../testing/fixtures/server-contract-consu
 checks the public library without runtime feature unification. Native service tests
 own authorization and transport qualification.
 
-<!-- TODO(foundations): Qualify installed Artifact reads/sharing, Computers hosted feature
-builds, and Speech's current identity profile through CUDA transcription/dictation at
-the next Phase 3 integration checkpoint; keep the reference cluster stopped during development. -->
+<!-- TODO(foundations): Finish installed Artifact sharing and Computers hosted feature
+qualification at the Phase 3 integration checkpoint. Installed Artifact delivery and
+Speech CUDA transcription/dictation pass; keep the reference cluster stopped during development. -->
 
 ## Resource Observation
 

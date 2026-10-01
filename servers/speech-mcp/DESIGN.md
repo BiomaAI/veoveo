@@ -149,7 +149,10 @@ Native qualification passed all 26 hosted conformance checks, including declared
 schemas, authenticated documentation, stateless transport, Tasks and subscriptions.
 The native fixture also qualified current source/output authority, independent-runtime
 cancellation, and recovery after publication but before Task settlement with identical
-Artifact IDs. C31 remains pending until installed catalog readiness is observed.
+Artifact IDs. Installed certification covers catalog readiness under C31. The headed
+Workspace harness covers private dictation, delayed chunk delivery, cancellation,
+explicit send, recording transcription, Task observation after reload and checked
+transcript/caption downloads through the deployed CUDA worker.
 
 The application router is shared by the executable and native conformance fixture.
 The fixture uses the actual CUDA worker, disposable database, internal assertions
@@ -172,7 +175,6 @@ Long recordings, video-container diversity, full capacity, sustained dictation a
 concurrent-client latency need performance runs; the configured two-hour recording
 limit has not been qualified at installation scale.
 
-Installed catalog readiness under C31 is pending. Cold/offline packaging and full
-release provenance need separate qualification; the installed development images do
+Cold/offline packaging and full release provenance need separate qualification; the installed development images do
 not establish those release properties. Speaker attribution, translation, meeting
 capture and spoken replies require separate product work.
