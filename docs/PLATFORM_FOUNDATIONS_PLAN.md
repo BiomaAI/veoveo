@@ -10,21 +10,30 @@ Current release checkpoint (2026-09-30): the unified audit cut is committed at
 and paired development measurements pass. All 29 affected images and both Helm charts
 are published from that revision. The release inputs select their digests, including
 the agent kernel. The Computers guest digest and template fingerprint are unchanged.
-Deployment configuration and rollout checks pass. The fresh reference reset is underway;
-UAV reconciliation is suspended until Frames publishes the new world binding.
+Deployment configuration and rollout checks pass. The fresh reference reset is complete.
+The platform Helm release, its 23 Deployments and both bootstrap Jobs are Ready.
+Public Frames publication passes with binding digest
+`26bb4b786097e08ce9c57ff0cfcaad03d394d6f36f96d77b05803b740d2b9646`;
+the activation change selects that binding and removes UAV's Git suspension together.
 Installed acceptance is pending. Phases 1–3 have
 remaining work, and phases 5–9 are not implemented.
 The pending reference release selects both S3 and OTLP audit destinations and enables
 the existing Collector. Rendered workload Secret coverage passes. Model and simulator
 caches are restored into the fresh PVCs and pass byte comparisons with the preserved copies.
 The new node is Ready with eight NVIDIA GPU shares. Flux and all 15 application Secrets
-are provisioned; sequential image preparation precedes application reconciliation.
+are provisioned. All 38 required images pass CRI presence and cleanup-protection checks,
+with 215 GiB free on the host. Application reconciliation has started at `39149f71`.
 The existing headed Chrome acceptance profile is open. Its WebGL context uses the RTX
 4090; WebGPU reports SwiftShader and supplies no hardware qualification.
 The release fixes the gateway bundle checksum, supplies explicit audit-retention values
 in all four affected installation fixtures, and updates Console scope expectations.
 The S3 initializer now uses its existing version's manifest digest; every image in the
 prepared 38-image installation closure is pinned by digest.
+The first preparation pass lost 32 unused images to Kubelet's image cleanup after the
+shared host disk crossed its 85% threshold. Recovery pulls only missing images and
+checks containerd's pinned flag after each pull. A node-local K3s import manifest keeps
+the selected release available across restarts. This protection covers the installation's
+required images; Rust and BuildKit caches are preserved.
 
 The unified audit cut spans the contract, Store, writer, gateway and deployment inputs.
 `platform/audit/contract` sits below Store
@@ -2117,6 +2126,9 @@ IDs and DTO relationships. Installed qualification stays at the integration chec
   sequentially before enabling application reconciliation. Include the rendered
   workload images and the runtime images selected through the installation locks.
   Confirm every reference in the node's CRI inventory before starting the workloads.
+  Protect the selected images with containerd's supported pin during preparation and
+  verify the CRI pinned flag. Keep their K3s import manifest on that node for restarts;
+  remove superseded pins when the installation no longer needs those images.
   Cold image extraction must finish before database provisioning and application
   startup compete for the same disk. Preserve the failed attempt's diagnostics and
   clear its owned workloads before retrying.
