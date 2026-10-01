@@ -48,6 +48,12 @@ to the block's delivered set in one transaction. Retention requires every config
 destination and removes per-block intents with the retired block. The last signed
 retention anchor and each delivery cursor survive deletion.
 
+Store retries an explicitly aborted transaction conflict up to eight times, with
+1, 2, 4, 8, 16, 32 and 64 millisecond waits. Each attempt rechecks the lease and
+preserves the block, destination and payload hashes. The retry covers only intent,
+receipt or rejection persistence; it does not repeat a provider request. An expired
+or replaced lease still fails its transaction.
+
 S3 stores an OCSF JSON Lines object and a signed-block JSON object. Keys include the
 destination identity, a partition digest, the block sequence and its hash. The
 exporter first reads the key and compares bytes. An absent key permits a PUT with

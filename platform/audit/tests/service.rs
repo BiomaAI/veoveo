@@ -89,6 +89,127 @@ async fn replay_drains_unrelated_changes_before_the_export_deadline() {
     .expect("audit replay backlog qualification exceeded 60 seconds");
 }
 #[tokio::test]
+async fn busy_replay_and_export_preserve_one_provider_acknowledgement() {
+    tokio::time::timeout(Duration::from_secs(90), async {
+        use axum::{Json, Router, extract::State, routing::post};
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use veoveo_audit::export::{AuditExportConfig, AuditExporter, OtlpConfig};
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Request {
+            resource_logs: Vec<Resource>,
+        }
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Resource {
+            scope_logs: Vec<Scope>,
+        }
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Scope {
+            log_records: Vec<serde::de::IgnoredAny>,
+        }
+        struct Server(tokio::task::JoinHandle<()>);
+        impl Drop for Server {
+            fn drop(&mut self) {
+                self.0.abort();
+            }
+        }
+        let accepted = Arc::new(AtomicUsize::new(0));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let endpoint = format!("http://{}/v1/logs", listener.local_addr().unwrap())
+            .parse()
+            .unwrap();
+        let app = Router::new().route("/v1/logs", post(
+            |State(accepted): State<Arc<AtomicUsize>>, Json(request): Json<Request>| async move {
+                let count = request.resource_logs.into_iter().flat_map(|r| r.scope_logs)
+                    .map(|s| s.log_records.len()).sum::<usize>();
+                accepted.fetch_add(count, Ordering::SeqCst);
+                ([("content-type", "application/json")], "{}")
+            }
+        )).with_state(accepted.clone());
+        let mut server = Server(tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        }));
+        let exports = AuditExportConfig {
+            s3: None,
+            otlp: Some(OtlpConfig {
+                endpoint,
+                allow_http: true,
+                bearer_token_env: None,
+            }),
+        };
+        let destination = AuditExporter::new(exports.clone())
+            .unwrap()
+            .destination_ids()
+            .remove(0);
+        let db = fixture::TestDb::with_backend(fixture::StoreBackend::RocksDb).await;
+        db.a.client()
+            .query("DEFINE TABLE audit_export_noise CHANGEFEED 7d;")
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        let service = AuditService::start(
+            db.a.clone(),
+            Arc::new(AuditSigningKey::from_seed(&[47; 32])),
+            NonZeroU32::new(1).unwrap(),
+            exports,
+        )
+        .unwrap();
+        let mut records = Vec::new();
+        // Continuous domain commits overlap LIVE sealing and HTTP acknowledgements.
+        for index in 0..768_u32 {
+            db.b.client()
+                .query("CREATE type::record('audit_export_noise', $index) SET value = $index;")
+                .bind(("index", index))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+            if index % 16 == 0 {
+                let record = draft();
+                db.b.append_audit_records(std::slice::from_ref(&record))
+                    .await
+                    .unwrap();
+                records.push(record.id());
+            }
+        }
+        let result = tokio::time::timeout(Duration::from_secs(30), async {
+            db.b.audit_wait_sealed(
+                &AuditReadScope::new(None, true),
+                &AuditPartition::Installation,
+                *records.last().unwrap(),
+            )
+            .await
+            .unwrap();
+            while db
+                .b
+                .audit_export_candidate(&destination)
+                .await
+                .unwrap()
+                .is_some()
+            {
+                assert_ne!(service.health().state(), AuditHealthState::Failed);
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await;
+        service.shutdown(Duration::from_secs(15)).await.unwrap();
+        server.0.abort();
+        let _ = (&mut server.0).await;
+        result.expect("sealing and export did not catch up within 30 seconds");
+        assert_eq!(
+            accepted.load(Ordering::SeqCst),
+            records.len(),
+            "a database receipt conflict must not duplicate a provider acknowledgement"
+        );
+    })
+    .await
+    .expect("busy replay/export qualification exceeded 90 seconds");
+}
+
+#[tokio::test]
 async fn a_standby_seals_after_takeover_and_shutdown_drains_all_committed_pages() {
     tokio::time::timeout(Duration::from_secs(90), async {
         let db = fixture::TestDb::with_backend(fixture::StoreBackend::RocksDb).await;
@@ -270,13 +391,21 @@ async fn export_intent_receipts_and_rejections_fence_retention_across_replicas()
         let payload = AuditExportPayload { content: Sha256Digest::from_bytes([3;32]), seal: Sha256Digest::from_bytes([4;32]) };
         let cutoff = chrono::Utc::now() + chrono::TimeDelta::days(1);
         assert!(matches!(db.a.complete_audit_export(&lease, &first, &block, &payload).await, Err(StoreError::AuditIntegrity)), "a receipt requires committed intent");
-        db.a.prepare_audit_export(&lease, &first, &block, &payload).await.unwrap();
-        db.b.prepare_audit_export(&lease, &first, &block, &payload).await.unwrap();
+        // Multiple connections race on the lease, intent and cursor fences.
+        // Every confirmed-abort retry must preserve one immutable intent.
+        let prepares = (0..16).map(|index| {
+            let store = if index % 2 == 0 { &db.a } else { &db.b };
+            store.prepare_audit_export(&lease, &first, &block, &payload)
+        });
+        for result in futures::future::join_all(prepares).await { result.unwrap(); }
         assert!(db.b.audit_retention_candidates(cutoff, &destinations).await.unwrap().is_empty());
         let different = AuditExportPayload { content: Sha256Digest::from_bytes([5;32]), ..payload.clone() };
         assert!(matches!(db.b.prepare_audit_export(&lease, &first, &block, &different).await, Err(StoreError::AuditIntegrity)));
-        db.a.complete_audit_export(&lease, &first, &block, &payload).await.unwrap();
-        db.b.complete_audit_export(&lease, &first, &block, &payload).await.unwrap();
+        let receipts = (0..16).map(|index| {
+            let store = if index % 2 == 0 { &db.a } else { &db.b };
+            store.complete_audit_export(&lease, &first, &block, &payload)
+        });
+        for result in futures::future::join_all(receipts).await { result.unwrap(); }
         assert!(db.b.audit_export_candidate(&first).await.unwrap().is_none());
         assert!(db.b.audit_export_candidate(&second).await.unwrap().is_some());
         assert!(matches!(db.b.retain_audit_block(&lease, &block, cutoff, &destinations).await, Err(StoreError::AuditRetentionNotAdmitted)), "every configured destination must acknowledge");

@@ -66,6 +66,22 @@ paginated hosted-certification checks pass. The cluster is stopped during qualif
 and gateway publication. Installed export and composed flight acceptance remain open;
 the complete hosted certification will run again with the corrected reader.
 
+The catch-up image from `28a6b919` converges at `682ebeca`. All 17 hosted servers
+pass the complete catalog reader (421 passed checks and 17 skipped checks), and
+authenticated browser export returns complete JSON Lines for both partitions in
+0.9 and 2.1 seconds. The continued installed pass finds two further issues. Verification
+compares record time with sealing time, misclassifying a delayed block as backdating.
+Concurrent sealing and export receipt transactions conflict on their lease fence;
+the export worker reconnects repeatedly and withdraws gateway readiness. The gateway
+rolls back to the previous image at `3449886c` so flight recovery can proceed.
+The next grouped repair compares timestamps with signed database commit versionstamps
+and retries only database-confirmed transaction aborts around export persistence.
+The continued UAV domain run passes mission execution, direct live Stream, recording
+replay, grounded Reason, landing and authorized/denied Artifact access. Its visual
+branch fails on the gateway's earlier 503 response, so full showcase acceptance remains
+open. The cluster is stopped after the domain harness completes its owned cleanup.
+Installed audit verification and composed visual acceptance remain open.
+
 The unified audit cut spans the contract, Store, writer, gateway and deployment inputs.
 `platform/audit/contract` sits below Store
 and MCP; the writer depends on Store. The working batch includes checked drafts and

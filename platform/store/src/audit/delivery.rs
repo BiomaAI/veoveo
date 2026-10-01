@@ -72,6 +72,45 @@ impl PlatformStore {
         complete: bool,
         rejection: Option<AuditExportRejection>,
     ) -> Result<(), StoreError> {
+        // Lease renewal and sealing touch the same fence while an export is in
+        // flight. Retry only a database-confirmed abort, with the same identities
+        // and hashes. A receipt retry never repeats the provider request.
+        for attempt in 0..8 {
+            match self
+                .audit_export_transition_once(
+                    lease,
+                    destination,
+                    block,
+                    payload,
+                    complete,
+                    rejection,
+                )
+                .await
+            {
+                Err(StoreError::Database(error))
+                    if attempt < 7
+                        && matches!(
+                            error.query_details(),
+                            Some(surrealdb::types::QueryError::TransactionConflict)
+                        ) =>
+                {
+                    tokio::time::sleep(std::time::Duration::from_millis(2u64.pow(attempt))).await;
+                }
+                result => return result,
+            }
+        }
+        unreachable!("the final transaction attempt always returns")
+    }
+
+    async fn audit_export_transition_once(
+        &self,
+        lease: &AuditSealLease,
+        destination: &AuditDestinationId,
+        block: &AuditBlock,
+        payload: &AuditExportPayload,
+        complete: bool,
+        rejection: Option<AuditExportRejection>,
+    ) -> Result<(), StoreError> {
         let mut response = self
             .db
             .query(include_str!("delivery.surql"))
