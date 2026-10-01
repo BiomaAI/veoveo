@@ -1,12 +1,11 @@
-import { compileGeneratedSchema } from "../jsonSchema.ts";
-import type { z } from "zod";
+import { compileGeneratedSchema, type GeneratedSchemaValidator } from "../jsonSchema.ts";
 import schema from "../generated/agent-management.schema.json" with { type: "json" };
 import type { Authoring, CapabilityChoice, Definition, DefinitionPage, Draft, RevisionPage, Validation, CreateDefinition, SaveDraft, UpdateMetadata, PublishDefinition, RevisionRequest, ValidateDefinition, TemplateChoice, InstancePage, ManagedInstance, LifecycleOperation, ProvisionInstance, UpdateInstance } from "../generated/agent-management";
 import { browserSession } from "../csrf.ts";
 import { unexpectedResponseMessage } from "../httpMessages.ts";
 
 interface Responses { Authoring: Authoring; CapabilityChoice: CapabilityChoice; Definition: Definition; DefinitionPage: DefinitionPage; Draft: Draft; RevisionPage: RevisionPage; Validation: Validation; TemplateChoice: TemplateChoice; InstancePage: InstancePage; ManagedInstance: ManagedInstance; LifecycleOperation: LifecycleOperation }
-const validators = new Map<keyof Responses, z.ZodType>();
+const validators = new Map<keyof Responses, GeneratedSchemaValidator>();
 function parse<K extends keyof Responses>(kind: K, value: unknown): Responses[K] {
   let validator = validators.get(kind);
   if (!validator) {

@@ -1,12 +1,11 @@
-import { compileGeneratedSchema } from "../../../console/web/src/jsonSchema.ts";
-import type { z } from "zod";
+import { compileGeneratedSchema, type GeneratedSchemaValidator } from "../../../console/web/src/jsonSchema.ts";
 import { browserSession } from "../../../console/web/src/csrf.ts";
 import { ApiError, unreadableResponse } from "../api.ts";
 import schema from "../generated/speech.schema.json" with { type: "json" };
 import type { DictationSnapshot, TranscriptDocument, TranscriptionOutput } from "../generated/speech.ts";
 
 type Types = { DictationSnapshot: DictationSnapshot; TranscriptDocument: TranscriptDocument; TranscriptionOutput: TranscriptionOutput };
-const validators = new Map<keyof Types, z.ZodType>();
+const validators = new Map<keyof Types, GeneratedSchemaValidator>();
 export function parseSpeech<K extends keyof Types>(name: K, value: unknown): Types[K] {
   let validator = validators.get(name);
   if (!validator) {

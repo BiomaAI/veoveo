@@ -8,6 +8,12 @@
 | HTTP and Server-Sent Events | Cookie-authenticated BFF routes; browser EventSource handles reconnect cursors |
 | JSON Lines | Server-streamed export with the audit contract's header, records and required completion footer |
 
+The shared browser validator interprets generated JSON Schema with the MCP SDK's
+`CfWorkerJsonSchemaValidator`. It handles references, boolean schemas and composition
+without generating JavaScript, under the Console's existing Content Security Policy.
+Audit trace IDs enforce both their lowercase hexadecimal shape and the exclusion of
+the all-zero value. Parsed data keeps its original fields and values.
+
 Audit access has its own bootstrap flag and partition list. A view first obtains a
 committed access receipt, then requests SQL-filtered pages and opens its partition
 stream. Filters select class, outcome, actor, trace, time range and a typed target

@@ -53,6 +53,9 @@
       ],
       "@modelcontextprotocol/client": [
         "./node_modules/@modelcontextprotocol/client"
+      ],
+      "@modelcontextprotocol/client/validators/cf-worker": [
+        "./node_modules/@modelcontextprotocol/client/dist/validators/cfWorker.d.mts"
       ]
     }
   },

@@ -1,7 +1,6 @@
-import { compileGeneratedSchema } from "../../console/web/src/jsonSchema.ts";
+import { compileGeneratedSchema, type GeneratedSchemaValidator } from "../../console/web/src/jsonSchema.ts";
 import type { AgentCatalogPage, AgentRevisionPreview, UpdateChatAgent } from "./generated/workspace.ts";
 import { browserSession } from "../../console/web/src/csrf.ts";
-import type { z } from "zod";
 import schema from "./generated/workspace.schema.json" with { type: "json" };
 import type { AppOperationView, AgentActivity, AgentDefinition, ChatAgent, Run, Chat, ChatSnapshot, ChatSettings, Invitation, InvitationSummary, Message, Person, SendMessage, WorkspaceBootstrap } from "./generated/workspace.ts";
 import type { OperationView, OperationPage, OperationSummary, AnswerOperation, StartOperation, Capability, PersonalEvent } from "./generated/workspace.ts";
@@ -10,7 +9,7 @@ export type ConversationSnapshot = ChatSnapshot & { activity: AgentActivity };
 
 type Definitions = { AgentCatalogPage: AgentCatalogPage; AgentRevisionPreview: AgentRevisionPreview; PersonalEvent: PersonalEvent; AppOperationView: AppOperationView; OperationView: OperationView; OperationPage: OperationPage; OperationSummary: OperationSummary; Capability: Capability; AgentActivity: AgentActivity; AgentDefinition: AgentDefinition; ChatAgent: ChatAgent; Run: Run; Chat: Chat; ChatSnapshot: ChatSnapshot; Invitation: Invitation;
   InvitationSummary: InvitationSummary; Message: Message; Person: Person; WorkspaceBootstrap: WorkspaceBootstrap };
-const validators = new Map<keyof Definitions, z.ZodType>();
+const validators = new Map<keyof Definitions, GeneratedSchemaValidator>();
 export function parse<K extends keyof Definitions>(kind: K, input: unknown): Definitions[K] {
   let validator = validators.get(kind);
   if (!validator) {

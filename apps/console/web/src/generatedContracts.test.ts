@@ -1,8 +1,43 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseComputer, parseConsoleBootstrap } from "./generatedContracts.ts";
+import { parseAudit, parseComputer, parseConsoleBootstrap } from "./generatedContracts.ts";
+import auditSchema from "./generated/audit.schema.json" with { type: "json" };
+import computerSchema from "./generated/computers.schema.json" with { type: "json" };
+import agentSchema from "./generated/agent-management.schema.json" with { type: "json" };
+import { compileGeneratedSchema } from "./jsonSchema.ts";
 
 const id = "01994bed-e0d0-7000-8000-000000000001";
+test("every generated contract definition compiles with the browser's no-eval validator", () => {
+  for (const schema of [auditSchema, computerSchema, agentSchema]) {
+    for (const name of Object.keys(schema.$defs)) {
+      assert.doesNotThrow(() => compileGeneratedSchema({
+        $schema: schema.$schema, $defs: schema.$defs, $ref: `#/$defs/${name}`,
+      }), name);
+    }
+  }
+});
+test("audit pages and filters enforce nonzero trace IDs and preserve valid records", () => {
+  const record = {
+    id, requestId: id, traceId: "00000000000000000000000000000001",
+    occurredAt: "2026-09-30T11:00:00Z", class: "api_activity",
+    detail: { kind: "read", method: "resource_read" },
+    outcome: "allowed", reason: "accepted", target: { kind: "installation" },
+  };
+  const page = { records: [record], next: null };
+  assert.deepEqual(parseAudit("page", page), page);
+  const query = { partition: { kind: "installation" }, order: "newest_first", limit: 50 };
+  assert.deepEqual(parseAudit("query", { ...query, trace: record.traceId }), { ...query, trace: record.traceId });
+  for (const trace of ["0".repeat(32), "A".repeat(32), "a".repeat(31), "z".repeat(32)]) {
+    assert.throws(() => parseAudit("page", { records: [{ ...record, traceId: trace }] }));
+    assert.throws(() => parseAudit("query", { ...query, trace }));
+  }
+  for (const changed of [
+    { ...record, requestId: id.replace("-7000-", "-4000-") },
+    { ...record, detail: { kind: "read", method: "undeclared" } },
+    { ...record, occurredAt: "yesterday" },
+    { ...record, callerPayload: "undeclared" },
+  ]) assert.throws(() => parseAudit("page", { records: [changed] }));
+});
 test("named Computer grants require an application binding and bounded closed permissions", () => {
   const grant = {
     computerId: id,
