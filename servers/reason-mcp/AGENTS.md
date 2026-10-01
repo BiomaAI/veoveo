@@ -39,6 +39,8 @@ appear in its public MCP identities.
   Finding observations use Artifact's access mapping and recheck source admission
   after byte reads. Collection notifications cover every admitted member, including
   those beyond the first page, through the Store observer and SQL fingerprints.
+  A lost member invalidates its previously admitted URI and collection before
+  ending the subscription; it cannot continue observing inaccessible state.
 - Recording authorization matches stream: authorize the canonical
   `recording://recordings/{uuidv7}` identity, re-resolve it inside the
   durable task, and capture one bounded source snapshot. The snapshot may
@@ -74,6 +76,10 @@ appear in its public MCP identities.
 - `cargo test -p veoveo-reason-mcp --test knowledge` checks the finding query with
   isolated SurrealDB containers, readable pages behind malformed denied rows, result
   provenance and grant deadlines. Its completed outputs are inert fixtures.
+- `cargo test -p veoveo-reason-mcp --bin reason-mcp hosted_tests::` checks the
+  production HTTP router with generated signing keys, the real Artifact service and
+  an isolated Store. Owner probes recreate the source and mutate grants. Completed
+  findings are fixtures; this check performs no inference or GPU readiness acceptance.
 - The GPU smoke requires an NVIDIA driver compatible with the image's CUDA
   and vLLM build, NVIDIA Container Toolkit, the device plugin, and a world
   model checkpoint in Hugging Face layout loaded into the model cache. The

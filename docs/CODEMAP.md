@@ -1301,6 +1301,7 @@ depend on Recording Hub.
 | `src/contract/findings.rs`, `finding_summary.rs`, `artifact_provenance.rs` | collection-bound finding cursors and addresses, bounded finding summaries and shared publication/read provenance through the isolated contract feature |
 | `src/knowledge.rs`, `src/knowledge/`, `tests/knowledge.rs`, `tests/finding_summaries.rs` | Artifact-admitted finding SQL, observations, complete-collection fingerprints and Store change observation; native access and conditional-read qualification |
 | `src/bin/server/knowledge.rs`, `subscriptions.rs` | source-authorized finding reads and combined Task/finding subscriptions with current SQL fingerprints and expiry deadlines |
+| `src/bin/server/host.rs`, `hosted_tests/` | production HTTP composition and native signed-identity qualification with the real Artifact service, source restart probes and grant revocation/expiry |
 | `src/uris.rs` | contract-only typed resource builders and matching fixed discovery declarations |
 | `src/bin/server/` | auth, tasks, prompts, resources, notifications, and composition |
 | `src/bin/server/resources.rs` | exhaustive typed resource dispatch and SQL-authorized analysis reads and subscription admission |

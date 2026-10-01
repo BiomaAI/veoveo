@@ -9,7 +9,6 @@ use std::collections::BTreeSet;
 use std::net::SocketAddr;
 use std::sync::{Arc, LazyLock};
 
-use axum::{Router, extract::State, http::StatusCode, middleware, routing::get};
 use clap::Parser;
 use rmcp::tool;
 use rmcp::{
@@ -24,10 +23,8 @@ use rmcp::{
     },
     service::{RequestContext, SubscriptionContext},
     tool_handler, tool_router,
-    transport::streamable_http_server::StreamableHttpService,
 };
 use tokio_util::sync::CancellationToken;
-use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle, Page,
     ServerSlug, TelemetryGuard, TokenIssuer, init_server_telemetry, paginate, public_allowed_hosts,
@@ -53,6 +50,9 @@ mod config;
 mod grounding_input;
 #[path = "server/host.rs"]
 mod host;
+#[cfg(test)]
+#[path = "server/hosted_tests/mod.rs"]
+mod hosted_tests;
 #[path = "server/index.rs"]
 mod index;
 #[path = "server/internal_auth.rs"]
@@ -83,8 +83,6 @@ mod tasks;
 
 use app_state::AppState;
 use config::Args;
-use host::validate_host;
-use internal_auth::{InternalMcpAuthState, authenticate_internal_mcp};
 use ownership::{internal_caller, internal_identity, runtime_owner};
 use prompts::ReasonPrompt;
 use task_extension::ReasonTaskService;
@@ -470,22 +468,6 @@ fn internal(error: impl std::fmt::Display) -> McpError {
     McpError::internal_error(error.to_string(), None)
 }
 
-async fn ready(State(state): State<Arc<AppState>>) -> StatusCode {
-    if let Err(error) = state.recordings.readiness() {
-        tracing::warn!("recording cache readiness failure: {error}");
-        return StatusCode::SERVICE_UNAVAILABLE;
-    }
-    if let Err(error) = state.tasks.platform_store().healthcheck().await {
-        tracing::warn!("reason readiness database failure: {error}");
-        return StatusCode::SERVICE_UNAVAILABLE;
-    }
-    if let Err(error) = state.executor.readiness() {
-        tracing::warn!("reason readiness runner failure: {error}");
-        return StatusCode::SERVICE_UNAVAILABLE;
-    }
-    StatusCode::OK
-}
-
 fn install_rustls_provider() {
     let _ = rustls::crypto::ring::default_provider().install_default();
 }
@@ -597,47 +579,13 @@ async fn main() -> anyhow::Result<()> {
     let mut allowed_hosts = public_allowed_hosts(&public_deployment, args.allow_loopback_hosts);
     allowed_hosts.extend(args.allowed_hosts.iter().cloned());
     let allowed_hosts = Arc::new(allowed_hosts.into_iter().collect::<Vec<_>>());
-    let mcp_service = StreamableHttpService::new(
-        {
-            let state = state.clone();
-            move || Ok(ReasonMcp::new(state.clone()))
-        },
-        veoveo_mcp_contract::stateless_session_manager(),
-        veoveo_mcp_contract::canonical_streamable_http_server_config()
-            .with_allowed_hosts(allowed_hosts.iter().cloned())
-            .with_cancellation_token(cancellation.child_token()),
+    let router = host::router(
+        state,
+        verifier,
+        allowed_hosts,
+        public_endpoint.mount_path(),
+        cancellation.clone(),
     );
-    let auth_state = InternalMcpAuthState { verifier };
-    let mcp_router = Router::new()
-        .route_service("/", mcp_service.clone())
-        .route_service("/{*path}", mcp_service)
-        .layer(middleware::from_fn(
-            veoveo_mcp_contract::enforce_serialized_mcp_response,
-        ))
-        .layer(middleware::from_fn_with_state(
-            auth_state.clone(),
-            authenticate_internal_mcp,
-        ));
-    let admin_router = admin::router().layer(middleware::from_fn_with_state(
-        auth_state,
-        authenticate_internal_mcp,
-    ));
-    let service_router = Router::new()
-        .route("/healthz", get(|| async { "ok" }))
-        .route("/readyz", get(ready))
-        .with_state(state.clone())
-        .nest("/admin", admin_router)
-        .nest("/mcp", mcp_router);
-    let router = Router::new()
-        .nest(public_endpoint.mount_path(), service_router)
-        .layer(middleware::from_fn_with_state(
-            allowed_hosts.clone(),
-            validate_host,
-        ))
-        .layer(
-            TraceLayer::new_for_http()
-                .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO)),
-        );
     let address = SocketAddr::from(([0, 0, 0, 0], args.port));
     tracing::info!(
         service = "veoveo-reason-mcp",

@@ -111,3 +111,9 @@ veoveo-mcp-knowledge-extension = { workspace = true, features = ["mcp"], optiona
 
 [dev-dependencies]
 tower = { workspace = true, features = ["util"] }
+veoveo-mcp-conformance = { path = "../../mcp/conformance" }
+veoveo-artifact-service = { path = "../../platform/artifacts/service" }
+object_store.workspace = true
+rcgen.workspace = true
+reqwest = { workspace = true, features = ["json"] }
+rmcp = { workspace = true, features = ["client", "transport-streamable-http-client-reqwest"] }

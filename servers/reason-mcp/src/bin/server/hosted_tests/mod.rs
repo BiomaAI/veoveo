@@ -1,0 +1,186 @@
+//! Production HTTP and Artifact authorization over an isolated Store. No GPU or
+//! inference acceptance: completed results are explicit inert test fixtures.
+mod auth;
+mod data;
+mod fixture;
+mod probe;
+#[path = "../../../../tests/support/finding.rs"]
+mod result_fixture;
+use fixture::Fixture;
+use rmcp::{model::*, service::RunningService};
+use std::time::Duration;
+use veoveo_mcp_contract::ArtifactPlane;
+use veoveo_mcp_knowledge_extension::{self as extension};
+use veoveo_reason_mcp::contract::*;
+use veoveo_types::{AccessLevel, AccessSubject, ResourceAddress, ResourceUri};
+
+type Client = RunningService<rmcp::RoleClient, ClientConfig>;
+async fn read(
+    client: &Client,
+    uri: &ResourceUri,
+    revision: Option<&extension::Revision>,
+) -> Result<ReadResourceResult, rmcp::ServiceError> {
+    let (request, options) = extension::client::read_request(
+        ReadResourceRequestParams::new(uri.as_str()),
+        ClientCapabilities::default(),
+        revision,
+        rmcp::service::PeerRequestOptions::default(),
+    );
+    let result = client
+        .peer()
+        .send_request_with_option(request, options)
+        .await?
+        .await_response()
+        .await?;
+    match result {
+        ServerResult::ReadResourceResult(value) => Ok(value),
+        _ => panic!("unexpected resource response"),
+    }
+}
+async fn updates(subscription: &mut rmcp::service::Subscription, expected: &[ResourceUri]) {
+    let mut pending = expected
+        .iter()
+        .map(ResourceUri::as_str)
+        .collect::<std::collections::BTreeSet<_>>();
+    tokio::time::timeout(Duration::from_secs(15), async {
+        while !pending.is_empty() {
+            let Some(notification) = subscription.next().await.unwrap() else {
+                panic!("finding subscription ended early");
+            };
+            match notification {
+                ServerNotification::ResourceUpdatedNotification(value) => {
+                    pending.remove(value.params.uri.as_str());
+                }
+                other => panic!("resource-only listener received {other:?}"),
+            }
+        }
+    })
+    .await
+    .expect("missing finding invalidation");
+}
+
+#[tokio::test]
+async fn findings_conform_across_service_restarts_and_artifact_grant_revocation() {
+    tokio::time::timeout(Duration::from_secs(300), async {
+        let db = crate::store_fixture::TestDb::new().await;
+        let fixture = Fixture::new(db.a.clone()).await;
+        let finding = fixture.finding().await;
+        let server = fixture.reason(None).await;
+        let driver = probe::Driver::new(fixture.clone(), finding, server);
+        probe::certify(&driver).await;
+        let address = driver.server.lock().await.as_ref().unwrap().address;
+        let reader = fixture.signing.caller("reader", "research");
+        let outsider = fixture.signing.caller("outsider", "research");
+        let client = fixture.sdk(address, &reader).await;
+        let denied = fixture.sdk(address, &outsider).await;
+        let root = FindingResource::root(FindingCollection::Results)
+            .to_uri()
+            .unwrap();
+        let member = FindingResource::Member {
+            collection: FindingCollection::Results,
+            analysis: driver.finding.analysis,
+        }
+        .to_uri()
+        .unwrap();
+        assert!(read(&client, &member, None).await.is_err());
+        fixture
+            .grant(driver.finding.artifact, "reader")
+            .await
+            .unwrap();
+        let result = read(&client, &member, None).await.unwrap();
+        let observed = extension::client::validate_read(&result, &member, None)
+            .unwrap()
+            .unwrap();
+        assert_eq!(observed.access().unwrap().work_context.as_str(), "mission");
+        assert!(
+            read(&denied, &member, Some(observed.revision()))
+                .await
+                .is_err()
+        );
+        let result = read(&client, &member, Some(observed.revision()))
+            .await
+            .unwrap();
+        assert!(result.contents.is_empty());
+        // A result grant cannot authorize Task controls, annotation bytes, or
+        // the owner-scoped analysis resource.
+        assert!(
+            client
+                .get_task(GetTaskParams::new(
+                    driver.finding.analysis.task_id().to_string()
+                ))
+                .await
+                .is_err()
+        );
+        assert!(
+            read(
+                &client,
+                &AnalysisUri::new(driver.finding.analysis).to_uri(),
+                None
+            )
+            .await
+            .is_err()
+        );
+        assert!(
+            fixture
+                .artifacts
+                .get(&reader, &driver.finding.annotation, AccessLevel::Read)
+                .await
+                .is_err()
+        );
+        let mut listener = client
+            .listen(
+                SubscriptionFilter::builder()
+                    .resource_subscription(root.as_str())
+                    .resource_subscription(member.as_str())
+                    .build(),
+            )
+            .await
+            .unwrap();
+        updates(&mut listener, &[root.clone(), member.clone()]).await;
+        fixture
+            .artifacts
+            .revoke(
+                &fixture.owner,
+                &driver.finding.artifact,
+                &AccessSubject::Principal(reader.identity.actor.id.clone()),
+            )
+            .await
+            .unwrap();
+        updates(&mut listener, &[root.clone(), member.clone()]).await;
+        assert!(
+            read(&client, &member, Some(observed.revision()))
+                .await
+                .is_err()
+        );
+        let page = read(&client, &root, None).await.unwrap();
+        let ResourceContents::TextResourceContents { text, .. } = &page.contents[0] else {
+            panic!("finding page must be JSON text");
+        };
+        assert!(
+            serde_json::from_str::<FindingPage>(text)
+                .unwrap()
+                .items
+                .is_empty()
+        );
+        let _ = listener.cancel().await;
+        // No database mutation occurs when the deadline passes. The source's
+        // timer must invalidate the same admitted identities before closing.
+        fixture.grant(driver.finding.artifact, "reader").await.unwrap();
+        let artifact = veoveo_platform_store::ArtifactId::from_uuid(driver.finding.artifact.as_uuid()).record_id();
+        let principal = veoveo_platform_store::deterministic_principal_id("reason-fixture", "reader").unwrap().record_id();
+        let expiry = chrono::Utc::now() + chrono::TimeDelta::seconds(8);
+        db.b.client().query("UPDATE artifact_grant SET expires_at = $expiry WHERE in = $artifact AND out = $principal RETURN NONE;")
+            .bind(("expiry", expiry)).bind(("artifact", artifact)).bind(("principal", principal)).await.unwrap().check().unwrap();
+        let mut expiring = client.listen(SubscriptionFilter::builder().resource_subscription(root.as_str()).resource_subscription(member.as_str()).build()).await.unwrap();
+        updates(&mut expiring, &[root.clone(),member.clone()]).await;
+        updates(&mut expiring, &[root.clone(),member.clone()]).await;
+        assert!(chrono::Utc::now() >= expiry, "expiry notification arrived before the deadline");
+        assert!(read(&client, &member, Some(observed.revision())).await.is_err());
+        let _ = expiring.cancel().await;
+        client.cancel().await.unwrap();
+        denied.cancel().await.unwrap();
+        driver.server.lock().await.take().unwrap().stop().await;
+    })
+    .await
+    .expect("Reason hosted source qualification exceeded 300 seconds");
+}

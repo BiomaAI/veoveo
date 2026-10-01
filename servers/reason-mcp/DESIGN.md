@@ -142,6 +142,10 @@ its admitted rows, including members beyond the first page. Hidden rows cannot c
 that fingerprint. A listener accepts at most 32 finding roots or members, emits an
 initial invalidation after observation starts, and reconciles after Store reconnects.
 Grant, Artifact, Task and token deadlines wake a listener without idle polling.
+When a previously admitted member loses access, the listener invalidates its member
+and collection before ending the request. Initial subscription admission rejects an
+inaccessible member. The gateway supplies signed caller authority; the source checks
+its expiry and current Artifact/Task access throughout the request.
 Resource reads and fingerprint collection have a 60-second deadline; SQL observation
 has a 10-second timeout, and notification delivery has a 10-second deadline.
 

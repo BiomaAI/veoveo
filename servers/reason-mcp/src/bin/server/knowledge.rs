@@ -113,6 +113,8 @@ pub(super) async fn read(
                     .metadata_snapshot(&caller, &finding.results)
                     .await
                     .map_err(internal)?;
+                // TODO(foundations): Read bounded finding data captured at publication;
+                // valid full results can exceed this inline response ceiling.
                 if before.metadata().byte_len > state.max_inline_resource_bytes {
                     return Err(McpError::invalid_request(
                         "Reason result exceeds the configured source-read byte limit",

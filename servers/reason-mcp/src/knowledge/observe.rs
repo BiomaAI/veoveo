@@ -53,16 +53,7 @@ impl FindingChanges {
         let sender = changes.clone();
         let worker = tokio::spawn(async move {
             use PlatformTable::*;
-            let mut source = store.resource_changes(vec![
-                Task,
-                ArtifactOccurrence,
-                ArtifactGrant,
-                Principal,
-                Tenant,
-                GatewayControlActive,
-                GatewayJwtRevocation,
-                GatewayRefreshFamily,
-            ]);
+            let mut source = store.resource_changes(vec![Task, ArtifactOccurrence, ArtifactGrant]);
             while let Some(value) = source.next().await {
                 sender.send_replace(Some(value));
             }

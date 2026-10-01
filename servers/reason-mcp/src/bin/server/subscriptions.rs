@@ -23,6 +23,7 @@ pub(super) fn finding(uri: &str) -> Option<FindingResource> {
 struct State {
     fingerprints: BTreeMap<ResourceUri, Sha256Digest>,
     deadline: DateTime<Utc>,
+    lost_member: bool,
 }
 
 async fn snapshot(
@@ -35,6 +36,7 @@ async fn snapshot(
         let mut state = State {
             fingerprints: BTreeMap::new(),
             deadline: caller.identity.expires_at,
+            lost_member: false,
         };
         let mut selected = BTreeMap::new();
         for (uri, address) in addresses {
@@ -51,10 +53,7 @@ async fn snapshot(
             }
             let current = &selected[&id];
             if id.is_some() && !current.present {
-                return Err(McpError::resource_not_found(
-                    "finding is no longer readable",
-                    None,
-                ));
+                state.lost_member = true;
             }
             state
                 .fingerprints
@@ -130,6 +129,9 @@ pub(super) async fn listen(
         }
     }
     let mut previous = snapshot(server, &caller, &addresses).await?;
+    if previous.lost_member {
+        return Err(lost_member());
+    }
     for (uri, _) in &addresses {
         notify(&context, uri).await?;
     }
@@ -164,6 +166,16 @@ pub(super) async fn listen(
                 notify(&context, uri).await?;
             }
         }
+        // The caller previously admitted these identities. Invalidate their
+        // cached member and collection before ending the revoked subscription;
+        // never emit content or continue observing the inaccessible member.
+        if current.lost_member {
+            return Err(lost_member());
+        }
         previous = current;
     }
+}
+
+fn lost_member() -> McpError {
+    McpError::resource_not_found("finding is no longer readable", None)
 }

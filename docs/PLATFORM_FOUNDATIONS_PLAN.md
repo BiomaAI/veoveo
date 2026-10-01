@@ -32,8 +32,9 @@ Catalog completion, caller-visible statistics and request-scoped subscriptions p
 native and public installed checks. Indexing audit windows commit before delivery,
 recover across writer restarts in native tests, and finalize in the reference installation
 with a verified signed audit chain. Domain retrieval evaluation, installed source
-mutation/restart qualification and Reason's hosted collections remain open. Reason's
-reusable finding selection passes native Artifact access and pagination qualification.
+mutation/restart qualification remain open. Reason's completed analyses and results
+pass native Artifact access, pagination and hosted K01–K07 checks. Retaining bounded
+finding data at publication and reference source adoption remain open.
 The gateway source adapter discovers approved
 collections and waits for catalog/resource observation readiness before reading.
 The library coordinator qualifies lease renewal, source invalidation, conditional
@@ -3953,7 +3954,28 @@ wakeups, grants beyond the first page and hidden-row stability. The independent 
 passes all 22 Reason contract cases; its 142-package graph excludes MCP, Store,
 asynchronous runtimes, HTTP clients and Rerun. Strict all-target Clippy, formatting,
 document links and the composed SurrealDB 3.3.0 queries pass. These fixtures perform no
-inference and do not qualify the hosted subscription stream or installed source rollout.
+inference and do not qualify the installed source rollout.
+
+Hosted source qualification (2026-10-01): the production Reason HTTP router and the
+real Artifact service run against an isolated SurrealDB fixture with generated signing
+keys. The generic checker reports 41 passes, including K01–K07 for populated findings
+and both collection change/restart probes. Its two skips are GPU readiness, which this
+stored-result fixture does not exercise, and K08, because Reason declares no knowledge
+search tool. Owner assertions cover cross-context result sharing, denied Task control
+and annotation reads, conditional denial after revocation, and expiry-driven invalidation
+without a database write. Revocation initially closed a mixed member/root subscription
+before its invalidations; the handler now sends those invalidations before closing and
+rejects initially inaccessible members. Restart probes gracefully close the service and
+recreate its application state at the same endpoint.
+
+K09/K10 review: observations derive from stored Task and result provenance plus the
+Artifact service's current access snapshot. Callers provide no provenance fields.
+Revisions cover both the returned summary and access descriptor, and grant mutations
+change them through the public HTTP path. The source listens to Task, occurrence and
+grant tables; the gateway owns caller authentication and the source checks token expiry.
+Reference approvals, installed source acceptance and retrieval evaluation remain open.
+The current member reader also fetches result bytes under the inline byte ceiling;
+publication must retain the bounded finding data before admitting larger result Artifacts.
 
 Adopt Reason's completed analyses and results so users can find earlier findings and
 read their grounding without rerunning inference. Observations carry stored owner,
@@ -4014,6 +4036,7 @@ not complete while a row remains.
 
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
+| Phase 9 bounded finding persistence | `servers/reason-mcp/src/bin/server/knowledge.rs` | Retain bounded finding data at publication and read it without fetching the full result Artifact | The hosted source passes medium-size result fixtures, but its inline byte ceiling excludes larger valid results; this must be resolved before source rollout |
 | Phase 3 Task result installation | `platform/task-runtime/DESIGN.md` | Qualify cross-replica delivery of the installed shared result envelope and event schema 3 | The fresh Store and linked Stream/Reason result acceptance pass; multiple installed replicas still need qualification |
 | Phase 3 final server library gates | `servers/artifact-mcp/DESIGN.md` | Finish installed Artifact sharing and Computers hosted feature qualification | Publication, all hosted catalogs, public full/HEAD/range Artifact delivery and headed Speech CUDA transcription/dictation pass at `5dd357c4`; the remaining domain assertions join composed acceptance |
 | Phase 1 reference reset | `testing/flight-smoke/src/domain.rs` | Finish composed visual and timing acceptance | The composed flight domain sequence passes at `442ba70b`, including Recording, replay, Reason and cross-context denial. The subsequent visual stage rejects a black live-camera App frame and still requires diagnosis and qualification |
