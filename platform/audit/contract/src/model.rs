@@ -192,6 +192,8 @@ pub enum AuditValidationError {
     Partition,
     #[error("an accepted outcome cannot carry a denial reason")]
     Outcome,
+    #[error("knowledge read outcome and observation disagree")]
+    KnowledgeRead,
     #[error("audit cursor belongs to a different partition")]
     Cursor,
     #[error("audit time range must increase")]
@@ -237,10 +239,53 @@ impl TryFrom<AuditDraftWire> for AuditDraft {
                 AuditTarget::Task { .. } | AuditTarget::TaskRoute { .. },
             ) => true,
             (AuditDetail::Task { .. }, _) => false,
+            (
+                AuditDetail::KnowledgeRead {
+                    member,
+                    observation,
+                    ..
+                },
+                AuditTarget::Resource { server, uri },
+            ) => {
+                member == uri
+                    && observation
+                        .as_ref()
+                        .is_none_or(|o| o.collection.server() == server)
+            }
+            (AuditDetail::KnowledgeRead { .. }, _) => false,
             _ => true,
         };
         if !target_matches {
             return Err(AuditValidationError::Target);
+        }
+        if let AuditDetail::KnowledgeRead {
+            status,
+            observation,
+            ..
+        } = &wire.detail
+        {
+            let valid = match status {
+                KnowledgeReadStatus::Read | KnowledgeReadStatus::NotModified => {
+                    wire.outcome == AuditOutcome::Succeeded
+                        && observation.as_ref().is_some_and(|o| {
+                            o.not_modified == (*status == KnowledgeReadStatus::NotModified)
+                        })
+                }
+                KnowledgeReadStatus::Denied => {
+                    wire.outcome == AuditOutcome::Denied && observation.is_none()
+                }
+                KnowledgeReadStatus::Missing => {
+                    wire.outcome == AuditOutcome::Failed
+                        && wire.reason == AuditReason::NotFound
+                        && observation.is_none()
+                }
+                KnowledgeReadStatus::Failed => {
+                    wire.outcome == AuditOutcome::Failed && observation.is_none()
+                }
+            };
+            if !valid {
+                return Err(AuditValidationError::KnowledgeRead);
+            }
         }
         const MAX_COUNTER: u64 = (1u64 << 53) - 1;
         let counters_ok = wire.latency_ms.is_none_or(|value| value <= MAX_COUNTER)

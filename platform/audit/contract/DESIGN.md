@@ -9,6 +9,7 @@
 | RFC 9162, RFC 8785 and RFC 8032 | Typed block heads, decimal-string versionstamps, Merkle roots and Ed25519 signatures |
 | RFC 3339 and JSON | Typed timestamps, tagged closed enums and checked deserialization |
 | `veoveo.ai/audit-record/v1` | One reviewed record shape across platform producers and readers |
+| `ai.veoveo/knowledge-source` | Reviewed observation fields from the protocol-independent extension contract |
 
 This library owns the protocol-independent audit vocabulary. It depends on foundational
 names and the lightweight Artifact and Computers identities. Store and MCP both depend
@@ -26,6 +27,12 @@ Numeric counters must fit the exact I-JSON integer range before a draft can be s
 Tool, discovery and Task details must match the corresponding typed target. A platform
 Task uses its UUID record link; an external Task uses its opaque gateway route and
 server identity. These identities have separate variants.
+Knowledge read details bind the member and collection owner to their resource target.
+Successful reads require an observation whose conditional status matches the outcome.
+Denied or failed reads cannot claim a returned revision. `KnowledgeReadObservation`
+copies source identity, revision, digest, times, attribution and access fields. Its
+external identity excludes navigation URLs because they can carry signed query
+credentials. The closed audit schema rejects those URLs on input as well.
 Store owns conversion to compound record IDs and native record links. A partition key
 distinguishes the installation partition from a tenant literally named `installation`.
 

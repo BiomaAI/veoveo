@@ -148,7 +148,7 @@ export type AuditDetail =
   | {
       kind: "knowledge_read";
       member: ResourceUri;
-      revision?: string | null;
+      observation?: KnowledgeReadObservation | null;
       status: KnowledgeReadStatus;
     }
   | {
@@ -456,10 +456,56 @@ export type RecordingActivity =
  */
 export type DictationEnd = "completed" | "cancelled" | "timed_out" | "disconnected" | "failed";
 /**
+ * Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.
+ *
+ * This interface was referenced by `AuditReaderApi`'s JSON-Schema
+ * via the `definition` "DataLabelId".
+ */
+export type DataLabelId = string;
+/**
+ * Tenant-local boundary that governs related work and every output it produces.
+ *
+ * This interface was referenced by `AuditReaderApi`'s JSON-Schema
+ * via the `definition` "WorkContextId".
+ */
+export type WorkContextId = string;
+/**
+ * An installation-unique collection name owned by one server.
+ *
+ * This interface was referenced by `AuditReaderApi`'s JSON-Schema
+ * via the `definition` "CollectionId".
+ */
+export type CollectionId = string;
+/**
+ * This interface was referenced by `AuditReaderApi`'s JSON-Schema
+ * via the `definition` "ExternalRecordId".
+ */
+export type ExternalRecordId = string;
+/**
+ * This interface was referenced by `AuditReaderApi`'s JSON-Schema
+ * via the `definition` "ExternalSystemId".
+ */
+export type ExternalSystemId = string;
+/**
+ * Attribution uses the platform principal namespace for both humans and services.
+ *
+ * This interface was referenced by `AuditReaderApi`'s JSON-Schema
+ * via the `definition` "ModifiedBy".
+ */
+export type ModifiedBy = {
+  id: PrincipalId;
+  kind: "principal";
+};
+/**
+ * This interface was referenced by `AuditReaderApi`'s JSON-Schema
+ * via the `definition` "Revision".
+ */
+export type Revision = string;
+/**
  * This interface was referenced by `AuditReaderApi`'s JSON-Schema
  * via the `definition` "KnowledgeReadStatus".
  */
-export type KnowledgeReadStatus = "read" | "not_modified" | "missing" | "denied";
+export type KnowledgeReadStatus = "read" | "not_modified" | "missing" | "denied" | "failed";
 /**
  * This interface was referenced by `AuditReaderApi`'s JSON-Schema
  * via the `definition` "AuditReason".
@@ -618,13 +664,6 @@ export type ComputerId = string;
  */
 export type CanonicalTaskId = string;
 /**
- * Tenant-local boundary that governs related work and every output it produces.
- *
- * This interface was referenced by `AuditReaderApi`'s JSON-Schema
- * via the `definition` "WorkContextId".
- */
-export type WorkContextId = string;
-/**
  * Tool name as exposed by one direct MCP server.
  *
  * This interface was referenced by `AuditReaderApi`'s JSON-Schema
@@ -758,6 +797,41 @@ export interface AuditRecordSummary {
   sourceIp?: string | null;
   target: AuditTarget;
   traceId: AuditTraceId;
+}
+/**
+ * This interface was referenced by `AuditReaderApi`'s JSON-Schema
+ * via the `definition` "KnowledgeReadObservation".
+ */
+export interface KnowledgeReadObservation {
+  access?: AccessDescriptor | null;
+  collection: CollectionId;
+  contentSha256: string;
+  external?: KnowledgeExternalIdentity | null;
+  modifiedAt?: string | null;
+  modifiedBy?: ModifiedBy | null;
+  notModified: boolean;
+  observedAt: string;
+  revision: Revision;
+}
+/**
+ * This interface was referenced by `AuditReaderApi`'s JSON-Schema
+ * via the `definition` "AccessDescriptor".
+ */
+export interface AccessDescriptor {
+  dataLabels: DataLabelId[];
+  grants?: AccessSubject[];
+  owner: AccessSubject;
+  tenant: TenantId;
+  workContext: WorkContextId;
+}
+/**
+ * This interface was referenced by `AuditReaderApi`'s JSON-Schema
+ * via the `definition` "KnowledgeExternalIdentity".
+ */
+export interface KnowledgeExternalIdentity {
+  mirroredAt?: string | null;
+  nativeId: ExternalRecordId;
+  system: ExternalSystemId;
 }
 /**
  * This interface was referenced by `AuditReaderApi`'s JSON-Schema

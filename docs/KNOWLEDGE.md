@@ -154,9 +154,10 @@ agent's episode budget counts it. Platform services call the runtime directly in
 
 Veoveo keeps [one audit log](AUDIT.md). A read of a declared collection is an ordinary
 audit record for `resources/read`, and the record carries the typed observation the owning
-server returned: collection, revision, `contentSha256`, `lastModified`, `modifiedBy`,
-and the read outcome (`full`, `not_modified`, `denied`, `not_found`, or
-`unavailable`). The record already names the actor, delegating principal, managed
+server returned: collection, revision, `contentSha256`, `modifiedAt`, `modifiedBy`,
+and whether the read returned content or confirmed an unchanged revision. Denied
+and failed reads record an outcome and reason without claiming source provenance.
+The record already names the actor, delegating principal, managed
 agent, Work Context, profile, and trace. "What did this answer rely on?" is therefore
 an audit query by trace or agent episode.
 
@@ -166,6 +167,8 @@ these reads it commits the audit record after the upstream response arrives and 
 it returns the result, so no caller receives content whose revision the log lacks.
 Denied reads are audited before any upstream call, as every denial is. The record holds
 digests and identities, never member content, and follows the audit log's retention.
+The audit observation excludes external navigation URLs, which can carry signed
+credentials; external system and native record identities remain available for lookup.
 Reads by the knowledge service itself use the indexing window described in
 [Sources And Approval](#sources-and-approval).
 
@@ -174,7 +177,7 @@ Reads by the knowledge service itself use the indexing window described in
 The governed agent read adapter declares the extension on its reads and keeps each
 observation beside the text it admits.
 The model receives one compact provenance line per item: collection, revision,
-`lastModified`, and `observedAt`. It can therefore state how current its evidence
+`modifiedAt`, and `observedAt`. It can therefore state how current its evidence
 is. The adapter's byte and read budgets count those lines.
 
 ## Implementation Map

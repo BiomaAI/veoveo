@@ -502,6 +502,28 @@ impl GatewayMcp {
         self.authorize(context, action, target).await
     }
 
+    /// A successful read is recorded with its returned observation by the read
+    /// handler. Denials commit here, before any upstream request.
+    pub(super) async fn admit_resource_read(
+        &self,
+        context: &RequestContext<RoleServer>,
+        projection: &GatewayResourceProjection,
+    ) -> Result<AuthenticatedSubject, McpError> {
+        let subject = self.authenticated(context)?;
+        let action = crate::mcp_support::resource_read_action(projection.gateway_uri.as_str());
+        let target =
+            resource_policy_target(projection.server.clone(), projection.gateway_uri.as_str())?;
+        let decision = self
+            .policy_decision(&subject, action, &target, trace_id_for_context(context)?)
+            .await?;
+        if decision.effect == PolicyEffect::Deny {
+            self.record_policy_denial(&subject, action, target, decision.reason)
+                .await?;
+            return Err(mcp_invalid_request(policy_denial_message(&decision)));
+        }
+        Ok(subject)
+    }
+
     pub(super) async fn authorize_projected_resource(
         &self,
         context: &RequestContext<RoleServer>,
@@ -537,12 +559,14 @@ impl GatewayMcp {
     ) -> Result<(), McpError> {
         let target = crate::audit::mcp_audit_target(&target)
             .map_err(|_| mcp_internal("invalid audit target"))?;
-        let detail = if action == GatewayAction::ToolsCall {
-            AuditDetail::ToolAdmission
-        } else {
-            AuditDetail::Read {
+        let detail = match action {
+            GatewayAction::ToolsCall => AuditDetail::ToolAdmission,
+            GatewayAction::ResourcesRead | GatewayAction::ArtifactRead => AuditDetail::Read {
+                method: AuditReadMethod::ResourceRead,
+            },
+            _ => AuditDetail::Read {
                 method: AuditReadMethod::Status,
-            }
+            },
         };
         let draft = subject
             .audit_draft(

@@ -15885,6 +15885,7 @@ dependencies = [
  "veoveo-duckdb-mcp",
  "veoveo-duckdb-runtime",
  "veoveo-mcp-contract",
+ "veoveo-mcp-knowledge-extension",
  "veoveo-platform-store",
  "veoveo-task-runtime",
  "veoveo-types",
@@ -16063,6 +16064,7 @@ dependencies = [
  "uuid",
  "veoveo-artifact-contract",
  "veoveo-computers-contract",
+ "veoveo-mcp-knowledge-extension",
  "veoveo-types",
 ]
 
@@ -16746,6 +16748,7 @@ dependencies = [
  "veoveo-computers-transport",
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
+ "veoveo-mcp-knowledge-extension",
  "veoveo-platform-store",
  "veoveo-policy",
  "veoveo-recording-mcp",

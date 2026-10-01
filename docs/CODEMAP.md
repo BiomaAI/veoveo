@@ -77,7 +77,7 @@ Component designs live beside the code whose contract they specify:
 | [`platform/audit/DESIGN.md`](../platform/audit/DESIGN.md) | unified audit writer implementation, group acknowledgements, transaction append and integrity services; foundations qualification in progress |
 | [`platform/audit/measurements/2026-09-30.md`](../platform/audit/measurements/2026-09-30.md) | paired native audit timings, batching selection, raw samples and limits of the development measurement |
 | [`platform/audit/src/export/DESIGN.md`](../platform/audit/src/export/DESIGN.md) | typed OCSF mapping, S3/OTLP completion and recovery, persisted delivery receipts and export-gated retention |
-| [`platform/audit/contract/DESIGN.md`](../platform/audit/contract/DESIGN.md) | protocol-independent checked audit records, closed details, typed identities and partition-scoped read contracts |
+| [`platform/audit/contract/DESIGN.md`](../platform/audit/contract/DESIGN.md) | protocol-independent checked audit records, closed details, typed identities and partition-scoped reads; `src/knowledge.rs` admits source observations without external navigation URLs |
 | [`platform/types/DESIGN.md`](../platform/types/DESIGN.md) | protocol-independent identity and attribution, installation and agent names, authentication vocabulary and issuer/subject identities, scope names, resource references, URI component parsing and builders, validation errors, and public extension traits |
 | [`platform/runtimes/duckdb/DESIGN.md`](../platform/runtimes/duckdb/DESIGN.md) | shared analytical sandbox, typed HTTPS materialization, network policy and query limits |
 | [`mcp/conformance/DESIGN.md`](../mcp/conformance/DESIGN.md) | typed domain-neutral hosted-server certification profiles, reports, and standalone distribution |
@@ -616,7 +616,8 @@ Task state lives in this runtime. RMCP defines the Tasks wire types.
 | `mcp/authorization.rs` | per-method/profile/server target authorization |
 | `mcp/discovery.rs` | discovery descriptors and upstream resource mappings keyed by caller authority, concurrency limits, per-server failure isolation, and list-change invalidation |
 | `mcp/tools.rs` | aggregated tool list with opt-in compatibility helpers; isolates a failing server by default and fails the whole list for `fail_closed` discovery profiles |
-| `mcp/resources.rs` | failure-isolated resource lists and cached resource-read routing with fresh authorization |
+| `mcp/resources.rs` | failure-isolated resource lists and native Task status resource projection |
+| `mcp/resource_read.rs` | fresh resource authorization, source observation validation, negotiated metadata delivery and commit-before-delivery audit records |
 | `mcp/prompts.rs`, `completion.rs` | prompt and completion aggregation |
 | `mcp/tasks.rs` | upstream Task client and the opt-in Task tools for clients with weak Task support |
 | `mcp/health.rs` | `health_url` GET probes; only a success status counts as healthy |
@@ -1380,7 +1381,7 @@ dispatch preflights and budgeted execution.
 | `rrd.rs`, `recorder.rs` | episode/world Rerun recording |
 | `budget.rs` | enforced episode/tool/cost budgets |
 | `connection.rs` | final-profile gateway client epoch, serialized request-boundary credential freshness, acknowledged request-scoped listener restoration, and deferred-task resolver |
-| `resource.rs` | resource reads through the current profile, episode-local accounting, text validation, and fixed-field correction diagnostics |
+| `resource.rs` | resource reads through the current profile, content-bound observations and provenance within episode budgets, text validation, and fixed-field correction diagnostics |
 
 ### `platform/gateway/src/bin/gateway/admin`
 

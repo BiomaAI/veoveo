@@ -56,6 +56,7 @@ impl GatewayMcp {
             extensions.get_or_insert_default().insert(id, declaration);
         }
         capabilities.extensions = extensions;
+        veoveo_mcp_knowledge_extension::server::declare(&mut capabilities);
         if catalog
             .profile_servers(&self.profile_id)
             .iter()

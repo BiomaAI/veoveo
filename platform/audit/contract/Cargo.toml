@@ -6,6 +6,7 @@ publish = false
 
 [dependencies]
 veoveo-types.workspace = true
+veoveo-mcp-knowledge-extension = { workspace = true, features = ["contract"] }
 veoveo-artifact-contract.workspace = true
 veoveo-computers-contract = { path = "../../computers/contract" }
 chrono.workspace = true

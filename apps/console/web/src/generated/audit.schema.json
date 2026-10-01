@@ -1,5 +1,38 @@
 {
   "$defs": {
+    "AccessDescriptor": {
+      "additionalProperties": false,
+      "properties": {
+        "dataLabels": {
+          "items": {
+            "$ref": "#/$defs/DataLabelId"
+          },
+          "type": "array"
+        },
+        "grants": {
+          "items": {
+            "$ref": "#/$defs/AccessSubject"
+          },
+          "type": "array"
+        },
+        "owner": {
+          "$ref": "#/$defs/AccessSubject"
+        },
+        "tenant": {
+          "$ref": "#/$defs/TenantId"
+        },
+        "workContext": {
+          "$ref": "#/$defs/WorkContextId"
+        }
+      },
+      "required": [
+        "tenant",
+        "workContext",
+        "owner",
+        "dataLabels"
+      ],
+      "type": "object"
+    },
     "AccessLevel": {
       "description": "A capability level. Ordered `Read < Write < Admin`, so `min` yields the\nlesser privilege — exactly what capping a group role by a grant level needs.",
       "enum": [
@@ -750,11 +783,14 @@
             "member": {
               "$ref": "#/$defs/ResourceUri"
             },
-            "revision": {
-              "pattern": "^sha256:[0-9a-f]{64}$",
-              "type": [
-                "string",
-                "null"
+            "observation": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/KnowledgeReadObservation"
+                },
+                {
+                  "type": "null"
+                }
               ]
             },
             "status": {
@@ -1516,6 +1552,10 @@
       "description": "Opaque gateway task route bound to current invocation authority.",
       "type": "string"
     },
+    "CollectionId": {
+      "description": "An installation-unique collection name owned by one server.",
+      "type": "string"
+    },
     "ComputerActivity": {
       "enum": [
         "create",
@@ -1563,6 +1603,10 @@
       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
       "type": "string"
     },
+    "DataLabelId": {
+      "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
+      "type": "string"
+    },
     "DictationEnd": {
       "enum": [
         "completed",
@@ -1582,6 +1626,18 @@
       ],
       "type": "string"
     },
+    "ExternalRecordId": {
+      "maxLength": 1024,
+      "minLength": 1,
+      "pattern": "^[^\\x00-\\x1f\\x7f]+$",
+      "type": "string"
+    },
+    "ExternalSystemId": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "type": "string"
+    },
     "GatewayProfileId": {
       "description": "Veoveo profile id exposed under `/mcp/{profile}`.",
       "type": "string"
@@ -1590,12 +1646,103 @@
       "description": "Identity-provider group identifier used by gateway policy.",
       "type": "string"
     },
+    "KnowledgeExternalIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "mirroredAt": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "nativeId": {
+          "$ref": "#/$defs/ExternalRecordId"
+        },
+        "system": {
+          "$ref": "#/$defs/ExternalSystemId"
+        }
+      },
+      "required": [
+        "system",
+        "nativeId"
+      ],
+      "type": "object"
+    },
+    "KnowledgeReadObservation": {
+      "additionalProperties": false,
+      "properties": {
+        "access": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AccessDescriptor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "collection": {
+          "$ref": "#/$defs/CollectionId"
+        },
+        "contentSha256": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "external": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/KnowledgeExternalIdentity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "modifiedAt": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "modifiedBy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModifiedBy"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "notModified": {
+          "type": "boolean"
+        },
+        "observedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "revision": {
+          "$ref": "#/$defs/Revision"
+        }
+      },
+      "required": [
+        "collection",
+        "revision",
+        "contentSha256",
+        "observedAt",
+        "notModified"
+      ],
+      "type": "object"
+    },
     "KnowledgeReadStatus": {
       "enum": [
         "read",
         "not_modified",
         "missing",
-        "denied"
+        "denied",
+        "failed"
       ],
       "type": "string"
     },
@@ -1612,6 +1759,28 @@
     "LocalToolName": {
       "description": "Tool name as exposed by one direct MCP server.",
       "type": "string"
+    },
+    "ModifiedBy": {
+      "description": "Attribution uses the platform principal namespace for both humans and services.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/PrincipalId"
+            },
+            "kind": {
+              "const": "principal",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        }
+      ]
     },
     "OAuthClientId": {
       "description": "Registered OAuth client id allowed to request gateway-profile tokens.",
@@ -1642,6 +1811,12 @@
       "type": "string"
     },
     "ResourceUri": {
+      "type": "string"
+    },
+    "Revision": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[!-~]+$",
       "type": "string"
     },
     "ServerSlug": {

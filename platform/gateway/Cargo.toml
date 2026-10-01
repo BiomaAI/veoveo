@@ -18,6 +18,7 @@ opentelemetry.workspace = true
 opentelemetry_sdk.workspace = true
 veoveo-artifact-contract.workspace = true
 veoveo-types.workspace = true
+veoveo-mcp-knowledge-extension = { workspace = true, features = ["mcp"] }
 veoveo-speech-contract = { path = "../../servers/speech-mcp/contract" }
 anyhow.workspace = true
 async-stream = "0.3.6"

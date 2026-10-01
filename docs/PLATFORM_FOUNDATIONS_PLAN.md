@@ -14,8 +14,10 @@ also passes; visual acceptance fails on a black live-camera App frame. That visu
 failure and the deferred cross-replica/domain checks remain open.
 Phase 6 has typed extension models, negotiation/read helpers, docs paging and a
 compile-time digest macro. All 15 Rust servers use shared authenticated docs reads;
-Python and Node indexes use the same page shape. Broader integration and qualification
-are in progress. Phases 7–9 are not implemented. The cluster and BuildKit are stopped.
+Python and Node indexes use the same page shape. Gateway source validation, read audit
+completion and kernel provenance pass grouped native checks.
+Python observation support, Store records, K01–K08 and installed qualification remain
+open. Phases 7–9 are not implemented. The cluster and BuildKit are stopped.
 
 Current direction: every contract change in this plan is a coordinated hard cut.
 Historical data requires no support or migration. Remove compatibility adapters
@@ -3173,7 +3175,26 @@ direction is foundational types → knowledge extension → MCP core, with no de
 on domain servers. Six grouped native tests qualify closed declarations, collection
 and access checks, content-bound conditional responses, stable docs paging, bounded
 search snippets and compile-time document digests. Python observation support,
-K01–K08 conformance, Store schema, gateway audit and kernel integration remain open.
+K01–K08 conformance, Store schema and installed integration remain open.
+
+The gateway records successful resource reads after validating the source observation
+and before delivery. It checks the source URI, bytes, collection owner and conditional
+revision, and forwards metadata only to declaring callers. The audit contract validates
+member/target and status/observation relationships. Its reviewed observation preserves
+external system and record identities while excluding navigation URLs that may carry
+signed credentials. Private zero-TTL delivery and explicit upstream request metadata
+keep conditional reads on the source authorization path. The kernel uses Rig's existing
+credential preflight, validates original text and retains the observation beside a
+provenance line. Both count against its existing item, response and episode limits.
+Grouped native qualification passes 25 Rust tests and six Console schema tests.
+The gateway fixture checks committed records through a separate Store connection after
+each delivered read, reauthorizes conditional reads, records revocation, and blocks
+content when its audit writer stops. Kernel checks preserve the original body while
+counting provenance at item, response and episode limits. Workspace compilation,
+affected all-target/all-feature Clippy, Console TypeScript and docs checks pass.
+Generated Console audit schemas and types match the reviewed contract. Installed
+qualification remains open. Five superseded linked test executables were removed;
+library, incremental, BuildKit and model caches are preserved.
 
 The Rust docs integration declares the extension through checked setup and routes
 ordinary and conditional reads through the same authenticated path. Map uses the

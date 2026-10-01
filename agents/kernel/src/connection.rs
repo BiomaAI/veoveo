@@ -357,11 +357,14 @@ impl GatewayConnectionInner {
                 .auth_header(token.access_token.clone())
                 .custom_headers(transport_headers),
         );
+        let mut capabilities = rmcp::model::ClientCapabilities::default();
+        veoveo_mcp_knowledge_extension::client::declare(&mut capabilities);
         let config = McpClientConfig::new(Implementation::new(
             "veoveo-agent",
             env!("CARGO_PKG_VERSION"),
         ))
-        .with_deferred_backend_id("mcp:veoveo-gateway");
+        .with_deferred_backend_id("mcp:veoveo-gateway")
+        .with_client_capabilities(capabilities);
         let declared_resources = Arc::new(
             self.manifest
                 .resource_subscriptions

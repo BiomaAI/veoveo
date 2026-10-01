@@ -11,9 +11,17 @@ const IDENTIFIERS: &[&str] = &[
     "PrincipalId",
     "GroupId",
     "RoleId",
+    // Server-owned observations carry reviewed provenance, never resource bodies.
+    "CollectionId",
+    "Revision",
+    "TenantId",
+    "WorkContextId",
+    "DataLabelId",
+    "ExternalSystemId",
+    "ExternalRecordId",
 ];
 // Sha256Digest deliberately inlines this closed scalar schema instead of a $ref.
-const INLINE_IDENTIFIER_PATTERNS: &[&str] = &["^sha256:[0-9a-f]{64}$"];
+const INLINE_IDENTIFIER_PATTERNS: &[&str] = &["^sha256:[0-9a-f]{64}$", "^[0-9a-f]{64}$"];
 
 fn check(
     schema: &Value,

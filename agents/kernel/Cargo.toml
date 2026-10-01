@@ -14,6 +14,7 @@ path = "src/bin/agent.rs"
 [dependencies]
 veoveo-duckdb-mcp = { path = "../../servers/duckdb-mcp", default-features = false, features = ["contract"] }
 veoveo-types.workspace = true
+veoveo-mcp-knowledge-extension = { workspace = true, features = ["mcp"] }
 anyhow.workspace = true
 base64.workspace = true
 chrono.workspace = true

@@ -8,6 +8,22 @@ Model completion uses the approved Chat Completions adapter, without claiming
 every provider API. JSON manifests, managed generation admission and the dispatch
 preflight endpoint are repository-owned contracts. SurrealDB owns scheduling and
 Task delivery; DuckDB and Rerun hold local analytical projections.
+Resource reads negotiate `ai.veoveo/knowledge-source` through the shared extension
+contract and validate its SHA-256 content binding.
+
+## Resource Context
+
+The gateway connection declares the knowledge extension through Rig's client
+capabilities. Resource reads retain its credential preflight and connection rotation.
+The read adapter checks an observation against the requested URI and original text,
+then keeps that observation beside the text and a single provenance line. The line
+names the collection, revision, modification time when known, and observation time.
+An unsolicited not-modified result fails because the kernel holds no revision cache.
+
+The existing 64 KiB item, 128 KiB response and 512 KiB episode limits count source
+text, serialized observation bytes and the provenance line. Validation never truncates
+source text or changes the bytes that its digest describes. Read counts, wall time,
+family admission and paging limits apply to knowledge and ordinary resources alike.
 
 ## Analytical Memory
 

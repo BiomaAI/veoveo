@@ -6,6 +6,7 @@ mod health;
 mod info;
 mod progress;
 mod prompts;
+mod resource_read;
 mod resources;
 mod subscriptions;
 #[cfg(test)]

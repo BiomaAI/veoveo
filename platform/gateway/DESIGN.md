@@ -6,6 +6,7 @@
 |---|---|
 | MCP | The repository's hosted MCP 2026-07-28 profile, with typed protocol envelopes, resource discovery, tools, Tasks and subscriptions; the [server contract](../../mcp/contract/DESIGN.md) defines requirements |
 | MCP Apps | Extension `io.modelcontextprotocol/ui`, release 2026-01-26; `_meta.ui.resourceUri` links a tool to its App document |
+| Knowledge reads | `ai.veoveo/knowledge-source`; SHA-256 content binding, opaque revision validators and observation metadata from the [extension contract](../../mcp/knowledge-extension/DESIGN.md) |
 | Resource addresses | Repository-owned server schemes and `ui://` App routes validated through foundational URI types; installation manifests select identity or server-owned projection |
 | Installation authority | Typed server manifests, profile exposure and policy from the MCP gateway contract; [authentication](src/auth/DESIGN.md) resolves request identity |
 
@@ -32,7 +33,8 @@ its own scheme. Changing that reference changes the world and invalidates its di
 Payload preservation applies to every producer without a scheme allowlist.
 
 The gateway changes only the App link within extensible metadata. CSP origins,
-visibility, domain references and other metadata fields keep their values. A malformed
+visibility, domain references and unknown metadata fields keep their values. Knowledge
+observations follow their negotiated delivery rule below. A malformed
 App link produces a protocol error. This transformation grants no resource access;
 the selected profile and caller policy still govern subsequent requests.
 
@@ -40,6 +42,22 @@ An adapter that changes a domain's public namespace must construct coherent doma
 payloads itself. The gateway cannot repair arbitrary result strings, recompute domain
 digests or infer foreign-resource ownership. Installation upgrades use one gateway
 behavior; no compatibility mode rewrites domain payloads.
+
+## Resource Read Audit
+
+The gateway checks current resource policy before source discovery or reading. Denials
+commit at admission. An admitted read requests knowledge metadata from a declaring
+source and verifies the observation against the upstream member URI, returned UTF-8
+bytes, selected server and conditional revision. It projects the envelope URI while
+preserving the source bytes. Caller-supplied observations never reach the source.
+
+The read handler commits one completion record before returning a result. Knowledge
+records carry the audit contract's reviewed observation; ordinary resources use the
+resource-read detail. A failed audit commit prevents delivery. The gateway forwards
+observations only to declaring callers and preserves unrelated extension metadata.
+Read results carry private cache scope and zero TTL, allowing current authorization
+and audit recording on each read. The explicit upstream request path also prevents
+a URI-only SDK cache from substituting for conditional authorization.
 
 ## Qualification
 

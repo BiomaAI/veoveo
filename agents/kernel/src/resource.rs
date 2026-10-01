@@ -16,6 +16,8 @@ use rmcp::{
 };
 use serde::{Deserialize, Serialize};
 use tokio::sync::watch;
+use veoveo_mcp_knowledge_extension::{self as knowledge, Observation};
+use veoveo_types::ResourceUri;
 
 use crate::connection::ConnectionEpoch;
 
@@ -412,6 +414,10 @@ pub struct ResourceTextContent {
     pub uri: String,
     pub mime_type: String,
     pub text: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub observation: Option<Observation>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provenance: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -424,6 +430,8 @@ struct ValidatedContents {
 pub enum ResourceReadFailure {
     #[error("Resource content is not admitted for model context.")]
     ProhibitedContent,
+    #[error("Resource provenance does not match the admitted content.")]
+    InvalidObservation,
     #[error("Resource content exceeds the admitted response bounds.")]
     ResponseLimit,
     #[error("The resource service is unavailable.")]
@@ -440,8 +448,34 @@ pub enum ResourceReadFailure {
 
 fn validate_contents(
     result: ReadResourceResult,
+    requested_uri: &ResourceUri,
     limits: &ResourceReadLimits,
 ) -> Result<ValidatedContents, ResourceReadFailure> {
+    // This adapter holds no revision cache, so a not-modified response is invalid.
+    let observation = knowledge::client::validate_read(&result, requested_uri, None)
+        .map_err(|_| ResourceReadFailure::InvalidObservation)?;
+    let provenance = observation.as_ref().map(|o| {
+        // JSON quoting keeps opaque validators on one unambiguous line.
+        format!(
+            "Source: {}; revision={}; modifiedAt={}; observedAt={}",
+            o.collection(),
+            serde_json::to_string(o.revision()).expect("typed revision"),
+            o.modified_at()
+                .map(|t| t.to_rfc3339())
+                .unwrap_or_else(|| "unknown".into()),
+            o.observed_at().to_rfc3339()
+        )
+    });
+    let provenance_bytes = observation
+        .as_ref()
+        .map(|o| {
+            serde_json::to_vec(o)
+                .map(|bytes| bytes.len())
+                .map_err(|_| ResourceReadFailure::InvalidObservation)
+        })
+        .transpose()?
+        .unwrap_or_default()
+        + provenance.as_ref().map_or(0, String::len);
     if result.contents.is_empty() || result.contents.len() > limits.max_contents {
         return Err(ResourceReadFailure::ResponseLimit);
     }
@@ -473,7 +507,10 @@ fn validate_contents(
         if !admitted_mime {
             return Err(ResourceReadFailure::ProhibitedContent);
         }
-        let item_bytes = text.len();
+        let item_bytes = text
+            .len()
+            .checked_add(provenance_bytes)
+            .ok_or(ResourceReadFailure::ResponseLimit)?;
         if item_bytes > limits.item_bytes {
             return Err(ResourceReadFailure::ResponseLimit);
         }
@@ -487,6 +524,8 @@ fn validate_contents(
             uri,
             mime_type,
             text,
+            observation: observation.clone(),
+            provenance: provenance.clone(),
         });
     }
     Ok(ValidatedContents {
@@ -627,7 +666,9 @@ impl Tool for ResourceReadTool {
         let ReadResourceResponse::Complete(result) = response else {
             return Err(ResourceReadFailure::Internal);
         };
-        let validated = validate_contents(result, &self.limits)?;
+        let requested_uri = ResourceUri::new(uri.raw.clone())
+            .map_err(|_| ResourceReadFailure::ProhibitedContent)?;
+        let validated = validate_contents(result, &requested_uri, &self.limits)?;
         if let Err(diagnostic) = ledger.commit_bytes(&uri, validated.response_bytes) {
             return Ok(ResourceReadOutput::CorrectionRequired { diagnostic });
         }
@@ -694,6 +735,7 @@ mod tests {
                 ResourceContents::text(r#"{"name":"current"}"#, "map://layers/current")
                     .with_mime_type("application/json"),
             ]),
+            &ResourceUri::new("map://layers/current").unwrap(),
             &limits,
         )
         .unwrap();
@@ -704,7 +746,11 @@ mod tests {
                 .with_mime_type("text/html"),
         ]);
         assert!(matches!(
-            validate_contents(html, &limits),
+            validate_contents(
+                html,
+                &ResourceUri::new("map://layers/current").unwrap(),
+                &limits
+            ),
             Err(ResourceReadFailure::ProhibitedContent)
         ));
 
@@ -713,8 +759,101 @@ mod tests {
             "map://layers/current",
         )]);
         assert!(matches!(
-            validate_contents(blob, &limits),
+            validate_contents(
+                blob,
+                &ResourceUri::new("map://layers/current").unwrap(),
+                &limits
+            ),
             Err(ResourceReadFailure::ProhibitedContent)
+        ));
+    }
+
+    fn observed_result(meta: &rmcp::model::RequestMetaObject) -> ReadResourceResult {
+        let collection = knowledge::docs::collection(
+            &veoveo_types::ServerSlug::new("time").unwrap(),
+            &veoveo_types::ResourceScheme::new("time").unwrap(),
+        );
+        let observation = Observation::builder(
+            collection.collection().clone(),
+            knowledge::Revision::new("revision-7").unwrap(),
+            knowledge::content_digest("current source"),
+            chrono::Utc::now(),
+        )
+        .build(&collection)
+        .unwrap();
+        knowledge::server::member_result(
+            &ResourceUri::new("time://docs/design").unwrap(),
+            "text/plain",
+            "current source".into(),
+            observation,
+            &collection,
+            Some(meta),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn provenance_and_observation_count_against_item_response_and_episode_budgets() {
+        let mut meta = rmcp::model::RequestMetaObject::default();
+        knowledge::client::declare_read(&mut meta, None);
+        let result = observed_result(&meta);
+        let uri = ResourceUri::new("time://docs/design").unwrap();
+        let mut limits = ResourceReadLimits::default();
+        let admitted = validate_contents(result.clone(), &uri, &limits).unwrap();
+        let content = &admitted.contents[0];
+        let provenance = content.provenance.as_ref().unwrap();
+        assert_eq!(provenance.lines().count(), 1);
+        assert!(provenance.contains("time.docs"));
+        assert!(provenance.contains("revision-7"));
+        assert_eq!(content.text, "current source");
+        assert_eq!(
+            admitted.response_bytes,
+            content.text.len()
+                + provenance.len()
+                + serde_json::to_vec(content.observation.as_ref().unwrap())
+                    .unwrap()
+                    .len()
+        );
+        limits.item_bytes = admitted.response_bytes - 1;
+        assert!(matches!(
+            validate_contents(result.clone(), &uri, &limits),
+            Err(ResourceReadFailure::ResponseLimit)
+        ));
+        limits.item_bytes = admitted.response_bytes;
+        limits.response_bytes = admitted.response_bytes - 1;
+        assert!(matches!(
+            validate_contents(result.clone(), &uri, &limits),
+            Err(ResourceReadFailure::ResponseLimit)
+        ));
+        limits.response_bytes = admitted.response_bytes;
+        limits.cumulative_episode_bytes = admitted.response_bytes - 1;
+        let ledger = ResourceReadLedger::new(limits.clone());
+        let governed = GovernedResourceUri::parse(uri.as_str()).unwrap();
+        ledger.admit(&governed).unwrap();
+        assert!(
+            ledger
+                .commit_bytes(&governed, admitted.response_bytes)
+                .is_err()
+        );
+        let mut forged = result.clone();
+        forged.contents = vec![ResourceContents::text("altered source", uri.as_str())];
+        assert!(matches!(
+            validate_contents(forged, &uri, &limits),
+            Err(ResourceReadFailure::InvalidObservation)
+        ));
+        assert!(matches!(
+            validate_contents(
+                result,
+                &ResourceUri::new("time://docs/agents").unwrap(),
+                &limits
+            ),
+            Err(ResourceReadFailure::InvalidObservation)
+        ));
+        let revision = knowledge::Revision::new("revision-7").unwrap();
+        knowledge::client::declare_read(&mut meta, Some(&revision));
+        assert!(matches!(
+            validate_contents(observed_result(&meta), &uri, &limits),
+            Err(ResourceReadFailure::InvalidObservation)
         ));
     }
 
@@ -872,8 +1011,15 @@ mod tests {
         async fn read_resource(
             &self,
             request: ReadResourceRequestParams,
-            _: RequestContext<RoleServer>,
+            context: RequestContext<RoleServer>,
         ) -> Result<ReadResourceResponse, ErrorData> {
+            if request.uri == "time://docs/design" {
+                assert!(knowledge::server::requested(Some(&context.meta)).unwrap());
+                return Ok(observed_result(&context.meta)
+                    .with_ttl_ms(0)
+                    .with_cache_scope(CacheScope::Private)
+                    .into());
+            }
             if request.uri != "map://layers/current" {
                 return Err(ErrorData::invalid_params(
                     "unknown resource with PRIVATE-UPSTREAM-CANARY",
@@ -898,8 +1044,11 @@ mod tests {
                 .expect("server start");
             let _ = running.waiting().await;
         });
+        let mut capabilities = rmcp::model::ClientCapabilities::default();
+        knowledge::client::declare(&mut capabilities);
         let guard = McpClientHandler::new(
-            McpClientConfig::new(Implementation::new("kernel-test", "0.1.0")),
+            McpClientConfig::new(Implementation::new("kernel-test", "0.1.0"))
+                .with_client_capabilities(capabilities),
             ToolServer::new().run(),
         )
         .connect((client_from_server, client_to_server))
@@ -946,6 +1095,33 @@ mod tests {
             panic!("corrected URI must complete in the same context");
         };
         assert_eq!(contents[0].text, "current");
+
+        let observed = tool
+            .call(
+                &mut context,
+                ResourceReadArgs {
+                    uri: "time://docs/design".into(),
+                },
+            )
+            .await
+            .unwrap();
+        let ResourceReadOutput::Complete {
+            contents,
+            response_bytes,
+            ..
+        } = observed
+        else {
+            panic!("knowledge read must complete");
+        };
+        assert!(contents[0].observation.is_some());
+        assert!(
+            contents[0]
+                .provenance
+                .as_ref()
+                .unwrap()
+                .contains("revision-7")
+        );
+        assert!(response_bytes > contents[0].text.len());
 
         guard.cancel().await.expect("client close");
         server_task.await.expect("server task");

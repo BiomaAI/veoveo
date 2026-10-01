@@ -1,23 +1,22 @@
 use rmcp::{
     model::{
         ErrorData as McpError, ListResourceTemplatesResult, ListResourcesResult,
-        PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult, ResourceContents,
-        ResourceTemplate, TaskPayload,
+        PaginatedRequestParams, ReadResourceResult, ResourceContents, ResourceTemplate,
+        TaskPayload,
     },
     service::{RequestContext, RoleServer},
 };
 use veoveo_mcp_contract::{
     GATEWAY_TASK_RESOURCE_TEMPLATE, GatewayAction, GatewayDiscoveryDegradation,
-    GatewayDiscoveryFailure, GatewayDiscoverySurface, GatewayResourceProjection, GatewayTaskStatus,
-    GatewayTaskStatusDocument, paginate, parse_gateway_task_resource_uri,
+    GatewayDiscoveryFailure, GatewayDiscoverySurface, GatewayTaskStatus, GatewayTaskStatusDocument,
+    paginate,
 };
 
 use crate::mcp_support::{
     mcp_internal, mcp_invalid_params, project_app_resource_dependencies,
-    project_app_tool_dependencies, project_gateway_resource_uri_for_upstream,
-    project_listed_resource, project_listed_resource_uri, project_read_resource_result,
-    project_resource_template_uri, resource_policy_target, resource_read_action,
-    resource_template_policy_target, upstream_error,
+    project_app_tool_dependencies, project_listed_resource, project_listed_resource_uri,
+    project_resource_template_uri, resource_policy_target, resource_template_policy_target,
+    upstream_error,
 };
 
 use super::tools::{project_detailed_task_resource_uris, rewrite_detailed_task_id};
@@ -180,7 +179,7 @@ impl GatewayMcp {
         ))
     }
 
-    async fn discover_resources_for_server(
+    pub(super) async fn discover_resources_for_server(
         &self,
         catalog: &crate::GatewayCatalog,
         profile_servers: &std::collections::BTreeSet<veoveo_mcp_contract::ServerSlug>,
@@ -457,120 +456,7 @@ impl GatewayMcp {
         })
     }
 
-    pub(super) async fn handle_read_resource(
-        &self,
-        mut request: ReadResourceRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResult, McpError> {
-        if let Some(task_id) = parse_gateway_task_resource_uri(&request.uri) {
-            return self
-                .read_task_status_resource(task_id, &request.uri, &context)
-                .await;
-        }
-        let server = self.server_for_resource(&request.uri)?;
-        let projection = self.project_resource_for_upstream(&request.uri)?;
-        let subject = self
-            .authorize_projected_resource(&context, resource_read_action(&request.uri), &projection)
-            .await?;
-        let snapshot = self.catalog.snapshot();
-        let catalog = snapshot.catalog();
-        let manifest = catalog
-            .server(&server)
-            .ok_or_else(|| mcp_internal(format!("unknown resource server `{server}`")))?;
-        let key = DiscoveryCacheKey {
-            catalog_generation: snapshot.generation(),
-            principal: subject.actor.id.clone(),
-            authorization_fingerprint: super::discovery_authorization_fingerprint(&subject)?,
-            server: server.clone(),
-        };
-        self.ensure_discovery_watch(&key, context.peer.clone(), &subject)
-            .await?;
-        let routes = match self.discovery.resource_routes(&key).await {
-            Some(routes) => routes,
-            None => {
-                if let Some(fetch) = self
-                    .discovery
-                    .begin(GatewayDiscoverySurface::Resources, key.clone())
-                    .await
-                {
-                    let profile_servers = self.profile_servers().into_iter().collect();
-                    match self
-                        .discover_resources_for_server(
-                            catalog,
-                            &profile_servers,
-                            &server,
-                            &context,
-                            &subject,
-                        )
-                        .await
-                    {
-                        Ok(routes) => {
-                            self.discovery
-                                .finish_resource_routes(
-                                    fetch.with_denied(routes.denied),
-                                    routes.items,
-                                )
-                                .await
-                        }
-                        Err(error) => {
-                            self.discovery
-                                .finish_failure(GatewayDiscoverySurface::Resources, fetch)
-                                .await;
-                            return Err(error);
-                        }
-                    }
-                } else {
-                    self.discovery
-                        .settle(
-                            GatewayDiscoverySurface::Resources,
-                            std::slice::from_ref(&key),
-                        )
-                        .await;
-                }
-                // Read back through the cache's generation and notification fences.
-                self.discovery.resource_routes(&key).await.ok_or_else(|| {
-                    mcp_internal(format!(
-                        "resource discovery for `{server}` is unavailable; retry the read"
-                    ))
-                })?
-            }
-        };
-        let upstream_uri = routes
-            .iter()
-            .find(|route| route.resource.uri == request.uri)
-            .map(|route| route.upstream_uri.clone());
-        let Some(upstream_uri) = upstream_uri.or(project_gateway_resource_uri_for_upstream(
-            manifest,
-            &request.uri,
-            &[],
-        )?) else {
-            return Err(mcp_invalid_params(format!(
-                "resource URI is not exposed: {}",
-                request.uri
-            )));
-        };
-        let projection = GatewayResourceProjection {
-            server,
-            gateway_uri: projection.gateway_uri,
-            upstream_uri,
-        };
-        request.uri = projection.upstream_uri.to_string();
-        let mut result = self
-            .idempotent_upstream_request(
-                &projection.server,
-                context.peer.clone(),
-                &subject,
-                |upstream| {
-                    let request = request.clone();
-                    async move { upstream.read_resource(request).await }
-                },
-            )
-            .await?;
-        project_read_resource_result(&mut result, &projection)?;
-        Ok(result)
-    }
-
-    async fn read_task_status_resource(
+    pub(super) async fn read_task_status_resource(
         &self,
         task_id: &str,
         uri: &str,

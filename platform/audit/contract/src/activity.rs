@@ -1,3 +1,4 @@
+use crate::KnowledgeReadObservation;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use veoveo_types::{ResourceUri, Sha256Digest};
@@ -253,7 +254,8 @@ vocabulary!(KnowledgeReadStatus {
     Read,
     NotModified,
     Missing,
-    Denied
+    Denied,
+    Failed
 });
 
 /// Closed payloads contain identifiers, measurements and reviewed enums only.
@@ -328,7 +330,7 @@ pub enum AuditDetail {
     },
     KnowledgeRead {
         member: ResourceUri,
-        revision: Option<Sha256Digest>,
+        observation: Option<Box<KnowledgeReadObservation>>,
         status: KnowledgeReadStatus,
     },
     IndexingWindow {

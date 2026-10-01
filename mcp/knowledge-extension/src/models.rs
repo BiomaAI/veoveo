@@ -253,6 +253,12 @@ impl Observation {
     pub fn modified_at(&self) -> Option<DateTime<Utc>> {
         self.0.modified_at
     }
+    pub fn modified_by(&self) -> Option<&ModifiedBy> {
+        self.0.modified_by.as_ref()
+    }
+    pub fn external(&self) -> Option<&ExternalRecord> {
+        self.0.external.as_ref()
+    }
     pub fn access(&self) -> Option<&AccessDescriptor> {
         self.0.access.as_ref()
     }

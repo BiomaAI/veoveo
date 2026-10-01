@@ -25,9 +25,11 @@ delivery.
 Typed models, MCP negotiation and conditional-read helpers, document collection
 paging, and compile-time document hashing are implemented. Rust hosted servers
 declare their docs collections and share authenticated reads. Python and Node
-document indexes use the same page shape. Their extension negotiation, gateway
-audit integration, kernel provenance, and installed conformance are in progress
-under Phase 6 of the implementation plan. No deployed server declares the extension yet.
+document indexes use the same page shape. Gateway reads validate source observations
+and commit their audit records before delivery. The kernel retains observations and
+provenance inside its existing byte budgets. Python and Node extension negotiation
+and installed conformance are in progress under Phase 6 of the implementation plan.
+No deployed server declares the extension yet.
 
 The `contract` feature builds with default features disabled and depends only on
 foundational Veoveo types, serialization, timestamps, and hashing. The `mcp`
