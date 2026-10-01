@@ -92,6 +92,15 @@ that requires 200 GiB free space for Recording Hub. Removing that override selec
 the chart's existing 1 GiB admission floor, following the plan's resource direction.
 It preserves the PVC request and does not discard build or model caches.
 
+Both Helm releases and all 25 Deployments converge at `83a1c214`. The next flight
+run exposes a harness correlation defect: its visual branch accepts the simulator's
+existing flight while this run is still performing preflight landing. Those captures
+are excluded from acceptance. The repair gates takeoff and mission captures on the
+domain harness's completed operations and holds mission dispatch until takeoff capture
+finishes. It changes only the local flight client; installed images need no rebuild.
+The focused client's 60 native tests, strict Clippy, formatting and documentation
+checks pass. The corrected composed run remains pending.
+
 The unified audit cut spans the contract, Store, writer, gateway and deployment inputs.
 `platform/audit/contract` sits below Store
 and MCP; the writer depends on Store. The working batch includes checked drafts and

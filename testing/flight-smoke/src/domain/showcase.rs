@@ -66,6 +66,9 @@ struct FlightEvidence {
 }
 
 struct VisualCaptureSignals {
+    takeoff_ready: tokio::sync::oneshot::Receiver<()>,
+    takeoff_complete: tokio::sync::oneshot::Sender<()>,
+    mission_ready: tokio::sync::oneshot::Receiver<()>,
     stream_complete: tokio::sync::oneshot::Sender<()>,
     moving_recording_complete: tokio::sync::oneshot::Sender<()>,
 }
@@ -143,6 +146,9 @@ pub(crate) async fn uav_showcase_verify(
         )
     })?;
 
+    let (takeoff_ready, await_takeoff) = tokio::sync::oneshot::channel();
+    let (takeoff_capture_complete, hold_takeoff) = tokio::sync::oneshot::channel();
+    let (mission_ready, await_mission) = tokio::sync::oneshot::channel();
     let (stream_capture_complete, hold_live_stream) = tokio::sync::oneshot::channel();
     let (recording_capture_complete, hold_landing) = tokio::sync::oneshot::channel();
     let domain = uav_sim_verify_with_visual_hold(
@@ -150,6 +156,11 @@ pub(crate) async fn uav_showcase_verify(
         scenario_path,
         installation,
         Some(UavVisualHolds {
+            phases: UavVisualPhases {
+                takeoff_ready,
+                takeoff_capture_complete: hold_takeoff,
+                mission_ready,
+            },
             stream_capture_complete: hold_live_stream,
             moving_recording_capture_complete: hold_landing,
         }),
@@ -162,6 +173,9 @@ pub(crate) async fn uav_showcase_verify(
         PRIMARY_CAMERA_ID,
         &evidence_directory,
         VisualCaptureSignals {
+            takeoff_ready: await_takeoff,
+            takeoff_complete: takeoff_capture_complete,
+            mission_ready: await_mission,
             stream_complete: stream_capture_complete,
             moving_recording_complete: recording_capture_complete,
         },
@@ -280,6 +294,12 @@ async fn monitor_flight(
     capture_signals: VisualCaptureSignals,
 ) -> Result<FlightEvidence> {
     let timeout = Duration::from_secs(scenario.view.timeout_seconds);
+    // The domain future owns deadlines for its prerequisites and flight commands.
+    // Its sender closes on any failure, including after owned recovery finishes.
+    capture_signals
+        .takeoff_ready
+        .await
+        .context("flight ended before this run's takeoff was ready for capture")?;
     let takeoff = wait_for_checkpoint(
         operator,
         scenario,
@@ -304,7 +324,12 @@ async fn monitor_flight(
         takeoff.1,
         takeoff_capture,
     )?;
+    let _ = capture_signals.takeoff_complete.send(());
 
+    capture_signals
+        .mission_ready
+        .await
+        .context("flight ended before this run completed its mission")?;
     let mission = wait_for_checkpoint(
         operator,
         scenario,

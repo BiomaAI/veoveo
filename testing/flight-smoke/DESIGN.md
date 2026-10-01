@@ -119,6 +119,14 @@ Browser attachment, GPU rejection and visual assertions have one source owner in
 Small process, GPU identity and token-exchange helpers likewise keep one Rust source.
 No new test-support framework or upstream dependency is introduced.
 
+The domain harness releases visual checkpoints after this run's takeoff and mission
+complete. It waits for the takeoff capture before dispatching the mission. Existing
+simulator flight and preflight recovery cannot satisfy these checkpoints. The live
+Stream session stays open through its capture, and landing waits for the moving
+Recording capture. Scenario deadlines bound these holds. A failed visual branch
+releases its holds so the domain checks and owned cleanup can finish; the composed
+command still fails acceptance.
+
 ## Build Acceptance
 
 The resolved Cargo graph is tested for each focused client and for the flight client

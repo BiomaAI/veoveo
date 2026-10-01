@@ -84,8 +84,15 @@ pub(crate) async fn uav_sim_verify(
 }
 
 struct UavVisualHolds {
+    phases: UavVisualPhases,
     stream_capture_complete: oneshot::Receiver<()>,
     moving_recording_capture_complete: oneshot::Receiver<()>,
+}
+
+struct UavVisualPhases {
+    takeoff_ready: oneshot::Sender<()>,
+    takeoff_capture_complete: oneshot::Receiver<()>,
+    mission_ready: oneshot::Sender<()>,
 }
 
 async fn uav_sim_verify_with_visual_hold(
@@ -170,13 +177,15 @@ async fn uav_sim_verify_with_visual_hold(
     let owned_live_session = live.owned_by_acceptance;
     let mut owned_live_session_stopped = false;
     let mut flight_control_started = false;
-    let (mut visual_stream_capture, mut moving_recording_capture) = match visual_holds {
-        Some(holds) => (
-            Some(holds.stream_capture_complete),
-            Some(holds.moving_recording_capture_complete),
-        ),
-        None => (None, None),
-    };
+    let (mut visual_phases, mut visual_stream_capture, mut moving_recording_capture) =
+        match visual_holds {
+            Some(holds) => (
+                Some(holds.phases),
+                Some(holds.stream_capture_complete),
+                Some(holds.moving_recording_capture_complete),
+            ),
+            None => (None, None, None),
+        };
 
     let flight_result: Result<veoveo_artifact_contract::ArtifactId> = async {
         // Qualify independent live inference before any landing or takeoff work.
@@ -222,6 +231,24 @@ async fn uav_sim_verify_with_visual_hold(
             &scenario,
         )
         .await?;
+
+        // Capture this run's acknowledged takeoff before starting its mission.
+        // Existing simulator activity cannot satisfy the visual phase gate.
+        let mission_ready = if let Some(phases) = visual_phases.take() {
+            let _ = phases.takeoff_ready.send(());
+            if tokio::time::timeout(
+                Duration::from_secs(scenario.view.timeout_seconds),
+                phases.takeoff_capture_complete,
+            )
+            .await
+            .is_err()
+            {
+                bail!("composed visual acceptance did not release the takeoff capture hold");
+            }
+            Some(phases.mission_ready)
+        } else {
+            None
+        };
 
         let current_position: Wgs84Position = serde_json::from_value(
             state
@@ -290,6 +317,9 @@ async fn uav_sim_verify_with_visual_hold(
                     .is_some_and(|count| count >= 1),
             "UAV mission did not complete a waypoint: {mission_output}"
         );
+        if let Some(ready) = mission_ready {
+            let _ = ready.send(());
+        }
 
         wait_for_live_stream(
             &operator,
