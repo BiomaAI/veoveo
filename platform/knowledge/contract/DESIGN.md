@@ -22,8 +22,11 @@ tools and scopes belong to that server; MCP core imports none of them.
 
 `CollectionRegistration` binds a tenant, source descriptor, positive source contract
 revision, installation approval and control-plane revision. Discovery obtains the source
-revision from the server's contract declaration. Its SHA-256 fingerprint changes when any of these values
-changes. The Store compares this fingerprint in source-read and activation transactions.
+revision from the server's contract declaration. Its SHA-256 fingerprint covers the
+tenant, descriptor, source contract revision and full approval. The Store compares
+this fingerprint in source-read and activation transactions. Catalog publication
+separately checks the active control revision, allowing unrelated installation edits
+to preserve cached chunks and generation identity.
 Approval authorizes indexing by the service; it grants no caller permission to read.
 
 `KnowledgeCollectionApproval` names the collection, its `index` or `catalog-only`

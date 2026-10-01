@@ -17,6 +17,7 @@ pub fn router<E: Embeddings + 'static>(
     verifier: GatewayInternalTokenVerifier,
     allowed_hosts: Vec<String>,
     cancellation: tokio_util::sync::CancellationToken,
+    readiness: crate::indexing::IndexingReadiness,
 ) -> Router {
     std::sync::LazyLock::force(&crate::mcp::SETUP);
     let store = server.store.clone();
@@ -50,11 +51,15 @@ pub fn router<E: Embeddings + 'static>(
             "/healthz",
             get(move || {
                 let store = store.clone();
+                let readiness = readiness.clone();
                 async move {
-                    if store
-                        .active_gateway_control_revision()
+                    if readiness.is_ready()
+                        && tokio::time::timeout(
+                            std::time::Duration::from_secs(2),
+                            store.active_gateway_control_revision(),
+                        )
                         .await
-                        .is_ok_and(|revision| revision.is_some())
+                        .is_ok_and(|result| result.is_ok_and(|revision| revision.is_some()))
                     {
                         StatusCode::OK
                     } else {

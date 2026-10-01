@@ -16,6 +16,8 @@ use veoveo_types::{
     TenantId, WorkContextId,
 };
 
+#[path = "knowledge/catalog.rs"]
+mod catalog;
 #[path = "knowledge/coordinator.rs"]
 mod coordinator;
 #[path = "../../../testing/fixtures/store.rs"]

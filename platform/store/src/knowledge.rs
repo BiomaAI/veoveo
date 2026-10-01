@@ -2,6 +2,7 @@
 //! caller-visible candidate before decoding and pagination.
 mod admission;
 mod catalog;
+mod catalog_sync;
 mod collections;
 mod coordinator;
 mod generations;
@@ -11,6 +12,7 @@ mod resource_selection;
 mod search;
 use crate::StoreError;
 pub use catalog::{CatalogSelection, CatalogSource};
+pub use catalog_sync::KnowledgeCatalogTicket;
 pub use collections::CollectionSyncTicket;
 pub use coordinator::{CoordinatorId, CoordinatorLease};
 use coordinator::{fenced, sync_record};

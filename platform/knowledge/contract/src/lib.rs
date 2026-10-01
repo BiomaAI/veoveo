@@ -81,8 +81,23 @@ impl CollectionRegistration {
     }
 
     /// Binds source declaration and control-plane approval, including descriptor changes.
+    /// Publication authority is checked separately against `control_revision`;
+    /// unrelated installation edits do not invalidate cached source content.
     pub fn revision(&self) -> Sha256Digest {
-        digest(self)
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Fingerprint<'a> {
+            tenant: &'a TenantId,
+            descriptor: &'a CollectionDescriptor,
+            source_contract_revision: u32,
+            approval: &'a KnowledgeCollectionApproval,
+        }
+        digest(&Fingerprint {
+            tenant: &self.tenant,
+            descriptor: &self.descriptor,
+            source_contract_revision: self.source_contract_revision,
+            approval: &self.approval,
+        })
     }
 }
 pub(crate) fn digest(value: &impl Serialize) -> Sha256Digest {

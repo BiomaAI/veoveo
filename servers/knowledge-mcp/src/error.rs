@@ -1,5 +1,9 @@
 #[derive(Debug, thiserror::Error)]
 pub enum ServiceError {
+    #[error("knowledge indexing machine registration or connection configuration is invalid")]
+    MachineConfiguration,
+    #[error("knowledge indexing machine authentication failed")]
+    MachineAuthentication,
     #[error("another knowledge coordinator holds this tenant's lease")]
     CoordinatorBusy,
     #[error("knowledge input: {0}")]

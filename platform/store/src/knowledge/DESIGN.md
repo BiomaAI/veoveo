@@ -47,6 +47,13 @@ and coordinator, preventing an old traversal from marking a newer one ready.
 Catalog registration compares the previous fingerprint. Concurrent discovery cannot
 overwrite a newer approval or revocation. An identical registration is idempotent.
 Writes and exact reads validate the full typed approval against its descriptor.
+`begin_knowledge_catalog` captures a tenant's prior registrations and the active control
+revision before discovery. `replace_knowledge_catalog` locks that control pointer,
+checks both snapshots and replaces the complete tenant catalog in one transaction.
+The service submits at most 1,024 registrations; an empty selection revokes all of that
+tenant's registrations. Source and approval fingerprints exclude the control revision,
+allowing unrelated installation changes to reuse index generations after reconciliation.
+Publication still checks the control pointer and its digest independently.
 `knowledge_member_observed` selects a member in SQL against the tenant's active
 generation and current approved registration fingerprint. It admits only an observed,
 non-stale, non-deleted member in a ready source epoch with a valid freshness deadline.
@@ -154,6 +161,8 @@ group-grant reads, selected-context and profile restrictions, record and grant e
 without reindexing, tenant sharing, stale-reader
 fencing, approval revocation, space separation, active-pointer compare-and-set,
 definitive deletion, and generation reclamation with native referential cleanup.
+The catalog suite checks concurrent replacement, changed control authority, removal of
+revoked collections and isolation between tenants.
 
 `servers/knowledge-mcp/tests/pipeline.rs` exercises the complete source-to-search
 library path with synthetic vectors, including 140 malformed denied rows before three

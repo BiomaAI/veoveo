@@ -4,7 +4,8 @@ Knowledge catalogs approved source collections and retrieves relevant source mem
 with their revision, freshness and resource links. The service contract below defines
 its hosted surface. The HTTP adapter serves search, embedding and catalog reads through
 signed gateway identities. The library coordinates source listeners and reconciliation.
-The binary's authenticated discovery/reconnection wiring and packaging are pending.
+The binary runs tenant indexing workers with machine authentication and connection
+rotation. Packaging and installed qualification are pending.
 
 ## Standards And Protocols
 
@@ -15,6 +16,7 @@ The binary's authenticated discovery/reconnection wiring and packaging are pendi
 | W3C DCAT 3 | Required JSON catalog shape; no RDF serialization or full DCAT conformance claim |
 | SurrealDB 3.3.0 | BM25, filtered HNSW cosine search and native `search::rrf` with k=60 |
 | JSON Schema 2020-12 | Schemars-generated contract models and checked request deserialization |
+| OAuth 2.0 / RFC 6749, RFC 7523, RFC 8707 | Client credentials with a signed JWT assertion, explicit resource and Veoveo Work Context; HTTPS endpoints, with loopback HTTP for native fixtures |
 | [Embedding runtime](../../platform/runtimes/embedding/DESIGN.md) | Internal HTTP API through the shared client; query priority is interactive and indexing priority is bulk |
 | [Veoveo resource URI profile](../../platform/types/DESIGN.md) | Owner routes through `ResourceAddress` and component builders |
 
@@ -40,8 +42,8 @@ Every index mutation checks them in its transaction. Listener loss or cancellati
 releases the lease, which hides mutable results; an unreachable process loses its lease
 through expiry. A later run acknowledges fresh listeners and fully enumerates the
 collections before serving the matching active generation again. A changed specification
-builds another generation. The host must discover registrations and reconnect the
-authenticated gateway client; that production wiring is pending.
+builds another generation. `indexing.rs` discovers registrations, replaces the catalog
+against current control authority and reconnects the authenticated gateway client.
 
 The coordinator requires 1–1,024 collections and positive mutable freshness lifetimes.
 It queues at most 1,024 source invalidations and starts listeners within one hour, with
@@ -113,8 +115,56 @@ have a 60-second deadline and catalog SQL statements stop after 10 seconds.
 The binary reads Store credentials and internal public trust from installation
 configuration. It connects to the shared embedding endpoint using its API key and a
 JSON `EmbeddingSpace` file. Database migrations belong to installation bootstrap.
-`healthz` checks that Store has a current control revision; installed readiness and
-coordinator readiness require further qualification.
+`healthz` requires every configured tenant worker to have an active index or a complete
+catalog-only selection, and checks Store's control pointer within two seconds.
+Installed readiness requires further qualification.
+
+## Indexing Configuration And Lifecycle
+
+The binary requires one `--indexing-config` JSON file per tenant, up to 128 distinct
+tenants. Each file selects the registered machine client and signing key file. The
+control plane supplies its token endpoint, protected resource, scopes and default Work
+Context. Exactly one indexing client may serve a tenant's single active generation.
+The service rejects missing, ambiguous or invalid registrations before authentication.
+
+```json
+{
+  "tenant": "example",
+  "client_id": "knowledge-indexer",
+  "key_id": "indexer-v1",
+  "signing_algorithm": "ed_dsa",
+  "private_key_file": "/etc/veoveo/indexing/private.pem",
+  "trusted_ca_file": null,
+  "chunk_settings": {
+    "version": "structure-v1",
+    "maxCharacters": 1500,
+    "overlapCharacters": 150
+  },
+  "query_task": "Given a web search query, retrieve relevant passages that answer the query"
+}
+```
+
+The connection adapter uses the existing JWT library for assertions carrying the
+configured `kid`, a unique nonce and a two-minute lifetime. The pinned MCP SDK's JWT
+flow cannot supply `kid`; its native Streamable HTTP client still owns MCP transport
+and subscription lifecycle. Supported signing algorithms are RS256, ES256 and EdDSA.
+HTTP redirects are disabled. Token responses have a 64 KiB limit, require a Bearer
+token valid for 2–86,400 seconds, and must preserve requested scopes when supplied.
+Authentication and MCP discovery share a 30-second deadline. Errors omit credentials
+and provider response bodies.
+
+Workers rotate at 80 percent of token lifetime and reread the private key and optional
+CA file on each connection. They stop the current coordinator, release its lease and
+close the old connection before authenticating again. A native control-plane LIVE
+observer is established before configuration is read. Control or catalog changes
+restart discovery; the Store rejects publication under an old control revision.
+Unchanged registration fingerprints reuse the active generation after reconciliation.
+
+Connection recovery allows eight failed epochs with delays of 1, 2, 4, 8, 16, 30 and
+30 seconds. It does not poll source state. Exhaustion terminates the worker and shuts
+down the process. Shutdown signals cancel all tenant workers; the binary allows
+20 seconds for lease cleanup and ten seconds for HTTP shutdown. A failure in one
+tenant worker makes aggregate readiness fail.
 
 ## Sources And Approval
 
@@ -133,9 +183,10 @@ revision through the approved source-contract read path before returning registr
 
 `GatewaySource` opens each collection's root listener and waits for its first resource
 invalidation before returning it to the coordinator. Later invalidations trigger
-reconciliation; stream loss fails the source connection. The binary must still create
-and rotate the machine-authenticated connection and persist the discovered catalog
-against the current control revision.
+reconciliation; stream loss fails the source connection. The indexing worker publishes
+the complete discovered catalog in one Store transaction that checks both the active
+control revision and the previous catalog. A stale discovery cannot restore a revoked
+collection. Failed discovery leaves the stored catalog unchanged.
 
 The control-plane document approves each collection with a typed knowledge entry.
 The entry names the collection, whether the service may index it, the groups that
@@ -153,7 +204,7 @@ chunking or embedding; member construction checks it again before storage.
 Indexing reads currently commit one audit record per read. The hosted integration must
 add one record per collection and five-minute window, as
 [the audit design](../../docs/AUDIT.md#event-selection) specifies. That aggregation and
-the installation's indexing client are pending with coordinator delivery.
+provisioning the installation's indexing client are pending.
 
 ## Catalog
 
@@ -172,7 +223,7 @@ revisions within one source require rediscovery.
 
 The current collection response includes its descriptor, approval and matching active
 generation. Member counts, observation/change statistics, collection subscriptions and
-completion are pending with coordinator integration.
+completion are pending.
 
 ## Index
 
@@ -273,6 +324,7 @@ agent's episode budget counts it. Platform services call the runtime directly in
 |---|---|
 | `src/index.rs`, `src/chunk.rs` | fenced source reads, bounded enumeration, source-byte chunking and inactive generation builds |
 | `src/coordinator.rs` | tenant lease renewal, listener ownership, change reconciliation, freshness timers and generation recovery |
+| `src/indexing.rs`, `src/indexing/` | tenant worker lifecycle, current control selection, machine JWT authentication, token rotation and atomic catalog publication |
 | `src/source.rs`, `src/source/gateway.rs`, `src/source/discovery.rs` | checked source pages and bodies, approved catalog discovery, and native listeners over an authenticated gateway peer |
 | `src/contract/` | owner scopes, typed routes, search models and shared domain re-exports |
 | `src/embed.rs` | shared embedding client, bulk documents and interactive query batches |
@@ -300,6 +352,13 @@ exclusion before decoding malformed cached rows. These fixtures use synthetic em
 `tests/source_gateway.rs` uses native MCP duplex streams to check discovery completion,
 invalid catalogs and observation readiness after the SDK acknowledgement. Gateway tests
 qualify mixed catalog/root filters and sources that end before observation starts.
+`tests/indexing_host.rs` signs a real machine assertion and drives the worker through
+HTTP authentication, token rotation, listener loss, reconnection and catalog-only
+approval. It checks readiness and lease release, rejects invalid scopes, lifetimes,
+empty tokens and redirects, and verifies generation and vector reuse after an unrelated
+control edit. Its source and vectors are isolated fixtures. Store's catalog test races
+two discoveries, rejects an obsolete control revision and removes a tenant's revoked
+registrations without changing another tenant's catalog.
 
 Installed acceptance also requires the following cases:
 

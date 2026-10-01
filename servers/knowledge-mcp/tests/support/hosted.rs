@@ -236,6 +236,7 @@ pub async fn revoke(store: &PlatformStore, identity: &GatewayInternalIdentity) {
 }
 
 pub struct Server {
+    pub indexing: tokio::sync::watch::Sender<veoveo_knowledge_mcp::coordinator::CoordinatorState>,
     pub base: String,
     stop: CancellationToken,
     task: tokio::task::JoinHandle<()>,
@@ -249,11 +250,15 @@ impl Server {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let stop = CancellationToken::new();
+        let (indexing, ready) = tokio::sync::watch::channel(
+            veoveo_knowledge_mcp::coordinator::CoordinatorState::CatalogReady,
+        );
         let router = veoveo_knowledge_mcp::host::router(
             KnowledgeMcp::new(store, embeddings),
             signing.verifier.clone(),
             vec![address.to_string()],
             stop.child_token(),
+            veoveo_knowledge_mcp::indexing::IndexingReadiness::new(vec![ready]).unwrap(),
         );
         let shutdown = stop.clone();
         let task = tokio::spawn(async move {
@@ -263,6 +268,7 @@ impl Server {
                 .unwrap();
         });
         Self {
+            indexing,
             base: format!("http://{address}"),
             stop,
             task,

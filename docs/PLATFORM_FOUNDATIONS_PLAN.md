@@ -26,11 +26,14 @@ The embedding Helm component and local GPU reference, priority and refusal check
 The Knowledge library now implements fenced source indexing and SQL hybrid retrieval.
 Typed installation approvals and gateway indexing-client admission pass native checks.
 The hosted Knowledge API passes native HTTP and current-authority checks. Installed
-embedding qualification, Reason, machine connection wiring, catalog persistence and
-Knowledge packaging remain open. The gateway source adapter discovers approved
+embedding qualification, Reason, machine-client provisioning and Knowledge packaging
+remain open. The gateway source adapter discovers approved
 collections and waits for catalog/resource observation readiness before reading.
 The library coordinator qualifies lease renewal, source invalidation, conditional
 reconciliation and restart reuse against isolated Store fixtures.
+The binary runs machine-authenticated tenant workers, rotates credentials and publishes
+complete catalogs against current control authority. Native host qualification covers
+connection recovery, catalog-only approval, readiness and shutdown.
 Broader server adoption is postponed outside this plan's completion scope. The cluster and BuildKit
 are stopped.
 
@@ -3616,6 +3619,32 @@ rotation, catalog persistence bound to the active control revision, binary coord
 wiring, public catalog subscriptions/completion/statistics, five-minute audit windows
 and installed delivery remain open. This checkpoint adds no historical cache adapter.
 The cluster and BuildKit stayed stopped throughout the native batch.
+
+Machine-host checkpoint (2026-10-01): the Knowledge binary runs one configured indexing
+worker per tenant. Each worker derives its machine profile, scopes, source approvals
+and Work Context from the active control document. It signs a short-lived JWT assertion,
+uses the maintained MCP HTTP client and rotates its connection before token expiry.
+Control and catalog notifications restart discovery. Source loss releases the index
+lease and starts bounded connection recovery. Shutdown drains workers and HTTP serving.
+Readiness requires every configured tenant to have an active index or a complete
+catalog-only selection.
+
+Store captures control authority and the previous tenant catalog before discovery, then
+checks both inside the transaction that publishes its complete replacement. Removed
+approvals disappear atomically. Source fingerprints cover the declaration and approval;
+the separate publication check covers the control revision. An unrelated installation
+edit therefore preserves generation identity and cached vectors after reconciliation.
+The machine-host fixture qualifies these paths with signed assertions and real HTTP,
+including invalid token responses and redirects. Provisioning, packaging, public catalog
+subscriptions/completion/statistics, five-minute audit windows and installed delivery
+remain open. Synthetic vectors qualify lifecycle behavior; GPU inference acceptance
+belongs to the embedding runtime. This batch adds no historical cache adapter.
+Grouped qualification passes 19 Knowledge tests, ten Store Knowledge tests, two
+Knowledge contract tests and the gateway indexing-admission test. Strict affected
+Clippy, workspace all-target compilation, contract-only dependency isolation and all
+999 documentation links pass. Cleanup removed 18 superseded test executables
+(3.58 GiB); compiler and incremental caches were preserved. The cluster and BuildKit
+stayed stopped.
 
 1. Deliver the shared [embedding runtime](../platform/runtimes/embedding/DESIGN.md)
    before the knowledge service consumes it. Re-verify the latest stable vLLM release

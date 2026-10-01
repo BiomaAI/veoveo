@@ -27,8 +27,8 @@ The `knowledge-mcp` library implements chunking, generation building, hybrid sea
 source-listener reconciliation under Store leases. Its authenticated HTTP adapter serves
 search, embeddings and catalog resources. Its gateway adapter discovers approved
 collections and waits for source observation readiness. Machine connection wiring,
-catalog persistence against current control revisions, reconnection,
-packaging and installed qualification remain in the
+atomic catalog publication and reconnection run in the binary's tenant workers.
+Machine-client provisioning, packaging and installed qualification remain in the
 [implementation plan](PLATFORM_FOUNDATIONS_PLAN.md).
 
 ```text

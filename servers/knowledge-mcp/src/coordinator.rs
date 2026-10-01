@@ -31,6 +31,7 @@ pub enum CoordinatorState {
     Starting,
     Synchronizing,
     Ready(GenerationId),
+    CatalogReady,
     Stopped,
     Failed,
 }

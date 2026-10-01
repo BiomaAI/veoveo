@@ -28,3 +28,5 @@ pub mod mcp;
 
 #[cfg(feature = "runtime")]
 pub mod host;
+#[cfg(feature = "runtime")]
+pub mod indexing;

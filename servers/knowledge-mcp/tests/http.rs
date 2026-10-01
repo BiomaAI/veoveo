@@ -62,6 +62,11 @@ async fn hosted_search_links_catalog_and_embedding_follow_current_sql_authority(
         // Approval and scope predicates must exclude an undecodable hidden row.
         db.a.client().query("UPDATE knowledge_collection SET document.sourceContractRevision = 'invalid' WHERE collection = 'media.private';").await.unwrap().check().unwrap();
         let server=Server::new(db.b.clone(),embedding,&signing).await;
+        let health = format!("{}/healthz", server.base);
+        assert_eq!(reqwest::get(&health).await.unwrap().status(), reqwest::StatusCode::OK);
+        server.indexing.send_replace(veoveo_knowledge_mcp::coordinator::CoordinatorState::Starting);
+        assert_eq!(reqwest::get(&health).await.unwrap().status(), reqwest::StatusCode::SERVICE_UNAVAILABLE);
+        server.indexing.send_replace(veoveo_knowledge_mcp::coordinator::CoordinatorState::CatalogReady);
         let mut client=server.sdk(signing.issue(identity.clone()).bearer_token).await;
         let list=client.list_tools(None).await.unwrap();assert_eq!(list.tools.len(),2);
         let sources=client.read_resource(ReadResourceRequestParams::new(KnowledgeResource::Sources {after:None}.to_uri().unwrap().to_string())).await.unwrap();
