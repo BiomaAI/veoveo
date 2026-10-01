@@ -15,7 +15,10 @@ COPY --chown=10001:10001 server.mjs /usr/local/lib/node_modules/flint-chart-mcp/
 COPY --chown=10001:10001 flint-v2.mjs /usr/local/lib/node_modules/flint-chart-mcp/flint-v2.mjs
 COPY --chown=10001:10001 composer.html /usr/local/lib/node_modules/flint-chart-mcp/assets/composer.html
 COPY --chown=10001:10001 internal-auth.mjs /usr/local/lib/node_modules/flint-chart-mcp/internal-auth.mjs
+COPY --chown=10001:10001 documents.mjs knowledge.mjs build-docs.mjs /usr/local/lib/node_modules/flint-chart-mcp/
 COPY --chown=10001:10001 AGENTS.md DESIGN.md /usr/local/lib/node_modules/flint-chart-mcp/
+
+RUN node /usr/local/lib/node_modules/flint-chart-mcp/build-docs.mjs
 
 RUN useradd --system --uid 10001 --create-home --home-dir /var/lib/veoveo veoveo
 

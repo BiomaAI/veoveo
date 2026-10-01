@@ -90,9 +90,33 @@ without its required scope. These checks do not qualify arbitrary domain access
 policies; domain tests own those cases.
 
 K07 and K08 skip collections without change subscriptions or search declarations.
-Declaring either capability currently fails certification with a diagnostic requiring
-domain change/restart or search/denial probes. Probe execution remains implementation
-work in the foundations plan; declaration parsing alone cannot qualify those rules.
+Every declared listen collection and search tool requires one owner-supplied probe.
+`knowledge_probes` exposes typed selections and a `KnowledgeChangeDriver` trait;
+`run_hosted_server_conformance_with_probes` executes them in the hosted report.
+The ordinary runner and CLI fail these checks when a required probe is absent.
+They never select domain mutations or restart commands from server names.
+
+For K07, the owner supplies a populated member, a mutation and a restart operation.
+The runner requires acknowledgement of member and collection subscriptions, observes
+notifications and a changed revision, then checks that text and access survive the
+restart. It subscribes again and verifies another committed change. Each probe has
+90 seconds, with 15 seconds for each notification window. The owner must restart the
+actual service or source and preserve only declared persistence. Database recovery,
+cross-replica delivery and policy cases belong to that owner's harness. Subscription
+handles cancel on failure or timeout, and the owner cleans up its fixture.
+
+For K08, the owner supplies tool arguments, expected hits and a second authenticated
+reader whose expected results are a strict subset. The runner checks the closed
+`SearchResults` envelope, unique links, matching titles and snippets, admitted member
+reads, and full and conditional denial for the excluded resources. Arguments have a
+64 KiB limit; responses have at most 100 hits and 128 KiB. Each probe has 60 seconds.
+Credentials stay outside profiles and reports. HTTP or transport failure cannot count
+as a successful resource denial.
+
+The synthetic checker fixture recreates its source from a temporary document and
+qualifies rejection of missing probes, lost state, ineffective mutations, incomplete
+acknowledgements, missing links, search leakage and conditional authorization bypass.
+It establishes checker behavior; it does not qualify production Store recovery.
 
 ## Authoritative Live-View Profile
 

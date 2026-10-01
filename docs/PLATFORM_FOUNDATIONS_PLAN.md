@@ -18,9 +18,10 @@ Python and Node indexes use the same page shape. Gateway source validation, read
 completion and kernel provenance pass grouped native checks.
 Python observation support, build-time document manifests and live K01–K06 checks
 are implemented. Knowledge Store records and transactional generation/member APIs
-pass native SurrealDB 3.3 qualification. K07/K08 domain probes, Node observations and installed
-qualification remain open. Phases 7–9 are not implemented. The cluster and BuildKit
-are stopped.
+pass native SurrealDB 3.3 qualification. Node document observations and executable
+K07/K08 owner probes are implemented. Domain probe fixtures and installed qualification
+remain open. Chart docs adoption is implemented; the remaining Phase 7 collections
+and Phases 8–9 are not implemented. The cluster and BuildKit are stopped.
 
 Current direction: every contract change in this plan is a coordinated hard cut.
 Historical data requires no support or migration. Remove compatibility adapters
@@ -3179,7 +3180,8 @@ on domain servers. Six grouped native tests qualify closed declarations, collect
 and access checks, content-bound conditional responses, stable docs paging, bounded
 search snippets and compile-time document digests. Python observation support and
 live document conformance are implemented. Store schema and transactional APIs pass
-native qualification. Change/search probes and installed integration remain open.
+native qualification. Owner change/search probe execution is implemented; domain
+fixtures and installed integration remain open.
 
 The gateway records successful resource reads after validating the source observation
 and before delivery. It checks the source URI, bytes, collection owner and conditional
@@ -3203,8 +3205,8 @@ library, incremental, BuildKit and model caches are preserved.
 The Rust docs integration declares the extension through checked setup and routes
 ordinary and conditional reads through the same authenticated path. Map uses the
 shared helper through its existing discovery adapter. Python and Node document indexes
-use the current typed page shape; the Node observation adapter remains open. C32 is now
-in the checklist and every server declares its pending qualification explicitly.
+use the current typed page shape; the Node adapter also emits negotiated observations.
+C32 is now in the checklist and every server declares its pending qualification explicitly.
 The repository compiles with `cargo check --workspace --all-targets`; 19 Python
 document tests, the fork fixture's document checks and the Node syntax check pass.
 The grouped Rust run passes 164 tests, including real stateless HTTP negotiation,
@@ -3225,9 +3227,9 @@ rejects missing manifests and modified bytes. Source-tree development is explici
 Native conformance validates K01–K06 through live declarations, enumeration, reads,
 content hashes, matching conditions and unauthenticated conditional denial. The
 independent fixture also qualifies an authenticated caller without the required scope.
-K07/K08 skip capabilities that are absent and fail declared capabilities until their
-change/restart and search/denial probes are implemented. Node observations, those
-probes and installed integration are the remaining Phase 6 work.
+K07/K08 skip capabilities that are absent and require typed owner probes for declared
+change and search capabilities. The shared runner executes mutation/restart and
+authenticated search/denial cases. Domain fixtures and installed integration remain open.
 
 The grouped document batch passes 42 Python tests, including real stateless HTTP
 negotiation and conditional denial. Both wheels load embedded documents without a
@@ -3256,6 +3258,21 @@ embedding or GPU qualification. The contract tests, workspace all-target compila
 affected all-target Clippy, SQL validation, formatting and documentation links pass.
 The cluster and BuildKit stay stopped, and about 162 GiB is free. The indexing loop,
 metadata-only ingestion, ranking, evaluation receipts and GPU runtime belong to Phase 8.
+
+The Node/probe batch implements Chart image document manifests, strict observation
+negotiation, typed conditional validators and cursor handling. The pinned Node SDK's
+HTTP fixture covers authentication, unmodified reads, malformed metadata and tampering.
+K07 now runs owner mutation/restart callbacks and checks member plus collection
+subscriptions, changed revisions and retained state. K08 executes declared searches
+with two authenticated readers, checks resource links and observations, and requires
+full and conditional denial for excluded hits. Shared `SearchResults` types and the
+resource-link builder keep domain adoption on one response contract. The synthetic
+probe fixture qualifies the checker; each domain still supplies its real Store/source
+lifecycle and access cases. The grouped batch passes 16 conformance tests, six shared
+contract tests and six Node tests. Workspace all-target compilation, affected
+all-target/all-feature Clippy, formatting and documentation links pass. Chart
+image document hashes were also built and checked from the current Markdown bytes.
+Installed qualification remains open.
 
 The installed composed run at `442ba70b` completed mission execution, live inference,
 Recording retention, Stream replay, grounded Reason and cross-context access checks.
@@ -3306,7 +3323,7 @@ content digest as the revision.
 
 | Server | Collections | Existing provenance | Gaps to close |
 |---|---|---|---|
-| chart | `charts.docs` only | none | Implement the docs declaration in `server.mjs` |
+| chart | `charts.docs` only | build-time document digests | Docs declaration, observations and conditional reads implemented; installed certification remains open |
 | time | events, calendar versions, epochs, authority releases | `record_version`, calendar `version`, `source_digest`, admin timestamps; owner only in the store | Surface owner and Work Context in observations; paging from Phase 3 |
 | optimization | problems and solutions (immutable), runs | `digest_sha256`, `authority`, timestamps, engine digest | Surface labels in observations; restart-safe hub from Phase 3 |
 | artifact | artifact metadata (`artifact://metadata/{id}`), never the bytes | compliance metadata: tenant, owner, Work Context, labels, provenance | Cursor paging for `artifact://index`; `modifiedBy` from the occurrence record |

@@ -17,6 +17,7 @@ import {
   stripPrivateKeys,
 } from "flint-chart-mcp/render";
 import { z } from "zod/v4";
+import { KNOWLEDGE_EXTENSION } from "./knowledge.mjs";
 
 const PACKAGE_ROOT = dirname(fileURLToPath(import.meta.url));
 const VERSION = JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8")).version;
@@ -208,7 +209,7 @@ export function createServer({ disableFileReference = false } = {}) {
       instructions:
         "Compile, validate, and render Flint chart specifications. The Composer MCP App can author a chart directly or accept create_chart_view input.",
       capabilities: {
-        extensions: { [APP_EXTENSION]: {} },
+        extensions: { [APP_EXTENSION]: {}, [KNOWLEDGE_EXTENSION]: {} },
         tools: { listChanged: false },
         resources: { listChanged: false },
         prompts: { listChanged: false },
@@ -219,7 +220,7 @@ export function createServer({ disableFileReference = false } = {}) {
         "prompts/list": { ttlMs: 30000, scope: "private" },
         "resources/list": { ttlMs: 30000, scope: "private" },
         "resources/templates/list": { ttlMs: 30000, scope: "private" },
-        "resources/read": { ttlMs: 30000, scope: "private" },
+        "resources/read": { ttlMs: 0, scope: "private" },
       },
     },
   );

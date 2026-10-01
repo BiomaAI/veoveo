@@ -80,10 +80,10 @@ Component designs live beside the code whose contract they specify:
 | [`platform/audit/contract/DESIGN.md`](../platform/audit/contract/DESIGN.md) | protocol-independent checked audit records, closed details, typed identities and partition-scoped reads; `src/knowledge.rs` admits source observations without external navigation URLs |
 | [`platform/types/DESIGN.md`](../platform/types/DESIGN.md) | protocol-independent identity and attribution, installation and agent names, authentication vocabulary and issuer/subject identities, scope names, resource references, URI component parsing and builders, validation errors, and public extension traits |
 | [`platform/runtimes/duckdb/DESIGN.md`](../platform/runtimes/duckdb/DESIGN.md) | shared analytical sandbox, typed HTTPS materialization, network policy and query limits |
-| [`mcp/conformance/DESIGN.md`](../mcp/conformance/DESIGN.md) | typed domain-neutral hosted-server certification profiles, reports, standalone distribution and live knowledge checks in `src/runner/knowledge.rs` |
+| [`mcp/conformance/DESIGN.md`](../mcp/conformance/DESIGN.md) | typed domain-neutral hosted-server certification profiles, reports, standalone distribution, live knowledge checks and typed owner change/restart and search probes |
 | [`servers/artifact-mcp/DESIGN.md`](../servers/artifact-mcp/DESIGN.md) | artifact discovery, access, publication and the Artifact App |
 | [`platform/artifacts/contract/DESIGN.md`](../platform/artifacts/contract/DESIGN.md) | lightweight Artifact-plane identity, typed addresses and builders, metadata, compliance, provenance, and byte handoff values |
-| [`servers/chart-mcp/DESIGN.md`](../servers/chart-mcp/DESIGN.md) | chart generation and the Chart MCP App |
+| [`servers/chart-mcp/DESIGN.md`](../servers/chart-mcp/DESIGN.md) | chart generation, the Chart MCP App, and image-hashed knowledge documents in `documents.mjs` and `knowledge.mjs` |
 | [`servers/media-mcp/DESIGN.md`](../servers/media-mcp/DESIGN.md) | provider-neutral media generation and durable webhook completion |
 | [`servers/speech-mcp/DESIGN.md`](../servers/speech-mcp/DESIGN.md) | recording transcription Tasks, private dictation and the persistent CUDA worker; device, scale, release and readiness qualification limits recorded in its design |
 | [`platform/gateway/src/bin/gateway/speech/DESIGN.md`](../platform/gateway/src/bin/gateway/speech/DESIGN.md) | per-chunk Speech policy checks, audit and signed internal forwarding |
@@ -1446,7 +1446,7 @@ dispatch preflights and budgeted execution.
 
 | Path | Responsibility |
 |---|---|
-| `mcp/conformance` | reusable domain-neutral MCP certification library, thin CLI, schemas, profiles, authenticated same-origin well-known-surface checks, live declaration binding, and standalone image |
+| `mcp/conformance` | `knowledge_probes.rs` supplies owner callbacks and typed search fixtures to live K07/K08 checks; reusable domain-neutral MCP certification library, thin CLI, schemas, profiles, authenticated same-origin well-known-surface checks, live declaration binding, and standalone image |
 | `testing/fixtures/store.rs`, `store/container.rs`, `connection_switch.rs` | owned disposable database setup, committed-row replay, cancellable Docker subprocesses and acknowledged TCP connection loss for native recovery tests; `platform/store/tests/fixture_lifecycle.rs` owns CLI lifecycle fault injection |
 | [`testing/fixtures/modular-mcp/`](../testing/fixtures/modular-mcp/DESIGN.md) | independent scope/resource library with isolated contract and MCP features; `mcp/conformance/tests/modular_server.rs` owns hosted qualification and fixture cleanup |
 | [`testing/fixtures/server-contract-consumer/`](../testing/fixtures/server-contract-consumer/DESIGN.md) | independently resolved Artifact, Computers, Speech, Frames, Timeseries and Media library consumer; rejects service dependencies in their contract features |

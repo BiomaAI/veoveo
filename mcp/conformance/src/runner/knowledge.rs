@@ -1,5 +1,6 @@
 //! Live knowledge-source checks. Declared change and search capabilities require
 //! owner-supplied qualification probes; document collections need neither operation.
+mod probes;
 use super::{CheckResult, Client, HostedServerConformanceProfile, failed, passed, skipped};
 use anyhow::{Context, Result, ensure};
 use rmcp::{
@@ -16,7 +17,7 @@ use std::{
     time::Duration,
 };
 use veoveo_mcp_knowledge_extension::{
-    self as knowledge, ChangeSignal, CollectionDescriptor, Observation, Revision, SearchDeclaration,
+    self as knowledge, CollectionDescriptor, Observation, Revision,
 };
 use veoveo_types::{
     ResourceScheme, ResourceTemplateUri, ResourceUri, ResourceUriBuilder, ResourceUriParts,
@@ -44,6 +45,7 @@ pub(super) async fn check(
     profile: &HostedServerConformanceProfile,
     templates: &[ResourceTemplate],
     tools: &[Tool],
+    probes: &crate::knowledge_probes::KnowledgeProbes<'_>,
     checks: &mut Vec<CheckResult>,
 ) {
     let info = client.peer_info();
@@ -168,35 +170,7 @@ pub(super) async fn check(
             }
         }
     }
-    let listening = descriptors
-        .iter()
-        .filter(|d| d.change_signal() == ChangeSignal::Listen)
-        .count();
-    checks.push(if listening == 0 {
-        skipped("K07", "no listen collections are declared")
-    } else {
-        failed(
-            "K07",
-            "listen collections require a domain change and restart qualification probe",
-        )
-    });
-    let searches: Result<Vec<SearchDeclaration>> = tools
-        .iter()
-        .filter_map(|tool| tool.meta.as_ref()?.get(knowledge::EXTENSION_ID))
-        .map(|value| {
-            serde_json::from_value(value.clone()).context("invalid knowledge search declaration")
-        })
-        .collect();
-    checks.push(match searches {
-        Ok(declarations) if declarations.is_empty() => {
-            skipped("K08", "no knowledge search tools are declared")
-        }
-        Ok(_) => failed(
-            "K08",
-            "declared search tools require a domain search and denial qualification probe",
-        ),
-        Err(error) => failed("K08", error.to_string()),
-    });
+    probes::check(client, profile, &descriptors, tools, probes, checks).await;
 }
 
 fn descriptors(

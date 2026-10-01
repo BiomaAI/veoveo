@@ -412,6 +412,9 @@ impl SearchHit {
     pub fn title(&self) -> Option<&str> {
         self.0.title.as_deref()
     }
+    pub fn snippet(&self) -> Option<&str> {
+        self.0.snippet.as_deref()
+    }
 }
 impl TryFrom<SearchHitWire> for SearchHit {
     type Error = KnowledgeError;
@@ -427,5 +430,42 @@ impl TryFrom<SearchHitWire> for SearchHit {
 impl From<SearchHit> for SearchHitWire {
     fn from(v: SearchHit) -> Self {
         v.0
+    }
+}
+
+/// A bounded search response shared by domain servers and consumers.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(try_from = "SearchResultsWire", into = "SearchResultsWire")]
+pub struct SearchResults(SearchResultsWire);
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct SearchResultsWire {
+    #[schemars(length(max = 100))]
+    results: Vec<SearchHit>,
+}
+
+impl SearchResults {
+    pub fn new(results: Vec<SearchHit>) -> Result<Self, KnowledgeError> {
+        SearchResultsWire { results }.try_into()
+    }
+    pub fn results(&self) -> &[SearchHit] {
+        &self.0.results
+    }
+}
+impl TryFrom<SearchResultsWire> for SearchResults {
+    type Error = KnowledgeError;
+    fn try_from(value: SearchResultsWire) -> Result<Self, Self::Error> {
+        let unique: std::collections::BTreeSet<_> =
+            value.results.iter().map(SearchHit::uri).collect();
+        if value.results.len() > 100 || unique.len() != value.results.len() {
+            return Err(KnowledgeError("search requires at most 100 unique results"));
+        }
+        Ok(Self(value))
+    }
+}
+impl From<SearchResults> for SearchResultsWire {
+    fn from(value: SearchResults) -> Self {
+        value.0
     }
 }

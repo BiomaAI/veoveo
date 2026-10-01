@@ -1,11 +1,11 @@
 //! MCP adapters. Callers must authorize before constructing a member response.
 use crate::{
     CollectionDescriptor, EXTENSION_ID, KnowledgeError, OBSERVATION_KEY, Observation,
-    ReadCondition, SearchDeclaration, content_digest,
+    ReadCondition, SearchDeclaration, SearchResults, content_digest,
 };
 use rmcp::model::{
-    MetaObject, ReadResourceResult, RequestMetaObject, ResourceContents, ResourceTemplate,
-    ServerCapabilities, Tool,
+    CallToolResult, ContentBlock, MetaObject, ReadResourceResult, RequestMetaObject, Resource,
+    ResourceContents, ResourceTemplate, ServerCapabilities, Tool,
 };
 use veoveo_types::ResourceUri;
 
@@ -28,6 +28,27 @@ pub fn attach_search(tool: &mut Tool, declaration: &SearchDeclaration) {
         EXTENSION_ID.into(),
         serde_json::to_value(declaration).expect("typed search declaration serializes"),
     );
+}
+
+/// The domain selects readable hits before constructing this response.
+pub fn search_result(results: SearchResults) -> CallToolResult {
+    let links = results
+        .results()
+        .iter()
+        .map(|hit| {
+            let mut link = Resource::new(
+                hit.uri().as_str(),
+                hit.title().unwrap_or(hit.uri().as_str()),
+            );
+            link.title = hit.title().map(str::to_owned);
+            link.description = hit.snippet().map(str::to_owned);
+            ContentBlock::ResourceLink(link)
+        })
+        .collect();
+    let mut result = CallToolResult::success(links);
+    result.structured_content =
+        Some(serde_json::to_value(results).expect("checked search result serializes"));
+    result
 }
 
 pub fn requested(meta: Option<&RequestMetaObject>) -> Result<bool, KnowledgeError> {

@@ -13,7 +13,7 @@ freshness of the cached revision behind it.
 
 ## Status
 
-The extension crate, shared Rust and Python document adapters, gateway read auditing,
+The extension crate, Rust, Python and Node document adapters, gateway read auditing,
 and kernel provenance are implemented. Store implements approval fingerprints,
 generation-specific indexes, fenced member replacement and SQL-selected candidate
 pages through the [knowledge storage contract](../platform/store/src/knowledge/DESIGN.md).

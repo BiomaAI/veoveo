@@ -29,8 +29,9 @@ document indexes use the same page shape. Python servers use the shared observat
 adapter and package SHA-256 document manifests through the SDK's Hatch build hook.
 Gateway reads validate source observations
 and commit their audit records before delivery. The kernel retains observations and
-provenance inside its existing byte budgets. Node extension negotiation and installed
-conformance are in progress under Phase 6 of the implementation plan.
+provenance inside its existing byte budgets. The Node adapter negotiates observations
+and checks image-build document manifests. K07/K08 execute owner-supplied probes;
+domain adoption and installed conformance are in progress under the implementation plan.
 No deployed server declares the extension yet.
 
 The `contract` feature builds with default features disabled and depends only on
@@ -207,10 +208,13 @@ revalidate a cached copy and to confirm that the caller may still read it.
 
 A server may publish search over its collections as an ordinary tool. The tool's
 `_meta["ai.veoveo/knowledge-source"]` declares `{ "role": "search",
-"collections": [...] }`. Its structured output lists results with `uri`, optional
+"collections": [...] }`. Its closed `SearchResults` structured output has a `results`
+array containing at most 100 unique resource URIs. Each result carries `uri`, optional
 `title`, an optional `snippet` of at most 320 characters, and an optional `score`. Its content carries one
-`resource_link` per result. A search tool returns only resources the caller may
-read. Knowledge content reaches a consumer through `resources/read`.
+`resource_link` per result, with the same title and snippet as the structured hit.
+The shared `server::search_result` builder produces both representations from the
+checked results. A search tool returns only resources the caller may read. Knowledge
+content reaches a consumer through `resources/read`.
 
 ## Change Signals
 
@@ -238,6 +242,8 @@ The shared crate implements this collection once for every Rust server through
 `veoveo_mcp_contract::docs`, and the Python SDK implements it in
 `veoveo_mcp.contract.docs` for Python servers such as `datasheet-mcp`. The Node server
 `chart-mcp` implements the same declaration in its own package.
+Its image runs `build-docs.mjs` and checks the resulting manifest at startup. Both
+ordinary and conditional reads pass the launcher's current gateway-token check.
 
 Python wheel builds load `sdk/python/src/veoveo_mcp/build_docs.py` as a Hatch custom
 hook and set its `package` to the server's import package. The hook embeds both
@@ -269,8 +275,8 @@ running server. Review enforces K09 and K10.
 
 | Path | Responsibility |
 |---|---|
-| `src/models.rs` | `CollectionDescriptor`, `Freshness`, `ChangeSignal`, `AccessModel`, `IndexingMode`, `Observation`, `AccessDescriptor`, `ExternalRecord`, and `SearchDeclaration` |
-| `src/server.rs` | capability declaration, descriptor attachment, observation attachment, and conditional-read evaluation |
+| `src/models.rs` | `CollectionDescriptor`, `Freshness`, `ChangeSignal`, `AccessModel`, `IndexingMode`, `Observation`, `AccessDescriptor`, `ExternalRecord`, `SearchDeclaration`, `SearchHit` and bounded `SearchResults` |
+| `src/server.rs` | capability declaration, descriptor attachment, observation attachment, conditional-read evaluation and search resource-link construction |
 | `src/client.rs` | client capability declaration and typed observation parsing |
 | `src/docs.rs` | protocol-independent `{slug}.docs` descriptors, typed document addresses and stable pages, consumed by `veoveo_mcp_contract::docs` |
 | `src/identity.rs` | collection, document, revision and external-record identities |

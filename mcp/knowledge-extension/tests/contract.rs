@@ -120,6 +120,26 @@ fn search_bounds_are_unicode_characters_and_scores_are_finite() {
     assert!(SearchHit::new(uri(), None, None, Some(f64::NAN)).is_err());
     assert!(SearchDeclaration::new(vec![]).is_err());
     assert!(SearchDeclaration::new(vec!["example.docs".parse().unwrap(); 2]).is_err());
+    let hit = SearchHit::new(uri(), Some("Title".into()), Some("Excerpt".into()), None).unwrap();
+    assert!(SearchResults::new(vec![hit.clone(), hit.clone()]).is_err());
+    assert!(serde_json::from_value::<SearchResults>(json!({"results": [hit, hit]})).is_err());
+    assert!(
+        serde_json::from_value::<SearchResults>(json!({"results": [], "hidden": "content"}))
+            .is_err()
+    );
+    let too_many = (0..101)
+        .map(|id| {
+            SearchHit::new(
+                veoveo_types::ResourceUri::new(format!("example://records/{id}")).unwrap(),
+                None,
+                None,
+                None,
+            )
+            .unwrap()
+        })
+        .collect();
+    assert!(SearchResults::new(too_many).is_err());
+    assert_eq!(SearchResults::new(vec![]).unwrap().results().len(), 0);
 }
 
 #[test]

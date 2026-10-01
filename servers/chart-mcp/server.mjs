@@ -1,12 +1,13 @@
-import { readFileSync } from "node:fs";
 import { createServer as createHttpServer } from "node:http";
-import { dirname, join } from "node:path";
+import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createMcpHandler } from "@modelcontextprotocol/server";
 import { toNodeHandler } from "@modelcontextprotocol/node";
 
 import { createServer } from "./flint-v2.mjs";
+import { loadDocuments } from "./documents.mjs";
+import { privateText, registerKnowledgeDocuments } from "./knowledge.mjs";
 import {
   loadInternalTokenVerifier,
   requireInternalIdentity,
@@ -21,30 +22,8 @@ const CONTRACT_REVISION = 3;
 const SERVER_SLUG = "charts";
 const SERVER_MOUNT = `/${SERVER_SLUG}`;
 const MCP_PATH = `${SERVER_MOUNT}/mcp`;
-const DOCS_URI = "charts://docs";
 const CONTRACT_URI = "charts://contract";
-
-function loadServerDocument(name) {
-  const path = join(dirname(fileURLToPath(import.meta.url)), name);
-  const body = readFileSync(path, "utf8");
-  if (body.trim().length === 0) {
-    throw new Error(`server document ${path} is empty`);
-  }
-  return body;
-}
-
-const SERVER_DOCS = [
-  { id: "agents", title: "Agent work manual", body: loadServerDocument("AGENTS.md") },
-  { id: "design", title: "Domain design", body: loadServerDocument("DESIGN.md") },
-];
-
-function docsIndexJson() {
-  return JSON.stringify({ items: SERVER_DOCS.map(({ id, title }) => {
-    const uri = new URL(DOCS_URI);
-    uri.pathname = id;
-    return { id, title, uri: uri.href };
-  }) });
-}
+const SERVER_DOCS = loadDocuments(dirname(fileURLToPath(import.meta.url)));
 
 function llmsTxt() {
   const entries = SERVER_DOCS.map((doc) => `- [${doc.title}](${doc.id})`);
@@ -95,38 +74,8 @@ function parseCompliance(manual) {
   return items;
 }
 
-function textResource(uri, mimeType, text) {
-  return { contents: [{ uri: uri.href, mimeType, text }] };
-}
-
 function registerWellKnownResources(server) {
-  if (typeof server.registerResource !== "function") {
-    throw new Error(
-      "upstream chart server exposes no registerResource; the well-known surface (contract C18, C19) cannot be served",
-    );
-  }
-  server.registerResource(
-    "docs",
-    DOCS_URI,
-    {
-      title: "Server documents",
-      description: "Index of the server documents baked into the image.",
-      mimeType: "application/json",
-    },
-    async (uri) => textResource(uri, "application/json", docsIndexJson()),
-  );
-  for (const doc of SERVER_DOCS) {
-    server.registerResource(
-      doc.id,
-      `${DOCS_URI}/${doc.id}`,
-      {
-        title: doc.title,
-        description: "Server document baked into the image.",
-        mimeType: "text/markdown",
-      },
-      async (uri) => textResource(uri, "text/markdown", doc.body),
-    );
-  }
+  registerKnowledgeDocuments(server, SERVER_DOCS);
   let declaration;
   server.registerResource(
     "contract",
@@ -138,7 +87,7 @@ function registerWellKnownResources(server) {
       mimeType: "application/json",
     },
     async (uri) =>
-      textResource(uri, "application/json", JSON.stringify(declaration)),
+      privateText(uri, "application/json", JSON.stringify(declaration)),
   );
   declaration = contractDeclaration();
 }

@@ -1,6 +1,7 @@
 //! Domain-neutral certification for a running Veoveo hosted MCP server.
 
 pub mod catalog;
+pub mod knowledge_probes;
 
 mod profile;
 mod report;
@@ -15,7 +16,7 @@ pub use report::{
     CONFORMANCE_REPORT_SCHEMA, CheckResult, CheckStatus, ConformanceReport,
     ConformanceReportSchema, ObservedImplementation,
 };
-pub use runner::run_hosted_server_conformance;
+pub use runner::{run_hosted_server_conformance, run_hosted_server_conformance_with_probes};
 pub use tool_schema::{SchemaStats, validate_tool_input_schema};
 
 #[must_use]

@@ -11,6 +11,9 @@ HTTP, JSON terminal responses, request-scoped subscription streams, JSON
 Schema 2020-12, and MCP Apps per
 [`mcp/apps-extension/DESIGN.md`](../../mcp/apps-extension/DESIGN.md). The
 official TypeScript server and Node packages are pinned to `2.0.0`.
+The [knowledge-source extension](../../mcp/knowledge-extension/DESIGN.md) declares
+the `charts.docs` collection using SHA-256 document revisions and RFC 9110
+conditional-read semantics. Documents are immutable for the running image.
 
 ## Packaging Contract
 
@@ -41,3 +44,30 @@ The server owns `charts://chart-types`, `charts://agent-skill`, and
 `charts://theme-skill`; prompts reference those same addresses. Its tool, resource
 and prompt lists are fixed at startup and advertise no list-change notifications.
 The Composer App remains at `ui://charts/composer.html`.
+
+## Knowledge Documents
+
+`build-docs.mjs` hashes the original UTF-8 document bytes during image construction.
+`documents.mjs` requires the resulting `_documents.json` manifest at startup and
+rejects missing, altered, empty, oversized or invalid UTF-8 documents. The document
+budget reserves 1 KiB for provenance within the kernel's 64 KiB item limit.
+
+`knowledge.mjs` declares `charts.docs` on `charts://docs/{doc_id}` and pages its
+index by document ID. It uses the SDK's URI templates and the WHATWG URL API
+for concrete addresses. Knowledge negotiation reads the current request's capability
+envelope; the read condition comes from ordinary request metadata. Closed schemas
+reject unsupported settings and malformed validators. Observation values come only
+from image documents and server time.
+
+The HTTP launcher verifies the gateway token before dispatching every read.
+A matching validator returns empty contents and `notModified` only after that check.
+Readers that omit the extension receive document contents without an observation.
+Resource reads have private, zero-TTL cache hints so a conditional request reaches
+the server's authorization check. Chart exposes no knowledge search or change
+subscription because its only collection contains image documents.
+
+The native `knowledge.test.mjs` fixture exercises the pinned SDK over loopback HTTP
+with synthetic signed tokens. It checks negotiation, cursor rejection, original byte
+hashes, conditional delivery, expired and wrong-audience identity denial, forged
+observation rejection and manifest tampering. The fixture does not render charts;
+visual qualification uses the installed hardware workflow.

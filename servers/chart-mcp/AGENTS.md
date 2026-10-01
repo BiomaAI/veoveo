@@ -36,6 +36,11 @@ remains upstream.
 
 - No Rust crate exists, so `cargo check` and `cargo test` do not apply.
 - `node --test servers/chart-mcp/internal-auth.test.mjs`
+- `knowledge.test.mjs` requires the Dockerfile's pinned Node MCP packages and Zod.
+  Run it beside the package modules with `node --test knowledge.test.mjs`; it owns
+  its loopback listener, synthetic identities, temporary documents and cleanup.
+- Image builds must run `build-docs.mjs` after copying both Markdown documents.
+  Do not regenerate a missing manifest when starting the server.
 - Build the image: `docker build servers/chart-mcp`.
 - `cargo xtask smoke helm-config` validates the chart material that registers
   the server.
@@ -77,4 +82,4 @@ Contract revision: 3
 - C30: met — the server is stateless and does not require sticky routing
 - C24: pending — no Rust crate; the server is a pinned upstream npm package
 - C31: pending — installed Discover and list readiness qualification is pending
-- C32: pending — Node docs declaration and K01–K08 qualification are scheduled in Phase 7
+- C32: pending — docs declarations, observations and authenticated conditional reads pass native HTTP qualification; installed K01–K08 certification remains open

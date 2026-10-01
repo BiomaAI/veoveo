@@ -36,6 +36,16 @@ pub async fn run_hosted_server_conformance(
     profile: &HostedServerConformanceProfile,
     credentials: &ConformanceCredentials,
 ) -> Result<ConformanceReport> {
+    run_hosted_server_conformance_with_probes(profile, credentials, &Default::default()).await
+}
+
+/// Execute owner-supplied knowledge fixtures as part of the same report.
+/// The owner must clean up fixtures even when a probe fails or times out.
+pub async fn run_hosted_server_conformance_with_probes(
+    profile: &HostedServerConformanceProfile,
+    credentials: &ConformanceCredentials,
+    probes: &crate::knowledge_probes::KnowledgeProbes<'_>,
+) -> Result<ConformanceReport> {
     let _ = rustls::crypto::ring::default_provider().install_default();
     profile.validate()?;
     let bearer_token = credentials
@@ -388,6 +398,7 @@ pub async fn run_hosted_server_conformance(
         profile,
         templates.as_deref().unwrap_or_default(),
         tools.as_deref().unwrap_or_default(),
+        probes,
         &mut checks,
     )
     .await;
