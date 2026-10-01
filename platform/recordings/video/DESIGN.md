@@ -18,6 +18,9 @@ Consumers own hardware decoding and inference. Materialization requires an expli
 Artifact caller or task-read capability, verified by the shared reader. The source
 byte bound applies before copying live parts; committed layers use the bounded
 Artifact cache. The library never authorizes replay from an old spool path.
+Its Rerun query uses the catalog's dataset and Recording IDs for both committed
+segments and copied live parts. Source snapshots identify the original inputs before
+the shared reader normalizes its live copies.
 
 ## Library Features
 

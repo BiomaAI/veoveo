@@ -86,8 +86,8 @@ pub struct RecordingReadPlan {
     pub recording_id: RecordingId,
     pub dataset_id: RecordingDatasetId,
     pub dataset_key: String,
-    pub application_id: String,
-    pub recording_key: String,
+    producer_application_id: String,
+    producer_recording_key: String,
     pub state: RecordingState,
     pub classification: String,
     pub labels: Vec<String>,
@@ -187,8 +187,8 @@ impl RecordingReadPlan {
                             format!("validating live ingest part {}", path.display())
                         })?;
                         ensure!(
-                            inspection.application_id == self.application_id
-                                && inspection.recording_key == self.recording_key,
+                            inspection.application_id == self.producer_application_id
+                                && inspection.recording_key == self.producer_recording_key,
                             "live ingest part changed its producer recording identity"
                         );
                         sources.push(RecordingReadSource {
@@ -276,6 +276,14 @@ impl RecordingReadPlan {
                     && copied_inspection.sha256 == source.sha256.hex(),
                 "copied live ingest part does not match its captured identity"
             );
+            // Committed layers already use these catalog IDs. Normalize only
+            // the verified task-local copy so codec state and live samples join
+            // into one Rerun store after a segment rolls over.
+            veoveo_rrd::recording_layer::normalize_recording_layer(
+                &destination,
+                self.dataset_id.as_uuid(),
+                self.recording_id.as_uuid(),
+            )?;
             paths.push(destination);
         }
         Ok(MaterializedRecordingReadSnapshot {
@@ -466,8 +474,8 @@ impl RecordingReader {
             recording_id,
             dataset_id,
             dataset_key: dataset.dataset_key,
-            application_id: recording.application_id,
-            recording_key: recording.recording_key,
+            producer_application_id: recording.application_id,
+            producer_recording_key: recording.recording_key,
             state: recording.state,
             classification: recording.classification,
             labels: recording.labels,
@@ -481,6 +489,102 @@ mod tests {
     use super::*;
 
     #[test]
+    fn live_samples_join_committed_codec_metadata_after_rollover() {
+        use re_sdk::RecordingStreamBuilder;
+        use re_sdk_types::{archetypes::VideoStream, components::VideoCodec};
+        use veoveo_rrd::video_clip::{VideoClipRequest, extract_video_clip};
+
+        let directory = tempfile::tempdir().unwrap();
+        let dataset_id = RecordingDatasetId::new();
+        let recording_id = RecordingId::new();
+        let committed = directory.path().join("committed.rrd");
+        let static_recording = RecordingStreamBuilder::new(
+            re_sdk::ApplicationId::try_new(dataset_id.to_string()).unwrap(),
+        )
+        .recording_id(recording_id.to_string())
+        .save(&committed)
+        .unwrap();
+        static_recording
+            .log_static("/camera", &VideoStream::new(VideoCodec::H264))
+            .unwrap();
+        static_recording.flush_blocking().unwrap();
+        drop(static_recording);
+
+        let live_layer = directory.path().join("live.rrd");
+        let parts = ingest_segment_parts_directory(&live_layer);
+        std::fs::create_dir(&parts).unwrap();
+        let part = parts.join("00000000000000000042.rrd");
+        let live = RecordingStreamBuilder::new("producer-camera")
+            .recording_id("producer-session")
+            .save(&part)
+            .unwrap();
+        let video = include_bytes!("../../rrd/tests/fixtures/video.h264");
+        let next_access_unit = (1..video.len().saturating_sub(4))
+            .find(|index| video[*index..].starts_with(&[0, 0, 0, 1, 9]))
+            .unwrap();
+        live.set_duration_secs("sensor_time", 1.0);
+        live.log(
+            "/camera",
+            &VideoStream::update_fields().with_sample(video[..next_access_unit].to_vec()),
+        )
+        .unwrap();
+        live.flush_blocking().unwrap();
+        drop(live);
+        let original = inspect_segment(&part).unwrap();
+
+        let plan = RecordingReadPlan {
+            recording_id,
+            dataset_id,
+            dataset_key: "fixture".to_owned(),
+            producer_application_id: "producer-camera".to_owned(),
+            producer_recording_key: "producer-session".to_owned(),
+            state: RecordingState::Ready,
+            classification: "unclassified".to_owned(),
+            labels: Vec::new(),
+            layers: vec![RecordingReadLayer {
+                layer_id: RecordingLayerId::new(),
+                layer_name: "capture-1".to_owned(),
+                kind: RecordingLayerKind::Capture,
+                ordinal: Some(1),
+                state: RecordingLayerState::Writing,
+                byte_len: 0,
+                sha256: None,
+                started_at: None,
+                ended_at: None,
+                path: live_layer,
+                cached: None,
+            }],
+        };
+        let materialized = plan.materialize_analysis_snapshot(1_000_000).unwrap();
+        let mut paths = vec![committed];
+        paths.extend_from_slice(materialized.paths());
+        let clip = extract_video_clip(
+            &paths,
+            &VideoClipRequest {
+                application_id: dataset_id.to_string(),
+                recording_key: recording_id.to_string(),
+                entity_path: "/camera".into(),
+                timeline: "sensor_time".into(),
+                start_index: 1_000_000_000,
+                end_index: 1_000_000_000,
+                max_samples: 1,
+                max_encoded_bytes: 1_000_000,
+            },
+        )
+        .unwrap();
+        assert_eq!(clip.samples.len(), 1);
+        assert!(clip.samples[0].is_keyframe);
+        let source = &materialized.snapshot.sources[0];
+        assert_eq!(source.part_sequence, Some(42));
+        assert_eq!(source.byte_len, original.byte_len);
+        assert_eq!(source.sha256.hex(), original.sha256);
+        assert_eq!(inspect_segment(&part).unwrap().sha256, original.sha256);
+        let normalized = inspect_segment(&materialized.paths()[0]).unwrap();
+        assert_eq!(normalized.application_id, dataset_id.to_string());
+        assert_eq!(normalized.recording_key, recording_id.to_string());
+    }
+
+    #[test]
     fn committed_analysis_sources_require_a_verified_cache_lease() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("unverified.rrd");
@@ -489,8 +593,8 @@ mod tests {
             recording_id: RecordingId::new(),
             dataset_id: RecordingDatasetId::new(),
             dataset_key: "test".to_owned(),
-            application_id: "test".to_owned(),
-            recording_key: "test".to_owned(),
+            producer_application_id: "test".to_owned(),
+            producer_recording_key: "test".to_owned(),
             state: RecordingState::Ready,
             classification: "unclassified".to_owned(),
             labels: Vec::new(),

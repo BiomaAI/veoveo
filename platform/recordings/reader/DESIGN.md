@@ -24,6 +24,11 @@ that tenant and all recording labels in the actor's clearance before returning a
 The reader then loads a bounded catalog layer set and
 materializes committed layers through the cache. Complete acknowledged live parts are
 copied into task-local storage and rechecked against their captured length and digest.
+The reader then normalizes those copies to the catalog's dataset and Recording IDs.
+Committed codec metadata and live video samples therefore join into one Rerun store
+after segment rollover. The snapshot records the original source bytes and hashes;
+normalization changes only the disposable copies. Analysis consumers derive Rerun
+Store IDs from the plan's typed catalog IDs. Producer names stay inside source validation.
 The plan holds cache leases for its lifetime.
 
 `materialize_analysis_snapshot` requires explicit Artifact read authority and a

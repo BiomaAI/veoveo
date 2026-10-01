@@ -85,8 +85,8 @@ pub async fn materialize_video(
         "recording snapshot does not match the selected recording"
     );
     let plan = &materialized.plan;
-    let application_id = plan.application_id.clone();
-    let recording_key = plan.recording_key.clone();
+    let application_id = plan.dataset_id.to_string();
+    let recording_key = plan.recording_id.to_string();
     let classification = plan.classification.clone();
     let labels = plan.labels.clone();
     let request = VideoClipRequest {

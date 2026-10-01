@@ -101,6 +101,17 @@ finishes. It changes only the local flight client; installed images need no rebu
 The focused client's 60 native tests, strict Clippy, formatting and documentation
 checks pass. The corrected composed run remains pending.
 
+That run completes its mission, then Recording replay fails after segment rollover.
+Committed RRD layers use catalog dataset/Recording IDs while live parts still carry
+producer names. The video query sees separate Rerun stores and loses the committed
+codec metadata. The shared reader now normalizes verified task-local live copies to
+the same catalog IDs; source receipts keep the original byte identities. Video queries
+derive their Store IDs from the typed catalog IDs. The UAV lands during owned cleanup,
+and the cluster stops for native qualification and publication.
+The reader/video batch passes 17 native tests, including committed codec metadata
+joined with producer-named live samples after rollover. Strict Clippy also checks
+both libraries and the Stream/Reason consumers. Installed requalification is pending.
+
 The unified audit cut spans the contract, Store, writer, gateway and deployment inputs.
 `platform/audit/contract` sits below Store
 and MCP; the writer depends on Store. The working batch includes checked drafts and
