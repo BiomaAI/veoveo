@@ -6,9 +6,10 @@ Recording acceptance remain open. Phase 5 has qualified native consumer migratio
 writer/schema removal. Computer authority observation and the database-feature review
 are qualified locally. Private command/file payload separation passes native tests
 and repeated storage measurements. Phase 5 images and charts are published from
-`6ec504d8`; fresh reference bootstrap and installed acceptance remain.
-Phases 6–9 are open. The reference installation last converged at `8e4b36e7`;
-it is stopped during development, and the Phase 5 changes are not deployed.
+`6ec504d8`. The fresh GPU node has all 38 required images and verified model caches;
+Flux is installing the release selected by `bec449cb`. UAV desired state stays
+suspended until fresh Frames publication. Installed acceptance remains open.
+Phases 6–9 are not implemented. BuildKit is stopped during installed qualification.
 
 Current direction: every contract change in this plan is a coordinated hard cut.
 Historical data requires no support or migration. Remove compatibility adapters
@@ -3071,7 +3072,14 @@ Reason, Stream and simulator caches are copied and byte-compared before the node
 Publication completes in 925 seconds with a minimum 150 GiB free, and the builder stops.
 The grouped installed-tool build, ten release-rollout tests, Helm configuration and
 documentation checks pass. Fresh credential preparation and rendered Secret coverage
-pass. The reference reset and installed acceptance are next.
+pass. The reference reset removes only the old node's five volumes. The replacement
+node exposes eight hardware GPU shares. All 38 rendered installation images are
+downloaded, pinned and recorded in a byte-verified restart import manifest. Reason,
+Stream and simulator caches are restored to fresh claims and byte-compared in 74.54
+seconds. Another 137 obsolete test executables release 49.97 GiB while current
+executables and compiler caches are preserved. About 216 GiB is free after restoration.
+Flux has fetched `bec449cb` and started the platform install. Fresh Frames publication,
+UAV activation and installed acceptance remain.
 
 Work:
 
