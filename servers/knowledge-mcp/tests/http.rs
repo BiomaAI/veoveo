@@ -1,6 +1,8 @@
 //! Native HTTP, real JWT and SQL authorization tests. Synthetic vectors are not GPU evidence.
 #[path = "support/catalog.rs"]
 mod catalog;
+#[path = "support/conformance.rs"]
+mod conformance;
 #[path = "../../../testing/fixtures/store.rs"]
 mod fixture;
 #[path = "support/hosted.rs"]

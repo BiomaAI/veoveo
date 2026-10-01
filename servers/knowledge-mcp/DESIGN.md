@@ -432,6 +432,15 @@ signed HTTP requests. It corrupts excluded catalog and chunk metadata, checks tw
 replicas' source-sync invalidations, suppresses hidden writes and static-list wakes,
 observes lease expiry without another mutation, and revokes an active listener.
 
+`tests/support/conformance.rs` runs the shared hosted checker over the same HTTP
+fixture. It checks discovery, schemas, authentication rejection, host admission, health,
+the contract declaration and document delivery. The immutable `knowledge.docs`
+collection exercises K01 through K06. K07 and K08 do not apply because that collection
+declares neither change subscriptions nor its own search tool. K09 and K10 require
+review: the shared document provider derives provenance from embedded documents and
+uses their content digests as revisions. Synthetic embeddings in this fixture do not
+qualify GPU execution or retrieval quality.
+
 The ignored `http::installed` test reads an installation's public control plane and
 connects through its HTTPS gateway with an ordinary caller token. The caller must
 have read access to every approved collection. It compares the complete paged catalog

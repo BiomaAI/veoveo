@@ -40,6 +40,7 @@ tokio = { workspace = true, features = ["time"], optional = true }
 thiserror = { workspace = true, optional = true }
 
 [dev-dependencies]
+veoveo-mcp-conformance = { path = "../../mcp/conformance" }
 tokio-util = { workspace = true, features = ["rt"] }
 base64.workspace = true
 rcgen.workspace = true

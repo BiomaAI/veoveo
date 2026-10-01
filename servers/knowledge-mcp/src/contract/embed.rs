@@ -6,6 +6,7 @@ use veoveo_embedding_contract::{
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "mode", rename_all = "snake_case", deny_unknown_fields)]
+#[schemars(transform = object_schema)]
 pub enum EmbedRequest {
     Document {
         texts: EmbeddingBatch,
@@ -14,6 +15,10 @@ pub enum EmbedRequest {
         texts: EmbeddingBatch,
         task: EmbeddingTask,
     },
+}
+fn object_schema(schema: &mut schemars::Schema) {
+    // Each tagged branch is an object; MCP also requires the root declaration.
+    schema.insert("type".into(), "object".into());
 }
 impl EmbedRequest {
     pub fn texts(&self) -> &[EmbeddingText] {

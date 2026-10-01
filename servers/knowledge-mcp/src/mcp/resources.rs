@@ -65,6 +65,9 @@ impl<E: Embeddings + 'static> KnowledgeMcp<E> {
     ) -> Result<CatalogSnapshot, ErrorData> {
         let mut next_expiry = None;
         let body = match address {
+            KnowledgeResource::Contract => {
+                serde_json::to_string(SETUP.documents().contract_declaration())
+            }
             KnowledgeResource::Sources { after } => {
                 let mut sources = self
                     .store

@@ -3787,6 +3787,24 @@ The four native HTTP checks and Helm configuration smoke pass. Deployment and th
 expanded ignored installed check remain pending; the cluster stays stopped while images
 are prepared.
 
+Hosted conformance repair (2026-10-01): the Knowledge HTTP suite now runs the shared
+hosted checker. It found two delivery defects: the embedding request schema omitted
+its root object declaration, and `knowledge://contract` had no read handler. Both
+paths are corrected. The checker reports 31 passes; K07 and K08 do not apply to the
+immutable documentation collection. K09 and K10 are owner review obligations: document
+provenance and revisions come from the shared build-time document provider.
+All five native HTTP checks and four contract tests pass, along with contract-only
+compilation, strict all-target Clippy and document links. An earlier HTTP run exposed
+an extra test assertion and Docker cleanup deadlines under publication I/O. The
+corrected suite passes after I/O eased, with owned fixture cleanup complete. This
+repair still requires its own image publication before deployment.
+
+During this publication, scoped cleanup removed 100 unlinked Rust executable copies
+older than 24 hours, reclaiming 64.26 GiB. It retained two newer copies per name, running
+executables, all dependency libraries and every incremental cache. The cluster stays
+stopped while BuildKit publishes the platform, charts and UAV images. Registry cleanup
+waits until publication and installed acceptance establish the retained image set.
+
 1. Deliver the shared [embedding runtime](../platform/runtimes/embedding/DESIGN.md)
    before the knowledge service consumes it. Re-verify the latest stable vLLM release
    first, and keep one vLLM pin shared with `reason-mcp`. Do not add candle, fastembed,

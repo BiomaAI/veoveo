@@ -27,7 +27,8 @@ Run `cargo test -p veoveo-knowledge-mcp --tests` for contract and isolated pipel
 checks. The coordination suite adds source-loss restart, conditional reuse and lease
 renewal during slow reads. The source-gateway suite checks native discovery events and
 listener readiness with in-process MCP transports. The HTTP suite adds signed gateway requests, current authority
-changes and cross-replica reads. The indexing-host suite adds signed machine authentication,
+changes and cross-replica reads. It runs the shared hosted conformance checker against
+the server's HTTP surface and immutable documentation collection. The indexing-host suite adds signed machine authentication,
 credential rotation, source-loss recovery, catalog replacement, readiness and shutdown.
 The fixtures need Docker and the pinned SurrealDB image; each owns its
 containers and has a 180-second timeout per case. Run
@@ -47,13 +48,13 @@ running hardware embedding runtime and leaves source records unchanged.
 
 Target contract revision: `veoveo.ai/hosted-mcp/v3`.
 
-- C01: pending — full hosted conformance; tools, resources, completion and subscriptions have native qualification.
+- C01: met — the shared hosted checker qualifies the native HTTP surface; domain HTTP checks cover tools, resources, completion and subscriptions. C31 tracks installed qualification.
 - C02: met — direct tools declare generated input and output schemas.
 - C03: met — the domain has no task-augmented operations.
 - C04: met — typed exact addresses and SQL-admitted catalog pages.
 - C05: met — resources and templates accompany tools.
 - C06: met — no compatibility helpers.
-- C07: pending — shared schema-profile conformance.
+- C07: met — the shared checker validates generated schemas, including the object root of the tagged embedding request.
 - C08: met — rmcp and Schemars generate schemas.
 - C09: met — server-owned scopes, resource builders and checked domain models.
 - C10: met — shared HTTP construction and serialized response enforcement.
