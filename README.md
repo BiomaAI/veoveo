@@ -47,6 +47,10 @@ Photorealistic 3D Tiles, rendered on cluster GPUs.*
 - **Ask what happened.** Ask questions about synchronized recordings of world
   state, sensors, poses, and annotations. Each answer links back to the
   recordings it used, and each query is audited.
+- **Search everything the installation knows.** Live and recorded data is
+  indexed in space, time and meaning alongside the knowledge each server
+  publishes. Humans and agents search sensor data, video, decisions and
+  documents with multi-modal queries, and each result links to its source.
 - **Forecast, optimize, and query.** Timeseries forecasts with uncertainty
   bands, GPU vehicle routing and mathematical optimization with solutions
   checked independently of the solver, and SQL over operational data.
@@ -167,8 +171,8 @@ that owns it, and Veoveo's release process holds no credentials to that cluster.
 | Palantir product | What it does | How Veoveo compares |
 |---|---|---|
 | AIP | AI agents acting on enterprise systems through a controlled action layer | Closest match. Veoveo's gateway provides identity, policy, long-running tasks, and audit over the open Model Context Protocol, so any MCP host and any model can use it. |
-| Gotham / Maven | Defense intelligence: sensor fusion, mission command, decision support | Same domain, different starting point. Veoveo starts from the runtime: agents rehearse missions in simulation, command robots in the field, and learn from every run. It has no equivalent of Gotham's intelligence-analysis tooling. |
-| Foundry | Enterprise data integration, ontology, and operational applications | Partial overlap. Work Contexts, artifacts, and analytical stores cover data ownership and access, and MCP Apps provide operational interfaces. Veoveo has no equivalent of Foundry's ontology. |
+| Gotham / Maven | Defense intelligence: sensor fusion, mission command, decision support | Same domain, different starting point. Veoveo starts from the runtime: agents rehearse missions in simulation, command robots in the field, and learn from every run. Live and recorded sensor data, agent decisions and every server's knowledge are indexed in space, time and meaning, and humans and agents analyze them with multi-modal queries. |
+| Foundry | Enterprise data integration, ontology, and operational applications | Partial overlap. Work Contexts, artifacts, and analytical stores cover data ownership and access, and MCP Apps provide operational interfaces. Servers publish their knowledge as cataloged collections that agents search, with each result linked to its source. |
 | Apollo | Vendor-operated software delivery into customer environments | Veoveo publishes OCI images and Helm charts, and the installation owner reconciles them with its own GitOps controller. |
 
 Veoveo adds control and recording of the operations themselves: robots and
@@ -370,6 +374,7 @@ without changing the servers behind them.
 | `charts` | Chart validation, compilation, static rendering, and an interactive MCP App. |
 | `datasheet` | Dataset preview, column statistics, and durable profiling through the Python server template. |
 | `duckdb` | Arbitrary SQL, ingestion, and immutable exports in per-owner workspaces with resource limits. |
+| `knowledge` | Search across recordings and every server's published knowledge in space, time and meaning. |
 | `frames` | WGS84, ECEF, ENU, and NED conversion with durable batch transforms. |
 | `map` | Geography datasets, acquisition and releases, restrictions, routing, and map apps. |
 | `media` | Provider-neutral model discovery, schemas, generation, artifact output, and webhook completion. |
