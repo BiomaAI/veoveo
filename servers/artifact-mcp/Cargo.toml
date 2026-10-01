@@ -21,7 +21,14 @@ contract = [
     "dep:schemars",
     "dep:serde",
 ]
+knowledge = [
+    "contract",
+    "dep:anyhow",
+    "dep:serde_json",
+    "dep:veoveo-mcp-knowledge-extension",
+]
 runtime = [
+    "knowledge",
     "chrono/clock",
     "contract",
     "dep:anyhow",

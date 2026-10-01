@@ -42,7 +42,8 @@ links. It fronts `artifact-service` and holds no bytes of its own.
 
 Consumers select `default-features = false, features = ["contract"]`. Keep the
 contract feature free of MCP integration, service, provider and asynchronous runtime
-dependencies. Execution uses `runtime`; hosted endpoints and binaries require `mcp`.
+dependencies. The optional `knowledge` feature exposes Artifact-owned access mapping
+without service or runtime dependencies. Execution uses `runtime`; hosted endpoints and binaries require `mcp`.
 Qualify the isolated consumer and both runtime feature configurations when changing
 these gates. Public types keep their existing domain owners.
 

@@ -57,7 +57,10 @@ contract. Authentication, policy evaluation and service request interfaces stay 
 Clients select `default-features = false, features = ["contract"]` on the server
 library. Its public `contract` module contains tool DTOs and `ArtifactResource`.
 The resolved dependencies contain identity, URI, date/time, serialization and schema
-libraries. The `runtime` feature supplies service clients and persistence dependencies;
+libraries. The optional `knowledge` feature exposes pure snapshot-to-access conversion
+and metadata observations for derived resources such as Reason findings. Its dependency
+graph excludes service clients, Store, asynchronous execution and MCP transport.
+The `runtime` feature supplies service clients and persistence dependencies;
 `mcp` adds the hosted executable and transport. Default builds select `mcp`.
 
 `ArtifactResource` covers occurrences, metadata, grants, document roots, the Library App and the

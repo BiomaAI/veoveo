@@ -8,12 +8,22 @@ pub use catalog_views::{ModelView, PipelineDetails, PipelineView};
 pub use output::{AnalysisOutputSchema, AnalyzeRecordingOutput};
 pub use veoveo_stream_mcp::contract::StreamArtifactUri;
 
+mod artifact_provenance;
 mod cursor;
 mod ids;
 mod resources;
 mod scopes;
 mod subscriptions;
+pub use artifact_provenance::{ReasonArtifactMetadata, ReasonArtifactProvenance, ReasoningKind};
+mod finding_summary;
+mod findings;
 pub use cursor::AnalysisCursor;
+pub use finding_summary::{
+    FINDING_SUMMARY_BYTES, FindingContent, FindingEvent, FindingExcerpt, FindingSummary,
+};
+pub use findings::{
+    FindingCollection, FindingCursor, FindingIndexEntry, FindingPage, FindingResource,
+};
 pub use ids::{AnalysisId, ModelId, PipelineId, ReasonContractError};
 pub use resources::{
     AnalysisUri, ModelUri, PipelineUri, ReasonDocument, ReasonResource, ResultsUri,
@@ -66,11 +76,7 @@ pub enum ReasoningTask {
 
 impl ReasoningTask {
     pub fn kind(&self) -> &'static str {
-        match self {
-            Self::DescribeSegment { .. } => "describe_segment",
-            Self::DetectEvents { .. } => "detect_events",
-            Self::AnswerQuestion { .. } => "answer_question",
-        }
+        ReasoningKind::from(self).as_str()
     }
 }
 

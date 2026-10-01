@@ -36,7 +36,6 @@ and commit their audit records before delivery. The kernel retains observations 
 provenance inside its existing byte budgets. The Node adapter negotiates observations
 and checks image-build document manifests. K07/K08 execute owner-supplied probes;
 domain adoption and installed conformance are in progress under the implementation plan.
-No deployed server declares the extension yet.
 
 The `contract` feature builds with default features disabled and depends only on
 foundational Veoveo types, serialization, timestamps, and hashing. The `mcp`

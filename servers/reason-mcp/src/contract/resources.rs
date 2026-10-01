@@ -129,6 +129,7 @@ pub enum ReasonResource {
     Analysis(AnalysisUri),
     Results(ResultsUri),
     Artifact(ArtifactId),
+    Knowledge(super::FindingResource),
 }
 impl ReasonResource {
     pub fn parse(value: impl AsRef<str>) -> Result<Self, ReasonContractError> {
@@ -138,6 +139,7 @@ impl ReasonResource {
         let path = parts.path_segments().collect::<Vec<_>>();
         let path = path.iter().map(|p| p.as_ref()).collect::<Vec<_>>();
         let resource = match (parts.scheme(), parts.authority(), path.as_slice()) {
+            ("reason", "knowledge", _) => Self::Knowledge(super::FindingResource::parse(value)?),
             ("reason", "analyses", []) => {
                 let cursor = match parts
                     .query_parameters()
@@ -209,6 +211,7 @@ impl ResourceAddress for ReasonResource {
                 .build()
                 .map_err(|_| ReasonContractError::InvalidResource),
             Self::Contract => literal(uris::CONTRACT_URI),
+            Self::Knowledge(address) => address.to_uri(),
             Self::AnalysesApp => literal(uris::ANALYSES_APP_URI),
             Self::Pipelines => literal(uris::PIPELINES_URI),
             Self::Models => literal(uris::MODELS_URI),

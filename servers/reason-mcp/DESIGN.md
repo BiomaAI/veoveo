@@ -26,6 +26,7 @@ inference service, and no agent framework.
 | Standard or protocol | Implemented profile |
 |---|---|
 | [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP with task-only reasoning, resources and templates, typed structured results, notifications, and usage records. |
+| [`ai.veoveo/knowledge-source`](../../mcp/knowledge-extension/DESIGN.md) | Completed analysis and result summaries, cursor enumeration, conditional reads and request-scoped invalidations; observations use RFC 3339 times and SHA-256 content and access revisions. |
 | MCP Apps SEP-1865 / `io.modelcontextprotocol/ui` `2026-01-26` | The server-owned `ui://reason/analyses.html` application exposes pipelines, models, durable analyses, and results. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Video selection, reasoning request, model and pipeline catalog, event, grounding, provenance, and artifact contracts. |
 | RFC 3986 and RFC 6570 | Concrete resource addresses use the shared URI component parser and builder; discovery templates expand to the same typed routes. Reason accepts one spelling for each address and rejects duplicate or unsupported query parameters. |
@@ -91,6 +92,58 @@ Public contract tests compare every exported schema with the captured wire profi
 Run those tests through an independent Cargo consumer to check dependency isolation;
 a workspace build can unify runtime features. Native runner fixtures exercise process
 and validation behavior. GPU and installed acceptance use the owning workload checks.
+
+## Reusable Findings
+
+Reason declares `reason.analyses` and `reason.results` through the
+[`ai.veoveo/knowledge-source`](../../mcp/knowledge-extension/DESIGN.md) extension.
+The collections expose completed analyses and findings derived from their stored
+results. `FindingSummary` is the public contract; the analyses collection carries
+the submitted question or task, and the results collection carries answer excerpts
+or event summaries. Reading these resources performs no inference.
+
+| Collection | Enumeration | Member |
+|---|---|---|
+| `reason.analyses` | `reason://knowledge/analyses{?cursor}` | `reason://knowledge/analyses/{analysis_id}` |
+| `reason.results` | `reason://knowledge/results{?cursor}` | `reason://knowledge/results/{analysis_id}` |
+
+`FindingResource` builds and parses these addresses. A `FindingCursor` carries its
+collection, creation time and typed analysis identity; it cannot be paired with a
+different collection. Pages contain up to 100 `items` and an optional `nextCursor`.
+The SQL query selects successful Tasks and readable result Artifacts before output
+decoding or pagination. ID completion uses the same predicate. Visibility follows
+the result Artifact's current grants, selected Work Context, labels and retention.
+Task controls and the existing `reason://analysis` resources require Task ownership.
+
+Members include the recording identity and range, source-snapshot digest, pipeline,
+model, recorded model digest, prompt revision, decode policy and confidence basis.
+The full result link uses the Artifact owner's URI builder. A summary occupies at
+most 64 KiB. Answer excerpts stop at a UTF-8 boundary within 4096 bytes. Event
+summaries include at most eight events and declare the total and any omissions;
+shortened descriptions also declare truncation. The source read honors the configured
+`max_inline_resource_bytes` ceiling, which defaults to 16 MiB. Larger retained result
+Artifacts require the byte-access route; a summary read fails with a size diagnostic.
+
+Publication and retrieval share `ReasonArtifactMetadata` and its typed provenance
+variants. A member read checks the result against its Task and stored Artifact
+provenance, then rechecks both Task admission and Artifact metadata after fetching
+bytes. An access change during the read requires a retry. Artifact's lightweight
+`knowledge` feature owns conversion of its service snapshot into the access descriptor.
+Reason limits that descriptor's retention to the Task's retention as well.
+
+Revisions hash the returned summary and its access descriptor. Conditional reads
+perform the same admission and source checks before comparing revisions. Modification
+time comes from the stored completed Task; no modifier is inferred from ownership or
+Artifact creation provenance. Both collections advertise a five-minute maximum age.
+
+One Store observer per process receives native LIVE events and change-feed recovery
+signals for Tasks and Artifact access. Each listener compares SQL fingerprints of
+its admitted rows, including members beyond the first page. Hidden rows cannot change
+that fingerprint. A listener accepts at most 32 finding roots or members, emits an
+initial invalidation after observation starts, and reconciles after Store reconnects.
+Grant, Artifact, Task and token deadlines wake a listener without idle polling.
+Resource reads and fingerprint collection have a 60-second deadline; SQL observation
+has a 10-second timeout, and notification delivery has a 10-second deadline.
 
 ## Data path
 

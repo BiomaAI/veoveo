@@ -34,6 +34,7 @@ pub(super) async fn read(
 ) -> Result<ReadResourceResult, McpError> {
     let identity = internal_identity(context)?;
     match ReasonResource::parse(uri).map_err(invalid_params)? {
+        ReasonResource::Knowledge(address) => super::knowledge::read(state, address, context).await,
         ReasonResource::Docs => json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>()),
         ReasonResource::Document(id) => {
             let doc = SERVER_DOCS
@@ -274,7 +275,10 @@ pub(super) fn accepted_subscription_filter(
         .as_ref()
         .map(|uris| {
             uris.iter()
-                .filter(|uri| subscribable_analysis_id(uri).is_ok())
+                .filter(|uri| {
+                    subscribable_analysis_id(uri).is_ok()
+                        || super::subscriptions::finding(uri).is_some()
+                })
                 .cloned()
                 .collect::<Vec<_>>()
         })

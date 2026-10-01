@@ -57,6 +57,8 @@ mod host;
 mod index;
 #[path = "server/internal_auth.rs"]
 mod internal_auth;
+#[path = "server/knowledge.rs"]
+mod knowledge;
 #[path = "server/outputs.rs"]
 mod outputs;
 #[path = "server/ownership.rs"]
@@ -70,6 +72,8 @@ mod setup;
 #[cfg(test)]
 #[path = "../../../../testing/fixtures/store.rs"]
 mod store_fixture;
+#[path = "server/subscriptions.rs"]
+mod subscriptions;
 #[path = "server/task_extension.rs"]
 mod task_extension;
 #[path = "server/task_results.rs"]
@@ -295,7 +299,12 @@ impl ServerHandler for ReasonMcp {
         if let Some(result) = setup::SERVER_SETUP.read_documents(&request, &context)? {
             return Ok(result);
         }
-        let cacheable = request.request_state.is_none() && request.input_responses.is_none();
+        let cacheable = request.request_state.is_none()
+            && request.input_responses.is_none()
+            && !matches!(
+                veoveo_reason_mcp::contract::ReasonResource::parse(&request.uri),
+                Ok(veoveo_reason_mcp::contract::ReasonResource::Knowledge(_))
+            );
         resources::read(&self.state, &request.uri, &context)
             .await
             .map(|result| veoveo_mcp_contract::private_resource_response(result, cacheable))
@@ -343,19 +352,7 @@ impl ServerHandler for ReasonMcp {
     }
 
     async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
-        let subscriptions = veoveo_task_runtime::TaskResourceSubscriptions::from_filter::<
-            veoveo_reason_mcp::contract::AnalysisResource,
-        >(context.accepted())?;
-        let identity = internal_identity(context.request_context())?;
-        for task_id in subscriptions.resource_task_ids() {
-            resources::analysis_snapshot(
-                &self.state.tasks,
-                &runtime_owner(&identity),
-                AnalysisId::try_from(task_id).map_err(invalid_params)?,
-            )
-            .await?;
-        }
-        subscriptions.listen(&self.task_service, context).await
+        subscriptions::listen(self, context).await
     }
 
     async fn complete(
@@ -366,6 +363,40 @@ impl ServerHandler for ReasonMcp {
         let Reference::Resource(reference) = &request.r#ref else {
             return Ok(CompleteResult::default());
         };
+        if veoveo_reason_mcp::contract::FindingCollection::ALL
+            .iter()
+            .any(|collection| collection.member_template() == reference.uri)
+            && request.argument.name == "analysis_id"
+        {
+            let caller = internal_caller(&context)?;
+            let scope = knowledge::scope(&caller).map_err(internal)?;
+            if request.argument.value.len() > 128 {
+                return Err(invalid_params(
+                    "finding completion prefix exceeds 128 bytes",
+                ));
+            }
+            let mut findings = veoveo_reason_mcp::knowledge::readable_findings(
+                self.state.tasks.platform_store(),
+                &scope,
+                veoveo_reason_mcp::knowledge::FindingSelection::Complete(&request.argument.value),
+            )
+            .await
+            .map_err(internal)?;
+            knowledge::scope(&caller).map_err(internal)?;
+            let has_more = findings.len() > 100;
+            findings.truncate(100);
+            return Ok(CompleteResult::new(
+                CompletionInfo::with_pagination(
+                    findings
+                        .into_iter()
+                        .map(|f| f.position.analysis.to_string())
+                        .collect(),
+                    None,
+                    has_more,
+                )
+                .map_err(internal)?,
+            ));
+        }
         let values = match (reference.uri.as_str(), request.argument.name.as_str()) {
             (uris::PIPELINE_TEMPLATE, "pipeline_id") => self
                 .state
@@ -537,6 +568,9 @@ async fn main() -> anyhow::Result<()> {
         "max_concurrent_jobs must be non-zero"
     );
     let state = Arc::new(AppState {
+        finding_changes: veoveo_reason_mcp::knowledge::observe::FindingChanges::new(
+            tasks.platform_store().clone(),
+        ),
         tasks,
         artifacts: ArtifactRepository::new(args.artifact_service_url.clone()),
         recordings,

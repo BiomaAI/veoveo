@@ -10,6 +10,7 @@ use veoveo_task_runtime::{TaskRuntime, TaskTransition};
 
 pub(super) struct AppState {
     pub(super) tasks: TaskRuntime,
+    pub(super) finding_changes: veoveo_reason_mcp::knowledge::observe::FindingChanges,
     pub(super) artifacts: ArtifactRepository,
     pub(super) recordings: Arc<RecordingReader>,
     pub(super) catalog: Arc<PipelineCatalog>,

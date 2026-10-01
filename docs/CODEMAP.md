@@ -1298,7 +1298,9 @@ depend on Recording Hub.
 | `src/grounding.rs`, `tests/contract/grounding.rs` | contract-only consumption of Stream's complete replay model, matching video selection and extraction of selected track citations |
 | `src/annotation.rs` | derived Rerun provenance and event annotation layers |
 | `src/artifacts.rs` | shared artifact-plane adapter |
-| `src/knowledge.rs`, `src/knowledge/read.surql`, `tests/knowledge.rs` | completed finding selection through Artifact-owned SQL admission, checked Task/output identity, cursor positions and native access qualification |
+| `src/contract/findings.rs`, `finding_summary.rs`, `artifact_provenance.rs` | collection-bound finding cursors and addresses, bounded finding summaries and shared publication/read provenance through the isolated contract feature |
+| `src/knowledge.rs`, `src/knowledge/`, `tests/knowledge.rs`, `tests/finding_summaries.rs` | Artifact-admitted finding SQL, observations, complete-collection fingerprints and Store change observation; native access and conditional-read qualification |
+| `src/bin/server/knowledge.rs`, `subscriptions.rs` | source-authorized finding reads and combined Task/finding subscriptions with current SQL fingerprints and expiry deadlines |
 | `src/uris.rs` | contract-only typed resource builders and matching fixed discovery declarations |
 | `src/bin/server/` | auth, tasks, prompts, resources, notifications, and composition |
 | `src/bin/server/resources.rs` | exhaustive typed resource dispatch and SQL-authorized analysis reads and subscription admission |

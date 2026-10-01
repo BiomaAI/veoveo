@@ -5,8 +5,8 @@ use veoveo_types::{ResourceAddress, ScopeName};
 #[test]
 fn checked_setup_owns_the_declared_resources_templates_and_capabilities() {
     let setup = &*SERVER_SETUP;
-    assert_eq!(setup.resources().len(), 8);
-    assert_eq!(setup.resource_templates().len(), 7);
+    assert_eq!(setup.resources().len(), 10);
+    assert_eq!(setup.resource_templates().len(), 11);
     let addresses = setup
         .resources()
         .iter()
@@ -93,5 +93,43 @@ fn gateway_registrations_match_the_checked_discovery_profile() {
             metadata.contract_revision,
             u64::from(veoveo_mcp_contract::docs::CONTRACT_REVISION)
         );
+    }
+}
+
+#[test]
+fn finding_collections_declare_typed_roots_members_and_subscription_admission() {
+    use veoveo_reason_mcp::contract::{
+        AnalysisId, FindingCollection, FindingCursor, FindingResource,
+    };
+    let id: AnalysisId = "01983da0-0000-7000-8000-000000000001".parse().unwrap();
+    let time = "2026-10-01T00:00:00Z".parse().unwrap();
+    for collection in FindingCollection::ALL {
+        let expected = veoveo_reason_mcp::knowledge::summary::collection(collection);
+        let descriptor = SERVER_SETUP
+            .resource_templates()
+            .iter()
+            .find(|t| t.descriptor().uri_template.as_str() == collection.member_template())
+            .unwrap()
+            .descriptor();
+        assert_eq!(
+            veoveo_mcp_knowledge_extension::client::collection(descriptor).unwrap(),
+            Some(expected)
+        );
+        for address in [
+            FindingResource::root(collection),
+            FindingResource::Member {
+                collection,
+                analysis: id,
+            },
+        ] {
+            assert_eq!(
+                crate::subscriptions::finding(address.to_uri().unwrap().as_str()),
+                Some(address)
+            );
+        }
+        let page = FindingResource::Page {
+            cursor: FindingCursor::new(collection, time, id),
+        };
+        assert!(crate::subscriptions::finding(page.to_uri().unwrap().as_str()).is_none());
     }
 }

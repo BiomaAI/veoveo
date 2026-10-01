@@ -14,7 +14,7 @@ use veoveo_platform_store::{
 };
 use veoveo_reason_mcp::{
     contract::{AnalysisId, AnalysisUri, AnalyzeRecordingOutput, ReasonTaskKind},
-    knowledge::{FindingSelection, readable_findings},
+    knowledge::{FindingSelection, observe, readable_findings},
 };
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRuntime};
 use veoveo_types::{
@@ -200,7 +200,15 @@ async fn findings_apply_artifact_access_and_success_before_decode_and_pagination
         assert_eq!(actual, visible.iter().map(|(id,_)| *id).collect());
         assert_eq!(first[100].position, second[0].position);
 
+        let baseline = observe::snapshot(&db.a, &reader, None).await.unwrap();
+        assert!(baseline.present);
+        assert_eq!(baseline.fingerprint, observe::snapshot(&db.b, &reader, None).await.unwrap().fingerprint);
         let (id, artifact) = visible[0];
+        assert!(!first[..100].iter().any(|r| r.position.analysis == id), "mutation exercises a member beyond the first page");
+        let completed = readable_findings(&db.a, &reader, FindingSelection::Complete(&id.to_string())).await.unwrap();
+        assert_eq!(completed.len(), 1);
+        assert_eq!(completed[0].position.analysis, id);
+        assert!(readable_findings(&db.a, &reader, FindingSelection::Complete("not-an-id")).await.unwrap().is_empty());
         let private_reader = scope(&bob, None);
         assert!(readable_findings(&db.a, &private_reader, FindingSelection::Member(id)).await.unwrap().is_empty());
         let grant = ArtifactGrantDraft {
@@ -209,7 +217,16 @@ async fn findings_apply_artifact_access_and_success_before_decode_and_pagination
             subject_key: bob.principal_key.clone(), permission: GrantPermission::Read, labels: vec![],
             expires_at: None, created_by: alice.principal_id,
         };
+        let changes = observe::FindingChanges::new(db.a.clone());
+        let mut updates = changes.subscribe();
+        tokio::time::timeout(Duration::from_secs(15), async {
+            while updates.borrow_and_update().is_none() { updates.changed().await.unwrap(); }
+        }).await.unwrap();
         db.b.upsert_artifact_grant(grant.clone()).await.unwrap();
+        tokio::time::timeout(Duration::from_secs(15), updates.changed()).await.unwrap().unwrap();
+        let shared = observe::snapshot(&db.a, &reader, None).await.unwrap();
+        assert_ne!(baseline.fingerprint, shared.fingerprint, "grant changes invalidate the entire collection");
+        assert!(observe::snapshot(&db.a, &private_reader, Some(id)).await.unwrap().present);
         assert_eq!(readable_findings(&db.a, &private_reader, FindingSelection::Member(id)).await.unwrap()[0].results, artifact);
         assert!(tasks.for_owner(&owner("bob", "findings")).get(id.task_id()).await.unwrap().is_none(), "Artifact access must not grant Task control");
         db.b.remove_artifact_grant(veoveo_platform_store::ArtifactId::from_uuid(artifact.as_uuid()), ArtifactGrantSubjectKind::Principal, "bob").await.unwrap();
@@ -217,6 +234,17 @@ async fn findings_apply_artifact_access_and_success_before_decode_and_pagination
         db.b.upsert_artifact_grant(ArtifactGrantDraft { expires_at: Some(chrono::Utc::now() - chrono::TimeDelta::seconds(1)), ..grant }).await.unwrap();
         assert!(readable_findings(&db.a, &private_reader, FindingSelection::Member(id)).await.unwrap().is_empty());
         db.b.remove_artifact_grant(veoveo_platform_store::ArtifactId::from_uuid(artifact.as_uuid()), ArtifactGrantSubjectKind::Principal, "bob").await.unwrap();
+
+        assert!(!observe::snapshot(&db.a, &private_reader, Some(id)).await.unwrap().present);
+        let deadline = chrono::Utc::now() + chrono::TimeDelta::hours(1);
+        db.b.client().query("UPDATE $task SET retention_expires_at = $deadline RETURN NONE;")
+            .bind(("task", task_record_id(id.task_id()))).bind(("deadline", deadline)).await.unwrap().check().unwrap();
+        assert_eq!(observe::snapshot(&db.a, &reader, Some(id)).await.unwrap().deadline, Some(deadline));
+        let hidden_before = observe::snapshot(&db.a, &private_reader, None).await.unwrap();
+        db.b.client().query("UPDATE $task SET updated_at = time::now() RETURN NONE;")
+            .bind(("task", task_record_id(id.task_id()))).await.unwrap().check().unwrap();
+        assert_eq!(hidden_before.fingerprint, observe::snapshot(&db.a, &private_reader, None).await.unwrap().fingerprint);
+        drop(changes);
 
         // Visible corruption is an error, never silently post-filtered from a page.
         db.b.client().query("UPDATE $task SET result.payload.structuredContent.model_uri = 17 RETURN NONE;")

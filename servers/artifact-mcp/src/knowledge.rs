@@ -29,6 +29,31 @@ pub fn metadata_document(
     observed_at: DateTime<Utc>,
 ) -> Result<(String, Observation)> {
     let metadata = snapshot.metadata();
+    let access = access_descriptor(snapshot)?;
+    let text = serde_json::to_string(metadata)?;
+    ensure!(
+        text.len() <= 64 * 1024,
+        "Artifact metadata member exceeds 64 KiB"
+    );
+    let revision = content_digest(&serde_json::to_string(&(&text, &access))?);
+    let descriptor = collection();
+    let observation = Observation::builder(
+        descriptor.collection().clone(),
+        revision.to_string().parse()?,
+        content_digest(&text),
+        observed_at,
+    )
+    .access(access)
+    .modified_at(snapshot.metadata_updated_at())
+    // Artifact records no principal responsible for the latest metadata update.
+    .build(&descriptor)?;
+    Ok((text, observation))
+}
+
+/// Artifact-owned read policy shared by resources derived from an occurrence.
+/// It describes access; the Artifact service still authorizes every source read.
+pub fn access_descriptor(snapshot: &ArtifactMetadataSnapshot) -> Result<AccessDescriptor> {
+    let metadata = snapshot.metadata();
     let compliance = &metadata.compliance;
     let owner = compliance.owner.clone().expect("checked snapshot owner");
     // Artifact's protected owner grant confers read until occurrence retention.
@@ -43,7 +68,7 @@ pub fn metadata_document(
     );
     let mut labels = compliance.data_labels.clone();
     labels.extend(compliance.classification.iter().cloned());
-    let access = AccessDescriptor {
+    Ok(AccessDescriptor {
         tenant: compliance
             .tenant_id
             .clone()
@@ -65,25 +90,7 @@ pub fn metadata_document(
         owner,
         data_labels: labels.into_iter().collect(),
         expires_at: compliance.retention_expires_at,
-    };
-    let text = serde_json::to_string(metadata)?;
-    ensure!(
-        text.len() <= 64 * 1024,
-        "Artifact metadata member exceeds 64 KiB"
-    );
-    let revision = content_digest(&serde_json::to_string(&(&text, &access))?);
-    let descriptor = collection();
-    let observation = Observation::builder(
-        descriptor.collection().clone(),
-        revision.to_string().parse()?,
-        content_digest(&text),
-        observed_at,
-    )
-    .access(access)
-    .modified_at(snapshot.metadata_updated_at())
-    // Artifact records no principal responsible for the latest metadata update.
-    .build(&descriptor)?;
-    Ok((text, observation))
+    })
 }
 
 #[cfg(test)]

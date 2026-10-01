@@ -27,12 +27,18 @@ appear in its public MCP identities.
   canonical `result_uri` and one product link. Task reads and subscriptions validate
   the current result type after owner checks. Replace old contracts by hard cut;
   do not add historical-data readers or compatibility migrations.
-- Analysis and result notifications use the shared Task-backed resource listener.
+- Owner-scoped analysis and result notifications use the shared Task-backed resource listener.
   Do not restore process-local broadcasts or emit Task status for resource-only
   listeners. Additional Task-backed routes implement the owning contract trait.
+- Use analyses, findings and results for Reason domain types and copy. Documents
+  refer to the server's actual documentation. `FindingSummary` carries reusable
+  result excerpts and recorded provenance.
 - Reusable finding queries inherit current access from the result Artifact through
   `ArtifactReadScope`; keep that predicate before SQL limits and output decoding.
   A result grant does not confer Task control or access to other output Artifacts.
+  Finding observations use Artifact's access mapping and recheck source admission
+  after byte reads. Collection notifications cover every admitted member, including
+  those beyond the first page, through the Store observer and SQL fingerprints.
 - Recording authorization matches stream: authorize the canonical
   `recording://recordings/{uuidv7}` identity, re-resolve it inside the
   durable task, and capture one bounded source snapshot. The snapshot may

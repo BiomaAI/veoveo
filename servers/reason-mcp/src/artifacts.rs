@@ -16,6 +16,16 @@ pub struct ArtifactRepository {
 }
 
 impl ArtifactRepository {
+    pub async fn metadata_snapshot(
+        &self,
+        caller: &PlaneCaller,
+        artifact_id: &ArtifactId,
+    ) -> Result<veoveo_artifact_contract::ArtifactMetadataSnapshot> {
+        self.plane
+            .metadata_snapshot(caller, artifact_id)
+            .await
+            .map_err(plane_err)
+    }
     pub fn new(service_url: impl Into<String>) -> Self {
         Self {
             plane: HttpArtifactPlane::new(service_url),

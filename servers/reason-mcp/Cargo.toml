@@ -61,6 +61,8 @@ mcp = [
     "dep:tracing",
     "dep:veoveo-mcp-apps-extension",
     "dep:veoveo-platform-store",
+    "dep:veoveo-artifact-mcp",
+    "dep:veoveo-mcp-knowledge-extension",
     "dep:veoveo-recording-reader",
     "dep:veoveo-task-runtime",
 ]
@@ -103,6 +105,9 @@ veoveo-platform-store = { workspace = true, optional = true }
 veoveo-recording-reader = { workspace = true, optional = true }
 veoveo-recording-video = { path = "../../platform/recordings/video", default-features = false, features = ["contract"], optional = true }
 veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
+
+veoveo-artifact-mcp = { path = "../artifact-mcp", default-features = false, features = ["knowledge"], optional = true }
+veoveo-mcp-knowledge-extension = { workspace = true, features = ["mcp"], optional = true }
 
 [dev-dependencies]
 tower = { workspace = true, features = ["util"] }

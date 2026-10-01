@@ -1,3 +1,5 @@
+#[path = "contract/findings.rs"]
+mod findings;
 #[path = "contract/grounding.rs"]
 mod grounding;
 #[path = "contract/resources.rs"]

@@ -1,5 +1,5 @@
 //! Artifact MCP adapter and its independently consumable contract.
 #[cfg(feature = "contract")]
 pub mod contract;
-#[cfg(feature = "runtime")]
+#[cfg(feature = "knowledge")]
 pub mod knowledge;

@@ -1,9 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
-use veoveo_reason_mcp::contract::{AnalysisId, ModelId, PipelineId};
+use veoveo_reason_mcp::contract::{AnalysisId, ReasonArtifactMetadata, ReasonArtifactProvenance};
 
 use anyhow::{Context, Result};
 use rmcp::model::CallToolResult;
-use serde::Serialize;
 use veoveo_artifact_contract::{ArtifactPut, ComplianceMetadata};
 use veoveo_mcp_contract::{ArtifactWriteIdempotencyKey, IssuedArtifactWriteCapability, now_utc};
 use veoveo_platform_store::{DomainUsageDraft, DomainUsageKind, OpenObject};
@@ -47,7 +46,7 @@ pub(super) async fn publish_analysis(
             pipeline_id: products.results.pipeline_id.clone(),
             model_id: products.results.model_id.clone(),
             prompt_revision: products.results.prompt_revision.clone(),
-            task_kind: products.results.task.kind().to_owned(),
+            task_kind: (&products.results.task).into(),
             source_snapshot_sha256: source_snapshot_sha256.clone(),
         })?,
     )
@@ -113,46 +112,6 @@ pub(super) async fn publish_analysis(
     )
     .with_source_clip(source_clip_artifact);
     analysis_tool_result(output)
-}
-
-#[derive(Debug, Serialize)]
-#[serde(deny_unknown_fields)]
-struct ReasonArtifactMetadata {
-    provenance: ReasonArtifactProvenance,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-enum ReasonArtifactProvenance {
-    #[serde(rename = "reason_results")]
-    Results {
-        analysis_id: AnalysisId,
-        recording_id: veoveo_recording_mcp::contract::RecordingId,
-        pipeline_id: PipelineId,
-        model_id: ModelId,
-        prompt_revision: String,
-        task_kind: String,
-        #[serde(with = "veoveo_types::sha256_hex")]
-        source_snapshot_sha256: veoveo_types::Sha256Digest,
-    },
-    #[serde(rename = "reason_annotation_layer")]
-    AnnotationLayer {
-        analysis_id: AnalysisId,
-        recording_id: veoveo_recording_mcp::contract::RecordingId,
-        results_artifact_uri: veoveo_artifact_contract::ArtifactUri,
-        #[serde(with = "veoveo_types::sha256_hex")]
-        source_snapshot_sha256: veoveo_types::Sha256Digest,
-    },
-    #[serde(rename = "reason_source_clip")]
-    SourceClip {
-        analysis_id: AnalysisId,
-        recording_id: veoveo_recording_mcp::contract::RecordingId,
-        entity_path: String,
-        timeline: String,
-        decode_start_index: i64,
-        #[serde(with = "veoveo_types::sha256_hex")]
-        source_snapshot_sha256: veoveo_types::Sha256Digest,
-    },
 }
 
 fn artifact_metadata(provenance: ReasonArtifactProvenance) -> Result<serde_json::Value> {
@@ -254,7 +213,7 @@ mod tests {
                 pipeline_id: "video-reasoning".parse().unwrap(),
                 model_id: "world-model".parse().unwrap(),
                 prompt_revision: "v1".to_owned(),
-                task_kind: "describe_segment".to_owned(),
+                task_kind: veoveo_reason_mcp::contract::ReasoningKind::DescribeSegment,
                 source_snapshot_sha256: digest.clone(),
             })
             .unwrap(),

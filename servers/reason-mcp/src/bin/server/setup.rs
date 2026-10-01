@@ -11,10 +11,10 @@ use veoveo_mcp_contract::{
 };
 use veoveo_reason_mcp::{
     catalog::PipelineCatalog,
-    contract::{ReasonDocument, ReasonResource, ReasonScope},
+    contract::{FindingCollection, FindingResource, ReasonDocument, ReasonResource, ReasonScope},
     uris,
 };
-use veoveo_types::{ResourceScheme, ResourceTemplateUri};
+use veoveo_types::{ResourceAddress, ResourceScheme, ResourceTemplateUri};
 
 pub(super) static SERVER_DOCS: LazyLock<ServerDocs> =
     LazyLock::new(|| veoveo_mcp_contract::server_docs!("reason"));
@@ -97,6 +97,20 @@ fn resources() -> Result<Vec<McpResource<ReasonResource>>, McpSetupError> {
             .with_description("Authorized durable analysis index.")
             .with_mime_type("application/json"),
     ];
+    for collection in FindingCollection::ALL {
+        resources.push(
+            Resource::new(
+                FindingResource::root(collection)
+                    .to_uri()
+                    .map_err(|_| McpSetupError::InvalidResource)?
+                    .to_string(),
+                format!("completed {}", collection.segment()),
+            )
+            .with_title(format!("Completed {}", collection.segment()))
+            .with_description("Readable completed findings, with cursor pagination.")
+            .with_mime_type("application/json"),
+        );
+    }
     for doc in SERVER_DOCS.iter() {
         resources.push(
             Resource::new(
@@ -119,7 +133,7 @@ fn resources() -> Result<Vec<McpResource<ReasonResource>>, McpSetupError> {
 }
 
 fn resource_templates() -> Result<Vec<McpResourceTemplate>, McpSetupError> {
-    let templates = vec![
+    let mut templates = vec![
         ResourceTemplate::new(uris::DOC_TEMPLATE, "doc")
             .with_title("Server document")
             .with_description("Embedded crate document body (contract C18).")
@@ -141,6 +155,26 @@ fn resource_templates() -> Result<Vec<McpResourceTemplate>, McpSetupError> {
             .with_mime_type("application/vnd.veoveo.reason-results+json"),
         ResourceTemplate::new(uris::ARTIFACT_TEMPLATE, "artifact").with_title("Reason artifact"),
     ];
+    for collection in FindingCollection::ALL {
+        templates.push(
+            ResourceTemplate::new(
+                collection.page_template(),
+                format!("{} pages", collection.segment()),
+            )
+            .with_mime_type("application/json"),
+        );
+        let mut member = ResourceTemplate::new(
+            collection.member_template(),
+            format!("completed {}", collection.segment()),
+        )
+        .with_title(format!("Completed {} summary", collection.segment()))
+        .with_mime_type("application/json");
+        veoveo_mcp_knowledge_extension::server::attach_collection(
+            &mut member,
+            &veoveo_reason_mcp::knowledge::summary::collection(collection),
+        );
+        templates.push(member);
+    }
     templates
         .into_iter()
         .map(|descriptor| {

@@ -3928,9 +3928,32 @@ The new native case exercises 105 readable findings behind 120 malformed denied
 outputs, mismatched provenance, unsuccessful and expired Tasks, grant expiry and
 revocation, and cross-replica pagination. The complete run passes with fixture cleanup
 after image publication stopped. Artifact's native service admission regression passes,
-as do query validation on SurrealDB 3.3.0 and strict all-target Store and Reason Clippy. Hosted summary
-resources, observations, invalidations, installation approvals and retrieval evaluation
-still need implementation and acceptance.
+as do query validation on SurrealDB 3.3.0 and strict all-target Store and Reason Clippy.
+
+Finding source implementation (2026-10-01): the hosted surface declares
+`reason.analyses` and `reason.results`, with collection-bound cursor types, SQL ID
+completion and bounded `FindingSummary` members. Reason's vocabulary is analyses,
+findings and results; documents name actual server documentation. The publisher and
+reader share typed Artifact provenance, including a closed reasoning-kind enum.
+Artifact's lightweight `knowledge` feature owns access-descriptor conversion without
+bringing its service or transport into consumers.
+
+Member reads check stored result provenance and recheck Task and Artifact access after
+byte I/O, including conditional reads. Revisions cover both summary bytes and access.
+A process-wide Store observer wakes listener-specific SQL fingerprints over every
+admitted finding, including members outside the first page. Grant and retention
+deadlines participate in wakeups. These handlers require hosted stream qualification,
+reference installation approvals and deployment, K01–K10 acceptance, and retrieval
+evaluation before Phase 9 is accepted.
+
+Native qualification passes 72 Reason and Artifact cases. The added cases exercise
+URI and cursor admission, bounded Unicode and event excerpts, checked summary JSON,
+source-provenance disagreement, conditional reads, access-driven revisions, live Store
+wakeups, grants beyond the first page and hidden-row stability. The independent consumer
+passes all 22 Reason contract cases; its 142-package graph excludes MCP, Store,
+asynchronous runtimes, HTTP clients and Rerun. Strict all-target Clippy, formatting,
+document links and the composed SurrealDB 3.3.0 queries pass. These fixtures perform no
+inference and do not qualify the hosted subscription stream or installed source rollout.
 
 Adopt Reason's completed analyses and results so users can find earlier findings and
 read their grounding without rerunning inference. Observations carry stored owner,
