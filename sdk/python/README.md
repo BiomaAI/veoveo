@@ -16,7 +16,11 @@ session family it holds is only an identifier; the context never contains a bear
 token. Before your server grants renewable access, require this context and then check
 current policy and grant state yourself. An identity that arrives without the context
 cannot be renewed. The verifier rejects an inconsistent context and any assertion that
-expires later than its source token.
+expires later than its source token. Every supplied context includes a checked
+`AuditRequest`: a canonical UUIDv7 request ID, nonzero lowercase trace and span IDs,
+and an optional IP address. The verifier preserves managed-agent instance, generation
+and epoch metadata. Rust and Python qualify these fields against the same signed-context
+fixture; missing audit correlation fails validation.
 
 A simulation server keeps its own world state, camera output, and simulator SDK
 integration. It meets the provider-neutral live-view contract through its hosted MCP

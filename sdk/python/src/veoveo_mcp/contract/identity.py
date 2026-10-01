@@ -13,6 +13,8 @@ from uuid import UUID
 
 from pydantic import AfterValidator, AwareDatetime, BaseModel, ConfigDict, Field
 
+from .audit import AuditRequest
+
 GATEWAY_INTERNAL_TOKEN_ISSUER = "veoveo-internal"
 DEFAULT_GATEWAY_INTERNAL_SIGNING_KEY_ID = "veoveo-internal-1"
 
@@ -205,9 +207,20 @@ def _session_family(value: str) -> str:
     return value
 
 
+class ManagedAgentToken(BaseModel):
+    """Gateway-signed execution generation from the agent management contract."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    instance: Annotated[str, Field(pattern=r"^[a-z0-9_-]{1,128}$")]
+    generation: Annotated[int, Field(strict=True, ge=-(2**63), lt=2**63)]
+    epoch: Annotated[int, Field(strict=True, ge=-(2**63), lt=2**63)]
+
+
 class AccessTokenSubject(BaseModel):
     """Verified token metadata; never contains the signed bearer value."""
 
+    managed_agent: ManagedAgentToken | None = None
     issuer: TokenIssuer
     subject: TokenSubject
     oauth_client_id: Annotated[str, _identifier(512)]
@@ -227,6 +240,7 @@ class AccessTokenSubject(BaseModel):
 class GatewayRequestContext(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    audit: AuditRequest
     access_token: AccessTokenSubject
     principal: Principal
 

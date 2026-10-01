@@ -150,6 +150,46 @@ def test_preserves_the_shared_rust_request_context_fixture(fixture):
     )
     received = _verifier(jwks).verify(_token(pem, claims))
     assert received.request_context == GatewayRequestContext.model_validate(fixture["request_context"])
+    context = received.request_context
+    assert context.audit.model_dump(mode="json") == fixture["request_context"]["audit"]
+    expected_agent = fixture["request_context"]["access_token"].get("managed_agent")
+    assert context.access_token.model_dump(mode="json")["managed_agent"] == expected_agent
+
+
+@pytest.mark.parametrize("field,value", [
+    ("id", "0199a000-0000-4000-8000-000000000001"),
+    ("id", "0199a000-0000-7000-c000-000000000001"),
+    ("id", "0199A000-0000-7000-8000-000000000001"),
+    ("id", "0199a000000070008000000000000001"),
+    ("trace_id", "0" * 32),
+    ("trace_id", "A" * 32),
+    ("trace_id", "a" * 31),
+    ("span_id", "0" * 16),
+    ("span_id", "A" * 16),
+    ("span_id", "a" * 17),
+    ("source_ip", "not-an-ip"),
+    ("source_ip", 1234),
+    ("source_ip", "fe80::1%eth0"),
+    ("undeclared", "ignored"),
+])
+def test_rejects_invalid_signed_audit_correlation(field, value):
+    pem, jwks = _keypair()
+    fixture = _request_context_fixtures()[0]
+    fixture["request_context"]["audit"][field] = value
+    claims = _claims(actor=fixture["actor"], authority=fixture["authority"],
+                     request_context=fixture["request_context"])
+    with pytest.raises(InternalTokenError):
+        _verifier(jwks).verify(_token(pem, claims))
+
+
+def test_rejects_a_signed_context_without_audit_correlation():
+    pem, jwks = _keypair()
+    fixture = _request_context_fixtures()[0]
+    del fixture["request_context"]["audit"]
+    claims = _claims(actor=fixture["actor"], authority=fixture["authority"],
+                     request_context=fixture["request_context"])
+    with pytest.raises(InternalTokenError):
+        _verifier(jwks).verify(_token(pem, claims))
 
 
 @pytest.mark.parametrize("fixture", _request_context_fixtures(), ids=lambda f: f["name"])

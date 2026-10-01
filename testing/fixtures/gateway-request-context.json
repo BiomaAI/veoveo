@@ -79,7 +79,7 @@
         "id": "0199a000-0000-7000-8000-000000000001",
         "trace_id": "00000000000000000000000000000001",
         "span_id": "0000000000000001",
-        "source_ip": null
+        "source_ip": "192.0.2.1"
       }
     }
   },
@@ -162,7 +162,7 @@
         "id": "0199a000-0000-7000-8000-000000000002",
         "trace_id": "00000000000000000000000000000002",
         "span_id": "0000000000000002",
-        "source_ip": null
+        "source_ip": "2001:db8::1"
       }
     }
   },
@@ -219,7 +219,12 @@
         "jwt_id": "fixture-token",
         "issued_at": "2026-09-01T00:00:00Z",
         "not_before": null,
-        "expires_at": "2100-01-01T00:00:00Z"
+        "expires_at": "2100-01-01T00:00:00Z",
+        "managed_agent": {
+          "instance": "fixture-agent",
+          "generation": 1,
+          "epoch": 2
+        }
       },
       "principal": {
         "id": "https://veoveo.example#worker",
