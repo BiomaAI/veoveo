@@ -108,7 +108,8 @@ MCP requires Tasks support before admission. The result is the same durable Task
 HTTP, whose queued/running receipt uses status 202. Completed or paused receipts use
 status 200. Task reads and subscriptions require current Computer read authority;
 cancellation additionally requires current update authority. Maintenance Task authority
-has a five-second observation window and subscriptions revalidate every five seconds.
+has a five-second observation window. Subscriptions revalidate on native authority
+changes and renew halfway through the remaining permit lifetime.
 The existing Computer resource remains the canonical completed result.
 
 `resume_update` and POST `/admin/computers/{id}/maintenance/{task}/resume` use the
@@ -196,8 +197,11 @@ Each scheduler task boxes its command-step future to bound the task's stack foot
 
 Only the original dispatch receipt can launch the command. A successor that finds
 Dispatched contains the saved run without replaying command bytes. Current authority
-is checked each second, with an independent five-second expiry that stays active
-during blocked reads. The original runtime deadline remains independent as well.
+is rechecked on native changes to its Computer, grant, Task, execution journal,
+directory or policy. Renewal starts halfway through the remaining authority window.
+The independent five-second expiry stays active during blocked reads, alongside the
+original runtime deadline. Losing the change source interrupts local I/O and enters
+the existing containment path; it does not establish a provider outcome.
 The worker recovers the current same-worker Task lease after an interrupted renewal
 before writing settlement. Lost ownership leaves the journal for a successor.
 
@@ -529,15 +533,20 @@ Computer before forwarding bytes. The runtime connection is published only after
 qualified handshake and successful current readiness probe. A lost publisher, stale
 probe or changed provider prevents attachment and renewal.
 
-The service owns one native changefeed source for Computer state, grant tables,
-browser families and active policy per replica. Their bounded fanout contains invalidations, never permission. Computer
-and family wakes select the relevant attachments; policy changes invalidate all.
+The domain store shares one native changefeed source across its clones. Commands,
+file transfers, MCP subscriptions and browser/CLI attachments use it. The source
+observes Computer and grant state, execution and file journals, Tasks, browser
+families, enterprise/tenant/principal directory rows and active policy. Its broadcast
+queue holds 128 identity-only invalidations. Typed Computer, Task, execution, transfer
+and family selectors limit wakes to the affected consumer; policy and directory
+changes invalidate all consumers.
 An overrun requires a fresh authoritative baseline. Losing a listener ends its epoch,
 including when it reconnects before a consumer runs. The replacement epoch admits a
 new attachment. No old attachment silently adopts a recovered observer.
 
 Renewal rereads current domain grant, family, directory, policy and Computer state.
-A five-second baseline handles a missed wake. Input and wake bursts coalesce for
+Renewal starts halfway through the remaining permit lifetime, capped by the runtime
+profile’s ten-second maximum renewal interval. Input and wake bursts coalesce for
 500 milliseconds; only acknowledged terminal input can extend idle activity. Resize,
 output and keepalive frames do not extend it. Grant absolute expiry remains fixed.
 Both the runtime and outer service guard enforce the monotonic lease independently

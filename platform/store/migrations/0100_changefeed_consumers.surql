@@ -13,3 +13,9 @@ ALTER TABLE computer_automation_grant CHANGEFEED 30d INCLUDE ORIGINAL;
 ALTER TABLE computer_session_grant CHANGEFEED 30d INCLUDE ORIGINAL;
 ALTER TABLE computer_cli_grant CHANGEFEED 30d INCLUDE ORIGINAL;
 ALTER TABLE computer_maintenance CHANGEFEED 30d INCLUDE ORIGINAL;
+
+-- Execution authority watches need identity on deletion, without original payloads.
+ALTER TABLE computer_execution CHANGEFEED 30d;
+ALTER TABLE computer_file_transfer CHANGEFEED 30d;
+ALTER TABLE computer_automation_policy CHANGEFEED 30d;
+ALTER TABLE computer_session_grant_policy CHANGEFEED 30d;

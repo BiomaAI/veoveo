@@ -3,7 +3,6 @@
 mod facade;
 mod pump;
 use super::{
-    access_events::AccessEvents,
     attachment_authority::{self, Activity, Grant},
     http_error::HttpError,
 };
@@ -30,18 +29,13 @@ use veoveo_mcp_contract::GatewayProfileId;
 #[derive(Clone)]
 struct Transport {
     app: Arc<Application>,
-    events: Arc<AccessEvents>,
     stop: CancellationToken,
 }
-pub(super) fn router(
-    app: Arc<Application>,
-    events: Arc<AccessEvents>,
-    stop: CancellationToken,
-) -> Router {
+pub(super) fn router(app: Arc<Application>, stop: CancellationToken) -> Router {
     Router::new()
         .route("/{profile}/_ws_tunnel", get(root))
         .route("/{profile}/{id}/_ws_tunnel", get(scoped))
-        .with_state(Transport { app, events, stop })
+        .with_state(Transport { app, stop })
 }
 fn denied() -> HttpError {
     HttpError(ApplicationError::Domain(ComputerError::Forbidden))
@@ -135,7 +129,12 @@ async fn attached(
     transport: &Transport,
     handle: &CliConnectionHandle,
 ) -> Result<(), ()> {
-    let events = transport.events.listen().await?;
+    let events = transport
+        .app
+        .store
+        .authority_changes()
+        .await
+        .map_err(|_| ())?;
     let baseline = transport
         .app
         .store
@@ -157,7 +156,8 @@ async fn attached(
     )
     .map_err(|_| ())?;
     let family =
-        veoveo_platform_store::gateway_refresh_family_record_id(baseline.session_family_id());
+        veoveo_types::GatewayRefreshFamilyId::new(baseline.session_family_id().to_string())
+            .map_err(|_| ())?;
     let work = async {
         let runtime = transport.app.runtime.current().map_err(|_| ())?;
         if runtime.provider_instance_id() != computer.provider_instance_id {
@@ -187,7 +187,7 @@ async fn attached(
     tokio::select! {
         biased;
         _ = lease.closed() => {},
-        _ = attachment_authority::renew(&transport.app, Grant::Cli(handle), &authority, &activity, events, computer.computer_id, family) => {},
+        _ = attachment_authority::renew(&transport.app, Grant::Cli(handle), &authority, &activity, events, veoveo_computers::AuthorityInterest::Attachment { computer: computer.computer_id, family }, baseline.valid_until()) => {},
         _ = work => {},
     }
     authority.revoke();

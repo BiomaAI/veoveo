@@ -2,6 +2,7 @@
 mod active_execution;
 mod admission;
 mod authority;
+mod authority_changes;
 mod authority_snapshot;
 pub mod automation_grants;
 mod capacity;
@@ -30,6 +31,7 @@ mod worker_queue;
 
 pub use admission::{CapacityPolicy, Reservation};
 pub use authority::{AcceptedAuthority, ComputerActor};
+pub use authority_changes::{AuthorityChanges, AuthorityInterest};
 pub use computer_access::{ComputerReadAccess, ComputerReadPage};
 pub use control_authority::ControlAuthority;
 pub use current_authority::{AutomationLifecycleDecision, ExecutionDecision};

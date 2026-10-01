@@ -7,6 +7,8 @@ use veoveo_task_runtime::TaskOwner;
 #[derive(Clone)]
 pub struct ComputersStore {
     pub(crate) platform: PlatformStore,
+    pub(crate) authority_events:
+        std::sync::Arc<std::sync::OnceLock<crate::authority_changes::AccessEvents>>,
     pub(crate) provider_instance_id: Uuid,
 }
 
@@ -74,6 +76,7 @@ impl ComputersStore {
         }
         Ok(Self {
             platform,
+            authority_events: Default::default(),
             provider_instance_id,
         })
     }

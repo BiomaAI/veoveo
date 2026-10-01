@@ -208,6 +208,7 @@ designs above.
 | `platform/computers/src/operation_reads.rs` and `task_access.rs` | participant-scoped SQL lookups, current lifecycle/command/file policy and typed permits before private Task state or metadata decoding |
 | `platform/computers/src/computer_access.rs` | merged owner/grantee discovery, Read access checks, named action scopes and batch owner lookup |
 | `servers/computers-mcp/src/application/lifecycle.rs` | named Start/Stop grants over the shared operation journal, retry authorization and owner Task recovery |
+| `platform/computers/src/authority_changes.rs` | shared native authority invalidations for worker I/O, MCP subscriptions and HTTP attachments; typed identity selectors and source-loss epochs |
 | `platform/computers/src/authority_snapshot.rs` and `control_authority.rs` | policy/directory snapshot and request-scoped action/read permissions; public read paths cannot obtain a dispatch ticket |
 | `platform/computers/src/control_session.rs` | signed browser session-family read and shared binding decision; logout and family expiry stop new control without cancelling accepted work |
 | `platform/computers/` | Computer records, tenant/principal/Work Context ownership across clients, immutable creation and encryption bindings, capacity and fence admission, Task linking, dispatch receipts, observation budgets and settlement; `tests/{resource_ownership,cross_client_effects}.rs` cover client isolation; worker integration lives in `servers/computers-mcp` |
@@ -267,7 +268,7 @@ designs above.
 | `servers/computers-mcp/src/application/maintenance.rs` and `src/server/maintenance.rs` | public environment updates, stable target selection, typed progress and HTTP receipts; MCP resources and Tasks use the same domain checks |
 | `servers/computers-mcp/src/application.rs` and `templates.rs` | shared lifecycle and read views, action flags, availability/quota states and original Create selection across default-template changes |
 | `servers/computers-mcp/src/protocol/` and `server/` | authenticated stateless MCP, lifecycle/resource/Task surfaces, native changefeed subscriptions and Console HTTP routes; service startup and provider readiness in `server/run.rs` and `provider.rs` |
-| `servers/computers-mcp/src/server/terminal/`, `attachment_authority.rs`, `access_events.rs` and `runtime_access.rs` | Origin-checked one-use browser attachment, shared browser/CLI revocation wakes and renewal, domain-to-runtime leases, and provider resource/process verification before any bytes flow |
+| `servers/computers-mcp/src/server/terminal/`, `attachment_authority.rs` and `runtime_access.rs` | Origin-checked one-use browser attachment, shared browser/CLI revocation wakes and renewal, domain-to-runtime leases, and provider resource/process verification before any bytes flow |
 | `servers/computers-mcp/src/server/cli/` | narrow-credential admission, connection fencing, five-method stock CLI gRPC facade and WebSocket byte pump; public SSO/ingress evidence is recorded in the Computers plan |
 | `servers/computers-mcp/src/server/pairing.rs` | Origin-checked HTTP pairing and one-use confirmation; the domain stores challenges and owns issuance |
 | `platform/computers/contract/src/pairing.rs` | closed pairing DTOs, stock code and loopback-port validation, and one-use credential serialization |

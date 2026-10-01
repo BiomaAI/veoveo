@@ -1,4 +1,3 @@
-mod access_events;
 mod admin;
 mod attachment_authority;
 pub(crate) mod auth;
@@ -56,9 +55,7 @@ pub fn router(
         .layer(middleware::from_fn(
             veoveo_mcp_contract::enforce_serialized_mcp_response,
         ));
-    let events =
-        access_events::AccessEvents::start(app.tasks.platform_store().clone(), shutdown.clone());
-    let cli = cli::router(app.clone(), events.clone(), shutdown.clone());
+    let cli = cli::router(app.clone(), shutdown.clone());
     let secured = Router::new()
         .nest("/mcp", mcp)
         .nest(
@@ -68,12 +65,7 @@ pub fn router(
                 .merge(maintenance::router(app.clone()))
                 .merge(automation::router(app.clone()))
                 .merge(pairing::router(app.clone(), allowed_origins.clone()))
-                .merge(terminal::router(
-                    app.clone(),
-                    allowed_origins,
-                    shutdown,
-                    events,
-                )),
+                .merge(terminal::router(app.clone(), allowed_origins, shutdown)),
         )
         .layer(DefaultBodyLimit::max(64 * 1024))
         .layer(middleware::from_fn(auth::deadline))

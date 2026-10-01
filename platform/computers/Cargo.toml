@@ -5,6 +5,7 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+futures.workspace = true
 veoveo-types.workspace = true
 veoveo-audit-contract.workspace = true
 base64.workspace = true
@@ -29,5 +30,4 @@ veoveo-policy = { path = "../policy" }
 veoveo-task-runtime = { path = "../task-runtime" }
 
 [dev-dependencies]
-futures.workspace = true
 tokio = { workspace = true, features = ["process", "io-util", "macros", "rt-multi-thread"] }

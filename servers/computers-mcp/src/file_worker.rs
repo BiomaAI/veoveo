@@ -153,6 +153,13 @@ impl FileWorker {
                 .await?;
             return Ok(WorkerStep::Waiting);
         }
+        let mut authority_changes = self.store.authority_changes().await?.into_stream(
+            veoveo_computers::AuthorityInterest::File {
+                computer: operation.computer_id(),
+                task: operation.task_id(),
+                transfer: operation.transfer_id(),
+            },
+        );
         let preparation = match tokio::time::timeout(
             Duration::from_secs(10),
             self.store.prepare_file_transfer(claim, &self.keys),
@@ -186,7 +193,7 @@ impl FileWorker {
         let prepared = guard::run(
             initial,
             self.prepare_source(&preparation, capture.clone()),
-            Duration::from_secs(1),
+            &mut authority_changes,
             || self.refresh(claim, &preparation.operation),
             |maximum| {
                 capture
@@ -299,7 +306,7 @@ impl FileWorker {
                     async move { result }
                 },
             ),
-            Duration::from_secs(1),
+            &mut authority_changes,
             || self.refresh(claim, ticket.operation()),
             |maximum| {
                 maximum >= count

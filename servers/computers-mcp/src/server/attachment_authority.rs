@@ -1,4 +1,3 @@
-use super::access_events::Listener;
 use crate::Application;
 use std::{
     sync::atomic::{AtomicBool, Ordering},
@@ -7,8 +6,8 @@ use std::{
 use tokio::sync::{Notify, watch};
 use veoveo_computers::api::{TerminalLease, TerminalLeaseKind};
 use veoveo_computers::session_grants::SessionGrantHandle;
+use veoveo_computers::{AuthorityChanges, AuthorityInterest};
 use veoveo_computers_runtime::LeaseAuthority;
-use veoveo_platform_store::RecordId;
 
 pub(super) struct Activity {
     input: AtomicBool,
@@ -42,25 +41,27 @@ pub(super) async fn renew(
     grant: Grant<'_>,
     authority: &LeaseAuthority,
     activity: &Activity,
-    mut events: Listener,
-    computer: veoveo_computers_contract::ComputerId,
-    family: RecordId,
+    mut events: AuthorityChanges,
+    interest: AuthorityInterest,
+    mut valid_until: std::time::Instant,
 ) -> Result<(), ()> {
     let mut sequence = 0u64;
     loop {
+        let renew_at = crate::io_guard::renew_at(valid_until)
+            .min(tokio::time::Instant::now() + veoveo_computers_runtime::MAX_RENEWAL_INTERVAL);
         tokio::select! {
             biased;
-            event = events.next(computer, &family) => event?,
+            event = events.next(&interest) => event.map_err(|_| ())?,
             _ = activity.wake.notified() => {},
-            _ = tokio::time::sleep(Duration::from_secs(5)) => {},
+            _ = tokio::time::sleep_until(renew_at) => {},
         }
         // Coalesce typing and event bursts. This wait is inside the independently
         // deadline-guarded renewal future, never an extension to existing authority.
         tokio::time::sleep(Duration::from_millis(500)).await;
-        events.check()?;
+        events.check().map_err(|_| ())?;
         app.runtime.current().map_err(|_| ())?;
         let input = activity.input.swap(false, Ordering::AcqRel);
-        let (checked_at, valid_until) = match grant {
+        let (checked_at, next_deadline) = match grant {
             Grant::Browser(handle) => {
                 let checked = app
                     .store
@@ -78,10 +79,11 @@ pub(super) async fn renew(
                 (checked.checked_at(), checked.valid_until())
             }
         };
-        events.check()?;
+        events.check().map_err(|_| ())?;
         authority
-            .renew(checked_at.into(), valid_until - checked_at)
+            .renew(checked_at.into(), next_deadline - checked_at)
             .map_err(|_| ())?;
+        valid_until = next_deadline;
         sequence = sequence.checked_add(1).ok_or(())?;
         activity.renewed.send_replace(Some(TerminalLease {
             kind: TerminalLeaseKind::Lease,

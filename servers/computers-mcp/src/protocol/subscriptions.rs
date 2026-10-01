@@ -112,6 +112,13 @@ impl ComputersMcp {
                 None,
             ));
         }
+        let changes = self
+            .app
+            .store
+            .authority_changes()
+            .await
+            .map_err(|_| auth::unavailable())?
+            .into_stream(veoveo_computers::AuthorityInterest::All);
         let authority = tokio::time::timeout(
             Duration::from_secs(5),
             self.validate_listener(context.request_context(), &uris, &task_ids),
@@ -271,7 +278,7 @@ impl ComputersMcp {
         };
         super::guard::run(
             authority.deadline,
-            Duration::from_secs(2),
+            changes,
             context.cancelled(),
             pump,
             || async {

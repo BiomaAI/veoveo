@@ -148,6 +148,13 @@ impl CommandWorker {
                 .await?;
             return Ok(WorkerStep::Waiting);
         }
+        let mut authority_changes = self.store.authority_changes().await?.into_stream(
+            veoveo_computers::AuthorityInterest::Command {
+                computer: operation.computer_id(),
+                task: operation.task_id(),
+                execution: operation.execution_id(),
+            },
+        );
         let ticket = match self.store.begin_command_dispatch(claim, &self.keys).await {
             Ok(ticket) => ticket,
             Err(ComputerError::Forbidden) => {
@@ -204,7 +211,7 @@ impl CommandWorker {
         let observed = guard::run(
             initial,
             received,
-            Duration::from_secs(1),
+            &mut authority_changes,
             || self.refresh(claim, ticket.operation()),
             |maximum| {
                 constrain.lock().is_ok_and(|mut output| {

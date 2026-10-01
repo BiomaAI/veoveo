@@ -97,6 +97,10 @@ pub enum PlatformTable {
     ManagedAgentOperation,
     WorkContext,
     Computer,
+    ComputerAutomationPolicy,
+    ComputerSessionGrantPolicy,
+    ComputerExecution,
+    ComputerFileTransfer,
     ComputerAutomationGrant,
     ComputerSessionGrant,
     ComputerCliGrant,
@@ -104,7 +108,7 @@ pub enum PlatformTable {
 }
 
 impl PlatformTable {
-    pub const ALL: [Self; 95] = [
+    pub const ALL: [Self; 99] = [
         Self::Enterprise,
         Self::Tenant,
         Self::Principal,
@@ -196,6 +200,10 @@ impl PlatformTable {
         Self::ManagedAgentOperation,
         Self::WorkContext,
         Self::Computer,
+        Self::ComputerAutomationPolicy,
+        Self::ComputerSessionGrantPolicy,
+        Self::ComputerExecution,
+        Self::ComputerFileTransfer,
         Self::ComputerAutomationGrant,
         Self::ComputerSessionGrant,
         Self::ComputerCliGrant,
@@ -294,6 +302,10 @@ impl PlatformTable {
             Self::ManagedAgent => "managed_agent",
             Self::ManagedAgentOperation => "managed_agent_operation",
             Self::WorkContext => "work_context",
+            Self::ComputerAutomationPolicy => "computer_automation_policy",
+            Self::ComputerSessionGrantPolicy => "computer_session_grant_policy",
+            Self::ComputerExecution => "computer_execution",
+            Self::ComputerFileTransfer => "computer_file_transfer",
             Self::Computer => "computer",
             Self::ComputerAutomationGrant => "computer_automation_grant",
             Self::ComputerSessionGrant => "computer_session_grant",

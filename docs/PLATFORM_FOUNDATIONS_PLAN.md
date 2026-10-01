@@ -3,8 +3,8 @@
 Status: Phase 0 is accepted. Phases 1–3 have the installed acceptance gaps listed
 under Deferred Work. Phase 4's installed audit checks pass; composed flight and
 Recording acceptance remain open. Phase 5 has qualified native consumer migration and
-writer/schema removal. Computer authority timers, relationship adoption and final
-measurements are in progress. Phases 6–9 are open. The reference installation last converged at `8e4b36e7`;
+writer/schema removal. Computer authority observation is qualified locally.
+The database-feature review and final measurements remain. Phases 6–9 are open. The reference installation last converged at `8e4b36e7`;
 it is stopped during development, and the Phase 5 changes are not deployed.
 
 Current direction: every contract change in this plan is a coordinated hard cut.
@@ -2953,8 +2953,8 @@ are stopped, with about 117 GiB free. No implementation or test references the d
 outbox API or tables.
 
 The installation cut requires drained writers and a fresh database using the matching
-schema catalog. No Phase 5 image is deployed. Computer authority timers, relationship
-review and paired measurements remain open.
+schema catalog. No Phase 5 image is deployed. The relationship review and paired
+measurements remain open.
 
 The reference installation converged at `8e4b36e7` with both Helm releases and all 25
 Deployments current. The corrected composed flight harness used the existing headed
@@ -2966,6 +2966,31 @@ still needs installed acceptance. The cluster was stopped for development with a
 190 GiB free. Diagnostic files are under
 `output/development/foundations-audit-publication-e543e6e4/repair-installed/`:
 `uav-rollover.log`, `flight-px4-deadline.log`, and `landing-state.json`.
+
+
+The authority-observation batch shares one native source across Computer workers,
+MCP subscriptions and browser/CLI attachments. It observes directory and grant-policy
+changes alongside Computer, grant, Task and execution-journal state. Typed Computer,
+Task, execution, file-transfer and session-family identities select invalidations.
+Consumers subscribe before their authority baseline. Source loss closes the listener
+epoch; dropping the last store stops its producer. Four additional table feeds cover
+command/file journals and installation grant policies without original payloads.
+
+Fixed one- and two-second authority checks are removed. Renewal follows the current
+permit deadline, while independent expiry and execution deadlines remain armed during
+blocked reads. Browser and CLI attachments also respect the provider profile's maximum
+renewal interval. Known source loss takes priority over ready I/O. Provider outcome
+uncertainty still follows the existing containment and fencing rules.
+
+The grouped Store/Computers run passes 291 tests with seven explicitly ignored cases.
+The six affected harnesses pass all 50 rechecks after final review. Native cases cover
+journal deletion, Task cancellation, grant revocation, directory and policy changes,
+source shutdown, idle renewal, expiry and public subscription revocation. Strict
+all-target Clippy, formatting, 241 complete SQL files and documentation links pass.
+The provider fixtures and installed acceptance are not claimed. The cluster and
+BuildKit remain stopped, with about 85 GiB free after qualification. The database-feature
+review and paired measurements are next; measurements must include the encrypted
+execution-journal payloads copied by their new feeds.
 
 Work:
 

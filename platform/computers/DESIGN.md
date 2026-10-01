@@ -43,6 +43,29 @@ triggered the observation. SQL fences reject stale observations before any recor
 commit. Audit records contain no command text, file bytes, credentials or provider
 payloads. Native table changefeeds supply domain notifications.
 
+## Authority Observation
+
+`authority_changes.rs` owns a lazily started native changefeed source shared by all
+clones of a domain store. Consumers subscribe before reading their authority baseline.
+The source watches Computer and grant state, Task and execution journals, browser
+families, current policy and the enterprise, tenant and principal directory. Grant
+policy tables also publish changes because their limits can withdraw active authority.
+
+The bounded fanout carries typed identities. A wake requires the consumer to reread
+current authority; it cannot extend a permit. Queue overrun requests a new baseline.
+Connection loss ends the listener epoch even if the source reconnects before the
+consumer runs. Dropping the last store stops observation and closes its listeners.
+Command and file journal deletions need only their typed record IDs, so their feeds
+omit original payloads. Grant deletion consumers need the original Computer parent.
+
+The service keeps authority expiry armed during I/O and renewal. Commands and file
+transfers retain their five-second freshness bound; MCP subscriptions use their
+admitted deadline. Renewal starts halfway through the remaining permit lifetime.
+Browser and CLI attachments additionally respect the provider profile’s maximum
+renewal interval. Known execution, grant, token and lease expiry still bound each
+permit. Provider completion and uncertain-outcome containment keep their domain
+journals and fencing rules.
+
 ## Admission And Ownership
 
 `computer_access.rs` combines owned and explicitly granted Computers in ordered
