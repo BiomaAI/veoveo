@@ -50,7 +50,8 @@ reason:
     # development device.
     gpuMemoryUtilization: 0.42
 telemetry:
-  enabled: false
+  enabled: true
+  existingConfigMap: bioma-otel-collector
 networkPolicy:
   enabled: false
 podDisruptionBudget:

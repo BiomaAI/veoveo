@@ -365,7 +365,10 @@ remediation enabled to exercise that controller path. Verify cancellation with t
 ## Provision Secrets
 
 The reference gateway exports sealed audit blocks to `artifact-plane/audit` on the
-bundled S3 store. Export receipts gate database retention. This profile has Object Lock
+bundled S3 store and sends audit logs to its OpenTelemetry Collector at
+`http://otel-collector:4318/v1/logs`. The [Collector configuration](otel-collector.yaml)
+uses a debug pipeline that reports received
+counts. Both destinations' receipts gate database retention. This profile has Object Lock
 disabled. To use compliance mode, configure `gateway.auditExport.destinations.s3` with
 a supporting bucket and `object_lock: {mode: compliance, days: <installation period>}`.
 The destination must expose version IDs and compliance retention on GET. Qualify it

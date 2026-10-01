@@ -1,3 +1,6 @@
+gateway:
+  auditRetentionDays: 365
+
 artifactService:
   allowedAudiences:
     - artifact

@@ -5,8 +5,24 @@ Historical data requires no support or migration. Remove compatibility adapters
 introduced during earlier checkpoints; those checkpoint descriptions are not
 requirements to preserve them. Current-format restart and failure recovery still apply.
 
-Current implementation pass: the unified audit cut is underway across the contract,
-Store, writer, gateway and deployment inputs. `platform/audit/contract` sits below Store
+Current release checkpoint (2026-09-30): the unified audit cut is committed at
+`e543e6e4`. Its affected native tests, seven gateway scenarios, strict workspace checks
+and paired development measurements pass. All 29 affected images and both Helm charts
+are published from that revision. The release inputs select their digests, including
+the agent kernel. The Computers guest digest and template fingerprint are unchanged.
+Deployment configuration and rollout checks pass; the reference cluster stays stopped.
+Installed acceptance is pending. Phases 1–3 have
+remaining work, and phases 5–9 are not implemented.
+The pending reference release selects both S3 and OTLP audit destinations and enables
+the existing Collector. Rendered workload Secret coverage passes. Model and simulator
+caches are copied and verified for restoration after the fresh installation reset.
+The release fixes the gateway bundle checksum, supplies explicit audit-retention values
+in all four affected installation fixtures, and updates Console scope expectations.
+The S3 initializer now uses its existing version's manifest digest; every image in the
+prepared 38-image installation closure is pinned by digest.
+
+The unified audit cut spans the contract, Store, writer, gateway and deployment inputs.
+`platform/audit/contract` sits below Store
 and MCP; the writer depends on Store. The working batch includes checked drafts and
 identities, partition-scoped SQL/LIVE reads, transactional and grouped writes, signed
 blocks, a lease-fenced change-feed sealer, retention admission, request correlation,
@@ -170,10 +186,13 @@ readers together and is now in runtime qualification.
 
 Status: Phase 0 accepted and published on 2026-09-27 at `1177185f`; documentation
 checks and reference GitOps convergence passed. Phases 1–3 are in progress.
-Phase 4 has started with the SurrealDB 3.3.0 hard cut; phases 5–9 have not started.
+Phase 4's SurrealDB 3.3.0 hard cut and audit implementation are committed and
+native-qualified; their images and charts are published. Deployment and installed
+acceptance remain. Phases 5–9 are not
+implemented.
 The database upgrade takes priority over the remaining phase 3 work. The unfinished
 Computers batch is preserved separately while the SDK, image and fresh-store
-qualification advance together. The SurrealDB upgrade is committed; the unified audit implementation is active. Remaining phase 3 work stays tracked and does not block
+qualification advance together. Remaining phase 3 work stays tracked and does not block
 independent implementation in phases 4–9. Existing database state is discarded; no historical
 conversion or mixed-version support is required. The platform and UAV images and charts are published at
 `5df83706` on 2026-09-29. Strict Rust acceptance passed 2,670 tests; the default-feature

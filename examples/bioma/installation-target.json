@@ -22,6 +22,7 @@
     "mcp-gateway",
     "media-mcp",
     "optimization-mcp",
+    "otel-collector",
     "reason-mcp",
     "recording",
     "rerun-bridge",

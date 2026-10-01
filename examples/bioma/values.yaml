@@ -1,6 +1,9 @@
 global:
   production: true
   publicBaseUrl: https://veoveo.bioma.ai
+objectStore:
+  bucketInitImage:
+    digest: sha256:0425835c7c9e33a747dfd499dcd3603ec802662f7f7ded42d8fc81ce7b712bf9
 artifactService:
   allowedAudiences:
   - computers
@@ -29,7 +32,10 @@ gateway:
         object_lock:
           mode: disabled
         allow_http: true
-      otlp: null
+      otlp:
+        endpoint: http://otel-collector:4318/v1/logs
+        bearer_token_env: null
+        allow_http: true
   existingControlPlaneConfigMap: bioma-gateway-control-plane
   agents:
     models:
@@ -121,7 +127,7 @@ gateway:
         namespace: veoveo-agents
         config_map: uav-pilot-01b19f5aa87b
         config_digest: sha256:01b19f5aa87bd953be64f55f6c9acd91b6ec9439d3106d0f4547924ad15fa9f0
-        image: k3d-veoveo-registry.localhost:5000/veoveo/agent-kernel@sha256:99314948a920ea60d8dd89a453ae249b807ed56cbf9c39677146f9b37332ced2
+        image: k3d-veoveo-registry.localhost:5000/veoveo/agent-kernel@sha256:d736b5adb9e320d96afbb4a6147d39ed7b6299be01f4ddca36be130f3993df07
         database_secret: veoveo-surreal-runtime
         storage_class: local-path
         storage_gib: 2
@@ -131,7 +137,7 @@ gateway:
         - reference: agent_model_api_key
           secret: veoveo-workspace-models
           key: api-key
-  controlPlaneRevision: d9690271a33b4d51869a96b9b91128402e638f4cacc7cc65f85d52cdf423f770
+  controlPlaneRevision: 8b7711dd866e06d0b8ffad381e7faf33dbe7d2f5408dcf4f17d5719329e5655f
 consoleBff:
   workspace:
     oauthScopes:

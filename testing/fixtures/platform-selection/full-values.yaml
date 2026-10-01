@@ -1,5 +1,6 @@
 # Anonymous render-only installation with every first-party workload.
 gateway:
+  auditRetentionDays: 365
   replicas: 1
 artifactService:
   replicas: 1

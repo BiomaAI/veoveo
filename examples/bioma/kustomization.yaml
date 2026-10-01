@@ -8,6 +8,12 @@ resources:
   - gitops/releases
   - gitops/cloudflared.yaml
 configMapGenerator:
+  - name: bioma-otel-collector
+    namespace: veoveo
+    options:
+      disableNameSuffixHash: true
+    files:
+      - config.yaml=otel-collector.yaml
   - name: bioma-computers-configuration
     namespace: veoveo
     options:

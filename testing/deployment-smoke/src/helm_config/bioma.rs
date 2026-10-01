@@ -32,6 +32,9 @@ pub(super) fn check() -> Result<()> {
         "name: stream-mcp",
         "name: reason-mcp",
         "name: speech-mcp",
+        "name: otel-collector",
+        "name: bioma-otel-collector",
+        "http://otel-collector:4318/v1/logs",
         "--expected-control-plane",
         "/etc/veoveo/gateway/gateway.json",
         "value: \"computers,artifact,media,timeseries,optimization,duckdb,frames,map,recording,stream,reason,speech,datasheet,uav-sim\"",
@@ -114,11 +117,7 @@ pub(super) fn check() -> Result<()> {
     )?;
     contains(&bioma, "veoveo.ai/bootstrap-revision:")?;
     not_contains(&bioma, "veoveo.ai/bootstrap-revision: \"bootstrap-1\"")?;
-    for forbidden in ["name: otel-collector", "secretName: bioma-ingress-tls"] {
-        if bioma.contains(forbidden) {
-            bail!("Bioma k3d render must not contain `{forbidden}`");
-        }
-    }
+    not_contains(&bioma, "secretName: bioma-ingress-tls")?;
     let bioma_tunnel = fs::read_to_string("examples/bioma/gitops/cloudflared.yaml")?;
     contains(&bioma_tunnel, "name: TUNNEL_TOKEN")?;
     for forbidden in ["--token", "$(TUNNEL_TOKEN)"] {

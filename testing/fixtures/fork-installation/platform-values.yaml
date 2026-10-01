@@ -1,5 +1,7 @@
 global:
   publicBaseUrl: https://localhost:8783
+gateway:
+  auditRetentionDays: 365
 consoleBff:
   oauthResource: https://localhost:8783/mcp/admin
 ingress:

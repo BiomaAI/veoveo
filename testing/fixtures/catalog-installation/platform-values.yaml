@@ -1,6 +1,7 @@
 global:
   publicBaseUrl: https://localhost:8785
 gateway:
+  auditRetentionDays: 365
   replicas: 1
 artifactService:
   replicas: 1
