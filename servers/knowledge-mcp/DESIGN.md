@@ -286,8 +286,8 @@ the resulting bytes match. A watch channel coalesces writes without keeping a qu
 record payloads. The next grant, record, freshness or coordinator deadline schedules
 one re-read; idle listeners do not poll. Token expiry and lost authority end the stream.
 Snapshot work has a 60-second deadline, initial observation has ten seconds, and sink
-delivery has ten seconds with request cancellation. The reference gateway must enable
-completion and subscription exposure with the corresponding service image rollout.
+delivery has ten seconds with request cancellation. The reference gateway exposes completion and subscriptions under the Knowledge read
+scope. Installation rollout pairs that registration with its matching service image.
 
 ## Index
 

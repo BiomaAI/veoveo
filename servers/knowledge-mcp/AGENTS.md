@@ -38,7 +38,7 @@ Packaging checks use `cargo test -p veoveo-deployment-smoke --test knowledge_hel
 `cargo xtask image plan --target knowledge-mcp`. The chart's single indexing replica
 uses Recreate, distinct liveness/readiness probes and installation-owned credentials.
 The ignored installed check in `tests/support/installed.rs` exercises the deployed
-catalog, document retrieval, source revisions and embedding tool through HTTPS. Use
+catalog, caller-visible statistics, completion, initial subscription notifications, document retrieval, source revisions and embedding tool through HTTPS. Use
 the installation's ordinary caller token and public control plane as described in
 the [reference runbook](../../examples/bioma/README.md#acceptance). It requires a
 running hardware embedding runtime and leaves source records unchanged.
@@ -62,7 +62,7 @@ Target contract revision: `veoveo.ai/hosted-mcp/v3`.
 - C13: met — persistence uses the platform Store.
 - C14: met — no byte routes.
 - C15: met — OCI and Helm publications exist.
-- C16: pending — enable catalog subscription and completion exposure with the next image rollout; search, embedding and resources are registered.
+- C16: met — registration and caller policy expose search, embedding, resources, catalog completion and subscriptions; installed acceptance is tracked by C31.
 - C17: met — the typed registration and crate documents declare revision 3.
 - C18: met — shared document resources.
 - C19: met — the shared declaration includes every checklist status.

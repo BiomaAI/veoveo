@@ -11,7 +11,7 @@ use rmcp::{
 };
 use serde::{Serialize, de::DeserializeOwned};
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     fs,
     io::Write,
     path::{Path, PathBuf},
@@ -31,6 +31,10 @@ struct InstalledReport {
     profile: GatewayProfileId,
     generation: GenerationId,
     collections: BTreeSet<CollectionId>,
+    statistics: BTreeMap<CollectionId, CollectionStatistics>,
+    completed_sources: BTreeSet<ServerSlug>,
+    completed_collections: BTreeSet<CollectionId>,
+    observed_catalog: BTreeSet<ResourceUri>,
     verified_links: BTreeSet<ResourceUri>,
     embedding_space: EmbeddingSpace,
 }
@@ -180,6 +184,7 @@ async fn verify(
         "caller catalog differs from installation approvals"
     );
     let mut generation = None;
+    let mut statistics = BTreeMap::new();
     for collection in &collections {
         let uri = KnowledgeResource::Collection(collection.clone()).to_uri()?;
         let entry: CollectionCatalogEntry = read_json(peer, &uri).await?;
@@ -199,9 +204,51 @@ async fn verify(
                 "approved collections disagree on the active generation"
             );
             generation = Some(active);
+            statistics.insert(
+                collection.clone(),
+                entry
+                    .statistics
+                    .context("active collection omitted caller-visible statistics")?,
+            );
         }
     }
     let generation = generation.context("installation has no indexed collections")?;
+    let completed_sources = peer
+        .complete(CompleteRequestParams::new(
+            Reference::for_resource("knowledge://source/{server}"),
+            ArgumentInfo::new("server", ""),
+        ))
+        .await?
+        .completion
+        .values
+        .into_iter()
+        .map(|s| s.parse())
+        .collect::<Result<BTreeSet<ServerSlug>, _>>()?;
+    ensure!(
+        completed_sources == sources,
+        "source completion differs from visible catalog"
+    );
+    let mut completed_collections = BTreeSet::new();
+    for source in &sources {
+        let result = peer
+            .complete(CompleteRequestParams::new(
+                Reference::for_resource("knowledge://collection/{collection}"),
+                ArgumentInfo::new("collection", format!("{source}.")),
+            ))
+            .await?;
+        ensure!(
+            result.completion.has_more != Some(true),
+            "acceptance requires complete source collection vocabulary"
+        );
+        for value in result.completion.values {
+            completed_collections.insert(value.parse::<CollectionId>()?);
+        }
+    }
+    ensure!(
+        completed_collections == collections,
+        "collection completion differs from visible catalog"
+    );
+    let observed_catalog = observe_catalog(peer, &collections).await?;
     let mut verified_links = BTreeSet::new();
     for source in &control.servers {
         let docs = docs::collection(&source.slug, &source.uri_scheme);
@@ -300,14 +347,66 @@ async fn verify(
         "embedding output differs from its declared space"
     );
     Ok(InstalledReport {
-        schema: "veoveo.ai/knowledge-installed-acceptance/v1",
+        schema: "veoveo.ai/knowledge-installed-acceptance/v2",
         completed_at: Utc::now(),
         profile,
         generation,
         collections,
+        statistics,
+        completed_sources,
+        completed_collections,
+        observed_catalog,
         verified_links,
         embedding_space: embed.space,
     })
+}
+
+async fn observe_catalog(
+    peer: &Peer<RoleClient>,
+    collections: &BTreeSet<CollectionId>,
+) -> Result<BTreeSet<ResourceUri>> {
+    let addresses = collections
+        .iter()
+        .map(|c| KnowledgeResource::Collection(c.clone()).to_uri())
+        .collect::<Result<BTreeSet<_>, _>>()?;
+    ensure!(
+        addresses.len() <= 32,
+        "acceptance needs at most 32 catalog subscriptions"
+    );
+    let mut filter = SubscriptionFilter::builder().resources_list_changed();
+    for address in &addresses {
+        filter = filter.resource_subscription(address.as_str());
+    }
+    let mut subscription = peer.listen(filter.build()).await?;
+    let observed = tokio::time::timeout(Duration::from_secs(30), async {
+        let mut observed = BTreeSet::new();
+        let mut inventory = false;
+        while observed != addresses || !inventory {
+            match subscription
+                .next()
+                .await?
+                .context("catalog stream ended before initial observations")?
+            {
+                ServerNotification::ResourceUpdatedNotification(update) => {
+                    let uri = ResourceUri::new(update.params.uri)?;
+                    ensure!(
+                        addresses.contains(&uri),
+                        "catalog stream returned an unrequested resource"
+                    );
+                    observed.insert(uri);
+                }
+                ServerNotification::ResourceListChangedNotification(_) => inventory = true,
+                _ => anyhow::bail!("unexpected catalog subscription notification"),
+            }
+        }
+        Ok::<_, anyhow::Error>(observed)
+    })
+    .await
+    .context("catalog initial observations exceeded thirty seconds");
+    let closed = subscription.cancel().await;
+    let observed = observed??;
+    closed?;
+    Ok(observed)
 }
 
 async fn read_json<T: DeserializeOwned>(peer: &Peer<RoleClient>, uri: &ResourceUri) -> Result<T> {

@@ -3777,6 +3777,16 @@ the additive Store migration, stop indexing, drain all gateway replicas and upda
 gateway, Console and native audit readers together before restarting indexing. Mixed
 gateway versions are outside this coordinated hard-cut profile.
 
+Catalog rollout preparation (2026-10-01): the reference registration enables completion,
+resource subscriptions and resource-list changes. Caller profiles expose completion;
+the shared caller policy grants completion and subscription actions under Knowledge
+read scope. Its policy revision and complete public bundle digest change together.
+The installed harness now compares completion with the visible catalog, reads statistics
+and receives initial collection and resource-list notifications before retrieval.
+The four native HTTP checks and Helm configuration smoke pass. Deployment and the
+expanded ignored installed check remain pending; the cluster stays stopped while images
+are prepared.
+
 1. Deliver the shared [embedding runtime](../platform/runtimes/embedding/DESIGN.md)
    before the knowledge service consumes it. Re-verify the latest stable vLLM release
    first, and keep one vLLM pin shared with `reason-mcp`. Do not add candle, fastembed,

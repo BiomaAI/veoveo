@@ -1017,11 +1017,11 @@
         "tools": true,
         "resources": true,
         "resource_templates": true,
-        "resource_subscriptions": false,
+        "resource_subscriptions": true,
         "prompts": false,
-        "completions": false,
+        "completions": true,
         "tasks": false,
-        "resources_list_changed": false,
+        "resources_list_changed": true,
         "apps": false
       },
       "tools": [
@@ -1049,7 +1049,7 @@
       "identity_provider": "enterprise",
       "authorization_server": "veoveo",
       "protected_resource": "https://veoveo.bioma.ai/mcp/operator",
-      "policy_version": "2026-07-02",
+      "policy_version": "2026-10-01-knowledge-catalog",
       "auth_modes": [
         "oauth_client_credentials",
         "oidc_authorization_code_pkce"
@@ -1610,7 +1610,7 @@
           "prompts": {
             "mode": "none"
           },
-          "completions": "disabled",
+          "completions": "enabled",
           "tasks": "disabled"
         }
       ],
@@ -1654,7 +1654,7 @@
       "identity_provider": "enterprise",
       "authorization_server": "veoveo",
       "protected_resource": "https://veoveo.bioma.ai/mcp/agent",
-      "policy_version": "2026-07-02",
+      "policy_version": "2026-10-01-knowledge-catalog",
       "auth_modes": [
         "oauth_client_credentials"
       ],
@@ -1834,7 +1834,7 @@
           "prompts": {
             "mode": "none"
           },
-          "completions": "disabled",
+          "completions": "enabled",
           "tasks": "disabled"
         }
       ],
@@ -1847,7 +1847,7 @@
       "identity_provider": "enterprise",
       "authorization_server": "veoveo",
       "protected_resource": "https://veoveo.bioma.ai/mcp/admin",
-      "policy_version": "2026-07-02",
+      "policy_version": "2026-10-01-knowledge-catalog",
       "auth_modes": [
         "oauth_client_credentials",
         "oidc_authorization_code_pkce"
@@ -2364,7 +2364,7 @@
           "prompts": {
             "mode": "none"
           },
-          "completions": "disabled",
+          "completions": "enabled",
           "tasks": "disabled"
         }
       ],
@@ -2408,7 +2408,7 @@
       "identity_provider": "enterprise",
       "authorization_server": "veoveo",
       "protected_resource": "https://veoveo.bioma.ai/recordings/publish",
-      "policy_version": "2026-07-02",
+      "policy_version": "2026-10-01-knowledge-catalog",
       "auth_modes": [
         "oauth_client_credentials"
       ],
@@ -2441,7 +2441,7 @@
       "identity_provider": "enterprise",
       "authorization_server": "veoveo",
       "protected_resource": "https://veoveo.bioma.ai/mcp/rerun",
-      "policy_version": "2026-07-02",
+      "policy_version": "2026-10-01-knowledge-catalog",
       "auth_modes": [
         "oauth_client_credentials",
         "oidc_authorization_code_pkce"
@@ -2474,7 +2474,7 @@
       "identity_provider": "enterprise",
       "authorization_server": "veoveo",
       "protected_resource": "https://veoveo.bioma.ai/mcp/workspace",
-      "policy_version": "2026-07-02",
+      "policy_version": "2026-10-01-knowledge-catalog",
       "auth_modes": [
         "oidc_authorization_code_pkce"
       ],
@@ -3026,7 +3026,7 @@
           "prompts": {
             "mode": "none"
           },
-          "completions": "disabled",
+          "completions": "enabled",
           "tasks": "disabled"
         }
       ],
@@ -3170,7 +3170,7 @@
       "id": "recording-ingest",
       "protected_resource": "https://veoveo.bioma.ai/ingest/recordings",
       "authorization_server": "veoveo",
-      "policy_version": "2026-07-02",
+      "policy_version": "2026-10-01-knowledge-catalog",
       "upstream": {
         "transport": "streamable_http",
         "url": "http://recording-hub:9878",
@@ -3221,7 +3221,7 @@
   ],
   "policies": [
     {
-      "version": "2026-07-02",
+      "version": "2026-10-01-knowledge-catalog",
       "rules": [
         {
           "id": "allow_recording_ingest",
@@ -6677,7 +6677,9 @@
             "tools_list",
             "resources_list",
             "resources_templates_list",
-            "resources_read"
+            "resources_read",
+            "completion_complete",
+            "subscriptions_listen"
           ],
           "profiles": [
             "operator",
@@ -6882,7 +6884,7 @@
       "id": "operations",
       "tenant": "bioma",
       "title": "Operations",
-      "policy_revision": "2026-07-02",
+      "policy_revision": "2026-10-01-knowledge-catalog",
       "output_policy": {
         "owner": {
           "kind": "group",
@@ -6939,7 +6941,7 @@
       "id": "independent-review",
       "tenant": "bioma",
       "title": "Independent Review",
-      "policy_revision": "2026-07-02",
+      "policy_revision": "2026-10-01-knowledge-catalog",
       "output_policy": {
         "owner": {
           "kind": "group",

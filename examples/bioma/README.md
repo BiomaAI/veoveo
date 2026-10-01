@@ -851,8 +851,10 @@ VEOVEO_KNOWLEDGE_ACCEPTANCE_OUTPUT=output/development/knowledge-installed.json \
     -- --ignored --exact
 ~~~
 
-This read-only test checks every approved collection, searches each source's indexed
-documentation, follows the returned links and compares their observed revisions.
+This read-only test checks every approved collection and its caller-visible statistics.
+It compares completion values with the catalog and waits for initial collection and
+resource-list notifications. It then searches each source's indexed documentation,
+follows the returned links and compares their observed revisions.
 It also calls the embedding tool. Its report contains collection identities and
 verified links; each run requires a new output path. Remove the temporary token file
 after the check. Domain retrieval quality and GPU execution have their own acceptance
