@@ -9,9 +9,17 @@
           },
           "type": "array"
         },
+        "expiresAt": {
+          "description": "Deadline for every read path, including tenant, context and owner access.",
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "grants": {
           "items": {
-            "$ref": "#/$defs/AccessSubject"
+            "$ref": "#/$defs/ReadGrant"
           },
           "type": "array"
         },
@@ -1798,6 +1806,25 @@
       "description": "Prompt name as exposed by one direct MCP server or gateway profile.",
       "type": "string"
     },
+    "ReadGrant": {
+      "additionalProperties": false,
+      "properties": {
+        "expiresAt": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "subject": {
+          "$ref": "#/$defs/AccessSubject"
+        }
+      },
+      "required": [
+        "subject"
+      ],
+      "type": "object"
+    },
     "ReadPolicy": {
       "oneOf": [
         {
@@ -1834,6 +1861,20 @@
           "properties": {
             "kind": {
               "const": "work-context",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Membership grants read only in the caller's selected Work Context.\nOwner and live subject grants independently permit read.",
+          "properties": {
+            "kind": {
+              "const": "selected-work-context",
               "type": "string"
             }
           },

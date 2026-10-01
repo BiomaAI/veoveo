@@ -20,8 +20,8 @@ Python observation support, build-time document manifests and live K01–K06 che
 are implemented. Knowledge Store records and transactional generation/member APIs
 pass native SurrealDB 3.3 qualification. Node document observations and executable
 K07/K08 owner probes are implemented. Domain probe fixtures and installed qualification
-remain open. Chart docs and Time domain adoption are implemented. The selected domain
-work is Artifact, Map and Reason; the knowledge service is still open. Broader server
+remain open. Chart docs, Time domain adoption and Artifact metadata adoption are
+implemented locally. Map, Reason and the knowledge service are still open. Broader server
 adoption is postponed outside this plan's completion scope. The cluster and BuildKit
 are stopped.
 
@@ -66,9 +66,8 @@ scan and Rust post-filter loop are removed. The metadata index has typed cursor 
 and bounded URI pages, and the Library App follows them. Native SurrealDB qualification
 covers malformed denied rows, tenant isolation, context and grant access, expiry and
 page boundaries. Service and MCP checks, affected strict Clippy and six headless
-Workbench navigation cases pass. Artifact observations and installed conformance remain
-open; observations must express its selected-context sharing and retention deadline
-without broadening access to every context the reader belongs to.
+Workbench navigation cases pass. The observation adapter below carries the same
+selected-context sharing and retention policy. Installed conformance remains open.
 
 Artifact exact metadata reads now share the discovery SQL predicate and assemble the
 occurrence, blob, tenant and grants in one database statement. The typed snapshot
@@ -82,8 +81,29 @@ Qualification passes 18 Artifact contract tests, 36 service tests, 11 shared acc
 policy tests, the three focused discovery checks including native SurrealDB 3.3, and
 five independently resolved contract-consumer checks. Affected all-target/all-feature
 strict Clippy, workspace all-target compilation, SQL validation, formatting and docs
-checks pass. MCP observations and knowledge selected-context/expiry admission remain
-open. The cluster and BuildKit stayed stopped; 130 GiB remained free after the batch.
+checks pass. The adapter and admission checkpoint below completes the local knowledge
+integration. The cluster and BuildKit stayed stopped; 130 GiB remained free after the batch.
+
+Artifact now declares `artifact.metadata` over its metadata resource template, with
+cursor enumeration through `artifact://index`. The adapter uses service snapshots to
+produce bounded JSON members, content/access revisions, source timestamps and
+conditional responses. The indexed body is metadata JSON; it does not extract file
+contents. Metadata links advertise `application/json`. Source listeners register before
+authorization reads and end when a changed member loses access.
+
+The knowledge contract now represents selected-context sharing independently of
+owner/grant access. Typed read grants carry individual deadlines, and a record deadline
+applies to every read path. Store enforces both in SQL before decoding and LIMIT.
+Native SurrealDB checks cover deadline passage without reindexing, inactive contexts,
+owner/direct/group admission and malformed denied observations. Python and Rust use
+one new grant shape; the coordinated installation reset rebuilds experimental indexes
+without aliases or historical decoders. Console audit types are regenerated.
+Qualification passes 13 Artifact MCP tests, eight extension tests, three native Store
+knowledge tests, three Time knowledge tests, three audit tests, six Python tests,
+five independent contract-consumer checks and six generated Console contract checks.
+Affected all-target/all-feature and Artifact runtime-only strict Clippy, workspace
+all-target compilation, TypeScript and SurrealDB 3.3 SQL validation pass.
+Installed Artifact knowledge conformance and mutation/restart probes remain open.
 
 Current direction: every contract change in this plan is a coordinated hard cut.
 Historical data requires no support or migration. Remove compatibility adapters
@@ -3392,7 +3412,7 @@ revision.
 |---|---|---|---|
 | chart | `charts.docs` only | build-time document digests | Docs declaration, observations and conditional reads implemented; installed certification remains open |
 | time | events, calendar versions, epoch versions, acquired and packaged authority releases | stored creation tenant, owner and Work Context; content/access revisions, source digests and modification timestamps | Five collections, typed URI pages, observations and conditional reads implemented; installed qualification and event change/restart probes remain open |
-| artifact | artifact metadata (`artifact://metadata/{id}`), never the bytes | compliance metadata: tenant, owner, Work Context, labels, provenance | SQL-admitted exact metadata reads, service-owned read-access snapshots, cursor pages and Library navigation implemented; MCP observations, selected-context/expiry policy and installed qualification remain open |
+| artifact | artifact metadata (`artifact://metadata/{id}`), never the bytes | compliance metadata: tenant, owner, Work Context, labels, provenance | SQL-admitted metadata snapshots, cursor pages, Library navigation, bounded observations and conditional reads implemented; selected-context and record/grant deadlines are represented in the shared contract and enforced in index SQL; installed conformance and mutation/restart probes remain open |
 | map | feature layers, features, publications, locations, facilities, dataset releases | layer and feature revisions, `created_by`, Work Context, labels, changeset sequence, source digests | Return resource links from `search_locations`; declare the other collections from its templates |
 
 Acceptance: each server passes K01 through K10 review and conformance, and the audit

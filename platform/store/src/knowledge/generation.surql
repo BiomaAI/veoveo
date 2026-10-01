@@ -33,10 +33,14 @@ BEGIN TRANSACTION;
     DEFINE FIELD admission ON __TABLE__ TYPE object;
     DEFINE FIELD admission.tenant_read ON __TABLE__ TYPE bool;
     DEFINE FIELD admission.context_read ON __TABLE__ TYPE bool;
+    DEFINE FIELD admission.selected_context_read ON __TABLE__ TYPE bool;
+    DEFINE FIELD admission.expires_at ON __TABLE__ TYPE option<datetime>;
     DEFINE FIELD admission.work_context ON __TABLE__ TYPE option<string>;
     DEFINE FIELD admission.required_context ON __TABLE__ TYPE option<string>;
     DEFINE FIELD admission.required_profile ON __TABLE__ TYPE option<string>;
-    DEFINE FIELD admission.subjects ON __TABLE__ TYPE array<string>;
+    DEFINE FIELD admission.grants ON __TABLE__ TYPE array<object>;
+    DEFINE FIELD admission.grants.*.subject ON __TABLE__ TYPE string;
+    DEFINE FIELD admission.grants.*.expires_at ON __TABLE__ TYPE option<datetime>;
     DEFINE FIELD admission.labels ON __TABLE__ TYPE array<string>;
     DEFINE FIELD text ON __TABLE__ TYPE string
         ASSERT string::len($value) > 0

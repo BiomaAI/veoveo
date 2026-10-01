@@ -68,6 +68,7 @@ fn access_descriptor_is_required_by_collection_and_cannot_cross_owners() {
     assert!(builder().build(&descriptor).is_err());
     let observed = builder()
         .access(AccessDescriptor {
+            expires_at: None,
             read_policy: veoveo_mcp_knowledge_extension::ReadPolicy::WorkContext {},
             tenant: "tenant".parse().unwrap(),
             work_context: "work".parse().unwrap(),
@@ -96,6 +97,7 @@ fn read_policy_requires_explicit_closed_source_semantics() {
         json!({"kind": "tenant"}),
         json!({"kind": "subjects"}),
         json!({"kind": "work-context"}),
+        json!({"kind": "selected-work-context"}),
         json!({"kind": "subjects-in-context"}),
         json!({"kind": "subjects-in-context", "profile": "operations"}),
     ] {
@@ -122,6 +124,33 @@ fn read_policy_requires_explicit_closed_source_semantics() {
             }))
             .is_err()
         );
+    }
+}
+
+#[test]
+fn read_grants_and_record_deadlines_use_closed_timezone_aware_values() {
+    let grant = ReadGrant::new(AccessSubject::Group("readers".parse().unwrap()))
+        .until("2026-10-01T00:00:00Z".parse().unwrap());
+    let wire = serde_json::to_value(&grant).unwrap();
+    assert_eq!(
+        wire,
+        json!({"subject":{"kind":"group","id":"readers"},"expiresAt":"2026-10-01T00:00:00Z"})
+    );
+    assert_eq!(
+        serde_json::from_value::<ReadGrant>(wire.clone()).unwrap(),
+        grant
+    );
+    jsonschema::validate(
+        &serde_json::to_value(schemars::schema_for!(ReadGrant)).unwrap(),
+        &wire,
+    )
+    .unwrap();
+    for invalid in [
+        json!({"kind":"group","id":"readers"}),
+        json!({"subject":{"kind":"group","id":"readers"},"expiresAt":"2026-10-01T00:00:00"}),
+        json!({"subject":{"kind":"group","id":"readers"},"deadline":"2026-10-01T00:00:00Z"}),
+    ] {
+        assert!(serde_json::from_value::<ReadGrant>(invalid).is_err());
     }
 }
 

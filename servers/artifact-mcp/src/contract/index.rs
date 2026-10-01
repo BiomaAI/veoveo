@@ -44,8 +44,7 @@ impl From<ArtifactIndexCursor> for String {
 pub struct ArtifactIndexEntry {
     uri: ResourceUri,
     title: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    mime_type: Option<String>,
+    mime_type: &'static str,
 }
 
 #[derive(Debug, Clone, Serialize, JsonSchema)]
@@ -71,7 +70,7 @@ impl ArtifactIndexPage {
                     ArtifactIndexEntry {
                         uri: metadata_uri(id),
                         title: artifact.filename.unwrap_or_else(|| id.to_string()),
-                        mime_type: artifact.mime_type,
+                        mime_type: "application/json",
                     }
                 })
                 .collect(),
@@ -100,7 +99,7 @@ mod tests {
         assert_eq!(
             wire,
             serde_json::json!({"items": [{
-                "uri": metadata_uri(id), "title": "report.txt", "mimeType": "text/plain"
+                "uri": metadata_uri(id), "title": "report.txt", "mimeType": "application/json"
             }]})
         );
     }

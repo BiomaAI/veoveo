@@ -177,7 +177,7 @@ has no annotations field; read-time modification metadata belongs in the observa
 | `revision` | yes | Opaque strong validator. It changes whenever the returned text or the access descriptor changes. Immutable members may use their content digest |
 | `contentSha256` | yes | Lowercase hex SHA-256 of the exact UTF-8 bytes of the returned text |
 | `observedAt` | yes | Server time when the domain produced this read |
-| `modifiedAt` | when recorded | Time at which the domain last modified the current revision |
+| `modifiedAt` | when recorded | Stored modification time of the returned content; an access-only revision need not change this timestamp |
 | `modifiedBy` | when recorded | Principal ID that produced the current revision, in the platform's shared human and service principal namespace |
 | `access` | for `work-context` collections | Tenant, stored Work Context, explicit read policy, owner, direct grants when the domain stores them, and data labels |
 | `external` | for connector projections | `system`, `nativeId`, and optional `url` of the record in an external system of record, plus `mirroredAt` when the connector served a stored copy |
@@ -196,6 +196,7 @@ exposure of the collection.
 | `tenant` | Every caller admitted to this collection in the tenant may read |
 | `subjects` | The caller matches the owner or a direct principal/group grant |
 | `work-context` | The caller has read membership in the stored Work Context, or matches an owner/grant subject |
+| `selected-work-context` | The caller selects the stored Work Context and has read membership there, or matches an owner/grant subject |
 | `subjects-in-context` | The caller matches an owner/grant subject and selects the stored Work Context; an optional typed `profile` additionally requires that gateway profile |
 
 Servers select the policy from their persistence contract. Tenant-shared calendars
@@ -204,8 +205,15 @@ also checks the selected context and profile use `subjects-in-context`. None of 
 declarations expands the source's read policy. A source policy outside these forms
 requires an extension of the contract before that collection can be indexed.
 
-The owner and direct grants use the foundational `AccessSubject` variants
-`principal` and `group`. Modification attribution accepts a principal only.
+`owner` uses a foundational `AccessSubject`. Each `grants` entry is a typed
+`ReadGrant` with `subject` and optional RFC 3339 `expiresAt`. Both principal and group
+subjects are supported. A grant permits read only before its deadline. The access
+descriptor's optional `expiresAt` ends every read path, including owner, tenant and
+context access. Consumers evaluate these deadlines when selecting results in SQL;
+cache freshness does not extend them. Deadlines describe stored policy, so passing a
+deadline changes access without changing the descriptor or requiring a source event.
+A stored grant addition, removal or deadline change changes the revision under K10.
+Modification attribution accepts a principal only.
 Collection IDs, revisions, document IDs, entity kinds, external-system IDs and
 external-record IDs are distinct validated types. Builders enforce collection and
 access-model agreement before a server can attach an observation. Client helpers

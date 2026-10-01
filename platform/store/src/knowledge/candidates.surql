@@ -23,6 +23,7 @@ WHERE
   AND member.tenant = $tenant
   AND member.uri = uri
   AND $clearance CONTAINSALL admission.labels
+  AND (admission.expires_at = NONE OR admission.expires_at > time::now())
   AND (
     admission.required_context = NONE
     OR admission.required_context = $active_context
@@ -37,7 +38,13 @@ WHERE
       admission.context_read = true
       AND admission.work_context IN $contexts
     )
-    OR admission.subjects CONTAINSANY $subjects
+    OR (
+      admission.selected_context_read = true
+      AND admission.work_context = $active_context
+      AND admission.work_context IN $contexts
+    )
+    OR array::len(admission.grants[WHERE subject IN $subjects
+      AND (expires_at = NONE OR expires_at > time::now())]) > 0
   )
   AND (
     $after_collection = NONE

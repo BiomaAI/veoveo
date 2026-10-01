@@ -37,6 +37,7 @@ impl TimeProvenanceRecord {
             "stored Time provenance disagrees with ownership"
         );
         Ok(AccessDescriptor {
+            expires_at: None,
             tenant: self.tenant_key.parse().map_err(|_| invalid())?,
             work_context: self.work_context.parse().map_err(|_| invalid())?,
             read_policy: policy,

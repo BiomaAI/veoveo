@@ -514,14 +514,29 @@ impl ServerHandler for ArtifactMcp {
             return json_resource(uri, &index);
         }
         if let Some(artifact_id) = parse_metadata_uri(uri) {
-            let metadata = self
+            let snapshot = self
                 .state
                 .plane
-                .head(&caller, &artifact_id)
+                .metadata_snapshot(&caller, &artifact_id)
                 .await
                 .map_err(resource_error)?;
-            let metadata = self.state.expose_download(&caller, metadata);
-            return json_resource(uri, &metadata);
+            let (text, observation) =
+                veoveo_artifact_mcp::knowledge::metadata_document(&snapshot, chrono::Utc::now())
+                    .map_err(|error| McpError::internal_error(error.to_string(), None))?;
+            let resource = ArtifactResource::Metadata(artifact_id).to_uri();
+            let result = veoveo_mcp_knowledge_extension::server::member_result(
+                &resource,
+                "application/json",
+                text,
+                observation,
+                &veoveo_artifact_mcp::knowledge::collection(),
+                Some(&context.meta),
+            )
+            .map_err(|error| McpError::invalid_params(error.to_string(), None))?;
+            return Ok(result
+                .with_ttl_ms(0)
+                .with_cache_scope(CacheScope::Private)
+                .into());
         }
         if let Some(artifact_id) = parse_grants_uri(uri) {
             let grants = self
@@ -570,9 +585,15 @@ impl ServerHandler for ArtifactMcp {
     async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
         let caller = auth::caller(context.request_context())?;
         let accepted = context.accepted().clone();
+        // Register before authorization reads and collection baselines so a grant
+        // change during those reads is still reconciled by this listener.
+        let mut updates = self.state.subscriptions.listen();
         let mut subscriptions = Vec::new();
         for uri in accepted.resource_subscriptions.iter().flatten() {
-            let kind = if uri == INDEX_URI {
+            let kind = if matches!(
+                ArtifactResource::parse(uri),
+                Ok(ArtifactResource::Index { .. })
+            ) {
                 SubscriptionKind::Index
             } else if let Some(id) = parse_metadata_uri(uri) {
                 self.state
@@ -607,7 +628,6 @@ impl ServerHandler for ArtifactMcp {
             || subscriptions
                 .iter()
                 .any(|(_, kind)| *kind == SubscriptionKind::Index);
-        let mut updates = self.state.subscriptions.listen();
         let mut visible = if tracks_list {
             visible_ids(&self.state.plane, &caller)
                 .await
@@ -656,7 +676,12 @@ impl ServerHandler for ArtifactMcp {
                     SubscriptionKind::Content(id) | SubscriptionKind::Metadata(id)
                         if artifact_id.is_none_or(|changed| *id == changed) =>
                     {
-                        self.state.plane.head(&caller, id).await.is_ok()
+                        self.state
+                            .plane
+                            .head(&caller, id)
+                            .await
+                            .map_err(resource_error)?;
+                        true
                     }
                     SubscriptionKind::Grants(id)
                         if artifact_id.is_none_or(|changed| *id == changed) =>

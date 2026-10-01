@@ -299,12 +299,14 @@ search and returns links to the owning resources. It never becomes a second sour
 truth.
 
 Observations explicitly describe the source's read policy. The recorded Work Context
-does not imply sharing: tenant-wide, owner/grant, context-sharing and
-context/profile-constrained subject policies are distinct typed variants. The index
-enforces that selection in SQL before decoding and pagination. A domain whose policy
-cannot be expressed must extend the shared contract before it declares an indexable
-collection. The initial extension is undeployed and takes this required field as a hard
-cut; existing experimental indexes are rebuilt without compatibility adapters.
+does not imply sharing: tenant-wide, owner/grant, context-sharing, selected-context
+sharing and context/profile-constrained subject policies are distinct typed variants.
+Typed read grants carry optional deadlines; a record deadline applies to every read
+path. The index enforces these conditions in SQL before decoding and pagination. A
+domain whose policy cannot be expressed must extend the shared contract before it
+declares an indexable collection. The initial extension is undeployed and adopts this
+wire model through a hard cut; experimental indexes are rebuilt without compatibility
+adapters.
 
 Connectors to external systems follow the same contract. A connector projects vendor
 records as resources, declares its collections, and names the external record in each

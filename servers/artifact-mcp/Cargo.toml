@@ -34,6 +34,7 @@ runtime = [
     "dep:tracing",
     "dep:veoveo-artifact-client",
     "dep:veoveo-mcp-contract",
+    "dep:veoveo-mcp-knowledge-extension",
     "dep:veoveo-platform-store",
 ]
 mcp = [
@@ -45,6 +46,7 @@ mcp = [
     "dep:rustls",
     "dep:tower-http",
     "dep:veoveo-mcp-apps-extension",
+    "veoveo-mcp-knowledge-extension/mcp",
 ]
 
 [dependencies]
@@ -70,6 +72,7 @@ tracing = { workspace = true, optional = true }
 veoveo-artifact-client = { path = "../../platform/artifacts/client", optional = true }
 veoveo-mcp-apps-extension = { path = "../../mcp/apps-extension", optional = true }
 veoveo-mcp-contract = { workspace = true, default-features = false, optional = true }
+veoveo-mcp-knowledge-extension = { workspace = true, features = ["contract"], optional = true }
 veoveo-platform-store = { path = "../../platform/store", optional = true }
 
 [dev-dependencies]

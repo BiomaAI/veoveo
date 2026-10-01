@@ -18,7 +18,7 @@ def documents():
 def test_read_policy_is_explicit_and_closed():
     fields = dict(tenant="tenant", workContext="context", owner={"kind": "principal", "id": "author"}, dataLabels=[])
     for policy in ({"kind": "tenant"}, {"kind": "subjects"}, {"kind": "work-context"},
-                   {"kind": "subjects-in-context"}, {"kind": "subjects-in-context", "profile": "operations"}):
+                   {"kind": "selected-work-context"}, {"kind": "subjects-in-context"}, {"kind": "subjects-in-context", "profile": "operations"}):
         value = AccessDescriptor.model_validate({**fields, "readPolicy": policy})
         assert value.wire()["readPolicy"] == policy
     with pytest.raises(ValidationError):
@@ -104,3 +104,17 @@ def test_packaged_docs_require_build_digests_and_preserve_bytes(tmp_path, monkey
     (tmp_path / "DESIGN.md").write_bytes(body + b"tampered")
     with pytest.raises(ServerDocsError, match="digest mismatch"):
         module.server_docs("fixture", "fixture", source_root=tmp_path)
+
+
+def test_access_deadlines_and_typed_grants_are_closed_and_timezone_aware():
+    fields = dict(tenant="tenant", workContext="context", owner={"kind": "principal", "id": "author"},
+                  readPolicy={"kind": "selected-work-context"}, dataLabels=[], expiresAt="2026-10-01T00:00:00Z",
+                  grants=[{"subject": {"kind": "group", "id": "readers"}, "expiresAt": "2026-10-01T00:00:00Z"}])
+    assert AccessDescriptor.model_validate(fields).wire() == fields
+    for grants in ([{"kind": "principal", "id": "reader"}],
+                   [{"subject": {"kind": "principal", "id": "reader"}, "expiresAt": "2026-10-01T00:00:00"}],
+                   [{"subject": {"kind": "principal", "id": "reader"}, "deadline": "2026-10-01T00:00:00Z"}]):
+        with pytest.raises(ValidationError):
+            AccessDescriptor.model_validate({**fields, "grants": grants})
+    with pytest.raises(ValidationError):
+        AccessDescriptor.model_validate({**fields, "expiresAt": "2026-10-01T00:00:00"})

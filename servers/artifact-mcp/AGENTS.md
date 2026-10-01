@@ -30,6 +30,10 @@ links. It fronts `artifact-service` and holds no bytes of its own.
   served under the well-known surface.
 - Hosted declarations belong to `src/bin/server/setup.rs`; initialization and
   discovery consume the shared checked setup. Domain authorization stays in the service.
+- `artifact.metadata` observations come from Artifact service snapshots through
+  `src/knowledge.rs`. Keep owner and grant deadlines, selected-context access and
+  labels in the descriptor. Metadata resource bodies use neutral Artifact URIs;
+  authorize before evaluating a conditional read. Never infer the latest modifier.
 - Index resources use `ArtifactIndexCursor` and `ArtifactIndexPage`; return metadata
   links and the optional continuation cursor. Selection belongs to Artifact service's
   SQL admission, before paging and decoding. Keep transfer locations out of the index.

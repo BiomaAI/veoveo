@@ -102,7 +102,7 @@ Component designs live beside the code whose contract they specify:
 | [`mcp/knowledge-extension/DESIGN.md`](../mcp/knowledge-extension/DESIGN.md) | `ai.veoveo/knowledge-source` typed extension: collection descriptors, read observations, conditional reads, docs paging and build digests; hosted integration and K01–K10 adoption are in progress |
 | [`platform/knowledge/contract/DESIGN.md`](../platform/knowledge/contract/DESIGN.md) | knowledge-owned collection approvals, generation identities/specifications and source-bound chunks shared below Store and the MCP service |
 | [`platform/runtimes/embedding/contract/DESIGN.md`](../platform/runtimes/embedding/contract/DESIGN.md) | transport-independent embedding spaces, checked dimensions and normalized vectors |
-| [`platform/store/src/knowledge/DESIGN.md`](../platform/store/src/knowledge/DESIGN.md) | catalog compare-and-set, generation-specific BM25/HNSW tables, fenced source reads, coverage, activation, source-policy SQL admission through `admission.rs`, and reclamation |
+| [`platform/store/src/knowledge/DESIGN.md`](../platform/store/src/knowledge/DESIGN.md) | catalog compare-and-set, generation-specific BM25/HNSW tables, fenced source reads, coverage, activation, source-policy SQL admission with selected-context and record/grant deadlines through `admission.rs`, and reclamation |
 | [`MAP_APP_INTEGRATION.md`](MAP_APP_INTEGRATION.md) | consumer guide for using Map MCP resources and the reusable Map App from another MCP server |
 | [`servers/map-mcp/DESIGN.md`](../servers/map-mcp/DESIGN.md) | Earth geography, map data administration, logistics routing, and immutable Optimization travel models |
 | [`servers/map-mcp/AUTHORING.md`](../servers/map-mcp/AUTHORING.md) | authored feature layers, revisions, publications and Work Context access |
@@ -716,6 +716,9 @@ The MCP server for the artifact plane. `handler.rs` owns tools/resources,
 plumbing. `src/contract.rs` exposes tool values and plane-owned public types through
 an isolated contract feature. `src/contract/resources.rs` owns Artifact resource
 families and typed component construction.
+`src/knowledge.rs` owns the optional metadata collection, snapshot-to-observation mapping
+and content/access revisions; `src/knowledge/tests.rs` checks policy, deadlines and
+conditional reads. The public `contract` feature excludes these runtime adapters.
 `src/contract/index.rs` owns the index cursor and bounded metadata-link pages;
 `platform/artifacts/service/src/service/tests/discovery.rs` qualifies their service
 selection against native SurrealDB.

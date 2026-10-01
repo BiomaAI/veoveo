@@ -114,7 +114,7 @@ fn well_known_resources() -> Vec<Resource> {
 
 /// Templates served by `list_resource_templates`.
 fn resource_templates() -> Vec<ResourceTemplate> {
-    vec![
+    let mut templates = vec![
         ResourceTemplate::new(DOC_TEMPLATE, "artifact-doc")
             .with_title("Server document")
             .with_description("Embedded crate document body (contract C18).")
@@ -125,7 +125,7 @@ fn resource_templates() -> Vec<ResourceTemplate> {
             .with_mime_type("application/octet-stream"),
         ResourceTemplate::new(METADATA_TEMPLATE, "artifact-metadata")
             .with_title("Artifact metadata")
-            .with_description("Policy-filtered artifact metadata and download location.")
+            .with_description("Artifact metadata with source provenance and read access.")
             .with_mime_type("application/json"),
         ResourceTemplate::new(GRANTS_TEMPLATE, "artifact-grants")
             .with_title("Artifact grants")
@@ -137,7 +137,16 @@ fn resource_templates() -> Vec<ResourceTemplate> {
                 "Up to 100 readable metadata resource links with a continuation cursor.",
             )
             .with_mime_type("application/json"),
-    ]
+    ];
+    let metadata = templates
+        .iter_mut()
+        .find(|template| template.uri_template == METADATA_TEMPLATE)
+        .expect("metadata template");
+    veoveo_mcp_knowledge_extension::server::attach_collection(
+        metadata,
+        &veoveo_artifact_mcp::knowledge::collection(),
+    );
+    templates
 }
 
 #[cfg(test)]
@@ -149,6 +158,19 @@ mod tests {
         assert_eq!(setup.resources().len(), 6);
         assert_eq!(setup.resource_templates().len(), 5);
         assert!(setup.scope_names().is_empty());
+        let member = setup
+            .resource_templates()
+            .iter()
+            .find(|template| template.template().as_str() == METADATA_TEMPLATE)
+            .unwrap();
+        let declaration: veoveo_mcp_knowledge_extension::CollectionDescriptor =
+            serde_json::from_value(
+                member.descriptor().meta.as_ref().unwrap()
+                    [veoveo_mcp_knowledge_extension::EXTENSION_ID]
+                    .clone(),
+            )
+            .unwrap();
+        assert_eq!(declaration, veoveo_artifact_mcp::knowledge::collection());
         let app = setup
             .resources()
             .iter()

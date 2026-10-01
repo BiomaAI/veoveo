@@ -82,6 +82,31 @@ fn member_with_policy(
     read_policy: source::ReadPolicy,
     grants: Vec<AccessSubject>,
 ) -> IndexedMember {
+    member_with_access(
+        registration,
+        spec,
+        id,
+        AccessDescriptor {
+            expires_at: None,
+            read_policy,
+            tenant: registration.tenant.clone(),
+            work_context: WorkContextId::new(context).unwrap(),
+            owner: AccessSubject::Principal(PrincipalId::new("author").unwrap()),
+            grants: grants.into_iter().map(source::ReadGrant::new).collect(),
+            data_labels: labels
+                .iter()
+                .map(|v| DataLabelId::new(*v).unwrap())
+                .collect(),
+        },
+    )
+}
+
+fn member_with_access(
+    registration: &CollectionRegistration,
+    spec: &GenerationSpec,
+    id: &str,
+    access: AccessDescriptor,
+) -> IndexedMember {
     let text = "Fixture knowledge content";
     let observation = Observation::builder(
         registration.descriptor.collection().clone(),
@@ -89,17 +114,7 @@ fn member_with_policy(
         source::content_digest(text),
         Utc::now(),
     )
-    .access(AccessDescriptor {
-        read_policy,
-        tenant: registration.tenant.clone(),
-        work_context: WorkContextId::new(context).unwrap(),
-        owner: AccessSubject::Principal(PrincipalId::new("author").unwrap()),
-        grants,
-        data_labels: labels
-            .iter()
-            .map(|v| DataLabelId::new(*v).unwrap())
-            .collect(),
-    })
+    .access(access)
     .build(&registration.descriptor)
     .unwrap();
     let vector = EmbeddingVector::new(spec.space().clone(), vec![1.0, 0.0, 0.0]).unwrap();
@@ -153,6 +168,66 @@ async fn source_read_policies_preserve_subject_context_and_profile_restrictions(
     tokio::time::timeout(Duration::from_secs(120), qualify_read_policies())
         .await
         .expect("source policy qualification exceeded 120 seconds");
+}
+
+#[tokio::test]
+async fn selected_context_and_expiry_are_admitted_in_sql_before_decoding() {
+    tokio::time::timeout(Duration::from_secs(120), async {
+        let db = fixture::TestDb::new().await;
+        let registration = registration("knowledge-expiry");
+        let specification = spec(&registration, "expiry");
+        let generation = GenerationId::new();
+        db.a.register_knowledge_collection(&registration, None).await.unwrap();
+        db.a.create_knowledge_generation(&registration.tenant, generation, &specification).await.unwrap();
+        let past = Utc::now() - chrono::TimeDelta::minutes(1);
+        let deadline = Utc::now() + chrono::TimeDelta::seconds(4);
+        let reader = AccessSubject::Principal("reader".parse().unwrap());
+        let group = AccessSubject::Group("reviewers".parse().unwrap());
+        for (id, policy, expires_at, grants) in [
+            ("aaa-expired-tenant", source::ReadPolicy::Tenant {}, Some(past), vec![]),
+            ("bbb-expired-context", source::ReadPolicy::SelectedWorkContext {}, Some(past), vec![]),
+            ("ccc-expired-grant", source::ReadPolicy::Subjects {}, None, vec![source::ReadGrant::new(reader.clone()).until(past)]),
+            ("ddd-expired-group", source::ReadPolicy::Subjects {}, None, vec![source::ReadGrant::new(group.clone()).until(past)]),
+            ("eee-selected", source::ReadPolicy::SelectedWorkContext {}, None, vec![]),
+            ("fff-live-grant", source::ReadPolicy::SelectedWorkContext {}, None, vec![source::ReadGrant::new(reader).until(deadline)]),
+            ("zzz-visible", source::ReadPolicy::Tenant {}, None, vec![]),
+        ] {
+            let member = member_with_access(&registration, &specification, id, AccessDescriptor {
+                tenant: registration.tenant.clone(), work_context: "operations".parse().unwrap(),
+                read_policy: policy, owner: AccessSubject::Principal("author".parse().unwrap()),
+                grants, data_labels: vec![], expires_at,
+            });
+            insert(&db.a, &registration, generation, &specification, &member).await;
+        }
+        db.a.complete_knowledge_collection(&registration.tenant, generation,
+            registration.descriptor.collection(), &registration.revision()).await.unwrap();
+        db.a.activate_knowledge_generation(&registration.tenant, generation, None).await.unwrap();
+        let mut reader = scope(&registration);
+        reader.subjects.insert(group);
+        assert_candidates(&db.b, &reader, generation, &["eee-selected", "fff-live-grant", "zzz-visible"]).await;
+        reader.active_work_context = "other".parse().unwrap();
+        assert_candidates(&db.b, &reader, generation, &["fff-live-grant", "zzz-visible"]).await;
+        reader.work_contexts.clear();
+        assert_candidates(&db.b, &reader, generation, &["fff-live-grant", "zzz-visible"]).await;
+        let mut owner = reader.clone();
+        owner.subjects = BTreeSet::from([AccessSubject::Principal("author".parse().unwrap())]);
+        assert_candidates(&db.b, &owner, generation,
+            &["ccc-expired-grant", "ddd-expired-group", "eee-selected", "fff-live-grant", "zzz-visible"]).await;
+        // No reindex or mutation occurs when time alone ends a grant.
+        tokio::time::sleep((deadline - Utc::now()).to_std().unwrap_or_default() + Duration::from_millis(10)).await;
+        assert_candidates(&db.b, &reader, generation, &["zzz-visible"]).await;
+        let table = format!("knowledge_chunk_{}", generation.as_uuid().simple());
+        db.a.client().query(format!("UPDATE {table} SET observation = {{malformed: true}} WHERE uri != 'fixture://records/zzz-visible';"))
+            .await.unwrap().check().unwrap();
+        let page = db.b.knowledge_candidates_page(&reader, generation, None, 1).await.unwrap();
+        assert_eq!(page.len(), 1);
+        assert_eq!(page[0].uri.as_str(), "fixture://records/zzz-visible");
+        let mut active = reader;
+        active.active_work_context = "operations".parse().unwrap();
+        active.work_contexts.insert("operations".parse().unwrap());
+        assert!(db.b.knowledge_candidates_page(&active, generation, None, 1).await.is_err(),
+            "admitted corrupt observations must fail explicitly");
+    }).await.expect("expiry admission qualification exceeded 120 seconds");
 }
 
 async fn qualify_read_policies() {

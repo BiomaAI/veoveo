@@ -163,6 +163,9 @@ pub enum ReadPolicy {
     Subjects {},
     /// Work Context members, the owner, or explicit grant subjects.
     WorkContext {},
+    /// Membership grants read only in the caller's selected Work Context.
+    /// Owner and live subject grants independently permit read.
+    SelectedWorkContext {},
     /// Owner/grant access additionally requires the active Work Context and,
     /// when recorded, the same gateway profile as the source operation.
     SubjectsInContext {
@@ -173,14 +176,38 @@ pub enum ReadPolicy {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ReadGrant {
+    pub subject: AccessSubject,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<DateTime<Utc>>,
+}
+
+impl ReadGrant {
+    pub fn new(subject: AccessSubject) -> Self {
+        Self {
+            subject,
+            expires_at: None,
+        }
+    }
+    pub fn until(mut self, expires_at: DateTime<Utc>) -> Self {
+        self.expires_at = Some(expires_at);
+        self
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AccessDescriptor {
     pub tenant: TenantId,
     pub work_context: WorkContextId,
     pub read_policy: ReadPolicy,
     pub owner: AccessSubject,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub grants: Vec<AccessSubject>,
+    pub grants: Vec<ReadGrant>,
     pub data_labels: Vec<DataLabelId>,
+    /// Deadline for every read path, including tenant, context and owner access.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<DateTime<Utc>>,
 }
 
 /// Attribution uses the platform principal namespace for both humans and services.

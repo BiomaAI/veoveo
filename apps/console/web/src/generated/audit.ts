@@ -477,6 +477,9 @@ export type ReadPolicy =
       kind: "work-context";
     }
   | {
+      kind: "selected-work-context";
+    }
+  | {
       kind: "subjects-in-context";
       profile?: GatewayProfileId | null;
     };
@@ -837,11 +840,23 @@ export interface KnowledgeReadObservation {
  */
 export interface AccessDescriptor {
   dataLabels: DataLabelId[];
-  grants?: AccessSubject[];
+  /**
+   * Deadline for every read path, including tenant, context and owner access.
+   */
+  expiresAt?: string | null;
+  grants?: ReadGrant[];
   owner: AccessSubject;
   readPolicy: ReadPolicy;
   tenant: TenantId;
   workContext: WorkContextId;
+}
+/**
+ * This interface was referenced by `AuditReaderApi`'s JSON-Schema
+ * via the `definition` "ReadGrant".
+ */
+export interface ReadGrant {
+  expiresAt?: string | null;
+  subject: AccessSubject;
 }
 /**
  * This interface was referenced by `AuditReaderApi`'s JSON-Schema

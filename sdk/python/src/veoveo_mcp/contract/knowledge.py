@@ -136,7 +136,7 @@ class CollectionDescriptor(WireModel):
 
 
 class AudienceReadPolicy(WireModel):
-    kind: Literal["tenant", "subjects", "work-context"]
+    kind: Literal["tenant", "subjects", "work-context", "selected-work-context"]
 
 
 class SubjectsInContextReadPolicy(WireModel):
@@ -147,13 +147,19 @@ class SubjectsInContextReadPolicy(WireModel):
 ReadPolicy = Annotated[AudienceReadPolicy | SubjectsInContextReadPolicy, Field(discriminator="kind")]
 
 
+class ReadGrant(WireModel):
+    subject: AccessSubject
+    expires_at: AwareDatetime | None = None
+
+
 class AccessDescriptor(WireModel):
     tenant: TenantId
     work_context: WorkContextId
     read_policy: ReadPolicy
     owner: AccessSubject
-    grants: tuple[AccessSubject, ...] = ()
+    grants: tuple[ReadGrant, ...] = ()
     data_labels: tuple[DataLabelId, ...]
+    expires_at: AwareDatetime | None = None
 
 
 class ModifiedBy(WireModel):

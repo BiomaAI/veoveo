@@ -16,7 +16,10 @@ MCP Apps uses SEP-1865 / `io.modelcontextprotocol/ui` `2026-01-26`; the
 server-owned `ui://artifact/library.html` resource is the canonical Library UI.
 Artifact bytes use HTTP GET, HEAD, and single byte-range semantics through the
 installation origin. The private S3-compatible API is not an MCP or client
-contract.
+contract. The repository-owned
+[`ai.veoveo/knowledge-source`](../../mcp/knowledge-extension/DESIGN.md) extension
+publishes metadata observations, strong revision validators and cursor enumeration.
+Its dates use RFC 3339 and content digests use SHA-256.
 
 ## Protocol Surface
 
@@ -98,6 +101,36 @@ own authorization and transport qualification.
 <!-- TODO(foundations): Finish installed Artifact sharing and Computers hosted feature
 qualification at the Phase 3 integration checkpoint. Installed Artifact delivery and
 Speech CUDA transcription/dictation pass; keep the reference cluster stopped during development. -->
+
+## Knowledge Metadata
+
+`artifact.metadata` declares `artifact://metadata/{artifact_id}` members and enumerates
+through `artifact://index{?cursor}`. `src/knowledge.rs` builds observations from the
+Artifact service's checked metadata snapshot. Members contain at most 64 KiB of JSON
+metadata and the neutral Artifact byte URI. The collection uses `content` indexing
+for that metadata JSON; artifact bytes have no knowledge collection or text extraction.
+
+Each observation records the tenant, owner, classification and labels, selected Work
+Context sharing, and read grants with their stored deadlines. The occurrence retention
+deadline applies to every read path. The adapter checks the protected owner grant
+before declaring owner access. It preserves the metadata update time and omits
+`modifiedBy` because the ledger does not record the latest modifying principal.
+
+The content digest covers the exact returned UTF-8 text. The revision includes that
+text and its access descriptor, so a grant change invalidates a cached revision even
+when metadata text is unchanged. Conditional reads authorize through Artifact service
+before comparing the validator. Negotiated responses carry observations; ordinary
+resource reads return the same neutral metadata text. The metadata tool supplies the
+installation download location for interactive use.
+
+The collection declares `listen` changes and a 300-second freshness lifetime. Source
+deadlines remain effective regardless of that lifetime. Index pages and metadata members
+are subscribable. A member listener terminates if a change makes its resource unreadable,
+allowing the consumer to invalidate and reconcile after the stream closes.
+
+Native tests qualify snapshot mapping, policy and deadline preservation, content/access
+revisions, metadata bounds and conditional responses. Installed K01–K10 qualification
+and source mutation/restart probes remain open in the foundations plan.
 
 ## Resource Observation
 

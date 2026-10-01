@@ -64,12 +64,15 @@ retired generation; retaining it does not authorize rolling the active pointer b
 by its profile. SQL selects the tenant and active generation, current collection
 approval fingerprint, non-stale member, source read policy and every required
 clearance label before ordering and LIMIT. `admission.rs` derives the typed SQL fields
-from the observation. A stored Work Context permits membership reads only for the
-`work-context` policy. The `subjects` policy requires an owner/grant match even when
+from the observation. The `work-context` policy permits read membership in the stored
+context. The `selected-work-context` policy additionally requires that the caller
+selects it; owner and live grants remain independent read paths. The `subjects` policy requires an owner/grant match even when
 the caller shares that context. `subjects-in-context` additionally matches the current
 selected context and the source profile when recorded; membership in another context
 cannot satisfy that condition. `tenant` permits readers admitted to the collection
-within its tenant. Profile-wide docs have no record access descriptor and use the
+within its tenant. Every policy stops at the source's record deadline. SQL tests
+principal and group grant deadlines at query time; it never turns an expiring grant
+into a permanent subject in the index. Profile-wide docs have no record access descriptor and use the
 collection's current profile admission.
 
 Cursor pages contain at most 100
@@ -88,6 +91,7 @@ to the knowledge service phase of the [foundations plan](../../../../docs/PLATFO
 with two database-editor connections and a 120-second timeout. Synthetic normalized
 vectors qualify storage, not inference or GPU execution. The fixture owns cleanup.
 It checks incomplete activation, SQL denial before decoding and limits, owner-only and
-group-grant reads, selected-context and profile restrictions, tenant sharing, stale-reader
+group-grant reads, selected-context and profile restrictions, record and grant expiry
+without reindexing, tenant sharing, stale-reader
 fencing, approval revocation, space separation, active-pointer compare-and-set,
 definitive deletion, and generation reclamation with native referential cleanup.

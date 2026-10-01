@@ -1,5 +1,6 @@
 //! SQL fields derived only from the source's checked observation.
 use super::serialize_subject;
+use chrono::{DateTime, Utc};
 use surrealdb::types::SurrealValue;
 use veoveo_mcp_knowledge_extension::{AccessDescriptor, ReadPolicy};
 
@@ -7,11 +8,19 @@ use veoveo_mcp_knowledge_extension::{AccessDescriptor, ReadPolicy};
 pub(super) struct Admission {
     pub tenant_read: bool,
     pub context_read: bool,
+    pub selected_context_read: bool,
+    pub expires_at: Option<DateTime<Utc>>,
     pub work_context: Option<String>,
     pub required_context: Option<String>,
     pub required_profile: Option<String>,
-    pub subjects: Vec<String>,
+    pub grants: Vec<Grant>,
     pub labels: Vec<String>,
+}
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, SurrealValue)]
+pub(super) struct Grant {
+    subject: String,
+    expires_at: Option<DateTime<Utc>>,
 }
 
 impl From<Option<&AccessDescriptor>> for Admission {
@@ -20,26 +29,35 @@ impl From<Option<&AccessDescriptor>> for Admission {
             return Self {
                 tenant_read: true,
                 context_read: false,
+                selected_context_read: false,
+                expires_at: None,
                 work_context: None,
                 required_context: None,
                 required_profile: None,
-                subjects: vec![],
+                grants: vec![],
                 labels: vec![],
             };
         };
-        let mut subjects: Vec<_> = access
+        let mut grants: Vec<_> = access
             .grants
             .iter()
-            .chain(std::iter::once(&access.owner))
-            .map(serialize_subject)
+            .map(|grant| Grant {
+                subject: serialize_subject(&grant.subject),
+                expires_at: grant.expires_at,
+            })
+            .chain(std::iter::once(Grant {
+                subject: serialize_subject(&access.owner),
+                expires_at: None,
+            }))
             .collect();
-        subjects.sort();
-        subjects.dedup();
+        grants.sort();
+        grants.dedup();
         let (tenant_read, context_read, required_context, required_profile) =
             match &access.read_policy {
                 ReadPolicy::Tenant {} => (true, false, None, None),
                 ReadPolicy::Subjects {} => (false, false, None, None),
                 ReadPolicy::WorkContext {} => (false, true, None, None),
+                ReadPolicy::SelectedWorkContext {} => (false, false, None, None),
                 ReadPolicy::SubjectsInContext { profile } => (
                     false,
                     false,
@@ -50,10 +68,12 @@ impl From<Option<&AccessDescriptor>> for Admission {
         Self {
             tenant_read,
             context_read,
+            selected_context_read: matches!(access.read_policy, ReadPolicy::SelectedWorkContext {}),
+            expires_at: access.expires_at,
             work_context: Some(access.work_context.to_string()),
             required_context,
             required_profile,
-            subjects,
+            grants,
             labels: access.data_labels.iter().map(ToString::to_string).collect(),
         }
     }
