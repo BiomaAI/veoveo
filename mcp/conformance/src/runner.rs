@@ -188,8 +188,8 @@ pub async fn run_hosted_server_conformance(
         || tasks_advertised;
 
     let tools = if should_query(profile.surfaces.tools, tools_advertised) {
-        match client.list_tools(Default::default()).await {
-            Ok(result) => Some(result.tools),
+        match crate::catalog::tools(&client).await {
+            Ok(result) => Some(result),
             Err(error) => {
                 checks.push(failed(
                     "VV-MCP-TOOLS-001",
@@ -212,8 +212,8 @@ pub async fn run_hosted_server_conformance(
         })
         .unwrap_or_default();
     let resources = if should_query(profile.surfaces.resources, resources_advertised) {
-        match client.list_resources(Default::default()).await {
-            Ok(result) => Some(result.resources),
+        match crate::catalog::resources(&client).await {
+            Ok(result) => Some(result),
             Err(error) => {
                 checks.push(failed(
                     "VV-MCP-RESOURCES-001",
@@ -245,8 +245,8 @@ pub async fn run_hosted_server_conformance(
     );
 
     let templates = if resources_advertised {
-        match client.list_resource_templates(Default::default()).await {
-            Ok(result) => Some(result.resource_templates),
+        match crate::catalog::templates(&client).await {
+            Ok(result) => Some(result),
             Err(error) => {
                 checks.push(failed(
                     "VV-MCP-TEMPLATES-001",
@@ -279,8 +279,8 @@ pub async fn run_hosted_server_conformance(
     );
 
     let prompts = if should_query(profile.surfaces.prompts, prompts_advertised) {
-        match client.list_prompts(Default::default()).await {
-            Ok(result) => Some(result.prompts),
+        match crate::catalog::prompts(&client).await {
+            Ok(result) => Some(result),
             Err(error) => {
                 checks.push(failed(
                     "VV-MCP-PROMPTS-001",

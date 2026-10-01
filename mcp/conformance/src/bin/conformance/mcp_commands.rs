@@ -1,6 +1,5 @@
-use std::collections::BTreeSet;
-
 use anyhow::{Context, bail};
+use veoveo_mcp_conformance::catalog;
 use veoveo_media_mcp::contract::{MediaGenerationResult, MediaModelUri};
 
 use super::client::Client;
@@ -61,10 +60,10 @@ pub(super) async fn cmd_info(client: &Client) -> Result<()> {
     if let Some(instructions) = &info.instructions {
         println!("instructions:\n{instructions}");
     }
-    let tools = client.list_tools(Default::default()).await?;
-    validate_tool_schemas(&tools.tools)?;
-    println!("schema compatibility: {} tool(s) valid", tools.tools.len());
-    for tool in tools.tools {
+    let tools = catalog::tools(client).await?;
+    validate_tool_schemas(&tools)?;
+    println!("schema compatibility: {} tool(s) valid", tools.len());
+    for tool in tools {
         println!("\ntool `{}`", tool.name);
         if let Some(annotations) = &tool.annotations {
             println!("  annotations: {}", serde_json::to_string(annotations)?);
@@ -78,16 +77,16 @@ pub(super) async fn cmd_info(client: &Client) -> Result<()> {
             println!("  output schema: {}", serde_json::to_string(schema)?);
         }
     }
-    let prompts = client.list_prompts(Default::default()).await?;
-    for prompt in prompts.prompts {
+    let prompts = catalog::prompts(client).await?;
+    for prompt in prompts {
         println!(
             "prompt `{}` — {}",
             prompt.name,
             prompt.description.unwrap_or_default()
         );
     }
-    let templates = client.list_resource_templates(Default::default()).await?;
-    for t in templates.resource_templates {
+    let templates = catalog::templates(client).await?;
+    for t in templates {
         println!(
             "template: {} — {}",
             t.uri_template,
@@ -213,7 +212,7 @@ pub(super) async fn cmd_apps_check(client: &Client) -> Result<()> {
             veoveo_mcp_apps_extension::EXTENSION_ID
         );
     }
-    let resources = list_all_resources(client).await?;
+    let resources = catalog::resources(client).await?;
     let app_uris: Vec<String> = resources
         .iter()
         .filter(|resource| veoveo_mcp_apps_extension::is_app_resource(resource))
@@ -225,9 +224,9 @@ pub(super) async fn cmd_apps_check(client: &Client) -> Result<()> {
             veoveo_mcp_apps_extension::APP_MIME_TYPE
         );
     }
-    let tools = client.list_tools(Default::default()).await?;
+    let tools = catalog::tools(client).await?;
     let mut linked_tools = 0usize;
-    for tool in &tools.tools {
+    for tool in &tools {
         if let Some(link) = veoveo_mcp_apps_extension::tool_app_link(tool) {
             if !app_uris.contains(&link.resource_uri) {
                 bail!(
@@ -275,28 +274,6 @@ pub(super) async fn cmd_apps_check(client: &Client) -> Result<()> {
         linked_tools
     );
     Ok(())
-}
-
-async fn list_all_resources(client: &Client) -> Result<Vec<Resource>> {
-    const MAX_PAGES: usize = 1_024;
-
-    let mut resources = Vec::new();
-    let mut cursor = None;
-    let mut seen_cursors = BTreeSet::new();
-    for _ in 0..MAX_PAGES {
-        let page = client
-            .list_resources(Some(PaginatedRequestParams::default().with_cursor(cursor)))
-            .await?;
-        resources.extend(page.resources);
-        let Some(next_cursor) = page.next_cursor else {
-            return Ok(resources);
-        };
-        if !seen_cursors.insert(next_cursor.clone()) {
-            bail!("resources/list repeated cursor `{next_cursor}`");
-        }
-        cursor = Some(next_cursor);
-    }
-    bail!("resources/list exceeded {MAX_PAGES} pages")
 }
 
 /// Rejects fetch-capable references to external origins. Namespace

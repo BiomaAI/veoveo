@@ -49,7 +49,7 @@ impl ServerHandler for DomainFixture {
 
     async fn list_tools(
         &self,
-        _request: Option<PaginatedRequestParams>,
+        request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, rmcp::ErrorData> {
         let schema: JsonObject = serde_json::from_value(serde_json::json!({
@@ -60,9 +60,14 @@ impl ServerHandler for DomainFixture {
             "additionalProperties": false
         }))
         .unwrap();
+        let last = request.and_then(|request| request.cursor).is_some();
         Ok(ListToolsResult {
-            tools: vec![Tool::new("inspect", "Inspect one value.", schema)],
-            next_cursor: None,
+            tools: vec![Tool::new(
+                if last { "inspect" } else { "first_page" },
+                "Inspect one value.",
+                schema,
+            )],
+            next_cursor: (!last).then(|| "tools-last".to_owned()),
             result_type: Some(rmcp::model::ResultType::COMPLETE),
             ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
             cache_scope: Some(rmcp::model::CacheScope::Private),
@@ -72,17 +77,21 @@ impl ServerHandler for DomainFixture {
 
     async fn list_resources(
         &self,
-        _request: Option<PaginatedRequestParams>,
+        request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, rmcp::ErrorData> {
+        let last = request.and_then(|request| request.cursor).is_some();
         Ok(ListResourcesResult {
-            resources: vec![
-                Resource::new("domain://docs", "contract documentation"),
-                Resource::new("domain://docs/agents", "agent work manual"),
-                Resource::new("domain://docs/design", "domain design"),
-                Resource::new("domain://contract", "contract declaration"),
-            ],
-            next_cursor: None,
+            resources: if last {
+                vec![
+                    Resource::new("domain://docs/agents", "agent work manual"),
+                    Resource::new("domain://docs/design", "domain design"),
+                    Resource::new("domain://contract", "contract declaration"),
+                ]
+            } else {
+                vec![Resource::new("domain://docs", "contract documentation")]
+            },
+            next_cursor: (!last).then(|| "resources-last".to_owned()),
             result_type: Some(rmcp::model::ResultType::COMPLETE),
             ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
             cache_scope: Some(rmcp::model::CacheScope::Private),

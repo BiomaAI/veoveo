@@ -1,5 +1,7 @@
 //! Domain-neutral certification for a running Veoveo hosted MCP server.
 
+pub mod catalog;
+
 mod profile;
 mod report;
 mod runner;

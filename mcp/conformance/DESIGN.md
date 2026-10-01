@@ -25,6 +25,11 @@ a compiled registry of domains. Other protocol utilities can consume server-owne
 contract features. Domain lifecycle smoke and database selection tests belong to the
 component that owns the domain.
 
+Certification, `info` and `apps-check` traverse every advertised catalog page through
+the same typed reader. Each surface permits at most 1,024 pages and 16,384 items within
+30 seconds. Repeated cursors fail the read. Required tools, schemas and App links are
+checked across the complete traversal, including descriptors on later pages.
+
 The `modular_server` integration test hosts the independent
 [`modular-mcp` fixture](../../testing/fixtures/modular-mcp/DESIGN.md), which is a
 development dependency. The fixture owns its scopes and resource family in a library

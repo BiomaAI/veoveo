@@ -40,18 +40,31 @@ The installed pass verifies public installation health, OAuth and ranged Artifac
 delivery. Audit verification passes for both partitions (8 installation blocks and
 23 tenant blocks), with no clock findings. S3 object and seal readback matches the
 database for four blocks per partition; both S3 and OTLP have committed receipts and
-cursors. Hosted certification passes for 16 of 17 servers. The grouped source repair
+cursors. Hosted certification passes for all 17 servers after the Datasheet recheck.
+The grouped source repair
 adds Python's missing typed audit correlation and managed-agent fields, sends CLI
 diagnostics to stderr without starting hosted exporters, validates browser JSON Schema
 with the existing SDK's CSP-compatible interpreter, and corrects Map/Time registration
 to match their static catalogs. Native CLI tamper and export checks, shared Rust
 request-context fixtures, Python SDK/template tests, both browser applications and
 Helm configuration qualify the changes. The three affected images are published from
-`b5457e91`; the installation selects their runtime digests. BuildKit is stopped and
-the cluster is restarted for installed rechecks, which remain open.
-The submitted Map acquisition `acquisition-01a0f4ff-18ee-7871-8205-13b887aae208`
-must be observed after the catalog repair rather than submitted again. Composed flight
-and Console LIVE/reconnect acceptance remain open.
+`b5457e91`; both Helm releases and all workloads converge at `3c2b5726`.
+Map preparation reuses acquisition `acquisition-01a0f4ff-18ee-7871-8205-13b887aae208`
+and verifies active release `release-01a0f4ff-1bec-7fd0-b011-ddf69496d2e0`.
+The headed Console displays audit records and recovers two records committed during
+a forced connection loss, using the same view receipt. Its WebGL context uses the RTX 4090.
+
+Installed export exposed a sealer throughput defect: it waited one second after each
+32-entry database change-feed page, allowing unrelated recording writes to delay an
+export marker by roughly 98 seconds. The repaired worker batches once, drains subsequent
+pages immediately and reports initial readiness after catching up. Its RocksDB regression
+seals a marker behind 768 unrelated commits within the reader's ten-second deadline.
+Flight acceptance stopped before movement because the conformance CLI inspected only
+the first tools page. The shared catalog readers now follow all four paginated surfaces,
+with cycle detection, a 30-second deadline and page/item limits. Native service and
+paginated hosted-certification checks pass. The cluster is stopped during qualification
+and gateway publication. Installed export and composed flight acceptance remain open;
+the complete hosted certification will run again with the corrected reader.
 
 The unified audit cut spans the contract, Store, writer, gateway and deployment inputs.
 `platform/audit/contract` sits below Store
