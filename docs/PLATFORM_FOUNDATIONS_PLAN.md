@@ -82,6 +82,16 @@ branch fails on the gateway's earlier 503 response, so full showcase acceptance 
 open. The cluster is stopped after the domain harness completes its owned cleanup.
 Installed audit verification and composed visual acceptance remain open.
 
+The next repair batch (`9a235acc`) passes 162 native tests, including busy-feed
+export, concurrent receipt persistence, delayed sealing and public CLI tamper cases;
+strict Clippy, formatting and documentation checks pass. Its installed gateway
+verifies both partitions (216 installation blocks/250 records and 320 tenant
+blocks/801 records), and recent S3 blocks match their stored hashes with both export
+receipts present. Reference convergence exposes a stale `k3d-values.yaml` override
+that requires 200 GiB free space for Recording Hub. Removing that override selects
+the chart's existing 1 GiB admission floor, following the plan's resource direction.
+It preserves the PVC request and does not discard build or model caches.
+
 The unified audit cut spans the contract, Store, writer, gateway and deployment inputs.
 `platform/audit/contract` sits below Store
 and MCP; the writer depends on Store. The working batch includes checked drafts and

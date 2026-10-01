@@ -23,10 +23,6 @@ domainServiceReplicas:
   chart-mcp: 1
 recording:
   tenantKey: bioma
-  # local-path does not enforce PVC capacity or support expansion. Keep the
-  # existing nominal request and enforce the release/kubelet reserve through
-  # the Hub's actual-filesystem floor.
-  spoolMinimumFreeBytes: 214748364800
   persistence:
     size: 20Gi
 stream:
