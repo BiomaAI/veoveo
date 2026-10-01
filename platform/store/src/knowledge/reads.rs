@@ -2,10 +2,11 @@ use super::admission::Admission;
 use super::*;
 use crate::PlatformStore;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use veoveo_mcp_knowledge_extension::Observation;
 use veoveo_types::{
-    AccessSubject, DataLabelId, GatewayProfileId, ResourceUri, ScopeName, WorkContextId,
+    AccessSubject, DataLabelId, GatewayProfileId, ResourceSelection, ResourceUri, ScopeName,
+    WorkContextId,
 };
 
 /// Constructed from current caller policy, including source-profile admission.
@@ -15,7 +16,7 @@ pub struct CandidateScope {
     pub tenant: TenantId,
     pub profile: GatewayProfileId,
     pub active_work_context: WorkContextId,
-    pub collections: BTreeSet<CollectionId>,
+    pub collections: BTreeMap<CollectionId, ResourceSelection>,
     pub work_contexts: BTreeSet<WorkContextId>,
     pub subjects: BTreeSet<AccessSubject>,
     pub scopes: BTreeSet<ScopeName>,
@@ -107,7 +108,7 @@ impl PlatformStore {
             cursor.tenant != scope.tenant
                 || cursor.generation != generation
                 || cursor.ordinal >= 256
-                || !scope.collections.contains(&cursor.collection)
+                || !scope.collections.contains_key(&cursor.collection)
         }) {
             return Err(StoreError::Knowledge(
                 "candidate cursor belongs to another tenant, generation or collection",
@@ -115,6 +116,10 @@ impl PlatformStore {
         }
         let sql = include_str!("candidates.surql")
             .replace("__ADMISSION__", include_str!("admitted.surql"))
+            .replace(
+                "__URI_SELECTION__",
+                include_str!("resource_selection.surql"),
+            )
             .replace("__TABLE__", &chunk_table(generation));
         let mut response = scope
             .bind(self.client().query(sql), generation)
@@ -124,7 +129,7 @@ impl PlatformStore {
             .bind(("limit", i64::from(limit)))
             .await?
             .knowledge_check()?;
-        let rows: Vec<Row> = response.take(0)?;
+        let rows: Vec<Row> = response.take(response.num_statements() - 1)?;
         rows.into_iter()
             .map(|row| row.checked(scope, generation))
             .collect()
@@ -134,6 +139,12 @@ impl PlatformStore {
 impl CandidateScope {
     pub(super) fn validate(&self) -> Result<(), StoreError> {
         if self.collections.len() > 1024
+            || self
+                .collections
+                .values()
+                .map(|selection| selection.selectors.len())
+                .sum::<usize>()
+                > 1024
             || self.work_contexts.len() > 1024
             || self.subjects.len() > 1024
             || self.clearance.len() > 1024
@@ -165,11 +176,8 @@ impl CandidateScope {
                 RecordId::new("knowledge_active", self.tenant.as_str()),
             ))
             .bind((
-                "collections",
-                self.collections
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>(),
+                "resource_selections",
+                super::resource_selection::bindings(&self.collections),
             ))
             .bind((
                 "contexts",

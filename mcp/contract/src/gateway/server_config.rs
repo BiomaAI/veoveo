@@ -145,14 +145,6 @@ pub enum Exposure<T> {
     None,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case", tag = "kind")]
-pub enum ResourceSelector {
-    Scheme { scheme: ResourceScheme },
-    UriPrefix { prefix: ResourceUriPrefix },
-    Template { uri_template: ResourceUriTemplate },
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum CompletionExposure {
@@ -535,100 +527,6 @@ impl FromStr for CertificateAuthorityFilePath {
 
 impl From<CertificateAuthorityFilePath> for String {
     fn from(value: CertificateAuthorityFilePath) -> Self {
-        value.0
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
-#[serde(try_from = "String", into = "String")]
-pub struct ResourceUriPrefix(String);
-
-impl ResourceUriPrefix {
-    pub fn new(value: impl Into<String>) -> Result<Self, IdentifierError> {
-        let value = value.into();
-        validate_resource_pattern(&value)?;
-        Ok(Self(value))
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl AsRef<str> for ResourceUriPrefix {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl fmt::Display for ResourceUriPrefix {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
-    }
-}
-
-impl TryFrom<String> for ResourceUriPrefix {
-    type Error = IdentifierError;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::new(value)
-    }
-}
-
-impl From<ResourceUriPrefix> for String {
-    fn from(value: ResourceUriPrefix) -> Self {
-        value.0
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
-#[serde(try_from = "String", into = "String")]
-pub struct ResourceUriTemplate(String);
-
-impl ResourceUriTemplate {
-    pub fn new(value: impl Into<String>) -> Result<Self, IdentifierError> {
-        let value = value.into();
-        validate_uri_template(&value)?;
-        Ok(Self(value))
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-
-    pub fn matches_uri(&self, uri: &ResourceUri) -> bool {
-        resource_uri_template_matches(self.as_str(), uri.as_str())
-    }
-
-    /// Apply the existing selector to the declaration's spelling. This does not
-    /// establish containment of all RFC 6570 expansions; reads are checked again.
-    pub fn matches_template(&self, template: &veoveo_types::ResourceTemplateUri) -> bool {
-        resource_uri_template_matches(self.as_str(), template.as_str())
-    }
-}
-
-impl AsRef<str> for ResourceUriTemplate {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl fmt::Display for ResourceUriTemplate {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
-    }
-}
-
-impl TryFrom<String> for ResourceUriTemplate {
-    type Error = IdentifierError;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::new(value)
-    }
-}
-
-impl From<ResourceUriTemplate> for String {
-    fn from(value: ResourceUriTemplate) -> Self {
         value.0
     }
 }

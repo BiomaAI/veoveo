@@ -1,7 +1,6 @@
 //! Resource ownership and lexical profile selectors shared by reads and declarations.
 use veoveo_mcp_contract::{
-    Exposure, GatewayProfile, PolicyReasonCode, ResourceProjectionMode, ResourceSelector,
-    ServerSlug,
+    Exposure, GatewayProfile, PolicyReasonCode, ResourceProjectionMode, ServerSlug,
 };
 use veoveo_types::{ResourceTemplateUri, ResourceUri};
 
@@ -48,15 +47,9 @@ pub(crate) fn profile_allows_resource(
     let allowed = match &exposure.resources {
         Exposure::All => true,
         Exposure::None => false,
-        Exposure::Listed(selectors) => selectors.iter().any(|selector| match selector {
-            ResourceSelector::Scheme { scheme: allowed } => allowed == &scheme,
-            ResourceSelector::UriPrefix { prefix } => {
-                reference.as_str().starts_with(prefix.as_ref())
-            }
-            ResourceSelector::Template { uri_template } => match &reference {
-                ResourcePolicyReference::Concrete(uri) => uri_template.matches_uri(uri),
-                ResourcePolicyReference::Template(uri) => uri_template.matches_template(uri),
-            },
+        Exposure::Listed(selectors) => selectors.iter().any(|selector| match &reference {
+            ResourcePolicyReference::Concrete(uri) => selector.matches_uri(uri),
+            ResourcePolicyReference::Template(uri) => selector.matches_template(uri),
         }),
     };
     allowed.then_some(()).ok_or(PolicyReasonCode::PolicyDeny)

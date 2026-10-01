@@ -32,6 +32,7 @@ mod platform_names;
 mod provenance;
 mod resource;
 mod resource_components;
+mod resource_selector;
 mod resource_template;
 mod scopes;
 pub mod sha256_hex;
@@ -50,6 +51,9 @@ pub use names::{ResourceScheme, ScopeDefinition, ScopeName};
 pub use resource::{ResourceAddress, ResourceUri, TaskResourceAddress};
 pub use resource_components::{
     ResourceUriBuilder, ResourceUriError, ResourceUriParts, UriAuthority, UriSegment,
+};
+pub use resource_selector::{
+    ResourceSelection, ResourceSelector, ResourceUriPrefix, ResourceUriTemplate,
 };
 pub use resource_template::{ResourceTemplateError, ResourceTemplateUri};
 

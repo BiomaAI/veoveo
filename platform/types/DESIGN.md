@@ -25,6 +25,11 @@
 `UriAuthority`, `UriSegment`, and `ResourceUriError` implement concrete component handling.
 `ResourceUriBuilder::from_parts` extends checked addresses while preserving their
 existing query pairs and rejecting duplicate added names.
+`ResourceSelector`, `ResourceUriPrefix`, `ResourceUriTemplate` and `ResourceSelection`
+own lexical URI selection below protocol and persistence adapters. `ResourceSelection`
+intersects an owning scheme with the profile's selectors; constructing it confers no
+permission. The policy evaluator supplies authorized selections.
+
 `ResourceTemplateUri` and `ResourceTemplateError` own template admission and expansion.
 `expand_scalars` accepts a standard string map for scalar variables and delegates to
 the same iri-string expansion engine. Consumers need no URI-library context for this
@@ -278,3 +283,20 @@ identities, agent definition/model/template/instance names, and authentication m
 and reason codes. MCP re-exports these types for its protocol consumers. The audit
 contract imports them directly without depending on MCP or the gateway. A managed-agent
 instance is a validated installation name; it is not assumed to be a UUID.
+
+## Resource Selection
+
+`ResourceSelector` admits a scheme, a literal prefix, or a restricted template.
+`ResourceUriTemplate` accepts simple lowercase `{variable}` identifiers separated by
+literal text. Each variable consumes nonempty text up to the first occurrence of the
+next literal. The matcher does not retry later occurrences when the first match leaves
+an empty variable or an unmatched suffix. A trailing variable consumes the rest.
+For example, `example://item/{id}-end` matches `example://item/a-end` and rejects
+`example://item/a-end-end`.
+
+`literal_segments` exposes the checked template as bound data for database adapters.
+It includes the initial literal and one following literal per variable; an empty final
+literal denotes a trailing variable. Adapters qualify parity with `matches_uri` before
+using this representation for admission. Prefixes preserve their literal spelling,
+including encoded delimiters. This selection language has separate semantics from
+RFC 6570 expansion through `ResourceTemplateUri`.

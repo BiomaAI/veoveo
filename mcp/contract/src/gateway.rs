@@ -3,6 +3,7 @@ use veoveo_types::{
     DataLabelId, DelegationId, GroupId, IdentifierError, PolicyVersion, PrincipalId,
     ResourceScheme, ResourceUri, RoleId, ScopeName, TenantId, WorkContextId,
 };
+pub use veoveo_types::{ResourceSelector, ResourceUriPrefix, ResourceUriTemplate};
 
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
@@ -17,9 +18,8 @@ use validation::{
     validate_server_upstream_tls_material,
 };
 use wire::{
-    resource_uri_template_matches, validate_https_url, validate_local_file_path,
-    validate_mount_path, validate_oauth_endpoint_url, validate_oauth_redirect_uri,
-    validate_resource_pattern, validate_upstream_url, validate_uri_template,
+    validate_https_url, validate_local_file_path, validate_mount_path, validate_oauth_endpoint_url,
+    validate_oauth_redirect_uri, validate_upstream_url,
 };
 
 pub const MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION: &str =

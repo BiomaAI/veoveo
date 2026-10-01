@@ -45,7 +45,12 @@ keeps overlap within a section. Metadata indexing constructs text from a title a
 closed set of observation fields; it excludes source bodies, access subjects and external
 navigation URLs. Embedding requests contain at most 32 texts and 128 KiB.
 
-`SearchCaller` comes from current authenticated authority. Search requests can narrow
+`SearchCaller::from_policy` resolves collection selections through the shared policy
+evaluator and recomputes Work Context membership from one current catalog. It checks
+the signed active context's tenant, membership and policy revision. Each collection
+carries the owning scheme and profile URI selectors; both SQL ranking inputs enforce
+them. The transport must establish current identity/session authority before calling
+this constructor. Search requests can narrow
 its exposed collections. They cannot supply tenant, groups, clearance or membership.
 Store applies those predicates to both ranking inputs and selects one best chunk per
 member before returning rows. Search begins with 128 candidates per ranking and expands
@@ -160,7 +165,7 @@ subject access constrained to the current context and optional profile. A member
 policy requires membership in the selected context even for the owner. Record expiry
 ends every read path; an individual grant's expiry ends access through that grant.
 A stored Work Context alone grants no read permission.
-The search query applies these predicates and current collection exposure inside
+The search query applies these predicates and current collection exposure, including scheme/prefix/template URI selectors, inside
 SurrealDB before candidate decoding, ordering and LIMIT. Vector retrieval may require
 additional candidate pages to fill the result limit after database filtering.
 

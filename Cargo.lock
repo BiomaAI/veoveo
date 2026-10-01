@@ -16620,6 +16620,7 @@ dependencies = [
  "veoveo-mcp-contract",
  "veoveo-mcp-knowledge-extension",
  "veoveo-platform-store",
+ "veoveo-policy",
  "veoveo-types",
 ]
 

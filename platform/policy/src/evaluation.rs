@@ -194,26 +194,10 @@ pub fn decide(catalog: &impl PolicyCatalogView, request: PolicyRequest<'_>) -> P
         );
     };
 
-    if request
-        .principal
-        .data_labels
-        .iter()
-        .any(|label| catalog.data_label(label).is_none())
-    {
+    if let Err(reason) = validate_principal(catalog, request.principal) {
         return deny(
             &request,
-            PolicyReasonCode::UnknownDataLabel,
-            request.target.clone(),
-            Some(policy.version.clone()),
-        );
-    }
-
-    if let Some(tenant) = &request.principal.tenant
-        && catalog.tenant(tenant).is_none()
-    {
-        return deny(
-            &request,
-            PolicyReasonCode::UnknownTenant,
+            reason,
             request.target.clone(),
             Some(policy.version.clone()),
         );
@@ -237,110 +221,104 @@ pub fn decide(catalog: &impl PolicyCatalogView, request: PolicyRequest<'_>) -> P
         );
     }
 
-    let matching_denial = policy
+    let outcome = evaluate_rules(profile, policy, request.principal, request.action, |rule| {
+        matches_target_filters(rule, request.target)
+    });
+    decision(
+        &request,
+        outcome.effect,
+        outcome.reason,
+        request.target.clone(),
+        Some(policy.version.clone()),
+        outcome.rule_id,
+    )
+}
+
+pub(crate) fn validate_principal(
+    catalog: &impl PolicyCatalogView,
+    principal: &Principal,
+) -> Result<(), PolicyReasonCode> {
+    if principal
+        .data_labels
+        .iter()
+        .any(|label| catalog.data_label(label).is_none())
+    {
+        return Err(PolicyReasonCode::UnknownDataLabel);
+    }
+    if principal
+        .tenant
+        .as_ref()
+        .is_some_and(|tenant| catalog.tenant(tenant).is_none())
+    {
+        return Err(PolicyReasonCode::UnknownTenant);
+    }
+    Ok(())
+}
+
+pub(crate) struct RuleOutcome {
+    pub effect: PolicyEffect,
+    pub reason: PolicyReasonCode,
+    pub rule_id: Option<PolicyRuleId>,
+}
+
+/// One rule evaluator for concrete requests and resource-family admission.
+/// The latter defers only lexical profile selection to the database.
+pub(crate) fn evaluate_rules(
+    profile: &GatewayProfile,
+    policy: &veoveo_mcp_contract::PolicySet,
+    principal: &Principal,
+    action: GatewayAction,
+    target_matches: impl Fn(&PolicyRule) -> bool,
+) -> RuleOutcome {
+    let detail = |rule: &PolicyRule| {
+        rule_match_detail(rule, profile, principal, action, target_matches(rule))
+    };
+    if let Some(rule) = policy
         .rules
         .iter()
-        .find(|rule| {
-            rule.effect == PolicyEffect::Deny
-                && rule_match_detail(rule, profile, &request) == RuleMatchDetail::Match
-        })
-        .map(|rule| rule.id.clone());
-    if let Some(rule_id) = matching_denial {
-        return decision(
-            &request,
-            PolicyEffect::Deny,
-            PolicyReasonCode::PolicyDeny,
-            request.target.clone(),
-            Some(policy.version.clone()),
-            Some(rule_id),
-        );
+        .find(|rule| rule.effect == PolicyEffect::Deny && detail(rule) == RuleMatchDetail::Match)
+    {
+        return RuleOutcome {
+            effect: PolicyEffect::Deny,
+            reason: PolicyReasonCode::PolicyDeny,
+            rule_id: Some(rule.id.clone()),
+        };
     }
-
-    let mut strongest_missing_requirement: Option<(PolicyReasonCode, PolicyRuleId)> = None;
+    let mut missing = None;
     for rule in &policy.rules {
         if rule.effect != PolicyEffect::Allow {
             continue;
         }
-        match rule_match_detail(rule, profile, &request) {
+        let reason = match detail(rule) {
             RuleMatchDetail::Match => {
-                return decision(
-                    &request,
-                    PolicyEffect::Allow,
-                    PolicyReasonCode::PolicyAllow,
-                    request.target.clone(),
-                    Some(policy.version.clone()),
-                    Some(rule.id.clone()),
-                );
+                return RuleOutcome {
+                    effect: PolicyEffect::Allow,
+                    reason: PolicyReasonCode::PolicyAllow,
+                    rule_id: Some(rule.id.clone()),
+                };
             }
-            RuleMatchDetail::MissingDataLabel => {
-                remember_strongest_missing_requirement(
-                    &mut strongest_missing_requirement,
-                    PolicyReasonCode::MissingDataLabel,
-                    rule.id.clone(),
-                );
-            }
+            RuleMatchDetail::MissingDataLabel => PolicyReasonCode::MissingDataLabel,
             RuleMatchDetail::MissingPrincipalAssurance => {
-                remember_strongest_missing_requirement(
-                    &mut strongest_missing_requirement,
-                    PolicyReasonCode::MissingPrincipalAssurance,
-                    rule.id.clone(),
-                );
+                PolicyReasonCode::MissingPrincipalAssurance
             }
-            RuleMatchDetail::MissingRole => {
-                remember_strongest_missing_requirement(
-                    &mut strongest_missing_requirement,
-                    PolicyReasonCode::MissingRole,
-                    rule.id.clone(),
-                );
-            }
-            RuleMatchDetail::MissingGroup => {
-                remember_strongest_missing_requirement(
-                    &mut strongest_missing_requirement,
-                    PolicyReasonCode::MissingGroup,
-                    rule.id.clone(),
-                );
-            }
-            RuleMatchDetail::MissingTenant => {
-                remember_strongest_missing_requirement(
-                    &mut strongest_missing_requirement,
-                    PolicyReasonCode::MissingTenant,
-                    rule.id.clone(),
-                );
-            }
-            RuleMatchDetail::MissingPrincipal => {
-                remember_strongest_missing_requirement(
-                    &mut strongest_missing_requirement,
-                    PolicyReasonCode::MissingPrincipal,
-                    rule.id.clone(),
-                );
-            }
-            RuleMatchDetail::MissingScope => {
-                remember_strongest_missing_requirement(
-                    &mut strongest_missing_requirement,
-                    PolicyReasonCode::MissingScope,
-                    rule.id.clone(),
-                );
-            }
-            RuleMatchDetail::NoMatch => {}
-        }
+            RuleMatchDetail::MissingRole => PolicyReasonCode::MissingRole,
+            RuleMatchDetail::MissingGroup => PolicyReasonCode::MissingGroup,
+            RuleMatchDetail::MissingTenant => PolicyReasonCode::MissingTenant,
+            RuleMatchDetail::MissingPrincipal => PolicyReasonCode::MissingPrincipal,
+            RuleMatchDetail::MissingScope => PolicyReasonCode::MissingScope,
+            RuleMatchDetail::NoMatch => continue,
+        };
+        remember_strongest_missing_requirement(&mut missing, reason, rule.id.clone());
     }
-    if let Some((reason, rule_id)) = strongest_missing_requirement {
-        return decision(
-            &request,
-            PolicyEffect::Deny,
-            reason,
-            request.target.clone(),
-            Some(policy.version.clone()),
-            Some(rule_id),
-        );
+    let (reason, rule_id) = match missing {
+        Some((reason, id)) => (reason, Some(id)),
+        None => (PolicyReasonCode::PolicyDeny, None),
+    };
+    RuleOutcome {
+        effect: PolicyEffect::Deny,
+        reason,
+        rule_id,
     }
-
-    deny(
-        &request,
-        PolicyReasonCode::PolicyDeny,
-        request.target.clone(),
-        Some(policy.version.clone()),
-    )
 }
 
 fn profile_allows_target(
@@ -570,26 +548,28 @@ fn decision(
 fn rule_match_detail(
     rule: &PolicyRule,
     profile: &GatewayProfile,
-    request: &PolicyRequest<'_>,
+    principal: &Principal,
+    action: GatewayAction,
+    target_matches: bool,
 ) -> RuleMatchDetail {
-    if !rule.actions.contains(&request.action) {
+    if !rule.actions.contains(&action) {
         return RuleMatchDetail::NoMatch;
     }
     if !rule.profiles.is_empty() && !rule.profiles.contains(&profile.id) {
         return RuleMatchDetail::NoMatch;
     }
-    if !matches_target_filters(rule, request.target) {
+    if !target_matches {
         return RuleMatchDetail::NoMatch;
     }
     let mut strongest_missing_requirement = RuleMatchDetail::Match;
-    if !rule.principal_ids.is_empty() && !rule.principal_ids.contains(&request.principal.id) {
+    if !rule.principal_ids.is_empty() && !rule.principal_ids.contains(&principal.id) {
         strongest_missing_requirement = strongest_missing_rule_detail(
             strongest_missing_requirement,
             RuleMatchDetail::MissingPrincipal,
         );
     }
     if !rule.tenant_ids.is_empty() {
-        match &request.principal.tenant {
+        match &principal.tenant {
             Some(tenant) if rule.tenant_ids.contains(tenant) => {}
             _ => {
                 strongest_missing_requirement = strongest_missing_rule_detail(
@@ -599,30 +579,26 @@ fn rule_match_detail(
             }
         }
     }
-    if !rule.groups.is_empty() && !intersects(&rule.groups, &request.principal.groups) {
+    if !rule.groups.is_empty() && !intersects(&rule.groups, &principal.groups) {
         strongest_missing_requirement = strongest_missing_rule_detail(
             strongest_missing_requirement,
             RuleMatchDetail::MissingGroup,
         );
     }
-    if !rule.roles.is_empty() && !intersects(&rule.roles, &request.principal.roles) {
+    if !rule.roles.is_empty() && !intersects(&rule.roles, &principal.roles) {
         strongest_missing_requirement = strongest_missing_rule_detail(
             strongest_missing_requirement,
             RuleMatchDetail::MissingRole,
         );
     }
-    if !rule.required_scopes.is_empty()
-        && !rule.required_scopes.is_subset(&request.principal.scopes)
-    {
+    if !rule.required_scopes.is_empty() && !rule.required_scopes.is_subset(&principal.scopes) {
         strongest_missing_requirement = strongest_missing_rule_detail(
             strongest_missing_requirement,
             RuleMatchDetail::MissingScope,
         );
     }
     if !rule.required_data_labels.is_empty()
-        && !rule
-            .required_data_labels
-            .is_subset(&request.principal.data_labels)
+        && !rule.required_data_labels.is_subset(&principal.data_labels)
     {
         strongest_missing_requirement = strongest_missing_rule_detail(
             strongest_missing_requirement,
@@ -630,9 +606,7 @@ fn rule_match_detail(
         );
     }
     if !rule.required_assurances.is_empty()
-        && !rule
-            .required_assurances
-            .is_subset(&request.principal.assurances)
+        && !rule.required_assurances.is_subset(&principal.assurances)
     {
         strongest_missing_requirement = strongest_missing_rule_detail(
             strongest_missing_requirement,
@@ -739,7 +713,7 @@ fn matches_target_filters(rule: &PolicyRule, target: &PolicyTarget) -> bool {
     }
 }
 
-fn has_required_scopes(
+pub(crate) fn has_required_scopes(
     principal_scopes: &BTreeSet<veoveo_types::ScopeName>,
     required: &[ScopeName],
 ) -> bool {
@@ -748,7 +722,7 @@ fn has_required_scopes(
         .all(|scope| principal_scopes.contains(scope))
 }
 
-fn filter_matches<T: Ord>(filter: &BTreeSet<T>, value: &T) -> bool {
+pub(crate) fn filter_matches<T: Ord>(filter: &BTreeSet<T>, value: &T) -> bool {
     filter.is_empty() || filter.contains(value)
 }
 

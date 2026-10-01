@@ -2,7 +2,7 @@
   AND $generation.tenant = $tenant
   AND $generation.state = 'active'
   AND $active.generation = $generation
-  AND collection_id IN $collections
+  AND $resource_selected(collection_id, uri, $resource_selections)
   AND collection.approved = true
   AND $scopes CONTAINSALL collection.document.descriptor.requiredScopes
   AND collection.tenant = $tenant

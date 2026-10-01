@@ -5,6 +5,7 @@ mod catalog;
 mod generations;
 mod members;
 mod reads;
+mod resource_selection;
 mod search;
 use crate::StoreError;
 pub use members::MemberReadTicket;

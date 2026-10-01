@@ -163,7 +163,7 @@ fn caller(registrations: &[CollectionRegistration]) -> SearchCaller {
         active_work_context: "operations".parse().unwrap(),
         collections: registrations
             .iter()
-            .map(|r| r.descriptor.collection().clone())
+            .map(|r| (r.descriptor.collection().clone(), selection()))
             .collect(),
         work_contexts: BTreeSet::from(["operations".parse().unwrap()]),
         memberships: BTreeSet::new(),
@@ -328,4 +328,57 @@ async fn duplicate_chunks_expand_the_window_and_failed_rebuild_preserves_active(
     })
     .await
     .expect("knowledge window test exceeded 180 seconds");
+}
+
+fn selection() -> veoveo_types::ResourceSelection {
+    veoveo_types::ResourceSelection {
+        scheme: "fixture".parse().unwrap(),
+        selectors: vec![veoveo_types::ResourceSelector::Scheme {
+            scheme: "fixture".parse().unwrap(),
+        }],
+    }
+}
+
+#[tokio::test]
+async fn profile_uri_selection_precedes_both_rankings_and_denied_row_decoding() {
+    tokio::time::timeout(Duration::from_secs(180), async {
+        let db = fixture::TestDb::new().await;
+        let registration = registration("records", IndexingMode::Content);
+        db.a.register_knowledge_collection(&registration, None).await.unwrap();
+        let embedding = SyntheticEmbeddings::new();
+        let spec = GenerationSpec::new(embedding.space.clone(), "Find passages", ChunkSettings::new("structure-v1", 500, 0).unwrap(),
+            BTreeMap::from([(registration.descriptor.collection().clone(), registration.revision())])).unwrap();
+        let mut records = BTreeMap::new();
+        for n in 0..145 {
+            records.insert(uri(&format!("aaa-denied-{n:03}")), record(&registration, "facility inspection"));
+        }
+        for id in ["public-a-end", "public-b-end", "public-c-end", "public-x-end-end"] {
+            records.insert(uri(id), record(&registration, "facility inspection"));
+        }
+        let source = Source(Mutex::new(records));
+        let generation = Indexer { store: &db.a, source: &source, embeddings: &embedding }
+            .build(&registration.tenant, std::slice::from_ref(&registration), &spec).await.unwrap();
+        db.a.activate_knowledge_generation(&registration.tenant, generation, None).await.unwrap();
+        let table = format!("knowledge_chunk_{}", generation.as_uuid().simple());
+        db.a.client().query(format!("UPDATE {table} SET observation = {{malformed: true}} WHERE string::contains(uri, 'aaa-denied') OR string::ends_with(uri, 'x-end-end');"))
+            .await.unwrap().check().unwrap();
+        let mut reader = caller(std::slice::from_ref(&registration));
+        reader.collections.get_mut(registration.descriptor.collection()).unwrap().selectors = vec![ResourceSelector::Template {
+            uri_template: ResourceUriTemplate::new("fixture://members/public-{id}-end").unwrap(),
+        }];
+        let search = SearchService { store: &db.b, embeddings: &embedding };
+        // The suffix repeated twice must fail the deterministic template match.
+        // A regex with backtracking would select its malformed observation.
+        for query in ["facility", "unmatchedkeyword"] {
+            let request = SearchRequest::new(EmbeddingText::new(query).unwrap(), BTreeSet::new(), BTreeSet::new(), 3).unwrap();
+            let results = search.search(&reader, &request).await.unwrap().results;
+            assert_eq!(results.len(), 3, "{query}: selectors must run before ranking LIMIT");
+            assert_eq!(results.into_iter().map(|result| result.uri).collect::<BTreeSet<_>>(),
+                [uri("public-a-end"), uri("public-b-end"), uri("public-c-end")].into_iter().collect());
+        }
+        // Revoking profile exposure takes effect without rewriting the index.
+        reader.collections.get_mut(registration.descriptor.collection()).unwrap().selectors.clear();
+        let request = SearchRequest::new(EmbeddingText::new("facility").unwrap(), BTreeSet::new(), BTreeSet::new(), 3).unwrap();
+        assert!(search.search(&reader, &request).await.unwrap().results.is_empty());
+    }).await.expect("profile URI retrieval exceeded 180 seconds");
 }

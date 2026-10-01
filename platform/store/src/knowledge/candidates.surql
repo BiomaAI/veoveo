@@ -1,3 +1,4 @@
+__URI_SELECTION__
 SELECT
   tenant,
   collection_id,

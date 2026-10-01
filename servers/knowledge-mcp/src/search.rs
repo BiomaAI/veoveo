@@ -85,7 +85,7 @@ impl<E: Embeddings> SearchService<'_, E> {
             .into_iter()
             .map(|row| {
                 let observation = row.candidate.observation;
-                if !caller.allows(&row.descriptor, &observation, now) {
+                if !caller.allows(&row.descriptor, &row.candidate.uri, &observation, now) {
                     return Err(ServiceError::AccessChanged);
                 }
                 let stale = match row.descriptor.freshness() {

@@ -2,6 +2,8 @@
 mod catalog;
 mod evaluation;
 mod resource_policy;
+mod resource_reads;
+pub use resource_reads::admit_resource_reads;
 pub mod session;
 pub use catalog::{PolicyCatalog, PolicyCatalogView};
 pub use evaluation::{

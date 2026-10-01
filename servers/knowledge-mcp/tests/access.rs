@@ -1,5 +1,5 @@
 use chrono::{Duration, Utc};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use veoveo_knowledge_mcp::access::SearchCaller;
 use veoveo_mcp_contract::access::{GroupMembership, GroupRole};
 use veoveo_mcp_knowledge_extension::*;
@@ -23,7 +23,7 @@ fn final_access_uses_source_policy_group_grants_and_record_deadlines() {
         tenant: "tenant".parse().unwrap(),
         profile: "operations".parse().unwrap(),
         active_work_context: "operations".parse().unwrap(),
-        collections: BTreeSet::from([descriptor.collection().clone()]),
+        collections: BTreeMap::from([(descriptor.collection().clone(), selection())]),
         work_contexts: BTreeSet::new(),
         memberships: BTreeSet::from([GroupMembership {
             group: "readers".parse().unwrap(),
@@ -54,7 +54,12 @@ fn final_access_uses_source_policy_group_grants_and_record_deadlines() {
         .access(access.clone())
         .build(&descriptor)
         .unwrap();
-        caller.allows(&descriptor, &observation, now)
+        caller.allows(
+            &descriptor,
+            &ResourceUri::new("fixture://record/member").unwrap(),
+            &observation,
+            now,
+        )
     };
     assert!(
         allows(&caller, &access),
@@ -115,4 +120,119 @@ fn final_access_uses_source_policy_group_grants_and_record_deadlines() {
         assert!(!allows(&caller, &access), "grants cannot cross tenants");
         access.tenant = caller.tenant.clone();
     }
+}
+
+fn selection() -> veoveo_types::ResourceSelection {
+    veoveo_types::ResourceSelection {
+        scheme: "fixture".parse().unwrap(),
+        selectors: vec![veoveo_types::ResourceSelector::Scheme {
+            scheme: "fixture".parse().unwrap(),
+        }],
+    }
+}
+
+#[test]
+fn authenticated_policy_resolves_source_selection_and_current_context_membership() {
+    use veoveo_mcp_contract::{
+        Exposure, GatewayControlPlane, Principal, PrincipalKind, WorkContextMembershipRule,
+    };
+    use veoveo_policy::PolicyCatalog;
+    let mut plane: GatewayControlPlane =
+        serde_json::from_str(include_str!("../../../configs/gateway.smoke.json")).unwrap();
+    let principal = Principal {
+        id: "knowledge-reader".parse().unwrap(),
+        kind: PrincipalKind::User,
+        issuer: "https://idp.example.com".parse().unwrap(),
+        subject: "reader".parse().unwrap(),
+        tenant: Some("tenant-a".parse().unwrap()),
+        groups: BTreeSet::new(),
+        group_roles: BTreeSet::new(),
+        roles: BTreeSet::new(),
+        scopes: BTreeSet::from(["operator:use".parse().unwrap()]),
+        data_labels: BTreeSet::new(),
+        assurances: BTreeSet::new(),
+        authenticated_at: None,
+    };
+    plane.profiles[0].servers[0].resources = Exposure::Listed(vec![ResourceSelector::UriPrefix {
+        prefix: ResourceUriPrefix::new("media://model/public/").unwrap(),
+    }]);
+    let context = &plane.work_contexts[0];
+    let authority = InvocationAuthority {
+        work_context: context.id.clone(),
+        tenant: context.tenant.clone(),
+        policy_revision: context.policy_revision.clone(),
+        membership: WorkContextMembershipLevel::Contributor,
+        output_policy: context.output_policy.clone(),
+        provenance: InvocationProvenance::Direct {
+            initiator: principal.id.clone(),
+        },
+    };
+    let mut foreign = context.clone();
+    foreign.id = "foreign-context".parse().unwrap();
+    foreign.tenant = "tenant-b".parse().unwrap();
+    foreign.memberships = vec![WorkContextMembershipRule {
+        level: WorkContextMembershipLevel::Owner,
+        principals: BTreeSet::from([principal.id.clone()]),
+        groups: BTreeSet::new(),
+        roles: BTreeSet::new(),
+        oauth_clients: BTreeSet::new(),
+    }];
+    plane.tenants.push(veoveo_mcp_contract::TenantDefinition {
+        id: foreign.tenant.clone(),
+        title: Some("Foreign tenant".into()),
+        description: None,
+        metadata: serde_json::Value::Null,
+    });
+    plane.work_contexts.push(foreign);
+    let descriptor = CollectionDescriptor::new(
+        "media.models".parse().unwrap(),
+        "model".parse().unwrap(),
+        ResourceTemplateUri::new("media://models{?cursor}").unwrap(),
+        Freshness::max_age(30),
+        ChangeSignal::Revalidate,
+        AccessModel::Profile,
+        IndexingMode::Content,
+    )
+    .unwrap();
+    let catalog = PolicyCatalog::new(plane.clone()).unwrap();
+    let profile = plane.profiles[0].id.clone();
+    let client = "operator-service".parse().unwrap();
+    let resolve = |catalog: &PolicyCatalog| {
+        SearchCaller::from_policy(
+            catalog,
+            &principal,
+            &profile,
+            &client,
+            &authority,
+            [&descriptor],
+        )
+    };
+    let reader = resolve(&catalog).unwrap();
+    assert!(reader.work_contexts.contains(&authority.work_context));
+    assert!(
+        !reader
+            .work_contexts
+            .contains(&WorkContextId::new("foreign-context").unwrap())
+    );
+    let selected = &reader.collections[descriptor.collection()];
+    assert!(selected.matches_uri(&ResourceUri::new("media://model/public/a").unwrap()));
+    assert!(!selected.matches_uri(&ResourceUri::new("media://model/private/a").unwrap()));
+    plane.profiles[0].servers[0].resources = Exposure::None;
+    assert!(
+        resolve(&PolicyCatalog::new(plane.clone()).unwrap())
+            .unwrap()
+            .collections
+            .is_empty()
+    );
+    plane.work_contexts[0].memberships = vec![WorkContextMembershipRule {
+        level: WorkContextMembershipLevel::Viewer,
+        principals: BTreeSet::from(["someone-else".parse().unwrap()]),
+        groups: BTreeSet::new(),
+        roles: BTreeSet::new(),
+        oauth_clients: BTreeSet::new(),
+    }];
+    assert!(
+        resolve(&PolicyCatalog::new(plane).unwrap()).is_err(),
+        "revoked active-context membership fails closed"
+    );
 }

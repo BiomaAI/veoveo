@@ -61,7 +61,11 @@ retired generation; retaining it does not authorize rolling the active pointer b
 ## Candidate Admission
 
 `CandidateScope` carries current caller policy, including the source collections exposed
-by its profile. SQL selects the tenant and active generation, current collection
+by its profile. Each collection carries the owning URI scheme intersected with its
+current profile selectors. `resource_selection.rs` binds schemes, prefixes and checked
+template literal segments as values. The SQL closure in `resource_selection.surql`
+uses first-delimiter consumption to match the foundational template semantics. It
+executes within candidate admission in both ranking queries. SQL selects the tenant and active generation, current collection
 approval fingerprint, collection-required scopes, non-stale member, source read policy and every required
 clearance label before ordering and LIMIT. `admission.rs` derives the typed SQL fields
 from the observation. The `work-context` policy permits read membership in the stored
@@ -105,3 +109,10 @@ library path with synthetic vectors, including 140 malformed denied rows before 
 readable members, metadata-only indexing, source-scope and selected-context denial,
 failed-refresh invalidation, changed labels, entity-kind selection, 200 chunks for one
 member and a failed rebuild that preserves the active generation.
+
+Resource-selection fixtures compare SQL pages with the foundational matcher across
+prefixes, multiple variables, repeated suffixes, percent-encoded delimiters and literal
+quote characters. A hybrid-search fixture places 145 otherwise-readable but
+profile-denied members ahead of three permitted results, corrupts denied observations,
+and verifies full keyword and semantic-only result pages. Revoking exposure takes
+effect without changing the index.

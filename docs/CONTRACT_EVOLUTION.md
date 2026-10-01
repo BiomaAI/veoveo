@@ -407,6 +407,12 @@ server depends on the plane's HTTP client, so placing that client's required mod
 in the server package would create a Cargo dependency cycle. The separate library
 owns Artifact identities and metadata below both adapters; it adds no process.
 
+Lexical resource selectors belong to `veoveo-types`. Gateway policy and Store consume
+the same scheme, prefix and restricted-template vocabulary. The shared policy evaluator
+can return an owning scheme intersected with profile selectors for database admission;
+consumers apply the complete selection before ranking and pagination. Server-owned
+resource builders and RFC 6570 expansion keep their separate responsibilities.
+
 The foundational `AccessGrant` trait supplies subject, level and expiry to the shared
 access evaluator. Domain grant records implement it without importing MCP. The generic
 `AccessRequest` names resource tenant and labels and borrows the owner's grant type;

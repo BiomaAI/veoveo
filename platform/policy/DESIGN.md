@@ -52,3 +52,18 @@ Refresh rotation preserves access within that family. Display metadata has no ro
 this decision. Corrupt authority fields fail decoding without exposing their values.
 Callers still authenticate the token and enforce its issuer, audience and time bounds.
 This helper neither reads a database nor authorizes renewal from a cached family.
+
+## Resource Read Selection
+
+`admit_resource_reads` evaluates a principal's read access to a registered server's
+own URI scheme. It shares principal validation, rule matching and deny precedence
+with `decide`. Resource-read rules select a server and scheme; profile exposure supplies
+the remaining URI predicates. The result is a foundational `ResourceSelection` that
+intersects ownership with those predicates. A database consumer must apply the entire
+selection before ranking, pagination and decoding. The API excludes projected App
+schemes, whose ownership requires the concrete gateway path.
+
+The policy fixture compares selection with concrete `ResourcesRead` decisions across
+scheme, prefix and template exposure, principal requirements and deny rules. Extending
+resource rules with URI-specific predicates requires extending this API and its parity
+cases in the same change. It cannot silently approximate a stronger rule.

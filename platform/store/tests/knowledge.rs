@@ -157,7 +157,7 @@ fn scope(registration: &CollectionRegistration) -> CandidateScope {
         profile: "operations".parse().unwrap(),
         active_work_context: "operations".parse().unwrap(),
         tenant: registration.tenant.clone(),
-        collections: BTreeSet::from([registration.descriptor.collection().clone()]),
+        collections: BTreeMap::from([(registration.descriptor.collection().clone(), selection())]),
         work_contexts: BTreeSet::from([WorkContextId::new("operations").unwrap()]),
         subjects: BTreeSet::from([AccessSubject::Principal(
             PrincipalId::new("reader").unwrap(),
@@ -741,4 +741,129 @@ async fn qualify() {
         members.is_empty(),
         "native references cascade reclaimed generation members"
     );
+}
+
+fn selection() -> veoveo_types::ResourceSelection {
+    veoveo_types::ResourceSelection {
+        scheme: "fixture".parse().unwrap(),
+        selectors: vec![veoveo_types::ResourceSelector::Scheme {
+            scheme: "fixture".parse().unwrap(),
+        }],
+    }
+}
+
+#[tokio::test]
+async fn lexical_resource_selection_matches_policy_before_pagination() {
+    use veoveo_types::{ResourceSelector, ResourceUriPrefix, ResourceUriTemplate};
+    tokio::time::timeout(Duration::from_secs(120), async {
+        let db = fixture::TestDb::new().await;
+        let registration = registration("knowledge-selectors");
+        let spec = spec(&registration, "selection");
+        db.a.register_knowledge_collection(&registration, None)
+            .await
+            .unwrap();
+        let generation = GenerationId::new();
+        db.a.create_knowledge_generation(&registration.tenant, generation, &spec)
+            .await
+            .unwrap();
+        let mut uris = Vec::new();
+        for id in [
+            "a",
+            "ab",
+            "-tail",
+            "a-tail",
+            "a-tail-tail",
+            "a-x-tail",
+            "a-x-tail-extra",
+            "café",
+            "a%20b",
+            "a?kind=end",
+            "a' OR true",
+            "a/b",
+        ] {
+            let member = member(&registration, &spec, id, "operations", &[]);
+            uris.push(member.uri().clone());
+            insert(&db.a, &registration, generation, &spec, &member).await;
+        }
+        db.a.complete_knowledge_collection(
+            &registration.tenant,
+            generation,
+            registration.descriptor.collection(),
+            &registration.revision(),
+        )
+        .await
+        .unwrap();
+        db.a.activate_knowledge_generation(&registration.tenant, generation, None)
+            .await
+            .unwrap();
+        uris.sort();
+        let selectors = [
+            vec![],
+            vec![ResourceSelector::Scheme {
+                scheme: "fixture".parse().unwrap(),
+            }],
+            vec![ResourceSelector::Scheme {
+                scheme: "foreign".parse().unwrap(),
+            }],
+            vec![ResourceSelector::UriPrefix {
+                prefix: ResourceUriPrefix::new("fixture://records/a").unwrap(),
+            }],
+            vec![ResourceSelector::UriPrefix {
+                prefix: ResourceUriPrefix::new("fixture://records/a%2F").unwrap(),
+            }],
+            vec![ResourceSelector::Template {
+                uri_template: ResourceUriTemplate::new("fixture://records/{id}").unwrap(),
+            }],
+            vec![ResourceSelector::Template {
+                uri_template: ResourceUriTemplate::new("fixture://records/{id}-tail").unwrap(),
+            }],
+            vec![ResourceSelector::Template {
+                uri_template: ResourceUriTemplate::new("fixture://records/{id}-x-{suffix}")
+                    .unwrap(),
+            }],
+            vec![ResourceSelector::Template {
+                uri_template: ResourceUriTemplate::new("fixture://records/{id}-x-{suffix}-extra")
+                    .unwrap(),
+            }],
+            vec![ResourceSelector::Template {
+                uri_template: ResourceUriTemplate::new("fixture://records/{id}%20{rest}").unwrap(),
+            }],
+        ];
+        for selectors in selectors {
+            let mut scope = scope(&registration);
+            scope
+                .collections
+                .get_mut(registration.descriptor.collection())
+                .unwrap()
+                .selectors = selectors;
+            let selection = &scope.collections[registration.descriptor.collection()];
+            let expected: Vec<_> = uris
+                .iter()
+                .filter(|uri| selection.matches_uri(uri))
+                .cloned()
+                .collect();
+            let mut found = Vec::new();
+            let mut cursor = None;
+            loop {
+                let page =
+                    db.b.knowledge_candidates_page(&scope, generation, cursor.as_ref(), 2)
+                        .await
+                        .unwrap();
+                let remaining = expected.len() - found.len();
+                assert_eq!(
+                    page.len(),
+                    remaining.min(2),
+                    "denied rows cannot consume LIMIT"
+                );
+                if page.is_empty() {
+                    break;
+                }
+                cursor = page.last().map(|row| row.cursor());
+                found.extend(page.into_iter().map(|row| row.uri));
+            }
+            assert_eq!(found, expected, "{selection:?}");
+        }
+    })
+    .await
+    .expect("resource selection qualification exceeded 120 seconds");
 }

@@ -254,3 +254,136 @@ fn ui_ownership_and_action_target_types_are_independent_of_literal_template_synt
         );
     }
 }
+
+#[test]
+fn resource_read_selection_matches_concrete_policy_for_each_rule_requirement() {
+    use veoveo_policy::admit_resource_reads;
+    let actor = principal();
+    let uris = [
+        "media://model/a",
+        "media://model/a-tail",
+        "media://model/a-tail-tail",
+        "media://model/-tail",
+        "media://model/",
+        "media://other/a",
+        "foreign://model/a",
+    ];
+    let exposures = [
+        Exposure::All,
+        Exposure::None,
+        Exposure::Listed(vec![ResourceSelector::Scheme {
+            scheme: "media".parse().unwrap(),
+        }]),
+        Exposure::Listed(vec![ResourceSelector::UriPrefix {
+            prefix: ResourceUriPrefix::new("media://model/a").unwrap(),
+        }]),
+        Exposure::Listed(vec![ResourceSelector::Template {
+            uri_template: ResourceUriTemplate::new("media://model/{id}-tail").unwrap(),
+        }]),
+        Exposure::Listed(vec![ResourceSelector::Template {
+            uri_template: ResourceUriTemplate::new("media://model/{id}").unwrap(),
+        }]),
+    ];
+    for exposure in exposures {
+        for scenario in 0..13 {
+            let mut plane = plane();
+            plane.profiles[0].servers[0].resources = exposure.clone();
+            let mut actor = actor.clone();
+            let rule = &mut plane.policies[0].rules[0];
+            match scenario {
+                1 => actor.scopes.clear(),
+                2 => {
+                    rule.principal_ids.insert("another".parse().unwrap());
+                }
+                3 => {
+                    rule.tenant_ids.insert("another".parse().unwrap());
+                }
+                4 => {
+                    rule.groups.insert("another".parse().unwrap());
+                }
+                5 => {
+                    rule.roles.insert("another".parse().unwrap());
+                }
+                6 => {
+                    rule.required_scopes
+                        .insert("another:scope".parse().unwrap());
+                }
+                7 => {
+                    rule.required_data_labels.insert("another".parse().unwrap());
+                }
+                8 => {
+                    rule.required_assurances
+                        .insert(veoveo_mcp_contract::PrincipalAssurance::UsPerson);
+                }
+                9 => {
+                    let mut deny = rule.clone();
+                    deny.id = PolicyRuleId::new("deny-read").unwrap();
+                    deny.effect = PolicyEffect::Deny;
+                    plane.policies[0].rules.push(deny);
+                }
+                10 => {
+                    actor.data_labels.insert("unknown".parse().unwrap());
+                }
+                11 => {
+                    actor.tenant = Some("unknown".parse().unwrap());
+                }
+                12 => {
+                    rule.resource_schemes = BTreeSet::from(["ui".parse().unwrap()]);
+                }
+                _ => {}
+            }
+            // Custom rules below use only declared references. Unknown caller
+            // claims remain useful negative cases in a valid catalog.
+            if scenario == 3 {
+                plane.policies[0].rules[0].tenant_ids =
+                    BTreeSet::from(["tenant-a".parse().unwrap()]);
+                actor.tenant = None;
+            }
+            if scenario == 7 {
+                plane.policies[0].rules[0].required_data_labels.clear();
+                if let Some(label) = plane.data_labels.first() {
+                    plane.policies[0].rules[0]
+                        .required_data_labels
+                        .insert(label.id.clone());
+                }
+            }
+            if scenario == 12 {
+                plane.servers[0].resource_projection = ResourceProjectionMode::ServerOwned;
+            }
+            if scenario == 6 {
+                for client in &mut plane.oauth_clients {
+                    client
+                        .allowed_scopes
+                        .insert("another:scope".parse().unwrap());
+                }
+            }
+            let profile = plane.profiles[0].id.clone();
+            let server = plane.servers[0].slug.clone();
+            let catalog = PolicyCatalog::new(plane).unwrap();
+            let admitted = admit_resource_reads(&catalog, &actor, &profile, &server);
+            for text in uris {
+                let uri = ResourceUri::new(text).unwrap();
+                let ordinary = decide(
+                    &catalog,
+                    PolicyRequest {
+                        principal: &actor,
+                        profile: &profile,
+                        action: GatewayAction::ResourcesRead,
+                        target: &PolicyTarget::Resource {
+                            server: server.clone(),
+                            uri: uri.clone(),
+                        },
+                        trace_id: &TraceId::new("read-selection-parity").unwrap(),
+                    },
+                );
+                assert_eq!(
+                    admitted
+                        .as_ref()
+                        .is_ok_and(|selection| selection.matches_uri(&uri)),
+                    ordinary.effect == PolicyEffect::Allow,
+                    "scenario {scenario}, URI {text}, decision {ordinary:?}"
+                );
+            }
+        }
+    }
+}

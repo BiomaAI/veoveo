@@ -7,9 +7,10 @@ publish = false
 [features]
 default = ["runtime"]
 contract = ["dep:veoveo-types", "dep:veoveo-knowledge-contract", "dep:veoveo-embedding-contract", "dep:veoveo-mcp-knowledge-extension", "dep:serde", "dep:schemars", "dep:chrono"]
-runtime = ["contract", "dep:rmcp", "veoveo-mcp-knowledge-extension/mcp", "dep:veoveo-platform-store", "dep:veoveo-mcp-contract", "dep:veoveo-embedding-client", "dep:serde_json", "dep:tokio", "dep:thiserror", "chrono/clock"]
+runtime = ["contract", "dep:rmcp", "veoveo-mcp-knowledge-extension/mcp", "dep:veoveo-platform-store", "dep:veoveo-mcp-contract", "dep:veoveo-policy", "dep:veoveo-embedding-client", "dep:serde_json", "dep:tokio", "dep:thiserror", "chrono/clock"]
 
 [dependencies]
+veoveo-policy = { path = "../../platform/policy", optional = true }
 rmcp = { workspace = true, features = ["client"], optional = true }
 veoveo-types = { workspace = true, optional = true }
 veoveo-knowledge-contract = { workspace = true, optional = true }

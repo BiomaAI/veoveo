@@ -3493,6 +3493,27 @@ shared-type compilation created additional Rust artifacts; removing an abandoned
 September 29 linker temporary reclaimed 1.27 GiB without deleting library or incremental
 caches. About 68 GiB remains free before publication work.
 
+Resource-admission checkpoint (2026-10-01): Knowledge carries the current profile's
+scheme, prefix and restricted-template selectors into SQL before both ranking limits.
+The foundational types own lexical matching and checked template literals; Store binds
+them as data. The shared policy evaluator supplies per-source read selections through
+the same rules as concrete gateway reads. `SearchCaller::from_policy` derives collection
+admission and tenant-scoped context memberships from one current catalog, and checks
+the signed active context's membership and policy revision. Final access evaluation
+also checks the member URI.
+
+Native retrieval tests return three readable results behind 145 profile-denied members
+whose observations cannot decode, for keyword and semantic-only queries. A repeated
+suffix case proves the SQL matcher preserves first-delimiter behavior. Store cursor
+pages agree with the foundational matcher across all selector forms and encoded
+characters. Exposure revocation removes results without reindexing. Hosted identity
+verification, active control-revision refresh and the source coordinator remain part
+of the integration work below. Nine Knowledge tests, five Store tests, all 546
+concrete-read/selection comparisons, 140 shared MCP contract tests and the foundational
+suites pass. Strict affected Clippy, workspace all-target compilation, contract-only
+compilation and dependency isolation, SurrealDB 3.3 query parsing and documentation
+validation pass. The cluster and BuildKit stayed stopped; about 61 GiB remains free.
+
 1. Deliver the shared [embedding runtime](../platform/runtimes/embedding/DESIGN.md)
    before the knowledge service consumes it. Re-verify the latest stable vLLM release
    first, and keep one vLLM pin shared with `reason-mcp`. Do not add candle, fastembed,

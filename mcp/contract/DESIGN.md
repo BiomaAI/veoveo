@@ -153,8 +153,9 @@ fail the membership check, and unrelated grants do not invalidate the caller's s
 `McpResourceTemplate` binds metadata to the foundational `ResourceTemplateUri`, which
 uses the RFC 6570 parser. Its builder rejects a descriptor that changes the admitted
 template. Setup checks template uniqueness, and owners qualify expansion against
-their resource parser. The gateway's simple policy selector is not used as a template
-parser. This setup establishes API and declaration consistency;
+their resource parser. The foundational `ResourceSelector`, `ResourceUriPrefix` and
+`ResourceUriTemplate` types own the gateway's restricted lexical selection language.
+Their matching semantics are separate from RFC 6570 template expansion. This setup establishes API and declaration consistency;
 hosted conformance and domain tests establish the relevant behavior. Authentication,
 resource visibility, and operation policy stay with their existing owners.
 Gateway template discovery and resource completion use `PolicyTarget::ResourceTemplate`;

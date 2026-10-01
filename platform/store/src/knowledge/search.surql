@@ -1,4 +1,5 @@
 BEGIN TRANSACTION;
+__URI_SELECTION__
 LET $lexical = (
     SELECT id, collection_id, uri, ordinal, search::score(0) AS score
     FROM __TABLE__

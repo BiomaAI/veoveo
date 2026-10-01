@@ -97,6 +97,10 @@ impl PlatformStore {
         let count = window.candidates();
         let sql = include_str!("search.surql")
             .replace("__ADMISSION__", include_str!("admitted.surql"))
+            .replace(
+                "__URI_SELECTION__",
+                include_str!("resource_selection.surql"),
+            )
             .replace("__TABLE__", &chunk_table(generation))
             .replace("__CANDIDATES__", &count.to_string())
             .replace("__EF__", &(u32::from(count) * 2).to_string());

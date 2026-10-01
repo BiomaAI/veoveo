@@ -1,13 +1,13 @@
 use chrono::{DateTime, Utc};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use veoveo_mcp_contract::access::{AccessRequest, GroupMembership, decide};
 use veoveo_mcp_knowledge_extension::{
     CollectionDescriptor, CollectionId, Observation, ReadGrant, ReadPolicy,
 };
 use veoveo_platform_store::knowledge::CandidateScope;
 use veoveo_types::{
-    AccessLevel, AccessSubject, DataLabelId, GatewayProfileId, PrincipalId, ScopeName, TenantId,
-    WorkContextId, WorkContextMembershipLevel,
+    AccessLevel, AccessSubject, DataLabelId, GatewayProfileId, PrincipalId, ResourceSelection,
+    ResourceUri, ScopeName, TenantId, WorkContextId, WorkContextMembershipLevel,
 };
 
 /// Current authenticated authority, assembled by the gateway-facing adapter.
@@ -18,13 +18,82 @@ pub struct SearchCaller {
     pub tenant: TenantId,
     pub profile: GatewayProfileId,
     pub active_work_context: WorkContextId,
-    pub collections: BTreeSet<CollectionId>,
+    pub collections: BTreeMap<CollectionId, ResourceSelection>,
     pub work_contexts: BTreeSet<WorkContextId>,
     pub memberships: BTreeSet<GroupMembership>,
     pub scopes: BTreeSet<ScopeName>,
     pub clearance: BTreeSet<DataLabelId>,
 }
 impl SearchCaller {
+    /// Resolve search admission from one current policy snapshot and authenticated
+    /// invocation. The transport proves identity/session freshness before calling.
+    pub fn from_policy<'a>(
+        catalog: &veoveo_policy::PolicyCatalog,
+        principal: &veoveo_mcp_contract::Principal,
+        profile: &GatewayProfileId,
+        client: &veoveo_types::OAuthClientId,
+        authority: &veoveo_types::InvocationAuthority,
+        descriptors: impl IntoIterator<Item = &'a CollectionDescriptor>,
+    ) -> Result<Self, crate::ServiceError> {
+        if principal.tenant.as_ref() != Some(&authority.tenant) {
+            return Err(crate::ServiceError::AccessChanged);
+        }
+        let contexts = &catalog.control_plane().work_contexts;
+        let current = contexts
+            .iter()
+            .find(|context| context.id == authority.work_context)
+            .ok_or(crate::ServiceError::AccessChanged)?;
+        if current.tenant != authority.tenant
+            || current.policy_revision != authority.policy_revision
+            || current.membership_for(principal, client) != Some(authority.membership)
+        {
+            return Err(crate::ServiceError::AccessChanged);
+        }
+        // Evaluate once per source, then attach its selection to each admitted
+        // collection. Search inputs may only narrow this set.
+        let mut sources = BTreeMap::new();
+        let collections = descriptors
+            .into_iter()
+            .filter_map(|descriptor| {
+                if !descriptor.required_scopes().is_subset(&principal.scopes) {
+                    return None;
+                }
+                let selection = sources
+                    .entry(descriptor.collection().server().clone())
+                    .or_insert_with(|| {
+                        veoveo_policy::admit_resource_reads(
+                            catalog,
+                            principal,
+                            profile,
+                            descriptor.collection().server(),
+                        )
+                        .ok()
+                    });
+                selection
+                    .clone()
+                    .map(|selection| (descriptor.collection().clone(), selection))
+            })
+            .collect();
+        Ok(Self {
+            principal: principal.id.clone(),
+            tenant: authority.tenant.clone(),
+            profile: profile.clone(),
+            active_work_context: authority.work_context.clone(),
+            collections,
+            work_contexts: contexts
+                .iter()
+                .filter(|context| {
+                    context.tenant == authority.tenant
+                        && context.membership_for(principal, client).is_some()
+                })
+                .map(|context| context.id.clone())
+                .collect(),
+            memberships: principal.group_memberships(),
+            scopes: principal.scopes.clone(),
+            clearance: principal.data_labels.clone(),
+        })
+    }
+
     pub fn scope(&self, selected: &BTreeSet<CollectionId>) -> CandidateScope {
         CandidateScope {
             tenant: self.tenant.clone(),
@@ -33,8 +102,8 @@ impl SearchCaller {
             collections: self
                 .collections
                 .iter()
-                .filter(|id| selected.is_empty() || selected.contains(*id))
-                .cloned()
+                .filter(|(id, _)| selected.is_empty() || selected.contains(*id))
+                .map(|(id, selection)| (id.clone(), selection.clone()))
                 .collect(),
             work_contexts: self.work_contexts.clone(),
             scopes: self.scopes.clone(),
@@ -52,10 +121,14 @@ impl SearchCaller {
     pub fn allows(
         &self,
         descriptor: &CollectionDescriptor,
+        uri: &ResourceUri,
         observation: &Observation,
         now: DateTime<Utc>,
     ) -> bool {
-        if !self.collections.contains(descriptor.collection())
+        if !self
+            .collections
+            .get(descriptor.collection())
+            .is_some_and(|selection| selection.matches_uri(uri))
             || !descriptor.required_scopes().is_subset(&self.scopes)
             || observation.validate_collection(descriptor).is_err()
         {
