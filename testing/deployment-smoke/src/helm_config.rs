@@ -17,6 +17,8 @@ mod commands;
 mod gitops;
 #[path = "helm_config/jobs.rs"]
 mod jobs;
+#[path = "helm_config/object_store.rs"]
+mod object_store;
 use commands::{contains, not_contains, run_checked};
 
 fn assert_revision_metadata_follows_payload(path: &str) -> Result<()> {
@@ -51,6 +53,7 @@ fn assert_revision_metadata_follows_payload(path: &str) -> Result<()> {
 pub(crate) fn helm_config() -> Result<()> {
     bioma::check()?;
     jobs::check()?;
+    object_store::check()?;
     for chart in [
         "deploy/helm/common",
         "deploy/helm/veoveo",

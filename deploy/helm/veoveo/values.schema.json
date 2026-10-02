@@ -329,7 +329,8 @@
             "image",
             "bucket",
             "persistence",
-            "resources"
+            "resources",
+            "runtimeWorkerThreads"
           ],
           "properties": {
             "image": {
@@ -344,6 +345,11 @@
             },
             "resources": {
               "type": "object"
+            },
+            "runtimeWorkerThreads": {
+              "type": "integer",
+              "minimum": 2,
+              "description": "Async workers independent of CPU quota; a single worker can starve health and S3 requests during storage maintenance."
             }
           }
         },

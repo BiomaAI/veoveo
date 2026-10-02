@@ -30,6 +30,11 @@ Configuration rendering establishes chart behavior; installed smoke uses the
 [installation target](../../deploy/contract/DESIGN.md#installation-target) to select
 its running release explicitly.
 
+`src/helm_config/object_store.rs` checks the bundled RustFS worker count and storage
+readiness probe. It rejects single-worker, fractional and string configurations
+through the chart schema. Runtime S3 behavior belongs to the Artifact service's
+installed multipart harness.
+
 The `computers_helm` integration target renders the two standard presets and the
 configured Computers boundary with real Helm. It checks no-op configuration/Pod
 stability, unprivileged control, explicit configuration/trust references and rejected

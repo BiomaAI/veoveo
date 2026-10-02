@@ -11,6 +11,28 @@ Reason grounding and Stream inference. Stream Task/result delivery now passes ac
 installed replicas. Live-session notifications pass through the public Gateway; the
 remaining domain gates are open.
 
+Storage runtime checkpoint (2026-10-02): the diagnostic flight at `f0939bf2`
+fails Stream replay with an Artifact 503 and the visual branch with 1.133 seconds
+of Rerun source lag against the one-second limit. RustFS repeatedly misses health
+probes and restarts. With every GPU workload stopped, its one-CPU quota selects
+one Tokio worker; the same store reproduces health timeouts and a failed installed
+multipart test. Its CPU profile records a busy RustFS worker with little quota
+throttling.
+
+An isolated change to four Tokio workers preserves the image, stored objects and
+one-CPU quota. The installed multipart harness then verifies 33,554,451 bytes,
+uncertain acknowledgements, repeated completion and owned cleanup in 1.11 seconds.
+All 58 paired health observations pass over two minutes with no restart; readiness
+has a 3.86 ms p95. The failed baseline's owned upload is explicitly removed and its
+absence verified. The chart now configures four workers independently of CPU quota,
+rejects single-worker settings and uses `/health/ready` for traffic admission while
+keeping `/health` for liveness. The complete native Helm configuration harness and
+strict deployment-client Clippy pass. Chart publication and installed reconciliation
+follow this runtime experiment. It does not close the composed flight or camera-stall gates.
+Diagnostics are under `output/development/foundations-rustfs-f0939bf2/`; the
+instrumented flight and rendering traces are under
+`output/development/foundations-camera-stall-f0939bf2/`.
+
 Recording publication checkpoint (2026-10-02): native RRD fixtures reproduce the
 flight's exact missing-samples error while a live layer's final file exists and while
 its catalog state is Staged. The reader had omitted acknowledged parts in both states.

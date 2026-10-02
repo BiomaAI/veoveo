@@ -100,6 +100,23 @@ Termination allows 120 seconds for the gateway and 90 seconds for Artifact and S
 Each host bounds HTTP draining at 30 seconds and drains its audit writer after producers
 stop. Gateway then drains committed records through its sealer and releases the lease.
 
+## Object Store Runtime
+
+The bundled RustFS process uses four Tokio workers through
+`objectStore.rustfs.runtimeWorkerThreads`. The setting accepts integers of at least
+two. Its worker count is independent of the container's CPU quota: the one-CPU
+default must still schedule S3 requests and health probes while storage maintenance
+runs. Installations can raise the worker count and CPU allocation together for their
+workload.
+
+The readiness probe calls `/health/ready`, which checks storage and IAM readiness
+before Kubernetes admits traffic. Liveness calls `/health` to detect an unresponsive
+process. These endpoints follow the pinned RustFS 1.0.0
+[health implementation](https://github.com/rustfs/rustfs/blob/1.0.0/rustfs/src/server/health.rs).
+`deployment-smoke helm-config` checks the rendered worker setting, schema rejection
+and separate probe paths. The installed Artifact multipart harness qualifies storage
+operations independently of probe responses.
+
 ## Object Store Version Transition
 
 The chart owns the RustFS image and the single-replica StatefulSet. It pins the

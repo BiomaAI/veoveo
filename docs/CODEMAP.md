@@ -332,6 +332,7 @@ designs above.
 | `testing/deployment-smoke/src/helm_config/bioma.rs` | reference-installation Helm values, control-plane bundle, edge and GitOps assertions, separate from generic fixture rendering |
 | `testing/deployment-smoke/src/helm_config/gitops.rs` | immutable OCI source and generated Helm values references, checked against the Bioma reference in both component-update directions |
 | `testing/deployment-smoke/src/helm_config/jobs.rs` | rendered initialization Job identity checks across Helm and chart revisions, complete spec changes, and long release names |
+| `testing/deployment-smoke/src/helm_config/object_store.rs` | bundled RustFS worker configuration, schema rejection and separate process liveness/storage readiness probes |
 | `testing/browser-smoke/` | focused headed-browser acceptance over an already-running simulation, mandatory Console and standalone App host preflights, and live-view recovery checks across container restarts |
 | `testing/browser-smoke/src/browser/artifact_upload.rs` | public Console upload preflight and real large-file selection, pause/reload/reselection, navigation, durable receipt, and hardware-browser evidence |
 | `testing/browser-smoke/src/browser/artifact_upload/resume.rs` | continuation of an interrupted large-upload acceptance fixture with the same upload identity, independent SHA-256, and public HEAD/Range checks |

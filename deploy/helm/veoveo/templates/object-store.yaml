@@ -64,12 +64,14 @@ spec:
                   key: object-store-secret-key
             - name: RUSTFS_CONSOLE_ENABLE
               value: "false"
+            - name: RUSTFS_RUNTIME_WORKER_THREADS
+              value: {{ .Values.objectStore.rustfs.runtimeWorkerThreads | quote }}
           ports:
             - name: s3
               containerPort: 9000
           readinessProbe:
             httpGet:
-              path: /health
+              path: /health/ready
               port: s3
             initialDelaySeconds: 3
             periodSeconds: 5
