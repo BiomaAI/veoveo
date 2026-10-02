@@ -113,7 +113,9 @@ for cleanup, with 35 seconds for release restoration and 25 seconds for each lay
 It attempts every cleanup even if a previous operation failed.
 
 The report uses a create-new, owner-private file and is synced before checking its
-result. Failed requirements remain inspectable. Transport failures and cleanup
+result. Each owner writes the available report before cleanup and defers any report
+error until cleanup and connection shutdown have both been attempted. Failed
+requirements remain inspectable when reconciliation fails. Transport failures and cleanup
 failures fail the test. A source report records K checks only; full hosted-server
 certification, access-policy coverage, Knowledge retrieval and GPU acceptance each
 have separate owning harnesses.

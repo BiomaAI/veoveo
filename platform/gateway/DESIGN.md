@@ -65,6 +65,21 @@ resource rejection without treating it as a broken connection, and lets completi
 audit classify the source response. The SDK applies the negotiated MCP version's
 error-code profile at each transport.
 
+## Upstream Discovery Recovery
+
+Every request-scoped client discovers the selected upstream before forwarding a domain
+request. Discovery has a ten-second deadline per attempt. A transport connection or
+response-body failure permits one fresh SDK discovery attempt with the same admitted
+identity and HTTP trust configuration. Authorization challenges, malformed responses
+and MCP application errors fail immediately. The gateway keeps its shared HTTP pool.
+
+Discovery recovery dispatches no domain mutation. After discovery, the existing
+idempotent request path may reconnect once when its transport fails. Tool mutations
+and Task mutations do not gain a dispatch retry. The native HTTP fixture drops a
+discovery connection, verifies recovery and one subsequent tool call, and checks that
+repeated disconnection exhausts the retry while authorization, JSON and MCP errors do
+not retry.
+
 ## Resource Read Audit
 
 The gateway checks current resource policy before source discovery or reading. Denials

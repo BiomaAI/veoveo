@@ -186,6 +186,7 @@ async fn run() -> Result<()> {
         }],
     };
     let result = run_knowledge_source_conformance(&source, &credentials, &probes).await;
+    let reported = result.and_then(|report| input.installation.report(&report));
     // Attempt every owned cleanup, even if an earlier cleanup failed.
     let cleanup = tokio::time::timeout(Duration::from_secs(120), async {
         let release = tokio::time::timeout(Duration::from_secs(35), releases.cleanup())
@@ -214,5 +215,5 @@ async fn run() -> Result<()> {
     let closed = installed::close(caller).await;
     cleanup??;
     closed?;
-    input.installation.report(&result?)
+    reported
 }

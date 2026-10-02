@@ -16,13 +16,13 @@ mod tasks;
 mod tools;
 mod upstream;
 mod upstream_authorized_http;
+mod upstream_connection;
 mod upstream_http;
 pub use upstream_http::GatewayUpstreamHttpClientPool;
 
 use std::{future::Future, sync::Arc};
 
 use rmcp::{
-    ClientLifecycleMode, ClientServiceExt,
     handler::server::ServerHandler,
     model::{
         CallToolRequestParams, CallToolResponse, CancelTaskParams, CompleteRequestParams,
@@ -35,9 +35,7 @@ use rmcp::{
         Peer, RequestContext, RoleClient, RoleServer, RunningService, ServiceError,
         SubscriptionContext,
     },
-    transport::{
-        StreamableHttpClientTransport, streamable_http_client::StreamableHttpClientTransportConfig,
-    },
+    transport::streamable_http_client::StreamableHttpClientTransportConfig,
 };
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
@@ -136,10 +134,6 @@ impl GatewayMcp {
             (server_slug.as_str() == "recording")
                 .then(|| ServerSlug::new("artifact").expect("artifact is a valid server slug")),
         );
-        let transport = StreamableHttpClientTransport::<GatewayAuthorizedHttpClient>::with_client(
-            authorized_http_client,
-            upstream_transport_config(server.upstream.url.as_str()),
-        );
         let handler = GatewayUpstreamHandler::new(GatewayUpstreamHandlerConfig {
             catalog: self.catalog.clone(),
             profile_id: self.profile_id.clone(),
@@ -150,15 +144,12 @@ impl GatewayMcp {
             discovery: self.discovery.clone(),
             tasks,
         });
-        let running = handler
-            .serve_with_lifecycle(
-                transport,
-                ClientLifecycleMode::Discover {
-                    preferred_versions: vec![rmcp::model::ProtocolVersion::V_2026_07_28],
-                },
-            )
-            .await
-            .map_err(|err| mcp_internal(format!("failed to discover upstream MCP: {err}")))?;
+        let running = upstream_connection::discover(
+            handler,
+            authorized_http_client,
+            upstream_transport_config(server.upstream.url.as_str()),
+        )
+        .await?;
         let peer = running.peer().clone();
         Ok(RequestUpstream {
             peer,

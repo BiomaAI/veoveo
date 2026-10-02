@@ -74,9 +74,10 @@ async fn run() -> Result<()> {
     let result =
         run_knowledge_source_conformance(&target, &input.installation.credentials()?, &probes)
             .await;
+    let reported = result.and_then(|report| input.installation.report(&report));
     let cleanup = driver.cleanup().await;
     let closed = installed::close(administrator).await;
     cleanup?;
     closed?;
-    input.installation.report(&result?)
+    reported
 }

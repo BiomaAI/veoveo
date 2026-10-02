@@ -640,6 +640,7 @@ Task state lives in this runtime. RMCP defines the Tasks wire types.
 | `mcp/tasks.rs` | upstream Task client and the opt-in Task tools for clients with weak Task support |
 | `mcp/health.rs` | `health_url` GET probes; only a success status counts as healthy |
 | `mcp/upstream*.rs` | authenticated Streamable HTTP, session-local protocol state, and catalog-revision-scoped sharing of transport-equivalent HTTP/TLS clients |
+| `mcp/upstream_connection.rs` | ten-second discovery attempts with one transport-only reconnect before domain dispatch; native HTTP disconnect and refusal qualification |
 | `audit.rs` | verified actor, authority and policy target conversion for the shared audit writer |
 | `bin/gateway/admin/tasks.rs` | native Task cancellation with explicit server identity, current-owner SQL admission and typed audit attribution |
 | `state/auth_state.rs` | durable OAuth authorization and replay state |

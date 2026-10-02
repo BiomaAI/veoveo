@@ -62,7 +62,19 @@ those staged images. The source-owner review found an Artifact listener gap in e
 and revoked-member invalidation. Its focused repair is published at `529c2b66` in
 59 seconds. The composed release locks select that Artifact image and the other
 qualified images from `fe77f5b3`. All ten consumed-image rollout checks and Helm
-configuration checks pass. Deployment and installed source qualification remain open.
+configuration checks pass. The reference rollout converges at `bf724750` with both
+Helm releases Ready and all 21 changed Deployments available. The installed Artifact,
+Reason and Time source runs fail on Gateway discovery after their source restarts.
+Reason passes fourteen K01–K06 checks; both K07 probes fail. Artifact and Time cleanup
+errors hide their reports. Operator reconciliation verifies the temporary Artifact
+grant absent and both owned Time events cancelled. Map's installed run remains open.
+The Gateway's existing read retry begins after discovery and misses this failure.
+The repair adds one transport-only discovery retry before domain dispatch and makes
+all four owner harnesses persist available reports before cleanup. Native qualification
+passes all 42 Gateway MCP cases, including the real HTTP disconnect/refusal matrix.
+Strict all-target/all-feature Clippy passes for the Gateway and all four owners;
+formatting and 1,041 documentation links pass. Publication and a new installed run
+remain open. The cluster is stopped during development.
 The current source-qualification batch adds one shared gateway entry point and
 owner-local fixtures for Artifact, Reason, Map and Time. K07 models both updates and
 membership removal; removal must survive restart and deny full and conditional reads.
