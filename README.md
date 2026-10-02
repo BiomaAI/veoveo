@@ -568,8 +568,8 @@ probes WebGPU and WebGL and stops unless at least one is hardware-backed.
 
 ## Roadmap
 
-Veoveo's goal is agents that build a live digital twin of the operation they work
-in, and think in it before they act. Next on the roadmap: digital twins of an
+Veoveo's goal is agents that build an embodied digital twin of the operation they
+work in, and think in it before they act. Next on the roadmap: digital twins of an
 installation's own sites and fleets, built from the map data, recordings, and
 telemetry it already stores. Simulation and forecasting would then start from the
 real site rather than a generic scene.
