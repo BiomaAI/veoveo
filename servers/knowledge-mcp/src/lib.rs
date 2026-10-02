@@ -12,6 +12,8 @@ pub mod embed;
 #[cfg(feature = "runtime")]
 mod error;
 #[cfg(feature = "runtime")]
+pub mod evaluation;
+#[cfg(feature = "runtime")]
 pub mod index;
 #[cfg(feature = "runtime")]
 pub mod search;

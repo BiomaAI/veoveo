@@ -1,10 +1,15 @@
 //! Knowledge catalog and index contracts shared by persistence and service adapters.
 mod approval;
 pub use approval::{KnowledgeCollectionApproval, KnowledgeIndexingRegistration, KnowledgeSubject};
+mod evaluation;
 mod generation;
 mod member;
 mod statistics;
 mod title;
+pub use evaluation::{
+    EvaluationBuilder, EvaluationCaseId, EvaluationMember, EvaluationMemberId, RecallCounts,
+    RetrievalCase, RetrievalDataset, RetrievalEvaluation, RetrievalMeasurement,
+};
 pub use generation::{ChunkSettings, GenerationId, GenerationSpec};
 pub use member::{IndexedChunk, IndexedMember, metadata_text};
 use schemars::JsonSchema;

@@ -6,6 +6,7 @@ mod catalog_sync;
 mod collections;
 mod completion;
 mod coordinator;
+mod evaluations;
 mod generations;
 mod members;
 mod reads;

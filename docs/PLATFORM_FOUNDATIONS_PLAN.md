@@ -42,6 +42,16 @@ readiness corrections are deployed at `391a4516`. Installed result grants and re
 pass for both finding collections, including denied public Task control and annotations.
 The nineteen-collection catalog and source-linked retrieval pass on that deployment.
 Full source conformance and corpus retrieval evaluation remain open.
+The retrieval evaluator now binds judged queries and a complete caller-visible corpus
+to a generation, verifies source revisions through SQL-admitted pages and searches,
+and derives recall at ten from retained ranks. Store appends reports under the immutable
+generation specification and cascades them on reclamation. An isolated RocksDB/CUDA
+benchmark entry point measures a full rebuild with concurrent search and exports the
+generation's evaluation. The representative domain corpus, actual-model runs and
+0.6B/4B/8B comparison remain open; native evaluator checks do not establish retrieval
+quality. This batch adds Store migration 0104 and has not been published or deployed.
+Nine native evaluator, corpus and retrieval checks pass. Affected all-target strict
+Clippy, SurrealDB 3.3.0 query validation and documentation links pass.
 The gateway source adapter discovers approved
 collections and waits for catalog/resource observation readiness before reading.
 The library coordinator qualifies lease renewal, source invalidation, conditional

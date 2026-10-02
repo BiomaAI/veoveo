@@ -17,6 +17,7 @@ collection approvals and signing credentials.
 | W3C DCAT 3 | Required JSON catalog shape; no RDF serialization or full DCAT conformance claim |
 | SurrealDB 3.3.0 | BM25, filtered HNSW cosine search and native `search::rrf` with k=60 |
 | JSON Schema 2020-12 | Schemars-generated contract models and checked request deserialization |
+| `veoveo.ai/knowledge-retrieval-evaluation/v1` | Private JSON benchmark reports with generation identity, judgments, ranks, recall and throughput; outside the public MCP surface |
 | OAuth 2.0 / RFC 6749, RFC 7523, RFC 8707 | Client credentials with a signed JWT assertion, explicit resource and Veoveo Work Context; HTTPS endpoints, with loopback HTTP for native fixtures |
 | [Embedding runtime](../../platform/runtimes/embedding/DESIGN.md) | Internal HTTP API through the shared client; query priority is interactive and indexing priority is bulk |
 | [Veoveo resource URI profile](../../platform/types/DESIGN.md) | Owner routes through `ResourceAddress` and component builders |
@@ -348,6 +349,43 @@ identities and specifications below both Store and the service. Store creates a
 separate chunk table and vector index for each generation, checks current approval
 fingerprints before writes and activation, and reclaims retired generations explicitly.
 
+## Retrieval Evaluation
+
+The library evaluator runs every judged query through `SearchService` with a limit of
+ten. It requires a complete manifest of the caller-visible members in the selected
+collections. SQL-admitted candidate pages check that manifest before and after the run.
+Every result must match the expected source revision. A changed generation, omitted
+member or unexpected indexed revision rejects the run. The evaluator allows one hour;
+each search keeps its existing sixty-second deadline.
+
+The report keeps generation and specification identity, an audience-policy fingerprint,
+source revisions and content digests, query judgments, ranks and latency. Recall at ten
+is the macro average across queries. Persisting a report uses the Store's append-only
+generation measurement API; evaluation does not alter activation policy.
+
+The private measurement format is `veoveo.ai/knowledge-retrieval-evaluation/v1`.
+It is a JSON benchmark artifact, separate from the public MCP protocol.
+
+`tests/gpu_retrieval.rs` compares embedding configurations using an isolated RocksDB
+fixture and the shared CUDA runtime client. It first builds and evaluates a serving
+generation, then builds a second generation while issuing searches against the first.
+The closed-loop search load allows one in-flight request and schedules arrivals every
+100 milliseconds. Per-collection timings include reconciliation, embedding and index
+writes. Full rebuild time also includes schema preparation, completion of the last
+search and activation. Reports include successful embedded chunk counts, throughput,
+search latency percentiles, the generation specification and all retrieval measurements.
+The harness rejects an empty concurrent workload and verifies report readback through
+a second Store connection.
+
+The input contains typed source registrations, captured member text and observations,
+an explicit caller selection and relevance judgments. The fixture re-observes those
+fixed bytes at read time and preserves their source revision, provenance and access
+policy. It does not qualify live source authorization, source-change delivery or
+restart recovery. At least eleven members and ten judged queries are required for
+a model comparison. The complete operation has a thirty-minute deadline and owns its
+database cleanup. Its private JSON output is create-only and contains no credentials.
+See [the evaluation runbook](evaluation/README.md) for configuration and commands.
+
 ## Search
 
 `search` is a direct tool. Its input takes a query, optional collections and entity
@@ -403,6 +441,7 @@ agent's episode budget counts it. Platform services call the runtime directly in
 | `Dockerfile`, `deploy/helm/veoveo/templates/knowledge.yaml` | CPU service image, public configuration and private key mounts, shared embedding identity and deployment probes |
 | `src/search.rs` | hybrid query, rank fusion, effective-access filtering, and result links |
 | `platform/store/src/knowledge.rs` | typed catalog, chunk, and index-generation records |
+| `src/evaluation.rs`, `tests/evaluation.rs`, `tests/gpu_retrieval.rs` | judged retrieval through production search, generation measurement persistence and CUDA model comparison workload |
 | `platform/gateway/src/mcp/resource_read.rs`, `knowledge_indexing.rs` | collection approval, observation and label admission, and durable indexing audit windows |
 | `agents/kernel/src/resource.rs` | observation retention and provenance lines in model context |
 

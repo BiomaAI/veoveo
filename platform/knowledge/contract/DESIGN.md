@@ -5,7 +5,7 @@
 | Standard or format | Supported profile |
 |---|---|
 | RFC 9562 | canonical RFC UUIDv7 index-generation identities |
-| JSON and JSON Schema 2020-12 | closed collection approvals and generation specifications |
+| JSON and JSON Schema 2020-12 | closed collection approvals, generation specifications, retrieval datasets and measurements |
 | SHA-256 | immutable generation and approval fingerprints |
 | `ai.veoveo/knowledge-source` | collection descriptors and source observations from the extension's protocol-independent contract feature |
 | [Embedding contract](../../runtimes/embedding/contract/DESIGN.md) | complete embedding-space identity and normalized vectors |
@@ -66,6 +66,22 @@ optional source observation and modification timestamps. Construction and JSON d
 check that each member accounts for 1–256 chunks, that populated statistics have an
 observation timestamp, and that empty statistics have no timestamps. Store computes
 these values after admission; the type itself grants no read authority.
+
+## Retrieval Evaluation
+
+`RetrievalDataset` binds up to 4,096 corpus members and 256 judged queries. A member
+names its owning collection, resource URI, source revision and content digest.
+Judgments identify relevant members, and collection filters can narrow a query.
+Construction rejects duplicate identities, missing judgments and references outside
+the corpus. Sorting members and cases gives equivalent input orders one fingerprint.
+
+`RetrievalEvaluation` binds the dataset to a generation specification, the evaluated
+caller's policy fingerprint and the run interval. Each query records up to ten distinct
+ranked members and its elapsed time. A builder requires one measurement per query;
+JSON decoding applies the same checks. Recall at ten is the arithmetic mean of each
+query's retrieved-relevant count divided by its judged-relevant count. Empty result
+lists score zero. The retained judgments and ranks determine the score on every read.
+Evaluation cannot authorize index activation or promise quality after source changes.
 
 ## Persistence
 

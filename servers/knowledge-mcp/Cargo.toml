@@ -55,6 +55,14 @@ name = "pipeline"
 required-features = ["runtime"]
 
 [[test]]
+name = "evaluation"
+required-features = ["runtime"]
+
+[[test]]
+name = "gpu_retrieval"
+required-features = ["runtime"]
+
+[[test]]
 name = "coordination"
 required-features = ["runtime"]
 

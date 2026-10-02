@@ -44,6 +44,13 @@ the installation's ordinary caller token and public control plane as described i
 the [reference runbook](../../examples/bioma/README.md#acceptance). It requires a
 running hardware embedding runtime and leaves source records unchanged.
 
+`tests/evaluation.rs` qualifies corpus completeness, source revision checks, recall
+scoring and generation-linked report persistence with synthetic vectors. The ignored
+`tests/gpu_retrieval.rs` measures actual-model retrieval and rebuild throughput under
+concurrent search using a separately qualified CUDA runtime. Its source captures and
+judgments follow the [evaluation runbook](evaluation/README.md); they do not replace
+installed source conformance.
+
 ## Contract Compliance
 
 Target contract revision: `veoveo.ai/hosted-mcp/v3`.

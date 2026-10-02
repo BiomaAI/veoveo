@@ -5,7 +5,7 @@
 | Standard or format | Supported profile |
 |---|---|
 | SurrealDB 3.3.0 / SurrealQL | schemafull catalog records, transactions, native record-reference cleanup, FULLTEXT BM25 and HNSW cosine indexes |
-| [Knowledge domain contract](../../../knowledge/contract/DESIGN.md) | typed approvals, generation specifications and source-bound chunks |
+| [Knowledge domain contract](../../../knowledge/contract/DESIGN.md) | typed approvals, generation specifications, retrieval measurements and source-bound chunks |
 | [Knowledge-source extension](../../../../mcp/knowledge-extension/DESIGN.md) | typed source observations; the Store imports its contract feature without MCP runtime |
 | RFC 9562 / SHA-256 | generation identity and checked specification/approval fingerprints |
 
@@ -13,7 +13,8 @@
 
 The ordered Store migration defines `knowledge_collection`, `knowledge_generation`,
 `knowledge_active`, `knowledge_member`, `knowledge_coverage`, `knowledge_coordinator`
-and `knowledge_sync`. Catalog, source-sync and member
+and `knowledge_sync`. `knowledge_evaluation` stores retrieval measurements attached to
+their generation. Catalog, source-sync and member
 state use the native seven-day change feed. The indexing service must reconcile from
 source enumeration when its saved cursor falls outside retention.
 
@@ -92,6 +93,21 @@ native references to cascade member, coverage and chunk records. It then drops t
 empty chunk table and indexes in the same transaction. Outstanding read tickets
 fail because their generation no longer exists. Operators choose when to reclaim a
 retired generation; retaining it does not authorize rolling the active pointer backward.
+
+## Evaluation Measurements
+
+`record_knowledge_evaluation` appends a checked report only when its generation belongs
+to the tenant and its specification fingerprint agrees. Its corpus collections must
+belong to that specification. The report digest identifies the row, making an identical
+repeat idempotent. The transaction rejects a conflicting row and a missing or changed
+generation. It changes neither the generation specification nor the active pointer.
+
+Measurements retain the source revisions, judged queries, ordered results and timing
+needed to reproduce recall at ten. They describe the evaluator's observation interval;
+source changes do not rewrite a prior score. Exact report reads select tenant,
+generation and digest before decoding. Reclaiming a generation cascades its reports
+through a native reference. These APIs use the private database-editor connection and
+do not expose corpus contents through the public Knowledge catalog.
 
 ## Catalog Reads
 
