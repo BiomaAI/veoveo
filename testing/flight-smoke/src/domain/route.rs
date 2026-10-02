@@ -1,8 +1,14 @@
 //! The Map server admits the route; the flight client checks its returned contract.
 use super::*;
 use veoveo_map_mcp::contract::{
-    MapFamily, RouteConstraints, RouteDataPolicy, RouteEndpoint, RouteObjective,
-    RouteObjectiveKind, RoutePlan, RouteRequest, RouteStatus, Wgs84Position as MapPosition,
+    MapFamily, MapRouteHandoff, PrepareRouteHandoffRequest, RouteConstraints, RouteDataPolicy,
+    RouteEndpoint, RouteObjective, RouteObjectiveKind, RoutePlan, RouteRequest, RouteStatus,
+    Wgs84Position as MapPosition,
+};
+use veoveo_uav_sim_mcp::contract::{
+    ExecuteVehicleMissionPlanRequest, MissionId, MissionLifecycle, MissionPlanLifecycle,
+    MissionResult, PrepareVehicleMissionRequest, SimulationState, VehicleFlightState,
+    VehicleMissionPlan, VehicleState,
 };
 
 pub(crate) async fn verify(
@@ -114,9 +120,210 @@ pub(super) async fn preflight(
     Ok(())
 }
 
+pub(super) async fn execute(
+    operator: &OperatorClient<'_>,
+    scenario: &UavAcceptanceScenario,
+    revision: &FrameWorldRevisionUri,
+    route: &RoutePlan,
+) -> Result<()> {
+    let handoff: MapRouteHandoff = serde_json::from_value(
+        operator
+            .call_tool(
+                "map__prepare_route_handoff",
+                serde_json::to_value(PrepareRouteHandoffRequest {
+                    route_id: route.route_id.clone(),
+                })?,
+            )
+            .await?,
+    )?;
+    let request = PrepareVehicleMissionRequest {
+        session_id: scenario.session_id.clone(),
+        mission_id: MissionId::new(format!("acceptance-{}", uuid::Uuid::now_v7()))?,
+        vehicle_id: scenario.vehicle_id.clone(),
+        expected_world_revision_uri: revision.clone(),
+        map_route: handoff,
+        speed_mps: scenario.mission.speed_mps,
+        hold_seconds_at_destination: scenario.mission.hold_seconds,
+    };
+    let plan: VehicleMissionPlan = serde_json::from_value(
+        operator
+            .call_tool(
+                "uav-sim__prepare_vehicle_mission",
+                serde_json::to_value(&request)?,
+            )
+            .await?,
+    )?;
+    ensure!(
+        plan.session_id == request.session_id
+            && plan.vehicle_id == request.vehicle_id
+            && plan.mission_id == request.mission_id
+            && plan.expected_world_revision_uri == request.expected_world_revision_uri
+            && plan.map_route == request.map_route
+            && plan.speed_mps == request.speed_mps
+            && plan.hold_seconds_at_destination == request.hold_seconds_at_destination
+            && plan.state == MissionPlanLifecycle::Prepared,
+        "prepared mission does not match the admitted route and vehicle"
+    );
+    let timeout = governed_mission_timeout(
+        &route.summary,
+        scenario.mission.speed_mps,
+        scenario.mission.task_timeout_seconds,
+    )?;
+    let result: MissionResult = serde_json::from_value(
+        operator
+            .task_tool(
+                "uav-sim__execute_vehicle_mission_plan",
+                serde_json::to_value(ExecuteVehicleMissionPlanRequest {
+                    plan_id: plan.plan_id,
+                    expected_revision: plan.revision,
+                })?,
+                timeout,
+            )
+            .await?,
+    )?;
+    ensure!(
+        result.mission_id == request.mission_id
+            && result.lifecycle == MissionLifecycle::Completed
+            && result.completed_waypoints > 0,
+        "UAV did not complete its selected mission: {result:?}"
+    );
+    Ok(())
+}
+
+fn launch_return_destination(
+    launch: &Wgs84Position,
+    current: &Wgs84Position,
+) -> Result<Wgs84Position> {
+    launch.validate().map_err(anyhow::Error::msg)?;
+    current.validate().map_err(anyhow::Error::msg)?;
+    // The route returns horizontally at flight altitude. Landing owns descent.
+    let mut destination = launch.clone();
+    destination.ellipsoid_height_m = current.ellipsoid_height_m;
+    Ok(destination)
+}
+
+async fn selected_vehicle(
+    operator: &OperatorClient<'_>,
+    scenario: &UavAcceptanceScenario,
+    revision: &FrameWorldRevisionUri,
+) -> Result<VehicleState> {
+    let state: SimulationState =
+        serde_json::from_value(simulation_state(operator, scenario).await?)?;
+    ensure!(
+        state.session_id == scenario.session_id,
+        "UAV returned another session"
+    );
+    ensure!(
+        state
+            .world
+            .as_ref()
+            .is_some_and(|world| world.revision_uri == *revision),
+        "UAV launch-site observation belongs to another world revision"
+    );
+    state
+        .vehicles
+        .into_iter()
+        .find(|v| v.vehicle_id == scenario.vehicle_id)
+        .context("UAV state omitted the selected vehicle")
+}
+
+fn within_launch_surface(vehicle: &VehicleState) -> Result<()> {
+    // The reference's 40 m square launch surface is centered on the world origin.
+    // Its inscribed circle gives landing a finite, conservative horizontal bound.
+    let distance = vehicle.enu.east_m.hypot(vehicle.enu.north_m);
+    ensure!(
+        distance.is_finite() && distance <= 20.0,
+        "selected UAV is {distance:.2} m from its launch site; landing acceptance requires at most 20 m"
+    );
+    Ok(())
+}
+
+pub(super) async fn return_to_launch(
+    operator: &OperatorClient<'_>,
+    scenario: &UavAcceptanceScenario,
+    revision: &FrameWorldRevisionUri,
+    profile: &MapMobilityProfileUri,
+) -> Result<()> {
+    let vehicle = selected_vehicle(operator, scenario, revision).await?;
+    ensure!(
+        vehicle.flight_state == VehicleFlightState::Flying,
+        "return to launch requires the selected UAV to be flying"
+    );
+    let destination = launch_return_destination(scenario.world.origin()?, &vehicle.wgs84)?;
+    let route = plan(
+        operator,
+        profile,
+        &vehicle.wgs84,
+        &destination,
+        Duration::from_secs(scenario.mission.task_timeout_seconds),
+    )
+    .await?;
+    execute(operator, scenario, revision, &route).await?;
+    within_launch_surface(&selected_vehicle(operator, scenario, revision).await?)?;
+    eprintln!("UAV completed its Map-admitted return to the launch site before landing");
+    Ok(())
+}
+
+pub(super) async fn assert_landed_at_launch(
+    operator: &OperatorClient<'_>,
+    scenario: &UavAcceptanceScenario,
+    revision: &FrameWorldRevisionUri,
+) -> Result<()> {
+    let vehicle = selected_vehicle(operator, scenario, revision).await?;
+    ensure!(
+        matches!(
+            vehicle.flight_state,
+            VehicleFlightState::Landed | VehicleFlightState::Standby
+        ),
+        "selected UAV has not completed landing"
+    );
+    within_launch_surface(&vehicle)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn return_route_keeps_flight_altitude_above_the_launch_site() {
+        let launch = Wgs84Position {
+            latitude_degrees: 40.758,
+            longitude_degrees: -73.9855,
+            ellipsoid_height_m: -17.0,
+        };
+        let current = Wgs84Position {
+            latitude_degrees: 40.763,
+            longitude_degrees: -73.976,
+            ellipsoid_height_m: 180.0,
+        };
+        let destination = launch_return_destination(&launch, &current).unwrap();
+        assert_eq!(destination.latitude_degrees, launch.latitude_degrees);
+        assert_eq!(destination.longitude_degrees, launch.longitude_degrees);
+        assert_eq!(destination.ellipsoid_height_m, current.ellipsoid_height_m);
+        let invalid = Wgs84Position {
+            ellipsoid_height_m: f64::NAN,
+            ..current
+        };
+        assert!(launch_return_destination(&launch, &invalid).is_err());
+    }
+
+    #[test]
+    fn landing_site_rejects_a_ground_level_vehicle_elsewhere_in_the_city() {
+        let mut state: SimulationState =
+            serde_json::from_str(include_str!("../../tests/fixtures/world-ready.json")).unwrap();
+        let vehicle = &mut state.vehicles[0];
+        vehicle.enu.east_m = 814.0;
+        vehicle.enu.north_m = 536.0;
+        vehicle.enu.up_m = 0.04;
+        assert!(within_launch_surface(vehicle).is_err());
+        vehicle.enu.east_m = 0.0;
+        vehicle.enu.north_m = 20.0;
+        within_launch_surface(vehicle).unwrap();
+        vehicle.enu.north_m = 20.01;
+        assert!(within_launch_surface(vehicle).is_err());
+        vehicle.enu.north_m = f64::NAN;
+        assert!(within_launch_surface(vehicle).is_err());
+    }
 
     #[test]
     fn route_admission_keeps_profile_altitude_and_fresh_aviation_policy() {

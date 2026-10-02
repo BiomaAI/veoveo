@@ -235,6 +235,26 @@ and archives the three owned layers. The public `map://docs/resources` bytes mat
 source document. Reports are under
 `output/development/foundations-map-publication-d9b46bc2/`. These checks qualify the
 direct-address and checked-setup batch; the remaining Map type work is listed below.
+The next composed flight reaches the mission, live Stream capture, Recording replay
+and moving Rerun capture. Reason then fails its GPU startup check: 4.4 GiB is free
+against its configured 9.86 GiB allocation. Embedding, Knowledge, Optimization, Speech
+and View had unnecessarily stayed running after rollout. They are stopped during owned
+landing cleanup; 14.3 GiB becomes free. The run exits 1 and is retained under the same
+publication directory. A headed diagnostic with NVIDIA WebGL reproduces a black follow
+camera while the other cameras in the shared atlas render terrain. The selected UAV
+has landed about 975 m from the launch origin. The reference treats Google buildings as
+visual geometry and uses a flat launch contact surface; camera occlusion at that
+arbitrary landing site is the working diagnosis.
+The flight client now returns through a Map-admitted mission to the declared origin at
+flight altitude before landing, checks a 20 m launch-site radius and the world revision,
+and uses owner types for mission preparation and completion. It preserves both phase
+outcomes before propagating a failure. Native qualification passes 61 flight cases,
+the client dependency check and process-environment check; strict Clippy and executable
+compilation pass. Three warm dispatcher observations take 0.888–0.904 seconds and pass
+the two-second limit. The changed landing path still requires installed acceptance. The
+cluster and builder are stopped with 291 GiB free. For this plan's next composed run,
+start its required UAV, View, Stream and Reason workloads while leaving Embedding,
+Knowledge, Optimization and Speech stopped; keep their configured GPU requirements.
 The current source-qualification batch adds one shared gateway entry point and
 owner-local fixtures for Artifact, Reason, Map and Time. K07 models both updates and
 membership removal; removal must survive restart and deny full and conditional reads.

@@ -16,7 +16,7 @@
 | Browser automation | Headed Chrome DevTools Protocol, hardware-backed WebGPU or WebGL, shared browser assertions owned by `testing/browser-smoke` |
 | GPU workload evidence | Existing NVIDIA resource identity, NVENC source and concurrent workload assertions; software rendering is rejected |
 | World publication | Frames-owned immutable revisions and typed frame URIs; UAV-owned validated installation binding; `veoveo.ai/uav-world-publication/v1` JSON receipt with the output file SHA-256 |
-| Evidence | Existing `veoveo.ai/uav-showcase-acceptance-evidence/v4` JSON and revision-qualified captures |
+| Evidence | `veoveo.ai/uav-showcase-acceptance-evidence/v4` JSON and revision-qualified captures; `veoveo.ai/uav-showcase-phase-outcomes/v1` records domain and visual outcomes even when either phase fails |
 
 ## Ownership
 
@@ -54,6 +54,17 @@ mission route from the observed airborne position. A prerequisite pass does not 
 Map policy or make the later route request optional.
 The mission keeps Map's `RoutePlan` and `RouteCost` types through handoff and timeout
 calculation; JSON serialization occurs at the MCP call.
+UAV-owned preparation, execution and result types preserve the selected mission,
+vehicle and world revision through execution. The client checks the prepared plan
+against its request before dispatching the Task and correlates the completed result.
+
+A successful flight returns through a second Map-admitted route to the scenario's
+world origin before descending. The return holds the aircraft's current ellipsoid
+altitude. The reference launch surface is a 40 m square centered on that origin;
+the harness checks a 20 m horizontal radius on arrival and after landing. Google
+tiles provide visual geometry, so an arbitrary destination elsewhere in the city
+does not establish a valid landing site. Failure cleanup still requests landing
+without dispatching another mission.
 
 `uav-stream-verify` requires operator credentials and an already running UAV camera
 and Stream service. It reads the typed NVENC camera state, starts or reuses the
@@ -138,6 +149,10 @@ Stream session stays open through its capture, and landing waits for the moving
 Recording capture. Scenario deadlines bound these holds. A failed visual branch
 releases its holds so the domain checks and owned cleanup can finish; the composed
 command still fails acceptance.
+The harness writes create-only domain and visual phase outcomes after both branches
+settle, before propagating either error. A domain failure therefore preserves the
+visual status, and the native log includes its diagnostic. Successful runs also
+write the complete capture and timing report.
 
 ## Build Acceptance
 

@@ -11,6 +11,34 @@ use super::*;
 const EVIDENCE_SCHEMA: &str = "veoveo.ai/uav-showcase-acceptance-evidence/v4";
 const PRIMARY_CAMERA_ID: &str = "follow";
 
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+enum PhaseOutcome {
+    Passed,
+    Failed,
+}
+
+impl PhaseOutcome {
+    fn from_result<T>(result: &Result<T>) -> Self {
+        if result.is_ok() {
+            Self::Passed
+        } else {
+            Self::Failed
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PhaseOutcomes<'a> {
+    schema: &'static str,
+    completed_at: chrono::DateTime<Utc>,
+    source_revision: &'a str,
+    run_id: &'a str,
+    domain: PhaseOutcome,
+    visual: PhaseOutcome,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct FlightCheckpointEvidence {
@@ -181,8 +209,13 @@ pub(crate) async fn uav_showcase_verify(
         },
     );
     let (domain_result, visual_result) = tokio::join!(domain, visual);
-    domain_result.context("composed UAV domain acceptance failed")?;
-    let flight = visual_result.context("composed UAV visual acceptance failed")?;
+    let flight = finish_phases(
+        domain_result,
+        visual_result,
+        &evidence_directory,
+        &source_revision,
+        &run_id,
+    )?;
 
     let evidence = ShowcaseEvidence {
         schema: EVIDENCE_SCHEMA,
@@ -606,4 +639,67 @@ fn assert_showcase_gpu_workloads(context: &str, namespace: &str) -> Result<()> {
         allocated_uuid.as_str()
     );
     Ok(())
+}
+
+fn finish_phases<T>(
+    domain_result: Result<()>,
+    visual_result: Result<T>,
+    evidence_directory: &Path,
+    source_revision: &str,
+    run_id: &str,
+) -> Result<T> {
+    let outcomes = PhaseOutcomes {
+        schema: "veoveo.ai/uav-showcase-phase-outcomes/v1",
+        completed_at: Utc::now(),
+        source_revision,
+        run_id,
+        domain: PhaseOutcome::from_result(&domain_result),
+        visual: PhaseOutcome::from_result(&visual_result),
+    };
+    let outcomes_path = evidence_directory.join("phase-outcomes.json");
+    let file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&outcomes_path)
+        .with_context(|| format!("creating phase outcomes {}", outcomes_path.display()))?;
+    serde_json::to_writer_pretty(file, &outcomes)?;
+    if let Err(error) = &visual_result {
+        eprintln!("UAV visual acceptance failed: {error:#}");
+    }
+    domain_result.context("composed UAV domain acceptance failed")?;
+    visual_result.context("composed UAV visual acceptance failed")
+}
+
+#[cfg(test)]
+mod outcome_tests {
+    use super::*;
+
+    #[test]
+    fn domain_failure_preserves_visual_failure_and_refuses_overwrite() {
+        struct Directory(std::path::PathBuf);
+        impl Drop for Directory {
+            fn drop(&mut self) {
+                let _ = fs::remove_dir_all(&self.0);
+            }
+        }
+        let directory = Directory(
+            std::env::temp_dir().join(format!("veoveo-flight-outcomes-{}", uuid::Uuid::now_v7())),
+        );
+        fs::create_dir(&directory.0).unwrap();
+        let result = finish_phases::<()>(
+            Err(anyhow::anyhow!("domain fixture failure")),
+            Err(anyhow::anyhow!("visual fixture failure")),
+            &directory.0,
+            "source-fixture",
+            "run-fixture",
+        );
+        assert!(result.is_err());
+        let path = directory.0.join("phase-outcomes.json");
+        let before = fs::read(&path).unwrap();
+        let report: Value = serde_json::from_slice(&before).unwrap();
+        assert_eq!(report["domain"], "failed");
+        assert_eq!(report["visual"], "failed");
+        assert!(finish_phases(Ok(()), Ok(()), &directory.0, "other", "other").is_err());
+        assert_eq!(fs::read(path).unwrap(), before);
+    }
 }

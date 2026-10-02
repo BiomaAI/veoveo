@@ -268,55 +268,7 @@ async fn uav_sim_verify_with_visual_hold(
             Duration::from_secs(scenario.mission.task_timeout_seconds),
         )
         .await?;
-        let map_route = operator
-            .call_tool(
-                "map__prepare_route_handoff",
-                serde_json::json!({
-                    "route_id": route.route_id
-                }),
-            )
-            .await?;
-        let mission_timeout = governed_mission_timeout(
-            &route.summary,
-            scenario.mission.speed_mps,
-            scenario.mission.task_timeout_seconds,
-        )?;
-        let mission_id = format!("acceptance-{}", uuid::Uuid::now_v7());
-        let plan = operator
-            .call_tool(
-                "uav-sim__prepare_vehicle_mission",
-                serde_json::json!({
-                    "session_id": scenario.session_id,
-                    "mission_id": mission_id,
-                    "vehicle_id": scenario.vehicle_id,
-                    "expected_world_revision_uri": revision_uri,
-                    "map_route": map_route,
-                    "speed_mps": scenario.mission.speed_mps,
-                    "hold_seconds_at_destination": scenario.mission.hold_seconds
-                }),
-            )
-            .await?;
-        let mission_output = operator
-            .task_tool(
-                "uav-sim__execute_vehicle_mission_plan",
-                serde_json::json!({
-                    "plan_id": json_string(&plan, "/plan_id")?,
-                    "expected_revision": plan
-                        .get("revision")
-                        .and_then(Value::as_u64)
-                        .context("prepared UAV mission plan omitted its revision")?
-                }),
-                mission_timeout,
-            )
-            .await?;
-        ensure!(
-            json_string(&mission_output, "/lifecycle")? == "completed"
-                && mission_output
-                    .get("completed_waypoints")
-                    .and_then(Value::as_u64)
-                    .is_some_and(|count| count >= 1),
-            "UAV mission did not complete a waypoint: {mission_output}"
-        );
+        route::execute(&operator, &scenario, &revision_uri, &route).await?;
         if let Some(ready) = mission_ready {
             let _ = ready.send(());
         }
@@ -367,6 +319,13 @@ async fn uav_sim_verify_with_visual_hold(
             }
         }
 
+        route::return_to_launch(
+            &operator,
+            &scenario,
+            &revision_uri,
+            &control_grant.map_mobility_profile_uri,
+        )
+        .await?;
         Ok(governed_artifact_id)
     }
     .await;
@@ -402,6 +361,7 @@ async fn uav_sim_verify_with_visual_hold(
             );
         }
     };
+    route::assert_landed_at_launch(&operator, &scenario, &revision_uri).await?;
     assert_concurrent_gpu_workloads(context, namespace)?;
     assert_governed_artifact_access(conformance, installation, &governed_artifact_id).await?;
 
