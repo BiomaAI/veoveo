@@ -59,8 +59,10 @@ It includes Store migration 0104, the Time bootstrap identity fix and source-che
 CLI. The earlier `e6220dcf` stage-to-release attempt failed its runnable-digest
 identity check after BuildKit reclaimed runtime layers; no installed acceptance used
 those staged images. The source-owner review found an Artifact listener gap in expiry
-and revoked-member invalidation. Its focused repair and publication precede deployment
-of this composed batch. Installed source qualification remains open.
+and revoked-member invalidation. Its focused repair is published at `529c2b66` in
+59 seconds. The composed release locks select that Artifact image and the other
+qualified images from `fe77f5b3`. All ten consumed-image rollout checks and Helm
+configuration checks pass. Deployment and installed source qualification remain open.
 The current source-qualification batch adds one shared gateway entry point and
 owner-local fixtures for Artifact, Reason, Map and Time. K07 models both updates and
 membership removal; removal must survive restart and deny full and conditional reads.
@@ -3556,8 +3558,8 @@ outside the first 100-member page. Both member and root invalidations precede st
 closure; full and conditional reads deny access afterward. Deadline selection precedes
 HTTP reads so a deadline crossed during reconciliation still wakes the listener.
 Affected strict Clippy, formatting, SurrealDB 3.3.0 query validation and documentation
-links pass. The repair requires its own Artifact MCP image and installed qualification.
-The other 23 images from the qualified `fe77f5b3` batch remain applicable: the new
+links pass. The Artifact MCP image is published from `529c2b66`; installed
+qualification remains open. The other 23 images from the qualified `fe77f5b3` batch remain applicable: the new
 Cargo dependencies are test-only and no shared runtime contract changes.
 
 ## Phase 8: Knowledge Service
