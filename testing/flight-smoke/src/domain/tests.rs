@@ -7,6 +7,28 @@ fn canonical_scenario() -> PathBuf {
         .join("../../showcase/uav-sim/scenarios/new-york-aerial.json")
 }
 
+#[tokio::test]
+async fn visual_capture_holds_require_acknowledgement_and_have_a_deadline() {
+    let (sender, receiver) = oneshot::channel();
+    sender.send(()).unwrap();
+    wait_for_visual_capture(receiver, Duration::from_secs(1), "fixture")
+        .await
+        .unwrap();
+
+    let (sender, receiver) = oneshot::channel();
+    drop(sender);
+    let error = wait_for_visual_capture(receiver, Duration::from_secs(1), "fixture")
+        .await
+        .unwrap_err();
+    assert!(error.to_string().contains("failed before acknowledgement"));
+
+    let (_sender, receiver) = oneshot::channel();
+    let error = wait_for_visual_capture(receiver, Duration::from_millis(1), "fixture")
+        .await
+        .unwrap_err();
+    assert!(error.to_string().contains("did not finish within"));
+}
+
 #[test]
 fn takeoff_waits_for_the_selected_aircraft_to_reach_altitude() {
     use veoveo_uav_sim_mcp::contract::{SimulationState, VehicleFlightState, VehicleId};

@@ -3,13 +3,47 @@
 Status: Phase 0 is accepted. Phases 1–3 have the installed gaps listed under
 Deferred Work and the remaining type work in the Phase 3 migration inventory.
 Phase 4's installed audit checks pass. Composed flight domain checks pass at
-`eeaa8442`, including Recording replay and grounded Reason. Final visual acceptance
-remains open after a shared-camera frame stall during landing. Phase 5's native consumer migration,
+`eeaa8442`, including Recording replay and grounded Reason. Final acceptance remains
+open for full-deployment GPU memory, Stream App startup and composed visual/playback
+checks. Phase 5's native consumer migration,
 writer/schema removal and private payload separation pass. Its published deployment
 passes installed certification, Artifact byte delivery, Speech CUDA, Recording replay,
 Reason grounding and Stream inference. Stream Task/result delivery now passes across
 installed replicas. Live-session notifications pass through the public Gateway; the
 remaining domain gates are open.
+
+Map installation checkpoint (2026-10-02): GitOps converges at `9d7d0b6a`, with all
+27 deployments ready and eight GPU shares. The composed run passes Map and Stream
+prerequisites, recovery landing, re-arm, controlled takeoff, Map handoff and mission
+execution, then Recording replay. Takeoff and mission camera captures show the city
+through the headed hardware browser. Across 1,565 state samples over 785 seconds,
+reads never fail and the maximum reported render cycle is 757.72 ms.
+
+The run fails two later checks. The Stream browser client clicks Start after pipelines
+load but before the existing session page arrives; the server rejects a second active
+session. A dropped visual-capture sender also passes the domain's timeout-only check,
+allowing replay and Reason to proceed after the browser failure. Live Monitor now
+disables Start during initial discovery and an outstanding start, or when its page
+already contains an active session for that pipeline. The browser client waits for
+enabled controls, and all three flight holds require a successful acknowledgement.
+Native qualification passes 120 browser/flight harness cases, with one measurement
+case explicitly ignored. Both Stream App behavioral cases and the complete Helm
+configuration check pass. Installed repetition of this follow-up is pending.
+
+Reason separately refuses startup with 5.48 GiB free against its configured 9.86 GiB.
+The full deployment uses about 18 GiB before Reason; the simulator and embedding
+processes account for 6,478 and 6,056 MiB. This confirms that GPU coexistence is open.
+Earlier focused runs that stopped unused GPU services cannot qualify the complete
+deployment. Memory settings must pass the supported workloads with all required
+services enabled. The cluster and BuildKit are stopped after owned landing cleanup.
+
+Postflight and settled PX4 snapshots have no sensor health warnings/errors or compass
+fault, and magnetic heading is consistent. They permit arming in takeoff mode. The
+false `pre_flight_checks_pass` value reports arming eligibility in the current Land
+mode: the pinned [Commander implementation](https://github.com/PX4/PX4-Autopilot/blob/d6f12ad1c4f70ad3230afd7d86e971421e02fef4/src/modules/commander/Commander.cpp#L1714)
+computes it for `nav_state`; the observed mode is Land and its armable bit is clear.
+This resolves the previously unexplained postflight flag without changing a PX4 check.
+Results and diagnostics are under `output/development/foundations-map-route-20261002/`.
 
 Camera deployment checkpoint (2026-10-02): reference revision `8a7edc9a` selects the
 `eae9d400` demand-allocation runtime, companion image and chart. GitOps converges and
@@ -53,8 +87,9 @@ Map checks pass, including the recorded flight coordinates, directional connecto
 avoided areas, invalid alternatives and vertical segments. The installed source harness
 is explicitly ignored in this native run. Strict all-target Clippy, formatting and
 documentation links pass. Map publishes from `0388b911` in 107 seconds, reusing its
-native dependency layers. The reference selects the new image; installed repetition
-is pending. Map checks are under `output/development/foundations-map-route-20261002/`.
+native dependency layers. The reference selects the new image at `9d7d0b6a`; its
+installed handoff and mission pass as recorded above. Map checks are under
+`output/development/foundations-map-route-20261002/`.
 Installed camera results are under
 `output/development/foundations-camera-publication-eae9d400/`; sensor diagnostics and
 qualification are under `output/development/foundations-px4-sensors-20261002/`.
@@ -4809,4 +4844,5 @@ not complete while a row remains.
 
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
-| Phase 1 reference reset | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_health.py`, `showcase/uav-sim/runtime/veoveo_uav_sim/plant_warp.py`, `testing/flight-smoke/src/domain/showcase.rs` | Finish installed sensor health and composed visual/timing acceptance after qualifying Map route admission | At `eeaa8442`, the full domain branch passes but the visual branch finds a 5.76-second stale frame. Demand allocation reduces observed maximum render cycles below one second in two later runs. The sensor correction at `c9704daf` permits installed re-arm and takeoff; that run stops when Map handoff rejects a 47.935-degree connector in its own validated route. Cleanup lands and disarms. The final compass-fault flag is false, while aggregate preflight health is false. Preserve freshness, spatial-content, flight-health and hardware requirements during the repeat |
+| Phase 1 reference reset | `testing/flight-smoke/src/domain.rs` | Finish composed visual/timing acceptance after qualifying the Stream App startup and capture-acknowledgement corrections | At `9d7d0b6a`, re-arm, takeoff, Map handoff, mission and replay pass. The Stream App race prevents its visual capture; Reason lacks GPU memory. Maximum observed render cycle is 757.72 ms, but final playback and landing camera checks are unreached. Preserve freshness, spatial-content, flight-health and hardware requirements during the repeat |
+| Phase 8 GPU coexistence | `examples/bioma/k3d-values.yaml` | Qualify memory allocation for embedding and Reason alongside the complete installed GPU deployment | The composed run at `9d7d0b6a` cannot admit Reason's 9.86 GiB allocation with 5.48 GiB free. All 27 deployments were ready; focused runs with services stopped do not close this gate |

@@ -141,6 +141,10 @@ Browser attachment, GPU rejection and visual assertions have one source owner in
 `testing/browser-smoke/src/browser.rs`. Both focused clients compile that source.
 Small process, GPU identity and token-exchange helpers likewise keep one Rust source.
 No new test-support framework or upstream dependency is introduced.
+Takeoff, live Stream and moving Recording holds require an explicit successful capture
+acknowledgement. A closed capture channel or expired deadline ends domain progression
+and enters owned cleanup. The domain branch cannot infer capture success from the
+browser branch exiting.
 Flight preflight uses the conformance client's paged `tools` command to require its
 domain and live-view tools. Unrelated prompt and resource-template catalogs do not
 establish flight readiness. The scenario still reads every resource it actually needs

@@ -47,6 +47,8 @@ reason:
     gpuMemoryUtilization: 0.42
 embedding:
   engine:
+    # TODO(foundations): Qualify concurrent embedding, simulation and Reason GPU
+    # memory budgets; the current full installation cannot admit Reason's allocation.
     gpuMemoryUtilization: 0.25
 telemetry:
   enabled: true

@@ -5,12 +5,80 @@ import {readFile} from 'node:fs/promises';
 import {chromium} from 'playwright';
 
 const html = await readFile(new URL('../../../../servers/stream-mcp/assets/live.html', import.meta.url), 'utf8');
+const browserHarness = await readFile(new URL('../../../../testing/browser-smoke/src/browser.rs', import.meta.url), 'utf8');
+const ensureSession = browserHarness.match(/const STREAM_APP_ENSURE_SESSION: &str = r#"([\s\S]*?)"#;/)[1];
 const session = (number) => ({
   session_id: `00000000-0000-7000-8000-${String(number).padStart(12, '0')}`,
   session_uri: `stream://session/00000000-0000-7000-8000-${String(number).padStart(12, '0')}`,
   pipeline_id: 'fixture', lifecycle: 'stopped',
   ingress: {host: 'fixture', port: 9001},
   video: {codec: 'avc1.42e01f', width: 640, height: 480, frame_rate: 30, expected_bitrate_bps: 1000000},
+});
+
+test('Live Monitor and acceptance wait for initial session discovery before starting a pipeline', {timeout: 45000}, async () => {
+  const browser = await chromium.launch({channel: 'chrome', headless: true});
+  try {
+    const page = await browser.newPage();
+    page.setDefaultTimeout(10000);
+    let releaseCatalog, releaseResults, startCalls = 0;
+    const catalogGate = new Promise(resolve => {releaseCatalog = resolve;});
+    const resultGate = new Promise(resolve => {releaseResults = resolve;});
+    const active = {...session(1), lifecycle: 'running'};
+    await page.exposeFunction('streamFixture', async (request) => {
+      if (request.method === 'ui/initialize') return {hostContext: {theme: 'dark'}};
+      if (request.method === 'tools/call') {
+        startCalls += 1;
+        throw new Error('pipeline already has an active live session');
+      }
+      const uri = request.params.uri;
+      let value;
+      if (uri === 'stream://pipelines') value = [{id: 'fixture', title: 'Fixture', supports_live_input: true}];
+      else if (uri === 'stream://sessions') {
+        await catalogGate;
+        value = {sessions: [active], limit: 100};
+      } else if (uri.endsWith('/results')) {
+        await resultGate;
+        value = {frames: []};
+      } else if (uri.endsWith('/preview')) value = {session_id: active.session_id, video: active.video, chunks: []};
+      else throw new Error(`Unexpected read: ${uri}`);
+      return {contents: [{uri, mimeType: 'application/json', text: JSON.stringify(value)}]};
+    });
+    await page.addInitScript(() => {
+      // This fixture checks controls and MCP calls; it supplies no rendering evidence.
+      Object.defineProperty(navigator, 'mediaCapabilities', {value: {decodingInfo: async () => ({supported: true, smooth: true, powerEfficient: false})}});
+      window.VideoDecoder = class {
+        static async isConfigSupported() {return {supported: true};}
+        configure() {}
+        close() {}
+      };
+      window.addEventListener('message', async ({data}) => {
+        if (!['ui/initialize', 'resources/read', 'tools/call'].includes(data?.method) || data.id === undefined) return;
+        try {
+          const result = await window.streamFixture(data);
+          window.postMessage({jsonrpc: '2.0', id: data.id, result}, '*');
+        } catch (error) {
+          window.postMessage({jsonrpc: '2.0', id: data.id, error: {message: error.message}}, '*');
+        }
+      });
+    });
+    await page.route('http://stream.test/**', route => route.fulfill({contentType: 'text/html', body: html}));
+    await page.goto('http://stream.test/');
+    await page.waitForFunction(() => document.querySelector('#pipeline').options.length === 1);
+    assert.equal(await page.locator('#start').isDisabled(), true);
+    assert.equal(await page.evaluate(ensureSession), 'waiting');
+    releaseCatalog();
+    await page.waitForFunction(() => document.querySelector('#sessions').options.length === 1);
+    assert.equal(await page.locator('#start').isDisabled(), true);
+    assert.equal(await page.evaluate(ensureSession), 'waiting');
+    releaseResults();
+    await page.waitForFunction(() => document.querySelector('#status').textContent === 'running');
+    assert.equal(await page.evaluate(ensureSession), 'available');
+    assert.equal(startCalls, 0);
+    assert.equal(await page.locator('#error').isVisible(), false);
+    await page.evaluate(() => window.postMessage({jsonrpc: '2.0', id: 'teardown', method: 'ui/resource-teardown'}, '*'));
+  } finally {
+    await browser.close();
+  }
 });
 
 test('Live Monitor navigates one bounded page and returns to the first page after starting a session', {timeout: 45000}, async () => {

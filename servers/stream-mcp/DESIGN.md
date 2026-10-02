@@ -466,6 +466,10 @@ authority. A cursor grants no access. Completions filter before limiting results
 The Live Monitor reads one session page at a time. Newer and Older controls navigate
 its visited pages; starting a session returns to the first page. A navigation
 generation prevents an earlier response from replacing the selected page.
+Start stays disabled until the initial session page loads, while a start request is
+pending, and when that page already contains a running session for the selected
+pipeline. Pipeline changes recompute this state. The browser acceptance client waits
+for the controls to become ready before starting a session.
 
 Completed recording runs publish typed JSON results, an immutable RRD
 annotation layer, and an optional remuxed source clip through the Artifact

@@ -223,15 +223,12 @@ async fn uav_sim_verify_with_visual_hold(
         // Existing simulator activity cannot satisfy the visual phase gate.
         let mission_ready = if let Some(phases) = visual_phases.take() {
             let _ = phases.takeoff_ready.send(());
-            if tokio::time::timeout(
-                Duration::from_secs(scenario.view.timeout_seconds),
+            wait_for_visual_capture(
                 phases.takeoff_capture_complete,
+                Duration::from_secs(scenario.view.timeout_seconds),
+                "takeoff",
             )
-            .await
-            .is_err()
-            {
-                bail!("composed visual acceptance did not release the takeoff capture hold");
-            }
+            .await?;
             Some(phases.mission_ready)
         } else {
             None
@@ -280,12 +277,7 @@ async fn uav_sim_verify_with_visual_hold(
                     .saturating_add(scenario.mission.task_timeout_seconds)
                     .saturating_add(scenario.view.timeout_seconds.saturating_mul(3)),
             );
-            if tokio::time::timeout(timeout, captured).await.is_err() {
-                bail!(
-                    "composed visual acceptance did not release the live Stream cleanup hold \
-                     within {timeout:?}"
-                );
-            }
+            wait_for_visual_capture(captured, timeout, "live Stream").await?;
         }
         if owned_live_session {
             stop_live_stream_session(&operator, &live_session_id, "live acceptance").await?;
@@ -298,12 +290,7 @@ async fn uav_sim_verify_with_visual_hold(
 
         if let Some(captured) = moving_recording_capture.take() {
             let timeout = Duration::from_secs(scenario.view.timeout_seconds.saturating_add(30));
-            if tokio::time::timeout(timeout, captured).await.is_err() {
-                bail!(
-                    "composed visual acceptance did not release the moving Rerun capture hold \
-                     within {timeout:?}"
-                );
-            }
+            wait_for_visual_capture(captured, timeout, "moving Rerun").await?;
         }
 
         route::return_to_launch(
@@ -361,6 +348,17 @@ async fn uav_sim_verify_with_visual_hold(
          previewed it, and an independent context was denied"
     );
     Ok(())
+}
+
+async fn wait_for_visual_capture(
+    captured: oneshot::Receiver<()>,
+    timeout: Duration,
+    phase: &str,
+) -> Result<()> {
+    tokio::time::timeout(timeout, captured)
+        .await
+        .with_context(|| format!("composed {phase} capture did not finish within {timeout:?}"))?
+        .with_context(|| format!("composed {phase} capture failed before acknowledgement"))
 }
 
 fn assert_concurrent_gpu_workloads(context: &str, namespace: &str) -> Result<()> {

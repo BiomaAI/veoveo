@@ -5335,10 +5335,10 @@ const STREAM_APP_STATE: &str = r#"(() => {
 
 const STREAM_APP_ENSURE_SESSION: &str = r#"(() => {
   const session=document.getElementById("session")?.textContent ?? "";
-  if(session && session !== "no session") return "available";
+  if(session && session !== "no session" && document.getElementById("status")?.textContent === "running") return "available";
   const start=document.getElementById("start");
   const pipeline=document.getElementById("pipeline");
-  if(!start || !pipeline || pipeline.options.length === 0) return "waiting";
+  if(!start || start.disabled || !pipeline || pipeline.options.length === 0) return "waiting";
   if(start.dataset.acceptanceStartRequested === "true") return "starting";
   start.dataset.acceptanceStartRequested="true";
   start.click();
