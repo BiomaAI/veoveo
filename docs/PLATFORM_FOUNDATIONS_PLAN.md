@@ -62,6 +62,9 @@ Strict all-target Clippy for the five affected packages and 1,054 documentation
 links pass. Publication and installed restart remain open.
 Diagnosis is retained in
 `output/development/foundations-flight-tools-2fc911e6/conditional-diagnosis.json`.
+Artifact, Map, Time and Knowledge images publish from `521ded3e` in 164 seconds.
+The reference lock selects only those four new runnable digests. The builder stops
+before installed rollout; the retained index is preserved for restart qualification.
 
 Flight readiness had been calling `conformance info`, which reads every tool, prompt
 and resource-template catalog and therefore required unrelated services. The new
