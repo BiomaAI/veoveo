@@ -4055,6 +4055,20 @@ These failures require diagnosis before accepting this deployment. The earlier f
 and restart passes do not qualify the current state. Knowledge is drained, temporary
 tokens are removed, and the cluster is stopped for development; BuildKit stays stopped.
 
+Recovery diagnosis: Reason's source subscriptions end when the gateway's 60-second
+request assertion expires, restarting the indexer. Separately, every ordinary index
+update withdraws Knowledge readiness while clients await its catalog notification.
+The repair gives typed subscription POSTs a maximum 15-minute assertion bounded by the
+existing caller token. Ordinary and delegated Artifact-read assertions keep 60 seconds.
+Knowledge distinguishes updates to a serving generation from initial synchronization;
+SQL still hides invalidated members during those updates. Source loss and failed
+workers still withdraw readiness. The catalog acceptance credential also omitted
+`map:feature:read`; the next exchange must use installation-target scopes. All 41
+gateway MCP tests and nine Knowledge coordination, HTTP and machine-host tests pass.
+The source-loss, current-revocation and stale-member checks keep their denial behavior.
+Strict Clippy and documentation checks pass. Publication and installed qualification
+remain required.
+
 Adopt Reason's completed analyses and results so users can find earlier findings and
 read their grounding without rerunning inference. Observations carry stored owner,
 Work Context, labels, model provenance and modification metadata. Return bounded

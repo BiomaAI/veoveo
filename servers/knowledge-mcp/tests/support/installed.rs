@@ -181,7 +181,9 @@ async fn verify(
     }
     ensure!(
         collections == expected,
-        "caller catalog differs from installation approvals"
+        "caller catalog differs from installation approvals: missing {:?}, unexpected {:?}",
+        expected.difference(&collections).collect::<Vec<_>>(),
+        collections.difference(&expected).collect::<Vec<_>>()
     );
     let mut generation = None;
     let mut statistics = BTreeMap::new();

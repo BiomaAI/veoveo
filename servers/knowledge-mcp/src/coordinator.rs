@@ -30,6 +30,7 @@ use veoveo_types::TenantId;
 pub enum CoordinatorState {
     Starting,
     Synchronizing,
+    Updating(GenerationId),
     Ready(GenerationId),
     CatalogReady,
     Stopped,
@@ -207,6 +208,7 @@ impl<S: ObservableSource, E: Embeddings> Coordinator<'_, S, E> {
                 .await?
         };
         let mut activated = reusable;
+        let mut served = false;
         let mut pending: BTreeSet<usize> = (0..registrations.len()).collect();
         let mut due = BTreeMap::new();
         let mut sync_deadline = Instant::now() + Duration::from_secs(3600);
@@ -224,7 +226,11 @@ impl<S: ObservableSource, E: Embeddings> Coordinator<'_, S, E> {
                     .await?;
             }
             if let Some(index) = pending.pop_first() {
-                status.send_replace(CoordinatorState::Synchronizing);
+                status.send_replace(if served {
+                    CoordinatorState::Updating(generation)
+                } else {
+                    CoordinatorState::Synchronizing
+                });
                 tokio::select! {
                     biased;
                     _ = tokio::time::sleep_until(sync_deadline) => return Err(ServiceError::Deadline),
@@ -252,6 +258,7 @@ impl<S: ObservableSource, E: Embeddings> Coordinator<'_, S, E> {
                 continue;
             }
             status.send_replace(CoordinatorState::Ready(generation));
+            served = true;
             let next = due.values().copied().min();
             tokio::select! {
                 biased;

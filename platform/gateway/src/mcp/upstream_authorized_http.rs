@@ -4,7 +4,7 @@ use axum::http::{HeaderName, HeaderValue};
 use chrono::{TimeDelta, Utc};
 use futures::stream::BoxStream;
 use rmcp::{
-    model::ClientJsonRpcMessage,
+    model::{ClientJsonRpcMessage, ClientRequest},
     transport::streamable_http_client::{
         AuthRequiredError, InsufficientScopeError, SseError, StreamableHttpClient,
         StreamableHttpError, StreamableHttpPostResponse,
@@ -19,11 +19,12 @@ use veoveo_mcp_contract::{
 use veoveo_types::InvocationAuthority;
 
 const INTERNAL_REQUEST_TOKEN_TTL_SECONDS: i64 = 60;
+const INTERNAL_SUBSCRIPTION_TOKEN_TTL_SECONDS: i64 = 15 * 60;
 const ARTIFACT_READ_AUTHORIZATION_HEADER: &str = "x-veoveo-artifact-read-authorization";
 
 /// Per-request HTTP authorization for one auth-scoped gateway-to-server client.
 ///
-/// This client signs a short-lived assertion for every request while retaining
+/// This client signs a lifetime-bounded assertion for every request while retaining
 /// one immutable invocation authority. Final-profile POSTs and request-scoped
 /// listener streams therefore never derive authority from connection locality.
 #[derive(Clone)]
@@ -79,7 +80,39 @@ impl GatewayAuthorizedHttpClient {
         &self,
         server: ServerSlug,
     ) -> Result<String, GatewayAuthorizedHttpError> {
-        let expires_at = Utc::now() + TimeDelta::seconds(INTERNAL_REQUEST_TOKEN_TTL_SECONDS);
+        self.issue_bearer_token_until(
+            server,
+            Utc::now() + TimeDelta::seconds(INTERNAL_REQUEST_TOKEN_TTL_SECONDS),
+        )
+    }
+
+    fn issue_message_bearer_token(
+        &self,
+        message: &ClientJsonRpcMessage,
+    ) -> Result<String, GatewayAuthorizedHttpError> {
+        let lifetime = match message {
+            ClientJsonRpcMessage::Request(request)
+                if matches!(
+                    request.request,
+                    ClientRequest::SubscriptionsListenRequest(_)
+                ) =>
+            {
+                INTERNAL_SUBSCRIPTION_TOKEN_TTL_SECONDS
+            }
+            _ => INTERNAL_REQUEST_TOKEN_TTL_SECONDS,
+        };
+        self.issue_bearer_token_until(
+            self.server.clone(),
+            Utc::now() + TimeDelta::seconds(lifetime),
+        )
+    }
+
+    fn issue_bearer_token_until(
+        &self,
+        server: ServerSlug,
+        expires_at: chrono::DateTime<Utc>,
+    ) -> Result<String, GatewayAuthorizedHttpError> {
+        // The issuer also caps this deadline at the signed source token expiry.
         self.issuer
             .issue(
                 self.profile.clone(),
@@ -116,7 +149,7 @@ impl StreamableHttpClient for GatewayAuthorizedHttpClient {
         mut custom_headers: HashMap<HeaderName, HeaderValue>,
     ) -> Result<StreamableHttpPostResponse, StreamableHttpError<Self::Error>> {
         let bearer_token = self
-            .issue_bearer_token()
+            .issue_message_bearer_token(&message)
             .map_err(StreamableHttpError::Client)?;
         if let Some(artifact_server) = &self.artifact_server {
             let header_name = HeaderName::from_static(ARTIFACT_READ_AUTHORIZATION_HEADER);
@@ -260,8 +293,7 @@ mod tests {
     const TEST_SIGNING_KEY_DER_B64: &str =
         "MC4CAQAwBQYDK2VwBCIEII4AsVspz8h7mpqvOkgslJP07HfqpiWMZA+6Ii90lVBl";
 
-    #[test]
-    fn each_http_request_receives_a_fresh_short_lived_assertion() {
+    fn client() -> GatewayAuthorizedHttpClient {
         let issuer = GatewayInternalTokenIssuer::new(
             TokenIssuer::new("veoveo-internal").unwrap(),
             GatewayInternalSigningKey::new(
@@ -302,7 +334,7 @@ mod tests {
                 initiator: actor_id,
             },
         };
-        let client = GatewayAuthorizedHttpClient::new(
+        GatewayAuthorizedHttpClient::new(
             reqwest::Client::new(),
             issuer,
             GatewayProfileId::new("operator").unwrap(),
@@ -337,8 +369,12 @@ mod tests {
                 authority,
             },
             None,
-        );
+        )
+    }
 
+    #[test]
+    fn each_http_request_receives_a_fresh_short_lived_assertion() {
+        let client = client();
         let first = client.issue_bearer_token().unwrap();
         let second = client.issue_bearer_token().unwrap();
         assert_ne!(first, second);
@@ -378,5 +414,65 @@ mod tests {
             client.request_context.access_token.session_family,
             other_session.request_context.access_token.session_family
         );
+    }
+
+    #[tokio::test]
+    async fn subscription_post_uses_caller_bounded_lifetime_without_extending_other_requests() {
+        use axum::{Json, Router, extract::State, http::HeaderMap, routing::post};
+        use rmcp::model::{
+            JsonRpcRequest, PingRequest, SubscriptionFilter, SubscriptionsListenRequest,
+            SubscriptionsListenRequestParams,
+        };
+        use tokio::sync::mpsc;
+        use veoveo_mcp_contract::{
+            GatewayInternalIdentity, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
+        };
+
+        tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            let verifier = GatewayInternalTokenVerifier::new(
+                TokenIssuer::new("veoveo-internal").unwrap(),
+                "uav-sim".parse().unwrap(),
+                GatewayInternalTrustBundle::from_json(r#"{"keys":[{"kty":"OKP","crv":"Ed25519","x":"OMOoJJu_AQS7UM8u2GVtMVj8W1zcE6QhR0DMBr9HEcg","alg":"EdDSA","use":"sig","kid":"veoveo-internal-1"}]}"#).unwrap(),
+            );
+            let (send, mut received) = mpsc::channel::<GatewayInternalIdentity>(4);
+            let router = Router::new().route("/", post(
+                |State((verifier, send)): State<(GatewayInternalTokenVerifier, mpsc::Sender<GatewayInternalIdentity>)>, headers: HeaderMap, Json(message): Json<ClientJsonRpcMessage>| async move {
+                    let bearer = headers["authorization"].to_str().unwrap().strip_prefix("Bearer ").unwrap();
+                    send.send(verifier.verify(bearer).unwrap()).await.unwrap();
+                    let ClientJsonRpcMessage::Request(request) = message else { panic!("expected a request") };
+                    Json(serde_json::json!({"jsonrpc":"2.0", "id":request.id, "result":{}}))
+                }
+            )).with_state((verifier, send));
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let endpoint: Arc<str> = format!("http://{}/", listener.local_addr().unwrap()).into();
+            let stop = tokio_util::sync::CancellationToken::new();
+            let _stop_on_drop = stop.clone().drop_guard();
+            let cancellation = stop.clone();
+            let server = tokio::spawn(async move {
+                axum::serve(listener, router).with_graceful_shutdown(cancellation.cancelled_owned()).await.unwrap();
+            });
+            let mut client = client();
+            for (subscription, caller_seconds, expected_seconds) in [(false, 3600, 60), (true, 3600, 900), (true, 120, 120), (false, 20, 20)] {
+                client.request_context.access_token.expires_at = Utc::now() + TimeDelta::seconds(caller_seconds);
+                let request = if subscription {
+                    ClientRequest::SubscriptionsListenRequest(SubscriptionsListenRequest::new(
+                        SubscriptionsListenRequestParams::new(SubscriptionFilter::builder().resources_list_changed().build()),
+                    ))
+                } else {
+                    ClientRequest::PingRequest(PingRequest::default())
+                };
+                let message = ClientJsonRpcMessage::Request(JsonRpcRequest::new(rmcp::model::RequestId::Number(1), request));
+                client.post_message(endpoint.clone(), message, None, None, HashMap::new()).await.unwrap();
+                let identity = received.recv().await.unwrap();
+                assert!(identity.expires_at <= client.request_context.access_token.expires_at);
+                assert_eq!(identity.expires_at.timestamp() - identity.issued_at.timestamp(), expected_seconds);
+                assert_eq!(identity.actor, client.actor);
+                assert_eq!(identity.authority, client.authority);
+            }
+            client.request_context.access_token.expires_at = Utc::now() - TimeDelta::seconds(1);
+            assert!(client.issue_bearer_token().is_err());
+            stop.cancel();
+            server.await.unwrap();
+        }).await.expect("HTTP assertion lifetime check exceeded ten seconds");
     }
 }

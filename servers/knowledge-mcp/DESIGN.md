@@ -118,8 +118,13 @@ configuration. It connects to the shared embedding endpoint using its API key an
 JSON `EmbeddingSpace` file. Database migrations belong to installation bootstrap.
 `healthz` requires every configured tenant worker to have an active index or a complete
 catalog-only selection, and checks Store's control pointer within two seconds.
+After initial synchronization, the worker keeps serving while reconciling collection
+changes. SQL source epochs and freshness still exclude invalidated members until their
+source observations are current. Initial builds, connection recovery, failed workers
+and shutdown withdraw readiness; a content or grant update does not remove the HTTP
+endpoint that clients use to observe its completion.
 `livez` reports HTTP process liveness independently of indexing. The reference
-installation reaches readiness after indexing its sixteen approved collections.
+installation reaches readiness after indexing its approved collections.
 
 ## Packaging And Deployment
 

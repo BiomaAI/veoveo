@@ -26,6 +26,15 @@ server; installation validation checks that declaration against the registry.
 
 ## Forwarded Identity Directory
 
+`upstream_authorized_http.rs` signs each upstream HTTP request separately. Ordinary
+assertions expire within 60 seconds. A typed `subscriptions/listen` request receives
+an assertion valid through the caller's existing access-token expiry, capped at 15
+minutes. This larger internal bearer window lets a source keep its authorized listener
+open until client credential rotation. It adds no renewal permission and cannot extend
+the caller's token. Sources enforce their assertion deadline and current domain access;
+client cancellation closes the request stream. Recording's separately forwarded
+Artifact-read assertion keeps its 60-second limit.
+
 After authenticating a request, the gateway synchronizes the source principal and any
 distinct delegated actor into the platform directory. Store preserves security fields
 on existing entries. Hosted services can therefore check both identities against

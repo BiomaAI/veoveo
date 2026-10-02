@@ -63,7 +63,9 @@ impl IndexingReadiness {
             worker.has_changed().is_ok()
                 && matches!(
                     *worker.borrow(),
-                    CoordinatorState::Ready(_) | CoordinatorState::CatalogReady
+                    CoordinatorState::Ready(_)
+                        | CoordinatorState::Updating(_)
+                        | CoordinatorState::CatalogReady
                 )
         })
     }

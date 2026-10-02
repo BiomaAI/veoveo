@@ -146,6 +146,8 @@ async fn revalidation_profile_refreshes_without_listeners_or_new_embeddings() {
         };
         let cancel = CancellationToken::new();
         let (sender, mut status) = watch::channel(CoordinatorState::Starting);
+        let readiness =
+            veoveo_knowledge_mcp::indexing::IndexingReadiness::new(vec![status.clone()]).unwrap();
         let (outcome, _) = tokio::join!(
             coordinator.run(
                 &registration.tenant,
@@ -156,6 +158,7 @@ async fn revalidation_profile_refreshes_without_listeners_or_new_embeddings() {
             ),
             async {
                 let generation = ready(&mut status).await;
+                assert!(readiness.is_ready());
                 let search = SearchService {
                     store: &db.b,
                     embeddings: &embedding,
@@ -174,6 +177,14 @@ async fn revalidation_profile_refreshes_without_listeners_or_new_embeddings() {
                     .unwrap()
                     .results
                     .remove(0);
+                source.pause_once.store(true, Ordering::SeqCst);
+                source.reading.notified().await;
+                assert_eq!(*status.borrow(), CoordinatorState::Updating(generation));
+                assert!(
+                    readiness.is_ready(),
+                    "reconciliation must keep the HTTP endpoint ready"
+                );
+                source.hold.add_permits(1);
                 assert_eq!(ready(&mut status).await, generation);
                 let after = search
                     .search(&reader, &request)
@@ -422,7 +433,24 @@ async fn source_loss_hides_results_and_restart_reuses_vectors_without_inferring_
                     .get_mut(&uri("a"))
                     .unwrap()
                     .title = MemberTitle::new("Renamed facility").unwrap();
+                source.pause_once.store(true, Ordering::SeqCst);
                 source.events.send(false).unwrap();
+                source.reading.notified().await;
+                assert_eq!(*status.borrow(), CoordinatorState::Updating(original));
+                let readiness =
+                    veoveo_knowledge_mcp::indexing::IndexingReadiness::new(vec![status.clone()])
+                        .unwrap();
+                assert!(readiness.is_ready());
+                assert!(
+                    search
+                        .search(&reader, &request)
+                        .await
+                        .unwrap()
+                        .results
+                        .is_empty(),
+                    "invalidated members stay hidden while the HTTP endpoint serves updates"
+                );
+                source.hold.add_permits(1);
                 ready(&mut status).await;
                 assert_eq!(embedding.inputs.lock().unwrap().len(), 3);
                 assert_eq!(

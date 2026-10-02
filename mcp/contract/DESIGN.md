@@ -288,8 +288,14 @@ integrity, and replay rules are validated on each request. Domain sessions such 
 UAV simulation sessions remain application state; they never derive authority or
 lifetime from MCP transport locality.
 
-The gateway signs a fresh short-lived internal assertion for every upstream
-request. Connection reuse depends only on validated transport security and
+The gateway signs a fresh internal assertion for every upstream request. Ordinary
+requests have a 60-second maximum assertion lifetime. A `subscriptions/listen` POST
+has a 15-minute maximum, because the source enforces assertion expiry throughout the
+stream. Both lifetimes end at the source access token's expiration when it is earlier.
+This permits a longer bearer lifetime only for assertions minted when opening a
+subscription; those credentials stay on the private gateway-to-server transport.
+Clients renew their own authority and reopen listeners before that deadline.
+Connection reuse depends only on validated transport security and
 catalog generation; request authority stays in the assertion and request metadata.
 
 Authenticated MCP and HTTP proxy requests include typed `request_context` in the
