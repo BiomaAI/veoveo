@@ -87,17 +87,20 @@ struct DelayedBaseline {
     first: std::sync::Arc<tokio::sync::Notify>,
     second: std::sync::Arc<tokio::sync::Notify>,
     close: bool,
+    knowledge: bool,
 }
 
 impl rmcp::ServerHandler for DelayedBaseline {
     fn get_info(&self) -> rmcp::model::ServerConfig {
-        rmcp::model::ServerConfig::new(
-            rmcp::model::ServerCapabilities::builder()
-                .enable_resources()
-                .enable_resources_subscribe()
-                .enable_resources_list_changed()
-                .build(),
-        )
+        let mut capabilities = rmcp::model::ServerCapabilities::builder()
+            .enable_resources()
+            .enable_resources_subscribe()
+            .enable_resources_list_changed()
+            .build();
+        if self.knowledge {
+            veoveo_mcp_knowledge_extension::server::declare(&mut capabilities);
+        }
+        rmcp::model::ServerConfig::new(capabilities)
     }
     fn accepted_subscription_filter(
         &self,
@@ -139,6 +142,7 @@ async fn indexing_waits_for_every_root_and_preserves_catalog_changes_during_setu
                 first: first.clone(),
                 second: second.clone(),
                 close,
+                knowledge: true,
             };
             let (server_io, client_io) = tokio::io::duplex(8192);
             let server = tokio::spawn(async move { handler.serve(server_io).await.unwrap() });
@@ -201,6 +205,76 @@ async fn indexing_waits_for_every_root_and_preserves_catalog_changes_during_setu
     })
     .await
     .expect("source readiness qualification exceeded 10 seconds");
+}
+
+#[tokio::test]
+async fn ordinary_catalog_discovery_consumes_declared_source_readiness_before_fetching() {
+    use rmcp::{ClientServiceExt, ServiceExt};
+    use std::{sync::Arc, time::Duration};
+    tokio::time::timeout(Duration::from_secs(10), async {
+        for (knowledge, indexing, close) in [
+            (true, false, false),
+            (true, false, true),
+            (true, true, false),
+            (false, false, false),
+        ] {
+            let catalog = Arc::new(tokio::sync::Notify::new());
+            let handler = DelayedBaseline {
+                catalog: catalog.clone(),
+                first: Arc::default(),
+                second: Arc::default(),
+                close,
+                knowledge,
+            };
+            let (server_io, client_io) = tokio::io::duplex(8192);
+            let server = tokio::spawn(async move { handler.serve(server_io).await.unwrap() });
+            let client = ()
+                .serve_with_lifecycle(
+                    client_io,
+                    rmcp::ClientLifecycleMode::Discover {
+                        preferred_versions: vec![rmcp::model::ProtocolVersion::V_2026_07_28],
+                    },
+                )
+                .await
+                .unwrap();
+            let server = server.await.unwrap();
+            let filter = SubscriptionFilter::builder()
+                .resources_list_changed()
+                .build();
+            let peer = client.peer().clone();
+            let opening =
+                super::super::discovery_watch::open_catalog_subscription(&peer, &filter, indexing);
+            tokio::pin!(opening);
+            if close {
+                assert!(
+                    opening.await.is_err(),
+                    "an acknowledgement cannot establish source observation"
+                );
+            } else {
+                if knowledge || indexing {
+                    assert!(
+                        tokio::time::timeout(Duration::from_millis(25), &mut opening)
+                            .await
+                            .is_err()
+                    );
+                    catalog.notify_one();
+                }
+                let mut subscription = opening.await.unwrap();
+                assert_eq!(subscription.acknowledged(), &filter);
+                assert!(
+                    tokio::time::timeout(Duration::from_millis(25), subscription.next())
+                        .await
+                        .is_err(),
+                    "initial source notification must be consumed before catalog fetching"
+                );
+                subscription.cancel().await.unwrap();
+            }
+            client.cancel().await.unwrap();
+            server.cancel().await.unwrap();
+        }
+    })
+    .await
+    .expect("catalog source readiness qualification exceeded ten seconds");
 }
 
 #[tokio::test]

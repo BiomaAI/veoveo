@@ -4032,6 +4032,15 @@ All fifty native MCP forwarding cases and strict library Clippy pass. Staging ta
 changing the runnable digest. The reference lock selects that image for installed
 access qualification.
 
+The gateway converges at `dc1c67db` and preserves typed source rejections. Finding
+retrieval still passes. The access harness also exposes a cold discovery race:
+ordinary profiles do not consume a declaring source's initial catalog notification
+before fetching, so it can invalidate that fetch. Catalog watches now apply K07
+readiness to every caller of a declaring source. External servers without the
+extension keep their declared protocol behavior. The delayed-source fixture covers
+ordinary and indexing callers, early closure, and a non-declaring external server.
+The corrected watch still requires image publication and installed qualification.
+
 Adopt Reason's completed analyses and results so users can find earlier findings and
 read their grounding without rerunning inference. Observations carry stored owner,
 Work Context, labels, model provenance and modification metadata. Return bounded

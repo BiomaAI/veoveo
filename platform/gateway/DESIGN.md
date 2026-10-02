@@ -111,7 +111,8 @@ every accepted URI from the upstream source. The gateway forwards those invalida
 after observation starts, preserving any intervening catalog change. Its indexing
 catalog listener emits an initial list invalidation after registering the discovery
 change receiver. Knowledge waits for these signals before reading catalog or member
-pages. Internal source catalog watchers also wait for the source's initial list
+pages. Internal catalog watchers apply the declaring source's readiness requirement
+for every caller, including ordinary profiles. They wait for the source's initial list
 invalidation within their ten-second opening deadline, then discard the cached
 baseline before discovery. Source loss ends the stream and requires fresh admission
 on reconnect.

@@ -6,7 +6,7 @@ use crate::{
 };
 use rmcp::{
     model::{ErrorData as McpError, ServerNotification, SubscriptionFilter},
-    service::{Peer, RoleServer},
+    service::{Peer, RoleClient, RoleServer, Subscription},
 };
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 use tokio::sync::{Mutex, OnceCell};
@@ -103,11 +103,7 @@ impl GatewayMcp {
             let mut generation = self.catalog.subscribe();
             let (connection, mut subscription) = tokio::time::timeout(OPEN_DEADLINE, async {
                 let connection = self.upstream(&key.server, downstream, subject).await?;
-                let mut subscription = connection.peer.listen(filter.clone()).await.map_err(upstream_error)?;
-                if subscription.acknowledged() != &filter { return Err(mcp_internal("upstream narrowed its catalog subscription")); }
-                if indexing {
-                    super::subscriptions::wait_for_source_baseline(&mut subscription, &filter).await?;
-                }
+                let subscription = open_catalog_subscription(&connection.peer, &filter, indexing).await?;
                 Ok::<_,McpError>((connection, subscription))
             }).await.map_err(|_| mcp_internal("catalog subscription open deadline exceeded"))??;
             if *generation.borrow_and_update() != key.catalog_generation { return Err(mcp_internal("catalog changed while opening subscription")); }
@@ -157,4 +153,24 @@ impl GatewayMcp {
         }
         Ok(())
     }
+}
+
+pub(super) async fn open_catalog_subscription(
+    peer: &Peer<RoleClient>,
+    filter: &SubscriptionFilter,
+    indexing: bool,
+) -> Result<Subscription, McpError> {
+    let mut subscription = peer.listen(filter.clone()).await.map_err(upstream_error)?;
+    if subscription.acknowledged() != filter {
+        return Err(mcp_internal("upstream narrowed its catalog subscription"));
+    }
+    let source = peer
+        .peer_info()
+        .is_some_and(|info| veoveo_mcp_knowledge_extension::client::supports(&info.capabilities));
+    // K07's initial notification establishes observation for every caller. Leaving
+    // it queued races the first catalog fetch and invalidates unrelated callers.
+    if indexing || source {
+        super::subscriptions::wait_for_source_baseline(&mut subscription, filter).await?;
+    }
+    Ok(subscription)
 }
