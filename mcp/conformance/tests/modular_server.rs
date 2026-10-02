@@ -183,6 +183,7 @@ async fn qualify() -> anyhow::Result<()> {
         !source.passed(),
         "an absent source cannot pass on an empty selection"
     );
+    check_source_cli(&endpoint).await?;
     for id in ["K01", "K02", "K03", "K04", "K05", "K06"] {
         assert!(
             report.checks.iter().any(|check| check.requirement_id == id
@@ -281,6 +282,62 @@ async fn qualify() -> anyhow::Result<()> {
         tokio::net::TcpStream::connect(address).await.is_err(),
         "fixture listener outlived qualification"
     );
+    Ok(())
+}
+
+struct OwnedReport(std::path::PathBuf);
+impl Drop for OwnedReport {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
+async fn check_source_cli(endpoint: &str) -> anyhow::Result<()> {
+    for (route, server, expected) in [
+        ("direct", "observatory", true),
+        ("gateway", "observatory", true),
+        ("gateway", "absent", false),
+    ] {
+        let report = OwnedReport(
+            std::env::temp_dir().join(format!("veoveo-source-cli-{}.json", uuid::Uuid::now_v7())),
+        );
+        let result = tokio::process::Command::new(env!("CARGO_BIN_EXE_conformance"))
+            .args([
+                "knowledge-source",
+                "--url",
+                endpoint,
+                "--server",
+                server,
+                "--owned-scheme",
+                server,
+                "--route",
+                route,
+                "--report",
+            ])
+            .arg(&report.0)
+            .env("MCP_BEARER_TOKEN", "fixture-read")
+            .env_remove("VEOVEO_INTERNAL_SIGNING_KEY_DER_B64")
+            .kill_on_drop(true)
+            .output()
+            .await?;
+        assert_eq!(
+            result.status.success(),
+            expected,
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        let bytes = std::fs::read(&report.0)?;
+        let decoded: veoveo_mcp_conformance::ConformanceReport = serde_json::from_slice(&bytes)?;
+        assert_eq!(decoded.passed(), expected);
+        assert_eq!(decoded.profile_id, format!("knowledge-{server}"));
+        assert!(
+            decoded
+                .checks
+                .iter()
+                .all(|c| c.requirement_id.starts_with('K'))
+        );
+        assert!(!String::from_utf8_lossy(&bytes).contains("fixture-read"));
+    }
     Ok(())
 }
 

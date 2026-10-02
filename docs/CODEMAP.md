@@ -1478,7 +1478,7 @@ dispatch preflights and budgeted execution.
 
 | Path | Responsibility |
 |---|---|
-| `mcp/conformance` | `knowledge_probes.rs` supplies owner callbacks and typed search fixtures to live K07/K08 checks; `knowledge_source.rs` selects direct or gateway source checks without a domain registry; reusable MCP certification library, CLI, profiles, schemas and standalone image |
+| `mcp/conformance` | `knowledge_probes.rs` supplies owner callbacks and typed search fixtures to live K07/K08 checks; `knowledge_source.rs` selects direct or gateway source checks without a domain registry; `src/bin/conformance/source_checks.rs` exposes the same checker through the CLI; reusable MCP certification library, profiles, schemas and standalone image |
 | [`testing/installed/`](../testing/installed/DESIGN.md) | shared public-gateway transport, private credential/report files and installation-selected Deployment restart helpers; source owners keep fixture mutations and assertions |
 | `servers/artifact-mcp/tests/gateway_source_conformance.rs`, `tests/support/read_grant_probe.rs` | installed metadata source conformance and the Artifact-owned temporary grant driver reused by Reason |
 | `servers/reason-mcp/tests/gateway_source_conformance.rs` | installed finding source conformance over a completed analysis, result-grant changes and actual Reason restarts |

@@ -152,6 +152,14 @@ require owner review. The run has a fifteen-minute deadline, ten-second connecti
 timeouts and 65-second HTTP request timeouts, with redirects disabled. The ordinary
 collection and probe limits still apply.
 
+`conformance knowledge-source --url <endpoint> --server <slug> --owned-scheme <scheme>
+--route gateway --report <new-path>` runs this checker from the CLI. The route may
+also be `direct`; repeat `--owned-scheme` for additional owner schemes. Credentials
+use the CLI's existing out-of-band inputs. It writes a private, create-only report
+and exits unsuccessfully when a check fails. Sources declaring mutation or search
+probes require their owner harness; the CLI supplies no probes and therefore fails
+those requirements. Documentation-only sources can use this command directly.
+
 Native fixtures check direct and gateway selection, missing declarations, duplicate
 preservation and gateway tool calls for both ordinary and restricted readers. The
 fault matrix runs under both naming routes. Installed owner harnesses use the

@@ -94,6 +94,8 @@ mod fake_services;
 mod mcp_commands;
 #[path = "conformance/schema.rs"]
 mod schema;
+#[path = "conformance/source_checks.rs"]
+mod source_checks;
 #[path = "conformance/tokens.rs"]
 mod tokens;
 
@@ -136,6 +138,9 @@ async fn main() -> Result<()> {
         .init();
     let args = Args::parse();
     match &args.cmd {
+        Cmd::KnowledgeSource(command) => {
+            return command.run(&args.url, bearer_token_from_args(&args)?).await;
+        }
         Cmd::Certify { profile, report } => {
             let profile: veoveo_mcp_conformance::HostedServerConformanceProfile =
                 serde_json::from_slice(&std::fs::read(profile)?)?;
@@ -438,6 +443,7 @@ async fn main() -> Result<()> {
     let uris = ServerResourceUris::new(veoveo_types::ResourceScheme::new(args.scheme)?);
 
     let result = match args.cmd {
+        Cmd::KnowledgeSource(_) => unreachable!("handled before MCP connection"),
         Cmd::Certify { .. } => unreachable!("handled before MCP connection"),
         Cmd::AuthDiscovery { .. } => unreachable!("handled before MCP connection"),
         Cmd::GatewayJwks => unreachable!("handled before MCP connection"),

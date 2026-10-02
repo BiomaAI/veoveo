@@ -59,6 +59,8 @@ pub(super) struct Args {
 
 #[derive(Subcommand)]
 pub(super) enum Cmd {
+    /// Check one knowledge source; required mutation/search probes need the owner harness.
+    KnowledgeSource(super::source_checks::SourceChecks),
     /// Certify a running hosted server against a typed, domain-neutral profile.
     Certify {
         /// JSON conformance profile.
