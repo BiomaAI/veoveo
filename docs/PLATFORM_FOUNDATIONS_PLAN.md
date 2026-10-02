@@ -85,9 +85,18 @@ Installed Artifact, Reason and Time runs now pass 54 checks in total: eleven for
 Artifact, sixteen for Reason and twenty-seven for Time. All four K07 change/restart
 probes pass, and owned grant/event cleanup succeeds. K08 skips because these sources
 declare no search tool. Public routing takes one to four readiness reads after Pod
-readiness; the helper bypasses SDK caching on every restart. Map's fixture preparation
-and installed run remain open. Only the source-check prerequisites run during this
-acceptance batch; Knowledge and unused GPU workloads are stopped.
+readiness; the helper bypasses SDK caching on every restart. Map's installed run passes
+34 checks, including search denial and three restart probes. Its publication removal
+probe fails because archival preserves immutable publications under the owning design.
+Public reads confirm that behavior after cleanup. The checker needs a typed creation
+probe for immutable collections: subscribe before publication, verify the new member
+and collection invalidation, restart, verify persistence, then publish again. Preserve
+Map's archival semantics and replace the invalid removal fixture.
+All three fixture layers are archived and the original release pointer is restored.
+A completed public audit export contains 424 API records, including revision-bearing
+knowledge reads for all eighteen collections declared by these four sources. Source
+audit review therefore passes for each collection. Knowledge and unused GPU workloads
+stay stopped during source checks; the cluster is stopped for further development.
 The current source-qualification batch adds one shared gateway entry point and
 owner-local fixtures for Artifact, Reason, Map and Time. K07 models both updates and
 membership removal; removal must survive restart and deny full and conditional reads.
@@ -3558,9 +3567,9 @@ revision.
 | Server | Collections | Existing provenance | Gaps to close |
 |---|---|---|---|
 | chart | `charts.docs` only | build-time document digests | Docs declaration, observations and conditional reads implemented; installed certification remains open |
-| time | events, calendar versions, epoch versions, acquired and packaged authority releases | stored creation tenant, owner and Work Context; content/access revisions, source digests and modification timestamps | Installed source conformance passes twenty-seven checks across docs and five domain collections, including event cancellation before and after a real service restart; source audit review remains open |
-| artifact | artifact metadata (`artifact://metadata/{id}`), never the bytes | compliance metadata: tenant, owner, Work Context, labels, provenance | Installed source conformance passes eleven checks, including grant changes across a real service restart; deadline qualification and K09/K10 review pass; source audit review remains open |
-| map | bounded summaries of feature layers, features, publications, locations, facilities and dataset releases | full source content digests, layer and feature revisions, Work Context, labels, stored timestamps and recorded modifying actors | Six declarations, typed member links and cursors, source observations, conditional reads and SQL-selected location search pass local qualification; installed conformance and mutation/restart probes remain open |
+| time | events, calendar versions, epoch versions, acquired and packaged authority releases | stored creation tenant, owner and Work Context; content/access revisions, source digests and modification timestamps | Installed source conformance passes twenty-seven checks across docs and five domain collections, including event cancellation before and after a real service restart; source audit review passes |
+| artifact | artifact metadata (`artifact://metadata/{id}`), never the bytes | compliance metadata: tenant, owner, Work Context, labels, provenance | Installed source conformance passes eleven checks, including grant changes across a real service restart; deadline qualification, K09/K10 review and source audit review pass |
+| map | bounded summaries of feature layers, features, publications, locations, facilities and dataset releases | full source content digests, layer and feature revisions, Work Context, labels, stored timestamps and recorded modifying actors | Installed reads, source audit, search denial and three restart probes pass. Publication creation/restart qualification requires the shared typed creation probe; archival preserves immutable publications and cannot supply a removal fixture |
 
 Acceptance: each server passes K01 through K10 review and conformance, and the audit
 log records the observed revision for reads of each collection.
