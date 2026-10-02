@@ -31,8 +31,8 @@ Public catalog, source-linked retrieval, embedding and network-isolation checks 
 Catalog completion, caller-visible statistics and request-scoped subscriptions pass
 native and public installed checks. Indexing audit windows commit before delivery,
 recover across writer restarts in native tests, and finalize in the reference installation
-with a verified signed audit chain. Domain retrieval evaluation, installed source
-mutation/restart qualification remain open. Reason's completed analyses and results
+with a verified signed audit chain. Installed source mutation/restart qualification
+remains open. Reason's completed analyses and results
 pass native Artifact access, pagination and hosted K01–K07 checks. Publication retains
 bounded finding data. The reference approves nineteen collections at `af73f95b`;
 public catalog/search, a fresh GPU analysis and both indexed finding collections pass
@@ -41,7 +41,7 @@ and Knowledge restarts. Gateway forwarding, source-watch lifetime and Knowledge 
 readiness corrections are deployed at `391a4516`. Installed result grants and revocation
 pass for both finding collections, including denied public Task control and annotations.
 The nineteen-collection catalog and source-linked retrieval pass on that deployment.
-Full source conformance and corpus retrieval evaluation remain open.
+Full source conformance remains open. The controlled corpus comparison is recorded below.
 The retrieval evaluator now binds judged queries and a complete caller-visible corpus
 to a generation, verifies source revisions through SQL-admitted pages and searches,
 and derives recall at ten from retained ranks. Store appends reports under the immutable
@@ -51,8 +51,9 @@ generation's evaluation. The domain corpus now has 153 members in nineteen colle
 and 78 fixed queries, including Spanish paraphrases, across twelve fictional inspection
 scenarios and five actual source designs. Owner contract libraries construct the records
 and addresses. Map and Reason expose descriptors through lightweight `knowledge`
-features; the independent consumer rejects runtime dependencies. Actual-model runs and
-the 0.6B/4B/8B comparison remain open; native checks do not establish retrieval quality.
+features; the independent consumer rejects runtime dependencies. The 0.6B/4B/8B CUDA
+comparison passes on this corpus and retains 0.6B; it does not establish production-wide
+retrieval quality or installed source conformance.
 Store migration 0104 has not been published or deployed.
 Nine native evaluator, corpus and retrieval checks pass. Affected all-target strict
 Clippy, SurrealDB 3.3.0 query validation and documentation links pass.
@@ -65,8 +66,14 @@ return no inserted vectors. A native 256-chunk, 8,192-dimension member passes wr
 readback and injected-failure rollback. All 23 affected Store/configuration and retrieval
 checks pass, as do affected strict Clippy and rendered SurrealDB 3.3 query validation.
 The evaluator's first cleanup attempt reported a transaction conflict; the complete
-retrieval batch passed on rerun. The model comparison is being repeated against the
-corrected storage path with one 4.625 GiB KV-cache setting for every checkpoint.
+retrieval batch passed on rerun. The corrected three-model comparison passes with one
+4.625 GiB KV-cache setting for every checkpoint. All models reach recall at ten of
+1.000; rebuild throughput with concurrent search is 98.34, 50.50 and 29.81 chunks/second
+for 0.6B, 4B and 8B. Model-process memory peaks at 6,962, 14,456 and 20,964 MiB.
+The [measurement record](../platform/runtimes/embedding/verification/retrieval-2026-10-02.md)
+retains judgments, ranks, GPU samples and the decision to keep 0.6B. Each isolated
+database and runtime is removed after its run. Migration 0104 and the Store write-profile
+fix still require publication and deployment.
 The gateway source adapter discovers approved
 collections and waits for catalog/resource observation readiness before reading.
 The library coordinator qualifies lease renewal, source invalidation, conditional
@@ -3487,6 +3494,18 @@ Acceptance: each server passes K01 through K10 review and conformance, and the a
 log records the observed revision for reads of each collection.
 
 ## Phase 8: Knowledge Service
+
+Retrieval comparison checkpoint (2026-10-02 UTC): the native RocksDB/CUDA workload
+passes all three pinned Qwen checkpoints against the same 153 members and 78 judgments.
+Each rebuild produces 1,197 chunks and serves searches against the preceding generation
+before activation. All models reach recall at ten of 1.000. Throughput is 98.34, 50.50
+and 29.81 chunks/second for 0.6B, 4B and 8B, with observed model-process peaks of 6,962,
+14,456 and 20,964 MiB at the common 4.625 GiB cache allocation. The
+[runtime measurement](../platform/runtimes/embedding/verification/retrieval-2026-10-02.md)
+records the complete rankings and GPU samples, the smaller-model choice, and the
+constructed-corpus and single-run limits. This closes the controlled model comparison
+and concurrent-search rebuild measurement. It does not close installed source conformance,
+GPU coexistence, or deployment of migration 0104 and the Store write-profile correction.
 
 Client checkpoint (2026-10-01): upstream still lists vLLM 0.30.0 as its latest stable
 release. The typed HTTP client implements model discovery, document/query batches,

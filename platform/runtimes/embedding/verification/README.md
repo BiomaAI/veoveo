@@ -53,6 +53,40 @@ latency, bulk completion times and total input throughput as JSON. Each case has
 120-second deadline. These small fixtures qualify correctness and client scheduling;
 Knowledge's recall and model-size comparison need its own representative evaluation set.
 
+## Retrieval Model Comparison
+
+The [Knowledge evaluation workload](../../../../servers/knowledge-mcp/evaluation/README.md)
+builds a generation from owner-typed domain fixtures, rebuilds it under concurrent
+search, and retains per-query relevance judgments and results. Generate the three
+configurations together and preserve both corpus fingerprints across runs.
+
+| Checkpoint | Revision | File verification |
+|---|---|---|
+| [Qwen3-Embedding-0.6B](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B) | `97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3` | [SHA-256 manifest](../checkpoint.sha256) |
+| [Qwen3-Embedding-4B](https://huggingface.co/Qwen/Qwen3-Embedding-4B) | `5cf2132abc99cad020ac570b19d031efec650f2b` | [SHA-256 manifest](qwen3-embedding-4b.sha256) |
+| [Qwen3-Embedding-8B](https://huggingface.co/Qwen/Qwen3-Embedding-8B) | `1d8ad4ca9b3dd8059ad90a75d4983776a23d44af` | [SHA-256 manifest](qwen3-embedding-8b.sha256) |
+
+The manifests bind the runtime files to the pinned upstream Git/LFS objects. Stage
+each checkpoint before timing; the containers use `HF_HUB_OFFLINE=1`. Run one model
+at a time with the same official image, BF16 weights, pooling runner and priority
+scheduler. Keep `--max-model-len 32768`, `--max-num-batched-tokens 8192` and
+`--max-num-seqs 32` constant. The comparison uses
+`--kv-cache-memory-bytes 4966055936` (4.625 GiB) for all three models and
+`--gpu-memory-utilization 0.90`. The explicit cache allocation allows observed memory
+to reflect the checkpoint cost rather than a different cache reservation. This is a
+comparison setting; the deployed 0.6B runtime uses its installation memory fraction.
+The allocation includes room for the cache block reserved beyond the larger models'
+nominal 4.5 GiB requirement at the full context length.
+
+Require CUDA at startup and record the selected attention backend. Sample device
+memory and the runtime's compute-process memory once per second through the workload.
+Device totals include the desktop and browser; report those separately from the model
+process. Stop other GPU workloads, BuildKit and checkpoint downloads for the comparison.
+This isolated run does not qualify concurrent simulation and reasoning workloads.
+
+The [retrieval comparison](retrieval-2026-10-02.md) records the fixed corpus,
+runtime settings, measured retrieval and indexing results, and model-selection limits.
+
 ## Refusal And Network Checks
 
 Run the chart's init command against a fixture with one altered checkpoint file and

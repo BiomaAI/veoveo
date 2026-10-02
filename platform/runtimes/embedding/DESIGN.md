@@ -14,10 +14,10 @@ identities and vector admission without runtime dependencies. The
 priorities, deadlines and response validation. The Helm component implements GPU
 serving, checkpoint verification and namespace isolation. Local CUDA reference,
 scheduling and refusal checks pass. Installed namespace isolation and authenticated
-model access pass on the reference cluster. Composed GPU-memory qualification and
-retrieval evaluation remain open. Phase 8 of the
-[implementation plan](../../../docs/PLATFORM_FOUNDATIONS_PLAN.md#phase-8-knowledge-service)
-delivers them before the knowledge service consumes them.
+model access pass on the reference cluster. The controlled domain-corpus comparison
+qualifies 0.6B, 4B and 8B through Knowledge retrieval and selects 0.6B. Composed
+GPU-memory qualification remains open in the
+[implementation plan](../../../docs/PLATFORM_FOUNDATIONS_PLAN.md#phase-8-knowledge-service).
 
 ## Standards And Protocols
 
@@ -109,6 +109,15 @@ checkpoint. Their outputs have 1024, 2560, and 4096 dimensions. The comparison r
 retrieval recall at 10 on the knowledge evaluation set, GPU memory, and throughput in
 inputs per second. The runtime ships 0.6B unless a larger model shows a retrieval gain
 that justifies its memory on the installation's shared GPUs.
+
+The [domain-corpus comparison](verification/retrieval-2026-10-02.md) retains 0.6B.
+All three models achieve recall at ten of 1.000 on 78 fixed queries over 153 members.
+The 0.6B runtime rebuilds 1,197 chunks at 98.34 chunks/second with concurrent search,
+compared with 50.50 for 4B and 29.81 for 8B. Observed model-process memory peaks at
+6,962, 14,456 and 20,964 MiB respectively with a common 4.625 GiB cache. The larger
+checkpoints provide no recall gain on this corpus. Its constructed judgments and
+single runs do not establish production-wide recall, quality equivalence or capacity
+under the installation's simultaneous GPU workloads.
 
 ## Verification
 

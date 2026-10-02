@@ -759,6 +759,11 @@ Deployment `embedding`, transfer Pod `embedding-model-stage`, and final director
 files are the complete runtime checkpoint. Verify the staging directory before moving
 it into place, delete the transfer Pod, and restart `deployment/embedding`.
 
+The [retrieval comparison](../../platform/runtimes/embedding/verification/retrieval-2026-10-02.md)
+selects 0.6B for this installation. Larger checkpoints provide no recall gain on the
+fixed domain corpus and use more GPU memory. The comparison's fixed cache allocation
+is separate from this installation's 25% memory fraction.
+
 Readiness requires checkpoint verification, a visible NVIDIA CUDA device and vLLM's
 `/health`. The runtime serves internal requests at `http://embedding:8000`, authenticated
 with `veoveo-embedding`'s `api-key`. The namespace policy excludes the Computers host
