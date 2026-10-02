@@ -14,6 +14,7 @@ from uuid import UUID
 from pydantic import AfterValidator, AwareDatetime, BaseModel, ConfigDict, Field, StringConstraints
 
 from .audit import AuditRequest
+from veoveo_mcp.types import ScopeName
 
 GATEWAY_INTERNAL_TOKEN_ISSUER = "veoveo-internal"
 DEFAULT_GATEWAY_INTERNAL_SIGNING_KEY_ID = "veoveo-internal-1"
@@ -41,7 +42,6 @@ PrincipalId = Annotated[str, _identifier(1_024)]
 TenantId = Annotated[str, _identifier(256)]
 GroupId = Annotated[str, _identifier(512)]
 RoleId = Annotated[str, _identifier(256)]
-ScopeName = Annotated[str, _identifier(256)]
 DataLabelId = Annotated[str, _identifier(256)]
 GatewayProfileId = Annotated[str, _identifier(256), StringConstraints(strict=True, pattern=r"^[a-z0-9_-]+$")]
 ServerSlug = Annotated[str, _identifier(128)]

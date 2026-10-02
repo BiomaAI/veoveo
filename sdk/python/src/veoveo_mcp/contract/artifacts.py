@@ -13,6 +13,7 @@ from datetime import datetime
 from typing import Annotated, Any
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field
+from veoveo_mcp.types import CheckedText, ResourceScheme, ResourceUriBuilder, UriAuthority, UriSegment
 
 
 def _uuid_v7_str(value: str) -> str:
@@ -22,7 +23,13 @@ def _uuid_v7_str(value: str) -> str:
     return str(parsed)
 
 
-ArtifactId = Annotated[str, AfterValidator(_uuid_v7_str)]
+class ArtifactId(CheckedText):
+    @classmethod
+    def _validate(cls, value: str) -> None:
+        if _uuid_v7_str(value) != value:
+            raise ValueError("artifact identifiers require canonical UUIDv7 spelling")
+
+
 ArtifactWriteCapabilityId = Annotated[str, AfterValidator(_uuid_v7_str)]
 
 
@@ -87,7 +94,9 @@ class ArtifactMetadata(BaseModel):
     def presented_under_scheme(self, scheme: str) -> "ArtifactMetadata":
         """Rewrite `artifact_uri` into `{scheme}://artifact/{artifact_id}`."""
         clone = self.model_copy()
-        clone.artifact_uri = f"{scheme}://artifact/{self.artifact_id}"
+        clone.artifact_uri = ResourceUriBuilder(ResourceScheme(scheme), UriAuthority("artifact")).segment(
+            UriSegment(self.artifact_id)
+        ).build()
         return clone
 
 

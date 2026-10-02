@@ -160,6 +160,10 @@ their resource parser. The foundational `ResourceSelector`, `ResourceUriPrefix` 
 Their matching semantics are separate from RFC 6570 template expansion. This setup establishes API and declaration consistency;
 hosted conformance and domain tests establish the relevant behavior. Authentication,
 resource visibility, and operation policy stay with their existing owners.
+The [Python SDK](../../sdk/python/DESIGN.md#checked-mcp-setup) implements these associations
+as generic protocols and checked setup. Its foundational module has no MCP imports;
+Python owners supply their own scope enum, resource variants and parser. Datasheet
+consumes that setup before starting its dependencies.
 Gateway template discovery and resource completion use `PolicyTarget::ResourceTemplate`;
 concrete resource targets use their existing variants. The shared evaluator preserves
 the selector language and checks action/target consistency. Native administration

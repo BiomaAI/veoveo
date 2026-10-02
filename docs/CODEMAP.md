@@ -147,6 +147,7 @@ material they operate:
 | [`showcase/uav-sim/agents/DESIGN.md`](../showcase/uav-sim/agents/DESIGN.md) | reviewed managed pilot template, seed instructions, retained identity and volume transfer |
 | [`showcase/uav-sim/ACCEPTANCE.md`](../showcase/uav-sim/ACCEPTANCE.md) | deployed UAV acceptance catalog and the repeatable per-agent named-location mission E2E runbook |
 | [`templates/python-mcp/README.md`](../templates/python-mcp/README.md) | Python MCP server template |
+| [`sdk/python/DESIGN.md`](../sdk/python/DESIGN.md) | Python foundational types, owner extension protocols, URI libraries and checked MCP setup |
 | [`timesfm-showcase/README.md`](../servers/timeseries-mcp/testdata/timesfm-showcase/README.md) | TimesFM test fixture provenance and use |
 
 The whitepaper has one source,
@@ -1343,6 +1344,8 @@ shape and schema, and this package follows it.
 
 | Module | Responsibility |
 |---|---|
+| `types.py` | protocol-independent nominal scope/URI types, owner scope and resource interfaces, and URI component builder |
+| `contract/server.py` | generic MCP owner associations, checked discovery setup, scope membership and document declaration validation |
 | `contract/` | identity, artifact-plane, and usage wire models |
 | `contract/knowledge.py`, `contract/docs.py` | typed knowledge observations, authorized conditional document reads and shared document paging |
 | `build_docs.py` | Hatch build hook for embedded documents and build-time SHA-256 manifests |
@@ -1364,7 +1367,9 @@ The template for new Python servers, shipped as the working
 domain; `server/` mirrors the Rust per-server module split (config, ownership,
 official Tasks adapter, durable task, MCP surface, composition).
 `catalog.py` owns typed report and usage pages and collection-bound cursors;
-`uris.py` owns resource variants and URI builders. The headless behavioral harness
+`uris.py` owns resource variants and URI builders. `server/contract.py` binds these
+owner types to checked MCP startup and discovery.
+The headless behavioral harness
 `apps/console/web/tests/datasheet-pagination.test.mjs` checks Workbench page navigation.
 
 ## Agents

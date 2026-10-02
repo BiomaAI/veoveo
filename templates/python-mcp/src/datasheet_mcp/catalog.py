@@ -101,7 +101,7 @@ class ReportPage(BaseModel):
     def next_uri(self) -> str | None:
         from .uris import ReportCatalogResource
 
-        return ReportCatalogResource(self.next_cursor).uri() if self.next_cursor else None
+        return ReportCatalogResource(self.next_cursor).to_uri() if self.next_cursor else None
 
 
 class UsagePage(BaseModel):
@@ -127,4 +127,4 @@ class UsagePage(BaseModel):
     def next_uri(self) -> str | None:
         from .uris import UsageCatalogResource
 
-        return UsageCatalogResource(self.next_cursor).uri() if self.next_cursor else None
+        return UsageCatalogResource(self.next_cursor).to_uri() if self.next_cursor else None

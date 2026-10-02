@@ -18,6 +18,7 @@ hosted-server requirements.
 | CSV and Apache Parquet | Dataset inputs resolved from shared-plane artifacts or bounded inline CSV |
 | `datasheet://` URI scheme | Canonical resource identities for reports, usage, artifacts, and documents |
 | Datasheet catalog cursor version 1 | Collection-bound JSON encoded as unpadded base64url, carried in the URI's `cursor` query parameter |
+| RFC 3986 and RFC 6570 | Checked resource references and templates through the [Python SDK's pinned URI libraries](../../sdk/python/DESIGN.md#standards-and-protocols) |
 
 ## Domain
 
@@ -57,8 +58,18 @@ grouping, limiting or decoding. Exact usage reads and Task-ID completion use the
 selection. Completion filters the prefix in SQL and returns at most 100 values, with
 `hasMore` derived from one lookahead row.
 
-`uris.py` parses addresses into resource variants and builds their components through
-the standard URI library. Resource discovery lists roots and templates without reading
+`uris.py` owns the complete resource vocabulary, including the Workbench and contract
+roots and the closed `DocumentId` enum. Builders require Task UUIDs, nominal Artifact
+IDs, and the appropriate collection cursor. They return the SDK's `ResourceUri` and
+delegate component encoding to its URI libraries. Parsing rejects encoded identity
+aliases, unknown query fields and unsupported document IDs.
+
+`server/contract.py` implements the shared `McpServerContract` protocol and constructs
+`McpServerSetup` before Store connections or Task recovery. Setup checks declaration
+identity, document coverage, duplicate scopes/resources/templates and resource round
+trips. Datasheet declares an empty domain scope enum; owner authorization uses the
+current gateway identity and SQL selection. MCP handlers consume the checked setup's
+identity and discovery descriptors. Resource discovery lists roots and templates without reading
 stored Tasks. The Workbench requests report pages through the returned `next_uri` when
 the caller selects More reports.
 

@@ -37,7 +37,8 @@ from .. import uris
 from ..docs import LLMS_TXT, SERVER_DOCS
 from .app_state import AppState
 from .config import Config, parse_config
-from .mcp_server import INSTRUCTIONS, build_mcp_server
+from .mcp_server import build_mcp_server
+from .contract import INSTRUCTIONS
 from .profile_task import SERVER_SLUG, resume_profile_tasks
 from .task_extension import DatasheetTaskExtension
 

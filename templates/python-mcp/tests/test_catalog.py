@@ -10,6 +10,8 @@ from pydantic import ValidationError
 from datasheet_mcp import uris
 from datasheet_mcp.catalog import ReportCursor, ReportEntry, ReportPage, UsageCursor
 from datasheet_mcp.server import mcp_server
+from veoveo_mcp.types import ResourceUri
+from veoveo_mcp.contract.artifacts import ArtifactId
 from veoveo_mcp.tasks import TaskError, TaskPage, TaskPageCursor, TaskStatus, new_task_id
 
 
@@ -23,13 +25,13 @@ def test_cursor_and_resource_round_trips_bind_the_collection():
     report = ReportCursor(task_id=task_id, created_at=now)
     usage = UsageCursor(task_id=task_id)
     for resource in (uris.ReportCatalogResource(report), uris.UsageCatalogResource(usage)):
-        assert uris.parse_resource_uri(resource.uri()) == resource
+        assert uris.parse_resource_uri(resource.to_uri()) == resource
     assert uris.parse_resource_uri(uris.usage_task_uri(task_id)).task_id == task_id
-    assert uris.parse_resource_uri(uris.artifact_uri(str(task_id))).artifact_id == str(task_id)
+    assert uris.parse_resource_uri(uris.artifact_uri(ArtifactId(str(task_id)))).artifact_id == str(task_id)
     with pytest.raises(ValueError):
-        uris.parse_resource_uri(uris.REPORTS_URI + "?cursor=" + usage.encode())
+        uris.parse_resource_uri(ResourceUri(uris.REPORTS_URI + "?cursor=" + usage.encode()))
     with pytest.raises(ValueError):
-        uris.parse_resource_uri(uris.USAGE_ROOT_URI + "?cursor=" + report.encode())
+        uris.parse_resource_uri(ResourceUri(uris.USAGE_ROOT_URI + "?cursor=" + report.encode()))
     with pytest.raises(TypeError):
         uris.usage_task_uri(str(task_id))
 
@@ -39,7 +41,7 @@ def test_cursor_and_resource_round_trips_bind_the_collection():
 ])
 def test_catalog_rejects_unsupported_uri_components(suffix):
     with pytest.raises(ValueError):
-        uris.parse_resource_uri(uris.REPORTS_URI + suffix)
+        uris.parse_resource_uri(ResourceUri(uris.REPORTS_URI + suffix))
 
 
 def test_cursor_rejects_extra_fields_versions_and_unbound_documents():
@@ -55,7 +57,7 @@ def test_cursor_rejects_extra_fields_versions_and_unbound_documents():
         UsageCursor.decode("a" * 769)
     for uri in ["datasheet://usage/task/not-a-task", "datasheet://usage/task/" + str(new_task_id()) + "/extra"]:
         try:
-            assert uris.parse_resource_uri(uri) is None
+            assert uris.parse_resource_uri(ResourceUri(uri)) is None
         except TaskError:
             pass
 

@@ -5,6 +5,11 @@ installation. It provides the hosted-server contract, internal
 identity verification, task-extension transport, durable task runtime, artifact
 client, schema helpers, pagination, host validation, and the telemetry boundary.
 
+The [server contract design](DESIGN.md) describes nominal scopes and resource types,
+owner-defined vocabularies, URI builders and checked MCP setup. New servers implement
+`McpServerContract` in their own package and consume `McpServerSetup` before starting
+dependencies. Datasheet is the working reference.
+
 Task creation reuses principals by tenant, kind, issuer and subject. Display names
 are presentation metadata. Identity discovery creates missing records and checks
 existing identities inside one transaction, preserving existing names and security

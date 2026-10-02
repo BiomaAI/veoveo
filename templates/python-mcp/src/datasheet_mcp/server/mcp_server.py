@@ -18,14 +18,15 @@ from mcp.shared.exceptions import MCPError
 from pydantic import ValidationError
 
 from veoveo_mcp.contract import UsageReport
-from veoveo_mcp.contract.knowledge import EXTENSION_ID
+from veoveo_mcp.types import ResourceUri
 from veoveo_mcp.pagination import PaginationError, paginate
 from veoveo_mcp.schema import mcp_input_schema
 from veoveo_mcp.tasks import TaskError
 
 from .. import engine, prompts, uris
 from ..app import APP_HTML
-from ..docs import CONTRACT_DECLARATION, SERVER_DOCS
+from ..docs import CONTRACT_DECLARATION
+from .contract import SERVER_SETUP
 from ..contract import (
     ColumnStatsOutput,
     ColumnStatsRequest,
@@ -48,12 +49,7 @@ from ..catalog import PAGE_SIZE, ReportCursor, ReportEntry, ReportPage, UsageCur
 Context = ServerRequestContext[Any, Any]
 
 LIST_PAGE_SIZE = 100
-INSTRUCTIONS = (
-    "Datasheet profiling server. Use direct tools for small previews and "
-    "column statistics; run profile_dataset as an MCP task for the full "
-    "profile and shared-plane artifact output. Resources expose reports, "
-    "per-task usage, and artifacts under the datasheet:// scheme."
-)
+
 
 
 def _invalid(message: str) -> MCPError:
@@ -168,60 +164,7 @@ def build_mcp_server(state: AppState) -> Server:
         ctx: Context, params: types.PaginatedRequestParams | None
     ) -> types.ListResourcesResult:
         identity_from_scope(request_scope(ctx))
-        resources = [
-            types.Resource(
-                uri=uris.WORKBENCH_APP_URI,
-                name="workbench",
-                title="Workbench",
-                description="Preview, inspect, and profile governed tabular data.",
-                mime_type="text/html;profile=mcp-app",
-                meta={"ui": {}},
-            ),
-            types.Resource(
-                uri=uris.REPORTS_URI,
-                name="reports",
-                title="Profile reports",
-                description="Completed and running datasheet profile tasks.",
-                mime_type="application/json",
-            ),
-            types.Resource(
-                uri=uris.USAGE_ROOT_URI,
-                name="usage",
-                title="Datasheet usage ledger",
-                description="Index of task usage resources.",
-                mime_type="application/json",
-            ),
-            types.Resource(
-                uri=uris.DOCS_URI,
-                name="docs",
-                title="Datasheet server documentation",
-                description="Index of embedded server documents.",
-                mime_type="application/json",
-            ),
-        ]
-        for doc in SERVER_DOCS:
-            resources.append(
-                types.Resource(
-                    uri=uris.doc_uri(doc.id),
-                    name=doc.id,
-                    title=doc.title,
-                    description=f"Embedded `{doc.id}` server document.",
-                    mime_type="text/markdown",
-                )
-            )
-        resources.append(
-            types.Resource(
-                uri=uris.CONTRACT_URI,
-                name="contract",
-                title="Datasheet contract declaration",
-                description=(
-                    "Machine-readable contract revision, compliance, and "
-                    "capability inventory."
-                ),
-                mime_type="application/json",
-            )
-        )
-        resources.sort(key=lambda resource: resource.uri)
+        resources = SERVER_SETUP.resources()
         cursor = params.cursor if params is not None else None
         try:
             page = paginate(resources, cursor, LIST_PAGE_SIZE)
@@ -235,36 +178,7 @@ def build_mcp_server(state: AppState) -> Server:
         _ctx: Context, _params: types.PaginatedRequestParams | None
     ) -> types.ListResourceTemplatesResult:
         return types.ListResourceTemplatesResult(
-            resource_templates=[
-                SERVER_DOCS.knowledge_template(),
-                types.ResourceTemplate(
-                    uri_template=uris.REPORTS_TEMPLATE, name="report-pages",
-                    title="Profile report pages", mime_type="application/json",
-                    description="Read the next_uri returned by the report catalog.",
-                ),
-                types.ResourceTemplate(
-                    uri_template=uris.USAGE_TEMPLATE, name="usage-pages",
-                    title="Usage catalog pages", mime_type="application/json",
-                    description="Read the next_uri returned by the usage catalog.",
-                ),
-                types.ResourceTemplate(
-                    uri_template=uris.USAGE_TASK_TEMPLATE,
-                    name="usage",
-                    title="Datasheet task usage",
-                    description=(
-                        "Usage rows for one datasheet task. task_id supports "
-                        "completion."
-                    ),
-                    mime_type="application/json",
-                ),
-                types.ResourceTemplate(
-                    uri_template=uris.ARTIFACT_TEMPLATE,
-                    name="artifact",
-                    title="Datasheet artifact",
-                    description="Shared-plane immutable datasheet artifact.",
-                    mime_type="application/json",
-                ),
-            ]
+            resource_templates=SERVER_SETUP.resource_templates()
         )
 
     async def read_resource(
@@ -273,15 +187,17 @@ def build_mcp_server(state: AppState) -> Server:
         text = params.uri
         identity = identity_from_scope(request_scope(ctx))
         try:
-            document = SERVER_DOCS.read_authorized(text, capabilities=ctx.session.client_capabilities,
+            address = ResourceUri(text)
+            resource = uris.parse_resource_uri(address)
+            document = SERVER_SETUP.documents.read_authorized(address, capabilities=ctx.session.client_capabilities,
                 metadata=ctx.meta)
-        except ValueError as error:
+        except (ValueError, TaskError) as error:
             raise _invalid(str(error)) from error
         if document is not None:
             return document
-        if text == uris.CONTRACT_URI:
+        if resource == uris.FixedResource.CONTRACT:
             return _json_result(text, CONTRACT_DECLARATION.wire())
-        if text == uris.WORKBENCH_APP_URI:
+        if resource == uris.FixedResource.WORKBENCH:
             return types.ReadResourceResult(
                 contents=[
                     types.TextResourceContents(
@@ -291,10 +207,6 @@ def build_mcp_server(state: AppState) -> Server:
                     )
                 ]
             )
-        try:
-            resource = uris.parse_resource_uri(text)
-        except (ValueError, TaskError) as error:
-            raise _invalid(str(error)) from error
         query = state.tasks.for_owner(runtime_owner(identity)).of_type(TASK_TYPE)
         if isinstance(resource, uris.ReportCatalogResource):
             page = await query.page(resource.after.position() if resource.after else None, PAGE_SIZE)
@@ -378,9 +290,9 @@ def build_mcp_server(state: AppState) -> Server:
             raise _invalid(str(error)) from error
 
     server = Server(
-        "datasheet",
-        version="0.1.0",
-        instructions=INSTRUCTIONS,
+        SERVER_SETUP.name,
+        version=SERVER_SETUP.version,
+        instructions=SERVER_SETUP.instructions,
         cache_hints={
             "server/discover": CacheHint(ttl_ms=5_000, scope="private"),
             "tools/list": CacheHint(ttl_ms=5_000, scope="private"),
@@ -399,7 +311,7 @@ def build_mcp_server(state: AppState) -> Server:
         on_get_prompt=get_prompt,
         on_ping=None,
     )
-    server.extensions[EXTENSION_ID] = {}
+    SERVER_SETUP.configure(server)
     server.extensions["io.modelcontextprotocol/ui"] = {
         "mimeTypes": ["text/html;profile=mcp-app"]
     }

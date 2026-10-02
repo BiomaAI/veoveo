@@ -40,6 +40,10 @@ every change here must keep the template a complete, working reference.
 - Report and usage catalogs use the owner query's SQL-selected pages. Resource
   discovery lists roots and templates without scanning stored Tasks. Build addresses
   with `uris.py` and retain the distinct report and usage cursor types internally.
+- Keep scopes and resource routes in the owner package. `server/contract.py` supplies
+  the shared checked setup before dependencies start; discovery consumes its descriptors.
+  Use `ResourceUri` for concrete references, `ResourceTemplateUri` for templates and
+  typed resource constructors for Task, Artifact and document identities.
 
 ## Build And Test
 

@@ -15,13 +15,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from importlib.resources import files
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Any, Iterator, Mapping, NotRequired, TypedDict
-from urllib.parse import urlunsplit, quote
 import re
 import json
-from urllib.parse import urlsplit, parse_qs, unquote
 import mcp.types as types
+from rfc3986 import URIReference
+from veoveo_mcp.types import ResourceScheme, ResourceTemplateUri, ResourceUri, ResourceUriBuilder, UriAuthority, UriSegment
 
 from .knowledge import (AccessModel, ChangeSignal, CollectionDescriptor, CollectionId,
     ContentDigest, EntityKind, ImmutableFreshness, IndexingMode, docs_observation, member_result)
@@ -120,14 +120,15 @@ class ServerDocs:
     def collection(self, scheme: str | None = None) -> CollectionDescriptor:
         return CollectionDescriptor(
             collection=CollectionId(f"{self.server}.docs"), entity_kind=EntityKind("document"),
-            enumerate=urlunsplit((scheme or self.server, "docs", "", "", "")),
+            enumerate=ResourceUriBuilder(ResourceScheme(scheme or self.server), UriAuthority("docs")).build(),
             freshness=ImmutableFreshness(immutable=True), change_signal=ChangeSignal.IMMUTABLE,
             access=AccessModel.PROFILE, indexing=IndexingMode.CONTENT,
         )
 
     def knowledge_template(self, scheme: str | None = None) -> types.ResourceTemplate:
         collection = self.collection(scheme)
-        return types.ResourceTemplate(uri_template=urlunsplit((scheme or self.server, "docs", "/{doc_id}", "", "")),
+        template = ResourceTemplateUri(URIReference(ResourceScheme(scheme or self.server), "docs", "/{doc_id}", None, None).unsplit())
+        return types.ResourceTemplate(uri_template=template,
             name="documents", title="Server documentation", mime_type="text/markdown",
             meta={"ai.veoveo/knowledge-source": collection.wire()})
 
@@ -135,24 +136,29 @@ class ServerDocs:
                         metadata: Mapping[str, object] | None = None,
                         scheme: str | None = None) -> types.ReadResourceResult | None:
         """Read docs after the server has authenticated and admitted this caller."""
-        parsed = urlsplit(uri)
-        if parsed.scheme != (scheme or self.server) or parsed.netloc != "docs":
+        parts = ResourceUri(uri).components()
+        if parts.scheme != (scheme or self.server) or parts.authority != "docs":
             return None
-        if parsed.fragment or parsed.username or parsed.password:
-            raise ServerDocsError("invalid documentation URI")
-        if not parsed.path or parsed.path == "/":
-            query = parse_qs(parsed.query, keep_blank_values=True, strict_parsing=True)
-            if set(query) - {"cursor"} or any(len(values) != 1 for values in query.values()):
+        builder = ResourceUriBuilder(parts.scheme, parts.authority)
+        if not parts.segments:
+            query = dict(parts.query)
+            if set(query) - {"cursor"}:
                 raise ServerDocsError("invalid documentation cursor")
-            cursor = query.get("cursor", [None])[0]
+            cursor = query.get("cursor")
+            if cursor is not None:
+                builder = builder.query_pair("cursor", cursor)
+            if builder.build() != uri:
+                raise ServerDocsError("noncanonical documentation URI")
             return types.ReadResourceResult(contents=[types.TextResourceContents(uri=uri,
                 text=json.dumps(self.index_wire(cursor, scheme=scheme)), mime_type="application/json")],
                 ttl_ms=0, cache_scope="private")
-        if parsed.query:
-            raise ServerDocsError("document members do not accept query parameters")
-        doc = self.doc(unquote(parsed.path.removeprefix("/")))
+        if parts.query or len(parts.segments) != 1:
+            raise ServerDocsError("invalid document member address")
+        doc = self.doc(parts.segments[0])
         if doc is None:
             raise ServerDocsError("unknown server document")
+        if builder.segment(UriSegment(doc.id)).build() != uri:
+            raise ServerDocsError("noncanonical document member URI")
         assert doc.digest is not None
         collection = self.collection(scheme)
         return member_result(uri=uri, text=doc.body, mime_type="text/markdown",
@@ -174,7 +180,7 @@ class ServerDocs:
         end = min(start + 32, len(ordered))
         page: DocumentPage = {"items": [
             {"id": doc.id, "title": doc.title,
-             "uri": urlunsplit((scheme, "docs", quote(PurePosixPath("/", doc.id).as_posix(), safe="/"), "", ""))}
+             "uri": ResourceUriBuilder(ResourceScheme(scheme), UriAuthority("docs")).segment(UriSegment(doc.id)).build()}
             for doc in ordered[start:end]
         ]}
         if end < len(ordered):
