@@ -10,6 +10,12 @@ use veoveo_platform_store::{
     ArtifactChange, ChangefeedConsumerId, ChangefeedDelivery, PlatformStore, PlatformTable,
 };
 
+#[path = "subscriptions/deadlines.rs"]
+mod deadlines;
+#[path = "subscriptions/listener.rs"]
+mod listener;
+pub(super) use listener::listen;
+
 const SUBSCRIPTION_BUFFER: usize = 256;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -29,16 +35,14 @@ pub(super) enum ArtifactInvalidation {
 #[derive(Clone)]
 pub(super) struct ArtifactSubscriptions {
     updates: broadcast::Sender<ArtifactInvalidation>,
-}
-
-impl Default for ArtifactSubscriptions {
-    fn default() -> Self {
-        let (updates, _) = broadcast::channel(SUBSCRIPTION_BUFFER);
-        Self { updates }
-    }
+    store: PlatformStore,
 }
 
 impl ArtifactSubscriptions {
+    pub(super) fn new(store: PlatformStore) -> Self {
+        let (updates, _) = broadcast::channel(SUBSCRIPTION_BUFFER);
+        Self { updates, store }
+    }
     pub(super) fn listen(&self) -> broadcast::Receiver<ArtifactInvalidation> {
         self.updates.subscribe()
     }

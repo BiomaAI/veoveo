@@ -128,8 +128,9 @@ installation download location for interactive use.
 
 The collection declares `listen` changes and a 300-second freshness lifetime. Source
 deadlines remain effective regardless of that lifetime. Index pages and metadata members
-are subscribable. A member listener terminates if a change makes its resource unreadable,
-allowing the consumer to invalidate and reconcile after the stream closes.
+are subscribable. If a member loses access, the listener invalidates its previously
+admitted address and the subscribed index before closing the stream. Revoked bytes
+and new member identities never appear in those notifications.
 The listener registers its receiver before authorization and the visible-ID query,
 then emits initial invalidations for each admitted URI and requested catalog filter.
 Indexing starts enumeration after these signals, preserving changes made during subscription setup.
@@ -165,5 +166,16 @@ Store decodes typed Artifact IDs before fanout. Grant and share-link feeds keep
 `INCLUDE ORIGINAL` because a deletion still needs its parent occurrence. Reconnection
 and channel overflow invalidate every admitted resource. Each listener registers its
 receiver before reading its baseline, then asks the Artifact service to authorize
-current metadata and grant reads before sending notifications. Idle listeners do not
-query on a timer.
+current metadata and grant reads before sending notifications. A SQL query reuses
+Store's Artifact read-admission predicate to select the earliest grant or retention
+deadline across the caller's subscribed members, or the full visible collection for
+an index subscription. This selection includes members beyond the first page and
+ignores denied occurrences. The listener reconciles once at that stored deadline;
+ordinary idle listening issues no periodic queries. Caller-token expiry invalidates
+the admitted addresses and ends the stream. Each reconciliation has a 60-second
+timeout and each notification has a 10-second timeout.
+
+`src/bin/server/subscriptions/listener.rs` owns this lifecycle; `deadlines.rs` binds
+typed caller and member identities to `deadlines.surql`. Native HTTP tests run the
+MCP adapter and Artifact service against an isolated Store and exercise revocation,
+grant expiry without a write, and retention of a member beyond the first index page.

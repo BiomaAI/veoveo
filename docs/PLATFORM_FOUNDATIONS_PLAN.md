@@ -54,13 +54,13 @@ and addresses. Map and Reason expose descriptors through lightweight `knowledge`
 features; the independent consumer rejects runtime dependencies. The 0.6B/4B/8B CUDA
 comparison passes on this corpus and retains 0.6B; it does not establish production-wide
 retrieval quality or installed source conformance.
-The 24-image development stage from `e6220dcf` includes Store migration 0104.
-Release qualification and deployment remain open. Qualification reused compiled Rust
-artifacts but reassembled runtime layers after BuildKit reclaimed storage. Registry
-inspection confirms that several runnable digests changed, so the staged identities
-cannot qualify through that build. No installed acceptance used those staged images.
-The next direct qualified batch includes the Time identity fix and source-checker CLI
-from `fe77f5b3`; installed checks will bind to its qualified digests.
+The 24-image direct qualified publication from `fe77f5b3` passes in 361 seconds.
+It includes Store migration 0104, the Time bootstrap identity fix and source-checker
+CLI. The earlier `e6220dcf` stage-to-release attempt failed its runnable-digest
+identity check after BuildKit reclaimed runtime layers; no installed acceptance used
+those staged images. The source-owner review found an Artifact listener gap in expiry
+and revoked-member invalidation. Its focused repair and publication precede deployment
+of this composed batch. Installed source qualification remains open.
 The current source-qualification batch adds one shared gateway entry point and
 owner-local fixtures for Artifact, Reason, Map and Time. K07 models both updates and
 membership removal; removal must survive restart and deny full and conditional reads.
@@ -77,16 +77,20 @@ Tenant, source and dataset selection precede its result limit and document decod
 Selected release documents must agree with indexed metadata. The focused catalog
 batch passes 34 tests, including excluded malformed rows, page limits and activation
 changes across connections. Strict all-target/all-feature Clippy, formatting,
-SurrealDB 3.3.0 query validation and documentation links pass. Publication and
-installed qualification of this query remain open.
+SurrealDB 3.3.0 query validation and documentation links pass. The query is published
+at `fe77f5b3`; installed qualification remains open.
 Time's packaged bootstrap authority IDs now bind their family and source-file digest.
 Changed timezone data receives a new immutable resource identity; restarts and file
 relocation preserve it. The configurable fixed IDs are removed. The bootstrap test
 and 37 public contract tests pass, along with affected strict Clippy, formatting and
 documentation links. A broader Time run exceeded its 420-second limit while Docker
 fixture creation stalled during image assembly; it supplies no database acceptance.
-The owning design declares the coordinated Time/indexer drain and fixture recreation.
-Publication and installed qualification of the identity change remain open.
+After image publication and BuildKit shutdown, all thirteen previously failed or
+unfinished Time cases pass in 30 seconds using the existing executable. The 47 earlier
+passing library cases and bootstrap case remain applicable, covering all 61 library
+cases with the 37 public contract cases. The owning design declares the coordinated
+Time/indexer drain and fixture recreation. The identity fix is published at `fe77f5b3`;
+installed qualification remains open.
 Nine native evaluator, corpus and retrieval checks pass. Affected all-target strict
 Clippy, SurrealDB 3.3.0 query validation and documentation links pass.
 The domain corpus and descriptor batch passes 39 source, contract, consumer and corpus
@@ -105,7 +109,7 @@ for 0.6B, 4B and 8B. Model-process memory peaks at 6,962, 14,456 and 20,964 MiB.
 The [measurement record](../platform/runtimes/embedding/verification/retrieval-2026-10-02.md)
 retains judgments, ranks, GPU samples and the decision to keep 0.6B. Each isolated
 database and runtime is removed after its run. Migration 0104 and the Store write-profile
-fix still require publication and deployment.
+fix are published at `fe77f5b3` and require deployment.
 The gateway source adapter discovers approved
 collections and waits for catalog/resource observation readiness before reading.
 The library coordinator qualifies lease renewal, source invalidation, conditional
@@ -3533,6 +3537,28 @@ revision.
 
 Acceptance: each server passes K01 through K10 review and conformance, and the audit
 log records the observed revision for reads of each collection.
+
+Source-owner review (2026-10-02) traces K09 and K10 through the implemented reads,
+writes and listeners. It does not establish installed K01–K08 acceptance.
+
+| Source | Provenance and revision review | Change delivery review |
+|---|---|---|
+| Map | Authoring summaries select the stored body and parent access together. Feature mutations replace the revision timestamp and recorded actor; publications use stored publisher attribution. Layers omit an unrecorded modifier. Revisions hash summary text and access, with a digest of the full source. | Store observation covers layer, feature, publication and release changes. Geographic summaries declare periodic revalidation rather than listen. |
+| Time | Calendar/epoch/release observations use stored ownership and source timestamps. Events omit the unrecorded modifying actor. Revisions hash content and access; packaged authorities have content-derived immutable IDs. | Store observation covers event writes and scheduler transitions. Immutable versions and compiler references keep their declared immutable profile. |
+| Reason | Findings compare retained Task provenance with the current Artifact snapshot. The revision hashes the returned summary and access descriptor. No caller-supplied attribution enters an observation. | Task, occurrence and grant observations wake caller-specific SQL fingerprints. Stored grant/retention deadlines wake idle listeners; revoked members invalidate before closure. |
+| Artifact | Metadata observations use the service's checked snapshot, preserve stored access deadlines and omit an unrecorded modifier. Revisions hash the metadata text and access descriptor. | The review found missing deadline wakeups and invalidation before closure. The repair selects deadlines using Store's read predicate and invalidates admitted members and their subscribed index before ending a revoked stream. Qualification is recorded with the repair below. |
+
+Artifact listener qualification (2026-10-02): all eight server cases pass, including
+real MCP HTTP delivery and Artifact service authorization over an isolated Store.
+The fixture verifies member-first mixed subscriptions, grant revocation, grant expiry
+without a database write, denied-row deadline selection and occurrence retention
+outside the first 100-member page. Both member and root invalidations precede stream
+closure; full and conditional reads deny access afterward. Deadline selection precedes
+HTTP reads so a deadline crossed during reconciliation still wakes the listener.
+Affected strict Clippy, formatting, SurrealDB 3.3.0 query validation and documentation
+links pass. The repair requires its own Artifact MCP image and installed qualification.
+The other 23 images from the qualified `fe77f5b3` batch remain applicable: the new
+Cargo dependencies are test-only and no shared runtime contract changes.
 
 ## Phase 8: Knowledge Service
 

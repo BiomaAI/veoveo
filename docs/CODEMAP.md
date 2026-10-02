@@ -762,6 +762,7 @@ Current MCP crates under `servers/` are indexed here:
 | Path | Primary ownership |
 |---|---|
 | `servers/artifact-mcp` | MCP resources, tools, prompts, and subscriptions over the artifact plane |
+| `servers/artifact-mcp/src/bin/server/subscriptions/` | caller-scoped stream reconciliation, SQL-admitted access deadlines and invalidation before revoked members close the stream |
 | `servers/duckdb-mcp` | arbitrary analytical SQL, ingest/export, and DuckDB Spatial |
 | `servers/frames-mcp` | complete rooted frame worlds, immutable revisions, coordinate conversion, and operation provenance |
 | `platform/frames/contract/src/` and `servers/frames-mcp/src/contract.rs` | isolated public world, frame, conversion and provenance types; typed world/revision/frame resource builders |

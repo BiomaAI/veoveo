@@ -31,6 +31,13 @@ mod setup;
 #[path = "server/subscriptions.rs"]
 mod subscriptions;
 
+#[cfg(test)]
+#[path = "../../../../testing/fixtures/store.rs"]
+mod store_fixture;
+#[cfg(test)]
+#[path = "server/subscription_tests/mod.rs"]
+mod subscription_tests;
+
 use auth::InternalAuthState;
 use config::Args;
 use handler::{AppState, ArtifactMcp};
@@ -54,7 +61,7 @@ async fn main() -> anyhow::Result<()> {
     let public_endpoint = public_deployment.server(SERVER_SLUG)?;
     let store = PlatformStore::connect(args.store_config()?).await?;
     let plane = HttpArtifactPlane::new(args.artifact_service_url);
-    let subscriptions = ArtifactSubscriptions::default();
+    let subscriptions = ArtifactSubscriptions::new(store.clone());
     let state = Arc::new(AppState {
         plane: plane.clone(),
         subscriptions: subscriptions.clone(),

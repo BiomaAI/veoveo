@@ -1,4 +1,4 @@
-use std::{collections::BTreeSet, num::NonZeroU64, sync::Arc};
+use std::{num::NonZeroU64, sync::Arc};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use rmcp::tool;
@@ -36,7 +36,7 @@ use super::{
     auth,
     prompts::ArtifactPrompt,
     setup::{SERVER_DOCS, SERVER_SETUP},
-    subscriptions::{ArtifactInvalidation, ArtifactSubscriptions, SubscriptionKind, visible_ids},
+    subscriptions::ArtifactSubscriptions,
 };
 
 const LIST_PAGE_SIZE: usize = 100;
@@ -583,138 +583,7 @@ impl ServerHandler for ArtifactMcp {
     }
 
     async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
-        let caller = auth::caller(context.request_context())?;
-        let accepted = context.accepted().clone();
-        // Register before authorization reads and collection baselines so a grant
-        // change during those reads is still reconciled by this listener.
-        let mut updates = self.state.subscriptions.listen();
-        let mut subscriptions = Vec::new();
-        for uri in accepted.resource_subscriptions.iter().flatten() {
-            let kind = if matches!(
-                ArtifactResource::parse(uri),
-                Ok(ArtifactResource::Index { .. })
-            ) {
-                SubscriptionKind::Index
-            } else if let Some(id) = parse_metadata_uri(uri) {
-                self.state
-                    .plane
-                    .head(&caller, &id)
-                    .await
-                    .map_err(plane_error)?;
-                SubscriptionKind::Metadata(id)
-            } else if let Some(id) = parse_grants_uri(uri) {
-                self.state
-                    .plane
-                    .list_grants(&caller, &id)
-                    .await
-                    .map_err(plane_error)?;
-                SubscriptionKind::Grants(id)
-            } else if let Some(id) = parse_artifact_plane_uri(uri) {
-                self.state
-                    .plane
-                    .head(&caller, &id)
-                    .await
-                    .map_err(plane_error)?;
-                SubscriptionKind::Content(id)
-            } else {
-                return Err(McpError::invalid_params(
-                    "resource is not subscribable",
-                    None,
-                ));
-            };
-            subscriptions.push((uri.clone(), kind));
-        }
-        let tracks_list = accepted.resources_list_changed == Some(true)
-            || subscriptions
-                .iter()
-                .any(|(_, kind)| *kind == SubscriptionKind::Index);
-        let mut visible = if tracks_list {
-            visible_ids(&self.state.plane, &caller)
-                .await
-                .map_err(plane_error)?
-        } else {
-            BTreeSet::new()
-        };
-        // Receivers and visibility baseline are established before consumers
-        // treat the stream as ready for source enumeration.
-        if accepted.resources_list_changed == Some(true) {
-            context
-                .sink()
-                .notify_resource_list_changed()
-                .await
-                .map_err(subscription_error)?;
-        }
-        for (uri, _) in &subscriptions {
-            context
-                .sink()
-                .notify_resource_updated(uri.clone())
-                .await
-                .map_err(subscription_error)?;
-        }
-        loop {
-            let artifact_id = tokio::select! {
-                () = context.cancelled() => return Ok(()),
-                update = updates.recv() => match update {
-                    Ok(ArtifactInvalidation::Changed(artifact_id)) => Some(artifact_id),
-                    Ok(ArtifactInvalidation::Reconcile) => None,
-                    Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
-                        tracing::warn!(skipped, "artifact subscription updates lagged");
-                        None
-                    }
-                    Err(tokio::sync::broadcast::error::RecvError::Closed) => return Ok(()),
-                }
-            };
-            let current = if tracks_list {
-                Some(
-                    visible_ids(&self.state.plane, &caller)
-                        .await
-                        .map_err(plane_error)?,
-                )
-            } else {
-                None
-            };
-            let list_changed = current.as_ref().is_some_and(|current| current != &visible);
-            if let Some(current) = current {
-                visible = current;
-            }
-            if list_changed && accepted.resources_list_changed == Some(true) {
-                context
-                    .sink()
-                    .notify_resource_list_changed()
-                    .await
-                    .map_err(subscription_error)?;
-            }
-            for (uri, kind) in &subscriptions {
-                let notify = match kind {
-                    SubscriptionKind::Index => {
-                        list_changed || artifact_id.is_none_or(|id| visible.contains(&id))
-                    }
-                    SubscriptionKind::Content(id) | SubscriptionKind::Metadata(id)
-                        if artifact_id.is_none_or(|changed| *id == changed) =>
-                    {
-                        self.state
-                            .plane
-                            .head(&caller, id)
-                            .await
-                            .map_err(resource_error)?;
-                        true
-                    }
-                    SubscriptionKind::Grants(id)
-                        if artifact_id.is_none_or(|changed| *id == changed) =>
-                    {
-                        self.state.plane.list_grants(&caller, id).await.is_ok()
-                    }
-                    _ => false,
-                };
-                if notify {
-                    context
-                        .sink()
-                        .notify_resource_updated(uri.clone())
-                        .await
-                        .map_err(subscription_error)?;
-                }
-            }
-        }
+        super::subscriptions::listen(&self.state.plane, &self.state.subscriptions, context).await
     }
 
     async fn complete(
@@ -810,7 +679,7 @@ fn resource_error(error: ArtifactPlaneError) -> McpError {
     }
 }
 
-fn plane_error(error: ArtifactPlaneError) -> McpError {
+pub(super) fn plane_error(error: ArtifactPlaneError) -> McpError {
     match error {
         ArtifactPlaneError::NotFound | ArtifactPlaneError::Denied(_) => {
             McpError::invalid_request("artifact is unavailable", None)
@@ -823,10 +692,6 @@ fn plane_error(error: ArtifactPlaneError) -> McpError {
         }
         ArtifactPlaneError::Transport(message) => McpError::internal_error(message, None),
     }
-}
-
-fn subscription_error(error: rmcp::service::SubscriptionSendError) -> McpError {
-    McpError::internal_error(error.to_string(), None)
 }
 
 #[cfg(test)]

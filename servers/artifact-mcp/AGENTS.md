@@ -37,6 +37,9 @@ links. It fronts `artifact-service` and holds no bytes of its own.
 - Index resources use `ArtifactIndexCursor` and `ArtifactIndexPage`; return metadata
   links and the optional continuation cursor. Selection belongs to Artifact service's
   SQL admission, before paging and decoding. Keep transfer locations out of the index.
+- Subscriptions invalidate admitted member and index addresses before closing for
+  access loss. Reuse Store's read predicate when selecting grant and retention
+  deadlines; expiry needs a scheduled reconciliation even without a database write.
 
 ## Public Library
 
