@@ -9,7 +9,6 @@ use rmcp::{
 use veoveo_mcp_contract::{
     GATEWAY_TASK_RESOURCE_TEMPLATE, GatewayAction, GatewayDiscoveryDegradation,
     GatewayDiscoveryFailure, GatewayDiscoverySurface, GatewayTaskStatus, GatewayTaskStatusDocument,
-    paginate,
 };
 
 use crate::mcp_support::{
@@ -21,7 +20,7 @@ use crate::mcp_support::{
 
 use super::tools::{project_detailed_task_resource_uris, rewrite_detailed_task_id};
 use super::{
-    GATEWAY_PAGE_SIZE, GatewayMcp,
+    GatewayMcp,
     discovery::{AdmittedCatalog, DiscoveredResource, DiscoveryCacheKey},
 };
 
@@ -32,7 +31,7 @@ impl GatewayMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
         let subject = self.authenticated(&context)?;
-        let (mut resources, degradation, denied) =
+        let (resources, degradation, denied) =
             self.available_resources(context, subject.clone()).await?;
         self.record_discovery(
             &subject,
@@ -44,9 +43,7 @@ impl GatewayMcp {
             denied,
         )
         .await?;
-        resources.sort_by(|left, right| left.uri.cmp(&right.uri));
-        let page = paginate(resources, request.as_ref(), GATEWAY_PAGE_SIZE)
-            .map_err(|err| mcp_invalid_params(err.to_string()))?;
+        let page = super::catalog_pages::page(resources, request.as_ref())?;
         Ok(ListResourcesResult {
             resources: page.items,
             next_cursor: page.next_cursor,
@@ -275,7 +272,6 @@ impl GatewayMcp {
                     .with_mime_type("application/json"),
             );
         }
-        templates.sort_by(|left, right| left.uri_template.cmp(&right.uri_template));
         self.record_discovery(
             &subject,
             veoveo_audit_contract::DiscoveryKind::ResourceTemplates,
@@ -286,8 +282,7 @@ impl GatewayMcp {
             denied,
         )
         .await?;
-        let page = paginate(templates, request.as_ref(), GATEWAY_PAGE_SIZE)
-            .map_err(|err| mcp_invalid_params(err.to_string()))?;
+        let page = super::catalog_pages::page(templates, request.as_ref())?;
         Ok(ListResourceTemplatesResult {
             resource_templates: page.items,
             next_cursor: page.next_cursor,

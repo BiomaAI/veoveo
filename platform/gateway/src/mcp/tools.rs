@@ -13,7 +13,7 @@ use rmcp::{
 use serde_json::Value;
 use veoveo_mcp_contract::{
     DiscoveryFailureMode, GatewayAction, GatewayDiscoveryDegradation, GatewayDiscoveryFailure,
-    GatewayDiscoverySurface, LocalToolName, TaskExposure, paginate, related_task_meta,
+    GatewayDiscoverySurface, LocalToolName, TaskExposure, related_task_meta,
     sanitized_request_meta,
 };
 use veoveo_platform_store::PrincipalKind as StorePrincipalKind;
@@ -28,7 +28,7 @@ use crate::{
 };
 
 use super::{
-    GATEWAY_PAGE_SIZE, GatewayMcp,
+    GatewayMcp,
     discovery::{
         AdmittedCatalog, DiscoveryCacheKey, MAX_CONCURRENT_DISCOVERY, isolate_discovery_failures,
     },
@@ -51,7 +51,7 @@ impl GatewayMcp {
             .unwrap_or(DiscoveryFailureMode::FailClosed);
         let authorization_fingerprint = super::discovery_authorization_fingerprint(&subject)?;
         if discovery_failure_mode == DiscoveryFailureMode::Isolate {
-            let (mut tools, degradation, denied) =
+            let (tools, degradation, denied) =
                 self.available_tools(context, subject.clone()).await?;
             self.record_discovery(
                 &subject,
@@ -60,9 +60,7 @@ impl GatewayMcp {
                 denied,
             )
             .await?;
-            tools.sort_by(|left, right| left.name.cmp(&right.name));
-            let page = paginate(tools, request.as_ref(), GATEWAY_PAGE_SIZE)
-                .map_err(|err| mcp_invalid_params(err.to_string()))?;
+            let page = super::catalog_pages::page(tools, request.as_ref())?;
             return Ok(ListToolsResult {
                 tools: page.items,
                 next_cursor: page.next_cursor,
@@ -128,13 +126,12 @@ impl GatewayMcp {
             .into_iter()
             .map(|(server, result)| (server, result.map(|catalog| catalog.items)))
             .collect();
-        let (mut tools, degradation, errors) =
+        let (tools, degradation, errors) =
             isolate_discovery_failures(GatewayDiscoverySurface::Tools, results);
         for (server, error) in &errors {
             tracing::warn!(%server, %error, "isolated upstream tool discovery failure");
         }
         enforce_complete_tool_discovery(discovery_failure_mode, &errors)?;
-        tools.sort_by(|left, right| left.name.cmp(&right.name));
         self.record_discovery(
             &subject,
             veoveo_audit_contract::DiscoveryKind::Tools,
@@ -142,8 +139,7 @@ impl GatewayMcp {
             denied,
         )
         .await?;
-        let page = paginate(tools, request.as_ref(), GATEWAY_PAGE_SIZE)
-            .map_err(|err| mcp_invalid_params(err.to_string()))?;
+        let page = super::catalog_pages::page(tools, request.as_ref())?;
         Ok(ListToolsResult {
             tools: page.items,
             next_cursor: page.next_cursor,

@@ -5,11 +5,11 @@ use rmcp::{
     },
     service::{RequestContext, RoleServer},
 };
-use veoveo_mcp_contract::{GatewayAction, PromptName, paginate};
+use veoveo_mcp_contract::{GatewayAction, PromptName};
 
 use crate::mcp_support::{ensure_unique_prompts, mcp_internal, mcp_invalid_params};
 
-use super::{GATEWAY_PAGE_SIZE, GatewayMcp};
+use super::GatewayMcp;
 
 impl GatewayMcp {
     pub(super) async fn handle_list_prompts(
@@ -76,7 +76,6 @@ impl GatewayMcp {
             prompts.append(&mut items);
         }
         ensure_unique_prompts(&prompts)?;
-        prompts.sort_by(|left, right| left.name.cmp(&right.name));
         self.record_discovery(
             &subject,
             veoveo_audit_contract::DiscoveryKind::Prompts,
@@ -84,8 +83,7 @@ impl GatewayMcp {
             denied,
         )
         .await?;
-        let page = paginate(prompts, request.as_ref(), GATEWAY_PAGE_SIZE)
-            .map_err(|err| mcp_invalid_params(err.to_string()))?;
+        let page = super::catalog_pages::page(prompts, request.as_ref())?;
         Ok(ListPromptsResult {
             prompts: page.items,
             next_cursor: page.next_cursor,

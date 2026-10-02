@@ -1,4 +1,5 @@
 mod authorization;
+mod catalog_pages;
 mod completion;
 mod discovery;
 mod discovery_watch;

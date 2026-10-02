@@ -632,6 +632,7 @@ Task state lives in this runtime. RMCP defines the Tasks wire types.
 | `mcp_support.rs` | MCP resource envelope and App-link projection, declared cross-server protocol links, and preservation of domain payloads and unknown extension metadata |
 | `mcp/authorization.rs` | per-method/profile/server target authorization |
 | `mcp/discovery.rs` | discovery descriptors and upstream resource mappings keyed by caller authority, concurrency limits, per-server failure isolation, and list-change invalidation |
+| `mcp/catalog_pages.rs` | current-admission keyset pages with surface-bound typed identities for all four Gateway catalogs; insertion/removal regression cases in `catalog_pages/tests.rs` |
 | `mcp/tools.rs` | aggregated tool list with opt-in compatibility helpers; isolates a failing server by default and fails the whole list for `fail_closed` discovery profiles |
 | `mcp/resources.rs` | failure-isolated resource lists and native Task status resource projection |
 | `mcp/resource_read.rs` | fresh resource authorization, source observation validation, negotiated metadata delivery and commit-before-delivery audit records |

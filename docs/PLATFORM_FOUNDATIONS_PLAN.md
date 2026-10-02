@@ -129,6 +129,16 @@ fails because the reference's four user/service rules admit resource reads but o
 Charts selectors and advances the policy and complete public-bundle revisions.
 Charts installed acceptance remains open. The cluster and builder are stopped and
 temporary source credentials are removed before further development.
+Gateway pagination diagnosis reproduces the duplicate locally: inserting one earlier
+source moves the old numeric offset back onto the previous page's final declaration.
+The Gateway now uses typed last-identity cursors for tools, resources, templates and
+prompts. Admission still runs before each page; removed identities cannot shift later
+entries out of the traversal. The cursor rejects another surface, malformed types and
+unsupported versions. Clients restart enumeration after list-change notifications to
+see identities newly inserted before their position. All 47 Gateway MCP cases and
+five control-plane/shared-policy cases pass. All-target/all-feature strict Clippy,
+formatting and 1,041 documentation links pass. The combined Gateway/Charts policy
+rollout and installed catalog checks remain open.
 The current source-qualification batch adds one shared gateway entry point and
 owner-local fixtures for Artifact, Reason, Map and Time. K07 models both updates and
 membership removal; removal must survive restart and deny full and conditional reads.

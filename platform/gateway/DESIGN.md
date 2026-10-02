@@ -8,6 +8,7 @@
 | MCP Apps | Extension `io.modelcontextprotocol/ui`, release 2026-01-26; `_meta.ui.resourceUri` links a tool to its App document |
 | Knowledge reads | `ai.veoveo/knowledge-source`; SHA-256 content binding, opaque revision validators and observation metadata from the [extension contract](../../mcp/knowledge-extension/DESIGN.md) |
 | Resource addresses | Repository-owned server schemes and `ui://` App routes validated through foundational URI types; installation manifests select identity or server-owned projection |
+| Gateway catalog cursor | Veoveo opaque version 1: base64url JSON with a typed surface and exclusive last identity; up to 16 KiB; internal to Gateway list pagination |
 | Installation authority | Typed server manifests, profile exposure and policy from the MCP gateway contract; [authentication](src/auth/DESIGN.md) resolves request identity |
 
 ## Ownership
@@ -217,6 +218,21 @@ Discovery entries contain admitted descriptors and their denied count. The cache
 includes the catalog generation, actor and invocation authority, OAuth client, and
 managed-agent generation and dispatch epoch. A warm list uses those decisions and
 writes one aggregate record. Prompt catalogs use the same cache behavior.
+
+The four Gateway list methods page over the current admitted descriptors by identity:
+tool name, resource URI, template URI or prompt name. Each cursor carries a typed last
+identity and its surface; the next request returns identities strictly after that
+position. New entries before the position cannot repeat a previously returned entry,
+and removal of earlier entries cannot shift the page past a remaining entry. Duplicate
+identities fail discovery. The cursor carries no descriptors or authority, so every
+page uses the current caller admission and works across replicas.
+
+These pages do not promise a snapshot. A newly admitted identity before the current
+position appears when a client restarts enumeration after a list-change notification.
+The versioned cursor accepts at most 16 KiB, rejects a different surface or malformed
+identity, and reports an actionable restart diagnostic. Installation upgrades replace
+numeric-offset cursors directly; clients restart interrupted enumeration without a
+cursor. No persisted data or server-side cursor state requires conversion.
 
 A dynamic catalog has an authenticated native subscription before the gateway caches
 it. The gateway coalesces subscriptions for the same authority and server, with a limit
