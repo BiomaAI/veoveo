@@ -135,7 +135,6 @@ async fn uav_sim_verify_with_visual_hold(
         "stream__start_live_session",
         "stream__stop_live_session",
         "stream__run_recording",
-        "reason__analyze_recording",
     ] {
         contains(&tools, tool)?;
     }
@@ -284,9 +283,7 @@ async fn uav_sim_verify_with_visual_hold(
             owned_live_session_stopped = true;
         }
 
-        let governed_artifact_id = recording::analyze(&operator, &scenario)
-            .await?
-            .stream_artifact_id;
+        let governed_artifact_id = recording::replay(&operator, &scenario).await?.artifact_id();
 
         if let Some(captured) = moving_recording_capture.take() {
             let timeout = Duration::from_secs(scenario.view.timeout_seconds.saturating_add(30));
@@ -343,9 +340,9 @@ async fn uav_sim_verify_with_visual_hold(
         "UAV domain acceptance ok: Google Photorealistic 3D Tiles were resident in Isaac, the \
          showcase pose producer reached ready state, PX4 completed a mission, Stream processed \
          fresh live camera frames and exposed decodable App preview bytes without Recording Hub, \
-         Recording Hub retained the world, Stream replay produced a governed artifact, Reason \
-         described the flight segment grounded in those detections, an authorized context member \
-         previewed it, and an independent context was denied"
+         Recording Hub retained the world, Stream replay produced a governed artifact, \
+         an authorized context member previewed it, and an independent context was denied. \
+         Reason acceptance runs separately with uav-recording-verify"
     );
     Ok(())
 }
@@ -362,7 +359,7 @@ async fn wait_for_visual_capture(
 }
 
 fn assert_concurrent_gpu_workloads(context: &str, namespace: &str) -> Result<()> {
-    for deployment in ["uav-sim", "view-mcp", "stream-mcp", "reason-mcp"] {
+    for deployment in ["uav-sim", "view-mcp", "stream-mcp"] {
         run_checked(
             Path::new("kubectl"),
             [

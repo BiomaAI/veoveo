@@ -320,14 +320,16 @@ MIG, or time-slicing placement instead of inheriting this development profile.
 Each required workload still requests nvidia.com/gpu: 1 and the nvidia runtime
 class. Every GPU workload requires a hardware allocation.
 
-The local Reason profile reserves 42% of the 24 GiB NVIDIA device for vLLM. This
-bound preserves device-memory headroom for the six-frame multimodal pass while
-the Isaac simulator, cuOpt, Rerun, and the other GPU services stay
-resident. Installations with different checkpoints, solver pools, or GPU capacity
+The reference HelmRelease keeps Reason at zero replicas. Its checkpoint and caches
+stay installed for separate Reason acceptance. The local Reason profile reserves
+42% of the 24 GiB NVIDIA device for its six-frame, 8192-token pass. Run it with the
+services its focused check requires, after stopping other GPU workloads as needed.
+Installations with different checkpoints, solver pools, or GPU capacity
 size `reason.engine.gpuMemoryUtilization` and
 `embedding.engine.gpuMemoryUtilization` and `VEOVEO_CUOPT_POOL_GIB` against all
-concurrently resident workloads. The embedding profile requests 25% of device memory;
-its composed memory budget requires installed qualification with the other workloads.
+concurrently resident workloads. The embedding profile requests 25% of device memory.
+Flight acceptance includes embedding alongside the other selected deployments and
+reports Reason as a separate check.
 The development chart requests 4 GiB of host memory for the cuOpt executor. The
 simulator's operator-camera products run inside the simulator allocation. Higher
 memory limits allow bursts without making the seven-workload placement unschedulable on
@@ -941,6 +943,12 @@ then prints a JSON result. It issues no vehicle commands and creates no live ses
 Release any live Stream session owned by the acceptance run before invoking it to
 make GPU capacity available. A Task timeout requires reconciling that Task before
 submitting another analysis.
+
+Reason is stopped by the reference release's post-render patch. For its focused
+acceptance, suspend the platform HelmRelease, scale Reason to one replica, and stop
+unneeded GPU workloads. After the check, return Reason to zero, restore the selected
+workloads, and resume reconciliation. The composed flight command runs Stream replay
+and Artifact isolation; its reports mark Reason `not_run`.
 
 Flight verification also requires the administrator client's private key through
 `VEOVEO_ADMIN_SERVICE_CLIENT_PRIVATE_KEY_FILE` and its ID through

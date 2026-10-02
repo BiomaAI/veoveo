@@ -64,7 +64,7 @@ pub(crate) enum SmokeCommand {
         #[arg(long)]
         output: PathBuf,
     },
-    /// Verify the independent UAV domain path through flight, live Stream, recording replay, and Reason.
+    /// Verify UAV flight, live Stream, recording replay and Artifact isolation.
     UavDomainVerify {
         #[arg(long, default_value = "target/debug/conformance")]
         conformance_bin: PathBuf,

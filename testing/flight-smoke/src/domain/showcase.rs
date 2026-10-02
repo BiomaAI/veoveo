@@ -8,7 +8,7 @@ use super::browser::{
 };
 use super::*;
 
-const EVIDENCE_SCHEMA: &str = "veoveo.ai/uav-showcase-acceptance-evidence/v4";
+const EVIDENCE_SCHEMA: &str = "veoveo.ai/uav-showcase-acceptance-evidence/v5";
 const PRIMARY_CAMERA_ID: &str = "follow";
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
@@ -16,6 +16,7 @@ const PRIMARY_CAMERA_ID: &str = "follow";
 enum PhaseOutcome {
     Passed,
     Failed,
+    NotRun,
 }
 
 impl PhaseOutcome {
@@ -37,6 +38,7 @@ struct PhaseOutcomes<'a> {
     run_id: &'a str,
     domain: PhaseOutcome,
     visual: PhaseOutcome,
+    reason: PhaseOutcome,
 }
 
 #[derive(Debug, Serialize)]
@@ -74,6 +76,7 @@ struct ShowcaseEvidence {
     stream: ConsoleStreamCaptureEvidence,
     recording: ConsoleRecordingCaptureEvidence,
     recording_source_latency: RecordingSourceLatencyEvidence,
+    reason: PhaseOutcome,
 }
 
 #[derive(Debug, Serialize)]
@@ -231,6 +234,7 @@ pub(crate) async fn uav_showcase_verify(
         stream: flight.stream,
         recording: flight.recording,
         recording_source_latency: flight.recording_source_latency,
+        reason: PhaseOutcome::NotRun,
     };
     let manifest_path = evidence_directory.join("evidence.json");
     fs::write(&manifest_path, serde_json::to_vec_pretty(&evidence)?)
@@ -439,8 +443,7 @@ async fn monitor_flight(
             scenario
                 .landing_timeout_seconds
                 .saturating_add(scenario.stream.live_timeout_seconds)
-                .saturating_add(scenario.stream.recording_replay.task_timeout_seconds)
-                .saturating_add(scenario.reason.task_timeout_seconds),
+                .saturating_add(scenario.stream.recording_replay.task_timeout_seconds),
         ),
     )
     .await?;
@@ -578,7 +581,7 @@ fn assert_showcase_gpu_workloads(context: &str, namespace: &str) -> Result<()> {
         [],
     )
     .context("composed UAV showcase acceptance requires its Kubernetes cluster")?;
-    for deployment in ["uav-sim", "view-mcp", "stream-mcp", "reason-mcp"] {
+    for deployment in ["uav-sim", "view-mcp", "stream-mcp"] {
         run_checked(
             Path::new("kubectl"),
             [
@@ -649,12 +652,13 @@ fn finish_phases<T>(
     run_id: &str,
 ) -> Result<T> {
     let outcomes = PhaseOutcomes {
-        schema: "veoveo.ai/uav-showcase-phase-outcomes/v1",
+        schema: "veoveo.ai/uav-showcase-phase-outcomes/v2",
         completed_at: Utc::now(),
         source_revision,
         run_id,
         domain: PhaseOutcome::from_result(&domain_result),
         visual: PhaseOutcome::from_result(&visual_result),
+        reason: PhaseOutcome::NotRun,
     };
     let outcomes_path = evidence_directory.join("phase-outcomes.json");
     let file = fs::OpenOptions::new()
@@ -699,6 +703,7 @@ mod outcome_tests {
         let report: Value = serde_json::from_slice(&before).unwrap();
         assert_eq!(report["domain"], "failed");
         assert_eq!(report["visual"], "failed");
+        assert_eq!(report["reason"], "not_run");
         assert!(finish_phases(Ok(()), Ok(()), &directory.0, "other", "other").is_err());
         assert_eq!(fs::read(path).unwrap(), before);
     }

@@ -16,7 +16,7 @@
 | Browser automation | Headed Chrome DevTools Protocol, hardware-backed WebGPU or WebGL, shared browser assertions owned by `testing/browser-smoke` |
 | GPU workload evidence | Existing NVIDIA resource identity, NVENC source and concurrent workload assertions; software rendering is rejected |
 | World publication | Frames-owned immutable revisions and typed frame URIs; UAV-owned validated installation binding; `veoveo.ai/uav-world-publication/v1` JSON receipt with the output file SHA-256 |
-| Evidence | `veoveo.ai/uav-showcase-acceptance-evidence/v4` JSON and revision-qualified captures; `veoveo.ai/uav-showcase-phase-outcomes/v1` records domain and visual outcomes even when either phase fails |
+| Evidence | `veoveo.ai/uav-showcase-acceptance-evidence/v5` JSON and revision-qualified captures; `veoveo.ai/uav-showcase-phase-outcomes/v2` records domain and visual outcomes even when either phase fails; both mark Reason `not_run` because its acceptance runs separately |
 
 ## Ownership
 
@@ -91,8 +91,11 @@ Flight cleanup lands the vehicle only after this run began issuing flight comman
 An early Stream failure therefore needs no landing cycle. Existing sessions keep their
 owner, and an independent Stream pass does not establish composed flight or visual acceptance.
 
-`domain/recording.rs` owns replay and grounded Reason acceptance for both
-`uav-recording-verify` and the composed flight. The focused command needs operator
+`domain/recording.rs` owns Stream replay and grounded Reason acceptance. The composed
+flight calls its replay check and requires UAV, View and Stream to run concurrently.
+`uav-recording-verify` adds grounded Reason over that admitted replay selection.
+Reason has its own GPU acceptance and need not run during flight acceptance.
+The focused command needs operator
 credentials, a running NVENC camera with at least the scenario's recording history,
 Recording, Stream and Reason services, and their NVIDIA workers. It sends no vehicle
 commands and does not start a live Stream session. Operators stop only sessions they

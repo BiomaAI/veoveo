@@ -23,6 +23,18 @@ pub(super) struct RecordingAcceptance {
     observed_frames: u64,
 }
 
+pub(super) struct ReplayAcceptance {
+    video: RecordingVideoSelection,
+    dataset_id: RecordingDatasetId,
+    stream: RunRecordingOutput,
+}
+
+impl ReplayAcceptance {
+    pub(super) fn artifact_id(&self) -> ArtifactId {
+        self.stream.results_artifact.artifact_id()
+    }
+}
+
 pub(crate) async fn verify(
     conformance: &Path,
     scenario_path: &Path,
@@ -35,15 +47,16 @@ pub(crate) async fn verify(
         conformance,
         installation,
     };
-    let result = analyze(&operator, &scenario).await?;
+    let replay = replay(&operator, &scenario).await?;
+    let result = analyze(&operator, &scenario, replay).await?;
     println!("{}", serde_json::to_string(&result)?);
     Ok(())
 }
 
-pub(super) async fn analyze(
+pub(super) async fn replay(
     operator: &OperatorClient<'_>,
     scenario: &UavAcceptanceScenario,
-) -> Result<RecordingAcceptance> {
+) -> Result<ReplayAcceptance> {
     let state: SimulationState = serde_json::from_value(
         tokio::time::timeout(
             Duration::from_secs(30),
@@ -128,7 +141,26 @@ pub(super) async fn analyze(
         published == canonical_results,
         "Stream result URI and published artifact disagree"
     );
-    eprintln!("Recording acceptance: Stream replay passed; starting grounded Reason");
+    eprintln!("Recording acceptance: Stream replay passed");
+    Ok(ReplayAcceptance {
+        video,
+        dataset_id: catalog.dataset_id,
+        stream,
+    })
+}
+
+async fn analyze(
+    operator: &OperatorClient<'_>,
+    scenario: &UavAcceptanceScenario,
+    replay: ReplayAcceptance,
+) -> Result<RecordingAcceptance> {
+    let stream_artifact_id = replay.artifact_id();
+    let ReplayAcceptance {
+        video,
+        dataset_id,
+        stream,
+    } = replay;
+    eprintln!("Recording acceptance: starting grounded Reason");
 
     let request = AnalyzeRecordingRequest {
         video: video.clone(),
@@ -180,7 +212,7 @@ pub(super) async fn analyze(
         results.requested_range,
         &results.source_snapshot,
         &video,
-        catalog.dataset_id,
+        dataset_id,
     )?;
     let reason_artifact_id = reason.results_artifact.artifact_id();
     let published = download_governed_json_artifact(

@@ -16,8 +16,10 @@ serving, checkpoint verification and namespace isolation. Local CUDA reference,
 scheduling and refusal checks pass. Installed namespace isolation and authenticated
 model access pass on the reference cluster. The controlled domain-corpus comparison
 qualifies 0.6B, 4B and 8B through Knowledge retrieval and selects 0.6B. Composed
-GPU-memory qualification remains open in the
+GPU-memory qualification with the selected concurrent workloads remains open in the
 [implementation plan](../../../docs/PLATFORM_FOUNDATIONS_PLAN.md#phase-8-knowledge-service).
+The reference installation qualifies Reason separately and keeps it stopped during
+the composed flight check.
 
 ## Standards And Protocols
 

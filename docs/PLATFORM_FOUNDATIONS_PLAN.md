@@ -4,13 +4,28 @@ Status: Phase 0 is accepted. Phases 1–3 have the installed gaps listed under
 Deferred Work and the remaining type work in the Phase 3 migration inventory.
 Phase 4's installed audit checks pass. Composed flight domain checks pass at
 `eeaa8442`, including Recording replay and grounded Reason. Final acceptance remains
-open for full-deployment GPU memory, Stream App startup and composed visual/playback
+open for Stream App startup and composed visual/playback
 checks. Phase 5's native consumer migration,
 writer/schema removal and private payload separation pass. Its published deployment
 passes installed certification, Artifact byte delivery, Speech CUDA, Recording replay,
 Reason grounding and Stream inference. Stream Task/result delivery now passes across
 installed replicas. Live-session notifications pass through the public Gateway; the
 remaining domain gates are open.
+
+Reference resource decision (2026-10-02): the user permits separate service batches
+and explicitly leaves Reason off. Reason implementation, source conformance and GPU
+acceptance stay in scope, but simultaneous residency with the complete deployment is
+removed from this plan's acceptance. The reference HelmRelease holds Reason at zero
+replicas while preserving its checkpoint and caches. Installed readiness expects the
+other 26 deployments. Composed flight verifies live Stream, Recording replay, Artifact
+isolation and headed hardware visuals; its reports explicitly mark Reason `not_run`.
+The existing focused `uav-recording-verify` owns grounded Reason acceptance. Start only
+its required services for that check and stop Reason afterward. This decision
+supersedes earlier full-deployment residency requirements and checkpoints below.
+The separation passes 71 native flight checks with one timing measurement ignored,
+strict Clippy and the complete Helm configuration check. Rendering the reference
+post-render patch verifies zero Reason replicas, both retained PVCs and its NVIDIA
+request. Publication and installed flight repetition follow this native checkpoint.
 
 Map installation checkpoint (2026-10-02): GitOps converges at `9d7d0b6a`, with all
 27 deployments ready and eight GPU shares. The composed run passes Map and Stream
@@ -32,10 +47,10 @@ configuration check pass. Installed repetition of this follow-up is pending.
 
 Reason separately refuses startup with 5.48 GiB free against its configured 9.86 GiB.
 The full deployment uses about 18 GiB before Reason; the simulator and embedding
-processes account for 6,478 and 6,056 MiB. This confirms that GPU coexistence is open.
-Earlier focused runs that stopped unused GPU services cannot qualify the complete
-deployment. Memory settings must pass the supported workloads with all required
-services enabled. The cluster and BuildKit are stopped after owned landing cleanup.
+processes account for 6,478 and 6,056 MiB. This identifies the capacity limit behind
+the failed run. The reference resource decision above removes simultaneous Reason
+residency from the required profile. The cluster and BuildKit are stopped after
+owned landing cleanup.
 
 Postflight and settled PX4 snapshots have no sensor health warnings/errors or compass
 fault, and magnetic heading is consistent. They permit arming in takeoff mode. The
@@ -2989,9 +3004,12 @@ IDs and DTO relationships. Installed qualification stays at the integration chec
   Start only the isolated services a focused check requires. Start the full reference
   cluster for installed acceptance and stop it when those checks finish. Use node
   stop/start for routine development; delete and rebuild when the phase requires a
-  reset. Check free disk space and expected build growth before large builds, because
+  reset. Reason stays off except for its separate acceptance, as the user requested;
+  service batches need not deploy every server simultaneously. Check free disk space
+  and expected build growth before large builds, because
   stopping nodes does not reclaim their volumes or build caches. Required installed
-  and hardware GPU acceptance still runs against the complete deployment.
+  and hardware GPU acceptance still runs against the services each check requires.
+  A pass names its selected services and cannot establish untested GPU coexistence.
 - During this plan, clean up completed experiment containers, verified-empty unused
   volumes, and superseded build outputs between steps. Preserve useful Rust and
   BuildKit caches. Before retiring Docker or OCI registry images, protect current
@@ -3056,7 +3074,7 @@ execution separately from the stable compilation graph; they are not runtime bud
 | Unified audit (current) | Phase 4 audit types, writer, producers and readers are committed; their images and charts are published | Native checks, paired measurements and deployment configuration pass; run composed installed acceptance on the fresh installation |
 | Computers ownership and public identities (current) | Maintenance, reservation and execution receipts, Task-link repair and all four claimed journal reads admit relationships in SQL. Lifecycle/maintenance Tasks, interactive access, pairing and connection IDs have typed direct consumers. Request/template/provider IDs and DTO relationships remain | SQL denial, replay/conflict and recovery regressions cover the read batch. Task/access native tests, gateway/BFF checks and generated schemas pass. Complete the remaining identity batch before grouped installed qualification |
 | Provider identities | Trace private runtime and retained-instance identity requirements, then update the owning types and all transport consumers together | Native runtime and provider fixtures, including current-format recovery; preserve required GPU acceptance |
-| Composed Phase 3 delivery | Finish remaining Map/template setup and cross-component contract work | Run the shared contract closure and installed acceptance against the complete deployment, then stop the cluster |
+| Composed Phase 3 delivery | Finish remaining Map/template setup and cross-component contract work | Run the shared contract closure and installed acceptance in the selected service batches, with Reason separate, then stop the cluster |
 
 These checkpoints guide this plan's work. They do not add a repository-wide testing
 rule or remove required acceptance. Report implementation completed since the last
@@ -4845,4 +4863,3 @@ not complete while a row remains.
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
 | Phase 1 reference reset | `testing/flight-smoke/src/domain.rs` | Finish composed visual/timing acceptance after qualifying the Stream App startup and capture-acknowledgement corrections | At `9d7d0b6a`, re-arm, takeoff, Map handoff, mission and replay pass. The Stream App race prevents its visual capture; Reason lacks GPU memory. Maximum observed render cycle is 757.72 ms, but final playback and landing camera checks are unreached. Preserve freshness, spatial-content, flight-health and hardware requirements during the repeat |
-| Phase 8 GPU coexistence | `examples/bioma/k3d-values.yaml` | Qualify memory allocation for embedding and Reason alongside the complete installed GPU deployment | The composed run at `9d7d0b6a` cannot admit Reason's 9.86 GiB allocation with 5.48 GiB free. All 27 deployments were ready; focused runs with services stopped do not close this gate |

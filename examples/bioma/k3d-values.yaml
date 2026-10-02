@@ -41,14 +41,11 @@ reason:
     # SHA-256 of reason-model.sha256, whose entries verify the checkpoint files.
     digest: sha256:ade82a1c4a95530cab23bd9b74daab8c1093cd6cbb8066145ac0862dcf79da6f
   engine:
-    # Reserve 42% for vLLM so its 8192-token world-model pass has a complete KV
-    # cache while the required GPU workloads share the 24 GiB
-    # development device.
+    # Separate Reason acceptance uses this qualified 8192-token model profile.
+    # The reference HelmRelease keeps Reason at zero replicas during other work.
     gpuMemoryUtilization: 0.42
 embedding:
   engine:
-    # TODO(foundations): Qualify concurrent embedding, simulation and Reason GPU
-    # memory budgets; the current full installation cannot admit Reason's allocation.
     gpuMemoryUtilization: 0.25
 telemetry:
   enabled: true
