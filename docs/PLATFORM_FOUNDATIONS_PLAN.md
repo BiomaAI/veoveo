@@ -59,12 +59,25 @@ Conditional validation stays strict and now reports the differing field with the
 collection identity. All 32 focused native checks pass across the three producers,
 extension validation and Knowledge coordination, pipeline and gateway consumers.
 Strict all-target Clippy for the five affected packages and 1,054 documentation
-links pass. Publication and installed restart remain open.
+links pass. Installed restart acceptance is recorded below.
 Diagnosis is retained in
 `output/development/foundations-flight-tools-2fc911e6/conditional-diagnosis.json`.
 Artifact, Map, Time and Knowledge images publish from `521ded3e` in 164 seconds.
 The reference lock selects only those four new runnable digests. The builder stops
 before installed rollout; the retained index is preserved for restart qualification.
+The reference converges at `12538e12`, and public Knowledge acceptance passes before
+and after a real Pod replacement in 24.52 and 21.08 seconds. Both reports contain all
+nineteen collections, nineteen initial catalog observations, thirteen verified source
+links and the same retained generation and embedding space. The replacement Pod uses
+the same published image; the prior Pod is absent. This closes the conditional-source
+restart failure without clearing the index or weakening validation.
+Flux drift correction initially restores the GPU replicas stopped for this check.
+Temporary rules exclude only those Deployment replica counts during convergence;
+image and configuration correction stay enabled. Root and Helm reconciliation are
+suspended and those temporary rules removed before the test workloads stop. The
+simulator, View, Stream, Speech and Optimization stay stopped during acceptance;
+Reason and Embedding supply the required source and inference paths. Reports and
+Pod identities are under `output/development/foundations-conditional-publication-521ded3e/`.
 
 Flight readiness had been calling `conformance info`, which reads every tool, prompt
 and resource-template catalog and therefore required unrelated services. The new
@@ -117,8 +130,9 @@ viewer bridge with resources disabled and is outside this adoption scope.
 
 Phase 8's Knowledge service and embedding runtime are deployed. The nineteen-collection
 catalog, source-linked search, completion, statistics, subscriptions, CUDA embedding and
-network isolation passed their recorded acceptance. The current restart rejects a
-changed conditional source observation and requires repair before final acceptance. Indexing audit windows finalize with a verified signed chain.
+network isolation passed their recorded acceptance. The repaired conditional source
+revisions pass installed acceptance before and after Knowledge restart at `12538e12`,
+preserving the active generation. Indexing audit windows finalize with a verified signed chain.
 Phase 9's Reason summaries pass installed publication, result grants, revocation and
 separate Reason/Knowledge restarts. The controlled 0.6B/4B/8B retrieval comparison passes
 on the recorded corpus and retains 0.6B. These checks do not close the remaining type,
@@ -4595,6 +4609,5 @@ not complete while a row remains.
 
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
-| Phase 8 source conditional restart | `servers/knowledge-mcp/src/source/gateway.rs` | Publish the qualified source revision repair and verify installed Knowledge restart | The installed Artifact mismatch is a changed modification timestamp omitted from its revision; the producer repair also covers Map and Time provenance, with strict conditional validation preserved |
 | Phase 3 Computers hosted feature gate | `servers/computers-mcp/DESIGN.md` | Finish installed Computers hosted feature qualification | Publication, all hosted catalogs, public full/HEAD/range Artifact delivery and headed Speech CUDA transcription/dictation pass at `5dd357c4`. Artifact sharing now passes seven installed checks; qualify the remaining Computers library/setup consumer path |
 | Phase 1 reference reset | `testing/flight-smoke/src/domain.rs` | Diagnose Reason's missing video range and finish composed visual/timing acceptance | At `2fc911e6`, reduced-profile discovery and takeoff/mission captures pass, followed by Stream replay. Reason finds no samples in that same selected range. Abort cleanup lands at the mission location, where the final camera lacks sufficient detail. Keep the spatial-content check and inspect source materialization before repeating the flight |

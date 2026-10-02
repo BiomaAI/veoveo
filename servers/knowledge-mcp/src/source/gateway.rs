@@ -92,7 +92,6 @@ impl KnowledgeSource for GatewaySource {
         .ok_or(KnowledgeError("source omitted its knowledge observation"))?;
         if observation.not_modified() {
             let prior = previous.ok_or(KnowledgeError("unexpected conditional response"))?;
-            // TODO(foundations): Qualify installed restart after the source revision repair.
             observation.revalidated(prior).inspect_err(|error| {
                 tracing::warn!(
                     collection = %collection.collection(),
