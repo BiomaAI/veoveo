@@ -3,9 +3,70 @@ use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
 
 use super::{MapAccessContext, MapCatalog, decode};
-use crate::contract::{DatasetRelease, DatasetReleaseId, MapDatasetId};
+use crate::contract::{
+    ActiveDatasetRelease, ActiveReleasePointer, DatasetRelease, DatasetReleaseId,
+    DatasetReleaseState, ListActiveDatasetReleasesOutput, ListActiveDatasetReleasesRequest,
+    MapDatasetId, MapSourceId,
+};
 
 pub const PAGE_SIZE: usize = 100;
+
+const SELECT_ACTIVE: &str = "SELECT record::id(id) AS pointer_id,
+    dataset_key AS dataset_id, release_key AS release_id,
+    previous_release_key AS previous_release_id, record_version, activated_at,
+    release.source_key AS source_id, release.record_version AS release_version,
+    release.version_label AS version_label,
+    release.source_digest_sha256 AS source_digest_sha256,
+    release.valid_from AS valid_from, release.valid_until AS valid_until,
+    release.canonical_json AS canonical_json
+FROM (
+    SELECT *, type::record('map_dataset_release', release_key) AS release
+    FROM map_active_release
+    WHERE tenant = $tenant AND ($dataset = NONE OR dataset_key = $dataset)
+) WHERE release.tenant = $tenant AND release.release_key = release_key
+    AND release.dataset_key = dataset_key AND release.state = 'active'
+    AND ($source = NONE OR release.source_key = $source)
+ORDER BY dataset_id ASC LIMIT $limit TIMEOUT 5s;";
+
+#[derive(Deserialize)]
+struct ActiveReleaseRow {
+    pointer_id: String,
+    #[serde(flatten)]
+    pointer: ActiveReleasePointer,
+    source_id: MapSourceId,
+    release_version: u64,
+    version_label: String,
+    source_digest_sha256: String,
+    valid_from: chrono::DateTime<chrono::Utc>,
+    valid_until: Option<chrono::DateTime<chrono::Utc>>,
+    canonical_json: String,
+}
+
+impl ActiveReleaseRow {
+    fn checked(self, scope: &MapAccessContext) -> Result<ActiveDatasetRelease> {
+        let release: DatasetRelease = decode(&self.canonical_json, "active dataset release")?;
+        release.validate()?;
+        ensure!(
+            self.pointer.record_version > 0
+                && self.pointer_id
+                    == format!("{}:{}", scope.identity.tenant_id, self.pointer.dataset_id)
+                && release.release_id == self.pointer.release_id
+                && release.dataset_id == self.pointer.dataset_id
+                && release.source_id == self.source_id
+                && release.state == DatasetReleaseState::Active
+                && release.record_version == self.release_version
+                && release.version_label == self.version_label
+                && release.source_digest_sha256 == self.source_digest_sha256
+                && release.valid_from == self.valid_from
+                && release.valid_until == self.valid_until,
+            "active release document disagrees with selected pointer or metadata"
+        );
+        Ok(ActiveDatasetRelease {
+            pointer: self.pointer,
+            release,
+        })
+    }
+}
 
 #[derive(Debug, Serialize)]
 pub struct ReleasePage {
@@ -45,6 +106,46 @@ pub fn parse_cursor(
 }
 
 impl MapCatalog {
+    /// Public bounded selection; complete internal pointer inventories use
+    /// `list_active_releases`. Filters and the lookahead limit execute in SQL.
+    pub async fn active_releases(
+        &self,
+        scope: &MapAccessContext,
+        request: &ListActiveDatasetReleasesRequest,
+    ) -> Result<ListActiveDatasetReleasesOutput> {
+        ensure!(
+            (1..=100).contains(&request.limit),
+            "limit must be within 1..=100"
+        );
+        let mut response = self
+            .store()
+            .client()
+            .query(SELECT_ACTIVE)
+            .bind(("tenant", scope.identity.tenant_id.record_id()))
+            .bind((
+                "dataset",
+                request.dataset_id.as_ref().map(MapDatasetId::as_str),
+            ))
+            .bind((
+                "source",
+                request.source_id.as_ref().map(MapSourceId::as_str),
+            ))
+            .bind(("limit", request.limit + 1))
+            .await?
+            .check()?;
+        let mut rows: Vec<serde_json::Value> = response.take(0)?;
+        let truncated = rows.len() > request.limit as usize;
+        rows.truncate(request.limit as usize);
+        let releases = rows
+            .into_iter()
+            .map(|row| serde_json::from_value::<ActiveReleaseRow>(row)?.checked(scope))
+            .collect::<Result<_>>()?;
+        Ok(ListActiveDatasetReleasesOutput {
+            releases,
+            truncated,
+        })
+    }
+
     pub async fn release_in_dataset(
         &self,
         scope: &MapAccessContext,
@@ -176,6 +277,175 @@ mod tests {
             record_version: 1,
             updated_at: now,
         }
+    }
+
+    async fn active_scope(
+        store: &veoveo_platform_store::PlatformStore,
+        tenant: &str,
+    ) -> MapAccessContext {
+        MapAccessContext {
+            identity: store
+                .ensure_identity(
+                    tenant,
+                    "author",
+                    "https://fixture.local",
+                    "author",
+                    veoveo_platform_store::PrincipalKind::Service,
+                )
+                .await
+                .unwrap(),
+        }
+    }
+
+    async fn activate_fixture(
+        catalog: &MapCatalog,
+        scope: &MapAccessContext,
+        n: usize,
+        source: usize,
+    ) -> DatasetRelease {
+        let mut value = release(n, &key("dataset", n).parse().unwrap());
+        value.source_id = key("source", source).parse().unwrap();
+        let value = catalog.create_release(scope, value).await.unwrap();
+        catalog.activate_release(scope, value, None).await.unwrap()
+    }
+
+    #[tokio::test]
+    async fn active_release_filters_precede_limits_and_denied_document_decode() {
+        tokio::time::timeout(std::time::Duration::from_secs(90), async {
+            let db = crate::test_store::TestDb::new().await;
+            let writer = MapCatalog::new(db.a.clone());
+            let reader = MapCatalog::new(db.b.clone());
+            let scope = active_scope(&db.a, "active-selection").await;
+            let foreign = active_scope(&db.a, "foreign").await;
+            // Both rejected sets sort before the requested source/dataset and
+            // exceed the maximum page size. Their documents cannot be decoded.
+            for n in 0..105 {
+                activate_fixture(&writer, &foreign, n, 1000).await;
+                activate_fixture(&writer, &scope, n + 105, n + 105).await;
+            }
+            db.a.client()
+                .query("UPDATE map_dataset_release SET canonical_json = '{' RETURN NONE;")
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+            let selected = activate_fixture(&writer, &scope, 1000, 1000).await;
+            for (source_id, dataset_id) in [
+                (Some(selected.source_id.clone()), None),
+                (None, Some(selected.dataset_id.clone())),
+                (
+                    Some(selected.source_id.clone()),
+                    Some(selected.dataset_id.clone()),
+                ),
+            ] {
+                let page = reader
+                    .active_releases(
+                        &scope,
+                        &ListActiveDatasetReleasesRequest {
+                            source_id,
+                            dataset_id,
+                            limit: 1,
+                        },
+                    )
+                    .await
+                    .unwrap();
+                assert!(!page.truncated);
+                assert_eq!(page.releases.len(), 1);
+                assert_eq!(page.releases[0].release, selected);
+            }
+            let missing = reader
+                .active_releases(
+                    &scope,
+                    &ListActiveDatasetReleasesRequest {
+                        source_id: Some(key("source", 1).parse().unwrap()),
+                        dataset_id: Some(selected.dataset_id.clone()),
+                        limit: 100,
+                    },
+                )
+                .await
+                .unwrap();
+            assert!(missing.releases.is_empty());
+            assert!(!missing.truncated);
+        })
+        .await
+        .expect("active release filtering exceeded 90 seconds");
+    }
+
+    #[tokio::test]
+    async fn active_release_limits_pointer_changes_and_document_agreement() {
+        tokio::time::timeout(std::time::Duration::from_secs(90), async {
+            let db = crate::test_store::TestDb::new().await;
+            let writer = MapCatalog::new(db.a.clone());
+            let reader = MapCatalog::new(db.b.clone());
+            let scope = active_scope(&db.a, "active-limits").await;
+            let mut expected = Vec::new();
+            for n in 0..105 {
+                expected.push(activate_fixture(&writer, &scope, n, n).await);
+            }
+            for limit in [1, 100] {
+                let page = reader.active_releases(&scope, &ListActiveDatasetReleasesRequest {
+                    source_id: None, dataset_id: None, limit,
+                }).await.unwrap();
+                assert!(page.truncated);
+                assert_eq!(page.releases.iter().map(|row| &row.release).collect::<Vec<_>>(),
+                    expected[..limit as usize].iter().collect::<Vec<_>>());
+            }
+            for limit in [0, 101, u32::MAX] {
+                assert!(reader.active_releases(&scope, &ListActiveDatasetReleasesRequest {
+                    source_id: None, dataset_id: None, limit,
+                }).await.is_err());
+            }
+            let previous = &expected[104];
+            let mut next = release(1000, &previous.dataset_id);
+            next.source_id = previous.source_id.clone();
+            let next = writer.create_release(&scope, next).await.unwrap();
+            let next = writer.activate_release(&scope, next, Some(1)).await.unwrap();
+            let request = ListActiveDatasetReleasesRequest {
+                source_id: Some(next.source_id.clone()), dataset_id: Some(next.dataset_id.clone()), limit: 1,
+            };
+            let page = reader.active_releases(&scope, &request).await.unwrap();
+            assert!(!page.truncated);
+            assert_eq!(page.releases[0].release, next);
+            assert_eq!(page.releases[0].pointer.previous_release_id.as_ref(), Some(&previous.release_id));
+            assert_eq!(page.releases[0].pointer.record_version, 2);
+
+            // An admitted document must agree with the metadata that SQL selected.
+            for field in ["release_id", "dataset_id", "source_id", "record_version", "state"] {
+                let mut body = serde_json::to_value(&next).unwrap();
+                body[field] = match field {
+                    "release_id" => serde_json::json!(previous.release_id),
+                    "dataset_id" => serde_json::json!(key("dataset", 9000)),
+                    "source_id" => serde_json::json!(key("source", 9000)),
+                    "record_version" => serde_json::json!(99),
+                    "state" => serde_json::json!("staged"),
+                    _ => unreachable!(),
+                };
+                db.a.client().query("UPDATE ONLY $record SET canonical_json = $body RETURN NONE;")
+                    .bind(("record", veoveo_platform_store::RecordId::new("map_dataset_release", next.release_id.as_str())))
+                    .bind(("body", serde_json::to_string(&body).unwrap()))
+                    .await.unwrap().check().unwrap();
+                let error = reader.active_releases(&scope, &request).await.unwrap_err();
+                assert!(error.to_string().contains("disagrees"), "{field}: {error}");
+            }
+            // Relationships are admission predicates too, before retained-body decoding.
+            for mutation in [
+                "tenant = tenant:other",
+                "dataset_key = 'dataset-ffffffff-0000-7000-8000-000000000000'",
+                "release_key = 'release-ffffffff-0000-7000-8000-000000000000'",
+                "state = 'retired'",
+            ] {
+                db.a.client().query(format!("UPDATE ONLY $record SET {mutation}, canonical_json = '{{' RETURN NONE;"))
+                    .bind(("record", veoveo_platform_store::RecordId::new("map_dataset_release", next.release_id.as_str())))
+                    .await.unwrap().check().unwrap();
+                assert!(reader.active_releases(&scope, &request).await.unwrap().releases.is_empty());
+                db.a.client().query("UPDATE ONLY $record SET tenant = $tenant, dataset_key = $dataset, release_key = $release, state = 'active' RETURN NONE;")
+                    .bind(("record", veoveo_platform_store::RecordId::new("map_dataset_release", next.release_id.as_str())))
+                    .bind(("tenant", scope.identity.tenant_id.record_id()))
+                    .bind(("dataset", next.dataset_id.as_str()))
+                    .bind(("release", next.release_id.as_str()))
+                    .await.unwrap().check().unwrap();
+            }
+        }).await.expect("active release page qualification exceeded 90 seconds");
     }
 
     #[test]

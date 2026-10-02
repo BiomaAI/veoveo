@@ -738,6 +738,13 @@ Both indexes accept resource subscriptions. Raster index admission requires
 
 ### Catalog Maintenance Queries
 
+`list_active_dataset_releases` selects tenant-owned pointers and their active releases
+in one SQL statement. Source and dataset filters precede the limit of 1–100 results;
+one additional row determines `truncated`. The release must belong to the pointer's
+tenant and dataset. Results order by dataset ID, and selected documents must agree
+with their indexed identities, versions, validity and digest. Internal reconciliation
+continues to read the complete pointer inventory.
+
 Acquisition recovery selects only the owner's queued, running, or cancel-requested
 jobs without a registered worker, in batches of 100. Admission holds the worker
 inventory lock while creating a job and registering its worker. Recovery holds the

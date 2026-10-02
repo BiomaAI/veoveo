@@ -66,6 +66,13 @@ tests are excluded from that run. Affected all-target/all-feature strict Clippy,
 formatting and 1,041 documentation links pass. None of the four new gateway source
 runs has passed installed acceptance. Cleanup removed 24 superseded test executables
 and recovered 8.9 GiB while preserving current executables and compiler caches.
+The Map active-release tool now joins pointers and releases in one SQL query.
+Tenant, source and dataset selection precede its result limit and document decoding.
+Selected release documents must agree with indexed metadata. The focused catalog
+batch passes 34 tests, including excluded malformed rows, page limits and activation
+changes across connections. Strict all-target/all-feature Clippy, formatting,
+SurrealDB 3.3.0 query validation and documentation links pass. Publication and
+installed qualification of this query remain open.
 Nine native evaluator, corpus and retrieval checks pass. Affected all-target strict
 Clippy, SurrealDB 3.3.0 query validation and documentation links pass.
 The domain corpus and descriptor batch passes 39 source, contract, consumer and corpus

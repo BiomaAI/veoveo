@@ -48,6 +48,9 @@ Map Explorer App.
 - Exact release, source feature, raster, derivation and route addresses use
   `contract/product_uri.rs`. Keep the owner's IDs in builders and readers, and share
   these types with scene consumers. Dataset and release parent checks belong to SQL.
+- Active-release tool selection joins pointers to releases in SQL. Tenant, source
+  and dataset predicates precede its limit; selected documents must match indexed
+  metadata. Keep the complete internal pointer inventory separate from this tool.
 - Mobility profiles use typed versions and resource addresses. Catalog SQL selects the
   tenant before its ID/numeric-version keyset and limit. Selected documents must agree
   with indexed identity, family, version and validity; completion binds typed parents.

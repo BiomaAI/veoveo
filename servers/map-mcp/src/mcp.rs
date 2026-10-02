@@ -199,43 +199,12 @@ impl MapMcp {
         }
         let identity = require_scope(&context, MapScope::DatasetRead)?;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
-        let pointers = self
+        let output = self
             .state
             .catalog
-            .list_active_releases(&scope)
+            .active_releases(&scope, &request)
             .await
             .map_err(internal)?;
-        let mut releases = Vec::new();
-        for pointer in pointers {
-            if request
-                .dataset_id
-                .as_ref()
-                .is_some_and(|dataset_id| *dataset_id != pointer.dataset_id)
-            {
-                continue;
-            }
-            let release = self
-                .state
-                .catalog
-                .release(&scope, &pointer.release_id)
-                .await
-                .map_err(internal)?
-                .ok_or_else(|| internal("active dataset release is missing"))?;
-            if request
-                .source_id
-                .as_ref()
-                .is_some_and(|source_id| *source_id != release.source_id)
-            {
-                continue;
-            }
-            releases.push(crate::contract::ActiveDatasetRelease { pointer, release });
-        }
-        let truncated = releases.len() > request.limit as usize;
-        releases.truncate(request.limit as usize);
-        let output = ListActiveDatasetReleasesOutput {
-            releases,
-            truncated,
-        };
         structured_result(
             format!(
                 "resolved {} active dataset release(s)",
