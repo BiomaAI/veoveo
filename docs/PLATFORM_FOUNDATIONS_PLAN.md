@@ -52,8 +52,9 @@ spatial validator checks vertical segments against climb/descent limits. All 167
 Map checks pass, including the recorded flight coordinates, directional connectors,
 avoided areas, invalid alternatives and vertical segments. The installed source harness
 is explicitly ignored in this native run. Strict all-target Clippy, formatting and
-documentation links pass. Publication and installed repetition are
-pending. Map checks are under `output/development/foundations-map-route-20261002/`.
+documentation links pass. Map publishes from `0388b911` in 107 seconds, reusing its
+native dependency layers. The reference selects the new image; installed repetition
+is pending. Map checks are under `output/development/foundations-map-route-20261002/`.
 Installed camera results are under
 `output/development/foundations-camera-publication-eae9d400/`; sensor diagnostics and
 qualification are under `output/development/foundations-px4-sensors-20261002/`.
