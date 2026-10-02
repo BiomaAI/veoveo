@@ -32,6 +32,10 @@ follow this runtime experiment. It does not close the composed flight or camera-
 Diagnostics are under `output/development/foundations-rustfs-f0939bf2/`; the
 instrumented flight and rendering traces are under
 `output/development/foundations-camera-stall-f0939bf2/`.
+The platform chart publishes from `cccbbf50`, and the reference selects its immutable
+manifest `sha256:34eaa7c4920830afb12baf8b10409348fdaf75b0e18d81beaf986c93bedb6c5d`.
+Application image locks are unchanged. The cluster and builder stay stopped while
+the reference awaits reconciliation of this chart.
 
 Recording publication checkpoint (2026-10-02): native RRD fixtures reproduce the
 flight's exact missing-samples error while a live layer's final file exists and while
@@ -4695,5 +4699,6 @@ not complete while a row remains.
 
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
+| Phase 1 reference storage availability | `deploy/helm/veoveo/templates/object-store.yaml` | Reconcile the published worker/readiness chart and repeat installed storage acceptance | The one-worker deployment reproduces health timeouts, a restart and failed multipart operations with GPU workloads stopped. Four explicit workers pass multipart recovery and two minutes of health observation under the same CPU quota. The reference now selects the repaired chart; full composed flight still requires qualification |
 | Phase 3 Computers hosted feature gate | `servers/computers-mcp/DESIGN.md` | Finish installed Computers hosted feature qualification | Publication, all hosted catalogs, public full/HEAD/range Artifact delivery and headed Speech CUDA transcription/dictation pass at `5dd357c4`. Artifact sharing now passes seven installed checks; qualify the remaining Computers library/setup consumer path |
 | Phase 1 reference reset | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_health.py`, `testing/flight-smoke/src/domain/showcase.rs` | Diagnose the shared-camera render stall and finish composed visual/timing acceptance | At `eeaa8442`, the deployed reader fix passes Stream replay and grounded Reason over the same range; the entire domain branch passes, including return, landing and Artifact isolation. Takeoff, mission, Stream and Recording captures pass. During landing, the atlas reports a 5.76-second stale frame and the visual branch fails; a later observation recovers. The run records a maximum render cycle of 9.99 seconds. Preserve the freshness, spatial-content and hardware checks while resolving the stall |
