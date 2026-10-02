@@ -3,12 +3,27 @@
 Status: Phase 0 is accepted. Phases 1–3 have the installed gaps listed under
 Deferred Work and the remaining type work in the Phase 3 migration inventory.
 Phase 4's installed audit and composed flight domain checks pass; visual acceptance
-still fails on a black live-camera App frame. Phase 5's native consumer migration,
+still fails the landing camera's mean-brightness threshold. Phase 5's native consumer migration,
 writer/schema removal and private payload separation pass. Its published deployment
 passes installed certification, Artifact byte delivery, Speech CUDA, Recording replay,
 Reason grounding and Stream inference. Stream Task/result delivery now passes across
 installed replicas. Live-session notifications pass through the public Gateway; the
 remaining domain gates are open.
+
+The composed flight at `5cae9ec8` passes takeoff altitude, the mission, Recording
+replay, grounded Reason, Map-approved return to launch, landing and cross-context
+Artifact access. Both takeoff and mission camera captures show the city. The final
+camera check fails because mean luma is 20.50 against a minimum of 25, despite a
+standard deviation of 25.32 and a 0–196 range. A subsequent headed Chrome diagnostic
+shows a dark street scene with visible lane markings and buildings. WebGL uses the
+RTX 4090; WebGPU reports SwiftShader and supplies no hardware evidence. This supports
+a false rejection by the brightness check, but visual acceptance stays open until
+that diagnosis is qualified through the owning harness. The initial attempt stopped
+before flight commands on incomplete UAV tool discovery; fresh public discovery
+passed before the completed retry. Its cause is unproven. Phase outcomes and captures
+are under `output/development/foundations-flight-takeoff-5cae9ec8/`; the diagnostic
+screenshot is `/tmp/chrome-devtools-mcp-56U9uD/screenshot.png`. The native harness
+finished cleanup before the cluster stopped for development.
 
 Map's checked startup, discovery and direct-address batch is accepted on the reference
 installation at `7b534a2b`. All 35 source checks pass, including four actual restarts,
@@ -4503,4 +4518,4 @@ not complete while a row remains.
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
 | Phase 3 final server library gates | `servers/artifact-mcp/DESIGN.md` | Finish installed Artifact sharing and Computers hosted feature qualification | Publication, all hosted catalogs, public full/HEAD/range Artifact delivery and headed Speech CUDA transcription/dictation pass at `5dd357c4`; the remaining domain assertions join composed acceptance |
-| Phase 1 reference reset | `testing/flight-smoke/src/domain.rs` | Finish composed visual and timing acceptance | The composed flight domain sequence passes at `442ba70b`, including Recording, replay, Reason and cross-context denial. The subsequent visual stage rejects a black live-camera App frame and still requires diagnosis and qualification |
+| Phase 1 reference reset | `testing/flight-smoke/src/domain.rs` | Finish composed visual and timing acceptance | The composed flight domain sequence passes at `5cae9ec8`, including takeoff altitude, return to launch, landing, Recording replay, Reason and cross-context denial. The landing visual check rejects mean luma 20.50 below its cutoff of 25; a headed hardware diagnostic shows a detailed dark street. Qualify a content-sensitive blank-frame check and repeat composed visual/timing acceptance |
