@@ -252,9 +252,24 @@ outcomes before propagating a failure. Native qualification passes 61 flight cas
 the client dependency check and process-environment check; strict Clippy and executable
 compilation pass. Three warm dispatcher observations take 0.888–0.904 seconds and pass
 the two-second limit. The changed landing path still requires installed acceptance. The
-cluster and builder are stopped with 291 GiB free. For this plan's next composed run,
-start its required UAV, View, Stream and Reason workloads while leaving Embedding,
-Knowledge, Optimization and Speech stopped; keep their configured GPU requirements.
+cluster and builder are stopped with 291 GiB free.
+The repaired run at `16536ea4` exposes two further prerequisites. Its broad `info`
+checks require every server in the operator profile; discovery passes after temporarily
+starting Optimization, Speech, Knowledge and its Embedding dependency. All four stop
+after the Map and live Stream prerequisites pass, leaving 13.4 GiB free while UAV,
+View, Stream and Reason stay running. Takeoff then fails because the harness treats
+the first `flying` observation as arrival at the requested altitude; that observation
+is at 1.7 m. Owned cleanup completes, and a public state read confirms the selected
+aircraft landed. The create-only phase report preserves both failures under
+`output/development/foundations-flight-launch-16536ea4/captures`.
+The takeoff wait now selects the vehicle by ID and requires both `flying` and the
+configured minimum altitude within one deadline, checking session and world identity
+on each observation. The regression case rejects an early state transition and another
+aircraft's altitude. All 62 flight cases, dependency and process checks, strict Clippy
+and executable compilation pass. Three warm dispatch observations take 0.862–0.870
+seconds. Installed flight acceptance remains open. The cluster and builder are stopped
+for development. On the next run, start full-profile discovery dependencies temporarily
+and stop unused GPU workloads after both prerequisites, preserving configured GPU needs.
 The current source-qualification batch adds one shared gateway entry point and
 owner-local fixtures for Artifact, Reason, Map and Time. K07 models both updates and
 membership removal; removal must survive restart and deny full and conditional reads.

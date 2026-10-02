@@ -143,7 +143,10 @@ Small process, GPU identity and token-exchange helpers likewise keep one Rust so
 No new test-support framework or upstream dependency is introduced.
 
 The domain harness releases visual checkpoints after this run's takeoff and mission
-complete. It waits for the takeoff capture before dispatching the mission. Existing
+complete. Takeoff requires the selected vehicle to be flying at the scenario's minimum
+altitude within its takeoff deadline; the flight-state transition alone cannot release
+the capture. Each observation must belong to the selected session and world revision.
+It waits for the takeoff capture before dispatching the mission. Existing
 simulator flight and preflight recovery cannot satisfy these checkpoints. The live
 Stream session stays open through its capture, and landing waits for the moving
 Recording capture. Scenario deadlines bound these holds. A failed visual branch

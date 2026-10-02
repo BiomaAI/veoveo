@@ -211,20 +211,7 @@ async fn uav_sim_verify_with_visual_hold(
                 }),
             )
             .await?;
-        state = wait_for_flight_state(
-            &operator,
-            &["flying"],
-            Duration::from_secs(scenario.takeoff.state_timeout_seconds),
-            &scenario,
-        )
-        .await?;
-        ensure!(
-            state
-                .pointer("/vehicles/0/enu/up_m")
-                .and_then(Value::as_f64)
-                .is_some_and(|up_m| up_m >= scenario.takeoff.minimum_reached_altitude_m),
-            "UAV did not reach the configured aerial-tiles acceptance altitude: {state}"
-        );
+        wait_for_takeoff(&operator, &scenario, &revision_uri).await?;
         state = wait_for_native_camera_stream(
             &operator,
             Duration::from_secs(scenario.camera.stream_timeout_seconds),

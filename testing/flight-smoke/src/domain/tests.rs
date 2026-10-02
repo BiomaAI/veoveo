@@ -7,6 +7,33 @@ fn canonical_scenario() -> PathBuf {
         .join("../../showcase/uav-sim/scenarios/new-york-aerial.json")
 }
 
+#[test]
+fn takeoff_waits_for_the_selected_aircraft_to_reach_altitude() {
+    use veoveo_uav_sim_mcp::contract::{SimulationState, VehicleFlightState, VehicleId};
+
+    let mut state: SimulationState =
+        serde_json::from_str(include_str!("../../tests/fixtures/world-ready.json")).unwrap();
+    let selected = state.vehicles[0].vehicle_id.clone();
+    state.vehicles[0].flight_state = VehicleFlightState::Flying;
+    state.vehicles[0].enu.up_m = 1.7;
+    let mut other = state.vehicles[0].clone();
+    other.vehicle_id = VehicleId::new("other-uav").unwrap();
+    other.enu.up_m = 300.0;
+    state.vehicles.insert(0, other);
+    assert!(!takeoff_is_ready(&state, &selected, 192.0).unwrap());
+    state.vehicles[1].enu.up_m = 192.0;
+    assert!(takeoff_is_ready(&state, &selected, 192.0).unwrap());
+    state.vehicles[1].flight_state = VehicleFlightState::Armed;
+    assert!(!takeoff_is_ready(&state, &selected, 192.0).unwrap());
+    state.vehicles[1].flight_state = VehicleFlightState::Failed;
+    assert!(takeoff_is_ready(&state, &selected, 192.0).is_err());
+    state.vehicles[1].flight_state = VehicleFlightState::Flying;
+    state.vehicles[1].enu.up_m = f64::NAN;
+    assert!(takeoff_is_ready(&state, &selected, 192.0).is_err());
+    state.vehicles.remove(1);
+    assert!(takeoff_is_ready(&state, &selected, 192.0).is_err());
+}
+
 fn live_session(session_number: u8, pipeline_id: &str, lifecycle: &str) -> LiveSessionView {
     let session_id = format!("01983da0-0000-7000-8000-{session_number:012x}");
     serde_json::from_value(serde_json::json!({

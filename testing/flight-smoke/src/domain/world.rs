@@ -1,4 +1,5 @@
 use super::*;
+use veoveo_uav_sim_mcp::contract::{SimulationState, VehicleFlightState, VehicleId};
 
 pub(super) struct WorldBinding {
     pub(super) revision_uri: FrameWorldRevisionUri,
@@ -331,28 +332,65 @@ pub(super) async fn wait_for_recording_catalog(
     }
 }
 
-pub(super) async fn wait_for_flight_state(
+pub(super) fn takeoff_is_ready(
+    state: &SimulationState,
+    vehicle_id: &VehicleId,
+    minimum_altitude_m: f64,
+) -> Result<bool> {
+    let vehicle = state
+        .vehicles
+        .iter()
+        .find(|vehicle| vehicle.vehicle_id == *vehicle_id)
+        .context("takeoff observation omitted the selected UAV")?;
+    ensure!(
+        vehicle.flight_state != VehicleFlightState::Failed,
+        "selected UAV entered the failed state during takeoff"
+    );
+    ensure!(
+        vehicle.enu.up_m.is_finite(),
+        "selected UAV returned a nonfinite takeoff altitude"
+    );
+    Ok(
+        vehicle.flight_state == VehicleFlightState::Flying
+            && vehicle.enu.up_m >= minimum_altitude_m,
+    )
+}
+
+pub(super) async fn wait_for_takeoff(
     operator: &OperatorClient<'_>,
-    accepted: &[&str],
-    timeout: Duration,
     scenario: &UavAcceptanceScenario,
-) -> Result<Value> {
-    let deadline = tokio::time::Instant::now() + timeout;
-    loop {
-        let state = simulation_state(operator, scenario).await?;
-        let flight_state = json_string(&state, "/vehicles/0/flight_state")?;
-        if accepted.contains(&flight_state) {
-            return Ok(state);
+    revision: &FrameWorldRevisionUri,
+) -> Result<()> {
+    let timeout = Duration::from_secs(scenario.takeoff.state_timeout_seconds);
+    tokio::time::timeout(timeout, async {
+        loop {
+            let state: SimulationState =
+                serde_json::from_value(simulation_state(operator, scenario).await?)?;
+            ensure!(
+                state.session_id == scenario.session_id
+                    && state
+                        .world
+                        .as_ref()
+                        .is_some_and(|world| world.revision_uri == *revision),
+                "takeoff observation belongs to another session or world revision"
+            );
+            if takeoff_is_ready(
+                &state,
+                &scenario.vehicle_id,
+                scenario.takeoff.minimum_reached_altitude_m,
+            )? {
+                return Ok(());
+            }
+            tokio::time::sleep(Duration::from_secs(2)).await;
         }
-        ensure!(
-            flight_state != "failed",
-            "PX4 entered the failed state: {state}"
-        );
-        if tokio::time::Instant::now() >= deadline {
-            bail!("PX4 did not reach {accepted:?} within {timeout:?}; final state: {state}");
-        }
-        tokio::time::sleep(Duration::from_secs(2)).await;
-    }
+    })
+    .await
+    .with_context(|| {
+        format!(
+            "selected UAV did not reach flying at {} m within {timeout:?}",
+            scenario.takeoff.minimum_reached_altitude_m
+        )
+    })?
 }
 
 pub(super) async fn wait_for_native_camera_stream(
