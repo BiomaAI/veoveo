@@ -296,7 +296,10 @@ async fn verify(
             search.results.len() <= 5
                 && result_uris.len() == search.results.len()
                 && links == result_uris,
-            "search links do not match unique result URIs"
+            "search links for {} do not match unique result URIs: results={:?}, links={:?}",
+            source.slug,
+            result_uris,
+            links
         );
         for result in search.results {
             ensure!(

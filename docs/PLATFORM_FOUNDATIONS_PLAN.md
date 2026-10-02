@@ -3997,6 +3997,12 @@ indexing and Reason pods drained, the reset removes two completed Reason Tasks a
 their two gateway routes. No analysis was unfinished and no agent awaited those Tasks.
 Full result Artifacts and recordings keep their current formats. Installed convergence,
 fresh GPU publication and retrieval qualification are still required.
+The first installed catalog read reaches all nineteen collections, but its search gate
+finds Reason links rewritten to `knowledge://`: the installation omitted Reason from
+Knowledge's declared reference schemes. The corrected bundle preserves those owner
+addresses, and the composition check now requires every approved source scheme there.
+The initial image/configuration converges at `b63ae49f`; installation-wide readiness,
+GPU allocation and public full/HEAD/range Artifact delivery pass at that revision.
 
 Adopt Reason's completed analyses and results so users can find earlier findings and
 read their grounding without rerunning inference. Observations carry stored owner,

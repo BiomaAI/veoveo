@@ -63,7 +63,21 @@ fn indexer_discovers_approved_sources_without_write_or_cross_context_authority()
     ] {
         assert_eq!(decide(action, &PolicyTarget::Gateway), PolicyEffect::Allow);
     }
+    let knowledge = plane
+        .servers
+        .iter()
+        .find(|s| s.slug.as_str() == "knowledge")
+        .unwrap();
     for source in &plane.servers {
+        if !source.knowledge.is_empty() {
+            assert!(
+                knowledge
+                    .referenced_resource_schemes
+                    .contains(&source.uri_scheme),
+                "Knowledge must preserve owner addresses for approved source {}",
+                source.slug
+            );
+        }
         let approved = !source.knowledge.is_empty();
         let target = PolicyTarget::Resource {
             server: source.slug.clone(),
