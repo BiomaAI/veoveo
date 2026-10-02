@@ -37,9 +37,10 @@ pass native Artifact access, pagination and hosted K01–K07 checks. Publication
 bounded finding data. The reference approves nineteen collections at `af73f95b`;
 public catalog/search, a fresh GPU analysis and both indexed finding collections pass
 installed checks. Reads and matching source revisions also pass after separate Reason
-and Knowledge restarts. Installed grant/revocation acceptance exposed gateway error
-flattening and requires the forwarding correction below. Full conformance and retrieval
-evaluation remain open.
+and Knowledge restarts. Gateway error forwarding and catalog-watch readiness corrections
+are deployed at `790e3f86`. Current installed acceptance fails during source recovery:
+the public catalog differs from approvals and the completed finding is absent from
+search. Grant/revocation, full conformance and retrieval evaluation remain open.
 The gateway source adapter discovers approved
 collections and waits for catalog/resource observation readiness before reading.
 The library coordinator qualifies lease renewal, source invalidation, conditional
@@ -4043,6 +4044,16 @@ All 51 native forwarding checks pass. The corrected watch is published from `ce4
 with runnable digest `sha256:aa88a9ca796053ae5edae8b0d98aa8f6c85b4cde1729865e1847169c94df37b7`.
 Staging reuses dependency layers and takes 67 seconds; release qualification takes ten
 seconds and preserves the runnable digest. Installed qualification remains open.
+
+The reference converges at `790e3f86`, but the subsequent acceptance batch fails.
+The access fixture now grants the authenticated reviewer principal; its selected Work
+Context does not assert membership in an identity-provider group. The corrected fixture
+encounters a Knowledge upstream connection failure during source recovery and removes
+its temporary grant. Follow-up checks find a catalog that differs from installation
+approvals and cannot retrieve the completed analysis among the first ten results.
+These failures require diagnosis before accepting this deployment. The earlier finding
+and restart passes do not qualify the current state. Knowledge is drained, temporary
+tokens are removed, and the cluster is stopped for development; BuildKit stays stopped.
 
 Adopt Reason's completed analyses and results so users can find earlier findings and
 read their grounding without rerunning inference. Observations carry stored owner,
