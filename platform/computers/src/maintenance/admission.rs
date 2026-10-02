@@ -2,10 +2,11 @@ use super::{
     MaintenanceOperation, MaintenanceSource, MaintenanceTarget, model::MaintenanceRecord, object,
     record,
 };
+use crate::task_references::MaintenanceReference;
 use crate::{
     ComputerActor, ComputerError, ComputersStore, OperationStage, Result,
     api::{Action, ComputerPhase},
-    identity::{can_mutate, digest, owner_key, permits},
+    identity::{can_mutate, digest, owner_key},
     model::computer_record,
 };
 use chrono::{TimeDelta, Utc};
@@ -38,12 +39,6 @@ struct Content {
     target_template_id: String,
     target_template_fingerprint: String,
 }
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct Reference {
-    computer_id: veoveo_computers_contract::ComputerId,
-    maintenance_id: Uuid,
-}
 
 fn request_record(
     caller: &TaskOwner,
@@ -65,22 +60,33 @@ fn request_record(
 }
 impl ComputersStore {
     pub async fn maintenance(&self, caller: &TaskOwner, id: Uuid) -> Result<MaintenanceOperation> {
+        self.maintenance_for_computer(caller, id, None).await
+    }
+
+    pub(super) async fn maintenance_for_computer(
+        &self,
+        caller: &TaskOwner,
+        id: Uuid,
+        computer: Option<crate::api::ComputerId>,
+    ) -> Result<MaintenanceOperation> {
+        let mut params = crate::store::owner_query_bindings(caller)?;
+        params.extend([
+            ("maintenance", record(id).into_value()),
+            ("provider", self.provider_instance_id.into_value()),
+            (
+                "expected_computer",
+                computer.map(crate::api::ComputerId::into_uuid).into_value(),
+            ),
+        ]);
         let mut reply = self
-            .query(
-                "SELECT * FROM ONLY $maintenance;",
-                vec![("maintenance", record(id).into_value())],
-            )
+            .query(include_str!("../../queries/maintenance_read.surql"), params)
             .await?;
         let row: Option<MaintenanceRecord> =
             reply.take(0).map_err(|_| ComputerError::Unavailable)?;
         let operation = MaintenanceOperation::try_from(row.ok_or(ComputerError::NotFound)?)?;
-        if operation.operation_id != id
-            || operation.provider_instance_id != self.provider_instance_id
-        {
+        if operation.operation_id != id {
             return Err(ComputerError::Unavailable);
         }
-        permits(&operation.actor, caller)?;
-        self.get(caller, operation.computer_id).await?;
         Ok(operation)
     }
 
@@ -103,7 +109,9 @@ impl ComputersStore {
         let id: Option<Uuid> = reply.take(0).map_err(|_| ComputerError::Unavailable)?;
         match id {
             Some(id) => {
-                let operation = self.maintenance(caller, id).await?;
+                let operation = self
+                    .maintenance_for_computer(caller, id, Some(computer))
+                    .await?;
                 if operation.computer_id != computer || operation.request_id != request {
                     return Err(ComputerError::Unavailable);
                 }
@@ -404,9 +412,9 @@ impl ComputersStore {
         id: Uuid,
     ) -> Result<MaintenanceOperation> {
         let operation = self.maintenance(caller, id).await?;
-        let reference = serde_json::to_value(Reference {
+        let reference = serde_json::to_value(MaintenanceReference {
             computer_id: operation.computer_id,
-            maintenance_id: id,
+            maintenance_id: operation.task_id(),
         })
         .map_err(|_| ComputerError::Unavailable)?;
         let runtime = TaskRuntime::new(self.platform.clone(), "computers", "maintenance-admission");

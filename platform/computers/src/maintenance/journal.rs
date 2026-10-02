@@ -8,7 +8,6 @@ use surrealdb::types::{SurrealValue, Value};
 use uuid::Uuid;
 use veoveo_platform_store::deterministic_enterprise_id;
 use veoveo_task_runtime::{ClaimedTask, ProviderCommit, TaskError, TaskRuntime};
-use veoveo_types::TaskTypeDefinition;
 
 pub(super) struct ClockedMaintenance {
     pub operation: MaintenanceOperation,
@@ -38,32 +37,28 @@ impl ComputersStore {
         &self,
         claim: &ClaimedTask,
     ) -> Result<ClockedMaintenance> {
-        if claim.snapshot.server != "computers"
-            || claim.snapshot.task_type != crate::api::ComputerTaskKind::Maintenance.name()
-        {
-            return Err(ComputerError::InvalidInput);
-        }
-        let id = Uuid::parse_str(&claim.snapshot.task_id.to_string())
-            .map_err(|_| ComputerError::InvalidInput)?;
+        let reference: crate::task_references::MaintenanceReference =
+            serde_json::from_value(claim.snapshot.request.clone())
+                .map_err(|_| ComputerError::StateConflict)?;
+        let id = reference.maintenance_id.as_uuid();
+        let mut params = crate::task_references::worker_bindings(
+            claim,
+            crate::api::ComputerTaskKind::Maintenance,
+            reference.computer_id,
+            reference.maintenance_id,
+        )?;
+        params.extend([
+            ("journal", record(id).into_value()),
+            ("provider", self.provider_instance_id.into_value()),
+        ]);
         let started = Instant::now();
         let mut read = self
-            .query(
-                "SELECT * FROM ONLY $maintenance; RETURN time::now();",
-                vec![("maintenance", record(id).into_value())],
-            )
+            .query(include_str!("../../queries/worker_operation.surql"), params)
             .await?;
         let row: Option<MaintenanceRecord> =
             read.take(0).map_err(|_| ComputerError::Unavailable)?;
         let time: Option<DateTime<Utc>> = read.take(1).map_err(|_| ComputerError::Unavailable)?;
         let operation = MaintenanceOperation::try_from(row.ok_or(ComputerError::NotFound)?)?;
-        if operation.task_id() != claim.snapshot.task_id
-            || operation.actor != claim.snapshot.owner
-            || operation.provider_instance_id != self.provider_instance_id
-            || claim.snapshot.request
-                != serde_json::json!({"computerId": operation.computer_id, "maintenanceId": id})
-        {
-            return Err(ComputerError::StateConflict);
-        }
         Ok(ClockedMaintenance {
             operation,
             database_time: time.ok_or(ComputerError::Unavailable)?,

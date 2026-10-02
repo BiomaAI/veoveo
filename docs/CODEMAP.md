@@ -259,6 +259,7 @@ designs above.
 | `apps/console/bff/src/computers/` | Computer HTTP/WebSocket routes, Console cookie/CSRF and Origin checks, ticket endpoint and shared relay; installed evidence is recorded in the Computers plan |
 | `apps/console/bff/src/mcp_client/resources.rs` | shared App/native resource subscriptions, acknowledgment, capacity limits, cancellation cleanup and source-loss retirement |
 | `platform/computers/contract/` | provider-independent public Computer DTOs, collection and access inventory/revocation schemas, and terminal controls shared by the Console and MCP surfaces |
+| `platform/computers/src/task_references.rs` and `platform/computers/queries/` | closed domain Task payloads shared by admission and workers; SQL admission for private journal, retry-receipt and Task-link recovery reads |
 | `platform/computers/contract/src/ids.rs`, `resources.rs`, `scopes.rs` | distinct Computer, execution, file-transfer and automation-grant IDs; the complete resource vocabulary and builders; the empty domain scope vocabulary exposed by the MCP library |
 | `servers/computers-mcp/src/protocol/setup.rs` | checked hosted capabilities, fixed discovery, templates and embedded documents composed from the Computers public contract |
 | `platform/computers/storage/` | privileged host journal/ext4 filesystem, Docker observation and recorded physical claims, handoff with loop detachment, plugin/mTLS service, and filesystem/shared-mount fault handling; installed maintenance evidence is recorded per template transition |

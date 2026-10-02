@@ -72,7 +72,10 @@ impl ComputersStore {
         let actor_key = super::actor_key(actor.accepted())?;
         let request = super::request(&actor_key, computer.computer_id, request_id)?;
         let computer_id = computer.computer_id;
-        if let Some(prior) = self.command_request(&request).await? {
+        if let Some(prior) = self
+            .command_request(&request, actor, &actor_key, computer_id)
+            .await?
+        {
             return self.match_command(
                 prior,
                 actor,
@@ -138,7 +141,7 @@ impl ComputersStore {
             execution_id: binding.execution_id.into_uuid(),
             computer_id: computer_id.into_uuid(),
             provider_instance_id: self.provider_instance_id,
-            actor_key,
+            actor_key: actor_key.clone(),
             binding: object(&binding)?,
             authority: object(actor.accepted())?,
             payload: super::payload_record(binding.execution_id),
@@ -186,7 +189,7 @@ impl ComputersStore {
         self.query(include_str!("../../queries/queue_command.surql"), params)
             .await?;
         let selected = self
-            .command_request(&request)
+            .command_request(&request, actor, &actor_key, computer_id)
             .await?
             .ok_or(ComputerError::Unavailable)?;
         self.match_command(
@@ -199,17 +202,55 @@ impl ComputersStore {
             keys,
         )
     }
-    async fn command_request(&self, request: &RecordId) -> Result<Option<CommandOperation>> {
-        // Filter a missing request before projection can turn NONE into {sealed: NONE}.
+    async fn command_request(
+        &self,
+        request: &RecordId,
+        actor: &ComputerActor,
+        actor_key: &str,
+        computer: crate::api::ComputerId,
+    ) -> Result<Option<CommandOperation>> {
+        let mut receipt = self
+            .query(
+                "SELECT execution FROM ONLY $request;",
+                vec![("request", request.clone().into_value())],
+            )
+            .await?;
+        #[derive(SurrealValue)]
+        struct Receipt {
+            execution: RecordId,
+        }
+        let prior: Option<Receipt> = receipt.take(0).map_err(|_| ComputerError::Unavailable)?;
+        let Some(prior) = prior else {
+            return Ok(None);
+        };
         let mut response = self
             .query(
-                "SELECT *, payload.sealed AS sealed FROM ONLY (SELECT VALUE execution FROM ONLY $request) WHERE id != NONE;",
-                vec![("request", request.clone().into_value())],
+                include_str!("../../queries/accepted_execution.surql"),
+                vec![
+                    ("journal", prior.execution.into_value()),
+                    ("provider", self.provider_instance_id.into_value()),
+                    ("computer_id", computer.into_uuid().into_value()),
+                    ("computer_text", computer.to_string().into_value()),
+                    ("actor_key", actor_key.to_owned().into_value()),
+                    (
+                        "labels",
+                        actor
+                            .owner()
+                            .data_labels
+                            .iter()
+                            .cloned()
+                            .collect::<Vec<_>>()
+                            .into_value(),
+                    ),
+                    ("file", false.into_value()),
+                ],
             )
             .await?;
         let row: Option<model::Record> =
             response.take(0).map_err(|_| ComputerError::Unavailable)?;
-        row.map(CommandOperation::try_from).transpose()
+        Ok(Some(CommandOperation::try_from(
+            row.ok_or(ComputerError::NotFound)?,
+        )?))
     }
     #[allow(clippy::too_many_arguments)]
     fn match_command(

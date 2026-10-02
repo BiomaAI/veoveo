@@ -1,3 +1,4 @@
+use crate::task_references::LifecycleReference;
 use crate::{
     Computer, ComputerActor, ComputerError, ComputersStore, Operation, Result,
     api::{Action, ComputerPhase},
@@ -28,12 +29,6 @@ struct Content {
     template_fingerprint: String,
     replacement_instance_id: Option<Uuid>,
     action: String,
-}
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct OperationRef {
-    computer_id: veoveo_computers_contract::ComputerId,
-    operation_id: Uuid,
 }
 
 pub(crate) fn operation_record(id: Uuid) -> RecordId {
@@ -241,9 +236,9 @@ impl ComputersStore {
     }
     pub(crate) async fn link_operation_task(&self, operation: Operation) -> Result<Operation> {
         let id = operation.operation_id;
-        let reference = serde_json::to_value(OperationRef {
+        let reference = serde_json::to_value(LifecycleReference {
             computer_id: operation.computer_id,
-            operation_id: id,
+            operation_id: operation.task_id(),
         })
         .map_err(|_| ComputerError::Unavailable)?;
         let runtime = TaskRuntime::new(self.platform.clone(), "computers", "admission");

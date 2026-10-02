@@ -73,14 +73,32 @@ impl ComputersStore {
         actor: &ComputerActor,
         input: &ResumeUpdateInput,
     ) -> Result<Option<MaintenanceOperation>> {
+        let request = request_record(actor, input)?;
+        let mut exists = self
+            .query(
+                "SELECT VALUE id FROM ONLY $request;",
+                vec![("request", request.clone().into_value())],
+            )
+            .await?;
+        let exists: Option<RecordId> = exists.take(0).map_err(|_| ComputerError::Unavailable)?;
+        if exists.is_none() {
+            return Ok(None);
+        }
+        let operation = self
+            .maintenance_for_computer(actor.owner(), input.task_id, Some(input.computer_id))
+            .await?;
         let mut reply = self
             .query(
-                "SELECT * FROM ONLY $request;",
-                vec![("request", request_record(actor, input)?.into_value())],
+                include_str!("../../queries/maintenance_resume_receipt.surql"),
+                vec![
+                    ("request", request.into_value()),
+                    ("operation_id", input.task_id.into_value()),
+                    ("request_id", input.request_id.into_value()),
+                ],
             )
             .await?;
         let prior: Option<Receipt> = reply.take(0).map_err(|_| ComputerError::Unavailable)?;
-        let Some(prior) = prior else { return Ok(None) };
+        let prior = prior.ok_or(ComputerError::Unavailable)?;
         let saved: ResumeUpdateInput = serde_json::from_value(
             serde_json::to_value(prior.input).map_err(|_| ComputerError::Unavailable)?,
         )
@@ -93,10 +111,6 @@ impl ComputersStore {
         }
         if saved != *input {
             return Err(ComputerError::RequestConflict);
-        }
-        let operation = self.maintenance(actor.owner(), input.task_id).await?;
-        if operation.computer_id != input.computer_id {
-            return Err(ComputerError::NotFound);
         }
         Ok(Some(operation))
     }

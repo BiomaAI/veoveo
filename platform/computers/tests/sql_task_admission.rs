@@ -42,6 +42,20 @@ async fn another_computer(
         .computer_id
 }
 
+fn mismatched_claims(
+    claim: &veoveo_task_runtime::ClaimedTask,
+) -> Vec<veoveo_task_runtime::ClaimedTask> {
+    let mut other_actor = claim.clone();
+    other_actor.snapshot.owner = support::owner("bob");
+    let mut other_computer = claim.clone();
+    other_computer.snapshot.request["computerId"] = ComputerId::new().to_string().into();
+    let mut extra_field = claim.clone();
+    extra_field.snapshot.request["unexpected"] = true.into();
+    let mut other_task = claim.clone();
+    other_task.snapshot.task_id = veoveo_types::TaskId::new();
+    vec![other_actor, other_computer, extra_field, other_task]
+}
+
 #[tokio::test]
 async fn operation_policy_and_participant_checks_precede_private_state_decoding() {
     tokio::time::timeout(Duration::from_secs(90), async {
@@ -55,8 +69,18 @@ async fn operation_policy_and_participant_checks_precede_private_state_decoding(
         let operation = store.queue_automation_operation(&agent, authority, Uuid::now_v7(), Action::Stop).await.unwrap();
         store.authorize_operation_task(&owner, operation.operation_id, false).await.unwrap();
         store.authorize_operation_task(&agent, operation.operation_id, false).await.unwrap();
+        store.ensure_automation_operation_task(&agent, operation.operation_id).await.unwrap();
+        let tasks = veoveo_task_runtime::TaskRuntime::new(db.a.clone(), "computers", "sql-worker");
+        let claim = tasks.claim_observation(&operation.task_id().to_string(), Duration::from_secs(30)).await.unwrap();
+        store.operation_for_claim(&claim).await.unwrap();
         db.a.client().query("UPDATE ONLY $row SET execution_authority.request_context.access_token.expires_at = 42;")
             .bind(("row", record("computer_operation", operation.operation_id))).await.unwrap().check().unwrap();
+        for denied in mismatched_claims(&claim) {
+            assert!(matches!(store.operation_for_claim(&denied).await, Err(ComputerError::StateConflict)));
+        }
+        let wrong_provider = veoveo_computers::ComputersStore::new(db.b.clone(), Uuid::from_u128(99)).unwrap();
+        assert!(matches!(wrong_provider.operation_for_claim(&claim).await, Err(ComputerError::StateConflict)));
+        assert!(matches!(store.operation_for_claim(&claim).await, Err(ComputerError::Unavailable)));
         let other = support::authenticated(&support::owner("bob"));
         assert!(matches!(store.operation(other.owner(), operation.operation_id).await, Err(ComputerError::NotFound)));
         assert!(matches!(store.automation_operation(&other, operation.operation_id).await, Err(ComputerError::NotFound)));
@@ -79,7 +103,29 @@ async fn command_metadata_requires_current_execute_or_owner_read_before_decoding
         let claim =
             command_support::queue_claim(&db, &store, &agent, computer, grant.grant_id).await;
         let id = ExecutionId::try_from(claim.snapshot.task_id.as_uuid()).unwrap();
+        let saved = store.command_for_claim(&claim).await.unwrap();
         corrupt_authority(&db, record("computer_execution", id.into_uuid())).await;
+        assert!(matches!(
+            store.ensure_command_task(&saved).await,
+            Err(ComputerError::StateConflict)
+        ));
+        for denied in mismatched_claims(&claim) {
+            assert!(matches!(
+                store.command_for_claim(&denied).await,
+                Err(ComputerError::StateConflict)
+            ));
+        }
+        let wrong_provider =
+            veoveo_computers::ComputersStore::new(db.b.clone(), Uuid::from_u128(99)).unwrap();
+        assert!(matches!(
+            wrong_provider.command_for_claim(&claim).await,
+            Err(ComputerError::StateConflict)
+        ));
+        assert!(matches!(
+            store.command_for_claim(&claim).await,
+            Err(ComputerError::Unavailable)
+        ));
+
         let other = support::authenticated(&support::owner("bob"));
         assert!(matches!(
             store
@@ -138,7 +184,29 @@ async fn file_metadata_requires_current_execute_or_owner_read_before_decoding() 
             .unwrap();
         let claim = file_support::queue_claim(&db, &store, &agent, computer, grant.grant_id).await;
         let id = FileTransferId::try_from(claim.snapshot.task_id.as_uuid()).unwrap();
+        let saved = store.file_for_claim(&claim).await.unwrap();
         corrupt_authority(&db, record("computer_file_transfer", id.into_uuid())).await;
+        assert!(matches!(
+            store.ensure_file_task(&saved).await,
+            Err(ComputerError::StateConflict)
+        ));
+        for denied in mismatched_claims(&claim) {
+            assert!(matches!(
+                store.file_for_claim(&denied).await,
+                Err(ComputerError::StateConflict)
+            ));
+        }
+        let wrong_provider =
+            veoveo_computers::ComputersStore::new(db.b.clone(), Uuid::from_u128(99)).unwrap();
+        assert!(matches!(
+            wrong_provider.file_for_claim(&claim).await,
+            Err(ComputerError::StateConflict)
+        ));
+        assert!(matches!(
+            store.file_for_claim(&claim).await,
+            Err(ComputerError::Unavailable)
+        ));
+
         let other = support::authenticated(&support::owner("bob"));
         assert!(matches!(
             store

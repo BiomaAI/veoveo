@@ -6,7 +6,6 @@ use crate::{
 use chrono::{DateTime, Utc};
 use std::time::{Duration, Instant};
 use surrealdb::types::{SurrealValue, Value};
-use uuid::Uuid;
 use veoveo_task_runtime::{ClaimedTask, ProviderCommit, TaskError, TaskRuntime};
 
 pub(crate) struct ClockedOperation {
@@ -26,17 +25,23 @@ impl ClockedOperation {
 
 impl ComputersStore {
     pub(crate) async fn worker_operation(&self, claimed: &ClaimedTask) -> Result<ClockedOperation> {
-        if claimed.snapshot.server != "computers" {
-            return Err(ComputerError::InvalidInput);
-        }
-        let id = Uuid::parse_str(&claimed.snapshot.task_id.to_string())
-            .map_err(|_| ComputerError::InvalidInput)?;
+        let reference: crate::task_references::LifecycleReference =
+            serde_json::from_value(claimed.snapshot.request.clone())
+                .map_err(|_| ComputerError::StateConflict)?;
+        let id = reference.operation_id.as_uuid();
+        let mut params = crate::task_references::worker_bindings(
+            claimed,
+            crate::api::ComputerTaskKind::Lifecycle,
+            reference.computer_id,
+            reference.operation_id,
+        )?;
+        params.extend([
+            ("journal", operation_record(id).into_value()),
+            ("provider", self.provider_instance_id.into_value()),
+        ]);
         let started = Instant::now();
         let mut response = self
-            .query(
-                "SELECT * FROM ONLY $operation; RETURN time::now();",
-                vec![("operation", operation_record(id).into_value())],
-            )
+            .query(include_str!("../queries/worker_operation.surql"), params)
             .await?;
         let record: Option<OperationRecord> =
             response.take(0).map_err(|_| ComputerError::Unavailable)?;
@@ -44,14 +49,6 @@ impl ComputersStore {
             response.take(1).map_err(|_| ComputerError::Unavailable)?;
         let database_time = database_time.ok_or(ComputerError::Unavailable)?;
         let operation = Operation::try_from(record.ok_or(ComputerError::NotFound)?)?;
-        if operation.task_id() != claimed.snapshot.task_id
-            || operation.actor != claimed.snapshot.owner
-            || operation.provider_instance_id != self.provider_instance_id
-            || claimed.snapshot.request
-                != serde_json::json!({"computerId": operation.computer_id, "operationId": operation.operation_id})
-        {
-            return Err(ComputerError::StateConflict);
-        }
         Ok(ClockedOperation {
             operation,
             database_time,

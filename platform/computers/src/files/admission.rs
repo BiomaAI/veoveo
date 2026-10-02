@@ -68,7 +68,10 @@ impl ComputersStore {
                 request_id,
             ))?,
         );
-        if let Some(prior) = self.file_request(&request).await? {
+        if let Some(prior) = self
+            .file_request(&request, actor, &actor_key, computer.computer_id)
+            .await?
+        {
             return self.match_file(prior, actor, &authority, request_id, payload, keys);
         }
         let limits = authority.limits()?;
@@ -112,7 +115,7 @@ impl ComputersStore {
             computer_id: binding.computer_id.into_uuid(),
             provider_instance_id: self.provider_instance_id,
             owner_key: binding.owner_key.clone(),
-            actor_key,
+            actor_key: actor_key.clone(),
             binding: super::object(&binding)?,
             authority: super::object(actor.accepted())?,
             payload: super::payload_record(binding.transfer_id),
@@ -166,22 +169,60 @@ impl ComputersStore {
         )
         .await?;
         let selected = self
-            .file_request(&request)
+            .file_request(&request, actor, &actor_key, computer.computer_id)
             .await?
             .ok_or(ComputerError::Unavailable)?;
         self.match_file(selected, actor, &authority, request_id, payload, keys)
     }
-    async fn file_request(&self, request: &RecordId) -> Result<Option<FileOperation>> {
-        // Filter a missing request before projection can turn NONE into {sealed: NONE}.
+    async fn file_request(
+        &self,
+        request: &RecordId,
+        actor: &ComputerActor,
+        actor_key: &str,
+        computer: crate::api::ComputerId,
+    ) -> Result<Option<FileOperation>> {
+        let mut receipt = self
+            .query(
+                "SELECT transfer FROM ONLY $request;",
+                vec![("request", request.clone().into_value())],
+            )
+            .await?;
+        #[derive(SurrealValue)]
+        struct Receipt {
+            transfer: RecordId,
+        }
+        let prior: Option<Receipt> = receipt.take(0).map_err(|_| ComputerError::Unavailable)?;
+        let Some(prior) = prior else {
+            return Ok(None);
+        };
         let mut response = self
             .query(
-                "SELECT *, payload.sealed AS sealed FROM ONLY (SELECT VALUE transfer FROM ONLY $request) WHERE id != NONE;",
-                vec![("request", request.clone().into_value())],
+                include_str!("../../queries/accepted_execution.surql"),
+                vec![
+                    ("journal", prior.transfer.into_value()),
+                    ("provider", self.provider_instance_id.into_value()),
+                    ("computer_id", computer.into_uuid().into_value()),
+                    ("computer_text", computer.to_string().into_value()),
+                    ("actor_key", actor_key.to_owned().into_value()),
+                    (
+                        "labels",
+                        actor
+                            .owner()
+                            .data_labels
+                            .iter()
+                            .cloned()
+                            .collect::<Vec<_>>()
+                            .into_value(),
+                    ),
+                    ("file", true.into_value()),
+                ],
             )
             .await?;
         let row: Option<super::model::Record> =
             response.take(0).map_err(|_| ComputerError::Unavailable)?;
-        row.map(FileOperation::try_from).transpose()
+        Ok(Some(FileOperation::try_from(
+            row.ok_or(ComputerError::NotFound)?,
+        )?))
     }
     fn match_file(
         &self,

@@ -45,21 +45,27 @@ impl ComputersStore {
         }
         let mut read = self
             .query(
-                "SELECT *, payload.sealed AS sealed FROM ONLY $execution;",
-                vec![(
-                    "execution",
-                    super::record(command.execution_id()).into_value(),
-                )],
+                include_str!("../../queries/saved_execution.surql"),
+                vec![
+                    (
+                        "journal",
+                        super::record(command.execution_id()).into_value(),
+                    ),
+                    ("provider", self.provider_instance_id.into_value()),
+                    (
+                        "binding",
+                        crate::session_grants::object(&command.binding)?.into_value(),
+                    ),
+                    (
+                        "authority",
+                        crate::session_grants::object(&command.authority)?.into_value(),
+                    ),
+                ],
             )
             .await?;
         let row: Option<super::model::Record> =
             read.take(0).map_err(|_| ComputerError::Unavailable)?;
         let saved = CommandOperation::try_from(row.ok_or(ComputerError::NotFound)?)?;
-        if crate::identity::digest(&(&saved.binding, &saved.authority))?
-            != crate::identity::digest(&(&command.binding, &command.authority))?
-        {
-            return Err(ComputerError::StateConflict);
-        }
         let command = &saved;
         if command.task_projected() {
             return Err(ComputerError::InvalidState);

@@ -855,6 +855,24 @@ resolves those private lookup fields before the operation state is decoded. The
 final query repeats participant admission and binds the selected parent, action,
 grant and retained owner. An owner's recovery read preserves the original Task actor.
 
+Maintenance reads admit the accepted actor and the private parent Computer in SQL.
+Both identities require the caller's tenant, principal, Work Context and label
+clearance; both records must belong to the configured provider. Resume receipt reads
+first establish that the caller's request exists, then admit its maintenance and
+parent before decoding the saved input. A denied or malformed accepted receipt is an
+error. Only an absent receipt can enter new admission. Changed accepted inputs still
+produce a request conflict.
+
+`task_references.rs` owns closed lifecycle, maintenance, command and file Task
+payloads. Admission serializes these types and workers deserialize the same types.
+Journal queries bind the Task, Computer, provider and accepted Task owner before
+decoding private state. Command and file Task-link repair binds the saved authority
+and execution binding in SQL. Reservation retries select the original Computer under owner and provider SQL
+admission. Execution receipt resolution admits the accepted actor, parent, provider
+and label clearance before reading sealed payloads. These observation reads
+preserve accepted authority across token expiry; dispatch and journal commits enforce
+current policy and the Task lease independently.
+
 Migration 0076 backfills retained ownership from existing owner-only operation rows.
 Drain Computers readers and lifecycle workers before applying it, then start the
 new fleet before admitting named lifecycle work. Older writers cannot create the

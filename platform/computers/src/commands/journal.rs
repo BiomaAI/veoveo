@@ -4,7 +4,6 @@ use chrono::{DateTime, Utc};
 use std::time::Instant;
 use surrealdb::types::{SurrealValue, Value};
 use veoveo_task_runtime::{ClaimedTask, ProviderCommit, TaskError, TaskRuntime};
-use veoveo_types::TaskTypeDefinition;
 
 pub(super) struct ClockedCommand {
     pub operation: CommandOperation,
@@ -24,31 +23,28 @@ impl ComputersStore {
         Ok(self.worker_command(claim).await?.operation)
     }
     pub(super) async fn worker_command(&self, claim: &ClaimedTask) -> Result<ClockedCommand> {
-        if claim.snapshot.server != "computers"
-            || claim.snapshot.task_type != crate::api::ComputerTaskKind::Execution.name()
-        {
-            return Err(ComputerError::InvalidInput);
-        }
-        let id = crate::api::ExecutionId::try_from(claim.snapshot.task_id.as_uuid())
-            .map_err(|_| ComputerError::InvalidInput)?;
+        let reference: crate::task_references::CommandReference =
+            serde_json::from_value(claim.snapshot.request.clone())
+                .map_err(|_| ComputerError::StateConflict)?;
+        let id = reference.execution_id;
+        let mut params = crate::task_references::worker_bindings(
+            claim,
+            crate::api::ComputerTaskKind::Execution,
+            reference.computer_id,
+            reference.execution_id.task_id(),
+        )?;
+        params.extend([
+            ("journal", super::record(id).into_value()),
+            ("provider", self.provider_instance_id.into_value()),
+        ]);
         let started = Instant::now();
         let mut read = self
-            .query(
-                "SELECT *, payload.sealed AS sealed FROM ONLY $execution; RETURN time::now();",
-                vec![("execution", super::record(id).into_value())],
-            )
+            .query(include_str!("../../queries/worker_execution.surql"), params)
             .await?;
         let row: Option<model::Record> = read.take(0).map_err(|_| ComputerError::Unavailable)?;
         let database_time: Option<DateTime<Utc>> =
             read.take(1).map_err(|_| ComputerError::Unavailable)?;
         let operation = CommandOperation::try_from(row.ok_or(ComputerError::NotFound)?)?;
-        if operation.task_id() != claim.snapshot.task_id
-            || operation.actor() != claim.snapshot.owner
-            || operation.binding.provider_instance_id != self.provider_instance_id
-            || operation.task_reference()? != claim.snapshot.request
-        {
-            return Err(ComputerError::StateConflict);
-        }
         Ok(ClockedCommand {
             operation,
             database_time: database_time.ok_or(ComputerError::Unavailable)?,

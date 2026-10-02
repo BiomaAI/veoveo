@@ -37,23 +37,7 @@ impl ComputersStore {
 
     /// A lost Task-link reply reconstructs the same metadata-only shared Task.
     pub async fn ensure_file_task(&self, file: &FileOperation) -> Result<()> {
-        if file.binding.provider_instance_id != self.provider_instance_id {
-            return Err(ComputerError::NotFound);
-        }
-        let mut read = self
-            .query(
-                "SELECT *, payload.sealed AS sealed FROM ONLY $execution;",
-                vec![("execution", super::record(file.transfer_id()).into_value())],
-            )
-            .await?;
-        let row: Option<super::model::Record> =
-            read.take(0).map_err(|_| ComputerError::Unavailable)?;
-        let saved = FileOperation::try_from(row.ok_or(ComputerError::NotFound)?)?;
-        if crate::identity::digest(&(&saved.binding, &saved.authority))?
-            != crate::identity::digest(&(&file.binding, &file.authority))?
-        {
-            return Err(ComputerError::StateConflict);
-        }
+        let saved = self.saved_file(file).await?;
         let file = &saved;
         if file.task_projected() {
             return Err(ComputerError::InvalidState);
@@ -118,21 +102,24 @@ impl ComputersStore {
         }
         let mut response = self
             .query(
-                "SELECT *, payload.sealed AS sealed FROM ONLY $transfer;",
-                vec![(
-                    "transfer",
-                    super::record(operation.transfer_id()).into_value(),
-                )],
+                include_str!("../../queries/saved_execution.surql"),
+                vec![
+                    (
+                        "journal",
+                        super::record(operation.transfer_id()).into_value(),
+                    ),
+                    ("provider", self.provider_instance_id.into_value()),
+                    ("binding", super::object(&operation.binding)?.into_value()),
+                    (
+                        "authority",
+                        super::object(&operation.authority)?.into_value(),
+                    ),
+                ],
             )
             .await?;
         let row: Option<super::model::Record> =
             response.take(0).map_err(|_| ComputerError::Unavailable)?;
         let saved = FileOperation::try_from(row.ok_or(ComputerError::NotFound)?)?;
-        if crate::identity::digest(&(&saved.binding, &saved.authority))?
-            != crate::identity::digest(&(&operation.binding, &operation.authority))?
-        {
-            return Err(ComputerError::StateConflict);
-        }
         Ok(saved)
     }
 }

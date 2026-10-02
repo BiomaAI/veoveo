@@ -71,23 +71,17 @@ impl ComputersStore {
             "computer_request",
             digest(&("veoveo.computer.create.v1", &key, request_id))?,
         );
+        let mut params = crate::store::owner_query_bindings(owner)?;
+        params.extend([
+            ("request", request.into_value()),
+            ("provider", self.provider_instance_id.into_value()),
+        ]);
         let mut response = self
-            .query(
-                "SELECT VALUE computer.computer_id FROM ONLY $request;",
-                vec![("request", request.into_value())],
-            )
+            .query(include_str!("../queries/reservation_read.surql"), params)
             .await?;
-        let id: Option<Uuid> = response.take(0).map_err(|_| ComputerError::Unavailable)?;
-        match id {
-            Some(id) => self
-                .get(
-                    owner,
-                    crate::api::ComputerId::try_from(id).map_err(|_| ComputerError::Unavailable)?,
-                )
-                .await
-                .map(Some),
-            None => Ok(None),
-        }
+        let row: Option<crate::model::ComputerRecord> =
+            response.take(0).map_err(|_| ComputerError::Unavailable)?;
+        row.map(Computer::try_from).transpose()
     }
 
     /// An exact retry resolves its original Computer, including after a quota reduction.
@@ -166,28 +160,9 @@ impl ComputersStore {
         ];
         self.query(include_str!("../queries/reserve.surql"), params)
             .await?;
-        let mut response = self
-            .query(
-                "SELECT VALUE computer FROM ONLY $request;",
-                vec![("request", request.into_value())],
-            )
-            .await?;
-        let selected: Option<RecordId> =
-            response.take(0).map_err(|_| ComputerError::Unavailable)?;
-        let mut response = self
-            .query(
-                "SELECT * FROM ONLY $computer;",
-                vec![(
-                    "computer",
-                    selected.ok_or(ComputerError::Unavailable)?.into_value(),
-                )],
-            )
-            .await?;
-        let record: Option<crate::model::ComputerRecord> =
-            response.take(0).map_err(|_| ComputerError::Unavailable)?;
-        let computer = Computer::try_from(record.ok_or(ComputerError::Unavailable)?)?;
-        permits(&computer.owner, owner)?;
-        Ok(computer)
+        self.reserved_for_request(owner, input.request_id)
+            .await?
+            .ok_or(ComputerError::Unavailable)
     }
 }
 

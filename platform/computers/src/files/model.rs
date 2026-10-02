@@ -3,7 +3,7 @@ use crate::{
     secrets::{FileTransferBinding, SealedFileTransfer, SealedFileTransferAccess},
 };
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
 use veoveo_platform_store::OpenObject;
@@ -94,13 +94,7 @@ impl FileOperation {
         self.created_at
     }
     pub(super) fn task_reference(&self) -> Result<serde_json::Value> {
-        #[derive(Serialize)]
-        #[serde(rename_all = "camelCase")]
-        struct Reference {
-            computer_id: veoveo_computers_contract::ComputerId,
-            transfer_id: veoveo_computers_contract::FileTransferId,
-        }
-        serde_json::to_value(Reference {
+        serde_json::to_value(crate::task_references::FileReference {
             computer_id: self.computer_id(),
             transfer_id: self.transfer_id(),
         })

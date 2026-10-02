@@ -100,13 +100,7 @@ impl CommandOperation {
         self.created_at
     }
     pub(super) fn task_reference(&self) -> Result<serde_json::Value> {
-        #[derive(Serialize)]
-        #[serde(rename_all = "camelCase")]
-        struct Reference {
-            computer_id: veoveo_computers_contract::ComputerId,
-            execution_id: veoveo_computers_contract::ExecutionId,
-        }
-        serde_json::to_value(Reference {
+        serde_json::to_value(crate::task_references::CommandReference {
             computer_id: self.computer_id(),
             execution_id: self.execution_id(),
         })

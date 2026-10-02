@@ -26,6 +26,7 @@ pub mod secrets;
 pub mod session_grants;
 mod store;
 mod task_access;
+mod task_references;
 mod worker_journal;
 mod worker_queue;
 

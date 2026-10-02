@@ -1,5 +1,7 @@
 #[path = "maintenance/journal.rs"]
 mod journal;
+#[path = "maintenance/reads.rs"]
+mod reads;
 #[path = "maintenance/resume.rs"]
 mod resume;
 mod support;
