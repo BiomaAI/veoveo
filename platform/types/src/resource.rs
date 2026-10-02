@@ -1,5 +1,6 @@
-//! Opaque absolute resource references. Domain parsers validate route meaning.
-use crate::{IdentifierError, ResourceScheme};
+//! Concrete absolute resource references. Domain parsers validate route meaning.
+use crate::{ResourceScheme, ResourceUriError};
+use iri_string::types::UriStr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -11,7 +12,7 @@ use std::fmt;
 pub struct ResourceUri(String);
 
 impl ResourceUri {
-    pub fn new(value: impl Into<String>) -> Result<Self, IdentifierError> {
+    pub fn new(value: impl Into<String>) -> Result<Self, ResourceUriError> {
         let value = value.into();
         validate_reference(&value)?;
         Ok(Self(value))
@@ -22,7 +23,7 @@ impl ResourceUri {
     }
 
     /// Validate a concrete hierarchical address and decode its components.
-    /// Completion templates and historical opaque references may fail this check.
+    /// Network references may use ports or other components outside this profile.
     pub fn components(&self) -> Result<crate::ResourceUriParts, crate::ResourceUriError> {
         crate::ResourceUriParts::parse(self.as_str())
     }
@@ -41,7 +42,7 @@ impl fmt::Display for ResourceUri {
 }
 
 impl TryFrom<String> for ResourceUri {
-    type Error = IdentifierError;
+    type Error = ResourceUriError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         Self::new(value)
@@ -54,22 +55,16 @@ impl From<ResourceUri> for String {
     }
 }
 
-// TODO(foundations): qualify remaining opaque URI families before tightening this
-// wire validator. Gateway templates now use ResourceTemplateUri; the gateway's v1
-// audit adapter decodes old URI text independently of this type.
-fn validate_reference(value: &str) -> Result<(), IdentifierError> {
-    let Some((scheme, rest)) = value.split_once("://") else {
-        return Err(IdentifierError::new(
-            value,
-            "must be an absolute server-owned resource URI",
-        ));
-    };
-    ResourceScheme::new(scheme)?;
-    if rest.is_empty() || rest.chars().any(|c| c.is_control() || c.is_whitespace()) {
-        return Err(IdentifierError::new(
-            value,
-            "must include a non-empty path and no whitespace/control characters",
-        ));
+fn validate_reference(value: &str) -> Result<(), ResourceUriError> {
+    // RFC 3986 parsing preserves concrete wire identity, including network ports
+    // and fragments. Templates have their own type and never enter this parser.
+    let uri = UriStr::new(value).map_err(|_| ResourceUriError::InvalidUri)?;
+    ResourceScheme::new(uri.scheme_str()).map_err(|_| ResourceUriError::InvalidUri)?;
+    let authority = uri
+        .authority_str()
+        .ok_or(ResourceUriError::NotHierarchical)?;
+    if authority.is_empty() && uri.path_str().is_empty() {
+        return Err(ResourceUriError::InvalidUri);
     }
     Ok(())
 }

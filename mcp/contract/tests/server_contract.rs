@@ -38,12 +38,13 @@ impl ResourceAddress for Address {
         }
     }
     fn to_uri(&self) -> Result<ResourceUri, Self::Error> {
-        ResourceUri::new(match self {
+        Ok(ResourceUri::new(match self {
             Self::Docs | Self::BrokenRoundTrip => "independent://docs",
             Self::Agents => "independent://docs/agents",
             Self::Design => "independent://docs/design",
             Self::Contract => "independent://contract",
         })
+        .unwrap())
     }
 }
 

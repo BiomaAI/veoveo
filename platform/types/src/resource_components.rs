@@ -1,5 +1,5 @@
-//! Concrete resource address parsing. The wire reference also admits historical
-//! templates; obtaining these components establishes the stricter address profile.
+//! Domain resource address parsing. Obtaining these components establishes the
+//! stricter profile for server-owned routes, separate from generic network URIs.
 use std::{borrow::Cow, cell::Cell, collections::BTreeMap, error::Error, fmt};
 
 use percent_encoding::percent_decode_str;

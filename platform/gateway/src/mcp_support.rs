@@ -464,6 +464,26 @@ mod tests {
     }
 
     #[test]
+    fn concrete_resource_admission_rejects_templates_without_echoing_input() {
+        let server = ServerSlug::new("media").unwrap();
+        for wire in [
+            "media://model/private-fixture/{id}",
+            "media://model/private-fixture{?cursor}",
+            "media://model/private-fixture/bad%",
+        ] {
+            let error = resource_policy_target(server.clone(), wire).unwrap_err();
+            assert_eq!(error.code, rmcp::model::ErrorCode::INVALID_PARAMS);
+            assert!(!error.message.contains("private-fixture"));
+        }
+        let network = "https://localhost:8781/mcp/operator";
+        let target = resource_policy_target(server.clone(), network).unwrap();
+        assert!(matches!(target, PolicyTarget::Resource { uri, .. } if uri.as_str() == network));
+        for template in ["media://model/{id}", "media://models{?cursor}"] {
+            assert!(resource_template_policy_target(server.clone(), template).is_ok());
+        }
+    }
+
+    #[test]
     fn template_admission_preserves_declarations_and_rejects_malformed_input() {
         let server = ServerSlug::new("media").unwrap();
         for wire in [

@@ -9,6 +9,7 @@
 | [OAuth 2.0 scope tokens, RFC 6749 section 3.3](https://www.rfc-editor.org/rfc/rfc6749#section-3.3) | `scope_enum!` declarations follow the scope-token grammar. Dynamic `ScopeName` preserves the broader repository profile of nonempty text without whitespace or controls. Neither type establishes a grant. |
 | Resource reference syntax | Lowercase URI scheme followed by `://` and a nonempty suffix without whitespace or controls; an opaque reference can include a completion template, and this validator does not establish full URI or template conformance |
 | [WHATWG URL Standard](https://url.spec.whatwg.org/) | Concrete hierarchical address components use [`url` 2.5.8](https://docs.rs/url/2.5.8/url/). The profile rejects parser violations and normalization, requires an unescaped authority, and excludes credentials, ports, fragments, and unexpanded templates. This is a Veoveo resource profile, not support for every URI scheme. |
+| [RFC 3986 URI syntax](https://www.rfc-editor.org/rfc/rfc3986) | `ResourceUri` uses the existing `iri-string` 0.7.14 parser for concrete ASCII absolute references with a lowercase scheme and authority syntax. An authority or path must be nonempty. It preserves spelling, admits network ports and fragments, and rejects malformed escapes and unexpanded templates. Domain routes apply the stricter component profile separately. |
 | HTTPS URL profile | `HttpsUrl` uses the same URL parser for canonical ASCII HTTPS addresses without credentials or fragments. Ports and repeated query names are admitted, and input query bytes are preserved. Runtime network policy owns host and address authorization. |
 | Percent encoding and form query encoding | [`percent-encoding` 2.3.2](https://docs.rs/percent-encoding/2.3.2/percent_encoding/) decodes UTF-8 components and encodes path characters left unescaped by the URL setter. URL query pairs use form semantics: `+` represents space and `%2B` represents plus. |
 | [RFC 6570 URI Templates](https://www.rfc-editor.org/rfc/rfc6570) | `ResourceTemplateUri` uses [`iri-string` 0.7.14](https://docs.rs/crate/iri-string/0.7.14) for all four expression levels and expansion. The profile admits ASCII literals with a literal lowercase scheme, `://`, and a nonempty suffix. Local guards enforce prefix lengths `1..=9999` without leading zeroes and nonempty dotted variable-name components. Expanded results must also pass the concrete resource profile. |
@@ -137,15 +138,18 @@ Veoveo core; the owning domain determines which names its code understands.
 `ResourceScheme` requires a lowercase ASCII letter followed by lowercase ASCII
 letters, digits, `+`, `-`, or `.`.
 
-`ResourceUri` preserves an opaque absolute reference. Its lexical validator accepts
-the current completion-template strings used by gateway policy and stored audit
-targets. It does not validate percent encoding, path structure, query arguments, or
-domain IDs. `ResourceUri::components` applies the concrete profile and returns
-`ResourceUriParts`; callers may also parse external text directly into those parts.
-This additional validation does not narrow historical wire decoding. The required
-separation of concrete addresses and templates at gateway policy and audit boundaries,
-builder adoption, and server contract features are tracked in the
-[foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
+`ResourceUri` validates concrete absolute references through the URI library in both
+construction and Serde decoding. It preserves the supplied spelling and rejects
+unexpanded templates, malformed percent escapes, raw Unicode and relative references.
+Errors omit the supplied value because network references may contain credentials.
+`ResourceTemplateUri` carries template declarations through completion and discovery.
+
+The generic reference also carries network resource identities, including OAuth
+protected-resource URLs with ports. `ResourceUri::components` applies the stricter
+server-owned address profile and returns `ResourceUriParts`; callers may also parse
+external text directly into those parts. Domain parsers validate route meaning,
+supported query names, IDs and parent relationships. A valid generic reference does
+not establish a domain address or permission to read it.
 
 ## Task Operation Names
 

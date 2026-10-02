@@ -42,15 +42,15 @@ fn scheme_profile_and_reference_wire_spelling_are_preserved() {
             "accepted {invalid:?}"
         );
     }
-    // Existing opaque references include completion templates. Their separation
-    // from concrete URIs requires qualification of policy and stored audit targets.
     for wire in [
         "artifact://0197f78e-f2f0-7a6e-8a5d-f41c691e4471",
         "ui://map/workspace.html",
         "map://datasets?cursor=abcd",
         "media://model/provider/model",
-        "map://dataset/{dataset_id}/release/{release_id}",
-        "map://datasets{?cursor}",
+        "https://localhost:8781/mcp/operator",
+        "https://example.com/read?part=one&part=two#section",
+        "file:///workspace/readme.md",
+        "example://items/a%2Fb?cursor=a%2Bb",
     ] {
         let uri = ResourceUri::new(wire).unwrap();
         assert_eq!(uri.as_str(), wire);
@@ -71,6 +71,13 @@ fn scheme_profile_and_reference_wire_spelling_are_preserved() {
         "map://a b",
         "map://a\nb",
         "relative/path",
+        "map://dataset/{dataset_id}/release/{release_id}",
+        "map://datasets{?cursor}",
+        "map://items/bad%",
+        "map://items/bad%2",
+        "map://items/bad%ZZ",
+        "map://items/café",
+        "https://[broken]/resource",
     ] {
         assert!(ResourceUri::new(invalid).is_err(), "accepted {invalid:?}");
         assert!(serde_json::from_value::<ResourceUri>(serde_json::json!(invalid)).is_err());

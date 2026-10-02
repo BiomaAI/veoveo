@@ -129,8 +129,10 @@ or dependency on those libraries.
 Media prediction summaries and generation results belong to the Media library's
 contract feature. Shared protocol infrastructure does not own those domain DTOs.
 The foundation's `AccessGrant`, `ScopeDefinition` and `ResourceAddress` traits accept independent
-domain implementations. The foundation's component parser and builder support concrete
-addresses; gateway policy and stored audit references still accept completion templates.
+domain implementations. The foundation validates concrete references through its URI
+parser and gives template declarations a separate type. Its component parser and
+builder apply the stricter profile for domain-owned addresses. Network resource
+identities may include ports; constructing a generic reference does not admit a domain route.
 Wider URI builder and checked setup adoption are implementation work in the
 [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 `server_contract::McpServerContract` associates each server's scope and resource types

@@ -47,7 +47,7 @@ impl ResourceAddress for OrchardResource {
 
     fn to_uri(&self) -> Result<ResourceUri, Self::Error> {
         match self {
-            Self::Inventory => ResourceUri::new("orchard://inventory"),
+            Self::Inventory => Ok(ResourceUri::new("orchard://inventory").unwrap()),
         }
     }
 }

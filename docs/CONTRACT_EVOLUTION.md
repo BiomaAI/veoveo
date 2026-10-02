@@ -428,6 +428,13 @@ route shapes, while a maintained URI library handles component encoding and pars
 Builders validate field combinations before exposing usable values. Authorization
 and persisted parent relationships still require current policy and database checks.
 
+`ResourceUri` validates concrete references with the existing RFC 3986 parser;
+`ResourceTemplateUri` owns RFC 6570 declarations and expansion. Malformed escaping
+and unexpanded templates fail at concrete construction and deserialization. The
+generic reference permits network resource URLs with ports; server-owned routes use
+the stricter component profile before domain admission. No historical-text fallback
+enters the concrete type.
+
 Shared extension traits are public and open to external implementations. Core has
 no exhaustive domain scope or resource registry. A new server adds its own library
 and registration data without changes to foundational or MCP core source. An external

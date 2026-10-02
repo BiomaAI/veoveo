@@ -80,7 +80,7 @@ impl<A: ResourceAddress + Eq> McpResource<A> {
 /// use veoveo_mcp_contract::server_contract::McpResourceTemplate;
 /// use veoveo_types::ResourceUri;
 /// use rmcp::model::ResourceTemplate;
-/// McpResourceTemplate::new(ResourceUri::new("example://items/{id}").unwrap(),
+/// McpResourceTemplate::new(ResourceUri::new("example://items/one").unwrap(),
 ///     |uri| ResourceTemplate::new(uri, "Items"));
 /// ```
 #[derive(Debug, Clone)]

@@ -259,15 +259,32 @@ fn printable_component_values_round_trip_through_the_builder() {
 }
 
 #[test]
-fn historical_reference_decoding_does_not_claim_concrete_address_validation() {
+fn generic_references_cannot_contain_unexpanded_or_malformed_uri_text() {
     for wire in [
         "example://items/{id}",
         "example://items{?cursor}",
         "example://items/bad%",
     ] {
-        let reference: ResourceUri = serde_json::from_value(wire.into()).unwrap();
+        assert!(ResourceUri::new(wire).is_err());
+        assert!(serde_json::from_value::<ResourceUri>(wire.into()).is_err());
+    }
+}
+
+#[test]
+fn network_references_preserve_their_profile_without_becoming_domain_addresses() {
+    for wire in [
+        "https://localhost:8781/mcp/operator",
+        "https://example.com/read?part=one&part=two#section",
+        "file:///workspace/readme.md",
+    ] {
+        let reference = ResourceUri::new(wire).unwrap();
         assert_eq!(reference.as_str(), wire);
         assert!(reference.components().is_err());
         assert_eq!(serde_json::to_value(reference).unwrap(), wire);
     }
+    let invalid = "https://user:private-fixture-value@example.com/read?secret=bad%";
+    let error = ResourceUri::new(invalid).unwrap_err();
+    assert!(!format!("{error:?} {error}").contains("private-fixture-value"));
+    let error = serde_json::from_value::<ResourceUri>(invalid.into()).unwrap_err();
+    assert!(!error.to_string().contains("private-fixture-value"));
 }

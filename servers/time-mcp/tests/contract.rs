@@ -105,8 +105,9 @@ fn release_uri_rejects_wrong_routes_ids_queries_and_encoded_aliases() {
             "accepted {invalid}"
         );
         assert!(serde_json::from_value::<TimeAuthorityReleaseUri>(invalid.into()).is_err());
-        let reference = ResourceUri::new(invalid).unwrap();
-        assert!(<TimeAuthorityReleaseUri as ResourceAddress>::parse(&reference).is_err());
+        if let Ok(reference) = ResourceUri::new(invalid) {
+            assert!(<TimeAuthorityReleaseUri as ResourceAddress>::parse(&reference).is_err());
+        }
     }
 }
 

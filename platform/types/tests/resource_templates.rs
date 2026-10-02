@@ -165,13 +165,9 @@ fn expansion_enforces_the_concrete_profile_after_substitution() {
 }
 
 #[test]
-fn opaque_legacy_references_keep_their_existing_wire_admission() {
-    // Policy/audit decoding is a separate migration. This new type must not
-    // silently reinterpret or reject records through the old wire constructor.
+fn templates_require_their_own_type_at_wire_admission() {
     let wire = "example://root/{+path}{?cursor}";
-    let legacy = serde_json::from_value::<ResourceUri>(wire.into()).unwrap();
-    assert_eq!(legacy.as_str(), wire);
-    assert!(legacy.components().is_err());
+    assert!(serde_json::from_value::<ResourceUri>(wire.into()).is_err());
     assert!(ResourceTemplateUri::new(wire).is_ok());
 }
 
