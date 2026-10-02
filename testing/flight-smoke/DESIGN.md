@@ -142,6 +142,15 @@ Browser attachment, GPU rejection and visual assertions have one source owner in
 Small process, GPU identity and token-exchange helpers likewise keep one Rust source.
 No new test-support framework or upstream dependency is introduced.
 
+The shared browser sampler reads the displayed camera canvas at 64 by 36 pixels and
+reports luminance statistics for the frame and a four-by-four grid. The content check
+requires a luminance standard deviation of at least five and at least four regions
+with a luminance range of sixteen and standard deviation of five. Mean brightness is
+diagnostic; scene exposure does not determine whether a frame contains detail. Uniform
+images, a small isolated bright patch and failed or incomplete samples fail this check.
+The sampler's native JavaScript cases and the Rust content-policy cases qualify these
+measurements and decisions. They establish no GPU or installed visual acceptance.
+
 The domain harness releases visual checkpoints after this run's takeoff and mission
 complete. Takeoff requires the selected vehicle to be flying at the scenario's minimum
 altitude within its takeoff deadline; the flight-state transition alone cannot release

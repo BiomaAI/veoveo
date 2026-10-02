@@ -25,6 +25,10 @@ use recording_acceptance::{
     analyze_rerun_camera_render, analyze_rerun_render,
 };
 
+#[path = "browser/frame_content.rs"]
+mod frame_content;
+use frame_content::FrameContent;
+
 #[path = "browser/recording_acceptance.rs"]
 mod recording_acceptance;
 
@@ -41,8 +45,6 @@ const SIMULTANEOUS_VIEW_BARRIER_TIMEOUT: Duration = Duration::from_secs(15);
 const MINIMUM_DELIVERED_FRAME_RATE_HZ: f64 = 12.0;
 const MAXIMUM_SOURCE_TO_RENDER_P95_MS: f64 = 85.0;
 const MAXIMUM_MOTION_TO_PHOTON_P95_MS: f64 = 250.0;
-const MINIMUM_MEAN_LUMA: f64 = 25.0;
-const MAXIMUM_MEAN_LUMA: f64 = 225.0;
 
 #[derive(Clone, Copy, Debug)]
 #[allow(dead_code, reason = "used by the focused browser-smoke binary")]
@@ -4323,11 +4325,8 @@ struct AppVideoState {
     delivery_samples: u64,
     #[serde(default)]
     receive_to_display_p95_ms: f64,
-    mean_luma: f64,
-    luma_standard_deviation: f64,
-    minimum_luma: u8,
-    maximum_luma: u8,
-    pixel_sample_error: String,
+    #[serde(flatten)]
+    frame: FrameContent,
     decode_label: String,
     status: String,
     error: String,
@@ -4469,14 +4468,9 @@ impl AppVideoState {
                 && self.current_time > 0.0,
             "authoritative live-view App did not display the declared 1280x720 H.264 stream: {self:?}"
         );
-        ensure!(
-            self.pixel_sample_error.is_empty()
-                && self.mean_luma >= MINIMUM_MEAN_LUMA
-                && self.mean_luma <= MAXIMUM_MEAN_LUMA
-                && self.luma_standard_deviation >= 5.0
-                && self.minimum_luma < self.maximum_luma,
-            "authoritative live-view App displayed a blank or uniform GPU frame: {self:?}"
-        );
+        self.frame.validate().with_context(|| {
+            format!("authoritative live-view App lacks visible image detail: {self:?}")
+        })?;
         ensure!(
             self.decode_label == "NVIDIA NVENC · hardware H.264 decode"
                 || self.decode_label == "NVIDIA NVENC · software H.264 decode",
@@ -5226,52 +5220,7 @@ const HARDWARE_PREFLIGHT: &str = r#"(async () => {
   };
 })()"#;
 
-const APP_FRAME_VIDEO_STATE: &str = r#"(() => {
-  const canvas=document.querySelector(".view canvas");
-  const view=canvas?.closest(".view");
-  const decodedFrames=Number(canvas?.dataset.decodedFrames ?? 0);
-  const frame={meanLuma:0,lumaStandardDeviation:0,minimumLuma:0,maximumLuma:0,pixelSampleError:""};
-  try {
-    if(!canvas?.width||!canvas?.height) throw new Error("video canvas dimensions are unavailable");
-    const sample=document.createElement("canvas");
-    sample.width=64;sample.height=36;
-    const context=sample.getContext("2d",{willReadFrequently:true});
-    if(!context) throw new Error("2D frame sampler is unavailable");
-    context.drawImage(canvas,0,0,sample.width,sample.height);
-    const pixels=context.getImageData(0,0,sample.width,sample.height).data;
-    let sum=0,sumSquares=0,minimum=255,maximum=0,count=0;
-    for(let index=0;index<pixels.length;index+=4){
-      const luma=0.2126*pixels[index]+0.7152*pixels[index+1]+0.0722*pixels[index+2];
-      sum+=luma;sumSquares+=luma*luma;minimum=Math.min(minimum,luma);maximum=Math.max(maximum,luma);count++;
-    }
-    frame.meanLuma=sum/count;
-    frame.lumaStandardDeviation=Math.sqrt(Math.max(0,sumSquares/count-frame.meanLuma*frame.meanLuma));
-    frame.minimumLuma=Math.round(minimum);
-    frame.maximumLuma=Math.round(maximum);
-  }catch(error){frame.pixelSampleError=String(error?.message||error);}
-  return {
-    documentEpochMs:performance.timeOrigin,
-    cameraId:view?.id?.startsWith("view-") ? view.id.slice(5) : "",
-    viewerInstanceId:view?.dataset.viewerInstanceId ?? "",
-    liveViewId:view?.dataset.liveViewId ?? "",
-    streamProductId:view?.dataset.streamProductId ?? "",
-    readyState:decodedFrames>0 ? 2 : 0,
-    videoWidth:canvas?.width ?? 0,
-    videoHeight:canvas?.height ?? 0,
-    currentTime:Number(canvas?.dataset.mediaTimeSeconds ?? 0),
-    sampledAtMs:performance.now(),
-    totalVideoFrames:decodedFrames,
-    droppedVideoFrames:Number(canvas?.dataset.droppedFrames ?? 0),
-    declaredFrameRateHz:Number(canvas?.dataset.frameRate ?? 0),
-    observedFrameRateHz:0,
-    ...frame,
-    decodeLabel:document.getElementById("decode")?.textContent ?? "",
-    status:document.getElementById("status")?.textContent ?? "",
-    error:document.getElementById("error")?.hidden === false
-      ? document.getElementById("error").textContent : "",
-    bodyText:document.body?.innerText ?? ""
-  };
-})()"#;
+const APP_FRAME_VIDEO_STATE: &str = include_str!("browser/app_video_state.js");
 
 const APP_FRAME_GRID_VIDEO_STATES: &str = r#"(() => {
   const error=document.getElementById("error")?.hidden === false

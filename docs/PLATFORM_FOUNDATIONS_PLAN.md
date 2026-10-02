@@ -25,6 +25,18 @@ are under `output/development/foundations-flight-takeoff-5cae9ec8/`; the diagnos
 screenshot is `/tmp/chrome-devtools-mcp-56U9uD/screenshot.png`. The native harness
 finished cleanup before the cluster stopped for development.
 
+The live-camera content check now admits dark and bright textured scenes through
+spatial contrast. Its existing 64-by-36 canvas sample supplies a four-by-four grid;
+at least four regions must span sixteen luminance levels with standard deviation
+at least five. Global variance still rejects uniform images. The typed observation
+requires all sixteen regions and rejects sampling errors or invalid statistics.
+Six Rust cases pass in both focused clients, covering the dark landing profile,
+bright detail, uniform frames, isolated patches, incomplete observations and invalid
+statistics. Four native JavaScript cases qualify the actual sampler's cell placement
+and arithmetic. Strict Clippy and both executable builds pass. These native checks
+do not close the installed visual gate; hardware, cadence and latency requirements
+are unchanged, and the composed flight must pass with the new checker.
+
 Artifact's installed sharing gate passes seven checks through the public MCP and
 anonymous HTTP routes: private fixture ownership/retention, read-only byte equality,
 one-download enforcement, revocation, expiry, current parent release state and cleanup.

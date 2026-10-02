@@ -858,6 +858,7 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `testing/browser-smoke/src/main.rs` | focused headed-browser commands and versioned evidence manifests for the Map workspace and UAV visual workflows; token requests consume UAV's contract-only scope vocabulary |
 | `testing/browser-smoke/src/restart.rs` | focused same-document native live-view recovery across independent MCP-pod and simulator-container restarts, including proof that MCP replacement leaves the GPU pod unchanged |
 | `testing/browser-smoke/src/browser/recording_acceptance.rs` | scoped Redap network evidence, live-source continuity, archive-request rejection, and nonblank Rerun viewport measurement |
+| `testing/browser-smoke/src/browser/frame_content.rs`, `app_video_state.js` | typed luminance observations and spatial contrast checks for live-camera canvas content; dark or bright scenes must contain detail across the image |
 
 ### Geospatial Domains
 
