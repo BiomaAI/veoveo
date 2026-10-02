@@ -33,7 +33,7 @@ __LEASE__
         THROW 'knowledge_read_fenced';
     };
     DELETE FROM __TABLE__ WHERE member = $member;
-    INSERT INTO __TABLE__ $chunks;
+    INSERT INTO __TABLE__ $chunks RETURN NONE;
     UPDATE ONLY $member SET
         stale = false,
         deleted = false,

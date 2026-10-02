@@ -168,7 +168,9 @@ async fn domain_recall_and_rebuild_with_concurrent_searches() {
     tokio::time::timeout(Duration::from_secs(1800), run())
         .await
         .expect("GPU retrieval benchmark exceeded 30 minutes")
-        .unwrap();
+        // SDK error debug chains can contain the complete rejected wire frame.
+        // Stage diagnostics and the public error message omit captured source bytes.
+        .unwrap_or_else(|error| panic!("retrieval benchmark failed: {error}"));
 }
 
 async fn run() -> Result<()> {

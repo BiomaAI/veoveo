@@ -256,6 +256,11 @@ creates or rotates the database runtime user, and publishes the first gateway co
 revision. Long-running services connect with database-scoped credentials and never run
 migrations.
 
+Remote Store connections accept messages up to 64 MiB. Their write-buffer ceiling
+allows one such message plus the 128 KiB flush buffer. Connections allocate buffer
+space as writes require it. Bulk Knowledge inserts return no vectors; the database
+commits the replacement and its observation together.
+
 Store's `json_value` adapter preserves JSON unsigned integers above `i64::MAX` as
 SurrealDB decimals instead of routing them through the driver's floating-point
 conversion. Nested objects and arrays use the same adapter. `OpenObject` and Task

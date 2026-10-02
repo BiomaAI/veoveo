@@ -72,6 +72,13 @@ invalidation. Failed source
 reads leave the member stale. Only definitive owner confirmation permits deletion;
 timeouts, unavailable reads and subscription loss do not establish that fact.
 
+Chunk replacement uses the Store's 64 MiB message profile. The WebSocket write ceiling
+allows one such message beside its 128 KiB flush buffer; it does not preallocate that
+memory on connection. Replacement returns no inserted vectors, avoiding a second copy
+of the bulk payload in the response. One SurrealQL transaction still owns the fence,
+deletion, insert and observation update. Native qualification exercises the contract's
+256-chunk and 8,192-dimension limits through the default remote connection.
+
 Conditional replacement reuses the existing text and vectors only when the observation
 preserves revision, digest, access and provenance. It updates observation timestamps
 and the member's freshness deadline in the same transaction. The ticket's member,

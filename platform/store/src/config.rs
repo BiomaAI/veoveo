@@ -11,8 +11,10 @@ const DEFAULT_QUERY_TIMEOUT: Duration = Duration::from_secs(30);
 const DEFAULT_TRANSACTION_TIMEOUT: Duration = Duration::from_secs(30);
 const DEFAULT_CONNECTION_CAPACITY: usize = 4_096;
 const DEFAULT_WS_BUFFER: usize = 128 * 1024;
-const DEFAULT_WS_MAX_WRITE_BUFFER: usize = 2 * 1024 * 1024;
 const DEFAULT_WS_MAX_MESSAGE: usize = 64 * 1024 * 1024;
+// A single admitted message must fit beside the pending flush buffer. This is
+// a growth ceiling, not memory reserved when a connection opens.
+const DEFAULT_WS_MAX_WRITE_BUFFER: usize = DEFAULT_WS_MAX_MESSAGE + DEFAULT_WS_BUFFER;
 
 /// Validated configuration for the remote WebSocket store.
 #[derive(Clone)]

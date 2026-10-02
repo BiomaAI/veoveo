@@ -58,6 +58,15 @@ Nine native evaluator, corpus and retrieval checks pass. Affected all-target str
 Clippy, SurrealDB 3.3.0 query validation and documentation links pass.
 The domain corpus and descriptor batch passes 39 source, contract, consumer and corpus
 checks, affected all-target/all-feature strict Clippy, formatting and documentation links.
+The first model runs found a benchmark lease-renewal deadlock and a Store write limit.
+The corrected harness polls renewal concurrently with indexing. Store now allows its
+64 MiB message profile through the outgoing buffer, and atomic member replacements
+return no inserted vectors. A native 256-chunk, 8,192-dimension member passes write,
+readback and injected-failure rollback. All 23 affected Store/configuration and retrieval
+checks pass, as do affected strict Clippy and rendered SurrealDB 3.3 query validation.
+The evaluator's first cleanup attempt reported a transaction conflict; the complete
+retrieval batch passed on rerun. The model comparison is being repeated against the
+corrected storage path with one 4.625 GiB KV-cache setting for every checkpoint.
 The gateway source adapter discovers approved
 collections and waits for catalog/resource observation readiness before reading.
 The library coordinator qualifies lease renewal, source invalidation, conditional

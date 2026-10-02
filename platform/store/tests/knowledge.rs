@@ -16,6 +16,8 @@ use veoveo_types::{
     TenantId, WorkContextId,
 };
 
+#[path = "knowledge/bulk.rs"]
+mod bulk;
 #[path = "knowledge/catalog.rs"]
 mod catalog;
 #[path = "knowledge/coordinator.rs"]

@@ -564,6 +564,7 @@ Domain runtimes can own private queries and driver records over these connection
 | `resource_changes.rs` | shared domain LIVE invalidations, coalescing, database-clock checkpoints and changefeed recovery; composed into Time, Recording, Frames, Media, Optimization, UAV and Knowledge resource observation |
 | `identity.rs`, `identity_enabled.surql` | current principal, tenant and enterprise admission with typed issuer/subject bindings |
 | `knowledge.rs`, `knowledge/` | typed catalog and generation persistence, atomic catalog replacement against current control authority, coordinator leases and collection/member epochs, conditional chunk reuse, SQL catalog completion and caller-visible statistics, shared SQL admission, BM25/HNSW ranking and native reciprocal rank fusion before result selection |
+| `tests/knowledge/bulk.rs` | maximum-size member vectors over the default Store connection and rollback after a rejected bulk replacement |
 | `agent_management/revision.rs` and `agent_management/revision.surql` | SHA-256 revisions of SQL-authorized catalog and management views |
 | `changefeed.rs`, `changefeed/` | complete transaction-tail replay, consumer checkpoints and LIVE recovery; typed Task, Artifact and Computer change decoding imports the owning contract types |
 | `platform/task-runtime/src/runtime/history.rs`, `subscriptions.rs`, `owner_subscriptions.rs` | committed-state replay for trusted workers, shared native-feed wakeups and current SQL-authorized public Task reads |
