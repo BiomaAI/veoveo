@@ -1,5 +1,4 @@
 //! Compose shared run updates with the process that owns each live session.
-// TODO(foundations): qualify live-session notifications on the reference installation.
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,

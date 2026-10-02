@@ -107,8 +107,10 @@ C02 tool schemas and result delivery use a canonical top-level `result_uri`.
 The installed GPU replay checks product reads and completion across distinct replicas.
 C27 uses the shared Task source for runs and the admitted GPU owner for live sessions.
 The replica probe checks run invalidations, completed-state recovery and cancellation.
-Live-session notification delivery still requires reference qualification. Discover/list readiness
-(C31) and knowledge-source publication (C32) require the work recorded in the
+The [flight harness](../../testing/flight-smoke/DESIGN.md) qualifies live-owner delivery
+through the public Gateway. It checks initial session, result and preview invalidations,
+advancing GPU inference and preview counters, reconnected baselines and cancellation.
+Discover/list readiness (C31) and knowledge-source publication (C32) require the work recorded in the
 [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md). Checked setup verifies
 API and declaration consistency; it does not establish these runtime guarantees.
 
