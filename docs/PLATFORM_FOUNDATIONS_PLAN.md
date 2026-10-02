@@ -106,7 +106,10 @@ native matrix exercises update, removal and creation under direct and gateway
 routes, including eleven creation failure modes. All eleven library tests and two
 HTTP/independent-consumer integration tests pass. Strict all-target/all-feature
 Clippy passes for conformance and all four source owners; all four installed
-executables compile. Publication and Map's installed creation case remain open.
+executables compile. Both Map and conformance images publish from `f64b5c05` in
+206 seconds. The reference selects Map runnable digest
+`sha256:8060d13b3f1433c144b40a1c191b0a81a3ec7da068e45cb81d694ffd416c0845`.
+The builder stops before rollout. Map's installed creation case remains open.
 The current source-qualification batch adds one shared gateway entry point and
 owner-local fixtures for Artifact, Reason, Map and Time. K07 models both updates and
 membership removal; removal must survive restart and deny full and conditional reads.
