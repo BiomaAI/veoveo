@@ -63,7 +63,7 @@ fn embedded_documents_carry_the_crate_manual_and_design() {
     let index = SERVER_DOCS.llms_txt();
     assert!(index.contains("(agents)"));
     assert!(index.contains("(design)"));
-    for id in ["authoring", "acquisition", "routing"] {
+    for id in ["authoring", "acquisition", "routing", "resources"] {
         assert!(SERVER_DOCS.doc(id).is_some(), "missing Map document {id}");
     }
     for document in SERVER_DOCS.iter() {
@@ -129,4 +129,70 @@ fn resource_discovery_is_bounded_by_the_protocol_surface() {
             .iter()
             .all(|resource| !resource.uri.starts_with("map://release/"))
     );
+}
+
+#[test]
+fn checked_setup_preserves_each_discovery_grant_and_configured_app_origin() {
+    use super::setup::SERVER_SETUP;
+    use crate::contract::{MapResource, MapScope};
+    use veoveo_types::{ResourceTemplateUri, ScopeDefinition};
+    assert_eq!(SERVER_SETUP.scope_names().len(), MapScope::ALL.len());
+    for scope in MapScope::ALL {
+        assert!(SERVER_SETUP.has_scope(
+            &std::collections::BTreeSet::from([scope.name().clone()]),
+            *scope
+        ));
+        assert!(!SERVER_SETUP.has_scope(&std::collections::BTreeSet::new(), *scope));
+    }
+    let basemap = MapWorkspaceBasemap::open_free_map(
+        "https://maps.example.test/light",
+        "https://maps.example.test/dark",
+    )
+    .unwrap();
+    for mask in 0..16 {
+        let access = ResourceDiscoveryAccess {
+            admin: mask & 1 != 0,
+            dataset_read: mask & 2 != 0,
+            feature_read: mask & 4 != 0,
+            spatial_derive: mask & 8 != 0,
+        };
+        let actual = discoverable_resources(access, &basemap);
+        let visible = actual
+            .iter()
+            .map(|r| r.uri.as_str())
+            .collect::<std::collections::BTreeSet<_>>();
+        for uri in [uris::DOCS_URI, uris::CONTRACT_URI] {
+            assert!(visible.contains(uri));
+        }
+        for (uri, allowed) in [
+            (uris::WORKSPACE_APP_URI, mask & 7 != 0),
+            (uris::WORKSPACE_URI, mask & 7 != 0),
+            (uris::ACQUISITIONS_URI, mask & 1 != 0),
+            (uris::SOURCES_URI, mask & 2 != 0),
+            (uris::ACTIVE_RELEASES_URI, mask & 2 != 0),
+            (uris::FEATURE_LAYERS_URI, mask & 4 != 0),
+            (uris::PUBLICATIONS_URI, mask & 4 != 0),
+            (uris::LAYER_PRODUCTS_URI, mask & 4 != 0),
+            (uris::COMPOSITIONS_URI, mask & 4 != 0),
+            (uris::SPATIAL_DERIVATIONS_URI, mask & 10 == 10),
+        ] {
+            assert_eq!(visible.contains(uri), allowed, "mask {mask}, {uri}");
+        }
+        for resource in actual {
+            MapResource::parse(&resource.uri).unwrap();
+            if resource.uri == uris::WORKSPACE_APP_URI {
+                let meta = serde_json::to_string(&resource.meta).unwrap();
+                assert!(meta.contains("https://maps.example.test"));
+            }
+        }
+    }
+    for resource in SERVER_SETUP.resources() {
+        assert_eq!(
+            resource.address().to_uri().as_str(),
+            resource.descriptor().uri
+        );
+    }
+    for template in SERVER_SETUP.resource_templates() {
+        ResourceTemplateUri::new(&template.descriptor().uri_template).unwrap();
+    }
 }

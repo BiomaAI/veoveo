@@ -19,7 +19,7 @@ impl MapMcp {
             if let Some(doc_id) = uris::parse_doc(uri) {
                 require_any_scope(&context, WELL_KNOWN_SCOPES)?;
                 let doc = SERVER_DOCS
-                    .doc(doc_id)
+                    .doc(doc_id.as_str())
                     .ok_or_else(|| not_found("server document"))?;
                 return Ok(ReadResourceResult::new(vec![
                     ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
@@ -81,10 +81,10 @@ impl MapMcp {
                     .map_err(internal)?;
                 return json_resource(uri, &pointers);
             }
-            if let Some(value) = uris::parse_single(uri, "map://acquisition/") {
+            if let Some(value) = uris::parse_acquisition(uri) {
                 let identity = require_scope(&context, MapScope::Admin)?;
                 let scope = self.state.scope(&identity).await.map_err(internal)?;
-                let id = AcquisitionId::parse(value).map_err(invalid_params)?;
+                let id = value;
                 let job = self
                     .state
                     .catalog
@@ -101,8 +101,7 @@ impl MapMcp {
                 let identity = require_scope(&context, MapScope::FeatureRead)?;
                 let scope = self.state.scope(&identity).await.map_err(internal)?;
                 if let Some((composition, revision)) = uris::parse_composition_revision(uri) {
-                    let composition_id: crate::contract::MapCompositionId =
-                        composition.parse().map_err(invalid_params)?;
+                    let composition_id = composition;
                     return json_resource(
                         uri,
                         &self
@@ -115,8 +114,7 @@ impl MapMcp {
                     );
                 }
                 if let Some(composition) = uris::parse_composition(uri) {
-                    let composition_id: crate::contract::MapCompositionId =
-                        composition.parse().map_err(invalid_params)?;
+                    let composition_id = composition;
                     return json_resource(
                         uri,
                         &self
@@ -138,10 +136,8 @@ impl MapMcp {
                     return json_resource(uri, &output);
                 }
                 if let Some((layer, feature, revision)) = uris::parse_feature_revision(uri) {
-                    let layer_id: crate::contract::FeatureLayerId =
-                        layer.parse().map_err(invalid_params)?;
-                    let feature_id: crate::contract::MapFeatureId =
-                        feature.parse().map_err(invalid_params)?;
+                    let layer_id = layer;
+                    let feature_id = feature;
                     return json_resource(
                         uri,
                         &self
@@ -154,8 +150,7 @@ impl MapMcp {
                     );
                 }
                 if let Some((layer, version)) = uris::parse_feature_schema(uri) {
-                    let layer_id: crate::contract::FeatureLayerId =
-                        layer.parse().map_err(invalid_params)?;
+                    let layer_id = layer;
                     return json_resource(
                         uri,
                         &self
@@ -168,8 +163,7 @@ impl MapMcp {
                     );
                 }
                 if let Some((layer, version)) = uris::parse_feature_style(uri) {
-                    let layer_id: crate::contract::FeatureLayerId =
-                        layer.parse().map_err(invalid_params)?;
+                    let layer_id = layer;
                     return json_resource(
                         uri,
                         &self
@@ -182,8 +176,7 @@ impl MapMcp {
                     );
                 }
                 if let Some(style_revision) = uris::parse_feature_style_revision(uri) {
-                    let style_revision_id: crate::contract::StyleRevisionId =
-                        style_revision.parse().map_err(invalid_params)?;
+                    let style_revision_id = style_revision;
                     return json_resource(
                         uri,
                         &self
@@ -196,10 +189,8 @@ impl MapMcp {
                     );
                 }
                 if let Some((layer, feature)) = uris::parse_feature(uri) {
-                    let layer_id: crate::contract::FeatureLayerId =
-                        layer.parse().map_err(invalid_params)?;
-                    let feature_id: crate::contract::MapFeatureId =
-                        feature.parse().map_err(invalid_params)?;
+                    let layer_id = layer;
+                    let feature_id = feature;
                     return json_resource(
                         uri,
                         &self
@@ -212,10 +203,8 @@ impl MapMcp {
                     );
                 }
                 if let Some((layer, changeset)) = uris::parse_changeset(uri) {
-                    let layer_id: crate::contract::FeatureLayerId =
-                        layer.parse().map_err(invalid_params)?;
-                    let changeset_id: crate::contract::FeatureChangeSetId =
-                        changeset.parse().map_err(invalid_params)?;
+                    let layer_id = layer;
+                    let changeset_id = changeset;
                     return json_resource(
                         uri,
                         &self
@@ -228,10 +217,8 @@ impl MapMcp {
                     );
                 }
                 if let Some((layer, publication)) = uris::parse_publication(uri) {
-                    let layer_id: crate::contract::FeatureLayerId =
-                        layer.parse().map_err(invalid_params)?;
-                    let publication_id: crate::contract::LayerPublicationId =
-                        publication.parse().map_err(invalid_params)?;
+                    let layer_id = layer;
+                    let publication_id = publication;
                     return json_resource(
                         uri,
                         &self
@@ -244,12 +231,9 @@ impl MapMcp {
                     );
                 }
                 if let Some((layer, publication, product)) = uris::parse_layer_product(uri) {
-                    let layer_id: crate::contract::FeatureLayerId =
-                        layer.parse().map_err(invalid_params)?;
-                    let publication_id: crate::contract::LayerPublicationId =
-                        publication.parse().map_err(invalid_params)?;
-                    let product_id: crate::contract::LayerProductId =
-                        product.parse().map_err(invalid_params)?;
+                    let layer_id = layer;
+                    let publication_id = publication;
+                    let product_id = product;
                     let product = self
                         .state
                         .authoring
@@ -260,8 +244,7 @@ impl MapMcp {
                     return json_resource(uri, &product);
                 }
                 if let Some(layer) = uris::parse_feature_layer(uri) {
-                    let layer_id: crate::contract::FeatureLayerId =
-                        layer.parse().map_err(invalid_params)?;
+                    let layer_id = layer;
                     return json_resource(
                         uri,
                         &self
@@ -414,8 +397,8 @@ impl MapMcp {
                         .ok_or_else(|| not_found("source feature"))?,
                 );
             }
-            if let Some(value) = uris::parse_single(uri, "map://location/") {
-                let id = LocationId::parse(value).map_err(invalid_params)?;
+            if let Some(value) = uris::parse_location(uri) {
+                let id = value;
                 return json_resource(
                     uri,
                     &self
@@ -426,8 +409,8 @@ impl MapMcp {
                         .ok_or_else(|| not_found("location"))?,
                 );
             }
-            if let Some(value) = uris::parse_single(uri, "map://facility/") {
-                let id = FacilityId::parse(value).map_err(invalid_params)?;
+            if let Some(value) = uris::parse_facility(uri) {
+                let id = value;
                 return json_resource(
                     uri,
                     &self
@@ -485,8 +468,8 @@ impl MapMcp {
                         .ok_or_else(|| not_found("route"))?,
                 );
             }
-            if let Some(value) = uris::parse_single(uri, "map://matrix/") {
-                let id = RouteMatrixId::parse(value).map_err(invalid_params)?;
+            if let Some(value) = uris::parse_matrix(uri) {
+                let id = value;
                 return json_resource(
                     uri,
                     &self

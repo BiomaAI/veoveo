@@ -1106,15 +1106,11 @@ async fn run_import_task(
         .await;
     state
         .subscriptions
-        .notify_resource_updated(&crate::uris::feature_layer_uri(
-            output.changeset.layer_id.as_str(),
-        ))
+        .notify_resource_updated(&crate::uris::feature_layer_uri(&output.changeset.layer_id))
         .await;
     state
         .subscriptions
-        .notify_resource_updated(&crate::uris::features_uri(
-            output.changeset.layer_id.as_str(),
-        ))
+        .notify_resource_updated(&crate::uris::features_uri(&output.changeset.layer_id))
         .await;
     tool_result_with_links(
         format!(
@@ -1124,13 +1120,13 @@ async fn run_import_task(
         &output,
         [
             (
-                crate::uris::feature_layer_uri(output.changeset.layer_id.as_str()),
+                crate::uris::feature_layer_uri(&output.changeset.layer_id),
                 "Authored feature layer",
             ),
             (
                 crate::uris::changeset_uri(
-                    output.changeset.layer_id.as_str(),
-                    output.changeset.changeset_id.as_str(),
+                    &output.changeset.layer_id,
+                    &output.changeset.changeset_id,
                 ),
                 "Feature changeset",
             ),
@@ -1170,9 +1166,9 @@ async fn run_export_task(
     )
     .await?;
     let product_uri = crate::uris::layer_product_uri(
-        product.layer_id.as_str(),
-        product.publication_id.as_str(),
-        product.product_id.as_str(),
+        &product.layer_id,
+        &product.publication_id,
+        &product.product_id,
     );
     let output = ExportFeatureLayerOutput { product };
     tool_result_with_links(
@@ -1215,9 +1211,9 @@ async fn run_vector_tile_task(
     )
     .await?;
     let product_uri = crate::uris::layer_product_uri(
-        product.layer_id.as_str(),
-        product.publication_id.as_str(),
-        product.product_id.as_str(),
+        &product.layer_id,
+        &product.publication_id,
+        &product.product_id,
     );
     let output = BuildVectorTilesOutput {
         product,

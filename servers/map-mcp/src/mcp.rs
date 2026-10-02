@@ -11,8 +11,7 @@ use rmcp::{
         GetPromptRequestParams, GetTaskParams, GetTaskResult, ListPromptsResult,
         ListResourceTemplatesResult, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
         Prompt, ReadResourceRequestParams, ReadResourceResult, Reference, Resource,
-        ResourceContents, ResourceTemplate, ServerCapabilities, ServerConfig, SubscriptionFilter,
-        UpdateTaskParams,
+        ResourceContents, ResourceTemplate, ServerConfig, SubscriptionFilter, UpdateTaskParams,
     },
     service::{RequestContext, SubscriptionContext},
     tool_handler, tool_router,
@@ -24,21 +23,21 @@ use veoveo_types::ScopeDefinition;
 use crate::{
     administration::{self, AdminOpError},
     contract::{
-        AcquisitionId, AcquisitionJob, BuildTravelModelRequest, CancelAcquisitionRequest,
+        AcquisitionJob, BuildTravelModelRequest, CancelAcquisitionRequest,
         CorridorInspectionOutput, CorridorInspectionRequest, CreateAcquisitionRequest,
         CreateMobilityProfileRequest, CreateSourceRequest, DeriveRasterRequest,
-        DeriveSpatialGeometryRequest, DisableSourceRequest, FacilityId, GeodesicDirectOutput,
+        DeriveSpatialGeometryRequest, DisableSourceRequest, GeodesicDirectOutput,
         GeodesicDirectRequest, GeodesicInverseOutput, GeodesicInverseRequest,
         InspectLocationOutput, InspectLocationRequest, InspectPositionOutput,
         InspectPositionRequest, ListActiveDatasetReleasesOutput, ListActiveDatasetReleasesRequest,
-        LocationId, MapDatasetId, MapRouteHandoff, MapScope, MobilityProfile, MobilityProfileId,
+        MapDatasetId, MapRouteHandoff, MapScope, MobilityProfile, MobilityProfileId,
         PrepareRouteHandoffRequest, PublishRestrictionRequest, QuerySourceFeaturesOutput,
         QuerySourceFeaturesRequest, RasterDerivation, ReachableArea, ReachableAreaRequest,
         RegisteredSource, ReleaseMutationRequest, ReleaseMutationResponse, ReplaceSourceRequest,
-        RestrictionMutationOutput, RouteMatrix, RouteMatrixId, RouteMatrixRequest, RoutePlan,
-        RouteRequest, RouteValidation, SearchLocationsRequest, SpatialDerivation,
-        TransformCrsOutput, TransformCrsRequest, TravelModelRecord, ValidateGeofenceOutput,
-        ValidateGeofenceRequest, ValidateRouteRequest, WithdrawRestrictionRequest,
+        RestrictionMutationOutput, RouteMatrix, RouteMatrixRequest, RoutePlan, RouteRequest,
+        RouteValidation, SearchLocationsRequest, SpatialDerivation, TransformCrsOutput,
+        TransformCrsRequest, TravelModelRecord, ValidateGeofenceOutput, ValidateGeofenceRequest,
+        ValidateRouteRequest, WithdrawRestrictionRequest,
     },
     geodesy,
     prompts::MapPrompt,
@@ -52,6 +51,7 @@ mod completion;
 mod derivations;
 mod discovery;
 mod resources;
+pub(crate) mod setup;
 #[cfg(test)]
 use discovery::stable_resource_uris;
 use discovery::{ResourceDiscoveryAccess, discoverable_resources, resource_templates};
@@ -67,6 +67,11 @@ const LIST_PAGE_SIZE: usize = 100;
 /// administrative `admin/docs` routes (contract C18-C21).
 pub(crate) static SERVER_DOCS: LazyLock<ServerDocs> = LazyLock::new(|| {
     veoveo_mcp_contract::server_docs!("map")
+        .with_embedded_doc(
+            "resources",
+            "Map resources and contracts",
+            veoveo_mcp_contract::docs::embedded_document!("RESOURCES.md"),
+        )
         .with_embedded_doc(
             "routing",
             "Map routing",
@@ -844,27 +849,7 @@ impl ServerHandler for MapMcp {
     }
 
     fn get_info(&self) -> ServerConfig {
-        let mut capabilities = ServerCapabilities::builder()
-            .enable_tools()
-            .enable_prompts()
-            .enable_resources()
-            .enable_resources_subscribe()
-            .enable_completions()
-            .build();
-        veoveo_mcp_apps_extension::extend_capabilities(&mut capabilities);
-        SERVER_DOCS.declare_knowledge(&mut capabilities);
-        capabilities.extensions.get_or_insert_default().insert(
-            rmcp::model::TASKS_EXTENSION_ID.to_owned(),
-            rmcp::model::JsonObject::new(),
-        );
-        let mut info = ServerConfig::default();
-        info.capabilities = capabilities;
-        info.server_info = rmcp::model::Implementation::new("map", env!("CARGO_PKG_VERSION"));
-        info.instructions = Some(
-            "Geography, your own feature layers, and route planning for people, road and off-road vehicles, rail, maritime, and aviation. For routes, call `route` or `route_matrix` as MCP Tasks with an explicit mobility profile and departure time. To feed Optimization MCP, call `build_travel_model`. A route with `planning_advisory` status is guidance, not a certified plan. For your own data, create GeoJSON/JSON-FG feature layers in your Work Context, edit them with changesets, query them with CQL2 JSON, and publish fixed versions. Import, export, GeoPackage inspection, and vector-tile builds run as MCP Tasks. Your features never affect routing. The ui://map/workspace.html app shows compositions and layers interactively. Managing sources, acquisitions, releases, and mobility profiles requires the map:admin scope."
-                .to_owned(),
-        );
-        info
+        setup::SERVER_SETUP.server_config().clone()
     }
 
     async fn call_tool(
@@ -1005,11 +990,7 @@ impl ServerHandler for MapMcp {
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
-        if let Some(result) = SERVER_DOCS.read_knowledge(
-            &veoveo_types::ResourceScheme::new("map").expect("declared scheme"),
-            &request,
-            &context,
-        )? {
+        if let Some(result) = setup::SERVER_SETUP.read_documents(&request, &context)? {
             return Ok(result);
         }
         if let Some(result) = self.read_knowledge_resource(&request.uri, &context).await? {
@@ -1159,7 +1140,7 @@ fn internal_caller(context: &RequestContext<RoleServer>) -> Result<PlaneCaller, 
 }
 
 fn identity_has_scope(identity: &GatewayInternalIdentity, required: MapScope) -> bool {
-    identity.actor.scopes.contains(required.name())
+    setup::SERVER_SETUP.has_scope(&identity.actor.scopes, required)
 }
 
 fn admin_error(error: AdminOpError) -> McpError {
@@ -1262,7 +1243,7 @@ fn is_subscribable(uri: &str) -> bool {
     ) || crate::contract::MapMobilityProfileUri::parse(uri).is_ok()
         || crate::contract::MapRestrictionUri::parse(uri).is_ok()
         || crate::contract::MapRouteUri::parse(uri).is_ok()
-        || uris::parse_single(uri, "map://dataset/").is_some()
+        || uris::parse_dataset(uri).is_some()
         || is_feature_subscribable(uri)
 }
 

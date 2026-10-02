@@ -48,6 +48,10 @@ Map Explorer App.
 - Exact release, source feature, raster, derivation and route addresses use
   `contract/product_uri.rs`. Keep the owner's IDs in builders and readers, and share
   these types with scene consumers. Dataset and release parent checks belong to SQL.
+- Direct authoring and catalog addresses use `MapResource` and its typed helpers.
+  Parsers return each parent's owner ID; do not convert them to text and parse again.
+  Startup and discovery consume `mcp/setup.rs`; keep current-scope filtering and the
+  configured App origin when adding a discovery resource.
 - Active-release tool selection joins pointers to releases in SQL. Tenant, source
   and dataset predicates precede its limit; selected documents must match indexed
   metadata. Keep the complete internal pointer inventory separate from this tool.

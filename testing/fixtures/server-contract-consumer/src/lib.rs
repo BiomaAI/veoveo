@@ -17,6 +17,12 @@ pub fn public_requests(id: ArtifactId) -> (ArtifactReference, Action, Transcribe
 mod tests {
     use super::*;
     #[test]
+    fn map_direct_resources_preserve_parent_identity_without_mcp() {
+        use veoveo_map_mcp::contract::{FeatureLayerId, LayerPublicationId, LayerProductId, MapResource};
+        let address = MapResource::Product { layer: FeatureLayerId::new(), publication: LayerPublicationId::new(), product: LayerProductId::new() };
+        assert_eq!(MapResource::parse(address.to_uri().as_str()).unwrap(), address);
+    }
+    #[test]
     #[cfg(feature = "knowledge")]
     fn source_descriptors_are_available_without_hosted_dependencies() {
         use veoveo_map_mcp::contract::MapKnowledgeCollection;

@@ -911,6 +911,11 @@ DuckDB. `src/mcp/knowledge.rs` owns conditional summary reads. Its native tests 
 through `MapAccessContext`. `src/authoring/pages.rs` executes metadata queries and
 `src/mcp/metadata.rs` dispatches those resources. `src/mcp/resources.rs` owns resource
 read dispatch; `src/mcp/discovery.rs` owns descriptors and templates.
+`src/contract/resources.rs` owns direct Map and authoring addresses plus fixed discovery
+and document identities. `src/mcp/setup.rs` binds these types to checked startup and
+discovery; `src/uris.rs` exposes typed construction and parsing helpers.
+[Map resource contracts](../servers/map-mcp/RESOURCES.md) define these public types,
+scope and startup requirements, library features and metadata cursor profiles.
 `src/contract/restriction_uri.rs`, `restriction_summary.rs` and `restriction_pages.rs`
 own restriction addresses, compact metadata, collection cursors and page admission.
 `src/catalog/restrictions.rs` owns tenant-scoped

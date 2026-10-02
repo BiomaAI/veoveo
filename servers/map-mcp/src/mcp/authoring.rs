@@ -46,7 +46,7 @@ impl MapMcp {
             .create_layer(&identity, &scope, request)
             .await
             .map_err(invalid_params)?;
-        let layer_uri = uris::feature_layer_uri(layer.layer_id.as_str());
+        let layer_uri = uris::feature_layer_uri(&layer.layer_id);
         self.state
             .subscriptions
             .notify_resource_updated(uris::FEATURE_LAYERS_URI)
@@ -81,7 +81,7 @@ impl MapMcp {
             .update_layer(&identity, &scope, request)
             .await
             .map_err(invalid_params)?;
-        let layer_uri = uris::feature_layer_uri(layer.layer_id.as_str());
+        let layer_uri = uris::feature_layer_uri(&layer.layer_id);
         self.state
             .subscriptions
             .notify_resource_updated(&layer_uri)
@@ -120,7 +120,7 @@ impl MapMcp {
             format!("feature changes valid: {}", output.valid),
             &output,
             [(
-                uris::feature_layer_uri(output.layer_id.as_str()),
+                uris::feature_layer_uri(&output.layer_id),
                 "Authored feature layer",
             )],
         )
@@ -148,20 +148,17 @@ impl MapMcp {
         notify_commit(self, &context, &output).await;
         let mut links = vec![
             (
-                uris::feature_layer_uri(output.changeset.layer_id.as_str()),
+                uris::feature_layer_uri(&output.changeset.layer_id),
                 "Authored feature layer",
             ),
             (
-                uris::changeset_uri(
-                    output.changeset.layer_id.as_str(),
-                    output.changeset.changeset_id.as_str(),
-                ),
+                uris::changeset_uri(&output.changeset.layer_id, &output.changeset.changeset_id),
                 "Feature changeset",
             ),
         ];
         links.extend(output.features.iter().map(|feature| {
             (
-                uris::feature_uri(feature.layer_id.as_str(), feature.id.as_str()),
+                uris::feature_uri(&feature.layer_id, &feature.id),
                 "Authored feature",
             )
         }));
@@ -193,7 +190,7 @@ impl MapMcp {
             &output,
             output.features.iter().map(|feature| {
                 (
-                    uris::feature_uri(feature.layer_id.as_str(), feature.id.as_str()),
+                    uris::feature_uri(&feature.layer_id, &feature.id),
                     "Authored feature",
                 )
             }),
@@ -221,7 +218,7 @@ impl MapMcp {
             .map_err(invalid_params)?;
         let links = output.features.iter().map(|feature| {
             (
-                uris::feature_uri(feature.layer_id.as_str(), feature.id.as_str()),
+                uris::feature_uri(&feature.layer_id, &feature.id),
                 "Authored feature",
             )
         });
@@ -247,10 +244,8 @@ impl MapMcp {
             .publish_layer(&identity, &scope, request)
             .await
             .map_err(invalid_params)?;
-        let publication_uri = uris::publication_uri(
-            publication.layer_id.as_str(),
-            publication.publication_id.as_str(),
-        );
+        let publication_uri =
+            uris::publication_uri(&publication.layer_id, &publication.publication_id);
         self.state
             .subscriptions
             .notify_resource_updated(uris::PUBLICATIONS_URI)
@@ -289,7 +284,7 @@ impl MapMcp {
             .archive_layer(&identity, &scope, request)
             .await
             .map_err(invalid_params)?;
-        let layer_uri = uris::feature_layer_uri(layer.layer_id.as_str());
+        let layer_uri = uris::feature_layer_uri(&layer.layer_id);
         self.state
             .subscriptions
             .notify_resource_updated(uris::FEATURE_LAYERS_URI)
@@ -333,7 +328,7 @@ impl MapMcp {
             "created map composition",
             &composition,
             [(
-                uris::composition_uri(composition.composition_id.as_str()),
+                uris::composition_uri(&composition.composition_id),
                 "Map composition",
             )],
         )
@@ -364,7 +359,7 @@ impl MapMcp {
             &composition,
             [(
                 uris::composition_revision_uri(
-                    composition.composition_id.as_str(),
+                    &composition.composition_id,
                     composition.current.revision,
                 ),
                 "Map composition revision",
@@ -396,7 +391,7 @@ impl MapMcp {
             "archived map composition",
             &composition,
             [(
-                uris::composition_uri(composition.composition_id.as_str()),
+                uris::composition_uri(&composition.composition_id),
                 "Map composition",
             )],
         )
@@ -484,7 +479,7 @@ async fn notify_composition(
     service
         .state
         .subscriptions
-        .notify_resource_updated(&uris::composition_uri(composition.composition_id.as_str()))
+        .notify_resource_updated(&uris::composition_uri(&composition.composition_id))
         .await;
     service
         .state
@@ -498,7 +493,7 @@ async fn notify_commit(
     _context: &RequestContext<RoleServer>,
     output: &CommitFeatureChangesOutput,
 ) {
-    let layer_uri = uris::feature_layer_uri(output.changeset.layer_id.as_str());
+    let layer_uri = uris::feature_layer_uri(&output.changeset.layer_id);
     service
         .state
         .subscriptions
@@ -512,16 +507,13 @@ async fn notify_commit(
     service
         .state
         .subscriptions
-        .notify_resource_updated(&uris::features_uri(output.changeset.layer_id.as_str()))
+        .notify_resource_updated(&uris::features_uri(&output.changeset.layer_id))
         .await;
     for feature in &output.features {
         service
             .state
             .subscriptions
-            .notify_resource_updated(&uris::feature_uri(
-                feature.layer_id.as_str(),
-                feature.id.as_str(),
-            ))
+            .notify_resource_updated(&uris::feature_uri(&feature.layer_id, &feature.id))
             .await;
     }
     service

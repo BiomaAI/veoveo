@@ -200,7 +200,7 @@ impl MapCatalog {
             |row| &row.matrix_key,
             |row| {
                 Ok(MatrixSummary {
-                    resource_uri: uris::matrix_uri(&row.matrix_key),
+                    resource_uri: uris::matrix_uri(&row.matrix_key.parse()?),
                     matrix_id: row.matrix_key.parse()?,
                     mobility_profile_id: row.mobility_profile_key.parse()?,
                     mobility_profile_version: row.mobility_profile_version.try_into()?,

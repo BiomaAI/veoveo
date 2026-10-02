@@ -23,87 +23,59 @@ impl ResourceDiscoveryAccess {
 /// Protocol discovery remains constant in tenant data size. Instance
 /// resources stay directly addressable through templates and bounded root
 /// indexes; listing the MCP surface never scans the Map catalog or DuckDB.
-pub(super) fn discoverable_resources(
-    access: ResourceDiscoveryAccess,
-    basemap: &crate::contract::MapWorkspaceBasemap,
-) -> Vec<Resource> {
+pub(super) fn declared_resources() -> Vec<Resource> {
     let mut resources = well_known_resources();
-    if access.admin || access.dataset_read || access.feature_read {
-        let basemap_origin = basemap.origin().expect("validated workspace basemap");
-        resources.push(
-            veoveo_mcp_apps_extension::app_resource_with_meta(
-                uris::WORKSPACE_APP_URI,
-                "map-workspace-app",
-                veoveo_mcp_apps_extension::ResourceUiMeta {
-                    csp: Some(veoveo_mcp_apps_extension::UiCsp {
-                        connect_domains: vec![basemap_origin.clone()],
-                        resource_domains: vec![basemap_origin],
-                        ..Default::default()
-                    }),
-                    prefers_border: None,
-                },
-            )
-            .with_title("Map Explorer")
-            .with_description(
-                "Explore maps and manage geographic layers, saved views, data sources, and releases.",
-            )
-            .with_icons(vec![rmcp::model::Icon::new(WORKSPACE_APP_ICON)]),
-        );
-        resources.push(json_resource_descriptor(
-            uris::WORKSPACE_URI.to_owned(),
-            "Map workspace access".to_owned(),
-            "Caller-specific Map workspace capabilities.",
-        ));
-    }
-    if access.admin {
-        resources.push(json_resource_descriptor(
-            uris::ACQUISITIONS_URI.to_owned(),
-            "Map acquisitions".to_owned(),
-            "Governed acquisition jobs (map:admin).",
-        ));
-    }
-    if access.dataset_read {
-        resources.extend(root_resources());
-        resources.push(json_resource_descriptor(
-            uris::ACTIVE_RELEASES_URI.to_owned(),
-            "Active releases".to_owned(),
-            "Active immutable dataset release pointers.",
-        ));
-        resources.push(json_resource_descriptor(
-            uris::RASTER_DERIVATIONS_URI.to_owned(),
-            "Raster derivations".to_owned(),
-            "Work Context-scoped governed raster derivations.",
-        ));
-        if access.spatial_derive {
-            resources.push(json_resource_descriptor(
-                uris::SPATIAL_DERIVATIONS_URI.to_owned(),
-                "Spatial derivations".to_owned(),
-                "Work Context-scoped advisory geometry and mobility validation.",
-            ));
-        }
-    }
-    if access.feature_read {
-        resources.push(json_resource_descriptor(
-            uris::FEATURE_LAYERS_URI.to_owned(),
-            "Authored feature layers".to_owned(),
-            "Work Context-scoped mutable layer heads and immutable revision links.",
-        ));
-        resources.push(json_resource_descriptor(
-            uris::PUBLICATIONS_URI.to_owned(),
-            "Feature layer publications".to_owned(),
-            "Immutable published layer revisions.",
-        ));
-        resources.push(json_resource_descriptor(
-            uris::LAYER_PRODUCTS_URI.to_owned(),
-            "Feature layer products".to_owned(),
-            "Immutable artifacts derived from published feature layers.",
-        ));
-        resources.push(json_resource_descriptor(
-            uris::COMPOSITIONS_URI.to_owned(),
-            "Map compositions".to_owned(),
-            "Work Context-scoped maps built from immutable publication pins.",
-        ));
-    }
+    resources.push(workspace_resource(None));
+    resources.push(json_resource_descriptor(
+        uris::WORKSPACE_URI.to_owned(),
+        "Map workspace access".to_owned(),
+        "Caller-specific Map workspace capabilities.",
+    ));
+
+    resources.push(json_resource_descriptor(
+        uris::ACQUISITIONS_URI.to_owned(),
+        "Map acquisitions".to_owned(),
+        "Governed acquisition jobs (map:admin).",
+    ));
+
+    resources.extend(root_resources());
+    resources.push(json_resource_descriptor(
+        uris::ACTIVE_RELEASES_URI.to_owned(),
+        "Active releases".to_owned(),
+        "Active immutable dataset release pointers.",
+    ));
+    resources.push(json_resource_descriptor(
+        uris::RASTER_DERIVATIONS_URI.to_owned(),
+        "Raster derivations".to_owned(),
+        "Work Context-scoped governed raster derivations.",
+    ));
+    resources.push(json_resource_descriptor(
+        uris::SPATIAL_DERIVATIONS_URI.to_owned(),
+        "Spatial derivations".to_owned(),
+        "Work Context-scoped advisory geometry and mobility validation.",
+    ));
+
+    resources.push(json_resource_descriptor(
+        uris::FEATURE_LAYERS_URI.to_owned(),
+        "Authored feature layers".to_owned(),
+        "Work Context-scoped mutable layer heads and immutable revision links.",
+    ));
+    resources.push(json_resource_descriptor(
+        uris::PUBLICATIONS_URI.to_owned(),
+        "Feature layer publications".to_owned(),
+        "Immutable published layer revisions.",
+    ));
+    resources.push(json_resource_descriptor(
+        uris::LAYER_PRODUCTS_URI.to_owned(),
+        "Feature layer products".to_owned(),
+        "Immutable artifacts derived from published feature layers.",
+    ));
+    resources.push(json_resource_descriptor(
+        uris::COMPOSITIONS_URI.to_owned(),
+        "Map compositions".to_owned(),
+        "Work Context-scoped maps built from immutable publication pins.",
+    ));
+
     resources.sort_by(|left, right| left.uri.cmp(&right.uri));
     resources
 }
@@ -111,7 +83,7 @@ pub(super) fn discoverable_resources(
 /// Every advertised resource template. `list_resource_templates` serves this
 /// list and the `map://contract` capability inventory declares it, so the two
 /// cannot diverge.
-pub(super) fn resource_templates() -> Vec<ResourceTemplate> {
+pub(super) fn declared_templates() -> Vec<ResourceTemplate> {
     let mut templates = vec![
         ResourceTemplate::new(
             crate::contract::MapMobilityProfilesUri::TEMPLATE,
@@ -352,16 +324,6 @@ pub(super) fn resource_templates() -> Vec<ResourceTemplate> {
                 member
             }),
     );
-    for template in &mut templates {
-        if template.uri_template == uris::DOC_TEMPLATE {
-            SERVER_DOCS
-                .knowledge_template(
-                    &veoveo_types::ResourceScheme::new("map").expect("declared scheme"),
-                    template,
-                )
-                .expect("declared document template");
-        }
-    }
     templates
 }
 
@@ -373,10 +335,15 @@ fn well_known_resources() -> Vec<Resource> {
     )];
     for doc in SERVER_DOCS.iter() {
         resources.push(
-            Resource::new(uris::doc_uri(doc.id), doc.title)
-                .with_title(doc.title)
-                .with_description("Crate document embedded at build time.")
-                .with_mime_type("text/markdown"),
+            Resource::new(
+                uris::doc_uri(
+                    crate::contract::MapDocument::parse(doc.id).expect("embedded Map document"),
+                ),
+                doc.title,
+            )
+            .with_title(doc.title)
+            .with_description("Crate document embedded at build time.")
+            .with_mime_type("text/markdown"),
         );
     }
     resources.push(json_resource_descriptor(
@@ -453,4 +420,88 @@ fn template(uri: &str, title: &str, description: &str) -> ResourceTemplate {
         .with_title(title)
         .with_description(description)
         .with_mime_type("application/json")
+}
+
+fn workspace_resource(basemap: Option<&crate::contract::MapWorkspaceBasemap>) -> Resource {
+    veoveo_mcp_apps_extension::app_resource_with_meta(
+        uris::WORKSPACE_APP_URI,
+        "map-workspace-app",
+        veoveo_mcp_apps_extension::ResourceUiMeta {
+            csp: basemap.map(|basemap| {
+                let origin = basemap.origin().expect("validated workspace basemap");
+                veoveo_mcp_apps_extension::UiCsp {
+                    connect_domains: vec![origin.clone()],
+                    resource_domains: vec![origin],
+                    ..Default::default()
+                }
+            }),
+            prefers_border: None,
+        },
+    )
+    .with_title("Map Explorer")
+    .with_description(
+        "Explore maps and manage geographic layers, saved views, data sources, and releases.",
+    )
+    .with_icons(vec![rmcp::model::Icon::new(WORKSPACE_APP_ICON)])
+}
+
+pub(super) fn discoverable_resources(
+    access: ResourceDiscoveryAccess,
+    basemap: &crate::contract::MapWorkspaceBasemap,
+) -> Vec<Resource> {
+    use crate::contract::{MapResource, MapRoot};
+    super::setup::SERVER_SETUP
+        .resources()
+        .iter()
+        .filter_map(|resource| {
+            let visible = match resource.address() {
+                MapResource::Root(MapRoot::Docs | MapRoot::Contract) | MapResource::Document(_) => {
+                    true
+                }
+                MapResource::WorkspaceApp | MapResource::Root(MapRoot::Workspace) => {
+                    access.admin || access.dataset_read || access.feature_read
+                }
+                MapResource::Root(MapRoot::Acquisitions) => access.admin,
+                MapResource::Root(
+                    MapRoot::FeatureLayers
+                    | MapRoot::Publications
+                    | MapRoot::LayerProducts
+                    | MapRoot::Compositions,
+                ) => access.feature_read,
+                MapResource::Root(MapRoot::SpatialDerivations) => {
+                    access.dataset_read && access.spatial_derive
+                }
+                MapResource::Root(
+                    MapRoot::Sources
+                    | MapRoot::Datasets
+                    | MapRoot::ActiveReleases
+                    | MapRoot::Locations
+                    | MapRoot::Facilities
+                    | MapRoot::MobilityProfiles
+                    | MapRoot::Restrictions
+                    | MapRoot::Routes
+                    | MapRoot::Matrices
+                    | MapRoot::TravelModels
+                    | MapRoot::Rasters
+                    | MapRoot::RasterDerivations,
+                ) => access.dataset_read,
+                _ => false,
+            };
+            visible.then(|| {
+                if matches!(resource.address(), MapResource::WorkspaceApp) {
+                    workspace_resource(Some(basemap))
+                } else {
+                    resource.descriptor().clone()
+                }
+            })
+        })
+        .collect()
+}
+
+pub(super) fn resource_templates() -> Vec<ResourceTemplate> {
+    super::setup::SERVER_SETUP
+        .resource_templates()
+        .iter()
+        .map(|template| template.descriptor().clone())
+        .collect()
 }

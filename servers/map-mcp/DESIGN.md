@@ -159,52 +159,9 @@ and commands follow [the installed harness contract](../../testing/installed/DES
 
 ### Public Types And Authorization
 
-`contract/product_uri.rs` owns the six exact Map product address families consumed by
-View. Builders require each segment's domain ID, and parsers admit the complete route
-through the foundational URI library. Dataset release and source feature addresses
-retain their typed parent identities. Reads use those identities when calling the
-domain readers; SQL owns tenant, caller and parent selection. Derivation and route
-producers use the same builders as discovery. Their broader result DTO relationship
-checks remain tracked in the foundations plan.
-
-The server's public contract owns `MapScope`, its closed authorization vocabulary.
-Handlers and Tasks require that enum and share one grant check. Configurable
-administrative admission accepts a validated `ScopeName` and defaults to `MapScope::Admin`.
-Unrelated server scopes in the caller's grants remain valid. `MapAccessContext`
-carries database identity and is separate from this vocabulary.
-
-`MapMetadataRequest` implements the foundational `ResourceAddress` trait for authored
-layer, publication, product, and composition collections. Variants carry their specific
-ID types and optional parent selection. The shared URI library parses and encodes query
-components. `MapMetadataCursor` validates its version-1 envelope and typed position,
-then checks the collection and parent again when resumed. Serialization emits a hex
-string. A cursor grants no access; every page applies current database visibility.
-
-Artifact references in releases, raster products and derivations, publications,
-layer products, compositions, and travel-model outputs use the Artifact owner's
-[`ArtifactUri`](../../platform/artifacts/contract/DESIGN.md#wire-and-construction).
-Release and raster validators require the neutral plane variant. Publication and
-product Store inputs preserve that type until driver serialization. Stored JSON keeps
-the same string fields; the Artifact owner's compatibility profile defines admission
-and retained-data handling. These types confer no access to bytes or parent records.
-Retained Map documents must also pass their domain validators before an upgrade;
-these enforce the neutral-only rule beyond the shared Artifact address profile.
-
-The library exposes `contract`, `knowledge`, `runtime`, and `mcp` features. Cross-server consumers
-use `default-features = false, features = ["contract"]`. This builds the public model,
-including CRS, datum, and ellipsoid IDs, without MCP, database, GPU, network client,
-or async runtime dependencies. Geometry validation uses the workspace's geo 0.32.0
-profile with default features disabled. Chrono supplies date/time values without its
-clock feature; UUID supplies the existing generated and stable ID profiles.
-The runtime owns engines and persistence. The MCP adapter owns App HTML and hosted
-protocol wiring; the default `mcp` feature includes the runtime.
-
-Remaining resource families and typed Store query keys are work in the
-[foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
-
-The MCP adapter separates resource reads in `src/mcp/resources.rs` from descriptors
-and templates in `src/mcp/discovery.rs`. The authoring metadata adapter delegates
-parsing to the public contract and executes the selected catalog query.
+[Map resource contracts](RESOURCES.md) define the owner types, URI builders, checked
+startup and discovery, scope admission, public library features and metadata cursors.
+Domain readers apply current authorization and parent relationships in SQL.
 
 ### Hosted Process
 

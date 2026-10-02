@@ -1,6 +1,11 @@
+use crate::contract::{
+    AcquisitionId, FacilityId, FeatureChangeSetId, FeatureLayerId, LayerProductId,
+    LayerPublicationId, LocationId, MapCompositionId, MapDatasetId, MapDocument, MapFeatureId,
+    MapResource, RouteMatrixId, StyleRevisionId,
+};
 /// Well-known surface roots (contract C18, C19). These literals must match
-/// `veoveo_mcp_contract::ServerResourceUris::new(SCHEME.clone())`; a unit test below
-/// pins that equivalence.
+/// `veoveo_mcp_contract::ServerResourceUris::new(SCHEME.clone())`. Checked setup
+/// validates these descriptors before startup.
 pub static SCHEME: std::sync::LazyLock<veoveo_types::ResourceScheme> =
     std::sync::LazyLock::new(|| {
         veoveo_types::ResourceScheme::new("map").expect("declared server resource scheme")
@@ -77,76 +82,144 @@ pub const COMPOSITION_REVISION_TEMPLATE: &str =
 /// ServerOwned `ui://{slug}/{page}` projection.
 pub const WORKSPACE_APP_URI: &str = "ui://map/workspace.html";
 
-pub fn doc_uri(doc_id: &str) -> String {
-    format!("map://docs/{doc_id}")
+pub fn doc_uri(document: MapDocument) -> String {
+    MapResource::Document(document).to_uri().to_string()
 }
 
-pub fn acquisition_uri(id: &str) -> String {
-    format!("map://acquisition/{id}")
+pub fn acquisition_uri(id: &AcquisitionId) -> String {
+    MapResource::Acquisition { id: id.clone() }
+        .to_uri()
+        .to_string()
 }
 
-pub fn dataset_uri(id: &str) -> String {
-    format!("map://dataset/{id}")
+pub fn dataset_uri(id: &MapDatasetId) -> String {
+    MapResource::Dataset { id: id.clone() }.to_uri().to_string()
 }
 
-pub fn location_uri(id: &str) -> String {
-    format!("map://location/{id}")
+pub fn location_uri(id: &LocationId) -> String {
+    MapResource::Location { id: id.clone() }
+        .to_uri()
+        .to_string()
 }
 
-pub fn facility_uri(id: &str) -> String {
-    format!("map://facility/{id}")
+pub fn facility_uri(id: &FacilityId) -> String {
+    MapResource::Facility { id: id.clone() }
+        .to_uri()
+        .to_string()
 }
 
-pub fn matrix_uri(id: &str) -> String {
-    format!("map://matrix/{id}")
+pub fn matrix_uri(id: &RouteMatrixId) -> String {
+    MapResource::Matrix { id: id.clone() }.to_uri().to_string()
 }
 
-pub fn feature_layer_uri(id: &str) -> String {
-    format!("map://feature-layer/{id}")
+pub fn feature_layer_uri(layer: &FeatureLayerId) -> String {
+    MapResource::Layer {
+        layer: layer.clone(),
+    }
+    .to_uri()
+    .to_string()
 }
 
-pub fn feature_schema_uri(layer_id: &str, version: u64) -> String {
-    format!("map://feature-layer/{layer_id}/schema/{version}")
+pub fn feature_schema_uri(layer: &FeatureLayerId, version: u64) -> String {
+    MapResource::Schema {
+        layer: layer.clone(),
+        version,
+    }
+    .to_uri()
+    .to_string()
 }
 
-pub fn feature_style_uri(layer_id: &str, version: u64) -> String {
-    format!("map://feature-layer/{layer_id}/style/{version}")
+pub fn feature_style_uri(layer: &FeatureLayerId, version: u64) -> String {
+    MapResource::Style {
+        layer: layer.clone(),
+        version,
+    }
+    .to_uri()
+    .to_string()
 }
 
-pub fn feature_style_revision_uri(style_revision_id: &str) -> String {
-    format!("map://feature-style/{style_revision_id}")
+pub fn feature_style_revision_uri(id: &StyleRevisionId) -> String {
+    MapResource::StyleRevision { id: id.clone() }
+        .to_uri()
+        .to_string()
 }
 
-pub fn features_uri(layer_id: &str) -> String {
-    format!("map://feature-layer/{layer_id}/features")
+pub fn features_uri(layer: &FeatureLayerId) -> String {
+    MapResource::Features {
+        layer: layer.clone(),
+    }
+    .to_uri()
+    .to_string()
 }
 
-pub fn feature_uri(layer_id: &str, feature_id: &str) -> String {
-    format!("map://feature-layer/{layer_id}/feature/{feature_id}")
+pub fn feature_uri(layer: &FeatureLayerId, feature: &MapFeatureId) -> String {
+    MapResource::Feature {
+        layer: layer.clone(),
+        feature: feature.clone(),
+    }
+    .to_uri()
+    .to_string()
 }
 
-pub fn feature_revision_uri(layer_id: &str, feature_id: &str, revision: u64) -> String {
-    format!("map://feature-layer/{layer_id}/feature/{feature_id}/revision/{revision}")
+pub fn feature_revision_uri(
+    layer: &FeatureLayerId,
+    feature: &MapFeatureId,
+    revision: u64,
+) -> String {
+    MapResource::FeatureRevision {
+        layer: layer.clone(),
+        feature: feature.clone(),
+        revision,
+    }
+    .to_uri()
+    .to_string()
 }
 
-pub fn changeset_uri(layer_id: &str, changeset_id: &str) -> String {
-    format!("map://feature-layer/{layer_id}/changeset/{changeset_id}")
+pub fn changeset_uri(layer: &FeatureLayerId, changeset: &FeatureChangeSetId) -> String {
+    MapResource::Changeset {
+        layer: layer.clone(),
+        changeset: changeset.clone(),
+    }
+    .to_uri()
+    .to_string()
 }
 
-pub fn publication_uri(layer_id: &str, publication_id: &str) -> String {
-    format!("map://feature-layer/{layer_id}/publication/{publication_id}")
+pub fn publication_uri(layer: &FeatureLayerId, publication: &LayerPublicationId) -> String {
+    MapResource::Publication {
+        layer: layer.clone(),
+        publication: publication.clone(),
+    }
+    .to_uri()
+    .to_string()
 }
 
-pub fn layer_product_uri(layer_id: &str, publication_id: &str, product_id: &str) -> String {
-    format!("map://feature-layer/{layer_id}/publication/{publication_id}/product/{product_id}")
+pub fn layer_product_uri(
+    layer: &FeatureLayerId,
+    publication: &LayerPublicationId,
+    product: &LayerProductId,
+) -> String {
+    MapResource::Product {
+        layer: layer.clone(),
+        publication: publication.clone(),
+        product: product.clone(),
+    }
+    .to_uri()
+    .to_string()
 }
 
-pub fn composition_uri(composition_id: &str) -> String {
-    format!("map://composition/{composition_id}")
+pub fn composition_uri(id: &MapCompositionId) -> String {
+    MapResource::Composition { id: id.clone() }
+        .to_uri()
+        .to_string()
 }
 
-pub fn composition_revision_uri(composition_id: &str, revision: u64) -> String {
-    format!("map://composition/{composition_id}/revision/{revision}")
+pub fn composition_revision_uri(id: &MapCompositionId, revision: u64) -> String {
+    MapResource::CompositionRevision {
+        id: id.clone(),
+        revision,
+    }
+    .to_uri()
+    .to_string()
 }
 
 pub fn parse_artifact(uri: &str) -> Option<veoveo_artifact_contract::ArtifactId> {
@@ -160,59 +233,164 @@ pub fn parse_artifact(uri: &str) -> Option<veoveo_artifact_contract::ArtifactId>
     }
 }
 
-#[cfg(feature = "mcp")]
-pub fn parse_doc(uri: &str) -> Option<&str> {
-    veoveo_mcp_contract::parse_server_doc_uri("map", uri)
+pub fn parse_doc(uri: &str) -> Option<MapDocument> {
+    match MapResource::parse(uri).ok()? {
+        MapResource::Document(document) => Some(document),
+        _ => None,
+    }
 }
 
-pub fn parse_single<'a>(uri: &'a str, prefix: &str) -> Option<&'a str> {
-    let value = uri.strip_prefix(prefix)?;
-    (!value.is_empty() && !value.contains('/')).then_some(value)
+pub fn parse_acquisition(uri: &str) -> Option<AcquisitionId> {
+    match MapResource::parse(uri).ok()? {
+        MapResource::Acquisition { id } => Some(id),
+        _ => None,
+    }
 }
 
-pub fn parse_feature_layer(uri: &str) -> Option<&str> {
-    parse_single(uri, "map://feature-layer/")
+pub fn parse_dataset(uri: &str) -> Option<MapDatasetId> {
+    match MapResource::parse(uri).ok()? {
+        MapResource::Dataset { id } => Some(id),
+        _ => None,
+    }
 }
 
-pub fn parse_feature_schema(uri: &str) -> Option<(&str, u64)> {
-    parse_layer_version(uri, "/schema/")
+pub fn parse_location(uri: &str) -> Option<LocationId> {
+    match MapResource::parse(uri).ok()? {
+        MapResource::Location { id } => Some(id),
+        _ => None,
+    }
 }
 
-pub fn parse_feature_style(uri: &str) -> Option<(&str, u64)> {
-    parse_layer_version(uri, "/style/")
+pub fn parse_facility(uri: &str) -> Option<FacilityId> {
+    match MapResource::parse(uri).ok()? {
+        MapResource::Facility { id } => Some(id),
+        _ => None,
+    }
 }
 
-pub fn parse_feature_style_revision(uri: &str) -> Option<&str> {
-    parse_single(uri, "map://feature-style/")
+pub fn parse_matrix(uri: &str) -> Option<RouteMatrixId> {
+    match MapResource::parse(uri).ok()? {
+        MapResource::Matrix { id } => Some(id),
+        _ => None,
+    }
 }
 
-pub fn parse_features(uri: &str) -> Option<&str> {
-    let suffix = uri.strip_prefix("map://feature-layer/")?;
-    let layer_id = suffix.strip_suffix("/features")?;
-    valid_segment(layer_id).then_some(layer_id)
+pub fn parse_feature_layer(uri: &str) -> Option<FeatureLayerId> {
+    match MapResource::parse(uri).ok()? {
+        MapResource::Layer { layer } => Some(layer),
+        _ => None,
+    }
+}
+
+pub fn parse_feature_schema(uri: &str) -> Option<(FeatureLayerId, u64)> {
+    match MapResource::parse(uri).ok()? {
+        MapResource::Schema { layer, version } => Some((layer, version)),
+        _ => None,
+    }
+}
+
+pub fn parse_feature_style(uri: &str) -> Option<(FeatureLayerId, u64)> {
+    match MapResource::parse(uri).ok()? {
+        MapResource::Style { layer, version } => Some((layer, version)),
+        _ => None,
+    }
+}
+
+pub fn parse_feature_style_revision(uri: &str) -> Option<StyleRevisionId> {
+    match MapResource::parse(uri).ok()? {
+        MapResource::StyleRevision { id } => Some(id),
+        _ => None,
+    }
+}
+
+pub fn parse_features(uri: &str) -> Option<FeatureLayerId> {
+    match MapResource::parse(uri).ok()? {
+        MapResource::Features { layer } => Some(layer),
+        _ => None,
+    }
+}
+
+pub fn parse_feature(uri: &str) -> Option<(FeatureLayerId, MapFeatureId)> {
+    match MapResource::parse(uri).ok()? {
+        MapResource::Feature { layer, feature } => Some((layer, feature)),
+        _ => None,
+    }
+}
+
+pub fn parse_feature_revision(uri: &str) -> Option<(FeatureLayerId, MapFeatureId, u64)> {
+    match MapResource::parse(uri).ok()? {
+        MapResource::FeatureRevision {
+            layer,
+            feature,
+            revision,
+        } => Some((layer, feature, revision)),
+        _ => None,
+    }
+}
+
+pub fn parse_changeset(uri: &str) -> Option<(FeatureLayerId, FeatureChangeSetId)> {
+    match MapResource::parse(uri).ok()? {
+        MapResource::Changeset { layer, changeset } => Some((layer, changeset)),
+        _ => None,
+    }
+}
+
+pub fn parse_publication(uri: &str) -> Option<(FeatureLayerId, LayerPublicationId)> {
+    match MapResource::parse(uri).ok()? {
+        MapResource::Publication { layer, publication } => Some((layer, publication)),
+        _ => None,
+    }
+}
+
+pub fn parse_layer_product(
+    uri: &str,
+) -> Option<(FeatureLayerId, LayerPublicationId, LayerProductId)> {
+    match MapResource::parse(uri).ok()? {
+        MapResource::Product {
+            layer,
+            publication,
+            product,
+        } => Some((layer, publication, product)),
+        _ => None,
+    }
+}
+
+pub fn parse_composition(uri: &str) -> Option<MapCompositionId> {
+    match MapResource::parse(uri).ok()? {
+        MapResource::Composition { id } => Some(id),
+        _ => None,
+    }
+}
+
+pub fn parse_composition_revision(uri: &str) -> Option<(MapCompositionId, u64)> {
+    match MapResource::parse(uri).ok()? {
+        MapResource::CompositionRevision { id, revision } => Some((id, revision)),
+        _ => None,
+    }
 }
 
 pub fn parse_features_request(
     uri: &str,
 ) -> Result<Option<crate::contract::QueryFeaturesRequest>, String> {
-    let parsed =
-        url::Url::parse(uri).map_err(|error| format!("invalid feature query URI: {error}"))?;
-    if parsed.scheme() != "map" || parsed.host_str() != Some("feature-layer") {
+    let parsed = veoveo_types::ResourceUriParts::parse(uri)
+        .map_err(|_| "invalid feature query URI".to_owned())?;
+    if parsed.scheme() != "map" || parsed.authority() != "feature-layer" {
         return Ok(None);
     }
-    let segments = parsed
-        .path_segments()
-        .map(|segments| segments.collect::<Vec<_>>())
-        .unwrap_or_default();
+    let segments = parsed.path_segments().collect::<Vec<_>>();
     if segments.len() != 2 || segments[1] != "features" {
         return Ok(None);
     }
-    if parsed.fragment().is_some() {
-        return Err("feature query URI must not contain a fragment".to_owned());
-    }
-    let layer_id = segments[0]
+    let layer_id: FeatureLayerId = segments[0]
         .parse()
-        .map_err(|error| format!("invalid layer_id: {error}"))?;
+        .map_err(|_| "invalid feature query layer identity".to_owned())?;
+    if (parsed.has_query() && parsed.query_parameters().is_empty())
+        || segments
+            .iter()
+            .any(|segment| matches!(segment, std::borrow::Cow::Owned(_)))
+    {
+        return Err("invalid feature query URI".to_owned());
+    }
     let mut request = crate::contract::QueryFeaturesRequest {
         layer_id,
         publication_id: None,
@@ -224,14 +402,8 @@ pub fn parse_features_request(
         cursor: None,
         minimum_commit_sequence: None,
     };
-    let mut seen = std::collections::BTreeSet::new();
-    for (name, value) in parsed.query_pairs() {
-        if !seen.insert(name.to_string()) {
-            return Err(format!(
-                "feature query parameter `{name}` appears more than once"
-            ));
-        }
-        match name.as_ref() {
+    for (name, value) in parsed.query_parameters() {
+        match name.as_str() {
             "publication_id" => {
                 request.publication_id = Some(
                     value
@@ -239,17 +411,17 @@ pub fn parse_features_request(
                         .map_err(|error| format!("invalid publication_id: {error}"))?,
                 );
             }
-            "bbox" => request.bbox = Some(parse_bbox(&value)?),
-            "datetime" => request.datetime = Some(parse_datetime_interval(&value)?),
+            "bbox" => request.bbox = Some(parse_bbox(value)?),
+            "datetime" => request.datetime = Some(parse_datetime_interval(value)?),
             "geometry_type" => {
                 request.geometry_type = Some(
-                    serde_json::from_value(serde_json::Value::String(value.into_owned()))
+                    serde_json::from_value(serde_json::Value::String(value.to_owned()))
                         .map_err(|error| format!("invalid geometry_type: {error}"))?,
                 );
             }
             "filter" => {
                 request.filter = Some(
-                    serde_json::from_str(&value)
+                    serde_json::from_str(value)
                         .map_err(|error| format!("invalid CQL2 JSON filter: {error}"))?,
                 );
             }
@@ -258,7 +430,7 @@ pub fn parse_features_request(
                     .parse()
                     .map_err(|_| "feature query limit must be an integer".to_owned())?;
             }
-            "cursor" => request.cursor = Some(value.into_owned()),
+            "cursor" => request.cursor = Some(value.to_owned()),
             "minimum_commit_sequence" => {
                 request.minimum_commit_sequence = Some(value.parse().map_err(|_| {
                     "minimum_commit_sequence must be a non-negative integer".to_owned()
@@ -268,70 +440,6 @@ pub fn parse_features_request(
         }
     }
     Ok(Some(request))
-}
-
-pub fn parse_feature(uri: &str) -> Option<(&str, &str)> {
-    let suffix = uri.strip_prefix("map://feature-layer/")?;
-    let (layer_id, feature_id) = suffix.split_once("/feature/")?;
-    (valid_segment(layer_id) && valid_segment(feature_id)).then_some((layer_id, feature_id))
-}
-
-pub fn parse_feature_revision(uri: &str) -> Option<(&str, &str, u64)> {
-    let suffix = uri.strip_prefix("map://feature-layer/")?;
-    let (layer_id, remainder) = suffix.split_once("/feature/")?;
-    let (feature_id, revision) = remainder.split_once("/revision/")?;
-    if !valid_segment(layer_id) || !valid_segment(feature_id) {
-        return None;
-    }
-    Some((layer_id, feature_id, revision.parse().ok()?))
-}
-
-pub fn parse_changeset(uri: &str) -> Option<(&str, &str)> {
-    parse_layer_identity(uri, "/changeset/")
-}
-
-pub fn parse_publication(uri: &str) -> Option<(&str, &str)> {
-    parse_layer_identity(uri, "/publication/")
-}
-
-pub fn parse_layer_product(uri: &str) -> Option<(&str, &str, &str)> {
-    let suffix = uri.strip_prefix("map://feature-layer/")?;
-    let (layer_id, remainder) = suffix.split_once("/publication/")?;
-    let (publication_id, product_id) = remainder.split_once("/product/")?;
-    (valid_segment(layer_id) && valid_segment(publication_id) && valid_segment(product_id))
-        .then_some((layer_id, publication_id, product_id))
-}
-
-pub fn parse_composition(uri: &str) -> Option<&str> {
-    parse_single(uri, "map://composition/")
-}
-
-pub fn parse_composition_revision(uri: &str) -> Option<(&str, u64)> {
-    let suffix = uri.strip_prefix("map://composition/")?;
-    let (composition_id, revision) = suffix.split_once("/revision/")?;
-    if !valid_segment(composition_id) {
-        return None;
-    }
-    Some((composition_id, revision.parse().ok()?))
-}
-
-fn parse_layer_version<'a>(uri: &'a str, separator: &str) -> Option<(&'a str, u64)> {
-    let suffix = uri.strip_prefix("map://feature-layer/")?;
-    let (layer_id, version) = suffix.split_once(separator)?;
-    if !valid_segment(layer_id) {
-        return None;
-    }
-    Some((layer_id, version.parse().ok()?))
-}
-
-fn parse_layer_identity<'a>(uri: &'a str, separator: &str) -> Option<(&'a str, &'a str)> {
-    let suffix = uri.strip_prefix("map://feature-layer/")?;
-    let (layer_id, identity) = suffix.split_once(separator)?;
-    (valid_segment(layer_id) && valid_segment(identity)).then_some((layer_id, identity))
-}
-
-fn valid_segment(value: &str) -> bool {
-    !value.is_empty() && !value.contains('/') && !value.contains('?') && !value.contains('#')
 }
 
 fn parse_bbox(value: &str) -> Result<crate::contract::Wgs84BoundingBox, String> {
@@ -378,75 +486,4 @@ fn parse_datetime_interval(value: &str) -> Result<crate::contract::FeatureTime, 
     };
     interval.validate().map_err(|error| error.to_string())?;
     Ok(interval)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[cfg(feature = "mcp")]
-    #[test]
-    fn well_known_uris_match_the_shared_contract_conventions() {
-        let conventions = veoveo_mcp_contract::ServerResourceUris::new(SCHEME.clone());
-        assert_eq!(DOCS_URI, conventions.docs_root_uri());
-        assert_eq!(CONTRACT_URI, conventions.contract_uri().as_str());
-        assert_eq!(DOC_TEMPLATE, conventions.doc_template());
-        assert_eq!(doc_uri("agents"), conventions.doc_uri("agents"));
-        assert_eq!(parse_doc("map://docs/agents"), Some("agents"));
-        assert_eq!(parse_doc("map://docs"), None);
-        assert_eq!(parse_doc("map://docs/agents/extra"), None);
-    }
-
-    #[test]
-    fn parsers_reject_extra_segments() {
-        assert_eq!(
-            parse_single("map://route/route-1", "map://route/"),
-            Some("route-1")
-        );
-        assert!(parse_single("map://route/route-1/x", "map://route/").is_none());
-    }
-
-    #[test]
-    fn feature_query_uri_parses_standard_filters() {
-        let request = parse_features_request(
-            "map://feature-layer/feature-layer-019be7be-68f8-7000-8000-000000000001/features?bbox=170,-10,-170,10&datetime=../2026-07-22T00%3A00%3A00Z&limit=25",
-        )
-        .unwrap()
-        .unwrap();
-        assert_eq!(request.limit, 25);
-        assert_eq!(request.bbox.unwrap().west, 170.0);
-        assert!(
-            request.datetime.unwrap().interval[0]
-                .as_timestamp()
-                .is_none()
-        );
-    }
-
-    #[test]
-    fn product_and_composition_parsers_reject_noncanonical_paths() {
-        assert_eq!(
-            parse_feature_style_revision("map://feature-style/style-revision-1"),
-            Some("style-revision-1")
-        );
-        assert!(
-            parse_feature_style_revision("map://feature-style/style-revision-1/extra").is_none()
-        );
-        assert_eq!(
-            parse_layer_product(
-                "map://feature-layer/layer-1/publication/publication-1/product/product-1"
-            ),
-            Some(("layer-1", "publication-1", "product-1"))
-        );
-        assert!(
-            parse_layer_product(
-                "map://feature-layer/layer-1/publication/publication-1/product/product-1/extra"
-            )
-            .is_none()
-        );
-        assert_eq!(
-            parse_composition_revision("map://composition/composition-1/revision/2"),
-            Some(("composition-1", 2))
-        );
-        assert!(parse_composition("map://composition/composition-1/revision/2").is_none());
-    }
 }
