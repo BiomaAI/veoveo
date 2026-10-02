@@ -215,6 +215,12 @@ including all discovery grant combinations, and eight isolated-consumer cases. S
 all-target/all-feature Map Clippy and workspace-wide all-target Clippy pass. The resource-contract section moves into
 an embedded `RESOURCES.md` to keep every source document below the existing Knowledge
 item limit. Map publication and installed acceptance remain open.
+The 13-image Map dependency closure and both reference charts publish from `d9b46bc2`
+in 786 seconds. The selected Map digest is
+`sha256:9499537c341df16656c43e9a0cfa74d5b6021a7d58d4989f76223f54eab428d2`.
+The six image-lock and chart-reference files select these receipts together. Computer
+runtime and guest images stay fixed. BuildKit stops after publication; the coordinated
+rollout and installed Map change/restart checks remain open.
 The current source-qualification batch adds one shared gateway entry point and
 owner-local fixtures for Artifact, Reason, Map and Time. K07 models both updates and
 membership removal; removal must survive restart and deny full and conditional reads.
