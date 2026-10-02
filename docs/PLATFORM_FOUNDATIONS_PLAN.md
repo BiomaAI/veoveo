@@ -2,9 +2,9 @@
 
 Status: Phase 0 is accepted. Phases 1–3 have the installed gaps listed under
 Deferred Work and the remaining type work in the Phase 3 migration inventory.
-Phase 4's installed audit checks pass. Composed flight domain checks passed at
-`5cae9ec8`, but the latest repeat fails Reason video materialization and final visual
-acceptance. Phase 5's native consumer migration,
+Phase 4's installed audit checks pass. Composed flight domain checks pass at
+`eeaa8442`, including Recording replay and grounded Reason. Final visual acceptance
+remains open after a shared-camera frame stall during landing. Phase 5's native consumer migration,
 writer/schema removal and private payload separation pass. Its published deployment
 passes installed certification, Artifact byte delivery, Speech CUDA, Recording replay,
 Reason grounding and Stream inference. Stream Task/result delivery now passes across
@@ -25,6 +25,22 @@ Their runnable digests are selected in the reference image lock. BuildKit stops 
 publication; deployment and installed flight qualification follow the native checks.
 Publication metadata is under
 `output/development/foundations-recording-publication-10145561/`.
+
+Installed qualification at `eeaa8442` converges to all three runnable digests in
+83 seconds. The composed flight passes its domain branch: takeoff, mission, live
+Stream inference, Recording replay, grounded Reason over the same 25-second range,
+Map-approved return, landing and Artifact context isolation. This closes the
+installed missing-samples failure. Headed Chrome captures the takeoff, mission,
+Stream preview and moving Recording view, but the visual branch fails during landing.
+At 17:23:34 UTC, the shared camera atlas reports `operator camera frame is stale`:
+its last frame is 5.76 seconds old. The simulator's maximum recorded render cycle is
+9.99 seconds. A later observation has fresh frames and healthy cameras; that recovery
+does not qualify the failed visual run. Diagnose the render stall without relaxing
+frame freshness, hardware requirements or spatial-content checks. The phase report
+records domain passed and visual failed under the publication directory's
+`captures/eeaa8442b2c8e2962efba15ed37ec0d76d933897/01a0fd98-a460-76f2-baae-439d7858f18f/`.
+Flux reconciliation is suspended after convergence, temporary replica-ignore rules
+are removed, and the nine heavy workloads are scaled down before stopping the cluster.
 
 Computers identity checkpoint (2026-10-02): lifecycle and maintenance APIs carry
 `TaskId` through public receipts, claimed workers, queue cursors, encrypted bindings
@@ -4658,4 +4674,4 @@ not complete while a row remains.
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
 | Phase 3 Computers hosted feature gate | `servers/computers-mcp/DESIGN.md` | Finish installed Computers hosted feature qualification | Publication, all hosted catalogs, public full/HEAD/range Artifact delivery and headed Speech CUDA transcription/dictation pass at `5dd357c4`. Artifact sharing now passes seven installed checks; qualify the remaining Computers library/setup consumer path |
-| Phase 1 reference reset | `testing/flight-smoke/src/domain.rs` | Publish the recording-reader fix and finish composed visual/timing acceptance | At `2fc911e6`, reduced-profile discovery and takeoff/mission captures pass, followed by Stream replay. Reason finds no samples in that same selected range. Abort cleanup lands at the mission location, where the final camera lacks sufficient detail. Native fixtures reproduce the same error when publication hides acknowledged parts; the reader fix passes nineteen cases. Keep the spatial-content check and confirm the repair in an installed flight |
+| Phase 1 reference reset | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_health.py`, `testing/flight-smoke/src/domain/showcase.rs` | Diagnose the shared-camera render stall and finish composed visual/timing acceptance | At `eeaa8442`, the deployed reader fix passes Stream replay and grounded Reason over the same range; the entire domain branch passes, including return, landing and Artifact isolation. Takeoff, mission, Stream and Recording captures pass. During landing, the atlas reports a 5.76-second stale frame and the visual branch fails; a later observation recovers. The run records a maximum render cycle of 9.99 seconds. Preserve the freshness, spatial-content and hardware checks while resolving the stall |
