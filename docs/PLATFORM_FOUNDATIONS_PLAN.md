@@ -4069,6 +4069,13 @@ The source-loss, current-revocation and stale-member checks keep their denial be
 Strict Clippy and documentation checks pass. Publication and installed qualification
 remain required.
 
+The two recovery images are published from `e94f6ed5`. The gateway runnable digest is
+`sha256:bea72699273075db598dd31d2138b3fb15774e20f7c8fbdd172b380e4b5da7d2`;
+Knowledge is `sha256:434c55b6a52302eecb4bf5057f07ca1dbec9c38825df0fc5956da200886b73d5`.
+Staging both images takes 128 seconds, and release qualification adds SBOM and provenance
+in nine seconds with unchanged runnable digests. The reference selects both for the
+installed recovery and result-grant batch.
+
 Adopt Reason's completed analyses and results so users can find earlier findings and
 read their grounding without rerunning inference. Observations carry stored owner,
 Work Context, labels, model provenance and modification metadata. Return bounded
