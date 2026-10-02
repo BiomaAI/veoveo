@@ -1,47 +1,29 @@
 # Platform Foundations Plan
 
-Status: Phase 0 is accepted. Phases 1–3 have the installed acceptance gaps listed
-under Deferred Work. Phase 4's installed audit checks and composed flight domain
-checks pass; composed visual acceptance remains open. Phase 5 has qualified native consumer migration and
-writer/schema removal. Computer authority observation and the database-feature review
-are qualified locally. Private command/file payload separation passes native tests
-and repeated storage measurements. Phase 5 images and charts are published from
-`6ec504d8`. The fresh reference converges at `5dd357c4` with both Helm releases and
-all 25 Deployments Ready. Installed certification, public Artifact delivery, headed
-Speech CUDA transcription/dictation, audit export readback, live Recording replay with
-grounded Reason, and live Stream inference pass. The composed flight domain sequence
-also passes; visual acceptance fails on a black live-camera App frame. That visual
-failure and the deferred cross-replica/domain checks remain open.
-Phase 6 has typed extension models, negotiation/read helpers, docs paging and a
-compile-time digest macro. All 15 Rust servers use shared authenticated docs reads;
-Python and Node indexes use the same page shape. Gateway source validation, read audit
-completion and kernel provenance pass grouped native checks.
-Python observation support, build-time document manifests and live K01–K06 checks
-are implemented. Knowledge Store records and transactional generation/member APIs
-pass native SurrealDB 3.3 qualification. Node document observations and executable
-K07/K08 owner probes are implemented. Domain probe fixtures and installed qualification
-remain open. Chart docs, Time domain adoption, Artifact metadata and Map summaries are
-implemented locally. The Phase 8 embedding HTTP client passes native contract checks.
-The embedding Helm component and local GPU reference, priority and refusal checks pass.
-The Knowledge library now implements fenced source indexing and SQL hybrid retrieval.
-Typed installation approvals and gateway indexing-client admission pass native checks.
-The hosted Knowledge API passes native HTTP and current-authority checks. Knowledge
-and its embedding runtime are published and deployed with the reference machine client.
-Public catalog, source-linked retrieval, embedding and network-isolation checks pass.
-Catalog completion, caller-visible statistics and request-scoped subscriptions pass
-native and public installed checks. Indexing audit windows commit before delivery,
-recover across writer restarts in native tests, and finalize in the reference installation
-with a verified signed audit chain. Installed source mutation/restart qualification
-remains open. Reason's completed analyses and results
-pass native Artifact access, pagination and hosted K01–K07 checks. Publication retains
-bounded finding data. The reference approves nineteen collections at `af73f95b`;
-public catalog/search, a fresh GPU analysis and both indexed finding collections pass
-installed checks. Reads and matching source revisions also pass after separate Reason
-and Knowledge restarts. Gateway forwarding, source-watch lifetime and Knowledge update
-readiness corrections are deployed at `391a4516`. Installed result grants and revocation
-pass for both finding collections, including denied public Task control and annotations.
-The nineteen-collection catalog and source-linked retrieval pass on that deployment.
-Full source conformance remains open. The controlled corpus comparison is recorded below.
+Status: Phase 0 is accepted. Phases 1–3 have the installed gaps listed under
+Deferred Work and the remaining type work in the Phase 3 migration inventory.
+Phase 4's installed audit and composed flight domain checks pass; visual acceptance
+still fails on a black live-camera App frame. Phase 5's native consumer migration,
+writer/schema removal and private payload separation pass. Its published deployment
+passes installed certification, Artifact byte delivery, Speech CUDA, Recording replay,
+Reason grounding and Stream inference. Cross-replica and remaining domain gates are open.
+
+Phases 6–7 now pass installed source checks for all eighteen participating servers.
+Artifact, Reason, Time and Map pass 89 checks, including real change/restart probes;
+Map also passes search denial. The other fourteen documentation sources pass 84
+checks. Their K07/K08 skips reflect immutable docs and absent domain search tools.
+The completed public audit exports contain revision-bearing reads for every declared
+collection. Domain K09/K10 owner review is recorded in Phase 7. Rerun is an external
+viewer bridge with resources disabled and is outside this adoption scope.
+
+Phase 8's Knowledge service and embedding runtime are deployed. The nineteen-collection
+catalog, source-linked search, completion, statistics, subscriptions, CUDA embedding and
+network isolation pass. Indexing audit windows finalize with a verified signed chain.
+Phase 9's Reason summaries pass installed publication, result grants, revocation and
+separate Reason/Knowledge restarts. The controlled 0.6B/4B/8B retrieval comparison passes
+on the recorded corpus and retains 0.6B. These checks do not close the remaining type,
+cross-replica, domain and visual requirements elsewhere in this plan.
+
 The retrieval evaluator now binds judged queries and a complete caller-visible corpus
 to a generation, verifies source revisions through SQL-admitted pages and searches,
 and derives recall at ten from retained ranks. Store appends reports under the immutable
@@ -142,6 +124,14 @@ rollout and installed catalog checks remain open. Gateway publication from `c412
 passes in 80 seconds; the reference selects runnable digest
 `sha256:697bdbe7f2ff2a5e45c3d5a20cc0b62a56bcddf2c16e0ddbb0d84271595eccbd`. BuildKit stops
 before the combined image and Charts-policy rollout.
+The combined release converges at `67d75ae8` with both Helm releases Ready.
+All fourteen documentation-source runs pass six checks each, including Charts and
+Optimization, with the two inapplicable domain probes skipped per source. A complete
+public audit export contains 126 API records and revision-bearing reads for all fourteen
+collections; its matching header/footer checkpoint is sequence 2260. These records
+qualify read attribution, while signed-chain verification has its separate Phase 4 gate.
+Temporary credentials are removed, heavy workloads scale to zero, and the cluster and
+builder stop before development resumes.
 The current source-qualification batch adds one shared gateway entry point and
 owner-local fixtures for Artifact, Reason, Map and Time. K07 models both updates and
 membership removal; removal must survive restart and deny full and conditional reads.
@@ -3463,8 +3453,8 @@ on domain servers. Six grouped native tests qualify closed declarations, collect
 and access checks, content-bound conditional responses, stable docs paging, bounded
 search snippets and compile-time document digests. Python observation support and
 live document conformance are implemented. Store schema and transactional APIs pass
-native qualification. Owner change/search probe execution is implemented; domain
-fixtures and installed integration remain open.
+native qualification. Owner change/search/create probes and domain fixtures are implemented. All eighteen
+participating sources pass the installed checks summarized in Status.
 
 The gateway records successful resource reads after validating the source observation
 and before delivery. It checks the source URI, bytes, collection owner and conditional
@@ -3611,7 +3601,7 @@ revision.
 
 | Server | Collections | Existing provenance | Gaps to close |
 |---|---|---|---|
-| chart | `charts.docs` only | build-time document digests | Docs declaration, observations and conditional reads implemented; installed certification remains open |
+| chart | `charts.docs` only | build-time document digests | Six installed documentation checks and revision-bearing audit reads pass at `67d75ae8`; immutable docs have no change or domain-search probe |
 | time | events, calendar versions, epoch versions, acquired and packaged authority releases | stored creation tenant, owner and Work Context; content/access revisions, source digests and modification timestamps | Installed source conformance passes twenty-seven checks across docs and five domain collections, including event cancellation before and after a real service restart; source audit review passes |
 | artifact | artifact metadata (`artifact://metadata/{id}`), never the bytes | compliance metadata: tenant, owner, Work Context, labels, provenance | Installed source conformance passes eleven checks, including grant changes across a real service restart; deadline qualification, K09/K10 review and source audit review pass |
 | map | bounded summaries of feature layers, features, publications, locations, facilities and dataset releases | full source content digests, layer and feature revisions, Work Context, labels, stored timestamps and recorded modifying actors | All 35 installed source checks pass, including publication creation, four service restarts and search denial; source audit review and owned fixture cleanup pass. Archival preserves immutable publications |
