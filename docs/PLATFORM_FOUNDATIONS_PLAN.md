@@ -54,7 +54,13 @@ and addresses. Map and Reason expose descriptors through lightweight `knowledge`
 features; the independent consumer rejects runtime dependencies. The 0.6B/4B/8B CUDA
 comparison passes on this corpus and retains 0.6B; it does not establish production-wide
 retrieval quality or installed source conformance.
-Store migration 0104 has not been published or deployed.
+The 24-image development stage from `e6220dcf` includes Store migration 0104.
+Release qualification and deployment remain open. Qualification reused compiled Rust
+artifacts but reassembled runtime layers after BuildKit reclaimed storage. Registry
+inspection confirms that several runnable digests changed, so the staged identities
+cannot qualify through that build. No installed acceptance used those staged images.
+The next direct qualified batch includes the Time identity fix and source-checker CLI
+from `fe77f5b3`; installed checks will bind to its qualified digests.
 The current source-qualification batch adds one shared gateway entry point and
 owner-local fixtures for Artifact, Reason, Map and Time. K07 models both updates and
 membership removal; removal must survive restart and deny full and conditional reads.
@@ -2407,6 +2413,15 @@ IDs and DTO relationships. Installed qualification stays at the integration chec
   manifest and layer closure. Old simulation experiments may be removed. This
   resource discipline applies to this plan; it adds no repository-wide development
   rule or background cleanup service.
+- Run Docker-backed native fixtures separately from image assembly and SBOM scanning.
+  Concurrent source qualification exhausted fixture creation and cleanup deadlines
+  on this host. Reuse the compiled test executables once publication has finished.
+- Publish composed batches directly through `release images` when staging is not
+  needed for an intermediate development deployment. Disk-pressure collection can
+  reclaim runtime layers between staging and qualification; rebuilding those layers
+  can change their digests even when Cargo reuses every compiled binary. A digest
+  mismatch invalidates reuse of staged acceptance. Keep the failure visible and bind
+  installed acceptance to the freshly qualified images.
 - Before a fresh reference bootstrap, prepare the published images in the node cache
   sequentially before enabling application reconciliation. Include the rendered
   workload images and the runtime images selected through the installation locks.
