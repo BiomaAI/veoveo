@@ -2,19 +2,19 @@ global:
   veoveoRegistry: k3d-veoveo-registry.localhost:5000
   veoveoTag: ""
   imageDigests:
-    veoveo/computer-host: sha256:c07def983f6db44a3aa3f5d114b0e0a6671d563176e6df9108029c05927f2a91
+    veoveo/computer-host: sha256:23be8c337356bb521a222ddf8566c9694a907d5db0946b7cc18d544fd1cfb41d
     veoveo/computer-template: sha256:cb4b086519e572c6e26cd15cb4cc1b2878e181b059ec3cac55ee9bf387bd73e4
-    veoveo/computers-mcp: sha256:2c1d83e2bb376274aed5cec6cb9f88548e88216fbbdf6a4ddf52a8ee45bdf27a
+    veoveo/computers-mcp: sha256:a87cd362f80ed3a744f42f97cdb33e3bede0e3128d70f872720ca1614573d5b2
     veoveo/artifact-mcp: sha256:2c959f56d6217839f39054d66515b84d31ff8c67b4ec5acd2bb23e866ffbf5f6
     veoveo/artifact-service: sha256:e47dd99fd5ad7ff58707ce54ccc7c0586cd19bf95ca797e4e53250345b885343
     veoveo/chart-mcp: sha256:d247dde769d1c633ecc47282f3f34741556cb62885468a861c79b3e02188f321
-    veoveo/console-bff: sha256:7f3f3a42322d45ef354ec802c9f34ef9bd35c9ad0972c78d644099c2f442bfd2
+    veoveo/console-bff: sha256:837aa7a690476188fd837ffc37b6d11688c6cfd76b210eeff651bdc1efff2cd5
     veoveo/cuopt-executor: sha256:997926bd12f25d221175d9b2f9e35980457afe8d8e21571850e296871bfb9ae2
     veoveo/datasheet-mcp: sha256:f93c39200c511931e30408204143caf907554df4d458fc3865e417460d050bf6
     veoveo/duckdb-mcp: sha256:0e7afbe70e93b48b6f5eafe55633a8ae02d7d3c983eaea5a4b7212d4bff2f40d
     veoveo/frames-mcp: sha256:d09b501623d67e80df108b980491407ab3584ef348793bebd8892c7e890f75c2
     veoveo/map-mcp: sha256:c8a1b69e9eec9fd3475e5d7279dfe3224b2ebe2b5c416014ba7640db35cfc670
-    veoveo/mcp-gateway: sha256:241e19cf4a20a63ab8abf47b4970f26afcae5146e78d2ddecd7c796b34cf3f8c
+    veoveo/mcp-gateway: sha256:6a18c6624a43c4e4083bda5f8cfb0f9af6fb22c55b3eed61e7121d8caf5db237
     veoveo/mcp-legacy-bridge: sha256:427d69a80e80016039e532c99fb3b73c40e20937e863a47319e589d79abeac47
     veoveo/media-mcp: sha256:e6c28c09677f0f95a66282010c0b5dfeef721a14e68c9b1b01124e919e0f2cbf
     veoveo/optimization-mcp: sha256:6bfbdfbc06d7cd555e88618eec67a5440dceae0103800f2b97eaaf5962cef88d

@@ -29,6 +29,15 @@ Generated client models and owning designs reflect the same profiles. Installed
 qualification and the remaining public DTO relationships stay open; the reference
 cluster and BuildKit remained stopped throughout this batch.
 
+The Computers host/storage, hosted server, Gateway and Console images publish from
+`aa2f3a11` in 363 seconds. The reference selects the four deployed runtime digests;
+the storage binary ships inside the host image. The guest template is unchanged.
+Publication metadata is under
+`output/development/foundations-computers-publication-aa2f3a11/`. Removing 230
+superseded native executables recovers 83.9 GiB while preserving current qualification
+binaries, libraries, incremental state and BuildKit caches. About 251 GiB is free
+after publication. BuildKit stops before reference reconciliation and installed checks.
+
 Storage runtime checkpoint (2026-10-02): the diagnostic flight at `f0939bf2`
 fails Stream replay with an Artifact 503 and the visual branch with 1.133 seconds
 of Rerun source lag against the one-second limit. RustFS repeatedly misses health
