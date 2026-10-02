@@ -831,6 +831,7 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `showcase/uav-sim/runtime/` | thin domain overlay on the shared Isaac runtime with Cesium, a repository-owned batched Warp plant, Newton Experimental rigid views, PX4 HIL lifecycle, RTX domain sensors, logical cameras, shared RTX/NVENC camera products, direct Stream publication, and Rerun publication |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/fleet_runtime.py` | 30 Hz CUDA fleet simulation, direct Newton Experimental tensor-state writes, and ordered 60 Hz PX4 HIL publication without MuJoCo-Warp stepping |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/plant_warp.py` | one fused CUDA kernel for batched motors, force, torque, native Newton body integration, launch-surface contact, and HIL sensor sampling |
+| `showcase/uav-sim/runtime/veoveo_uav_sim/magnetic_warp.py`, `showcase/uav-sim/runtime/generate_magnetic_tables.py` | per-vehicle CUDA magnetic-field interpolation using generated, checksum-pinned PX4 tables and body-frame sensor conversion |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera.py` | operator-camera orchestration over focused rig, smoothing, product, and health modules |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera_rigs.py` | target sampling and desired poses for every supported camera rig |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera_smoothing.py` | frame-rate-independent position and shortest-arc orientation filters with typed reset rules |
@@ -1173,6 +1174,7 @@ Simulation live-view ownership:
 | `showcase/uav-sim/runtime/veoveo_uav_sim/server.py` | simulator-local control boundary for camera and product realization |
 | `showcase/uav-sim/runtime/tests_gpu/test_plant.py` | hardware CUDA plant qualification for reproducible barometer, magnetic and IMU noise with separate vehicle truth |
 | `showcase/uav-sim/runtime/tests_gpu/test_px4_health.py` | native pinned PX4 qualification of all stationary sensor validators through the CUDA plant and production HIL bridge |
+| `showcase/uav-sim/runtime/tests_gpu/test_px4_flight.py`, `showcase/uav-sim/runtime/tests_gpu/test_magnetic.py` | CUDA earth-field agreement with PX4, body-frame sensor admission, and repeated native takeoff, movement, landing and re-arm qualification |
 | `showcase/uav-sim/runtime/tests_gpu/test_stream_rtp.py` | isolated production RTP publication through the Stream NVDEC/TensorRT runner; steady and catch-up delivery with preview timestamp checks |
 | `platform/store/migrations/0036_remove_simulation_view_mirror_state.surql` | forward-only removal of obsolete mirrored desired/runtime state |
 

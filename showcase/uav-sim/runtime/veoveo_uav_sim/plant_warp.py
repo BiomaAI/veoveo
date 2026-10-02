@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import warp as wp
 
+from .magnetic_warp import magnetic_field_enu_gauss
 from .vehicle_spec import (
     HIL_PACKET_WIDTH,
     PX4_IRIS_DIAGONAL_INERTIA_KG_M2,
+    PX4_IRIS_IMU_NOISE_REFERENCE_HZ,
     PX4_IRIS_LINEAR_DRAG_FLU_NS_M,
     PX4_IRIS_MASS_KG,
     PX4_IRIS_MOTOR_CONSTANT,
@@ -32,6 +34,7 @@ LAUNCH_SURFACE_CENTER_UP_M = wp.constant(0.04)
 GROUND_FRICTION_PER_SECOND = wp.constant(8.0)
 BAROMETER_NOISE_STDDEV_HPA = wp.constant(0.01)
 SENSOR_NOISE_SEED = wp.constant(1234)
+IMU_NOISE_REFERENCE_HZ = wp.constant(float(PX4_IRIS_IMU_NOISE_REFERENCE_HZ))
 POWERED_THRUST_EPSILON_N = wp.constant(1.1920928955078125e-7)
 ROTOR_0_X = wp.constant(PX4_IRIS_ROTOR_POSITIONS_FLU_M[0][0])
 ROTOR_0_Y = wp.constant(PX4_IRIS_ROTOR_POSITIONS_FLU_M[0][1])
@@ -56,6 +59,7 @@ def advance_fleet_and_sample_hil(
     body_qd: wp.array(dtype=wp.spatial_vector),
     previous_linear_velocity_enu: wp.array2d(dtype=wp.float32),
     packet: wp.array2d(dtype=wp.float32),
+    magnetic_model: wp.array3d(dtype=wp.float32),
     physics_step: wp.int32,
     dt: wp.float32,
     origin_latitude_degrees: wp.float32,
@@ -171,7 +175,6 @@ def advance_fleet_and_sample_hil(
     )
     acceleration_flu = wp.quat_rotate_inv(orientation, specific_force_enu)
     angular_flu = wp.quat_rotate_inv(orientation, angular_velocity)
-    magnetic_flu = wp.quat_rotate_inv(orientation, wp.vec3(0.0, 0.215, -0.427))
 
     east = position[0]
     north = position[1]
@@ -188,8 +191,17 @@ def advance_fleet_and_sample_hil(
     if force_0 + force_1 + force_2 + force_3 > POWERED_THRUST_EPSILON_N:
         accel_std = wp.vec3(0.5, 1.7, 1.4)
         gyro_std = wp.vec3(0.14, 0.07, 0.03)
+    # Preserve SIH's integrated white-noise variance across sample intervals.
+    # A sample is held for dt, including repeated HIL publication; treating those
+    # repeats as independent 250 Hz samples inflates angle/velocity uncertainty.
+    imu_noise_scale = wp.sqrt(1.0 / (dt * IMU_NOISE_REFERENCE_HZ))
+    accel_std *= imu_noise_scale
+    gyro_std *= imu_noise_scale
     latitude = origin_latitude_degrees + north / meters_per_degree_latitude
     longitude = origin_longitude_degrees + east / meters_per_degree_longitude
+    magnetic_flu = wp.quat_rotate_inv(
+        orientation, magnetic_field_enu_gauss(magnetic_model, latitude, longitude)
+    )
     ground_speed = wp.sqrt(
         linear_velocity[0] * linear_velocity[0]
         + linear_velocity[1] * linear_velocity[1]

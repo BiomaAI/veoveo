@@ -11,6 +11,34 @@ Reason grounding and Stream inference. Stream Task/result delivery now passes ac
 installed replicas. Live-session notifications pass through the public Gateway; the
 remaining domain gates are open.
 
+Camera deployment checkpoint (2026-10-02): reference revision `8a7edc9a` selects the
+`eae9d400` demand-allocation runtime, companion image and chart. GitOps converges and
+all 27 deployments report ready. During 639 seconds of fleet flight and landing,
+1,272 state observations have zero read failures and the stream product stays ready.
+The runtime reports a maximum render cycle of 726.24 ms and maximum native update of
+664.10 ms. These observations do not establish complete visual acceptance: after
+landing, PX4 rejects another takeoff with a persistent EKF compass fault, and the
+composed test stops before its visual/playback checkpoints. PX4's sensor topic is
+fresh with zero read errors; its estimator reports `cs_mag_fault` and inconsistent
+magnetic heading. The cluster and builder are stopped after collecting diagnostics.
+
+The CUDA plant replaces its fixed zero-declination field with PX4's own pinned World
+Magnetic Model tables, evaluated at each vehicle's GPS position. Independent reference
+vectors, body-frame conversion, noise distributions and stationary PX4 validators
+pass. A native flight harness reproduces the compass failure after about 65 seconds
+despite the field correction. Its ULog shows an emergency yaw reset and saturated
+accelerometer-bias estimates. The sensor model also copied SIH's per-sample IMU noise
+from the pinned 250 Hz profile into 30 Hz independent samples. The correction scales
+IMU noise to preserve integrated variance per second; PX4 health checks stay unchanged.
+All eight hardware CUDA/native PX4 checks pass in 169 seconds, including two takeoff,
+horizontal-movement and landing cycles, re-arm, postflight health, and equal integrated
+noise variance at 30, 60 and 250 Hz. All 125 runtime unit tests pass. Table regeneration
+matches the checksum-pinned upstream header, and documentation links pass. This
+qualifies the isolated sensor/flight batch; publish it and repeat composed installed
+acceptance. Installed camera results are under
+`output/development/foundations-camera-publication-eae9d400/`; sensor diagnostics and
+qualification are under `output/development/foundations-px4-sensors-20261002/`.
+
 Camera preparation checkpoint (2026-10-02): an isolated native Kit trace at
 `2cca3c33` records a 1,998.9 ms Cesium update followed by a 2,451.6 ms Kit update.
 Inside the latter, 2,048 RTX material updates consume 2,351.8 ms; rendering takes
@@ -4761,4 +4789,4 @@ not complete while a row remains.
 
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
-| Phase 1 reference reset | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_health.py`, `testing/flight-smoke/src/domain/showcase.rs` | Diagnose the shared-camera render stall and finish composed visual/timing acceptance | At `eeaa8442`, the deployed reader fix passes Stream replay and grounded Reason over the same range; the entire domain branch passes, including return, landing and Artifact isolation. Takeoff, mission, Stream and Recording captures pass. During landing, the atlas reports a 5.76-second stale frame and the visual branch fails; a later observation recovers. The run records a maximum render cycle of 9.99 seconds. Preserve the freshness, spatial-content and hardware checks while resolving the stall |
+| Phase 1 reference reset | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_health.py`, `showcase/uav-sim/runtime/veoveo_uav_sim/plant_warp.py`, `testing/flight-smoke/src/domain/showcase.rs` | Qualify the camera allocation correction, resolve PX4 re-arm failure and finish composed visual/timing acceptance | At `eeaa8442`, the entire domain branch passes, including Stream replay, grounded Reason, return, landing and Artifact isolation, but the visual branch finds a 5.76-second stale frame and maximum render cycle of 9.99 seconds. The demand-allocation runtime at `8a7edc9a` reports a maximum cycle of 726.24 ms during 639 seconds of observation. That composed run stops on a PX4 compass fault after landing, before final visual/playback checks. Preserve freshness, spatial-content and hardware requirements while qualifying both corrections |

@@ -8,18 +8,27 @@ import numpy as np
 import warp as wp
 
 from veoveo_uav_sim.plant_warp import PACKET_WIDTH, advance_fleet_and_sample_hil
-from veoveo_uav_sim.vehicle_spec import decode_hil_packet
+from veoveo_uav_sim.magnetic_warp import upload_magnetic_tables
+from veoveo_uav_sim.vehicle_spec import PX4_IRIS_IMU_NOISE_REFERENCE_HZ, decode_hil_packet
 
 
 class CudaPlant:
     """Isolated CUDA fixture shared by distribution and native PX4 qualification."""
 
-    def __init__(self, fleet_size: int = 4, rotor_speed: float = 0.0) -> None:
+    def __init__(
+        self, fleet_size: int = 4, rotor_speed: float = 0.0,
+        latitude: float = 40.758, longitude: float = -73.9855,
+        physics_hz: int = 30,
+    ) -> None:
         wp.init()
         self.device = wp.get_device("cuda:0")
         if not self.device.is_cuda:
             raise RuntimeError("plant qualification requires a hardware CUDA device")
         self.fleet_size = fleet_size
+        self.latitude = latitude
+        self.longitude = longitude
+        self.physics_hz = physics_hz
+        self.magnetic_model = upload_magnetic_tables(self.device)
         self.controls = wp.full((fleet_size, 4), rotor_speed, dtype=wp.float32, device=self.device)
         self.motors = wp.zeros_like(self.controls)
         self.indices = wp.array(list(range(fleet_size)), dtype=wp.int32, device=self.device)
@@ -35,8 +44,8 @@ class CudaPlant:
         wp.launch(
             advance_fleet_and_sample_hil, dim=self.fleet_size,
             inputs=[self.controls, self.motors, self.indices, self.poses, self.velocities,
-                    self.previous, self.packet, step, 1.0 / 30.0,
-                    40.758, -73.9855, -17.0, 111_000.0, 84_000.0],
+                    self.previous, self.packet, self.magnetic_model, step, 1.0 / self.physics_hz,
+                    self.latitude, self.longitude, -17.0, 111_000.0, 84_000.0],
             device=self.device,
         )
         # Observation and the PX4 wire adapter require this readback; physics stays on CUDA.
@@ -80,11 +89,16 @@ class GpuSensorTests(unittest.TestCase):
             self.assertLess(maximum_equal, 10)
 
         noise = np.concatenate((
-            samples[:, :, 16:19] - np.array([0.0, -0.215, 0.427]),
+            # Pinned PX4 WMM at this fixture's GPS origin, transformed ENU -> FRD.
+            samples[:, :, 16:19] - np.array([-0.044694892, -0.205321782, 0.463847402]),
             samples[:, :, 30:33] - samples[:, :, 10:13],
             samples[:, :, 33:36] - samples[:, :, 13:16],
         ), axis=2)
-        self.assert_noise(noise, np.array([0.02, 0.02, 0.03, 0.01, 0.01, 0.01, 0.1, 0.1, 0.1]))
+        scale = np.sqrt(30 / PX4_IRIS_IMU_NOISE_REFERENCE_HZ)
+        self.assert_noise(noise, np.concatenate((
+            np.array([0.02, 0.02, 0.03]),
+            np.array([0.01, 0.01, 0.01, 0.1, 0.1, 0.1]) * scale,
+        )))
         for packet in samples[:, 0]:
             frame, snapshot = decode_hil_packet(
                 packet, time_usec=1, fields_updated=8191, gps_updated=True,
@@ -100,7 +114,19 @@ class GpuSensorTests(unittest.TestCase):
         np.testing.assert_array_equal(samples[:, :, truth_columns], other_noise[:, :, truth_columns])
         self.assertFalse(np.array_equal(samples[:, :, 30:36], other_noise[:, :, 30:36]))
         noise = samples[:, :, 30:36] - samples[:, :, 10:16]
-        self.assert_noise(noise, np.array([0.14, 0.07, 0.03, 0.5, 1.7, 1.4]))
+        scale = np.sqrt(30 / PX4_IRIS_IMU_NOISE_REFERENCE_HZ)
+        self.assert_noise(noise, np.array([0.14, 0.07, 0.03, 0.5, 1.7, 1.4]) * scale)
+
+    def test_imu_integrated_noise_variance_is_independent_of_physics_rate(self) -> None:
+        expected = np.square([0.14, 0.07, 0.03, 0.5, 1.7, 1.4]) / PX4_IRIS_IMU_NOISE_REFERENCE_HZ
+        for physics_hz in (30, 60, 250):
+            with self.subTest(physics_hz=physics_hz):
+                plant = CudaPlant(rotor_speed=100.0, physics_hz=physics_hz)
+                samples = np.stack([plant.sample(step) for step in range(1, 601)])
+                noise = samples[:, :, 30:36] - samples[:, :, 10:16]
+                # Variance accumulated per second is sample variance times dt.
+                measured = noise.var(axis=(0, 1)) / physics_hz
+                np.testing.assert_allclose(measured, expected, rtol=0.1)
 
 
 if __name__ == "__main__":

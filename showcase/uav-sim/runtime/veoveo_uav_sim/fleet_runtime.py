@@ -46,6 +46,7 @@ class WarpFleetRuntime:
         import warp as wp
         from isaacsim.core.experimental.prims import RigidPrim
         from . import plant_warp
+        from .magnetic_warp import upload_magnetic_tables
 
         paths = tuple(body_paths)
         initial_positions = tuple(initial_positions_enu_m)
@@ -78,6 +79,7 @@ class WarpFleetRuntime:
         self._device = wp.get_device(positions.device)
         if not self._device.is_cuda:
             raise RuntimeError("Newton UAV fleet requires a CUDA tensor device")
+        self._magnetic_model = upload_magnetic_tables(self._device)
         self._rigid_tensor_view = getattr(
             self._rigid, "_physics_rigid_body_view", None
         )
@@ -241,6 +243,7 @@ class WarpFleetRuntime:
                 self._body_qd,
                 self._previous_linear_velocity,
                 self._packet_device,
+                self._magnetic_model,
                 physics_step,
                 self._dt,
                 self._origin_latitude_degrees,

@@ -355,6 +355,22 @@ and provenance.
 
 ## Hardware Acceptance
 
+The isolated plant and PX4 checks use hardware CUDA without starting the cluster.
+`UAV_SIM_PX4_DIRECTORY` must point to the pinned, patched PX4 tree with its executable
+and ROMFS. Instances 41 and 42 require free local ports. The flight check commands two
+takeoff, movement and landing cycles and requires re-arming with a healthy estimator.
+Every test owns its processes and temporary storage. No camera or rendering acceptance
+is implied by these sensor and flight checks.
+Set `UAV_SIM_PX4_FLIGHT_LOG_DIRECTORY` to retain the isolated flight's sensor samples,
+PX4 topic diagnostics and ULog before fixture cleanup.
+
+```sh
+PYTHONPATH=showcase/uav-sim/runtime:sdk/python/src:showcase/uav-sim/runtime/tests_gpu \
+  MAVLINK20=1 timeout 600s uv run --with warp-lang==1.16.0 --with numpy==2.3.1 \
+  --with pymavlink==2.4.49 --with fastcrc==0.3.6 --python 3.13 \
+  python -m unittest -v test_magnetic test_plant test_px4_health test_px4_flight
+```
+
 The isolated RTP GPU regression uses the production publisher and Stream's native
 NVDEC/TensorRT runner without starting a cluster. Provide a locally cached immutable
 Stream image in `VEOVEO_TEST_STREAM_IMAGE`, the compiled engine in

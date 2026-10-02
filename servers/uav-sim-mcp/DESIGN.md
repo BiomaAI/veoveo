@@ -33,6 +33,7 @@ for visualization.
 | `veoveo.ai/map-route-handoff/v1` | Map-owned `MapRouteHandoff` consumed through its contract-only library, including `MapMobilityProfileUri` and `ValidationId`; UAV admits validated routes and explicitly granted planning-advisory routes. |
 | `frames://world/{world_id}/revision/{revision_id}` | Frames MCP-owned immutable world revision identity consumed by session configuration and mission admission. |
 | MAVLink 2 | Private PX4 command, telemetry, actuator, and HIL sensor integration. The protocol is not projected as high-rate MCP traffic. |
+| World Magnetic Model | Private HIL simulation uses PX4 `1.17.0`'s WMM-2020 tables evaluated at epoch `2024.41257`. This model stays aligned with the pinned estimator; it is not a current geomagnetic survey service. |
 | Recording resources | RFC 9562 UUIDv7 identities and `recording://recordings/{id}` addresses from `veoveo-recording-contract`; pending catalog state carries no public identity. |
 | Rerun RRD | Version `0.38.1` recording data and producer-authored Blueprint stores sent independently to Recording Hub. |
 | NVIDIA Container Runtime | One Kubernetes GPU allocation with compute, graphics, utility, and video driver capabilities. CPU rendering and encoding are unsupported. |
@@ -662,9 +663,17 @@ Vehicle identity and physics step seed reproducible samples. The packet carries
 separate measured IMU fields and body truth; the decoder exposes measurements to PX4
 and truth to vehicle snapshots. Noise cannot change dynamics, pose or GPS truth.
 PX4's validators keep their stuck-sensor checks active while the vehicle is landed.
-The standard deviations follow the pinned PX4 simulators:
+The magnetic sensor evaluates PX4's pinned earth-field tables at each vehicle's
+current GPS position. A CUDA function performs the same bilinear interpolation,
+latitude clamping and date-line wrapping as PX4, constructs the ENU field in Gauss,
+and rotates it into body FRD before adding noise. The three tables upload once per
+fleet; physics steps require no extra host transfer. The generated Python data keeps
+the upstream license and header checksum. Regeneration uses
+`showcase/uav-sim/runtime/generate_magnetic_tables.py` with the pinned PX4 source tree.
+An estimator upgrade must review and qualify the tables and their CUDA adapter together.
+The reference standard deviations follow the pinned PX4 simulators:
 
-| Measurement | Standard deviation per sample | PX4 source |
+| Measurement | Reference standard deviation | PX4 source |
 |---|---|---|
 | Barometer | 1 Pa | [SensorBaroSim](https://github.com/PX4/PX4-Autopilot/blob/d6f12ad1c4f70ad3230afd7d86e971421e02fef4/src/modules/simulation/sensor_baro_sim/SensorBaroSim.cpp) |
 | Gyroscope, unpowered | 0.01 rad/s on each axis | [SIH](https://github.com/PX4/PX4-Autopilot/blob/d6f12ad1c4f70ad3230afd7d86e971421e02fef4/src/modules/simulation/simulator_sih/sih.cpp) |
@@ -674,11 +683,22 @@ The standard deviations follow the pinned PX4 simulators:
 | Magnetometer | (0.02, 0.02, 0.03) Gauss, FRD | [SensorMagSim](https://github.com/PX4/PX4-Autopilot/blob/d6f12ad1c4f70ad3230afd7d86e971421e02fef4/src/modules/simulation/sensor_mag_sim/SensorMagSim.cpp) |
 
 The powered profile applies when total rotor thrust exceeds single-precision epsilon,
-matching SIH. Hardware CUDA checks cover sample distributions, independent axes and
+matching SIH. Its IMU reference cadence is 250 Hz, the minimum of the pinned Iris
+`IMU_INTEG_RATE` and `IMU_GYRO_RATEMAX` settings. The plant scales each IMU standard
+deviation by `sqrt(1 / (250 * dt))`, where `dt` is the interval between independently
+generated samples. This preserves integrated angle and velocity noise variance per
+second when the physics cadence changes. Repeated HIL publication of a held sample
+does not constitute another independent measurement. Barometer and magnetic noise
+keep their per-sample profiles. Hardware CUDA checks cover sample distributions,
+equal integrated IMU variance at 30, 60 and 250 Hz, independent axes and
 vehicles, repeatability and unchanged truth. A separate native PX4 harness feeds the
 same plant through the production HIL bridge and checks every sensor validator after
-15 and 30 seconds. It requires the pinned patched PX4 binary and owns its temporary
-process and storage. Installed flight acceptance also qualifies the composed runtime.
+15 and 30 seconds. The flight harness exercises two takeoff, horizontal-movement and
+landing cycles, checks EKF compass health and requires successful re-arming. Both
+harnesses require the pinned patched PX4 binary and own their temporary process and
+storage. CUDA model checks compare independently computed PX4 reference vectors
+across both hemispheres and the date line, and verify body-frame sensor conversion.
+Installed flight acceptance also qualifies the composed runtime.
 
 Direct vehicle commands share a 75-second runtime deadline across fleet takeover,
 commander lock acquisition, mode transition, arming and command acknowledgement.
