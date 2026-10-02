@@ -135,6 +135,8 @@ async fn run() -> Result<()> {
             &target,
             &input.installation.deployment,
             "time-mcp",
+            caller.peer().clone(),
+            veoveo_mcp_contract::ServerResourceUris::new("time".parse()?).contract_uri(),
         )?,
     };
     for id in &driver.ids {

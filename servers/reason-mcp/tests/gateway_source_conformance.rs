@@ -54,6 +54,8 @@ async fn run() -> Result<()> {
             &installation,
             &input.installation.deployment,
             "reason-mcp",
+            administrator.peer().clone(),
+            veoveo_mcp_contract::ServerResourceUris::new("reason".parse()?).contract_uri(),
         )?,
     )
     .await?;

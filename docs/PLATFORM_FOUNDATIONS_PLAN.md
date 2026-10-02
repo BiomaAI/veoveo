@@ -73,8 +73,21 @@ The repair adds one transport-only discovery retry before domain dispatch and ma
 all four owner harnesses persist available reports before cleanup. Native qualification
 passes all 42 Gateway MCP cases, including the real HTTP disconnect/refusal matrix.
 Strict all-target/all-feature Clippy passes for the Gateway and all four owners;
-formatting and 1,041 documentation links pass. Publication and a new installed run
-remain open. The cluster is stopped during development.
+formatting and 1,041 documentation links pass. Gateway publication from `aaadcd61`
+passes in 109 seconds and the reference converges at `3299bbab`. Artifact's repeat
+preserves its report: ten K01–K06 checks pass and K07 fails. Gateway logs identify
+TCP connection refusal immediately after the replacement Pod becomes Ready, including
+the discovery retry. Kubernetes readiness has not established public Service routing.
+The installed lifecycle helper now requires a fresh public contract read after the
+native rollout watches; its ten-second readiness window dispatches no domain mutation.
+The helper passes focused strict Clippy and compilation for all four owner harnesses.
+Installed Artifact, Reason and Time runs now pass 54 checks in total: eleven for
+Artifact, sixteen for Reason and twenty-seven for Time. All four K07 change/restart
+probes pass, and owned grant/event cleanup succeeds. K08 skips because these sources
+declare no search tool. Public routing takes one to four readiness reads after Pod
+readiness; the helper bypasses SDK caching on every restart. Map's fixture preparation
+and installed run remain open. Only the source-check prerequisites run during this
+acceptance batch; Knowledge and unused GPU workloads are stopped.
 The current source-qualification batch adds one shared gateway entry point and
 owner-local fixtures for Artifact, Reason, Map and Time. K07 models both updates and
 membership removal; removal must survive restart and deny full and conditional reads.
@@ -83,8 +96,8 @@ excluded resource reads in both cases. Owners supply typed grant, authoring, rel
 and event mutations plus actual Deployment restarts and cleanup. The grouped native
 batch passes 355 tests across the checker and four owners; six installation-dependent
 tests are excluded from that run. Affected all-target/all-feature strict Clippy,
-formatting and 1,041 documentation links pass. None of the four new gateway source
-runs has passed installed acceptance. Cleanup removed 24 superseded test executables
+formatting and 1,041 documentation links pass. Artifact, Reason and Time now pass
+installed source acceptance as recorded above; Map remains open. Cleanup removed 24 superseded test executables
 and recovered 8.9 GiB while preserving current executables and compiler caches.
 The Map active-release tool now joins pointers and releases in one SQL query.
 Tenant, source and dataset selection precede its result limit and document decoding.
@@ -3545,8 +3558,8 @@ revision.
 | Server | Collections | Existing provenance | Gaps to close |
 |---|---|---|---|
 | chart | `charts.docs` only | build-time document digests | Docs declaration, observations and conditional reads implemented; installed certification remains open |
-| time | events, calendar versions, epoch versions, acquired and packaged authority releases | stored creation tenant, owner and Work Context; content/access revisions, source digests and modification timestamps | Five collections, typed URI pages, observations and conditional reads implemented; installed qualification and event change/restart probes remain open |
-| artifact | artifact metadata (`artifact://metadata/{id}`), never the bytes | compliance metadata: tenant, owner, Work Context, labels, provenance | SQL-admitted metadata snapshots, cursor pages, Library navigation, bounded observations and conditional reads implemented; selected-context and record/grant deadlines are represented in the shared contract and enforced in index SQL; installed conformance and mutation/restart probes remain open |
+| time | events, calendar versions, epoch versions, acquired and packaged authority releases | stored creation tenant, owner and Work Context; content/access revisions, source digests and modification timestamps | Installed source conformance passes twenty-seven checks across docs and five domain collections, including event cancellation before and after a real service restart; source audit review remains open |
+| artifact | artifact metadata (`artifact://metadata/{id}`), never the bytes | compliance metadata: tenant, owner, Work Context, labels, provenance | Installed source conformance passes eleven checks, including grant changes across a real service restart; deadline qualification and K09/K10 review pass; source audit review remains open |
 | map | bounded summaries of feature layers, features, publications, locations, facilities and dataset releases | full source content digests, layer and feature revisions, Work Context, labels, stored timestamps and recorded modifying actors | Six declarations, typed member links and cursors, source observations, conditional reads and SQL-selected location search pass local qualification; installed conformance and mutation/restart probes remain open |
 
 Acceptance: each server passes K01 through K10 review and conformance, and the audit

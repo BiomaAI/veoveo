@@ -73,6 +73,8 @@ async fn run() -> Result<()> {
         &installation,
         &input.installation.deployment,
         "map-mcp",
+        caller.peer().clone(),
+        veoveo_mcp_contract::ServerResourceUris::new("map".parse()?).contract_uri(),
     )?);
     let layers = authoring::Authoring::new(
         caller.peer().clone(),

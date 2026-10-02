@@ -1,20 +1,36 @@
 //! Installed harness lifecycle. Domain owners choose the workload and mutations.
 //! No installation credentials enter profiles, command arguments or reports.
 use anyhow::{Context, Result, ensure};
+use rmcp::{
+    Peer, RoleClient, ServiceError,
+    model::{
+        ClientRequest, ReadResourceRequest, ReadResourceRequestParams, ResourceContents,
+        ServerResult,
+    },
+};
 use serde::Deserialize;
 use std::{collections::BTreeMap, time::Duration};
 use tokio::process::Command;
 use veoveo_deploy_contract::InstallationTarget;
+use veoveo_types::ResourceUri;
 
 pub struct DeploymentRestart {
     context: String,
     namespace: String,
     deployment: String,
     component: String,
+    caller: Peer<RoleClient>,
+    readiness_uri: ResourceUri,
 }
 
 impl DeploymentRestart {
-    pub fn new(target: &InstallationTarget, deployment: &str, component: &str) -> Result<Self> {
+    pub fn new(
+        target: &InstallationTarget,
+        deployment: &str,
+        component: &str,
+        caller: Peer<RoleClient>,
+        readiness_uri: ResourceUri,
+    ) -> Result<Self> {
         target.validate()?;
         ensure!(
             target
@@ -28,6 +44,8 @@ impl DeploymentRestart {
             namespace: target.kubernetes.namespace.clone(),
             deployment: deployment.to_owned(),
             component: component.to_owned(),
+            caller,
+            readiness_uri,
         })
     }
 
@@ -35,9 +53,52 @@ impl DeploymentRestart {
     /// disappear and the same Deployment must report all replacement replicas ready.
     /// An ambiguous command failure never dispatches a second restart.
     pub async fn restart(&self) -> Result<()> {
-        tokio::time::timeout(Duration::from_secs(75), self.rollout())
-            .await
-            .context("installed source restart exceeded 75 seconds")?
+        tokio::time::timeout(Duration::from_secs(75), async {
+            self.rollout().await?;
+            self.require_public_route().await
+        })
+        .await
+        .context("installed source restart exceeded 75 seconds")?
+    }
+
+    async fn require_public_route(&self) -> Result<()> {
+        // Pod readiness precedes Service routing convergence. Admit the public
+        // MCP route before K07 checks retained state or dispatches its next mutation.
+        tokio::time::timeout(Duration::from_secs(10), async {
+            for attempt in 1..=40 {
+                // Use an explicit request: the SDK resource cache must not supply
+                // a pre-restart contract, including on this driver's later restart.
+                let request = ClientRequest::ReadResourceRequest(ReadResourceRequest::new(
+                    ReadResourceRequestParams::new(self.readiness_uri.as_str()),
+                ));
+                match self.caller.send_request(request).await {
+                    Ok(ServerResult::ReadResourceResult(result)) => {
+                        ensure!(
+                            matches!(result.contents.as_slice(),
+                            [ResourceContents::TextResourceContents { uri, text, .. }]
+                                if uri == self.readiness_uri.as_str() && !text.is_empty()),
+                            "source readiness read did not return its declared contract"
+                        );
+                        eprintln!(
+                            "source {} public route ready after {attempt} read attempts",
+                            self.component
+                        );
+                        return Ok(());
+                    }
+                    Err(ServiceError::McpError(error))
+                        if error.code == rmcp::model::ErrorCode::INTERNAL_ERROR => {}
+                    Err(ServiceError::TransportSend(_) | ServiceError::TransportClosed) => {}
+                    Err(error) => return Err(error.into()),
+                    Ok(_) => {
+                        anyhow::bail!("source readiness read returned an unexpected MCP result")
+                    }
+                }
+                tokio::time::sleep(Duration::from_millis(250)).await;
+            }
+            anyhow::bail!("source public route did not become readable in forty attempts")
+        })
+        .await
+        .context("source public route did not become readable within ten seconds")?
     }
 
     async fn rollout(&self) -> Result<()> {

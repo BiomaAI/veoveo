@@ -52,6 +52,8 @@ async fn run() -> Result<()> {
             &installation,
             &input.installation.deployment,
             "artifact-mcp",
+            administrator.peer().clone(),
+            veoveo_mcp_contract::ServerResourceUris::new("artifact".parse()?).contract_uri(),
         )?,
     )
     .await?;

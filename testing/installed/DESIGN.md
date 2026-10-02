@@ -95,8 +95,15 @@ a reused GPU analysis keeps its original execution evidence.
 The restart helper verifies the target workload and records its current Pod names.
 It dispatches `kubectl rollout restart` once, waits for rollout completion and for
 every old Pod to disappear, then checks the same Deployment UID, a newer generation
-and unchanged positive replica count. A restart has 75 seconds, including a
-55-second rollout watch and a 15-second deletion watch. Cancellation kills the local
+and unchanged positive replica count. It then reads the owner's contract through the
+public Gateway connection. An explicit MCP request bypasses the SDK resource cache.
+Service routing can lag Pod readiness, so transport and internal errors permit at
+most forty read attempts, 250 milliseconds apart, within ten seconds. Other protocol
+errors fail immediately. The read must return the selected URI's nonempty text body.
+K07 checks retained state and dispatches its second mutation only after this read.
+A restart has a total deadline of 75 seconds, including the
+55-second rollout watch, 15-second deletion watch and public-read readiness deadline.
+Cancellation kills the local
 command; it does not repeat a mutation with an uncertain outcome. Command failures
 report status without arbitrary process diagnostics that could expose credentials.
 
