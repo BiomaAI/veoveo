@@ -4039,7 +4039,10 @@ before fetching, so it can invalidate that fetch. Catalog watches now apply K07
 readiness to every caller of a declaring source. External servers without the
 extension keep their declared protocol behavior. The delayed-source fixture covers
 ordinary and indexing callers, early closure, and a non-declaring external server.
-The corrected watch still requires image publication and installed qualification.
+All 51 native forwarding checks pass. The corrected watch is published from `ce4baba4`
+with runnable digest `sha256:aa88a9ca796053ae5edae8b0d98aa8f6c85b4cde1729865e1847169c94df37b7`.
+Staging reuses dependency layers and takes 67 seconds; release qualification takes ten
+seconds and preserves the runnable digest. Installed qualification remains open.
 
 Adopt Reason's completed analyses and results so users can find earlier findings and
 read their grounding without rerunning inference. Observations carry stored owner,
