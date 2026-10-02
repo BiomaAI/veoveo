@@ -2,8 +2,9 @@
 
 Status: Phase 0 is accepted. Phases 1–3 have the installed gaps listed under
 Deferred Work and the remaining type work in the Phase 3 migration inventory.
-Phase 4's installed audit and composed flight domain checks pass; visual acceptance
-still fails the landing camera's mean-brightness threshold. Phase 5's native consumer migration,
+Phase 4's installed audit checks pass. Composed flight domain checks passed at
+`5cae9ec8`, but the latest repeat fails Reason video materialization and final visual
+acceptance. Phase 5's native consumer migration,
 writer/schema removal and private payload separation pass. Its published deployment
 passes installed certification, Artifact byte delivery, Speech CUDA, Recording replay,
 Reason grounding and Stream inference. Stream Task/result delivery now passes across
@@ -70,7 +71,21 @@ tools. The wider `info` command keeps its existing catalog checks. No flight com
 were dispatched during the failed full-catalog preflight, and the cluster stopped
 before rebuilding this client-only change. All 75 native flight/conformance checks,
 strict Clippy and both executable builds pass. Installed scoped discovery and the
-composed flight are the next gate.
+composed flight follow that native qualification.
+
+Installed tool-only discovery passes at `2fc911e6` with Knowledge, Embedding, Speech
+and Optimization stopped. The composed attempt passes Map/Stream prerequisites,
+takeoff and mission camera captures, live Stream viewing and Recording replay.
+Reason then fails to materialize video samples for the same replay selection:
+recording `01a0fcf8-954a-7383-be2b-cca1cb29a456`, camera `down`, simulation-time range
+`1099300000000..=1124300000000`. The cause is unproven. The flight dispatches owned
+landing cleanup; a subsequent public state read confirms landed at ENU
+`1250.48, 880.79, 0.04`. Its final camera check sees mean luma 0.81 and standard
+deviation 3.33, which fails the spatial-content rule. This capture follows abort
+cleanup at the mission location; the successful return-to-launch sequence was not
+reached. Both phase outcomes are failed, and the new content thresholds stay intact.
+Logs, source catalog, captures and phase outcomes are retained under
+`output/development/foundations-flight-tools-2fc911e6/`. The cluster stops after cleanup.
 
 Artifact's installed sharing gate passes seven checks through the public MCP and
 anonymous HTTP routes: private fixture ownership/retention, read-only byte equality,
@@ -4579,4 +4594,4 @@ not complete while a row remains.
 |---|---|---|---|
 | Phase 8 source conditional restart | `servers/knowledge-mcp/src/source/gateway.rs` | Publish the qualified source revision repair and verify installed Knowledge restart | The installed Artifact mismatch is a changed modification timestamp omitted from its revision; the producer repair also covers Map and Time provenance, with strict conditional validation preserved |
 | Phase 3 Computers hosted feature gate | `servers/computers-mcp/DESIGN.md` | Finish installed Computers hosted feature qualification | Publication, all hosted catalogs, public full/HEAD/range Artifact delivery and headed Speech CUDA transcription/dictation pass at `5dd357c4`. Artifact sharing now passes seven installed checks; qualify the remaining Computers library/setup consumer path |
-| Phase 1 reference reset | `testing/flight-smoke/src/domain.rs` | Finish composed visual and timing acceptance | The composed flight domain sequence passes at `5cae9ec8`, including takeoff altitude, return to launch, landing, Recording replay, Reason and cross-context denial. The landing visual check rejects mean luma 20.50 below its cutoff of 25; a headed hardware diagnostic shows a detailed dark street. Qualify a content-sensitive blank-frame check and repeat composed visual/timing acceptance |
+| Phase 1 reference reset | `testing/flight-smoke/src/domain.rs` | Diagnose Reason's missing video range and finish composed visual/timing acceptance | At `2fc911e6`, reduced-profile discovery and takeoff/mission captures pass, followed by Stream replay. Reason finds no samples in that same selected range. Abort cleanup lands at the mission location, where the final camera lacks sufficient detail. Keep the spatial-content check and inspect source materialization before repeating the flight |
