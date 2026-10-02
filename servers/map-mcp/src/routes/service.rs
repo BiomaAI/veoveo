@@ -132,10 +132,7 @@ impl RouteService {
                 .graph
                 .plan(&tenant_key, &request, &profile, &positions)?,
         };
-        let restrictions_resolved = apply_restrictions(&mut planned, &restrictions)?;
-        if planned.status == RouteStatus::PlanningAdvisory && restrictions_resolved {
-            planned.status = RouteStatus::Validated;
-        }
+        admit_planned_route(&mut planned, &profile, &restrictions)?;
         if planned.status == RouteStatus::PlanningAdvisory
             && !request.data_policy.allow_planning_advisory
         {
@@ -730,6 +727,27 @@ fn validate_request(request: &RouteRequest) -> Result<()> {
     Ok(())
 }
 
+fn admit_planned_route(
+    output: &mut PlannerOutput,
+    profile: &MobilityProfile,
+    restrictions: &[Restriction],
+) -> Result<()> {
+    for legs in
+        std::iter::once(&output.legs).chain(output.alternatives.iter().map(|route| &route.legs))
+    {
+        let lines = legs
+            .iter()
+            .map(|leg| leg.geometry.clone())
+            .collect::<Vec<_>>();
+        crate::spatial::require_valid_route_lines(profile, &lines, restrictions)?;
+    }
+    let restrictions_resolved = apply_restrictions(output, restrictions)?;
+    if output.status == RouteStatus::PlanningAdvisory && restrictions_resolved {
+        output.status = RouteStatus::Validated;
+    }
+    Ok(())
+}
+
 fn apply_restrictions(output: &mut PlannerOutput, restrictions: &[Restriction]) -> Result<bool> {
     let mut fully_resolved = true;
     for leg in &mut output.legs {
@@ -859,6 +877,33 @@ mod tests {
             cancelled_by: None,
             record_version: 1,
         }
+    }
+
+    #[test]
+    fn route_admission_checks_primary_and_alternative_geometry_before_validation() {
+        let profile: MobilityProfile =
+            serde_json::from_str(include_str!("../../tests/fixtures/mobility.json")).unwrap();
+        let mut route = output();
+        let invalid_leg = route.legs[0].clone();
+        let error = admit_planned_route(&mut route, &profile, &[]).unwrap_err();
+        assert!(error.to_string().contains("SegmentLengthExceeded"));
+        assert_eq!(route.status, RouteStatus::PlanningAdvisory);
+
+        route.legs[0].geometry.coordinates[1] = position(0.001, 0.0);
+        route.alternatives.push(crate::contract::RouteAlternative {
+            rank: 1,
+            summary: invalid_leg.cost.clone(),
+            legs: vec![invalid_leg],
+        });
+        let error = admit_planned_route(&mut route, &profile, &[]).unwrap_err();
+        assert!(error.to_string().contains("SegmentLengthExceeded"));
+        assert_eq!(route.status, RouteStatus::PlanningAdvisory);
+
+        route.alternatives.clear();
+        admit_planned_route(&mut route, &profile, &[]).unwrap();
+        assert_eq!(route.status, RouteStatus::Validated);
+        route.legs.clear();
+        assert!(admit_planned_route(&mut route, &profile, &[]).is_err());
     }
 
     #[test]

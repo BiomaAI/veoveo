@@ -29,17 +29,19 @@ distance, duration, alternatives, and land isochrones.
 
 Off-road, rail, surface-vessel, subsurface-vessel, fixed-wing, rotorcraft, and
 UAS profiles use explicit activated LineString edges for their map family. The
-planner connects each exact endpoint to its nearest governed node within 10 km,
-retains those connector segments in the returned geometry, and costs them at
+planner connects each exact endpoint to the nearest governed node within 10 km whose
+connector satisfies the mobility envelope and avoids excluded areas. It checks ingress
+and egress in their direction of travel, including distinct climb and descent limits.
+An intermediate waypoint can use different nodes for arrival and departure. Selection
+fails when no connector qualifies; A* must then find a path between the selected nodes.
+The planner retains the connector segments in the returned geometry and costs them at
 the profile's preferred, nominal, or cruise speed. Before persistence, it densifies
 governed edges and exact-endpoint connectors to the profile's maximum segment length.
 The exact endpoints remain unchanged, and inserted points interpolate ellipsoidal
 height. The planner verifies consistent node geometry, applies avoided areas, and runs
-A* for fastest or shortest objectives. It
-returns `planning_advisory` until the selected sources and performance models
-carry domain-specific certification. Planning requires connected activated
-edges, supports fastest and shortest objectives, and accepts explicit avoided
-areas. The caller opts into planning-advisory output through its data policy.
+A* for fastest or shortest objectives. Planning requires connected activated edges.
+If restriction effects cannot be fully resolved, route creation returns
+`planning_advisory` only when the caller permits it in the data policy.
 
 Routing selects its release IDs and compatible map families through
 `MapCatalog::routing_authority`. One SurrealQL statement follows each tenant's active
@@ -97,8 +99,11 @@ replacement are required for acceptance.
 
 Effective restrictions target mobility families and carry typed effects,
 geometry, authority, and validity. Prohibitions become avoided areas during
-planning. Route validation checks every leg against the planning envelope and
-active restrictions. Lateral clearance expands the checked route corridor.
+planning. Route creation checks the complete primary geometry and every alternative
+against the planning envelope and active restrictions before promoting status or
+persisting a route. Later validation and handoff use the same spatial checks. Purely
+vertical segments have a 90-degree climb or descent angle. Lateral clearance expands
+the checked route corridor.
 Typed dimensional, mass, speed, depth, altitude, and reserve limits resolve
 against the selected profile. A missing or incompatible vertical reference
 fails closed.

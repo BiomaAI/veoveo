@@ -34,8 +34,27 @@ All eight hardware CUDA/native PX4 checks pass in 169 seconds, including two tak
 horizontal-movement and landing cycles, re-arm, postflight health, and equal integrated
 noise variance at 30, 60 and 250 Hz. All 125 runtime unit tests pass. Table regeneration
 matches the checksum-pinned upstream header, and documentation links pass. This
-qualifies the isolated sensor/flight batch; publish it and repeat composed installed
-acceptance. Installed camera results are under
+qualifies the isolated sensor/flight batch. Reference revision `c9704daf` selects both
+images published from `20b120c0`. All 27 deployments become ready, and the installed
+run passes Map and Stream prerequisites, recovery landing, re-arm and takeoff. Its
+1,099 observations over 552 seconds have no read failures; the largest reported render
+cycle is 844.12 ms. Map then rejects its own `validated` route at handoff: the connector
+from the actual 179.65 m endpoint to a nearby 180 m node climbs 47.935 degrees against
+the profile's 45-degree limit. Owned cleanup lands and disarms the vehicle. The final
+estimator read has no compass fault, but the aggregate preflight flag is false; full
+installed postflight health and visual/playback acceptance remain open. Cluster and
+BuildKit are stopped, with 180 GiB free.
+
+The Map correction selects connectors against the mobility envelope in their direction
+of travel and rejects avoided-area intersections. Route creation checks primary and
+alternative geometry before promoting status or persisting a successful route. The
+spatial validator checks vertical segments against climb/descent limits. All 167 native
+Map checks pass, including the recorded flight coordinates, directional connectors,
+avoided areas, invalid alternatives and vertical segments. The installed source harness
+is explicitly ignored in this native run. Strict all-target Clippy, formatting and
+documentation links pass. Publication and installed repetition are
+pending. Map checks are under `output/development/foundations-map-route-20261002/`.
+Installed camera results are under
 `output/development/foundations-camera-publication-eae9d400/`; sensor diagnostics and
 qualification are under `output/development/foundations-px4-sensors-20261002/`.
 
@@ -4789,4 +4808,4 @@ not complete while a row remains.
 
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
-| Phase 1 reference reset | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_health.py`, `showcase/uav-sim/runtime/veoveo_uav_sim/plant_warp.py`, `testing/flight-smoke/src/domain/showcase.rs` | Qualify the camera allocation correction, resolve PX4 re-arm failure and finish composed visual/timing acceptance | At `eeaa8442`, the entire domain branch passes, including Stream replay, grounded Reason, return, landing and Artifact isolation, but the visual branch finds a 5.76-second stale frame and maximum render cycle of 9.99 seconds. The demand-allocation runtime at `8a7edc9a` reports a maximum cycle of 726.24 ms during 639 seconds of observation. That composed run stops on a PX4 compass fault after landing, before final visual/playback checks. Preserve freshness, spatial-content and hardware requirements while qualifying both corrections |
+| Phase 1 reference reset | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_health.py`, `showcase/uav-sim/runtime/veoveo_uav_sim/plant_warp.py`, `testing/flight-smoke/src/domain/showcase.rs` | Finish installed sensor health and composed visual/timing acceptance after qualifying Map route admission | At `eeaa8442`, the full domain branch passes but the visual branch finds a 5.76-second stale frame. Demand allocation reduces observed maximum render cycles below one second in two later runs. The sensor correction at `c9704daf` permits installed re-arm and takeoff; that run stops when Map handoff rejects a 47.935-degree connector in its own validated route. Cleanup lands and disarms. The final compass-fault flag is false, while aggregate preflight health is false. Preserve freshness, spatial-content, flight-health and hardware requirements during the repeat |

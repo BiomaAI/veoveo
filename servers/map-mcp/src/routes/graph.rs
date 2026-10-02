@@ -72,7 +72,7 @@ impl GraphPlanner {
         }
         let (graph, _nodes) = build_graph(edges, request.objective.kind)?;
         let node_positions = node_positions(&graph)?;
-        let planned = plan_path(&graph, &node_positions, positions)?;
+        let planned = plan_path(&graph, &node_positions, positions, profile, &blocked_areas)?;
         let source_release_ids = planned
             .edges
             .iter()
@@ -140,17 +140,29 @@ fn plan_path(
     graph: &RouteGraph,
     node_positions: &HashMap<NodeIndex, Wgs84Position>,
     positions: &[Wgs84Position],
+    profile: &MobilityProfile,
+    blocked_areas: &[geo::Polygon],
 ) -> Result<PlannedPath> {
-    let snapped = positions
-        .iter()
-        .map(|position| snap_node(position, node_positions))
-        .collect::<Result<Vec<_>>>()?;
+    let mut snapped_nodes = BTreeSet::new();
     let mut edges = Vec::new();
     let mut coordinates = Vec::new();
     let mut connector_distance_m = 0.0;
-    for (exact, nodes) in positions.windows(2).zip(snapped.windows(2)) {
-        let start = nodes[0];
-        let goal = nodes[1];
+    for exact in positions.windows(2) {
+        let start = snap_node(
+            &exact[0],
+            node_positions,
+            profile,
+            ConnectorDirection::ToNetwork,
+            blocked_areas,
+        )?;
+        let goal = snap_node(
+            &exact[1],
+            node_positions,
+            profile,
+            ConnectorDirection::FromNetwork,
+            blocked_areas,
+        )?;
+        snapped_nodes.extend([start, goal]);
         let snapped_start = node_positions
             .get(&start)
             .context("snapped start node has no position")?;
@@ -188,7 +200,7 @@ fn plan_path(
         edges,
         geometry,
         connector_distance_m,
-        snapped_nodes: snapped.into_iter().collect(),
+        snapped_nodes,
     })
 }
 
@@ -295,20 +307,63 @@ fn insert_consistent(
     Ok(())
 }
 
+#[derive(Clone, Copy)]
+enum ConnectorDirection {
+    ToNetwork,
+    FromNetwork,
+}
+
 fn snap_node(
     position: &Wgs84Position,
     nodes: &HashMap<NodeIndex, Wgs84Position>,
+    profile: &MobilityProfile,
+    direction: ConnectorDirection,
+    blocked_areas: &[geo::Polygon],
 ) -> Result<NodeIndex> {
     position.validate()?;
-    let (node, distance) = nodes
+    let mut candidates = nodes
         .iter()
         .map(|(node, candidate)| (*node, distance(position, candidate)))
-        .min_by(|left, right| left.1.total_cmp(&right.1))
+        .collect::<Vec<_>>();
+    candidates.sort_by(|left, right| left.1.total_cmp(&right.1).then(left.0.cmp(&right.0)));
+    let (_, nearest_distance) = candidates
+        .first()
         .context("network contains no snappable nodes")?;
-    if distance > MAX_SNAP_DISTANCE_M {
-        bail!("route endpoint is {distance:.0} meters from the supported network");
+    if *nearest_distance > MAX_SNAP_DISTANCE_M {
+        bail!("route endpoint is {nearest_distance:.0} meters from the supported network");
     }
-    Ok(node)
+    let mut nearest_rejection = None;
+    for (node, _) in candidates
+        .into_iter()
+        .take_while(|(_, distance)| *distance <= MAX_SNAP_DISTANCE_M)
+    {
+        let candidate = &nodes[&node];
+        let coordinates = match direction {
+            ConnectorDirection::ToNetwork => vec![position.clone(), candidate.clone()],
+            ConnectorDirection::FromNetwork => vec![candidate.clone(), position.clone()],
+        };
+        let admitted = (|| -> Result<()> {
+            let connector = crate::spatial::resample_route_line(
+                &Wgs84LineString { coordinates },
+                profile.planning().maximum_segment_length,
+                profile.planning().maximum_route_points,
+            )?;
+            let line = connector.to_geo()?;
+            if blocked_areas.iter().any(|area| area.intersects(&line)) {
+                bail!("network connector intersects an avoided area");
+            }
+            crate::spatial::require_valid_route_lines(profile, &[connector], &[])
+        })();
+        match admitted {
+            Ok(()) => return Ok(node),
+            Err(error) => {
+                nearest_rejection.get_or_insert(error);
+            }
+        }
+    }
+    Err(nearest_rejection.context("network contains no connector candidates")?).context(
+        "no network connector within 10000 meters satisfies the mobility profile and avoided areas",
+    )
 }
 
 fn distance(left: &Wgs84Position, right: &Wgs84Position) -> f64 {
@@ -337,8 +392,22 @@ fn push_coordinate(coordinates: &mut Vec<Wgs84Position>, position: &Wgs84Positio
 
 #[cfg(test)]
 mod tests {
+    use geo::polygon;
+
     use super::*;
-    use crate::contract::DatasetReleaseId;
+    use crate::contract::{DatasetReleaseId, Degrees};
+
+    fn profile() -> MobilityProfile {
+        let mut profile: MobilityProfile =
+            serde_json::from_str(include_str!("../../tests/fixtures/mobility.json")).unwrap();
+        let MobilityProfile::Human(human) = &mut profile else {
+            unreachable!()
+        };
+        human.planning.maximum_climb_angle = Some(Degrees::new(45.0).unwrap());
+        human.planning.maximum_descent_angle = Some(Degrees::new(45.0).unwrap());
+        human.planning.maximum_segment_length = Meters::new(5_000.0).unwrap();
+        profile
+    }
 
     fn position(longitude_deg: f64, latitude_deg: f64) -> Wgs84Position {
         Wgs84Position::new(longitude_deg, latitude_deg, None).unwrap()
@@ -379,6 +448,8 @@ mod tests {
             &graph,
             &node_positions,
             &[exact_start.clone(), exact_goal.clone()],
+            &profile(),
+            &[],
         )
         .unwrap();
 
@@ -402,6 +473,8 @@ mod tests {
             &graph,
             &node_positions,
             &[exact_start.clone(), exact_goal.clone()],
+            &profile(),
+            &[],
         )
         .unwrap();
 
@@ -410,5 +483,117 @@ mod tests {
         assert_eq!(planned.geometry.coordinates.last(), Some(&exact_goal));
         assert_eq!(planned.geometry.coordinates.len(), 4);
         assert!(planned.connector_distance_m > 200.0);
+    }
+
+    #[test]
+    fn flight_connector_uses_a_feasible_node_without_changing_endpoint_height() {
+        let mut edge = edge("a", "b", 84.0);
+        edge.bidirectional = true;
+        edge.geometry.coordinates = vec![
+            Wgs84Position::new(-73.9855, 40.758, Some(180.0)).unwrap(),
+            Wgs84Position::new(-73.9845, 40.758, Some(180.0)).unwrap(),
+        ];
+        let (graph, nodes) = build_graph(vec![edge], RouteObjectiveKind::Shortest).unwrap();
+        let node_positions = node_positions(&graph).unwrap();
+        let start = Wgs84Position::new(
+            -73.9855017697308,
+            40.75800248937957,
+            Some(179.65162659529597),
+        )
+        .unwrap();
+        let goal = Wgs84Position::new(
+            -73.9853017697308,
+            40.75800248937957,
+            Some(179.65162659529597),
+        )
+        .unwrap();
+        let planned = plan_path(
+            &graph,
+            &node_positions,
+            &[start.clone(), goal.clone()],
+            &profile(),
+            &[],
+        )
+        .unwrap();
+
+        assert_eq!(planned.geometry.coordinates.first(), Some(&start));
+        assert_eq!(planned.geometry.coordinates.last(), Some(&goal));
+        assert_eq!(planned.geometry.coordinates[1], node_positions[&nodes["b"]]);
+        assert_eq!(planned.edges.len(), 1);
+        crate::spatial::require_valid_route_lines(&profile(), &[planned.geometry], &[]).unwrap();
+    }
+
+    #[test]
+    fn connectors_apply_climb_and_descent_in_the_direction_of_travel() {
+        let mut profile = profile();
+        let MobilityProfile::Human(human) = &mut profile else {
+            unreachable!()
+        };
+        human.planning.maximum_climb_angle = Some(Degrees::new(30.0).unwrap());
+        human.planning.maximum_descent_angle = Some(Degrees::new(60.0).unwrap());
+        let close = NodeIndex::new(0);
+        let far = NodeIndex::new(1);
+        let nodes = HashMap::from([
+            (close, Wgs84Position::new(0.00001, 0.0, Some(1.0)).unwrap()),
+            (far, Wgs84Position::new(0.001, 0.0, Some(1.0)).unwrap()),
+        ]);
+        let point = Wgs84Position::new(0.0, 0.0, Some(0.0)).unwrap();
+        assert_eq!(
+            snap_node(&point, &nodes, &profile, ConnectorDirection::ToNetwork, &[]).unwrap(),
+            far
+        );
+        assert_eq!(
+            snap_node(
+                &point,
+                &nodes,
+                &profile,
+                ConnectorDirection::FromNetwork,
+                &[]
+            )
+            .unwrap(),
+            close
+        );
+        let only_close = HashMap::from([(close, nodes[&close].clone())]);
+        let error = snap_node(
+            &point,
+            &only_close,
+            &profile,
+            ConnectorDirection::ToNetwork,
+            &[],
+        )
+        .unwrap_err();
+        assert!(format!("{error:#}").contains("ClimbLimitExceeded"));
+    }
+
+    #[test]
+    fn connectors_avoid_areas_and_stay_within_the_snap_distance() {
+        let near = NodeIndex::new(0);
+        let far = NodeIndex::new(1);
+        let nodes = HashMap::from([(near, position(0.001, 0.0)), (far, position(0.0, 0.002))]);
+        let blocked = polygon![
+            (x: 0.0004, y: -0.0001), (x: 0.0006, y: -0.0001),
+            (x: 0.0006, y: 0.0001), (x: 0.0004, y: 0.0001),
+        ];
+        assert_eq!(
+            snap_node(
+                &position(0.0, 0.0),
+                &nodes,
+                &profile(),
+                ConnectorDirection::ToNetwork,
+                &[blocked]
+            )
+            .unwrap(),
+            far
+        );
+        assert!(
+            snap_node(
+                &position(0.2, 0.2),
+                &nodes,
+                &profile(),
+                ConnectorDirection::ToNetwork,
+                &[]
+            )
+            .is_err()
+        );
     }
 }

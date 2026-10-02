@@ -120,13 +120,11 @@ fn validate_route_envelope(
                     projection.project(&wgs84(&segment[0])),
                     projection.project(&wgs84(&segment[1])),
                 );
-                if horizontal > 0.0 {
-                    let angle = ((second - first) / horizontal).atan().to_degrees();
-                    if angle >= 0.0 {
-                        maximum_ascent = maximum_ascent.max(angle);
-                    } else {
-                        maximum_descent = maximum_descent.max(-angle);
-                    }
+                let angle = (second - first).atan2(horizontal).to_degrees();
+                if angle >= 0.0 {
+                    maximum_ascent = maximum_ascent.max(angle);
+                } else {
+                    maximum_descent = maximum_descent.max(-angle);
                 }
             }
         }
@@ -526,6 +524,29 @@ mod tests {
             unpaved_allowed: false,
             accessibility_requirements: BTreeSet::new(),
         })
+    }
+
+    #[test]
+    fn vertical_segments_enforce_climb_and_descent_limits() {
+        for (start, end, expected) in [
+            (0.0, 10.0, Some(SpatialFindingCode::ClimbLimitExceeded)),
+            (10.0, 0.0, Some(SpatialFindingCode::DescentLimitExceeded)),
+            (10.0, 10.0, None),
+        ] {
+            let line = Wgs84LineString {
+                coordinates: vec![
+                    Wgs84Position::new(0.0, 0.0, Some(start)).unwrap(),
+                    Wgs84Position::new(0.0, 0.0, Some(end)).unwrap(),
+                ],
+            };
+            let violations = crate::spatial::validate_route_lines(&profile(), &[line], &[])
+                .unwrap()
+                .into_iter()
+                .filter(|finding| finding.severity == SpatialFindingSeverity::Violation)
+                .map(|finding| finding.code)
+                .collect::<Vec<_>>();
+            assert_eq!(violations, expected.into_iter().collect::<Vec<_>>());
+        }
     }
 
     #[test]

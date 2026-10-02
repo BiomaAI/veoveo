@@ -73,6 +73,9 @@ pub(crate) fn validate_route_lines(
     lines: &[crate::contract::Wgs84LineString],
     restrictions: &[crate::contract::Restriction],
 ) -> Result<Vec<crate::contract::SpatialFinding>> {
+    for line in lines {
+        line.validate()?;
+    }
     let coordinates = lines
         .iter()
         .flat_map(|line| line.coordinates.iter().cloned())
@@ -112,6 +115,25 @@ pub(crate) fn validate_route_lines(
         &projection,
     )
     .findings)
+}
+
+pub(crate) fn require_valid_route_lines(
+    profile: &crate::contract::MobilityProfile,
+    lines: &[crate::contract::Wgs84LineString],
+    restrictions: &[crate::contract::Restriction],
+) -> Result<()> {
+    let violations = validate_route_lines(profile, lines, restrictions)?
+        .into_iter()
+        .filter(|finding| finding.severity == SpatialFindingSeverity::Violation)
+        .map(|finding| format!("{:?}: {}", finding.code, finding.message))
+        .collect::<Vec<_>>();
+    if !violations.is_empty() {
+        bail!(
+            "route violates its mobility profile or restrictions: {}",
+            violations.join("; ")
+        );
+    }
+    Ok(())
 }
 
 #[cfg(test)]
