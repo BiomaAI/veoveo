@@ -196,6 +196,18 @@ Both image locks, the managed-agent kernel image and chart references select the
 receipts together. All ten rendered rollout tests and Helm configuration checks pass;
 the four installed harness executables compile. BuildKit stops after publication.
 The coordinated rollout and installed URI admission checks remain open.
+The reference converges at `dc9cbf6f` in 282 seconds: both Helm releases and all
+22 changed Deployments are ready. The public URI batch passes 91 checks across
+eighteen resource-serving servers, including 36 template/malformed-escape denials
+with redacted errors. Its first catalog attempt failed while UAV was still starting;
+the complete repeat follows readiness. Knowledge passes nineteen-collection catalog,
+completion, subscription, search and CUDA embedding checks, with thirteen source links
+matching current indexed revisions. Public Artifact full/HEAD/range delivery passes.
+The new Stream image passes live GPU inference and preview notifications across two
+subscription cycles, reconnect and cancellation; its owned session is stopped. The
+simulator sees its Kubernetes-assigned RTX 4090. Reports are under
+`output/development/foundations-uri-publication-38fcfd95/`. Reconciliation is suspended,
+GPU services scale to zero and the cluster stops before further development.
 The current source-qualification batch adds one shared gateway entry point and
 owner-local fixtures for Artifact, Reason, Map and Time. K07 models both updates and
 membership removal; removal must survive restart and deny full and conditional reads.
@@ -2968,7 +2980,7 @@ default owner; the inventory must not become a central domain-type registry.
 
 | Surface | Current dependency or representation gap | Next owning change |
 |---|---|---|
-| Foundational primitives | `ScopeName`, `ResourceScheme`, `ResourceUri`, and `IdentifierError` are extracted into `platform/types`; direct callers use that crate. `ResourceUri` now validates concrete RFC 3986 references through the existing URI library and returns redacted `ResourceUriError`; templates use `ResourceTemplateUri`. Generic references preserve network resource URLs with ports, while domain routes apply the stricter component profile. Grouped shared/server contract, independent consumer and Gateway tests pass, as does workspace-wide all-target strict Clippy. The 26-image publication and both reference charts qualify from `38fcfd95` | Roll out and qualify concrete-reference admission on the reference installation |
+| Foundational primitives | `ScopeName`, `ResourceScheme`, `ResourceUri`, and `IdentifierError` are extracted into `platform/types`; direct callers use that crate. `ResourceUri` validates concrete RFC 3986 references through the existing URI library and returns redacted `ResourceUriError`; templates use `ResourceTemplateUri`. Generic references preserve network resource URLs with ports, while domain routes apply the stricter component profile. Native shared/server contract, independent consumer and Gateway tests and workspace-wide all-target strict Clippy pass. The 26-image release converges at `dc9cbf6f`; 91 public URI checks, Knowledge source-linked retrieval, Artifact delivery and Stream live GPU notifications pass | Complete the owner-specific builders and relationship admission listed below |
 | Independent extension traits | `ScopeDefinition`, `ResourceAddress` and `TaskResourceAddress` are public and contain no domain variants; `McpServerContract` associates server-owned types with descriptors and documents. Artifact, Computers, Speech, Frames, Timeseries, Media, Time, UAV, Reason, DuckDB, Optimization, Recording, View and Stream consume checked setup. The independently owned fixture passes hosted conformance, typed access/denial and contract-only consumption | Adopt checked setup in Map and templates; preserve domain-owned authorization |
 | Scope declarations | `scope_enum!` generates conversions and schemas from server-owned spellings, with compile-time rejection of invalid or duplicate declarations | Adopt it across server libraries while keeping each domain's vocabulary local |
 | Resolved invocation authority | Capability and Work Context membership levels, invocation authority and output defaults belong to `veoveo-types`; callers import them directly. Five schemas, serialized authority bytes, nested identity admission and level ordering pass native and independent-consumer checks. MCP retains configuration and membership matching | Preserve complete authority when extracting domain contracts; qualify installed policy and composition consumers |

@@ -391,7 +391,7 @@ and output defaults.
 Its public `ScopeDefinition`, `ResourceAddress` and `TaskResourceAddress` traits let
 independent libraries supply domain vocabularies and Task-backed resource relationships. Dependencies provide serialization,
 schemas, URL parsing, and percent encoding. Consumers import its types directly. The
-[design](../platform/types/DESIGN.md) defines the opaque reference and concrete component profiles;
+[design](../platform/types/DESIGN.md) defines RFC 3986 concrete references and the stricter domain component profile;
 [the foundations plan](PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts)
 tracks concrete/template reference separation, URI builder adoption, MCP integration traits,
 and server library features.
