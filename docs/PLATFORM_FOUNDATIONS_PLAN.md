@@ -140,6 +140,10 @@ Pod/image identities and the run ID, including failed qualification. All 26 nati
 cases, strict all-target/all-feature Clippy, binary compilation, formatting and docs
 checks pass. The installed cross-replica run remains open; live-owner notifications
 retain their separate acceptance requirement.
+The first installed attempt stops before recording or Task creation because the
+Pod decoder expects `imageId` instead of Kubernetes' `imageID`. The field mapping and
+a Kubernetes-shaped admission fixture correct the harness. All 27 native smoke cases,
+strict Clippy and binary compilation pass; the installed case is ready to repeat.
 The current source-qualification batch adds one shared gateway entry point and
 owner-local fixtures for Artifact, Reason, Map and Time. K07 models both updates and
 membership removal; removal must survive restart and deny full and conditional reads.

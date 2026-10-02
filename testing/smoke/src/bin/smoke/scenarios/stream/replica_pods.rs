@@ -35,6 +35,7 @@ struct ContainerStatus {
     name: String,
     ready: bool,
     image: String,
+    #[serde(rename = "imageID")]
     image_id: String,
     restart_count: u32,
 }
@@ -142,6 +143,31 @@ pub(super) fn check_pair(writer: &PodIdentity, observer: &PodIdentity) -> Result
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn admits_kubernetes_pod_wire_fields_and_rejects_unready_or_deleting_pods() {
+        let wire = serde_json::json!({
+            "metadata": {
+                "name": "stream-a", "uid": uuid::Uuid::new_v4(),
+                "labels": {"app.kubernetes.io/component": "stream-mcp"},
+                "ownerReferences": [{"uid": uuid::Uuid::new_v4(), "kind": "ReplicaSet", "controller": true}]
+            },
+            "status": {"phase": "Running", "containerStatuses": [{
+                "name": "stream-mcp", "ready": true, "image": "registry/stream@sha256:abc",
+                "imageID": "sha256:abc", "restartCount": 2
+            }]}
+        });
+        let admitted =
+            PodIdentity::admit(serde_json::from_value(wire.clone()).unwrap(), "stream-a").unwrap();
+        assert_eq!(admitted.image_id, "sha256:abc");
+        assert_eq!(admitted.restarts, 2);
+        let mut unready = wire.clone();
+        unready["status"]["containerStatuses"][0]["ready"] = false.into();
+        assert!(PodIdentity::admit(serde_json::from_value(unready).unwrap(), "stream-a").is_err());
+        let mut deleting = wire;
+        deleting["metadata"]["deletionTimestamp"] = "2026-10-02T00:00:00Z".into();
+        assert!(PodIdentity::admit(serde_json::from_value(deleting).unwrap(), "stream-a").is_err());
+    }
 
     fn identity(name: &str) -> PodIdentity {
         PodIdentity {
