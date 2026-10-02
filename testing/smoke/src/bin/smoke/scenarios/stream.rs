@@ -38,6 +38,9 @@ const STREAM_HOST: &str = "stream-mcp:8797";
 
 use super::candidate;
 
+#[path = "stream/replicas.rs"]
+mod replicas;
+
 pub(crate) async fn stream_compiler_startup(
     installation: &InstalledTarget,
     binary: &Path,
@@ -80,6 +83,7 @@ pub(crate) async fn stream_gpu(
     candidate_inputs: Option<(&Path, &Path)>,
     pipeline_id: &str,
     producer_key_secret: &str,
+    replica_pods: &[String],
 ) -> Result<()> {
     ensure!(
         env_file.is_file(),
@@ -91,6 +95,7 @@ pub(crate) async fn stream_gpu(
     let namespace = &installation.target.kubernetes.namespace;
     let signing_key = required_environment(&environment, "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64")?;
     let signing_key_id = required_environment(&environment, "VEOVEO_INTERNAL_SIGNING_KEY_ID")?;
+    let replicas = replicas::ReplicaProbe::prepare(installation, replica_pods, work_dir)?;
     let sample_h264 = prepare_sample_h264(work_dir, installation)?;
     let tmpdir = smoke_tmpdir()?;
     let mut cleanup = TmpDirGuard::new(tmpdir.clone());
@@ -169,8 +174,13 @@ pub(crate) async fn stream_gpu(
     let resource = candidate
         .as_ref()
         .map(candidate::Candidate::resource)
+        .or_else(|| {
+            replicas
+                .as_ref()
+                .map(replicas::ReplicaProbe::writer_resource)
+        })
         .unwrap_or_else(|| "service/stream-mcp".to_owned());
-    let _stream_forward =
+    let mut stream_forward =
         PortForwardGuard::spawn(context, namespace, &resource, 8797, remote_port)?;
     let _surreal_forward = PortForwardGuard::spawn(context, namespace, "surrealdb", 8000, 8000)?;
     wait_for_stream(context, namespace, &mut candidate, work_dir).await?;
@@ -204,10 +214,22 @@ pub(crate) async fn stream_gpu(
     )
     .await?;
     let task_client =
-        FinalTaskSmokeClient::new(STREAM_MCP_URL, bearer_token).with_host(STREAM_HOST);
-    let task = task_client
-        .run_tool_structured("run_recording", arguments, Duration::from_secs(300))
-        .await;
+        FinalTaskSmokeClient::new(STREAM_MCP_URL, bearer_token.clone()).with_host(STREAM_HOST);
+    let task = if let Some(mut replicas) = replicas {
+        replicas
+            .run(
+                installation,
+                &task_client,
+                bearer_token,
+                arguments,
+                &mut stream_forward,
+            )
+            .await
+    } else {
+        task_client
+            .run_tool_structured("run_recording", arguments, Duration::from_secs(300))
+            .await
+    };
     let task = match task {
         Ok(output) => output,
         Err(error) => {

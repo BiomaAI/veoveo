@@ -132,6 +132,14 @@ collections; its matching header/footer checkpoint is sequence 2260. These recor
 qualify read attribution, while signed-chain verification has its separate Phase 4 gate.
 Temporary credentials are removed, heavy workloads scale to zero, and the cluster and
 builder stop before development resumes.
+The installed Stream harness now accepts two explicit Pods from one rollout and pins
+Task dispatch and subscription to separate processes. It requires a working-state
+subscription baseline before completion, run/result invalidations, identical typed Task
+and result reads, reconnect baselines and cancellation. A create-only report preserves
+Pod/image identities and the run ID, including failed qualification. All 26 native smoke
+cases, strict all-target/all-feature Clippy, binary compilation, formatting and docs
+checks pass. The installed cross-replica run remains open; live-owner notifications
+retain their separate acceptance requirement.
 The current source-qualification batch adds one shared gateway entry point and
 owner-local fixtures for Artifact, Reason, Map and Time. K07 models both updates and
 membership removal; removal must survive restart and deny full and conditional reads.

@@ -29,7 +29,7 @@ impl FinalTaskSmokeClient {
         self
     }
 
-    async fn connect(&self) -> Result<SmokeMcpClient> {
+    pub(crate) async fn connect(&self) -> Result<SmokeMcpClient> {
         let mut config = StreamableHttpClientTransportConfig::with_uri(self.endpoint.clone())
             .auth_header(self.bearer_token.clone());
         if let Some(host) = &self.host {

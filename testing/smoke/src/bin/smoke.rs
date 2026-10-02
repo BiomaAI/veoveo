@@ -515,6 +515,9 @@ enum Cmd {
         /// Object-detection pipeline admitted by the installation's Stream catalog.
         #[arg(long)]
         pipeline_id: String,
+        /// Two ready Stream Pods: dispatch on the first and observe on the second.
+        #[arg(long, num_args = 2, value_names = ["WRITER", "OBSERVER"], conflicts_with_all = ["candidate_binary", "candidate_app"])]
+        replica_pods: Vec<String>,
     },
     /// Finish selected stale veoveo-video-test recordings through authenticated ingest.
     RecordingFixtureFinish {
@@ -869,6 +872,7 @@ async fn main() -> Result<()> {
             candidate_binary,
             candidate_app,
             pipeline_id,
+            replica_pods,
         } => {
             stream_gpu(
                 &support::InstalledTarget::load(&installation)?,
@@ -877,6 +881,7 @@ async fn main() -> Result<()> {
                 candidate_binary.as_deref().zip(candidate_app.as_deref()),
                 &pipeline_id,
                 &producer_key_secret,
+                &replica_pods,
             )
             .await
         }
