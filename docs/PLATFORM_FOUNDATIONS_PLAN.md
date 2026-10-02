@@ -110,6 +110,25 @@ executables compile. Both Map and conformance images publish from `f64b5c05` in
 206 seconds. The reference selects Map runnable digest
 `sha256:8060d13b3f1433c144b40a1c191b0a81a3ec7da068e45cb81d694ffd416c0845`.
 The builder stops before rollout. Map's installed creation case remains open.
+The reference converges at `44652144` and Map passes all 35 installed source checks
+in 172 seconds, including creation across restart and search denial. All four restarts
+pass public readiness on their first read. Cleanup restores the original release and
+archives the three selected layers. The remaining docs batch passes for thirteen
+sources, including Python Datasheet and the Knowledge service. Rerun is an external
+viewer bridge with resources disabled; its inclusion in this batch was a selection
+error and does not require knowledge adoption. A public audit export contains 360 API
+records with matching header/footer checkpoints and revision-bearing observations for
+Map's seven collections and all thirteen passing documentation collections.
+
+Optimization's first run reports a duplicate declaration while the Gateway catalog
+is changing. A later captured catalog has one declaration, and its fresh complete
+source run passes. The initial failure is retained for catalog-pagination follow-up;
+the observation does not establish which refresh changed the page boundary. Charts
+fails because the reference's four user/service rules admit resource reads but omit
+`resources_templates_list`. The policy correction adds that action to the existing
+Charts selectors and advances the policy and complete public-bundle revisions.
+Charts installed acceptance remains open. The cluster and builder are stopped and
+temporary source credentials are removed before further development.
 The current source-qualification batch adds one shared gateway entry point and
 owner-local fixtures for Artifact, Reason, Map and Time. K07 models both updates and
 membership removal; removal must survive restart and deny full and conditional reads.
@@ -3582,7 +3601,7 @@ revision.
 | chart | `charts.docs` only | build-time document digests | Docs declaration, observations and conditional reads implemented; installed certification remains open |
 | time | events, calendar versions, epoch versions, acquired and packaged authority releases | stored creation tenant, owner and Work Context; content/access revisions, source digests and modification timestamps | Installed source conformance passes twenty-seven checks across docs and five domain collections, including event cancellation before and after a real service restart; source audit review passes |
 | artifact | artifact metadata (`artifact://metadata/{id}`), never the bytes | compliance metadata: tenant, owner, Work Context, labels, provenance | Installed source conformance passes eleven checks, including grant changes across a real service restart; deadline qualification, K09/K10 review and source audit review pass |
-| map | bounded summaries of feature layers, features, publications, locations, facilities and dataset releases | full source content digests, layer and feature revisions, Work Context, labels, stored timestamps and recorded modifying actors | Installed reads, source audit, search denial and three restart probes pass. The shared typed creation probe and Map driver pass native qualification; installed publication creation/restart remains open; archival preserves immutable publications and cannot supply a removal fixture |
+| map | bounded summaries of feature layers, features, publications, locations, facilities and dataset releases | full source content digests, layer and feature revisions, Work Context, labels, stored timestamps and recorded modifying actors | All 35 installed source checks pass, including publication creation, four service restarts and search denial; source audit review and owned fixture cleanup pass. Archival preserves immutable publications |
 
 Acceptance: each server passes K01 through K10 review and conformance, and the audit
 log records the observed revision for reads of each collection.

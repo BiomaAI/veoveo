@@ -1079,7 +1079,7 @@
       "identity_provider": "enterprise",
       "authorization_server": "veoveo",
       "protected_resource": "https://veoveo.bioma.ai/mcp/operator",
-      "policy_version": "2026-10-01-knowledge-catalog",
+      "policy_version": "2026-10-02-knowledge-docs",
       "auth_modes": [
         "oauth_client_credentials",
         "oidc_authorization_code_pkce"
@@ -1684,7 +1684,7 @@
       "identity_provider": "enterprise",
       "authorization_server": "veoveo",
       "protected_resource": "https://veoveo.bioma.ai/mcp/agent",
-      "policy_version": "2026-10-01-knowledge-catalog",
+      "policy_version": "2026-10-02-knowledge-docs",
       "auth_modes": [
         "oauth_client_credentials"
       ],
@@ -1877,7 +1877,7 @@
       "identity_provider": "enterprise",
       "authorization_server": "veoveo",
       "protected_resource": "https://veoveo.bioma.ai/mcp/admin",
-      "policy_version": "2026-10-01-knowledge-catalog",
+      "policy_version": "2026-10-02-knowledge-docs",
       "auth_modes": [
         "oauth_client_credentials",
         "oidc_authorization_code_pkce"
@@ -2438,7 +2438,7 @@
       "identity_provider": "enterprise",
       "authorization_server": "veoveo",
       "protected_resource": "https://veoveo.bioma.ai/recordings/publish",
-      "policy_version": "2026-10-01-knowledge-catalog",
+      "policy_version": "2026-10-02-knowledge-docs",
       "auth_modes": [
         "oauth_client_credentials"
       ],
@@ -2471,7 +2471,7 @@
       "identity_provider": "enterprise",
       "authorization_server": "veoveo",
       "protected_resource": "https://veoveo.bioma.ai/mcp/rerun",
-      "policy_version": "2026-10-01-knowledge-catalog",
+      "policy_version": "2026-10-02-knowledge-docs",
       "auth_modes": [
         "oauth_client_credentials",
         "oidc_authorization_code_pkce"
@@ -2504,7 +2504,7 @@
       "identity_provider": "enterprise",
       "authorization_server": "veoveo",
       "protected_resource": "https://veoveo.bioma.ai/mcp/workspace",
-      "policy_version": "2026-10-01-knowledge-catalog",
+      "policy_version": "2026-10-02-knowledge-docs",
       "auth_modes": [
         "oidc_authorization_code_pkce"
       ],
@@ -3220,7 +3220,7 @@
       "id": "recording-ingest",
       "protected_resource": "https://veoveo.bioma.ai/ingest/recordings",
       "authorization_server": "veoveo",
-      "policy_version": "2026-10-01-knowledge-catalog",
+      "policy_version": "2026-10-02-knowledge-docs",
       "upstream": {
         "transport": "streamable_http",
         "url": "http://recording-hub:9878",
@@ -3271,7 +3271,7 @@
   ],
   "policies": [
     {
-      "version": "2026-10-01-knowledge-catalog",
+      "version": "2026-10-02-knowledge-docs",
       "rules": [
         {
           "id": "allow_recording_ingest",
@@ -3842,6 +3842,7 @@
             "tools_list",
             "tools_call",
             "resources_list",
+            "resources_templates_list",
             "resources_read",
             "prompts_list",
             "prompts_get"
@@ -3886,6 +3887,7 @@
             "tools_list",
             "tools_call",
             "resources_list",
+            "resources_templates_list",
             "resources_read",
             "prompts_list",
             "prompts_get"
@@ -3926,6 +3928,7 @@
             "tools_list",
             "tools_call",
             "resources_list",
+            "resources_templates_list",
             "resources_read",
             "prompts_list",
             "prompts_get"
@@ -3969,6 +3972,7 @@
             "tools_list",
             "tools_call",
             "resources_list",
+            "resources_templates_list",
             "resources_read",
             "prompts_list",
             "prompts_get"
@@ -6936,7 +6940,7 @@
       "id": "operations",
       "tenant": "bioma",
       "title": "Operations",
-      "policy_revision": "2026-10-01-knowledge-catalog",
+      "policy_revision": "2026-10-02-knowledge-docs",
       "output_policy": {
         "owner": {
           "kind": "group",
@@ -6993,7 +6997,7 @@
       "id": "independent-review",
       "tenant": "bioma",
       "title": "Independent Review",
-      "policy_revision": "2026-10-01-knowledge-catalog",
+      "policy_revision": "2026-10-02-knowledge-docs",
       "output_policy": {
         "owner": {
           "kind": "group",
