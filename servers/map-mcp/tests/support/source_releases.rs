@@ -9,6 +9,7 @@ use std::sync::{
 };
 use veoveo_map_mcp::contract::*;
 use veoveo_mcp_conformance::knowledge_probes::{KnowledgeChangeDriver, KnowledgeProbeFuture};
+use veoveo_types::ResourceAddress;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -68,9 +69,21 @@ impl ReleaseProbe {
         ensure!(
             &value.release_id == id
                 && value.dataset_id == self.selection.dataset
-                && value.version_label.starts_with("source-conformance-")
                 && value.routing_build_version.is_none(),
             "release mutation requires a disposable non-routing fixture dataset"
+        );
+        let source: SourceSummary = installed::read(
+            &self.peer,
+            &MapSourceUri::new(value.source_id.clone()).to_uri()?,
+        )
+        .await?;
+        ensure!(
+            source.source_id() == &value.source_id
+                && source.dataset_id() == &self.selection.dataset
+                && source.name().starts_with("Source conformance ")
+                && source.authority() == AuthorityClass::SyntheticTest
+                && source.adapter_kind() == SourceAdapterKind::AuthorityVector,
+            "release mutation requires a selected synthetic source-conformance vector source"
         );
         value.validate()?;
         Ok(value)

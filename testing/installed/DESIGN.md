@@ -64,7 +64,9 @@ layers must differ and their titles must begin `Source conformance `. The first
 layer contains the mutable feature. Archiving the other two tests publication
 removal. Cleanup archives all three layers through the same version-checked tools.
 The releases must form an active/staged pair from one source in a disposable
-non-routing dataset, with version labels beginning `source-conformance-`. The probe
+non-routing dataset. Its registered source must be an Authority Vector with
+`synthetic_test` authority and a name beginning `Source conformance `. Acquisition
+supplies the normal digest-based release labels. The probe
 activates the candidate and restores the original after restart. Cleanup restores
 the original pointer and refuses to overwrite an unrelated release selection.
 
