@@ -4,28 +4,28 @@ global:
   imageDigests:
     veoveo/computer-host: sha256:c07def983f6db44a3aa3f5d114b0e0a6671d563176e6df9108029c05927f2a91
     veoveo/computer-template: sha256:cb4b086519e572c6e26cd15cb4cc1b2878e181b059ec3cac55ee9bf387bd73e4
-    veoveo/computers-mcp: sha256:45218d95be7717000517b885a40d915282d5162cb32e598f6e29ada04a07bf3d
-    veoveo/artifact-mcp: sha256:9282500cfcc2cc148faf7ceb89d8d61b8b9f3775f5ca791a60995bbe81d5d852
-    veoveo/artifact-service: sha256:c06c31ad86b12f46fe00da7e9997d9c0788ce07a3bf0d20b4344c683854ceed5
+    veoveo/computers-mcp: sha256:2c1d83e2bb376274aed5cec6cb9f88548e88216fbbdf6a4ddf52a8ee45bdf27a
+    veoveo/artifact-mcp: sha256:258269c6dfa0a5b588ce42427c2079d1e000401223de9d6668b01ba0cc5c3354
+    veoveo/artifact-service: sha256:e47dd99fd5ad7ff58707ce54ccc7c0586cd19bf95ca797e4e53250345b885343
     veoveo/chart-mcp: sha256:d247dde769d1c633ecc47282f3f34741556cb62885468a861c79b3e02188f321
-    veoveo/console-bff: sha256:817cc05b399026e5d16a5abd2af6eea2c91d643ef14d3fc22b385f54ec942197
+    veoveo/console-bff: sha256:fdf20d8eced2c3fb18c16d88b159c67a7c3c45ef44046e483ce8ac078d29727a
     veoveo/cuopt-executor: sha256:997926bd12f25d221175d9b2f9e35980457afe8d8e21571850e296871bfb9ae2
     veoveo/datasheet-mcp: sha256:0ff59899015a4ca66f30f867557e9b101b73e68e110524df3835e1f4b9050b03
-    veoveo/duckdb-mcp: sha256:adb64fb3b4bf71a503a24b346f66305fd5511612ded3b7383c87d8ca50ab3a1e
-    veoveo/frames-mcp: sha256:b0dbed9e386eeb3c5fdb658749fb6cc02376eb13b9a86d31f898a1c441baf483
-    veoveo/map-mcp: sha256:8060d13b3f1433c144b40a1c191b0a81a3ec7da068e45cb81d694ffd416c0845
-    veoveo/mcp-gateway: sha256:697bdbe7f2ff2a5e45c3d5a20cc0b62a56bcddf2c16e0ddbb0d84271595eccbd
-    veoveo/mcp-legacy-bridge: sha256:54b29b7607afd8592aabcf807a93b6352bdeb6a8c8c486ab2abc9d5c2e0cbc70
-    veoveo/media-mcp: sha256:5c6431ec31d8f0c2c221f9bfbde9dafb6cef5dbd5b1e7c1cb705e725018fa511
-    veoveo/optimization-mcp: sha256:96009f3e22a18c6b3e3ad06bc9ea91ef7cb9564ae2dd92e578bc66657b6a05a1
-    veoveo/reason-mcp: sha256:08cbff90ffb233477e0759f170d2cfa0d3307f1a0ce11508698de705c4ed6665
-    veoveo/recording-hub: sha256:340edbf353b13df716c0379038bf447f32a073ddcd61e693ac01f53804cbe0c2
-    veoveo/recording-mcp: sha256:96b2184273e63c8364492a796849419d2cad3504b96aaf1723d2ee2c0fa6e3e1
-    veoveo/stream-mcp: sha256:3fbe4dd0e4835e3d538d2bd7f3d10c621a60f6e99a626e1cab01b4819df9758a
-    veoveo/time-mcp: sha256:45416793d1ab94f8ddf111db17da37089ecd963648b21ac118fec09f0381c450
-    veoveo/timeseries-mcp: sha256:a330890aeb53af3f5c8d980750c0b03c1632844d0df02f34b222f863c1c9f5ad
-    veoveo/view-mcp: sha256:cc94d42a6522252efeb36e6e826bf2a53f8b67b8429c778db2d0dd6570e0ade6
-    veoveo/agent-kernel: sha256:7aaf3982854bf08ae26088ab979897e10f8672d812f51b60eea72193810260f4
-    veoveo/agent-manager: sha256:ce390a081a34ae0933b07d760c9fb5ff3dc53cc3afae248267daa3042a31c57f
-    veoveo/speech-mcp: sha256:c69a4a18e32e2a738e0db5f46cb0b0d3b7e7b62a2f9ec56558bb2eba738ef3ba
-    veoveo/knowledge-mcp: sha256:ff0522f4d77928a343754f1ac16a682999a1a6d24c09b8e03d138e5185cd6a6e
+    veoveo/duckdb-mcp: sha256:0e7afbe70e93b48b6f5eafe55633a8ae02d7d3c983eaea5a4b7212d4bff2f40d
+    veoveo/frames-mcp: sha256:b2a1c2c2fcb6cd02ae6f8054aeaea3134105908b9035bee198bd5c0b19f7da7c
+    veoveo/map-mcp: sha256:185956a24731ed3ebd188bcad65c5433438327a8f5edae9a6e892e72ae6a1cd4
+    veoveo/mcp-gateway: sha256:6ccf1aec60a0bce3f8e62d29e88ecff36178d5e8755697697bcf68d30509b28a
+    veoveo/mcp-legacy-bridge: sha256:427d69a80e80016039e532c99fb3b73c40e20937e863a47319e589d79abeac47
+    veoveo/media-mcp: sha256:e6c28c09677f0f95a66282010c0b5dfeef721a14e68c9b1b01124e919e0f2cbf
+    veoveo/optimization-mcp: sha256:0f8e850db3c7c04d716e21625a5b713975eae27a22dbd8092b510ce921104895
+    veoveo/reason-mcp: sha256:e73d8ef9a9412ac16922d568647c9a93229fa8d2ba323bea45b210f202182622
+    veoveo/recording-hub: sha256:2fd5b8d4e036982ad60163d4fd68672cf2a91191ae7be3f1e3b3c5fe4d4f97c1
+    veoveo/recording-mcp: sha256:b5c38f353e7bb42b720c1bafab220d8fc4500d0e37598f3efeeb6a098f4ed21c
+    veoveo/stream-mcp: sha256:3a6cae6334b172583312128411ceaa496399a6d5d46d07fdbdfd4c4dc69d9a21
+    veoveo/time-mcp: sha256:5c8bd52be09e76c81ee28614327d40c837fb0132af62a9334da40dab5684ce60
+    veoveo/timeseries-mcp: sha256:034655e4445f9fab67762302012d2553bba51a5b73aadbc16c514a45f4184c3c
+    veoveo/view-mcp: sha256:59fa39efdb6b0ac8d3af95680d989fe928236fc176f94ada10514bfa44953d98
+    veoveo/agent-kernel: sha256:cb7f0899430845d7d4f631d5475d44407536ca0f965ec5a7c8ceafdd336a1d37
+    veoveo/agent-manager: sha256:5bcc97190c421f25af0507858c94a4fb4b0c7e9d10792767e41582e4b5d79e62
+    veoveo/speech-mcp: sha256:419ad080d7fea26f4ac0e35b876d367ced209287927938f7575ce90bdff70953
+    veoveo/knowledge-mcp: sha256:b3b7d00dbd20ccbc92bf57e248c8e9833210a8fd90d538d6c6a170eac4a82e2a

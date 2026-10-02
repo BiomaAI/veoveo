@@ -187,6 +187,15 @@ batch also corrects a stale registration test and documentation: catalog-only ap
 permits source-contract discovery, while member reads still require indexing approval.
 The coordinated image publication and installed URI admission qualification remain
 open. The cluster and builder remain stopped throughout this native batch.
+The URI batch publishes 26 qualified images and both reference charts from `38fcfd95`
+in 815.5 seconds. The selection covers 24 images referenced by the installation plus
+conformance and stdio tools. Cargo's production dependency closure excludes Computer
+host, storage and guest-template images; the earlier lockfile change only adds an
+existing dependency to the flight client. Their retained-template inputs stay fixed.
+Both image locks, the managed-agent kernel image and chart references select the new
+receipts together. All ten rendered rollout tests and Helm configuration checks pass;
+the four installed harness executables compile. BuildKit stops after publication.
+The coordinated rollout and installed URI admission checks remain open.
 The current source-qualification batch adds one shared gateway entry point and
 owner-local fixtures for Artifact, Reason, Map and Time. K07 models both updates and
 membership removal; removal must survive restart and deny full and conditional reads.
@@ -2959,7 +2968,7 @@ default owner; the inventory must not become a central domain-type registry.
 
 | Surface | Current dependency or representation gap | Next owning change |
 |---|---|---|
-| Foundational primitives | `ScopeName`, `ResourceScheme`, `ResourceUri`, and `IdentifierError` are extracted into `platform/types`; direct callers use that crate. `ResourceUri` now validates concrete RFC 3986 references through the existing URI library and returns redacted `ResourceUriError`; templates use `ResourceTemplateUri`. Generic references preserve network resource URLs with ports, while domain routes apply the stricter component profile. Grouped shared/server contract, independent consumer and Gateway tests pass, as does workspace-wide all-target strict Clippy | Publish and qualify the coordinated installed hard cut for concrete-reference admission |
+| Foundational primitives | `ScopeName`, `ResourceScheme`, `ResourceUri`, and `IdentifierError` are extracted into `platform/types`; direct callers use that crate. `ResourceUri` now validates concrete RFC 3986 references through the existing URI library and returns redacted `ResourceUriError`; templates use `ResourceTemplateUri`. Generic references preserve network resource URLs with ports, while domain routes apply the stricter component profile. Grouped shared/server contract, independent consumer and Gateway tests pass, as does workspace-wide all-target strict Clippy. The 26-image publication and both reference charts qualify from `38fcfd95` | Roll out and qualify concrete-reference admission on the reference installation |
 | Independent extension traits | `ScopeDefinition`, `ResourceAddress` and `TaskResourceAddress` are public and contain no domain variants; `McpServerContract` associates server-owned types with descriptors and documents. Artifact, Computers, Speech, Frames, Timeseries, Media, Time, UAV, Reason, DuckDB, Optimization, Recording, View and Stream consume checked setup. The independently owned fixture passes hosted conformance, typed access/denial and contract-only consumption | Adopt checked setup in Map and templates; preserve domain-owned authorization |
 | Scope declarations | `scope_enum!` generates conversions and schemas from server-owned spellings, with compile-time rejection of invalid or duplicate declarations | Adopt it across server libraries while keeping each domain's vocabulary local |
 | Resolved invocation authority | Capability and Work Context membership levels, invocation authority and output defaults belong to `veoveo-types`; callers import them directly. Five schemas, serialized authority bytes, nested identity admission and level ordering pass native and independent-consumer checks. MCP retains configuration and membership matching | Preserve complete authority when extracting domain contracts; qualify installed policy and composition consumers |

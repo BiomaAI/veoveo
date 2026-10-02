@@ -1,7 +1,7 @@
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: OCIRepository
 metadata:
-  name: uav-sim-chart-937116a29a5c25a0ec59030a670710165e3021701895eb3365d0c7dad68f1dd8
+  name: uav-sim-chart-0cfa738dfc6f9dfe23c3e394566108f7876bab839e5cba3871fec451c9acc2bd
   namespace: flux-system
 spec:
   interval: 5m
@@ -9,7 +9,7 @@ spec:
   url: oci://charts-registry.flux-system.svc.cluster.local:5000/charts/uav-sim
   insecure: true
   ref:
-    digest: sha256:937116a29a5c25a0ec59030a670710165e3021701895eb3365d0c7dad68f1dd8
+    digest: sha256:0cfa738dfc6f9dfe23c3e394566108f7876bab839e5cba3871fec451c9acc2bd
   layerSelector:
     mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
     operation: copy

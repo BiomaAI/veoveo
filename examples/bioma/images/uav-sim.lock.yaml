@@ -2,7 +2,7 @@ global:
   veoveoRegistry: k3d-veoveo-registry.localhost:5000
   veoveoTag: ""
   imageDigests:
-    veoveo/recording-forwarder: sha256:6d7ee7782c234e800230564ea9086c8b4bc349c8f4f762d8de009677d1fa176e
-    veoveo/uav-sim-mcp: sha256:50b0c29f3e65dbc74f947bd8240905488b2ae0c18e64b801484b973be22d4d2d
+    veoveo/recording-forwarder: sha256:e0f5dc0402655e6ca91379e33f8ec2765767212fbd569029801d368f6c37cb75
+    veoveo/uav-sim-mcp: sha256:a27b29ea8209f07755a7c2d8c774826c4e082dcd9f8dcafc6cdd8624fbe0e62d
     # Isaac Sim 6.1.0 with its native RTSP writer and NVENC H.264 stream.
     veoveo/uav-sim-runtime: sha256:19ce49ff7ba20b729b1623271100f5fceee258335340e2525319f040959a3efd
