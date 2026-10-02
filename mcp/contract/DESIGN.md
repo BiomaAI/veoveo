@@ -446,8 +446,10 @@ to MCP core.
 
 An OAuth client's optional `knowledge_indexing` registration requires a tenant-bound
 automated `private_key_jwt` client using only `client_credentials` and one dedicated
-profile. Every granted collection needs an explicit `index` approval and source
-resource exposure. The profile disables tools, prompts, Tasks, completion and Artifact
+profile. Every granted collection needs an explicit installation approval and source
+resource exposure. A `catalog-only` approval permits source-contract discovery;
+member reads and root subscriptions require `index` approval at runtime.
+The profile disables tools, prompts, Tasks, completion and Artifact
 upload. Its policy allows only resource discovery, reads and subscriptions.
 The [gateway](../../platform/gateway/DESIGN.md#knowledge-indexing-clients) enforces
 collection and observation admission at runtime.

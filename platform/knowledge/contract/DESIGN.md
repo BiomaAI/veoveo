@@ -38,8 +38,9 @@ collection identity and rejects indexing when the source declares `none`.
 embedding; member construction repeats the check before storage. All approval fields
 contribute to the registration fingerprint.
 
-`KnowledgeIndexingRegistration` names the 1–1,024 collections that a machine client
-may index. The gateway control-plane contract imports these generic domain types and
+`KnowledgeIndexingRegistration` names the 1–1,024 approved collections that a machine
+client may discover. Member reads and root subscriptions also require `index` approval.
+The gateway control-plane contract imports these generic domain types and
 validates the client's authentication and profile. It imports no server-owned scope,
 resource route or tool schema.
 

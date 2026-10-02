@@ -21,7 +21,10 @@ fn indexing_requires_explicit_collection_approval_and_a_read_only_machine_profil
             .unwrap();
         match case {
             0 => plane.servers[0].knowledge.clear(),
-            1 => plane.servers[0].knowledge[0].mode = CollectionApproval::CatalogOnly,
+            1 => {
+                client.knowledge_indexing.as_mut().unwrap().collections =
+                    ["media.unapproved".parse().unwrap()].into();
+            }
             2 => plane.servers[0].knowledge[0].stewards.clear(),
             3 => {
                 plane.servers[0].knowledge[0]
@@ -54,4 +57,11 @@ fn indexing_requires_explicit_collection_approval_and_a_read_only_machine_profil
     for invalid in ["", " padded ", "line\nbreak"] {
         assert!(KnowledgeSubject::new(invalid).is_err());
     }
+}
+
+#[test]
+fn catalog_only_approval_allows_registration_for_source_discovery() {
+    let mut plane = fixture::plane();
+    plane.servers[0].knowledge[0].mode = CollectionApproval::CatalogOnly;
+    plane.validate().unwrap();
 }
