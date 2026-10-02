@@ -92,7 +92,7 @@ async fn public_command_admission_repairs_one_task_with_actual_artifact_authorit
             store,
             TaskRuntime::new(platform, "computers", "public-admission"),
             Templates::new(
-                vec![NamedTemplate::new("development".into(), selected.clone()).unwrap()],
+                vec![NamedTemplate::new("development".parse().unwrap(), selected.clone()).unwrap()],
                 Some(selected.fingerprint()),
             )
             .unwrap(),

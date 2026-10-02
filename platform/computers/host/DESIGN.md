@@ -73,7 +73,8 @@ reads at most 64 KiB, rejects unknown fields
 and validates identities, capacity, image digests and private networks before startup.
 Configuration provides `providerId`, `namespace`, `defaultImage`, `images`, `templates`,
 `reserveBytes`, `registry`, `bridgeAddress` and `networkPool`. The schema value is
-`veoveo.ai/computer-host/v1`. Templates use the allocator's fingerprint/capacity shape.
+`veoveo.ai/computer-host/v1`. `providerId` decodes through the Computers contract’s
+`ProviderInstanceId`; the launcher imports that lightweight owner contract directly. Templates use the allocator's fingerprint/capacity shape.
 The bridge address is a private `.1` address on a /24; the sandbox pool is a distinct
 private /16 base. The installation must choose ranges that do not overlap its pod,
 service, physical or routed networks. Docker owns these ranges within its namespace.

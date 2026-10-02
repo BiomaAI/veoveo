@@ -63,7 +63,7 @@ pub async fn queue_claim(
         .queue_command(
             actor,
             permit(store, actor, computer, grant).await,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             &payload("private-dispatch-argument", 30),
             &keys(),
         )

@@ -9,7 +9,7 @@ pub(super) fn input(operation: &MaintenanceOperation) -> ResumeUpdateInput {
     ResumeUpdateInput {
         computer_id: operation.computer_id,
         task_id: operation.operation_id,
-        request_id: Uuid::now_v7(),
+        request_id: veoveo_computers::api::RequestId::new(),
         expected_updated_at: operation.updated_at,
         acknowledged_cancellation_at: None,
     }
@@ -94,7 +94,7 @@ async fn explicit_windows_retain_dispatch_history_and_exact_retries_never_renew_
         a.resume_maintenance(
             &actor,
             &ResumeUpdateInput {
-                request_id: Uuid::now_v7(),
+                request_id: veoveo_computers::api::RequestId::new(),
                 ..input.clone()
             }
         )
@@ -181,7 +181,7 @@ async fn cancellation_requires_exact_consent_current_recovery_policy_and_private
             .unwrap()
             .take(0)
             .unwrap();
-    assert_eq!(count, vec![input.request_id]);
+    assert_eq!(count, vec![input.request_id.into_uuid()]);
 }
 
 #[tokio::test]

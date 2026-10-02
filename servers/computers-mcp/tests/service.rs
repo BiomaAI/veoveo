@@ -231,12 +231,17 @@ async fn service_reports_setup_or_outage_and_stops_without_waiting_for_compute()
         "startup must not replace an existing quota"
     );
     assert_eq!(
-        veoveo_computers::ComputersStore::new(db.a.clone(), uuid::Uuid::from_u128(100))
-            .unwrap()
-            .capacity()
-            .await
-            .unwrap()
-            .per_owner,
+        veoveo_computers::ComputersStore::new(
+            db.a.clone(),
+            "00000000-0000-7000-8000-000000000064"
+                .parse::<veoveo_computers::api::ProviderInstanceId>()
+                .unwrap()
+        )
+        .unwrap()
+        .capacity()
+        .await
+        .unwrap()
+        .per_owner,
         1
     );
 }

@@ -16,22 +16,14 @@ pub struct CapacityPolicy {
 
 #[derive(Clone, Debug)]
 pub struct Reservation {
-    pub request_id: Uuid,
-    pub template_id: String,
+    pub request_id: crate::api::RequestId,
+    pub template_id: crate::api::TemplateId,
     pub template_fingerprint: String,
 }
 
 impl Reservation {
     fn validate(&self) -> Result<()> {
-        if self.request_id.is_nil()
-            || self.template_id.is_empty()
-            || self.template_id.len() > 64
-            || !self
-                .template_id
-                .bytes()
-                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
-            || !self.template_id.as_bytes()[0].is_ascii_alphanumeric()
-            || self.template_fingerprint.len() != 64
+        if self.template_fingerprint.len() != 64
             || !self
                 .template_fingerprint
                 .bytes()
@@ -61,11 +53,8 @@ impl ComputersStore {
     pub async fn reserved_for_request(
         &self,
         owner: &TaskOwner,
-        request_id: Uuid,
+        request_id: crate::api::RequestId,
     ) -> Result<Option<Computer>> {
-        if request_id.is_nil() {
-            return Err(ComputerError::InvalidInput);
-        }
         let key = owner_key(owner)?;
         let request = RecordId::new(
             "computer_request",
@@ -74,7 +63,10 @@ impl ComputersStore {
         let mut params = crate::store::owner_query_bindings(owner)?;
         params.extend([
             ("request", request.into_value()),
-            ("provider", self.provider_instance_id.into_value()),
+            (
+                "provider",
+                self.provider_instance_id.into_uuid().into_value(),
+            ),
         ]);
         let mut response = self
             .query(include_str!("../queries/reservation_read.surql"), params)
@@ -119,8 +111,8 @@ impl ComputersStore {
             owner_key: key.clone(),
             tenant_key: owner.tenant_key().into(),
             owner_context: object(owner)?,
-            provider_instance_id: self.provider_instance_id,
-            template_id: input.template_id.clone(),
+            provider_instance_id: self.provider_instance_id.into_uuid(),
+            template_id: input.template_id.to_string(),
             template_fingerprint: input.template_fingerprint.clone(),
         };
         let tenant =

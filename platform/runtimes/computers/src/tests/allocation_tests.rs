@@ -57,7 +57,10 @@ async fn allocator_fixture(mode: u8) -> (HomeAllocator, tokio::task::JoinHandle<
                 request["templateFingerprint"],
                 binding.template_fingerprint()
             );
-            assert_eq!(request["providerId"], Uuid::from_u128(100).to_string());
+            assert_eq!(
+                request["providerId"],
+                "00000000-0000-7000-8000-000000000064"
+            );
             if expected != "ready" {
                 assert_eq!(request["computerId"], binding.computer_id().to_string());
                 assert_eq!(
@@ -112,7 +115,7 @@ async fn allocator_fixture(mode: u8) -> (HomeAllocator, tokio::task::JoinHandle<
     (
         HomeAllocator::new(
             config,
-            Uuid::from_u128(100),
+            "00000000-0000-7000-8000-000000000064".parse().unwrap(),
             binding().template_fingerprint().into(),
             1024 * 1024 * 1024,
         )

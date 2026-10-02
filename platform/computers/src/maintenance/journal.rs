@@ -48,7 +48,10 @@ impl ComputersStore {
         )?;
         params.extend([
             ("journal", record(id).into_value()),
-            ("provider", self.provider_instance_id.into_value()),
+            (
+                "provider",
+                self.provider_instance_id.into_uuid().into_value(),
+            ),
         ]);
         let started = Instant::now();
         let mut read = self
@@ -83,7 +86,10 @@ impl ComputersStore {
         let mut params = vec![
             ("maintenance", record(before.operation_id).into_value()),
             ("operation_id", before.operation_id.as_uuid().into_value()),
-            ("provider", self.provider_instance_id.into_value()),
+            (
+                "provider",
+                self.provider_instance_id.into_uuid().into_value(),
+            ),
             (
                 "computer",
                 crate::model::computer_record(before.computer_id).into_value(),

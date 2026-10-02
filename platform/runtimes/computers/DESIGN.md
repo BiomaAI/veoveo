@@ -103,8 +103,10 @@ Only their private protocol adapters convert it to the allocator's UUID field.
 
 ## Retained Allocation Identity
 
-The allocation client pins a non-nil provider UUID alongside its template fingerprint
-and capacity. Ready must echo that provider. Prepare and Restore also carry the
+The allocation client pins the Computers contract’s `ProviderInstanceId` alongside its template fingerprint
+and capacity. The lightweight contract carries no provider, MCP or persistence dependency.
+Private protobuf and allocator adapters convert the identity to their wire UUID.
+Ready must echo that provider. Prepare and Restore also carry the
 Computer UUID and admitted instance UUID; every reply must echo all identities exactly.
 The initial instance UUID equals the Computer UUID. A replacement uses its distinct
 durable instance UUID while preserving the original Computer's volume name.

@@ -39,6 +39,16 @@ through issuance, redemption, renewal and revocation. Named automation grants us
 `AutomationGrantId`. SQL predicates still establish parent, provider, session and
 current-authority relationships; a typed identity alone does not establish access.
 
+Request admission carries the contract's `RequestId`; reservation and maintenance
+carry `TemplateId`. Provider configuration, journal bindings and runtime calls keep
+`ProviderInstanceId` until a Store or private protocol adapter needs a UUID. Reads
+validate the stored profile before constructing domain state. Browser and CLI leases
+retain the foundational `GatewayRefreshFamilyId` from accepted authority.
+
+Completed projections reuse the contract's checked result constructors and Artifact
+occurrence identity. Stored grant validation examines the recorded grant fields
+directly, without constructing a new admission request.
+
 ## Transactional Audit
 
 `src/audit.rs` builds records from accepted request authority. Reservation requires a

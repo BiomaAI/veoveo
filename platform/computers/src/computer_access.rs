@@ -130,7 +130,10 @@ impl ComputersStore {
                 "grant",
                 crate::automation_grants::record(grant).into_value(),
             ),
-            ("provider", self.provider_instance_id.into_value()),
+            (
+                "provider",
+                self.provider_instance_id.into_uuid().into_value(),
+            ),
         ]);
         let mut read = self
             .query(
@@ -389,7 +392,10 @@ impl ComputersStore {
                 "computer_record",
                 crate::model::computer_record(computer).into_value(),
             ),
-            ("provider", self.provider_instance_id.into_value()),
+            (
+                "provider",
+                self.provider_instance_id.into_uuid().into_value(),
+            ),
             ("read_only", read_only.into_value()),
         ]);
         let mut read = self
@@ -431,7 +437,10 @@ impl ComputersStore {
         let mut params = scope(actor.accepted())?;
         params.extend(crate::store::owner_query_bindings(actor.owner())?);
         params.extend([
-            ("provider", self.provider_instance_id.into_value()),
+            (
+                "provider",
+                self.provider_instance_id.into_uuid().into_value(),
+            ),
             (
                 "after",
                 after.map(crate::api::ComputerId::into_uuid).into_value(),

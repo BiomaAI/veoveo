@@ -33,7 +33,11 @@ async fn exec(runtime: &OpenShellRuntime, binding: &Binding, program: &str) -> R
     ensure!(result.exit_code == 0, "native Computer exec failed");
     Ok(())
 }
-async fn stop(runtime: &OpenShellRuntime, provider: Uuid, binding: &Binding) -> Result<()> {
+async fn stop(
+    runtime: &OpenShellRuntime,
+    provider: veoveo_computers_runtime::ProviderInstanceId,
+    binding: &Binding,
+) -> Result<()> {
     let before = runtime.get(binding).await?.unwrap();
     let checkpoint = LifecycleCheckpoint::stop(
         provider,

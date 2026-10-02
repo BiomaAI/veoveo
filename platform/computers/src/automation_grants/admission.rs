@@ -149,7 +149,7 @@ impl ComputersStore {
             grant_id: grant_id.into_uuid(),
             computer_id: input.computer_id.into_uuid(),
             owner_key: key.clone(),
-            provider_instance_id: self.provider_instance_id,
+            provider_instance_id: self.provider_instance_id.into_uuid(),
             authority: object(actor.accepted())?,
             grantee: grantee.id,
             principal_id: principal.to_string(),
@@ -171,7 +171,10 @@ impl ComputersStore {
             ("computer", computer_record(input.computer_id).into_value()),
             ("computer_id", input.computer_id.into_uuid().into_value()),
             ("owner_key", key.into_value()),
-            ("provider", self.provider_instance_id.into_value()),
+            (
+                "provider",
+                self.provider_instance_id.into_uuid().into_value(),
+            ),
             ("request", request.clone().into_value()),
             ("fingerprint", fingerprint.into_value()),
             ("grant", super::record(grant_id).into_value()),
@@ -236,7 +239,7 @@ impl ComputersStore {
                     vec![
                         ("owner_key", owner_key(&computer.owner)?.into_value()),
                         ("computer_id", computer_id.into_uuid().into_value()),
-                        ("provider", self.provider_instance_id.into_value()),
+                        ("provider", self.provider_instance_id.into_uuid().into_value()),
                     ],
                 )
                 .await?;
@@ -310,7 +313,10 @@ impl ComputersStore {
                 ("computer", computer_record(input.computer_id).into_value()),
                 ("computer_id", input.computer_id.into_uuid().into_value()),
                 ("owner_key", owner_key(&computer.owner)?.into_value()),
-                ("provider", self.provider_instance_id.into_value()),
+                (
+                    "provider",
+                    self.provider_instance_id.into_uuid().into_value(),
+                ),
                 crate::audit::binding(
                     actor.accepted(),
                     input.computer_id,

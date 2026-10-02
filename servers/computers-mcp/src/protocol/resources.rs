@@ -99,9 +99,9 @@ impl ComputersMcp {
                         response.structured_content.ok_or_else(auth::unavailable)?,
                     )
                     .map_err(|_| auth::unavailable())?;
-                    if result.execution_id != id
-                        || result.computer_id != access.computer_id()
-                        || String::from(result.result_uri) != *uri
+                    if result.execution_id() != id
+                        || result.computer_id() != access.computer_id()
+                        || String::from(result.result_uri()) != *uri
                     {
                         return Err(auth::unavailable());
                     }

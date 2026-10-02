@@ -37,7 +37,7 @@ fn bridge() -> (String, String) {
 }
 pub struct Fixture {
     pub dir: PathBuf,
-    pub provider: Uuid,
+    pub provider: veoveo_computers_runtime::ProviderInstanceId,
     pub endpoint: String,
     storage_endpoint: String,
     image: String,
@@ -69,8 +69,8 @@ impl Fixture {
             replacement_image != image,
             "host upgrade must change image identity"
         );
-        let provider = Uuid::now_v7();
-        let name = format!("veoveo-host-probe-{}", provider.simple());
+        let provider = veoveo_computers_runtime::ProviderInstanceId::new();
+        let name = format!("veoveo-host-probe-{}", provider.as_uuid().simple());
         let dir = PathBuf::from(
             std::env::var_os("VEOVEO_COMPUTERS_NATIVE_OUTPUT").context("owned diagnostic root")?,
         )

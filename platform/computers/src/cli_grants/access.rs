@@ -20,7 +20,7 @@ impl ComputersStore {
                 AND revoked_at = NONE AND expires_at > time::now() AND idle_expires_at > time::now()
                 AND family.revoked_at = NONE AND family.expires_at > time::now();", vec![
                 ("grant", super::grant_record(grant_id).into_value()),
-                ("provider", self.provider_instance_id.into_value()),
+                ("provider", self.provider_instance_id.into_uuid().into_value()),
                 ("credential_hash", hash.clone().into_value()),
                 ("profile", expected_profile.to_string().into_value()),
                 ("computer", expected_computer.map(crate::api::ComputerId::into_uuid).into_value()),
@@ -65,7 +65,7 @@ impl ComputersStore {
                         crate::model::computer_record(computer_id).into_value(),
                     ),
                     ("computer_id", computer_id.into_uuid().into_value()),
-                    ("provider", self.provider_instance_id.into_value()),
+                    ("provider", self.provider_instance_id.into_uuid().into_value()),
                     ("credential_hash", hash.into_value()),
                     (
                         "connection",
@@ -108,7 +108,10 @@ impl ComputersStore {
             let owner = owner_key(&computer.owner)?;
             let mut params = crate::store::owner_query_bindings(actor.owner())?;
             params.extend([
-                ("provider", self.provider_instance_id.into_value()),
+                (
+                    "provider",
+                    self.provider_instance_id.into_uuid().into_value(),
+                ),
                 ("owner_key", owner.clone().into_value()),
                 ("computer_id", computer_id.into_uuid().into_value()),
             ]);
@@ -178,7 +181,10 @@ impl ComputersStore {
                 ("grant", super::grant_record(grant_id).into_value()),
                 ("computer_id", computer_id.into_uuid().into_value()),
                 ("owner_key", owner_key(&computer.owner)?.into_value()),
-                ("provider", self.provider_instance_id.into_value()),
+                (
+                    "provider",
+                    self.provider_instance_id.into_uuid().into_value(),
+                ),
             ]);
             let mut read = self
                 .query(
@@ -229,7 +235,10 @@ impl ComputersStore {
                 AND $connection.grant_id = $grant_id AND $connection.closed_at = NONE;",
                     vec![
                         ("grant", super::grant_record(handle.grant_id).into_value()),
-                        ("provider", self.provider_instance_id.into_value()),
+                        (
+                            "provider",
+                            self.provider_instance_id.into_uuid().into_value(),
+                        ),
                         (
                             "connection",
                             super::connection_record(handle.connection_id).into_value(),

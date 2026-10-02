@@ -5,12 +5,11 @@ impl<G: Preflight> LifecycleWorker<G> {
         let transition = match operation.stage {
             OperationStage::Succeeded => {
                 let uri = veoveo_computers::api::computer_uri(operation.computer_id);
-                let payload = veoveo_computers::api::LifecycleResult {
-                    result_uri: (operation.action == Action::Create).then(|| uri.to_string()),
-                    computer_id: operation.computer_id,
-                    operation_id: operation.operation_id,
-                    action: operation.action,
-                };
+                let payload = veoveo_computers::api::LifecycleResult::new(
+                    operation.computer_id,
+                    operation.operation_id,
+                    operation.action,
+                );
                 let mut result = rmcp::model::CallToolResult::structured(
                     serde_json::to_value(payload).map_err(|_| WorkerError::Configuration)?,
                 );

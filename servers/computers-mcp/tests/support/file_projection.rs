@@ -141,7 +141,7 @@ async fn exercise(import: bool) {
             store,
             TaskRuntime::new(platform, "computers", "file-projection"),
             Templates::new(
-                vec![NamedTemplate::new("development".into(), selected.clone()).unwrap()],
+                vec![NamedTemplate::new("development".parse().unwrap(), selected.clone()).unwrap()],
                 Some(selected.fingerprint()),
             )
             .unwrap(),
@@ -167,7 +167,7 @@ async fn exercise(import: bool) {
         .issue_automation_grant(&owner, &support::automation::input(computer))
         .await
         .unwrap();
-    let artifact_id = Uuid::now_v7();
+    let artifact_id = veoveo_computers::api::ArtifactId::new();
     let transfer = if import {
         json!({"kind":"import","artifactId":artifact_id,"path":"private-public-transfer-path"})
     } else {

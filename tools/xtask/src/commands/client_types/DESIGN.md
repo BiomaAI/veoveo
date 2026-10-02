@@ -27,11 +27,10 @@ schemas in the converter's input because its reference resolver requires object 
 False definitions render as `never`; true definitions accept arbitrary values. The
 canonical JSON schemas keep their original boolean definitions. A native Node fixture
 compiles generated TypeScript and rejects assignments to impossible branches.
-Runtime validators consume the original JSON schemas with pinned
-Zod 4.4.3. This selected `fromJSONSchema` profile is qualified for references, nullable
-objects, required fields, closed objects, enums, UUIDs, timestamps and numeric bounds.
-The shared `apps/console/web/src/jsonSchema.ts` compiler presents equivalent object
-forms for named boolean definitions under the root `$defs`; Zod's reference lookup
-otherwise treats `false` as missing. Both clients use this compiler. Runtime tests
-reject every value for impossible definitions and preserve their nullable alternatives.
-No complete JSON Schema validation implementation is claimed.
+Runtime validators consume the original JSON schemas through
+`CfWorkerJsonSchemaValidator` from `@modelcontextprotocol/client` 2.0.0. The shared
+`apps/console/web/src/jsonSchema.ts` compiler interprets schemas without code generation
+under the browser CSP. Its qualified profile covers references, boolean schemas,
+nullable and closed objects, enums, UUIDs, timestamps, numeric bounds and composition.
+Both clients use this compiler. Runtime tests reject impossible definitions and preserve
+their nullable alternatives. No complete JSON Schema conformance is claimed.

@@ -31,7 +31,7 @@ pub struct Operation {
     pub owner: TaskOwner,
     pub automation_grant_id: Option<veoveo_computers_contract::AutomationGrantId>,
     pub execution_authority: crate::AcceptedAuthority,
-    pub provider_instance_id: Uuid,
+    pub provider_instance_id: crate::api::ProviderInstanceId,
     pub template_fingerprint: String,
     pub replacement_instance_id: Option<Uuid>,
     pub action: Action,
@@ -121,6 +121,9 @@ impl TryFrom<OperationRecord> for Operation {
             .map(crate::api::AutomationGrantId::try_from)
             .transpose()
             .map_err(|_| ComputerError::Unavailable)?;
+        let provider_instance_id =
+            crate::api::ProviderInstanceId::try_from(value.provider_instance_id)
+                .map_err(|_| ComputerError::Unavailable)?;
         let decode = || {
             Ok(Self {
                 operation_id: TaskId::from_uuid(value.operation_id),
@@ -131,7 +134,7 @@ impl TryFrom<OperationRecord> for Operation {
                 execution_authority: serde_json::from_value(serde_json::to_value(
                     value.execution_authority,
                 )?)?,
-                provider_instance_id: value.provider_instance_id,
+                provider_instance_id,
                 template_fingerprint: value.template_fingerprint,
                 replacement_instance_id: value.replacement_instance_id,
                 action: serde_json::from_value(serde_json::Value::String(value.action))?,

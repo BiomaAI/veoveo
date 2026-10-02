@@ -7,7 +7,6 @@ pub(super) fn input(
 ) -> Result<Vec<u8>, ()> {
     let input: api::TransferFileInput = serde_json::from_slice(bytes).map_err(|_| ())?;
     if input.computer_id != computer
-        || input.request_id.get_version_num() != 7
         || !(1..=300).contains(&input.limits.maximum_seconds)
         || !(1..=api::MAX_TRANSFER_BYTES).contains(&input.limits.maximum_bytes)
     {
@@ -40,17 +39,10 @@ pub(super) fn receipt(
     }
     if let Some(result) = &value.result
         && (value.stage != api::FileTransferStage::Completed
-            || result.computer_id != computer
-            || result.transfer_id.task_id() != value.task_id
-            || result.result_uri.transfer_id().task_id() != value.task_id
-            || result.direction != value.direction
-            || result.artifact_id.get_version_num() != 7
-            || result.bytes > api::MAX_TRANSFER_BYTES
-            || result.sha256.len() != 64
-            || !result
-                .sha256
-                .bytes()
-                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)))
+            || result.computer_id() != computer
+            || result.transfer_id().task_id() != value.task_id
+            || result.result_uri().transfer_id().task_id() != value.task_id
+            || result.direction() != value.direction)
     {
         return Err(());
     }

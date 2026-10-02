@@ -77,7 +77,7 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
     let template = template(provider.image.clone());
     let binding = Binding::new(Uuid::now_v7(), template.fingerprint()).unwrap();
     let create = LifecycleCheckpoint::create(
-        Uuid::from_u128(100),
+        "00000000-0000-7000-8000-000000000064".parse().unwrap(),
         veoveo_computers_runtime::LifecycleOperationId::new(),
         binding.clone(),
     )
@@ -134,7 +134,7 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
     assert!(!output.is_empty());
     terminal.detach().await.unwrap();
     let stop = LifecycleCheckpoint::stop(
-        Uuid::from_u128(100),
+        "00000000-0000-7000-8000-000000000064".parse().unwrap(),
         veoveo_computers_runtime::LifecycleOperationId::new(),
         binding.clone(),
         &ready,
@@ -153,7 +153,7 @@ async fn native_lifecycle_terminal_and_epoch_recovery() {
         LifecycleObservation::Reached(_)
     ));
     let start = LifecycleCheckpoint::start(
-        Uuid::from_u128(100),
+        "00000000-0000-7000-8000-000000000064".parse().unwrap(),
         veoveo_computers_runtime::LifecycleOperationId::new(),
         binding.clone(),
         &stopped,
@@ -187,7 +187,7 @@ async fn native_terminal_renews_without_reconnecting_and_revokes_access() {
     let template = template(provider.image.clone());
     let binding = Binding::new(Uuid::now_v7(), template.fingerprint()).unwrap();
     let checkpoint = LifecycleCheckpoint::create(
-        Uuid::from_u128(100),
+        "00000000-0000-7000-8000-000000000064".parse().unwrap(),
         veoveo_computers_runtime::LifecycleOperationId::new(),
         binding.clone(),
     )

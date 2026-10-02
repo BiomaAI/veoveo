@@ -2,7 +2,6 @@
 #[path = "support/commands.rs"]
 mod command_support;
 mod support;
-use uuid::Uuid;
 use veoveo_computers::{
     api::*, commands::CommandTaskAction, files::FileTaskAction, maintenance::MaintenanceTarget,
     secrets::FileTransferPayload,
@@ -45,9 +44,9 @@ async fn lifecycle_and_maintenance_keep_the_actual_client_actor() {
                 .queue_maintenance(
                     &workspace,
                     computer,
-                    Uuid::now_v7(),
+                    veoveo_computers::api::RequestId::new(),
                     &MaintenanceTarget {
-                        template_id: "development-next".into(),
+                        template_id: "development-next".parse().unwrap(),
                         template_fingerprint: "b".repeat(64),
                     },
                 )
@@ -65,7 +64,12 @@ async fn lifecycle_and_maintenance_keep_the_actual_client_actor() {
             operation.task_id()
         } else {
             let operation = store
-                .queue_operation(workspace, computer, Uuid::now_v7(), Action::Stop)
+                .queue_operation(
+                    workspace,
+                    computer,
+                    veoveo_computers::api::RequestId::new(),
+                    Action::Stop,
+                )
                 .await
                 .unwrap();
             assert_eq!(operation.owner, before.owner);
@@ -123,7 +127,13 @@ async fn file_task_recovery_preserves_ciphertext_and_original_actor() {
         .await
         .unwrap();
     let operation = store
-        .queue_file_transfer(&workspace, authority, Uuid::now_v7(), &payload, &keys)
+        .queue_file_transfer(
+            &workspace,
+            authority,
+            veoveo_computers::api::RequestId::new(),
+            &payload,
+            &keys,
+        )
         .await
         .unwrap();
     replica.ensure_file_task(&operation).await.unwrap();
@@ -231,7 +241,7 @@ async fn automation_grant_parent_and_task_recovery_span_owner_clients() {
         .queue_command(
             &workspace_agent,
             command_support::permit(&store, &workspace_agent, computer, grant.grant_id).await,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             &command_support::payload("private-cross-client-command", 30),
             &command_support::keys(),
         )

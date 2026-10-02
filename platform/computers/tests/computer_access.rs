@@ -1,5 +1,4 @@
 mod support;
-use uuid::Uuid;
 use veoveo_computers::{ComputerActor, ComputerError, ComputersStore, Reservation, api::*};
 
 async fn grant(
@@ -149,8 +148,8 @@ async fn owned_and_granted_computers_share_bounded_ordered_pages_without_duplica
         .reserve(
             &owner,
             &Reservation {
-                request_id: Uuid::now_v7(),
-                template_id: "development".into(),
+                request_id: veoveo_computers::api::RequestId::new(),
+                template_id: "development".parse().unwrap(),
                 template_fingerprint: support::FINGERPRINT.into(),
             },
         )
@@ -167,8 +166,8 @@ async fn owned_and_granted_computers_share_bounded_ordered_pages_without_duplica
         .reserve(
             &agent,
             &Reservation {
-                request_id: Uuid::now_v7(),
-                template_id: "development".into(),
+                request_id: veoveo_computers::api::RequestId::new(),
+                template_id: "development".parse().unwrap(),
                 template_fingerprint: support::FINGERPRINT.into(),
             },
         )

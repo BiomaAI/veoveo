@@ -6,7 +6,6 @@ use crate::{
 };
 use std::time::{Duration, Instant};
 use surrealdb::types::SurrealValue;
-use uuid::Uuid;
 use veoveo_computer_execution::{FileFailure, FileReceipt};
 use veoveo_task_runtime::{ClaimedTask, ProviderCommit};
 
@@ -63,21 +62,14 @@ pub(super) fn validate_result(
     result: &FileTransferResult,
     operation: &FileOperation,
 ) -> Result<()> {
-    if result.transfer_id != operation.transfer_id()
-        || result.computer_id != operation.computer_id()
-        || result.result_uri.transfer_id() != operation.transfer_id()
-        || result.direction != operation.binding.direction
-        || result.artifact_id.get_version_num() != 7
-        || result.bytes
+    if result.transfer_id() != operation.transfer_id()
+        || result.computer_id() != operation.computer_id()
+        || result.direction() != operation.binding.direction
+        || result.bytes()
             > operation
                 .effective_limits
                 .ok_or(ComputerError::Unavailable)?
                 .maximum_bytes
-        || result.sha256.len() != 64
-        || !result
-            .sha256
-            .bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
     {
         return Err(ComputerError::InvalidInput);
     }
@@ -91,7 +83,7 @@ impl ComputersStore {
         &self,
         claim: &ClaimedTask,
         ticket: FileExitTicket,
-        artifact: Option<Uuid>,
+        artifact: Option<crate::api::ArtifactId>,
     ) -> Result<FileOperation> {
         if Instant::now() >= ticket.publication_deadline {
             return Err(ComputerError::StateConflict);
@@ -105,15 +97,15 @@ impl ComputersStore {
         let mut operation = ticket.dispatch.into_operation();
         let (result, rejection) = match ticket.result {
             Ok(receipt) => {
-                let result = FileTransferResult {
-                    result_uri: crate::api::FileTransferResultUri::new(operation.transfer_id()),
-                    computer_id: operation.computer_id(),
-                    transfer_id: operation.transfer_id(),
-                    direction: operation.binding.direction,
-                    artifact_id: artifact.ok_or(ComputerError::InvalidInput)?,
-                    bytes: receipt.bytes,
-                    sha256: hex::encode(receipt.sha256),
-                };
+                let result = FileTransferResult::new(
+                    operation.computer_id(),
+                    operation.transfer_id(),
+                    operation.binding.direction,
+                    artifact.ok_or(ComputerError::InvalidInput)?,
+                    receipt.bytes,
+                    veoveo_types::Sha256Digest::from_bytes(receipt.sha256),
+                )
+                .map_err(|_| ComputerError::InvalidInput)?;
                 validate_result(&result, &operation)?;
                 (Some(result), None)
             }

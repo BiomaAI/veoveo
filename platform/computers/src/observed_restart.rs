@@ -65,7 +65,10 @@ impl ComputersStore {
                     "owner_context",
                     crate::session_grants::object(&before.owner)?.into_value(),
                 ),
-                ("provider", before.provider_instance_id.into_value()),
+                (
+                    "provider",
+                    before.provider_instance_id.into_uuid().into_value(),
+                ),
                 ("instance", before.replacement_instance_id.into_value()),
                 ("template", before.template_fingerprint.clone().into_value()),
                 ("resource", observed.resource_id.into_value()),

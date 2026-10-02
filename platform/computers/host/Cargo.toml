@@ -5,6 +5,7 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+veoveo-computers-contract = { path = "../contract" }
 anyhow.workspace = true
 clap.workspace = true
 nix = { workspace = true, features = ["fs", "user", "mount", "sched", "process"] }

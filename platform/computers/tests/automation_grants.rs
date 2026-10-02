@@ -1,6 +1,5 @@
 mod support;
 use chrono::{TimeDelta, Utc};
-use uuid::Uuid;
 use veoveo_computers::{
     ComputerActor, ComputerError, ComputersStore, api::*, automation_grants::AutomationGrantPolicy,
 };
@@ -169,7 +168,11 @@ async fn automation_uses_its_own_principal_and_survives_the_grantors_browser_log
         .await,
         Err(ComputerError::NotFound)
     ));
-    let foreign = ComputersStore::new(db.b.clone(), Uuid::now_v7()).unwrap();
+    let foreign = ComputersStore::new(
+        db.b.clone(),
+        veoveo_computers::api::ProviderInstanceId::new(),
+    )
+    .unwrap();
     assert!(matches!(
         foreign
             .authorize_automation_grant(

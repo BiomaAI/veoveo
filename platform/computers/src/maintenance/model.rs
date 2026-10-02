@@ -12,19 +12,12 @@ use veoveo_types::TaskId;
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MaintenanceTarget {
-    pub template_id: String,
+    pub template_id: crate::api::TemplateId,
     pub template_fingerprint: String,
 }
 impl MaintenanceTarget {
     pub(super) fn validate(&self) -> Result<()> {
-        if self.template_id.is_empty()
-            || self.template_id.len() > 64
-            || !self
-                .template_id
-                .bytes()
-                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
-            || !fingerprint(&self.template_fingerprint)
-        {
+        if !fingerprint(&self.template_fingerprint) {
             return Err(ComputerError::InvalidInput);
         }
         Ok(())
@@ -94,13 +87,13 @@ pub enum MaintenanceStage {
 #[derive(Clone, Debug)]
 pub struct MaintenanceOperation {
     pub operation_id: veoveo_types::TaskId,
-    pub request_id: Uuid,
+    pub request_id: crate::api::RequestId,
     pub computer_id: veoveo_computers_contract::ComputerId,
     pub actor: TaskOwner,
     pub execution_authority: AcceptedAuthority,
-    pub provider_instance_id: Uuid,
+    pub provider_instance_id: crate::api::ProviderInstanceId,
     pub source_instance_id: Uuid,
-    pub source_template_id: String,
+    pub source_template_id: crate::api::TemplateId,
     pub source_template_fingerprint: String,
     pub source: MaintenanceSource,
     pub target_instance_id: Uuid,
@@ -145,23 +138,36 @@ impl TryFrom<MaintenanceRecord> for MaintenanceOperation {
     fn try_from(row: MaintenanceRecord) -> Result<Self> {
         let computer_id = crate::api::ComputerId::try_from(row.computer_id)
             .map_err(|_| ComputerError::Unavailable)?;
+        let provider_instance_id =
+            crate::api::ProviderInstanceId::try_from(row.provider_instance_id)
+                .map_err(|_| ComputerError::Unavailable)?;
+        let request_id = crate::api::RequestId::try_from(row.request_id)
+            .map_err(|_| ComputerError::Unavailable)?;
+        let source_template_id = row
+            .source_template_id
+            .parse::<crate::api::TemplateId>()
+            .map_err(|_| ComputerError::Unavailable)?;
+        let target_template_id = row
+            .target_template_id
+            .parse::<crate::api::TemplateId>()
+            .map_err(|_| ComputerError::Unavailable)?;
         let decode = || -> std::result::Result<Self, serde_json::Error> {
             Ok(Self {
                 operation_id: TaskId::from_uuid(row.operation_id),
-                request_id: row.request_id,
+                request_id,
                 computer_id,
                 actor: serde_json::from_value(serde_json::to_value(row.actor_context)?)?,
                 execution_authority: serde_json::from_value(serde_json::to_value(
                     row.execution_authority,
                 )?)?,
-                provider_instance_id: row.provider_instance_id,
+                provider_instance_id,
                 source_instance_id: row.source_instance_id,
-                source_template_id: row.source_template_id,
+                source_template_id,
                 source_template_fingerprint: row.source_template_fingerprint,
                 source: serde_json::from_value(serde_json::to_value(row.source)?)?,
                 target_instance_id: row.target_instance_id,
                 target: MaintenanceTarget {
-                    template_id: row.target_template_id,
+                    template_id: target_template_id,
                     template_fingerprint: row.target_template_fingerprint,
                 },
                 stage: serde_json::from_value(serde_json::Value::String(row.stage))?,
@@ -182,19 +188,12 @@ impl TryFrom<MaintenanceRecord> for MaintenanceOperation {
             .validate()
             .map_err(|_| ComputerError::Unavailable)?;
         if op.operation_id.as_uuid().get_version_num() != 7
-            || op.request_id.is_nil()
-            || [
-                op.provider_instance_id,
-                op.source_instance_id,
-                op.target_instance_id,
-            ]
-            .iter()
-            .any(Uuid::is_nil)
+            || [op.source_instance_id, op.target_instance_id]
+                .iter()
+                .any(Uuid::is_nil)
             || op.target_instance_id == op.computer_id.into_uuid()
             || op.target_instance_id == op.source_instance_id
             || !fingerprint(&op.source_template_fingerprint)
-            || op.source_template_id.is_empty()
-            || op.source_template_id.len() > 64
             || row.task != task_record_id(op.task_id())
             || owner_key(&op.actor)? != row.owner_key
             || op.execution_authority.task_owner() != op.actor

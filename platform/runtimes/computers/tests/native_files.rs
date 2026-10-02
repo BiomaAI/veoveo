@@ -68,7 +68,7 @@ async fn regular_file_transfer_verifies_bytes_retention_and_uncertain_input() {
     let home =
         block_home::BlockHome::create(provider.dir.clone(), provider.image.clone(), computer);
     let create = LifecycleCheckpoint::create(
-        Uuid::from_u128(100),
+        "00000000-0000-7000-8000-000000000064".parse().unwrap(),
         veoveo_computers_runtime::LifecycleOperationId::new(),
         binding.clone(),
     )
@@ -148,7 +148,9 @@ async fn regular_file_transfer_verifies_bytes_retention_and_uncertain_input() {
         Err(RuntimeFailure::ExecutionUnknown)
     );
     let stop = LifecycleCheckpoint::stop(
-        Uuid::from_u128(100),
+        "00000000-0000-7000-8000-000000000064"
+            .parse::<veoveo_computers_runtime::ProviderInstanceId>()
+            .unwrap(),
         veoveo_computers_runtime::LifecycleOperationId::new(),
         binding.clone(),
         &ready,
@@ -160,7 +162,9 @@ async fn regular_file_transfer_verifies_bytes_retention_and_uncertain_input() {
         .await
         .unwrap();
     let start = LifecycleCheckpoint::start(
-        Uuid::from_u128(100),
+        "00000000-0000-7000-8000-000000000064"
+            .parse::<veoveo_computers_runtime::ProviderInstanceId>()
+            .unwrap(),
         veoveo_computers_runtime::LifecycleOperationId::new(),
         binding.clone(),
         &stopped,

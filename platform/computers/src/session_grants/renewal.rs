@@ -34,7 +34,7 @@ impl ComputersStore {
                 vec![
                     ("grant", super::record(handle.grant_id).into_value()),
                     ("connection", handle.connection_id.into_uuid().into_value()),
-                    ("provider", self.provider_instance_id.into_value()),
+                    ("provider", self.provider_instance_id.into_uuid().into_value()),
                     ("policy", self.session_policy_record().into_value()),
                 ],
             )
@@ -53,7 +53,7 @@ impl ComputersStore {
             .idle_expires_at
             .min(row.last_activity_at + TimeDelta::seconds(i64::from(limits.idle_seconds)));
         if row.connection_id != Some(handle.connection_id.into_uuid())
-            || row.provider_instance_id != self.provider_instance_id
+            || row.provider_instance_id != self.provider_instance_id.into_uuid()
             || limits.max_grants == 0
             || row.revoked_at.is_some()
             || absolute <= now
@@ -120,9 +120,7 @@ impl ComputersStore {
                 .session_family
                 .as_ref()
                 .ok_or(ComputerError::Forbidden)?
-                .as_str()
-                .parse()
-                .map_err(|_| ComputerError::Forbidden)?,
+                .clone(),
             computer,
             checked_at: started,
             valid_until,
@@ -147,7 +145,10 @@ impl ComputersStore {
                     "owner_key",
                     crate::identity::owner_key(&computer.owner)?.into_value(),
                 ),
-                ("provider", self.provider_instance_id.into_value()),
+                (
+                    "provider",
+                    self.provider_instance_id.into_uuid().into_value(),
+                ),
             ]);
             let mut read = self
                 .query(
@@ -195,7 +196,7 @@ impl ComputersStore {
             let mut read = self.query("SELECT * FROM ONLY $grant WHERE connection_id = $connection AND provider_instance_id = $provider;", vec![
                 ("grant", super::record(handle.grant_id).into_value()),
                 ("connection", handle.connection_id.into_uuid().into_value()),
-                ("provider", self.provider_instance_id.into_value()),
+                ("provider", self.provider_instance_id.into_uuid().into_value()),
             ]).await?;
             let row: Option<model::Record> = read.take(0).map_err(|_| ComputerError::Unavailable)?;
             let row = row.ok_or(ComputerError::Forbidden)?;

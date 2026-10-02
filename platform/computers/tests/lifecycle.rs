@@ -12,8 +12,20 @@ use veoveo_task_runtime::{ClaimedTask, TaskRuntime, TaskStatus};
 
 async fn setup(db: &TestDb) -> (ComputersStore, ComputersStore, TaskRuntime) {
     support::policy::install_default(&db.a).await;
-    let a = ComputersStore::new(db.a.clone(), Uuid::from_u128(1)).unwrap();
-    let b = ComputersStore::new(db.b.clone(), Uuid::from_u128(1)).unwrap();
+    let a = ComputersStore::new(
+        db.a.clone(),
+        "00000000-0000-7000-8000-000000000001"
+            .parse::<veoveo_computers::api::ProviderInstanceId>()
+            .unwrap(),
+    )
+    .unwrap();
+    let b = ComputersStore::new(
+        db.b.clone(),
+        "00000000-0000-7000-8000-000000000001"
+            .parse::<veoveo_computers::api::ProviderInstanceId>()
+            .unwrap(),
+    )
+    .unwrap();
     a.install_capacity(
         None,
         CapacityPolicy {
@@ -40,8 +52,8 @@ async fn replacement_lifecycle_keeps_instance_identity_through_dispatch_and_sett
         .reserve(
             &crate::support::authenticated(&actor),
             &Reservation {
-                request_id: Uuid::now_v7(),
-                template_id: "development".into(),
+                request_id: veoveo_computers::api::RequestId::new(),
+                template_id: "development".parse().unwrap(),
                 template_fingerprint: FINGERPRINT.into(),
             },
         )
@@ -131,8 +143,8 @@ async fn create(store: &ComputersStore, tasks: &TaskRuntime) -> (Operation, Clai
         .reserve(
             &crate::support::authenticated(&actor),
             &Reservation {
-                request_id: Uuid::now_v7(),
-                template_id: "development".into(),
+                request_id: veoveo_computers::api::RequestId::new(),
+                template_id: "development".parse().unwrap(),
                 template_fingerprint: FINGERPRINT.into(),
             },
         )
@@ -151,7 +163,7 @@ async fn queue(
         .queue_operation(
             support::authenticated(&actor),
             computer,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             action,
         )
         .await

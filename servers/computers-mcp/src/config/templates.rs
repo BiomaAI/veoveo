@@ -8,7 +8,7 @@ use veoveo_computers_runtime::{
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct Template {
-    id: String,
+    id: veoveo_computers::api::TemplateId,
     fingerprint: String,
     image: String,
     cpus: u32,

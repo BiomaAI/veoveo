@@ -862,7 +862,7 @@ impl TlsFiles {
     }
     fn config(&self, endpoint: String) -> GatewayConfig {
         GatewayConfig::new(
-            Uuid::from_u128(100),
+            "00000000-0000-7000-8000-000000000064".parse().unwrap(),
             endpoint,
             "computers".into(),
             self.dir.join("ca.pem"),
@@ -941,7 +941,7 @@ async fn generated_mtls_lifecycle_and_watch_never_poll_completion() {
     let b = binding();
     running.fake.0.lock().unwrap().sandbox = None;
     let create = LifecycleCheckpoint::create(
-        Uuid::from_u128(100),
+        "00000000-0000-7000-8000-000000000064".parse().unwrap(),
         Uuid::now_v7().try_into().unwrap(),
         b.clone(),
     )
@@ -958,7 +958,7 @@ async fn generated_mtls_lifecycle_and_watch_never_poll_completion() {
     runtime.create(&b, &template(false)).await.unwrap();
     assert_eq!(running.fake.0.lock().unwrap().creates, 1);
     let stop = LifecycleCheckpoint::stop(
-        Uuid::from_u128(100),
+        "00000000-0000-7000-8000-000000000064".parse().unwrap(),
         Uuid::now_v7().try_into().unwrap(),
         b.clone(),
         &ready,
@@ -971,7 +971,7 @@ async fn generated_mtls_lifecycle_and_watch_never_poll_completion() {
         .unwrap();
     assert!(stopped.phase == Phase::Stopped);
     let start = LifecycleCheckpoint::start(
-        Uuid::from_u128(100),
+        "00000000-0000-7000-8000-000000000064".parse().unwrap(),
         Uuid::now_v7().try_into().unwrap(),
         b.clone(),
         &stopped,
@@ -1059,7 +1059,7 @@ async fn watch_warning_transport_end_and_identity_replacement_are_failures() {
     let running = Running::start().await;
     let before = running.runtime.get(&binding()).await.unwrap().unwrap();
     let checkpoint = LifecycleCheckpoint::start(
-        Uuid::from_u128(100),
+        "00000000-0000-7000-8000-000000000064".parse().unwrap(),
         Uuid::now_v7().try_into().unwrap(),
         binding(),
         &before,

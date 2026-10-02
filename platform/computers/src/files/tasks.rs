@@ -24,7 +24,7 @@ impl ComputersStore {
              AND (task_projected_at = NONE OR task.retention_pins CONTAINS string::concat('computer-file-transfer/', <string>transfer_id))
              ORDER BY transfer_id LIMIT $limit;",
                 vec![
-                    ("provider", self.provider_instance_id.into_value()),
+                    ("provider", self.provider_instance_id.into_uuid().into_value()),
                     ("after", after.map(crate::api::FileTransferId::into_uuid).into_value()),
                     ("limit", limit.into_value()),
                 ],
@@ -88,7 +88,10 @@ impl ComputersStore {
             vec![
                 ("execution", super::record(file.transfer_id()).into_value()),
                 ("task", task_record_id(file.task_id()).into_value()),
-                ("provider", self.provider_instance_id.into_value()),
+                (
+                    "provider",
+                    self.provider_instance_id.into_uuid().into_value(),
+                ),
                 ("status", status.into_value()),
                 ("stage", stage.into_value()),
             ],
@@ -108,7 +111,10 @@ impl ComputersStore {
                         "journal",
                         super::record(operation.transfer_id()).into_value(),
                     ),
-                    ("provider", self.provider_instance_id.into_value()),
+                    (
+                        "provider",
+                        self.provider_instance_id.into_uuid().into_value(),
+                    ),
                     ("binding", super::object(&operation.binding)?.into_value()),
                     (
                         "authority",

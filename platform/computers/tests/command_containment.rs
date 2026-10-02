@@ -2,7 +2,6 @@
 mod command_support;
 mod support;
 use command_support::*;
-use uuid::Uuid;
 use veoveo_computers::{
     ComputerActor, ComputerError, ComputersStore, ReachedPhase, ReachedState, UndispatchedOutcome,
     api::*, commands::*,
@@ -155,9 +154,14 @@ async fn cancelled_command_is_settled_only_after_original_run_termination() {
         .unwrap();
     assert_eq!(task.status, TaskStatus::CancelRequested);
     assert!(!task.retention_pins.is_empty());
-    a.queue_operation(owner, computer, Uuid::now_v7(), Action::Start)
-        .await
-        .unwrap();
+    a.queue_operation(
+        owner,
+        computer,
+        veoveo_computers::api::RequestId::new(),
+        Action::Start,
+    )
+    .await
+    .unwrap();
 }
 
 #[tokio::test]
@@ -166,7 +170,12 @@ async fn an_owner_stop_can_abort_before_containment_gets_its_first_stop_ticket()
     let (a, _, owner, claim, _) = dispatched(&db).await;
     let computer = a.command_for_claim(&claim).await.unwrap().computer_id();
     let stop = a
-        .queue_operation(owner, computer, Uuid::now_v7(), Action::Stop)
+        .queue_operation(
+            owner,
+            computer,
+            veoveo_computers::api::RequestId::new(),
+            Action::Stop,
+        )
         .await
         .unwrap();
     a.ensure_operation_task(&stop.actor, stop.operation_id)
@@ -210,7 +219,12 @@ async fn containment_does_not_clear_an_independent_owner_stop_fence() {
     let (a, _, owner, claim, _) = dispatched(&db).await;
     let computer = a.command_for_claim(&claim).await.unwrap().computer_id();
     let stop = a
-        .queue_operation(owner, computer, Uuid::now_v7(), Action::Stop)
+        .queue_operation(
+            owner,
+            computer,
+            veoveo_computers::api::RequestId::new(),
+            Action::Stop,
+        )
         .await
         .unwrap();
     a.ensure_operation_task(&stop.actor, stop.operation_id)

@@ -147,7 +147,7 @@ impl ComputersStore {
                         .into_value(),
                 ),
                 ("owner_key", owner.into_value()),
-                ("provider", self.provider_instance_id.into_value()),
+                ("provider", self.provider_instance_id.into_uuid().into_value()),
                 ("authority", object(actor.accepted())?.into_value()),
                 ("family", family.into_value()),
                 ("binding_hash", binding.into_value()),

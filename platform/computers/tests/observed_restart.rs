@@ -106,7 +106,7 @@ async fn restart_observation_cannot_replace_identity_or_cross_an_operation_fence
     for change in 0..6 {
         let mut seen = observed(&before, "new-run");
         match change {
-            0 => seen.provider_instance_id = Uuid::now_v7(),
+            0 => seen.provider_instance_id = veoveo_computers::api::ProviderInstanceId::new(),
             1 => seen.resource_id = "another-resource".into(),
             2 => seen.replacement_instance_id = Some(Uuid::now_v7()),
             3 => seen.template_fingerprint = "0".repeat(64),

@@ -1,7 +1,6 @@
 #[path = "support/commands.rs"]
 mod command_support;
 mod support;
-use uuid::Uuid;
 use veoveo_computers::{
     ComputerActor, ComputerError, ComputersStore,
     api::*,
@@ -53,7 +52,7 @@ fn payload(path: &str) -> FileTransferPayload {
 async fn replicas_reserve_one_file_slot_and_recover_the_same_private_task() {
     let db = support::TestDb::new().await;
     let (a, b, owner, agent, computer) = setup(&db).await;
-    let request = Uuid::now_v7();
+    let request = veoveo_computers::api::RequestId::new();
     let keys = command_support::keys();
     let input = payload("private-file-transfer-path");
     let attempts = futures::future::join_all((0..4).map(|i| {
@@ -135,7 +134,7 @@ async fn replicas_reserve_one_file_slot_and_recover_the_same_private_task() {
         b.queue_command(
             &agent,
             authority,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             &command_support::payload("competing", 30),
             &keys
         )
@@ -148,9 +147,9 @@ async fn replicas_reserve_one_file_slot_and_recover_the_same_private_task() {
         b.queue_maintenance(
             &owner,
             computer,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             &veoveo_computers::maintenance::MaintenanceTarget {
-                template_id: "development-next".into(),
+                template_id: "development-next".parse().unwrap(),
                 template_fingerprint: "b".repeat(64),
             }
         )
@@ -161,7 +160,7 @@ async fn replicas_reserve_one_file_slot_and_recover_the_same_private_task() {
         .queue_operation(
             support::authenticated(owner.owner()),
             computer,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             Action::Stop,
         )
         .await
@@ -171,7 +170,7 @@ async fn replicas_reserve_one_file_slot_and_recover_the_same_private_task() {
         b.queue_operation(
             support::authenticated(owner.owner()),
             computer,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             Action::Start
         )
         .await,
@@ -214,7 +213,7 @@ async fn delegated_file_admission_enforces_bounds_and_revocation_at_commit() {
         .unwrap();
     let large = FileTransferPayload::new(
         FileTransfer::Import {
-            artifact_id: Uuid::now_v7(),
+            artifact_id: veoveo_computers::api::ArtifactId::new(),
             path: RetainedFilePath::try_from("data.bin".to_owned()).unwrap(),
         },
         FileTransferLimits {
@@ -228,7 +227,7 @@ async fn delegated_file_admission_enforces_bounds_and_revocation_at_commit() {
         b.queue_file_transfer(
             &agent,
             authority,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             &large,
             &command_support::keys()
         )
@@ -252,7 +251,7 @@ async fn delegated_file_admission_enforces_bounds_and_revocation_at_commit() {
         b.queue_file_transfer(
             &agent,
             authority,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             &payload("file"),
             &command_support::keys()
         )
@@ -269,7 +268,7 @@ async fn artifact_access_is_task_bound_private_and_first_adequate_receipt_wins()
     let keys = command_support::keys();
     let input = FileTransferPayload::new(
         FileTransfer::Import {
-            artifact_id: Uuid::now_v7(),
+            artifact_id: veoveo_computers::api::ArtifactId::new(),
             path: RetainedFilePath::try_from("private-import".to_owned()).unwrap(),
         },
         payload("file").limits(),
@@ -280,7 +279,13 @@ async fn artifact_access_is_task_bound_private_and_first_adequate_receipt_wins()
         .await
         .unwrap();
     let operation = a
-        .queue_file_transfer(&owner, authority, Uuid::now_v7(), &input, &keys)
+        .queue_file_transfer(
+            &owner,
+            authority,
+            veoveo_computers::api::RequestId::new(),
+            &input,
+            &keys,
+        )
         .await
         .unwrap();
     let request = match operation.file_capability_request(&keys).unwrap().unwrap() {
@@ -356,8 +361,14 @@ async fn stale_policy_and_changed_process_cannot_reserve_file_work() {
     control.policies[0].rules[0].tools.insert(name);
     support::policy::install(&db.a, control).await;
     assert!(matches!(
-        a.queue_file_transfer(&owner, authority, Uuid::now_v7(), &payload("file"), &keys)
-            .await,
+        a.queue_file_transfer(
+            &owner,
+            authority,
+            veoveo_computers::api::RequestId::new(),
+            &payload("file"),
+            &keys
+        )
+        .await,
         Err(ComputerError::Forbidden)
     ));
     let authority = b
@@ -372,8 +383,14 @@ async fn stale_policy_and_changed_process_cannot_reserve_file_work() {
         .check()
         .unwrap();
     assert!(matches!(
-        b.queue_file_transfer(&owner, authority, Uuid::now_v7(), &payload("file"), &keys)
-            .await,
+        b.queue_file_transfer(
+            &owner,
+            authority,
+            veoveo_computers::api::RequestId::new(),
+            &payload("file"),
+            &keys
+        )
+        .await,
         Err(ComputerError::StateConflict)
     ));
     assert!(a.pending_file_transfers(None, 10).await.unwrap().is_empty());

@@ -20,10 +20,10 @@ pub(super) const MAX_FILE_PAYLOAD_BYTES: usize = 16 * 1024;
 #[serde(deny_unknown_fields)]
 pub struct FileTransferBinding {
     pub transfer_id: veoveo_computers_contract::FileTransferId,
-    pub request_id: Uuid,
+    pub request_id: crate::api::RequestId,
     pub computer_id: veoveo_computers_contract::ComputerId,
     pub instance_id: Uuid,
-    pub provider_instance_id: Uuid,
+    pub provider_instance_id: crate::api::ProviderInstanceId,
     pub grant_id: Option<veoveo_computers_contract::AutomationGrantId>,
     pub direction: FileTransferDirection,
     pub owner_key: String,
@@ -45,9 +45,7 @@ impl FileTransferBinding {
         };
         let native =
             |v: &str| !v.is_empty() && v.len() <= 256 && v.bytes().all(|c| c.is_ascii_graphic());
-        if [self.request_id, self.instance_id, self.provider_instance_id]
-            .iter()
-            .any(Uuid::is_nil)
+        if self.instance_id.is_nil()
             || [&self.owner_key, &self.actor_key, &self.template_fingerprint]
                 .iter()
                 .any(|value| !hash(value))
@@ -92,35 +90,30 @@ impl FileTransferPayload {
         {
             return Err(ComputerError::InvalidInput);
         }
-        match &self.transfer {
-            FileTransfer::Import { artifact_id, .. } if artifact_id.get_version_num() != 7 => {
+        if let FileTransfer::Export {
+            filename,
+            media_type,
+            ..
+        } = &self.transfer
+        {
+            let token = |v: &str| {
+                !v.is_empty()
+                    && v.bytes()
+                        .all(|c| c.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&c))
+            };
+            if filename.is_empty()
+                || filename.len() > 255
+                || filename == "."
+                || filename == ".."
+                || filename.contains(['/', '\\'])
+                || filename.chars().any(char::is_control)
+                || media_type.len() > 255
+                || !media_type
+                    .split_once('/')
+                    .is_some_and(|(a, b)| token(a) && token(b))
+            {
                 return Err(ComputerError::InvalidInput);
             }
-            FileTransfer::Export {
-                filename,
-                media_type,
-                ..
-            } => {
-                let token = |v: &str| {
-                    !v.is_empty()
-                        && v.bytes()
-                            .all(|c| c.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&c))
-                };
-                if filename.is_empty()
-                    || filename.len() > 255
-                    || filename == "."
-                    || filename == ".."
-                    || filename.contains(['/', '\\'])
-                    || filename.chars().any(char::is_control)
-                    || media_type.len() > 255
-                    || !media_type
-                        .split_once('/')
-                        .is_some_and(|(a, b)| token(a) && token(b))
-                {
-                    return Err(ComputerError::InvalidInput);
-                }
-            }
-            _ => (),
         }
         Ok(())
     }
@@ -203,10 +196,10 @@ mod tests {
     fn binding() -> FileTransferBinding {
         FileTransferBinding {
             transfer_id: veoveo_computers_contract::FileTransferId::new(),
-            request_id: Uuid::now_v7(),
+            request_id: crate::api::RequestId::new(),
             computer_id: veoveo_computers_contract::ComputerId::new(),
             instance_id: Uuid::now_v7(),
-            provider_instance_id: Uuid::now_v7(),
+            provider_instance_id: crate::api::ProviderInstanceId::new(),
             grant_id: None,
             direction: FileTransferDirection::Export,
             owner_key: "a".repeat(64),
@@ -347,16 +340,11 @@ mod tests {
             assert!(request.validate().is_err());
         }
         for id in [Uuid::nil(), Uuid::from_u128(1)] {
-            assert!(
-                FileTransferPayload::new(
-                    FileTransfer::Import {
-                        artifact_id: id,
-                        path: RetainedFilePath::try_from("file".to_owned()).unwrap()
-                    },
-                    payload("file").limits
-                )
-                .is_err()
-            );
+            let request = serde_json::json!({
+                "transfer": {"kind": "import", "artifactId": id, "path": "file"},
+                "limits": payload("file").limits,
+            });
+            assert!(serde_json::from_value::<FileTransferPayload>(request).is_err());
         }
     }
 }

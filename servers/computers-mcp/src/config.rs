@@ -15,7 +15,6 @@ use std::{
     path::{Path, PathBuf},
     time::Duration,
 };
-use uuid::Uuid;
 use veoveo_computers::CapacityPolicy;
 use veoveo_computers::session_grants::SessionGrantPolicy;
 use veoveo_computers_runtime::{AllocationConfig, GatewayConfig};
@@ -71,7 +70,7 @@ pub struct Configuration {
     allowed_hosts: Vec<String>,
     allowed_origins: Vec<String>,
     access: SessionGrantPolicy,
-    provider_instance_id: Uuid,
+    provider_instance_id: veoveo_computers::api::ProviderInstanceId,
     capacity: Capacity,
 }
 #[derive(Deserialize)]
@@ -104,7 +103,10 @@ pub(crate) struct Gateway {
     workspace: String,
 }
 impl Gateway {
-    pub(crate) fn config(&self, id: Uuid) -> std::result::Result<GatewayConfig, ApplicationError> {
+    pub(crate) fn config(
+        &self,
+        id: veoveo_computers::api::ProviderInstanceId,
+    ) -> std::result::Result<GatewayConfig, ApplicationError> {
         GatewayConfig::new(
             id,
             self.transport.endpoint.clone(),
@@ -121,7 +123,7 @@ pub struct PreparedConfiguration {
     pub(crate) allowed_hosts: Vec<String>,
     pub(crate) allowed_origins: crate::server::BrowserOrigins,
     pub(crate) access: SessionGrantPolicy,
-    pub(crate) provider_instance_id: Uuid,
+    pub(crate) provider_instance_id: veoveo_computers::api::ProviderInstanceId,
     pub(crate) templates: Templates,
     pub(crate) provider: Option<PreparedProvider>,
 }
@@ -186,7 +188,7 @@ impl Configuration {
     }
     async fn prepare_inner(self) -> Result<PreparedConfiguration> {
         let ConfigSchema::V3 = self.schema;
-        if self.provider_instance_id.is_nil() || self.listen.port() == 0 {
+        if self.listen.port() == 0 {
             return Err(ConfigurationError::Identity);
         }
         if self.allowed_hosts.is_empty()

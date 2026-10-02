@@ -451,7 +451,7 @@ async fn retired_source_policy_restores_onto_an_image_change_only_with_exact_han
     for fault in 0..3 {
         let receipt = RetainedHandoff::fixture(
             if fault == 0 {
-                Uuid::now_v7()
+                crate::ProviderInstanceId::new()
             } else {
                 running.runtime.provider_instance_id()
             },
@@ -614,7 +614,7 @@ async fn checkpoint_rejects_noncanonical_data_and_cross_provider_instance_proces
         rejected(&invalid.encode_to_vec(), &bindings().0, &expected);
     }
     let mut different_provider = running.runtime.clone();
-    different_provider.provider_instance_id = Uuid::now_v7();
+    different_provider.provider_instance_id = crate::ProviderInstanceId::new();
     assert!(
         different_provider
             .recover_replacement_policy(&bytes, &bindings().0, &profile(), &expected)

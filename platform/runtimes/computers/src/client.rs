@@ -9,13 +9,12 @@ use tonic::{
     Code, Request,
     transport::{Certificate, Channel, ClientTlsConfig, Endpoint, Identity},
 };
-use uuid::Uuid;
 use zeroize::Zeroizing;
 pub const GATEWAY_VERSION: &str = "0.0.117-veoveo.2";
 pub(crate) type Client = api::open_shell_client::OpenShellClient<Channel>;
 
 pub struct GatewayConfig {
-    provider_instance_id: Uuid,
+    provider_instance_id: veoveo_computers_contract::ProviderInstanceId,
     endpoint: String,
     workspace: String,
     ca_path: PathBuf,
@@ -44,16 +43,13 @@ impl GatewayConfig {
             .map_err(|_| RuntimeFailure::InvalidConfiguration)
     }
     pub fn new(
-        provider_instance_id: Uuid,
+        provider_instance_id: veoveo_computers_contract::ProviderInstanceId,
         endpoint: String,
         workspace: String,
         ca_path: PathBuf,
         cert_path: PathBuf,
         key_path: PathBuf,
     ) -> Result<Self> {
-        if provider_instance_id.is_nil() {
-            return Err(RuntimeFailure::InvalidConfiguration);
-        }
         endpoint_parts(&endpoint)?;
         if workspace.is_empty()
             || workspace.len() > 19
@@ -134,14 +130,14 @@ pub(crate) fn request<T>(message: T, seconds: u64) -> Request<T> {
 
 #[derive(Clone)]
 pub struct OpenShellRuntime {
-    pub(crate) provider_instance_id: Uuid,
+    pub(crate) provider_instance_id: veoveo_computers_contract::ProviderInstanceId,
     pub(crate) client: Client,
     pub(crate) workspace: String,
     pub(crate) endpoint: Endpoint,
     pub(crate) address: String,
 }
 impl OpenShellRuntime {
-    pub fn provider_instance_id(&self) -> Uuid {
+    pub fn provider_instance_id(&self) -> veoveo_computers_contract::ProviderInstanceId {
         self.provider_instance_id
     }
     /// Establish an installation-owned mTLS connection and admit the exact pin.

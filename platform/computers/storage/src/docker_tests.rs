@@ -27,7 +27,7 @@ async fn enrollment_binds_the_first_engine_and_cannot_adopt_a_replacement() {
     assert_eq!(docker.verify_engine().await.unwrap(), first);
     let root = directory.path().join("retained");
     let identity = HostIdentity {
-        provider_id: Uuid::now_v7(),
+        provider_id: veoveo_computers_runtime::ProviderInstanceId::new(),
         engine_id: first,
         namespace: "test".into(),
     };

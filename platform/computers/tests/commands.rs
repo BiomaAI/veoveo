@@ -278,7 +278,7 @@ async fn racing_command_retry_has_one_private_slot_event_and_recoverable_task() 
         .issue_automation_grant(&owner, &support::automation::input(computer))
         .await
         .unwrap();
-    let request = Uuid::now_v7();
+    let request = veoveo_computers::api::RequestId::new();
     let keyring = keys();
     let first_payload = payload("private-command-argument-fixture", 30);
     let pa = permit(&a, &agent, computer, grant.grant_id).await;
@@ -344,8 +344,14 @@ async fn racing_command_retry_has_one_private_slot_event_and_recoverable_task() 
     }
     let permit = permit(&a, &agent, computer, grant.grant_id).await;
     assert!(matches!(
-        a.queue_command(&agent, permit, Uuid::now_v7(), &first_payload, &keyring)
-            .await,
+        a.queue_command(
+            &agent,
+            permit,
+            veoveo_computers::api::RequestId::new(),
+            &first_payload,
+            &keyring
+        )
+        .await,
         Err(ComputerError::OperationBusy)
     ));
 }
@@ -371,8 +377,14 @@ async fn stale_authority_cannot_queue_after_revocation_policy_change_or_principa
     .await
     .unwrap();
     assert!(matches!(
-        a.queue_command(&agent, authority, Uuid::now_v7(), &payload, &keyring)
-            .await,
+        a.queue_command(
+            &agent,
+            authority,
+            veoveo_computers::api::RequestId::new(),
+            &payload,
+            &keyring
+        )
+        .await,
         Err(ComputerError::Forbidden)
     ));
     let grant = a
@@ -389,8 +401,14 @@ async fn stale_authority_cannot_queue_after_revocation_policy_change_or_principa
         .await
         .unwrap();
     assert!(matches!(
-        a.queue_command(&agent, authority, Uuid::now_v7(), &payload, &keyring)
-            .await,
+        a.queue_command(
+            &agent,
+            authority,
+            veoveo_computers::api::RequestId::new(),
+            &payload,
+            &keyring
+        )
+        .await,
         Err(ComputerError::PolicyConflict)
     ));
     a.install_automation_grant_policy(Some(reduced), prior)
@@ -411,8 +429,14 @@ async fn stale_authority_cannot_queue_after_revocation_policy_change_or_principa
         .check()
         .unwrap();
     assert!(matches!(
-        a.queue_command(&agent, authority, Uuid::now_v7(), &payload, &keyring)
-            .await,
+        a.queue_command(
+            &agent,
+            authority,
+            veoveo_computers::api::RequestId::new(),
+            &payload,
+            &keyring
+        )
+        .await,
         Err(ComputerError::Forbidden)
     ));
     let mut response =
@@ -441,14 +465,26 @@ async fn command_authority_is_permission_specific_and_retained_slots_prevent_res
         .await
         .unwrap();
     assert!(matches!(
-        a.queue_command(&agent, authority, Uuid::now_v7(), &request, &keyring)
-            .await,
+        a.queue_command(
+            &agent,
+            authority,
+            veoveo_computers::api::RequestId::new(),
+            &request,
+            &keyring
+        )
+        .await,
         Err(ComputerError::Forbidden)
     ));
     let authority = permit(&a, &agent, computer, grant.grant_id).await;
     assert!(matches!(
-        a.queue_command(&owner, authority, Uuid::now_v7(), &request, &keyring)
-            .await,
+        a.queue_command(
+            &owner,
+            authority,
+            veoveo_computers::api::RequestId::new(),
+            &request,
+            &keyring
+        )
+        .await,
         Err(ComputerError::Forbidden)
     ));
     let authority = permit(&a, &agent, computer, grant.grant_id).await;
@@ -456,7 +492,7 @@ async fn command_authority_is_permission_specific_and_retained_slots_prevent_res
         a.queue_command(
             &agent,
             authority,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             &payload("private", 31),
             &keyring
         )
@@ -464,9 +500,15 @@ async fn command_authority_is_permission_specific_and_retained_slots_prevent_res
         Err(ComputerError::InvalidInput)
     ));
     let authority = permit(&a, &agent, computer, grant.grant_id).await;
-    a.queue_command(&agent, authority, Uuid::now_v7(), &request, &keyring)
-        .await
-        .unwrap();
+    a.queue_command(
+        &agent,
+        authority,
+        veoveo_computers::api::RequestId::new(),
+        &request,
+        &keyring,
+    )
+    .await
+    .unwrap();
     // Simulate an authoritative Stop in this isolated store; the pending command
     // remains protected until its own settlement releases the execution slot.
     db.a.client()
@@ -477,8 +519,13 @@ async fn command_authority_is_permission_specific_and_retained_slots_prevent_res
         .check()
         .unwrap();
     assert!(matches!(
-        a.queue_operation(owner, computer, Uuid::now_v7(), Action::Start)
-            .await,
+        a.queue_operation(
+            owner,
+            computer,
+            veoveo_computers::api::RequestId::new(),
+            Action::Start
+        )
+        .await,
         Err(ComputerError::OperationBusy)
     ));
 }

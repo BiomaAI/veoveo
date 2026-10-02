@@ -197,7 +197,7 @@ impl Application {
         let computer = self.store.get(actor.owner(), request.computer_id).await?;
         let selected = self
             .templates
-            .select(request.template_id.as_deref())
+            .select(request.template_id.as_ref())
             .ok_or(ComputerError::InvalidInput)?;
         if self.availability() != CapacityAvailability::Available
             || computer.provider_instance_id != self.store.provider_instance_id()

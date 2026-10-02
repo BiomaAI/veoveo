@@ -1,7 +1,6 @@
 mod support;
 use support::*;
 use surrealdb::types::SurrealValue;
-use uuid::Uuid;
 use veoveo_computers::{
     CapacityPolicy, ComputerError, ComputersStore, OperationStage, Reservation,
     api::{Action, ComputerPhase},
@@ -9,7 +8,13 @@ use veoveo_computers::{
 use veoveo_task_runtime::{RecoveryClass, TaskRuntime, TaskStatus};
 
 async fn installed(db: veoveo_platform_store::PlatformStore) -> ComputersStore {
-    let store = ComputersStore::new(db, Uuid::from_u128(1)).unwrap();
+    let store = ComputersStore::new(
+        db,
+        "00000000-0000-7000-8000-000000000001"
+            .parse::<veoveo_computers::api::ProviderInstanceId>()
+            .unwrap(),
+    )
+    .unwrap();
     store
         .install_capacity(
             None,
@@ -25,8 +30,8 @@ async fn installed(db: veoveo_platform_store::PlatformStore) -> ComputersStore {
 }
 fn request() -> Reservation {
     Reservation {
-        request_id: Uuid::now_v7(),
-        template_id: "development".into(),
+        request_id: veoveo_computers::api::RequestId::new(),
+        template_id: "development".parse().unwrap(),
         template_fingerprint: FINGERPRINT.into(),
     }
 }
@@ -47,7 +52,7 @@ async fn contended_operation_updates_never_overwrite_a_previously_acquired_fence
             store.queue_operation(
                 support::authenticated(&actor),
                 computer.computer_id,
-                Uuid::now_v7(),
+                veoveo_computers::api::RequestId::new(),
                 Action::Create,
             )
         }))
@@ -79,7 +84,7 @@ async fn concurrent_operation_retry_has_one_fence_task_and_audit_identity() {
         .await
         .unwrap();
     let id = computer.computer_id;
-    let request_id = Uuid::now_v7();
+    let request_id = veoveo_computers::api::RequestId::new();
     let pending = futures::future::join_all((0..8).map(|i| {
         let store = if i % 2 == 0 { &a } else { &b };
         store.queue_operation(
@@ -117,7 +122,12 @@ async fn concurrent_operation_retry_has_one_fence_task_and_audit_identity() {
     assert_eq!(task.retention_pins.len(), 1);
     assert_eq!(repaired.stage, OperationStage::Queued);
     assert_eq!(repaired.previous_phase, ComputerPhase::Reserved);
-    assert_eq!(repaired.provider_instance_id, Uuid::from_u128(1));
+    assert_eq!(
+        repaired.provider_instance_id,
+        "00000000-0000-7000-8000-000000000001"
+            .parse::<veoveo_computers::api::ProviderInstanceId>()
+            .unwrap()
+    );
     assert_eq!(repaired.template_fingerprint, FINGERPRINT);
     assert!(matches!(
         a.queue_operation(support::authenticated(&alice), id, request_id, Action::Stop)
@@ -128,7 +138,7 @@ async fn concurrent_operation_retry_has_one_fence_task_and_audit_identity() {
         a.queue_operation(
             support::authenticated(&alice),
             id,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             Action::Create
         )
         .await,
@@ -175,7 +185,7 @@ async fn competing_requests_and_private_authority_cannot_replace_the_active_oper
         a.queue_operation(
             support::authenticated(&bob),
             id,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             Action::Create
         )
         .await,
@@ -185,7 +195,7 @@ async fn competing_requests_and_private_authority_cannot_replace_the_active_oper
         a.queue_operation(
             support::authenticated(&alice),
             id,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             Action::Start
         )
         .await,
@@ -195,13 +205,13 @@ async fn competing_requests_and_private_authority_cannot_replace_the_active_oper
         a.queue_operation(
             support::authenticated(&alice),
             id,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             Action::Create
         ),
         b.queue_operation(
             support::authenticated(&alice),
             id,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             Action::Create
         )
     );
@@ -288,7 +298,7 @@ async fn action_admission_preserves_the_previous_run_and_checks_current_membersh
             .queue_operation(
                 support::authenticated(&alice),
                 computer.computer_id,
-                Uuid::now_v7(),
+                veoveo_computers::api::RequestId::new(),
                 Action::Start
             )
             .await,
@@ -307,7 +317,7 @@ async fn action_admission_preserves_the_previous_run_and_checks_current_membersh
         .queue_operation(
             support::authenticated(&alice),
             computer.computer_id,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             Action::Start,
         )
         .await

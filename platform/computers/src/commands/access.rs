@@ -113,7 +113,7 @@ impl ComputersStore {
             || row.execution_id != execution.into_uuid()
             || binding.execution_id != execution
             || row.computer_id != binding.computer_id.into_uuid()
-            || row.provider_instance_id != binding.provider_instance_id
+            || row.provider_instance_id != binding.provider_instance_id.into_uuid()
             || row.actor_key != super::actor_key(&accepted)?
             || binding.actor_key != row.actor_key
             || row.task != task_record_id(execution.task_id())

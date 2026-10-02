@@ -7,8 +7,8 @@ import { acceptBrowserCsrfToken } from "./csrf.ts";
 import { pairCli, pairingLocation } from "./computers/pairing.ts";
 
 const computerId = "00000000-0000-7000-8000-000000000001";
-const pairingId = "00000000-0000-4000-8000-000000000002";
-const grantId = "00000000-0000-4000-8000-000000000003";
+const pairingId = "00000000-0000-7000-8000-000000000002";
+const grantId = "00000000-0000-7000-8000-000000000003";
 const base = `https://veoveo.test/console/computers/${computerId}/auth/connect`;
 const location = { computerId, callbackPort: 49152, code: "ABC-2345" };
 test("pairing accepts only one exact local callback port and stock comparison code", () => {

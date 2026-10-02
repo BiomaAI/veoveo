@@ -39,14 +39,11 @@ impl ComputersStore {
         &self,
         actor: &ComputerActor,
         computer: veoveo_computers_contract::ComputerId,
-        request: Uuid,
+        request: crate::api::RequestId,
         grant: crate::api::AutomationGrantId,
         action: Action,
     ) -> Result<Option<Operation>> {
         actor.check_admission()?;
-        if request.is_nil() {
-            return Err(ComputerError::InvalidInput);
-        }
         let mut read = self
             .query(
                 "SELECT VALUE operation_id FROM ONLY $request;",

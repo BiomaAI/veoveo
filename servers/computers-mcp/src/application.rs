@@ -2,7 +2,6 @@
 use crate::Templates;
 use std::time::{Duration, Instant};
 use tokio::sync::watch;
-use uuid::Uuid;
 use veoveo_computers::{
     Computer, ComputerActor, ComputerError, ComputersStore, ControlAuthority, Operation,
     Reservation, api::*,
@@ -394,7 +393,7 @@ impl Application {
         &self,
         actor: ComputerActor,
         computer: veoveo_computers_contract::ComputerId,
-        request: Uuid,
+        request: veoveo_computers::api::RequestId,
         action: Action,
         authority: &ControlAuthority,
     ) -> Result<Operation> {

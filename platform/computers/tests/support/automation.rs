@@ -1,5 +1,4 @@
 use chrono::{TimeDelta, Utc};
-use uuid::Uuid;
 use veoveo_computers::{
     ComputerActor, ComputersStore, api::*, automation_grants::AutomationGrantPolicy,
 };
@@ -55,7 +54,7 @@ pub async fn setup(
 pub fn input(computer: veoveo_computers_contract::ComputerId) -> IssueAutomationGrantInput {
     IssueAutomationGrantInput {
         computer_id: computer,
-        request_id: Uuid::now_v7(),
+        request_id: veoveo_computers::api::RequestId::new(),
         principal_id: "https://computers.test#service".into(),
         oauth_client_id: "service".into(),
         name: "Build agent".into(),

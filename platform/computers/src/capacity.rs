@@ -39,7 +39,7 @@ impl ComputersStore {
     pub(crate) fn capacity_record(&self) -> RecordId {
         RecordId::new(
             "computer_capacity",
-            surrealdb::types::Uuid::from(self.provider_instance_id),
+            surrealdb::types::Uuid::from(self.provider_instance_id.into_uuid()),
         )
     }
 

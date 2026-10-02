@@ -43,11 +43,8 @@ struct Content {
 fn request_record(
     caller: &TaskOwner,
     computer: veoveo_computers_contract::ComputerId,
-    request: Uuid,
+    request: crate::api::RequestId,
 ) -> Result<RecordId> {
-    if request.is_nil() {
-        return Err(ComputerError::InvalidInput);
-    }
     Ok(RecordId::new(
         "computer_maintenance_request",
         digest(&(
@@ -76,7 +73,10 @@ impl ComputersStore {
         let mut params = crate::store::owner_query_bindings(caller)?;
         params.extend([
             ("maintenance", record(id).into_value()),
-            ("provider", self.provider_instance_id.into_value()),
+            (
+                "provider",
+                self.provider_instance_id.into_uuid().into_value(),
+            ),
             (
                 "expected_computer",
                 computer.map(crate::api::ComputerId::into_uuid).into_value(),
@@ -99,7 +99,7 @@ impl ComputersStore {
         &self,
         caller: &TaskOwner,
         computer: veoveo_computers_contract::ComputerId,
-        request: Uuid,
+        request: crate::api::RequestId,
     ) -> Result<Option<MaintenanceOperation>> {
         let mut reply = self
             .query(
@@ -224,7 +224,7 @@ impl ComputersStore {
         &self,
         actor: &ComputerActor,
         computer_id: veoveo_computers_contract::ComputerId,
-        request_id: Uuid,
+        request_id: crate::api::RequestId,
         target: &MaintenanceTarget,
     ) -> Result<MaintenanceOperation> {
         tokio::time::timeout(
@@ -239,7 +239,7 @@ impl ComputersStore {
         &self,
         actor: &ComputerActor,
         computer_id: veoveo_computers_contract::ComputerId,
-        request_id: Uuid,
+        request_id: crate::api::RequestId,
         target: &MaintenanceTarget,
     ) -> Result<MaintenanceOperation> {
         target.validate()?;
@@ -288,19 +288,19 @@ impl ComputersStore {
         let id = veoveo_types::TaskId::new();
         let content = Content {
             operation_id: id.as_uuid(),
-            request_id,
+            request_id: request_id.into_uuid(),
             computer_id: computer_id.into_uuid(),
             task: task_record_id(id),
             owner_key: owner_key(caller)?,
             actor_context: object(caller)?,
             execution_authority: object(actor.accepted())?,
-            provider_instance_id: self.provider_instance_id,
+            provider_instance_id: self.provider_instance_id.into_uuid(),
             source_instance_id: computer.instance_id(),
-            source_template_id: computer.template_id.clone(),
+            source_template_id: computer.template_id.to_string(),
             source_template_fingerprint: computer.template_fingerprint.clone(),
             source: object(&source)?,
             target_instance_id: Uuid::now_v7(),
-            target_template_id: target.template_id.clone(),
+            target_template_id: target.template_id.to_string(),
             target_template_fingerprint: target.template_fingerprint.clone(),
         };
 

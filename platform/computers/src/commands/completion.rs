@@ -62,14 +62,9 @@ impl CommandDispatchTicket {
 
 pub(super) fn validate_result(result: &ExecutionResult, command: &CommandOperation) -> Result<()> {
     let limits = command.effective_limits.ok_or(ComputerError::Unavailable)?;
-    if result.computer_id != command.computer_id()
-        || result.execution_id != command.execution_id()
-        || result.result_uri.execution_id() != command.execution_id()
-        || result.exit_code == 124
-        || result.stdout.artifact_id.get_version_num() != 7
-        || result.stderr.artifact_id.get_version_num() != 7
-        || result.stdout.artifact_id == result.stderr.artifact_id
-        || u64::from(result.stdout.byte_count) + u64::from(result.stderr.byte_count)
+    if result.computer_id() != command.computer_id()
+        || result.execution_id() != command.execution_id()
+        || u64::from(result.stdout().byte_count) + u64::from(result.stderr().byte_count)
             > u64::from(limits.maximum_output_bytes)
     {
         return Err(ComputerError::InvalidInput);
@@ -94,14 +89,14 @@ impl ComputersStore {
             return Err(ComputerError::StateConflict);
         }
         let mut operation = ticket.dispatch.into_operation();
-        let result = ExecutionResult {
-            result_uri: crate::api::ExecutionResultUri::new(operation.execution_id()),
-            computer_id: operation.computer_id(),
-            execution_id: operation.execution_id(),
-            exit_code: ticket.exit_code,
+        let result = ExecutionResult::new(
+            operation.computer_id(),
+            operation.execution_id(),
+            ticket.exit_code,
             stdout,
             stderr,
-        };
+        )
+        .map_err(|_| ComputerError::InvalidInput)?;
         validate_result(&result, &operation)?;
         let object = |v: serde_json::Value| -> Result<OpenObject> {
             serde_json::from_value(v).map_err(|_| ComputerError::Unavailable)

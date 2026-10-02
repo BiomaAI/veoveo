@@ -2,6 +2,7 @@
 use crate::FileTransferResultUri;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+#[cfg(test)]
 use uuid::Uuid;
 
 pub const MAX_TRANSFER_BYTES: u64 = 64 * 1024 * 1024;
@@ -59,7 +60,7 @@ pub enum FileTransferDirection {
 )]
 pub enum FileTransfer {
     Import {
-        artifact_id: Uuid,
+        artifact_id: crate::ArtifactId,
         path: RetainedFilePath,
     },
     Export {
@@ -99,7 +100,7 @@ pub struct FileTransferLimits {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct TransferFileInput {
     pub computer_id: crate::ComputerId,
-    pub request_id: Uuid,
+    pub request_id: crate::RequestId,
     /// A direct owner omits this field. Delegation requires a current named grant.
     pub grant_id: Option<crate::AutomationGrantId>,
     pub transfer: FileTransfer,
@@ -119,7 +120,7 @@ pub enum FileTransferStage {
 }
 
 /// Completed transfer metadata. Artifact bytes require Artifact read authority.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct FileTransferResult {
     #[serde(rename = "result_uri")]
@@ -129,15 +130,101 @@ pub struct FileTransferResult {
             pattern = "^computer://transfers/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
         )
     )]
-    pub result_uri: FileTransferResultUri,
-    pub computer_id: crate::ComputerId,
-    pub transfer_id: crate::FileTransferId,
-    pub direction: FileTransferDirection,
-    pub artifact_id: Uuid,
+    result_uri: FileTransferResultUri,
+    computer_id: crate::ComputerId,
+    transfer_id: crate::FileTransferId,
+    direction: FileTransferDirection,
+    artifact_id: crate::ArtifactId,
     #[schemars(range(max = 67108864))]
-    pub bytes: u64,
-    #[schemars(regex(pattern = "^[0-9a-f]{64}$"))]
-    pub sha256: String,
+    bytes: u64,
+    #[serde(with = "veoveo_types::sha256_hex")]
+    #[schemars(with = "String", regex(pattern = "^[0-9a-f]{64}$"))]
+    sha256: veoveo_types::Sha256Digest,
+}
+impl FileTransferResult {
+    pub fn new(
+        computer_id: crate::ComputerId,
+        transfer_id: crate::FileTransferId,
+        direction: FileTransferDirection,
+        artifact_id: crate::ArtifactId,
+        bytes: u64,
+        sha256: veoveo_types::Sha256Digest,
+    ) -> Result<Self, crate::ComputerResultError> {
+        if bytes > MAX_TRANSFER_BYTES {
+            return Err(crate::ComputerResultError);
+        }
+        Ok(Self {
+            result_uri: FileTransferResultUri::new(transfer_id),
+            computer_id,
+            transfer_id,
+            direction,
+            artifact_id,
+            bytes,
+            sha256,
+        })
+    }
+    pub fn result_uri(&self) -> FileTransferResultUri {
+        self.result_uri
+    }
+    pub fn computer_id(&self) -> crate::ComputerId {
+        self.computer_id
+    }
+    pub fn transfer_id(&self) -> crate::FileTransferId {
+        self.transfer_id
+    }
+    pub fn direction(&self) -> FileTransferDirection {
+        self.direction
+    }
+    pub fn artifact_id(&self) -> crate::ArtifactId {
+        self.artifact_id
+    }
+    pub fn bytes(&self) -> u64 {
+        self.bytes
+    }
+    pub fn sha256(&self) -> &veoveo_types::Sha256Digest {
+        &self.sha256
+    }
+}
+
+#[derive(Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct FileTransferResultWire {
+    #[serde(rename = "result_uri")]
+    #[schemars(
+        with = "String",
+        regex(
+            pattern = "^computer://transfers/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        )
+    )]
+    result_uri: FileTransferResultUri,
+    computer_id: crate::ComputerId,
+    transfer_id: crate::FileTransferId,
+    direction: FileTransferDirection,
+    artifact_id: crate::ArtifactId,
+    #[schemars(range(max = 67108864))]
+    bytes: u64,
+    #[serde(with = "veoveo_types::sha256_hex")]
+    #[schemars(with = "String", regex(pattern = "^[0-9a-f]{64}$"))]
+    sha256: veoveo_types::Sha256Digest,
+}
+
+impl<'de> Deserialize<'de> for FileTransferResult {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let wire = FileTransferResultWire::deserialize(deserializer)?;
+
+        if wire.result_uri.transfer_id() != wire.transfer_id {
+            return Err(serde::de::Error::custom(crate::ComputerResultError));
+        }
+        Self::new(
+            wire.computer_id,
+            wire.transfer_id,
+            wire.direction,
+            wire.artifact_id,
+            wire.bytes,
+            wire.sha256,
+        )
+        .map_err(serde::de::Error::custom)
+    }
 }
 
 /// Native Console projection of the same durable Task used by MCP callers.
@@ -223,8 +310,8 @@ mod tests {
     #[test]
     fn transfer_wire_rejects_extraction_overwrite_and_hidden_authority() {
         let request = serde_json::json!({
-            "computerId":crate::ComputerId::new(), "requestId":Uuid::nil(), "grantId":null,
-            "transfer":{"kind":"import", "artifactId":Uuid::nil(), "path":"data.bin"},
+            "computerId":crate::ComputerId::new(), "requestId":crate::RequestId::new(), "grantId":null,
+            "transfer":{"kind":"import", "artifactId":crate::ArtifactId::new(), "path":"data.bin"},
             "limits":{"maximumSeconds":30, "maximumBytes":1024, "onInterruption":"stop_computer"}
         });
         assert!(serde_json::from_value::<TransferFileInput>(request.clone()).is_ok());

@@ -2,7 +2,6 @@
 mod command_support;
 mod support;
 
-use uuid::Uuid;
 use veoveo_computers::{ComputerActor, ComputersStore, api::*, commands::CommandTaskAction};
 
 #[tokio::test]
@@ -33,7 +32,11 @@ async fn command_tasks_keep_source_client_authority_and_owner_control_separate()
             .await
             .is_err()
     );
-    let other_provider = ComputersStore::new(db.a.clone(), Uuid::now_v7()).unwrap();
+    let other_provider = ComputersStore::new(
+        db.a.clone(),
+        veoveo_computers::api::ProviderInstanceId::new(),
+    )
+    .unwrap();
     assert!(
         other_provider
             .authorize_command_task(&agent, execution, CommandTaskAction::Observe)

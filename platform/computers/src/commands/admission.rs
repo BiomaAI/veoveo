@@ -42,7 +42,7 @@ impl ComputersStore {
         &self,
         actor: &ComputerActor,
         authority: AutomationAuthority,
-        request_id: Uuid,
+        request_id: crate::api::RequestId,
         payload: &CommandPayload,
         keys: &ComputerKeyRing,
     ) -> Result<CommandOperation> {
@@ -57,7 +57,7 @@ impl ComputersStore {
         &self,
         actor: &ComputerActor,
         authority: AutomationAuthority,
-        request_id: Uuid,
+        request_id: crate::api::RequestId,
         payload: &CommandPayload,
         keys: &ComputerKeyRing,
     ) -> Result<CommandOperation> {
@@ -140,7 +140,7 @@ impl ComputersStore {
         let content = Content {
             execution_id: binding.execution_id.into_uuid(),
             computer_id: computer_id.into_uuid(),
-            provider_instance_id: self.provider_instance_id,
+            provider_instance_id: self.provider_instance_id.into_uuid(),
             actor_key: actor_key.clone(),
             binding: object(&binding)?,
             authority: object(actor.accepted())?,
@@ -228,7 +228,10 @@ impl ComputersStore {
                 include_str!("../../queries/accepted_execution.surql"),
                 vec![
                     ("journal", prior.execution.into_value()),
-                    ("provider", self.provider_instance_id.into_value()),
+                    (
+                        "provider",
+                        self.provider_instance_id.into_uuid().into_value(),
+                    ),
                     ("computer_id", computer.into_uuid().into_value()),
                     ("computer_text", computer.to_string().into_value()),
                     ("actor_key", actor_key.to_owned().into_value()),
@@ -259,7 +262,7 @@ impl ComputersStore {
         actor: &ComputerActor,
         computer: veoveo_computers_contract::ComputerId,
         grant: veoveo_computers_contract::AutomationGrantId,
-        request: Uuid,
+        request: crate::api::RequestId,
         payload: &CommandPayload,
         keys: &ComputerKeyRing,
     ) -> Result<CommandOperation> {

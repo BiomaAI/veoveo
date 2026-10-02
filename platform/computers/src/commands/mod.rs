@@ -19,9 +19,8 @@ pub use dispatch::{CommandDispatchDecision, CommandDispatchTicket};
 pub use model::{CommandOperation, CommandStage};
 pub use outcome::{CommandInterruption, CommandOutcome, CommandRefusal};
 
-use crate::{AcceptedAuthority, ComputerError, Result, identity::digest};
+use crate::{AcceptedAuthority, Result, identity::digest};
 use surrealdb::types::RecordId;
-use uuid::Uuid;
 
 fn record(id: crate::api::ExecutionId) -> RecordId {
     RecordId::new(
@@ -52,11 +51,8 @@ fn actor_key(actor: &AcceptedAuthority) -> Result<String> {
 fn request(
     actor_key: &str,
     computer: veoveo_computers_contract::ComputerId,
-    request: Uuid,
+    request: crate::api::RequestId,
 ) -> Result<RecordId> {
-    if request.is_nil() {
-        return Err(ComputerError::InvalidInput);
-    }
     Ok(RecordId::new(
         "computer_execution_request",
         digest(&(

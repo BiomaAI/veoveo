@@ -45,7 +45,7 @@ impl Kind {
                     .queue_command(
                         &agent,
                         commands::permit(&store, &agent, computer, grant.grant_id).await,
-                        uuid::Uuid::now_v7(),
+                        veoveo_computers::api::RequestId::new(),
                         &commands::payload("private-payload", 30),
                         &commands::keys(),
                     )
@@ -63,7 +63,7 @@ impl Kind {
                     .queue_file_transfer(
                         &owner,
                         authority,
-                        uuid::Uuid::now_v7(),
+                        veoveo_computers::api::RequestId::new(),
                         &files::payload("private-payload"),
                         &files::keys(),
                     )

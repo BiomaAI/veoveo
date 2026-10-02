@@ -6,6 +6,7 @@ publish = false
 
 [dependencies]
 veoveo-types.workspace = true
+veoveo-artifact-contract.workspace = true
 chrono.workspace = true
 schemars = { workspace = true, features = ["uuid1", "chrono04"] }
 serde.workspace = true

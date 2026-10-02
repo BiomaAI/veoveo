@@ -67,7 +67,10 @@ impl ComputersStore {
             ("grant", super::record(grant_id).into_value()),
             ("grant_id", grant_id.into_uuid().into_value()),
             ("owner_key", owner_key(&computer.owner)?.into_value()),
-            ("provider", self.provider_instance_id.into_value()),
+            (
+                "provider",
+                self.provider_instance_id.into_uuid().into_value(),
+            ),
             ("authority", super::object(actor.accepted())?.into_value()),
             ("family", family.into_value()),
             ("ticket_hash", hash.into_value()),
@@ -149,7 +152,10 @@ impl ComputersStore {
         params.extend(crate::computer_access::scope(actor.accepted())?);
         params.extend([
             ("grant", super::record(grant_id).into_value()),
-            ("provider", self.provider_instance_id.into_value()),
+            (
+                "provider",
+                self.provider_instance_id.into_uuid().into_value(),
+            ),
             ("ticket_hash", hash.clone().into_value()),
             (
                 "session_family",
@@ -188,7 +194,7 @@ impl ComputersStore {
                     .access_token
                     .oauth_client_id
             || accepted.invocation.work_context != actor.accepted().invocation.work_context
-            || row.provider_instance_id != self.provider_instance_id
+            || row.provider_instance_id != self.provider_instance_id.into_uuid()
         {
             return Err(ComputerError::Forbidden);
         }
@@ -210,7 +216,10 @@ impl ComputersStore {
                     ("owner_key", row.owner_key.clone().into_value()),
                     ("connection", connection_id.into_uuid().into_value()),
                     ("computer", computer_record(row.computer_id()?).into_value()),
-                    ("provider", self.provider_instance_id.into_value()),
+                    (
+                        "provider",
+                        self.provider_instance_id.into_uuid().into_value(),
+                    ),
                     (
                         "admission_expires_at",
                         actor.admission_expires_at().into_value(),

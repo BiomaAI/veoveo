@@ -4,7 +4,6 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-use uuid::Uuid;
 use veoveo_computers::{
     ComputerActor, ComputersStore, ObservationAdmission, OperationStage, Reservation,
     api::{Action, ComputerPhase},
@@ -19,8 +18,14 @@ pub struct Scenario<'a> {
     pub store: &'a ComputersStore,
     pub tasks: &'a TaskRuntime,
     pub owner: &'a ComputerActor,
-    pub source: (&'a str, &'a DevelopmentTemplate),
-    pub target: (&'a str, &'a DevelopmentTemplate),
+    pub source: (
+        &'a veoveo_computers::api::TemplateId,
+        &'a DevelopmentTemplate,
+    ),
+    pub target: (
+        &'a veoveo_computers::api::TemplateId,
+        &'a DevelopmentTemplate,
+    ),
     pub allocator: HomeAllocator,
     pub runtime: &'a OpenShellRuntime,
     pub workers: [Arc<MaintenanceWorker>; 2],
@@ -42,8 +47,8 @@ impl Scenario<'_> {
             .reserve(
                 owner,
                 &Reservation {
-                    request_id: Uuid::now_v7(),
-                    template_id: source.0.into(),
+                    request_id: veoveo_computers::api::RequestId::new(),
+                    template_id: source.0.clone(),
                     template_fingerprint: source.1.fingerprint(),
                 },
             )
@@ -57,7 +62,7 @@ impl Scenario<'_> {
                 ComputerActor::from_verified(&support::browser::identity(db, "alice").await)
                     .unwrap(),
                 computer.computer_id,
-                Uuid::now_v7(),
+                veoveo_computers::api::RequestId::new(),
                 Action::Create,
             )
             .await
@@ -97,9 +102,9 @@ impl Scenario<'_> {
             .queue_maintenance(
                 owner,
                 computer.computer_id,
-                Uuid::now_v7(),
+                veoveo_computers::api::RequestId::new(),
                 &MaintenanceTarget {
-                    template_id: target.0.into(),
+                    template_id: target.0.clone(),
                     template_fingerprint: target.1.fingerprint(),
                 },
             )

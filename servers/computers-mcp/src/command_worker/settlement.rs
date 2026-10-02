@@ -107,16 +107,16 @@ impl CommandWorker {
                 let mut response = rmcp::model::CallToolResult::structured(
                     serde_json::to_value(result).map_err(|_| CommandWorkerError::Configuration)?,
                 );
-                response.is_error = Some(result.exit_code != 0);
+                response.is_error = Some(result.exit_code() != 0);
                 response.content = vec![rmcp::model::ContentBlock::text(format!(
                     "Command exited with code {}",
-                    result.exit_code
+                    result.exit_code()
                 ))];
                 response
                     .content
                     .push(rmcp::model::ContentBlock::resource_link(
                         rmcp::model::Resource::new(
-                            String::from(result.result_uri),
+                            String::from(result.result_uri()),
                             "Command result",
                         ),
                     ));

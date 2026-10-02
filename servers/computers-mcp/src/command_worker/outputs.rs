@@ -123,7 +123,7 @@ impl CommandWorker {
             return Err(CommandWorkerError::OutputUnavailable);
         }
         Ok(ExecutionOutput {
-            artifact_id: metadata.artifact_id().as_uuid(),
+            artifact_id: metadata.artifact_id(),
             byte_count: count as u32,
         })
     }

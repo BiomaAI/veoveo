@@ -90,6 +90,16 @@ export type ComputerPhase =
   | "recovery_required";
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "TemplateId".
+ */
+export type TemplateId = string;
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "RequestId".
+ */
+export type RequestId = string;
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "ErrorCode".
  */
 export type ErrorCode =
@@ -117,6 +127,14 @@ export type ComputerEventKind = "snapshot_changed";
  */
 export type ExecutionId = string;
 /**
+ * Canonical identity of one logical artifact occurrence. Every put creates a
+ * fresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.
+ *
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "ArtifactId".
+ */
+export type ArtifactId = string;
+/**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "FileTransferDirection".
  */
@@ -143,6 +161,11 @@ export type FileTransferStage =
  * via the `definition` "Action".
  */
 export type Action = "create" | "start" | "stop";
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "ComputerResultUri".
+ */
+export type ComputerResultUri = string;
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "MaintenancePhase".
@@ -251,7 +274,7 @@ export type TerminalTicketInput = Record<string, never>;
  */
 export type FileTransfer =
   | {
-      artifactId: string;
+      artifactId: ArtifactId;
       kind: "import";
       path: RetainedFilePath;
     }
@@ -538,7 +561,7 @@ export interface ComputerView {
    */
   grantedAccess: ComputerGrantedAccess[];
   phase: ComputerPhase;
-  templateId: string;
+  templateId: TemplateId;
   updatedAt: string;
 }
 /**
@@ -564,7 +587,7 @@ export interface CreateInput {
    * Continue provisioning an owned reservation, or omit for a new Computer.
    */
   computerId?: ComputerId | null;
-  requestId: string;
+  requestId: RequestId;
 }
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
@@ -604,7 +627,7 @@ export interface ExecuteInput {
   };
   grantId: AutomationGrantId;
   limits: AutomationExecutionLimits;
-  requestId: string;
+  requestId: RequestId;
   /**
    * RFC 4648 standard padded base64; at most 1 MiB decoded.
    */
@@ -632,7 +655,7 @@ export interface ExecutionResult {
  * via the `definition` "ExecutionOutput".
  */
 export interface ExecutionOutput {
-  artifactId: string;
+  artifactId: ArtifactId;
   byteCount: number;
 }
 /**
@@ -642,7 +665,7 @@ export interface ExecutionOutput {
  * via the `definition` "FileTransferResult".
  */
 export interface FileTransferResult {
-  artifactId: string;
+  artifactId: ArtifactId;
   bytes: number;
   computerId: ComputerId;
   direction: FileTransferDirection;
@@ -689,7 +712,7 @@ export interface IssueAutomationGrantInput {
     | [AutomationPermission, AutomationPermission, AutomationPermission]
     | [AutomationPermission, AutomationPermission, AutomationPermission, AutomationPermission];
   principalId: string;
-  requestId: string;
+  requestId: RequestId;
 }
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
@@ -698,7 +721,7 @@ export interface IssueAutomationGrantInput {
 export interface LifecycleInput {
   computerId: ComputerId;
   grantId?: AutomationGrantId | null;
-  requestId: string;
+  requestId: RequestId;
 }
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
@@ -708,7 +731,7 @@ export interface LifecycleResult {
   action: Action;
   computerId: ComputerId;
   operationId: TaskId;
-  result_uri?: string | null;
+  result_uri?: ComputerResultUri | null;
 }
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
@@ -726,8 +749,8 @@ export interface ComputerLimits {
 export interface MaintenanceResult {
   computerId: ComputerId;
   maintenanceId: TaskId;
-  result_uri: string;
-  templateId: string;
+  result_uri: ComputerResultUri;
+  templateId: TemplateId;
 }
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
@@ -750,8 +773,8 @@ export interface MaintenanceView {
   pendingCancellationAt?: string | null;
   phase: MaintenancePhase;
   recovery?: MaintenanceRecoveryReason | null;
-  sourceTemplateId: string;
-  targetTemplateId: string;
+  sourceTemplateId: TemplateId;
+  targetTemplateId: TemplateId;
   taskId: TaskId;
   updatedAt: string;
 }
@@ -763,7 +786,7 @@ export interface TemplateView {
   cpus: number;
   homeCapacityMib?: number | null;
   memoryMib: number;
-  templateId: string;
+  templateId: TemplateId;
 }
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
@@ -800,7 +823,7 @@ export interface ResumeUpdateInput {
   acknowledgedCancellationAt?: string | null;
   computerId: ComputerId;
   expectedUpdatedAt: string;
-  requestId: string;
+  requestId: RequestId;
   taskId: TaskId;
 }
 /**
@@ -847,7 +870,7 @@ export interface ComputerSnapshot {
  */
 export interface StartInput {
   grantId?: AutomationGrantId | null;
-  requestId: string;
+  requestId: RequestId;
 }
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
@@ -855,7 +878,7 @@ export interface StartInput {
  */
 export interface StopInput {
   grantId?: AutomationGrantId | null;
-  requestId: string;
+  requestId: RequestId;
 }
 /**
  * The relay enforces version, dimensions and a 1024-byte first-frame bound.
@@ -933,7 +956,7 @@ export interface TransferFileInput {
    */
   grantId?: AutomationGrantId | null;
   limits: FileTransferLimits;
-  requestId: string;
+  requestId: RequestId;
   transfer: FileTransfer;
 }
 /**
@@ -957,6 +980,6 @@ export interface FileTransferLimits {
  */
 export interface UpdateTemplateInput {
   computerId: ComputerId;
-  requestId: string;
-  templateId?: string | null;
+  requestId: RequestId;
+  templateId?: TemplateId | null;
 }

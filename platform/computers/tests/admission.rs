@@ -1,18 +1,23 @@
 mod support;
 use support::*;
 use surrealdb::types::SurrealValue;
-use uuid::Uuid;
 use veoveo_computers::{CapacityPolicy, ComputerError, ComputersStore, Reservation};
 
 fn request() -> Reservation {
     Reservation {
-        request_id: Uuid::now_v7(),
-        template_id: "development".into(),
+        request_id: veoveo_computers::api::RequestId::new(),
+        template_id: "development".parse().unwrap(),
         template_fingerprint: FINGERPRINT.into(),
     }
 }
 async fn store(db: veoveo_platform_store::PlatformStore, limit: u32) -> ComputersStore {
-    let store = ComputersStore::new(db, Uuid::from_u128(1)).unwrap();
+    let store = ComputersStore::new(
+        db,
+        "00000000-0000-7000-8000-000000000001"
+            .parse::<veoveo_computers::api::ProviderInstanceId>()
+            .unwrap(),
+    )
+    .unwrap();
     store
         .install_capacity(
             None,
@@ -46,7 +51,13 @@ async fn racing_same_request_reserves_once_and_changed_input_is_rejected() {
         assert_eq!(result.unwrap().computer_id, id);
     }
     assert_eq!(a.list(&owner, None, 100).await.unwrap().computers.len(), 1);
-    let reduced = ComputersStore::new(db.a.clone(), Uuid::from_u128(1)).unwrap();
+    let reduced = ComputersStore::new(
+        db.a.clone(),
+        "00000000-0000-7000-8000-000000000001"
+            .parse::<veoveo_computers::api::ProviderInstanceId>()
+            .unwrap(),
+    )
+    .unwrap();
     let prior = reduced.capacity().await.unwrap();
     let closed = CapacityPolicy {
         per_owner: 0,
@@ -165,13 +176,6 @@ async fn collections_support_services_and_contexts_without_multiplying_owner_quo
         veoveo_computers::ComputerActor::from_verified(&support::identity(&invalid)),
         Err(ComputerError::Forbidden)
     ));
-    let mut nil_request = request();
-    nil_request.request_id = Uuid::nil();
-    assert!(matches!(
-        a.reserve(&crate::support::authenticated(&alice), &nil_request)
-            .await,
-        Err(ComputerError::InvalidInput)
-    ));
     let mut classified = owner("classified");
     classified.data_labels.insert("private-data".into());
     let private = a
@@ -200,8 +204,20 @@ async fn concurrent_distinct_admissions_enforce_each_shared_capacity_boundary() 
         per_tenant: 3,
         provider: 4,
     };
-    let a = ComputersStore::new(db.a.clone(), Uuid::from_u128(1)).unwrap();
-    let b = ComputersStore::new(db.b.clone(), Uuid::from_u128(1)).unwrap();
+    let a = ComputersStore::new(
+        db.a.clone(),
+        "00000000-0000-7000-8000-000000000001"
+            .parse::<veoveo_computers::api::ProviderInstanceId>()
+            .unwrap(),
+    )
+    .unwrap();
+    let b = ComputersStore::new(
+        db.b.clone(),
+        "00000000-0000-7000-8000-000000000001"
+            .parse::<veoveo_computers::api::ProviderInstanceId>()
+            .unwrap(),
+    )
+    .unwrap();
     a.install_capacity(None, capacity).await.unwrap();
     let alice = owner("alice");
     let inputs: Vec<_> = (0..6).map(|_| request()).collect();

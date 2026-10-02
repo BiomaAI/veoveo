@@ -319,7 +319,7 @@ impl OwnerAuthority {
 pub(super) fn owned(
     grant: &super::model::Grant,
     computer: &Computer,
-    provider: Uuid,
+    provider: crate::api::ProviderInstanceId,
 ) -> Result<()> {
     if grant.view.computer_id != computer.computer_id || grant.provider != provider {
         return Err(ComputerError::NotFound);
@@ -595,7 +595,7 @@ impl ComputersStore {
         let mut params = crate::store::owner_query_bindings(&retained)?;
         params.extend([
             ("computer", computer_record(computer_id).into_value()),
-            ("provider", grant.provider.into_value()),
+            ("provider", grant.provider.into_uuid().into_value()),
             ("owner_key", grant.owner_key.clone().into_value()),
             ("admission_end", admission_end.into_value()),
         ]);

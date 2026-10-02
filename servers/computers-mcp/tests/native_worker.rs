@@ -26,7 +26,6 @@ use std::{
     },
     time::Duration,
 };
-use uuid::Uuid;
 use veoveo_computers::{
     CapacityPolicy, ComputersStore, Operation, OperationStage, Reservation,
     api::{Action, ComputerPhase},
@@ -130,8 +129,20 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
         gateway_ip,
     })
     .await;
-    let a = ComputersStore::new(db.a.clone(), Uuid::from_u128(100)).unwrap();
-    let b = ComputersStore::new(db.b.clone(), Uuid::from_u128(100)).unwrap();
+    let a = ComputersStore::new(
+        db.a.clone(),
+        "00000000-0000-7000-8000-000000000064"
+            .parse::<veoveo_computers::api::ProviderInstanceId>()
+            .unwrap(),
+    )
+    .unwrap();
+    let b = ComputersStore::new(
+        db.b.clone(),
+        "00000000-0000-7000-8000-000000000064"
+            .parse::<veoveo_computers::api::ProviderInstanceId>()
+            .unwrap(),
+    )
+    .unwrap();
     a.install_capacity(
         None,
         CapacityPolicy {
@@ -147,8 +158,8 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
         .reserve(
             &crate::support::authenticated(&actor),
             &Reservation {
-                request_id: Uuid::now_v7(),
-                template_id: "development".into(),
+                request_id: veoveo_computers::api::RequestId::new(),
+                template_id: "development".parse().unwrap(),
                 template_fingerprint: selected.fingerprint(),
             },
         )
@@ -159,7 +170,9 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
         fingerprint: selected.fingerprint(),
         preparations: Arc::new(AtomicU32::new(0)),
         retained: RetainedHomes::new(
-            Uuid::from_u128(100),
+            "00000000-0000-7000-8000-000000000064"
+                .parse::<veoveo_computers::api::ProviderInstanceId>()
+                .unwrap(),
             home.allocation_config(),
             std::slice::from_ref(&selected),
         )
@@ -191,7 +204,7 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
         .queue_operation(
             support::authenticated(&actor),
             computer.computer_id,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             Action::Create,
         )
         .await
@@ -236,7 +249,7 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
         .queue_operation(
             support::authenticated(&actor),
             computer.computer_id,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             Action::Stop,
         )
         .await
@@ -248,7 +261,7 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
         .queue_operation(
             support::authenticated(&actor),
             computer.computer_id,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             Action::Start,
         )
         .await
@@ -268,7 +281,7 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
         .queue_operation(
             support::authenticated(&actor),
             computer.computer_id,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             Action::Stop,
         )
         .await
@@ -283,7 +296,9 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
     drop(a.begin_dispatch(&claim).await.unwrap());
     let before = provider.runtime.get(&binding).await.unwrap().unwrap();
     let checkpoint = veoveo_computers_runtime::LifecycleCheckpoint::stop(
-        Uuid::from_u128(100),
+        "00000000-0000-7000-8000-000000000064"
+            .parse::<veoveo_computers::api::ProviderInstanceId>()
+            .unwrap(),
         stop.operation_id.try_into().unwrap(),
         binding.clone(),
         &before,
@@ -328,7 +343,7 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
             .queue_operation(
                 support::authenticated(&actor),
                 computer.computer_id,
-                Uuid::now_v7(),
+                veoveo_computers::api::RequestId::new(),
                 Action::Start,
             )
             .await
@@ -381,7 +396,7 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
         .queue_operation(
             support::authenticated(&actor),
             computer.computer_id,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             Action::Start,
         )
         .await

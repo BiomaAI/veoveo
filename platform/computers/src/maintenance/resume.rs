@@ -34,7 +34,7 @@ struct Receipt {
     input: OpenObject,
 }
 fn request_record(actor: &ComputerActor, input: &ResumeUpdateInput) -> Result<RecordId> {
-    if input.task_id.as_uuid().get_version_num() != 7 || input.request_id.is_nil() {
+    if input.task_id.as_uuid().get_version_num() != 7 {
         return Err(ComputerError::InvalidInput);
     }
     Ok(RecordId::new(
@@ -93,7 +93,7 @@ impl ComputersStore {
                 vec![
                     ("request", request.into_value()),
                     ("operation_id", input.task_id.as_uuid().into_value()),
-                    ("request_id", input.request_id.into_value()),
+                    ("request_id", input.request_id.into_uuid().into_value()),
                 ],
             )
             .await?;
@@ -104,7 +104,7 @@ impl ComputersStore {
         )
         .map_err(|_| ComputerError::Unavailable)?;
         if prior.operation_id != input.task_id.as_uuid()
-            || prior.request_id != input.request_id
+            || prior.request_id != input.request_id.into_uuid()
             || prior.fingerprint != fingerprint(&saved)?
         {
             return Err(ComputerError::Unavailable);
@@ -186,7 +186,7 @@ impl ComputersStore {
             );
             let content = Content {
                 operation_id: input.task_id.as_uuid(),
-                request_id: input.request_id,
+                request_id: input.request_id.into_uuid(),
                 fingerprint: fingerprint(input)?,
                 input: object(input)?,
                 authority: object(actor.accepted())?,
@@ -227,7 +227,10 @@ impl ComputersStore {
                         ("maintenance", record(input.task_id).into_value()),
                         ("operation_id", input.task_id.as_uuid().into_value()),
                         ("computer", computer_record(input.computer_id).into_value()),
-                        ("provider", self.provider_instance_id.into_value()),
+                        (
+                            "provider",
+                            self.provider_instance_id.into_uuid().into_value(),
+                        ),
                         ("expected_updated_at", before.updated_at.into_value()),
                         ("expected_progress", object(&before.progress)?.into_value()),
                         ("progress", object(&after.progress)?.into_value()),

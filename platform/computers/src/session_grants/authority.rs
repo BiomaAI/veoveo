@@ -32,7 +32,7 @@ pub(crate) fn require_attach(
     }
     Ok(())
 }
-pub(crate) fn ready(computer: &Computer, provider: Uuid) -> Result<()> {
+pub(crate) fn ready(computer: &Computer, provider: crate::api::ProviderInstanceId) -> Result<()> {
     if computer.provider_instance_id != provider
         || computer.phase != ComputerPhase::Ready
         || computer.active_operation.is_some()

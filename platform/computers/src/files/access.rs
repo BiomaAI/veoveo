@@ -129,7 +129,7 @@ impl ComputersStore {
             || row.transfer_id != transfer.into_uuid()
             || binding.transfer_id != transfer
             || row.computer_id != binding.computer_id.into_uuid()
-            || row.provider_instance_id != binding.provider_instance_id
+            || row.provider_instance_id != binding.provider_instance_id.into_uuid()
             || row.actor_key != super::actor_key(&accepted)?
             || binding.actor_key != row.actor_key
             || row.task != task_record_id(transfer.task_id())

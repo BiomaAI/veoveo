@@ -30,7 +30,7 @@ fn control() -> GatewayControlPlane {
 }
 fn target() -> MaintenanceTarget {
     MaintenanceTarget {
-        template_id: "development-next".into(),
+        template_id: "development-next".parse().unwrap(),
         template_fingerprint: "b".repeat(64),
     }
 }
@@ -53,7 +53,7 @@ async fn replicas_share_one_replacement_task_fence_and_retained_capacity() {
     let db = TestDb::new().await;
     let (a, b, actor, computer_id) = ready(&db).await;
     let before = a.get(actor.owner(), computer_id).await.unwrap();
-    let request_id = Uuid::now_v7();
+    let request_id = veoveo_computers::api::RequestId::new();
     let target = target();
     let results = futures::future::join_all((0..4).map(|i| {
         let store = if i % 2 == 0 { &a } else { &b };
@@ -104,15 +104,20 @@ async fn replicas_share_one_replacement_task_fence_and_retained_capacity() {
         Err(ComputerError::RequestConflict)
     ));
     assert!(matches!(
-        a.queue_maintenance(&actor, computer_id, Uuid::now_v7(), &target)
-            .await,
+        a.queue_maintenance(
+            &actor,
+            computer_id,
+            veoveo_computers::api::RequestId::new(),
+            &target
+        )
+        .await,
         Err(ComputerError::OperationBusy)
     ));
     assert!(matches!(
         a.queue_operation(
             support::authenticated(actor.owner()),
             computer_id,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             Action::Stop
         )
         .await,
@@ -186,8 +191,20 @@ async fn replicas_share_one_replacement_task_fence_and_retained_capacity() {
 async fn failed_initial_create_is_fenced_without_reclassifying_its_unknown_effect() {
     let db = TestDb::new().await;
     support::policy::install(&db.a, control()).await;
-    let a = ComputersStore::new(db.a.clone(), Uuid::from_u128(1)).unwrap();
-    let b = ComputersStore::new(db.b.clone(), Uuid::from_u128(1)).unwrap();
+    let a = ComputersStore::new(
+        db.a.clone(),
+        "00000000-0000-7000-8000-000000000001"
+            .parse::<veoveo_computers::api::ProviderInstanceId>()
+            .unwrap(),
+    )
+    .unwrap();
+    let b = ComputersStore::new(
+        db.b.clone(),
+        "00000000-0000-7000-8000-000000000001"
+            .parse::<veoveo_computers::api::ProviderInstanceId>()
+            .unwrap(),
+    )
+    .unwrap();
     a.install_capacity(
         None,
         CapacityPolicy {
@@ -203,8 +220,8 @@ async fn failed_initial_create_is_fenced_without_reclassifying_its_unknown_effec
         .reserve(
             &actor,
             &Reservation {
-                request_id: Uuid::now_v7(),
-                template_id: "development".into(),
+                request_id: veoveo_computers::api::RequestId::new(),
+                template_id: "development".parse().unwrap(),
                 template_fingerprint: FINGERPRINT.into(),
             },
         )
@@ -214,7 +231,7 @@ async fn failed_initial_create_is_fenced_without_reclassifying_its_unknown_effec
         .queue_operation(
             support::authenticated(actor.owner()),
             computer.computer_id,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             Action::Create,
         )
         .await
@@ -229,8 +246,13 @@ async fn failed_initial_create_is_fenced_without_reclassifying_its_unknown_effec
         .unwrap();
     drop(a.begin_dispatch(&claim).await.unwrap());
     assert!(matches!(
-        a.queue_maintenance(&actor, computer.computer_id, Uuid::now_v7(), &target())
-            .await,
+        a.queue_maintenance(
+            &actor,
+            computer.computer_id,
+            veoveo_computers::api::RequestId::new(),
+            &target()
+        )
+        .await,
         Err(ComputerError::InvalidState)
     ));
     // Isolated failure injection advances the already consumed operation budget.
@@ -252,7 +274,12 @@ async fn failed_initial_create_is_fenced_without_reclassifying_its_unknown_effec
         ObservationAdmission::RecoveryRequired
     ));
     let replacement = b
-        .queue_maintenance(&actor, computer.computer_id, Uuid::now_v7(), &target())
+        .queue_maintenance(
+            &actor,
+            computer.computer_id,
+            veoveo_computers::api::RequestId::new(),
+            &target(),
+        )
         .await
         .unwrap();
     assert_eq!(
@@ -277,8 +304,8 @@ async fn failed_initial_create_is_fenced_without_reclassifying_its_unknown_effec
         a.reserve(
             &actor,
             &Reservation {
-                request_id: Uuid::now_v7(),
-                template_id: "development".into(),
+                request_id: veoveo_computers::api::RequestId::new(),
+                template_id: "development".parse().unwrap(),
                 template_fingerprint: FINGERPRINT.into()
             }
         )
@@ -315,7 +342,7 @@ async fn maintenance_requires_current_named_policy_private_owner_and_no_executio
         a.queue_maintenance(
             &support::authenticated(&owner("bob")),
             computer_id,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             &target
         )
         .await,
@@ -327,8 +354,13 @@ async fn maintenance_requires_current_named_policy_private_owner_and_no_executio
         .remove(&LocalToolName::new("update_template").unwrap());
     support::policy::install(&db.a, denied).await;
     assert!(matches!(
-        a.queue_maintenance(&actor, computer_id, Uuid::now_v7(), &target)
-            .await,
+        a.queue_maintenance(
+            &actor,
+            computer_id,
+            veoveo_computers::api::RequestId::new(),
+            &target
+        )
+        .await,
         Err(ComputerError::Forbidden)
     ));
     assert!(
@@ -359,8 +391,13 @@ async fn maintenance_requires_current_named_policy_private_owner_and_no_executio
         .check()
         .unwrap();
     assert!(matches!(
-        a.queue_maintenance(&actor, computer_id, Uuid::now_v7(), &target)
-            .await,
+        a.queue_maintenance(
+            &actor,
+            computer_id,
+            veoveo_computers::api::RequestId::new(),
+            &target
+        )
+        .await,
         Err(ComputerError::OperationBusy)
     ));
     assert!(
@@ -390,7 +427,12 @@ async fn browser_admits_maintenance_for_an_existing_replacement() {
         .unwrap()
         .check()
         .unwrap();
-    a.queue_maintenance(&actor, id, Uuid::now_v7(), &target())
-        .await
-        .unwrap();
+    a.queue_maintenance(
+        &actor,
+        id,
+        veoveo_computers::api::RequestId::new(),
+        &target(),
+    )
+    .await
+    .unwrap();
 }

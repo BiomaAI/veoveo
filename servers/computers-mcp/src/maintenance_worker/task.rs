@@ -46,12 +46,11 @@ impl MaintenanceWorker {
         let transition = match operation.stage {
             MaintenanceStage::Succeeded => {
                 let uri = veoveo_computers::api::computer_uri(operation.computer_id);
-                let payload = veoveo_computers::api::MaintenanceResult {
-                    result_uri: uri.to_string(),
-                    computer_id: operation.computer_id,
-                    maintenance_id: operation.operation_id,
-                    template_id: operation.target.template_id.clone(),
-                };
+                let payload = veoveo_computers::api::MaintenanceResult::new(
+                    operation.computer_id,
+                    operation.operation_id,
+                    operation.target.template_id.clone(),
+                );
                 let mut result = rmcp::model::CallToolResult::structured(
                     serde_json::to_value(payload).map_err(|_| WorkerError::Configuration)?,
                 );

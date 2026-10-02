@@ -206,9 +206,7 @@ async fn attached(
         baseline.computer().template_fingerprint.clone(),
     )
     .map_err(|_| ())?;
-    let family =
-        veoveo_types::GatewayRefreshFamilyId::new(baseline.session_family_id().to_string())
-            .map_err(|_| ())?;
+    let family = baseline.session_family_id().clone();
     let work = async {
         let runtime = transport.app.runtime.current().map_err(|_| ())?;
         if runtime.provider_instance_id() != baseline.computer().provider_instance_id {

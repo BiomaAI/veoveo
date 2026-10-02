@@ -27,7 +27,7 @@ enum RestoreMode {
 /// This type deliberately has no Debug or Serialize implementation.
 pub struct ReplacementPolicy {
     source: Binding,
-    installation_provider_id: Uuid,
+    installation_provider_id: veoveo_computers_contract::ProviderInstanceId,
     provider_id: String,
     process_id: String,
     config: policy::GetSandboxConfigResponse,

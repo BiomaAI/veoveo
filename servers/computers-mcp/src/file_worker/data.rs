@@ -56,8 +56,7 @@ impl FileWorker {
         let FileTransferAccess::Import { capability } = &preparation.access else {
             return Err(FileWorkerError::Configuration);
         };
-        let source = ArtifactId::parse(artifact_id.to_string())
-            .map_err(|_| FileWorkerError::Configuration)?;
+        let source = *artifact_id;
         let download = self
             .artifacts
             .download_with_authority(
@@ -119,7 +118,7 @@ impl FileWorker {
         &self,
         ticket: &FileExitTicket,
         bytes: Vec<u8>,
-    ) -> Result<Option<uuid::Uuid>> {
+    ) -> Result<Option<ArtifactId>> {
         let receipt = match ticket.receipt() {
             Ok(receipt) => receipt,
             Err(_) => return Ok(None),
@@ -177,7 +176,7 @@ impl FileWorker {
         {
             return Err(FileWorkerError::ArtifactUnavailable);
         }
-        Ok(Some(metadata.artifact_id().as_uuid()))
+        Ok(Some(metadata.artifact_id()))
     }
 }
 

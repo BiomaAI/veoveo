@@ -55,7 +55,7 @@ pub enum ReachedPhase {
 
 /// Internal provider-checked outcome. Public handlers cannot submit this as evidence.
 pub struct ReachedState {
-    pub provider_instance_id: Uuid,
+    pub provider_instance_id: crate::api::ProviderInstanceId,
     pub computer_id: veoveo_computers_contract::ComputerId,
     pub replacement_instance_id: Option<Uuid>,
     pub template_fingerprint: String,

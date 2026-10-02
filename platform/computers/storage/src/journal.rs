@@ -125,7 +125,11 @@ impl Journal {
     /// Reopen recorded host metadata without contacting Docker. Docker needs
     /// plugin metadata while restoring its own API, so physical authorization
     /// is checked separately by every operation that can expose a writer.
-    pub fn reopen(root: PathBuf, provider_id: Uuid, namespace: &str) -> Result<Option<Self>> {
+    pub fn reopen(
+        root: PathBuf,
+        provider_id: veoveo_computers_runtime::ProviderInstanceId,
+        namespace: &str,
+    ) -> Result<Option<Self>> {
         if !root.is_absolute() {
             return Err(StorageError::InvalidIdentity);
         }

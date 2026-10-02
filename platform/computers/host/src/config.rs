@@ -23,7 +23,7 @@ mod tests {
     fn valid() -> Config {
         let image = format!("registry.internal:5000/computer@sha256:{}", "a".repeat(64));
         serde_json::from_value(serde_json::json!({
-            "schema": "veoveo.ai/computer-host/v1", "providerId": uuid::Uuid::from_u128(100),
+            "schema": "veoveo.ai/computer-host/v1", "providerId": "00000000-0000-7000-8000-000000000064",
             "namespace": "private-computers", "defaultImage": image, "images": [image],
             "templates": [{"fingerprint": "b".repeat(64), "capacityBytes": 536870912}],
             "reserveBytes": 536870912, "registry": {"authority": "registry.internal:5000", "transport": "development_http"},
@@ -66,7 +66,7 @@ mod tests {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Config {
     pub schema: Schema,
-    pub provider_id: uuid::Uuid,
+    pub provider_id: veoveo_computers_contract::ProviderInstanceId,
     pub namespace: String,
     pub default_image: String,
     pub images: Vec<String>,

@@ -6,26 +6,12 @@ use veoveo_computers_contract::{
     MaintenancePhase, MaintenanceState, MaintenanceView, ResumeUpdateInput, UpdateTemplateInput,
 };
 
-fn template_id(id: &str) -> bool {
-    !id.is_empty()
-        && id.len() <= 64
-        && id.as_bytes()[0].is_ascii_alphanumeric()
-        && id
-            .bytes()
-            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
-}
 pub(super) fn input(
     bytes: &[u8],
     computer: veoveo_computers_contract::ComputerId,
 ) -> Result<Vec<u8>, ()> {
     let input: UpdateTemplateInput = serde_json::from_slice(bytes).map_err(|_| ())?;
-    if input.computer_id != computer
-        || input.request_id.is_nil()
-        || input
-            .template_id
-            .as_deref()
-            .is_some_and(|id| !template_id(id))
-    {
+    if input.computer_id != computer {
         return Err(());
     }
     serde_json::to_vec(&input).map_err(|_| ())
@@ -38,8 +24,6 @@ fn valid(
     view.computer_id == computer
         && view.task_id.as_uuid().get_version_num() == 7
         && task.is_none_or(|id| view.task_id == id)
-        && template_id(&view.source_template_id)
-        && template_id(&view.target_template_id)
         && view.updated_at >= view.created_at
         && (view.phase == MaintenancePhase::RecoveryRequired) == view.recovery.is_some()
         && (!view.can_resume || view.phase == MaintenancePhase::RecoveryRequired)
@@ -53,7 +37,6 @@ pub(super) fn resume_input(
     if input.computer_id != computer
         || input.task_id != task
         || input.task_id.as_uuid().get_version_num() != 7
-        || input.request_id.is_nil()
     {
         return Err(());
     }
@@ -78,10 +61,7 @@ pub(super) fn state(
     let mut names = BTreeSet::new();
     if state.computer_id != computer
         || state.targets.len() > 64
-        || state
-            .targets
-            .iter()
-            .any(|t| !template_id(&t.template_id) || !names.insert(&t.template_id))
+        || state.targets.iter().any(|t| !names.insert(&t.template_id))
         || state
             .active
             .as_ref()

@@ -11,8 +11,8 @@ use veoveo_task_runtime::TaskOwner;
 pub struct Computer {
     pub computer_id: veoveo_computers_contract::ComputerId,
     pub owner: TaskOwner,
-    pub provider_instance_id: Uuid,
-    pub template_id: String,
+    pub provider_instance_id: crate::api::ProviderInstanceId,
+    pub template_id: crate::api::TemplateId,
     pub template_fingerprint: String,
     pub replacement_instance_id: Option<Uuid>,
     pub phase: ComputerPhase,
@@ -61,6 +61,13 @@ impl TryFrom<ComputerRecord> for Computer {
         {
             return Err(ComputerError::Unavailable);
         }
+        let provider_instance_id =
+            crate::api::ProviderInstanceId::try_from(value.provider_instance_id)
+                .map_err(|_| ComputerError::Unavailable)?;
+        let template_id = value
+            .template_id
+            .parse::<crate::api::TemplateId>()
+            .map_err(|_| ComputerError::Unavailable)?;
         let decode = || {
             Ok(Self {
                 computer_id: crate::api::ComputerId::try_from(value.computer_id)
@@ -70,8 +77,8 @@ impl TryFrom<ComputerRecord> for Computer {
                         .map_err(|_| ComputerError::Unavailable)?,
                 )
                 .map_err(|_| ComputerError::Unavailable)?,
-                provider_instance_id: value.provider_instance_id,
-                template_id: value.template_id,
+                provider_instance_id,
+                template_id,
                 template_fingerprint: value.template_fingerprint,
                 replacement_instance_id: value.replacement_instance_id,
                 phase: serde_json::from_value(serde_json::Value::String(value.phase))

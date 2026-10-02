@@ -3,7 +3,6 @@ use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
-use uuid::Uuid;
 
 #[derive(
     Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, JsonSchema,
@@ -38,7 +37,7 @@ pub struct AutomationExecutionLimits {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct IssueAutomationGrantInput {
     pub computer_id: crate::ComputerId,
-    pub request_id: Uuid,
+    pub request_id: crate::RequestId,
     #[schemars(length(min = 1, max = 2048))]
     pub principal_id: String,
     #[schemars(length(min = 1, max = 256))]
@@ -181,7 +180,7 @@ mod tests {
     #[test]
     fn grant_wire_requires_distinct_permissions_and_explicit_interruption_scope() {
         let grant = serde_json::json!({
-            "computerId":crate::ComputerId::new(),"requestId":Uuid::nil(),"principalId":"agent","oauthClientId":"agent",
+            "computerId":crate::ComputerId::new(),"requestId":crate::RequestId::new(),"principalId":"agent","oauthClientId":"agent",
             "name":"Builder","permissions":["read","execute"],"expiresAt":"2026-09-10T21:00:00Z",
             "executionLimits":{"maximumSeconds":30,"maximumOutputBytes":1024,"onInterruption":"stop_computer"}
         });

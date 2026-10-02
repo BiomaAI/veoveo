@@ -13,7 +13,7 @@ fn isolated_case() -> std::sync::MutexGuard<'static, ()> {
 
 fn host() -> HostIdentity {
     HostIdentity {
-        provider_id: Uuid::from_u128(100),
+        provider_id: "00000000-0000-7000-8000-000000000064".parse().unwrap(),
         engine_id: Uuid::from_u128(200),
         namespace: "provider-test".into(),
     }
@@ -78,7 +78,7 @@ fn lock_and_host_identity_survive_reopening_without_adopting_another_engine() {
         let mut foreign = host();
         match field {
             0 => foreign.engine_id = Uuid::from_u128(201),
-            1 => foreign.provider_id = Uuid::from_u128(101),
+            1 => foreign.provider_id = "00000000-0000-7000-8000-000000000065".parse().unwrap(),
             _ => foreign.namespace = "another-provider".into(),
         }
         assert!(matches!(
@@ -87,7 +87,11 @@ fn lock_and_host_identity_survive_reopening_without_adopting_another_engine() {
         ));
     }
     assert!(matches!(
-        Journal::reopen(root.clone(), Uuid::now_v7(), &host().namespace),
+        Journal::reopen(
+            root.clone(),
+            veoveo_computers_runtime::ProviderInstanceId::new(),
+            &host().namespace
+        ),
         Err(StorageError::IdentityMismatch)
     ));
     assert!(matches!(
@@ -147,7 +151,7 @@ fn incomplete_reservations_retain_identity_capacity_and_bytes_across_restart() {
         match field {
             0 => foreign.instance_id = Uuid::from_u128(400),
             1 => foreign.template_fingerprint = "b".repeat(64),
-            2 => foreign.provider_id = Uuid::from_u128(101),
+            2 => foreign.provider_id = "00000000-0000-7000-8000-000000000065".parse().unwrap(),
             _ => capacity *= 2,
         }
         assert!(matches!(

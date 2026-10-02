@@ -128,7 +128,7 @@ async fn known_import_export_and_rejection_release_the_slot_and_preserve_exact_r
     let db = support::TestDb::new().await;
     let (a, b, owner, _, computer) = setup(&db).await;
     for scenario in ["import", "export", "reject"] {
-        let artifact = Uuid::now_v7();
+        let artifact = veoveo_computers::api::ArtifactId::new();
         let payload = if scenario == "import" {
             FileTransferPayload::new(
                 FileTransfer::Import {
@@ -198,14 +198,14 @@ async fn known_import_export_and_rejection_release_the_slot_and_preserve_exact_r
             let Some(FileOutcome::Completed(result)) = completed.outcome() else {
                 panic!("expected a known result")
             };
-            assert_eq!(result.artifact_id, artifact);
-            assert_eq!(result.bytes, 32);
-            assert_eq!(result.sha256, hex::encode([7; 32]));
+            assert_eq!(result.artifact_id(), artifact);
+            assert_eq!(result.bytes(), 32);
+            assert_eq!(result.sha256().hex(), hex::encode([7; 32]));
             assert_eq!(
-                result.result_uri,
+                result.result_uri(),
                 FileTransferResultUri::new(completed.transfer_id())
             );
-            assert_eq!(result.direction, payload.transfer().direction());
+            assert_eq!(result.direction(), payload.transfer().direction());
             tasks.transition(&completed.task_id().to_string(), TaskTransition::Succeeded {message:"File transferred".into(),result:serde_json::json!({"content":[],"structuredContent":result,"isError":false})}).await.unwrap();
             db.a.client()
                 .query("UPDATE $task SET result.payload.structuredContent.artifactId=$wrong;")
@@ -271,7 +271,7 @@ async fn uncertain_effects_and_substituted_import_occurrences_cannot_be_complete
     ] {
         let db = support::TestDb::new().await;
         let (a, _, owner, _, computer) = setup(&db).await;
-        let source = Uuid::now_v7();
+        let source = veoveo_computers::api::ArtifactId::new();
         let input = FileTransferPayload::new(
             FileTransfer::Import {
                 artifact_id: source,
@@ -315,7 +315,7 @@ async fn uncertain_effects_and_substituted_import_occurrences_cannot_be_complete
                 _ => {}
             }
             let id = if scenario == "artifact" {
-                Uuid::now_v7()
+                veoveo_computers::api::ArtifactId::new()
             } else {
                 source
             };

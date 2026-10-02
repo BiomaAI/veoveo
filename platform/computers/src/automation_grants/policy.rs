@@ -50,7 +50,7 @@ impl ComputersStore {
     pub(crate) fn automation_policy_record(&self) -> RecordId {
         RecordId::new(
             "computer_automation_policy",
-            surrealdb::types::Uuid::from(self.provider_instance_id),
+            surrealdb::types::Uuid::from(self.provider_instance_id.into_uuid()),
         )
     }
     pub(super) async fn stored_automation_policy(&self) -> Result<StoredPolicy> {

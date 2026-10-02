@@ -19,7 +19,7 @@ const HOST: &str = "unix:///var/run/docker.sock";
 const TEST: &str = "native_service_shared_mount_and_restart";
 pub struct Fixture {
     pub dir: PathBuf,
-    pub provider: Uuid,
+    pub provider: veoveo_computers_runtime::ProviderInstanceId,
     pub endpoint: String,
     pub initial: Binding,
     pub replacement: Binding,
@@ -135,7 +135,7 @@ impl Fixture {
         let endpoint = listener.local_addr().unwrap().to_string();
         drop(listener);
         let config = serde_json::json!({
-            "providerId": Uuid::from_u128(100), "namespace": "storage-fixture",
+            "providerId": "00000000-0000-7000-8000-000000000064", "namespace": "storage-fixture",
             "root": dir.join("retained"), "reserveBytes": 536870912,
             "templates": templates,
             "dockerSocket": daemon.socket, "pluginName": "veoveo-retained",
@@ -149,7 +149,7 @@ impl Fixture {
         .unwrap();
         let fixture = Self {
             dir,
-            provider: Uuid::from_u128(100),
+            provider: "00000000-0000-7000-8000-000000000064".parse().unwrap(),
             endpoint,
             initial: Binding::new(id, fingerprint.clone()).unwrap(),
             replacement: Binding::replacement(id, Uuid::now_v7(), fingerprint).unwrap(),
@@ -175,11 +175,18 @@ impl Fixture {
         println!("Native allocator diagnostics: {}", fixture.dir.display());
         fixture
     }
-    pub async fn worker(&self, provider: Uuid) -> HomeAllocator {
+    pub async fn worker(
+        &self,
+        provider: veoveo_computers_runtime::ProviderInstanceId,
+    ) -> HomeAllocator {
         self.worker_template(provider, self.initial.template_fingerprint())
             .await
     }
-    pub async fn worker_template(&self, provider: Uuid, fingerprint: &str) -> HomeAllocator {
+    pub async fn worker_template(
+        &self,
+        provider: veoveo_computers_runtime::ProviderInstanceId,
+        fingerprint: &str,
+    ) -> HomeAllocator {
         HomeAllocator::new(
             AllocationConfig::new(
                 self.endpoint.clone(),

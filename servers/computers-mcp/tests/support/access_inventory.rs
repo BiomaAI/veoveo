@@ -1,5 +1,5 @@
 //! Real-store wire authorization with a synthetic Ready row, without provider I/O.
-use super::{Duration, Server, Signing, Uuid, Value, app_support, client, json, rpc, support};
+use super::{Duration, Server, Signing, Value, app_support, client, json, rpc, support};
 use rmcp::model::{ServerNotification, SubscriptionFilter};
 use veoveo_computers::{
     ComputerActor, ComputersStore, Reservation, session_grants::SessionGrantPolicy,
@@ -25,7 +25,13 @@ async fn access_inventory_and_revocation_share_owned_state_and_resource_invalida
     attach.actions = [GatewayAction::ComputerAttach].into_iter().collect();
     policy.policies[0].rules.push(attach);
     support::policy::install(&db.a, policy).await;
-    let store = ComputersStore::new(db.a.clone(), Uuid::from_u128(100)).unwrap();
+    let store = ComputersStore::new(
+        db.a.clone(),
+        "00000000-0000-7000-8000-000000000064"
+            .parse::<veoveo_computers::api::ProviderInstanceId>()
+            .unwrap(),
+    )
+    .unwrap();
     store
         .install_session_grant_policy(
             None,
@@ -41,8 +47,8 @@ async fn access_inventory_and_revocation_share_owned_state_and_resource_invalida
         .reserve(
             &actor,
             &Reservation {
-                request_id: Uuid::now_v7(),
-                template_id: "development".into(),
+                request_id: veoveo_computers::api::RequestId::new(),
+                template_id: "development".parse().unwrap(),
                 template_fingerprint: support::FINGERPRINT.into(),
             },
         )

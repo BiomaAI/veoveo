@@ -16149,6 +16149,7 @@ dependencies = [
  "tonic",
  "uuid",
  "veoveo-computer-storage",
+ "veoveo-computers-contract",
  "veoveo-computers-runtime",
 ]
 
@@ -16211,6 +16212,7 @@ dependencies = [
  "serde",
  "serde_json",
  "uuid",
+ "veoveo-artifact-contract",
  "veoveo-types",
 ]
 
@@ -16292,6 +16294,7 @@ dependencies = [
  "typify",
  "uuid",
  "veoveo-computer-execution",
+ "veoveo-computers-contract",
  "veoveo-types",
  "zeroize",
 ]

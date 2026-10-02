@@ -44,12 +44,9 @@ impl ComputersStore {
         &self,
         caller: &TaskOwner,
         computer: veoveo_computers_contract::ComputerId,
-        request_id: Uuid,
+        request_id: crate::api::RequestId,
         action: Action,
     ) -> Result<Option<Operation>> {
-        if request_id.is_nil() {
-            return Err(ComputerError::InvalidInput);
-        }
         let mut response = self
             .query(
                 "SELECT VALUE operation_id FROM ONLY $request;",
@@ -80,14 +77,11 @@ impl ComputersStore {
         &self,
         actor: ComputerActor,
         computer_id: veoveo_computers_contract::ComputerId,
-        request_id: Uuid,
+        request_id: crate::api::RequestId,
         action: Action,
     ) -> Result<Operation> {
         actor.check_admission()?;
         let caller = actor.owner();
-        if request_id.is_nil() {
-            return Err(ComputerError::InvalidInput);
-        }
         let computer = self.get(caller, computer_id).await?;
         can_mutate(caller)?;
         self.queue_lifecycle(&actor, computer, request_id, action, None)
@@ -100,7 +94,7 @@ impl ComputersStore {
         &self,
         actor: &ComputerActor,
         authority: AutomationAuthority,
-        request_id: Uuid,
+        request_id: crate::api::RequestId,
         action: Action,
     ) -> Result<Operation> {
         authority.require_actor(actor)?;
@@ -116,12 +110,12 @@ impl ComputersStore {
         &self,
         actor: &ComputerActor,
         computer: Computer,
-        request_id: Uuid,
+        request_id: crate::api::RequestId,
         action: Action,
         authority: Option<AutomationAuthority>,
     ) -> Result<Operation> {
         actor.check_admission()?;
-        if request_id.is_nil() || computer.provider_instance_id != self.provider_instance_id {
+        if computer.provider_instance_id != self.provider_instance_id {
             return Err(ComputerError::InvalidInput);
         }
         let caller = actor.owner();
@@ -157,7 +151,7 @@ impl ComputersStore {
             owner_context: object(&computer.owner)?,
             automation_grant_id: grant_id.map(crate::api::AutomationGrantId::into_uuid),
             execution_authority: object(actor.accepted())?,
-            provider_instance_id: computer.provider_instance_id,
+            provider_instance_id: computer.provider_instance_id.into_uuid(),
             template_fingerprint: computer.template_fingerprint,
             replacement_instance_id: computer.replacement_instance_id,
             action: action.into(),
@@ -287,7 +281,7 @@ impl ComputersStore {
 pub(crate) fn request_record(
     caller: &TaskOwner,
     computer: veoveo_computers_contract::ComputerId,
-    request: Uuid,
+    request: crate::api::RequestId,
 ) -> Result<RecordId> {
     Ok(RecordId::new(
         "computer_operation_request",

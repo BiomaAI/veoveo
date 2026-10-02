@@ -232,7 +232,7 @@ enable_bind_mounts = false
                     panic!("provider exited {exit}; diagnostics at {}", dir.display());
                 }
                 let config = GatewayConfig::new(
-                    Uuid::from_u128(100),
+                    "00000000-0000-7000-8000-000000000064".parse().unwrap(),
                     endpoint.clone(),
                     "default".into(),
                     dir.join("ca.pem"),

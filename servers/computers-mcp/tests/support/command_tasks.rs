@@ -227,11 +227,11 @@ async fn completed_command_has_one_canonical_governed_result_resource() {
             &claim,
             exit,
             ExecutionOutput {
-                artifact_id: uuid::Uuid::now_v7(),
+                artifact_id: veoveo_computers::api::ArtifactId::new(),
                 byte_count: 3,
             },
             ExecutionOutput {
-                artifact_id: uuid::Uuid::now_v7(),
+                artifact_id: veoveo_computers::api::ArtifactId::new(),
                 byte_count: 4,
             },
         )

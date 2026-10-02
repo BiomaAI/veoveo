@@ -127,17 +127,10 @@ fn result(access: &FileTaskAccess, task: &TaskSnapshot) -> Result<Option<FileTra
     .map_err(|_| ApplicationError::Unavailable)?;
     if response.is_error == Some(true)
         || access.stage() != FileTransferStage::Completed
-        || result.transfer_id != access.transfer_id()
-        || result.result_uri.transfer_id() != access.transfer_id()
-        || result.computer_id != access.computer_id()
-        || result.direction != access.direction()
-        || result.artifact_id.get_version_num() != 7
-        || result.bytes > veoveo_computers::api::MAX_TRANSFER_BYTES
-        || result.sha256.len() != 64
-        || !result
-            .sha256
-            .bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        || result.transfer_id() != access.transfer_id()
+        || result.result_uri().transfer_id() != access.transfer_id()
+        || result.computer_id() != access.computer_id()
+        || result.direction() != access.direction()
     {
         return Err(ApplicationError::Unavailable);
     }

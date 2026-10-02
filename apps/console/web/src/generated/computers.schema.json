@@ -126,6 +126,10 @@
       ],
       "type": "object"
     },
+    "ArtifactId": {
+      "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
+      "type": "string"
+    },
     "AutomationClientChoice": {
       "additionalProperties": false,
       "description": "Registration metadata available to a Computer owner who may issue a grant.\nA choice is a profile hint, never proof of the grantee's current authority.",
@@ -644,6 +648,10 @@
       ],
       "type": "string"
     },
+    "ComputerResultUri": {
+      "pattern": "^computer://computers/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "type": "string"
+    },
     "ComputerSnapshot": {
       "additionalProperties": false,
       "properties": {
@@ -767,7 +775,7 @@
           "$ref": "#/$defs/ComputerPhase"
         },
         "templateId": {
-          "type": "string"
+          "$ref": "#/$defs/TemplateId"
         },
         "updatedAt": {
           "format": "date-time",
@@ -807,8 +815,7 @@
           "description": "Continue provisioning an owned reservation, or omit for a new Computer."
         },
         "requestId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/RequestId"
         }
       },
       "required": [
@@ -867,8 +874,7 @@
           "$ref": "#/$defs/AutomationExecutionLimits"
         },
         "requestId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/RequestId"
         },
         "stdin": {
           "description": "RFC 4648 standard padded base64; at most 1 MiB decoded.",
@@ -900,8 +906,7 @@
       "description": "Governed occurrence reference. Bytes remain behind Artifact read authority.",
       "properties": {
         "artifactId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/ArtifactId"
         },
         "byteCount": {
           "format": "uint32",
@@ -927,10 +932,18 @@
           "$ref": "#/$defs/ExecutionId"
         },
         "exitCode": {
-          "format": "uint8",
-          "maximum": 255,
-          "minimum": 0,
-          "type": "integer"
+          "anyOf": [
+            {
+              "maximum": 123,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "maximum": 255,
+              "minimum": 125,
+              "type": "integer"
+            }
+          ]
         },
         "result_uri": {
           "pattern": "^computer://executions/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
@@ -960,8 +973,7 @@
           "additionalProperties": false,
           "properties": {
             "artifactId": {
-              "format": "uuid",
-              "type": "string"
+              "$ref": "#/$defs/ArtifactId"
             },
             "kind": {
               "const": "import",
@@ -1055,8 +1067,7 @@
       "description": "Completed transfer metadata. Artifact bytes require Artifact read authority.",
       "properties": {
         "artifactId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/ArtifactId"
         },
         "bytes": {
           "format": "uint64",
@@ -1220,8 +1231,7 @@
           "type": "string"
         },
         "requestId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/RequestId"
         }
       },
       "required": [
@@ -1252,8 +1262,7 @@
           ]
         },
         "requestId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/RequestId"
         }
       },
       "required": [
@@ -1275,9 +1284,13 @@
           "$ref": "#/$defs/TaskId"
         },
         "result_uri": {
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerResultUri"
+            },
+            {
+              "type": "null"
+            }
           ]
         }
       },
@@ -1322,10 +1335,10 @@
           "$ref": "#/$defs/TaskId"
         },
         "result_uri": {
-          "type": "string"
+          "$ref": "#/$defs/ComputerResultUri"
         },
         "templateId": {
-          "type": "string"
+          "$ref": "#/$defs/TemplateId"
         }
       },
       "required": [
@@ -1403,10 +1416,10 @@
           ]
         },
         "sourceTemplateId": {
-          "type": "string"
+          "$ref": "#/$defs/TemplateId"
         },
         "targetTemplateId": {
-          "type": "string"
+          "$ref": "#/$defs/TemplateId"
         },
         "taskId": {
           "$ref": "#/$defs/TaskId"
@@ -1526,6 +1539,13 @@
       ],
       "type": "object"
     },
+    "RequestId": {
+      "format": "uuid",
+      "maxLength": 36,
+      "minLength": 36,
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[47][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "type": "string"
+    },
     "ResumeUpdateInput": {
       "additionalProperties": false,
       "description": "A new, explicit recovery intent for the exact paused operation epoch.",
@@ -1545,8 +1565,7 @@
           "type": "string"
         },
         "requestId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/RequestId"
         },
         "taskId": {
           "$ref": "#/$defs/TaskId"
@@ -1621,8 +1640,7 @@
           ]
         },
         "requestId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/RequestId"
         }
       },
       "required": [
@@ -1644,8 +1662,7 @@
           ]
         },
         "requestId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/RequestId"
         }
       },
       "required": [
@@ -1656,6 +1673,12 @@
     "TaskId": {
       "maxLength": 45,
       "pattern": "^(?:[0-9A-Fa-f]{32}|[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}|\\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\\}|urn:uuid:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})(?![\\s\\S])",
+      "type": "string"
+    },
+    "TemplateId": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
       "type": "string"
     },
     "TemplateView": {
@@ -1680,7 +1703,7 @@
           "type": "integer"
         },
         "templateId": {
-          "type": "string"
+          "$ref": "#/$defs/TemplateId"
         }
       },
       "required": [
@@ -1917,8 +1940,7 @@
           "$ref": "#/$defs/FileTransferLimits"
         },
         "requestId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/RequestId"
         },
         "transfer": {
           "$ref": "#/$defs/FileTransfer"
@@ -1940,13 +1962,16 @@
           "$ref": "#/$defs/ComputerId"
         },
         "requestId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/RequestId"
         },
         "templateId": {
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TemplateId"
+            },
+            {
+              "type": "null"
+            }
           ]
         }
       },

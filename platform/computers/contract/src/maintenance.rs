@@ -2,7 +2,6 @@ use crate::TemplateView;
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 /// Select an installation-admitted template, or omit it to choose the current
 /// default on the first request. An exact retry retains the original selection.
@@ -10,9 +9,9 @@ use uuid::Uuid;
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct UpdateTemplateInput {
     pub computer_id: crate::ComputerId,
-    pub request_id: Uuid,
+    pub request_id: crate::RequestId,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub template_id: Option<String>,
+    pub template_id: Option<crate::TemplateId>,
 }
 
 /// A new, explicit recovery intent for the exact paused operation epoch.
@@ -21,7 +20,7 @@ pub struct UpdateTemplateInput {
 pub struct ResumeUpdateInput {
     pub computer_id: crate::ComputerId,
     pub task_id: veoveo_types::TaskId,
-    pub request_id: Uuid,
+    pub request_id: crate::RequestId,
     pub expected_updated_at: DateTime<Utc>,
     pub acknowledged_cancellation_at: Option<DateTime<Utc>>,
 }
@@ -55,8 +54,8 @@ pub enum MaintenanceRecoveryReason {
 pub struct MaintenanceView {
     pub computer_id: crate::ComputerId,
     pub task_id: veoveo_types::TaskId,
-    pub source_template_id: String,
-    pub target_template_id: String,
+    pub source_template_id: crate::TemplateId,
+    pub target_template_id: crate::TemplateId,
     pub phase: MaintenancePhase,
     pub recovery: Option<MaintenanceRecoveryReason>,
     pub can_resume: bool,

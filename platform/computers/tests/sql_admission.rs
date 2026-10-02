@@ -1,7 +1,6 @@
 //! SQL visibility precedes protected decoding and the public page limit.
 mod support;
 use std::time::Duration;
-use uuid::Uuid;
 use veoveo_computers::{ComputerActor, ComputerError, ComputersStore, Reservation, api::*};
 use veoveo_platform_store::{OpenObject, RecordId};
 use veoveo_task_runtime::TaskOwner;
@@ -14,8 +13,8 @@ async fn reserve(store: &ComputersStore, owner: &TaskOwner) -> ComputerId {
         .reserve(
             &crate::support::authenticated(owner),
             &Reservation {
-                request_id: Uuid::now_v7(),
-                template_id: "development".into(),
+                request_id: veoveo_computers::api::RequestId::new(),
+                template_id: "development".parse().unwrap(),
                 template_fingerprint: support::FINGERPRINT.into(),
             },
         )

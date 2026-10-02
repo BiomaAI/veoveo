@@ -1,6 +1,5 @@
 use crate::{Computer, ComputerError, ComputerPage, Result, identity::*, model::*};
 use surrealdb::types::{SurrealValue, Value};
-use uuid::Uuid;
 use veoveo_platform_store::PlatformStore;
 use veoveo_task_runtime::TaskOwner;
 
@@ -9,7 +8,7 @@ pub struct ComputersStore {
     pub(crate) platform: PlatformStore,
     pub(crate) authority_events:
         std::sync::Arc<std::sync::OnceLock<crate::authority_changes::AccessEvents>>,
-    pub(crate) provider_instance_id: Uuid,
+    pub(crate) provider_instance_id: crate::api::ProviderInstanceId,
 }
 
 pub(crate) fn owner_query_bindings(caller: &TaskOwner) -> Result<Vec<(&'static str, Value)>> {
@@ -67,13 +66,13 @@ impl ComputersStore {
         values.truncate(100);
         Ok((values, more))
     }
-    pub fn provider_instance_id(&self) -> Uuid {
+    pub fn provider_instance_id(&self) -> veoveo_computers_contract::ProviderInstanceId {
         self.provider_instance_id
     }
-    pub fn new(platform: PlatformStore, provider_instance_id: Uuid) -> Result<Self> {
-        if provider_instance_id.is_nil() {
-            return Err(ComputerError::InvalidInput);
-        }
+    pub fn new(
+        platform: PlatformStore,
+        provider_instance_id: crate::api::ProviderInstanceId,
+    ) -> Result<Self> {
         Ok(Self {
             platform,
             authority_events: Default::default(),

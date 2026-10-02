@@ -6,18 +6,17 @@ mod support;
 use file_support::command_fixture;
 use std::time::Duration;
 use surrealdb::types::RecordId;
-use uuid::Uuid;
 use veoveo_computers::ComputerError;
 
 #[tokio::test]
 async fn reservation_receipts_admit_owner_clearance_before_decoding_and_never_reserve_again() {
     tokio::time::timeout(Duration::from_secs(90), async {
         let db = support::TestDb::new().await;
-        let store = veoveo_computers::ComputersStore::new(db.a.clone(), Uuid::from_u128(1)).unwrap();
+        let store = veoveo_computers::ComputersStore::new(db.a.clone(), "00000000-0000-7000-8000-000000000001".parse::<veoveo_computers::api::ProviderInstanceId>().unwrap()).unwrap();
         store.install_capacity(None, veoveo_computers::CapacityPolicy { per_owner: 2, per_tenant: 2, provider: 2 }).await.unwrap();
         let actor = support::authenticated(&support::owner("alice"));
         let input = veoveo_computers::Reservation {
-            request_id: Uuid::now_v7(), template_id: "development".into(), template_fingerprint: support::FINGERPRINT.into(),
+            request_id: veoveo_computers::api::RequestId::new(), template_id: "development".parse().unwrap(), template_fingerprint: support::FINGERPRINT.into(),
         };
         assert!(store.reserved_for_request(actor.owner(), input.request_id).await.unwrap().is_none());
         let computer = store.reserve(&actor, &input).await.unwrap();
@@ -40,7 +39,7 @@ async fn command_receipts_admit_the_accepted_actor_before_decoding_private_paylo
         let db = support::TestDb::new().await;
         let (store, _, owner, agent, computer) = support::automation::setup(&db).await;
         let grant = store.issue_automation_grant(&owner, &support::automation::input(computer)).await.unwrap();
-        let request = Uuid::now_v7();
+        let request = veoveo_computers::api::RequestId::new();
         let payload = command_fixture::payload("receipt-fixture", 30);
         let keys = command_fixture::keys();
         let authority = command_fixture::permit(&store, &agent, computer, grant.grant_id).await;
@@ -63,7 +62,7 @@ async fn file_receipts_admit_the_accepted_actor_before_decoding_private_payloads
     tokio::time::timeout(Duration::from_secs(90), async {
         let db = support::TestDb::new().await;
         let (store, _, owner, _, computer) = file_support::setup(&db).await;
-        let request = Uuid::now_v7();
+        let request = veoveo_computers::api::RequestId::new();
         let payload = file_support::payload("receipt-fixture");
         let keys = command_fixture::keys();
         let authority = store.file_transfer_authority(&owner, computer, None).await.unwrap();

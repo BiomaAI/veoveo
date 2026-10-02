@@ -207,7 +207,7 @@ async fn replacement_lifecycle_addresses_exact_instance_without_polling_or_recre
         state.sandbox = None;
     }
     let create = LifecycleCheckpoint::create(
-        Uuid::from_u128(100),
+        "00000000-0000-7000-8000-000000000064".parse().unwrap(),
         Uuid::now_v7().try_into().unwrap(),
         replacement.clone(),
     )
@@ -220,7 +220,7 @@ async fn replacement_lifecycle_addresses_exact_instance_without_polling_or_recre
         .unwrap();
     assert_eq!(running.fake.0.lock().unwrap().gets, before);
     let stop = LifecycleCheckpoint::stop(
-        Uuid::from_u128(100),
+        "00000000-0000-7000-8000-000000000064".parse().unwrap(),
         Uuid::now_v7().try_into().unwrap(),
         replacement.clone(),
         &ready,
@@ -234,7 +234,7 @@ async fn replacement_lifecycle_addresses_exact_instance_without_polling_or_recre
         .unwrap();
     assert_eq!(running.fake.0.lock().unwrap().gets, before);
     let start = LifecycleCheckpoint::start(
-        Uuid::from_u128(100),
+        "00000000-0000-7000-8000-000000000064".parse().unwrap(),
         Uuid::now_v7().try_into().unwrap(),
         replacement.clone(),
         &stopped,
@@ -276,7 +276,7 @@ async fn replacement_watch_rejects_another_full_instance_even_when_name_and_prov
         .await
         .unwrap();
     let checkpoint = LifecycleCheckpoint::create(
-        Uuid::from_u128(100),
+        "00000000-0000-7000-8000-000000000064".parse().unwrap(),
         Uuid::now_v7().try_into().unwrap(),
         replacement.clone(),
     )

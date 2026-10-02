@@ -45,7 +45,9 @@ operator powers; this profile does not establish VM-grade tenant isolation.
 
 ## Durable Allocation
 
-Each metadata root binds one provider UUID, Docker engine UUID and provider namespace.
+Each metadata root binds one typed `ProviderInstanceId`, Docker engine UUID and
+provider namespace. The runtime reexports the Computers owner type. The transport
+checks provider UUIDs before calling the storage service.
 Opening it with different identities fails. A file lock excludes another helper; it
 does not stand in for physical writer exclusion. The owner never deletes the lock file
 while the root exists. Records use Computer UUID filenames and deny unknown fields.

@@ -115,7 +115,7 @@ async fn structured_execution_preserves_values_and_stop_fences_uncertain_descend
     let home =
         block_home::BlockHome::create(provider.dir.clone(), provider.image.clone(), computer);
     let create = LifecycleCheckpoint::create(
-        Uuid::from_u128(100),
+        "00000000-0000-7000-8000-000000000064".parse().unwrap(),
         veoveo_computers_runtime::LifecycleOperationId::new(),
         binding.clone(),
     )
@@ -195,7 +195,7 @@ while True: time.sleep(0.1)
     let (result, _) = execute(runtime, &binding, &ready, &runaway, 1).await;
     assert_eq!(result, Err(RuntimeFailure::ExecutionUnknown));
     let stop = LifecycleCheckpoint::stop(
-        Uuid::from_u128(100),
+        "00000000-0000-7000-8000-000000000064".parse().unwrap(),
         veoveo_computers_runtime::LifecycleOperationId::new(),
         binding.clone(),
         &ready,
@@ -207,7 +207,7 @@ while True: time.sleep(0.1)
         .await
         .unwrap();
     let start = LifecycleCheckpoint::start(
-        Uuid::from_u128(100),
+        "00000000-0000-7000-8000-000000000064".parse().unwrap(),
         veoveo_computers_runtime::LifecycleOperationId::new(),
         binding.clone(),
         &stopped,

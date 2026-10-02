@@ -31,7 +31,12 @@ pub(super) async fn queued(
 ) -> (ComputersStore, ComputersStore, TaskRuntime, ClaimedTask) {
     let (a, b, actor, id) = ready(db).await;
     let operation = a
-        .queue_maintenance(&actor, id, Uuid::now_v7(), &target())
+        .queue_maintenance(
+            &actor,
+            id,
+            veoveo_computers::api::RequestId::new(),
+            &target(),
+        )
         .await
         .unwrap();
     let tasks = TaskRuntime::new(db.a.clone(), "computers", "maintenance-a");
@@ -330,7 +335,12 @@ pub(super) async fn initial_failure_retains_unknown_source_through_cancel_and_ad
         Some(original.operation_id)
     );
     let operation = b
-        .queue_maintenance(actor, original.computer_id, Uuid::now_v7(), &target())
+        .queue_maintenance(
+            actor,
+            original.computer_id,
+            veoveo_computers::api::RequestId::new(),
+            &target(),
+        )
         .await
         .unwrap();
     assert_ne!(operation.target_instance_id, first.target_instance_id);
@@ -449,7 +459,12 @@ async fn cancellation_before_dispatch_preserves_run_and_policy_revocation_blocks
     assert_eq!(current.instance_id(), operation.source_instance_id);
     let actor = support::authenticated(&operation.actor);
     let operation = a
-        .queue_maintenance(&actor, current.computer_id, Uuid::now_v7(), &target())
+        .queue_maintenance(
+            &actor,
+            current.computer_id,
+            veoveo_computers::api::RequestId::new(),
+            &target(),
+        )
         .await
         .unwrap();
     let claim = tasks

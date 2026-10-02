@@ -12,7 +12,7 @@ fn before(phase: Phase) -> Observation {
 
 fn start_checkpoint() -> LifecycleCheckpoint {
     LifecycleCheckpoint::start(
-        Uuid::from_u128(100),
+        "00000000-0000-7000-8000-000000000064".parse().unwrap(),
         Uuid::from_u128(101).try_into().unwrap(),
         binding(),
         &before(Phase::Stopped),
@@ -125,7 +125,7 @@ async fn healthy_watch_has_a_caller_budget_without_recovery_or_redispatch() {
 async fn synchronous_completion_cannot_bypass_source_epoch_or_deadline() {
     let running = Running::start().await;
     let stop = LifecycleCheckpoint::stop(
-        Uuid::from_u128(100),
+        "00000000-0000-7000-8000-000000000064".parse().unwrap(),
         Uuid::now_v7().try_into().unwrap(),
         binding(),
         &before(Phase::Ready),
@@ -141,7 +141,7 @@ async fn synchronous_completion_cannot_bypass_source_epoch_or_deadline() {
         Err(RuntimeFailure::BindingMismatch)
     ));
     let other_provider = LifecycleCheckpoint::create(
-        Uuid::from_u128(200),
+        "00000000-0000-7000-8000-0000000000c8".parse().unwrap(),
         Uuid::now_v7().try_into().unwrap(),
         binding(),
     )
@@ -165,7 +165,7 @@ async fn synchronous_completion_cannot_bypass_source_epoch_or_deadline() {
         Err(RuntimeFailure::WatchFailed)
     ));
     let create = LifecycleCheckpoint::create(
-        Uuid::from_u128(100),
+        "00000000-0000-7000-8000-000000000064".parse().unwrap(),
         Uuid::now_v7().try_into().unwrap(),
         binding(),
     )
@@ -207,7 +207,7 @@ async fn remaining_budget_bounds_a_stalled_status_read() {
 async fn ready_with_an_exit_code_or_missing_process_cannot_complete_create() {
     let running = Running::start().await;
     let checkpoint = LifecycleCheckpoint::create(
-        Uuid::from_u128(100),
+        "00000000-0000-7000-8000-000000000064".parse().unwrap(),
         Uuid::from_u128(103).try_into().unwrap(),
         binding(),
     )
@@ -332,7 +332,7 @@ async fn previous_ready_run_and_old_stopped_state_do_not_settle_start() {
 async fn stop_recovery_rejects_another_stopped_process_or_provider_resource() {
     let running = Running::start().await;
     let checkpoint = LifecycleCheckpoint::stop(
-        Uuid::from_u128(100),
+        "00000000-0000-7000-8000-000000000064".parse().unwrap(),
         Uuid::from_u128(102).try_into().unwrap(),
         binding(),
         &before(Phase::Ready),
@@ -384,7 +384,7 @@ async fn stop_recovery_rejects_another_stopped_process_or_provider_resource() {
 async fn missing_create_and_failed_observer_preserve_uncertainty() {
     let running = Running::start().await;
     let checkpoint = LifecycleCheckpoint::create(
-        Uuid::from_u128(100),
+        "00000000-0000-7000-8000-000000000064".parse().unwrap(),
         Uuid::from_u128(103).try_into().unwrap(),
         binding(),
     )
@@ -412,7 +412,7 @@ async fn missing_create_and_failed_observer_preserve_uncertainty() {
 async fn provider_mismatch_and_exhausted_budget_never_issue_a_request() {
     let running = Running::start().await;
     let checkpoint = LifecycleCheckpoint::create(
-        Uuid::from_u128(200),
+        "00000000-0000-7000-8000-0000000000c8".parse().unwrap(),
         Uuid::from_u128(103).try_into().unwrap(),
         binding(),
     )

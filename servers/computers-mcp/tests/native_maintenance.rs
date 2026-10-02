@@ -129,10 +129,16 @@ async fn installation_templates_upgrade_recover_and_rollback_retained_home() {
         .unwrap()
         .template_catalog()
         .unwrap();
-    let source_id =
-        std::env::var("VEOVEO_COMPUTERS_TRANSITION_SOURCE").expect("source template ID");
-    let target_id =
-        std::env::var("VEOVEO_COMPUTERS_TRANSITION_TARGET").expect("target template ID");
+    let source_id: veoveo_computers::api::TemplateId =
+        std::env::var("VEOVEO_COMPUTERS_TRANSITION_SOURCE")
+            .expect("source template ID")
+            .parse()
+            .expect("valid source template ID");
+    let target_id: veoveo_computers::api::TemplateId =
+        std::env::var("VEOVEO_COMPUTERS_TRANSITION_TARGET")
+            .expect("target template ID")
+            .parse()
+            .expect("valid target template ID");
     let source = catalog
         .select(Some(&source_id))
         .expect("admitted source")
@@ -183,8 +189,20 @@ async fn installation_templates_upgrade_recover_and_rollback_retained_home() {
     support::policy::install(&db.a, control).await;
     let owner =
         ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap();
-    let a = ComputersStore::new(db.a.clone(), Uuid::from_u128(100)).unwrap();
-    let b = ComputersStore::new(db.b.clone(), Uuid::from_u128(100)).unwrap();
+    let a = ComputersStore::new(
+        db.a.clone(),
+        "00000000-0000-7000-8000-000000000064"
+            .parse::<veoveo_computers::api::ProviderInstanceId>()
+            .unwrap(),
+    )
+    .unwrap();
+    let b = ComputersStore::new(
+        db.b.clone(),
+        "00000000-0000-7000-8000-000000000064"
+            .parse::<veoveo_computers::api::ProviderInstanceId>()
+            .unwrap(),
+    )
+    .unwrap();
     a.install_capacity(
         None,
         CapacityPolicy {
@@ -199,16 +217,22 @@ async fn installation_templates_upgrade_recover_and_rollback_retained_home() {
         .reserve(
             &owner,
             &Reservation {
-                request_id: Uuid::now_v7(),
+                request_id: veoveo_computers::api::RequestId::new(),
                 template_id: source_id.clone(),
                 template_fingerprint: source.fingerprint(),
             },
         )
         .await
         .unwrap();
-    let homes = RetainedHomes::new(Uuid::from_u128(100), home.allocation_config(), &templates)
-        .await
-        .unwrap();
+    let homes = RetainedHomes::new(
+        "00000000-0000-7000-8000-000000000064"
+            .parse::<veoveo_computers::api::ProviderInstanceId>()
+            .unwrap(),
+        home.allocation_config(),
+        &templates,
+    )
+    .await
+    .unwrap();
     let tasks_a = TaskRuntime::new(db.a.clone(), "computers", "maintenance-native-a");
     let tasks_b = TaskRuntime::new(db.b.clone(), "computers", "maintenance-native-b");
     let lifecycle = LifecycleWorker::new(
@@ -223,7 +247,7 @@ async fn installation_templates_upgrade_recover_and_rollback_retained_home() {
         .queue_operation(
             ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap(),
             computer.computer_id,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             Action::Create,
         )
         .await
@@ -292,7 +316,7 @@ async fn installation_templates_upgrade_recover_and_rollback_retained_home() {
         .queue_maintenance(
             &owner,
             computer.computer_id,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             &MaintenanceTarget {
                 template_id: target_id.clone(),
                 template_fingerprint: target.fingerprint(),
@@ -324,7 +348,7 @@ async fn installation_templates_upgrade_recover_and_rollback_retained_home() {
     let request = ResumeUpdateInput {
         computer_id: computer.computer_id,
         task_id: operation.operation_id,
-        request_id: Uuid::now_v7(),
+        request_id: veoveo_computers::api::RequestId::new(),
         expected_updated_at: paused.updated_at,
         acknowledged_cancellation_at: None,
     };
@@ -382,7 +406,7 @@ async fn installation_templates_upgrade_recover_and_rollback_retained_home() {
         .queue_maintenance(
             &owner,
             computer.computer_id,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             &MaintenanceTarget {
                 template_id: source_id.clone(),
                 template_fingerprint: source.fingerprint(),

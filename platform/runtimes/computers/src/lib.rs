@@ -1,4 +1,5 @@
 //! Private native runtime. Authorization and durable claims belong to Computers.
+pub use veoveo_computers_contract::ProviderInstanceId;
 // Preserve the pinned generated protobuf API and upstream documentation.
 // These allowances do not cover handwritten runtime or allocator types.
 #[allow(clippy::large_enum_variant, clippy::doc_lazy_continuation)]

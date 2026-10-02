@@ -24,7 +24,7 @@ async fn native_service_shared_mount_and_restart() {
     let worker = fixture.worker(fixture.provider).await;
     worker.ready().await.unwrap();
     fixture
-        .worker(uuid::Uuid::now_v7())
+        .worker(veoveo_computers_runtime::ProviderInstanceId::new())
         .await
         .ready()
         .await

@@ -1,7 +1,6 @@
 mod support;
 
 use std::time::Duration;
-use uuid::Uuid;
 use veoveo_computers::{
     ComputerActor, ComputerError, ComputersStore, ObservationAdmission, Operation, OperationStage,
     ReachedPhase, ReachedState, UndispatchedOutcome, api::*,
@@ -29,7 +28,7 @@ async fn queue(
     agent: &ComputerActor,
     computer: veoveo_computers_contract::ComputerId,
     grant: veoveo_computers_contract::AutomationGrantId,
-    request: Uuid,
+    request: veoveo_computers::api::RequestId,
     action: Action,
 ) -> Result<Operation, ComputerError> {
     let permission = match action {
@@ -75,7 +74,7 @@ async fn accepted_lifecycle_outlives_the_source_token_but_not_the_named_grant() 
         &short,
         computer,
         granted.grant_id,
-        Uuid::now_v7(),
+        veoveo_computers::api::RequestId::new(),
         Action::Stop,
     )
     .await
@@ -107,7 +106,7 @@ async fn prior_owner_only_rows_migrate_without_inventing_a_delegation() {
         .queue_operation(
             support::authenticated(owner.owner()),
             computer,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             Action::Stop,
         )
         .await
@@ -151,7 +150,7 @@ async fn an_owner_cannot_turn_a_granted_retry_into_an_ungranted_request() {
     input.permissions = [AutomationPermission::Stop].into();
     input.execution_limits = None;
     let granted = store.issue_automation_grant(&owner, &input).await.unwrap();
-    let request = Uuid::now_v7();
+    let request = veoveo_computers::api::RequestId::new();
     queue(
         &store,
         &owner,
@@ -192,7 +191,7 @@ async fn queued_agent_work_rechecks_both_principals_and_policy() {
             &agent,
             computer,
             granted.grant_id,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             Action::Stop,
         )
         .await
@@ -251,7 +250,7 @@ async fn agent_stop_start_preserve_owner_and_current_named_dispatch_evidence() {
     let granted = grant(&store, &owner, computer).await;
     let tasks = TaskRuntime::new(db.a.clone(), "computers", "lifecycle-worker");
     for action in [Action::Stop, Action::Start] {
-        let request = Uuid::now_v7();
+        let request = veoveo_computers::api::RequestId::new();
         let (left, right) = futures::join!(
             queue(&store, &agent, computer, granted.grant_id, request, action),
             queue(
@@ -365,7 +364,12 @@ async fn revocation_fences_admission_and_dispatch_but_preserves_owner_recovery()
         .unwrap();
     assert!(
         store
-            .queue_automation_operation(&agent, authority, Uuid::now_v7(), Action::Stop)
+            .queue_automation_operation(
+                &agent,
+                authority,
+                veoveo_computers::api::RequestId::new(),
+                Action::Stop
+            )
             .await
             .is_err()
     );
@@ -379,7 +383,7 @@ async fn revocation_fences_admission_and_dispatch_but_preserves_owner_recovery()
     );
 
     let granted = grant(&store, &owner, computer).await;
-    let request = Uuid::now_v7();
+    let request = veoveo_computers::api::RequestId::new();
     let operation = queue(
         &store,
         &agent,
@@ -470,7 +474,7 @@ async fn lost_agent_dispatch_can_settle_after_revocation_without_repeating_the_e
         &agent,
         computer,
         granted.grant_id,
-        Uuid::now_v7(),
+        veoveo_computers::api::RequestId::new(),
         Action::Stop,
     )
     .await
@@ -533,7 +537,7 @@ async fn a_grant_does_not_admit_create_other_computers_other_clients_or_changed_
             &agent,
             computer,
             first.grant_id,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             Action::Create
         )
         .await
@@ -545,13 +549,13 @@ async fn a_grant_does_not_admit_create_other_computers_other_clients_or_changed_
             &agent,
             veoveo_computers_contract::ComputerId::new(),
             first.grant_id,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             Action::Stop
         )
         .await
         .is_err()
     );
-    let request = Uuid::now_v7();
+    let request = veoveo_computers::api::RequestId::new();
     let operation = queue(
         &store,
         &agent,

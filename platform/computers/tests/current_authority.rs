@@ -2,7 +2,6 @@ use veoveo_types::WorkContextMembershipLevel;
 mod support;
 use std::time::Duration;
 use support::{TestDb, policy};
-use uuid::Uuid;
 use veoveo_computers::{
     CapacityPolicy, ComputerActor, ComputerError, ComputersStore, Operation, OperationStage,
     Reservation, api::Action,
@@ -18,7 +17,13 @@ async fn queued(
     db: &TestDb,
     identity: GatewayInternalIdentity,
 ) -> (ComputersStore, TaskOwner, Operation, ClaimedTask) {
-    let store = ComputersStore::new(db.a.clone(), Uuid::from_u128(1)).unwrap();
+    let store = ComputersStore::new(
+        db.a.clone(),
+        "00000000-0000-7000-8000-000000000001"
+            .parse::<veoveo_computers::api::ProviderInstanceId>()
+            .unwrap(),
+    )
+    .unwrap();
     store
         .install_capacity(
             None,
@@ -49,15 +54,20 @@ async fn queued(
         .reserve(
             &actor,
             &Reservation {
-                request_id: Uuid::now_v7(),
-                template_id: "development".into(),
+                request_id: veoveo_computers::api::RequestId::new(),
+                template_id: "development".parse().unwrap(),
                 template_fingerprint: support::FINGERPRINT.into(),
             },
         )
         .await
         .unwrap();
     let operation = store
-        .queue_operation(actor, computer.computer_id, Uuid::now_v7(), Action::Create)
+        .queue_operation(
+            actor,
+            computer.computer_id,
+            veoveo_computers::api::RequestId::new(),
+            Action::Create,
+        )
         .await
         .unwrap();
     store

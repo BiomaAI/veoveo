@@ -1,25 +1,21 @@
 use std::collections::BTreeMap;
-use veoveo_computers::api::TemplateView;
+use veoveo_computers::api::{TemplateId, TemplateView};
 use veoveo_computers_runtime::DevelopmentTemplate;
 
 #[derive(Clone)]
 pub struct NamedTemplate {
-    pub(crate) id: String,
+    pub(crate) id: TemplateId,
     pub(crate) runtime: DevelopmentTemplate,
 }
 impl NamedTemplate {
     pub fn runtime(&self) -> &DevelopmentTemplate {
         &self.runtime
     }
-    pub fn new(id: String, runtime: DevelopmentTemplate) -> Result<Self, crate::ApplicationError> {
-        if id.is_empty()
-            || id.len() > 64
-            || !id.as_bytes()[0].is_ascii_alphanumeric()
-            || !id
-                .bytes()
-                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'-')
-            || runtime.persistent_home().is_none()
-        {
+    pub fn new(
+        id: TemplateId,
+        runtime: DevelopmentTemplate,
+    ) -> Result<Self, crate::ApplicationError> {
+        if runtime.persistent_home().is_none() {
             return Err(crate::ApplicationError::Configuration);
         }
         Ok(Self { id, runtime })
@@ -41,7 +37,7 @@ pub struct Templates {
     default: Option<String>,
 }
 impl Templates {
-    /// Historical templates remain admitted by fingerprint. Only the selected
+    /// Admitted fingerprints identify the installed template set. The selected
     /// default applies to a new public Create request.
     pub fn new(
         templates: Vec<NamedTemplate>,
@@ -69,17 +65,17 @@ impl Templates {
     pub(crate) fn default(&self) -> Option<&NamedTemplate> {
         self.default.as_ref().and_then(|d| self.admitted.get(d))
     }
-    pub fn select(&self, id: Option<&str>) -> Option<&NamedTemplate> {
+    pub fn select(&self, id: Option<&TemplateId>) -> Option<&NamedTemplate> {
         match id {
-            Some(id) => self.admitted.values().find(|template| template.id == id),
+            Some(id) => self.admitted.values().find(|template| &template.id == id),
             None => self.default(),
         }
     }
     pub(crate) fn iter(&self) -> impl Iterator<Item = &NamedTemplate> {
         self.admitted.values()
     }
-    pub(crate) fn contains(&self, id: &str, fingerprint: &str) -> bool {
-        self.admitted.get(fingerprint).is_some_and(|t| t.id == id)
+    pub(crate) fn contains(&self, id: &TemplateId, fingerprint: &str) -> bool {
+        self.admitted.get(fingerprint).is_some_and(|t| &t.id == id)
     }
     pub fn runtimes(&self) -> Vec<DevelopmentTemplate> {
         self.admitted.values().map(|t| t.runtime.clone()).collect()

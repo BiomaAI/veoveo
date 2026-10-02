@@ -1,5 +1,5 @@
 use std::{collections::BTreeMap, future::Future};
-use uuid::Uuid;
+use veoveo_computers::api::ProviderInstanceId;
 use veoveo_computers::{Operation, api::Action};
 use veoveo_computers_runtime::{AllocationConfig, Binding, DevelopmentTemplate, HomeAllocator};
 
@@ -15,11 +15,11 @@ pub enum PreflightError {
 /// domain independently checks current policy under its durable Task lease.
 #[derive(Clone)]
 pub struct RetainedHomes {
-    provider_id: Uuid,
+    provider_id: ProviderInstanceId,
     allocators: BTreeMap<String, HomeAllocator>,
 }
 impl RetainedHomes {
-    pub(crate) fn provider_id(&self) -> Uuid {
+    pub(crate) fn provider_id(&self) -> ProviderInstanceId {
         self.provider_id
     }
     pub(crate) fn allocator(&self, fingerprint: &str) -> Result<&HomeAllocator, PreflightError> {
@@ -39,11 +39,11 @@ impl RetainedHomes {
             .map_err(|_| PreflightError::Unavailable)
     }
     pub async fn new(
-        provider_id: Uuid,
+        provider_id: ProviderInstanceId,
         config: AllocationConfig,
         templates: &[DevelopmentTemplate],
     ) -> Result<Self, PreflightError> {
-        if provider_id.is_nil() || templates.is_empty() || templates.len() > 64 {
+        if templates.is_empty() || templates.len() > 64 {
             return Err(PreflightError::Configuration);
         }
         let mut allocators = BTreeMap::new();

@@ -9,10 +9,16 @@ use zeroize::Zeroizing;
 fn binding() -> CommandBinding {
     CommandBinding {
         execution_id: crate::api::ExecutionId::new(),
-        request_id: Uuid::from_u128(2),
+        request_id: crate::api::RequestId::try_from(Uuid::from_u128(
+            0x00000000_0000_7000_8000_000000000000 | 2,
+        ))
+        .unwrap(),
         computer_id: crate::api::ComputerId::new(),
         grant_id: crate::api::AutomationGrantId::new(),
-        provider_instance_id: Uuid::from_u128(5),
+        provider_instance_id: crate::api::ProviderInstanceId::try_from(Uuid::from_u128(
+            0x00000000_0000_7000_8000_000000000000 | 5,
+        ))
+        .unwrap(),
         owner_key: "a".repeat(64),
         actor_key: "b".repeat(64),
         template_fingerprint: "c".repeat(64),

@@ -204,7 +204,7 @@ impl TryFrom<Record> for CommandOperation {
         if row.id != super::record(command.execution_id())
             || command.execution_id().into_uuid() != row.execution_id
             || command.computer_id().into_uuid() != row.computer_id
-            || command.binding.provider_instance_id != row.provider_instance_id
+            || command.binding.provider_instance_id.into_uuid() != row.provider_instance_id
             || row.actor_key != super::actor_key(&command.authority)?
             || command.binding.actor_key != row.actor_key
             || row.task != task_record_id(command.task_id())

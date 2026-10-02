@@ -21,7 +21,7 @@ impl ReplacementPolicy {
         let message = PolicyCheckpoint {
             version: 1,
             gateway_version: GATEWAY_VERSION.into(),
-            provider_instance_id: self.installation_provider_id.as_bytes().to_vec(),
+            provider_instance_id: self.installation_provider_id.as_uuid().as_bytes().to_vec(),
             computer_id: self.source.computer_id().as_bytes().to_vec(),
             source_instance_id: self
                 .source
@@ -71,7 +71,7 @@ impl OpenShellRuntime {
             || message.version != 1
             || message.gateway_version != GATEWAY_VERSION
             || Uuid::from_slice(&message.provider_instance_id).ok()
-                != Some(self.provider_instance_id)
+                != Some(self.provider_instance_id.into_uuid())
             || Uuid::from_slice(&message.computer_id).ok() != Some(source.computer_id())
             || Uuid::from_slice(&message.source_instance_id).ok()
                 != Some(

@@ -61,7 +61,7 @@ pub struct HomeAllocator {
     tls: Arc<ClientConfig>,
     fingerprint: String,
     capacity_bytes: u64,
-    provider_id: Uuid,
+    provider_id: veoveo_computers_contract::ProviderInstanceId,
 }
 
 /// Exact authenticated allocator acknowledgement of irreversible source-writer
@@ -70,14 +70,19 @@ pub struct HomeAllocator {
 /// from a caller-supplied JSON object or provider deletion acknowledgement.
 #[derive(Debug)]
 pub struct RetainedHandoff {
-    provider_id: Uuid,
+    provider_id: veoveo_computers_contract::ProviderInstanceId,
     operation_id: veoveo_types::TaskId,
     source: Binding,
     target: Binding,
     source_resource_id: String,
 }
 impl RetainedHandoff {
-    pub(crate) fn matches(&self, provider: Uuid, source: &Binding, resource: &str) -> bool {
+    pub(crate) fn matches(
+        &self,
+        provider: veoveo_computers_contract::ProviderInstanceId,
+        source: &Binding,
+        resource: &str,
+    ) -> bool {
         self.provider_id == provider
             && &self.source == source
             && self.source_resource_id == resource
@@ -93,7 +98,7 @@ impl RetainedHandoff {
     // actual allocator; this constructor is absent from library builds.
     #[cfg(test)]
     pub(crate) fn fixture(
-        provider_id: Uuid,
+        provider_id: veoveo_computers_contract::ProviderInstanceId,
         operation_id: veoveo_types::TaskId,
         source: Binding,
         target: Binding,
@@ -111,12 +116,11 @@ impl RetainedHandoff {
 impl HomeAllocator {
     pub async fn new(
         config: AllocationConfig,
-        provider_id: Uuid,
+        provider_id: veoveo_computers_contract::ProviderInstanceId,
         fingerprint: String,
         capacity_bytes: u64,
     ) -> Result<Self> {
-        if provider_id.is_nil()
-            || !valid_fingerprint(&fingerprint)
+        if !valid_fingerprint(&fingerprint)
             || !(512 * 1024 * 1024..=256 * 1024 * 1024 * 1024).contains(&capacity_bytes)
         {
             return Err(RuntimeFailure::InvalidConfiguration);
@@ -155,7 +159,7 @@ impl HomeAllocator {
     }
     pub async fn ready(&self) -> Result<()> {
         let request = wire::ReadyRequest {
-            provider_id: storage_identity(self.provider_id)?,
+            provider_id: storage_identity(self.provider_id.into_uuid())?,
             schema: SCHEMA
                 .parse()
                 .map_err(|_| RuntimeFailure::AllocationFailed)?,
@@ -210,7 +214,7 @@ impl HomeAllocator {
             operation: "handoff"
                 .parse()
                 .map_err(|_| RuntimeFailure::AllocationFailed)?,
-            provider_id: storage_identity(self.provider_id)?,
+            provider_id: storage_identity(self.provider_id.into_uuid())?,
             computer_id: storage_identity(source.computer_id())?,
             operation_id: storage_identity(operation_id.as_uuid())?,
             source_instance_id: storage_identity(
@@ -285,7 +289,7 @@ impl HomeAllocator {
             operation: "abandon"
                 .parse()
                 .map_err(|_| RuntimeFailure::AllocationFailed)?,
-            provider_id: storage_identity(self.provider_id)?,
+            provider_id: storage_identity(self.provider_id.into_uuid())?,
             computer_id: storage_identity(source.computer_id())?,
             operation_id: storage_identity(operation_id.as_uuid())?,
             source_instance_id: storage_identity(
@@ -331,7 +335,7 @@ impl HomeAllocator {
             return Err(RuntimeFailure::BindingMismatch);
         }
         let request = wire::BoundRequest {
-            provider_id: storage_identity(self.provider_id)?,
+            provider_id: storage_identity(self.provider_id.into_uuid())?,
             instance_id: storage_identity(
                 binding
                     .replacement_instance_id()

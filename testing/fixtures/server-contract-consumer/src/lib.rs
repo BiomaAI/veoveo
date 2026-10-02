@@ -93,6 +93,25 @@ mod tests {
         }
     }
     #[test]
+    fn computer_results_share_artifact_identity_without_loading_workers() {
+        use veoveo_computers_mcp::contract::{
+            ComputerId, ExecutionId, ExecutionOutput, ExecutionResult, RequestId, StartInput, TemplateId,
+        };
+        let request = StartInput { request_id: RequestId::new(), grant_id: None };
+        assert_eq!(request.request_id.to_string().parse::<RequestId>().unwrap(), request.request_id);
+        let template: TemplateId = "development".parse().unwrap();
+        assert_eq!(template.as_str(), "development");
+        let stdout = ArtifactId::new();
+        let execution = ExecutionId::new();
+        let result = ExecutionResult::new(
+            ComputerId::new(), execution, 0,
+            ExecutionOutput { artifact_id: stdout, byte_count: 3 },
+            ExecutionOutput { artifact_id: ArtifactId::new(), byte_count: 0 },
+        ).unwrap();
+        assert_eq!(result.stdout().artifact_id, stdout);
+        assert_eq!(result.result_uri().execution_id(), execution);
+    }
+    #[test]
     fn media_consumers_share_typed_model_and_artifact_addresses() {
         use veoveo_media_mcp::contract::{MediaArtifactUri, MediaModelUri, MediaResource, RunArgs};
         use veoveo_types::ResourceAddress;

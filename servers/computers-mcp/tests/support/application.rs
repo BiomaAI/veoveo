@@ -1,7 +1,6 @@
 use crate::{support, template};
 use std::time::Instant;
 use tokio::sync::watch;
-use uuid::Uuid;
 use veoveo_computers::{CapacityPolicy, ComputersStore, api::*};
 use veoveo_computers_mcp::{Application, CapacityHealth, NamedTemplate, Templates};
 use veoveo_mcp_contract::{GatewayAction, PolicyRuleId};
@@ -46,8 +45,8 @@ pub fn templates(new_default: bool) -> Templates {
     };
     Templates::new(
         vec![
-            NamedTemplate::new("development-retained".into(), old).unwrap(),
-            NamedTemplate::new("development".into(), new).unwrap(),
+            NamedTemplate::new("development-retained".parse().unwrap(), old).unwrap(),
+            NamedTemplate::new("development".parse().unwrap(), new).unwrap(),
         ],
         Some(default),
     )
@@ -63,7 +62,13 @@ pub async fn application_on(
     platform: veoveo_platform_store::PlatformStore,
     new_default: bool,
 ) -> (Application, watch::Sender<CapacityHealth>) {
-    let store = ComputersStore::new(platform.clone(), Uuid::from_u128(100)).unwrap();
+    let store = ComputersStore::new(
+        platform.clone(),
+        "00000000-0000-7000-8000-000000000064"
+            .parse::<veoveo_computers::api::ProviderInstanceId>()
+            .unwrap(),
+    )
+    .unwrap();
     store
         .install_capacity(
             None,

@@ -1,7 +1,6 @@
 mod support;
 use std::time::Duration;
 use support::*;
-use uuid::Uuid;
 use veoveo_computers::{
     CapacityPolicy, ComputersStore, OperationStage, Reservation, UndispatchedOutcome,
     api::{Action, ComputerPhase},
@@ -13,8 +12,20 @@ use veoveo_task_runtime::{TaskRetentionPin, TaskRuntime, TaskStatus, TaskTransit
 async fn queued_cancellation_is_atomic_and_projection_ack_survives_pin_interruption() {
     let db = TestDb::new().await;
     support::policy::install_default(&db.a).await;
-    let a = ComputersStore::new(db.a.clone(), Uuid::from_u128(1)).unwrap();
-    let b = ComputersStore::new(db.b.clone(), Uuid::from_u128(1)).unwrap();
+    let a = ComputersStore::new(
+        db.a.clone(),
+        "00000000-0000-7000-8000-000000000001"
+            .parse::<veoveo_computers::api::ProviderInstanceId>()
+            .unwrap(),
+    )
+    .unwrap();
+    let b = ComputersStore::new(
+        db.b.clone(),
+        "00000000-0000-7000-8000-000000000001"
+            .parse::<veoveo_computers::api::ProviderInstanceId>()
+            .unwrap(),
+    )
+    .unwrap();
     a.install_capacity(
         None,
         CapacityPolicy {
@@ -32,8 +43,8 @@ async fn queued_cancellation_is_atomic_and_projection_ack_survives_pin_interrupt
             .reserve(
                 &crate::support::authenticated(&actor),
                 &Reservation {
-                    request_id: Uuid::now_v7(),
-                    template_id: "development".into(),
+                    request_id: veoveo_computers::api::RequestId::new(),
+                    template_id: "development".parse().unwrap(),
                     template_fingerprint: FINGERPRINT.into(),
                 },
             )
@@ -43,7 +54,7 @@ async fn queued_cancellation_is_atomic_and_projection_ack_survives_pin_interrupt
             .queue_operation(
                 support::authenticated(&actor),
                 computer.computer_id,
-                Uuid::now_v7(),
+                veoveo_computers::api::RequestId::new(),
                 Action::Create,
             )
             .await
@@ -146,7 +157,13 @@ async fn queued_cancellation_is_atomic_and_projection_ack_survives_pin_interrupt
 async fn undispatched_abort_cannot_clear_an_uncertain_dispatch() {
     let db = TestDb::new().await;
     support::policy::install_default(&db.a).await;
-    let a = ComputersStore::new(db.a.clone(), Uuid::from_u128(1)).unwrap();
+    let a = ComputersStore::new(
+        db.a.clone(),
+        "00000000-0000-7000-8000-000000000001"
+            .parse::<veoveo_computers::api::ProviderInstanceId>()
+            .unwrap(),
+    )
+    .unwrap();
     a.install_capacity(
         None,
         CapacityPolicy {
@@ -162,8 +179,8 @@ async fn undispatched_abort_cannot_clear_an_uncertain_dispatch() {
         .reserve(
             &crate::support::authenticated(&actor),
             &Reservation {
-                request_id: Uuid::now_v7(),
-                template_id: "development".into(),
+                request_id: veoveo_computers::api::RequestId::new(),
+                template_id: "development".parse().unwrap(),
                 template_fingerprint: FINGERPRINT.into(),
             },
         )
@@ -173,7 +190,7 @@ async fn undispatched_abort_cannot_clear_an_uncertain_dispatch() {
         .queue_operation(
             support::authenticated(&actor),
             computer.computer_id,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             Action::Create,
         )
         .await

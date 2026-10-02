@@ -31,19 +31,33 @@ pub(super) fn scope(
     Ok(())
 }
 pub(super) fn validate(input: &IssueAutomationGrantInput) -> Result<PrincipalId> {
-    if input.request_id.is_nil()
-        || input.name.trim() != input.name
-        || input.name.is_empty()
-        || input.name.len() > 64
-        || input.name.chars().any(char::is_control)
-        || input.principal_id.len() > 2048
-        || input.oauth_client_id.len() > 256
+    validate_fields(
+        &input.name,
+        &input.principal_id,
+        &input.oauth_client_id,
+        &input.permissions,
+        input.execution_limits,
+    )
+}
+fn validate_fields(
+    name: &str,
+    principal_id: &str,
+    oauth_client_id: &str,
+    permissions: &BTreeSet<AutomationPermission>,
+    limits: Option<AutomationExecutionLimits>,
+) -> Result<PrincipalId> {
+    if name.trim() != name
+        || name.is_empty()
+        || name.len() > 64
+        || name.chars().any(char::is_control)
+        || principal_id.len() > 2048
+        || oauth_client_id.len() > 256
     {
         return Err(ComputerError::InvalidInput);
     }
-    scope(&input.permissions, input.execution_limits)?;
-    OAuthClientId::new(input.oauth_client_id.clone()).map_err(|_| ComputerError::InvalidInput)?;
-    PrincipalId::new(input.principal_id.clone()).map_err(|_| ComputerError::InvalidInput)
+    scope(permissions, limits)?;
+    OAuthClientId::new(oauth_client_id).map_err(|_| ComputerError::InvalidInput)?;
+    PrincipalId::new(principal_id).map_err(|_| ComputerError::InvalidInput)
 }
 pub(super) fn permission_name(permission: AutomationPermission) -> &'static str {
     match permission {
@@ -88,7 +102,7 @@ pub(super) struct Record {
 pub(super) struct Grant {
     pub view: AutomationGrantView,
     pub owner_key: String,
-    pub provider: Uuid,
+    pub provider: crate::api::ProviderInstanceId,
     pub authority: AcceptedAuthority,
     pub grantee: RecordId,
     pub grantee_issuer: String,
@@ -124,17 +138,14 @@ impl TryFrom<Record> for Grant {
             .map_err(|_| ComputerError::Unavailable)?;
         let grant_id = crate::api::AutomationGrantId::try_from(row.grant_id)
             .map_err(|_| ComputerError::Unavailable)?;
-        let input = IssueAutomationGrantInput {
-            computer_id,
-            request_id: row.grant_id,
-            principal_id: row.principal_id.clone(),
-            oauth_client_id: row.oauth_client_id.clone(),
-            name: row.name.clone(),
-            permissions: permissions.clone(),
-            execution_limits: limits,
-            expires_at: row.expires_at,
-        };
-        validate(&input).map_err(|_| ComputerError::Unavailable)?;
+        validate_fields(
+            &row.name,
+            &row.principal_id,
+            &row.oauth_client_id,
+            &permissions,
+            limits,
+        )
+        .map_err(|_| ComputerError::Unavailable)?;
         if row.id != super::record(grant_id)
             || row.provider_instance_id.is_nil()
             || permissions.len() != row.permissions.len()
@@ -166,7 +177,8 @@ impl TryFrom<Record> for Grant {
                 revoked_at: row.revoked_at,
             },
             owner_key: row.owner_key,
-            provider: row.provider_instance_id,
+            provider: crate::api::ProviderInstanceId::try_from(row.provider_instance_id)
+                .map_err(|_| ComputerError::Unavailable)?,
             authority,
             grantee: row.grantee,
             grantee_issuer: row.grantee_issuer,

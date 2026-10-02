@@ -19,7 +19,7 @@ async fn ready(
     template: &DevelopmentTemplate,
 ) -> Observation {
     let create = LifecycleCheckpoint::create(
-        Uuid::from_u128(100),
+        "00000000-0000-7000-8000-000000000064".parse().unwrap(),
         veoveo_computers_runtime::LifecycleOperationId::new(),
         binding.clone(),
     )
@@ -113,7 +113,7 @@ print('ENOSPC enforced; original file retained')
     .await;
     assert!(quota.contains("ENOSPC enforced"));
     let stop = LifecycleCheckpoint::stop(
-        Uuid::from_u128(100),
+        "00000000-0000-7000-8000-000000000064".parse().unwrap(),
         veoveo_computers_runtime::LifecycleOperationId::new(),
         binding.clone(),
         &original,

@@ -53,7 +53,10 @@ impl TaskReadPermit {
     pub fn can_cancel(&self) -> bool {
         self.can_cancel
     }
-    pub fn bindings(&self, provider: Uuid) -> Result<Vec<(&'static str, Value)>> {
+    pub fn bindings(
+        &self,
+        provider: crate::api::ProviderInstanceId,
+    ) -> Result<Vec<(&'static str, Value)>> {
         let remaining = self
             .deadline
             .checked_duration_since(Instant::now())
@@ -62,7 +65,7 @@ impl TaskReadPermit {
             + chrono::TimeDelta::from_std(remaining).map_err(|_| ComputerError::Unavailable)?;
         Ok(vec![
             ("execution", self.selection.record().into_value()),
-            ("provider", provider.into_value()),
+            ("provider", provider.into_uuid().into_value()),
             ("computer_id", self.computer.into_uuid().into_value()),
             ("owner_key", self.owner_key.clone().into_value()),
             ("grant_id", self.grant.map(|id| id.to_string()).into_value()),
@@ -91,7 +94,10 @@ impl ComputersStore {
         params.extend(crate::computer_access::scope(actor.accepted())?);
         params.extend([
             ("execution", selection.record().into_value()),
-            ("provider", self.provider_instance_id.into_value()),
+            (
+                "provider",
+                self.provider_instance_id.into_uuid().into_value(),
+            ),
             ("actor_key", actor_key.clone().into_value()),
             ("file", file.into_value()),
             (

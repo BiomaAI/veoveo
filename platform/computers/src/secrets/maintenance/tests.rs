@@ -18,9 +18,15 @@ fn keys(active: u128, retained: &[u128]) -> ComputerKeyRing {
 fn binding() -> MaintenanceBinding {
     MaintenanceBinding {
         operation_id: veoveo_types::TaskId::new(),
-        request_id: Uuid::from_u128(1),
+        request_id: crate::api::RequestId::try_from(Uuid::from_u128(
+            0x00000000_0000_7000_8000_000000000000 | 1,
+        ))
+        .unwrap(),
         computer_id: crate::api::ComputerId::new(),
-        provider_instance_id: Uuid::from_u128(3),
+        provider_instance_id: crate::api::ProviderInstanceId::try_from(Uuid::from_u128(
+            0x00000000_0000_7000_8000_000000000000 | 3,
+        ))
+        .unwrap(),
         owner_key: "a".repeat(64),
         actor_key: "b".repeat(64),
         source_instance_id: Uuid::from_u128(2),

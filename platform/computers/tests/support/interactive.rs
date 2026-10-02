@@ -1,11 +1,12 @@
-use uuid::Uuid;
 use veoveo_computers::{
     CapacityPolicy, ComputerActor, ComputersStore, Reservation, session_grants::SessionGrantPolicy,
 };
 use veoveo_mcp_contract::*;
 use veoveo_platform_store::RecordId;
 
-pub const PROVIDER: Uuid = Uuid::from_u128(72);
+fn provider() -> veoveo_computers::api::ProviderInstanceId {
+    "00000000-0000-7000-8000-000000000048".parse().unwrap()
+}
 pub const LIMITS: SessionGrantPolicy = SessionGrantPolicy {
     max_grants: 2,
     absolute_seconds: 120,
@@ -33,8 +34,8 @@ pub async fn ready(
     veoveo_computers_contract::ComputerId,
 ) {
     super::policy::install(&db.a, control()).await;
-    let a = ComputersStore::new(db.a.clone(), PROVIDER).unwrap();
-    let b = ComputersStore::new(db.b.clone(), PROVIDER).unwrap();
+    let a = ComputersStore::new(db.a.clone(), provider()).unwrap();
+    let b = ComputersStore::new(db.b.clone(), provider()).unwrap();
     a.install_capacity(
         None,
         CapacityPolicy {
@@ -50,8 +51,8 @@ pub async fn ready(
         .reserve(
             actor,
             &Reservation {
-                request_id: Uuid::now_v7(),
-                template_id: "development".into(),
+                request_id: veoveo_computers::api::RequestId::new(),
+                template_id: "development".parse().unwrap(),
                 template_fingerprint: super::FINGERPRINT.into(),
             },
         )

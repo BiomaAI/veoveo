@@ -178,3 +178,26 @@ test("session bootstrap requires current permission and rejects inventory on the
   assert.throws(() => parseConsoleBootstrap({ ...bootstrap, canReadAudit: undefined }));
   assert.throws(() => parseConsoleBootstrap({ ...bootstrap, principals: [] }));
 });
+
+
+test("Computer request, template and completed-result schemas enforce owner profiles", () => {
+  for (const requestId of [id, id.replace("-7000-", "-4000-")]) {
+    assert.deepEqual(parseComputer("create_input", { requestId }), { requestId });
+  }
+  for (const requestId of [id.toUpperCase(), id.replace("-7000-", "-8000-"), "00000000-0000-0000-0000-000000000000"]) {
+    assert.throws(() => parseComputer("create_input", { requestId }));
+  }
+  const maintenance = { computerId: id, requestId: id, templateId: "dev-2" };
+  assert.deepEqual(parseComputer("update_template_input", maintenance), maintenance);
+  for (const templateId of ["", "-dev", "Dev", "dev/other", "dev\n", "a".repeat(65)]) {
+    assert.throws(() => parseComputer("update_template_input", { ...maintenance, templateId }));
+  }
+  const command = { result_uri: `computer://executions/${id}`, computerId: id, executionId: id,
+    exitCode: 0, stdout: { artifactId: id, byteCount: 3 },
+    stderr: { artifactId: "01994bed-e0d0-7000-8000-000000000002", byteCount: 0 } };
+  assert.deepEqual(parseComputer("execution_result", command), command);
+  for (const exitCode of [-1, 124, 256, 0.5]) {
+    assert.throws(() => parseComputer("execution_result", { ...command, exitCode }));
+  }
+  assert.throws(() => parseComputer("execution_result", { ...command, result_uri: `computer://computers/${id}` }));
+});

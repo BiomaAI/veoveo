@@ -18,7 +18,10 @@ impl ComputersStore {
             let owner = owner_key(&computer.owner)?;
             let mut params = crate::store::owner_query_bindings(actor.owner())?;
             params.extend([
-                ("provider", self.provider_instance_id.into_value()),
+                (
+                    "provider",
+                    self.provider_instance_id.into_uuid().into_value(),
+                ),
                 ("owner_key", owner.clone().into_value()),
                 ("computer_id", computer_id.into_uuid().into_value()),
             ]);

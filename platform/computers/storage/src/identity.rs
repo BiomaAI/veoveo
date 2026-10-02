@@ -6,7 +6,7 @@ use veoveo_computers_runtime::{Binding, RetainedWriter};
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct HostIdentity {
-    pub provider_id: Uuid,
+    pub provider_id: veoveo_computers_runtime::ProviderInstanceId,
     pub engine_id: Uuid,
     pub namespace: String,
 }
@@ -39,14 +39,14 @@ impl HostIdentity {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct HomeIdentity {
-    pub provider_id: Uuid,
+    pub provider_id: veoveo_computers_runtime::ProviderInstanceId,
     pub computer_id: Uuid,
     pub instance_id: Uuid,
     pub template_fingerprint: String,
 }
 impl HomeIdentity {
     pub fn binding(&self) -> Result<Binding> {
-        if self.provider_id.is_nil() || self.instance_id.is_nil() {
+        if self.instance_id.is_nil() {
             return Err(StorageError::InvalidIdentity);
         }
         let result = if self.computer_id == self.instance_id {

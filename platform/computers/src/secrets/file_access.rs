@@ -105,10 +105,10 @@ mod tests {
         .unwrap();
         let binding = FileTransferBinding {
             transfer_id: veoveo_computers_contract::FileTransferId::new(),
-            request_id: Uuid::now_v7(),
+            request_id: crate::api::RequestId::new(),
             computer_id: veoveo_computers_contract::ComputerId::new(),
             instance_id: Uuid::now_v7(),
-            provider_instance_id: Uuid::now_v7(),
+            provider_instance_id: crate::api::ProviderInstanceId::new(),
             grant_id: None,
             direction: FileTransferDirection::Import,
             owner_key: "a".repeat(64),

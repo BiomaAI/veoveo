@@ -10,7 +10,7 @@ use veoveo_task_runtime::{TaskRetentionPin, TaskRuntime, TaskStatus, TaskTransit
 fn output(byte_count: u32) -> ExecutionOutput {
     // Domain fixture receipts only; native worker qualification must redeem real Artifacts.
     ExecutionOutput {
-        artifact_id: Uuid::now_v7(),
+        artifact_id: veoveo_computers::api::ArtifactId::new(),
         byte_count,
     }
 }
@@ -41,12 +41,12 @@ async fn known_exit_and_outputs_settle_once_before_task_projection_and_allow_the
         let Some(CommandOutcome::Completed(result)) = completed.outcome() else {
             panic!("missing known result");
         };
-        assert_eq!(result.exit_code, code as u8);
-        assert_eq!(result.stdout, stdout);
-        assert_eq!(result.stderr, stderr);
-        assert_eq!(result.computer_id, computer);
-        assert_eq!(result.execution_id, completed.execution_id());
-        assert_eq!(result.result_uri.execution_id(), completed.execution_id());
+        assert_eq!(result.exit_code(), code as u8);
+        assert_eq!(result.stdout(), stdout);
+        assert_eq!(result.stderr(), stderr);
+        assert_eq!(result.computer_id(), computer);
+        assert_eq!(result.execution_id(), completed.execution_id());
+        assert_eq!(result.result_uri().execution_id(), completed.execution_id());
         assert_eq!(
             b.command_for_claim(&claim).await.unwrap().outcome(),
             completed.outcome()
@@ -148,7 +148,7 @@ async fn known_exit_and_outputs_settle_once_before_task_projection_and_allow_the
 async fn invalid_outputs_lease_loss_replacement_and_containment_never_settle_a_known_result() {
     for scenario in [
         "bytes",
-        "artifact",
+        "duplicate_artifacts",
         "lease",
         "run",
         "containment",
@@ -169,12 +169,13 @@ async fn invalid_outputs_lease_loss_replacement_and_containment_never_settle_a_k
             0,
         );
         let mut stdout = output(32);
+        let stderr = output(0);
         if ["unknown_exit", "output_limit"].contains(&scenario) {
             assert!(exit.is_err());
         } else {
             match scenario {
                 "bytes" => stdout.byte_count = 31,
-                "artifact" => stdout.artifact_id = Uuid::nil(),
+                "duplicate_artifacts" => stdout.artifact_id = stderr.artifact_id,
                 "lease" => TaskRuntime::new(db.a.clone(), "computers", "command-worker")
                     .release_observation(&claim)
                     .await
@@ -196,7 +197,7 @@ async fn invalid_outputs_lease_loss_replacement_and_containment_never_settle_a_k
                 _ => unreachable!(),
             }
             assert!(
-                a.complete_command_output(&claim, exit.unwrap(), stdout, output(0))
+                a.complete_command_output(&claim, exit.unwrap(), stdout, stderr)
                     .await
                     .is_err(),
                 "{scenario}"
@@ -234,7 +235,12 @@ async fn a_late_cancel_preserves_the_known_result_and_an_independent_owner_stop(
         .await
         .unwrap();
     let stop = a
-        .queue_operation(owner, computer, Uuid::now_v7(), Action::Stop)
+        .queue_operation(
+            owner,
+            computer,
+            veoveo_computers::api::RequestId::new(),
+            Action::Stop,
+        )
         .await
         .unwrap();
     let command = a

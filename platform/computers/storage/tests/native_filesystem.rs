@@ -25,7 +25,7 @@ fn identity() -> HomeIdentity {
         .parse()
         .unwrap();
     HomeIdentity {
-        provider_id: Uuid::from_u128(100),
+        provider_id: "00000000-0000-7000-8000-000000000064".parse().unwrap(),
         computer_id: id,
         instance_id: id,
         template_fingerprint: "a".repeat(64),
@@ -38,7 +38,7 @@ fn journal() -> Journal {
     Journal::open(
         root(),
         HostIdentity {
-            provider_id: Uuid::from_u128(100),
+            provider_id: "00000000-0000-7000-8000-000000000064".parse().unwrap(),
             engine_id: Uuid::from_u128(200),
             namespace: "filesystem-fixture".into(),
         },

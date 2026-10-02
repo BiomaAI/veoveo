@@ -1,6 +1,9 @@
 //! Canonical public JSON contract. Generate every client model from schema_bundle().
 mod ids;
 pub use ids::*;
+mod template_id;
+pub use template_id::{TemplateId, TemplateIdError};
+pub use veoveo_artifact_contract::ArtifactId;
 mod resources;
 pub use resources::*;
 mod scopes;
@@ -22,7 +25,15 @@ use chrono::{DateTime, Utc};
 pub use pairing::*;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ComputerResultError;
+impl std::fmt::Display for ComputerResultError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Computer result identities or limits do not agree")
+    }
+}
+impl std::error::Error for ComputerResultError {}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -67,7 +78,7 @@ pub enum OperationStatus {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct TemplateView {
-    pub template_id: String,
+    pub template_id: crate::TemplateId,
     pub cpus: u32,
     pub memory_mib: u32,
     pub home_capacity_mib: Option<u64>,
@@ -112,7 +123,7 @@ pub struct ComputerView {
     /// inventory through the separate owner-only resource.
     #[schemars(length(max = 64))]
     pub granted_access: Vec<ComputerGrantedAccess>,
-    pub template_id: String,
+    pub template_id: crate::TemplateId,
     pub phase: ComputerPhase,
     pub busy: bool,
     /// An authorized reserved Computer can be provisioned once unfenced.
@@ -159,24 +170,120 @@ pub struct OperationReceipt {
     pub status: OperationStatus,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LifecycleResult {
     #[serde(rename = "result_uri", skip_serializing_if = "Option::is_none")]
-    pub result_uri: Option<String>,
-    pub computer_id: crate::ComputerId,
-    pub operation_id: veoveo_types::TaskId,
-    pub action: Action,
+    result_uri: Option<ComputerResultUri>,
+    computer_id: crate::ComputerId,
+    operation_id: veoveo_types::TaskId,
+    action: Action,
+}
+impl LifecycleResult {
+    pub fn new(
+        computer_id: ComputerId,
+        operation_id: veoveo_types::TaskId,
+        action: Action,
+    ) -> Self {
+        Self {
+            result_uri: (action == Action::Create).then(|| ComputerResultUri::new(computer_id)),
+            computer_id,
+            operation_id,
+            action,
+        }
+    }
+    pub fn result_uri(&self) -> Option<ComputerResultUri> {
+        self.result_uri
+    }
+    pub fn computer_id(&self) -> crate::ComputerId {
+        self.computer_id
+    }
+    pub fn operation_id(&self) -> veoveo_types::TaskId {
+        self.operation_id
+    }
+    pub fn action(&self) -> Action {
+        self.action
+    }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct LifecycleResultWire {
+    #[serde(rename = "result_uri", skip_serializing_if = "Option::is_none")]
+    result_uri: Option<ComputerResultUri>,
+    computer_id: crate::ComputerId,
+    operation_id: veoveo_types::TaskId,
+    action: Action,
+}
+
+impl<'de> Deserialize<'de> for LifecycleResult {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let wire = LifecycleResultWire::deserialize(deserializer)?;
+
+        let result = Self::new(wire.computer_id, wire.operation_id, wire.action);
+        if wire.result_uri != result.result_uri {
+            return Err(serde::de::Error::custom(ComputerResultError));
+        }
+        Ok(result)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct MaintenanceResult {
     #[serde(rename = "result_uri")]
-    pub result_uri: String,
-    pub computer_id: crate::ComputerId,
-    pub maintenance_id: veoveo_types::TaskId,
-    pub template_id: String,
+    result_uri: ComputerResultUri,
+    computer_id: crate::ComputerId,
+    maintenance_id: veoveo_types::TaskId,
+    template_id: crate::TemplateId,
+}
+impl MaintenanceResult {
+    pub fn new(
+        computer_id: ComputerId,
+        maintenance_id: veoveo_types::TaskId,
+        template_id: TemplateId,
+    ) -> Self {
+        Self {
+            result_uri: ComputerResultUri::new(computer_id),
+            computer_id,
+            maintenance_id,
+            template_id,
+        }
+    }
+    pub fn result_uri(&self) -> ComputerResultUri {
+        self.result_uri
+    }
+    pub fn computer_id(&self) -> crate::ComputerId {
+        self.computer_id
+    }
+    pub fn maintenance_id(&self) -> veoveo_types::TaskId {
+        self.maintenance_id
+    }
+    pub fn template_id(&self) -> &crate::TemplateId {
+        &self.template_id
+    }
+}
+
+#[derive(Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct MaintenanceResultWire {
+    #[serde(rename = "result_uri")]
+    result_uri: ComputerResultUri,
+    computer_id: crate::ComputerId,
+    maintenance_id: veoveo_types::TaskId,
+    template_id: crate::TemplateId,
+}
+
+impl<'de> Deserialize<'de> for MaintenanceResult {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let wire = MaintenanceResultWire::deserialize(deserializer)?;
+
+        let result = Self::new(wire.computer_id, wire.maintenance_id, wire.template_id);
+        if wire.result_uri != result.result_uri {
+            return Err(serde::de::Error::custom(ComputerResultError));
+        }
+        Ok(result)
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -196,7 +303,7 @@ pub struct OperationView {
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CreateInput {
-    pub request_id: Uuid,
+    pub request_id: crate::RequestId,
     /// Continue provisioning an owned reservation, or omit for a new Computer.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub computer_id: Option<crate::ComputerId>,
@@ -205,7 +312,7 @@ pub struct CreateInput {
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct StartInput {
-    pub request_id: Uuid,
+    pub request_id: crate::RequestId,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub grant_id: Option<crate::AutomationGrantId>,
 }
@@ -213,7 +320,7 @@ pub struct StartInput {
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct StopInput {
-    pub request_id: Uuid,
+    pub request_id: crate::RequestId,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub grant_id: Option<crate::AutomationGrantId>,
 }
@@ -222,7 +329,7 @@ pub struct StopInput {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LifecycleInput {
     pub computer_id: crate::ComputerId,
-    pub request_id: Uuid,
+    pub request_id: crate::RequestId,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub grant_id: Option<crate::AutomationGrantId>,
 }

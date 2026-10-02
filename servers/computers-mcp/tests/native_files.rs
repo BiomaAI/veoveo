@@ -60,7 +60,13 @@ async fn queue(
         .await
         .unwrap();
     let operation = store
-        .queue_file_transfer(actor, authority, Uuid::now_v7(), &payload, keys)
+        .queue_file_transfer(
+            actor,
+            authority,
+            veoveo_computers::api::RequestId::new(),
+            &payload,
+            keys,
+        )
         .await
         .unwrap();
     store.ensure_file_task(&operation).await.unwrap();
@@ -155,8 +161,20 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
         gateway_ip,
     })
     .await;
-    let a = ComputersStore::new(db.a.clone(), Uuid::from_u128(100)).unwrap();
-    let b = ComputersStore::new(db.b.clone(), Uuid::from_u128(100)).unwrap();
+    let a = ComputersStore::new(
+        db.a.clone(),
+        "00000000-0000-7000-8000-000000000064"
+            .parse::<veoveo_computers::api::ProviderInstanceId>()
+            .unwrap(),
+    )
+    .unwrap();
+    let b = ComputersStore::new(
+        db.b.clone(),
+        "00000000-0000-7000-8000-000000000064"
+            .parse::<veoveo_computers::api::ProviderInstanceId>()
+            .unwrap(),
+    )
+    .unwrap();
     a.install_capacity(
         None,
         CapacityPolicy {
@@ -182,15 +200,17 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
         .reserve(
             &owner,
             &Reservation {
-                request_id: Uuid::now_v7(),
-                template_id: "development".into(),
+                request_id: veoveo_computers::api::RequestId::new(),
+                template_id: "development".parse().unwrap(),
                 template_fingerprint: selected.fingerprint(),
             },
         )
         .await
         .unwrap();
     let homes = RetainedHomes::new(
-        Uuid::from_u128(100),
+        "00000000-0000-7000-8000-000000000064"
+            .parse::<veoveo_computers::api::ProviderInstanceId>()
+            .unwrap(),
         home.allocation_config(),
         std::slice::from_ref(&selected),
     )
@@ -240,7 +260,7 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
         .queue_operation(
             ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap(),
             computer.computer_id,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             Action::Create,
         )
         .await
@@ -403,7 +423,7 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
         computer.computer_id,
         grant.grant_id,
         payload(FileTransfer::Import {
-            artifact_id: artifact.artifact_id().as_uuid(),
+            artifact_id: artifact.artifact_id(),
             path: path("binary source.tar"),
         }),
         &keys,
@@ -417,8 +437,8 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
         WorkerStep::Settled
     );
     let imported = task_result(&tasks_a, import_id).await;
-    assert_eq!(imported.artifact_id, artifact.artifact_id().as_uuid());
-    assert_eq!(imported.bytes, bytes.len() as u64);
+    assert_eq!(imported.artifact_id(), artifact.artifact_id());
+    assert_eq!(imported.bytes(), bytes.len() as u64);
     let export = queue(
         &a,
         &agent,
@@ -440,12 +460,12 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
         WorkerStep::Settled
     );
     let exported = task_result(&tasks_a, export_id).await;
-    assert_eq!(exported.sha256, imported.sha256);
-    assert_ne!(exported.artifact_id, imported.artifact_id);
+    assert_eq!(exported.sha256(), imported.sha256());
+    assert_ne!(exported.artifact_id(), imported.artifact_id());
     let actual = plane
         .get(
             &caller,
-            &veoveo_artifact_contract::ArtifactId::parse(exported.artifact_id.to_string()).unwrap(),
+            &exported.artifact_id(),
             veoveo_types::AccessLevel::Read,
         )
         .await
@@ -458,7 +478,7 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
         computer.computer_id,
         grant.grant_id,
         payload(FileTransfer::Import {
-            artifact_id: artifact.artifact_id().as_uuid(),
+            artifact_id: artifact.artifact_id(),
             path: path("binary source.tar"),
         }),
         &keys,
@@ -498,7 +518,7 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
         computer.computer_id,
         grant.grant_id,
         payload(FileTransfer::Import {
-            artifact_id: restricted.artifact_id().as_uuid(),
+            artifact_id: restricted.artifact_id(),
             path: path("restricted-import"),
         }),
         &keys,
@@ -520,7 +540,7 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
         computer.computer_id,
         grant.grant_id,
         payload(FileTransfer::Import {
-            artifact_id: artifact.artifact_id().as_uuid(),
+            artifact_id: artifact.artifact_id(),
             path: path("cancelled-import"),
         }),
         &keys,
@@ -551,7 +571,7 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
         computer.computer_id,
         grant.grant_id,
         payload(FileTransfer::Import {
-            artifact_id: artifact.artifact_id().as_uuid(),
+            artifact_id: artifact.artifact_id(),
             path: path("must-not-be-replayed"),
         }),
         &keys,
@@ -585,7 +605,7 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
         .queue_operation(
             ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap(),
             computer.computer_id,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             Action::Start,
         )
         .await

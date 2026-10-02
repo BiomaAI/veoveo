@@ -135,7 +135,10 @@ async fn named_start_and_stop_share_public_discovery_retry_and_owner_recovery() 
                 store,
                 TaskRuntime::new(platform, "computers", "named-lifecycle"),
                 Templates::new(
-                    vec![NamedTemplate::new("development".into(), selected.clone()).unwrap()],
+                    vec![
+                        NamedTemplate::new("development".parse().unwrap(), selected.clone())
+                            .unwrap(),
+                    ],
                     Some(selected.fingerprint()),
                 )
                 .unwrap(),

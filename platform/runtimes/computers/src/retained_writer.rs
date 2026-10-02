@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RetainedWriter {
-    provider_id: Uuid,
+    provider_id: veoveo_computers_contract::ProviderInstanceId,
     engine_id: Uuid,
     namespace: String,
     binding: Binding,
@@ -34,13 +34,12 @@ impl RegisteredConsumer {
 
 impl RetainedWriter {
     pub fn new(
-        provider_id: Uuid,
+        provider_id: veoveo_computers_contract::ProviderInstanceId,
         engine_id: Uuid,
         namespace: String,
         binding: Binding,
     ) -> Result<Self> {
-        if provider_id.is_nil()
-            || engine_id.is_nil()
+        if engine_id.is_nil()
             || namespace.is_empty()
             || namespace.len() > 63
             || !namespace
@@ -57,7 +56,7 @@ impl RetainedWriter {
         })
     }
 
-    pub fn provider_id(&self) -> Uuid {
+    pub fn provider_id(&self) -> veoveo_computers_contract::ProviderInstanceId {
         self.provider_id
     }
     pub fn engine_id(&self) -> Uuid {
@@ -105,7 +104,7 @@ mod tests {
     use super::*;
     fn writer() -> RetainedWriter {
         RetainedWriter::new(
-            Uuid::from_u128(100),
+            "00000000-0000-7000-8000-000000000064".parse().unwrap(),
             Uuid::from_u128(200),
             "provider-test".into(),
             Binding::new(Uuid::from_u128(300), "a".repeat(64)).unwrap(),

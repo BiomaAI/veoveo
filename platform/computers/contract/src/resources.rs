@@ -196,10 +196,9 @@ pub fn automation_grant_uri(computer: ComputerId, grant: AutomationGrantId) -> R
 }
 
 macro_rules! result_uri {
-    ($uri:ident, $id:ident, $variant:ident, $getter:ident, $template:literal) => {
-        #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+    ($uri:ident, $id:ident, $variant:ident, $getter:ident, $template:literal, $route:literal) => {
+        #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
         #[serde(try_from = "String", into = "String")]
-        #[schemars(with = "String")]
         pub struct $uri($id);
         impl $uri {
             pub const TEMPLATE: &'static str = $template;
@@ -211,6 +210,15 @@ macro_rules! result_uri {
             }
             pub fn to_uri(self) -> ResourceUri {
                 ComputerResource::$variant(self.0).to_uri()
+            }
+        }
+        impl JsonSchema for $uri {
+            fn schema_name() -> std::borrow::Cow<'static, str> { stringify!($uri).into() }
+            fn json_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+                schemars::json_schema!({
+                    "type": "string",
+                    "pattern": concat!("^computer://", $route, "/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
+                })
             }
         }
         impl From<$uri> for String {
@@ -239,16 +247,26 @@ macro_rules! result_uri {
     };
 }
 result_uri!(
+    ComputerResultUri,
+    ComputerId,
+    Computer,
+    computer_id,
+    "computer://computers/{computer_id}",
+    "computers"
+);
+result_uri!(
     ExecutionResultUri,
     ExecutionId,
     Execution,
     execution_id,
-    "computer://executions/{execution_id}"
+    "computer://executions/{execution_id}",
+    "executions"
 );
 result_uri!(
     FileTransferResultUri,
     FileTransferId,
     Transfer,
     transfer_id,
-    "computer://transfers/{transfer_id}"
+    "computer://transfers/{transfer_id}",
+    "transfers"
 );

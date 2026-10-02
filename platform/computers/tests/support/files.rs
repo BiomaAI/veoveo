@@ -7,7 +7,6 @@ pub(crate) mod command_fixture;
     reason = "Fixture consumers select their required helpers"
 )]
 pub use command_fixture::{computer_record, keys};
-use uuid::Uuid;
 use veoveo_computers::{
     ComputerActor, ComputersStore,
     api::*,
@@ -80,7 +79,13 @@ pub async fn queue(
         .await
         .unwrap();
     let operation = store
-        .queue_file_transfer(actor, authority, Uuid::now_v7(), payload, &keys())
+        .queue_file_transfer(
+            actor,
+            authority,
+            veoveo_computers::api::RequestId::new(),
+            payload,
+            &keys(),
+        )
         .await
         .unwrap();
     let access = match payload.transfer() {

@@ -36,7 +36,10 @@ impl ComputersStore {
         params.extend([
             ("owned", owned.into_value()),
             ("grants", grants.into_value()),
-            ("provider", self.provider_instance_id.into_value()),
+            (
+                "provider",
+                self.provider_instance_id.into_uuid().into_value(),
+            ),
             ("policy", self.automation_policy_record().into_value()),
             ("limit", limit.into_value()),
         ]);

@@ -7,7 +7,6 @@ mod support;
 mod template;
 use std::time::{Duration, Instant};
 use tokio::sync::watch;
-use uuid::Uuid;
 use veoveo_computers::{ComputerError, ComputersStore, api::*};
 use veoveo_computers_mcp::{Application, ApplicationError, CapacityHealth, Templates};
 use veoveo_mcp_contract::PolicyEffect;
@@ -25,7 +24,7 @@ async fn concurrent_create_and_default_rotation_retain_one_original_operation_an
     let owner = support::owner("alice");
     let request = CreateInput {
         computer_id: None,
-        request_id: Uuid::now_v7(),
+        request_id: veoveo_computers::api::RequestId::new(),
     };
     let (a, b) = tokio::join!(
         app.create(support::authenticated(&owner), request.clone()),
@@ -53,7 +52,7 @@ async fn concurrent_create_and_default_rotation_retain_one_original_operation_an
             support::authenticated(&owner),
             CreateInput {
                 computer_id: None,
-                request_id: Uuid::now_v7(),
+                request_id: veoveo_computers::api::RequestId::new(),
             },
         )
         .await
@@ -71,7 +70,7 @@ async fn concurrent_create_and_default_rotation_retain_one_original_operation_an
                 support::authenticated(&owner),
                 CreateInput {
                     computer_id: None,
-                    request_id: Uuid::now_v7()
+                    request_id: veoveo_computers::api::RequestId::new()
                 }
             )
             .await,
@@ -122,7 +121,7 @@ async fn current_policy_and_membership_control_flags_and_admission_without_reser
                 support::authenticated(&owner),
                 CreateInput {
                     computer_id: None,
-                    request_id: Uuid::now_v7()
+                    request_id: veoveo_computers::api::RequestId::new()
                 }
             )
             .await,
@@ -156,7 +155,13 @@ async fn current_policy_and_membership_control_flags_and_admission_without_reser
 async fn unconfigured_and_stale_capacity_are_visible_without_claiming_admission() {
     let db = support::TestDb::new().await;
     identities(&db).await;
-    let store = ComputersStore::new(db.a.clone(), Uuid::from_u128(100)).unwrap();
+    let store = ComputersStore::new(
+        db.a.clone(),
+        "00000000-0000-7000-8000-000000000064"
+            .parse::<veoveo_computers::api::ProviderInstanceId>()
+            .unwrap(),
+    )
+    .unwrap();
     let (_, receiver) = watch::channel(CapacityHealth {
         availability: CapacityAvailability::SetupRequired,
         observed_at: Instant::now(),
@@ -181,7 +186,7 @@ async fn unconfigured_and_stale_capacity_are_visible_without_claiming_admission(
             support::authenticated(&owner),
             CreateInput {
                 computer_id: None,
-                request_id: Uuid::now_v7()
+                request_id: veoveo_computers::api::RequestId::new()
             }
         )
         .await,
@@ -209,7 +214,7 @@ async fn unconfigured_and_stale_capacity_are_visible_without_claiming_admission(
                 support::authenticated(&owner),
                 CreateInput {
                     computer_id: None,
-                    request_id: Uuid::now_v7()
+                    request_id: veoveo_computers::api::RequestId::new()
                 }
             )
             .await,
@@ -222,7 +227,13 @@ async fn an_interrupted_reservation_can_be_provisioned_from_the_visible_collecti
     let db = support::TestDb::new().await;
     identities(&db).await;
     let owner = support::owner("alice");
-    let store = ComputersStore::new(db.a.clone(), Uuid::from_u128(100)).unwrap();
+    let store = ComputersStore::new(
+        db.a.clone(),
+        "00000000-0000-7000-8000-000000000064"
+            .parse::<veoveo_computers::api::ProviderInstanceId>()
+            .unwrap(),
+    )
+    .unwrap();
     let (_initial, _health) = application(&db, false).await;
     let original = template::retained_template(format!(
         "fixture.invalid/computer@sha256:{}",
@@ -232,8 +243,8 @@ async fn an_interrupted_reservation_can_be_provisioned_from_the_visible_collecti
         .reserve(
             &crate::support::authenticated(&owner),
             &veoveo_computers::Reservation {
-                request_id: Uuid::now_v7(),
-                template_id: "development-retained".into(),
+                request_id: veoveo_computers::api::RequestId::new(),
+                template_id: "development-retained".parse().unwrap(),
                 template_fingerprint: original.fingerprint(),
             },
         )
@@ -248,7 +259,7 @@ async fn an_interrupted_reservation_can_be_provisioned_from_the_visible_collecti
     assert!(view.can_create);
     let input = CreateInput {
         computer_id: Some(view.computer_id),
-        request_id: Uuid::now_v7(),
+        request_id: veoveo_computers::api::RequestId::new(),
     };
     assert!(matches!(
         resumed

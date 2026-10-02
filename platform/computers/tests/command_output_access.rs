@@ -2,7 +2,6 @@
 mod command_support;
 mod support;
 use command_support::*;
-use uuid::Uuid;
 use veoveo_computers::{ComputerError, commands::CommandStage};
 use veoveo_task_runtime::TaskRuntime;
 
@@ -20,7 +19,7 @@ async fn output_capability_precedes_dispatch_survives_replica_loss_and_never_ent
         .queue_command(
             &agent,
             permit(&a, &agent, computer, grant.grant_id).await,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             &payload("private-command-fixture", 30),
             &keys,
         )

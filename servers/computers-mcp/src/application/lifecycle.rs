@@ -1,6 +1,5 @@
 //! Named lifecycle projection over the same durable Computer journal.
 use super::{Application, ApplicationError, Result};
-use uuid::Uuid;
 use veoveo_computers::{
     ComputerActor, ComputerError, Operation,
     api::{Action, AutomationPermission},
@@ -11,7 +10,7 @@ impl Application {
         &self,
         actor: &ComputerActor,
         computer: veoveo_computers_contract::ComputerId,
-        request: Uuid,
+        request: veoveo_computers::api::RequestId,
         grant: veoveo_computers_contract::AutomationGrantId,
         action: Action,
     ) -> Result<Operation> {

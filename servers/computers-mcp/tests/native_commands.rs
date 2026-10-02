@@ -78,7 +78,13 @@ async fn queue(
         .await
         .unwrap();
     let command = store
-        .queue_command(actor, permission, Uuid::now_v7(), &payload, keys)
+        .queue_command(
+            actor,
+            permission,
+            veoveo_computers::api::RequestId::new(),
+            &payload,
+            keys,
+        )
         .await
         .unwrap();
     store.ensure_command_task(&command).await.unwrap();
@@ -176,8 +182,20 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         gateway_ip,
     })
     .await;
-    let a = ComputersStore::new(db.a.clone(), Uuid::from_u128(100)).unwrap();
-    let b = ComputersStore::new(db.b.clone(), Uuid::from_u128(100)).unwrap();
+    let a = ComputersStore::new(
+        db.a.clone(),
+        "00000000-0000-7000-8000-000000000064"
+            .parse::<veoveo_computers::api::ProviderInstanceId>()
+            .unwrap(),
+    )
+    .unwrap();
+    let b = ComputersStore::new(
+        db.b.clone(),
+        "00000000-0000-7000-8000-000000000064"
+            .parse::<veoveo_computers::api::ProviderInstanceId>()
+            .unwrap(),
+    )
+    .unwrap();
     a.install_capacity(
         None,
         CapacityPolicy {
@@ -197,15 +215,17 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         .reserve(
             &owner,
             &Reservation {
-                request_id: Uuid::now_v7(),
-                template_id: "development".into(),
+                request_id: veoveo_computers::api::RequestId::new(),
+                template_id: "development".parse().unwrap(),
                 template_fingerprint: selected.fingerprint(),
             },
         )
         .await
         .unwrap();
     let homes = RetainedHomes::new(
-        Uuid::from_u128(100),
+        "00000000-0000-7000-8000-000000000064"
+            .parse::<veoveo_computers::api::ProviderInstanceId>()
+            .unwrap(),
         home.allocation_config(),
         std::slice::from_ref(&selected),
     )
@@ -255,7 +275,7 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         .queue_operation(
             ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap(),
             computer.computer_id,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             Action::Create,
         )
         .await
@@ -365,8 +385,11 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         tasks_a.clone(),
         veoveo_computers_mcp::Templates::new(
             vec![
-                veoveo_computers_mcp::NamedTemplate::new("development".into(), selected.clone())
-                    .unwrap(),
+                veoveo_computers_mcp::NamedTemplate::new(
+                    "development".parse().unwrap(),
+                    selected.clone(),
+                )
+                .unwrap(),
             ],
             Some(selected.fingerprint()),
         )
@@ -401,7 +424,7 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         .grant;
     use base64::Engine;
     let input = ExecuteInput {
-        computer_id: computer.computer_id, grant_id: grant.grant_id, request_id: Uuid::now_v7(),
+        computer_id: computer.computer_id, grant_id: grant.grant_id, request_id: veoveo_computers::api::RequestId::new(),
         arguments: vec!["/bin/sh".into(), "-c".into(), "printf native-stdout; printf native-stderr >&2; printf x >> invocation-count; cat > received-stdin; printf '%s' \"$PRIVATE_TOKEN\" > received-env; exit 7".into()],
         directory: ".".into(), environment: BTreeMap::from([("PRIVATE_TOKEN".into(), "native-private-command-value".into())]),
         stdin: base64::engine::general_purpose::STANDARD.encode(b"native-private-stdin\0\xff"),
@@ -471,10 +494,10 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
     assert_eq!(response.is_error, Some(true));
     let result: ExecutionResult =
         serde_json::from_value(response.structured_content.unwrap()).unwrap();
-    assert_eq!(result.exit_code, 7);
+    assert_eq!(result.exit_code(), 7);
     let resource = agent_peer
         .read_resource(rmcp::model::ReadResourceRequestParams::new(String::from(
-            result.result_uri,
+            result.result_uri(),
         )))
         .await
         .unwrap();
@@ -487,16 +510,11 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         result
     );
     for (output, expected) in [
-        (result.stdout, b"native-stdout".as_slice()),
-        (result.stderr, b"native-stderr".as_slice()),
+        (result.stdout(), b"native-stdout".as_slice()),
+        (result.stderr(), b"native-stderr".as_slice()),
     ] {
         let artifact = plane
-            .resolve(
-                &caller,
-                &veoveo_artifact_contract::ArtifactId::try_from(output.artifact_id)
-                    .unwrap()
-                    .plane_uri(),
-            )
+            .resolve(&caller, &output.artifact_id.plane_uri())
             .await
             .unwrap();
         assert_eq!(artifact.bytes, expected);
@@ -605,7 +623,7 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         .queue_operation(
             ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap(),
             computer.computer_id,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             Action::Start,
         )
         .await
@@ -665,7 +683,7 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         .queue_operation(
             ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap(),
             computer.computer_id,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             Action::Start,
         )
         .await
@@ -716,7 +734,7 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         .queue_operation(
             ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap(),
             computer.computer_id,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             Action::Start,
         )
         .await
@@ -740,9 +758,9 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         .queue_maintenance(
             &actor,
             computer.computer_id,
-            Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             &veoveo_computers::maintenance::MaintenanceTarget {
-                template_id: "development".into(),
+                template_id: "development".parse().unwrap(),
                 template_fingerprint: selected.fingerprint(),
             },
         )
@@ -833,10 +851,10 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
     let result: rmcp::model::CallToolResult = serde_json::from_value(task.result.unwrap()).unwrap();
     let result: MaintenanceResult =
         serde_json::from_value(result.structured_content.unwrap()).unwrap();
-    assert_eq!(result.maintenance_id, operation.operation_id);
+    assert_eq!(result.maintenance_id(), operation.operation_id);
     assert_eq!(
-        result.result_uri,
-        veoveo_computers::api::computer_uri(computer.computer_id).as_str()
+        result.result_uri(),
+        veoveo_computers::api::ComputerResultUri::new(computer.computer_id)
     );
     assert!(b.pending_maintenance(None, 100).await.unwrap().is_empty());
     inspect(

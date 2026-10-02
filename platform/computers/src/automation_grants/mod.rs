@@ -34,7 +34,10 @@ impl ComputersStore {
                         "owner_key",
                         crate::identity::owner_key(&computer.owner)?.into_value(),
                     ),
-                    ("provider", self.provider_instance_id.into_value()),
+                    (
+                        "provider",
+                        self.provider_instance_id.into_uuid().into_value(),
+                    ),
                 ],
             )
             .await?;
@@ -55,7 +58,10 @@ impl ComputersStore {
         params.extend([
             ("grant", record(id).into_value()),
             ("computer", computer.into_uuid().into_value()),
-            ("provider", self.provider_instance_id.into_value()),
+            (
+                "provider",
+                self.provider_instance_id.into_uuid().into_value(),
+            ),
         ]);
         let mut read = self
             .query(

@@ -160,7 +160,7 @@ impl VolumeFixture {
             .parse()
             .unwrap();
         let initial = RetainedWriter::new(
-            Uuid::from_u128(100),
+            "00000000-0000-7000-8000-000000000064".parse().unwrap(),
             engine_id,
             "fixture-provider".into(),
             Binding::new(uuid, "f".repeat(64)).unwrap(),

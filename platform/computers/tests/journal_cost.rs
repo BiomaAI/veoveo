@@ -70,7 +70,7 @@ async fn measure(profile: Profile, round: usize, stdin_bytes: usize) -> Measurem
         .queue_command(
             &agent,
             commands::permit(&store, &agent, computer, grant.grant_id).await,
-            uuid::Uuid::now_v7(),
+            veoveo_computers::api::RequestId::new(),
             &payload,
             &commands::keys(),
         )

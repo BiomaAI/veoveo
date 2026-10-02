@@ -32,8 +32,8 @@ async fn another_computer(
         .reserve(
             actor,
             &Reservation {
-                request_id: Uuid::now_v7(),
-                template_id: "development".into(),
+                request_id: veoveo_computers::api::RequestId::new(),
+                template_id: "development".parse().unwrap(),
                 template_fingerprint: support::FINGERPRINT.into(),
             },
         )
@@ -66,7 +66,7 @@ async fn operation_policy_and_participant_checks_precede_private_state_decoding(
         input.execution_limits = None;
         let grant = store.issue_automation_grant(&owner, &input).await.unwrap();
         let authority = store.authorize_automation_grant(&agent, computer, grant.grant_id, AutomationPermission::Stop).await.unwrap();
-        let operation = store.queue_automation_operation(&agent, authority, Uuid::now_v7(), Action::Stop).await.unwrap();
+        let operation = store.queue_automation_operation(&agent, authority, veoveo_computers::api::RequestId::new(), Action::Stop).await.unwrap();
         store.authorize_operation_task(&owner, operation.operation_id, false).await.unwrap();
         store.authorize_operation_task(&agent, operation.operation_id, false).await.unwrap();
         store.ensure_automation_operation_task(&agent, operation.operation_id).await.unwrap();
@@ -78,7 +78,7 @@ async fn operation_policy_and_participant_checks_precede_private_state_decoding(
         for denied in mismatched_claims(&claim) {
             assert!(matches!(store.operation_for_claim(&denied).await, Err(ComputerError::StateConflict)));
         }
-        let wrong_provider = veoveo_computers::ComputersStore::new(db.b.clone(), Uuid::from_u128(99)).unwrap();
+        let wrong_provider = veoveo_computers::ComputersStore::new(db.b.clone(), "00000000-0000-7000-8000-000000000063".parse::<veoveo_computers::api::ProviderInstanceId>().unwrap()).unwrap();
         assert!(matches!(wrong_provider.operation_for_claim(&claim).await, Err(ComputerError::StateConflict)));
         assert!(matches!(store.operation_for_claim(&claim).await, Err(ComputerError::Unavailable)));
         let other = support::authenticated(&support::owner("bob"));
@@ -115,8 +115,13 @@ async fn command_metadata_requires_current_execute_or_owner_read_before_decoding
                 Err(ComputerError::StateConflict)
             ));
         }
-        let wrong_provider =
-            veoveo_computers::ComputersStore::new(db.b.clone(), Uuid::from_u128(99)).unwrap();
+        let wrong_provider = veoveo_computers::ComputersStore::new(
+            db.b.clone(),
+            "00000000-0000-7000-8000-000000000063"
+                .parse::<veoveo_computers::api::ProviderInstanceId>()
+                .unwrap(),
+        )
+        .unwrap();
         assert!(matches!(
             wrong_provider.command_for_claim(&claim).await,
             Err(ComputerError::StateConflict)
@@ -196,8 +201,13 @@ async fn file_metadata_requires_current_execute_or_owner_read_before_decoding() 
                 Err(ComputerError::StateConflict)
             ));
         }
-        let wrong_provider =
-            veoveo_computers::ComputersStore::new(db.b.clone(), Uuid::from_u128(99)).unwrap();
+        let wrong_provider = veoveo_computers::ComputersStore::new(
+            db.b.clone(),
+            "00000000-0000-7000-8000-000000000063"
+                .parse::<veoveo_computers::api::ProviderInstanceId>()
+                .unwrap(),
+        )
+        .unwrap();
         assert!(matches!(
             wrong_provider.file_for_claim(&claim).await,
             Err(ComputerError::StateConflict)

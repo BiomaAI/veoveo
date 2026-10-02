@@ -56,7 +56,7 @@ impl Server {
             store,
             TaskRuntime::new(platform, "computers", "browser-native"),
             Templates::new(
-                vec![NamedTemplate::new("development".into(), template.clone()).unwrap()],
+                vec![NamedTemplate::new("development".parse().unwrap(), template.clone()).unwrap()],
                 Some(template.fingerprint()),
             )
             .unwrap(),

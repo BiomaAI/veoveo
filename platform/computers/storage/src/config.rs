@@ -5,7 +5,7 @@ use std::{net::SocketAddr, path::PathBuf};
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct StorageConfig {
-    pub provider_id: uuid::Uuid,
+    pub provider_id: veoveo_computers_runtime::ProviderInstanceId,
     pub namespace: String,
     pub root: PathBuf,
     pub reserve_bytes: u64,

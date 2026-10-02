@@ -3,7 +3,6 @@ mod commands;
 mod support;
 
 use std::time::Duration;
-use uuid::Uuid;
 use veoveo_computers::{AuthorityChanges, AuthorityInterest, ComputersStore, api::*};
 use veoveo_platform_store::RecordId;
 use veoveo_types::TaskId;
@@ -131,7 +130,11 @@ async fn native_authority_changes_cover_grants_directory_policy_tasks_and_journa
 #[tokio::test]
 async fn dropping_the_last_store_closes_its_native_source() {
     let db = support::TestDb::new().await;
-    let store = ComputersStore::new(db.a.clone(), Uuid::now_v7()).unwrap();
+    let store = ComputersStore::new(
+        db.a.clone(),
+        veoveo_computers::api::ProviderInstanceId::new(),
+    )
+    .unwrap();
     let clone = store.clone();
     let mut changes = store.authority_changes().await.unwrap();
     drop(store);

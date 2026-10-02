@@ -34,7 +34,7 @@ impl ComputersStore {
         &self,
         actor: &ComputerActor,
         authority: FileTransferAuthority,
-        request_id: Uuid,
+        request_id: crate::api::RequestId,
         payload: &FileTransferPayload,
         keys: &ComputerKeyRing,
     ) -> Result<FileOperation> {
@@ -49,14 +49,11 @@ impl ComputersStore {
         &self,
         actor: &ComputerActor,
         authority: FileTransferAuthority,
-        request_id: Uuid,
+        request_id: crate::api::RequestId,
         payload: &FileTransferPayload,
         keys: &ComputerKeyRing,
     ) -> Result<FileOperation> {
         authority.require_actor(actor)?;
-        if request_id.is_nil() {
-            return Err(ComputerError::InvalidInput);
-        }
         let computer = authority.computer()?;
         let actor_key = super::actor_key(actor.accepted())?;
         let request = RecordId::new(
@@ -113,7 +110,7 @@ impl ComputersStore {
         let content = Content {
             transfer_id: binding.transfer_id.into_uuid(),
             computer_id: binding.computer_id.into_uuid(),
-            provider_instance_id: self.provider_instance_id,
+            provider_instance_id: self.provider_instance_id.into_uuid(),
             owner_key: binding.owner_key.clone(),
             actor_key: actor_key.clone(),
             binding: super::object(&binding)?,
@@ -200,7 +197,10 @@ impl ComputersStore {
                 include_str!("../../queries/accepted_execution.surql"),
                 vec![
                     ("journal", prior.transfer.into_value()),
-                    ("provider", self.provider_instance_id.into_value()),
+                    (
+                        "provider",
+                        self.provider_instance_id.into_uuid().into_value(),
+                    ),
                     ("computer_id", computer.into_uuid().into_value()),
                     ("computer_text", computer.to_string().into_value()),
                     ("actor_key", actor_key.to_owned().into_value()),
@@ -229,7 +229,7 @@ impl ComputersStore {
         operation: FileOperation,
         actor: &ComputerActor,
         authority: &FileTransferAuthority,
-        request: Uuid,
+        request: crate::api::RequestId,
         payload: &FileTransferPayload,
         keys: &ComputerKeyRing,
     ) -> Result<FileOperation> {

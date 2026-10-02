@@ -16,7 +16,7 @@ async fn maintenance_admits_actor_parent_provider_and_claim_before_private_state
         let mut other_context = caller.clone();
         other_context.authority.work_context = veoveo_types::WorkContextId::new("another-context").unwrap();
         assert!(matches!(a.maintenance(&other_context, id).await, Err(ComputerError::NotFound)));
-        let foreign = ComputersStore::new(db.b.clone(), Uuid::from_u128(99)).unwrap();
+        let foreign = ComputersStore::new(db.b.clone(), "00000000-0000-7000-8000-000000000063".parse::<veoveo_computers::api::ProviderInstanceId>().unwrap()).unwrap();
         assert!(matches!(foreign.maintenance(caller, id).await, Err(ComputerError::NotFound)));
         assert!(matches!(foreign.maintenance_for_claim(&claim).await, Err(ComputerError::StateConflict)));
         let mut denied = claim.clone();

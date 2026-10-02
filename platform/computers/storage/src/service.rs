@@ -16,7 +16,7 @@ pub struct Template {
 pub struct Service {
     pub(crate) filesystem: Mutex<Filesystem>,
     pub(crate) docker: Docker,
-    provider_id: Uuid,
+    provider_id: veoveo_computers_runtime::ProviderInstanceId,
     templates: BTreeMap<String, u64>,
     pub(crate) calls: Arc<Semaphore>,
 }
@@ -63,7 +63,11 @@ impl Service {
             calls: Arc::new(Semaphore::new(32)),
         }))
     }
-    pub(crate) fn capacity(&self, provider: Uuid, fingerprint: &str) -> Result<u64> {
+    pub(crate) fn capacity(
+        &self,
+        provider: veoveo_computers_runtime::ProviderInstanceId,
+        fingerprint: &str,
+    ) -> Result<u64> {
         if provider != self.provider_id {
             return Err(StorageError::IdentityMismatch);
         }
@@ -72,7 +76,11 @@ impl Service {
             .copied()
             .ok_or(StorageError::IdentityMismatch)
     }
-    pub async fn ready(&self, provider: Uuid, fingerprint: &str) -> Result<u64> {
+    pub async fn ready(
+        &self,
+        provider: veoveo_computers_runtime::ProviderInstanceId,
+        fingerprint: &str,
+    ) -> Result<u64> {
         let capacity = self.capacity(provider, fingerprint)?;
         self.docker.verify_engine().await?;
         Ok(capacity)

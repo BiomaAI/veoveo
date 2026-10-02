@@ -177,10 +177,13 @@ fn parse(bytes: &[u8]) -> Result<Request> {
 fn uuid(id: &wire::IdentityId) -> Result<Uuid> {
     Uuid::parse_str(id).map_err(|_| StorageError::InvalidIdentity)
 }
+fn provider(id: &wire::IdentityId) -> Result<veoveo_computers_runtime::ProviderInstanceId> {
+    id.parse().map_err(|_| StorageError::InvalidIdentity)
+}
 async fn request(service: &Service, bytes: &[u8]) -> Result<Vec<u8>> {
     match parse(bytes)? {
         Request::Abandon(request) => {
-            let provider_id = uuid(&request.provider_id)?;
+            let provider_id = provider(&request.provider_id)?;
             let computer_id = uuid(&request.computer_id)?;
             let capacity = service
                 .abandon(crate::Abandonment {
@@ -216,7 +219,7 @@ async fn request(service: &Service, bytes: &[u8]) -> Result<Vec<u8>> {
             })
         }
         Request::Handoff(request) => {
-            let provider_id = uuid(&request.provider_id)?;
+            let provider_id = provider(&request.provider_id)?;
             let computer_id = uuid(&request.computer_id)?;
             let capacity = service
                 .handoff(crate::Handoff {
@@ -255,7 +258,10 @@ async fn request(service: &Service, bytes: &[u8]) -> Result<Vec<u8>> {
         }
         Request::Ready(request) => {
             let capacity = service
-                .ready(uuid(&request.provider_id)?, &request.template_fingerprint)
+                .ready(
+                    provider(&request.provider_id)?,
+                    &request.template_fingerprint,
+                )
                 .await?;
             encode(&wire::ReadyReply {
                 schema: request.schema,
@@ -268,7 +274,7 @@ async fn request(service: &Service, bytes: &[u8]) -> Result<Vec<u8>> {
         }
         Request::Bound(request) => {
             let home = HomeIdentity {
-                provider_id: uuid(&request.provider_id)?,
+                provider_id: provider(&request.provider_id)?,
                 computer_id: uuid(&request.computer_id)?,
                 instance_id: uuid(&request.instance_id)?,
                 template_fingerprint: request.template_fingerprint.to_string(),
@@ -298,7 +304,7 @@ mod tests {
     #[test]
     fn abandonment_is_explicit_and_rejects_missing_duplicate_or_writer_fields() {
         let value = serde_json::json!({
-            "schema": SCHEMA, "operation": "abandon", "providerId": Uuid::from_u128(100),
+            "schema": SCHEMA, "operation": "abandon", "providerId": "00000000-0000-7000-8000-000000000064",
             "computerId": Uuid::from_u128(200), "operationId": Uuid::from_u128(300),
             "sourceInstanceId": Uuid::from_u128(200), "sourceTemplateFingerprint": "a".repeat(64),
             "targetInstanceId": Uuid::from_u128(400), "targetTemplateFingerprint": "b".repeat(64),
@@ -321,7 +327,7 @@ mod tests {
     #[test]
     fn handoff_identity_is_closed_and_fits_the_frame_at_the_resource_bound() {
         let value = serde_json::json!({
-            "schema": SCHEMA, "operation": "handoff", "providerId": Uuid::from_u128(100),
+            "schema": SCHEMA, "operation": "handoff", "providerId": "00000000-0000-7000-8000-000000000064",
             "computerId": Uuid::from_u128(200), "operationId": Uuid::from_u128(300),
             "sourceInstanceId": Uuid::from_u128(200), "sourceTemplateFingerprint": "a".repeat(64),
             "sourceResourceId": "r".repeat(128), "targetInstanceId": Uuid::from_u128(400),

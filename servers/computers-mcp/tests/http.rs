@@ -372,14 +372,19 @@ async fn canonical_http_and_mcp_share_one_private_idempotent_task_across_replica
         .claim_observation(task_id, Duration::from_secs(60))
         .await
         .unwrap();
-    veoveo_computers::ComputersStore::new(db.b.clone(), Uuid::from_u128(100))
-        .unwrap()
-        .abort_undispatched(
-            &claim,
-            veoveo_computers::UndispatchedOutcome::CancelledBeforeDispatch,
-        )
-        .await
-        .unwrap();
+    veoveo_computers::ComputersStore::new(
+        db.b.clone(),
+        "00000000-0000-7000-8000-000000000064"
+            .parse::<veoveo_computers::api::ProviderInstanceId>()
+            .unwrap(),
+    )
+    .unwrap()
+    .abort_undispatched(
+        &claim,
+        veoveo_computers::UndispatchedOutcome::CancelledBeforeDispatch,
+    )
+    .await
+    .unwrap();
     let settled: Value = client
         .get(&operation_url)
         .bearer_auth(&alice)

@@ -18,9 +18,9 @@ pub(super) const MAX_CHECKPOINT_BYTES: usize = 1024 * 1024 + 4096;
 #[serde(deny_unknown_fields)]
 pub struct MaintenanceBinding {
     pub operation_id: veoveo_types::TaskId,
-    pub request_id: Uuid,
+    pub request_id: crate::api::RequestId,
     pub computer_id: veoveo_computers_contract::ComputerId,
-    pub provider_instance_id: Uuid,
+    pub provider_instance_id: crate::api::ProviderInstanceId,
     pub owner_key: String,
     pub actor_key: String,
     pub source_instance_id: Uuid,
@@ -42,8 +42,6 @@ impl MaintenanceBinding {
             |s: &str| !s.is_empty() && s.len() <= 256 && s.bytes().all(|b| b.is_ascii_graphic());
         if [
             self.operation_id.as_uuid(),
-            self.request_id,
-            self.provider_instance_id,
             self.source_instance_id,
             self.target_instance_id,
         ]

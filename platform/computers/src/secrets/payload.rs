@@ -13,10 +13,10 @@ pub(super) const MAX_PLAINTEXT: usize = MAX_FRAME_BYTES + 12;
 #[serde(deny_unknown_fields)]
 pub struct CommandBinding {
     pub execution_id: veoveo_computers_contract::ExecutionId,
-    pub request_id: Uuid,
+    pub request_id: crate::api::RequestId,
     pub computer_id: veoveo_computers_contract::ComputerId,
     pub grant_id: crate::api::AutomationGrantId,
-    pub provider_instance_id: Uuid,
+    pub provider_instance_id: crate::api::ProviderInstanceId,
     pub owner_key: String,
     pub actor_key: String,
     pub template_fingerprint: String,
@@ -41,10 +41,7 @@ impl CommandBinding {
         };
         let native_id =
             |s: &str| !s.is_empty() && s.len() <= 256 && s.bytes().all(|b| b.is_ascii_graphic());
-        if [self.request_id, self.provider_instance_id]
-            .iter()
-            .any(Uuid::is_nil)
-            || !hash(&self.owner_key)
+        if !hash(&self.owner_key)
             || !hash(&self.actor_key)
             || !hash(&self.template_fingerprint)
             || !native_id(&self.resource_id)

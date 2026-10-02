@@ -78,7 +78,7 @@ enum Goal {
 #[serde(try_from = "Record", into = "Record")]
 pub struct LifecycleCheckpoint {
     operation_id: LifecycleOperationId,
-    provider_instance_id: Uuid,
+    provider_instance_id: veoveo_computers_contract::ProviderInstanceId,
     binding: Binding,
     goal: Goal,
 }
@@ -88,7 +88,7 @@ pub struct LifecycleCheckpoint {
 struct Record {
     version: u8,
     operation_id: LifecycleOperationId,
-    provider_instance_id: Uuid,
+    provider_instance_id: veoveo_computers_contract::ProviderInstanceId,
     computer_id: Uuid,
     replacement_instance_id: Option<Uuid>,
     template_fingerprint: String,
@@ -97,7 +97,7 @@ struct Record {
 
 impl LifecycleCheckpoint {
     pub fn create(
-        provider_instance_id: Uuid,
+        provider_instance_id: veoveo_computers_contract::ProviderInstanceId,
         operation_id: LifecycleOperationId,
         binding: Binding,
     ) -> Result<Self> {
@@ -105,7 +105,7 @@ impl LifecycleCheckpoint {
     }
 
     pub fn start(
-        provider_instance_id: Uuid,
+        provider_instance_id: veoveo_computers_contract::ProviderInstanceId,
         operation_id: LifecycleOperationId,
         binding: Binding,
         before: &Observation,
@@ -125,7 +125,7 @@ impl LifecycleCheckpoint {
     }
 
     pub fn stop(
-        provider_instance_id: Uuid,
+        provider_instance_id: veoveo_computers_contract::ProviderInstanceId,
         operation_id: LifecycleOperationId,
         binding: Binding,
         before: &Observation,
@@ -145,14 +145,11 @@ impl LifecycleCheckpoint {
     }
 
     fn checked(
-        provider_instance_id: Uuid,
+        provider_instance_id: veoveo_computers_contract::ProviderInstanceId,
         operation_id: LifecycleOperationId,
         binding: Binding,
         goal: Goal,
     ) -> Result<Self> {
-        if provider_instance_id.is_nil() {
-            return Err(RuntimeFailure::BindingMismatch);
-        }
         let epoch = match &goal {
             Goal::Create => None,
             Goal::Start {

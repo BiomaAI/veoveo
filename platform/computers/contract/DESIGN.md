@@ -11,7 +11,7 @@
 | Veoveo regular-file handoff | Closed import/export request, canonical retained-relative path, explicit whole-run interruption scope and bounded Artifact result; typed public Task and result projection |
 | Veoveo maintenance projection | Closed update input, admitted target inventory, progress/recovery phases and completed Task identity with the existing Computer resource URI; provider instances and protected policy remain private |
 | Veoveo automation grant v1 | Named principal and OAuth-client scope, explicit permissions and bounded execution limits; generated JSON projection, no bearer authority |
-| RFC 9562 UUIDv7 | Distinct Computer, execution, file-transfer, automation-grant, interactive-access, CLI-pairing and connection identities; external values require lowercase hyphenated spelling and the RFC variant |
+| RFC 9562 UUIDs | UUIDv7 resource and grant identities, UUIDv4/v7 request keys and UUIDv4/v7/v8 provider instances; lowercase hyphenated spelling and the RFC variant |
 | RFC 3986 and RFC 6570 | The `computer` resource scheme uses foundational URI parsing/building and declared templates; collection continuation uses the optional `after` query variable |
 | OpenShell CLI `0.0.116` pairing adapter | Custom confirmation-code and IPv4 loopback JSON callback; public requests select no host or authority |
 
@@ -24,10 +24,16 @@ variants and spellings. Browser and CLI grants share `AccessGrantId`; named auto
 authority uses `AutomationGrantId`. Pairing challenges and connection leases have
 separate identities. An ID locates a record and supplies no authority.
 
+`RequestId` accepts canonical RFC UUIDv4 and UUIDv7 idempotency keys. Its native
+constructor generates UUIDv7. `ProviderInstanceId` also accepts UUIDv8, which the
+unconfigured installation uses for deterministic identity. Both reject nil, other
+versions, non-RFC variants and alternate spellings. `TemplateId` admits 1–64 lowercase
+ASCII letters, digits and hyphens, starting with a letter or digit. Configuration,
+admission and public projections share that type.
+
 Lifecycle and maintenance operations carry the foundational `TaskId` through receipts,
 views and worker APIs. Execution and transfer IDs expose their native Task identity
-explicitly. Client request IDs keep the UUID profile that accepts browser-generated
-idempotency keys. Store adapters convert typed identities to driver UUID values when
+explicitly. Client request IDs remain distinct from Task and resource identities. Store adapters convert typed identities to driver UUID values when
 binding queries or writing private records.
 
 `ComputerResource` owns the complete resource vocabulary, including collection
@@ -36,10 +42,26 @@ accept each route's specific identity types and delegate component encoding to
 `veoveo-types`. Parsing returns the same closed variants and rejects additional query
 parameters, fragments and alternate route spellings. `ExecutionResultUri` and
 `FileTransferResultUri` constrain result links to their own families.
+`ComputerResultUri` constrains lifecycle and maintenance links to Computer resources.
 
 `ComputerScope` declares an empty domain scope vocabulary. Gateway actions, retained
 ownership and named automation permissions supply authorization. These public values
 identify a resource; the domain evaluates current authority for every operation.
+
+## Completed Result Construction
+
+Lifecycle, maintenance, execution and file-transfer results expose constructors and
+read-only accessors. Constructors derive resource addresses from typed identities;
+deserialization checks the supplied address against that same identity. Lifecycle
+Create includes a Computer address, while Start and Stop omit it. Maintenance carries
+the selected `TemplateId` and its Task identity.
+
+Command output and file results use the Artifact owner's `ArtifactId`. A completed
+command requires distinct stdout/stderr occurrences, at most 64 MiB of combined output
+and a known exit code; reserved timeout code 124 cannot represent completion. File
+results admit at most 64 MiB and use `Sha256Digest` internally with a 64-character
+lowercase hexadecimal JSON representation. The domain separately checks the current
+Task, accepted limits and provider receipt before publishing a result.
 
 ## Public Projections
 

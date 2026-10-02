@@ -51,14 +51,20 @@ async fn maintenance_http_mcp_retry_and_current_task_authority_share_one_fence()
     let signing = Signing::new();
     let left = Server::new(left.with_maintenance(profiles.clone()).unwrap(), &signing).await;
     let right = Server::new(right.with_maintenance(profiles).unwrap(), &signing).await;
-    let store = ComputersStore::new(db.a.clone(), Uuid::from_u128(100)).unwrap();
+    let store = ComputersStore::new(
+        db.a.clone(),
+        "00000000-0000-7000-8000-000000000064"
+            .parse::<veoveo_computers::api::ProviderInstanceId>()
+            .unwrap(),
+    )
+    .unwrap();
     let owner = support::owner("alice");
     let computer = store
         .reserve(
             &crate::support::authenticated(&owner),
             &Reservation {
-                request_id: Uuid::now_v7(),
-                template_id: "development-retained".into(),
+                request_id: veoveo_computers::api::RequestId::new(),
+                template_id: "development-retained".parse().unwrap(),
                 template_fingerprint: source.fingerprint(),
             },
         )
@@ -131,7 +137,12 @@ async fn maintenance_http_mcp_retry_and_current_task_authority_share_one_fence()
         .unwrap();
     assert_eq!(created.status(), reqwest::StatusCode::ACCEPTED);
     let operation: MaintenanceView = created.json().await.unwrap();
-    assert_eq!(operation.target_template_id, "development");
+    assert_eq!(
+        operation.target_template_id,
+        "development"
+            .parse::<veoveo_computers::api::TemplateId>()
+            .unwrap()
+    );
     let retry = rpc(
         &client,
         &right,
@@ -317,7 +328,7 @@ async fn maintenance_http_mcp_retry_and_current_task_authority_share_one_fence()
     let mut resume = ResumeUpdateInput {
         computer_id: computer,
         task_id: paused.operation_id,
-        request_id: Uuid::now_v7(),
+        request_id: veoveo_computers::api::RequestId::new(),
         expected_updated_at: current.updated_at,
         acknowledged_cancellation_at: None,
     };
