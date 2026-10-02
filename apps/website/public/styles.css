@@ -127,6 +127,7 @@ tbody td.v { color: var(--ink); }
 }
 .factory .tag { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--violet); white-space: nowrap; }
 .factory p { font-size: 1.05rem; line-height: 1.5; }
+.section-intro { font-size: 1.2rem; line-height: 1.55; color: var(--ink); max-width: 48rem; margin: 0 0 1.6rem; }
 
 /* ---------- get started ---------- */
 .start { display: grid; grid-template-columns: 1fr 1fr; gap: 1.4rem; }
@@ -204,6 +205,7 @@ html.has-world {
 html.has-world .lede-band { padding-top: 5rem; }
 html.has-world .lede { color: #EDE8F5; border-left-color: var(--violet-bright); text-shadow: 0 2px 18px rgba(4, 3, 10, 0.9); }
 html.has-world .lede em { color: var(--violet-soft); }
+html.has-world .section-intro { text-shadow: 0 2px 18px rgba(4, 3, 10, 0.9); }
 html.has-world h2 { color: var(--violet-soft); border-top-color: var(--violet-bright); }
 html.has-world section.block { padding: 5rem 0; }
 html.has-world #capabilities .wrap > ul,

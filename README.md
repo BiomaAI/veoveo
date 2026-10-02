@@ -178,6 +178,9 @@ runs the software. Palantir delivers and operates its platforms inside customer
 environments through Apollo. A Veoveo installation is run by the organization
 that owns it, and Veoveo's release process holds no credentials to that cluster.
 
+Every company that runs a physical operation now has a sovereign interest in owning
+its builders, because whoever owns them owns the operation.
+
 | Palantir product | What it does | How Veoveo compares |
 |---|---|---|
 | AIP | AI agents acting on enterprise systems through a controlled action layer | Closest match. Veoveo's gateway provides identity, policy, long-running tasks, and audit over the open Model Context Protocol, so any MCP host and any model can use it. |
@@ -565,10 +568,11 @@ probes WebGPU and WebGL and stops unless at least one is hardware-backed.
 
 ## Roadmap
 
-Next on the roadmap: digital twins of an installation's own sites and fleets,
-built from the map data, recordings, and telemetry it already stores. Simulation
-and forecasting would then start from the real site rather than a generic
-scene.
+Veoveo's goal is agents that build a live digital twin of the operation they work
+in, and think in it before they act. Next on the roadmap: digital twins of an
+installation's own sites and fleets, built from the map data, recordings, and
+telemetry it already stores. Simulation and forecasting would then start from the
+real site rather than a generic scene.
 
 ## Standards And Protocols
 
@@ -646,7 +650,7 @@ runtimes power cuOpt optimization, Isaac Sim, and Stream perception.
 
 ## A Software Factory
 
-The repository is organized as a software factory in which coding agents
+We build the builders and the tools they build with. The repository is organized as a software factory in which coding agents
 extend, deploy, and operate Veoveo. Veoveo does not ship its own coding harness.
 Teams use the agent they already have, whether that is a terminal session or a
 full MCP host. [`AGENTS.md`](AGENTS.md) files at the root and beside each hosted
