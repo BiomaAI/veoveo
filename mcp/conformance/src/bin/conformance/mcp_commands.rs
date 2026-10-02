@@ -60,6 +60,27 @@ pub(super) async fn cmd_info(client: &Client) -> Result<()> {
     if let Some(instructions) = &info.instructions {
         println!("instructions:\n{instructions}");
     }
+    cmd_tools(client).await?;
+    let prompts = catalog::prompts(client).await?;
+    for prompt in prompts {
+        println!(
+            "prompt `{}` — {}",
+            prompt.name,
+            prompt.description.unwrap_or_default()
+        );
+    }
+    let templates = catalog::templates(client).await?;
+    for t in templates {
+        println!(
+            "template: {} — {}",
+            t.uri_template,
+            t.description.unwrap_or_default()
+        );
+    }
+    Ok(())
+}
+
+pub(super) async fn cmd_tools(client: &Client) -> Result<()> {
     let tools = catalog::tools(client).await?;
     validate_tool_schemas(&tools)?;
     println!("schema compatibility: {} tool(s) valid", tools.len());
@@ -76,22 +97,6 @@ pub(super) async fn cmd_info(client: &Client) -> Result<()> {
         if let Some(schema) = &tool.output_schema {
             println!("  output schema: {}", serde_json::to_string(schema)?);
         }
-    }
-    let prompts = catalog::prompts(client).await?;
-    for prompt in prompts {
-        println!(
-            "prompt `{}` — {}",
-            prompt.name,
-            prompt.description.unwrap_or_default()
-        );
-    }
-    let templates = catalog::templates(client).await?;
-    for t in templates {
-        println!(
-            "template: {} — {}",
-            t.uri_template,
-            t.description.unwrap_or_default()
-        );
     }
     Ok(())
 }

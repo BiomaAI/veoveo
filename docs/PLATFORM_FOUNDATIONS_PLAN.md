@@ -37,6 +37,24 @@ and arithmetic. Strict Clippy and both executable builds pass. These native chec
 do not close the installed visual gate; hardware, cadence and latency requirements
 are unchanged, and the composed flight must pass with the new checker.
 
+The next flight startup exposed a separate Knowledge restart failure. Embedding's
+first attempt lacked 0.04 GiB of KV-cache capacity for its declared 32,768-token limit;
+it became healthy on its next attempt without changing the profile. Knowledge then
+rejected a source's conditional observation as changed content or access. The source
+identity and differing fields still need diagnosis; strict validation stays enabled.
+The logs are retained under `output/development/foundations-flight-content-4998241e/`.
+This reopens installed Knowledge restart acceptance.
+
+Flight readiness had been calling `conformance info`, which reads every tool, prompt
+and resource-template catalog and therefore required unrelated services. The new
+`conformance tools` command preserves full tool pagination and schema validation.
+Flight preflight uses it and still requires all of its actual domain and live-view
+tools. The wider `info` command keeps its existing catalog checks. No flight commands
+were dispatched during the failed full-catalog preflight, and the cluster stopped
+before rebuilding this client-only change. All 75 native flight/conformance checks,
+strict Clippy and both executable builds pass. Installed scoped discovery and the
+composed flight are the next gate.
+
 Artifact's installed sharing gate passes seven checks through the public MCP and
 anonymous HTTP routes: private fixture ownership/retention, read-only byte equality,
 one-download enforcement, revocation, expiry, current parent release state and cleanup.
@@ -64,7 +82,8 @@ viewer bridge with resources disabled and is outside this adoption scope.
 
 Phase 8's Knowledge service and embedding runtime are deployed. The nineteen-collection
 catalog, source-linked search, completion, statistics, subscriptions, CUDA embedding and
-network isolation pass. Indexing audit windows finalize with a verified signed chain.
+network isolation passed their recorded acceptance. The current restart rejects a
+changed conditional source observation and requires repair before final acceptance. Indexing audit windows finalize with a verified signed chain.
 Phase 9's Reason summaries pass installed publication, result grants, revocation and
 separate Reason/Knowledge restarts. The controlled 0.6B/4B/8B retrieval comparison passes
 on the recorded corpus and retains 0.6B. These checks do not close the remaining type,
@@ -4541,5 +4560,6 @@ not complete while a row remains.
 
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
+| Phase 8 source conditional restart | `servers/knowledge-mcp/src/source/gateway.rs` | Diagnose and repair the changed content/access in a not-modified observation during installed restart | Knowledge startup fails after Embedding becomes healthy; preserve the conditional-read invariant and identify the source before changing producer or cache behavior |
 | Phase 3 Computers hosted feature gate | `servers/computers-mcp/DESIGN.md` | Finish installed Computers hosted feature qualification | Publication, all hosted catalogs, public full/HEAD/range Artifact delivery and headed Speech CUDA transcription/dictation pass at `5dd357c4`. Artifact sharing now passes seven installed checks; qualify the remaining Computers library/setup consumer path |
 | Phase 1 reference reset | `testing/flight-smoke/src/domain.rs` | Finish composed visual and timing acceptance | The composed flight domain sequence passes at `5cae9ec8`, including takeoff altitude, return to launch, landing, Recording replay, Reason and cross-context denial. The landing visual check rejects mean luma 20.50 below its cutoff of 25; a headed hardware diagnostic shows a detailed dark street. Qualify a content-sensitive blank-frame check and repeat composed visual/timing acceptance |

@@ -141,6 +141,10 @@ Browser attachment, GPU rejection and visual assertions have one source owner in
 `testing/browser-smoke/src/browser.rs`. Both focused clients compile that source.
 Small process, GPU identity and token-exchange helpers likewise keep one Rust source.
 No new test-support framework or upstream dependency is introduced.
+Flight preflight uses the conformance client's paged `tools` command to require its
+domain and live-view tools. Unrelated prompt and resource-template catalogs do not
+establish flight readiness. The scenario still reads every resource it actually needs
+and checks the required GPU workloads before issuing commands.
 
 The shared browser sampler reads the displayed camera canvas at 64 by 36 pixels and
 reports luminance statistics for the frame and a four-by-four grid. The content check

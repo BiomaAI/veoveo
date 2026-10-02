@@ -397,8 +397,10 @@ pub(super) enum Cmd {
         #[arg(long, default_value_t = 5)]
         ttl_minutes: i64,
     },
-    /// Show server info, capabilities, instructions, and the tool list.
+    /// Show server info and all tool, prompt, and resource-template catalogs.
     Info,
+    /// List and validate all tool pages without reading unrelated catalogs.
+    Tools,
     /// Read the model catalog resource, optionally filtering locally.
     Models {
         query: Option<String>,

@@ -113,7 +113,7 @@ use fake_services::{
 use mcp_commands::{
     RunCommand, cmd_apps_check, cmd_call, cmd_complete, cmd_complete_resource, cmd_info,
     cmd_models_from_catalog, cmd_prompt, cmd_prompts, cmd_resource, cmd_resources, cmd_run,
-    cmd_task_call, read_resource_json, save_output_uri,
+    cmd_task_call, cmd_tools, read_resource_json, save_output_uri,
 };
 use schema::cmd_contract_schemas;
 use tokens::{
@@ -470,6 +470,7 @@ async fn main() -> Result<()> {
         Cmd::GatewayIdJag { .. } => unreachable!("handled before MCP connection"),
         Cmd::GatewayIdJagTokenExchange { .. } => unreachable!("handled before MCP connection"),
         Cmd::Info => cmd_info(&client).await,
+        Cmd::Tools => cmd_tools(&client).await,
         Cmd::Models { query, r#type } => {
             let catalog = read_resource_json(&client, &uris.models_uri()).await?;
             cmd_models_from_catalog(catalog, query, r#type)

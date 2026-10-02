@@ -92,6 +92,8 @@ impl KnowledgeSource for GatewaySource {
         .ok_or(KnowledgeError("source omitted its knowledge observation"))?;
         if observation.not_modified() {
             let prior = previous.ok_or(KnowledgeError("unexpected conditional response"))?;
+            // TODO(foundations): Diagnose the installed restart rejection of changed
+            // content/access in a not-modified observation; preserve strict validation.
             observation.revalidated(prior)?;
             return Ok(SourceRead::NotModified(observation));
         }

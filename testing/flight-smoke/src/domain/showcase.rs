@@ -119,8 +119,8 @@ pub(crate) async fn uav_showcase_verify(
         conformance,
         installation,
     };
-    let info = operator
-        .conformance(&["info"], Duration::from_secs(60))
+    let tools = operator
+        .conformance(&["tools"], Duration::from_secs(60))
         .await?;
     for tool in [
         "uav-sim__list_live_cameras",
@@ -128,7 +128,7 @@ pub(crate) async fn uav_showcase_verify(
         "uav-sim__renew_live_view",
         "uav-sim__close_live_view",
     ] {
-        contains(&info, tool)?;
+        contains(&tools, tool)?;
     }
 
     ensure_world_configured(&operator, &scenario).await?;

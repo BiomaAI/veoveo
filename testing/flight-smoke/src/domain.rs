@@ -119,8 +119,8 @@ async fn uav_sim_verify_with_visual_hold(
         conformance,
         installation,
     };
-    let info = operator
-        .conformance(&["info"], Duration::from_secs(60))
+    let tools = operator
+        .conformance(&["tools"], Duration::from_secs(60))
         .await?;
     for tool in [
         "frames__create_world",
@@ -137,7 +137,7 @@ async fn uav_sim_verify_with_visual_hold(
         "stream__run_recording",
         "reason__analyze_recording",
     ] {
-        contains(&info, tool)?;
+        contains(&tools, tool)?;
     }
 
     route::preflight(&operator, &scenario).await?;
