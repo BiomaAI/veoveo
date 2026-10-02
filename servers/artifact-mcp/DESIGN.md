@@ -138,6 +138,22 @@ Native tests qualify snapshot mapping, policy and deadline preservation, content
 revisions, metadata bounds and conditional responses. Installed K01–K10 qualification
 and source mutation/restart probes remain open in the foundations plan.
 
+`tests/gateway_source_conformance.rs` runs source conformance through the public gateway.
+It reads one selected disposable Artifact as the ordinary caller, checks that a
+chosen subject has no grant, then adds and removes that subject's read grant through
+the administrator's public tools. The caller must remain authorized throughout.
+K07 checks both member and collection notifications, access revisions, persistence
+across an actual Artifact MCP Deployment restart, and a second subscribed mutation.
+Cleanup re-reads the grants and removes the fixture subject after success, failure
+or an uncertain mutation response. The fixture cannot remove a pre-existing grant.
+This case checks source observations; recipient access and Knowledge search policies
+need their own domain cases.
+
+The [installed harness contract](../../testing/installed/DESIGN.md) defines input
+paths, credentials, deadlines and report handling. Artifact owns the grant driver in
+`tests/support/read_grant_probe.rs`; Reason reuses it for derived findings without
+moving Artifact vocabulary into the conformance core.
+
 ## Resource Observation
 
 The replica watches occurrence, grant and share-link tables through Store's native

@@ -44,6 +44,10 @@ required-features = ["contract"]
 name = "window_contract"
 required-features = ["contract"]
 
+[[test]]
+name = "gateway_source_conformance"
+required-features = ["mcp"]
+
 [features]
 default = ["mcp"]
 contract = [
@@ -131,6 +135,9 @@ veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
 surrealdb = { version = "=3.3.0", default-features = false, optional = true }
 
 [dev-dependencies]
+veoveo-deploy-contract.workspace = true
+veoveo-mcp-conformance = { path = "../../mcp/conformance" }
+rmcp = { workspace = true, features = ["client", "transport-streamable-http-client-reqwest"] }
 iri-string.workspace = true
 serde_json.workspace = true
 tempfile = "3"

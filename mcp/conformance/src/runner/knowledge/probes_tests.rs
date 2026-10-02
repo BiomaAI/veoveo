@@ -2,8 +2,7 @@
 //! supply their real database/change-source restart and access fixtures.
 use super::*;
 use crate::{
-    CheckStatus, ConformanceCredentials, HostedServerProfileSchema, HttpBoundaryProfile,
-    SurfaceExpectation, SurfaceProfile,
+    CheckStatus, ConformanceCredentials, KnowledgeRoute, KnowledgeSourceTarget,
     knowledge_probes::{KnowledgeChangeDriver, KnowledgeProbeFuture},
 };
 use axum::{Router, extract::Request, http::StatusCode, middleware::Next, response::IntoResponse};
@@ -31,6 +30,7 @@ use veoveo_mcp_knowledge_extension::{
 use veoveo_types::{LocalToolName, ResourceTemplateUri};
 
 const MEMBER: &str = "fixture://reading/member";
+const SECOND: &str = "fixture://reading/second";
 const INDEX: &str = "fixture://readings";
 const LEAK: u8 = 1;
 const BAD_LINK: u8 = 2;
@@ -40,6 +40,8 @@ const PARTIAL_ACK: u8 = 5;
 const CONDITIONAL_LEAK: u8 = 6;
 const BASELINE_ONLY: u8 = 7;
 const NO_BASELINE: u8 = 8;
+const REMOVED_READABLE: u8 = 9;
+const REMOVED_ENUMERATED: u8 = 10;
 
 fn descriptor() -> CollectionDescriptor {
     CollectionDescriptor::new(
@@ -62,6 +64,20 @@ struct State {
     active: Mutex<Source>,
     storage: PathBuf,
     fault: AtomicU8,
+    route: KnowledgeRoute,
+    removal: bool,
+}
+impl State {
+    fn visible(&self) -> Vec<&'static str> {
+        if !self.removal {
+            return vec![MEMBER];
+        }
+        match self.active.lock().unwrap().version {
+            0 | 1 => vec![MEMBER, SECOND],
+            2 => vec![SECOND],
+            _ => vec![],
+        }
+    }
 }
 impl Drop for State {
     fn drop(&mut self) {
@@ -71,15 +87,20 @@ impl Drop for State {
 impl KnowledgeChangeDriver for State {
     fn mutate(&self) -> KnowledgeProbeFuture<'_> {
         Box::pin(async move {
-            let hub = {
+            let (hub, member) = {
                 let mut source = self.active.lock().unwrap();
+                let member = if self.removal && source.version >= 2 {
+                    SECOND
+                } else {
+                    MEMBER
+                };
                 if self.fault.load(Ordering::Relaxed) != NO_CHANGE {
                     source.version += 1;
                     std::fs::write(&self.storage, source.version.to_string())?;
                 }
-                source.hub.clone()
+                (source.hub.clone(), member)
             };
-            hub.notify_resource_updated(MEMBER).await;
+            hub.notify_resource_updated(member).await;
             hub.notify_resource_updated(INDEX).await;
             Ok(())
         })
@@ -103,7 +124,7 @@ impl KnowledgeChangeDriver for State {
 #[derive(Clone)]
 struct Fixture(Arc<State>);
 #[derive(Clone)]
-struct Reader(bool);
+struct Reader(u8);
 
 async fn authenticate(mut request: Request, next: Next) -> axum::response::Response {
     let reader = match request
@@ -111,8 +132,9 @@ async fn authenticate(mut request: Request, next: Next) -> axum::response::Respo
         .get("Authorization")
         .and_then(|h| h.to_str().ok())
     {
-        Some("Bearer ordinary") => Reader(true),
-        Some("Bearer restricted") => Reader(false),
+        Some("Bearer ordinary") => Reader(1),
+        Some("Bearer restricted") => Reader(0),
+        Some("Bearer tool-denied") => Reader(2),
         _ => return StatusCode::UNAUTHORIZED.into_response(),
     };
     request.extensions_mut().insert(reader);
@@ -127,6 +149,7 @@ fn reader(context: &RequestContext<RoleServer>) -> bool {
         .get::<Reader>()
         .unwrap()
         .0
+        == 1
 }
 
 impl ServerHandler for Fixture {
@@ -152,16 +175,33 @@ impl ServerHandler for Fixture {
                     .unwrap()
                     .is_some());
         let result = if request.uri == INDEX {
+            let visible = if self.0.fault.load(Ordering::Relaxed) == REMOVED_ENUMERATED {
+                vec![MEMBER, SECOND]
+            } else {
+                self.0.visible()
+            };
             ReadResourceResult::new(vec![
                 ResourceContents::text(
-                    json!({"items": if permitted {vec![json!({"uri": MEMBER})]} else {vec![]}})
+                    json!({"items": if permitted {visible.iter().map(|uri| json!({"uri": uri})).collect::<Vec<_>>()} else {vec![]}})
                         .to_string(),
                     INDEX,
                 )
                 .with_mime_type("application/json"),
             ])
-        } else if request.uri == MEMBER && permitted {
-            let version = self.0.active.lock().unwrap().version;
+        } else if [MEMBER, SECOND].contains(&request.uri.as_str())
+            && permitted
+            && (self.0.visible().contains(&request.uri.as_str())
+                || self.0.fault.load(Ordering::Relaxed) == REMOVED_READABLE
+                || (self.0.fault.load(Ordering::Relaxed) == CONDITIONAL_LEAK
+                    && knowledge::server::condition(Some(&context.meta))
+                        .unwrap()
+                        .is_some()))
+        {
+            let version = if self.0.removal {
+                1
+            } else {
+                self.0.active.lock().unwrap().version
+            };
             let text = json!({"version": version}).to_string();
             let descriptor = descriptor();
             let observation = Observation::builder(
@@ -173,7 +213,7 @@ impl ServerHandler for Fixture {
             .build(&descriptor)
             .unwrap();
             knowledge::server::member_result(
-                &ResourceUri::new(MEMBER).unwrap(),
+                &ResourceUri::new(request.uri).unwrap(),
                 "application/json",
                 text,
                 observation,
@@ -188,9 +228,29 @@ impl ServerHandler for Fixture {
     }
     async fn call_tool(
         &self,
-        _request: CallToolRequestParams,
+        request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> std::result::Result<CallToolResponse, ErrorData> {
+        let expected = match self.0.route {
+            KnowledgeRoute::Direct => "search",
+            KnowledgeRoute::Gateway => "fixture__search",
+        };
+        if request.name != expected {
+            return Err(ErrorData::invalid_params("incorrect tool namespace", None));
+        }
+        if context
+            .extensions
+            .get::<axum::http::request::Parts>()
+            .unwrap()
+            .extensions
+            .get::<Reader>()
+            .unwrap()
+            .0
+            == 2
+            && self.0.fault.load(Ordering::Relaxed) != LEAK
+        {
+            return Err(ErrorData::invalid_request("tool scope denied", None));
+        }
         let permitted = reader(&context) || self.0.fault.load(Ordering::Relaxed) == LEAK;
         let hits = if permitted {
             vec![
@@ -252,11 +312,15 @@ impl Drop for OwnedListener {
 
 #[tokio::test]
 async fn owner_probes_observe_changes_restart_search_and_denial() -> Result<()> {
-    tokio::time::timeout(Duration::from_secs(45), qualify()).await??;
+    for route in [KnowledgeRoute::Direct, KnowledgeRoute::Gateway] {
+        for removal in [false, true] {
+            tokio::time::timeout(Duration::from_secs(45), qualify(route, removal)).await??;
+        }
+    }
     Ok(())
 }
 
-async fn qualify() -> Result<()> {
+async fn qualify(route: KnowledgeRoute, removal: bool) -> Result<()> {
     let _ = rustls::crypto::ring::default_provider().install_default();
     let state = Arc::new(State {
         active: Mutex::new(Source {
@@ -266,6 +330,8 @@ async fn qualify() -> Result<()> {
         storage: std::env::temp_dir()
             .join(format!("veoveo-knowledge-probe-{}", uuid::Uuid::now_v7())),
         fault: AtomicU8::new(0),
+        route,
+        removal,
     });
     std::fs::write(&state.storage, "1")?;
     let fixture = Fixture(state.clone());
@@ -294,37 +360,15 @@ async fn qualify() -> Result<()> {
             },
         )
         .await?;
-    let profile = HostedServerConformanceProfile {
-        schema_version: HostedServerProfileSchema::V1,
-        profile_id: "knowledge-probes".into(),
-        contract_revision: crate::HOSTED_MCP_CONTRACT_REVISION.into(),
-        endpoint,
-        server_slug: "fixture".into(),
-        owned_resource_schemes: BTreeSet::from(["fixture".into()]),
-        http: HttpBoundaryProfile {
-            require_authentication_rejection: true,
-            rejected_host: None,
-            health_url: None,
-            readiness_url: None,
-            docs_llms_url: format!("http://{address}/docs/llms.txt"),
-        },
-        surfaces: SurfaceProfile {
-            tools: SurfaceExpectation::Required,
-            resources: SurfaceExpectation::Required,
-            resource_templates: SurfaceExpectation::Required,
-            prompts: SurfaceExpectation::Forbidden,
-            completions: SurfaceExpectation::Forbidden,
-            tasks: SurfaceExpectation::Forbidden,
-            subscriptions: SurfaceExpectation::Required,
-            required_tools: BTreeSet::new(),
-            required_resources: BTreeSet::new(),
-            required_resource_templates: BTreeSet::new(),
-            required_prompts: BTreeSet::new(),
-        },
-    };
+    let profile = KnowledgeSourceTarget::new(
+        endpoint.parse()?,
+        "fixture".parse()?,
+        ["fixture".parse()?].into(),
+        route,
+    )?;
     let descriptor = descriptor();
     let mut tool = Tool::new(
-        "search",
+        profile.tool_name(&LocalToolName::new("search")?)?,
         "Search the fixture",
         serde_json::from_value::<rmcp::model::JsonObject>(
             json!({"type": "object", "additionalProperties": false}),
@@ -336,20 +380,32 @@ async fn qualify() -> Result<()> {
         &SearchDeclaration::new(vec![descriptor.collection().clone()])?,
     );
     let descriptors = [descriptor];
-    let tools = [tool];
+    let tools = profile.tools(if removal { vec![] } else { vec![tool] })?;
     let probes = KnowledgeProbes {
-        changes: vec![KnowledgeChangeProbe {
-            collection: descriptors[0].collection().clone(),
-            member: ResourceUri::new(MEMBER)?,
-            driver: state.as_ref(),
+        changes: vec![if removal {
+            KnowledgeChangeProbe::remove(
+                descriptors[0].collection().clone(),
+                [ResourceUri::new(MEMBER)?, ResourceUri::new(SECOND)?],
+                state.as_ref(),
+            )
+        } else {
+            KnowledgeChangeProbe::update(
+                descriptors[0].collection().clone(),
+                ResourceUri::new(MEMBER)?,
+                state.as_ref(),
+            )
         }],
-        searches: vec![KnowledgeSearchProbe {
-            tool: LocalToolName::new("search")?,
-            arguments: Default::default(),
-            expected: BTreeSet::from([ResourceUri::new(MEMBER)?]),
-            restricted_expected: BTreeSet::new(),
-            restricted_credentials: ConformanceCredentials::bearer("restricted"),
-        }],
+        searches: if removal {
+            vec![]
+        } else {
+            vec![KnowledgeSearchProbe {
+                tool: LocalToolName::new("search")?,
+                arguments: Default::default(),
+                expected: BTreeSet::from([ResourceUri::new(MEMBER)?]),
+                restricted: KnowledgeSearchAccess::Results(BTreeSet::new()),
+                restricted_credentials: ConformanceCredentials::bearer("restricted"),
+            }]
+        },
     };
     let mut checks = Vec::new();
     check(
@@ -364,7 +420,7 @@ async fn qualify() -> Result<()> {
     assert!(
         checks
             .iter()
-            .all(|check| check.status == CheckStatus::Failed)
+            .any(|check| check.requirement_id == "K07" && check.status == CheckStatus::Failed)
     );
     checks.clear();
     check(
@@ -380,20 +436,57 @@ async fn qualify() -> Result<()> {
     assert!(
         checks
             .iter()
-            .all(|check| check.status == CheckStatus::Passed),
+            .all(|check| check.status != CheckStatus::Failed),
         "{checks:?}"
     );
     println!("{}", serde_json::to_string(&checks)?);
-    for (fault, requirement) in [
-        (LEAK, "K08"),
-        (BAD_LINK, "K08"),
-        (LOST_STATE, "K07"),
-        (NO_CHANGE, "K07"),
-        (PARTIAL_ACK, "K07"),
-        (CONDITIONAL_LEAK, "K08"),
-        (BASELINE_ONLY, "K07"),
-        (NO_BASELINE, "K07"),
-    ] {
+    if !removal {
+        let denied = KnowledgeSearchProbe {
+            tool: LocalToolName::new("search")?,
+            arguments: Default::default(),
+            expected: [ResourceUri::new(MEMBER)?].into(),
+            restricted_credentials: ConformanceCredentials::bearer("tool-denied"),
+            restricted: KnowledgeSearchAccess::Denied,
+        };
+        let declaration = SearchDeclaration::new(vec![descriptors[0].collection().clone()])?;
+        search(&client, &profile, &descriptors, &declaration, &denied).await?;
+        state.fault.store(LEAK, Ordering::Relaxed);
+        assert!(
+            search(&client, &profile, &descriptors, &declaration, &denied)
+                .await
+                .is_err()
+        );
+        state.fault.store(0, Ordering::Relaxed);
+    }
+    let faults = if removal {
+        vec![
+            (LOST_STATE, "K07"),
+            (NO_CHANGE, "K07"),
+            (PARTIAL_ACK, "K07"),
+            (CONDITIONAL_LEAK, "K07"),
+            (BASELINE_ONLY, "K07"),
+            (NO_BASELINE, "K07"),
+            (REMOVED_READABLE, "K07"),
+            (REMOVED_ENUMERATED, "K07"),
+        ]
+    } else {
+        vec![
+            (LEAK, "K08"),
+            (BAD_LINK, "K08"),
+            (LOST_STATE, "K07"),
+            (NO_CHANGE, "K07"),
+            (PARTIAL_ACK, "K07"),
+            (CONDITIONAL_LEAK, "K08"),
+            (BASELINE_ONLY, "K07"),
+            (NO_BASELINE, "K07"),
+        ]
+    };
+    for (fault, requirement) in faults {
+        *state.active.lock().unwrap() = Source {
+            version: 1,
+            hub: Arc::new(SubscriptionHub::new()),
+        };
+        std::fs::write(&state.storage, "1")?;
         state.fault.store(fault, Ordering::Relaxed);
         checks.clear();
         check(

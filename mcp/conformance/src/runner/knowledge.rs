@@ -1,7 +1,8 @@
 //! Live knowledge-source checks. Declared change and search capabilities require
 //! owner-supplied qualification probes; document collections need neither operation.
 mod probes;
-use super::{CheckResult, Client, HostedServerConformanceProfile, failed, passed, skipped};
+use super::{CheckResult, Client, failed, passed, skipped};
+use crate::KnowledgeSourceTarget;
 use anyhow::{Context, Result, ensure};
 use rmcp::{
     model::{
@@ -21,7 +22,6 @@ use veoveo_mcp_knowledge_extension::{
 };
 use veoveo_types::{
     ResourceScheme, ResourceTemplateUri, ResourceUri, ResourceUriBuilder, ResourceUriParts,
-    ServerSlug,
 };
 
 const PAGE_LIMIT: usize = 100;
@@ -42,7 +42,7 @@ struct MemberLink {
 
 pub(super) async fn check(
     client: &Client,
-    profile: &HostedServerConformanceProfile,
+    profile: &KnowledgeSourceTarget,
     templates: &[ResourceTemplate],
     tools: &[Tool],
     probes: &crate::knowledge_probes::KnowledgeProbes<'_>,
@@ -175,7 +175,7 @@ pub(super) async fn check(
 
 fn descriptors(
     templates: &[ResourceTemplate],
-    profile: &HostedServerConformanceProfile,
+    profile: &KnowledgeSourceTarget,
 ) -> Result<Vec<CollectionDescriptor>> {
     let mut declarations = Vec::new();
     let mut names = BTreeSet::new();
@@ -183,19 +183,15 @@ fn descriptors(
         if let Some(declaration) = knowledge::client::collection(template)? {
             let member_template = ResourceTemplateUri::new(template.uri_template.clone())?;
             ensure!(
-                profile
-                    .owned_resource_schemes
-                    .contains(url::Url::parse(member_template.as_str())?.scheme()),
+                profile.owns_scheme(url::Url::parse(member_template.as_str())?.scheme()),
                 "collection template uses an unowned scheme"
             );
             ensure!(
-                profile
-                    .owned_resource_schemes
-                    .contains(url::Url::parse(declaration.enumerate().as_str())?.scheme()),
+                profile.owns_scheme(url::Url::parse(declaration.enumerate().as_str())?.scheme()),
                 "enumeration uses an unowned scheme"
             );
             ensure!(
-                declaration.collection().server().as_str() == profile.server_slug,
+                declaration.collection().server() == profile.server(),
                 "collection belongs to another server"
             );
             ensure!(
@@ -214,19 +210,17 @@ fn descriptors(
 
 fn valid_docs_descriptor(
     descriptor: &CollectionDescriptor,
-    profile: &HostedServerConformanceProfile,
+    profile: &KnowledgeSourceTarget,
     templates: &[ResourceTemplate],
 ) -> bool {
-    let Ok(server) = ServerSlug::new(&profile.server_slug) else {
-        return false;
-    };
+    let server = profile.server();
     let Ok(enumeration) = url::Url::parse(descriptor.enumerate().as_str()) else {
         return false;
     };
     let Ok(scheme) = ResourceScheme::new(enumeration.scheme()) else {
         return false;
     };
-    descriptor == &knowledge::docs::collection(&server, &scheme)
+    descriptor == &knowledge::docs::collection(server, &scheme)
         && templates.iter().any(|template| {
             template.uri_template == knowledge::docs::member_template(&scheme).as_str()
                 && knowledge::client::collection(template)
@@ -336,7 +330,7 @@ async fn enumerate(client: &Client, descriptor: &CollectionDescriptor) -> Result
 
 async fn check_members(
     client: &Client,
-    profile: &HostedServerConformanceProfile,
+    profile: &KnowledgeSourceTarget,
     descriptor: &CollectionDescriptor,
     members: &[ResourceUri],
 ) -> Result<()> {
@@ -346,9 +340,7 @@ async fn check_members(
         .build()?;
     for uri in members {
         ensure!(
-            profile
-                .owned_resource_schemes
-                .contains(ResourceUriParts::parse(uri.as_str())?.scheme()),
+            profile.owns_scheme(ResourceUriParts::parse(uri.as_str())?.scheme()),
             "enumerated member uses an unowned scheme"
         );
         let result = read(client, uri, None).await?;
@@ -375,7 +367,7 @@ async fn check_members(
             "io.modelcontextprotocol/protocolVersion".into(),
             json!(rmcp::model::ProtocolVersion::V_2026_07_28),
         );
-        let denied = http.post(&profile.endpoint)
+        let denied = http.post(profile.endpoint().clone())
             .header("Accept", "application/json, text/event-stream")
             .header("Mcp-Method", "resources/read")
             .header("Mcp-Name", uri.as_str())

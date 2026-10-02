@@ -42,6 +42,10 @@ leap second assumptions.
 
 - `cargo check -p veoveo-time-mcp`
 - `cargo test -p veoveo-time-mcp`
+- `tests/gateway_source_conformance.rs` supplies two disposable scheduled events to
+  the shared source checker. It cancels one before a Time Deployment restart and one
+  afterwards, then reconciles both to cancelled state. Prerequisites and input fields
+  follow [the installed harness contract](../../testing/installed/DESIGN.md).
 - `cargo test -p veoveo-time-mcp --no-default-features --features contract` checks
   public contract validation and compile-fail examples. Qualify dependency isolation
   with a separately resolved consumer workspace; a workspace-wide build may enable

@@ -51,6 +51,11 @@ these gates. Public types keep their existing domain owners.
 
 - `cargo check -p veoveo-artifact-mcp`
 - `cargo test -p veoveo-artifact-mcp`
+- `tests/gateway_source_conformance.rs` runs public-gateway source conformance with a
+  disposable Artifact, private caller/admin tokens and a previously absent grantee.
+  It restarts the selected Artifact MCP Deployment and always reconciles its grant.
+  Follow [the installed harness contract](../../testing/installed/DESIGN.md).
+  Keep the Artifact grant driver here; derived-source consumers can reuse it.
 - `node --test tests/workbench-pagination.test.mjs` in `apps/console/web` verifies
   headless page navigation behavior; it is not visual or GPU acceptance.
 - Docker is required for SurrealDB backed tests and smoke work (root README,

@@ -71,6 +71,11 @@ Map Explorer App.
 
 - `cargo check -p veoveo-map-mcp`
 - `cargo test -p veoveo-map-mcp`
+- `tests/gateway_source_conformance.rs` supplies authored-member updates, publication
+  removals, a disposable release transition and search scope denial to the shared
+  source checker. It restarts Map and reconciles its selected fixtures. Follow
+  [the installed harness contract](../../testing/installed/DESIGN.md); never select
+  a production routing dataset or layer as a mutation fixture.
 - `cargo test -p veoveo-map-mcp --test coordinate_contract` checks geodetic ID admission
   and schema compatibility.
 - `tests/metadata_contract.rs` covers typed metadata URIs, parent-bound cursor

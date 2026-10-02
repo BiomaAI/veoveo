@@ -55,6 +55,17 @@ features; the independent consumer rejects runtime dependencies. The 0.6B/4B/8B 
 comparison passes on this corpus and retains 0.6B; it does not establish production-wide
 retrieval quality or installed source conformance.
 Store migration 0104 has not been published or deployed.
+The current source-qualification batch adds one shared gateway entry point and
+owner-local fixtures for Artifact, Reason, Map and Time. K07 models both updates and
+membership removal; removal must survive restart and deny full and conditional reads.
+K08 distinguishes a restricted result set from a scope-denied tool, and checks the
+excluded resource reads in both cases. Owners supply typed grant, authoring, release
+and event mutations plus actual Deployment restarts and cleanup. The grouped native
+batch passes 355 tests across the checker and four owners; six installation-dependent
+tests are excluded from that run. Affected all-target/all-feature strict Clippy,
+formatting and 1,041 documentation links pass. None of the four new gateway source
+runs has passed installed acceptance. Cleanup removed 24 superseded test executables
+and recovered 8.9 GiB while preserving current executables and compiler caches.
 Nine native evaluator, corpus and retrieval checks pass. Affected all-target strict
 Clippy, SurrealDB 3.3.0 query validation and documentation links pass.
 The domain corpus and descriptor batch passes 39 source, contract, consumer and corpus

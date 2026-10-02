@@ -141,6 +141,48 @@ async fn qualify() -> anyhow::Result<()> {
             .await?;
     println!("{}", serde_json::to_string(&report)?);
     assert!(report.passed(), "{:#?}", report.checks);
+    // The same source checks run through a combined endpoint without pretending
+    // that its implementation identity is the selected source's identity.
+    for route in [
+        veoveo_mcp_conformance::KnowledgeRoute::Direct,
+        veoveo_mcp_conformance::KnowledgeRoute::Gateway,
+    ] {
+        let target = veoveo_mcp_conformance::KnowledgeSourceTarget::new(
+            endpoint.parse()?,
+            "observatory".parse()?,
+            ["observatory".parse()?].into(),
+            route,
+        )?;
+        let source = veoveo_mcp_conformance::run_knowledge_source_conformance(
+            &target,
+            &ConformanceCredentials::bearer("fixture-read"),
+            &Default::default(),
+        )
+        .await?;
+        assert!(source.passed(), "{:#?}", source.checks);
+        assert!(
+            source
+                .checks
+                .iter()
+                .all(|c| c.requirement_id.starts_with('K'))
+        );
+    }
+    let missing = veoveo_mcp_conformance::KnowledgeSourceTarget::new(
+        endpoint.parse()?,
+        "absent".parse()?,
+        ["absent".parse()?].into(),
+        veoveo_mcp_conformance::KnowledgeRoute::Gateway,
+    )?;
+    let source = veoveo_mcp_conformance::run_knowledge_source_conformance(
+        &missing,
+        &ConformanceCredentials::bearer("fixture-read"),
+        &Default::default(),
+    )
+    .await?;
+    assert!(
+        !source.passed(),
+        "an absent source cannot pass on an empty selection"
+    );
     for id in ["K01", "K02", "K03", "K04", "K05", "K06"] {
         assert!(
             report.checks.iter().any(|check| check.requirement_id == id

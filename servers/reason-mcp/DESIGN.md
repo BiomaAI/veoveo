@@ -521,6 +521,16 @@ revision with a fresh source observation. Repeating it after source and indexer
 restarts checks retained result consumption without rerunning inference. This focused
 query does not establish corpus-wide retrieval quality.
 
+`tests/gateway_source_conformance.rs` runs K01–K08 through the gateway over both finding
+collections and documentation. It reads the selected result summary to derive the
+result Artifact identity, then uses Artifact's owner-supplied grant driver to change
+access without running inference. Each finding collection must notify its member and
+enumeration subscribers, preserve its changed observation across a Reason Deployment
+restart, and deliver a second change after reconnecting. Temporary grants are removed
+after a failed probe or an uncertain response. The
+[installed harness contract](../../testing/installed/DESIGN.md) defines inputs and
+commands. This source check does not establish GPU execution or recipient search access.
+
 The access case requires an initially denied reviewer and an Artifact administrator.
 It grants the reviewer read access only to the result Artifact, checks source and
 search visibility, and verifies that Task control and annotations stay inaccessible.

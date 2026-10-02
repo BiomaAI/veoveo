@@ -2,12 +2,14 @@
 
 pub mod catalog;
 pub mod knowledge_probes;
+mod knowledge_source;
 
 mod profile;
 mod report;
 mod runner;
 mod tool_schema;
 
+pub use knowledge_source::{KnowledgeRoute, KnowledgeSourceTarget};
 pub use profile::{
     HOSTED_MCP_CONTRACT_REVISION, HOSTED_SERVER_PROFILE_SCHEMA, HostedServerConformanceProfile,
     HostedServerProfileSchema, HttpBoundaryProfile, SurfaceExpectation, SurfaceProfile,
@@ -16,6 +18,7 @@ pub use report::{
     CONFORMANCE_REPORT_SCHEMA, CheckResult, CheckStatus, ConformanceReport,
     ConformanceReportSchema, ObservedImplementation,
 };
+pub use runner::run_knowledge_source_conformance;
 pub use runner::{run_hosted_server_conformance, run_hosted_server_conformance_with_probes};
 pub use tool_schema::{SchemaStats, validate_tool_input_schema};
 

@@ -1,4 +1,6 @@
 mod knowledge;
+mod source;
+pub use source::run_knowledge_source_conformance;
 
 use std::collections::BTreeSet;
 
@@ -395,7 +397,7 @@ pub async fn run_hosted_server_conformance_with_probes(
     .await;
     knowledge::check(
         &client,
-        profile,
+        &crate::KnowledgeSourceTarget::try_from(profile)?,
         templates.as_deref().unwrap_or_default(),
         tools.as_deref().unwrap_or_default(),
         probes,

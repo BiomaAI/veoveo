@@ -12,6 +12,10 @@ name = "artifact-mcp"
 path = "src/bin/server.rs"
 required-features = ["mcp"]
 
+[[test]]
+name = "gateway_source_conformance"
+required-features = ["mcp"]
+
 [features]
 default = ["mcp"]
 contract = [
@@ -83,5 +87,9 @@ veoveo-mcp-knowledge-extension = { workspace = true, features = ["contract"], op
 veoveo-platform-store = { path = "../../platform/store", optional = true }
 
 [dev-dependencies]
+veoveo-deploy-contract.workspace = true
+veoveo-mcp-conformance = { path = "../../mcp/conformance" }
+reqwest = { workspace = true, features = ["json"] }
+rmcp = { workspace = true, features = ["client", "transport-streamable-http-client-reqwest"] }
 tempfile = "3"
 tower = { workspace = true, features = ["util"] }

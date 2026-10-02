@@ -211,6 +211,22 @@ async fn certifies_a_domain_without_linking_its_implementation() -> anyhow::Resu
         run_hosted_server_conformance(&profile, &ConformanceCredentials::bearer("test-token"))
             .await?;
     assert!(report.passed(), "{:#?}", report.checks);
+    let source = veoveo_mcp_conformance::run_knowledge_source_conformance(
+        &veoveo_mcp_conformance::KnowledgeSourceTarget::try_from(&profile)?,
+        &ConformanceCredentials::bearer("test-token"),
+        &Default::default(),
+    )
+    .await?;
+    // This hosted fixture intentionally omits the extension. Source-only
+    // qualification must fail instead of succeeding with every K check skipped.
+    assert!(!source.passed());
+    assert!(
+        source
+            .checks
+            .iter()
+            .any(|check| check.requirement_id == "K01"
+                && check.status == veoveo_mcp_conformance::CheckStatus::Failed)
+    );
     assert_eq!(
         report
             .implementation

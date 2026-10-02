@@ -570,6 +570,13 @@ Events do not claim a last-modifying principal because scheduler transitions rec
 no actor. Immutable members attribute creation to their stored owner. Member JSON is
 limited to 64 KiB; calendar creation rejects a larger document before writing it.
 
+`tests/gateway_source_conformance.rs` supplies two future events to the shared MCP
+checker through the public gateway. It cancels one, restarts the Time Deployment,
+then cancels the second. The checker verifies both notification paths, the retained
+cancellation and the unchanged second event across restart. Cleanup reconciles both
+events to cancelled state. Every declared collection needs populated fixtures.
+Inputs and commands follow [the installed harness contract](../../testing/installed/DESIGN.md).
+
 ### Resources
 
 | URI | Content |

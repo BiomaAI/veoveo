@@ -1,7 +1,11 @@
 use super::{CollectionDescriptor, Observation, Result, knowledge, read, text};
+use crate::KnowledgeSourceTarget;
 use crate::{
-    CheckResult, HostedServerConformanceProfile,
-    knowledge_probes::{KnowledgeChangeProbe, KnowledgeProbes, KnowledgeSearchProbe},
+    CheckResult,
+    knowledge_probes::{
+        KnowledgeChange, KnowledgeChangeProbe, KnowledgeProbes, KnowledgeSearchAccess,
+        KnowledgeSearchProbe,
+    },
     runner::{CertificationClient, Client, failed, passed, skipped},
 };
 use anyhow::{Context, ensure};
@@ -30,7 +34,7 @@ mod tests;
 
 pub(super) async fn check(
     client: &Client,
-    profile: &HostedServerConformanceProfile,
+    profile: &KnowledgeSourceTarget,
     descriptors: &[CollectionDescriptor],
     tools: &[Tool],
     probes: &KnowledgeProbes<'_>,
@@ -154,41 +158,125 @@ async fn change(
     probe: &KnowledgeChangeProbe<'_>,
 ) -> Result<()> {
     let enumeration = descriptor.enumerate().expand_scalars(&BTreeMap::new())?;
+    let visible = super::enumerate(client, descriptor).await?;
+    match &probe.change {
+        KnowledgeChange::Update {
+            members: [first, second],
+        } => {
+            ensure!(
+                visible.contains(first) && visible.contains(second),
+                "change fixtures are not enumerated"
+            );
+            let before = observe(client, descriptor, first).await?;
+            let survivor = observe(client, descriptor, second).await?;
+            mutate(client, probe, first, &enumeration).await?;
+            let changed = observe(client, descriptor, first).await?;
+            require_changed(&before, &changed)?;
+            probe
+                .driver
+                .restart()
+                .await
+                .context("owner restart failed")?;
+            let restored = observe(client, descriptor, first).await?;
+            require_same(&changed, &restored)?;
+            let next = if first == second {
+                restored.clone()
+            } else {
+                let next = observe(client, descriptor, second).await?;
+                require_same(&survivor, &next)?;
+                next
+            };
+            mutate(client, probe, second, &enumeration).await?;
+            require_changed(&next, &observe(client, descriptor, second).await?)?;
+            if first != second {
+                require_same(&restored, &observe(client, descriptor, first).await?)?;
+            }
+        }
+        KnowledgeChange::Remove {
+            members: [first, second],
+        } => {
+            ensure!(
+                first != second,
+                "removal requires two distinct fixture members"
+            );
+            ensure!(
+                visible.contains(first) && visible.contains(second),
+                "both removal fixtures must be enumerated before mutation"
+            );
+            let before = observe(client, descriptor, first).await?;
+            let survivor = observe(client, descriptor, second).await?;
+            mutate(client, probe, first, &enumeration).await?;
+            removed(client, descriptor, first, &before).await?;
+            probe
+                .driver
+                .restart()
+                .await
+                .context("owner restart failed")?;
+            removed(client, descriptor, first, &before).await?;
+            require_same(&survivor, &observe(client, descriptor, second).await?)?;
+            mutate(client, probe, second, &enumeration).await?;
+            removed(client, descriptor, second, &survivor).await?;
+            removed(client, descriptor, first, &before).await?;
+        }
+    }
+    Ok(())
+}
+
+fn require_changed(before: &Observation, after: &Observation) -> Result<()> {
     ensure!(
-        super::enumerate(client, descriptor)
-            .await?
-            .contains(&probe.member),
-        "change fixture is not enumerated"
+        before.revision() != after.revision(),
+        "mutation did not change the revision"
     );
-    let before = observe(client, descriptor, &probe.member).await?;
-    let changed = mutate(client, descriptor, probe, &enumeration, &before).await?;
-    // No open listen request is carried across a service restart. Public reads
-    // must work through the same endpoint without cached results.
-    probe
-        .driver
-        .restart()
-        .await
-        .context("owner restart failed")?;
-    let restored = observe(client, descriptor, &probe.member).await?;
     ensure!(
-        restored.revision() == changed.revision()
-            && restored.content_sha256() == changed.content_sha256()
-            && restored.access() == changed.access(),
+        before.content_sha256() != after.content_sha256() || before.access() != after.access(),
+        "mutation did not change text or access"
+    );
+    Ok(())
+}
+
+fn require_same(before: &Observation, after: &Observation) -> Result<()> {
+    ensure!(
+        before.revision() == after.revision()
+            && before.content_sha256() == after.content_sha256()
+            && before.access() == after.access(),
         "restart lost committed member state"
     );
-    mutate(client, descriptor, probe, &enumeration, &restored).await?;
+    Ok(())
+}
+
+async fn removed(
+    client: &Client,
+    descriptor: &CollectionDescriptor,
+    member: &ResourceUri,
+    before: &Observation,
+) -> Result<()> {
+    ensure!(
+        !super::enumerate(client, descriptor).await?.contains(member),
+        "removed member is still enumerated"
+    );
+    denied(client, member, before).await
+}
+
+async fn denied(client: &Client, uri: &ResourceUri, before: &Observation) -> Result<()> {
+    for condition in [None, Some(before.revision())] {
+        match read(client, uri, condition).await {
+            Err(error) if error.downcast_ref::<rmcp::ServiceError>().is_some_and(|error| matches!(error,
+                rmcp::ServiceError::McpError(error) if matches!(error.code,
+                    rmcp::model::ErrorCode::INVALID_REQUEST | rmcp::model::ErrorCode::INVALID_PARAMS))) => {}
+            _ => anyhow::bail!("full/conditional read did not return a protocol denial"),
+        }
+    }
     Ok(())
 }
 
 async fn mutate(
     client: &Client,
-    descriptor: &CollectionDescriptor,
     probe: &KnowledgeChangeProbe<'_>,
+    member: &ResourceUri,
     enumeration: &ResourceUri,
-    before: &Observation,
-) -> Result<Observation> {
+) -> Result<()> {
     let filter = SubscriptionFilter::builder()
-        .resource_subscription(probe.member.as_str())
+        .resource_subscription(member.as_str())
         .resource_subscription(enumeration.as_str())
         .build();
     let mut subscription = client.listen(filter.clone()).await?;
@@ -199,7 +287,7 @@ async fn mutate(
         );
         tokio::time::timeout(
             Duration::from_secs(15),
-            notifications(&mut subscription, &probe.member, enumeration),
+            notifications(&mut subscription, member, enumeration),
         )
         .await
         .context("member/collection observation readiness exceeded 15 seconds")??;
@@ -210,28 +298,19 @@ async fn mutate(
             .context("owner mutation failed")?;
         tokio::time::timeout(
             Duration::from_secs(15),
-            notifications(&mut subscription, &probe.member, enumeration),
+            notifications(&mut subscription, member, enumeration),
         )
         .await
         .context("member/collection change notification exceeded 15 seconds")??;
-        let after = observe(client, descriptor, &probe.member).await?;
-        ensure!(
-            before.revision() != after.revision(),
-            "mutation did not change the revision"
-        );
-        ensure!(
-            before.content_sha256() != after.content_sha256() || before.access() != after.access(),
-            "mutation did not change text or access"
-        );
-        Ok(after)
+        Ok(())
     }
     .await;
     // Explicit cancellation runs on success and failure; SDK Drop cancels if the
     // outer owner deadline interrupts this entire future.
     let cancellation = subscription.cancel().await;
-    let after = result?;
+    result?;
     cancellation?;
-    Ok(after)
+    Ok(())
 }
 
 async fn notifications(
@@ -260,7 +339,7 @@ async fn notifications(
 
 async fn search(
     client: &Client,
-    profile: &HostedServerConformanceProfile,
+    profile: &KnowledgeSourceTarget,
     descriptors: &[CollectionDescriptor],
     declaration: &SearchDeclaration,
     probe: &KnowledgeSearchProbe,
@@ -269,9 +348,13 @@ async fn search(
         !probe.expected.is_empty() && probe.expected.len() <= 100,
         "search fixture requires 1..100 ordinary hits"
     );
+    let restricted_expected = match &probe.restricted {
+        KnowledgeSearchAccess::Results(expected) => expected.clone(),
+        KnowledgeSearchAccess::Denied => BTreeSet::new(),
+    };
     ensure!(
-        probe.restricted_expected.is_subset(&probe.expected)
-            && probe.restricted_expected.len() < probe.expected.len(),
+        restricted_expected.is_subset(&probe.expected)
+            && restricted_expected.len() < probe.expected.len(),
         "search fixture must deny at least one ordinary hit to its restricted reader"
     );
     ensure!(
@@ -284,7 +367,15 @@ async fn search(
             "search names an undeclared collection"
         );
     }
-    search_case(client, descriptors, declaration, probe, &probe.expected).await?;
+    search_case(
+        client,
+        profile,
+        descriptors,
+        declaration,
+        probe,
+        &probe.expected,
+    )
+    .await?;
     let bearer = probe
         .restricted_credentials
         .bearer_token()
@@ -292,7 +383,7 @@ async fn search(
     let restricted = CertificationClient
         .serve_with_lifecycle(
             StreamableHttpClientTransport::from_config(
-                StreamableHttpClientTransportConfig::with_uri(profile.endpoint.clone())
+                StreamableHttpClientTransportConfig::with_uri(profile.endpoint().as_str())
                     .auth_header(bearer),
             ),
             ClientLifecycleMode::Discover {
@@ -302,18 +393,20 @@ async fn search(
         .await
         .context("restricted reader discovery failed")?;
     let result = async {
-        search_case(&restricted, descriptors, declaration, probe, &probe.restricted_expected).await?;
-        for uri in probe.expected.difference(&probe.restricted_expected) {
+        match &probe.restricted {
+            KnowledgeSearchAccess::Results(_) => search_case(&restricted, profile, descriptors, declaration, probe, &restricted_expected).await?,
+            KnowledgeSearchAccess::Denied => {
+                let result = restricted.call_tool(CallToolRequestParams::new(profile.tool_name(&probe.tool)?)
+                    .with_arguments(probe.arguments.clone())).await;
+                ensure!(matches!(result, Err(rmcp::ServiceError::McpError(ref error)) if matches!(error.code,
+                    rmcp::model::ErrorCode::INVALID_REQUEST | rmcp::model::ErrorCode::INVALID_PARAMS)),
+                    "restricted tool did not return a protocol denial");
+            }
+        }
+        for uri in probe.expected.difference(&restricted_expected) {
             let full = read(client, uri, None).await?;
             let observation = knowledge::client::validate_read(&full, uri, None)?.context("ordinary read omitted observation")?;
-            for condition in [None, Some(observation.revision())] {
-                match read(&restricted, uri, condition).await {
-                    Err(error) if error.downcast_ref::<rmcp::ServiceError>().is_some_and(|error| matches!(error,
-                        rmcp::ServiceError::McpError(error) if matches!(error.code,
-                            rmcp::model::ErrorCode::INVALID_REQUEST | rmcp::model::ErrorCode::INVALID_PARAMS))) => {}
-                    _ => anyhow::bail!("restricted full/conditional read did not return a protocol denial"),
-                }
-            }
+            denied(&restricted, uri, &observation).await?;
         }
         Ok(())
     }.await;
@@ -325,6 +418,7 @@ async fn search(
 
 async fn search_case(
     client: &Client,
+    profile: &KnowledgeSourceTarget,
     descriptors: &[CollectionDescriptor],
     declaration: &SearchDeclaration,
     probe: &KnowledgeSearchProbe,
@@ -332,7 +426,7 @@ async fn search_case(
 ) -> Result<()> {
     let result: CallToolResult = client
         .call_tool(
-            CallToolRequestParams::new(probe.tool.as_str().to_owned())
+            CallToolRequestParams::new(profile.tool_name(&probe.tool)?)
                 .with_arguments(probe.arguments.clone()),
         )
         .await?;

@@ -105,15 +105,17 @@ pub async fn certify(driver: &Driver) {
     let probes = KnowledgeProbes {
         changes: FindingCollection::ALL
             .into_iter()
-            .map(|collection| KnowledgeChangeProbe {
-                collection: collection.descriptor().collection().clone(),
-                member: FindingResource::Member {
-                    collection,
-                    analysis: driver.finding.analysis,
-                }
-                .to_uri()
-                .unwrap(),
-                driver,
+            .map(|collection| {
+                KnowledgeChangeProbe::update(
+                    collection.descriptor().collection().clone(),
+                    FindingResource::Member {
+                        collection,
+                        analysis: driver.finding.analysis,
+                    }
+                    .to_uri()
+                    .unwrap(),
+                    driver,
+                )
             })
             .collect(),
         searches: vec![],

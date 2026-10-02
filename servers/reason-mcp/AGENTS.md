@@ -92,6 +92,11 @@ appear in its public MCP identities.
   grant and removes it even when a later assertion fails. Both cases require hardware
   embeddings; they never invoke inference. Input files and commands are described in
   the [reference runbook](../../examples/bioma/README.md#acceptance).
+- `tests/gateway_source_conformance.rs` qualifies both finding collections through the gateway,
+  reusing a completed analysis and Artifact's grant driver. It derives the result
+  Artifact from the admitted finding and restarts only the selected Reason Deployment.
+  Inputs and commands follow [the installed harness contract](../../testing/installed/DESIGN.md).
+  This is source-contract acceptance and performs no inference.
 - The GPU smoke requires an NVIDIA driver compatible with the image's CUDA
   and vLLM build, NVIDIA Container Toolkit, the device plugin, and a world
   model checkpoint in Hugging Face layout loaded into the model cache. The

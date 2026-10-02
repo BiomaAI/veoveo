@@ -12,7 +12,7 @@
 | `veoveo.ai/mcp-conformance-profile/v1` | domain-neutral declaration of applicable hosted-server checks |
 | `veoveo.ai/mcp-conformance-report/v1` | machine-readable implementation identity, capabilities, requirement results, and evidence |
 | `veoveo.ai/hosted-mcp/v3` | Veoveo hosted-server contract revision for MCP `2026-07-28` |
-| `ai.veoveo/knowledge-source` | typed collection declarations, enumeration, observations and conditional document reads; [extension rules](../knowledge-extension/DESIGN.md#server-rules) |
+| `ai.veoveo/knowledge-source` | typed collection declarations, enumeration, observations and conditional member reads; [extension rules](../knowledge-extension/DESIGN.md#server-rules) |
 | `veoveo.ai/live-view/v4` | optional provider-neutral authoritative cameras, typed camera regions in shared encoded products, actor/browser authorization, Annex B H.264 WebSocket fanout, and redaction profile layered on a domain-owned simulation server |
 
 ## Boundary
@@ -96,7 +96,7 @@ Every declared listen collection and search tool requires one owner-supplied pro
 The ordinary runner and CLI fail these checks when a required probe is absent.
 They never select domain mutations or restart commands from server names.
 
-For K07, the owner supplies a populated member, a mutation and a restart operation.
+For K07, the owner supplies populated members, mutations and a restart operation.
 The runner requires acknowledgement of member and collection subscriptions, waits
 for both initial observation invalidations, then performs the mutation. Separate
 notifications and a changed revision prove mutation delivery. It checks that text and access survive the
@@ -106,19 +106,57 @@ actual service or source and preserve only declared persistence. Database recove
 cross-replica delivery and policy cases belong to that owner's harness. Subscription
 handles cancel on failure or timeout, and the owner cleans up its fixture.
 
+`KnowledgeChange::Update` changes the same member twice or uses distinct members
+before and after restart. With distinct members, the second must survive the first
+change and restart unchanged, and the first must preserve its committed state after
+the second change. `KnowledgeChange::Remove` requires two distinct members. Each
+removal must notify both subscriptions, disappear from enumeration and reject full
+and conditional reads. The first removal must survive restart, while the second
+member must remain unchanged until its own removal. This covers immutable
+publications whose parent archive removes their visibility.
+
 For K08, the owner supplies tool arguments, expected hits and a second authenticated
-reader whose expected results are a strict subset. The runner checks the closed
+reader whose expected results are a strict subset, or whose scopes deny the entire
+tool. `KnowledgeSearchAccess` makes that policy expectation explicit. The runner checks the closed
 `SearchResults` envelope, unique links, matching titles and snippets, admitted member
 reads, and full and conditional denial for the excluded resources. Arguments have a
 64 KiB limit; responses have at most 100 hits and 128 KiB. Each probe has 60 seconds.
 Credentials stay outside profiles and reports. HTTP or transport failure cannot count
-as a successful resource denial.
+as a successful resource denial. A denied-tool case still requires full and conditional
+denial for every ordinary hit; a tool error alone cannot establish access enforcement.
 
 The synthetic checker fixture recreates its source from a temporary document and
 qualifies rejection of missing probes, lost state, ineffective mutations, incomplete
 acknowledgements, missing readiness, baseline-only notification streams, missing links,
-search leakage and conditional authorization bypass.
+search leakage, readable or enumerated removed members, and conditional authorization bypass.
 It establishes checker behavior; it does not qualify production Store recovery.
+
+## Source Checks Through A Gateway
+
+`run_knowledge_source_conformance` executes the same K01–K08 checks for one source
+at either its direct endpoint or a gateway. `KnowledgeSourceTarget` requires a checked
+HTTP(S) URL, server slug, nonempty owned-scheme set and `KnowledgeRoute`. Credentials
+and owner callbacks stay separate. This entry point fails K01 when the endpoint
+does not declare the extension.
+
+The gateway route selects collection templates by their declared owner and retains
+duplicates for K01 to reject. It converts checked gateway tool names into source-local
+names for declaration matching, then builds the gateway name when calling a tool.
+Member and collection addresses keep their source-owned schemes. The runner has no
+domain registry or implementation dependencies for this selection.
+
+The result uses the shared report format with a `knowledge-{server}` profile ID and
+the observed endpoint implementation, which may be the gateway. It contains only
+knowledge checks and does not certify the full hosted-server contract. K09/K10
+require owner review. The run has a fifteen-minute deadline, ten-second connection
+timeouts and 65-second HTTP request timeouts, with redirects disabled. The ordinary
+collection and probe limits still apply.
+
+Native fixtures check direct and gateway selection, missing declarations, duplicate
+preservation and gateway tool calls for both ordinary and restricted readers. The
+fault matrix runs under both naming routes. Installed owner harnesses use the
+[shared transport and restart helpers](../../testing/installed/DESIGN.md); their
+workload, mutation, fixture admission and cleanup remain owner decisions.
 
 ## Authoritative Live-View Profile
 

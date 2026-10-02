@@ -35,6 +35,10 @@ required-features = ["contract"]
 name = "mobility_contract"
 required-features = ["contract"]
 
+[[test]]
+name = "gateway_source_conformance"
+required-features = ["mcp"]
+
 [features]
 default = ["mcp"]
 contract = [
@@ -146,6 +150,9 @@ veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
 veoveo-mcp-knowledge-extension = { workspace = true, features = ["contract"], optional = true }
 
 [dev-dependencies]
+veoveo-deploy-contract.workspace = true
+veoveo-mcp-conformance = { path = "../../mcp/conformance" }
+rmcp = { workspace = true, features = ["client", "transport-streamable-http-client-reqwest"] }
 iri-string = { workspace = true }
 tempfile = "3"
 tower = { workspace = true, features = ["util"] }
