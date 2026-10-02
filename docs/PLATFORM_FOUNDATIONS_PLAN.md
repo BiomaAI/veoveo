@@ -20,6 +20,11 @@ file exists. Fourteen reader tests and five video contract/snapshot cases pass, 
 strict all-target Clippy for both crates. These checks select encoded fixture data and
 establish no GPU or installed acceptance. Publish the reader fix and repeat composed
 flight before closing the missing-range or visual/timing gates.
+The Recording, Stream and Reason images publish from `10145561` in 429 seconds.
+Their runnable digests are selected in the reference image lock. BuildKit stops after
+publication; deployment and installed flight qualification follow the native checks.
+Publication metadata is under
+`output/development/foundations-recording-publication-10145561/`.
 
 Computers identity checkpoint (2026-10-02): lifecycle and maintenance APIs carry
 `TaskId` through public receipts, claimed workers, queue cursors, encrypted bindings
