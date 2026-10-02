@@ -62,6 +62,7 @@ class TileCachePolicy(str, Enum):
 class TileStreamingConfig:
     maximum_screen_space_error: float
     maximum_simultaneous_loads: int
+    main_thread_loading_time_limit_ms: float
     maximum_cached_bytes: int
     preload_ancestors: bool
     preload_siblings: bool
@@ -75,6 +76,9 @@ class TileStreamingConfig:
             ),
             maximum_simultaneous_loads=_int(
                 "UAV_SIM_TILE_MAXIMUM_SIMULTANEOUS_LOADS", "20", 1, 64
+            ),
+            main_thread_loading_time_limit_ms=_float(
+                "UAV_SIM_TILE_MAIN_THREAD_LOADING_TIME_LIMIT_MS", "5.0", 0.1, 10.0
             ),
             maximum_cached_bytes=_int(
                 "UAV_SIM_TILE_MAXIMUM_CACHED_BYTES",

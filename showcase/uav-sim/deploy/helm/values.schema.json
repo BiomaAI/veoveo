@@ -183,6 +183,7 @@
           "required": [
             "maximumScreenSpaceError",
             "maximumSimultaneousLoads",
+            "mainThreadLoadingTimeLimitMs",
             "maximumCachedBytes",
             "preloadAncestors",
             "preloadSiblings",
@@ -203,6 +204,11 @@
               "type": "integer",
               "minimum": 67108864,
               "maximum": 17179869184
+            },
+            "mainThreadLoadingTimeLimitMs": {
+              "type": "number",
+              "minimum": 0.1,
+              "maximum": 10
             },
             "preloadAncestors": {"const": true},
             "preloadSiblings": {"const": true},

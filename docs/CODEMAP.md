@@ -1167,6 +1167,7 @@ Simulation live-view ownership:
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera_smoothing.py` | half-life translation/quaternion filtering and reset rules |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_products.py` | one continuous tiled RTX/NVENC product, RTSP receiver, and viewer-independent H.264 ring for the complete logical-camera set |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/operator_health.py` | CUDA, RTX, NVENC, camera-product, frame, and latency evidence |
+| `showcase/uav-sim/runtime/patches/cesium-0.29.0-demand-pools.patch`, `showcase/uav-sim/runtime/tests_native/cesium_pool.cpp` | Cesium GPU resource allocation on demand, retained pool reuse, and native dependency-image qualification |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/runtime_events.py` | retained nonblocking adapter-ready edge before world admission and final-ready edge after visual admission |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/tile_lifecycle.py` | reactive, deduplicated provider generation state derived from native Cesium lifecycle events and render coverage observations, including expired provider-session reset |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/server.py` | simulator-local control boundary for camera and product realization |

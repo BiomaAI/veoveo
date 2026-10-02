@@ -145,7 +145,10 @@ does not create another provider connection or tile cache for live views.
 Moving cameras use hole-free tile refinement. Cesium retains a loaded parent until its
 replacement children are ready, while ancestor and sibling preloading keep the next
 camera footprint warm. The chart admits 20 concurrent tile loads by default and keeps
-the decoded cache bounded. A fast nadir camera therefore sees lower-detail coverage
+the decoded cache bounded. Tile preparation has a five-millisecond main-thread budget
+per frame. A single tile can exceed that soft budget. Geometry, material and texture
+pools start empty and allocate on demand; released objects stay available for reuse.
+A fast nadir camera therefore sees lower-detail coverage
 during refinement instead of the renderer clear color.
 
 The image builds the pinned Cesium Omniverse `0.29.0` source commit and the pinned upstream
@@ -153,7 +156,9 @@ Cesium Native submodule revision in the digest-pinned upstream builder. Two revi
 patches add child-content failure delivery, load generations, query-secret log redaction,
 and a fresh ion endpoint bootstrap for every native tileset generation. Existing
 material, viewport-authority, and vendor-install patches apply to the resulting extension
-package. No runtime download or locally rebuilt installation is accepted.
+package. A third native patch removes speculative pool growth. Its ownership and
+qualification are described in the [server design](../../servers/uav-sim-mcp/DESIGN.md#cesium-resource-preparation).
+No runtime download or locally rebuilt installation is accepted.
 
 Native message-bus events drive streamed-world recovery. A tile-content HTTP 400 marks
 the current provider generation rejected. The runtime keeps its resident geometry and

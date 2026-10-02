@@ -346,6 +346,11 @@ def run(config: RuntimeConfig) -> None:
             ion_server.GetIonServerApplicationIdAttr().Set(413)
             cesium_data = get_or_create_cesium_data()
             cesium_data.GetSelectedIonServerRel().SetTargets([ion_server_path])
+            # Pool objects own GPU resources and RTX material preparation. Allocate
+            # on demand through the patched pool, then keep released objects for reuse.
+            cesium_data.GetDebugGeometryPoolInitialCapacityAttr().Set(0)
+            cesium_data.GetDebugMaterialPoolInitialCapacityAttr().Set(0)
+            cesium_data.GetDebugTexturePoolInitialCapacityAttr().Set(0)
 
             georeference = get_or_create_cesium_georeference()
             georeference.GetGeoreferenceOriginLatitudeAttr().Set(
@@ -379,6 +384,9 @@ def run(config: RuntimeConfig) -> None:
                 )
                 tileset.GetMaximumSimultaneousTileLoadsAttr().Set(
                     config.tile_streaming.maximum_simultaneous_loads
+                )
+                tileset.GetMainThreadLoadingTimeLimitAttr().Set(
+                    config.tile_streaming.main_thread_loading_time_limit_ms
                 )
                 tileset.GetMaximumCachedBytesAttr().Set(
                     config.tile_streaming.maximum_cached_bytes

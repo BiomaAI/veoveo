@@ -1,0 +1,37 @@
+diff --git a/src/core/include/cesium/omniverse/ObjectPool.h b/src/core/include/cesium/omniverse/ObjectPool.h
+--- a/src/core/include/cesium/omniverse/ObjectPool.h
++++ b/src/core/include/cesium/omniverse/ObjectPool.h
+@@ -1,6 +1,7 @@
+ #pragma once
+ 
+ #include <cassert>
++#include <cstdint>
+ #include <memory>
+ #include <queue>
+ 
+@@ -13,12 +14,11 @@
+     virtual ~ObjectPool() = default;
+ 
+     std::shared_ptr<T> acquire() {
+-        const auto percentActive = computePercentActive();
+-
+-        if (percentActive > _doublingThreshold) {
+-            // Capacity is initially 0, so make sure the new capacity is at least 1
+-            const auto newCapacity = std::max(_capacity * 2, uint64_t(1));
+-            setCapacity(newCapacity);
++        if (_queue.empty()) {
++            // These objects allocate GPU resources and dirty RTX materials. Growing
++            // speculatively stalls the render thread even for unused objects.
++            // Reuse released objects and create only the requested missing object.
++            setCapacity(_capacity + 1);
+         }
+ 
+         auto pObject = _queue.front();
+@@ -91,7 +91,6 @@
+     std::deque<std::shared_ptr<T>> _queue;
+     uint64_t _objectId{0};
+     uint64_t _capacity{0};
+-    double _doublingThreshold{0.75};
+ };
+ 
+ } // namespace cesium::omniverse

@@ -549,6 +549,32 @@ This lifecycle can change visual readiness, but it cannot change simulation read
 physics, pose flow, missions, recording publication, or an already active native camera
 product.
 
+## Cesium Resource Preparation
+
+The UAV runtime authors zero initial capacity for Cesium's geometry, material and
+texture pools. Its `cesium-0.29.0-demand-pools.patch` changes `ObjectPool::acquire`
+to create one object only when no released object is available. Released GPU resources
+stay in their existing pools. Creating speculative objects prepares RTX materials even
+when no tile uses them, so pool growth must follow actual tile demand.
+
+The patch applies to Cesium Omniverse `0.29.0` commit
+`c9728dfe481e2aa1b9fe38ca69839f90680ba9b6`; Cesium Native stays at
+`ca0311f25c412b74ad1af9a3636924122cc76156`. The UAV runtime owns this provider patch.
+The dependency-image build compiles and runs `runtime/tests_native/cesium_pool.cpp`
+against the patched header. It checks growth through 8,192 resources, simultaneous
+active and released objects, reuse by identity, and exhaustion of an explicit reserve.
+Installed qualification requires the pinned Isaac/Cesium NVIDIA profile, textured
+camera coverage, unchanged freshness checks and a composed flight. The foundations
+plan records that installed gate until it passes. Retire the patch when an upstream
+release provides demand-driven allocation and passes the same checks; review that
+condition whenever the Cesium pin changes.
+
+Each tileset receives Cesium's `mainThreadLoadingTimeLimit` from the typed runtime
+configuration, defaulting to 5 ms. The limit schedules tile preparation across frames
+but cannot interrupt a single tile or its subsequent RTX update. Existing decoded
+tile caches, hole-free refinement, ancestor/sibling preloading and GPU rendering
+continue to provide resident coverage during loading.
+
 ## Authoritative Operator Cameras
 
 Configured logical cameras are created under `/World/OperatorCameras`. Each camera has a

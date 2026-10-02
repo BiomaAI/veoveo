@@ -73,6 +73,7 @@ world:
   streaming:
     maximumScreenSpaceError: 32
     maximumSimultaneousLoads: 20
+    mainThreadLoadingTimeLimitMs: 5
     maximumCachedBytes: 2147483648
     preloadAncestors: true
     preloadSiblings: true

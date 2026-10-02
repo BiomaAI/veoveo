@@ -11,6 +11,27 @@ Reason grounding and Stream inference. Stream Task/result delivery now passes ac
 installed replicas. Live-session notifications pass through the public Gateway; the
 remaining domain gates are open.
 
+Camera preparation checkpoint (2026-10-02): an isolated native Kit trace at
+`2cca3c33` records a 1,998.9 ms Cesium update followed by a 2,451.6 ms Kit update.
+Inside the latter, 2,048 RTX material updates consume 2,351.8 ms; rendering takes
+about 19 ms. The pinned Cesium implementation preallocates 2,048 objects per GPU
+resource pool and doubles capacity above 75% occupancy. This identifies a concrete
+source of long frames; the diagnostic does not reproduce or close the earlier
+5–6-second flight stall. Profiling overhead also prevents treating these durations
+as normal-runtime acceptance.
+
+The UAV overlay now starts those pools empty and patches acquisition to allocate
+only a requested missing object, preserving released objects for reuse. Each tileset
+gets a 5 ms soft main-thread loading budget; Helm and runtime configuration admit
+0.1–10 ms and reject unlimited loading. The image build runs a native pool check
+against the patched upstream header. The unpatched header fails that check on
+speculative growth. The patched pool check, all 125 runtime tests, six Helm budget
+admission cases, the full `helm-config` check and documentation links pass. Installed
+GPU qualification is pending; camera freshness, textured coverage and playback lag
+gates stay unchanged. The trace and analysis are under
+`output/development/foundations-camera-trace-2cca3c33/`. Temporary profiling commands,
+ConfigMaps and cache files are removed, replica counts restored and the cluster stopped.
+
 Computers construction checkpoint (2026-10-02): `RequestId`, `TemplateId` and
 `ProviderInstanceId` now follow admission, encrypted journals, configuration and
 runtime calls. Store and private protocol adapters perform the UUID/text conversion.

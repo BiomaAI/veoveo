@@ -91,6 +91,8 @@
   value: {{ .root.Values.world.streaming.maximumScreenSpaceError | quote }}
 - name: UAV_SIM_TILE_MAXIMUM_SIMULTANEOUS_LOADS
   value: {{ .root.Values.world.streaming.maximumSimultaneousLoads | quote }}
+- name: UAV_SIM_TILE_MAIN_THREAD_LOADING_TIME_LIMIT_MS
+  value: {{ .root.Values.world.streaming.mainThreadLoadingTimeLimitMs | quote }}
 - name: UAV_SIM_TILE_MAXIMUM_CACHED_BYTES
   value: {{ printf "%.0f" .root.Values.world.streaming.maximumCachedBytes | quote }}
 - name: UAV_SIM_TILE_PRELOAD_ANCESTORS

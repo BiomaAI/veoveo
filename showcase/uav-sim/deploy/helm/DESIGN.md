@@ -47,6 +47,12 @@ without this admission check requires draining both workloads before selecting t
 chart and runtime together. A rejected mismatch leaves the runtime unconfigured; the
 matching companion supplies the normal admission request.
 
+`world.streaming.mainThreadLoadingTimeLimitMs` configures Cesium's per-frame
+main-thread tile preparation budget. The default is 5 ms; admission permits 0.1–10 ms
+and rejects the upstream unlimited value of zero. This is a soft scheduling budget:
+one tile can exceed it. The renderer keeps its camera freshness checks and loaded
+parent coverage while finer tiles wait for a later frame.
+
 After a database reset, the installation publishes its scenario through Frames with
 `uav-world-publish`, then commits the resulting file and digest together. Installed
 acceptance resolves that publication through Frames before starting flight work.

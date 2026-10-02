@@ -742,7 +742,7 @@ target "uav-sim-dependencies" {
   platforms  = ["linux/amd64"]
   target     = "dependencies"
   labels = {
-    "ai.veoveo.build.input-paths" = "Dockerfile.dependencies,patches"
+    "ai.veoveo.build.input-paths" = "Dockerfile.dependencies,patches,tests_native"
   }
   contexts = {
     simulation-runtime = "target:simulation-runtime-payload"

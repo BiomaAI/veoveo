@@ -242,6 +242,7 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(config.tile_cache_policy.value, "persistent")
         self.assertEqual(config.tile_streaming.maximum_screen_space_error, 16.0)
         self.assertEqual(config.tile_streaming.maximum_simultaneous_loads, 20)
+        self.assertEqual(config.tile_streaming.main_thread_loading_time_limit_ms, 5.0)
         self.assertEqual(config.tile_streaming.maximum_cached_bytes, 2_147_483_648)
         self.assertTrue(config.tile_streaming.preload_ancestors)
         self.assertTrue(config.tile_streaming.preload_siblings)
@@ -264,6 +265,21 @@ class RuntimeConfigTests(unittest.TestCase):
         with patch.dict(os.environ, invalid, clear=True):
             with self.assertRaisesRegex(ValueError, "Google Photorealistic 3D Tiles"):
                 RuntimeConfig.from_environment()
+
+    def test_tile_loading_budget_rejects_unlimited_and_nonfinite_values(self) -> None:
+        name = "UAV_SIM_TILE_MAIN_THREAD_LOADING_TIME_LIMIT_MS"
+        for value in ["0", "-1", "0.01", "10.1", "nan", "inf"]:
+            with self.subTest(value=value):
+                with patch.dict(os.environ, {**VALID_ENVIRONMENT, name: value}, clear=True):
+                    with self.assertRaisesRegex(ValueError, name):
+                        RuntimeConfig.from_environment()
+        for value in ["0.1", "2.5", "10"]:
+            with self.subTest(value=value):
+                with patch.dict(os.environ, {**VALID_ENVIRONMENT, name: value}, clear=True):
+                    config = RuntimeConfig.from_environment()
+                self.assertEqual(
+                    config.tile_streaming.main_thread_loading_time_limit_ms, float(value)
+                )
 
     def test_runtime_events_are_typed_and_publish_without_a_consumer(self) -> None:
         publisher = RuntimeEventPublisher()
