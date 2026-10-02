@@ -148,10 +148,11 @@ malformed records. Installed knowledge conformance and mutation/restart qualific
 are tracked in the foundations plan.
 
 `tests/gateway_source_conformance.rs` supplies Map fixtures to the shared MCP checker.
-It changes layer and feature titles, archives two disposable publication parents,
+It changes layer and feature titles, publishes two disposable layers across a restart,
 and activates then rolls back a release in a separate non-routing dataset. The checker
-verifies member and root notifications, state after a Map Deployment restart, and
-full/conditional denial of removed publications. Search qualification uses an
+verifies member and root notifications for updates, collection notifications for
+creation, and committed state after a Map Deployment restart. Created publications
+must appear in enumeration and support full and conditional reads. Search qualification uses an
 authenticated reader without dataset-read authority. Cleanup restores the original
 release pointer and archives the owned layers. Fixture admission, credential files
 and commands follow [the installed harness contract](../../testing/installed/DESIGN.md).

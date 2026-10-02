@@ -9,6 +9,8 @@ use veoveo_mcp_conformance::{knowledge_probes::*, *};
 mod authoring;
 #[path = "../../../testing/installed/knowledge.rs"]
 mod installed;
+#[path = "support/source_publications.rs"]
+mod publications;
 #[path = "support/source_releases.rs"]
 mod releases;
 #[path = "../../../testing/installed/restart.rs"]
@@ -18,26 +20,11 @@ mod tools;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct Publication {
-    layer: FeatureLayerId,
-    publication: LayerPublicationId,
-}
-impl Publication {
-    fn member(&self) -> MapKnowledgeMember {
-        MapKnowledgeMember::Publication {
-            layer: self.layer.clone(),
-            publication: self.publication.clone(),
-        }
-    }
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Input {
     installation: installed::InstalledSource,
     layer: FeatureLayerId,
     feature: MapFeatureId,
-    publications: [Publication; 2],
+    publication_layers: [FeatureLayerId; 2],
     releases: releases::Releases,
     search: SearchLocationsRequest,
     expected: Vec<MapKnowledgeMember>,
@@ -46,7 +33,7 @@ struct Input {
 
 #[tokio::test]
 #[ignore = "requires deployed Map, populated collections, disposable authored/release fixtures, private caller tokens and Kubernetes access"]
-async fn map_sources_conform_through_gateway_across_changes_removal_and_restart() -> Result<()> {
+async fn map_sources_conform_through_gateway_across_changes_creation_and_restart() -> Result<()> {
     run().await
 }
 
@@ -54,9 +41,9 @@ async fn run() -> Result<()> {
     let input: Input = installed::input()?;
     let installation = input.installation.validate()?;
     ensure!(
-        input.publications[0].layer != input.publications[1].layer
-            && input.publications.iter().all(|p| p.layer != input.layer),
-        "Map removal fixtures need distinct layers"
+        input.publication_layers[0] != input.publication_layers[1]
+            && input.publication_layers.iter().all(|id| id != &input.layer),
+        "Map publication fixtures need distinct layers"
     );
     ensure!(
         !input.expected.is_empty()
@@ -89,30 +76,19 @@ async fn run() -> Result<()> {
         },
         restart.clone(),
     );
-    let publications = authoring::Authoring::new(
+    let publications = publications::Publications::new(
         caller.peer().clone(),
-        authoring::Mutation::Publications([
-            input.publications[0].layer.clone(),
-            input.publications[1].layer.clone(),
-        ]),
+        input.publication_layers.clone(),
         restart.clone(),
     );
     for id in [
         &input.layer,
-        &input.publications[0].layer,
-        &input.publications[1].layer,
+        &input.publication_layers[0],
+        &input.publication_layers[1],
     ] {
         ensure!(
             layers.layer(id).await?.archived_at.is_none(),
             "fixture layer is already archived"
-        );
-    }
-    for p in &input.publications {
-        let member: LayerPublication =
-            installed::read(caller.peer(), &p.member().source_uri()).await?;
-        ensure!(
-            member.layer_id == p.layer && member.publication_id == p.publication,
-            "publication fixture identity disagrees"
         );
     }
     let releases =
@@ -148,15 +124,11 @@ async fn run() -> Result<()> {
                 .to_uri(),
                 &features,
             ),
-            KnowledgeChangeProbe::remove(
+            KnowledgeChangeProbe::create(
                 MapKnowledgeCollection::Publications
                     .descriptor()
                     .collection()
                     .clone(),
-                [
-                    input.publications[0].member().to_uri(),
-                    input.publications[1].member().to_uri(),
-                ],
                 &publications,
             ),
             KnowledgeChangeProbe::update(
@@ -198,8 +170,8 @@ async fn run() -> Result<()> {
         let mut authored = Ok(());
         for id in [
             &input.layer,
-            &input.publications[0].layer,
-            &input.publications[1].layer,
+            &input.publication_layers[0],
+            &input.publication_layers[1],
         ] {
             let result = tokio::time::timeout(Duration::from_secs(25), layers.archive(id))
                 .await

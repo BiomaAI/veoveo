@@ -97,6 +97,16 @@ A completed public audit export contains 424 API records, including revision-bea
 knowledge reads for all eighteen collections declared by these four sources. Source
 audit review therefore passes for each collection. Knowledge and unused GPU workloads
 stay stopped during source checks; the cluster is stopped for further development.
+The typed creation probe is implemented and Map now supplies publication creation
+through its owner library types. Each change variant holds its applicable driver;
+creation returns a checked URI without adding domain vocabulary to the checker.
+The checker verifies collection readiness and mutation delivery, new membership,
+full/conditional reads, restart persistence and a distinct second creation. Its
+native matrix exercises update, removal and creation under direct and gateway
+routes, including eleven creation failure modes. All eleven library tests and two
+HTTP/independent-consumer integration tests pass. Strict all-target/all-feature
+Clippy passes for conformance and all four source owners; all four installed
+executables compile. Publication and Map's installed creation case remain open.
 The current source-qualification batch adds one shared gateway entry point and
 owner-local fixtures for Artifact, Reason, Map and Time. K07 models both updates and
 membership removal; removal must survive restart and deny full and conditional reads.
@@ -3569,7 +3579,7 @@ revision.
 | chart | `charts.docs` only | build-time document digests | Docs declaration, observations and conditional reads implemented; installed certification remains open |
 | time | events, calendar versions, epoch versions, acquired and packaged authority releases | stored creation tenant, owner and Work Context; content/access revisions, source digests and modification timestamps | Installed source conformance passes twenty-seven checks across docs and five domain collections, including event cancellation before and after a real service restart; source audit review passes |
 | artifact | artifact metadata (`artifact://metadata/{id}`), never the bytes | compliance metadata: tenant, owner, Work Context, labels, provenance | Installed source conformance passes eleven checks, including grant changes across a real service restart; deadline qualification, K09/K10 review and source audit review pass |
-| map | bounded summaries of feature layers, features, publications, locations, facilities and dataset releases | full source content digests, layer and feature revisions, Work Context, labels, stored timestamps and recorded modifying actors | Installed reads, source audit, search denial and three restart probes pass. Publication creation/restart qualification requires the shared typed creation probe; archival preserves immutable publications and cannot supply a removal fixture |
+| map | bounded summaries of feature layers, features, publications, locations, facilities and dataset releases | full source content digests, layer and feature revisions, Work Context, labels, stored timestamps and recorded modifying actors | Installed reads, source audit, search denial and three restart probes pass. The shared typed creation probe and Map driver pass native qualification; installed publication creation/restart remains open; archival preserves immutable publications and cannot supply a removal fixture |
 
 Acceptance: each server passes K01 through K10 review and conformance, and the audit
 log records the observed revision for reads of each collection.

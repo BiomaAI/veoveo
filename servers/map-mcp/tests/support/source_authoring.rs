@@ -1,6 +1,6 @@
 //! Map-owned mutation recipes. The shared runner owns protocol assertions.
 use crate::{installed, restart::DeploymentRestart, tools};
-use anyhow::{Context, Result, ensure};
+use anyhow::{Result, ensure};
 use rmcp::{Peer, RoleClient};
 use std::sync::{
     Arc,
@@ -16,7 +16,6 @@ pub enum Mutation {
         layer: FeatureLayerId,
         feature: MapFeatureId,
     },
-    Publications([FeatureLayerId; 2]),
 }
 
 pub struct Authoring {
@@ -41,16 +40,7 @@ impl Authoring {
     }
 
     pub async fn layer(&self, id: &FeatureLayerId) -> Result<FeatureLayer> {
-        let layer: FeatureLayer = installed::read(
-            &self.peer,
-            &MapKnowledgeMember::Layer { layer: id.clone() }.source_uri(),
-        )
-        .await?;
-        ensure!(
-            &layer.layer_id == id && layer.title.starts_with("Source conformance "),
-            "Map mutation requires a selected source-conformance layer"
-        );
-        Ok(layer)
+        fixture_layer(&self.peer, id).await
     }
 
     pub async fn archive(&self, id: &FeatureLayerId) -> Result<()> {
@@ -159,10 +149,6 @@ impl KnowledgeChangeDriver for Authoring {
                 Mutation::Feature { layer, feature } => {
                     self.update_feature(layer, feature, step).await?
                 }
-                Mutation::Publications(layers) => {
-                    self.archive(layers.get(step).context("missing removal layer")?)
-                        .await?
-                }
             }
             Ok(())
         })
@@ -177,4 +163,17 @@ pub fn tool(local: &str) -> Result<GatewayToolName> {
         &"map".parse()?,
         &local.parse()?,
     )?)
+}
+
+pub async fn fixture_layer(peer: &Peer<RoleClient>, id: &FeatureLayerId) -> Result<FeatureLayer> {
+    let layer: FeatureLayer = installed::read(
+        peer,
+        &MapKnowledgeMember::Layer { layer: id.clone() }.source_uri(),
+    )
+    .await?;
+    ensure!(
+        &layer.layer_id == id && layer.title.starts_with("Source conformance "),
+        "Map mutation requires a selected source-conformance layer"
+    );
+    Ok(layer)
 }

@@ -91,12 +91,13 @@ policies; domain tests own those cases.
 
 K07 and K08 skip collections without change subscriptions or search declarations.
 Every declared listen collection and search tool requires one owner-supplied probe.
-`knowledge_probes` exposes typed selections and a `KnowledgeChangeDriver` trait;
+`knowledge_probes` exposes typed selections, `KnowledgeChangeDriver` for existing
+members and `KnowledgeCreateDriver` for members assigned an identity on creation;
 `run_hosted_server_conformance_with_probes` executes them in the hosted report.
 The ordinary runner and CLI fail these checks when a required probe is absent.
 They never select domain mutations or restart commands from server names.
 
-For K07, the owner supplies populated members, mutations and a restart operation.
+For K07 updates and removals, the owner supplies populated members, mutations and a restart operation.
 The runner requires acknowledgement of member and collection subscriptions, waits
 for both initial observation invalidations, then performs the mutation. Separate
 notifications and a changed revision prove mutation delivery. It checks that text and access survive the
@@ -112,8 +113,17 @@ change and restart unchanged, and the first must preserve its committed state af
 the second change. `KnowledgeChange::Remove` requires two distinct members. Each
 removal must notify both subscriptions, disappear from enumeration and reject full
 and conditional reads. The first removal must survive restart, while the second
-member must remain unchanged until its own removal. This covers immutable
-publications whose parent archive removes their visibility.
+member must remain unchanged until its own removal.
+
+`KnowledgeChange::Create` subscribes to the collection and waits for its initial
+invalidation before creating a member. The owner returns a typed `ResourceUri`.
+The checker requires a new identity, a separate collection invalidation, enumeration,
+a content-bound observation and a matching conditional read. The same member must
+remain readable and enumerated after restart with unchanged content and access. A
+fresh subscription then observes a second distinct creation, and the first member
+must stay unchanged. Generated member identities need no advance subscription.
+Creation uses the same 90-second deadline and 15-second notification windows.
+Each variant contains its applicable driver, preventing invalid driver selections.
 
 For K08, the owner supplies tool arguments, expected hits and a second authenticated
 reader whose expected results are a strict subset, or whose scopes deny the entire
@@ -129,6 +139,8 @@ The synthetic checker fixture recreates its source from a temporary document and
 qualifies rejection of missing probes, lost state, ineffective mutations, incomplete
 acknowledgements, missing readiness, baseline-only notification streams, missing links,
 search leakage, readable or enumerated removed members, and conditional authorization bypass.
+Creation cases also reject reused identities, missing enumeration, unreadable members,
+content in matching conditional responses, and loss of the first member after the second creation.
 It establishes checker behavior; it does not qualify production Store recovery.
 
 ## Source Checks Through A Gateway

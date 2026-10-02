@@ -3,7 +3,7 @@
 use super::*;
 use crate::{
     CheckStatus, ConformanceCredentials, KnowledgeRoute, KnowledgeSourceTarget,
-    knowledge_probes::{KnowledgeChangeDriver, KnowledgeProbeFuture},
+    knowledge_probes::{KnowledgeChangeDriver, KnowledgeCreateDriver, KnowledgeProbeFuture},
 };
 use axum::{Router, extract::Request, http::StatusCode, middleware::Next, response::IntoResponse};
 use rmcp::{
@@ -31,6 +31,7 @@ use veoveo_types::{LocalToolName, ResourceTemplateUri};
 
 const MEMBER: &str = "fixture://reading/member";
 const SECOND: &str = "fixture://reading/second";
+const THIRD: &str = "fixture://reading/third";
 const INDEX: &str = "fixture://readings";
 const LEAK: u8 = 1;
 const BAD_LINK: u8 = 2;
@@ -42,6 +43,19 @@ const BASELINE_ONLY: u8 = 7;
 const NO_BASELINE: u8 = 8;
 const REMOVED_READABLE: u8 = 9;
 const REMOVED_ENUMERATED: u8 = 10;
+const EXISTING_MEMBER: u8 = 11;
+const CREATED_UNREADABLE: u8 = 12;
+const CREATED_UNENUMERATED: u8 = 13;
+const CREATED_CONDITIONAL_CONTENT: u8 = 14;
+const REUSED_SECOND: u8 = 15;
+const LOST_FIRST_AFTER_SECOND: u8 = 16;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Change {
+    Update,
+    Remove,
+    Create,
+}
 
 fn descriptor() -> CollectionDescriptor {
     CollectionDescriptor::new(
@@ -65,17 +79,26 @@ struct State {
     storage: PathBuf,
     fault: AtomicU8,
     route: KnowledgeRoute,
-    removal: bool,
+    change: Change,
 }
 impl State {
     fn visible(&self) -> Vec<&'static str> {
-        if !self.removal {
-            return vec![MEMBER];
-        }
-        match self.active.lock().unwrap().version {
-            0 | 1 => vec![MEMBER, SECOND],
-            2 => vec![SECOND],
-            _ => vec![],
+        let version = self.active.lock().unwrap().version;
+        match self.change {
+            Change::Update => vec![MEMBER],
+            Change::Remove => match version {
+                0 | 1 => vec![MEMBER, SECOND],
+                2 => vec![SECOND],
+                _ => vec![],
+            },
+            Change::Create => match version {
+                0 | 1 => vec![MEMBER],
+                2 => vec![MEMBER, SECOND],
+                _ if self.fault.load(Ordering::Relaxed) == LOST_FIRST_AFTER_SECOND => {
+                    vec![MEMBER, THIRD]
+                }
+                _ => vec![MEMBER, SECOND, THIRD],
+            },
         }
     }
 }
@@ -89,7 +112,7 @@ impl KnowledgeChangeDriver for State {
         Box::pin(async move {
             let (hub, member) = {
                 let mut source = self.active.lock().unwrap();
-                let member = if self.removal && source.version >= 2 {
+                let member = if self.change == Change::Remove && source.version >= 2 {
                     SECOND
                 } else {
                     MEMBER
@@ -118,6 +141,34 @@ impl KnowledgeChangeDriver for State {
             };
             Ok(())
         })
+    }
+}
+
+impl KnowledgeCreateDriver for State {
+    fn create(&self) -> KnowledgeProbeFuture<'_, ResourceUri> {
+        Box::pin(async move {
+            let (hub, member) = {
+                let mut source = self.active.lock().unwrap();
+                let fault = self.fault.load(Ordering::Relaxed);
+                if fault != NO_CHANGE {
+                    source.version += 1;
+                    std::fs::write(&self.storage, source.version.to_string())?;
+                }
+                let member = if fault == EXISTING_MEMBER {
+                    MEMBER
+                } else if source.version <= 2 || fault == REUSED_SECOND {
+                    SECOND
+                } else {
+                    THIRD
+                };
+                (source.hub.clone(), member)
+            };
+            hub.notify_resource_updated(INDEX).await;
+            ResourceUri::new(member).map_err(Into::into)
+        })
+    }
+    fn restart(&self) -> KnowledgeProbeFuture<'_> {
+        KnowledgeChangeDriver::restart(self)
     }
 }
 
@@ -177,6 +228,8 @@ impl ServerHandler for Fixture {
         let result = if request.uri == INDEX {
             let visible = if self.0.fault.load(Ordering::Relaxed) == REMOVED_ENUMERATED {
                 vec![MEMBER, SECOND]
+            } else if self.0.fault.load(Ordering::Relaxed) == CREATED_UNENUMERATED {
+                vec![MEMBER]
             } else {
                 self.0.visible()
             };
@@ -188,8 +241,10 @@ impl ServerHandler for Fixture {
                 )
                 .with_mime_type("application/json"),
             ])
-        } else if [MEMBER, SECOND].contains(&request.uri.as_str())
+        } else if [MEMBER, SECOND, THIRD].contains(&request.uri.as_str())
             && permitted
+            && !(self.0.fault.load(Ordering::Relaxed) == CREATED_UNREADABLE
+                && request.uri != MEMBER)
             && (self.0.visible().contains(&request.uri.as_str())
                 || self.0.fault.load(Ordering::Relaxed) == REMOVED_READABLE
                 || (self.0.fault.load(Ordering::Relaxed) == CONDITIONAL_LEAK
@@ -197,7 +252,7 @@ impl ServerHandler for Fixture {
                         .unwrap()
                         .is_some()))
         {
-            let version = if self.0.removal {
+            let version = if self.0.change != Change::Update {
                 1
             } else {
                 self.0.active.lock().unwrap().version
@@ -218,7 +273,11 @@ impl ServerHandler for Fixture {
                 text,
                 observation,
                 &descriptor,
-                Some(&context.meta),
+                if self.0.fault.load(Ordering::Relaxed) == CREATED_CONDITIONAL_CONTENT {
+                    None
+                } else {
+                    Some(&context.meta)
+                },
             )
             .unwrap()
         } else {
@@ -313,14 +372,14 @@ impl Drop for OwnedListener {
 #[tokio::test]
 async fn owner_probes_observe_changes_restart_search_and_denial() -> Result<()> {
     for route in [KnowledgeRoute::Direct, KnowledgeRoute::Gateway] {
-        for removal in [false, true] {
-            tokio::time::timeout(Duration::from_secs(45), qualify(route, removal)).await??;
+        for change in [Change::Update, Change::Remove, Change::Create] {
+            tokio::time::timeout(Duration::from_secs(45), qualify(route, change)).await??;
         }
     }
     Ok(())
 }
 
-async fn qualify(route: KnowledgeRoute, removal: bool) -> Result<()> {
+async fn qualify(route: KnowledgeRoute, change: Change) -> Result<()> {
     let _ = rustls::crypto::ring::default_provider().install_default();
     let state = Arc::new(State {
         active: Mutex::new(Source {
@@ -331,7 +390,7 @@ async fn qualify(route: KnowledgeRoute, removal: bool) -> Result<()> {
             .join(format!("veoveo-knowledge-probe-{}", uuid::Uuid::now_v7())),
         fault: AtomicU8::new(0),
         route,
-        removal,
+        change,
     });
     std::fs::write(&state.storage, "1")?;
     let fixture = Fixture(state.clone());
@@ -380,22 +439,28 @@ async fn qualify(route: KnowledgeRoute, removal: bool) -> Result<()> {
         &SearchDeclaration::new(vec![descriptor.collection().clone()])?,
     );
     let descriptors = [descriptor];
-    let tools = profile.tools(if removal { vec![] } else { vec![tool] })?;
+    let tools = profile.tools(if change == Change::Update {
+        vec![tool]
+    } else {
+        vec![]
+    })?;
     let probes = KnowledgeProbes {
-        changes: vec![if removal {
-            KnowledgeChangeProbe::remove(
+        changes: vec![match change {
+            Change::Remove => KnowledgeChangeProbe::remove(
                 descriptors[0].collection().clone(),
                 [ResourceUri::new(MEMBER)?, ResourceUri::new(SECOND)?],
                 state.as_ref(),
-            )
-        } else {
-            KnowledgeChangeProbe::update(
+            ),
+            Change::Update => KnowledgeChangeProbe::update(
                 descriptors[0].collection().clone(),
                 ResourceUri::new(MEMBER)?,
                 state.as_ref(),
-            )
+            ),
+            Change::Create => {
+                KnowledgeChangeProbe::create(descriptors[0].collection().clone(), state.as_ref())
+            }
         }],
-        searches: if removal {
+        searches: if change != Change::Update {
             vec![]
         } else {
             vec![KnowledgeSearchProbe {
@@ -440,7 +505,7 @@ async fn qualify(route: KnowledgeRoute, removal: bool) -> Result<()> {
         "{checks:?}"
     );
     println!("{}", serde_json::to_string(&checks)?);
-    if !removal {
+    if change == Change::Update {
         let denied = KnowledgeSearchProbe {
             tool: LocalToolName::new("search")?,
             arguments: Default::default(),
@@ -458,7 +523,7 @@ async fn qualify(route: KnowledgeRoute, removal: bool) -> Result<()> {
         );
         state.fault.store(0, Ordering::Relaxed);
     }
-    let faults = if removal {
+    let faults = if change == Change::Remove {
         vec![
             (LOST_STATE, "K07"),
             (NO_CHANGE, "K07"),
@@ -468,6 +533,20 @@ async fn qualify(route: KnowledgeRoute, removal: bool) -> Result<()> {
             (NO_BASELINE, "K07"),
             (REMOVED_READABLE, "K07"),
             (REMOVED_ENUMERATED, "K07"),
+        ]
+    } else if change == Change::Create {
+        vec![
+            (LOST_STATE, "K07"),
+            (NO_CHANGE, "K07"),
+            (PARTIAL_ACK, "K07"),
+            (BASELINE_ONLY, "K07"),
+            (NO_BASELINE, "K07"),
+            (EXISTING_MEMBER, "K07"),
+            (CREATED_UNREADABLE, "K07"),
+            (CREATED_UNENUMERATED, "K07"),
+            (CREATED_CONDITIONAL_CONTENT, "K07"),
+            (REUSED_SECOND, "K07"),
+            (LOST_FIRST_AFTER_SECOND, "K07"),
         ]
     } else {
         vec![

@@ -3,8 +3,8 @@ use crate::KnowledgeSourceTarget;
 use crate::{
     CheckResult,
     knowledge_probes::{
-        KnowledgeChange, KnowledgeChangeProbe, KnowledgeProbes, KnowledgeSearchAccess,
-        KnowledgeSearchProbe,
+        KnowledgeChange, KnowledgeChangeDriver, KnowledgeChangeProbe, KnowledgeProbes,
+        KnowledgeSearchAccess, KnowledgeSearchProbe,
     },
     runner::{CertificationClient, Client, failed, passed, skipped},
 };
@@ -27,6 +27,9 @@ use std::{
 };
 use veoveo_mcp_knowledge_extension::{ChangeSignal, SearchDeclaration, SearchResults};
 use veoveo_types::ResourceUri;
+
+#[path = "creation.rs"]
+mod creation;
 
 #[cfg(test)]
 #[path = "probes_tests.rs"]
@@ -162,6 +165,7 @@ async fn change(
     match &probe.change {
         KnowledgeChange::Update {
             members: [first, second],
+            driver,
         } => {
             ensure!(
                 visible.contains(first) && visible.contains(second),
@@ -169,14 +173,10 @@ async fn change(
             );
             let before = observe(client, descriptor, first).await?;
             let survivor = observe(client, descriptor, second).await?;
-            mutate(client, probe, first, &enumeration).await?;
+            mutate(client, *driver, first, &enumeration).await?;
             let changed = observe(client, descriptor, first).await?;
             require_changed(&before, &changed)?;
-            probe
-                .driver
-                .restart()
-                .await
-                .context("owner restart failed")?;
+            driver.restart().await.context("owner restart failed")?;
             let restored = observe(client, descriptor, first).await?;
             require_same(&changed, &restored)?;
             let next = if first == second {
@@ -186,7 +186,7 @@ async fn change(
                 require_same(&survivor, &next)?;
                 next
             };
-            mutate(client, probe, second, &enumeration).await?;
+            mutate(client, *driver, second, &enumeration).await?;
             require_changed(&next, &observe(client, descriptor, second).await?)?;
             if first != second {
                 require_same(&restored, &observe(client, descriptor, first).await?)?;
@@ -194,6 +194,7 @@ async fn change(
         }
         KnowledgeChange::Remove {
             members: [first, second],
+            driver,
         } => {
             ensure!(
                 first != second,
@@ -205,18 +206,17 @@ async fn change(
             );
             let before = observe(client, descriptor, first).await?;
             let survivor = observe(client, descriptor, second).await?;
-            mutate(client, probe, first, &enumeration).await?;
+            mutate(client, *driver, first, &enumeration).await?;
             removed(client, descriptor, first, &before).await?;
-            probe
-                .driver
-                .restart()
-                .await
-                .context("owner restart failed")?;
+            driver.restart().await.context("owner restart failed")?;
             removed(client, descriptor, first, &before).await?;
             require_same(&survivor, &observe(client, descriptor, second).await?)?;
-            mutate(client, probe, second, &enumeration).await?;
+            mutate(client, *driver, second, &enumeration).await?;
             removed(client, descriptor, second, &survivor).await?;
             removed(client, descriptor, first, &before).await?;
+        }
+        KnowledgeChange::Create { driver } => {
+            creation::check(client, descriptor, &enumeration, visible, *driver).await?;
         }
     }
     Ok(())
@@ -271,59 +271,67 @@ async fn denied(client: &Client, uri: &ResourceUri, before: &Observation) -> Res
 
 async fn mutate(
     client: &Client,
-    probe: &KnowledgeChangeProbe<'_>,
+    driver: &dyn KnowledgeChangeDriver,
     member: &ResourceUri,
     enumeration: &ResourceUri,
 ) -> Result<()> {
-    let filter = SubscriptionFilter::builder()
-        .resource_subscription(member.as_str())
-        .resource_subscription(enumeration.as_str())
-        .build();
+    notified(client, &[member, enumeration], async {
+        driver.mutate().await.context("owner mutation failed")
+    })
+    .await
+}
+
+async fn notified<T>(
+    client: &Client,
+    resources: &[&ResourceUri],
+    mutation: impl std::future::Future<Output = Result<T>>,
+) -> Result<T> {
+    let mut filter = SubscriptionFilter::builder();
+    for resource in resources {
+        filter = filter.resource_subscription(resource.as_str());
+    }
+    let filter = filter.build();
     let mut subscription = client.listen(filter.clone()).await?;
     let result = async {
         ensure!(
             subscription.acknowledged() == &filter,
-            "member and collection subscriptions were not both accepted"
+            "requested resource subscriptions were not all accepted"
         );
         tokio::time::timeout(
             Duration::from_secs(15),
-            notifications(&mut subscription, member, enumeration),
+            notifications(&mut subscription, resources),
         )
         .await
-        .context("member/collection observation readiness exceeded 15 seconds")??;
-        probe
-            .driver
-            .mutate()
-            .await
-            .context("owner mutation failed")?;
+        .context("resource observation readiness exceeded 15 seconds")??;
+        let value = mutation.await?;
         tokio::time::timeout(
             Duration::from_secs(15),
-            notifications(&mut subscription, member, enumeration),
+            notifications(&mut subscription, resources),
         )
         .await
-        .context("member/collection change notification exceeded 15 seconds")??;
-        Ok(())
+        .context("resource change notification exceeded 15 seconds")??;
+        Ok(value)
     }
     .await;
     // Explicit cancellation runs on success and failure; SDK Drop cancels if the
     // outer owner deadline interrupts this entire future.
     let cancellation = subscription.cancel().await;
-    result?;
+    let value = result?;
     cancellation?;
-    Ok(())
+    Ok(value)
 }
 
-async fn notifications(
-    subscription: &mut Subscription,
-    member: &ResourceUri,
-    enumeration: &ResourceUri,
-) -> Result<()> {
-    let mut pending = BTreeSet::from([member.as_str(), enumeration.as_str()]);
+async fn notifications(subscription: &mut Subscription, resources: &[&ResourceUri]) -> Result<()> {
+    let requested = resources
+        .iter()
+        .map(|uri| uri.as_str())
+        .collect::<BTreeSet<_>>();
+    let mut pending = requested.clone();
     while let Some(notification) = subscription.next().await? {
         match notification {
             ServerNotification::ResourceUpdatedNotification(value) => {
                 ensure!(
-                    value.params.uri == member.as_str() || value.params.uri == enumeration.as_str(),
+                    requested.contains(value.params.uri.as_str()),
                     "source notified an unrequested resource"
                 );
                 pending.remove(value.params.uri.as_str());

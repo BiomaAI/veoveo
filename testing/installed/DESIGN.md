@@ -58,11 +58,14 @@ start scheduled, remain in the future during qualification, belong to the caller
 and have names beginning `Source conformance `. The fixture cancels one event before
 restart and the other afterwards. Cleanup cancels both and verifies their final state.
 
-Map accepts `layer`, `feature`, two `publications` containing `layer` and `publication`
-IDs, and `releases` containing `dataset`, `original` and `candidate` IDs. The three
+Map accepts `layer`, `feature`, two `publicationLayers` IDs, and `releases` containing
+`dataset`, `original` and `candidate` IDs. The three
 layers must differ and their titles must begin `Source conformance `. The first
-layer contains the mutable feature. Archiving the other two tests publication
-removal. Cleanup archives all three layers through the same version-checked tools.
+layer contains the mutable feature. The publication driver publishes one of the other
+layers before restart and the second afterwards. It dispatches each publication once
+and returns its typed knowledge URI. The shared checker verifies both immutable
+members. Cleanup archives all three layers through the version-checked tools;
+Map preserves the publications of archived layers.
 The releases must form an active/staged pair from one source in a disposable
 non-routing dataset. Its registered source must be an Authority Vector with
 `synthetic_test` authority and a name beginning `Source conformance `. Acquisition
