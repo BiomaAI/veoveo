@@ -287,6 +287,13 @@ document bytes. Building Datasheet through a standalone source archive cannot re
 that hook; this does not qualify standalone archive distribution. Installed acceptance
 of this template batch remains open; existing hosted and docs-source acceptance qualifies
 the earlier image.
+Both Python image consumers publish from `4330024f` in 46 seconds. The reference selects
+Datasheet runnable digest `sha256:f93c39200c511931e30408204143caf907554df4d458fc3865e417460d050bf6`.
+The independent simulation fixture image is also published; it is protocol/packaging
+qualification and supplies no GPU evidence. Unchanged Rust runtime images and chart
+content keep their qualified selections. BuildKit stops before reference rollout;
+installed acceptance of the Python batch and the corrected flight remain open. Native Datasheet
+end-to-end smoke, ten rollout-selection cases and Helm configuration checks pass.
 The current source-qualification batch adds one shared gateway entry point and
 owner-local fixtures for Artifact, Reason, Map and Time. K07 models both updates and
 membership removal; removal must survive restart and deny full and conditional reads.
