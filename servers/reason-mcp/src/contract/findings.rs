@@ -225,3 +225,27 @@ pub struct FindingPage {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub next_cursor: Option<FindingCursor>,
 }
+
+#[cfg(feature = "knowledge")]
+impl FindingCollection {
+    pub fn descriptor(self) -> veoveo_mcp_knowledge_extension::CollectionDescriptor {
+        use veoveo_mcp_knowledge_extension::{
+            AccessModel, ChangeSignal, CollectionDescriptor, Freshness, IndexingMode,
+        };
+        use veoveo_types::ResourceTemplateUri;
+        let (id, entity) = match self {
+            FindingCollection::Analyses => ("reason.analyses", "completed-analysis"),
+            FindingCollection::Results => ("reason.results", "reasoning-result"),
+        };
+        CollectionDescriptor::new(
+            id.parse().expect("Reason collection"),
+            entity.parse().expect("Reason entity"),
+            ResourceTemplateUri::new(self.page_template()).expect("Reason collection template"),
+            Freshness::max_age(300),
+            ChangeSignal::Listen,
+            AccessModel::WorkContext,
+            IndexingMode::Content,
+        )
+        .expect("Reason finding descriptor")
+    }
+}

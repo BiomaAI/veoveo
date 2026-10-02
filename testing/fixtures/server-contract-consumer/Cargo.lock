@@ -1198,6 +1198,19 @@ dependencies = [
  "url",
  "uuid",
  "veoveo-artifact-contract",
+ "veoveo-mcp-knowledge-extension",
+ "veoveo-types",
+]
+
+[[package]]
+name = "veoveo-mcp-knowledge-extension"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sha2",
  "veoveo-types",
 ]
 
@@ -1216,6 +1229,62 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-reason-mcp"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64",
+ "chrono",
+ "schemars",
+ "serde",
+ "serde_json",
+ "uuid",
+ "veoveo-artifact-contract",
+ "veoveo-mcp-knowledge-extension",
+ "veoveo-recording-mcp",
+ "veoveo-recording-video",
+ "veoveo-stream-mcp",
+ "veoveo-types",
+]
+
+[[package]]
+name = "veoveo-recording-contract"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "hex",
+ "schemars",
+ "serde",
+ "serde_json",
+ "url",
+ "uuid",
+ "veoveo-artifact-contract",
+ "veoveo-frames-contract",
+ "veoveo-types",
+]
+
+[[package]]
+name = "veoveo-recording-mcp"
+version = "0.1.0"
+dependencies = [
+ "veoveo-recording-contract",
+]
+
+[[package]]
+name = "veoveo-recording-video"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sha2",
+ "veoveo-recording-contract",
+ "veoveo-types",
+]
+
+[[package]]
 name = "veoveo-server-contract-consumer"
 version = "0.1.0"
 dependencies = [
@@ -1224,6 +1293,7 @@ dependencies = [
  "veoveo-frames-mcp",
  "veoveo-map-mcp",
  "veoveo-media-mcp",
+ "veoveo-reason-mcp",
  "veoveo-speech-mcp",
  "veoveo-timeseries-mcp",
  "veoveo-types",
@@ -1250,6 +1320,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-stream-mcp"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "chrono",
+ "schemars",
+ "serde",
+ "serde_json",
+ "uuid",
+ "veoveo-artifact-contract",
+ "veoveo-recording-mcp",
+ "veoveo-recording-video",
+ "veoveo-types",
+]
+
+[[package]]
 name = "veoveo-timeseries-mcp"
 version = "0.1.0"
 dependencies = [
@@ -1267,6 +1353,7 @@ dependencies = [
 name = "veoveo-types"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "iri-string",
  "percent-encoding",
  "schemars",

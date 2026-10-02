@@ -314,3 +314,45 @@ pub struct MapKnowledgePage {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub next_cursor: Option<MapKnowledgeCursor>,
 }
+
+#[cfg(feature = "knowledge")]
+impl MapKnowledgeCollection {
+    pub fn descriptor(self) -> veoveo_mcp_knowledge_extension::CollectionDescriptor {
+        use veoveo_mcp_knowledge_extension::{
+            AccessModel, ChangeSignal, CollectionDescriptor, Freshness, IndexingMode,
+        };
+        let authored = matches!(self, Self::Layers | Self::Features | Self::Publications);
+        CollectionDescriptor::new(
+            format!("map.{}", self.name())
+                .parse()
+                .expect("Map collection"),
+            match self {
+                Self::Layers => "feature-layer",
+                Self::Features => "feature",
+                Self::Publications => "layer-publication",
+                Self::Locations => "location",
+                Self::Facilities => "facility",
+                Self::Releases => "dataset-release",
+            }
+            .parse()
+            .expect("Map entity kind"),
+            veoveo_types::ResourceTemplateUri::new(self.page_template())
+                .expect("Map page template"),
+            Freshness::max_age(300),
+            // Projection visibility can advance after the catalog activation event.
+            if matches!(self, Self::Locations | Self::Facilities) {
+                ChangeSignal::Revalidate
+            } else {
+                ChangeSignal::Listen
+            },
+            if authored {
+                AccessModel::WorkContext
+            } else {
+                AccessModel::Profile
+            },
+            IndexingMode::Content,
+        )
+        .expect("Map descriptor")
+        .with_required_scopes([self.scope().into()])
+    }
+}

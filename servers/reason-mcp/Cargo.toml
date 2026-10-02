@@ -39,6 +39,7 @@ contract = [
     "dep:veoveo-recording-video",
     "dep:veoveo-stream-mcp",
 ]
+knowledge = ["contract", "dep:veoveo-mcp-knowledge-extension"]
 runtime = [
     "contract",
     "chrono/clock",
@@ -53,6 +54,8 @@ runtime = [
 ]
 mcp = [
     "runtime",
+    "knowledge",
+    "veoveo-mcp-knowledge-extension/mcp",
     "dep:axum",
     "dep:clap",
     "dep:dotenvy",
@@ -66,7 +69,6 @@ mcp = [
     "dep:veoveo-mcp-apps-extension",
     "dep:veoveo-platform-store",
     "dep:veoveo-artifact-mcp",
-    "dep:veoveo-mcp-knowledge-extension",
     "dep:veoveo-recording-reader",
     "dep:veoveo-task-runtime",
 ]
@@ -111,7 +113,7 @@ veoveo-recording-video = { path = "../../platform/recordings/video", default-fea
 veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
 
 veoveo-artifact-mcp = { path = "../artifact-mcp", default-features = false, features = ["knowledge"], optional = true }
-veoveo-mcp-knowledge-extension = { workspace = true, features = ["mcp"], optional = true }
+veoveo-mcp-knowledge-extension = { workspace = true, features = ["contract"], optional = true }
 
 [dev-dependencies]
 veoveo-embedding-contract.workspace = true

@@ -106,9 +106,7 @@ pub async fn certify(driver: &Driver) {
         changes: FindingCollection::ALL
             .into_iter()
             .map(|collection| KnowledgeChangeProbe {
-                collection: veoveo_reason_mcp::knowledge::summary::collection(collection)
-                    .collection()
-                    .clone(),
+                collection: collection.descriptor().collection().clone(),
                 member: FindingResource::Member {
                     collection,
                     analysis: driver.finding.analysis,

@@ -12,10 +12,7 @@ use anyhow::{Result, ensure};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use veoveo_mcp_contract::GatewayInternalIdentity;
-use veoveo_mcp_knowledge_extension::{
-    AccessDescriptor, AccessModel, ChangeSignal, CollectionDescriptor, Freshness, IndexingMode,
-    ModifiedBy, Observation, content_digest,
-};
+use veoveo_mcp_knowledge_extension::{AccessDescriptor, ModifiedBy, Observation, content_digest};
 
 pub const PAGE_SIZE: usize = 100;
 
@@ -30,44 +27,6 @@ pub fn search_declaration() -> veoveo_mcp_knowledge_extension::SearchDeclaration
         .collect(),
     )
     .expect("Map search collections")
-}
-
-impl MapKnowledgeCollection {
-    pub fn descriptor(self) -> CollectionDescriptor {
-        let authored = matches!(self, Self::Layers | Self::Features | Self::Publications);
-        CollectionDescriptor::new(
-            format!("map.{}", self.name())
-                .parse()
-                .expect("Map collection"),
-            match self {
-                Self::Layers => "feature-layer",
-                Self::Features => "feature",
-                Self::Publications => "layer-publication",
-                Self::Locations => "location",
-                Self::Facilities => "facility",
-                Self::Releases => "dataset-release",
-            }
-            .parse()
-            .expect("Map entity kind"),
-            veoveo_types::ResourceTemplateUri::new(self.page_template())
-                .expect("Map page template"),
-            Freshness::max_age(300),
-            // Projection visibility can advance after the catalog activation event.
-            if matches!(self, Self::Locations | Self::Facilities) {
-                ChangeSignal::Revalidate
-            } else {
-                ChangeSignal::Listen
-            },
-            if authored {
-                AccessModel::WorkContext
-            } else {
-                AccessModel::Profile
-            },
-            IndexingMode::Content,
-        )
-        .expect("Map descriptor")
-        .with_required_scopes([self.scope().into()])
-    }
 }
 
 pub struct ObservedMap {

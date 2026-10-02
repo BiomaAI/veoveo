@@ -2,8 +2,13 @@
 //! conformance. Re-observation updates only observedAt within this owned fixture.
 use super::*;
 use chrono::Utc;
+#[path = "retrieval_domains/mod.rs"]
+mod domains;
+pub(super) fn domain_corpus() -> Result<Corpus> {
+    domains::build()
+}
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct Corpus {
     pub registrations: Vec<CollectionRegistration>,
@@ -11,14 +16,14 @@ pub(super) struct Corpus {
     pub cases: Vec<RetrievalCase>,
     pub audience: Audience,
 }
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct Member {
     link: MemberLink,
     text: String,
     observation: Observation,
 }
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct Audience {
     tenant: TenantId,

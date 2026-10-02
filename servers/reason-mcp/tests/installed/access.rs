@@ -309,7 +309,7 @@ async fn wait_search(
     kind: FindingCollection,
     expected: Option<&Revision>,
 ) -> Result<()> {
-    let descriptor = summary::collection(kind);
+    let descriptor = kind.descriptor();
     let collection = KnowledgeResource::Collection(descriptor.collection().clone()).to_uri()?;
     let member = FindingResource::Member {
         collection: kind,

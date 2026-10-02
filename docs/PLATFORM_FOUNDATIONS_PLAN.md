@@ -47,11 +47,17 @@ to a generation, verifies source revisions through SQL-admitted pages and search
 and derives recall at ten from retained ranks. Store appends reports under the immutable
 generation specification and cascades them on reclamation. An isolated RocksDB/CUDA
 benchmark entry point measures a full rebuild with concurrent search and exports the
-generation's evaluation. The representative domain corpus, actual-model runs and
-0.6B/4B/8B comparison remain open; native evaluator checks do not establish retrieval
-quality. This batch adds Store migration 0104 and has not been published or deployed.
+generation's evaluation. The domain corpus now has 153 members in nineteen collections
+and 78 fixed queries, including Spanish paraphrases, across twelve fictional inspection
+scenarios and five actual source designs. Owner contract libraries construct the records
+and addresses. Map and Reason expose descriptors through lightweight `knowledge`
+features; the independent consumer rejects runtime dependencies. Actual-model runs and
+the 0.6B/4B/8B comparison remain open; native checks do not establish retrieval quality.
+Store migration 0104 has not been published or deployed.
 Nine native evaluator, corpus and retrieval checks pass. Affected all-target strict
 Clippy, SurrealDB 3.3.0 query validation and documentation links pass.
+The domain corpus and descriptor batch passes 39 source, contract, consumer and corpus
+checks, affected all-target/all-feature strict Clippy, formatting and documentation links.
 The gateway source adapter discovers approved
 collections and waits for catalog/resource observation readiness before reading.
 The library coordinator qualifies lease renewal, source invalidation, conditional

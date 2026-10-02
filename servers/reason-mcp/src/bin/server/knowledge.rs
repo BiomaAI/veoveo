@@ -138,7 +138,7 @@ pub(super) async fn read(
                     "application/json",
                     text,
                     observation,
-                    &summary::collection(collection),
+                    &collection.descriptor(),
                     Some(&context.meta),
                 )
                 .map_err(invalid_params)

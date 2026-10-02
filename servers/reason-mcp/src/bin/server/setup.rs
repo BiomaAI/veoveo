@@ -171,7 +171,7 @@ fn resource_templates() -> Result<Vec<McpResourceTemplate>, McpSetupError> {
         .with_mime_type("application/json");
         veoveo_mcp_knowledge_extension::server::attach_collection(
             &mut member,
-            &veoveo_reason_mcp::knowledge::summary::collection(collection),
+            &collection.descriptor(),
         );
         templates.push(member);
     }

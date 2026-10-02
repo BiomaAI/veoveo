@@ -14,7 +14,7 @@ use std::{collections::BTreeSet, fs, io::Write, path::PathBuf, time::Duration};
 use veoveo_embedding_contract::EmbeddingText;
 use veoveo_knowledge_mcp::contract::{GenerationId, SearchRequest, SearchResponse};
 use veoveo_mcp_knowledge_extension::{CollectionId, Observation, Revision, client};
-use veoveo_reason_mcp::{contract::*, knowledge::summary};
+use veoveo_reason_mcp::contract::*;
 use veoveo_types::{ResourceAddress, ResourceUri};
 
 #[path = "installed/access.rs"]
@@ -146,7 +146,7 @@ async fn verify(peer: &Peer<RoleClient>, input: &Input) -> Result<Vec<FindingChe
     ensure!(analysis.error.is_none(), "analysis has a recorded failure");
     let mut checks = Vec::new();
     for kind in FindingCollection::ALL {
-        let descriptor = summary::collection(kind);
+        let descriptor = kind.descriptor();
         let member = FindingResource::Member {
             collection: kind,
             analysis: input.analysis,

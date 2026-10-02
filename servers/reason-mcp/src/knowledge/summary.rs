@@ -4,28 +4,7 @@ use crate::contract::*;
 use anyhow::{Result, ensure};
 use chrono::{DateTime, Utc};
 use veoveo_artifact_contract::ArtifactMetadataSnapshot;
-use veoveo_mcp_knowledge_extension::{
-    AccessModel, ChangeSignal, CollectionDescriptor, Freshness, IndexingMode, Observation,
-    content_digest,
-};
-use veoveo_types::ResourceTemplateUri;
-
-pub fn collection(kind: FindingCollection) -> CollectionDescriptor {
-    let (id, entity) = match kind {
-        FindingCollection::Analyses => ("reason.analyses", "completed-analysis"),
-        FindingCollection::Results => ("reason.results", "reasoning-result"),
-    };
-    CollectionDescriptor::new(
-        id.parse().expect("Reason collection"),
-        entity.parse().expect("Reason entity"),
-        ResourceTemplateUri::new(kind.page_template()).expect("Reason collection template"),
-        Freshness::max_age(300),
-        ChangeSignal::Listen,
-        AccessModel::WorkContext,
-        IndexingMode::Content,
-    )
-    .expect("Reason finding descriptor")
-}
+use veoveo_mcp_knowledge_extension::{Observation, content_digest};
 
 /// The caller supplies a SQL-admitted finding and a service-authorized snapshot.
 /// This pure conversion never obtains authority from model output or metadata.
@@ -84,7 +63,7 @@ pub fn summarize(
         finding.updated_at,
         data,
     )?)?;
-    let descriptor = collection(kind);
+    let descriptor = kind.descriptor();
     let revision = content_digest(&serde_json::to_string(&(&text, &access))?);
     let observation = Observation::builder(
         descriptor.collection().clone(),

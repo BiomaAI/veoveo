@@ -65,7 +65,7 @@ fn findings_negotiate_conditions_and_access_changes_without_changing_content() {
         }
         .to_uri()
         .unwrap();
-        let descriptor = summary::collection(kind);
+        let descriptor = kind.descriptor();
         let ordinary = server::member_result(
             &uri,
             "application/json",

@@ -59,7 +59,9 @@ vLLM's own pin.
 ## Library Features
 
 Clients import `veoveo-reason-mcp` with `default-features = false` and
-`features = ["contract"]`. The public `contract` module owns the domain request,
+`features = ["contract"]`. The optional `knowledge` feature exposes
+`FindingCollection::descriptor` without service, database or transport dependencies.
+The public `contract` module owns the domain request,
 response and result models, distinct pipeline, model and analysis identities,
 resource addresses and collection cursors. Video selection and source identity come from the
 [recorded-video library](../../platform/recordings/video/DESIGN.md#library-features)

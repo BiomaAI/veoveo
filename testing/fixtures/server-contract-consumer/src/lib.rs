@@ -17,13 +17,45 @@ pub fn public_requests(id: ArtifactId) -> (ArtifactReference, Action, Transcribe
 mod tests {
     use super::*;
     #[test]
+    #[cfg(feature = "knowledge")]
+    fn source_descriptors_are_available_without_hosted_dependencies() {
+        use veoveo_map_mcp::contract::MapKnowledgeCollection;
+        use veoveo_reason_mcp::contract::FindingCollection;
+        for collection in MapKnowledgeCollection::ALL {
+            let descriptor = collection.descriptor();
+            assert!(
+                descriptor
+                    .required_scopes()
+                    .contains(&collection.scope().into())
+            );
+        }
+        for collection in FindingCollection::ALL {
+            assert!(collection.descriptor().required_scopes().is_empty());
+        }
+    }
+
+    #[test]
     fn map_knowledge_addresses_are_available_without_runtime_dependencies() {
-        use veoveo_map_mcp::contract::{FeatureLayerId, MapFeatureId, MapKnowledgeCollection, MapKnowledgeCursor, MapKnowledgeMember, MapKnowledgePageUri};
-        let member = MapKnowledgeMember::Feature { layer: FeatureLayerId::new(), feature: MapFeatureId::new() };
-        assert_eq!(MapKnowledgeMember::parse(member.to_uri().as_str()).unwrap(), member);
+        use veoveo_map_mcp::contract::{
+            FeatureLayerId, MapFeatureId, MapKnowledgeCollection, MapKnowledgeCursor,
+            MapKnowledgeMember, MapKnowledgePageUri,
+        };
+        let member = MapKnowledgeMember::Feature {
+            layer: FeatureLayerId::new(),
+            feature: MapFeatureId::new(),
+        };
+        assert_eq!(
+            MapKnowledgeMember::parse(member.to_uri().as_str()).unwrap(),
+            member
+        );
         assert_ne!(member.source_uri(), member.to_uri());
-        let page = MapKnowledgePageUri::new(MapKnowledgeCollection::Features).with_cursor(MapKnowledgeCursor::after(member)).unwrap();
-        assert_eq!(MapKnowledgePageUri::parse(page.to_uri().as_str()).unwrap(), page);
+        let page = MapKnowledgePageUri::new(MapKnowledgeCollection::Features)
+            .with_cursor(MapKnowledgeCursor::after(member))
+            .unwrap();
+        assert_eq!(
+            MapKnowledgePageUri::parse(page.to_uri().as_str()).unwrap(),
+            page
+        );
     }
 
     use veoveo_artifact_mcp::contract::ArtifactResource;
@@ -130,7 +162,8 @@ mod tests {
 
     #[test]
     fn resolved_graph_contains_only_public_contracts() {
-        let output = std::process::Command::new("timeout")
+        let mut command = std::process::Command::new("timeout");
+        command
             .args([
                 "30s",
                 env!("CARGO"),
@@ -147,9 +180,11 @@ mod tests {
                 "none",
                 "--format",
                 "{p} features={f}",
-            ])
-            .output()
-            .unwrap();
+            ]);
+        if cfg!(feature = "knowledge") {
+            command.args(["--features", "knowledge"]);
+        }
+        let output = command.output().unwrap();
         assert!(
             output.status.success(),
             "{}",
@@ -167,6 +202,9 @@ mod tests {
                 "veoveo-media-mcp",
                 "veoveo-map-mcp",
                 "veoveo-duckdb-mcp",
+                "veoveo-reason-mcp",
+                "veoveo-stream-mcp",
+                "veoveo-recording-mcp",
             ]
             .contains(&name)
             {
@@ -176,7 +214,15 @@ mod tests {
                         .1
                         .split_whitespace()
                         .next(),
-                    Some("contract")
+                    Some(
+                        if cfg!(feature = "knowledge")
+                            && ["veoveo-map-mcp", "veoveo-reason-mcp"].contains(&name)
+                        {
+                            "contract,knowledge"
+                        } else {
+                            "contract"
+                        }
+                    )
                 );
             }
             assert!(
@@ -195,6 +241,13 @@ mod tests {
                         "veoveo-frames-contract",
                         "veoveo-map-mcp",
                         "veoveo-duckdb-mcp",
+                        "veoveo-reason-mcp",
+                        "veoveo-stream-mcp",
+                        "veoveo-recording-mcp",
+                        "veoveo-recording-contract",
+                        "veoveo-recording-video",
+                        "veoveo-mcp-knowledge-extension",
+                        "veoveo-mcp-knowledge-macros",
                         "veoveo-types"
                     ]
                     .contains(&name),

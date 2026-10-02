@@ -7,7 +7,11 @@ publish = false
 [workspace]
 resolver = "3"
 
+[features]
+knowledge = ["veoveo-map-mcp/knowledge", "dep:veoveo-reason-mcp"]
+
 [dependencies]
+veoveo-reason-mcp = { path = "../../../servers/reason-mcp", default-features = false, features = ["knowledge"], optional = true }
 veoveo-map-mcp = { path = "../../../servers/map-mcp", default-features = false, features = ["contract"] }
 veoveo-artifact-mcp = { path = "../../../servers/artifact-mcp", default-features = false, features = ["contract"] }
 veoveo-computers-mcp = { path = "../../../servers/computers-mcp", default-features = false, features = ["contract"] }

@@ -5,6 +5,8 @@
 Cargo resolver 3 selects Artifact, Computers, Speech, Frames, Timeseries and Media libraries with default
 features disabled and `contract` enabled. The fixture calls their public Rust APIs;
 it implements no transport or installed service protocol.
+Its `knowledge` feature also consumes Map and Reason collection descriptors through
+their lightweight knowledge features.
 
 ## Ownership And Qualification
 
@@ -19,6 +21,7 @@ Run the isolated checks with one shared build directory:
 
 ```sh
 cargo test --locked --offline --manifest-path testing/fixtures/server-contract-consumer/Cargo.toml --target-dir target
+cargo test --locked --offline --manifest-path testing/fixtures/server-contract-consumer/Cargo.toml --target-dir target --features knowledge
 ```
 
 The checks require the qualified Rust toolchain and fetched dependencies. They perform

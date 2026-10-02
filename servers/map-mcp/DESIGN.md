@@ -109,7 +109,8 @@ Map publishes `map.layers`, `map.features`, `map.publications`, `map.locations`,
 `map.facilities` and `map.releases`. Each collection enumerates up to 100 summary
 links through `map://knowledge/{collection}{?cursor}`. Map owns the collection enum,
 member addresses and collection-bound cursors in `contract/knowledge.rs`; consumers
-can use those types with the public `contract` feature. Link titles contain at most
+can use those types with the public `contract` feature. The `knowledge` feature adds
+collection descriptors without the server runtime. Link titles contain at most
 128 bytes after JSON escaping, keeping 100-item pages within the response budget.
 
 Summary resources append `/knowledge` to the full resource address. Each JSON document
@@ -179,7 +180,7 @@ and retained-data handling. These types confer no access to bytes or parent reco
 Retained Map documents must also pass their domain validators before an upgrade;
 these enforce the neutral-only rule beyond the shared Artifact address profile.
 
-The library exposes `contract`, `runtime`, and `mcp` features. Cross-server consumers
+The library exposes `contract`, `knowledge`, `runtime`, and `mcp` features. Cross-server consumers
 use `default-features = false, features = ["contract"]`. This builds the public model,
 including CRS, datum, and ellipsoid IDs, without MCP, database, GPU, network client,
 or async runtime dependencies. Geometry validation uses the workspace's geo 0.32.0

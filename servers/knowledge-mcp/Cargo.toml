@@ -40,6 +40,11 @@ tokio = { workspace = true, features = ["time"], optional = true }
 thiserror = { workspace = true, optional = true }
 
 [dev-dependencies]
+veoveo-map-mcp = { path = "../map-mcp", default-features = false, features = ["knowledge"] }
+veoveo-time-mcp = { path = "../time-mcp", default-features = false, features = ["contract"] }
+veoveo-reason-mcp = { path = "../reason-mcp", default-features = false, features = ["knowledge"] }
+veoveo-artifact-mcp = { path = "../artifact-mcp", default-features = false, features = ["knowledge"] }
+veoveo-artifact-contract.workspace = true
 veoveo-mcp-conformance = { path = "../../mcp/conformance" }
 tokio-util = { workspace = true, features = ["rt"] }
 base64.workspace = true

@@ -21,6 +21,26 @@ the measurements. Source conformance and installed retrieval have separate harne
 
 ## Inputs
 
+The repository's domain corpus uses twelve fictional inspection scenarios in
+[`scenarios.json`](scenarios.json). Owner contract libraries serialize 153 members
+across nineteen collections. Its 78 judgments cover English and Spanish paraphrases,
+stored-output discovery, temporal records, Map catalog roles and five actual design
+documents. Every query searches the whole corpus. The narratives and judgments are
+fixed before model execution; the fixture does not establish the truth of any
+inspection finding or qualify a live source server. Map summary source digests identify
+the scenario seeds. Reason findings use explicitly fictional model and prompt identities.
+
+Generate equivalent configurations for all three pinned model checkpoints:
+
+```sh
+VEOVEO_RETRIEVAL_FIXTURE_DIR=/absolute/new/configuration-directory \
+  cargo test -p veoveo-knowledge-mcp --test gpu_retrieval \
+  write_domain_comparison_configurations -- --ignored --exact --nocapture
+```
+
+The writer refuses existing files. The source corpus includes the current owning
+design documents, so document edits produce a new comparison fingerprint.
+
 `VEOVEO_RETRIEVAL_INPUT` names an absolute JSON path. Its closed configuration has
 `space`, `queryTask`, `chunking`, and `corpus` fields. `space` is the shared
 `EmbeddingSpace`; `chunking` uses `ChunkSettings`. Use the reference installation's

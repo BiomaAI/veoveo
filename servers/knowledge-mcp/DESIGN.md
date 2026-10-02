@@ -386,6 +386,13 @@ a model comparison. The complete operation has a thirty-minute deadline and owns
 database cleanup. Its private JSON output is create-only and contains no credentials.
 See [the evaluation runbook](evaluation/README.md) for configuration and commands.
 
+The repository corpus serializes twelve fictional inspection scenarios through Map,
+Artifact, Time and Reason contract libraries. It includes 153 members across nineteen
+collections and 78 judged queries, including Spanish paraphrases. Five members contain
+the source servers' actual design text. All queries search the complete corpus;
+relevance judgments are fixed before running a model. This workload compares retrieval
+on controlled domain examples and does not establish production-wide search quality.
+
 ## Search
 
 `search` is a direct tool. Its input takes a query, optional collections and entity

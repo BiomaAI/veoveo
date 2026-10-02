@@ -51,8 +51,9 @@ contract = [
     "dep:veoveo-artifact-contract",
     "dep:veoveo-types",
 ]
+knowledge = ["contract", "dep:veoveo-mcp-knowledge-extension"]
 runtime = [
-    "contract",
+    "knowledge",
     "chrono/clock",
     "dep:anyhow",
     "dep:base64",
@@ -78,7 +79,6 @@ runtime = [
     "dep:veoveo-artifact-client",
     "dep:veoveo-duckdb-runtime",
     "dep:veoveo-mcp-contract",
-    "dep:veoveo-mcp-knowledge-extension",
     "dep:veoveo-platform-store",
     "dep:veoveo-task-runtime",
 ]

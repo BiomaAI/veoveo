@@ -104,7 +104,7 @@ Component designs live beside the code whose contract they specify:
 | [`mcp/knowledge-extension/DESIGN.md`](../mcp/knowledge-extension/DESIGN.md) | `ai.veoveo/knowledge-source` typed extension: collection descriptors, read observations, conditional reads, docs paging and build digests; hosted integration and K01–K10 adoption are in progress |
 | [`servers/knowledge-mcp/DESIGN.md`](../servers/knowledge-mcp/DESIGN.md) | Knowledge-owned scopes/routes and contract-only library; source-byte chunking, fenced coordinator/reconciliation, SQL hybrid retrieval, authenticated tools/catalog, completion and catalog observation, gateway source listeners, machine indexing workers and Helm packaging |
 | [`platform/knowledge/contract/DESIGN.md`](../platform/knowledge/contract/DESIGN.md) | knowledge-owned collection approvals, generation identities/specifications, checked retrieval datasets and measurements, caller-visible statistics and source-bound chunks shared below Store and the MCP service |
-| [`servers/knowledge-mcp/evaluation/README.md`](../servers/knowledge-mcp/evaluation/README.md) | judged corpus input and isolated CUDA retrieval/rebuild measurement through the production indexer and search library |
+| [`servers/knowledge-mcp/evaluation/README.md`](../servers/knowledge-mcp/evaluation/README.md) | judged corpus input and isolated CUDA retrieval/rebuild measurement through the production indexer and search library; `tests/support/retrieval_domains/` serializes fictional scenarios through source-owner contracts |
 | [`platform/runtimes/embedding/contract/DESIGN.md`](../platform/runtimes/embedding/contract/DESIGN.md) | transport-independent embedding spaces, checked dimensions and normalized vectors |
 | [`platform/store/src/knowledge/DESIGN.md`](../platform/store/src/knowledge/DESIGN.md) | catalog compare-and-set, generation-specific BM25/HNSW tables, fenced source reads, coverage, activation, source-policy SQL admission with selected-context and record/grant deadlines through `admission.rs`, and reclamation |
 | [`MAP_APP_INTEGRATION.md`](MAP_APP_INTEGRATION.md) | consumer guide for using Map MCP resources and the reusable Map App from another MCP server |
@@ -897,7 +897,8 @@ composition contracts. `src/contract/transfers.rs` owns durable import, export, 
 vector-product task contracts. `src/contract/metadata.rs` owns typed metadata addresses,
 page envelopes, and parent-bound cursors through the shared URI builder.
 `src/contract/knowledge.rs` and `knowledge_summary.rs` own six collection addresses,
-keysets and bounded summary types. `src/knowledge/` builds observations, selects authored
+keysets and bounded summary types. The `knowledge` feature exposes their collection
+descriptors without service dependencies. `src/knowledge/` builds observations, selects authored
 members with their current layer policy in SQL, and reads geographic pages through
 DuckDB. `src/mcp/knowledge.rs` owns conditional summary reads. Its native tests live in
 `src/knowledge/tests.rs`. MCP discovery and App contract checks live in
@@ -1299,7 +1300,7 @@ depend on Recording Hub.
 | `src/grounding.rs`, `tests/contract/grounding.rs` | contract-only consumption of Stream's complete replay model, matching video selection and extraction of selected track citations |
 | `src/annotation.rs` | derived Rerun provenance and event annotation layers |
 | `src/artifacts.rs` | shared artifact-plane adapter |
-| `src/contract/findings.rs`, `finding_data.rs`, `finding_summary.rs`, `artifact_provenance.rs` | collection-bound finding cursors and addresses, bounded findings retained at publication, summaries and shared publication/read provenance through the isolated contract feature |
+| `src/contract/findings.rs`, `finding_data.rs`, `finding_summary.rs`, `artifact_provenance.rs` | collection-bound finding cursors and addresses, bounded findings retained at publication, summaries and shared publication/read provenance through the isolated contract feature; `knowledge` adds collection descriptors without service dependencies |
 | `src/knowledge.rs`, `src/knowledge/`, `tests/knowledge.rs`, `tests/finding_summaries.rs` | Artifact-admitted finding SQL, observations, complete-collection fingerprints and Store change observation; native access and conditional-read qualification |
 | `src/bin/server/knowledge.rs`, `subscriptions.rs` | source-authorized finding reads and combined Task/finding subscriptions with current SQL fingerprints and expiry deadlines |
 | `src/bin/server/host.rs`, `hosted_tests/` | production HTTP composition and native signed-identity qualification with the real Artifact service, source restart probes and grant revocation/expiry |
@@ -1477,7 +1478,7 @@ dispatch preflights and budgeted execution.
 | `mcp/conformance` | `knowledge_probes.rs` supplies owner callbacks and typed search fixtures to live K07/K08 checks; reusable domain-neutral MCP certification library, thin CLI, schemas, profiles, authenticated same-origin well-known-surface checks, live declaration binding, and standalone image |
 | `testing/fixtures/store.rs`, `store/container.rs`, `connection_switch.rs` | owned disposable database setup, committed-row replay, cancellable Docker subprocesses and acknowledged TCP connection loss for native recovery tests; `platform/store/tests/fixture_lifecycle.rs` owns CLI lifecycle fault injection |
 | [`testing/fixtures/modular-mcp/`](../testing/fixtures/modular-mcp/DESIGN.md) | independent scope/resource library with isolated contract and MCP features; `mcp/conformance/tests/modular_server.rs` owns hosted qualification and fixture cleanup |
-| [`testing/fixtures/server-contract-consumer/`](../testing/fixtures/server-contract-consumer/DESIGN.md) | independently resolved Artifact, Computers, Speech, Frames, Timeseries and Media library consumer; rejects service dependencies in their contract features |
+| [`testing/fixtures/server-contract-consumer/`](../testing/fixtures/server-contract-consumer/DESIGN.md) | independently resolved Artifact, Computers, Speech, Frames, Timeseries, Media and Map library consumer; optional Map/Reason knowledge descriptors; rejects service dependencies in both feature profiles |
 | `testing/flight-smoke/` | [focused composed-flight harness](../testing/flight-smoke/DESIGN.md), with server-owned wire types and client-only dependency closure |
 | `testing/browser-smoke/src/cli.rs` and `main.rs` | installation-selected browser acceptance arguments and scenario dispatch; `support.rs` reuses the shared installed-target loader; `browser.rs` owns headed hardware checks and browser assertions shared with flight acceptance |
 | `testing/smoke/src/bin/smoke.rs` | smoke command dispatcher and digest-addressed simulation certification entrypoint |

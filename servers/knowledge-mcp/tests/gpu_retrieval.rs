@@ -26,13 +26,76 @@ mod corpus;
 #[path = "../../../testing/fixtures/store.rs"]
 mod fixture;
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Configuration {
     space: EmbeddingSpace,
     query_task: EmbeddingTask,
     chunking: ChunkSettings,
     corpus: corpus::Corpus,
+}
+
+#[test]
+#[ignore = "writes three model configurations to VEOVEO_RETRIEVAL_FIXTURE_DIR"]
+fn write_domain_comparison_configurations() {
+    let directory = PathBuf::from(
+        std::env::var("VEOVEO_RETRIEVAL_FIXTURE_DIR").expect("set VEOVEO_RETRIEVAL_FIXTURE_DIR"),
+    );
+    assert!(
+        directory.is_absolute(),
+        "fixture directory must be absolute"
+    );
+    std::fs::create_dir_all(&directory).unwrap();
+    let corpus = corpus::domain_corpus().unwrap();
+    for (name, revision, dimension) in [
+        (
+            "qwen3-embedding-0.6b",
+            "97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3",
+            1024,
+        ),
+        (
+            "qwen3-embedding-4b",
+            "5cf2132abc99cad020ac570b19d031efec650f2b",
+            2560,
+        ),
+        (
+            "qwen3-embedding-8b",
+            "1d8ad4ca9b3dd8059ad90a75d4983776a23d44af",
+            4096,
+        ),
+    ] {
+        let config = Configuration {
+            space: EmbeddingSpace {
+                model: EmbeddingModelId::new(name).unwrap(),
+                revision: EmbeddingModelRevision::new(revision).unwrap(),
+                dimension: EmbeddingDimension::new(dimension).unwrap(),
+                runtime_image:
+                    "sha256:8a69ffad015f138d7170c4ddc429e230a3bc1c1719f67e14324749df200a4b90"
+                        .parse()
+                        .unwrap(),
+            },
+            query_task: EmbeddingTask::new(
+                "Given a web search query, retrieve relevant passages that answer the query",
+            )
+            .unwrap(),
+            chunking: ChunkSettings::new("structure-v1", 1500, 150).unwrap(),
+            corpus: corpus.clone(),
+        };
+        let path = directory.join(format!("{name}.json"));
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(path)
+            .unwrap();
+        file.write_all(&serde_json::to_vec_pretty(&config).unwrap())
+            .unwrap();
+        file.sync_all().unwrap();
+    }
+    println!(
+        "{}",
+        serde_json::json!({"directory":directory,"datasetRevision":corpus.dataset().unwrap().revision(),"sourceCorpusRevision":corpus.revision(),"members":corpus.members.len(),"cases":corpus.cases.len()})
+    );
 }
 
 struct CountedEmbeddings {

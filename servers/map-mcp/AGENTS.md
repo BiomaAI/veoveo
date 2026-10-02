@@ -59,6 +59,8 @@ Map Explorer App.
   Keep geometry and unbounded property data in the full resources. Authoring summaries
   require membership in the selected Work Context; ownership grants no shortcut.
   Collection scopes come from `MapScope`, and SQL applies access before decoding or limits.
+  The `knowledge` library feature exposes those collection descriptors above `contract`
+  without requiring MCP transport, Store or the analytical runtime.
 - Domain profile pins (DESIGN.md, Standards And Protocols): GeoJSON RFC 7946,
   OGC JSON-FG 1.0, RFC 8142 text sequences, OGC GeoPackage 1.4, Basic
   CQL2-JSON from OGC CQL2 1.0, GeoParquet 1.0.0, Mapbox Vector Tile 2.1,

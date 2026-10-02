@@ -72,6 +72,8 @@ appear in its public MCP identities.
   Keep its dependencies free of MCP, Store, Rerun and runtime execution. `runtime`
   supplies domain execution; `mcp` adds hosted transport and is the default.
   Qualify the contract tests through an independent consumer as well as the service.
+  The `knowledge` feature adds `FindingCollection::descriptor` using the lightweight
+  knowledge-extension contract. It does not enable MCP transport or model execution.
 
 - `cargo check -p veoveo-reason-mcp`
 - `cargo test -p veoveo-reason-mcp` — crate tests run without a GPU.

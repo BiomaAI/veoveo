@@ -104,7 +104,7 @@ fn finding_collections_declare_typed_roots_members_and_subscription_admission() 
     let id: AnalysisId = "01983da0-0000-7000-8000-000000000001".parse().unwrap();
     let time = "2026-10-01T00:00:00Z".parse().unwrap();
     for collection in FindingCollection::ALL {
-        let expected = veoveo_reason_mcp::knowledge::summary::collection(collection);
+        let expected = collection.descriptor();
         let descriptor = SERVER_SETUP
             .resource_templates()
             .iter()
