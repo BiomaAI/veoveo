@@ -512,6 +512,20 @@ through the shared artifact plane. It asserts result structure and retained
 invocation provenance rather than exact generated text. The scenario runs
 only on a deployment whose checkpoint is present in the model cache.
 
+The installed Knowledge harness consumes an existing completed analysis through the
+public gateway. Its read-only case compares both summaries with `FindingData`, checks
+conditional reads, searches for the supplied domain query and compares each retrieved
+revision with a fresh source observation. Repeating it after source and indexer
+restarts checks retained result consumption without rerunning inference. This focused
+query does not establish corpus-wide retrieval quality.
+
+The access case requires an initially denied reviewer and an Artifact administrator.
+It grants the reviewer read access only to the result Artifact, checks source and
+search visibility, and verifies that Task control and annotations stay inaccessible.
+Revocation must change the source revisions and remove indexed visibility. The test
+waits on catalog notifications for at most 45 seconds per index transition and removes
+its temporary grant after a failed assertion or an uncertain dispatch response.
+
 `cargo xtask smoke reason-gpu --installation <installation-target.json>` also accepts `--candidate-binary` and
 `--candidate-runner`. The latter names the source root containing `reason_runner/`.
 The Rust harness packages that source, launches the candidate on a private listener

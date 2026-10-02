@@ -37,10 +37,11 @@ pass native Artifact access, pagination and hosted K01–K07 checks. Publication
 bounded finding data. The reference approves nineteen collections at `af73f95b`;
 public catalog/search, a fresh GPU analysis and both indexed finding collections pass
 installed checks. Reads and matching source revisions also pass after separate Reason
-and Knowledge restarts. Gateway error forwarding and catalog-watch readiness corrections
-are deployed at `790e3f86`. Current installed acceptance fails during source recovery:
-the public catalog differs from approvals and the completed finding is absent from
-search. Grant/revocation, full conformance and retrieval evaluation remain open.
+and Knowledge restarts. Gateway forwarding, source-watch lifetime and Knowledge update
+readiness corrections are deployed at `391a4516`. Installed result grants and revocation
+pass for both finding collections, including denied public Task control and annotations.
+The nineteen-collection catalog and source-linked retrieval pass on that deployment.
+Full source conformance and corpus retrieval evaluation remain open.
 The gateway source adapter discovers approved
 collections and waits for catalog/resource observation readiness before reading.
 The library coordinator qualifies lease renewal, source invalidation, conditional
@@ -4075,6 +4076,24 @@ Knowledge is `sha256:434c55b6a52302eecb4bf5057f07ca1dbec9c38825df0fc5956da200886
 Staging both images takes 128 seconds, and release qualification adds SBOM and provenance
 in nine seconds with unchanged runnable digests. The reference selects both for the
 installed recovery and result-grant batch.
+
+Installed recovery checkpoint: both Helm releases and the four selected Deployments
+converge at `391a4516`. The maintained Reason access harness completes its grant/revoke
+cycle in 23.5 seconds. The reviewer can read the result and both indexed finding
+collections while the grant is present; public Task get/cancel and the annotations
+Artifact stay denied. Revocation changes source revisions, removes source and search
+access, and the harness confirms its temporary grant is absent before returning.
+The reviewer uses the same machine principal in another selected Work Context; the
+hosted fixture separately qualifies a different principal.
+
+Finding retrieval then passes in two seconds with both source revisions matching the
+index and both summaries ranked first. The public catalog, completion, statistics,
+subscriptions, embedding and thirteen linked source observations pass across all
+nineteen approved collections in thirteen seconds. These checks run more than a minute
+after the indexer's source listeners open. Captured logs contain no renewed source
+failure or expired finding-authority error in that interval. The active generation is
+preserved. Corpus recall, model comparison and the remaining installed conformance
+probes still require qualification.
 
 Adopt Reason's completed analyses and results so users can find earlier findings and
 read their grounding without rerunning inference. Observations carry stored owner,

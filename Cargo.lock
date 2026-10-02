@@ -17052,6 +17052,8 @@ dependencies = [
  "veoveo-artifact-contract",
  "veoveo-artifact-mcp",
  "veoveo-artifact-service",
+ "veoveo-embedding-contract",
+ "veoveo-knowledge-mcp",
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-conformance",
  "veoveo-mcp-contract",

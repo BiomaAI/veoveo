@@ -860,6 +860,40 @@ verified links; each run requires a new output path. Remove the temporary token 
 after the check. Domain retrieval quality and GPU execution have their own acceptance
 cases in the Knowledge and embedding designs.
 
+Reason's installed finding tests use a completed analysis produced by the current
+GPU image. Create a private JSON input with `endpoint` set to the operator MCP URL,
+`analysis` set to its native UUIDv7 analysis ID, and `query` set to a question that
+should retrieve its findings. Set `VEOVEO_REASON_KNOWLEDGE_INPUT` to that file,
+`VEOVEO_REASON_KNOWLEDGE_TOKEN_FILE` to the Operations operator token file, and
+`VEOVEO_REASON_KNOWLEDGE_OUTPUT` to a new private report path. Run:
+
+~~~bash
+cargo test -p veoveo-reason-mcp --test installed_knowledge -- --ignored --exact \
+  completed_analysis_findings_are_retrievable_with_current_source_revisions
+~~~
+
+The grant test uses a second JSON input containing that input under `source`,
+`task` set to the opaque Task ID returned by the original invocation,
+`adminEndpoint` set to the admin MCP URL, and
+`grantee: {"kind": "principal", "id": "https://veoveo.bioma.ai/oauth#operator-service"}`.
+The reference reviewer changes the operator principal's selected Work Context;
+context membership does not give that principal an identity-provider group. Set
+`VEOVEO_REASON_KNOWLEDGE_ACCESS_INPUT` to this file. Also set
+`VEOVEO_REASON_KNOWLEDGE_ADMIN_TOKEN_FILE` to an Operations admin token and
+`VEOVEO_REASON_KNOWLEDGE_REVIEWER_TOKEN_FILE` to an operator token issued for
+Independent Review. All three tokens need their profile scopes plus `knowledge:read`
+and `knowledge:search`. Choose a new output path and run:
+
+~~~bash
+cargo test -p veoveo-reason-mcp --test installed_knowledge -- --ignored --exact \
+  access::result_grants_change_source_and_search_access_without_granting_task_control
+~~~
+
+This case requires a disposable analysis and refuses to alter an existing grantee.
+It removes its temporary result read grant before returning. If cleanup reports an
+uncertain result, reconcile that Artifact's grants before another invocation. Remove
+the three temporary token files after acceptance.
+
 Prepare the [aviation release](#prepare-the-aviation-release), then check Map admission
 before the full GPU delivery proof:
 

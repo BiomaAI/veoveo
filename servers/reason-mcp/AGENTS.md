@@ -82,6 +82,14 @@ appear in its public MCP identities.
   production HTTP router with generated signing keys, the real Artifact service and
   an isolated Store. Owner probes recreate the source and mutate grants. Completed
   findings are fixtures; this check performs no inference or GPU readiness acceptance.
+- `tests/installed_knowledge.rs` checks a completed installed GPU analysis through
+  the public gateway. The read-only case compares both finding collections with the
+  completed output and verifies search links, conditional reads and source revisions.
+  The access case requires a disposable analysis, an Artifact administrator and a
+  reviewer in a different Work Context. It creates one previously absent result
+  grant and removes it even when a later assertion fails. Both cases require hardware
+  embeddings; they never invoke inference. Input files and commands are described in
+  the [reference runbook](../../examples/bioma/README.md#acceptance).
 - The GPU smoke requires an NVIDIA driver compatible with the image's CUDA
   and vLLM build, NVIDIA Container Toolkit, the device plugin, and a world
   model checkpoint in Hugging Face layout loaded into the model cache. The
