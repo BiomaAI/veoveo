@@ -559,7 +559,8 @@ Calendar, epoch and acquired-release observations carry the stored tenant, creat
 principal and Work Context with `readPolicy: {kind: "tenant"}`. Events use `subjects`
 and remain readable only by their owner. A reader's selected context never supplies
 provenance. The source checks logical identities against the native ownership links.
-Revisions bind both the returned JSON and its access descriptor. Conditional reads
+Revisions bind the returned JSON, its access descriptor and stored modification time.
+The creating principal comes from that same access descriptor. Conditional reads
 follow the same SQL admission as full reads and use private zero-TTL delivery.
 
 The packaged bootstrap collection uses profile access and carries no invented record

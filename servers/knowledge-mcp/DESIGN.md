@@ -64,6 +64,8 @@ the member stale. A conditional response reuses chunks only when every observati
 field except `observedAt` matches the cached observation and the enumeration title is
 unchanged. Store normalizes `notModified` before updating the cached observation.
 Changed titles require a full read and new embeddings.
+Conditional validation failures name the collection and differing field in service
+logs; source contents, access values and external URLs are excluded.
 
 The indexer accepts only the installed `structure-v1` chunker version.
 The chunker preserves source-byte ranges and starts sections at Markdown headings or

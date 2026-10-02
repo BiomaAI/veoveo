@@ -345,14 +345,33 @@ impl Observation {
         normalized.0.not_modified = false;
         let mut expected = previous.clone();
         expected.0.observed_at = self.observed_at();
-        if !self.not_modified()
-            || previous.not_modified()
-            || self.observed_at() < previous.observed_at()
-            || normalized != expected
-        {
-            return Err(KnowledgeError(
-                "not-modified observation changed content or access",
-            ));
+        let mismatch = if !self.not_modified() {
+            Some("conditional observation lacks notModified")
+        } else if previous.not_modified() {
+            Some("cached observation must be normalized")
+        } else if self.observed_at() < previous.observed_at() {
+            Some("conditional observation regressed observedAt")
+        } else if self.collection() != previous.collection() {
+            Some("conditional observation changed collection")
+        } else if self.revision() != previous.revision() {
+            Some("conditional observation changed revision")
+        } else if self.content_sha256() != previous.content_sha256() {
+            Some("conditional observation changed contentSha256")
+        } else if self.modified_at() != previous.modified_at() {
+            Some("conditional observation changed modifiedAt")
+        } else if self.modified_by() != previous.modified_by() {
+            Some("conditional observation changed modifiedBy")
+        } else if self.access() != previous.access() {
+            Some("conditional observation changed access")
+        } else if self.external() != previous.external() {
+            Some("conditional observation changed external")
+        } else if normalized != expected {
+            Some("conditional observation changed metadata")
+        } else {
+            None
+        };
+        if let Some(reason) = mismatch {
+            return Err(KnowledgeError(reason));
         }
         Ok(normalized)
     }

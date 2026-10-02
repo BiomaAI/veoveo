@@ -121,6 +121,10 @@ truncation flags and an omitted-property count. Full geometry stays in the sourc
 resource. The summary types keep every member below 64 KiB without reducing Map's
 50,000-coordinate feature limit.
 
+The source revision binds the summary text, access descriptor, stored modification
+time and modifying principal. A change to provenance requires a full read even when
+the summary text stays unchanged.
+
 Layers, features and publications require `map:feature:read`. Their SQL selects the
 current tenant, selected Work Context and label clearance before decoding or pagination.
 A feature or publication read selects its body and current parent layer in one database

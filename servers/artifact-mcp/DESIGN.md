@@ -144,8 +144,9 @@ before declaring owner access. It preserves the metadata update time and omits
 `modifiedBy` because the ledger does not record the latest modifying principal.
 
 The content digest covers the exact returned UTF-8 text. The revision includes that
-text and its access descriptor, so a grant change invalidates a cached revision even
-when metadata text is unchanged. Conditional reads authorize through Artifact service
+text, its access descriptor and the stored metadata update time. Restoring prior
+metadata after a change therefore requires a full read with its new modification
+time. Grant changes also invalidate cached revisions. Conditional reads authorize through Artifact service
 before comparing the validator. Negotiated responses carry observations; ordinary
 resource reads return the same neutral metadata text. The metadata tool supplies the
 installation download location for interactive use.

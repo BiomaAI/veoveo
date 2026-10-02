@@ -35,7 +35,11 @@ pub fn metadata_document(
         text.len() <= 64 * 1024,
         "Artifact metadata member exceeds 64 KiB"
     );
-    let revision = content_digest(&serde_json::to_string(&(&text, &access))?);
+    let revision = content_digest(&serde_json::to_string(&(
+        &text,
+        &access,
+        snapshot.metadata_updated_at(),
+    ))?);
     let descriptor = collection();
     let observation = Observation::builder(
         descriptor.collection().clone(),

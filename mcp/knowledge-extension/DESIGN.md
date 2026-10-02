@@ -198,7 +198,7 @@ has no annotations field; read-time modification metadata belongs in the observa
 | Field | Required | Meaning |
 |---|---|---|
 | `collection` | yes | The declaring collection |
-| `revision` | yes | Opaque strong validator. It changes whenever the returned text or the access descriptor changes. Immutable members may use their content digest |
+| `revision` | yes | Opaque strong validator. It changes whenever the returned text, access descriptor or modification/external metadata changes. Immutable members with no separate metadata may use their content digest |
 | `contentSha256` | yes | Lowercase hex SHA-256 of the exact UTF-8 bytes of the returned text |
 | `observedAt` | yes | Server time when the domain produced this read |
 | `modifiedAt` | when recorded | Stored modification time of the returned content; an access-only revision need not change this timestamp |
@@ -259,6 +259,10 @@ When the current revision matches, the server returns `contents: []` and an
 observation with `"notModified": true`. The server authorizes a conditional read
 exactly like a full read. A consumer therefore uses the conditional read both to
 revalidate a cached copy and to confirm that the caller may still read it.
+
+Every observation field except `observedAt` and `notModified` must match the cached
+full read. `observedAt` may advance but cannot regress. Shared validation identifies
+the differing field without including its value in the diagnostic.
 
 ## Search Tools
 

@@ -45,6 +45,23 @@ identity and differing fields still need diagnosis; strict validation stays enab
 The logs are retained under `output/development/foundations-flight-content-4998241e/`.
 This reopens installed Knowledge restart acceptance.
 
+Read-only diagnosis at `2fc911e6` checks 156 retained observations against current
+public source responses and identifies one mismatched conditional read. Artifact
+`01a0fa0d-57de-7681-8feb-057ef7afbb21` restores the same private metadata after the
+sharing fixture, but its stored modification time advances. Its revision hashes
+only text and access, so the server incorrectly returns `notModified`. Two other
+retained members fail their current source reads and are not conditional matches.
+The repair binds Artifact's modification time into its revision and closes the
+same omission in Map's time/actor metadata and Time's stored timestamp. Reason's
+summary already includes its recorded update time; its access includes the owner.
+Conditional validation stays strict and now reports the differing field with the
+collection identity. All 32 focused native checks pass across the three producers,
+extension validation and Knowledge coordination, pipeline and gateway consumers.
+Strict all-target Clippy for the five affected packages and 1,054 documentation
+links pass. Publication and installed restart remain open.
+Diagnosis is retained in
+`output/development/foundations-flight-tools-2fc911e6/conditional-diagnosis.json`.
+
 Flight readiness had been calling `conformance info`, which reads every tool, prompt
 and resource-template catalog and therefore required unrelated services. The new
 `conformance tools` command preserves full tool pagination and schema validation.
@@ -4560,6 +4577,6 @@ not complete while a row remains.
 
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
-| Phase 8 source conditional restart | `servers/knowledge-mcp/src/source/gateway.rs` | Diagnose and repair the changed content/access in a not-modified observation during installed restart | Knowledge startup fails after Embedding becomes healthy; preserve the conditional-read invariant and identify the source before changing producer or cache behavior |
+| Phase 8 source conditional restart | `servers/knowledge-mcp/src/source/gateway.rs` | Publish the qualified source revision repair and verify installed Knowledge restart | The installed Artifact mismatch is a changed modification timestamp omitted from its revision; the producer repair also covers Map and Time provenance, with strict conditional validation preserved |
 | Phase 3 Computers hosted feature gate | `servers/computers-mcp/DESIGN.md` | Finish installed Computers hosted feature qualification | Publication, all hosted catalogs, public full/HEAD/range Artifact delivery and headed Speech CUDA transcription/dictation pass at `5dd357c4`. Artifact sharing now passes seven installed checks; qualify the remaining Computers library/setup consumer path |
 | Phase 1 reference reset | `testing/flight-smoke/src/domain.rs` | Finish composed visual and timing acceptance | The composed flight domain sequence passes at `5cae9ec8`, including takeoff altitude, return to launch, landing, Recording replay, Reason and cross-context denial. The landing visual check rejects mean luma 20.50 below its cutoff of 25; a headed hardware diagnostic shows a detailed dark street. Qualify a content-sensitive blank-frame check and repeat composed visual/timing acceptance |

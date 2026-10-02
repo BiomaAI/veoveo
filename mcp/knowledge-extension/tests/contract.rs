@@ -240,6 +240,11 @@ fn conditional_revalidation_requires_unchanged_content_access_and_provenance() {
             json!(previous.observed_at() - chrono::TimeDelta::seconds(1)),
         ),
         ("modifiedAt", json!(previous.observed_at())),
+        ("modifiedBy", json!({"kind":"principal", "id":"modifier"})),
+        (
+            "external",
+            json!({"system":"upstream", "nativeId":"record", "url":"https://example.com/private?token=secret"}),
+        ),
         ("notModified", json!(false)),
         (
             "access",
@@ -250,10 +255,12 @@ fn conditional_revalidation_requires_unchanged_content_access_and_provenance() {
         let mut changed = wire.clone();
         changed[field] = value;
         let changed: Observation = serde_json::from_value(changed).unwrap();
+        let error = changed.revalidated(&previous).unwrap_err().to_string();
         assert!(
-            changed.revalidated(&previous).is_err(),
-            "{field} must stay unchanged"
+            error.contains(field),
+            "diagnostic must identify {field}: {error}"
         );
+        assert!(!error.contains("secret"));
     }
 }
 

@@ -1,10 +1,34 @@
 use super::*;
+
 use crate::{analytics::MapAnalyticsConfig, authoring::AuthoringService};
 use std::{collections::BTreeSet, time::Duration};
 use veoveo_mcp_contract::{Principal, PrincipalKind};
 use veoveo_mcp_knowledge_extension::ReadPolicy;
 use veoveo_types::*;
 
+#[test]
+fn knowledge_revision_covers_modification_time_and_actor() {
+    let time = Utc::now();
+    let mut member = ObservedMap {
+        address: MapKnowledgeMember::Location {
+            location: LocationId::from_stable_key(b"revision-fixture"),
+        },
+        title: "A location".into(),
+        text: "location summary".into(),
+        access: None,
+        modified_at: Some(time),
+        modified_by: None,
+    };
+    let (text, original) = member.document().unwrap();
+    assert_eq!(original.revision(), member.document().unwrap().1.revision());
+    member.modified_at = Some(time + chrono::TimeDelta::seconds(1));
+    let (same_text, modified) = member.document().unwrap();
+    assert_eq!(text, same_text);
+    assert_ne!(original.revision(), modified.revision());
+    member.modified_by = Some(ModifiedBy::Principal("modifier".parse().unwrap()));
+    let (_, attributed) = member.document().unwrap();
+    assert_ne!(modified.revision(), attributed.revision());
+}
 fn identity(tenant: &str, context: &str) -> GatewayInternalIdentity {
     let now = Utc::now();
     let actor = Principal {

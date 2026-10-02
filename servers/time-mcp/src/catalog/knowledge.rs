@@ -15,6 +15,7 @@ pub struct ObservedTime<T> {
     access: AccessDescriptor,
     modified_at: DateTime<Utc>,
 }
+
 impl<T: Serialize> ObservedTime<T> {
     pub fn value(&self) -> &T {
         &self.value
@@ -28,7 +29,11 @@ impl<T: Serialize> ObservedTime<T> {
             text.len() <= 64 * 1024,
             "Time knowledge member exceeds 64 KiB"
         );
-        let revision = content_digest(&serde_json::to_string(&(&self.value, &self.access))?);
+        let revision = content_digest(&serde_json::to_string(&(
+            &self.value,
+            &self.access,
+            self.modified_at,
+        ))?);
         let AccessSubject::Principal(owner) = &self.access.owner else {
             anyhow::bail!("Time provenance must identify its creating principal");
         };
@@ -168,5 +173,35 @@ impl TimeCatalog {
             },
             release_from_record,
         )
+    }
+}
+
+#[cfg(test)]
+mod observation_tests {
+    use super::*;
+
+    #[test]
+    fn knowledge_revision_covers_stored_modification_time() {
+        let mut member = ObservedTime {
+            value: "unchanged calendar",
+            collection: TimeKnowledgeCollection::Calendars,
+            access: AccessDescriptor {
+                tenant: "tenant".parse().unwrap(),
+                work_context: "context".parse().unwrap(),
+                read_policy: ReadPolicy::Tenant {},
+                owner: AccessSubject::Principal("author".parse().unwrap()),
+                grants: vec![],
+                data_labels: vec![],
+                expires_at: None,
+            },
+            modified_at: Utc::now(),
+        };
+        let (text, original) = member.document().unwrap();
+        assert_eq!(original.revision(), member.document().unwrap().1.revision());
+        member.modified_at += chrono::TimeDelta::seconds(1);
+        let (same_text, modified) = member.document().unwrap();
+        assert_eq!(text, same_text);
+        assert_eq!(original.access(), modified.access());
+        assert_ne!(original.revision(), modified.revision());
     }
 }

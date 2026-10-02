@@ -69,7 +69,12 @@ impl ObservedMap {
     }
     pub fn document(&self) -> Result<(String, Observation)> {
         let descriptor = self.address.collection().descriptor();
-        let revision = content_digest(&serde_json::to_string(&(&self.text, &self.access))?);
+        let revision = content_digest(&serde_json::to_string(&(
+            &self.text,
+            &self.access,
+            self.modified_at,
+            &self.modified_by,
+        ))?);
         let mut builder = Observation::builder(
             descriptor.collection().clone(),
             revision.to_string().parse()?,
