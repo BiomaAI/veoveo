@@ -251,7 +251,10 @@ Time uses two independently versioned authority families.
 | `leap_seconds` | IANA `leap-seconds.list` | validated TAI-UTC transition table |
 
 An installation begins with the TZif and leap files in the image. Their bootstrap
-release ids are explicit configuration values. Tenant administrators can register
+release IDs bind the authority family and SHA-256 digest of the packaged source file.
+`server/bootstrap.rs` constructs their references through the typed URI builder.
+The same bytes keep their identity across restarts and file relocation; changed bytes
+receive a different identity. Tenant administrators can register
 HTTPS sources, acquire new content, inspect staged releases, and activate one
 release per family.
 
@@ -784,7 +787,7 @@ contract types. Invalid scalar diagnostics name the field without quoting stored
 values. Reads leave rejected rows unchanged.
 
 Every stored instant fraction must be within `0..=999999999`. Each instant binding
-and configured bootstrap pair must use distinct release IDs for TZDB and leap seconds.
+and packaged bootstrap pair must use distinct release IDs for TZDB and leap seconds.
 Reference decoding checks repeated URI/ID agreement, source location, dataset roles
 and nonblank labels. The public instant and Unix/TAI schemas declare the same
 subsecond range. Zero-version update requests apply only to an absence guard.
@@ -794,6 +797,13 @@ acquisition workers and event watchers before deploying the required provenance
 fields and distinct bootstrap resource addresses. Start from a fresh Store and
 reacquire tenant releases. The implementation supplies no historical-body adapter
 or mixed-version rollout. Current-format restart recovery uses the persisted records.
+
+Bootstrap identity changes require a coordinated Time and indexer drain. The reference
+installation recreates disposable epochs and events that reference a withdrawn packaged
+authority; it does not reinterpret their instants under a new release. Rollback restores
+the previous image and recreates those fixtures after the same drain. Acquired authority
+releases keep their stored identities and artifacts. Bootstrap IDs are derived by the
+server and have no configuration override or alias.
 
 `persistence/active.rs` selects tenant pointers and resolves their releases within
 one SQL statement. The release subquery applies tenant, family, key and active-state

@@ -73,6 +73,14 @@ batch passes 34 tests, including excluded malformed rows, page limits and activa
 changes across connections. Strict all-target/all-feature Clippy, formatting,
 SurrealDB 3.3.0 query validation and documentation links pass. Publication and
 installed qualification of this query remain open.
+Time's packaged bootstrap authority IDs now bind their family and source-file digest.
+Changed timezone data receives a new immutable resource identity; restarts and file
+relocation preserve it. The configurable fixed IDs are removed. The bootstrap test
+and 37 public contract tests pass, along with affected strict Clippy, formatting and
+documentation links. A broader Time run exceeded its 420-second limit while Docker
+fixture creation stalled during image assembly; it supplies no database acceptance.
+The owning design declares the coordinated Time/indexer drain and fixture recreation.
+Publication and installed qualification of the identity change remain open.
 Nine native evaluator, corpus and retrieval checks pass. Affected all-target strict
 Clippy, SurrealDB 3.3.0 query validation and documentation links pass.
 The domain corpus and descriptor batch passes 39 source, contract, consumer and corpus

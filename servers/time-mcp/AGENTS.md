@@ -31,6 +31,9 @@ leap second assumptions.
   load of the prospective TZDB and leap second pair; one active release per
   family per tenant. Acquisition downloads run under fixed host, media,
   digest, size, and time policy with archive traversal rejected.
+- Packaged bootstrap references bind the authority family and source-file SHA-256.
+  Their immutable resource IDs must change with the bytes, never with a process
+  restart or path. `server/bootstrap.rs` owns construction and qualification.
 - `expand_schedule` and `validate_timeline` run only through the final Task
   API extension on `veoveo-task-runtime`; a direct call returns an instruction
   to use the task form.

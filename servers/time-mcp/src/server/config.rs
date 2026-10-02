@@ -21,16 +21,6 @@ pub(super) struct Args {
     pub bootstrap_tzdb_source_file: PathBuf,
     #[arg(long, default_value = "/usr/share/zoneinfo/leap-seconds.list")]
     pub bootstrap_leap_seconds_file: PathBuf,
-    #[arg(
-        long,
-        default_value = "time-release-00000000-0000-7000-8000-000000000001"
-    )]
-    pub bootstrap_tzdb_release_id: String,
-    #[arg(
-        long,
-        default_value = "time-release-00000000-0000-7000-8000-000000000002"
-    )]
-    pub bootstrap_leap_seconds_release_id: String,
     #[arg(long, default_value = "/var/lib/veoveo/time/acquisitions")]
     pub acquisition_scratch_root: PathBuf,
     #[arg(long, default_value = "/var/lib/veoveo/time/releases")]

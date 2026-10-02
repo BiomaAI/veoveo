@@ -1,16 +1,16 @@
 pub(super) mod auth;
+mod bootstrap;
 mod config;
 mod host;
 pub(crate) mod tasks;
 
 use std::{collections::BTreeMap, net::SocketAddr, sync::Arc, time::Duration};
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use axum::{Router, middleware, routing::get};
 use clap::Parser;
 use rmcp::transport::streamable_http_server::StreamableHttpService;
 use serde_json::json;
-use sha2::{Digest, Sha256};
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
@@ -25,10 +25,7 @@ use crate::{
     authority::{AuthorityContext, LeapSecondTable},
     catalog::TimeCatalog,
     clock::{ClockMonitor, ClockSource},
-    contract::{
-        AuthorityDatasetKind, AuthorityReleaseId, EffectiveTimeAuthority, TimeAuthorityReference,
-        TimeAuthorityReleaseUri, TimeAuthoritySource,
-    },
+    contract::{AuthorityDatasetKind, EffectiveTimeAuthority},
     mcp::TimeMcp,
     registry::AuthorityRegistry,
     state::TimeApplication,
@@ -69,22 +66,12 @@ pub async fn run() -> Result<()> {
     .await?;
     let recovery = tasks.recover().await?;
     let catalog = TimeCatalog::new(tasks.platform_store().clone());
-    let tzdb_release_id = AuthorityReleaseId::new(args.bootstrap_tzdb_release_id.clone())
-        .map_err(anyhow::Error::msg)?;
-    let leap_seconds_release_id =
-        AuthorityReleaseId::new(args.bootstrap_leap_seconds_release_id.clone())
-            .map_err(anyhow::Error::msg)?;
     let leap_seconds = LeapSecondTable::from_path(&args.bootstrap_leap_seconds_file).await?;
     let bootstrap = AuthorityContext::from_paths(
         EffectiveTimeAuthority::new(
-            bootstrap_authority_reference(
-                tzdb_release_id,
-                AuthorityDatasetKind::Tzdb,
-                &args.bootstrap_tzdb_source_file,
-            )
-            .await?,
-            bootstrap_authority_reference(
-                leap_seconds_release_id,
+            bootstrap::reference(AuthorityDatasetKind::Tzdb, &args.bootstrap_tzdb_source_file)
+                .await?,
+            bootstrap::reference(
                 AuthorityDatasetKind::LeapSeconds,
                 &args.bootstrap_leap_seconds_file,
             )
@@ -231,27 +218,6 @@ pub async fn run() -> Result<()> {
         })
         .await?;
     Ok(())
-}
-
-async fn bootstrap_authority_reference(
-    release_id: AuthorityReleaseId,
-    dataset_kind: AuthorityDatasetKind,
-    source_path: &std::path::Path,
-) -> Result<TimeAuthorityReference> {
-    let source = tokio::fs::read(source_path).await.with_context(|| {
-        format!(
-            "reading bootstrap authority source {}",
-            source_path.display()
-        )
-    })?;
-    let source_digest = veoveo_types::Sha256Digest::from_hex(hex::encode(Sha256::digest(source)))?;
-    Ok(TimeAuthorityReference::new(
-        TimeAuthorityReleaseUri::bootstrap(&release_id),
-        dataset_kind,
-        TimeAuthoritySource::Bootstrap,
-        source_digest,
-        release_id.to_string(),
-    )?)
 }
 
 fn install_rustls_provider() {
