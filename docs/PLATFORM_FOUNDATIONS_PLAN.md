@@ -25,7 +25,10 @@ supersedes earlier full-deployment residency requirements and checkpoints below.
 The separation passes 71 native flight checks with one timing measurement ignored,
 strict Clippy and the complete Helm configuration check. Rendering the reference
 post-render patch verifies zero Reason replicas, both retained PVCs and its NVIDIA
-request. Publication and installed flight repetition follow this native checkpoint.
+request. Stream publishes from `d8431efa` in 113 seconds, preserving the C++ runner
+cache. The reference selects its runtime digest; BuildKit stops before installation.
+Installed flight repetition follows this checkpoint. Publication metadata is under
+`output/development/foundations-stream-separate-reason-20261002/`.
 
 Map installation checkpoint (2026-10-02): GitOps converges at `9d7d0b6a`, with all
 27 deployments ready and eight GPU shares. The composed run passes Map and Stream
