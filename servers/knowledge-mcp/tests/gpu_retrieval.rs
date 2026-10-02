@@ -251,6 +251,7 @@ async fn run() -> Result<()> {
             source: &source,
             embeddings: &embeddings,
         };
+        eprintln!("retrieval benchmark: building initial generation");
         let initial = indexer
             .build(&caller.tenant, &config.corpus.registrations, &spec)
             .await?;
@@ -258,12 +259,14 @@ async fn run() -> Result<()> {
             .await?;
         // Warm the actual search path before load measurement. It also proves
         // that the source fixture and judged corpus agree under caller policy.
+        eprintln!("retrieval benchmark: warming all judged queries");
         RetrievalEvaluator {
             store: &db.b,
             embeddings: &embeddings,
         }
         .evaluate(&caller, &dataset)
         .await?;
+        eprintln!("retrieval benchmark: rebuilding with concurrent search");
         let began = Instant::now();
         let next = indexer
             .prepare(&caller.tenant, &config.corpus.registrations, &spec)
@@ -284,6 +287,11 @@ async fn run() -> Result<()> {
                         elapsed_micros: micros(elapsed),
                         chunks_per_second: chunks as f64 / elapsed.as_secs_f64(),
                     });
+                    eprintln!(
+                        "retrieval benchmark: rebuilt {} ({} chunks)",
+                        registration.descriptor.collection(),
+                        chunks
+                    );
                 }
                 Ok::<_, anyhow::Error>(collections)
             }
@@ -302,6 +310,7 @@ async fn run() -> Result<()> {
         db.a.activate_knowledge_generation(&lease, &caller.tenant, next, Some(initial))
             .await?;
         let elapsed = began.elapsed();
+        eprintln!("retrieval benchmark: evaluating rebuilt generation");
         let evaluation = RetrievalEvaluator {
             store: &db.b,
             embeddings: &embeddings,
@@ -355,14 +364,26 @@ async fn run() -> Result<()> {
     };
     // The production coordinator has the same lease renewal obligation. Keep
     // renewal active through both rebuilds and evaluation; no extra worker leaks.
-    tokio::pin!(workload);
-    let mut renewal = tokio::time::interval(Duration::from_secs(10));
-    loop {
-        tokio::select! {
-            result = &mut workload => { db.a.release_knowledge_coordinator(&lease).await?; return result; }
-            _ = renewal.tick() => db.a.renew_knowledge_coordinator(&lease).await?,
+    // Renewal shares the lease's mutation lock with indexing. Poll both whole
+    // futures together: awaiting renewal inside a selected branch would stop
+    // polling an index mutation that already holds the lock.
+    let renewal = async {
+        let mut interval = tokio::time::interval(Duration::from_secs(10));
+        loop {
+            interval.tick().await;
+            if let Err(error) = db.a.renew_knowledge_coordinator(&lease).await {
+                return Err::<(), _>(anyhow::Error::from(error));
+            }
         }
-    }
+    };
+    let result = {
+        tokio::select! {
+            result = workload => result,
+            result = renewal => result,
+        }
+    };
+    db.a.release_knowledge_coordinator(&lease).await?;
+    result
 }
 
 async fn concurrent_searches(
