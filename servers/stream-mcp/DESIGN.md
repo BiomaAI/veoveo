@@ -104,9 +104,10 @@ not change the persistence or cross-instance delivery of recording runs.
 ### Contract Compliance
 
 C02 tool schemas and result delivery use a canonical top-level `result_uri`.
-Installed product reads and GPU completion await reference qualification.
+The installed GPU replay checks product reads and completion across distinct replicas.
 C27 uses the shared Task source for runs and the admitted GPU owner for live sessions.
-Installed mixed-source delivery still requires reference qualification. Discover/list readiness
+The replica probe checks run invalidations, completed-state recovery and cancellation.
+Live-session notification delivery still requires reference qualification. Discover/list readiness
 (C31) and knowledge-source publication (C32) require the work recorded in the
 [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md). Checked setup verifies
 API and declaration consistency; it does not establish these runtime guarantees.

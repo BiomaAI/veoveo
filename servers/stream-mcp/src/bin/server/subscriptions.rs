@@ -1,6 +1,5 @@
 //! Compose shared run updates with the process that owns each live session.
-// TODO(foundations): qualify cross-replica run invalidations and live-session
-// notifications on the rebuilt reference installation.
+// TODO(foundations): qualify live-session notifications on the reference installation.
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,

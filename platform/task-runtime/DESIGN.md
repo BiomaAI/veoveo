@@ -257,8 +257,9 @@ The change preserves Task storage and MCP wire models. Replace hosted replicas
 together to establish the SQL selection guarantee across an installation. Preflight
 retained indexed/envelope owner and profile agreement; rejected records stay intact
 for operator review. Rolling back to a version that checks historical event authority
-does not preserve the current-owner notification guarantee. Installed rollout and
-cross-replica qualification are tracked in the foundations plan.
+does not preserve the current-owner notification guarantee. The
+[installed Stream replay](../../testing/smoke/DESIGN.md#stream-cross-replica-acceptance)
+qualifies shared Task completion and result delivery through separate hosted replicas.
 
 The Python SDK exposes the same owner-query composition through
 `TaskRuntime.for_owner`, with native UUIDv7 inputs, `TaskTypeName` selections and
@@ -307,6 +308,13 @@ filters, reconnect baselines, a broken TCP connection with deleted event history
 SQL exclusion of malformed revoked rows, and official
 RMCP notification and cancellation behavior. The RMCP fixture uses an in-memory
 transport and establishes no installed HTTP or GPU qualification.
+
+The installed Stream probe pins dispatch and observation to separate Pods of one image.
+It requires a working-state subscription baseline before accepting completion and its
+resource invalidations. Completed Task envelopes and typed result reads must agree
+across both replicas. A new subscription must recover the completed state, and both
+requests must cancel. This case also runs the owning GPU replay and Artifact checks;
+other domains keep their provider-specific acceptance requirements.
 
 `runtime/usage` requires an explicit `TaskUsageAccess` policy for usage collections and exact
 Task usage reads. Both the usage row and linked Task must match this runtime's server
