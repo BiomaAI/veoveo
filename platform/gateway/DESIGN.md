@@ -50,6 +50,12 @@ payloads itself. The gateway cannot repair arbitrary result strings, recompute d
 digests or infer foreign-resource ownership. Installation upgrades use one gateway
 behavior; no compatibility mode rewrites domain payloads.
 
+Upstream MCP errors preserve their protocol code, message and domain data. The gateway
+maps transport failures to internal errors. This distinction lets clients handle a
+resource rejection without treating it as a broken connection, and lets completion
+audit classify the source response. The SDK applies the negotiated MCP version's
+error-code profile at each transport.
+
 ## Resource Read Audit
 
 The gateway checks current resource policy before source discovery or reading. Denials

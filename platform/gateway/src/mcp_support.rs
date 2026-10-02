@@ -1,4 +1,4 @@
-use std::{collections::BTreeSet, fmt};
+use std::collections::BTreeSet;
 
 use rmcp::model::{
     CallToolResult, ContentBlock, ErrorData as McpError, ReadResourceResult, Resource,
@@ -381,8 +381,11 @@ pub(crate) fn ensure_unique_prompts(prompts: &[rmcp::model::Prompt]) -> Result<(
     Ok(())
 }
 
-pub(crate) fn upstream_error(err: impl fmt::Display) -> McpError {
-    mcp_internal(format!("upstream MCP request failed: {err}"))
+pub(crate) fn upstream_error(error: rmcp::ServiceError) -> McpError {
+    match error {
+        rmcp::ServiceError::McpError(error) => error,
+        error => mcp_internal(format!("upstream MCP request failed: {error}")),
+    }
 }
 
 pub(crate) fn unexpected_upstream_response(method: &str, response: ServerResult) -> McpError {
@@ -435,6 +438,30 @@ mod tests {
         UpstreamTransportSecurity, UpstreamUrl,
     };
     use veoveo_types::{DataLabelId, ResourceScheme, ResourceUri, ScopeName};
+
+    #[test]
+    fn upstream_protocol_errors_preserve_code_message_and_domain_data() {
+        for error in [
+            McpError::invalid_request("access unavailable", None),
+            McpError::invalid_params("resource unavailable", None),
+            McpError::internal_error(
+                "provider unavailable",
+                Some(serde_json::json!({
+                    "providerCode": "capacity-exhausted",
+                    "retryAfterSeconds": 15
+                })),
+            ),
+        ] {
+            assert_eq!(
+                upstream_error(rmcp::ServiceError::McpError(error.clone())),
+                error
+            );
+        }
+        assert_eq!(
+            upstream_error(rmcp::ServiceError::TransportClosed).code,
+            rmcp::model::ErrorCode::INTERNAL_ERROR
+        );
+    }
 
     #[test]
     fn template_admission_preserves_declarations_and_rejects_malformed_input() {

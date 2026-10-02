@@ -34,7 +34,12 @@ recover across writer restarts in native tests, and finalize in the reference in
 with a verified signed audit chain. Domain retrieval evaluation, installed source
 mutation/restart qualification remain open. Reason's completed analyses and results
 pass native Artifact access, pagination and hosted K01–K07 checks. Publication retains
-bounded finding data; reference source adoption and installed acceptance remain open.
+bounded finding data. The reference approves nineteen collections at `af73f95b`;
+public catalog/search, a fresh GPU analysis and both indexed finding collections pass
+installed checks. Reads and matching source revisions also pass after separate Reason
+and Knowledge restarts. Installed grant/revocation acceptance exposed gateway error
+flattening and requires the forwarding correction below. Full conformance and retrieval
+evaluation remain open.
 The gateway source adapter discovers approved
 collections and waits for catalog/resource observation readiness before reading.
 The library coordinator qualifies lease renewal, source invalidation, conditional
@@ -4003,6 +4008,22 @@ Knowledge's declared reference schemes. The corrected bundle preserves those own
 addresses, and the composition check now requires every approved source scheme there.
 The initial image/configuration converges at `b63ae49f`; installation-wide readiness,
 GPU allocation and public full/HEAD/range Artifact delivery pass at that revision.
+
+Installed finding checkpoint (2026-10-01): the corrected configuration converges at
+`af73f95b`, and catalog, completion, subscriptions, source-linked search and embedding
+pass for all nineteen collections. A fresh analysis samples six recorded frames and
+completes inference in 101,953 ms. Both its analysis and result summary rank first for
+the focused aerial-terrain query. The installed harness compares every summary field
+with the completed output, validates conditional reads and matches indexed revisions
+to fresh source observations. The same checks pass after separate Reason and Knowledge
+restarts. This single-finding query establishes delivery; corpus recall and GPU load
+evaluation remain required.
+
+The installed access test stops before granting access because the gateway wraps a
+source's typed MCP rejection in an internal error. The shared forwarding correction
+preserves upstream protocol code, message and data while transport failures use internal
+errors. Native qualification covers denial forwarding and its completion audit. The
+corrected gateway must be published before completing installed grant/revocation checks.
 
 Adopt Reason's completed analyses and results so users can find earlier findings and
 read their grounding without rerunning inference. Observations carry stored owner,

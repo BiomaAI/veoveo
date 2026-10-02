@@ -200,20 +200,21 @@ async fn qualify() {
         }
     ));
     denied.store(true, Ordering::SeqCst);
-    let ServiceError::McpError(denial) = read_upstream(
+    let denial = read_upstream(
         client.peer().clone(),
         params(),
         &projection(),
         Some(observation.revision()),
     )
     .await
-    .unwrap_err() else {
-        panic!("source must reject the revoked conditional read");
-    };
-    gateway
-        .finish_resource_read(&subject, &projection(), None, Err(denial))
+    .map_err(crate::mcp_support::upstream_error)
+    .unwrap_err();
+    assert_eq!(denial.code, rmcp::model::ErrorCode::INVALID_REQUEST);
+    let delivered = gateway
+        .finish_resource_read(&subject, &projection(), None, Err(denial.clone()))
         .await
         .unwrap_err();
+    assert_eq!(delivered, denial);
     assert_eq!(calls.load(Ordering::SeqCst), 3);
     let page = db.b.audit_page(&scope, &query).await.unwrap();
     assert_eq!(page.records.len(), 3);
