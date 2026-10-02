@@ -31,6 +31,13 @@ normalization changes only the disposable copies. Analysis consumers derive Reru
 Store IDs from the plan's typed catalog IDs. Producer names stay inside source validation.
 The plan holds cache leases for its lifetime.
 
+Acknowledged parts remain readable while a layer is Writing or Staged, including
+the interval when its final file exists and upload is in progress. The reader checks
+parts-directory confinement even when that final file is present. Hub removes the
+parts after catalog commit; a committed read requires the verified Artifact cache
+lease. The materialized staging file does not replace the acknowledged parts as an
+analysis source.
+
 `materialize_analysis_snapshot` requires explicit Artifact read authority and a
 positive source-byte limit. A caller must match the recording identity and labels.
 A task capability is checked through Artifact's current scope endpoint before any

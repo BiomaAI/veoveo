@@ -177,7 +177,10 @@ impl RecordingReadPlan {
                         path: layer.path.clone(),
                     });
                 }
-                RecordingLayerState::Writing if !layer.path.exists() => {
+                // Publication materializes the final file before changing the
+                // catalog to Staged. Acknowledged parts remain the live source
+                // until commit; neither transition can hide their samples.
+                RecordingLayerState::Writing | RecordingLayerState::Staged => {
                     let parts_directory = ingest_segment_parts_directory(&layer.path);
                     for path in ingest_part_paths(&parts_directory)? {
                         let sequence = ingest_part_sequence(&path).with_context(|| {
@@ -203,9 +206,7 @@ impl RecordingReadPlan {
                         });
                     }
                 }
-                RecordingLayerState::Writing
-                | RecordingLayerState::Staged
-                | RecordingLayerState::Failed => {}
+                RecordingLayerState::Failed => {}
             }
         }
         sources.sort_by_key(|source| {
@@ -438,11 +439,11 @@ impl RecordingReader {
                         .await?;
                     (cached.path().to_path_buf(), Some(cached), Some(digest))
                 }
-                RecordingLayerState::Writing => {
+                RecordingLayerState::Writing | RecordingLayerState::Staged => {
                     let relative = layer
                         .staging_path
                         .as_deref()
-                        .context("writing layer has no staging path")?;
+                        .context("uncommitted layer has no staging path")?;
                     (
                         authorized_live_layer_path(&self.spool_root, relative)?,
                         None,
@@ -453,7 +454,7 @@ impl RecordingReader {
                             .transpose()?,
                     )
                 }
-                RecordingLayerState::Staged | RecordingLayerState::Failed => continue,
+                RecordingLayerState::Failed => continue,
             };
             layers.push(RecordingReadLayer {
                 layer_id,
@@ -490,10 +491,28 @@ mod tests {
 
     #[test]
     fn live_samples_join_committed_codec_metadata_after_rollover() {
+        assert_publication_samples(RecordingLayerState::Writing, false);
+    }
+
+    #[test]
+    fn materialized_writing_layer_keeps_acknowledged_samples_visible() {
+        assert_publication_samples(RecordingLayerState::Writing, true);
+    }
+
+    #[test]
+    fn staged_layer_keeps_acknowledged_samples_visible_until_commit() {
+        assert_publication_samples(RecordingLayerState::Staged, true);
+    }
+
+    fn assert_publication_samples(state: RecordingLayerState, materialized_file: bool) {
         use re_sdk::RecordingStreamBuilder;
         use re_sdk_types::{archetypes::VideoStream, components::VideoCodec};
         use veoveo_rrd::video_clip::{VideoClipRequest, extract_video_clip};
 
+        let video = include_bytes!("../../rrd/tests/fixtures/video.h264");
+        let next_access_unit = (1..video.len().saturating_sub(4))
+            .find(|index| video[*index..].starts_with(&[0, 0, 0, 1, 9]))
+            .unwrap();
         let directory = tempfile::tempdir().unwrap();
         let dataset_id = RecordingDatasetId::new();
         let recording_id = RecordingId::new();
@@ -507,6 +526,13 @@ mod tests {
         static_recording
             .log_static("/camera", &VideoStream::new(VideoCodec::H264))
             .unwrap();
+        static_recording.set_duration_secs("sensor_time", 0.5);
+        static_recording
+            .log(
+                "/camera",
+                &VideoStream::update_fields().with_sample(video[..next_access_unit].to_vec()),
+            )
+            .unwrap();
         static_recording.flush_blocking().unwrap();
         drop(static_recording);
 
@@ -518,10 +544,6 @@ mod tests {
             .recording_id("producer-session")
             .save(&part)
             .unwrap();
-        let video = include_bytes!("../../rrd/tests/fixtures/video.h264");
-        let next_access_unit = (1..video.len().saturating_sub(4))
-            .find(|index| video[*index..].starts_with(&[0, 0, 0, 1, 9]))
-            .unwrap();
         live.set_duration_secs("sensor_time", 1.0);
         live.log(
             "/camera",
@@ -531,6 +553,15 @@ mod tests {
         live.flush_blocking().unwrap();
         drop(live);
         let original = inspect_segment(&part).unwrap();
+        if materialized_file {
+            std::fs::copy(&part, &live_layer).unwrap();
+            veoveo_rrd::recording_layer::normalize_recording_layer(
+                &live_layer,
+                dataset_id.as_uuid(),
+                recording_id.as_uuid(),
+            )
+            .unwrap();
+        }
 
         let plan = RecordingReadPlan {
             recording_id,
@@ -546,7 +577,7 @@ mod tests {
                 layer_name: "capture-1".to_owned(),
                 kind: RecordingLayerKind::Capture,
                 ordinal: Some(1),
-                state: RecordingLayerState::Writing,
+                state,
                 byte_len: 0,
                 sha256: None,
                 started_at: None,
@@ -555,6 +586,11 @@ mod tests {
                 cached: None,
             }],
         };
+        assert!(
+            plan.clone()
+                .materialize_analysis_snapshot(original.byte_len - 1)
+                .is_err()
+        );
         let materialized = plan.materialize_analysis_snapshot(1_000_000).unwrap();
         let mut paths = vec![committed];
         paths.extend_from_slice(materialized.paths());

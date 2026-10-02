@@ -6,7 +6,7 @@ use veoveo_rrd::ingest_parts::ingest_segment_parts_directory;
 
 pub fn authorized_live_layer_path(spool_root: &Path, relative: &str) -> Result<PathBuf> {
     let path = confined_layer_path(spool_root, relative)?;
-    if path.exists() {
+    let path = if path.exists() {
         let canonical = path
             .canonicalize()
             .with_context(|| format!("canonicalizing live layer {}", path.display()))?;
@@ -14,8 +14,10 @@ pub fn authorized_live_layer_path(spool_root: &Path, relative: &str) -> Result<P
             canonical.starts_with(spool_root) && canonical.is_file(),
             "live layer escapes the configured spool root"
         );
-        return Ok(canonical);
-    }
+        canonical
+    } else {
+        path
+    };
     let parts = ingest_segment_parts_directory(&path);
     if parts.exists() {
         let canonical_parts = parts
@@ -119,6 +121,10 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let outside = tempfile::tempdir().unwrap();
         std::os::unix::fs::symlink(outside.path(), root.path().join("layer.rrd.parts")).unwrap();
+        assert!(authorized_live_layer_path(root.path(), "layer.rrd").is_err());
+        // A materialized publication file does not exempt its live parts from
+        // confinement while the catalog still says Writing or Staged.
+        fs::write(root.path().join("layer.rrd"), b"materialized layer").unwrap();
         assert!(authorized_live_layer_path(root.path(), "layer.rrd").is_err());
     }
 }

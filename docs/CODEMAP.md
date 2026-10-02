@@ -510,8 +510,10 @@ concepts stay local to their MCP crate.
 ### `platform/recordings/reader`
 
 [`DESIGN.md`](../platform/recordings/reader/DESIGN.md) specifies the shared analysis reader.
-`read.rs` owns authorized plans and snapshots; `access.rs` owns shared visibility and
-confined paths; `cache.rs` owns verified bounded Artifact materialization and leases.
+`read.rs` owns authorized plans and snapshots, including acknowledged live parts
+through Writing and Staged publication states; `access.rs` confines both the final
+path and its parts directory. `cache.rs` owns verified bounded Artifact materialization
+and leases.
 It depends on neither Hub nor Recording MCP. Server-only Blueprint validation stays
 in Recording MCP. Stream and Reason consume this library through the video materializer.
 

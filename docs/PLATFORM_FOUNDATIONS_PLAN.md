@@ -11,6 +11,16 @@ Reason grounding and Stream inference. Stream Task/result delivery now passes ac
 installed replicas. Live-session notifications pass through the public Gateway; the
 remaining domain gates are open.
 
+Recording publication checkpoint (2026-10-02): native RRD fixtures reproduce the
+flight's exact missing-samples error while a live layer's final file exists and while
+its catalog state is Staged. The reader had omitted acknowledged parts in both states.
+It now reads those parts through publication, with the same source digests, byte limits
+and task-local normalization. Parts-directory confinement also runs when the final
+file exists. Fourteen reader tests and five video contract/snapshot cases pass, as does
+strict all-target Clippy for both crates. These checks select encoded fixture data and
+establish no GPU or installed acceptance. Publish the reader fix and repeat composed
+flight before closing the missing-range or visual/timing gates.
+
 Computers identity checkpoint (2026-10-02): lifecycle and maintenance APIs carry
 `TaskId` through public receipts, claimed workers, queue cursors, encrypted bindings
 and retained allocator handoff. Interactive access uses separate grant, pairing and
@@ -4643,4 +4653,4 @@ not complete while a row remains.
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
 | Phase 3 Computers hosted feature gate | `servers/computers-mcp/DESIGN.md` | Finish installed Computers hosted feature qualification | Publication, all hosted catalogs, public full/HEAD/range Artifact delivery and headed Speech CUDA transcription/dictation pass at `5dd357c4`. Artifact sharing now passes seven installed checks; qualify the remaining Computers library/setup consumer path |
-| Phase 1 reference reset | `testing/flight-smoke/src/domain.rs` | Diagnose Reason's missing video range and finish composed visual/timing acceptance | At `2fc911e6`, reduced-profile discovery and takeoff/mission captures pass, followed by Stream replay. Reason finds no samples in that same selected range. Abort cleanup lands at the mission location, where the final camera lacks sufficient detail. Keep the spatial-content check and inspect source materialization before repeating the flight |
+| Phase 1 reference reset | `testing/flight-smoke/src/domain.rs` | Publish the recording-reader fix and finish composed visual/timing acceptance | At `2fc911e6`, reduced-profile discovery and takeoff/mission captures pass, followed by Stream replay. Reason finds no samples in that same selected range. Abort cleanup lands at the mission location, where the final camera lacks sufficient detail. Native fixtures reproduce the same error when publication hides acknowledged parts; the reader fix passes nineteen cases. Keep the spatial-content check and confirm the repair in an installed flight |
