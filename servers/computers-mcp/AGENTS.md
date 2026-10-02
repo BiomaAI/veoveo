@@ -54,9 +54,9 @@ installed acceptance matrix stays active. Fixture evidence is not installed-user
 - C12: met
 - C13: met
 - C14: met
-- C15: pending — OCI/Helm packaging remains delivery work
-- C16: pending — installed typed control-plane registration remains delivery work
-- C17: pending — crate revision is declared; installation registration is pending
+- C15: met — digest-pinned OCI image and versioned Helm chart
+- C16: met — installed typed registration declares routes, capabilities and policy
+- C17: met — registration and crate documents declare contract revision 3
 - C18: met
 - C19: met
 - C20: met
@@ -71,4 +71,4 @@ installed acceptance matrix stays active. Fixture evidence is not installed-user
 - C29: met
 - C30: met
 - C31: pending — installed readiness against the declared catalog is pending
-- C32: pending — shared typed docs support is wired; K01–K08 qualification is in progress
+- C32: pending — installed docs pass K01–K06; K07/K08 do not apply to these collections; K09/K10 require owner qualification

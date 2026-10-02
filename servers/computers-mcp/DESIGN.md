@@ -8,7 +8,7 @@
 | Veoveo Computers | Provider-independent operation, Computer, owner and Work Context records in `platform/computers` |
 | `veoveo.ai/computer-files/v1` | Private framed metadata and bounded binary regular-file transport through the qualified guest launcher; distinct from public Artifact/MCP resources |
 | Native OpenShell | Private mTLS/protobuf adapter in `platform/runtimes/computers`; its exact provider patch graph governs the selected Docker profile |
-| MCP 2026-07-28, repository contract revision 3 | Stateless authenticated lifecycle tools, resources, Tasks and request-scoped subscriptions; installed conformance remains pending |
+| MCP 2026-07-28, repository contract revision 3 | Stateless authenticated lifecycle tools, resources, Tasks and request-scoped subscriptions |
 | WebSocket RFC 6455 and Veoveo terminal v2 | Browser-only first-frame ticket, bounded binary terminal, resize, replay fence and sequenced renewal deadlines; the gateway authenticates the upgrade |
 | Stock OpenShell CLI `0.0.116`, gRPC over HTTP/2 over WebSocket | Restricted internal adapter for five qualified SSH methods; private Ready/Lease controls are removed by the public edge before reaching the stock client |
 | JSON Schema 2020-12 | Shared public DTOs in `platform/computers/contract`; raw provider messages are never public request inputs |
@@ -48,9 +48,6 @@ use the public parser. The MCP server slug is `computers`; its resource scheme i
 The independent [contract consumer](../../testing/fixtures/server-contract-consumer/DESIGN.md)
 qualifies the isolated dependency graph. Runtime and hosted tests qualify their own
 feature configurations; a contract build supplies no installed workload evidence.
-
-<!-- TODO(foundations): Finish installed Computers hosted feature qualification
-for the Phase 3 library and checked-setup changes. -->
 
 ## Retained Maintenance Worker
 
