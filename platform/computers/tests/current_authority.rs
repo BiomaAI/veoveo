@@ -183,7 +183,7 @@ async fn queued_work_obeys_current_policy_and_preserves_the_actual_dispatch_deci
             "operation",
             RecordId::new(
                 "computer_operation",
-                surrealdb::types::Uuid::from(operation.operation_id),
+                surrealdb::types::Uuid::from(operation.operation_id.as_uuid()),
             ),
         ))
         .await

@@ -23,7 +23,7 @@ async fn explicit_windows_retain_dispatch_history_and_exact_retries_never_renew_
     let original = ticket.operation().clone();
     drop(ticket); // Lost dispatch response must be observed, never dispatched again.
     db.a.client().query("UPDATE ONLY $operation SET progress.steps[0].observation_reads = 8, progress.steps[0].last_observation_id = $id, progress.steps[0].next_observation_at = <string>time::now();")
-        .bind(("operation",RecordId::new("computer_maintenance",StoreUuid::from(original.operation_id))))
+        .bind(("operation",RecordId::new("computer_maintenance",StoreUuid::from(original.operation_id.as_uuid()))))
         .bind(("id",Uuid::now_v7().to_string())).await.unwrap().check().unwrap();
     assert!(matches!(
         a.observe_maintenance_step(&claim).await.unwrap(),
@@ -199,7 +199,7 @@ async fn drained_migration_preserves_original_window_and_all_dispatch_metadata()
         .remove("observation_started_at");
     let step: veoveo_platform_store::OpenObject = serde_json::from_value(step).unwrap();
     db.a.client().query("UPDATE ONLY $operation SET progress.steps = [$step]; REMOVE TABLE computer_maintenance_resume;")
-        .bind(("operation",RecordId::new("computer_maintenance",StoreUuid::from(original.operation_id))))
+        .bind(("operation",RecordId::new("computer_maintenance",StoreUuid::from(original.operation_id.as_uuid()))))
         .bind(("step",step)).await.unwrap().check().unwrap();
     assert!(
         a.maintenance(&original.actor, original.operation_id)

@@ -5,7 +5,6 @@ use crate::{
 };
 use std::time::Duration;
 use surrealdb::types::SurrealValue;
-use uuid::Uuid;
 
 impl ComputersStore {
     pub async fn open_cli_connection(
@@ -50,7 +49,7 @@ impl ComputersStore {
                 &accepted.task_owner(),
             )?;
             authority::ready(&computer, self.provider_instance_id)?;
-            let connection_id = Uuid::now_v7();
+            let connection_id = crate::api::AccessConnectionId::new();
             let end = (snapshot.checked_at + chrono::TimeDelta::seconds(30))
                 .min(family_end)
                 .min(grant.expires_at)
@@ -60,7 +59,7 @@ impl ComputersStore {
                 include_str!("../../queries/open_cli_connection.surql"),
                 vec![
                     ("grant", super::grant_record(grant_id).into_value()),
-                    ("grant_id", grant_id.into_value()),
+                    ("grant_id", grant_id.into_uuid().into_value()),
                     (
                         "computer",
                         crate::model::computer_record(computer_id).into_value(),
@@ -72,7 +71,7 @@ impl ComputersStore {
                         "connection",
                         super::connection_record(connection_id).into_value(),
                     ),
-                    ("connection_id", connection_id.into_value()),
+                    ("connection_id", connection_id.into_uuid().into_value()),
                     ("policy", self.session_policy_record().into_value()),
                     ("resource", computer.provider_resource_id.into_value()),
                     ("process", computer.process_id.into_value()),
@@ -142,7 +141,8 @@ impl ComputersStore {
                         return Err(ComputerError::Unavailable);
                     }
                     Ok(CliGrantView {
-                        grant_id: row.grant_id,
+                        grant_id: crate::api::AccessGrantId::try_from(row.grant_id)
+                            .map_err(|_| ComputerError::Unavailable)?,
                         name: row.name,
                         current_session: family.is_some()
                             && family
@@ -167,7 +167,7 @@ impl ComputersStore {
         &self,
         actor: &ComputerActor,
         computer_id: veoveo_computers_contract::ComputerId,
-        grant_id: Uuid,
+        grant_id: crate::api::AccessGrantId,
     ) -> Result<()> {
         tokio::time::timeout(Duration::from_secs(5), async {
             let control = self.control_authority(actor).await?;
@@ -234,8 +234,11 @@ impl ComputersStore {
                             "connection",
                             super::connection_record(handle.connection_id).into_value(),
                         ),
-                        ("connection_id", handle.connection_id.into_value()),
-                        ("grant_id", handle.grant_id.into_value()),
+                        (
+                            "connection_id",
+                            handle.connection_id.into_uuid().into_value(),
+                        ),
+                        ("grant_id", handle.grant_id.into_uuid().into_value()),
                     ],
                 )
                 .await?;
@@ -252,8 +255,11 @@ impl ComputersStore {
                         "connection",
                         super::connection_record(handle.connection_id).into_value(),
                     ),
-                    ("connection_id", handle.connection_id.into_value()),
-                    ("grant_id", handle.grant_id.into_value()),
+                    (
+                        "connection_id",
+                        handle.connection_id.into_uuid().into_value(),
+                    ),
+                    ("grant_id", handle.grant_id.into_uuid().into_value()),
                     crate::audit::binding(
                         &accepted,
                         grant.computer_id()?,

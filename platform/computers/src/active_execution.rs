@@ -79,8 +79,12 @@ impl ComputersStore {
                 return Err(ComputerError::Unavailable);
             }
             let work = match row.execution.table.as_str() {
-                "computer_execution" => ComputerExecution::Command { task_id },
-                "computer_file_transfer" => ComputerExecution::File { task_id },
+                "computer_execution" => ComputerExecution::Command {
+                    task_id: veoveo_types::TaskId::from_uuid(task_id),
+                },
+                "computer_file_transfer" => ComputerExecution::File {
+                    task_id: veoveo_types::TaskId::from_uuid(task_id),
+                },
                 _ => return Err(ComputerError::Unavailable),
             };
             if active.insert(computer_id, work).is_some() {

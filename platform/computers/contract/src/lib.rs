@@ -126,7 +126,7 @@ pub struct ComputerView {
     pub can_transfer_files: bool,
     /// The shared command/file slot can remain held while an owner Stop completes.
     pub active_execution: Option<ComputerExecution>,
-    pub active_task_id: Option<Uuid>,
+    pub active_task_id: Option<veoveo_types::TaskId>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -146,14 +146,14 @@ pub enum ComputerAccessMode {
     deny_unknown_fields
 )]
 pub enum ComputerExecution {
-    Command { task_id: Uuid },
-    File { task_id: Uuid },
+    Command { task_id: veoveo_types::TaskId },
+    File { task_id: veoveo_types::TaskId },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OperationReceipt {
-    pub task_id: Uuid,
+    pub task_id: veoveo_types::TaskId,
     pub computer_id: crate::ComputerId,
     pub action: Action,
     pub status: OperationStatus,
@@ -165,7 +165,7 @@ pub struct LifecycleResult {
     #[serde(rename = "result_uri", skip_serializing_if = "Option::is_none")]
     pub result_uri: Option<String>,
     pub computer_id: crate::ComputerId,
-    pub operation_id: Uuid,
+    pub operation_id: veoveo_types::TaskId,
     pub action: Action,
 }
 
@@ -175,14 +175,14 @@ pub struct MaintenanceResult {
     #[serde(rename = "result_uri")]
     pub result_uri: String,
     pub computer_id: crate::ComputerId,
-    pub maintenance_id: Uuid,
+    pub maintenance_id: veoveo_types::TaskId,
     pub template_id: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OperationView {
-    pub task_id: Uuid,
+    pub task_id: veoveo_types::TaskId,
     pub computer_id: crate::ComputerId,
     pub action: Action,
     pub status: OperationStatus,

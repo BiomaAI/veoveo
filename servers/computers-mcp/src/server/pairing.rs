@@ -12,7 +12,6 @@ use axum::{
     routing::post,
 };
 use std::sync::Arc;
-use uuid::Uuid;
 use veoveo_computers::{ComputerError, api::*};
 use veoveo_mcp_contract::GatewayInternalIdentity;
 
@@ -68,7 +67,10 @@ async fn begin(
 async fn confirm(
     State(state): State<PairingState>,
     Extension(identity): Extension<GatewayInternalIdentity>,
-    Path((id, pairing_id)): Path<(veoveo_computers_contract::ComputerId, Uuid)>,
+    Path((id, pairing_id)): Path<(
+        veoveo_computers_contract::ComputerId,
+        veoveo_computers_contract::CliPairingId,
+    )>,
     RawQuery(query): RawQuery,
     headers: HeaderMap,
     Json(_input): Json<CliPairingConfirmBody>,

@@ -28,7 +28,7 @@ impl ComputersStore {
         let reference: crate::task_references::LifecycleReference =
             serde_json::from_value(claimed.snapshot.request.clone())
                 .map_err(|_| ComputerError::StateConflict)?;
-        let id = reference.operation_id.as_uuid();
+        let id = reference.operation_id;
         let mut params = crate::task_references::worker_bindings(
             claimed,
             crate::api::ComputerTaskKind::Lifecycle,
@@ -70,7 +70,10 @@ impl ComputersStore {
                 "operation",
                 operation_record(operation.operation_id).into_value(),
             ),
-            ("operation_id", operation.operation_id.into_value()),
+            (
+                "operation_id",
+                operation.operation_id.as_uuid().into_value(),
+            ),
             (
                 "computer",
                 computer_record(operation.computer_id).into_value(),

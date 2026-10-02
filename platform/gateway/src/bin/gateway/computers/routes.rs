@@ -1,7 +1,6 @@
 use super::Fault;
 use axum::http::Method;
 use serde::Deserialize;
-use uuid::Uuid;
 use veoveo_computers_contract::{AutomationGrantId, ComputerId, ComputerResource, FileTransferId};
 use veoveo_mcp_contract::{
     GatewayAction, GatewayProfileId, LocalToolName, PolicyTarget, ServerSlug,
@@ -11,9 +10,10 @@ use veoveo_mcp_contract::{
 pub(super) struct Route {
     pub profile: GatewayProfileId,
     pub id: Option<ComputerId>,
-    pub operation_id: Option<Uuid>,
-    pub grant_id: Option<Uuid>,
-    pub pairing_id: Option<Uuid>,
+    pub operation_id: Option<veoveo_types::TaskId>,
+    pub grant_id: Option<AutomationGrantId>,
+    pub access_grant_id: Option<veoveo_computers_contract::AccessGrantId>,
+    pub pairing_id: Option<veoveo_computers_contract::CliPairingId>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -31,17 +31,17 @@ pub(super) enum Operation {
     },
     Receipt {
         computer: veoveo_computers_contract::ComputerId,
-        operation: Uuid,
+        operation: veoveo_types::TaskId,
     },
     Maintenance(ComputerId),
     MaintenanceReceipt {
         computer: veoveo_computers_contract::ComputerId,
-        operation: Uuid,
+        operation: veoveo_types::TaskId,
     },
     UpdateTemplate(ComputerId),
     ResumeUpdate {
         computer: veoveo_computers_contract::ComputerId,
-        operation: Uuid,
+        operation: veoveo_types::TaskId,
     },
     Access(ComputerId),
     Automation(ComputerId),
@@ -56,12 +56,12 @@ pub(super) enum Operation {
     },
     RevokeAccess {
         computer: veoveo_computers_contract::ComputerId,
-        grant: Uuid,
+        grant: veoveo_computers_contract::AccessGrantId,
     },
     Pairing(ComputerId),
     ConfirmPairing {
         computer: veoveo_computers_contract::ComputerId,
-        pairing: Uuid,
+        pairing: veoveo_computers_contract::CliPairingId,
     },
     Create,
     Start(ComputerId),
@@ -74,17 +74,21 @@ impl Operation {
         matched: &str,
         method: &Method,
         id: Option<ComputerId>,
-        operation_id: Option<Uuid>,
-        grant_id: Option<Uuid>,
-        pairing_id: Option<Uuid>,
+        operation_id: Option<veoveo_types::TaskId>,
+        grant_id: Option<AutomationGrantId>,
+        access_grant_id: Option<veoveo_computers_contract::AccessGrantId>,
+        pairing_id: Option<veoveo_computers_contract::CliPairingId>,
     ) -> Result<Self, Fault> {
-        if operation_id.is_some_and(|id| id.is_nil())
-            || grant_id.is_some_and(|id| id.is_nil())
-            || pairing_id.is_some_and(|id| id.is_nil())
-            || [grant_id, operation_id, pairing_id]
-                .iter()
-                .flatten()
-                .count()
+        if operation_id.is_some_and(|id| id.as_uuid().is_nil())
+            || [
+                grant_id.is_some(),
+                access_grant_id.is_some(),
+                operation_id.is_some(),
+                pairing_id.is_some(),
+            ]
+            .into_iter()
+            .filter(|present| *present)
+            .count()
                 > 1
         {
             return Err(Fault::invalid());
@@ -105,20 +109,19 @@ impl Operation {
                     "/computers/{profile}/{id}/automation/{grant_id}",
                     &Method::GET,
                     Some(computer),
-                ) => Ok(Self::AutomationGrant {
-                    computer,
-                    grant: AutomationGrantId::try_from(grant).map_err(|_| Fault::invalid())?,
-                }),
+                ) => Ok(Self::AutomationGrant { computer, grant }),
                 (
                     "/computers/{profile}/{id}/automation/{grant_id}/revoke",
                     &Method::POST,
                     Some(computer),
-                ) => Ok(Self::RevokeAutomation {
-                    computer,
-                    grant: AutomationGrantId::try_from(grant).map_err(|_| Fault::invalid())?,
-                }),
+                ) => Ok(Self::RevokeAutomation { computer, grant }),
+                _ => Err(Fault::invalid()),
+            };
+        }
+        if let Some(grant) = access_grant_id {
+            return match (matched, method, id) {
                 (
-                    "/computers/{profile}/{id}/access/{grant_id}/revoke",
+                    "/computers/{profile}/{id}/access/{access_grant_id}/revoke",
                     &Method::POST,
                     Some(computer),
                 ) => Ok(Self::RevokeAccess { computer, grant }),
@@ -133,7 +136,8 @@ impl Operation {
                     Some(computer),
                 ) => Ok(Self::File {
                     computer,
-                    operation: FileTransferId::try_from(operation).map_err(|_| Fault::invalid())?,
+                    operation: FileTransferId::try_from(operation.as_uuid())
+                        .map_err(|_| Fault::invalid())?,
                 }),
                 (
                     "/computers/{profile}/{id}/files/{operation_id}/cancel",
@@ -141,7 +145,8 @@ impl Operation {
                     Some(computer),
                 ) => Ok(Self::CancelFile {
                     computer,
-                    operation: FileTransferId::try_from(operation).map_err(|_| Fault::invalid())?,
+                    operation: FileTransferId::try_from(operation.as_uuid())
+                        .map_err(|_| Fault::invalid())?,
                 }),
                 (
                     "/computers/{profile}/{id}/maintenance/{operation_id}/resume",

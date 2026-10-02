@@ -20,7 +20,11 @@ GET `/computers/{profile}/{id}/operations/{operation_id}` projects a stored oper
 receipt under its parent's current `resources/read` authority. It requires no mutation
 permission. Both returned IDs must match the route; inputs cannot add query authority.
 
-The `/access` child exposes outstanding grants and POST `/access/{grant_id}/revoke`
+Route decoding uses `TaskId` for operations, `AutomationGrantId` for named authority,
+`AccessGrantId` for interactive access and `CliPairingId` for confirmation. Grant and
+pairing parsers reject noncanonical or non-v7 UUIDs before policy or forwarding.
+
+The `/access` child exposes outstanding grants and POST `/access/{access_grant_id}/revoke`
 reduces the owner's existing access under current parent read authority. It accepts
 only an empty JSON body; contributor and new-attachment permission are unnecessary.
 Returned parent/grant IDs and the bounded inventory are validated before forwarding.

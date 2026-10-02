@@ -11,17 +11,24 @@
 | Veoveo regular-file handoff | Closed import/export request, canonical retained-relative path, explicit whole-run interruption scope and bounded Artifact result; typed public Task and result projection |
 | Veoveo maintenance projection | Closed update input, admitted target inventory, progress/recovery phases and completed Task identity with the existing Computer resource URI; provider instances and protected policy remain private |
 | Veoveo automation grant v1 | Named principal and OAuth-client scope, explicit permissions and bounded execution limits; generated JSON projection, no bearer authority |
-| RFC 9562 UUIDv7 | Distinct Computer, execution, file-transfer and automation-grant identities; external values require lowercase hyphenated spelling and the RFC variant |
+| RFC 9562 UUIDv7 | Distinct Computer, execution, file-transfer, automation-grant, interactive-access, CLI-pairing and connection identities; external values require lowercase hyphenated spelling and the RFC variant |
 | RFC 3986 and RFC 6570 | The `computer` resource scheme uses foundational URI parsing/building and declared templates; collection continuation uses the optional `after` query variable |
 | OpenShell CLI `0.0.116` pairing adapter | Custom confirmation-code and IPv4 loopback JSON callback; public requests select no host or authority |
 
 ## Owned Identities And Resources
 
-`ComputerId`, `ExecutionId`, `FileTransferId` and `AutomationGrantId` distinguish
-identities at compile time. Their constructors generate UUIDv7 values; parsing and
-deserialization reject other versions, variants and spellings. Execution and transfer
-IDs expose their native Task identity explicitly. Store adapters convert these types
-to driver UUID values when binding queries or writing private records.
+`ComputerId`, `ExecutionId`, `FileTransferId`, `AutomationGrantId`, `AccessGrantId`,
+`CliPairingId` and `AccessConnectionId` distinguish identities at compile time. Their
+constructors generate UUIDv7 values; parsing and deserialization reject other versions,
+variants and spellings. Browser and CLI grants share `AccessGrantId`; named automation
+authority uses `AutomationGrantId`. Pairing challenges and connection leases have
+separate identities. An ID locates a record and supplies no authority.
+
+Lifecycle and maintenance operations carry the foundational `TaskId` through receipts,
+views and worker APIs. Execution and transfer IDs expose their native Task identity
+explicitly. Client request IDs keep the UUID profile that accepts browser-generated
+idempotency keys. Store adapters convert typed identities to driver UUID values when
+binding queries or writing private records.
 
 `ComputerResource` owns the complete resource vocabulary, including collection
 continuation, management children, completed results and embedded documents. Builders

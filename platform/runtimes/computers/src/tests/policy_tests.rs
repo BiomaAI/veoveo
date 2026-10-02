@@ -368,7 +368,7 @@ async fn reconcile(running: &Running, snapshot: &ReplacementPolicy) -> Result<Po
 fn fixture_handoff(running: &Running, target: Binding, operation: Uuid) -> RetainedHandoff {
     RetainedHandoff::fixture(
         running.runtime.provider_instance_id(),
-        operation,
+        veoveo_types::TaskId::from_uuid(operation),
         bindings().0,
         target,
         "sandbox-old".into(),
@@ -455,7 +455,7 @@ async fn retired_source_policy_restores_onto_an_image_change_only_with_exact_han
             } else {
                 running.runtime.provider_instance_id()
             },
-            Uuid::now_v7(),
+            veoveo_types::TaskId::new(),
             if fault == 1 {
                 target.clone()
             } else {

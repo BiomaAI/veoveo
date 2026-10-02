@@ -63,7 +63,9 @@ impl ComputersStore {
         else {
             return Ok(None);
         };
-        let operation = self.automation_operation(actor, id).await?;
+        let operation = self
+            .automation_operation(actor, veoveo_types::TaskId::from_uuid(id))
+            .await?;
         if operation.computer_id != computer
             || operation.action != action
             || operation.automation_grant_id != Some(grant)
@@ -75,7 +77,7 @@ impl ComputersStore {
     pub async fn authorize_operation_task(
         &self,
         actor: &ComputerActor,
-        id: Uuid,
+        id: veoveo_types::TaskId,
         cancel: bool,
     ) -> Result<OperationAccess> {
         actor.check_admission()?;
@@ -130,7 +132,11 @@ impl ComputersStore {
 
     /// The original caller may inspect its Task while its named action grant is
     /// current. This supplies no authority over another actor's lifecycle work.
-    pub async fn automation_operation(&self, actor: &ComputerActor, id: Uuid) -> Result<Operation> {
+    pub async fn automation_operation(
+        &self,
+        actor: &ComputerActor,
+        id: veoveo_types::TaskId,
+    ) -> Result<Operation> {
         actor.check_admission()?;
         tokio::time::timeout(Duration::from_secs(5), async {
             let lookup = self
@@ -165,7 +171,7 @@ impl ComputersStore {
     pub async fn ensure_automation_operation_task(
         &self,
         actor: &ComputerActor,
-        id: Uuid,
+        id: veoveo_types::TaskId,
     ) -> Result<Operation> {
         let operation = self.automation_operation(actor, id).await?;
         self.link_operation_task(operation).await

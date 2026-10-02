@@ -16,12 +16,12 @@ use uuid::Uuid;
 fn record(table: &str, id: Uuid) -> RecordId {
     RecordId::new(table, surrealdb::types::Uuid::from(id))
 }
-fn grant_record(id: Uuid) -> RecordId {
-    record("computer_cli_grant", id)
+fn grant_record(id: crate::api::AccessGrantId) -> RecordId {
+    record("computer_cli_grant", id.into_uuid())
 }
-fn connection_record(id: Uuid) -> RecordId {
-    record("computer_cli_connection", id)
+fn connection_record(id: crate::api::AccessConnectionId) -> RecordId {
+    record("computer_cli_connection", id.into_uuid())
 }
-fn pairing_record(id: Uuid) -> RecordId {
-    record("computer_cli_pairing", id)
+fn pairing_record(id: crate::api::CliPairingId) -> RecordId {
+    record("computer_cli_pairing", id.into_uuid())
 }

@@ -7,7 +7,6 @@ use crate::{
 use chrono::{DateTime, Utc};
 use std::time::Duration;
 use surrealdb::types::{RecordId, SurrealValue};
-use uuid::Uuid;
 
 impl ComputersStore {
     pub async fn begin_cli_pairing(
@@ -25,13 +24,13 @@ impl ComputersStore {
             let computer = self.get(actor.owner(), computer_id).await?;
             authority::ready(&computer, self.provider_instance_id)?;
             let owner = owner_key(&computer.owner)?;
-            let id = Uuid::now_v7();
+            let id = crate::api::CliPairingId::new();
             let mut response = self
                 .query(
                     include_str!("../../queries/begin_cli_pairing.surql"),
                     vec![
                         ("pairing", super::pairing_record(id).into_value()),
-                        ("pairing_id", id.into_value()),
+                        ("pairing_id", id.into_uuid().into_value()),
                         (
                             "computer",
                             crate::model::computer_record(computer_id).into_value(),
@@ -84,7 +83,7 @@ impl ComputersStore {
         &self,
         actor: &ComputerActor,
         computer_id: veoveo_computers_contract::ComputerId,
-        pairing_id: Uuid,
+        pairing_id: crate::api::CliPairingId,
     ) -> Result<PairedCliGrant> {
         tokio::time::timeout(Duration::from_secs(5), async {
             actor.check_admission()?;
@@ -120,7 +119,7 @@ impl ComputersStore {
                 read.take(1).map_err(|_| ComputerError::Unavailable)?;
             let policy = policy.ok_or(ComputerError::Unavailable)?;
             let limits = policy.checked()?;
-            if pairing.pairing_id != pairing_id
+            if pairing.pairing_id != pairing_id.into_uuid()
                 || pairing.computer_id != computer_id.into_uuid()
                 || pairing.owner_key != owner
                 || pairing.family != family
@@ -130,7 +129,7 @@ impl ComputersStore {
             {
                 return Err(ComputerError::Forbidden);
             }
-            let grant_id = Uuid::now_v7();
+            let grant_id = crate::api::AccessGrantId::new();
             let (credential, hash) = secret::issue(grant_id)?;
             let mut params = authority::bindings(&snapshot);
             params.extend([
@@ -141,7 +140,7 @@ impl ComputersStore {
                 ),
                 ("computer_id", computer_id.into_uuid().into_value()),
                 ("grant", super::grant_record(grant_id).into_value()),
-                ("grant_id", grant_id.into_value()),
+                ("grant_id", grant_id.into_uuid().into_value()),
                 (
                     "guard",
                     super::record("computer_session_grant_guard", computer_id.into_uuid())

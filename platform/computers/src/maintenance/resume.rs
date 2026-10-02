@@ -34,7 +34,7 @@ struct Receipt {
     input: OpenObject,
 }
 fn request_record(actor: &ComputerActor, input: &ResumeUpdateInput) -> Result<RecordId> {
-    if input.task_id.get_version_num() != 7 || input.request_id.is_nil() {
+    if input.task_id.as_uuid().get_version_num() != 7 || input.request_id.is_nil() {
         return Err(ComputerError::InvalidInput);
     }
     Ok(RecordId::new(
@@ -92,7 +92,7 @@ impl ComputersStore {
                 include_str!("../../queries/maintenance_resume_receipt.surql"),
                 vec![
                     ("request", request.into_value()),
-                    ("operation_id", input.task_id.into_value()),
+                    ("operation_id", input.task_id.as_uuid().into_value()),
                     ("request_id", input.request_id.into_value()),
                 ],
             )
@@ -103,7 +103,7 @@ impl ComputersStore {
             serde_json::to_value(prior.input).map_err(|_| ComputerError::Unavailable)?,
         )
         .map_err(|_| ComputerError::Unavailable)?;
-        if prior.operation_id != input.task_id
+        if prior.operation_id != input.task_id.as_uuid()
             || prior.request_id != input.request_id
             || prior.fingerprint != fingerprint(&saved)?
         {
@@ -185,7 +185,7 @@ impl ComputersStore {
                     .expect("UUID trace"),
             );
             let content = Content {
-                operation_id: input.task_id,
+                operation_id: input.task_id.as_uuid(),
                 request_id: input.request_id,
                 fingerprint: fingerprint(input)?,
                 input: object(input)?,
@@ -225,7 +225,7 @@ impl ComputersStore {
                         ("request", request.into_value()),
                         ("content", content.into_value()),
                         ("maintenance", record(input.task_id).into_value()),
-                        ("operation_id", input.task_id.into_value()),
+                        ("operation_id", input.task_id.as_uuid().into_value()),
                         ("computer", computer_record(input.computer_id).into_value()),
                         ("provider", self.provider_instance_id.into_value()),
                         ("expected_updated_at", before.updated_at.into_value()),
@@ -249,7 +249,7 @@ impl ComputersStore {
                                 veoveo_audit_contract::ComputerActivity::Maintain,
                                 veoveo_audit_contract::ComputerAuditStage::Resumed,
                             )
-                            .task(veoveo_types::TaskId::from_uuid(input.task_id)),
+                            .task(input.task_id),
                         )?,
                         ("family", family.into_value()),
                         (

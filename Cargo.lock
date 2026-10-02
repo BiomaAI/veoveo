@@ -16170,6 +16170,7 @@ dependencies = [
  "tokio-rustls",
  "uuid",
  "veoveo-computers-runtime",
+ "veoveo-types",
 ]
 
 [[package]]
@@ -16291,6 +16292,7 @@ dependencies = [
  "typify",
  "uuid",
  "veoveo-computer-execution",
+ "veoveo-types",
  "zeroize",
 ]
 

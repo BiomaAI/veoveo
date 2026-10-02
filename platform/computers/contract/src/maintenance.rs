@@ -20,7 +20,7 @@ pub struct UpdateTemplateInput {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ResumeUpdateInput {
     pub computer_id: crate::ComputerId,
-    pub task_id: Uuid,
+    pub task_id: veoveo_types::TaskId,
     pub request_id: Uuid,
     pub expected_updated_at: DateTime<Utc>,
     pub acknowledged_cancellation_at: Option<DateTime<Utc>>,
@@ -54,7 +54,7 @@ pub enum MaintenanceRecoveryReason {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct MaintenanceView {
     pub computer_id: crate::ComputerId,
-    pub task_id: Uuid,
+    pub task_id: veoveo_types::TaskId,
     pub source_template_id: String,
     pub target_template_id: String,
     pub phase: MaintenancePhase,

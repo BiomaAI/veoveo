@@ -89,7 +89,7 @@ pub(crate) fn control_router(app: BrowserApp) -> Router<AppState> {
             post(control::proxy),
         )
         .route(
-            &format!("{root}/computers/{{id}}/access/{{grant_id}}/revoke"),
+            &format!("{root}/computers/{{id}}/access/{{access_grant_id}}/revoke"),
             post(control::proxy),
         )
         .route(

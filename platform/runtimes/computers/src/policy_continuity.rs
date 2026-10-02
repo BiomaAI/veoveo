@@ -349,7 +349,7 @@ impl OpenShellRuntime {
                 &snapshot.source,
                 &snapshot.provider_id,
             )
-            || handoff.operation_id().is_nil()
+            || handoff.operation_id().as_uuid().is_nil()
             || target.replacement_instance_id().is_none()
             || target == &snapshot.source
             || target.computer_id() != snapshot.source.computer_id()
@@ -379,7 +379,7 @@ impl OpenShellRuntime {
         snapshot: &ReplacementPolicy,
         target: &Binding,
         template: &DevelopmentTemplate,
-        operation: Uuid,
+        operation: veoveo_types::TaskId,
         mode: RestoreMode,
     ) -> Result<PolicyRestoration> {
         let bound = self.policy_bound(target, template).await?;

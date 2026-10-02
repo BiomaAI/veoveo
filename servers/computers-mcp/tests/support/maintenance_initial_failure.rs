@@ -81,7 +81,7 @@ impl Scenario<'_> {
                 "operation",
                 surrealdb::types::RecordId::new(
                     "computer_operation",
-                    surrealdb::types::Uuid::from(original.operation_id),
+                    surrealdb::types::Uuid::from(original.operation_id.as_uuid()),
                 ),
             ))
             .await

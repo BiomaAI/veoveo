@@ -55,7 +55,7 @@ impl ComputersMcp {
         if task.to_string() != id || task.as_uuid().get_version_num() != 7 {
             return Err(ErrorData::invalid_params("unknown task", None));
         }
-        let id = task.as_uuid();
+        let id = task;
         match self
             .app
             .store
@@ -102,7 +102,7 @@ impl ComputersMcp {
                     .store
                     .authorize_command_task(
                         actor,
-                        veoveo_computers_contract::ExecutionId::try_from(id)
+                        veoveo_computers_contract::ExecutionId::try_from(id.as_uuid())
                             .map_err(|_| ErrorData::invalid_params("unknown task", None))?,
                         action,
                     )
@@ -121,7 +121,7 @@ impl ComputersMcp {
                             .store
                             .authorize_file_task(
                                 actor,
-                                veoveo_computers_contract::FileTransferId::try_from(id)
+                                veoveo_computers_contract::FileTransferId::try_from(id.as_uuid())
                                     .map_err(|_| ErrorData::invalid_params("unknown task", None))?,
                                 action,
                             )

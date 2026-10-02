@@ -1,4 +1,31 @@
+use super::routes::Route;
 use super::*;
+
+#[test]
+fn grant_and_pairing_paths_decode_their_owner_types() {
+    let valid = "019b7b88-7f03-7123-8123-abcdefabcdef";
+    for field in ["grant_id", "access_grant_id", "pairing_id"] {
+        assert!(
+            serde_json::from_value::<Route>(
+                serde_json::json!({"profile": "operator", field: valid})
+            )
+            .is_ok()
+        );
+        for invalid in [
+            valid.to_uppercase(),
+            valid.replace('-', ""),
+            uuid::Uuid::nil().to_string(),
+            uuid::Uuid::new_v4().to_string(),
+        ] {
+            assert!(
+                serde_json::from_value::<Route>(
+                    serde_json::json!({"profile": "operator", field: invalid})
+                )
+                .is_err()
+            );
+        }
+    }
+}
 use axum::http::{HeaderMap, Method};
 use routes::Operation;
 use veoveo_mcp_contract::{GatewayAction, PolicyTarget};
@@ -11,7 +38,8 @@ fn maintenance_reads_keep_parent_authority_and_cannot_become_updates() {
         "/computers/{profile}/{id}/maintenance/{operation_id}/resume",
         &Method::POST,
         Some(computer),
-        Some(task),
+        Some(veoveo_types::TaskId::from_uuid(task)),
+        None,
         None,
         None,
     )
@@ -30,7 +58,8 @@ fn maintenance_reads_keep_parent_authority_and_cannot_become_updates() {
             "/computers/{profile}/{id}/maintenance/{operation_id}/resume",
             &Method::GET,
             Some(computer),
-            Some(task),
+            Some(veoveo_types::TaskId::from_uuid(task)),
+            None,
             None,
             None
         )
@@ -48,7 +77,16 @@ fn maintenance_reads_keep_parent_authority_and_cannot_become_updates() {
             format!("maintenance/{task}"),
         ),
     ] {
-        let op = Operation::from_route(path, &Method::GET, Some(computer), id, None, None).unwrap();
+        let op = Operation::from_route(
+            path,
+            &Method::GET,
+            Some(computer),
+            id.map(veoveo_types::TaskId::from_uuid),
+            None,
+            None,
+            None,
+        )
+        .unwrap();
         assert_eq!(
             op.authorization(),
             Operation::Read(computer).authorization()
@@ -57,7 +95,16 @@ fn maintenance_reads_keep_parent_authority_and_cannot_become_updates() {
         assert!(!op.requires_json());
         assert_eq!(op.service_path(), format!("computers/{computer}/{suffix}"));
         assert!(
-            Operation::from_route(path, &Method::POST, Some(computer), id, None, None).is_err()
+            Operation::from_route(
+                path,
+                &Method::POST,
+                Some(computer),
+                id.map(veoveo_types::TaskId::from_uuid),
+                None,
+                None,
+                None
+            )
+            .is_err()
         );
     }
 }
@@ -65,7 +112,7 @@ fn maintenance_reads_keep_parent_authority_and_cannot_become_updates() {
 #[test]
 fn automation_mutations_require_named_tools_and_reads_keep_exact_resource_identity() {
     let computer = veoveo_computers_contract::ComputerId::new();
-    let grant = uuid::Uuid::now_v7();
+    let grant = veoveo_computers_contract::AutomationGrantId::new();
     for (path, grant_id, tool) in [
         (
             "/computers/{profile}/{id}/automation",
@@ -78,8 +125,16 @@ fn automation_mutations_require_named_tools_and_reads_keep_exact_resource_identi
             "revoke_automation",
         ),
     ] {
-        let op = Operation::from_route(path, &Method::POST, Some(computer), None, grant_id, None)
-            .unwrap();
+        let op = Operation::from_route(
+            path,
+            &Method::POST,
+            Some(computer),
+            None,
+            grant_id,
+            None,
+            None,
+        )
+        .unwrap();
         let (target, actions) = op.authorization();
         assert!(matches!(target, PolicyTarget::Tool { tool: name, .. } if name.as_str() == tool));
         assert_eq!(actions, &[GatewayAction::ToolsCall]);
@@ -90,8 +145,9 @@ fn automation_mutations_require_named_tools_and_reads_keep_exact_resource_identi
                 path,
                 &Method::GET,
                 Some(computer),
-                Some(grant),
+                Some(veoveo_types::TaskId::from_uuid(grant.into_uuid())),
                 grant_id,
+                None,
                 None
             )
             .is_err()
@@ -104,11 +160,12 @@ fn automation_mutations_require_named_tools_and_reads_keep_exact_resource_identi
         None,
         Some(grant),
         None,
+        None,
     )
     .unwrap();
     let (target, actions) = op.authorization();
     assert!(
-        matches!(target, PolicyTarget::Resource { uri, .. } if uri == veoveo_computers_contract::automation_grant_uri(computer, veoveo_computers_contract::AutomationGrantId::try_from(grant).unwrap()))
+        matches!(target, PolicyTarget::Resource { uri, .. } if uri == veoveo_computers_contract::automation_grant_uri(computer, grant))
     );
     assert_eq!(actions, &[GatewayAction::ResourcesRead]);
     assert!(!op.requires_contributor());
@@ -117,12 +174,13 @@ fn automation_mutations_require_named_tools_and_reads_keep_exact_resource_identi
 #[test]
 fn pairing_requires_attachment_authority_and_exact_confirmation_identity() {
     let computer = veoveo_computers_contract::ComputerId::new();
-    let pairing = uuid::Uuid::new_v4();
+    let pairing = veoveo_computers_contract::CliPairingId::new();
     let path = "/computers/{profile}/{id}/cli-pairings/{pairing_id}/confirm";
     let confirmed = Operation::from_route(
         path,
         &Method::POST,
         Some(computer),
+        None,
         None,
         None,
         Some(pairing),
@@ -150,6 +208,7 @@ fn pairing_requires_attachment_authority_and_exact_confirmation_identity() {
             Some(computer),
             None,
             None,
+            None,
             Some(pairing)
         )
         .is_err()
@@ -160,22 +219,13 @@ fn pairing_requires_attachment_authority_and_exact_confirmation_identity() {
             &Method::POST,
             Some(computer),
             None,
-            Some(pairing),
+            Some(veoveo_computers_contract::AutomationGrantId::new()),
+            None,
             Some(pairing)
         )
         .is_err()
     );
-    assert!(
-        Operation::from_route(
-            path,
-            &Method::POST,
-            Some(computer),
-            None,
-            None,
-            Some(uuid::Uuid::nil())
-        )
-        .is_err()
-    );
+    assert!(veoveo_computers_contract::CliPairingId::try_from(uuid::Uuid::nil()).is_err());
 }
 
 #[test]
@@ -244,6 +294,7 @@ fn route_selection_cannot_forward_arbitrary_paths_or_nil_computers() {
             Some(veoveo_computers_contract::ComputerId::new()),
             None,
             None,
+            None,
             None
         )
         .is_err()
@@ -259,6 +310,7 @@ fn route_selection_cannot_forward_arbitrary_paths_or_nil_computers() {
             "/computers/{profile}/{id}/provider-admin",
             &Method::POST,
             Some(veoveo_computers_contract::ComputerId::new()),
+            None,
             None,
             None,
             None
@@ -282,7 +334,8 @@ fn receipt_route_uses_the_parent_computers_read_authority() {
         path,
         &Method::GET,
         Some(computer),
-        Some(receipt),
+        Some(veoveo_types::TaskId::from_uuid(receipt)),
+        None,
         None,
         None,
     )
@@ -306,7 +359,8 @@ fn receipt_route_uses_the_parent_computers_read_authority() {
             path,
             &Method::POST,
             Some(computer),
-            Some(receipt),
+            Some(veoveo_types::TaskId::from_uuid(receipt)),
+            None,
             None,
             None
         )
@@ -317,7 +371,8 @@ fn receipt_route_uses_the_parent_computers_read_authority() {
             path,
             &Method::GET,
             Some(computer),
-            Some(uuid::Uuid::nil()),
+            Some(veoveo_types::TaskId::from_uuid(uuid::Uuid::nil())),
+            None,
             None,
             None
         )
@@ -328,11 +383,18 @@ fn receipt_route_uses_the_parent_computers_read_authority() {
 #[test]
 fn self_revocation_is_a_json_mutation_bound_to_the_parents_read_authority() {
     let computer = veoveo_computers_contract::ComputerId::new();
-    let grant = uuid::Uuid::new_v4();
-    let path = "/computers/{profile}/{id}/access/{grant_id}/revoke";
-    let operation =
-        Operation::from_route(path, &Method::POST, Some(computer), None, Some(grant), None)
-            .unwrap();
+    let grant = veoveo_computers_contract::AccessGrantId::new();
+    let path = "/computers/{profile}/{id}/access/{access_grant_id}/revoke";
+    let operation = Operation::from_route(
+        path,
+        &Method::POST,
+        Some(computer),
+        None,
+        None,
+        Some(grant),
+        None,
+    )
+    .unwrap();
     assert!(operation.requires_json());
     assert!(!operation.requires_contributor());
     assert_eq!(
@@ -349,28 +411,28 @@ fn self_revocation_is_a_json_mutation_bound_to_the_parents_read_authority() {
         veoveo_computers_contract::computer_uri(computer).as_str()
     );
     assert!(
-        Operation::from_route(path, &Method::GET, Some(computer), None, Some(grant), None).is_err()
-    );
-    assert!(
         Operation::from_route(
             path,
-            &Method::POST,
-            Some(computer),
-            Some(grant),
-            Some(grant),
-            None
-        )
-        .is_err()
-    );
-    assert!(
-        Operation::from_route(
-            path,
-            &Method::POST,
+            &Method::GET,
             Some(computer),
             None,
-            Some(uuid::Uuid::nil()),
+            None,
+            Some(grant),
             None
         )
         .is_err()
     );
+    assert!(
+        Operation::from_route(
+            path,
+            &Method::POST,
+            Some(computer),
+            Some(veoveo_types::TaskId::from_uuid(grant.into_uuid())),
+            None,
+            Some(grant),
+            None
+        )
+        .is_err()
+    );
+    assert!(veoveo_computers_contract::AccessGrantId::try_from(uuid::Uuid::nil()).is_err());
 }

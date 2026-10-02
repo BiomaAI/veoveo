@@ -27,7 +27,9 @@ impl FileWorker {
             b.provider_instance_id,
             operation
                 .containment_id()
-                .ok_or(FileWorkerError::Configuration)?,
+                .ok_or(FileWorkerError::Configuration)?
+                .try_into()
+                .map_err(|_| FileWorkerError::Configuration)?,
             binding.clone(),
             &before,
         )

@@ -187,7 +187,7 @@ impl Application {
         &self,
         actor: &ComputerActor,
         computer_id: veoveo_computers_contract::ComputerId,
-        operation_id: Uuid,
+        operation_id: veoveo_types::TaskId,
     ) -> Result<Operation> {
         let access = self
             .store

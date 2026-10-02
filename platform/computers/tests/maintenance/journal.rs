@@ -104,7 +104,7 @@ async fn durable_steps_capture_encrypted_policy_and_adopt_exactly_one_instance()
         db.a.client()
             .select(RecordId::new(
                 "computer_maintenance_policy",
-                StoreUuid::from(operation.operation_id),
+                StoreUuid::from(operation.operation_id.as_uuid()),
             ))
             .await
             .unwrap();
@@ -380,7 +380,7 @@ async fn observation_count_budget_is_durable_and_independent_of_worker_restarts(
     let operation = ticket.operation().clone();
     drop(ticket);
     db.a.client().query("UPDATE ONLY $operation SET progress.steps[0].observation_reads = 7, progress.steps[0].last_observation_id = $id, progress.steps[0].next_observation_at = <string>(time::now() - 1s);")
-        .bind(("operation",RecordId::new("computer_maintenance",StoreUuid::from(operation.operation_id))))
+        .bind(("operation",RecordId::new("computer_maintenance",StoreUuid::from(operation.operation_id.as_uuid()))))
         .bind(("id",Uuid::now_v7().to_string())).await.unwrap().check().unwrap();
     let ReadAdmission::Read(ticket) = b.observe_maintenance_step(&claim).await.unwrap() else {
         panic!("eighth read")
@@ -406,7 +406,7 @@ async fn exhausted_step_budget_retains_the_fence_and_cannot_cancel_or_redispatch
     drop(ticket);
     // Isolated journal clock fault: preserve a valid 180-second historical window.
     db.a.client().query("LET $now = time::now(); UPDATE ONLY $operation SET progress.steps[0].dispatched_at = <string>($now - 181s), progress.steps[0].observation_started_at = <string>($now - 181s), progress.steps[0].observation_deadline = <string>($now - 1s);")
-        .bind(("operation",RecordId::new("computer_maintenance",StoreUuid::from(operation.operation_id))))
+        .bind(("operation",RecordId::new("computer_maintenance",StoreUuid::from(operation.operation_id.as_uuid()))))
         .await.unwrap().check().unwrap();
     assert!(matches!(
         b.observe_maintenance_step(&claim).await.unwrap(),

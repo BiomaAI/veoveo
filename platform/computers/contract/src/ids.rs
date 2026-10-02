@@ -90,6 +90,9 @@ identity!(ComputerId);
 identity!(ExecutionId);
 identity!(FileTransferId);
 identity!(AutomationGrantId);
+identity!(AccessGrantId);
+identity!(CliPairingId);
+identity!(AccessConnectionId);
 
 impl ExecutionId {
     pub fn task_id(self) -> veoveo_types::TaskId {

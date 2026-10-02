@@ -151,7 +151,7 @@ impl ComputersStore {
             .ok_or(ComputerError::InvalidState)?;
         let observation_id = Uuid::now_v7();
         let backoff = (500_i64 << step.observation_reads.min(5)).min(10_000)
-            + i64::from(after.operation_id.as_bytes()[15]);
+            + i64::from(after.operation_id.as_uuid().as_bytes()[15]);
         step.observation_reads += 1;
         step.last_observation_id = Some(observation_id);
         step.next_observation_at = Some(clock.database_time + TimeDelta::milliseconds(backoff));

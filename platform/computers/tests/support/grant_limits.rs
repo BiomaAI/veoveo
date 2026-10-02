@@ -108,7 +108,7 @@ async fn expired_ticket_grant_and_family_cannot_be_revived_by_activity() {
         );
         db.b.client()
             .query(statement)
-            .bind(("grant", grant_record(handle.grant_id())))
+            .bind(("grant", grant_record(handle.grant_id().into_uuid())))
             .bind(("family", family))
             .await
             .unwrap()

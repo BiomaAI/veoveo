@@ -7,6 +7,11 @@
 export type ComputerId = string;
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "AccessGrantId".
+ */
+export type AccessGrantId = string;
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "AccessGrantKind".
  */
 export type AccessGrantKind = "browser" | "cli";
@@ -25,6 +30,11 @@ export type AutomationPermission = "read" | "execute" | "start" | "stop";
  * via the `definition` "CancelFileTransferBody".
  */
 export type CancelFileTransferBody = Record<string, never>;
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "CliPairingId".
+ */
+export type CliPairingId = string;
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "CliPairingConfirmBody".
@@ -54,12 +64,17 @@ export type ComputerAccessMode = "owner" | "granted";
 export type ComputerExecution =
   | {
       kind: "command";
-      taskId: string;
+      taskId: TaskId;
     }
   | {
       kind: "file";
-      taskId: string;
+      taskId: TaskId;
     };
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "TaskId".
+ */
+export type TaskId = string;
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "ComputerPhase".
@@ -333,7 +348,7 @@ export interface AccessGrantView {
    * An upper bound. Current policy, idle expiry or revocation can end access sooner.
    */
   expiresAt: string;
-  grantId: string;
+  grantId: AccessGrantId;
   issuedAt: string;
   kind: AccessGrantKind;
   lastActivityAt: string;
@@ -349,7 +364,7 @@ export interface AccessGrantView {
  */
 export interface AccessRevocation {
   computerId: ComputerId;
-  grantId: string;
+  grantId: AccessGrantId;
   revoked: boolean;
 }
 /**
@@ -445,13 +460,25 @@ export interface AutomationGrantLimits {
   maximumOutputBytes: number;
 }
 /**
+ * The confirmation challenge keeps its identity separate from issued access.
+ *
+ * ```compile_fail
+ * use veoveo_computers_contract::{AccessGrantId, CliPairingId};
+ * let pairing: CliPairingId = AccessGrantId::new();
+ * ```
+ *
+ * ```compile_fail
+ * use veoveo_computers_contract::{AccessConnectionId, CliPairingId};
+ * let pairing: CliPairingId = AccessConnectionId::new();
+ * ```
+ *
  * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "CliPairingChallenge".
  */
 export interface CliPairingChallenge {
   computerId: ComputerId;
   expiresAt: string;
-  pairingId: string;
+  pairingId: CliPairingId;
 }
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
@@ -470,8 +497,8 @@ export interface CliPairingResult {
   callbackPort: number;
   computerId: ComputerId;
   expiresAt: string;
-  grantId: string;
-  pairingId: string;
+  grantId: AccessGrantId;
+  pairingId: CliPairingId;
   token: CliPairingToken;
 }
 /**
@@ -484,7 +511,7 @@ export interface ComputerView {
    * The shared command/file slot can remain held while an owner Stop completes.
    */
   activeExecution?: ComputerExecution | null;
-  activeTaskId?: string | null;
+  activeTaskId?: TaskId | null;
   busy: boolean;
   canConnect: boolean;
   /**
@@ -639,7 +666,7 @@ export interface FileTransferView {
   message?: string | null;
   result?: FileTransferResult | null;
   stage: FileTransferStage;
-  taskId: string;
+  taskId: TaskId;
   updatedAt: string;
 }
 /**
@@ -680,7 +707,7 @@ export interface LifecycleInput {
 export interface LifecycleResult {
   action: Action;
   computerId: ComputerId;
-  operationId: string;
+  operationId: TaskId;
   result_uri?: string | null;
 }
 /**
@@ -698,7 +725,7 @@ export interface ComputerLimits {
  */
 export interface MaintenanceResult {
   computerId: ComputerId;
-  maintenanceId: string;
+  maintenanceId: TaskId;
   result_uri: string;
   templateId: string;
 }
@@ -725,7 +752,7 @@ export interface MaintenanceView {
   recovery?: MaintenanceRecoveryReason | null;
   sourceTemplateId: string;
   targetTemplateId: string;
-  taskId: string;
+  taskId: TaskId;
   updatedAt: string;
 }
 /**
@@ -750,7 +777,7 @@ export interface OperationView {
   createdAt: string;
   error?: ApiError | null;
   status: OperationStatus;
-  taskId: string;
+  taskId: TaskId;
   updatedAt: string;
 }
 /**
@@ -761,7 +788,7 @@ export interface OperationReceipt {
   action: Action;
   computerId: ComputerId;
   status: OperationStatus;
-  taskId: string;
+  taskId: TaskId;
 }
 /**
  * A new, explicit recovery intent for the exact paused operation epoch.
@@ -774,15 +801,25 @@ export interface ResumeUpdateInput {
   computerId: ComputerId;
   expectedUpdatedAt: string;
   requestId: string;
-  taskId: string;
+  taskId: TaskId;
 }
 /**
+ * Revocation accepts an interactive access identity.
+ *
+ * ```compile_fail
+ * use veoveo_computers_contract::{AutomationGrantId, ComputerId, RevokeAccessInput};
+ * let input = RevokeAccessInput {
+ *     computer_id: ComputerId::new(),
+ *     grant_id: AutomationGrantId::new(),
+ * };
+ * ```
+ *
  * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "RevokeAccessInput".
  */
 export interface RevokeAccessInput {
   computerId: ComputerId;
-  grantId: string;
+  grantId: AccessGrantId;
 }
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema

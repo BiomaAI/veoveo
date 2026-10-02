@@ -8,15 +8,17 @@ use axum::{
 };
 use serde::Deserialize;
 use std::time::Duration;
+#[cfg(test)]
 use uuid::Uuid;
 use veoveo_computers_contract::{ComputerId, TerminalTicket};
 
 #[derive(Deserialize)]
 pub(super) struct Route {
     id: Option<ComputerId>,
-    operation_id: Option<Uuid>,
-    grant_id: Option<Uuid>,
-    pairing_id: Option<Uuid>,
+    operation_id: Option<veoveo_types::TaskId>,
+    grant_id: Option<veoveo_computers_contract::AutomationGrantId>,
+    access_grant_id: Option<veoveo_computers_contract::AccessGrantId>,
+    pairing_id: Option<veoveo_computers_contract::CliPairingId>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -42,6 +44,7 @@ pub(super) async fn proxy(
         route.id,
         route.operation_id,
         route.grant_id,
+        route.access_grant_id,
         route.pairing_id,
     ) else {
         return fault(StatusCode::BAD_REQUEST);
@@ -127,17 +130,21 @@ pub(super) async fn proxy(
 fn upstream_path(
     matched: &str,
     id: Option<ComputerId>,
-    operation_id: Option<Uuid>,
-    grant_id: Option<Uuid>,
-    pairing_id: Option<Uuid>,
+    operation_id: Option<veoveo_types::TaskId>,
+    grant_id: Option<veoveo_computers_contract::AutomationGrantId>,
+    access_grant_id: Option<veoveo_computers_contract::AccessGrantId>,
+    pairing_id: Option<veoveo_computers_contract::CliPairingId>,
 ) -> Option<String> {
-    if operation_id.is_some_and(|id| id.is_nil())
-        || grant_id.is_some_and(|id| id.is_nil())
-        || pairing_id.is_some_and(|id| id.is_nil())
-        || [grant_id, operation_id, pairing_id]
-            .iter()
-            .flatten()
-            .count()
+    if operation_id.is_some_and(|id| id.as_uuid().is_nil())
+        || [
+            grant_id.is_some(),
+            access_grant_id.is_some(),
+            operation_id.is_some(),
+            pairing_id.is_some(),
+        ]
+        .into_iter()
+        .filter(|present| *present)
+        .count()
             > 1
     {
         return None;
@@ -154,15 +161,22 @@ fn upstream_path(
         if matched == "/computers/{id}/automation/{grant_id}/revoke" {
             return id.map(|id| format!("/{id}/automation/{grant}/revoke"));
         }
-        return (matched == "/computers/{id}/access/{grant_id}/revoke")
+        return None;
+    }
+    if let Some(grant) = access_grant_id {
+        return (matched == "/computers/{id}/access/{access_grant_id}/revoke")
             .then(|| id.map(|id| format!("/{id}/access/{grant}/revoke")))
             .flatten();
     }
     if let Some(operation) = operation_id {
         if matched == "/computers/{id}/files/{operation_id}" {
+            let operation =
+                veoveo_computers_contract::FileTransferId::try_from(operation.as_uuid()).ok()?;
             return id.map(|id| format!("/{id}/files/{operation}"));
         }
         if matched == "/computers/{id}/files/{operation_id}/cancel" {
+            let operation =
+                veoveo_computers_contract::FileTransferId::try_from(operation.as_uuid()).ok()?;
             return id.map(|id| format!("/{id}/files/{operation}/cancel"));
         }
         if matched == "/computers/{id}/maintenance/{operation_id}/resume" {
@@ -196,9 +210,45 @@ mod tests {
     use super::*;
 
     #[test]
+    fn grant_routes_admit_canonical_owner_types_before_forwarding() {
+        let computer = ComputerId::new();
+        let grant = veoveo_computers_contract::AccessGrantId::new();
+        let route = "/computers/{id}/access/{access_grant_id}/revoke";
+        assert_eq!(
+            upstream_path(route, Some(computer), None, None, Some(grant), None),
+            Some(format!("/{computer}/access/{grant}/revoke"))
+        );
+        assert!(
+            upstream_path(
+                route,
+                Some(computer),
+                None,
+                Some(veoveo_computers_contract::AutomationGrantId::new()),
+                None,
+                None
+            )
+            .is_none()
+        );
+        let valid = "019b7b88-7f03-7123-8123-abcdefabcdef";
+        for field in ["grant_id", "access_grant_id", "pairing_id"] {
+            assert!(serde_json::from_value::<Route>(serde_json::json!({field: valid})).is_ok());
+            for invalid in [
+                valid.to_uppercase(),
+                valid.replace('-', ""),
+                Uuid::nil().to_string(),
+                Uuid::new_v4().to_string(),
+            ] {
+                assert!(
+                    serde_json::from_value::<Route>(serde_json::json!({field: invalid})).is_err()
+                );
+            }
+        }
+    }
+
+    #[test]
     fn file_paths_use_only_fixed_parent_and_task_routes() {
         let computer = ComputerId::new();
-        let task = Uuid::now_v7();
+        let task = veoveo_types::TaskId::new();
         for (route, expected, operation) in [
             ("/computers/{id}/files", format!("/{computer}/files"), None),
             (
@@ -213,10 +263,10 @@ mod tests {
             ),
         ] {
             assert_eq!(
-                upstream_path(route, Some(computer), operation, None, None),
+                upstream_path(route, Some(computer), operation, None, None, None),
                 Some(expected)
             );
-            assert!(upstream_path(route, None, operation, None, None).is_none());
+            assert!(upstream_path(route, None, operation, None, None, None).is_none());
             assert!(
                 serde_json::from_value::<Route>(serde_json::json!({"id": Uuid::nil()})).is_err()
             );
@@ -227,6 +277,7 @@ mod tests {
                 Some(computer),
                 Some(task),
                 None,
+                None,
                 None
             )
             .is_none()
@@ -236,7 +287,8 @@ mod tests {
                 "/computers/{id}/files/{operation_id}",
                 Some(computer),
                 Some(task),
-                Some(task),
+                Some(veoveo_computers_contract::AutomationGrantId::new()),
+                None,
                 None
             )
             .is_none()

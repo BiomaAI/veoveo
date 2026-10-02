@@ -21,3 +21,4 @@ veoveo-computers-runtime = { path = "../../runtimes/computers" }
 [dev-dependencies]
 rcgen.workspace = true
 tempfile.workspace = true
+veoveo-types.workspace = true

@@ -7,6 +7,23 @@ import agentSchema from "./generated/agent-management.schema.json" with { type: 
 import { compileGeneratedSchema } from "./jsonSchema.ts";
 
 const id = "01994bed-e0d0-7000-8000-000000000001";
+test("interactive access and pairing identities use canonical UUIDv7 admission", () => {
+  const revoke = { computerId: id, grantId: id };
+  const pairing = { computerId: id, pairingId: id, expiresAt: "2026-10-02T11:00:00Z" };
+  assert.deepEqual(parseComputer("revoke_access_input", revoke), revoke);
+  assert.deepEqual(parseComputer("cli_pairing_challenge", pairing), pairing);
+  for (const invalid of [
+    id.toUpperCase(), id.replaceAll("-", ""), `${id}\n`,
+    id.replace("-7000-", "-4000-"), id.replace("-8000-", "-c000-"),
+    "00000000-0000-0000-0000-000000000000",
+  ]) {
+    assert.throws(() => parseComputer("revoke_access_input", { ...revoke, grantId: invalid }));
+    assert.throws(() => parseComputer("cli_pairing_challenge", { ...pairing, pairingId: invalid }));
+  }
+  // Browser-generated idempotency keys retain their separate UUID profile.
+  const request = { requestId: id.replace("-7000-", "-4000-") };
+  assert.deepEqual(parseComputer("create_input", request), request);
+});
 test("every generated contract definition compiles with the browser's no-eval validator", () => {
   for (const schema of [auditSchema, computerSchema, agentSchema]) {
     for (const name of Object.keys(schema.$defs)) {

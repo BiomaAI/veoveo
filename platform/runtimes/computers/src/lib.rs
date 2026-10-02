@@ -62,7 +62,7 @@ pub use models::{
 };
 pub use policy_continuity::{PolicyRestoration, ReplacementPolicy};
 pub use policy_json::parse_policy;
-pub use recovery::{LifecycleCheckpoint, LifecycleObservation};
+pub use recovery::{LifecycleCheckpoint, LifecycleObservation, LifecycleOperationId};
 pub use remote_access::OpenShellAccess;
 pub use retained_writer::{RegisteredConsumer, RetainedWriter};
 pub use retirement::RetirementAcknowledgement;

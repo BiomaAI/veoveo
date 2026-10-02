@@ -1,14 +1,13 @@
 use super::{MaintenanceOperation, MaintenanceStage, model::MaintenanceRecord, record};
 use crate::{ComputerError, ComputersStore, Result};
 use surrealdb::types::SurrealValue;
-use uuid::Uuid;
 use veoveo_platform_store::task_record_id;
 
 impl ComputersStore {
     /// Bounded private worker discovery. Recovery rows do not query the provider.
     pub async fn pending_maintenance(
         &self,
-        after: Option<Uuid>,
+        after: Option<veoveo_types::TaskId>,
         limit: u32,
     ) -> Result<Vec<MaintenanceOperation>> {
         if !(1..=100).contains(&limit) {
@@ -19,7 +18,10 @@ impl ComputersStore {
                 include_str!("../../queries/pending_maintenance.surql"),
                 vec![
                     ("provider", self.provider_instance_id.into_value()),
-                    ("after", after.into_value()),
+                    (
+                        "after",
+                        after.map(veoveo_types::TaskId::as_uuid).into_value(),
+                    ),
                     ("limit", i64::from(limit).into_value()),
                 ],
             )

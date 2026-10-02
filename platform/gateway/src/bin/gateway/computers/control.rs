@@ -12,7 +12,6 @@ use axum::{
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::time::Duration;
-use uuid::Uuid;
 use veoveo_computers_contract as api;
 use veoveo_mcp_gateway::AuthenticatedSubject;
 
@@ -41,6 +40,7 @@ pub(super) async fn proxy(
         route.id,
         route.operation_id,
         route.grant_id,
+        route.access_grant_id,
         route.pairing_id,
     )?;
     if operation != Operation::List && request.uri().query().is_some() {
@@ -276,7 +276,7 @@ fn pairing_challenge(
     computer: veoveo_computers_contract::ComputerId,
 ) -> Result<Vec<u8>, ()> {
     let value: api::CliPairingChallenge = serde_json::from_slice(bytes).map_err(|_| ())?;
-    if value.computer_id != computer || value.pairing_id.is_nil() {
+    if value.computer_id != computer {
         return Err(());
     }
     serde_json::to_vec(&value).map_err(|_| ())
@@ -284,12 +284,11 @@ fn pairing_challenge(
 fn pairing_result(
     bytes: &[u8],
     computer: veoveo_computers_contract::ComputerId,
-    pairing: Uuid,
+    pairing: veoveo_computers_contract::CliPairingId,
 ) -> Result<Vec<u8>, ()> {
     let value: api::CliPairingResult = serde_json::from_slice(bytes).map_err(|_| ())?;
     if value.computer_id != computer
         || value.pairing_id != pairing
-        || value.grant_id.is_nil()
         || value.callback_port < 1024
         || value.token.expose_secret().len() != 107
     {
@@ -301,7 +300,7 @@ fn pairing_result(
 fn read_receipt(
     bytes: &[u8],
     computer: veoveo_computers_contract::ComputerId,
-    operation: Uuid,
+    operation: veoveo_types::TaskId,
 ) -> Result<Vec<u8>, ()> {
     let receipt: api::OperationReceipt = serde_json::from_slice(bytes).map_err(|_| ())?;
     if receipt.computer_id != computer || receipt.task_id != operation {
@@ -320,7 +319,7 @@ fn access_grants(
         || grants
             .grants
             .iter()
-            .any(|grant| grant.grant_id.is_nil() || !ids.insert(grant.grant_id))
+            .any(|grant| !ids.insert(grant.grant_id))
     {
         return Err(());
     }
@@ -329,7 +328,7 @@ fn access_grants(
 fn access_revocation(
     bytes: &[u8],
     computer: veoveo_computers_contract::ComputerId,
-    grant: Uuid,
+    grant: veoveo_computers_contract::AccessGrantId,
 ) -> Result<Vec<u8>, ()> {
     let receipt: api::AccessRevocation = serde_json::from_slice(bytes).map_err(|_| ())?;
     if receipt.computer_id != computer || receipt.grant_id != grant || !receipt.revoked {

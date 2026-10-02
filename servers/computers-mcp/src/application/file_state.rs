@@ -58,7 +58,7 @@ impl Application {
             }
             access.owner()?;
             Ok(FileTransferView {
-                task_id: transfer.into_uuid(),
+                task_id: transfer.task_id(),
                 computer_id: computer,
                 direction: access.direction(),
                 stage: access.stage(),

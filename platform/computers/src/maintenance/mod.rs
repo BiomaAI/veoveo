@@ -19,11 +19,13 @@ pub use steps::{MaintenanceObservationAdmission, MaintenanceTicket};
 use crate::{ComputerError, Result};
 use serde::Serialize;
 use surrealdb::types::RecordId;
-use uuid::Uuid;
 use veoveo_platform_store::OpenObject;
 
-fn record(id: Uuid) -> RecordId {
-    RecordId::new("computer_maintenance", surrealdb::types::Uuid::from(id))
+fn record(id: veoveo_types::TaskId) -> RecordId {
+    RecordId::new(
+        "computer_maintenance",
+        surrealdb::types::Uuid::from(id.as_uuid()),
+    )
 }
 fn object(value: &impl Serialize) -> Result<OpenObject> {
     serde_json::from_value(serde_json::to_value(value).map_err(|_| ComputerError::Unavailable)?)

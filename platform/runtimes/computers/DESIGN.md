@@ -88,6 +88,19 @@ or terminating workspace cannot advertise available capacity. The packaged host
 currently enrolls the provider's `default` workspace; additional workspaces require
 explicit provider provisioning before workers select them.
 
+## Lifecycle Correlation
+
+`LifecycleOperationId` binds a provider Create, Start or Stop checkpoint to its
+initiating operation. A lifecycle Task supplies its `TaskId` through a checked
+conversion. Command and file containment use their own recorded operation nonce.
+Those operations can share the lifecycle adapter without confusing a containment
+operation with the Task that requested work. The provider ID occupies a separate
+constructor argument. Deserialization rejects nil correlation IDs before recovery.
+The private checkpoint keeps its UUID wire representation.
+
+Allocator handoff, abandon and policy restoration take the maintenance `TaskId`.
+Only their private protocol adapters convert it to the allocator's UUID field.
+
 ## Retained Allocation Identity
 
 The allocation client pins a non-nil provider UUID alongside its template fingerprint

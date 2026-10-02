@@ -14,11 +14,11 @@ pub struct SessionGrantTicket {
 
 /// In-process attachment authority. It cannot be deserialized from public input.
 pub struct SessionGrantHandle {
-    pub(super) grant_id: Uuid,
-    pub(super) connection_id: Uuid,
+    pub(super) grant_id: crate::api::AccessGrantId,
+    pub(super) connection_id: crate::api::AccessConnectionId,
 }
 impl SessionGrantHandle {
-    pub fn grant_id(&self) -> Uuid {
+    pub fn grant_id(&self) -> crate::api::AccessGrantId {
         self.grant_id
     }
 }
@@ -83,7 +83,11 @@ impl Record {
             .as_str()
             .parse()
             .map_err(|_| ComputerError::Forbidden)?;
-        if self.id != super::record(self.grant_id)
+        if self.id
+            != super::record(
+                crate::api::AccessGrantId::try_from(self.grant_id)
+                    .map_err(|_| ComputerError::Forbidden)?,
+            )
             || self.grant_id.is_nil()
             || self.family != veoveo_platform_store::gateway_refresh_family_record_id(family_id)
         {

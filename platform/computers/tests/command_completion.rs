@@ -257,5 +257,5 @@ async fn a_late_cancel_preserves_the_known_result_and_an_independent_owner_stop(
             .check()
             .unwrap();
     let active: Option<Uuid> = read.take(0).unwrap();
-    assert_eq!(active, Some(stop.operation_id));
+    assert_eq!(active, Some(stop.operation_id.as_uuid()));
 }

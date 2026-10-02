@@ -60,7 +60,7 @@ impl ComputersStore {
             .await?;
         let row: Option<PolicyRecord> = read.take(0).map_err(|_| ComputerError::Unavailable)?;
         let row = row.ok_or(ComputerError::Unavailable)?;
-        if row.operation_id != operation.operation_id {
+        if row.operation_id != operation.operation_id.as_uuid() {
             return Err(ComputerError::Unavailable);
         }
         let sealed: SealedMaintenanceCheckpoint = serde_json::from_value(

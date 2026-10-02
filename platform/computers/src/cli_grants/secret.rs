@@ -1,9 +1,8 @@
 use super::CliGrantCredential;
 use crate::{ComputerError, Result};
 use sha2::{Digest, Sha256};
-use uuid::Uuid;
 
-pub(super) fn issue(id: Uuid) -> Result<(CliGrantCredential, String)> {
+pub(super) fn issue(id: crate::api::AccessGrantId) -> Result<(CliGrantCredential, String)> {
     let mut bytes = [0u8; 32];
     getrandom::fill(&mut bytes).map_err(|_| ComputerError::Unavailable)?;
     let secret = hex::encode(bytes);
@@ -12,7 +11,7 @@ pub(super) fn issue(id: Uuid) -> Result<(CliGrantCredential, String)> {
         hash(&secret),
     ))
 }
-pub(super) fn parse(token: &CliGrantCredential) -> Result<(Uuid, String)> {
+pub(super) fn parse(token: &CliGrantCredential) -> Result<(crate::api::AccessGrantId, String)> {
     let text = token.expose_secret();
     if text.len() != 107 {
         return Err(ComputerError::Forbidden);
@@ -21,9 +20,8 @@ pub(super) fn parse(token: &CliGrantCredential) -> Result<(Uuid, String)> {
         .strip_prefix("vcli1.")
         .ok_or(ComputerError::Forbidden)?;
     let (id, secret) = text.split_once('.').ok_or(ComputerError::Forbidden)?;
-    let id: Uuid = id.parse().map_err(|_| ComputerError::Forbidden)?;
-    if id.is_nil()
-        || !text.starts_with(&id.to_string())
+    let id: crate::api::AccessGrantId = id.parse().map_err(|_| ComputerError::Forbidden)?;
+    if !text.starts_with(&id.to_string())
         || secret.len() != 64
         || !secret
             .bytes()

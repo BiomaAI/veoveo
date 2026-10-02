@@ -195,6 +195,8 @@ designs above.
 | `platform/runtimes/computers/` | private OpenShell adapter, retained binding/storage protocol, terminal/exec streams, renewable attachment enforcement and SSH-only CLI bridge; the Computers plan tracks domain/service and installed qualification |
 | `servers/computers-mcp/src/file_worker.rs` and `file_worker/` | file worker: transfer authorization, size-limited Artifact bytes, results, original-run containment and production supervision |
 | `servers/computers-mcp/src/io_guard.rs` | shared command/file foreground expiry, runtime deadlines and monotonic byte-limit enforcement |
+| `platform/computers/contract/src/ids.rs` | distinct Computer, execution, file-transfer, automation and interactive-access IDs, CLI pairing and connection IDs; Task projections use foundational `TaskId` |
+| `platform/runtimes/computers/src/recovery.rs` | provider lifecycle checkpoints with typed operation correlation for lifecycle Tasks and command/file containment |
 | `platform/runtimes/computers/src/file_request.rs` | private regular-file streaming adapter: process binding, size-limited binary input/output, verified byte count and hash; callers own Artifact authorization and publication |
 | `platform/computers/contract/src/files.rs` | public regular-file handoff types and generated schemas: import/export intent, retained-relative paths and Artifact result metadata; the domain service owns admission |
 | `platform/computers/src/secrets/files.rs` and `file_access.rs` | private authenticated file intent and Task-bound Artifact access; installation key rotation and retry comparison; stores no file bodies or gateway bearers |

@@ -27,7 +27,9 @@ impl CommandWorker {
             b.provider_instance_id,
             operation
                 .containment_id()
-                .ok_or(CommandWorkerError::Configuration)?,
+                .ok_or(CommandWorkerError::Configuration)?
+                .try_into()
+                .map_err(|_| CommandWorkerError::Configuration)?,
             binding.clone(),
             &before,
         )

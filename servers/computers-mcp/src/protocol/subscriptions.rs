@@ -219,7 +219,7 @@ impl ComputersMcp {
                                 Some(ComputerChange::Automation { computer, grant }) => (computer, Some(grant)),
                                 Some(ComputerChange::Task(task)) => {
                                     // Any Task mutation can alter maintenance recovery.
-                                    match self.app.store.maintenance(actor.owner(), task.as_uuid()).await {
+                                    match self.app.store.maintenance(actor.owner(), task).await {
                                         Ok(operation) => (operation.computer_id, None),
                                         Err(veoveo_computers::ComputerError::NotFound) => continue,
                                         Err(_) => return Err(auth::unavailable()),

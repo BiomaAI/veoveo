@@ -18,7 +18,7 @@ pub struct Computer {
     pub phase: ComputerPhase,
     pub provider_resource_id: Option<String>,
     pub process_id: Option<String>,
-    pub active_operation: Option<Uuid>,
+    pub active_operation: Option<veoveo_types::TaskId>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -78,7 +78,7 @@ impl TryFrom<ComputerRecord> for Computer {
                     .map_err(|_| ComputerError::Unavailable)?,
                 provider_resource_id: value.provider_resource_id,
                 process_id: value.process_id,
-                active_operation: value.active_operation,
+                active_operation: value.active_operation.map(veoveo_types::TaskId::from_uuid),
                 created_at: value.created_at,
                 updated_at: value.updated_at,
             })

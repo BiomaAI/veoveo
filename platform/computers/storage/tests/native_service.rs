@@ -77,7 +77,7 @@ async fn native_service_shared_mount_and_restart() {
     fixture.start_container("a", true).await;
     fixture.copy_and_assert("during restart").await;
 
-    let operation = uuid::Uuid::now_v7();
+    let operation = veoveo_types::TaskId::new();
     worker
         .handoff(
             operation,
@@ -119,7 +119,7 @@ async fn native_service_shared_mount_and_restart() {
     // The failed handoff did not mistake lazy loop detachment for exclusion.
     fixture.write_held("held writer remains physical").await;
     fixture.release_home().await;
-    fixture.drop_handoff_reply(operation).await;
+    fixture.drop_handoff_reply(operation.as_uuid()).await;
     worker
         .handoff(
             operation,
@@ -131,7 +131,7 @@ async fn native_service_shared_mount_and_restart() {
         .unwrap();
     worker
         .handoff(
-            uuid::Uuid::now_v7(),
+            veoveo_types::TaskId::new(),
             &fixture.initial,
             &fixture.replacement,
             "resource-a",
@@ -173,7 +173,7 @@ async fn native_service_shared_mount_and_restart() {
         .await;
     next_worker
         .handoff(
-            uuid::Uuid::now_v7(),
+            veoveo_types::TaskId::new(),
             &fixture.replacement,
             &next,
             "resource-b",
@@ -199,7 +199,7 @@ async fn native_service_shared_mount_and_restart() {
     // transition record survives later template changes.
     worker
         .handoff(
-            uuid::Uuid::now_v7(),
+            veoveo_types::TaskId::new(),
             &next,
             &fixture.replacement,
             "resource-c",
@@ -215,7 +215,7 @@ async fn native_service_shared_mount_and_restart() {
     let forbidden =
         Binding::replacement(next.computer_id(), uuid::Uuid::now_v7(), "e".repeat(64)).unwrap();
     next_worker
-        .abandon(uuid::Uuid::now_v7(), &next, &forbidden)
+        .abandon(veoveo_types::TaskId::new(), &next, &forbidden)
         .await
         .unwrap_err();
     qualify_unclaimed(&fixture).await;
@@ -234,7 +234,7 @@ async fn qualify_unclaimed(fixture: &Fixture) {
         )
         .await;
     worker.prepare(&source).await.unwrap();
-    let operation = uuid::Uuid::now_v7();
+    let operation = veoveo_types::TaskId::new();
     // A registered but never-started consumer blocks abandonment as well.
     fixture.create("pending", &source).await;
     target_worker
@@ -244,14 +244,14 @@ async fn qualify_unclaimed(fixture: &Fixture) {
     worker.restore(&source).await.unwrap();
     fixture.remove("pending").await;
     fixture
-        .drop_abandon_reply(operation, &source, &target)
+        .drop_abandon_reply(operation.as_uuid(), &source, &target)
         .await;
     target_worker
         .abandon(operation, &source, &target)
         .await
         .unwrap();
     target_worker
-        .abandon(uuid::Uuid::now_v7(), &source, &target)
+        .abandon(veoveo_types::TaskId::new(), &source, &target)
         .await
         .unwrap_err();
     worker.restore(&source).await.unwrap_err();
@@ -280,16 +280,26 @@ async fn qualify_unclaimed(fixture: &Fixture) {
     let next =
         Binding::replacement(source.computer_id(), uuid::Uuid::now_v7(), "e".repeat(64)).unwrap();
     target_worker
-        .handoff(uuid::Uuid::now_v7(), &target, &next, "resource-adopted")
+        .handoff(
+            veoveo_types::TaskId::new(),
+            &target,
+            &next,
+            "resource-adopted",
+        )
         .await
         .unwrap();
     // Neither maintenance kind may reuse the other's prior target identity.
     target_worker
-        .abandon(uuid::Uuid::now_v7(), &next, &target)
+        .abandon(veoveo_types::TaskId::new(), &next, &target)
         .await
         .unwrap_err();
     target_worker
-        .handoff(uuid::Uuid::now_v7(), &next, &target, "resource-adopted")
+        .handoff(
+            veoveo_types::TaskId::new(),
+            &next,
+            &target,
+            "resource-adopted",
+        )
         .await
         .unwrap_err();
     target_worker
@@ -302,11 +312,11 @@ async fn qualify_unclaimed(fixture: &Fixture) {
     let final_target =
         Binding::replacement(source.computer_id(), uuid::Uuid::now_v7(), "e".repeat(64)).unwrap();
     target_worker
-        .abandon(uuid::Uuid::now_v7(), &next, &final_target)
+        .abandon(veoveo_types::TaskId::new(), &next, &final_target)
         .await
         .unwrap();
     target_worker
-        .abandon(uuid::Uuid::now_v7(), &final_target, &next)
+        .abandon(veoveo_types::TaskId::new(), &final_target, &next)
         .await
         .unwrap_err();
     fixture.create("final", &final_target).await;
@@ -315,7 +325,7 @@ async fn qualify_unclaimed(fixture: &Fixture) {
     fixture.remove("final").await;
     target_worker
         .handoff(
-            uuid::Uuid::now_v7(),
+            veoveo_types::TaskId::new(),
             &final_target,
             &target,
             "resource-final",

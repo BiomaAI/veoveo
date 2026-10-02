@@ -18,7 +18,13 @@ fn native_identity_admission_rejects_aliases_wrong_versions_and_variants() {
         assert!(invalid.parse::<ExecutionId>().is_err());
         assert!(invalid.parse::<FileTransferId>().is_err());
         assert!(invalid.parse::<AutomationGrantId>().is_err());
+        assert!(invalid.parse::<AccessGrantId>().is_err());
+        assert!(invalid.parse::<CliPairingId>().is_err());
+        assert!(invalid.parse::<AccessConnectionId>().is_err());
         assert!(serde_json::from_value::<ComputerId>(json!(invalid)).is_err());
+        assert!(serde_json::from_value::<AccessGrantId>(json!(invalid)).is_err());
+        assert!(serde_json::from_value::<CliPairingId>(json!(invalid)).is_err());
+        assert!(serde_json::from_value::<AccessConnectionId>(json!(invalid)).is_err());
     }
     let computer: ComputerId = good.parse().unwrap();
     assert_eq!(serde_json::to_value(computer).unwrap(), json!(good));
@@ -34,6 +40,21 @@ fn native_identity_admission_rejects_aliases_wrong_versions_and_variants() {
     assert_eq!(execution.task_id().as_uuid(), execution.into_uuid());
     let transfer = FileTransferId::new();
     assert_eq!(transfer.task_id().as_uuid(), transfer.into_uuid());
+    let grant = AccessGrantId::new();
+    let pairing = CliPairingId::new();
+    let connection = AccessConnectionId::new();
+    assert_eq!(
+        serde_json::from_value::<AccessGrantId>(json!(grant)).unwrap(),
+        grant
+    );
+    assert_eq!(
+        serde_json::from_value::<CliPairingId>(json!(pairing)).unwrap(),
+        pairing
+    );
+    assert_eq!(
+        serde_json::from_value::<AccessConnectionId>(json!(connection)).unwrap(),
+        connection
+    );
 }
 
 #[test]

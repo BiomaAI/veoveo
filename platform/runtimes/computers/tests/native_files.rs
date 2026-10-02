@@ -67,8 +67,12 @@ async fn regular_file_transfer_verifies_bytes_retention_and_uncertain_input() {
     let binding = Binding::new(computer, selected.fingerprint()).unwrap();
     let home =
         block_home::BlockHome::create(provider.dir.clone(), provider.image.clone(), computer);
-    let create =
-        LifecycleCheckpoint::create(Uuid::from_u128(100), Uuid::now_v7(), binding.clone()).unwrap();
+    let create = LifecycleCheckpoint::create(
+        Uuid::from_u128(100),
+        veoveo_computers_runtime::LifecycleOperationId::new(),
+        binding.clone(),
+    )
+    .unwrap();
     let created = runtime.create(&binding, &selected).await.unwrap();
     let ready = runtime
         .wait_for_lifecycle(&create, &created, Duration::from_secs(30))
@@ -145,7 +149,7 @@ async fn regular_file_transfer_verifies_bytes_retention_and_uncertain_input() {
     );
     let stop = LifecycleCheckpoint::stop(
         Uuid::from_u128(100),
-        Uuid::now_v7(),
+        veoveo_computers_runtime::LifecycleOperationId::new(),
         binding.clone(),
         &ready,
     )
@@ -157,7 +161,7 @@ async fn regular_file_transfer_verifies_bytes_retention_and_uncertain_input() {
         .unwrap();
     let start = LifecycleCheckpoint::start(
         Uuid::from_u128(100),
-        Uuid::now_v7(),
+        veoveo_computers_runtime::LifecycleOperationId::new(),
         binding.clone(),
         &stopped,
     )

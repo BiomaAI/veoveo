@@ -331,18 +331,27 @@ fn native_intent(
     let checkpoint = match operation.action {
         Action::Create => LifecycleCheckpoint::create(
             operation.provider_instance_id,
-            operation.operation_id,
+            operation
+                .operation_id
+                .try_into()
+                .map_err(|_| WorkerError::Configuration)?,
             binding.clone(),
         ),
         Action::Start => LifecycleCheckpoint::start(
             operation.provider_instance_id,
-            operation.operation_id,
+            operation
+                .operation_id
+                .try_into()
+                .map_err(|_| WorkerError::Configuration)?,
             binding.clone(),
             before.as_ref().ok_or(WorkerError::Configuration)?,
         ),
         Action::Stop => LifecycleCheckpoint::stop(
             operation.provider_instance_id,
-            operation.operation_id,
+            operation
+                .operation_id
+                .try_into()
+                .map_err(|_| WorkerError::Configuration)?,
             binding.clone(),
             before.as_ref().ok_or(WorkerError::Configuration)?,
         ),

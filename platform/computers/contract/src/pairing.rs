@@ -2,7 +2,6 @@
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -31,11 +30,22 @@ impl CliPairingInput {
     }
 }
 
+/// The confirmation challenge keeps its identity separate from issued access.
+///
+/// ```compile_fail
+/// use veoveo_computers_contract::{AccessGrantId, CliPairingId};
+/// let pairing: CliPairingId = AccessGrantId::new();
+/// ```
+///
+/// ```compile_fail
+/// use veoveo_computers_contract::{AccessConnectionId, CliPairingId};
+/// let pairing: CliPairingId = AccessConnectionId::new();
+/// ```
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CliPairingChallenge {
     pub computer_id: crate::ComputerId,
-    pub pairing_id: Uuid,
+    pub pairing_id: crate::CliPairingId,
     pub expires_at: DateTime<Utc>,
 }
 
@@ -65,8 +75,8 @@ impl CliPairingToken {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CliPairingResult {
     pub computer_id: crate::ComputerId,
-    pub pairing_id: Uuid,
-    pub grant_id: Uuid,
+    pub pairing_id: crate::CliPairingId,
+    pub grant_id: crate::AccessGrantId,
     pub token: CliPairingToken,
     #[schemars(range(min = 1024, max = 65535))]
     pub callback_port: u16,

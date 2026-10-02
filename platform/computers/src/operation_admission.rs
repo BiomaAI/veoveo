@@ -31,8 +31,11 @@ struct Content {
     action: String,
 }
 
-pub(crate) fn operation_record(id: Uuid) -> RecordId {
-    RecordId::new("computer_operation", surrealdb::types::Uuid::from(id))
+pub(crate) fn operation_record(id: veoveo_types::TaskId) -> RecordId {
+    RecordId::new(
+        "computer_operation",
+        surrealdb::types::Uuid::from(id.as_uuid()),
+    )
 }
 impl ComputersStore {
     /// Resolve accepted work without requiring currently available compute. The
@@ -60,7 +63,9 @@ impl ComputersStore {
         let Some(id) = id else {
             return Ok(None);
         };
-        let operation = self.operation(caller, id).await?;
+        let operation = self
+            .operation(caller, veoveo_types::TaskId::from_uuid(id))
+            .await?;
         if operation.computer_id != computer
             || operation.action != action
             || operation.automation_grant_id.is_some()
@@ -133,7 +138,7 @@ impl ComputersStore {
             ))?,
             None => digest(&("veoveo.computer.operation.input.v1", computer_id, action))?,
         };
-        let id = Uuid::now_v7();
+        let id = veoveo_types::TaskId::new();
         let audit_activity = crate::audit::lifecycle_activity(action);
         let (action, previous, next) = match action {
             Action::Create => (
@@ -145,9 +150,9 @@ impl ComputersStore {
             Action::Stop => ("stop", ComputerPhase::Ready, ComputerPhase::Stopping),
         };
         let content = Content {
-            operation_id: id,
+            operation_id: id.as_uuid(),
             computer_id: computer_id.into_uuid(),
-            task: task_record_id(veoveo_types::TaskId::from_uuid(id)),
+            task: task_record_id(id),
             actor_context: object(caller)?,
             owner_context: object(&computer.owner)?,
             automation_grant_id: grant_id.map(crate::api::AutomationGrantId::into_uuid),
@@ -189,7 +194,7 @@ impl ComputersStore {
                 audit_activity,
                 veoveo_audit_contract::ComputerAuditStage::Queued,
             )
-            .task(veoveo_types::TaskId::from_uuid(id)),
+            .task(id),
         )?);
         if let Some(authority) = &authority {
             bindings.extend(authority.transaction_bindings()?);
@@ -207,7 +212,7 @@ impl ComputersStore {
         let lookup = self
             .operation_lookup(
                 caller,
-                operation.ok_or(ComputerError::Unavailable)?,
+                veoveo_types::TaskId::from_uuid(operation.ok_or(ComputerError::Unavailable)?),
                 OperationParticipant::Actor,
             )
             .await?;
@@ -220,7 +225,11 @@ impl ComputersStore {
         }
         Ok(operation)
     }
-    pub async fn operation(&self, caller: &TaskOwner, id: Uuid) -> Result<Operation> {
+    pub async fn operation(
+        &self,
+        caller: &TaskOwner,
+        id: veoveo_types::TaskId,
+    ) -> Result<Operation> {
         let lookup = self
             .operation_lookup(caller, id, OperationParticipant::Owner)
             .await?;
@@ -230,7 +239,11 @@ impl ComputersStore {
     }
     /// Idempotent second half of acceptance. The durable operation reconstructs the
     /// same Task after a process crash or lost task-creation reply.
-    pub async fn ensure_operation_task(&self, caller: &TaskOwner, id: Uuid) -> Result<Operation> {
+    pub async fn ensure_operation_task(
+        &self,
+        caller: &TaskOwner,
+        id: veoveo_types::TaskId,
+    ) -> Result<Operation> {
         let operation = self.operation(caller, id).await?;
         self.link_operation_task(operation).await
     }

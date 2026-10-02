@@ -17,7 +17,7 @@ fn keys(active: u128, retained: &[u128]) -> ComputerKeyRing {
 }
 fn binding() -> MaintenanceBinding {
     MaintenanceBinding {
-        operation_id: Uuid::now_v7(),
+        operation_id: veoveo_types::TaskId::new(),
         request_id: Uuid::from_u128(1),
         computer_id: crate::api::ComputerId::new(),
         provider_instance_id: Uuid::from_u128(3),
@@ -116,7 +116,7 @@ fn maintenance_envelopes_reject_cross_purpose_tampering_and_size_overflow() {
         assert!(ring.open_maintenance(&binding, &damaged).is_err());
     }
     let command_binding = CommandBinding {
-        execution_id: crate::api::ExecutionId::try_from(binding.operation_id).unwrap(),
+        execution_id: crate::api::ExecutionId::try_from(binding.operation_id.as_uuid()).unwrap(),
         request_id: binding.request_id,
         computer_id: binding.computer_id,
         grant_id: crate::api::AutomationGrantId::new(),

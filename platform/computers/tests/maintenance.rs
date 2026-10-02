@@ -131,7 +131,7 @@ async fn replicas_share_one_replacement_task_fence_and_retained_capacity() {
     );
     assert_eq!(
         reply.take::<Vec<Uuid>>(2).unwrap(),
-        vec![expected.operation_id]
+        vec![expected.operation_id.as_uuid()]
     );
     // Simulate lost Task linking on this isolated store. Repair keeps the exact
     // original maintenance and target rather than allocating another instance.
@@ -161,7 +161,7 @@ async fn replicas_share_one_replacement_task_fence_and_retained_capacity() {
             "operation",
             RecordId::new(
                 "computer_maintenance",
-                StoreUuid::from(expected.operation_id),
+                StoreUuid::from(expected.operation_id.as_uuid()),
             ),
         ))
         .bind(("invalid", "g".repeat(64)))
@@ -238,7 +238,10 @@ async fn failed_initial_create_is_fenced_without_reclassifying_its_unknown_effec
         .query("UPDATE ONLY $operation SET observation_deadline = time::now() - 1s;")
         .bind((
             "operation",
-            RecordId::new("computer_operation", StoreUuid::from(original.operation_id)),
+            RecordId::new(
+                "computer_operation",
+                StoreUuid::from(original.operation_id.as_uuid()),
+            ),
         ))
         .await
         .unwrap()

@@ -2,7 +2,6 @@
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -14,7 +13,7 @@ pub enum AccessGrantKind {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AccessGrantView {
-    pub grant_id: Uuid,
+    pub grant_id: crate::AccessGrantId,
     pub kind: AccessGrantKind,
     #[schemars(length(min = 1, max = 64))]
     pub name: String,
@@ -36,11 +35,20 @@ pub struct AccessGrantCollection {
     pub grants: Vec<AccessGrantView>,
 }
 
+/// Revocation accepts an interactive access identity.
+///
+/// ```compile_fail
+/// use veoveo_computers_contract::{AutomationGrantId, ComputerId, RevokeAccessInput};
+/// let input = RevokeAccessInput {
+///     computer_id: ComputerId::new(),
+///     grant_id: AutomationGrantId::new(),
+/// };
+/// ```
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RevokeAccessInput {
     pub computer_id: crate::ComputerId,
-    pub grant_id: Uuid,
+    pub grant_id: crate::AccessGrantId,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -51,6 +59,6 @@ pub struct RevokeAccessBody {}
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AccessRevocation {
     pub computer_id: crate::ComputerId,
-    pub grant_id: Uuid,
+    pub grant_id: crate::AccessGrantId,
     pub revoked: bool,
 }

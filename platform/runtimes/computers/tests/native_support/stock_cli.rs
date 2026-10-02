@@ -108,8 +108,12 @@ async fn established_stock_cli_crosses_provider_admission_token_expiry() {
     let runtime = &provider.runtime;
     let template = template(provider.image.clone());
     let binding = Binding::new(Uuid::now_v7(), template.fingerprint()).unwrap();
-    let checkpoint =
-        LifecycleCheckpoint::create(Uuid::from_u128(100), Uuid::now_v7(), binding.clone()).unwrap();
+    let checkpoint = LifecycleCheckpoint::create(
+        Uuid::from_u128(100),
+        veoveo_computers_runtime::LifecycleOperationId::new(),
+        binding.clone(),
+    )
+    .unwrap();
     let created = runtime.create(&binding, &template).await.unwrap();
     let ready = runtime
         .wait_for_lifecycle(&checkpoint, &created, Duration::from_secs(30))

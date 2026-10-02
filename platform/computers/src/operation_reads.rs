@@ -19,7 +19,7 @@ impl OperationParticipant {
 }
 
 pub(crate) struct OperationLookup {
-    id: Uuid,
+    id: veoveo_types::TaskId,
     pub computer: ComputerId,
     pub action: Action,
     pub grant: Option<AutomationGrantId>,
@@ -36,7 +36,7 @@ impl ComputersStore {
     pub(crate) async fn operation_lookup(
         &self,
         caller: &TaskOwner,
-        id: Uuid,
+        id: veoveo_types::TaskId,
         participant: OperationParticipant,
     ) -> Result<OperationLookup> {
         let mut params = crate::store::owner_query_bindings(caller)?;

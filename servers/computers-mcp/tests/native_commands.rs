@@ -224,7 +224,7 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
     let allocator = home.worker(home.provider).await;
     allocator.prepare(&initial).await.unwrap();
     allocator
-        .abandon(Uuid::now_v7(), &initial, &binding)
+        .abandon(veoveo_types::TaskId::new(), &initial, &binding)
         .await
         .unwrap();
     db.a.client()

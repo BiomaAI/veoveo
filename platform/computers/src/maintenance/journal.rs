@@ -5,7 +5,6 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use std::time::{Duration, Instant};
 use surrealdb::types::{SurrealValue, Value};
-use uuid::Uuid;
 use veoveo_platform_store::deterministic_enterprise_id;
 use veoveo_task_runtime::{ClaimedTask, ProviderCommit, TaskError, TaskRuntime};
 
@@ -40,7 +39,7 @@ impl ComputersStore {
         let reference: crate::task_references::MaintenanceReference =
             serde_json::from_value(claim.snapshot.request.clone())
                 .map_err(|_| ComputerError::StateConflict)?;
-        let id = reference.maintenance_id.as_uuid();
+        let id = reference.maintenance_id;
         let mut params = crate::task_references::worker_bindings(
             claim,
             crate::api::ComputerTaskKind::Maintenance,
@@ -83,7 +82,7 @@ impl ComputersStore {
             .unwrap_or_default();
         let mut params = vec![
             ("maintenance", record(before.operation_id).into_value()),
-            ("operation_id", before.operation_id.into_value()),
+            ("operation_id", before.operation_id.as_uuid().into_value()),
             ("provider", self.provider_instance_id.into_value()),
             (
                 "computer",
@@ -115,7 +114,9 @@ impl ComputersStore {
             (
                 "initial_operation",
                 match before.source {
-                    super::MaintenanceSource::InitialFailure { operation_id } => Some(operation_id),
+                    super::MaintenanceSource::InitialFailure { operation_id } => {
+                        Some(operation_id.as_uuid())
+                    }
                     _ => None,
                 }
                 .into_value(),
@@ -153,10 +154,10 @@ impl ComputersStore {
             })
     }
 }
-pub(super) fn policy_record(id: Uuid) -> surrealdb::types::RecordId {
+pub(super) fn policy_record(id: veoveo_types::TaskId) -> surrealdb::types::RecordId {
     surrealdb::types::RecordId::new(
         "computer_maintenance_policy",
-        surrealdb::types::Uuid::from(id),
+        surrealdb::types::Uuid::from(id.as_uuid()),
     )
 }
 fn enum_value(value: impl Serialize) -> Result<Value> {

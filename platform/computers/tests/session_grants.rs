@@ -75,7 +75,7 @@ async fn ticket_redemption_is_private_one_use_and_cross_replica_revocation_ends_
     let mut stored =
         db.b.client()
             .query("SELECT VALUE ticket_hash FROM ONLY $grant;")
-            .bind(("grant", grant_record(handle.grant_id())))
+            .bind(("grant", grant_record(handle.grant_id().into_uuid())))
             .await
             .unwrap()
             .check()

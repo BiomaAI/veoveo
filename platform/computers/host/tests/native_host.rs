@@ -35,7 +35,12 @@ async fn exec(runtime: &OpenShellRuntime, binding: &Binding, program: &str) -> R
 }
 async fn stop(runtime: &OpenShellRuntime, provider: Uuid, binding: &Binding) -> Result<()> {
     let before = runtime.get(binding).await?.unwrap();
-    let checkpoint = LifecycleCheckpoint::stop(provider, Uuid::now_v7(), binding.clone(), &before)?;
+    let checkpoint = LifecycleCheckpoint::stop(
+        provider,
+        LifecycleOperationId::new(),
+        binding.clone(),
+        &before,
+    )?;
     let initial = runtime.stop(binding, &before).await?;
     runtime
         .wait_for_lifecycle(&checkpoint, &initial, Duration::from_secs(30))
@@ -77,7 +82,11 @@ async fn composite_host_replaces_its_namespace_and_retains_the_computer() -> Res
     fixture
         .fault("assert-recovery", binding.computer_id())
         .await?;
-    let create = LifecycleCheckpoint::create(fixture.provider, Uuid::now_v7(), binding.clone())?;
+    let create = LifecycleCheckpoint::create(
+        fixture.provider,
+        LifecycleOperationId::new(),
+        binding.clone(),
+    )?;
     let initial = runtime.create(&binding, &template).await?;
     let original = runtime
         .wait_for_lifecycle(&create, &initial, Duration::from_secs(30))
@@ -99,8 +108,12 @@ async fn composite_host_replaces_its_namespace_and_retains_the_computer() -> Res
         before.phase == Phase::Stopped && before.sandbox_id == original.sandbox_id,
         "retained provider resource changed"
     );
-    let start =
-        LifecycleCheckpoint::start(fixture.provider, Uuid::now_v7(), binding.clone(), &before)?;
+    let start = LifecycleCheckpoint::start(
+        fixture.provider,
+        LifecycleOperationId::new(),
+        binding.clone(),
+        &before,
+    )?;
     let initial = runtime.start(&binding, &before).await?;
     let restored = runtime
         .wait_for_lifecycle(&start, &initial, Duration::from_secs(30))

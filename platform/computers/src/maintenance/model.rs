@@ -53,7 +53,7 @@ pub enum MaintenanceSource {
     },
     /// Original Create remains unresolved. Only allocator proof can later establish
     /// that its initial admission never acquired a writer. Current absence cannot.
-    InitialFailure { operation_id: Uuid },
+    InitialFailure { operation_id: veoveo_types::TaskId },
 }
 impl MaintenanceSource {
     pub(super) fn validate(&self) -> Result<()> {
@@ -66,7 +66,7 @@ impl MaintenanceSource {
                 resource_id,
                 process_id,
             } => native_id(resource_id) && native_id(process_id),
-            Self::InitialFailure { operation_id } => operation_id.get_version_num() == 7,
+            Self::InitialFailure { operation_id } => operation_id.as_uuid().get_version_num() == 7,
         };
         if valid {
             Ok(())
@@ -93,7 +93,7 @@ pub enum MaintenanceStage {
 
 #[derive(Clone, Debug)]
 pub struct MaintenanceOperation {
-    pub operation_id: Uuid,
+    pub operation_id: veoveo_types::TaskId,
     pub request_id: Uuid,
     pub computer_id: veoveo_computers_contract::ComputerId,
     pub actor: TaskOwner,
@@ -113,7 +113,7 @@ pub struct MaintenanceOperation {
 }
 impl MaintenanceOperation {
     pub fn task_id(&self) -> TaskId {
-        TaskId::from_uuid(self.operation_id)
+        self.operation_id
     }
 }
 
@@ -147,7 +147,7 @@ impl TryFrom<MaintenanceRecord> for MaintenanceOperation {
             .map_err(|_| ComputerError::Unavailable)?;
         let decode = || -> std::result::Result<Self, serde_json::Error> {
             Ok(Self {
-                operation_id: row.operation_id,
+                operation_id: TaskId::from_uuid(row.operation_id),
                 request_id: row.request_id,
                 computer_id,
                 actor: serde_json::from_value(serde_json::to_value(row.actor_context)?)?,
@@ -181,7 +181,7 @@ impl TryFrom<MaintenanceRecord> for MaintenanceOperation {
         op.source
             .validate()
             .map_err(|_| ComputerError::Unavailable)?;
-        if op.operation_id.get_version_num() != 7
+        if op.operation_id.as_uuid().get_version_num() != 7
             || op.request_id.is_nil()
             || [
                 op.provider_instance_id,

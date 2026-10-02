@@ -27,6 +27,18 @@ through the Computers worker service. No provider dependency enters the gateway.
 [Qualification Limits](#qualification-limits) records the installed acceptance scope
 and remaining release gates.
 
+## Operation And Access Identities
+
+Lifecycle and maintenance journals expose `TaskId` through admission, repair, worker
+queues and public projections. The same type follows pending-operation cursors and
+encrypted maintenance bindings. Private Store rows use driver UUIDs and convert at
+the adapter. Workers verify the claimed Task kind and owner before reading a journal.
+
+Interactive access keeps `AccessGrantId`, `CliPairingId` and `AccessConnectionId`
+through issuance, redemption, renewal and revocation. Named automation grants use
+`AutomationGrantId`. SQL predicates still establish parent, provider, session and
+current-authority relationships; a typed identity alone does not establish access.
+
 ## Transactional Audit
 
 `src/audit.rs` builds records from accepted request authority. Reservation requires a

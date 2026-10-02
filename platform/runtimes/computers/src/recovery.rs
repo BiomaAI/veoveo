@@ -10,6 +10,53 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use uuid::Uuid;
 
+/// Correlates a provider lifecycle effect, including command/file containment.
+/// It is distinct from the provider identity and from the containing durable Task.
+///
+/// ```compile_fail
+/// use uuid::Uuid;
+/// use veoveo_computers_runtime::{Binding, LifecycleCheckpoint};
+/// fn checkpoint(binding: Binding) {
+///     let _ = LifecycleCheckpoint::create(Uuid::now_v7(), Uuid::now_v7(), binding);
+/// }
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "Uuid", into = "Uuid")]
+pub struct LifecycleOperationId(Uuid);
+impl LifecycleOperationId {
+    pub fn new() -> Self {
+        Self(Uuid::now_v7())
+    }
+    pub fn as_uuid(self) -> Uuid {
+        self.0
+    }
+}
+impl Default for LifecycleOperationId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+impl TryFrom<Uuid> for LifecycleOperationId {
+    type Error = RuntimeFailure;
+    fn try_from(id: Uuid) -> Result<Self> {
+        if id.is_nil() {
+            return Err(RuntimeFailure::BindingMismatch);
+        }
+        Ok(Self(id))
+    }
+}
+impl TryFrom<veoveo_types::TaskId> for LifecycleOperationId {
+    type Error = RuntimeFailure;
+    fn try_from(id: veoveo_types::TaskId) -> Result<Self> {
+        Self::try_from(id.as_uuid())
+    }
+}
+impl From<LifecycleOperationId> for Uuid {
+    fn from(id: LifecycleOperationId) -> Self {
+        id.0
+    }
+}
+
 const READ_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -30,7 +77,7 @@ enum Goal {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(try_from = "Record", into = "Record")]
 pub struct LifecycleCheckpoint {
-    operation_id: Uuid,
+    operation_id: LifecycleOperationId,
     provider_instance_id: Uuid,
     binding: Binding,
     goal: Goal,
@@ -40,7 +87,7 @@ pub struct LifecycleCheckpoint {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Record {
     version: u8,
-    operation_id: Uuid,
+    operation_id: LifecycleOperationId,
     provider_instance_id: Uuid,
     computer_id: Uuid,
     replacement_instance_id: Option<Uuid>,
@@ -51,7 +98,7 @@ struct Record {
 impl LifecycleCheckpoint {
     pub fn create(
         provider_instance_id: Uuid,
-        operation_id: Uuid,
+        operation_id: LifecycleOperationId,
         binding: Binding,
     ) -> Result<Self> {
         Self::checked(provider_instance_id, operation_id, binding, Goal::Create)
@@ -59,7 +106,7 @@ impl LifecycleCheckpoint {
 
     pub fn start(
         provider_instance_id: Uuid,
-        operation_id: Uuid,
+        operation_id: LifecycleOperationId,
         binding: Binding,
         before: &Observation,
     ) -> Result<Self> {
@@ -79,7 +126,7 @@ impl LifecycleCheckpoint {
 
     pub fn stop(
         provider_instance_id: Uuid,
-        operation_id: Uuid,
+        operation_id: LifecycleOperationId,
         binding: Binding,
         before: &Observation,
     ) -> Result<Self> {
@@ -99,11 +146,11 @@ impl LifecycleCheckpoint {
 
     fn checked(
         provider_instance_id: Uuid,
-        operation_id: Uuid,
+        operation_id: LifecycleOperationId,
         binding: Binding,
         goal: Goal,
     ) -> Result<Self> {
-        if operation_id.is_nil() || provider_instance_id.is_nil() {
+        if provider_instance_id.is_nil() {
             return Err(RuntimeFailure::BindingMismatch);
         }
         let epoch = match &goal {
@@ -130,7 +177,7 @@ impl LifecycleCheckpoint {
         })
     }
 
-    pub fn operation_id(&self) -> Uuid {
+    pub fn operation_id(&self) -> LifecycleOperationId {
         self.operation_id
     }
 

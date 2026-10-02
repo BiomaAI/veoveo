@@ -8,7 +8,7 @@ async fn maintenance_admits_actor_parent_provider_and_claim_before_private_state
         let operation = a.maintenance_for_claim(&claim).await.unwrap();
         let id = operation.operation_id;
         let caller = &operation.actor;
-        let row = RecordId::new("computer_maintenance", StoreUuid::from(id));
+        let row = RecordId::new("computer_maintenance", StoreUuid::from(id.as_uuid()));
         db.a.client().query("UPDATE ONLY $row SET execution_authority.request_context.access_token.expires_at = 42;")
             .bind(("row", row.clone())).await.unwrap().check().unwrap();
         assert!(matches!(a.maintenance(caller, id).await, Err(ComputerError::Unavailable)));
@@ -51,7 +51,7 @@ async fn accepted_resume_receipts_require_parent_access_before_input_decoding() 
         assert!(a.maintenance_resume_for_request(&actor, &input).await.unwrap().is_none());
         let resumed = a.resume_maintenance(&actor, &input).await.unwrap();
         db.a.client().query("UPDATE computer_maintenance_resume SET input.expected_updated_at = 42 WHERE operation_id = $operation;")
-            .bind(("operation", paused.operation_id)).await.unwrap().check().unwrap();
+            .bind(("operation", paused.operation_id.as_uuid())).await.unwrap().check().unwrap();
         assert!(matches!(a.maintenance_resume_for_request(&actor, &input).await, Err(ComputerError::Unavailable)));
         db.a.client().query("UPDATE ONLY $computer SET owner_context.data_labels = ['private'];")
             .bind(("computer", RecordId::new("computer", StoreUuid::from(input.computer_id.into_uuid()))))

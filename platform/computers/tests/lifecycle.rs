@@ -184,7 +184,7 @@ async fn due(db: &TestDb, op: &Operation) {
             "operation",
             surrealdb::types::RecordId::new(
                 "computer_operation",
-                surrealdb::types::Uuid::from(op.operation_id),
+                surrealdb::types::Uuid::from(op.operation_id.as_uuid()),
             ),
         ))
         .await
@@ -276,7 +276,7 @@ async fn lost_dispatch_receipt_recovers_by_one_charged_observation_without_repla
             "operation",
             surrealdb::types::RecordId::new(
                 "computer_operation",
-                surrealdb::types::Uuid::from(op.operation_id),
+                surrealdb::types::Uuid::from(op.operation_id.as_uuid()),
             ),
         ))
         .await
@@ -341,7 +341,7 @@ async fn exhausted_budget_survives_replica_change_and_retains_the_computer_fence
             "operation",
             surrealdb::types::RecordId::new(
                 "computer_operation",
-                surrealdb::types::Uuid::from(expired.operation_id),
+                surrealdb::types::Uuid::from(expired.operation_id.as_uuid()),
             ),
         ))
         .await

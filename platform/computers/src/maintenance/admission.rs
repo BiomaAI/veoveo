@@ -59,14 +59,18 @@ fn request_record(
     ))
 }
 impl ComputersStore {
-    pub async fn maintenance(&self, caller: &TaskOwner, id: Uuid) -> Result<MaintenanceOperation> {
+    pub async fn maintenance(
+        &self,
+        caller: &TaskOwner,
+        id: veoveo_types::TaskId,
+    ) -> Result<MaintenanceOperation> {
         self.maintenance_for_computer(caller, id, None).await
     }
 
     pub(super) async fn maintenance_for_computer(
         &self,
         caller: &TaskOwner,
-        id: Uuid,
+        id: veoveo_types::TaskId,
         computer: Option<crate::api::ComputerId>,
     ) -> Result<MaintenanceOperation> {
         let mut params = crate::store::owner_query_bindings(caller)?;
@@ -109,6 +113,7 @@ impl ComputersStore {
         let id: Option<Uuid> = reply.take(0).map_err(|_| ComputerError::Unavailable)?;
         match id {
             Some(id) => {
+                let id = veoveo_types::TaskId::from_uuid(id);
                 let operation = self
                     .maintenance_for_computer(caller, id, Some(computer))
                     .await?;
@@ -280,12 +285,12 @@ impl ComputersStore {
             }
             _ => None,
         };
-        let id = Uuid::now_v7();
+        let id = veoveo_types::TaskId::new();
         let content = Content {
-            operation_id: id,
+            operation_id: id.as_uuid(),
             request_id,
             computer_id: computer_id.into_uuid(),
-            task: task_record_id(veoveo_types::TaskId::from_uuid(id)),
+            task: task_record_id(id),
             owner_key: owner_key(caller)?,
             actor_context: object(caller)?,
             execution_authority: object(actor.accepted())?,
@@ -336,7 +341,7 @@ impl ComputersStore {
                         veoveo_audit_contract::ComputerActivity::Maintain,
                         veoveo_audit_contract::ComputerAuditStage::Queued,
                     )
-                    .task(veoveo_types::TaskId::from_uuid(id)),
+                    .task(id),
                 )?,
                 (
                     "execution_slot",
@@ -372,7 +377,10 @@ impl ComputersStore {
                 ("source_operation", source_operation.into_value()),
                 (
                     "expected_active_operation",
-                    computer.active_operation.into_value(),
+                    computer
+                        .active_operation
+                        .map(veoveo_types::TaskId::as_uuid)
+                        .into_value(),
                 ),
                 (
                     "authority_expires_at",
@@ -409,7 +417,7 @@ impl ComputersStore {
     pub async fn ensure_maintenance_task(
         &self,
         caller: &TaskOwner,
-        id: Uuid,
+        id: veoveo_types::TaskId,
     ) -> Result<MaintenanceOperation> {
         let operation = self.maintenance(caller, id).await?;
         let reference = serde_json::to_value(MaintenanceReference {

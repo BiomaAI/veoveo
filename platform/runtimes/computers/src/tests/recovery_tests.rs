@@ -13,11 +13,32 @@ fn before(phase: Phase) -> Observation {
 fn start_checkpoint() -> LifecycleCheckpoint {
     LifecycleCheckpoint::start(
         Uuid::from_u128(100),
-        Uuid::from_u128(101),
+        Uuid::from_u128(101).try_into().unwrap(),
         binding(),
         &before(Phase::Stopped),
     )
     .unwrap()
+}
+
+#[test]
+fn lifecycle_correlation_preserves_task_or_containment_identity_and_rejects_nil() {
+    use crate::LifecycleOperationId;
+    let task = veoveo_types::TaskId::new();
+    let operation = LifecycleOperationId::try_from(task).unwrap();
+    assert_eq!(operation.as_uuid(), task.as_uuid());
+    let containment = LifecycleOperationId::new();
+    assert_eq!(
+        serde_json::from_value::<LifecycleOperationId>(serde_json::json!(containment)).unwrap(),
+        containment
+    );
+    assert!(LifecycleOperationId::try_from(Uuid::nil()).is_err());
+    assert!(LifecycleOperationId::try_from(veoveo_types::TaskId::from_uuid(Uuid::nil())).is_err());
+    assert!(
+        serde_json::from_value::<LifecycleOperationId>(serde_json::json!(Uuid::nil())).is_err()
+    );
+    let mut checkpoint = serde_json::to_value(start_checkpoint()).unwrap();
+    checkpoint["operationId"] = serde_json::json!(Uuid::nil());
+    assert!(serde_json::from_value::<LifecycleCheckpoint>(checkpoint).is_err());
 }
 
 #[tokio::test]
@@ -105,7 +126,7 @@ async fn synchronous_completion_cannot_bypass_source_epoch_or_deadline() {
     let running = Running::start().await;
     let stop = LifecycleCheckpoint::stop(
         Uuid::from_u128(100),
-        Uuid::now_v7(),
+        Uuid::now_v7().try_into().unwrap(),
         binding(),
         &before(Phase::Ready),
     )
@@ -119,8 +140,12 @@ async fn synchronous_completion_cannot_bypass_source_epoch_or_deadline() {
             .await,
         Err(RuntimeFailure::BindingMismatch)
     ));
-    let other_provider =
-        LifecycleCheckpoint::create(Uuid::from_u128(200), Uuid::now_v7(), binding()).unwrap();
+    let other_provider = LifecycleCheckpoint::create(
+        Uuid::from_u128(200),
+        Uuid::now_v7().try_into().unwrap(),
+        binding(),
+    )
+    .unwrap();
     assert!(matches!(
         running
             .runtime
@@ -139,8 +164,12 @@ async fn synchronous_completion_cannot_bypass_source_epoch_or_deadline() {
             .await,
         Err(RuntimeFailure::WatchFailed)
     ));
-    let create =
-        LifecycleCheckpoint::create(Uuid::from_u128(100), Uuid::now_v7(), binding()).unwrap();
+    let create = LifecycleCheckpoint::create(
+        Uuid::from_u128(100),
+        Uuid::now_v7().try_into().unwrap(),
+        binding(),
+    )
+    .unwrap();
     for process in ["main-1", ""] {
         let mut invalid = before(Phase::Ready);
         invalid.main_process_instance_id = process.into();
@@ -177,8 +206,12 @@ async fn remaining_budget_bounds_a_stalled_status_read() {
 #[tokio::test]
 async fn ready_with_an_exit_code_or_missing_process_cannot_complete_create() {
     let running = Running::start().await;
-    let checkpoint =
-        LifecycleCheckpoint::create(Uuid::from_u128(100), Uuid::from_u128(103), binding()).unwrap();
+    let checkpoint = LifecycleCheckpoint::create(
+        Uuid::from_u128(100),
+        Uuid::from_u128(103).try_into().unwrap(),
+        binding(),
+    )
+    .unwrap();
     for (process, exit_code) in [("main-1", Some(0)), ("", None)] {
         {
             let mut state = running.fake.0.lock().unwrap();
@@ -205,7 +238,10 @@ fn persisted_recovery_revalidates_identity_and_preserves_operation() {
         serde_json::from_value::<LifecycleCheckpoint>(value.clone()).unwrap(),
         checkpoint
     );
-    assert_eq!(checkpoint.operation_id(), Uuid::from_u128(101));
+    assert_eq!(
+        checkpoint.operation_id(),
+        Uuid::from_u128(101).try_into().unwrap()
+    );
     for key in ["operationId", "computerId", "providerInstanceId"] {
         let mut invalid = value.clone();
         invalid[key] = serde_json::json!(Uuid::nil());
@@ -297,7 +333,7 @@ async fn stop_recovery_rejects_another_stopped_process_or_provider_resource() {
     let running = Running::start().await;
     let checkpoint = LifecycleCheckpoint::stop(
         Uuid::from_u128(100),
-        Uuid::from_u128(102),
+        Uuid::from_u128(102).try_into().unwrap(),
         binding(),
         &before(Phase::Ready),
     )
@@ -347,8 +383,12 @@ async fn stop_recovery_rejects_another_stopped_process_or_provider_resource() {
 #[tokio::test]
 async fn missing_create_and_failed_observer_preserve_uncertainty() {
     let running = Running::start().await;
-    let checkpoint =
-        LifecycleCheckpoint::create(Uuid::from_u128(100), Uuid::from_u128(103), binding()).unwrap();
+    let checkpoint = LifecycleCheckpoint::create(
+        Uuid::from_u128(100),
+        Uuid::from_u128(103).try_into().unwrap(),
+        binding(),
+    )
+    .unwrap();
     running.fake.0.lock().unwrap().sandbox = None;
     assert!(matches!(
         running
@@ -371,8 +411,12 @@ async fn missing_create_and_failed_observer_preserve_uncertainty() {
 #[tokio::test]
 async fn provider_mismatch_and_exhausted_budget_never_issue_a_request() {
     let running = Running::start().await;
-    let checkpoint =
-        LifecycleCheckpoint::create(Uuid::from_u128(200), Uuid::from_u128(103), binding()).unwrap();
+    let checkpoint = LifecycleCheckpoint::create(
+        Uuid::from_u128(200),
+        Uuid::from_u128(103).try_into().unwrap(),
+        binding(),
+    )
+    .unwrap();
     let before = running.fake.0.lock().unwrap().gets;
     assert!(matches!(
         running

@@ -18,8 +18,12 @@ async fn ready(
     binding: &Binding,
     template: &DevelopmentTemplate,
 ) -> Observation {
-    let create =
-        LifecycleCheckpoint::create(Uuid::from_u128(100), Uuid::now_v7(), binding.clone()).unwrap();
+    let create = LifecycleCheckpoint::create(
+        Uuid::from_u128(100),
+        veoveo_computers_runtime::LifecycleOperationId::new(),
+        binding.clone(),
+    )
+    .unwrap();
     let created = runtime.create(binding, template).await.unwrap();
     runtime
         .wait_for_lifecycle(&create, &created, Duration::from_secs(30))
@@ -110,7 +114,7 @@ print('ENOSPC enforced; original file retained')
     assert!(quota.contains("ENOSPC enforced"));
     let stop = LifecycleCheckpoint::stop(
         Uuid::from_u128(100),
-        Uuid::now_v7(),
+        veoveo_computers_runtime::LifecycleOperationId::new(),
         binding.clone(),
         &original,
     )

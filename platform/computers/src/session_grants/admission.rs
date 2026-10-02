@@ -46,7 +46,7 @@ impl ComputersStore {
         let policy: Option<StoredPolicy> = read.take(0).map_err(|_| ComputerError::Unavailable)?;
         let policy = policy.ok_or(ComputerError::Unavailable)?;
         let limits = policy.checked()?;
-        let grant_id = Uuid::now_v7();
+        let grant_id = crate::api::AccessGrantId::new();
         let (token, hash) = secret::issue(grant_id)?;
         let family = gateway_refresh_family_record_id(
             actor
@@ -65,7 +65,7 @@ impl ComputersStore {
             ("computer", computer_record(computer_id).into_value()),
             ("computer_id", computer_id.into_uuid().into_value()),
             ("grant", super::record(grant_id).into_value()),
-            ("grant_id", grant_id.into_value()),
+            ("grant_id", grant_id.into_uuid().into_value()),
             ("owner_key", owner_key(&computer.owner)?.into_value()),
             ("provider", self.provider_instance_id.into_value()),
             ("authority", super::object(actor.accepted())?.into_value()),
@@ -199,7 +199,7 @@ impl ComputersStore {
             &accepted.task_owner(),
         )?;
         authority::ready(&computer, self.provider_instance_id)?;
-        let connection_id = Uuid::now_v7();
+        let connection_id = crate::api::AccessConnectionId::new();
         let mut result = self
             .query(
                 include_str!("../../queries/redeem_session_grant.surql"),
@@ -208,7 +208,7 @@ impl ComputersStore {
                     ("ticket_hash", hash.into_value()),
                     ("policy", self.session_policy_record().into_value()),
                     ("owner_key", row.owner_key.clone().into_value()),
-                    ("connection", connection_id.into_value()),
+                    ("connection", connection_id.into_uuid().into_value()),
                     ("computer", computer_record(row.computer_id()?).into_value()),
                     ("provider", self.provider_instance_id.into_value()),
                     (
@@ -233,7 +233,7 @@ impl ComputersStore {
         let redeemed: Option<Uuid> = result
             .take(result_index)
             .map_err(|_| ComputerError::Unavailable)?;
-        if redeemed != Some(connection_id) {
+        if redeemed != Some(connection_id.into_uuid()) {
             return Err(ComputerError::Forbidden);
         }
         Ok(SessionGrantHandle {

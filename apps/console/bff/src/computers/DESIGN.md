@@ -26,7 +26,11 @@ GET `/console/api/computers/{id}/operations/{operation_id}` forwards a stored re
 read under the current cookie session and configured profile. It accepts no query
 parameters and does not retry a lifecycle mutation.
 
-GET `/access` and POST `/access/{grant_id}/revoke` below an exact Computer forward its
+Route decoding preserves the contract's Task, automation-grant, interactive-access
+and pairing identity types. Access and automation parameters have distinct fields,
+so each parser checks its UUID profile before a request reaches the gateway.
+
+GET `/access` and POST `/access/{access_grant_id}/revoke` below an exact Computer forward its
 grant inventory and revocation. The POST retains CSRF enforcement even though the
 domain requires only current owner/read authority for this reduction of access.
 Neither route accepts query parameters, destination input or provider credentials.

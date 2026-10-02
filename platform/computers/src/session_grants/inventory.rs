@@ -2,7 +2,6 @@ use super::model;
 use crate::{ComputerActor, ComputerError, ComputersStore, Result, api::*, identity::owner_key};
 use std::time::Duration;
 use surrealdb::types::SurrealValue;
-use uuid::Uuid;
 
 impl ComputersStore {
     /// Outstanding owned grants. No token, authority envelope, provider or session
@@ -48,7 +47,8 @@ impl ComputersStore {
                         return Err(ComputerError::Unavailable);
                     }
                     Ok(AccessGrantView {
-                        grant_id: row.grant_id,
+                        grant_id: crate::api::AccessGrantId::try_from(row.grant_id)
+                            .map_err(|_| ComputerError::Unavailable)?,
                         kind: AccessGrantKind::Browser,
                         name: "Browser".into(),
                         redeemed: row.connection_id.is_some(),
@@ -96,7 +96,7 @@ impl ComputersStore {
         &self,
         actor: &ComputerActor,
         computer: veoveo_computers_contract::ComputerId,
-        grant: Uuid,
+        grant: crate::api::AccessGrantId,
     ) -> Result<()> {
         tokio::time::timeout(Duration::from_secs(5), async {
             match self.revoke_browser_grant(actor, computer, grant).await {

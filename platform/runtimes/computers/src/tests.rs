@@ -940,8 +940,12 @@ async fn generated_mtls_lifecycle_and_watch_never_poll_completion() {
     let runtime = &running.runtime;
     let b = binding();
     running.fake.0.lock().unwrap().sandbox = None;
-    let create =
-        LifecycleCheckpoint::create(Uuid::from_u128(100), Uuid::now_v7(), b.clone()).unwrap();
+    let create = LifecycleCheckpoint::create(
+        Uuid::from_u128(100),
+        Uuid::now_v7().try_into().unwrap(),
+        b.clone(),
+    )
+    .unwrap();
     let created = runtime.create(&b, &template(false)).await.unwrap();
     assert!(created.phase == Phase::Provisioning);
     let calls = running.fake.0.lock().unwrap().gets;
@@ -953,17 +957,26 @@ async fn generated_mtls_lifecycle_and_watch_never_poll_completion() {
     assert_eq!(running.fake.0.lock().unwrap().gets, calls);
     runtime.create(&b, &template(false)).await.unwrap();
     assert_eq!(running.fake.0.lock().unwrap().creates, 1);
-    let stop =
-        LifecycleCheckpoint::stop(Uuid::from_u128(100), Uuid::now_v7(), b.clone(), &ready).unwrap();
+    let stop = LifecycleCheckpoint::stop(
+        Uuid::from_u128(100),
+        Uuid::now_v7().try_into().unwrap(),
+        b.clone(),
+        &ready,
+    )
+    .unwrap();
     let stopping = runtime.stop(&b, &ready).await.unwrap();
     let stopped = runtime
         .wait_for_lifecycle(&stop, &stopping, Duration::from_secs(10))
         .await
         .unwrap();
     assert!(stopped.phase == Phase::Stopped);
-    let start =
-        LifecycleCheckpoint::start(Uuid::from_u128(100), Uuid::now_v7(), b.clone(), &stopped)
-            .unwrap();
+    let start = LifecycleCheckpoint::start(
+        Uuid::from_u128(100),
+        Uuid::now_v7().try_into().unwrap(),
+        b.clone(),
+        &stopped,
+    )
+    .unwrap();
     let starting = runtime.start(&b, &stopped).await.unwrap();
     runtime
         .wait_for_lifecycle(&start, &starting, Duration::from_secs(10))
@@ -1045,9 +1058,13 @@ async fn gateway_admission_auth_and_identity_fail_closed() {
 async fn watch_warning_transport_end_and_identity_replacement_are_failures() {
     let running = Running::start().await;
     let before = running.runtime.get(&binding()).await.unwrap().unwrap();
-    let checkpoint =
-        LifecycleCheckpoint::start(Uuid::from_u128(100), Uuid::now_v7(), binding(), &before)
-            .unwrap();
+    let checkpoint = LifecycleCheckpoint::start(
+        Uuid::from_u128(100),
+        Uuid::now_v7().try_into().unwrap(),
+        binding(),
+        &before,
+    )
+    .unwrap();
     let current = running.runtime.start(&binding(), &before).await.unwrap();
     let calls = running.fake.0.lock().unwrap().gets;
     for mode in 1..=4 {

@@ -112,7 +112,10 @@ async fn pairing_is_one_use_private_and_connection_close_preserves_the_named_gra
     let mut stored =
         db.b.client()
             .query("SELECT VALUE credential_hash FROM ONLY $grant;")
-            .bind(("grant", record("computer_cli_grant", paired.grant_id)))
+            .bind((
+                "grant",
+                record("computer_cli_grant", paired.grant_id.into_uuid()),
+            ))
             .await
             .unwrap()
             .check()
@@ -320,7 +323,7 @@ async fn connection_slots_are_shared_and_expired_connections_cannot_revive() {
         .await
         .is_ok()
     );
-    db.b.client().query("UPDATE computer_cli_connection SET expires_at = time::now() - 1s WHERE grant_id = $grant;").bind(("grant", paired.grant_id)).await.unwrap().check().unwrap();
+    db.b.client().query("UPDATE computer_cli_connection SET expires_at = time::now() - 1s WHERE grant_id = $grant;").bind(("grant", paired.grant_id.into_uuid())).await.unwrap().check().unwrap();
     assert!(b.renew_cli_grant(&handles[1], true).await.is_err());
     assert!(
         a.open_cli_connection(
@@ -435,7 +438,7 @@ async fn expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_ac
         .query("UPDATE ONLY $pairing SET expires_at = time::now() - 1s;")
         .bind((
             "pairing",
-            record("computer_cli_pairing", challenge.pairing_id),
+            record("computer_cli_pairing", challenge.pairing_id.into_uuid()),
         ))
         .await
         .unwrap()
@@ -458,7 +461,10 @@ async fn expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_ac
     let mut before =
         db.b.client()
             .query("SELECT VALUE idle_expires_at FROM ONLY $grant;")
-            .bind(("grant", record("computer_cli_grant", paired.grant_id)))
+            .bind((
+                "grant",
+                record("computer_cli_grant", paired.grant_id.into_uuid()),
+            ))
             .await
             .unwrap()
             .check()
@@ -468,7 +474,10 @@ async fn expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_ac
     let mut after =
         db.b.client()
             .query("SELECT VALUE idle_expires_at FROM ONLY $grant;")
-            .bind(("grant", record("computer_cli_grant", paired.grant_id)))
+            .bind((
+                "grant",
+                record("computer_cli_grant", paired.grant_id.into_uuid()),
+            ))
             .await
             .unwrap()
             .check()
@@ -485,7 +494,10 @@ async fn expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_ac
     };
     db.b.client()
         .query("UPDATE ONLY $grant SET issued_at = time::now() - 2s;")
-        .bind(("grant", record("computer_cli_grant", paired.grant_id)))
+        .bind((
+            "grant",
+            record("computer_cli_grant", paired.grant_id.into_uuid()),
+        ))
         .await
         .unwrap()
         .check()
@@ -528,7 +540,10 @@ async fn expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_ac
         .unwrap();
     db.b.client()
         .query("UPDATE ONLY $grant SET idle_expires_at = time::now() - 1s;")
-        .bind(("grant", record("computer_cli_grant", paired.grant_id)))
+        .bind((
+            "grant",
+            record("computer_cli_grant", paired.grant_id.into_uuid()),
+        ))
         .await
         .unwrap()
         .check()
@@ -544,7 +559,7 @@ async fn expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_ac
         .is_err()
     );
     db.b.client().query("UPDATE ONLY $grant SET idle_expires_at = time::now() + 1m, expires_at = time::now() - 1s;")
-        .bind(("grant", record("computer_cli_grant", paired.grant_id)))
+        .bind(("grant", record("computer_cli_grant", paired.grant_id.into_uuid())))
         .await.unwrap().check().unwrap();
     assert!(b.renew_cli_grant(&handle, true).await.is_err());
     assert!(

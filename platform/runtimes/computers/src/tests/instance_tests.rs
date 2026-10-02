@@ -206,9 +206,12 @@ async fn replacement_lifecycle_addresses_exact_instance_without_polling_or_recre
         state.expected_binding = Some(replacement.clone());
         state.sandbox = None;
     }
-    let create =
-        LifecycleCheckpoint::create(Uuid::from_u128(100), Uuid::now_v7(), replacement.clone())
-            .unwrap();
+    let create = LifecycleCheckpoint::create(
+        Uuid::from_u128(100),
+        Uuid::now_v7().try_into().unwrap(),
+        replacement.clone(),
+    )
+    .unwrap();
     let created = runtime.create(&replacement, &template(true)).await.unwrap();
     let before = running.fake.0.lock().unwrap().gets;
     let ready = runtime
@@ -218,7 +221,7 @@ async fn replacement_lifecycle_addresses_exact_instance_without_polling_or_recre
     assert_eq!(running.fake.0.lock().unwrap().gets, before);
     let stop = LifecycleCheckpoint::stop(
         Uuid::from_u128(100),
-        Uuid::now_v7(),
+        Uuid::now_v7().try_into().unwrap(),
         replacement.clone(),
         &ready,
     )
@@ -232,7 +235,7 @@ async fn replacement_lifecycle_addresses_exact_instance_without_polling_or_recre
     assert_eq!(running.fake.0.lock().unwrap().gets, before);
     let start = LifecycleCheckpoint::start(
         Uuid::from_u128(100),
-        Uuid::now_v7(),
+        Uuid::now_v7().try_into().unwrap(),
         replacement.clone(),
         &stopped,
     )
@@ -272,9 +275,12 @@ async fn replacement_watch_rejects_another_full_instance_even_when_name_and_prov
         .create(&replacement, &template(true))
         .await
         .unwrap();
-    let checkpoint =
-        LifecycleCheckpoint::create(Uuid::from_u128(100), Uuid::now_v7(), replacement.clone())
-            .unwrap();
+    let checkpoint = LifecycleCheckpoint::create(
+        Uuid::from_u128(100),
+        Uuid::now_v7().try_into().unwrap(),
+        replacement.clone(),
+    )
+    .unwrap();
     let before = running.fake.0.lock().unwrap().gets;
     assert!(matches!(
         running

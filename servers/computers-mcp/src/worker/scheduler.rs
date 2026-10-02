@@ -6,7 +6,7 @@ impl<G: Preflight> LifecycleWorker<G> {
     /// whole queue. Dropping/shutting down a worker retains every durable fence.
     pub async fn run(self: Arc<Self>, shutdown: CancellationToken) {
         let mut active = HashSet::new();
-        let mut jobs: tokio::task::JoinSet<(uuid::Uuid, Result<WorkerStep>)> =
+        let mut jobs: tokio::task::JoinSet<(veoveo_types::TaskId, Result<WorkerStep>)> =
             tokio::task::JoinSet::new();
         let mut cursor = None;
         let mut scan = tokio::time::interval(Duration::from_secs(1));

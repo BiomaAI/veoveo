@@ -25,7 +25,7 @@ pub enum OperationStage {
 
 #[derive(Clone, Debug)]
 pub struct Operation {
-    pub operation_id: Uuid,
+    pub operation_id: veoveo_types::TaskId,
     pub computer_id: veoveo_computers_contract::ComputerId,
     pub actor: TaskOwner,
     pub owner: TaskOwner,
@@ -60,7 +60,7 @@ impl Operation {
             .unwrap_or(self.computer_id.into_uuid())
     }
     pub fn task_id(&self) -> TaskId {
-        TaskId::from_uuid(self.operation_id)
+        self.operation_id
     }
     pub fn is_terminal(&self) -> bool {
         matches!(
@@ -123,7 +123,7 @@ impl TryFrom<OperationRecord> for Operation {
             .map_err(|_| ComputerError::Unavailable)?;
         let decode = || {
             Ok(Self {
-                operation_id: value.operation_id,
+                operation_id: TaskId::from_uuid(value.operation_id),
                 computer_id,
                 actor: serde_json::from_value(serde_json::to_value(value.actor_context)?)?,
                 owner: serde_json::from_value(serde_json::to_value(value.owner_context)?)?,

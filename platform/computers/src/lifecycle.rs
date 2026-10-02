@@ -170,7 +170,7 @@ impl ComputersStore {
         let id = Uuid::now_v7();
         // Persisted count drives exponential delay. Deterministic jitter spreads
         // different operations without a per-process retry schedule or new budget.
-        let jitter = u64::from(before.operation_id.as_bytes()[15]);
+        let jitter = u64::from(before.operation_id.as_uuid().as_bytes()[15]);
         let milliseconds = (500_u64 << before.observation_reads.min(5)).min(10_000) + jitter;
         self.worker_commit(
             claimed,

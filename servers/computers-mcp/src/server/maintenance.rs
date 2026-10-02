@@ -7,7 +7,6 @@ use axum::{
     routing::{get, post},
 };
 use std::sync::Arc;
-use uuid::Uuid;
 use veoveo_computers::{ComputerError, api::*};
 use veoveo_mcp_contract::GatewayInternalIdentity;
 
@@ -23,7 +22,7 @@ async fn state(
 async fn operation(
     State(app): State<Arc<Application>>,
     Extension(identity): Extension<GatewayInternalIdentity>,
-    Path((computer, task)): Path<(veoveo_computers_contract::ComputerId, Uuid)>,
+    Path((computer, task)): Path<(veoveo_computers_contract::ComputerId, veoveo_types::TaskId)>,
 ) -> Result<Json<MaintenanceView>, HttpError> {
     Ok(Json(
         app.maintenance_operation(&actor(&identity)?, computer, task)
@@ -52,7 +51,7 @@ async fn update(
 async fn resume(
     State(app): State<Arc<Application>>,
     Extension(identity): Extension<GatewayInternalIdentity>,
-    Path((computer, task)): Path<(veoveo_computers_contract::ComputerId, Uuid)>,
+    Path((computer, task)): Path<(veoveo_computers_contract::ComputerId, veoveo_types::TaskId)>,
     Json(input): Json<ResumeUpdateInput>,
 ) -> Result<(StatusCode, Json<MaintenanceView>), HttpError> {
     if input.computer_id != computer || input.task_id != task {

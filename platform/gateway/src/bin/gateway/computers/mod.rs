@@ -69,7 +69,7 @@ pub(crate) fn router(state: ComputersState) -> Router {
             post(control::proxy),
         )
         .route(
-            "/computers/{profile}/{id}/access/{grant_id}/revoke",
+            "/computers/{profile}/{id}/access/{access_grant_id}/revoke",
             post(control::proxy),
         )
         .route(

@@ -23,8 +23,8 @@ pub(super) fn receipt(
 ) -> Result<Vec<u8>, ()> {
     let value: api::FileTransferView = serde_json::from_slice(bytes).map_err(|_| ())?;
     if value.computer_id != computer
-        || value.task_id.get_version_num() != 7
-        || task.is_some_and(|id| id.into_uuid() != value.task_id)
+        || value.task_id.as_uuid().get_version_num() != 7
+        || task.is_some_and(|id| id.task_id() != value.task_id)
         || value.message.as_ref().is_some_and(|s| s.len() > 4096)
         || (value.can_cancel
             && (value.cancellation_requested_at.is_some()
@@ -41,8 +41,8 @@ pub(super) fn receipt(
     if let Some(result) = &value.result
         && (value.stage != api::FileTransferStage::Completed
             || result.computer_id != computer
-            || result.transfer_id.into_uuid() != value.task_id
-            || result.result_uri.transfer_id().into_uuid() != value.task_id
+            || result.transfer_id.task_id() != value.task_id
+            || result.result_uri.transfer_id().task_id() != value.task_id
             || result.direction != value.direction
             || result.artifact_id.get_version_num() != 7
             || result.bytes > api::MAX_TRANSFER_BYTES
@@ -68,11 +68,12 @@ mod tests {
         use super::super::routes::Operation;
         use axum::http::Method;
         let computer = api::ComputerId::new();
-        let task = Uuid::now_v7();
+        let task = veoveo_types::TaskId::new();
         let admission = Operation::from_route(
             "/computers/{profile}/{id}/files",
             &Method::POST,
             Some(computer),
+            None,
             None,
             None,
             None,
@@ -88,9 +89,16 @@ mod tests {
         );
         for (suffix, method) in [("", Method::GET), ("/cancel", Method::POST)] {
             let route = format!("/computers/{{profile}}/{{id}}/files/{{operation_id}}{suffix}");
-            let action =
-                Operation::from_route(&route, &method, Some(computer), Some(task), None, None)
-                    .unwrap();
+            let action = Operation::from_route(
+                &route,
+                &method,
+                Some(computer),
+                Some(task),
+                None,
+                None,
+                None,
+            )
+            .unwrap();
             assert_eq!(
                 action.service_path(),
                 format!("computers/{computer}/files/{task}{suffix}")
@@ -105,7 +113,8 @@ mod tests {
                     &method,
                     Some(computer),
                     Some(task),
-                    Some(task),
+                    Some(veoveo_computers_contract::AutomationGrantId::new()),
+                    None,
                     None
                 )
                 .is_err()

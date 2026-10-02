@@ -144,7 +144,7 @@ pub struct FileTransferResult {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct FileTransferView {
-    pub task_id: Uuid,
+    pub task_id: veoveo_types::TaskId,
     pub computer_id: crate::ComputerId,
     pub direction: FileTransferDirection,
     pub stage: FileTransferStage,

@@ -74,7 +74,7 @@ async fn operation_policy_and_participant_checks_precede_private_state_decoding(
         let claim = tasks.claim_observation(&operation.task_id().to_string(), Duration::from_secs(30)).await.unwrap();
         store.operation_for_claim(&claim).await.unwrap();
         db.a.client().query("UPDATE ONLY $row SET execution_authority.request_context.access_token.expires_at = 42;")
-            .bind(("row", record("computer_operation", operation.operation_id))).await.unwrap().check().unwrap();
+            .bind(("row", record("computer_operation", operation.operation_id.as_uuid()))).await.unwrap().check().unwrap();
         for denied in mismatched_claims(&claim) {
             assert!(matches!(store.operation_for_claim(&denied).await, Err(ComputerError::StateConflict)));
         }
@@ -269,7 +269,7 @@ async fn browser_grants_filter_ticket_parent_provider_and_connection_before_deco
             .await
             .unwrap();
         let pending = store.issue_browser_grant(&actor, computer).await.unwrap();
-        let id: Uuid = pending
+        let id: veoveo_computers::api::AccessGrantId = pending
             .token
             .expose_secret()
             .split_once('.')
@@ -277,7 +277,7 @@ async fn browser_grants_filter_ticket_parent_provider_and_connection_before_deco
             .0
             .parse()
             .unwrap();
-        corrupt_authority(&db, record("computer_session_grant", id)).await;
+        corrupt_authority(&db, record("computer_session_grant", id.into_uuid())).await;
         let wrong = TerminalToken::new(format!("{id}.{}", "f".repeat(64)));
         assert!(matches!(
             store.redeem_browser_grant(&actor, &wrong).await,
@@ -298,7 +298,7 @@ async fn browser_grants_filter_ticket_parent_provider_and_connection_before_deco
         ));
         db.a.client()
             .query("UPDATE ONLY $row SET provider_instance_id = $provider;")
-            .bind(("row", record("computer_session_grant", id)))
+            .bind(("row", record("computer_session_grant", id.into_uuid())))
             .bind(("provider", Uuid::now_v7()))
             .await
             .unwrap()
@@ -313,10 +313,17 @@ async fn browser_grants_filter_ticket_parent_provider_and_connection_before_deco
                 .len(),
             1
         );
-        corrupt_authority(&db, record("computer_session_grant", handle.grant_id())).await;
+        corrupt_authority(
+            &db,
+            record("computer_session_grant", handle.grant_id().into_uuid()),
+        )
+        .await;
         db.a.client()
             .query("UPDATE ONLY $row SET connection_id = $connection;")
-            .bind(("row", record("computer_session_grant", handle.grant_id())))
+            .bind((
+                "row",
+                record("computer_session_grant", handle.grant_id().into_uuid()),
+            ))
             .bind(("connection", Uuid::now_v7()))
             .await
             .unwrap()
@@ -363,7 +370,11 @@ async fn cli_grants_filter_credentials_parent_provider_and_connection_before_dec
             .open_cli_connection(Some(computer), profile.clone(), &grant.credential)
             .await
             .unwrap();
-        corrupt_authority(&db, record("computer_cli_grant", grant.grant_id)).await;
+        corrupt_authority(
+            &db,
+            record("computer_cli_grant", grant.grant_id.into_uuid()),
+        )
+        .await;
         let wrong = CliGrantCredential::new(format!("vcli1.{}.{}", grant.grant_id, "f".repeat(64)));
         assert!(matches!(
             store
@@ -394,7 +405,7 @@ async fn cli_grants_filter_credentials_parent_provider_and_connection_before_dec
             .query(
                 "UPDATE computer_cli_connection SET grant_id = $foreign WHERE grant_id = $grant;",
             )
-            .bind(("grant", grant.grant_id))
+            .bind(("grant", grant.grant_id.into_uuid()))
             .bind(("foreign", Uuid::now_v7()))
             .await
             .unwrap()
@@ -406,7 +417,10 @@ async fn cli_grants_filter_credentials_parent_provider_and_connection_before_dec
         ));
         db.a.client()
             .query("UPDATE ONLY $row SET provider_instance_id = $provider;")
-            .bind(("row", record("computer_cli_grant", grant.grant_id)))
+            .bind((
+                "row",
+                record("computer_cli_grant", grant.grant_id.into_uuid()),
+            ))
             .bind(("provider", Uuid::now_v7()))
             .await
             .unwrap()
@@ -449,7 +463,7 @@ async fn cli_pairing_matches_parent_and_session_before_decoding_callback() {
         // before Rust decoding. The production schema enforces valid ports too.
         db.a.client()
             .query("DEFINE FIELD OVERWRITE callback_port ON computer_cli_pairing TYPE int; UPDATE ONLY $row SET callback_port = 999999;")
-            .bind(("row", record("computer_cli_pairing", pairing.pairing_id)))
+            .bind(("row", record("computer_cli_pairing", pairing.pairing_id.into_uuid())))
             .await
             .unwrap()
             .check()

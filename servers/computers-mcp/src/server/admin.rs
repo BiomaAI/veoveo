@@ -8,7 +8,6 @@ use axum::{
     routing::{get, post},
 };
 use serde::Deserialize;
-use uuid::Uuid;
 use veoveo_computers::{OperationStage, api::*};
 use veoveo_mcp_contract::GatewayInternalIdentity;
 
@@ -63,7 +62,10 @@ async fn create(
 async fn operation(
     State(app): State<Arc<Application>>,
     Extension(identity): Extension<GatewayInternalIdentity>,
-    Path((computer_id, operation_id)): Path<(veoveo_computers_contract::ComputerId, Uuid)>,
+    Path((computer_id, operation_id)): Path<(
+        veoveo_computers_contract::ComputerId,
+        veoveo_types::TaskId,
+    )>,
 ) -> Result<Json<OperationReceipt>, HttpError> {
     let (_, receipt) = receipt(
         app.operation(&actor(&identity)?, computer_id, operation_id)
@@ -102,7 +104,10 @@ async fn access_grants(
 async fn revoke_access(
     State(app): State<Arc<Application>>,
     Extension(identity): Extension<GatewayInternalIdentity>,
-    Path((computer_id, grant_id)): Path<(veoveo_computers_contract::ComputerId, Uuid)>,
+    Path((computer_id, grant_id)): Path<(
+        veoveo_computers_contract::ComputerId,
+        veoveo_computers_contract::AccessGrantId,
+    )>,
     Json(_body): Json<RevokeAccessBody>,
 ) -> Result<Json<AccessRevocation>, HttpError> {
     Ok(Json(

@@ -284,7 +284,7 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
     let before = provider.runtime.get(&binding).await.unwrap().unwrap();
     let checkpoint = veoveo_computers_runtime::LifecycleCheckpoint::stop(
         Uuid::from_u128(100),
-        stop.operation_id,
+        stop.operation_id.try_into().unwrap(),
         binding.clone(),
         &before,
     )
@@ -403,7 +403,7 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
                 "operation",
                 surrealdb::types::RecordId::new(
                     "computer_operation",
-                    surrealdb::types::Uuid::from(start.operation_id),
+                    surrealdb::types::Uuid::from(start.operation_id.as_uuid()),
                 ),
             ))
             .await

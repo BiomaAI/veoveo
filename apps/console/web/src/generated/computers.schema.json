@@ -20,6 +20,13 @@
       ],
       "type": "object"
     },
+    "AccessGrantId": {
+      "format": "uuid",
+      "maxLength": 36,
+      "minLength": 36,
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "type": "string"
+    },
     "AccessGrantKind": {
       "enum": [
         "browser",
@@ -40,8 +47,7 @@
           "type": "string"
         },
         "grantId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/AccessGrantId"
         },
         "issuedAt": {
           "format": "date-time",
@@ -83,8 +89,7 @@
           "$ref": "#/$defs/ComputerId"
         },
         "grantId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/AccessGrantId"
         },
         "revoked": {
           "type": "boolean"
@@ -376,6 +381,7 @@
     },
     "CliPairingChallenge": {
       "additionalProperties": false,
+      "description": "The confirmation challenge keeps its identity separate from issued access.\n\n```compile_fail\nuse veoveo_computers_contract::{AccessGrantId, CliPairingId};\nlet pairing: CliPairingId = AccessGrantId::new();\n```\n\n```compile_fail\nuse veoveo_computers_contract::{AccessConnectionId, CliPairingId};\nlet pairing: CliPairingId = AccessConnectionId::new();\n```",
       "properties": {
         "computerId": {
           "$ref": "#/$defs/ComputerId"
@@ -385,8 +391,7 @@
           "type": "string"
         },
         "pairingId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/CliPairingId"
         }
       },
       "required": [
@@ -399,6 +404,13 @@
     "CliPairingConfirmBody": {
       "additionalProperties": false,
       "type": "object"
+    },
+    "CliPairingId": {
+      "format": "uuid",
+      "maxLength": 36,
+      "minLength": 36,
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "type": "string"
     },
     "CliPairingInput": {
       "additionalProperties": false,
@@ -443,12 +455,10 @@
           "type": "string"
         },
         "grantId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/AccessGrantId"
         },
         "pairingId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/CliPairingId"
         },
         "token": {
           "$ref": "#/$defs/CliPairingToken"
@@ -516,8 +526,7 @@
               "type": "string"
             },
             "taskId": {
-              "format": "uuid",
-              "type": "string"
+              "$ref": "#/$defs/TaskId"
             }
           },
           "required": [
@@ -534,8 +543,7 @@
               "type": "string"
             },
             "taskId": {
-              "format": "uuid",
-              "type": "string"
+              "$ref": "#/$defs/TaskId"
             }
           },
           "required": [
@@ -707,10 +715,13 @@
           "description": "The shared command/file slot can remain held while an owner Stop completes."
         },
         "activeTaskId": {
-          "format": "uuid",
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TaskId"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "busy": {
@@ -1146,8 +1157,7 @@
           "$ref": "#/$defs/FileTransferStage"
         },
         "taskId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/TaskId"
         },
         "updatedAt": {
           "format": "date-time",
@@ -1262,8 +1272,7 @@
           "$ref": "#/$defs/ComputerId"
         },
         "operationId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/TaskId"
         },
         "result_uri": {
           "type": [
@@ -1310,8 +1319,7 @@
           "$ref": "#/$defs/ComputerId"
         },
         "maintenanceId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/TaskId"
         },
         "result_uri": {
           "type": "string"
@@ -1401,8 +1409,7 @@
           "type": "string"
         },
         "taskId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/TaskId"
         },
         "updatedAt": {
           "format": "date-time",
@@ -1434,8 +1441,7 @@
           "$ref": "#/$defs/OperationStatus"
         },
         "taskId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/TaskId"
         }
       },
       "required": [
@@ -1503,8 +1509,7 @@
           "$ref": "#/$defs/OperationStatus"
         },
         "taskId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/TaskId"
         },
         "updatedAt": {
           "format": "date-time",
@@ -1544,8 +1549,7 @@
           "type": "string"
         },
         "taskId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/TaskId"
         }
       },
       "required": [
@@ -1568,13 +1572,13 @@
     },
     "RevokeAccessInput": {
       "additionalProperties": false,
+      "description": "Revocation accepts an interactive access identity.\n\n```compile_fail\nuse veoveo_computers_contract::{AutomationGrantId, ComputerId, RevokeAccessInput};\nlet input = RevokeAccessInput {\n    computer_id: ComputerId::new(),\n    grant_id: AutomationGrantId::new(),\n};\n```",
       "properties": {
         "computerId": {
           "$ref": "#/$defs/ComputerId"
         },
         "grantId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/AccessGrantId"
         }
       },
       "required": [
@@ -1648,6 +1652,11 @@
         "requestId"
       ],
       "type": "object"
+    },
+    "TaskId": {
+      "maxLength": 45,
+      "pattern": "^(?:[0-9A-Fa-f]{32}|[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}|\\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\\}|urn:uuid:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})(?![\\s\\S])",
+      "type": "string"
     },
     "TemplateView": {
       "additionalProperties": false,

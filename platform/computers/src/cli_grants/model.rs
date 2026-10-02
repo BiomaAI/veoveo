@@ -7,7 +7,7 @@ use uuid::Uuid;
 use veoveo_platform_store::{OpenObject, gateway_refresh_family_record_id};
 
 pub struct CliPairing {
-    pub pairing_id: Uuid,
+    pub pairing_id: crate::api::CliPairingId,
     pub computer_id: veoveo_computers_contract::ComputerId,
     pub expires_at: DateTime<Utc>,
 }
@@ -28,18 +28,18 @@ impl CliGrantCredential {
     }
 }
 pub struct PairedCliGrant {
-    pub grant_id: Uuid,
+    pub grant_id: crate::api::AccessGrantId,
     pub computer_id: veoveo_computers_contract::ComputerId,
     pub credential: CliGrantCredential,
     pub callback_port: u16,
     pub expires_at: DateTime<Utc>,
 }
 pub struct CliConnectionHandle {
-    pub(super) grant_id: Uuid,
-    pub(super) connection_id: Uuid,
+    pub(super) grant_id: crate::api::AccessGrantId,
+    pub(super) connection_id: crate::api::AccessConnectionId,
 }
 impl CliConnectionHandle {
-    pub fn grant_id(&self) -> Uuid {
+    pub fn grant_id(&self) -> crate::api::AccessGrantId {
         self.grant_id
     }
 }
@@ -64,7 +64,7 @@ impl CliGrantLease {
     }
 }
 pub struct CliGrantView {
-    pub grant_id: Uuid,
+    pub grant_id: crate::api::AccessGrantId,
     pub name: String,
     pub current_session: bool,
     pub issued_at: DateTime<Utc>,
@@ -99,7 +99,11 @@ impl Grant {
         .map_err(|_| ComputerError::Unavailable)?;
         accepted.validate()?;
         let family = family(&accepted)?;
-        if self.id != super::grant_record(self.grant_id)
+        if self.id
+            != super::grant_record(
+                crate::api::AccessGrantId::try_from(self.grant_id)
+                    .map_err(|_| ComputerError::Forbidden)?,
+            )
             || self.grant_id.is_nil()
             || family != self.family
         {

@@ -107,7 +107,7 @@ impl MaintenanceWorker {
                 let before = source_run(operation, Phase::Ready)?;
                 let checkpoint = LifecycleCheckpoint::stop(
                     operation.provider_instance_id,
-                    operation.operation_id,
+                    operation.operation_id.try_into()?,
                     intent.source.clone(),
                     &before,
                 )?;
@@ -200,7 +200,7 @@ impl MaintenanceWorker {
             MaintenanceStep::Create => {
                 let checkpoint = LifecycleCheckpoint::create(
                     operation.provider_instance_id,
-                    operation.operation_id,
+                    operation.operation_id.try_into()?,
                     intent.target.clone(),
                 )?;
                 let seen = if ticket.is_dispatch() {

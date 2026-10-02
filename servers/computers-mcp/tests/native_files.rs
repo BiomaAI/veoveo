@@ -209,7 +209,7 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
     let allocator = home.worker(home.provider).await;
     allocator.prepare(&initial).await.unwrap();
     allocator
-        .abandon(Uuid::now_v7(), &initial, &binding)
+        .abandon(veoveo_types::TaskId::new(), &initial, &binding)
         .await
         .unwrap();
     db.a.client()

@@ -68,9 +68,14 @@ mod tests {
     #[test]
     fn computers_consumers_share_owned_ids_and_addresses() {
         use veoveo_computers_mcp::contract::{
-            AutomationGrantId, ComputerId, ComputerResource, ExecutionId, ExecutionResultUri,
+            AccessGrantId, AutomationGrantId, CliPairingId, ComputerId, ComputerResource,
+            ExecutionId, ExecutionResultUri, RevokeAccessInput,
         };
         let computer = ComputerId::new();
+        let revoke = RevokeAccessInput { computer_id: computer, grant_id: AccessGrantId::new() };
+        assert_eq!(revoke.computer_id, computer);
+        let pairing = CliPairingId::new();
+        assert_eq!(pairing.to_string().parse::<CliPairingId>().unwrap(), pairing);
         let grant = AutomationGrantId::new();
         let execution = ExecutionId::new();
         let result = ExecutionResultUri::new(execution);

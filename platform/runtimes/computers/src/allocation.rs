@@ -71,7 +71,7 @@ pub struct HomeAllocator {
 #[derive(Debug)]
 pub struct RetainedHandoff {
     provider_id: Uuid,
-    operation_id: Uuid,
+    operation_id: veoveo_types::TaskId,
     source: Binding,
     target: Binding,
     source_resource_id: String,
@@ -85,7 +85,7 @@ impl RetainedHandoff {
     pub(crate) fn target(&self) -> &Binding {
         &self.target
     }
-    pub(crate) fn operation_id(&self) -> Uuid {
+    pub(crate) fn operation_id(&self) -> veoveo_types::TaskId {
         self.operation_id
     }
 
@@ -94,7 +94,7 @@ impl RetainedHandoff {
     #[cfg(test)]
     pub(crate) fn fixture(
         provider_id: Uuid,
-        operation_id: Uuid,
+        operation_id: veoveo_types::TaskId,
         source: Binding,
         target: Binding,
         source_resource_id: String,
@@ -191,7 +191,7 @@ impl HomeAllocator {
     }
     pub async fn handoff(
         &self,
-        operation_id: Uuid,
+        operation_id: veoveo_types::TaskId,
         source: &Binding,
         target: &Binding,
         source_resource_id: &str,
@@ -212,7 +212,7 @@ impl HomeAllocator {
                 .map_err(|_| RuntimeFailure::AllocationFailed)?,
             provider_id: storage_identity(self.provider_id)?,
             computer_id: storage_identity(source.computer_id())?,
-            operation_id: storage_identity(operation_id)?,
+            operation_id: storage_identity(operation_id.as_uuid())?,
             source_instance_id: storage_identity(
                 source
                     .replacement_instance_id()
@@ -267,7 +267,7 @@ impl HomeAllocator {
     /// Success does not prove the outcome of any earlier provider request.
     pub async fn abandon(
         &self,
-        operation_id: Uuid,
+        operation_id: veoveo_types::TaskId,
         source: &Binding,
         target: &Binding,
     ) -> Result<()> {
@@ -287,7 +287,7 @@ impl HomeAllocator {
                 .map_err(|_| RuntimeFailure::AllocationFailed)?,
             provider_id: storage_identity(self.provider_id)?,
             computer_id: storage_identity(source.computer_id())?,
-            operation_id: storage_identity(operation_id)?,
+            operation_id: storage_identity(operation_id.as_uuid())?,
             source_instance_id: storage_identity(
                 source
                     .replacement_instance_id()

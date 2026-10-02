@@ -33,7 +33,7 @@ impl ComputersStore {
                  SELECT * FROM ONLY $policy; RETURN time::now();",
                 vec![
                     ("grant", super::record(handle.grant_id).into_value()),
-                    ("connection", handle.connection_id.into_value()),
+                    ("connection", handle.connection_id.into_uuid().into_value()),
                     ("provider", self.provider_instance_id.into_value()),
                     ("policy", self.session_policy_record().into_value()),
                 ],
@@ -52,7 +52,7 @@ impl ComputersStore {
         let idle = row
             .idle_expires_at
             .min(row.last_activity_at + TimeDelta::seconds(i64::from(limits.idle_seconds)));
-        if row.connection_id != Some(handle.connection_id)
+        if row.connection_id != Some(handle.connection_id.into_uuid())
             || row.provider_instance_id != self.provider_instance_id
             || limits.max_grants == 0
             || row.revoked_at.is_some()
@@ -85,7 +85,7 @@ impl ComputersStore {
                 include_str!("../../queries/touch_session_grant.surql"),
                 vec![
                     ("grant", super::record(handle.grant_id).into_value()),
-                    ("connection", handle.connection_id.into_value()),
+                    ("connection", handle.connection_id.into_uuid().into_value()),
                     ("policy", self.session_policy_record().into_value()),
                     ("policy_fingerprint", policy.fingerprint.into_value()),
                     (
@@ -133,12 +133,9 @@ impl ComputersStore {
         &self,
         actor: &ComputerActor,
         computer_id: veoveo_computers_contract::ComputerId,
-        grant_id: Uuid,
+        grant_id: crate::api::AccessGrantId,
     ) -> Result<()> {
         tokio::time::timeout(Duration::from_secs(5), async {
-            if grant_id.is_nil() {
-                return Err(ComputerError::InvalidInput);
-            }
             let control = self.control_authority(actor).await?;
             control.require_read(Some(computer_id))?;
             let computer = self.get(actor.owner(), computer_id).await?;
@@ -197,12 +194,12 @@ impl ComputersStore {
         tokio::time::timeout(Duration::from_secs(5), async {
             let mut read = self.query("SELECT * FROM ONLY $grant WHERE connection_id = $connection AND provider_instance_id = $provider;", vec![
                 ("grant", super::record(handle.grant_id).into_value()),
-                ("connection", handle.connection_id.into_value()),
+                ("connection", handle.connection_id.into_uuid().into_value()),
                 ("provider", self.provider_instance_id.into_value()),
             ]).await?;
             let row: Option<model::Record> = read.take(0).map_err(|_| ComputerError::Unavailable)?;
             let row = row.ok_or(ComputerError::Forbidden)?;
-            if row.connection_id != Some(handle.connection_id) {
+            if row.connection_id != Some(handle.connection_id.into_uuid()) {
                 return Err(ComputerError::Forbidden);
             }
             let accepted = row.accepted()?;
@@ -211,7 +208,7 @@ impl ComputersStore {
                 vec![
                     ("grant", super::record(handle.grant_id).into_value()),
                     ("owner_key", row.owner_key.clone().into_value()),
-                    ("connection", Some(handle.connection_id).into_value()),
+                    ("connection", Some(handle.connection_id.into_uuid()).into_value()),
                     (
                         "admission_expires_at",
                         Option::<DateTime<Utc>>::None.into_value(),

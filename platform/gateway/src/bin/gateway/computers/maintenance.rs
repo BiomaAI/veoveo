@@ -1,5 +1,6 @@
 //! Validate public maintenance boundaries without importing the provider or store.
 use std::collections::BTreeSet;
+#[cfg(test)]
 use uuid::Uuid;
 use veoveo_computers_contract::{
     MaintenancePhase, MaintenanceState, MaintenanceView, ResumeUpdateInput, UpdateTemplateInput,
@@ -32,10 +33,10 @@ pub(super) fn input(
 fn valid(
     view: &MaintenanceView,
     computer: veoveo_computers_contract::ComputerId,
-    task: Option<Uuid>,
+    task: Option<veoveo_types::TaskId>,
 ) -> bool {
     view.computer_id == computer
-        && view.task_id.get_version_num() == 7
+        && view.task_id.as_uuid().get_version_num() == 7
         && task.is_none_or(|id| view.task_id == id)
         && template_id(&view.source_template_id)
         && template_id(&view.target_template_id)
@@ -46,12 +47,12 @@ fn valid(
 pub(super) fn resume_input(
     bytes: &[u8],
     computer: veoveo_computers_contract::ComputerId,
-    task: Uuid,
+    task: veoveo_types::TaskId,
 ) -> Result<Vec<u8>, ()> {
     let input: ResumeUpdateInput = serde_json::from_slice(bytes).map_err(|_| ())?;
     if input.computer_id != computer
         || input.task_id != task
-        || input.task_id.get_version_num() != 7
+        || input.task_id.as_uuid().get_version_num() != 7
         || input.request_id.is_nil()
     {
         return Err(());
@@ -61,7 +62,7 @@ pub(super) fn resume_input(
 pub(super) fn receipt(
     bytes: &[u8],
     computer: veoveo_computers_contract::ComputerId,
-    task: Option<Uuid>,
+    task: Option<veoveo_types::TaskId>,
 ) -> Result<Vec<u8>, ()> {
     let view: MaintenanceView = serde_json::from_slice(bytes).map_err(|_| ())?;
     if !valid(&view, computer, task) {
@@ -99,7 +100,7 @@ mod tests {
     #[test]
     fn maintenance_identity_and_recovery_cannot_be_substituted() {
         let computer = veoveo_computers_contract::ComputerId::new();
-        let task = Uuid::now_v7();
+        let task = veoveo_types::TaskId::new();
         let time = chrono::Utc::now();
         let view = json!({"computerId":computer,"taskId":task,"sourceTemplateId":"development-retained","targetTemplateId":"development","phase":"queued","recovery":null,"canResume":false,"pendingCancellationAt":null,"createdAt":time,"updatedAt":time});
         let bytes = serde_json::to_vec(&view).unwrap();
@@ -114,7 +115,7 @@ mod tests {
             )
             .is_err()
         );
-        assert!(resume_input(&input_bytes, computer, Uuid::now_v7()).is_err());
+        assert!(resume_input(&input_bytes, computer, veoveo_types::TaskId::new()).is_err());
         let mut forged = resume;
         forged["templateId"] = "substitution".into();
         assert!(resume_input(&serde_json::to_vec(&forged).unwrap(), computer, task).is_err());
@@ -127,7 +128,7 @@ mod tests {
             )
             .is_err()
         );
-        assert!(receipt(&bytes, computer, Some(Uuid::now_v7())).is_err());
+        assert!(receipt(&bytes, computer, Some(veoveo_types::TaskId::new())).is_err());
         let mut changed = view;
         changed["canResume"] = true.into();
         assert!(receipt(&serde_json::to_vec(&changed).unwrap(), computer, Some(task)).is_err());
