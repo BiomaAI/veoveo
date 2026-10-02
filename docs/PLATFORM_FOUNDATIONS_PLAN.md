@@ -4025,6 +4025,13 @@ preserves upstream protocol code, message and data while transport failures use 
 errors. Native qualification covers denial forwarding and its completion audit. The
 corrected gateway must be published before completing installed grant/revocation checks.
 
+The forwarding fix is published from `db6cec6f` with runnable digest
+`sha256:7023201f251b260236334867a990914a548c2cf3507f8b963d483301b8c764c3`.
+All fifty native MCP forwarding cases and strict library Clippy pass. Staging takes
+124 seconds; release qualification adds SBOM and provenance in ten seconds without
+changing the runnable digest. The reference lock selects that image for installed
+access qualification.
+
 Adopt Reason's completed analyses and results so users can find earlier findings and
 read their grounding without rerunning inference. Observations carry stored owner,
 Work Context, labels, model provenance and modification metadata. Return bounded
