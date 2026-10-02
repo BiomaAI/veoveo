@@ -240,7 +240,36 @@
       "metadata": {
         "contract_revision": 3
       },
-      "resource_projection": "server_owned"
+      "resource_projection": "server_owned",
+      "knowledge": [
+        {
+          "collection": "reason.docs",
+          "mode": "index",
+          "stewards": [
+            "operations"
+          ],
+          "authoritative_for": [],
+          "data_labels": []
+        },
+        {
+          "collection": "reason.analyses",
+          "mode": "index",
+          "stewards": [
+            "operations"
+          ],
+          "authoritative_for": [],
+          "data_labels": []
+        },
+        {
+          "collection": "reason.results",
+          "mode": "index",
+          "stewards": [
+            "operations"
+          ],
+          "authoritative_for": [],
+          "data_labels": []
+        }
+      ]
     },
     {
       "slug": "timeseries",
@@ -3070,7 +3099,7 @@
       "identity_provider": "enterprise",
       "authorization_server": "veoveo",
       "protected_resource": "https://veoveo.bioma.ai/mcp/knowledge-indexing",
-      "policy_version": "knowledge-indexing-v1",
+      "policy_version": "knowledge-indexing-v2",
       "auth_modes": [
         "oauth_client_credentials"
       ],
@@ -3152,6 +3181,26 @@
               {
                 "kind": "scheme",
                 "scheme": "charts"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "disabled",
+          "tasks": "disabled"
+        },
+        {
+          "server": "reason",
+          "tools": {
+            "mode": "none"
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "reason"
               }
             ]
           },
@@ -6761,7 +6810,7 @@
       "metadata": {}
     },
     {
-      "version": "knowledge-indexing-v1",
+      "version": "knowledge-indexing-v2",
       "rules": [
         {
           "id": "discover_approved_knowledge",
@@ -6803,6 +6852,7 @@
             "artifact",
             "charts",
             "map",
+            "reason",
             "time"
           ],
           "principal_ids": [
@@ -6831,6 +6881,7 @@
           "servers": [
             "artifact",
             "map",
+            "reason",
             "time"
           ],
           "principal_ids": [
@@ -7441,6 +7492,9 @@
           "map.locations",
           "map.publications",
           "map.releases",
+          "reason.analyses",
+          "reason.docs",
+          "reason.results",
           "time.authority-releases",
           "time.bootstrap-authorities",
           "time.calendars",

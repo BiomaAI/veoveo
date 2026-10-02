@@ -367,11 +367,11 @@ remediation enabled to exercise that controller path. Verify cancellation with t
 
 ## Knowledge Collections
 
-The installation approves sixteen collections: Map's six summary collections and
+The installation approves nineteen collections: Map's six summary collections and
 documents, Artifact metadata and documents, Time's five collections and documents,
-and Chart documents. The `operations` group stewards these collections. Their empty
-label ceilings permit unlabelled content only. Reason analyses will join after the
-server implements its collection contract.
+Chart documents, and Reason analyses, results and documentation. The `operations`
+group stewards these collections. Their empty label ceilings permit unlabelled content
+only. Reason findings inherit the published result Artifact's current access policy.
 
 The `knowledge-indexer` machine client uses a dedicated resource-only profile and
 viewer membership in Operations. Its collection registration limits source reads;

@@ -3987,6 +3987,17 @@ The owning design declares the coordinated Reason admission/indexing drain and r
 of disposable Task/index state before installing the required output field. All 62
 Reason tests and the isolated consumer's 24 contract cases pass.
 
+Reference source rollout inputs (2026-10-01): Reason is published from `0b7407bf`
+with runnable digest `sha256:dd9113d4236178afea95346372fb4f9d1dfc1680408cb7ae87e82c96e087d446`.
+Release qualification preserves the staged runnable digest and records SBOM and
+provenance. The reference approves Reason analyses, results and documentation, taking
+its catalog to nineteen collections. The indexing profile keeps resource-only access
+and Operations viewer membership; composition and Helm checks pass. With gateway,
+indexing and Reason pods drained, the reset removes two completed Reason Tasks and
+their two gateway routes. No analysis was unfinished and no agent awaited those Tasks.
+Full result Artifacts and recordings keep their current formats. Installed convergence,
+fresh GPU publication and retrieval qualification are still required.
+
 Adopt Reason's completed analyses and results so users can find earlier findings and
 read their grounding without rerunning inference. Observations carry stored owner,
 Work Context, labels, model provenance and modification metadata. Return bounded
