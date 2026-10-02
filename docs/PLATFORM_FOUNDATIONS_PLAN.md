@@ -138,7 +138,10 @@ unsupported versions. Clients restart enumeration after list-change notification
 see identities newly inserted before their position. All 47 Gateway MCP cases and
 five control-plane/shared-policy cases pass. All-target/all-feature strict Clippy,
 formatting and 1,041 documentation links pass. The combined Gateway/Charts policy
-rollout and installed catalog checks remain open.
+rollout and installed catalog checks remain open. Gateway publication from `c41270fb`
+passes in 80 seconds; the reference selects runnable digest
+`sha256:697bdbe7f2ff2a5e45c3d5a20cc0b62a56bcddf2c16e0ddbb0d84271595eccbd`. BuildKit stops
+before the combined image and Charts-policy rollout.
 The current source-qualification batch adds one shared gateway entry point and
 owner-local fixtures for Artifact, Reason, Map and Time. K07 models both updates and
 membership removal; removal must survive restart and deny full and conditional reads.
