@@ -57,3 +57,10 @@ Tokens stay out of arguments and receipts. Local port 8797 addresses the writer 
 producer and Artifact checks use the same prerequisites as ordinary `stream-gpu`.
 This direct-server check does not qualify public Gateway load balancing or live-session
 routing. It complements the installed public MCP and composed-flight cases.
+
+Stream and Reason's direct GPU fixtures sign a synthetic automated service identity
+with the current Work Context policy revision and the selected profile's audience.
+Their assertion includes a checked `GatewayRequestContext` with fresh audit correlation,
+matching actor, client, scopes and expiration. Artifact admission requires that context
+before issuing read or write capabilities. These fixtures do not establish public OAuth
+authentication; public acceptance uses the installation's registered client.

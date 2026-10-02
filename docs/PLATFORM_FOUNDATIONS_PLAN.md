@@ -144,6 +144,13 @@ The first installed attempt stops before recording or Task creation because the
 Pod decoder expects `imageId` instead of Kubernetes' `imageID`. The field mapping and
 a Kubernetes-shaped admission fixture correct the harness. All 27 native smoke cases,
 strict Clippy and binary compilation pass; the installed case is ready to repeat.
+The next attempt reaches Stream but Artifact rejects its direct fixture assertion
+because the shared GPU smoke signer omits `GatewayRequestContext`. No Task is created.
+The Stream/Reason helper now signs matching automated actor/token attribution and a
+fresh audit request under the selected installation profile. The Artifact admission
+requirement is preserved. The native smoke suite, strict Clippy and both smoke/recording
+forwarder executables pass. Installed repetition uses the deployed signer, Store
+credentials and producer key ID in a private temporary environment.
 The current source-qualification batch adds one shared gateway entry point and
 owner-local fixtures for Artifact, Reason, Map and Time. K07 models both updates and
 membership removal; removal must survive restart and deny full and conditional reads.

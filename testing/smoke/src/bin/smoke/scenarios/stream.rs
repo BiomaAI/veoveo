@@ -13,8 +13,9 @@ use re_sdk_types::components::VideoCodec;
 use secrecy::SecretString;
 use serde_json::json;
 use veoveo_mcp_contract::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalSigningKey, GatewayInternalTokenIssuer,
-    GatewayProfileId, Principal, PrincipalKind, ServerSlug, TokenIssuer, TokenSubject,
+    AccessTokenSubject, GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalSigningKey,
+    GatewayInternalTokenIssuer, GatewayProfileId, GatewayRequestContext, OAuthClientId, Principal,
+    PrincipalKind, ServerSlug, TokenIssuer, TokenSubject,
 };
 use veoveo_platform_store::{
     PlatformStore, RecordIdKey, RecordingId as StoreRecordingId, StoreConfig, StoreCredentials,
@@ -664,14 +665,39 @@ pub(crate) async fn issue_internal_token(
         },
         provenance: InvocationProvenance::Automated,
     };
+    // Direct GPU acceptance owns a synthetic service identity and its correlation.
+    // Artifact capabilities require the same signed audit context as public dispatch.
+    let now = Utc::now();
+    let expires_at = now + TimeDelta::minutes(30);
+    let request_context = GatewayRequestContext {
+        audit: veoveo_mcp_contract::audit::AuditRequest::background(),
+        principal: principal.clone(),
+        access_token: AccessTokenSubject {
+            managed_agent: None,
+            issuer: principal.issuer.clone(),
+            subject: principal.subject.clone(),
+            oauth_client_id: OAuthClientId::new(subject)?,
+            session_family: None,
+            audience: installation.operator.resource.clone(),
+            work_context: authority.work_context.clone(),
+            invocation_mode: authority.provenance.mode(),
+            initiator: None,
+            delegation_id: None,
+            scopes: principal.scopes.clone(),
+            jwt_id: None,
+            issued_at: now,
+            not_before: Some(now),
+            expires_at,
+        },
+    };
     Ok(issuer
         .issue(
             GatewayProfileId::new(installation.profile())?,
             ServerSlug::new(server)?,
             principal,
             authority,
-            None,
-            Utc::now() + TimeDelta::minutes(30),
+            Some(request_context),
+            expires_at,
         )?
         .bearer_token)
 }
