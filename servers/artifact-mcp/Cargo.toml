@@ -16,6 +16,10 @@ required-features = ["mcp"]
 name = "gateway_source_conformance"
 required-features = ["mcp"]
 
+[[test]]
+name = "gateway_sharing"
+required-features = ["mcp"]
+
 [features]
 default = ["mcp"]
 contract = [

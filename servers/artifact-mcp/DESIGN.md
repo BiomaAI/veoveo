@@ -101,9 +101,33 @@ The independent [contract consumer](../../testing/fixtures/server-contract-consu
 checks the public library without runtime feature unification. Native service tests
 own authorization and transport qualification.
 
-<!-- TODO(foundations): Finish installed Artifact sharing and Computers hosted feature
-qualification at the Phase 3 integration checkpoint. Installed Artifact delivery and
-Speech CUDA transcription/dictation pass; keep the reference cluster stopped during development. -->
+## Installed Sharing Acceptance
+
+`tests/gateway_sharing.rs` exercises release and share tools through the public MCP
+gateway and redeems links through anonymous HTTP. It checks byte equality, read-only
+delivery, download limits, expiry, explicit revocation and the current parent release
+state. The test uses the official MCP client and the shared installed transport helpers.
+Its `veoveo.ai/artifact-sharing-acceptance/v1` JSON report records passed checks, the
+first failure and all cleanup failures without link secrets.
+
+Set `VEOVEO_ARTIFACT_SHARING_INPUT` to an absolute JSON fixture path and run:
+
+```sh
+cargo test -p veoveo-artifact-mcp --test gateway_sharing -- --ignored --nocapture
+```
+
+The fixture uses the [installed harness input](../../testing/installed/DESIGN.md),
+with `installation.callerTokenFile` holding an administrator token,
+`installation.deployment` set to `artifact-mcp`, and `installation.output` selecting
+a new report file. It also supplies `artifact`, its expected `owner` as an
+`AccessSubject`, and an absolute `bodyFile` containing independently obtained bytes.
+Choose a disposable private Artifact with 1–65,536 bytes and at least ten minutes of
+remaining retention. Credentials must cover checks and cleanup. The test reads and
+checks these preconditions before any mutation. It changes no grants and restarts no
+service. Three minutes bound the checks; transport requests have finite deadlines.
+Cleanup restores private release state first, then revokes every returned link and
+checks that anonymous reads fail. A lost create response cannot trigger another create;
+the restored private state blocks redemption of any link whose identity was lost.
 
 ## Knowledge Metadata
 

@@ -139,9 +139,13 @@ pub async fn read<T: serde::de::DeserializeOwned>(
 }
 
 pub fn input<T: serde::de::DeserializeOwned>() -> Result<T> {
+    input_from("VEOVEO_SOURCE_CONFORMANCE_INPUT")
+}
+
+pub fn input_from<T: serde::de::DeserializeOwned>(variable: &str) -> Result<T> {
     let path = PathBuf::from(
-        std::env::var_os("VEOVEO_SOURCE_CONFORMANCE_INPUT")
-            .context("set VEOVEO_SOURCE_CONFORMANCE_INPUT to an owner fixture file")?,
+        std::env::var_os(variable)
+            .with_context(|| format!("set {variable} to an owner fixture file"))?,
     );
     ensure!(path.is_absolute(), "source fixture path must be absolute");
     ensure!(

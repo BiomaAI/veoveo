@@ -17,6 +17,8 @@ inputs, admits private token files, connects through the official SDK and writes
 source report. `restart.rs` controls one Deployment named by the installation target.
 `tools.rs` sends typed owner requests through checked gateway tool names.
 They do not choose domain data, grants, service names or expected search results.
+Owner tests outside source conformance can select their own fixture environment
+variable through `input_from`; the same path and size checks apply.
 
 Each server's integration test owns those choices and imports its library types.
 Artifact owns the grant mutation driver that its metadata test and Reason's finding

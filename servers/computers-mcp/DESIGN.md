@@ -49,6 +49,9 @@ The independent [contract consumer](../../testing/fixtures/server-contract-consu
 qualifies the isolated dependency graph. Runtime and hosted tests qualify their own
 feature configurations; a contract build supplies no installed workload evidence.
 
+<!-- TODO(foundations): Finish installed Computers hosted feature qualification
+for the Phase 3 library and checked-setup changes. -->
+
 ## Retained Maintenance Worker
 
 `MaintenanceWorker` composes the domain journal with the pinned provider, retained-home

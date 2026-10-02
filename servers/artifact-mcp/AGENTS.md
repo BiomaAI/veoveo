@@ -59,6 +59,10 @@ these gates. Public types keep their existing domain owners.
   It restarts the selected Artifact MCP Deployment and always reconciles its grant.
   Follow [the installed harness contract](../../testing/installed/DESIGN.md).
   Keep the Artifact grant driver here; derived-source consumers can reuse it.
+- `tests/gateway_sharing.rs` owns installed anonymous sharing assertions. Select a
+  disposable private Artifact with known bytes and an administrator credential.
+  Keep link URLs out of reports and errors; restore private state and revoke returned
+  links even after a failure. Follow the input contract in `DESIGN.md`.
 - `node --test tests/workbench-pagination.test.mjs` in `apps/console/web` verifies
   headless page navigation behavior; it is not visual or GPU acceptance.
 - Docker is required for SurrealDB backed tests and smoke work (root README,
