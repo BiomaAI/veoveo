@@ -9,6 +9,7 @@
 | Flight scenario | Runtime-loaded `veoveo.ai/uav-sim-acceptance/v12` JSON with bounded typed mission, world, video and observation parameters |
 | Recording analysis | Stream and Reason contract features, Recording catalog and checked live-part snapshot types; `veoveo.ai/uav-recording-acceptance/v1` JSON result |
 | Stream live sessions | Server-owned live-session types imported through the Stream library's isolated `contract` feature |
+| Stream notifications | Official workspace Rust MCP SDK; public resource subscriptions, uncached typed reads, cancellation and reconnected baselines; `veoveo.ai/stream-notification-acceptance/v1` result |
 | UAV control grants | UAV-owned grant, permission and collection types through its isolated contract feature; a 60-second and 100-page traversal limit; Map owns mobility-profile references |
 | Route admission | Map-owned route request, position, policy and result types through its isolated contract feature; a current aviation route Task runs before flight commands |
 | World readiness | UAV-owned simulation, tile and camera state types; the scenario timeout includes reads and warmup waits; invalid bindings, failed resources and unsupported encoders fail immediately |
@@ -62,6 +63,17 @@ The full flight path uses the same check before obtaining control and repeats it
 mission completion. Session, result and preview identities must agree. One scenario
 timeout covers all result reads and waits. The preview admits AVC presentation
 reordering while checking contiguous decode sequence and distinct timestamps.
+
+The focused live command also subscribes to the session, results and preview through
+the public Gateway using the selected operator. It requires the exact acknowledged
+filter and an initial invalidation for each address. After the baseline read, fresh
+notifications must accompany advancing inference-frame and encoded-preview counters.
+It cancels that request, reconnects, checks that the new baseline does not move backwards,
+and requires another advance. Explicit SDK requests bypass its response cache. The
+notification case has a sixty-second deadline and prints a JSON result with both
+cycles, counters, cancellation and any failure. The owner still cleans up only a
+session it created. The SDK uses the existing qualified workspace pin; this client
+does not import a service implementation.
 
 Both commands report a failure before cleanup and stop only sessions they created.
 Flight cleanup lands the vehicle only after this run began issuing flight commands.

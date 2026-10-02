@@ -919,7 +919,10 @@ cargo xtask smoke uav-stream-verify \
 ~~~
 
 This command needs only operator credentials. It checks fresh results and the encoded
-preview through the public Stream resources, then stops the session if it created it.
+preview through the public Stream resources. Public MCP subscriptions must deliver
+initial invalidations and advancing session, result and preview updates before and
+after reconnect. The command prints a JSON notification report, then stops the session
+if it created it.
 It leaves a reused session with its owner. It performs no landing, takeoff, mission,
 recording replay or Reason work. Full flight checks the same live prerequisite before
 vehicle control and again after mission completion.

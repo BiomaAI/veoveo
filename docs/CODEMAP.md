@@ -1492,6 +1492,7 @@ dispatch preflights and budgeted execution.
 | [`testing/fixtures/modular-mcp/`](../testing/fixtures/modular-mcp/DESIGN.md) | independent scope/resource library with isolated contract and MCP features; `mcp/conformance/tests/modular_server.rs` owns hosted qualification and fixture cleanup |
 | [`testing/fixtures/server-contract-consumer/`](../testing/fixtures/server-contract-consumer/DESIGN.md) | independently resolved Artifact, Computers, Speech, Frames, Timeseries, Media and Map library consumer; optional Map/Reason knowledge descriptors; rejects service dependencies in both feature profiles |
 | `testing/flight-smoke/` | [focused composed-flight harness](../testing/flight-smoke/DESIGN.md), with server-owned wire types and client-only dependency closure |
+| `testing/flight-smoke/src/domain/stream/notifications.rs` | installed live GPU resource updates through the public Gateway, typed uncached reads, reconnected baselines and request cancellation |
 | `testing/browser-smoke/src/cli.rs` and `main.rs` | installation-selected browser acceptance arguments and scenario dispatch; `support.rs` reuses the shared installed-target loader; `browser.rs` owns headed hardware checks and browser assertions shared with flight acceptance |
 | [`testing/smoke/DESIGN.md`](../testing/smoke/DESIGN.md) and `src/bin/smoke.rs` | smoke ownership, installed cross-replica acceptance, command dispatch and digest-addressed simulation certification |
 | `testing/smoke/src/bin/smoke/scenarios/` | Rust process/deployment scenarios |

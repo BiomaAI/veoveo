@@ -5,6 +5,8 @@ use veoveo_stream_mcp::{
     uris as stream_uris,
 };
 
+mod notifications;
+
 pub(crate) async fn verify(
     conformance: &Path,
     scenario_path: &Path,
@@ -31,12 +33,16 @@ pub(crate) async fn verify(
         "the selected UAV camera must publish NVIDIA NVENC access units before Stream acceptance"
     );
     let live = prepare_live_stream_pipeline(&operator, &scenario.stream.live_pipeline_id).await?;
-    let result = wait_for_live_stream(
-        &operator,
-        &live.session_id,
-        &live.preview_uri,
-        &scenario.stream,
-    )
+    let result = async {
+        wait_for_live_stream(
+            &operator,
+            &live.session_id,
+            &live.preview_uri,
+            &scenario.stream,
+        )
+        .await?;
+        notifications::verify(&operator, live.session_id, &scenario.stream).await
+    }
     .await;
     if let Err(error) = &result {
         eprintln!("live Stream acceptance failed; starting owned cleanup: {error:#}");
@@ -70,14 +76,14 @@ pub(super) async fn prepare_live_stream_pipeline(
 ) -> Result<AcceptanceLiveSession> {
     // Bound the preflight over domain-owned pages. Exhaustion fails before starting
     // a duplicate runner when the active session lies beyond our read budget.
-    let mut uri = "stream://sessions".to_owned();
+    let mut uri = stream_uris::sessions_uri(None);
     let mut seen = BTreeSet::new();
     let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
     for page_number in 0..100 {
         let page: veoveo_stream_mcp::contract::LiveSessionsPage = serde_json::from_value(
             operator
                 .resource(
-                    &uri,
+                    uri.as_str(),
                     deadline.saturating_duration_since(tokio::time::Instant::now()),
                 )
                 .await?,
@@ -116,7 +122,7 @@ pub(super) async fn prepare_live_stream_pipeline(
             seen.insert(cursor.as_str().to_owned()),
             "Stream session cursor repeated"
         );
-        uri = stream_uris::sessions_uri(Some(cursor)).to_string();
+        uri = stream_uris::sessions_uri(Some(cursor));
     }
 
     let started: StartLiveSessionOutput = serde_json::from_value(
