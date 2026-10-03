@@ -148,11 +148,11 @@ fn table_names_preserve_quoted_identity_in_requests_and_metadata() {
     let request = DuckDbIngestRequest::new(
         "metrics".parse().unwrap(),
         name.clone(),
-        DuckDbSource::InlineCsv {
+        DuckDbSource::Tabular(DuckDbTabularSource::InlineCsv {
             csv: "x\n1\n".into(),
             filename: None,
             options: DuckDbReadOptions::default(),
-        },
+        }),
         DuckDbIngestMode::Create,
     );
     assert_eq!(

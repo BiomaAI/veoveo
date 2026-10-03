@@ -275,8 +275,11 @@ known response types. Invalid addresses receive a diagnostic that omits the subm
 
 ### Shared Data Source
 
-`veoveo_duckdb_mcp::contract::DuckDbSource` is shared by hosted servers that
-need the same governed tabular input vocabulary.
+`veoveo_duckdb_mcp::contract::DuckDbTabularSource` owns inline CSV and HTTPS inputs.
+Timeseries consumes this profile directly. `DuckDbSource` composes that type with
+authenticated Artifact input for the DuckDB materializer. Both profiles encode their
+variants as flat objects with a `kind` field; each consumer advertises the profile
+it implements. DuckDB's complete input vocabulary is:
 
 ```text
 InlineCsv
@@ -1062,11 +1065,12 @@ behavior must not accumulate in this binary.
 
 ## Testing Strategy
 
-The contract suite compares all 17 public schemas with their pre-extraction snapshots
-and qualifies source wire forms, defaults, option rejection and SQL quoting. A separately
+The contract suite compares 38 public schemas with their checked-in snapshots
+and qualifies source profiles, wire forms, defaults, option rejection and SQL quoting. A separately
 resolved consumer compiles these cases with only `contract` enabled; dependency metadata
 must exclude MCP, asynchronous, database and server-runtime packages. Timeseries checks
-its unchanged forecast-input schema and exercises its existing source materialization path.
+its forecast schema against the inline/HTTPS profile, compares schema and decoder
+admission, and exercises source materialization and SQL observation filtering.
 
 `tests/usage_contract.rs` checks typed usage construction, collection-bound cursors,
 page admission and the Workbench page shape. `tests/usage.rs` qualifies the library

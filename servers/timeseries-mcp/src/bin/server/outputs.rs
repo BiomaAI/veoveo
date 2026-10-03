@@ -136,7 +136,7 @@ mod terminal_status_tests {
     fn terminal_status_is_short_and_identity_free() {
         let status = forecast_status(&TimeseriesForecastSummary {
             method: TimeseriesForecastMethod::NaiveTrend,
-            horizon: 12,
+            horizon: veoveo_timeseries_mcp::contract::TimeseriesForecastHorizon::new(12).unwrap(),
             source_rows: 48,
             series: Vec::new(),
         });

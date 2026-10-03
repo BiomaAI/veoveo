@@ -17,6 +17,44 @@ pub fn public_requests(id: ArtifactId) -> (ArtifactReference, Action, Transcribe
 mod tests {
     use super::*;
     #[test]
+    fn analytical_consumers_share_sources_and_build_checked_forecast_requests() {
+        use veoveo_duckdb_mcp::contract::{DuckDbSource, DuckDbTabularSource};
+        use veoveo_timeseries_mcp::contract::{
+            TimeseriesFilterCombination, TimeseriesFilterPredicate, TimeseriesFilterValue,
+            TimeseriesFilterValues, TimeseriesForecastHorizon, TimeseriesForecastRequest,
+            TimeseriesRowFilter, TimeseriesTableMapping,
+        };
+        let source = DuckDbTabularSource::InlineCsv {
+            csv: "value\n1\n2\n".into(),
+            filename: None,
+            options: Default::default(),
+        };
+        let column = "value".parse().unwrap();
+        let request = TimeseriesForecastRequest::new(
+            source.clone(),
+            TimeseriesTableMapping::new(column),
+            TimeseriesForecastHorizon::new(4).unwrap(),
+        )
+        .with_training_filter(TimeseriesRowFilter::new(
+            TimeseriesFilterCombination::All,
+            TimeseriesFilterPredicate::In {
+                column: "value".parse().unwrap(),
+                values: TimeseriesFilterValues::new(
+                    TimeseriesFilterValue::I64(1),
+                    [TimeseriesFilterValue::I64(2)],
+                ),
+            },
+            [],
+        ));
+        assert_eq!(request.source, source);
+        assert_eq!(request.horizon.get(), 4);
+        assert_eq!(request.training_filter.unwrap().predicates().len(), 1);
+        assert_eq!(
+            DuckDbSource::from(source.clone()),
+            DuckDbSource::Tabular(source)
+        );
+    }
+    #[test]
     fn map_direct_resources_preserve_parent_identity_without_mcp() {
         use veoveo_map_mcp::contract::{
             FeatureLayerId, LayerProductId, LayerPublicationId, MapResource,

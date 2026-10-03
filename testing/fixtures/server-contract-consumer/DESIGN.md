@@ -18,6 +18,9 @@ requests and Artifact addresses through the same isolated contract. Its graph te
 rejects Veoveo implementation crates, RMCP, databases and asynchronous runtimes.
 Scope checks consume every library's declaration, reject foreign names, and round-trip
 all nonempty vocabularies. Recording producer permissions remain distinct from sealing.
+The analytical consumer builds a Timeseries forecast from DuckDB's tabular source
+profile and column types, checked forecast steps, and a nonempty training filter.
+It also promotes that source into DuckDB's complete input type.
 
 Run the isolated checks with one shared build directory:
 

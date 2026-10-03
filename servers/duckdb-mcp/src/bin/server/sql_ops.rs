@@ -17,8 +17,8 @@ use veoveo_duckdb_mcp::{
         DuckDbExecuteRequest, DuckDbExportOutput, DuckDbExportRequest, DuckDbIngestMode,
         DuckDbIngestOutput, DuckDbIngestRequest, DuckDbQueryOutput, DuckDbQueryOutputMode,
         DuckDbQueryRequest, DuckDbSource, DuckDbTabularFormat, DuckDbTabularSelection,
-        duckdb_quote_identifier, duckdb_quote_literal, duckdb_read_function_sql,
-        duckdb_read_options_sql,
+        DuckDbTabularSource, duckdb_quote_identifier, duckdb_quote_literal,
+        duckdb_read_function_sql, duckdb_read_options_sql,
     },
     engine::{self, AttachSpec, FileExchange},
 };
@@ -446,7 +446,7 @@ async fn materialize_source(
                 options,
             ))
         }
-        DuckDbSource::InlineCsv { csv, options, .. } => {
+        DuckDbSource::Tabular(DuckDbTabularSource::InlineCsv { csv, options, .. }) => {
             let path = exchange.join("inline.csv");
             tokio::fs::write(&path, csv)
                 .await
@@ -457,11 +457,11 @@ async fn materialize_source(
                 duckdb_quote_literal(path.to_string_lossy().as_ref())
             ))
         }
-        DuckDbSource::Uri {
+        DuckDbSource::Tabular(DuckDbTabularSource::Uri {
             uri,
             format,
             options,
-        } => {
+        }) => {
             let path = fetch_ingest_uri(state, uri, exchange, 0).await?;
             Ok(duckdb_read_function_sql(
                 &duckdb_quote_literal(path.to_string_lossy().as_ref()),
@@ -469,11 +469,11 @@ async fn materialize_source(
                 options,
             ))
         }
-        DuckDbSource::Uris {
+        DuckDbSource::Tabular(DuckDbTabularSource::Uris {
             uris,
             format,
             options,
-        } => {
+        }) => {
             let mut literals = Vec::with_capacity(uris.as_slice().len());
             for (index, uri) in uris.iter().enumerate() {
                 let path = fetch_ingest_uri(state, uri, exchange, index).await?;

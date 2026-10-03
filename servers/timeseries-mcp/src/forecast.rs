@@ -2,9 +2,9 @@ use std::collections::BTreeMap;
 
 use crate::contract::{
     TimeseriesFilterCombination, TimeseriesFilterPredicate, TimeseriesFilterValue,
-    TimeseriesForecastMethod, TimeseriesForecastRequest, TimeseriesForecastSummary,
-    TimeseriesPreviewForecastPoint, TimeseriesPreviewObservation, TimeseriesRowFilter,
-    TimeseriesSeriesPreview, TimeseriesSeriesSummary, TimeseriesTableMapping,
+    TimeseriesForecastHorizon, TimeseriesForecastMethod, TimeseriesForecastRequest,
+    TimeseriesForecastSummary, TimeseriesPreviewForecastPoint, TimeseriesPreviewObservation,
+    TimeseriesRowFilter, TimeseriesSeriesPreview, TimeseriesSeriesSummary, TimeseriesTableMapping,
 };
 use anyhow::{Context, Result, bail};
 use duckdb::Connection;
@@ -19,7 +19,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use veoveo_duckdb_mcp::contract::{
-    DuckDbArtifactSourceUri, DuckDbFormat, DuckDbReadOptions, DuckDbSource, DuckDbSourceUris,
+    DuckDbFormat, DuckDbReadOptions, DuckDbSourceUris, DuckDbTabularSource,
     duckdb_quote_identifier, duckdb_quote_literal, duckdb_read_function_sql,
     duckdb_read_options_sql,
 };
@@ -105,7 +105,7 @@ struct RrdProvenance<'a> {
     mapping: &'a TimeseriesTableMapping,
     training_filter: Option<&'a TimeseriesRowFilter>,
     method: &'a TimeseriesForecastMethod,
-    horizon: u32,
+    horizon: TimeseriesForecastHorizon,
 }
 
 #[derive(Debug, Serialize)]
@@ -126,11 +126,6 @@ enum SourceProvenance {
         format: DuckDbFormat,
         options: DuckDbReadOptions,
     },
-    Artifact {
-        uri: DuckDbArtifactSourceUri,
-        format: DuckDbFormat,
-        options: DuckDbReadOptions,
-    },
 }
 
 pub fn run_forecast(
@@ -138,7 +133,6 @@ pub fn run_forecast(
     request: &TimeseriesForecastRequest,
     source_policy: &HttpsSourcePolicy,
 ) -> Result<ForecastArtifact> {
-    validate_request(request)?;
     let workspace = RequestWorkspace::new("veoveo-timeseries-")?;
     let conn = open_in_memory(
         &FileAccess::RequestDirectory(workspace.request_dir().to_path_buf()),
@@ -172,7 +166,7 @@ pub fn run_forecast(
     let preview = series_docs.iter().map(series_preview).collect();
 
     let summary = TimeseriesForecastSummary {
-        method: request.method.clone(),
+        method: request.method,
         horizon: request.horizon,
         source_rows: series_docs.iter().map(|series| series.observed_rows).sum(),
         series: summaries,
@@ -203,73 +197,6 @@ pub fn run_forecast(
     })
 }
 
-fn validate_request(request: &TimeseriesForecastRequest) -> Result<()> {
-    if request.horizon == 0 {
-        bail!("horizon must be greater than zero");
-    }
-    if request.horizon > 100_000 {
-        bail!("horizon must be <= 100000");
-    }
-    validate_identifier("value_column", &request.mapping.value_column)?;
-    if let Some(column) = &request.mapping.time_column {
-        validate_identifier("time_column", column)?;
-    }
-    if let Some(column) = &request.mapping.series_column {
-        validate_identifier("series_column", column)?;
-    }
-    if let Some(filter) = &request.training_filter {
-        validate_row_filter(filter)?;
-    }
-    Ok(())
-}
-
-fn validate_identifier(label: &str, value: &str) -> Result<()> {
-    if value.trim().is_empty() {
-        bail!("{label} must not be empty");
-    }
-    if value.contains('\0') {
-        bail!("{label} must not contain NUL bytes");
-    }
-    Ok(())
-}
-
-fn validate_row_filter(filter: &TimeseriesRowFilter) -> Result<()> {
-    if filter.predicates.is_empty() {
-        bail!("training filter must contain at least one predicate");
-    }
-    for predicate in &filter.predicates {
-        match predicate {
-            TimeseriesFilterPredicate::Eq { column, value }
-            | TimeseriesFilterPredicate::Ne { column, value } => {
-                validate_identifier("filter column", column)?;
-                validate_filter_value(value)?;
-            }
-            TimeseriesFilterPredicate::IsNotNull { column } => {
-                validate_identifier("filter column", column)?;
-            }
-            TimeseriesFilterPredicate::In { column, values } => {
-                validate_identifier("filter column", column)?;
-                if values.is_empty() {
-                    bail!("filter `in` values must not be empty");
-                }
-                for value in values {
-                    validate_filter_value(value)?;
-                }
-            }
-        }
-    }
-    Ok(())
-}
-
-fn validate_filter_value(value: &TimeseriesFilterValue) -> Result<()> {
-    if let TimeseriesFilterValue::F64(value) = value
-        && !value.is_finite()
-    {
-        bail!("filter f64 values must be finite");
-    }
-    Ok(())
-}
-
 fn materialize_source_table(
     conn: &Connection,
     request: &TimeseriesForecastRequest,
@@ -277,7 +204,7 @@ fn materialize_source_table(
     source_policy: &HttpsSourcePolicy,
 ) -> Result<()> {
     let expression = match &request.source {
-        DuckDbSource::InlineCsv { csv, options, .. } => {
+        DuckDbTabularSource::InlineCsv { csv, options, .. } => {
             let path = workspace.materialize_inline(
                 "inline.csv",
                 csv.as_bytes(),
@@ -289,7 +216,7 @@ fn materialize_source_table(
                 duckdb_read_options_sql(options)
             )
         }
-        DuckDbSource::Uri {
+        DuckDbTabularSource::Uri {
             uri,
             format,
             options,
@@ -302,7 +229,7 @@ fn materialize_source_table(
                 options,
             )
         }
-        DuckDbSource::Uris {
+        DuckDbTabularSource::Uris {
             uris,
             format,
             options,
@@ -319,15 +246,6 @@ fn materialize_source_table(
                 .collect::<Result<Vec<_>>>()?
                 .join(", ");
             duckdb_read_function_sql(&format!("[{list}]"), format, options)
-        }
-        DuckDbSource::Artifact { .. } => {
-            // Cross-server artifact:// input is served by the duckdb server, which
-            // holds the artifact-plane client. Query the artifact there, then
-            // forecast over the result.
-            bail!(
-                "artifact:// sources are not supported by timeseries forecast; \
-                 read the artifact with the duckdb server instead"
-            );
         }
     };
     conn.execute_batch(&format!(
@@ -355,20 +273,29 @@ fn read_observations(
         .mapping
         .series_column
         .as_ref()
-        .map(|column| format!("CAST({} AS VARCHAR)", duckdb_quote_identifier(column)))
+        .map(|column| {
+            format!(
+                "CAST({} AS VARCHAR)",
+                duckdb_quote_identifier(column.as_str())
+            )
+        })
         .unwrap_or_else(|| duckdb_quote_literal(DEFAULT_SERIES_ID));
     let time_expr = request
         .mapping
         .time_column
         .as_ref()
-        .map(|column| format!("CAST({} AS VARCHAR)", duckdb_quote_identifier(column)))
+        .map(|column| {
+            format!(
+                "CAST({} AS VARCHAR)",
+                duckdb_quote_identifier(column.as_str())
+            )
+        })
         .unwrap_or_else(|| "NULL".to_string());
-    let value_expr = duckdb_quote_identifier(&request.mapping.value_column);
+    let value_expr = duckdb_quote_identifier(request.mapping.value_column.as_str());
     let filter_clause = request
         .training_filter
         .as_ref()
         .map(row_filter_sql)
-        .transpose()?
         .map(|sql| format!(" AND ({sql})"))
         .unwrap_or_default();
     let sql = format!(
@@ -381,7 +308,7 @@ fn read_observations(
         FROM (
             SELECT row_number() OVER () - 1 AS source_row, * FROM veoveo_source
         )
-        WHERE {value_expr} IS NOT NULL
+        WHERE {value_expr} IS NOT NULL AND isfinite(CAST({value_expr} AS DOUBLE))
             {filter_clause}
         ORDER BY series_id, source_row
         "#
@@ -402,9 +329,6 @@ fn read_observations(
     let mut grouped = BTreeMap::<String, Vec<Observation>>::new();
     for row in rows {
         let (series_id, event_time, value, source_row) = row?;
-        if !value.is_finite() {
-            continue;
-        }
         grouped
             .entry(series_id.unwrap_or_else(|| DEFAULT_SERIES_ID.to_string()))
             .or_default()
@@ -417,47 +341,48 @@ fn read_observations(
     Ok(grouped)
 }
 
-fn row_filter_sql(filter: &TimeseriesRowFilter) -> Result<String> {
-    let separator = match filter.combination {
+fn row_filter_sql(filter: &TimeseriesRowFilter) -> String {
+    let separator = match filter.combination() {
         TimeseriesFilterCombination::All => " AND ",
         TimeseriesFilterCombination::Any => " OR ",
     };
     filter
-        .predicates
+        .predicates()
         .iter()
-        .map(|predicate| row_filter_predicate_sql(predicate).map(|sql| format!("({sql})")))
-        .collect::<Result<Vec<_>>>()
-        .map(|predicates| predicates.join(separator))
+        .map(|predicate| format!("({})", row_filter_predicate_sql(predicate)))
+        .collect::<Vec<_>>()
+        .join(separator)
 }
 
-fn row_filter_predicate_sql(predicate: &TimeseriesFilterPredicate) -> Result<String> {
-    Ok(match predicate {
+fn row_filter_predicate_sql(predicate: &TimeseriesFilterPredicate) -> String {
+    match predicate {
         TimeseriesFilterPredicate::Eq { column, value } => {
             format!(
                 "{} = {}",
-                duckdb_quote_identifier(column),
+                duckdb_quote_identifier(column.as_str()),
                 filter_value_sql(value)
             )
         }
         TimeseriesFilterPredicate::Ne { column, value } => {
             format!(
                 "{} <> {}",
-                duckdb_quote_identifier(column),
+                duckdb_quote_identifier(column.as_str()),
                 filter_value_sql(value)
             )
         }
         TimeseriesFilterPredicate::In { column, values } => {
             let values = values
+                .as_slice()
                 .iter()
                 .map(filter_value_sql)
                 .collect::<Vec<_>>()
                 .join(", ");
-            format!("{} IN ({values})", duckdb_quote_identifier(column))
+            format!("{} IN ({values})", duckdb_quote_identifier(column.as_str()))
         }
         TimeseriesFilterPredicate::IsNotNull { column } => {
-            format!("{} IS NOT NULL", duckdb_quote_identifier(column))
+            format!("{} IS NOT NULL", duckdb_quote_identifier(column.as_str()))
         }
-    })
+    }
 }
 
 fn filter_value_sql(value: &TimeseriesFilterValue) -> String {
@@ -472,11 +397,11 @@ fn filter_value_sql(value: &TimeseriesFilterValue) -> String {
         }
         TimeseriesFilterValue::I64(value) => value.to_string(),
         TimeseriesFilterValue::U64(value) => value.to_string(),
-        TimeseriesFilterValue::F64(value) => value.to_string(),
+        TimeseriesFilterValue::F64(value) => value.get().to_string(),
     }
 }
 
-fn forecast_series(rows: &[Observation], horizon: u32) -> Vec<ForecastPoint> {
+fn forecast_series(rows: &[Observation], horizon: TimeseriesForecastHorizon) -> Vec<ForecastPoint> {
     let last = rows.last().map(|row| row.value).unwrap_or_default();
     let trend = rows
         .iter()
@@ -489,7 +414,7 @@ fn forecast_series(rows: &[Observation], horizon: u32) -> Vec<ForecastPoint> {
         _ => 0.0,
     };
     let spread = residual_spread(rows).max(1e-9);
-    (1..=horizon)
+    (1..=horizon.get())
         .map(|step| {
             let mean = last + slope * f64::from(step);
             ForecastPoint {
@@ -696,14 +621,14 @@ where
         .map_err(|error| anyhow::anyhow!("invalid deterministic Rerun {kind} id: {error}"))
 }
 
-fn source_digest(source: &DuckDbSource) -> Result<String> {
+fn source_digest(source: &DuckDbTabularSource) -> Result<String> {
     let json = serde_json::to_vec(source)?;
     Ok(hex::encode(Sha256::digest(json)))
 }
 
-fn source_provenance(source: &DuckDbSource) -> SourceProvenance {
+fn source_provenance(source: &DuckDbTabularSource) -> SourceProvenance {
     match source {
-        DuckDbSource::InlineCsv {
+        DuckDbTabularSource::InlineCsv {
             csv,
             filename,
             options,
@@ -712,7 +637,7 @@ fn source_provenance(source: &DuckDbSource) -> SourceProvenance {
             byte_len: csv.len(),
             options: options.clone(),
         },
-        DuckDbSource::Uri {
+        DuckDbTabularSource::Uri {
             uri,
             format,
             options,
@@ -721,21 +646,12 @@ fn source_provenance(source: &DuckDbSource) -> SourceProvenance {
             format: format.clone(),
             options: options.clone(),
         },
-        DuckDbSource::Uris {
+        DuckDbTabularSource::Uris {
             uris,
             format,
             options,
         } => SourceProvenance::Uris {
             uris: uris.clone(),
-            format: format.clone(),
-            options: options.clone(),
-        },
-        DuckDbSource::Artifact {
-            uri,
-            format,
-            options,
-        } => SourceProvenance::Artifact {
-            uri: uri.clone(),
             format: format.clone(),
             options: options.clone(),
         },
@@ -762,7 +678,7 @@ mod tests {
         TimeseriesTableMapping,
     };
     use serde::Deserialize;
-    use veoveo_duckdb_mcp::contract::{DuckDbFormat, DuckDbSource};
+    use veoveo_duckdb_mcp::contract::{DuckDbFormat, DuckDbTabularSource};
 
     use super::*;
 
@@ -775,8 +691,8 @@ mod tests {
 
     #[derive(Debug, Deserialize)]
     struct FixtureSchema {
-        time_column: String,
-        value_column: String,
+        time_column: veoveo_duckdb_mcp::contract::DuckDbColumnName,
+        value_column: veoveo_duckdb_mcp::contract::DuckDbColumnName,
     }
 
     #[derive(Debug, Deserialize)]
@@ -785,7 +701,7 @@ mod tests {
         file: String,
         rows: u64,
         training_rows: u64,
-        smoke_horizon: u32,
+        smoke_horizon: TimeseriesForecastHorizon,
     }
 
     fn timesfm_manifest() -> FixtureManifest {
@@ -800,18 +716,18 @@ mod tests {
         let artifact = run_forecast(
             "task-1",
             &TimeseriesForecastRequest {
-                source: DuckDbSource::InlineCsv {
+                source: DuckDbTabularSource::InlineCsv {
                     csv: "ts,value\n2026-01-01,10\n2026-01-02,12\n2026-01-03,15\n".into(),
                     filename: Some("input.csv".into()),
                     options: DuckDbReadOptions::default().with_header(true),
                 },
                 mapping: TimeseriesTableMapping {
-                    time_column: Some("ts".into()),
-                    value_column: "value".into(),
+                    time_column: Some("ts".parse().unwrap()),
+                    value_column: "value".parse().unwrap(),
                     series_column: None,
                 },
                 training_filter: None,
-                horizon: 3,
+                horizon: TimeseriesForecastHorizon::new(3).unwrap(),
                 method: TimeseriesForecastMethod::NaiveTrend,
             },
             &HttpsSourcePolicy::deny_network(),
@@ -824,20 +740,61 @@ mod tests {
     }
 
     #[test]
+    fn extraction_filters_nonfinite_values_in_sql_and_preserves_source_positions() {
+        let request = TimeseriesForecastRequest::new(
+            DuckDbTabularSource::InlineCsv {
+                csv: "\"quoted value\",split\n10,train\nNaN,train\nInfinity,train\n-Infinity,train\n20,test\n30,train\n".into(),
+                filename: None,
+                options: DuckDbReadOptions::default().with_header(true),
+            },
+            TimeseriesTableMapping::new("quoted value".parse().unwrap()),
+            TimeseriesForecastHorizon::new(2).unwrap(),
+        ).with_training_filter(TimeseriesRowFilter::new(
+            TimeseriesFilterCombination::All,
+            TimeseriesFilterPredicate::Eq {
+                column: "split".parse().unwrap(),
+                value: TimeseriesFilterValue::String("train".into()),
+            },
+            [],
+        ));
+        let workspace = RequestWorkspace::new("veoveo-timeseries-filter-").unwrap();
+        let conn = open_in_memory(
+            &FileAccess::RequestDirectory(workspace.request_dir().to_path_buf()),
+            &EngineSettings::new(workspace.spill_dir()),
+        )
+        .unwrap();
+        materialize_source_table(
+            &conn,
+            &request,
+            &workspace,
+            &HttpsSourcePolicy::deny_network(),
+        )
+        .unwrap();
+        let observations = read_observations(&conn, &request).unwrap();
+        let rows = &observations[DEFAULT_SERIES_ID];
+        assert_eq!(
+            rows.iter()
+                .map(|row| (row.source_row, row.value))
+                .collect::<Vec<_>>(),
+            vec![(0, 10.0), (5, 30.0)]
+        );
+    }
+
+    #[test]
     fn resumable_forecast_rrd_is_byte_deterministic() {
         let request = TimeseriesForecastRequest {
-            source: DuckDbSource::InlineCsv {
+            source: DuckDbTabularSource::InlineCsv {
                 csv: "ts,series,value\n2026-01-01,a,10\n2026-01-02,a,12\n2026-01-01,b,4\n2026-01-02,b,5\n".into(),
                 filename: Some("input.csv".into()),
                 options: DuckDbReadOptions::default().with_header(true),
             },
             mapping: TimeseriesTableMapping {
-                time_column: Some("ts".into()),
-                value_column: "value".into(),
-                series_column: Some("series".into()),
+                time_column: Some("ts".parse().unwrap()),
+                value_column: "value".parse().unwrap(),
+                series_column: Some("series".parse().unwrap()),
             },
             training_filter: None,
-            horizon: 3,
+            horizon: TimeseriesForecastHorizon::new(3).unwrap(),
             method: TimeseriesForecastMethod::NaiveTrend,
         };
 
@@ -874,7 +831,7 @@ mod tests {
         let artifact = run_forecast(
             "timesfm-fixture-task",
             &TimeseriesForecastRequest {
-                source: DuckDbSource::InlineCsv {
+                source: DuckDbTabularSource::InlineCsv {
                     csv,
                     filename: Some(example.file.clone()),
                     options: DuckDbReadOptions::default().with_header(true),
@@ -897,39 +854,36 @@ mod tests {
         assert_eq!(artifact.summary.source_rows, example.training_rows);
         assert_eq!(
             artifact.summary.series[0].forecast_rows,
-            u64::from(example.smoke_horizon)
+            u64::from(example.smoke_horizon.get())
         );
     }
 
     #[test]
     fn training_filter_sql_is_typed_and_quoted() {
-        let filter = TimeseriesRowFilter {
-            combination: TimeseriesFilterCombination::All,
-            predicates: vec![
-                TimeseriesFilterPredicate::Eq {
-                    column: "split".into(),
-                    value: TimeseriesFilterValue::String("context".into()),
-                },
-                TimeseriesFilterPredicate::In {
-                    column: "series id".into(),
-                    values: vec![
-                        TimeseriesFilterValue::String("a'b".into()),
-                        TimeseriesFilterValue::String("b".into()),
-                    ],
-                },
-            ],
-        };
+        let filter = TimeseriesRowFilter::new(
+            TimeseriesFilterCombination::All,
+            TimeseriesFilterPredicate::Eq {
+                column: "split".parse().unwrap(),
+                value: TimeseriesFilterValue::String("context".into()),
+            },
+            [TimeseriesFilterPredicate::In {
+                column: "series id".parse().unwrap(),
+                values: crate::contract::TimeseriesFilterValues::new(
+                    TimeseriesFilterValue::String("a'b".into()),
+                    [TimeseriesFilterValue::String("b".into())],
+                ),
+            }],
+        );
 
-        validate_row_filter(&filter).unwrap();
         assert_eq!(
-            row_filter_sql(&filter).unwrap(),
+            row_filter_sql(&filter),
             "(\"split\" = 'context') AND (\"series id\" IN ('a''b', 'b'))"
         );
     }
 
     #[test]
     fn source_digest_is_stable() {
-        let source = DuckDbSource::InlineCsv {
+        let source = DuckDbTabularSource::InlineCsv {
             csv: "ts,value\n2026-01-01,10\n".into(),
             filename: Some("input.csv".into()),
             options: DuckDbReadOptions::default().with_header(true),
@@ -947,18 +901,18 @@ mod tests {
         let error = run_forecast(
             "task-private-source",
             &TimeseriesForecastRequest {
-                source: DuckDbSource::Uri {
+                source: DuckDbTabularSource::Uri {
                     uri: "https://127.0.0.1/input.csv".parse().unwrap(),
                     format: DuckDbFormat::Csv,
                     options: DuckDbReadOptions::default(),
                 },
                 mapping: TimeseriesTableMapping {
                     time_column: None,
-                    value_column: "value".to_string(),
+                    value_column: "value".parse().unwrap(),
                     series_column: None,
                 },
                 training_filter: None,
-                horizon: 1,
+                horizon: TimeseriesForecastHorizon::new(1).unwrap(),
                 method: TimeseriesForecastMethod::NaiveTrend,
             },
             &policy,

@@ -19,10 +19,11 @@ structured output.
 | Veoveo MCP server contract | Revision 3, including canonical result handoff, bounded discovery, and the 8 MiB final serialized-response cap. |
 | Veoveo usage resource profile | `timeseries://usage` pages and native UUIDv7 Task addresses; the shared URI component profile and version 1 Base64 cursor described under Usage Reads. |
 
-The forecast request imports `DuckDbSource` and read SQL rendering from the DuckDB
+The forecast request imports `DuckDbTabularSource` and read SQL rendering from the DuckDB
 server library with only its `contract` feature enabled. Timeseries owns source
 materialization and forecasting; this dependency provides no DuckDB hosted runtime.
-The source and forecast request schemas preserve their published fields and defaults.
+The source type and schema admit inline CSV and HTTPS inputs. Artifact input belongs
+to DuckDB's broader source profile and is rejected during forecast decoding.
 Source URLs use foundational `HttpsUrl`, and URL lists use DuckDB's nonempty source
 type. Forecast decoding applies those profiles before the worker creates a workspace.
 Provenance keeps the same types until serialization. The [shared runtime](../../platform/runtimes/duckdb/DESIGN.md)
@@ -30,6 +31,14 @@ still enforces allowed hosts, public DNS addresses, redirects and byte/time limi
 Reader options also use the DuckDB contract's checked names and closed value enum.
 Forecast decoding rejects malformed options before materialization, and the worker
 renders admitted options through the same infallible SQL helper.
+
+Forecast construction requires `TimeseriesForecastHorizon` with 1–100,000 steps and
+`DuckDbColumnName` for mapped and filtered columns. Column names preserve their spelling
+and reject blank values or NUL. Filter numbers must be finite; `in` lists and predicate
+lists require at least one member. Builders and JSON decoding enforce these rules before
+Task admission, and JSON Schema declares the same bounds. The extraction query selects
+non-null finite observations and applies the training filter in SQL while preserving
+each observation's original row position.
 
 ## Library Features
 

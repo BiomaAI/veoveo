@@ -58,6 +58,10 @@ request_text!(
     DuckDbTableName,
     "Nonblank table name without NUL, preserved verbatim and quoted as one SQL identifier."
 );
+request_text!(
+    DuckDbColumnName,
+    "Nonblank column name without NUL, preserved verbatim and quoted as one SQL identifier."
+);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DuckDbRequestTextError;

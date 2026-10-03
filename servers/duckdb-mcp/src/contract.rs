@@ -36,7 +36,7 @@ pub use read_sql::{
     duckdb_quote_identifier, duckdb_quote_literal, duckdb_read_function_sql,
     duckdb_read_options_sql,
 };
-pub use source::{DuckDbFormat, DuckDbSource};
+pub use source::{DuckDbFormat, DuckDbSource, DuckDbTabularSource};
 
 /// Owner-scoped name of a mutable hosted database file.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

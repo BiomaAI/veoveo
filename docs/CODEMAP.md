@@ -802,6 +802,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/recording-mcp/src/service/index.rs`, `servers/recording-mcp/src/index.rs` | authorized catalog pages and completion, with versioned cursors and SQL layer counts |
 | `servers/timeseries-mcp` | time-series analysis, forecasting, evaluation, and artifact output |
 | `servers/timeseries-mcp/src/contract/usage.rs` | isolated public usage address, cursor and page contracts; native Task IDs and checked component builders |
+| `servers/timeseries-mcp/src/contract/request.rs` | forecast request builders, checked horizon and training filters; DuckDB-owned tabular source profile and column types |
 | `servers/timeseries-mcp/src/contract/resources.rs`, `artifact_uri.rs`, `src/bin/server/setup.rs`, `resources.rs` | typed Artifact and hosted routes, checked startup/discovery and exhaustive authorized resource dispatch |
 | `servers/timeseries-mcp/src/usage.rs` | Timeseries usage pages and exact reads through TaskRuntime's SQL owner policy before grouping and limits |
 | `servers/time-mcp` | temporal authority, clock assessment, operational calendars, mission timelines, and events |
@@ -1106,9 +1107,9 @@ DuckDB-specific ownership:
 | `servers/duckdb-mcp/DESIGN.md` | public contract, runtime boundary, tasks, persistence, deployment, and limits |
 | `platform/runtimes/duckdb/` | engine runtime with resource limits, closed Spatial axis policy, effective-setting verification, and sandbox primitives |
 | `servers/duckdb-mcp/src/contract.rs`, `Cargo.toml`, `src/lib.rs` | database IDs and tool request/result types; isolated contract feature with runtime and hosted MCP feature gates |
-| `servers/duckdb-mcp/src/contract/source.rs`, `src/contract/read_sql.rs` | cross-server tabular source types and read SQL fragments owned by DuckDB; Timeseries consumes the contract feature; schema and consumer checks in `tests/contract.rs` |
+| `servers/duckdb-mcp/src/contract/source.rs`, `src/contract/read_sql.rs` | shared inline/HTTPS source profile, DuckDB's complete profile with Artifact input, and read SQL fragments; Timeseries consumes the contract feature; schema and consumer checks in `tests/contract.rs` |
 | `servers/duckdb-mcp/src/contract/source_addresses.rs` | nonempty typed HTTPS source lists and neutral Artifact input addresses; network URL parsing belongs to `platform/types` |
-| `servers/duckdb-mcp/src/contract/read_options.rs`, `src/contract/requests.rs`, `src/contract/request_text.rs` | checked reader options, query relationship builder, positive limits and distinct SQL/table text; shared admission cases in `testdata/request-admission.json` |
+| `servers/duckdb-mcp/src/contract/read_options.rs`, `src/contract/requests.rs`, `src/contract/request_text.rs` | checked reader options, query relationship builder, positive limits and distinct SQL/table/column text; shared admission cases in `testdata/request-admission.json` |
 | `servers/duckdb-mcp/src/contract/usage.rs`, `src/usage.rs` | checked usage addresses, collection cursors and pages; TaskRuntime SQL applies current owner policy before grouping and limits |
 | `servers/duckdb-mcp/src/contract/catalog.rs`, `src/contract/resources.rs`, `src/uris.rs` | typed database pages, collection cursors, schema responses and complete resource admission/builders without MCP runtime dependencies |
 | `servers/duckdb-mcp/src/catalog.rs` | owner-directory pagination that retains at most 101 filename candidates and reads no database bytes |

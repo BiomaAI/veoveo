@@ -15,9 +15,10 @@ pub enum DuckDbFormat {
     Ndjson,
 }
 
+/// Inline and HTTPS tabular inputs; consumers own network admission and execution.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
-pub enum DuckDbSource {
+pub enum DuckDbTabularSource {
     InlineCsv {
         csv: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -37,6 +38,12 @@ pub enum DuckDbSource {
         #[serde(default)]
         options: DuckDbReadOptions,
     },
+}
+
+/// Sources supported by DuckDB's authenticated hosted materializer.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum DuckDbSource {
     /// A neutral `artifact://{artifact_id}` reference resolved through the shared
     /// artifact plane under the caller's identity — the cross-server input path.
     /// Any artifact produced by any hosted server (a media output, a timeseries
@@ -49,6 +56,15 @@ pub enum DuckDbSource {
         #[serde(default)]
         options: DuckDbReadOptions,
     },
+    /// Inline and HTTPS inputs share the same contract with analytical consumers.
+    #[serde(untagged)]
+    Tabular(DuckDbTabularSource),
+}
+
+impl From<DuckDbTabularSource> for DuckDbSource {
+    fn from(source: DuckDbTabularSource) -> Self {
+        Self::Tabular(source)
+    }
 }
 
 #[cfg(test)]
@@ -61,7 +77,8 @@ mod tests {
             r#"{"kind":"inline_csv","csv":"a,b\n1,2\n","options":{"header":true}}"#,
         )
         .unwrap();
-        let DuckDbSource::InlineCsv { csv, options, .. } = source else {
+        let DuckDbSource::Tabular(DuckDbTabularSource::InlineCsv { csv, options, .. }) = source
+        else {
             panic!("expected inline csv");
         };
         assert_eq!(csv, "a,b\n1,2\n");
