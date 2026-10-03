@@ -12,6 +12,10 @@ and attribution.
 
 ## Invariants
 
+- The server is hosted through `veoveo_mcp_contract::hosting`: `ViewMcp` implements
+  `DomainServer`, `ViewSubscriptions` implements `ResourceSubscriptions`, and
+  `/view/readyz` reports ready only on a hardware-accelerated NVIDIA adapter. Do not
+  add a `ServerHandler`, router, host check or authentication middleware here.
 - Public camera, capture, composition and resource types, `ViewScope` and
   `ViewTaskKind` belong in the library's `contract` feature. Keep that profile free of MCP transport,
   async, database and GPU dependencies. Import resolved authority from `veoveo-types`;

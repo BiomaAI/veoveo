@@ -189,23 +189,3 @@ fn template(uri: &str, title: &str, description: &str) -> ResourceTemplate {
 
 #[cfg(test)]
 mod tests;
-
-pub(crate) fn accepted_subscription_filter(
-    requested: &rmcp::model::SubscriptionFilter,
-) -> Option<rmcp::model::SubscriptionFilter> {
-    let mut accepted = rmcp::model::SubscriptionFilter::builder().build();
-    accepted.task_ids = requested.task_ids.clone().filter(|ids| !ids.is_empty());
-    accepted.resource_subscriptions = requested
-        .resource_subscriptions
-        .as_ref()
-        .map(|uris| {
-            uris.iter()
-                .filter(|uri| {
-                    ViewResource::parse(uri).is_ok_and(|resource| resource.is_subscribable())
-                })
-                .cloned()
-                .collect::<Vec<_>>()
-        })
-        .filter(|uris| !uris.is_empty());
-    (accepted.task_ids.is_some() || accepted.resource_subscriptions.is_some()).then_some(accepted)
-}

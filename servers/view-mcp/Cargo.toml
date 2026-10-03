@@ -51,12 +51,10 @@ runtime = [
 ]
 mcp = [
     "runtime",
-    "dep:axum",
     "dep:clap",
     "dep:dotenvy",
     "dep:rmcp",
     "dep:rustls",
-    "dep:tower-http",
     "dep:veoveo-mcp-apps-extension",
     "dep:veoveo-task-runtime",
     "dep:veoveo-platform-store",
@@ -69,7 +67,6 @@ veoveo-recording-contract = { workspace = true, optional = true }
 veoveo-artifact-contract = { workspace = true, optional = true }
 veoveo-types = { workspace = true, optional = true }
 anyhow = { workspace = true, optional = true }
-axum = { workspace = true, optional = true }
 base64 = { workspace = true, optional = true }
 bevy = { optional = true, workspace = true, features = [
     "std",
@@ -102,7 +99,6 @@ sha2 = { workspace = true, optional = true }
 thiserror = { workspace = true, optional = true }
 tokio = { optional = true, workspace = true, features = ["full"] }
 tokio-util = { workspace = true, optional = true }
-tower-http = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
 url = { workspace = true, optional = true }
 uuid = { workspace = true, optional = true }
@@ -117,4 +113,3 @@ veoveo-platform-store = { optional = true, path = "../../platform/store" }
 approx = "0.5.1"
 jsonschema.workspace = true
 tempfile = "3"
-tower = { workspace = true, features = ["util"] }

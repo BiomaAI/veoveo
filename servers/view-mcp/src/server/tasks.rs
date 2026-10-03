@@ -14,7 +14,7 @@ use veoveo_types::TaskId;
 use crate::{
     contract::CaptureFrameRequest,
     mcp::frame_tool_result,
-    server::{AppState, SERVER_SLUG, auth::ForwardedBearer},
+    server::{AppState, SERVER_SLUG},
     state::ResourceOwner,
     uris,
 };
@@ -51,28 +51,7 @@ impl veoveo_task_runtime::DurableTaskService for ViewTaskExtension {
         &self,
         context: &rmcp::service::RequestContext<rmcp::RoleServer>,
     ) -> Result<Self::Caller, rmcp::ErrorData> {
-        let parts = context
-            .extensions
-            .get::<axum::http::request::Parts>()
-            .ok_or_else(|| {
-                rmcp::ErrorData::invalid_request(
-                    veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED,
-                    None,
-                )
-            })?;
-        let identity = parts
-            .extensions
-            .get::<GatewayInternalIdentity>()
-            .cloned()
-            .ok_or_else(|| {
-                rmcp::ErrorData::invalid_request(
-                    veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED,
-                    None,
-                )
-            })?;
-        parts.extensions.get::<ForwardedBearer>().ok_or_else(|| {
-            rmcp::ErrorData::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
-        })?;
+        let identity = veoveo_mcp_contract::hosting::gateway_identity(context)?;
         Ok(AuthenticatedCaller { identity })
     }
 

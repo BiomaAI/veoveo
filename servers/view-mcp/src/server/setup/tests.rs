@@ -63,38 +63,6 @@ fn all_advertised_templates_expand_to_the_typed_builder_spelling() {
 }
 
 #[test]
-fn listeners_accept_only_mutable_resources_and_explicit_task_handles() {
-    use rmcp::model::SubscriptionFilter;
-    assert!(
-        accepted_subscription_filter(
-            &SubscriptionFilter::builder()
-                .resources_list_changed()
-                .build()
-        )
-        .is_none()
-    );
-    let requested = SubscriptionFilter::builder()
-        .resources_list_changed()
-        .resource_subscriptions([
-            uris::VIEWS.to_owned(),
-            "view://view/view-1".into(),
-            uris::LAYERS.into(),
-            "view://frame/frame-1".into(),
-            "view://view/../other".into(),
-            "view://views?secret=1".into(),
-        ])
-        .task_ids(["mcp-task".to_owned()])
-        .build();
-    let accepted = accepted_subscription_filter(&requested).unwrap();
-    assert_ne!(accepted.resources_list_changed, Some(true));
-    assert_eq!(accepted.task_ids, requested.task_ids);
-    assert_eq!(
-        accepted.resource_subscriptions,
-        Some(vec![uris::VIEWS.into(), "view://view/view-1".into()])
-    );
-}
-
-#[test]
 fn gateway_registrations_agree_with_the_checked_discovery_contract() {
     for source in [
         include_str!("../../../../../configs/gateway.local.json"),

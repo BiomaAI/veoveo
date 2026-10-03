@@ -17712,7 +17712,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "approx",
- "axum",
  "base64 0.23.1",
  "bevy",
  "chrono",
@@ -17738,8 +17737,6 @@ dependencies = [
  "thiserror 2.0.20",
  "tokio",
  "tokio-util",
- "tower",
- "tower-http 0.7.0",
  "tracing",
  "url",
  "uuid",

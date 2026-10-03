@@ -1,24 +1,27 @@
 use crate::contract::ViewScope;
-use crate::server::setup::{SERVER_DOCS, SERVER_SETUP};
+use crate::server::setup::{SERVER_SETUP, ViewContract};
 use std::sync::Arc;
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use rmcp::tool;
 use rmcp::{
-    ErrorData as McpError, RoleServer, ServerHandler,
+    ErrorData as McpError, RoleServer,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolRequestParams, CallToolResponse, CallToolResult, CancelTaskParams,
-        CompleteRequestParams, CompleteResult, CompletionInfo, ContentBlock, GetTaskParams,
-        GetTaskResult, ListResourceTemplatesResult, ListResourcesResult, ListToolsResult,
-        PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult, Reference,
-        ResourceContents, ServerConfig, SubscriptionFilter, Tool, UpdateTaskParams,
+        CallToolResult, CompleteRequestParams, CompleteResult, ContentBlock,
+        ReadResourceRequestParams, ReadResourceResult, Reference, Resource, ResourceContents, Tool,
     },
-    service::{RequestContext, SubscriptionContext},
-    tool_handler, tool_router,
+    service::RequestContext,
+    tool_router,
 };
-use serde::Serialize;
-use veoveo_mcp_contract::{GatewayInternalIdentity, Page, PlaneCaller, paginate};
+use veoveo_mcp_contract::{
+    GatewayInternalIdentity, PlaneCaller,
+    hosting::{
+        DomainAddress, DomainRead, DomainServer, completion, forwarded_bearer, gateway_identity,
+        json_read, rank_completions, served_by_host, structured_result,
+    },
+    server_contract::McpServerSetup,
+};
 
 use crate::{
     contract::{
@@ -26,17 +29,18 @@ use crate::{
         CreateViewRequest, FrameRecord, SceneComposition, SetCameraRequest, ViewRecord,
         ViewResource, ViewUri,
     },
-    server::{AppState, auth::ForwardedBearer, tasks::ViewTaskExtension},
+    server::AppState,
     source::LayerSummary,
     state::{ResourceOwner, ServiceError},
     uris,
 };
 
-const LIST_PAGE_SIZE: usize = 100;
-
 /// The real view lifecycle tools double as the preview app's surface; the
 /// app drives them end-to-end (revision control and task-based capture
 /// included) rather than any parallel convenience tools.
+mod subscriptions;
+pub(crate) use subscriptions::ViewSubscriptions;
+
 const PREVIEW_APP_TOOLS: &[&str] = &[
     "create_scene_composition",
     "create_view",
@@ -48,8 +52,6 @@ const PREVIEW_APP_TOOLS: &[&str] = &[
 #[derive(Clone)]
 pub(crate) struct ViewMcp {
     state: Arc<AppState>,
-    task_service: ViewTaskExtension,
-    #[allow(dead_code)]
     tool_router: ToolRouter<ViewMcp>,
 }
 
@@ -57,7 +59,6 @@ pub(crate) struct ViewMcp {
 impl ViewMcp {
     pub(crate) fn new(state: Arc<AppState>) -> Self {
         Self {
-            task_service: ViewTaskExtension::new(state.clone()),
             state,
             tool_router: Self::tool_router(),
         }
@@ -196,258 +197,54 @@ impl ViewMcp {
     }
 }
 
-#[tool_handler]
-impl ServerHandler for ViewMcp {
-    fn supported_protocol_versions(
-        &self,
-    ) -> std::borrow::Cow<'static, [rmcp::model::ProtocolVersion]> {
-        veoveo_mcp_contract::final_protocol_versions()
+impl DomainServer for ViewMcp {
+    type Contract = ViewContract;
+
+    fn setup() -> &'static McpServerSetup<ViewContract> {
+        &SERVER_SETUP
     }
 
-    fn get_info(&self) -> ServerConfig {
-        SERVER_SETUP.server_config().clone()
+    fn tool_router(&self) -> &ToolRouter<Self> {
+        &self.tool_router
     }
 
-    async fn call_tool(
-        &self,
-        mut request: CallToolRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<CallToolResponse, McpError> {
-        if let Some(created) =
-            veoveo_task_runtime::start_durable_tool_task(&self.task_service, &mut request, &context)
-                .await?
-        {
-            return Ok(created.into());
+    // The #[tool] macro has no meta attribute; layer ids and app links attach here.
+    fn describe_tool(&self, tool: Tool) -> Tool {
+        let tool = advertise_configured_layers(tool, self.state.views.layers());
+        if PREVIEW_APP_TOOLS.contains(&tool.name.as_ref()) {
+            veoveo_mcp_apps_extension::link_tool_to_app(
+                tool,
+                uris::PREVIEW_APP_URI,
+                &[
+                    veoveo_mcp_apps_extension::UiVisibility::Model,
+                    veoveo_mcp_apps_extension::UiVisibility::App,
+                ],
+            )
+        } else {
+            tool
         }
-        let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
-        self.tool_router.call(call).await
-    }
-
-    async fn get_task(
-        &self,
-        request: GetTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<GetTaskResult, McpError> {
-        let caller =
-            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
-        veoveo_task_runtime::DurableTaskService::get_task(&self.task_service, &caller, request)
-            .await
-    }
-
-    async fn update_task(
-        &self,
-        request: UpdateTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        let caller =
-            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
-        veoveo_task_runtime::DurableTaskService::update_task(&self.task_service, &caller, request)
-            .await
-    }
-
-    async fn cancel_task(
-        &self,
-        request: CancelTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        let caller =
-            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
-        veoveo_task_runtime::DurableTaskService::cancel_task(
-            &self.task_service,
-            &caller,
-            request.task_id,
-        )
-        .await
-    }
-
-    async fn list_tools(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListToolsResult, McpError> {
-        let mut tools = self.tool_router.list_all();
-        tools.sort_by(|left, right| left.name.cmp(&right.name));
-        // The #[tool] macro has no meta attribute; app links attach here.
-        tools = tools
-            .into_iter()
-            .map(|tool| advertise_configured_layers(tool, self.state.views.layers()))
-            .map(|tool| {
-                if PREVIEW_APP_TOOLS.contains(&tool.name.as_ref()) {
-                    veoveo_mcp_apps_extension::link_tool_to_app(
-                        tool,
-                        uris::PREVIEW_APP_URI,
-                        &[
-                            veoveo_mcp_apps_extension::UiVisibility::Model,
-                            veoveo_mcp_apps_extension::UiVisibility::App,
-                        ],
-                    )
-                } else {
-                    tool
-                }
-            })
-            .collect();
-        let page = mcp_page(tools, request.as_ref())?;
-        Ok(ListToolsResult {
-            tools: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
     }
 
     async fn list_resources(
         &self,
-        request: Option<PaginatedRequestParams>,
-        context: RequestContext<RoleServer>,
-    ) -> Result<ListResourcesResult, McpError> {
-        let identity = require_scope(&context, ViewScope::Read)?;
-        let resources = crate::server::setup::visible_resources(&identity.actor.scopes);
-        let page = mcp_page(resources, request.as_ref())?;
-        Ok(ListResourcesResult {
-            resources: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
+        _declared: Vec<Resource>,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<Vec<Resource>, McpError> {
+        let identity = require_scope(context, ViewScope::Read)?;
+        Ok(crate::server::setup::visible_resources(
+            &identity.actor.scopes,
+        ))
     }
 
-    async fn list_resource_templates(
+    async fn read(
         &self,
-        request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListResourceTemplatesResult, McpError> {
-        let page = mcp_page(
-            SERVER_SETUP
-                .resource_templates()
-                .iter()
-                .map(|template| template.descriptor().clone())
-                .collect(),
-            request.as_ref(),
-        )?;
-        Ok(ListResourceTemplatesResult {
-            resource_templates: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
-    }
-
-    async fn read_resource(
-        &self,
-        request: ReadResourceRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
-        if let Some(result) = SERVER_SETUP.read_documents(&request, &context)? {
-            return Ok(result);
-        }
-        let cacheable = request.request_state.is_none() && request.input_responses.is_none();
-        async {
-            let uri = request.uri.as_str();
-            let address = ViewResource::parse(uri).map_err(|_| not_found())?;
-            if address == ViewResource::PreviewApp {
-                require_scope(&context, ViewScope::Capture)?;
-                return Ok(ReadResourceResult::new(vec![
-                    veoveo_mcp_apps_extension::app_html_contents(
-                        uri,
-                        crate::app::preview_app_html(),
-                    ),
-                ]));
-            }
-            let identity = require_scope(&context, ViewScope::Read)?;
-            let owner = ResourceOwner::from_identity(&identity);
-            match address {
-                ViewResource::Docs => json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>()),
-                ViewResource::Document(id) => {
-                    let doc = SERVER_DOCS.doc(id.as_str()).ok_or_else(not_found)?;
-                    Ok(ReadResourceResult::new(vec![
-                        ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
-                    ]))
-                }
-                ViewResource::Contract => json_resource(uri, SERVER_DOCS.contract_declaration()),
-                ViewResource::Layers => json_resource(uri, self.state.views.layers()),
-                ViewResource::Compositions => {
-                    json_resource(uri, &self.state.views.list_scene_compositions(&owner).await)
-                }
-                ViewResource::Views => {
-                    json_resource(uri, &self.state.views.list_views(&owner).await)
-                }
-                ViewResource::Frames => json_resource(uri, &self.state.views.list_frames(&owner)),
-                ViewResource::Layer(address) => {
-                    let layer = self
-                        .state
-                        .views
-                        .layers()
-                        .iter()
-                        .find(|layer| &layer.layer_id == address.id())
-                        .ok_or_else(not_found)?;
-                    json_resource(uri, layer)
-                }
-                ViewResource::Scene(address) => {
-                    let record = self
-                        .state
-                        .views
-                        .preview_scene(
-                            &owner,
-                            address.view_id(),
-                            address.policy(),
-                            context.ct.child_token(),
-                        )
-                        .await
-                        .map_err(read_error)?;
-                    json_resource(uri, &record)
-                }
-                ViewResource::Tile(address) => {
-                    let (bytes, mime) = self
-                        .state
-                        .views
-                        .read_tile_bytes(address.id(), context.ct.child_token())
-                        .await
-                        .map_err(read_error)?;
-                    Ok(ReadResourceResult::new(vec![
-                        ResourceContents::blob(BASE64_STANDARD.encode(bytes.as_slice()), uri)
-                            .with_mime_type(mime),
-                    ]))
-                }
-                ViewResource::View(address) => {
-                    let view = self
-                        .state
-                        .views
-                        .get_view(&owner, address.id())
-                        .await
-                        .map_err(|_| not_found())?;
-                    json_resource(uri, &view)
-                }
-                ViewResource::Composition(address) => {
-                    let composition = self
-                        .state
-                        .views
-                        .get_scene_composition(&owner, address.id())
-                        .await
-                        .map_err(|_| not_found())?;
-                    json_resource(uri, &composition)
-                }
-                ViewResource::Frame(address) => {
-                    let frame = self
-                        .state
-                        .views
-                        .get_frame(&owner, address.id())
-                        .map_err(|_| not_found())?;
-                    Ok(ReadResourceResult::new(vec![
-                        ResourceContents::blob(BASE64_STANDARD.encode(frame.bytes()), uri)
-                            .with_mime_type(frame.record().mime_type()),
-                    ]))
-                }
-                ViewResource::PreviewApp => unreachable!("App handled under capture permission"),
-            }
-        }
-        .await
-        .map(|result| veoveo_mcp_contract::private_resource_response(result, cacheable))
+        address: DomainAddress<ViewContract>,
+        request: &ReadResourceRequestParams,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<DomainRead, McpError> {
+        self.read_view_resource(address, &request.uri, context)
+            .await
+            .map(DomainRead::private)
     }
 
     async fn complete(
@@ -461,9 +258,6 @@ impl ServerHandler for ViewMcp {
         let identity = require_scope(&context, ViewScope::Read)?;
         let owner = ResourceOwner::from_identity(&identity);
         let values: Vec<String> = match (reference.uri.as_str(), request.argument.name.as_str()) {
-            (uris::DOC_TEMPLATE, "doc_id") => {
-                SERVER_DOCS.iter().map(|doc| doc.id.to_owned()).collect()
-            }
             (uris::LAYER_TEMPLATE, "layer_id") => self
                 .state
                 .views
@@ -496,62 +290,106 @@ impl ServerHandler for ViewMcp {
                 .collect(),
             _ => Vec::new(),
         };
-        let needle = request.argument.value.to_ascii_lowercase();
-        let matching = values
-            .into_iter()
-            .filter(|value| value.to_ascii_lowercase().contains(&needle))
-            .collect::<Vec<_>>();
-        let total = matching.len();
-        let values = matching
-            .into_iter()
-            .take(CompletionInfo::MAX_VALUES)
-            .collect();
-        Ok(CompleteResult::new(
-            CompletionInfo::with_pagination(
-                values,
-                Some(total as u32),
-                total > CompletionInfo::MAX_VALUES,
-            )
-            .map_err(internal)?,
+        completion(rank_completions(
+            values.iter().map(String::as_str),
+            &request.argument.value,
         ))
     }
+}
 
-    fn accepted_subscription_filter(
+impl ViewMcp {
+    /// Reads one admitted address. The host serves documents and the contract.
+    async fn read_view_resource(
         &self,
-        requested: &SubscriptionFilter,
-    ) -> Option<SubscriptionFilter> {
-        crate::server::setup::accepted_subscription_filter(requested)
-    }
-
-    async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
-        let request_context = context.request_context().clone();
-        let identity = require_scope(&request_context, ViewScope::Read)?;
-        let owner = ResourceOwner::from_identity(&identity);
-        for uri in context.accepted().resource_subscriptions.iter().flatten() {
-            match ViewResource::parse(uri).map_err(|_| not_found())? {
-                ViewResource::Compositions | ViewResource::Views | ViewResource::Frames => {}
-                ViewResource::View(address) => {
-                    self.state
-                        .views
-                        .get_view(&owner, address.id())
-                        .await
-                        .map_err(|_| not_found())?;
-                }
-                _ => {
-                    return Err(McpError::invalid_params(
-                        "resource is immutable or not subscribable",
-                        None,
-                    ));
-                }
-            }
+        address: ViewResource,
+        uri: &str,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<ReadResourceResult, McpError> {
+        if address == ViewResource::PreviewApp {
+            require_scope(context, ViewScope::Capture)?;
+            return Ok(ReadResourceResult::new(vec![
+                veoveo_mcp_apps_extension::app_html_contents(uri, crate::app::preview_app_html()),
+            ]));
         }
-        veoveo_task_runtime::listen_durable_subscriptions(
-            &self.task_service,
-            context,
-            Some(&self.state.subscriptions),
-            None,
-        )
-        .await
+        let identity = require_scope(context, ViewScope::Read)?;
+        let owner = ResourceOwner::from_identity(&identity);
+        match address {
+            ViewResource::Docs | ViewResource::Document(_) | ViewResource::Contract => {
+                Err(served_by_host())
+            }
+            ViewResource::Layers => json_read(uri, self.state.views.layers()),
+            ViewResource::Compositions => {
+                json_read(uri, &self.state.views.list_scene_compositions(&owner).await)
+            }
+            ViewResource::Views => json_read(uri, &self.state.views.list_views(&owner).await),
+            ViewResource::Frames => json_read(uri, &self.state.views.list_frames(&owner)),
+            ViewResource::Layer(address) => {
+                let layer = self
+                    .state
+                    .views
+                    .layers()
+                    .iter()
+                    .find(|layer| &layer.layer_id == address.id())
+                    .ok_or_else(not_found)?;
+                json_read(uri, layer)
+            }
+            ViewResource::Scene(address) => {
+                let record = self
+                    .state
+                    .views
+                    .preview_scene(
+                        &owner,
+                        address.view_id(),
+                        address.policy(),
+                        context.ct.child_token(),
+                    )
+                    .await
+                    .map_err(read_error)?;
+                json_read(uri, &record)
+            }
+            ViewResource::Tile(address) => {
+                let (bytes, mime) = self
+                    .state
+                    .views
+                    .read_tile_bytes(address.id(), context.ct.child_token())
+                    .await
+                    .map_err(read_error)?;
+                Ok(ReadResourceResult::new(vec![
+                    ResourceContents::blob(BASE64_STANDARD.encode(bytes.as_slice()), uri)
+                        .with_mime_type(mime),
+                ]))
+            }
+            ViewResource::View(address) => {
+                let view = self
+                    .state
+                    .views
+                    .get_view(&owner, address.id())
+                    .await
+                    .map_err(|_| not_found())?;
+                json_read(uri, &view)
+            }
+            ViewResource::Composition(address) => {
+                let composition = self
+                    .state
+                    .views
+                    .get_scene_composition(&owner, address.id())
+                    .await
+                    .map_err(|_| not_found())?;
+                json_read(uri, &composition)
+            }
+            ViewResource::Frame(address) => {
+                let frame = self
+                    .state
+                    .views
+                    .get_frame(&owner, address.id())
+                    .map_err(|_| not_found())?;
+                Ok(ReadResourceResult::new(vec![
+                    ResourceContents::blob(BASE64_STANDARD.encode(frame.bytes()), uri)
+                        .with_mime_type(frame.record().mime_type()),
+                ]))
+            }
+            ViewResource::PreviewApp => unreachable!("App handled under capture permission"),
+        }
     }
 }
 
@@ -569,44 +407,21 @@ pub(crate) fn frame_tool_result(
     Ok(result)
 }
 
-fn internal_identity(
-    context: &RequestContext<RoleServer>,
-) -> Result<GatewayInternalIdentity, McpError> {
-    context
-        .extensions
-        .get::<axum::http::request::Parts>()
-        .and_then(|parts| parts.extensions.get::<GatewayInternalIdentity>())
-        .cloned()
-        .ok_or_else(|| {
-            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
-        })
-}
-
 fn plane_caller(
     context: &RequestContext<RoleServer>,
     identity: GatewayInternalIdentity,
 ) -> Result<PlaneCaller, McpError> {
-    let bearer_token = context
-        .extensions
-        .get::<axum::http::request::Parts>()
-        .and_then(|parts| parts.extensions.get::<ForwardedBearer>())
-        .map(|bearer| bearer.0.clone())
-        .ok_or_else(|| {
-            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
-        })?;
-    let memberships = identity.actor.group_memberships();
-    Ok(PlaneCaller {
-        bearer_token,
+    Ok(PlaneCaller::from_gateway(
         identity,
-        memberships,
-    })
+        forwarded_bearer(context)?,
+    ))
 }
 
 fn require_scope(
     context: &RequestContext<RoleServer>,
     required: ViewScope,
 ) -> Result<GatewayInternalIdentity, McpError> {
-    let identity = internal_identity(context)?;
+    let identity = gateway_identity(context)?;
     crate::server::auth::require_scope(&identity, required)?;
     Ok(identity)
 }
@@ -618,29 +433,6 @@ fn read_error(error: crate::state::ServiceError) -> McpError {
         }
         other => McpError::invalid_request(other.to_string(), None),
     }
-}
-
-fn structured_result<T: Serialize>(text: String, value: &T) -> Result<CallToolResult, McpError> {
-    let mut result = CallToolResult::success(vec![ContentBlock::text(text)]);
-    result.structured_content = Some(serde_json::to_value(value).map_err(internal)?);
-    Ok(result)
-}
-
-fn json_resource<T: Serialize + ?Sized>(
-    uri: &str,
-    value: &T,
-) -> Result<ReadResourceResult, McpError> {
-    Ok(ReadResourceResult::new(vec![
-        ResourceContents::text(serde_json::to_string(value).map_err(internal)?, uri)
-            .with_mime_type("application/json"),
-    ]))
-}
-
-fn mcp_page<T>(
-    items: Vec<T>,
-    request: Option<&PaginatedRequestParams>,
-) -> Result<Page<T>, McpError> {
-    paginate(items, request, LIST_PAGE_SIZE).map_err(invalid_params)
 }
 
 fn not_found() -> McpError {
@@ -698,10 +490,6 @@ fn advertise_configured_layers(mut tool: Tool, layers: &[LayerSummary]) -> Tool 
         base_layer.insert("default".to_owned(), identifier.clone());
     }
     tool
-}
-
-fn internal(error: impl std::fmt::Display) -> McpError {
-    McpError::internal_error(error.to_string(), None)
 }
 
 #[cfg(test)]
@@ -774,7 +562,7 @@ mod well_known_tests {
         CONTRACT_REVISION, ComplianceStatus, DOC_ID_AGENTS, DOC_ID_DESIGN,
     };
 
-    use super::SERVER_DOCS;
+    use crate::server::setup::SERVER_DOCS;
 
     #[test]
     fn embedded_documents_carry_the_crate_manual_and_design() {

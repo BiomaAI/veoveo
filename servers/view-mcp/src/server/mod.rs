@@ -1,37 +1,30 @@
-mod admin;
 pub(crate) mod auth;
 mod config;
-mod host;
 pub(crate) mod setup;
 pub(crate) mod tasks;
 
 use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::{Context, Result};
-use axum::{Json, Router, http::StatusCode, middleware, routing::get};
 use clap::Parser;
-use rmcp::transport::streamable_http_server::StreamableHttpService;
 use tokio::sync::Semaphore;
-use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_mcp_contract::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
-    ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, init_server_telemetry,
-    public_allowed_hosts,
+    GatewayInternalTrustBundle, SubscriptionHub, TelemetryGuard,
+    hosting::{Hosted, HostedServer},
+    init_server_telemetry,
 };
-use veoveo_task_runtime::{TaskRuntime, TaskRuntimeConfig};
+use veoveo_task_runtime::{DurableTasksWithResources, TaskRuntime, TaskRuntimeConfig};
 
 use crate::{
-    mcp::ViewMcp,
+    mcp::{ViewMcp, ViewSubscriptions},
     renderer::RendererHandle,
     source::{LayerCatalog, LayerCatalogFile},
     state::ViewService,
 };
 
-use auth::{InternalAuthState, authenticate_internal};
 use config::Args;
-use host::validate_host;
-use tasks::recover_tasks;
+use tasks::{ViewTaskExtension, recover_tasks};
 
 pub(crate) const SERVER_SLUG: &str = "view";
 
@@ -51,12 +44,6 @@ pub async fn run() -> Result<()> {
     args.validate()?;
     std::sync::LazyLock::force(&setup::SERVER_SETUP);
     let public_deployment = args.public_deployment()?;
-    let public_endpoint = public_deployment.server(SERVER_SLUG)?;
-    let verifier = GatewayInternalTokenVerifier::new(
-        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
-        ServerSlug::new(SERVER_SLUG)?,
-        GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?,
-    );
 
     let catalog_bytes = tokio::fs::read(&args.layer_catalog)
         .await
@@ -101,85 +88,28 @@ pub async fn run() -> Result<()> {
     });
     recover_tasks(state.clone(), recovery.resumable).await?;
 
-    let cancellation = tokio_util::sync::CancellationToken::new();
-    let mut allowed_hosts = public_allowed_hosts(&public_deployment, args.allow_loopback_hosts);
-    allowed_hosts.extend(args.allowed_hosts.iter().cloned());
-    let allowed_hosts = Arc::new(allowed_hosts);
-    let auth_state = InternalAuthState { verifier };
-    let mcp_service = StreamableHttpService::new(
-        {
-            let state = state.clone();
-            move || Ok(ViewMcp::new(state.clone()))
-        },
-        veoveo_mcp_contract::stateless_session_manager(),
-        veoveo_mcp_contract::canonical_streamable_http_server_config()
-            .with_allowed_hosts(allowed_hosts.iter().cloned())
-            .with_cancellation_token(cancellation.child_token()),
-    );
-    let mcp_router = Router::new()
-        .route_service("/", mcp_service.clone())
-        .route_service("/{*path}", mcp_service)
-        .layer(middleware::from_fn(
-            veoveo_mcp_contract::enforce_serialized_mcp_response,
-        ))
-        .layer(middleware::from_fn_with_state(
-            auth_state.clone(),
-            authenticate_internal,
-        ));
-    // Read-only well-known projection (contract C20) behind the same gateway
-    // authentication as the MCP surface.
-    let admin_router = admin::router().layer(middleware::from_fn_with_state(
-        auth_state,
-        authenticate_internal,
-    ));
-
     let readiness_state = state.clone();
-    let server_router = Router::new()
-        .route("/healthz", get(|| async { StatusCode::OK }))
-        .route(
-            "/readyz",
-            get(move || {
-                let adapter = readiness_state.views.adapter().clone();
-                async move {
-                    let status = if adapter.hardware_accelerated && adapter.nvidia {
-                        StatusCode::OK
-                    } else {
-                        StatusCode::SERVICE_UNAVAILABLE
-                    };
-                    (status, Json(adapter))
-                }
-            }),
-        )
-        .nest("/admin", admin_router)
-        .nest("/mcp", mcp_router);
-    let router = Router::new()
-        .nest(public_endpoint.mount_path(), server_router)
-        .layer(middleware::from_fn_with_state(
-            allowed_hosts.clone(),
-            validate_host,
-        ))
-        .layer(
-            TraceLayer::new_for_http()
-                .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO)),
-        );
-
-    let address = SocketAddr::from(([0, 0, 0, 0], args.port));
-    tracing::info!(
-        service = "veoveo-view-mcp",
-        %address,
-        mcp_path = public_endpoint.path("mcp"),
-        admin_path = public_endpoint.path("admin"),
-        readiness_path = public_endpoint.path("readyz"),
-        "listening"
-    );
-    let listener = tokio::net::TcpListener::bind(address).await?;
-    axum::serve(listener, router)
-        .with_graceful_shutdown(async move {
-            let _ = tokio::signal::ctrl_c().await;
-            cancellation.cancel();
+    let server = HostedServer::for_domain::<ViewMcp>()
+        .deployment(&public_deployment, args.allow_loopback_hosts)?
+        .allowed_hosts(args.allowed_hosts.iter().cloned())
+        .internal_trust(GatewayInternalTrustBundle::from_json(
+            &args.internal_trust_jwks,
+        )?)?
+        .handler(move || {
+            Hosted::new(ViewMcp::new(state.clone())).with_tasks(DurableTasksWithResources::new(
+                ViewTaskExtension::new(state.clone()),
+                ViewSubscriptions::new(state.clone()),
+            ))
         })
-        .await?;
-    Ok(())
+        // View serves only on a hardware-accelerated NVIDIA adapter.
+        .readiness(move || {
+            let adapter = readiness_state.views.adapter().clone();
+            async move { adapter.hardware_accelerated && adapter.nvidia }
+        })
+        .build();
+    server
+        .serve(SocketAddr::from(([0, 0, 0, 0], args.port)))
+        .await
 }
 
 fn install_rustls_provider() {

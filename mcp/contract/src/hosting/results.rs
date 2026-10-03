@@ -14,13 +14,13 @@ use rmcp::{
 };
 use serde::Serialize;
 
-fn serialize<T: Serialize>(value: &T) -> Result<serde_json::Value, ErrorData> {
+fn serialize<T: Serialize + ?Sized>(value: &T) -> Result<serde_json::Value, ErrorData> {
     serde_json::to_value(value)
         .map_err(|_| ErrorData::internal_error("result serialization failed", None))
 }
 
 /// A JSON resource body for `uri`.
-pub fn json_read<T: Serialize>(uri: &str, value: &T) -> Result<ReadResourceResult, ErrorData> {
+pub fn json_read<T: Serialize + ?Sized>(uri: &str, value: &T) -> Result<ReadResourceResult, ErrorData> {
     let text = serde_json::to_string(value)
         .map_err(|_| ErrorData::internal_error("resource serialization failed", None))?;
     Ok(ReadResourceResult::new(vec![
@@ -29,7 +29,7 @@ pub fn json_read<T: Serialize>(uri: &str, value: &T) -> Result<ReadResourceResul
 }
 
 /// A tool result with a short text summary and typed structured content.
-pub fn structured_result<T: Serialize>(
+pub fn structured_result<T: Serialize + ?Sized>(
     summary: impl Into<String>,
     output: &T,
 ) -> Result<CallToolResult, ErrorData> {
