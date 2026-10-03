@@ -78,6 +78,11 @@ async fn hosted_search_links_catalog_and_embedding_follow_current_sql_authority(
         server.indexing.send_replace(veoveo_knowledge_mcp::coordinator::CoordinatorState::CatalogReady);
         let mut client=server.sdk(signing.issue(identity.clone()).bearer_token).await;
         let list=client.list_tools(None).await.unwrap();assert_eq!(list.tools.len(),2);
+        for tool in &list.tools {
+            veoveo_mcp_conformance::validate_tool_input_schema(tool).unwrap();
+            let malformed = client.call_tool(input(&tool.name, serde_json::json!({}))).await.unwrap();
+            assert_eq!(malformed.is_error, Some(true), "typed arguments required: {malformed:?}");
+        }
         let sources=client.read_resource(ReadResourceRequestParams::new(KnowledgeResource::Sources {after:None}.to_uri().unwrap().to_string())).await.unwrap();
         let body=serde_json::to_string(&sources).unwrap();assert!(body.contains("media.records"));assert!(!body.contains("media.private"));
         let exact=client.read_resource(ReadResourceRequestParams::new(KnowledgeResource::Collection(content.descriptor.collection().clone()).to_uri().unwrap().to_string())).await.unwrap();

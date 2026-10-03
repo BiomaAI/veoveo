@@ -34,7 +34,7 @@ impl ComputersMcp {
         validate_contract();
         Self {
             app,
-            tool_router: Arc::new(tasks::router()),
+            tool_router: Arc::new(Self::task_tool_router() + Self::automation_tool_router()),
         }
     }
 }

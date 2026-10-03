@@ -1,19 +1,17 @@
 use super::{ComputersMcp, auth};
 use crate::{ApplicationError, application};
 use rmcp::{
-    ErrorData, RoleServer,
-    handler::server::{
-        router::tool::{ToolRoute, ToolRouter},
-        tool::ToolCallContext,
-    },
-    model::*,
-    service::RequestContext,
+    ErrorData, RoleServer, handler::server::wrapper::Parameters, model::*, service::RequestContext,
+    tool, tool_router,
 };
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
 use veoveo_computers::api::ErrorCode as ApiErrorCode;
-use veoveo_computers::{ComputerError, Operation, api::*};
+use veoveo_computers::{ComputerError, api::*};
 use veoveo_mcp_contract::hosting::plane_caller;
+use veoveo_task_runtime::TaskRetentionPin;
+use veoveo_types::TaskId;
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(untagged)]
@@ -45,85 +43,31 @@ enum MaintenanceOutputSchema {
     Completed(MaintenanceResult),
     Rejected(ApiError),
 }
-fn tools() -> Vec<Tool> {
-    let create = Tool::new("create", "Create a Computer from the installation's default environment. Its home directory is kept across Stop and Start. Reuse requestId when retrying. Run as an MCP Task.", rmcp::handler::server::tool::schema_for_type::<CreateInput>())
-        .with_title("Create Computer").with_output_schema::<LifecycleOutput>()
-        .with_annotations(ToolAnnotations::new().read_only(false).destructive(false).idempotent(true).open_world(false));
-    let lifecycle = |name: &'static str, description: &'static str| {
-        Tool::new(
-            name,
-            description,
-            rmcp::handler::server::tool::schema_for_type::<LifecycleInput>(),
-        )
-        .with_output_schema::<LifecycleOutput>()
-        .with_annotations(
-            ToolAnnotations::new()
-                .read_only(false)
-                .destructive(name == "stop")
-                .idempotent(true)
-                .open_world(false),
-        )
-    };
-    vec![
-        create,
-        Tool::new("transfer_file", "Copy an Artifact into a new file in the Computer's home directory, or save a regular file from the home directory as an Artifact. Paths are relative to the home directory. Imports never overwrite existing files or extract archives. After a lost reply, retry with the same requestId and input. Owners omit grantId; agents pass a grant with Execute permission. Cancelling an active transfer may stop the Computer. Run as an MCP Task.", rmcp::handler::server::tool::schema_for_type::<TransferFileInput>())
-            .with_title("Transfer Computer file")
-            .with_output_schema::<FileOutputSchema>()
-            .with_annotations(ToolAnnotations::new().read_only(false).destructive(true).idempotent(true).open_world(false)),
-        Tool::new("resume_update", "Resume a paused environment update. Pass the update's current updatedAt, and acknowledge pendingCancellationAt if the update shows one. Keep requestId and all inputs the same on retries. The home directory is kept, and steps whose outcome is uncertain are not repeated. Run as an MCP Task.", rmcp::handler::server::tool::schema_for_type::<ResumeUpdateInput>())
-            .with_title("Resume environment update")
-            .with_output_schema::<MaintenanceOutputSchema>()
-            .with_annotations(ToolAnnotations::new().read_only(false).destructive(true).idempotent(true).open_world(false)),
-        Tool::new("update_template", "Move a Computer to another environment the installation allows, keeping its home directory. This stops its processes, so finish active commands first. Omit templateId to use the current default. After a lost reply, retry with the same requestId to keep the original choice. Run as an MCP Task.", rmcp::handler::server::tool::schema_for_type::<UpdateTemplateInput>())
-            .with_title("Update environment")
-            .with_output_schema::<MaintenanceOutputSchema>()
-            .with_annotations(ToolAnnotations::new().read_only(false).destructive(true).idempotent(true).open_world(false)),
-        Tool::new("execute", "Run a command (argv list) on a Computer using your automation grant. The working directory is relative to the home directory, and stdin is standard padded base64. After a lost reply, retry with the same requestId and input. Cancelling may stop the command's whole run, as the grant's Stop permission allows. Run as an MCP Task.", rmcp::handler::server::tool::schema_for_type::<ExecuteInput>())
-            .with_title("Execute Computer command")
-            .with_output_schema::<ExecutionOutputSchema>()
-            .with_annotations(ToolAnnotations::new().read_only(false).destructive(true).idempotent(true).open_world(true)),
-        Tool::new("revoke_access", "Revoke your Computer access grant. The attachment closes within its access deadline; the Computer keeps running. Repeating revocation is safe.", rmcp::handler::server::tool::schema_for_type::<RevokeAccessInput>())
-            .with_title("Revoke Computer access")
-            .with_output_schema::<AccessOutput>()
-            .with_annotations(ToolAnnotations::new().read_only(false).destructive(true).idempotent(true).open_world(false)),
-        lifecycle(
-            "start",
-            "Start a stopped Computer. Its home directory is unchanged. Agents pass a grantId with Start permission. Reuse requestId and grantId when retrying. Run as an MCP Task.",
-        ),
-        lifecycle(
-            "stop",
-            "Stop a Computer's processes. Its home directory is kept. Agents pass a grantId with Stop permission. Reuse requestId and grantId when retrying. Run as an MCP Task.",
-        ),
-    ]
+/// Validate transport requirements before any domain reservation. Typed handlers
+/// receive metadata from RMCP's request context, without rebuilding a wire request.
+struct TaskAdmission {
+    pins: BTreeSet<TaskRetentionPin>,
 }
-/// Routes every Computers tool to [`ComputersMcp::call`], which admits the call
-/// and creates its domain operation and Task.
-pub(super) fn router() -> ToolRouter<ComputersMcp> {
-    let mut router = ToolRouter::new();
-    for tool in tools().into_iter().chain(super::automation::tools()) {
-        router.add_route(ToolRoute::new_dyn(
-            tool,
-            |call: ToolCallContext<'_, ComputersMcp>| {
-                Box::pin(async move {
-                    let mut request = CallToolRequestParams::new(call.name.clone());
-                    request.arguments = call.arguments;
-                    call.service.call(request, call.request_context).await
-                })
-            },
-        ));
+impl TaskAdmission {
+    fn new(context: &RequestContext<RoleServer>) -> Result<Self, ErrorData> {
+        if !context
+            .meta
+            .client_capabilities()
+            .is_some_and(|c| c.supports_tasks())
+        {
+            let mut required = ClientCapabilities::default();
+            required.extensions = Some(std::collections::BTreeMap::from([(
+                TASKS_EXTENSION_ID.into(),
+                JsonObject::new(),
+            )]));
+            return Err(ErrorData::missing_required_client_capability(required));
+        }
+        Ok(Self {
+            pins: veoveo_task_runtime::retention_pins(Some(&context.meta))?,
+        })
     }
-    router
 }
-pub(super) fn input<T: DeserializeOwned>(arguments: Option<JsonObject>) -> Result<T, ErrorData> {
-    serde_json::from_value(serde_json::Value::Object(arguments.unwrap_or_default())).map_err(
-        |error| {
-            // serde names the offending field; drop its JSON line/column suffix.
-            let detail = error.to_string();
-            let detail = detail.split(" at line ").next().unwrap_or_default();
-            ErrorData::invalid_params(format!("Invalid Computer action input: {detail}."), None)
-        },
-    )
-}
+
 pub(super) fn rejection(error: ApplicationError) -> Result<CallToolResponse, ErrorData> {
     if matches!(error, ApplicationError::Domain(ComputerError::Forbidden)) {
         return Err(auth::forbidden());
@@ -148,110 +92,192 @@ pub(super) fn rejection(error: ApplicationError) -> Result<CallToolResponse, Err
     reply.structured_content = Some(serde_json::to_value(result).map_err(|_| auth::unavailable())?);
     Ok(reply.into())
 }
+#[tool_router(router = task_tool_router, vis = "pub(super)")]
 impl ComputersMcp {
-    async fn call(
+    #[tool(
+        title = "Create Computer",
+        description = "Create a Computer from the installation's default environment. Its home directory is kept across Stop and Start. Reuse requestId when retrying. Run as an MCP Task.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<LifecycleOutput>(),
+        annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
+    )]
+    async fn create(
         &self,
-        mut request: CallToolRequestParams,
+        Parameters(input): Parameters<CreateInput>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, ErrorData> {
-        if matches!(
-            request.name.as_ref(),
-            "grant_automation" | "revoke_automation"
-        ) {
-            return self.automation(request, context).await;
+        let admission = TaskAdmission::new(&context)?;
+        let actor = auth::actor(&context)?;
+        let result = self
+            .app
+            .create(actor, input)
+            .await
+            .map(|operation| operation.task_id());
+        self.task_reply(result, admission, &context).await
+    }
+
+    #[tool(
+        description = "Start a stopped Computer. Its home directory is unchanged. Agents pass a grantId with Start permission. Reuse requestId and grantId when retrying. Run as an MCP Task.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<LifecycleOutput>(),
+        annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
+    )]
+    async fn start(
+        &self,
+        Parameters(input): Parameters<LifecycleInput>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, ErrorData> {
+        let admission = TaskAdmission::new(&context)?;
+        let actor = auth::actor(&context)?;
+        let result = self
+            .app
+            .lifecycle(actor, input, Action::Start)
+            .await
+            .map(|operation| operation.task_id());
+        self.task_reply(result, admission, &context).await
+    }
+
+    #[tool(
+        description = "Stop a Computer's processes. Its home directory is kept. Agents pass a grantId with Stop permission. Reuse requestId and grantId when retrying. Run as an MCP Task.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<LifecycleOutput>(),
+        annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = true, open_world_hint = false)
+    )]
+    async fn stop(
+        &self,
+        Parameters(input): Parameters<LifecycleInput>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, ErrorData> {
+        let admission = TaskAdmission::new(&context)?;
+        let actor = auth::actor(&context)?;
+        let result = self
+            .app
+            .lifecycle(actor, input, Action::Stop)
+            .await
+            .map(|operation| operation.task_id());
+        self.task_reply(result, admission, &context).await
+    }
+
+    #[tool(
+        title = "Execute Computer command",
+        description = "Run a command (argv list) on a Computer using your automation grant. The working directory is relative to the home directory, and stdin is standard padded base64. After a lost reply, retry with the same requestId and input. Cancelling may stop the command's whole run, as the grant's Stop permission allows. Run as an MCP Task.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<ExecutionOutputSchema>(),
+        annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = true, open_world_hint = true)
+    )]
+    async fn execute(
+        &self,
+        Parameters(input): Parameters<ExecuteInput>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, ErrorData> {
+        let admission = TaskAdmission::new(&context)?;
+        let caller = plane_caller(&context)?;
+        let result = self
+            .app
+            .execute(&caller, input)
+            .await
+            .map(|operation| operation.task_id());
+        self.task_reply(result, admission, &context).await
+    }
+
+    #[tool(
+        title = "Transfer Computer file",
+        description = "Copy an Artifact into a new file in the Computer's home directory, or save a regular file from the home directory as an Artifact. Paths are relative to the home directory. Imports never overwrite existing files or extract archives. After a lost reply, retry with the same requestId and input. Owners omit grantId; agents pass a grant with Execute permission. Cancelling an active transfer may stop the Computer. Run as an MCP Task.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<FileOutputSchema>(),
+        annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = true, open_world_hint = false)
+    )]
+    async fn transfer_file(
+        &self,
+        Parameters(input): Parameters<TransferFileInput>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, ErrorData> {
+        let admission = TaskAdmission::new(&context)?;
+        let caller = plane_caller(&context)?;
+        let result = self
+            .app
+            .transfer_file(&caller, input)
+            .await
+            .map(|operation| operation.task_id());
+        self.task_reply(result, admission, &context).await
+    }
+
+    #[tool(
+        title = "Update environment",
+        description = "Move a Computer to another environment the installation allows, keeping its home directory. This stops its processes, so finish active commands first. Omit templateId to use the current default. After a lost reply, retry with the same requestId to keep the original choice. Run as an MCP Task.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<MaintenanceOutputSchema>(),
+        annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = true, open_world_hint = false)
+    )]
+    async fn update_template(
+        &self,
+        Parameters(input): Parameters<UpdateTemplateInput>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, ErrorData> {
+        let admission = TaskAdmission::new(&context)?;
+        let actor = auth::actor(&context)?;
+        let result = self
+            .app
+            .update_template(&actor, input)
+            .await
+            .map(|operation| operation.task_id());
+        self.task_reply(result, admission, &context).await
+    }
+
+    #[tool(
+        title = "Resume environment update",
+        description = "Resume a paused environment update. Pass the update's current updatedAt, and acknowledge pendingCancellationAt if the update shows one. Keep requestId and all inputs the same on retries. The home directory is kept, and steps whose outcome is uncertain are not repeated. Run as an MCP Task.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<MaintenanceOutputSchema>(),
+        annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = true, open_world_hint = false)
+    )]
+    async fn resume_update(
+        &self,
+        Parameters(input): Parameters<ResumeUpdateInput>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, ErrorData> {
+        let admission = TaskAdmission::new(&context)?;
+        let actor = auth::actor(&context)?;
+        let result = self
+            .app
+            .resume_update(&actor, input)
+            .await
+            .map(|operation| operation.task_id());
+        self.task_reply(result, admission, &context).await
+    }
+
+    #[tool(
+        title = "Revoke Computer access",
+        description = "Revoke your Computer access grant. The attachment closes within its access deadline; the Computer keeps running. Repeating revocation is safe.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<AccessOutput>(),
+        annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = true, open_world_hint = false)
+    )]
+    async fn revoke_access(
+        &self,
+        Parameters(input): Parameters<RevokeAccessInput>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, ErrorData> {
+        let actor = auth::actor(&context)?;
+        match self.app.revoke_access(&actor, input).await {
+            Ok(result) => {
+                let mut response = CallToolResult::success(vec![ContentBlock::text(
+                    "Access revoked. The Computer keeps running.",
+                )]);
+                response.structured_content =
+                    Some(serde_json::to_value(result).map_err(|_| auth::unavailable())?);
+                Ok(response.into())
+            }
+            Err(error) => rejection(error),
         }
-        if request.name == "revoke_access" {
-            let actor = auth::actor(&context)?;
-            return match self
-                .app
-                .revoke_access(&actor, input(request.arguments)?)
-                .await
-            {
-                Ok(result) => {
-                    let mut response = CallToolResult::success(vec![ContentBlock::text(
-                        "Access revoked. The Computer keeps running.",
-                    )]);
-                    response.structured_content =
-                        Some(serde_json::to_value(result).map_err(|_| auth::unavailable())?);
-                    Ok(response.into())
-                }
-                Err(error) => rejection(error),
-            };
-        }
-        let action = match request.name.as_ref() {
-            "create" => Some(Action::Create),
-            "start" => Some(Action::Start),
-            "stop" => Some(Action::Stop),
-            "execute" | "transfer_file" | "update_template" | "resume_update" => None,
-            _ => return Err(ErrorData::invalid_params("unknown Computer tool", None)),
-        };
-        // Capability admission precedes domain reservation and Task creation.
-        if !context
-            .meta
-            .client_capabilities()
-            .is_some_and(|c| c.supports_tasks())
-        {
-            let mut required = ClientCapabilities::default();
-            required.extensions = Some(std::collections::BTreeMap::from([(
-                TASKS_EXTENSION_ID.into(),
-                JsonObject::new(),
-            )]));
-            return Err(ErrorData::missing_required_client_capability(required));
-        }
-        veoveo_task_runtime::restore_task_retention_meta(&mut request, &context.meta)?;
-        let pins = veoveo_task_runtime::retention_pins(request.meta.as_ref())?;
-        let task_id = if let Some(action) = action {
-            let actor = auth::actor(&context)?;
-            let result: application::Result<Operation> = match action {
-                Action::Create => self.app.create(actor, input(request.arguments)?).await,
-                _ => {
-                    self.app
-                        .lifecycle(actor, input(request.arguments)?, action)
-                        .await
-                }
-            };
-            match result {
-                Ok(operation) => operation.task_id(),
-                Err(error) => return rejection(error),
-            }
-        } else if matches!(request.name.as_ref(), "update_template" | "resume_update") {
-            let actor = auth::actor(&context)?;
-            let result = if request.name == "resume_update" {
-                self.app
-                    .resume_update(&actor, input(request.arguments)?)
-                    .await
-            } else {
-                self.app
-                    .update_template(&actor, input(request.arguments)?)
-                    .await
-            };
-            match result {
-                Ok(operation) => operation.task_id(),
-                Err(error) => return rejection(error),
-            }
-        } else if request.name == "transfer_file" {
-            match self
-                .app
-                .transfer_file(&plane_caller(&context)?, input(request.arguments)?)
-                .await
-            {
-                Ok(operation) => operation.task_id(),
-                Err(error) => return rejection(error),
-            }
-        } else {
-            match self
-                .app
-                .execute(&plane_caller(&context)?, input(request.arguments)?)
-                .await
-            {
-                Ok(command) => command.task_id(),
-                Err(error) => return rejection(error),
-            }
+    }
+
+    async fn task_reply(
+        &self,
+        result: application::Result<TaskId>,
+        admission: TaskAdmission,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, ErrorData> {
+        let task_id = match result {
+            Ok(task_id) => task_id,
+            Err(error) => return rejection(error),
         };
         let access = self
-            .task_access(&context, &task_id.to_string(), false)
+            .task_access(context, &task_id.to_string(), false)
             .await?;
-        for pin in pins {
+        for pin in admission.pins {
             access
                 .run(async {
                     self.app

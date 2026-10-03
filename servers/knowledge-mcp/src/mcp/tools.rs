@@ -3,13 +3,12 @@ use crate::{
     contract::{EmbedRequest, EmbedResponse, SearchRequest, SearchResponse},
     search::SearchService,
 };
-use rmcp::handler::server::{
-    router::tool::ToolRoute,
-    tool::{ToolCallContext, schema_for_type},
-};
-use serde::{Serialize, de::DeserializeOwned};
+use rmcp::{handler::server::wrapper::Parameters, tool, tool_router};
+use serde::Serialize;
 use veoveo_types::LocalToolName;
 
+/// Names here classify the declared catalog for caller-specific visibility;
+/// invocation dispatch and argument decoding belong to the generated router.
 pub(super) fn scope(name: &str) -> Option<KnowledgeScope> {
     match name {
         "search" => Some(KnowledgeScope::Search),
@@ -17,120 +16,122 @@ pub(super) fn scope(name: &str) -> Option<KnowledgeScope> {
         _ => None,
     }
 }
-pub(super) fn definitions() -> Vec<Tool> {
-    let annotations = ToolAnnotations::new()
-        .read_only(true)
-        .destructive(false)
-        .idempotent(true)
-        .open_world(false);
-    vec![
-        Tool::new("search", "Find readable members in approved Knowledge collections. Follow source links for current content.", schema_for_type::<SearchRequest>())
-            .with_title("Search knowledge").with_output_schema::<SearchResponse>().with_annotations(annotations.clone()),
-        Tool::new("embed", "Embed document or query texts in the installation's declared embedding space.", schema_for_type::<EmbedRequest>())
-            .with_title("Embed texts").with_output_schema::<EmbedResponse>().with_annotations(annotations),
-    ]
+
+struct ToolAuthority {
+    identity: GatewayInternalIdentity,
+    admitted: RequestAuthority,
+    required: KnowledgeScope,
+    target: PolicyTarget,
 }
-/// The declared tools, each dispatched through [`KnowledgeMcp::call`] so policy
-/// and scope checks stay in one place.
-pub(super) fn router<E: Embeddings + 'static>() -> ToolRouter<KnowledgeMcp<E>> {
-    let mut router = ToolRouter::new();
-    for tool in definitions() {
-        router.add_route(ToolRoute::new_dyn(
-            tool,
-            |call: ToolCallContext<'_, KnowledgeMcp<E>>| {
-                Box::pin(async move {
-                    let mut request = CallToolRequestParams::new(call.name.clone());
-                    request.arguments = call.arguments;
-                    call.service
-                        .call(request, call.request_context)
-                        .await
-                        .map(Into::into)
-                })
-            },
-        ));
-    }
-    router
-}
+
+#[tool_router(router = declared_tool_router, vis = "pub(super)")]
 impl<E: Embeddings + 'static> KnowledgeMcp<E> {
-    pub(super) async fn call(
+    #[tool(
+        title = "Search knowledge",
+        description = "Find readable members in approved Knowledge collections. Follow source links for current content.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<SearchResponse>(),
+        annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
+    )]
+    async fn search(
         &self,
-        request: CallToolRequestParams,
+        Parameters(input): Parameters<SearchRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, ErrorData> {
-        let required = scope(&request.name)
-            .ok_or_else(|| ErrorData::invalid_params("unknown Knowledge tool", None))?;
-        let target = PolicyTarget::Tool {
-            server: "knowledge".parse().unwrap(),
-            tool: LocalToolName::new(request.name.as_ref())
-                .map_err(|_| ErrorData::invalid_params("invalid tool name", None))?,
-        };
-        let (identity, admitted) = self
-            .authority(&context, required, GatewayAction::ToolsCall, &target)
+        let authority = self
+            .admit_tool(&context, KnowledgeScope::Search, Self::search_tool_attr())
             .await?;
-        let result = tokio::time::timeout(std::time::Duration::from_secs(60), async {
-            match required {
-                KnowledgeScope::Search => {
-                    let input: SearchRequest = input(&request)?;
-                    let output = SearchService {
-                        store: &self.store,
-                        embeddings: self.embeddings.as_ref(),
-                    }
-                    .search(&admitted.caller, &input)
-                    .await
-                    .map_err(error)?;
-                    let mut result = structured(&output)?;
-                    result.content.extend(output.results.iter().map(|item| {
-                        ContentBlock::resource_link(
-                            Resource::new(item.uri.as_str(), item.title.as_str())
-                                .with_title(item.title.as_str()),
-                        )
-                    }));
-                    Ok(result)
-                }
-                KnowledgeScope::Embed => {
-                    let input: EmbedRequest = input(&request)?;
-                    let vectors = match input {
-                        EmbedRequest::Document { texts } => self.embeddings.documents(texts).await,
-                        EmbedRequest::Query { texts, task } => {
-                            self.embeddings.queries(task, texts).await
-                        }
-                    }
-                    .map_err(error)?;
-                    structured(&EmbedResponse {
-                        space: self.embeddings.space().clone(),
-                        vectors,
-                    })
-                }
-                _ => unreachable!("declared tool scope"),
+        let service = SearchService {
+            store: &self.store,
+            embeddings: self.embeddings.as_ref(),
+        };
+        let output = tokio::time::timeout(
+            std::time::Duration::from_secs(60),
+            service.search(&authority.admitted.caller, &input),
+        )
+        .await
+        .map_err(|_| error(crate::ServiceError::Deadline))?
+        .map_err(error)?;
+        self.recheck_tool(&authority).await?;
+        let mut result = structured(&output)?;
+        result.content.extend(output.results.iter().map(|item| {
+            ContentBlock::resource_link(
+                Resource::new(item.uri.as_str(), item.title.as_str())
+                    .with_title(item.title.as_str()),
+            )
+        }));
+        Ok(result)
+    }
+
+    #[tool(
+        title = "Embed texts",
+        description = "Embed document or query texts in the installation's declared embedding space.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<EmbedResponse>(),
+        annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
+    )]
+    async fn embed(
+        &self,
+        Parameters(input): Parameters<EmbedRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let authority = self
+            .admit_tool(&context, KnowledgeScope::Embed, Self::embed_tool_attr())
+            .await?;
+        let vectors = tokio::time::timeout(std::time::Duration::from_secs(60), async {
+            match input {
+                EmbedRequest::Document { texts } => self.embeddings.documents(texts).await,
+                EmbedRequest::Query { texts, task } => self.embeddings.queries(task, texts).await,
             }
         })
         .await
-        .map_err(|_| error(crate::ServiceError::Deadline))??;
+        .map_err(|_| error(crate::ServiceError::Deadline))?
+        .map_err(error)?;
+        self.recheck_tool(&authority).await?;
+        structured(&EmbedResponse {
+            space: self.embeddings.space().clone(),
+            vectors,
+        })
+    }
+
+    async fn admit_tool(
+        &self,
+        context: &RequestContext<RoleServer>,
+        required: KnowledgeScope,
+        tool: Tool,
+    ) -> Result<ToolAuthority, ErrorData> {
+        let target = PolicyTarget::Tool {
+            server: "knowledge".parse().unwrap(),
+            tool: LocalToolName::new(tool.name.as_ref()).expect("declared Knowledge tool"),
+        };
+        let (identity, admitted) = self
+            .authority(context, required, GatewayAction::ToolsCall, &target)
+            .await?;
+        Ok(ToolAuthority {
+            identity,
+            admitted,
+            required,
+            target,
+        })
+    }
+
+    async fn recheck_tool(&self, authority: &ToolAuthority) -> Result<(), ErrorData> {
         let current = authorize(
             &self.store,
-            &identity,
-            required,
+            &authority.identity,
+            authority.required,
             GatewayAction::ToolsCall,
-            &target,
+            &authority.target,
         )
         .await
         .map_err(error)?;
-        if current.control_digest != admitted.control_digest
-            || current.collections != admitted.collections
+        if current.control_digest != authority.admitted.control_digest
+            || current.collections != authority.admitted.collections
         {
             return Err(error(crate::ServiceError::AccessChanged));
         }
-        Ok(result)
+        Ok(())
     }
 }
-fn input<T: DeserializeOwned>(request: &CallToolRequestParams) -> Result<T, ErrorData> {
-    serde_json::from_value(serde_json::Value::Object(
-        request.arguments.clone().unwrap_or_default(),
-    ))
-    .map_err(|_| {
-        ErrorData::invalid_params("arguments do not match the Knowledge tool schema", None)
-    })
-}
+
 fn structured<T: Serialize>(output: &T) -> Result<CallToolResult, ErrorData> {
     let value = serde_json::to_value(output)
         .map_err(|_| ErrorData::internal_error("invalid Knowledge result", None))?;

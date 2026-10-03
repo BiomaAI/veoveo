@@ -8,6 +8,30 @@ requirements, accepted risks and remaining work. This log does not establish com
 
 ## Implementation And Installation Checkpoints
 
+Typed server dispatch checkpoint (2026-10-03): Knowledge and Computers replace their
+dynamic catch-all tool routes with RMCP handlers whose parameter types also generate
+the input schemas. Knowledge keeps its declared scope, current-policy admission,
+sixty-second domain deadline and delivery-time authority check. Computers checks Task
+capability and retention metadata before reserving work, then uses current domain
+authority for retention adoption and the Task reply. Automation and access handlers
+call their application commands directly. Neither shared-host implementation changes.
+
+The native batch passes 57 cases across the two packages. Existing application,
+lifecycle, command, file, grant, subscription and Knowledge policy/indexing cases pass.
+The extended wire case rejects malformed arguments for all ten Computer tools, rejects
+malformed retention before any reservation and reads the requested pin from the other
+Store replica. Knowledge's two tools reject malformed arguments and retain the current
+revocation check during embedding. Seven installed, GPU-evaluation and native-provider
+cases remain explicitly ignored in this batch; it does not qualify their environments.
+
+Two initial assertions were corrected: typed RMCP extraction returns a completed
+`isError: true` validation result, and domain admission retains its own operation pin
+alongside the requested pin. The final wire case passes. The 23 already passing cases
+were reused while the remaining cases ran. Logs are under
+`output/development/typed-domain-dispatch/`. The cluster and BuildKit stay stopped.
+Installed qualification follows the next composed publication. Map's host address
+coverage and its URI-based read dispatch are the next owning contract gap.
+
 Installed gateway HTTP rejection acceptance (2026-10-03): gateway source `e1969257`
 publishes runnable image
 `sha256:d3a116c7b331a69a2127da1235ad4bd80571a3645cdbe8871b3110e83a6541be`.

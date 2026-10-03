@@ -28,6 +28,14 @@ collection approvals and signing credentials.
 Knowledge domain types. It excludes Store, MCP integration, HTTP and asynchronous
 runtime dependencies. `runtime` adds source ingestion, retrieval and the HTTP server.
 
+The MCP router binds search and embedding directly to typed request handlers.
+RMCP derives each input schema from the handler's parameter type and decodes that
+type before invocation. Each handler admits its declared scope and tool target,
+limits domain work to sixty seconds, and rechecks current authority before returning
+results. Invalid tool arguments return RMCP's completed `isError: true` validation
+result before domain work. Search still applies caller policy in SQL before ranking
+and decoding.
+
 `Indexer::prepare` creates an inactive generation from the complete approved collection
 set; `build` also populates it. The coordinator uses `prepare` and reconciles that
 set. It traverses at most 10,000 pages and 100,000 unique members per collection under

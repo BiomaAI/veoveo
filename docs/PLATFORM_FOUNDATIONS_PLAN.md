@@ -607,8 +607,15 @@ Implementation work also remains:
 | Work | Owner |
 |---|---|
 | Close the acceptance gaps above and qualify affected consumers after implementation changes | Composed publication |
-| Typed tool dispatch for Knowledge and Computers, which register hand-written descriptors through `ToolRoute::new_dyn` and dispatch by name in one `call` | Each server |
-| Map reads, which receive a typed `MapAddress` but dispatch Store queries by the admitted URI | Map |
+| Map's hosted `MapAddress` covers direct resources and knowledge, but omits other advertised product and paging URI families; admitted reads then dispatch Store queries by URI | Map must compose every owner address into host admission and dispatch those typed variants directly |
+
+Knowledge and Computers bind tools directly to typed RMCP handlers. Input schemas
+come from those parameter types; the domain-specific policy recheck, Task capability
+admission and retention checks stay with their servers. The native batch passes 57
+cases, including malformed arguments, retention before reservation, cross-replica
+Tasks, current-policy revocation and hosted conformance. Invalid tool arguments now
+use the same RMCP `isError: true` result as the other typed servers. Installed
+qualification belongs to the next composed publication.
 
 #### Migration Inventory And Status
 

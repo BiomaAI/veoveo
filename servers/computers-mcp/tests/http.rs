@@ -98,15 +98,20 @@ async fn rpc(
             JsonObject::new(),
         )]));
     }
-    params.as_object_mut().unwrap().insert(
-        "_meta".into(),
-        serde_json::to_value(RequestMetaObject::with_client_context(
-            ProtocolVersion::V_2026_07_28,
-            Implementation::new("computers-wire-fixture", "1"),
-            capabilities,
-        ))
-        .unwrap(),
+    let mut meta = RequestMetaObject::with_client_context(
+        ProtocolVersion::V_2026_07_28,
+        Implementation::new("computers-wire-fixture", "1"),
+        capabilities,
     );
+    if let Some(Value::Object(extra)) = params.as_object_mut().unwrap().remove("_meta") {
+        for (name, value) in extra {
+            meta.insert(name, value);
+        }
+    }
+    params
+        .as_object_mut()
+        .unwrap()
+        .insert("_meta".into(), serde_json::to_value(meta).unwrap());
     let mut request = client
         .post(format!("{}/mcp", server.base))
         .bearer_auth(bearer)
@@ -188,6 +193,17 @@ async fn canonical_http_and_mcp_share_one_private_idempotent_task_across_replica
             for tool in tools.tools {
                 veoveo_mcp_conformance::validate_tool_input_schema(&tool).unwrap();
                 assert!(tool.output_schema.is_some());
+                let malformed = rpc(
+                    &client,
+                    &a,
+                    &alice,
+                    "tools/call",
+                    json!({"name":tool.name,"arguments":{}}),
+                    true,
+                )
+                .await;
+                assert_eq!(malformed["result"]["isError"], true, "{malformed}");
+                assert_eq!(malformed["result"]["resultType"], "complete", "{malformed}");
             }
         }
     }
@@ -202,6 +218,20 @@ async fn canonical_http_and_mcp_share_one_private_idempotent_task_across_replica
     )
     .await;
     assert_eq!(rejected["error"]["code"], -32021);
+    let pin_key = veoveo_task_runtime::TASK_RETENTION_PIN_META_KEY;
+    let rejected = rpc(
+        &client,
+        &a,
+        &alice,
+        "tools/call",
+        json!({"name":"create","arguments":input,"_meta":{(pin_key):42}}),
+        true,
+    )
+    .await;
+    assert_eq!(
+        rejected["error"]["code"], -32602,
+        "malformed retention must not reserve a Computer: {rejected}"
+    );
     let empty: Value = client
         .get(format!("{}/admin/computers", a.base))
         .bearer_auth(&alice)
@@ -217,12 +247,21 @@ async fn canonical_http_and_mcp_share_one_private_idempotent_task_across_replica
         &a,
         &alice,
         "tools/call",
-        json!({"name":"create","arguments":input}),
+        json!({"name":"create","arguments":input,"_meta":{(pin_key):"agent:wire:episode:retained"}}),
         true,
     )
     .await;
     assert_eq!(created["result"]["resultType"], "task", "{created}");
     let task_id = created["result"]["taskId"].as_str().unwrap();
+    let retained =
+        veoveo_task_runtime::TaskRuntime::new(db.b.clone(), "computers", "retention-reader")
+            .get(task_id.parse().unwrap())
+            .await
+            .unwrap()
+            .unwrap();
+    assert!(retained.retention_pins.contains(
+        &veoveo_task_runtime::TaskRetentionPin::new("agent:wire:episode:retained").unwrap()
+    ));
     let repeated: Value = client
         .post(format!("{}/admin/computers", b.base))
         .bearer_auth(&alice)

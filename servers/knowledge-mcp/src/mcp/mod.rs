@@ -46,7 +46,7 @@ impl<E: Embeddings + 'static> KnowledgeMcp<E> {
             store,
             embeddings,
             changes: tokio::sync::watch::channel(None).0,
-            tool_router: Arc::new(tools::router()),
+            tool_router: Arc::new(Self::declared_tool_router()),
         }
     }
     async fn authority(

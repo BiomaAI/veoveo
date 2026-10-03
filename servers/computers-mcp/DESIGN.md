@@ -468,6 +468,15 @@ other request requires a gateway-signed Computers-audience assertion. An MCP req
 body is limited to 2 MiB, an admin body to 64 KiB, and an authenticated request
 receives 504 when its response has not started within 30 seconds.
 
+RMCP routes each tool to a typed handler and derives its input schema from the
+handler's parameter type. Lifecycle, command, transfer and maintenance handlers
+validate Task capability and retention metadata before domain reservation. They
+resolve current Task authority before adopting retention pins and returning a Task
+seed. Access and automation-grant tools use their own typed handlers over the same
+application commands as HTTP. Invalid tool arguments return RMCP's completed
+`isError: true` validation result before the application runs. Unknown tools and
+invalid request metadata use protocol errors.
+
 The collection is `computer://computers`. Exact resources use
 `computer://computers/{computer_id}` and subsequent pages use
 `computer://computers?after={after}`. UUIDs in these resource URIs must use the
