@@ -8,6 +8,29 @@ requirements, accepted risks and remaining work. This log does not establish com
 
 ## Implementation And Installation Checkpoints
 
+Hosted acceptance follow-up (2026-10-03): ten affected images publish from
+`0b50d664`, and the platform chart and image locks converge at `c88bcca5` in
+45.7 seconds. Other image pins stay unchanged. Reason, Knowledge and embedding
+remain at zero replicas. Six readiness routes return 200 alongside liveness;
+their deployments use the readiness paths and the gateway reports fresh healthy
+states. Recording's two admin document reads return 200. The previously failing
+empty-constraint Optimization Task completes on the GPU with objective 10 and
+independent verification. Native qualification includes 54 hosted binary cases,
+the GPU model families and nine empty-matrix cases, seven executor Python tests,
+108 Console tests, the production frontend build, Helm configuration and docs.
+
+The installed Console restart still fails after the native lifecycle correction:
+video recovers at 1280 by 720, but document epoch and viewer identity change. The
+simulator-restart stage is not reached. UAV MCP exits with code 0. The first
+attempt stops at the singleton-pod check because failed startup pods remain;
+removing those terminal objects allows the second attempt to reach the actual
+continuity failure. Computers' oversized request still returns HTTP 200 / MCP
+-32603 with an upstream 413. Neither failure is accepted. Requests, responses,
+rollout state and pod logs are under
+`output/development/shared-host-followup-0b50d664/`. The reference cluster and
+BuildKit are stopped after acceptance; useful build caches and required images
+are preserved. Media's real-provider generation remains unexecuted.
+
 Status: Phase 0 is accepted. Phases 1–3 have the installed gaps listed under
 Deferred Work and the remaining type work in the Phase 3 migration inventory.
 Phase 4's installed audit checks pass. Composed flight domain checks pass at
