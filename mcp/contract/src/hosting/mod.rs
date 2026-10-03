@@ -34,6 +34,8 @@ mod host;
 mod results;
 mod server;
 mod subscriptions;
+#[cfg(any(test, feature = "testing"))]
+pub mod testing;
 #[cfg(test)]
 mod tests;
 

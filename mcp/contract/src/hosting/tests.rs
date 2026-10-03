@@ -3,11 +3,9 @@
 use std::sync::LazyLock;
 
 use axum::{
-    Router,
     body::Body,
     http::{Request, StatusCode},
 };
-use chrono::{TimeDelta, Utc};
 use rmcp::{
     ErrorData, RoleServer,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
@@ -18,17 +16,15 @@ use rmcp::{
     service::RequestContext,
     tool, tool_router,
 };
-use tower::ServiceExt;
 use veoveo_types::{ResourceAddress, ResourceScheme, ResourceTemplateUri, ResourceUri};
 
 use super::{
-    DomainAddress, DomainRead, DomainServer, Hosted, HostedServer, gateway_identity, served_by_host,
+    DomainAddress, DomainRead, DomainServer, Hosted, gateway_identity, served_by_host,
+    testing::{self, TestGateway},
 };
 use crate::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenIssuer, GatewayProfileId, PublicDeployment,
-    ServerSlug, TokenIssuer,
+    ServerSlug,
     docs::ServerDocs,
-    internal_auth::tests::{authority, principal, signing_key, trust_bundle},
     server_contract::{
         McpResource, McpResourceTemplate, McpServerContract, McpServerSetup, McpSetupError,
     },
@@ -222,141 +218,89 @@ impl DomainServer for FixtureDomain {
     }
 }
 
-fn router() -> Router {
-    let deployment = PublicDeployment::new("https://veoveo.example").unwrap();
-    HostedServer::for_domain::<FixtureDomain>()
-        .deployment(&deployment, false)
-        .unwrap()
-        .internal_trust(trust_bundle("k1"))
-        .unwrap()
-        .handler(|| Hosted::new(FixtureDomain::new()))
-        .readiness(|| async { true })
-        .build()
-        .into_router()
-}
-
-fn token() -> String {
-    GatewayInternalTokenIssuer::new(
-        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER).unwrap(),
-        signing_key("k1"),
-    )
-    .issue(
-        GatewayProfileId::new("operations").unwrap(),
-        ServerSlug::new("fixture").unwrap(),
-        principal(),
-        authority(),
-        None,
-        Utc::now() + TimeDelta::minutes(5),
-    )
-    .unwrap()
-    .bearer_token
-}
-
-async fn send(request: Request<Body>) -> (StatusCode, String) {
-    let response = router().oneshot(request).await.unwrap();
-    let status = response.status();
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    (status, String::from_utf8(body.to_vec()).unwrap())
-}
-
-fn get(path: &str) -> axum::http::request::Builder {
-    Request::builder()
-        .uri(path)
-        .header("host", "veoveo.example")
-}
-
-async fn rpc(
-    method: &str,
-    params: serde_json::Value,
-    bearer: Option<&str>,
-) -> (StatusCode, serde_json::Value) {
-    let mut params = params;
-    params["_meta"] = serde_json::json!({
-        "io.modelcontextprotocol/protocolVersion": "2026-07-28",
-        "io.modelcontextprotocol/clientInfo": {"name": "hosting-test", "version": "1"},
-        "io.modelcontextprotocol/clientCapabilities": {}
-    });
-    let mut request = Request::builder()
-        .method("POST")
-        .uri("/fixture/mcp")
-        .header("host", "veoveo.example")
-        .header("accept", "application/json, text/event-stream")
-        .header("content-type", "application/json")
-        .header("mcp-protocol-version", "2026-07-28")
-        .header("mcp-method", method);
-    if let Some(bearer) = bearer {
-        request = request.header("authorization", format!("Bearer {bearer}"));
-    }
-    if let Some(name) = params["name"].as_str().or(params["uri"].as_str()) {
-        request = request.header("mcp-name", name);
-    }
-    let body = serde_json::json!({"jsonrpc": "2.0", "id": 1, "method": method, "params": params});
-    let (status, text) = send(request.body(Body::from(body.to_string())).unwrap()).await;
-    (
-        status,
-        serde_json::from_str(&text).unwrap_or(serde_json::Value::Null),
+fn gateway() -> TestGateway {
+    TestGateway::new(
+        testing::for_domain::<FixtureDomain>()
+            .handler(|| Hosted::new(FixtureDomain::new()))
+            .readiness(|| async { true })
+            .build(),
     )
 }
 
 #[tokio::test]
 async fn health_and_readiness_need_no_authentication() {
-    let (status, body) = send(get("/fixture/healthz").body(Body::empty()).unwrap()).await;
+    let gateway = gateway();
+    let (status, body) = gateway
+        .send(gateway.request("/healthz").body(Body::empty()).unwrap())
+        .await;
     assert_eq!((status, body.as_str()), (StatusCode::OK, "ok"));
-    let (status, _) = send(get("/fixture/readyz").body(Body::empty()).unwrap()).await;
+    let (status, _) = gateway
+        .send(gateway.request("/readyz").body(Body::empty()).unwrap())
+        .await;
     assert_eq!(status, StatusCode::OK);
 }
 
 #[tokio::test]
 async fn hosts_are_validated_before_routing() {
-    let (status, _) = send(
-        Request::builder()
-            .uri("/fixture/healthz")
-            .header("host", "attacker.example")
-            .body(Body::empty())
-            .unwrap(),
-    )
-    .await;
+    let gateway = gateway();
+    let (status, _) = gateway
+        .send(
+            Request::builder()
+                .uri("/fixture/healthz")
+                .header("host", "attacker.example")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
     assert_eq!(status, StatusCode::MISDIRECTED_REQUEST);
-    let (status, _) = send(
-        Request::builder()
-            .uri("/fixture/healthz")
-            .body(Body::empty())
-            .unwrap(),
-    )
-    .await;
+    let (status, _) = gateway
+        .send(
+            Request::builder()
+                .uri("/fixture/healthz")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
 
 #[tokio::test]
 async fn mcp_and_admin_routes_require_a_gateway_token() {
-    let (status, _) = rpc("resources/list", serde_json::json!({}), None).await;
+    let gateway = gateway();
+    let (status, _) = gateway
+        .rpc_with("resources/list", serde_json::json!({}), None)
+        .await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
-    let (status, _) = rpc("resources/list", serde_json::json!({}), Some("not-a-token")).await;
+    let (status, _) = gateway
+        .rpc_with("resources/list", serde_json::json!({}), Some("not-a-token"))
+        .await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
-    let (status, _) = send(
-        get("/fixture/admin/docs/llms.txt")
-            .body(Body::empty())
-            .unwrap(),
-    )
-    .await;
+    let (status, _) = gateway
+        .send(
+            gateway
+                .request("/admin/docs/llms.txt")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
-    let (status, body) = send(
-        get("/fixture/admin/docs/llms.txt")
-            .header("authorization", format!("Bearer {}", token()))
-            .body(Body::empty())
-            .unwrap(),
-    )
-    .await;
+    let (status, body) = gateway
+        .send(
+            gateway
+                .request("/admin/docs/llms.txt")
+                .header("authorization", format!("Bearer {}", gateway.token()))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
     assert_eq!(status, StatusCode::OK);
     assert!(body.contains("(agents)"));
 }
 
 #[tokio::test]
 async fn discovery_comes_from_the_checked_setup() {
-    let token = token();
-    let (_, body) = rpc("resources/list", serde_json::json!({}), Some(&token)).await;
+    let gateway = gateway();
+    let body = gateway.rpc("resources/list", serde_json::json!({})).await;
     let uris: Vec<_> = body["result"]["resources"]
         .as_array()
         .unwrap()
@@ -367,12 +311,9 @@ async fn discovery_comes_from_the_checked_setup() {
     assert!(uris.contains(&"fixture://contract".to_owned()));
     assert_eq!(body["result"]["cacheScope"], "private");
 
-    let (_, body) = rpc(
-        "resources/templates/list",
-        serde_json::json!({}),
-        Some(&token),
-    )
-    .await;
+    let body = gateway
+        .rpc("resources/templates/list", serde_json::json!({}))
+        .await;
     assert_eq!(
         body["result"]["resourceTemplates"]
             .as_array()
@@ -381,107 +322,101 @@ async fn discovery_comes_from_the_checked_setup() {
         2
     );
 
-    let (_, body) = rpc("tools/list", serde_json::json!({}), Some(&token)).await;
+    let body = gateway.rpc("tools/list", serde_json::json!({})).await;
     assert_eq!(body["result"]["tools"][0]["name"], "echo");
 }
 
 #[tokio::test]
 async fn the_host_serves_contract_and_admits_domain_addresses() {
-    let token = token();
-    let (_, body) = rpc(
-        "resources/read",
-        serde_json::json!({"uri": "fixture://contract"}),
-        Some(&token),
-    )
-    .await;
+    let gateway = gateway();
+    let body = gateway
+        .rpc(
+            "resources/read",
+            serde_json::json!({"uri": "fixture://contract"}),
+        )
+        .await;
     let contract: serde_json::Value =
         serde_json::from_str(body["result"]["contents"][0]["text"].as_str().unwrap()).unwrap();
     assert_eq!(contract["server"], "fixture");
 
-    let (_, body) = rpc(
-        "resources/read",
-        serde_json::json!({"uri": "fixture://items"}),
-        Some(&token),
-    )
-    .await;
+    let body = gateway
+        .rpc(
+            "resources/read",
+            serde_json::json!({"uri": "fixture://items"}),
+        )
+        .await;
     assert_eq!(body["result"]["contents"][0]["text"], "[]");
     assert_eq!(body["result"]["cacheScope"], "private");
 
-    let (_, body) = rpc(
-        "resources/read",
-        serde_json::json!({"uri": "fixture://unknown"}),
-        Some(&token),
-    )
-    .await;
+    let body = gateway
+        .rpc(
+            "resources/read",
+            serde_json::json!({"uri": "fixture://unknown"}),
+        )
+        .await;
     assert_eq!(body["error"]["code"], -32602);
 }
 
 #[tokio::test]
 async fn tools_receive_the_verified_caller() {
-    let (_, body) = rpc(
-        "tools/call",
-        serde_json::json!({"name": "echo", "arguments": {"text": "hello"}}),
-        Some(&token()),
-    )
-    .await;
+    let body = gateway()
+        .rpc(
+            "tools/call",
+            serde_json::json!({"name": "echo", "arguments": {"text": "hello"}}),
+        )
+        .await;
     assert_eq!(body["result"]["content"][0]["text"], "hello from user-1");
 }
 
 #[tokio::test]
 async fn each_read_keeps_the_cache_policy_its_domain_chose() {
-    let token = token();
-    let (_, body) = rpc(
-        "resources/read",
-        serde_json::json!({"uri": "fixture://items"}),
-        Some(&token),
-    )
-    .await;
+    let gateway = gateway();
+    let body = gateway
+        .rpc(
+            "resources/read",
+            serde_json::json!({"uri": "fixture://items"}),
+        )
+        .await;
     assert_eq!(body["result"]["ttlMs"], crate::PRIVATE_RESOURCE_TTL_MS);
-    let (_, body) = rpc(
-        "resources/read",
-        serde_json::json!({"uri": "fixture://volatile"}),
-        Some(&token),
-    )
-    .await;
+    let body = gateway
+        .rpc(
+            "resources/read",
+            serde_json::json!({"uri": "fixture://volatile"}),
+        )
+        .await;
     assert_eq!(body["result"]["ttlMs"], 0);
     assert_eq!(body["result"]["cacheScope"], "private");
 }
 
 #[tokio::test]
 async fn prompts_come_from_the_domain() {
-    let token = token();
-    let (_, body) = rpc("prompts/list", serde_json::json!({}), Some(&token)).await;
+    let gateway = gateway();
+    let body = gateway.rpc("prompts/list", serde_json::json!({})).await;
     assert_eq!(body["result"]["prompts"][0]["name"], "summarize");
-    let (_, body) = rpc(
-        "prompts/get",
-        serde_json::json!({"name": "summarize"}),
-        Some(&token),
-    )
-    .await;
+    let body = gateway
+        .rpc("prompts/get", serde_json::json!({"name": "summarize"}))
+        .await;
     assert_eq!(
         body["result"]["messages"][0]["content"]["text"],
         "Summarize fixture://items."
     );
-    let (_, body) = rpc(
-        "prompts/get",
-        serde_json::json!({"name": "unknown"}),
-        Some(&token),
-    )
-    .await;
+    let body = gateway
+        .rpc("prompts/get", serde_json::json!({"name": "unknown"}))
+        .await;
     assert_eq!(body["error"]["code"], -32602);
 }
 
 #[tokio::test]
 async fn the_host_completes_document_ids() {
-    let (_, body) = rpc(
-        "completion/complete",
-        serde_json::json!({
-            "ref": {"type": "ref/resource", "uri": "fixture://docs/{doc_id}"},
-            "argument": {"name": "doc_id", "value": "de"}
-        }),
-        Some(&token()),
-    )
-    .await;
+    let body = gateway()
+        .rpc(
+            "completion/complete",
+            serde_json::json!({
+                "ref": {"type": "ref/resource", "uri": "fixture://docs/{doc_id}"},
+                "argument": {"name": "doc_id", "value": "de"}
+            }),
+        )
+        .await;
     assert_eq!(
         body["result"]["completion"]["values"],
         serde_json::json!(["design"])

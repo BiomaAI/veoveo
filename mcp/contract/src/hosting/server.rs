@@ -112,9 +112,9 @@ pub struct HostedServerBuilder<D: DomainServer, Dep, Trust, H> {
 
 /// A hosted MCP server, ready to serve.
 pub struct HostedServer {
-    router: Router,
-    slug: ServerSlug,
-    endpoint: ServerPublicEndpoint,
+    pub(super) router: Router,
+    pub(super) slug: ServerSlug,
+    pub(super) endpoint: ServerPublicEndpoint,
     cancel: CancellationToken,
 }
 

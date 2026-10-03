@@ -693,69 +693,13 @@ fn timestamp_to_datetime(
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::collections::BTreeSet;
-
     use chrono::TimeDelta;
 
     use super::*;
-    use crate::{PrincipalKind, TokenSubject};
-    use veoveo_types::{GroupId, RoleId, ScopeName, TenantId};
 
-    const PRIVATE_KEY_DER_B64: &str =
-        "MC4CAQAwBQYDK2VwBCIEII4AsVspz8h7mpqvOkgslJP07HfqpiWMZA+6Ii90lVBl";
-    const PUBLIC_KEY_X: &str = "OMOoJJu_AQS7UM8u2GVtMVj8W1zcE6QhR0DMBr9HEcg";
-
-    pub(crate) fn signing_key(key_id: &str) -> GatewayInternalSigningKey {
-        use base64::{Engine as _, engine::general_purpose::STANDARD};
-
-        GatewayInternalSigningKey::new(key_id, STANDARD.decode(PRIVATE_KEY_DER_B64).unwrap())
-            .unwrap()
-    }
-
-    pub(crate) fn trust_bundle(key_id: &str) -> GatewayInternalTrustBundle {
-        GatewayInternalTrustBundle::from_json(&format!(
-            r#"{{"keys":[{{"kty":"OKP","crv":"Ed25519","x":"{PUBLIC_KEY_X}","alg":"EdDSA","use":"sig","kid":"{key_id}"}}]}}"#
-        ))
-        .unwrap()
-    }
-
-    pub(crate) fn principal() -> Principal {
-        Principal {
-            id: PrincipalId::new("https://idp.example.com#user-1").unwrap(),
-            kind: PrincipalKind::User,
-            issuer: TokenIssuer::new("https://idp.example.com").unwrap(),
-            subject: TokenSubject::new("user-1").unwrap(),
-            tenant: Some(TenantId::new("tenant-a").unwrap()),
-            groups: BTreeSet::from([GroupId::new("engineering").unwrap()]),
-            group_roles: BTreeSet::new(),
-            roles: BTreeSet::from([RoleId::new("operator").unwrap()]),
-            scopes: BTreeSet::from([ScopeName::new("operator:use").unwrap()]),
-            data_labels: BTreeSet::new(),
-            assurances: BTreeSet::new(),
-            authenticated_at: Some(Utc::now()),
-        }
-    }
-
-    pub(crate) fn authority() -> InvocationAuthority {
-        use veoveo_types::{AccessSubject, InvocationProvenance, PolicyVersion, WorkContextId};
-        use veoveo_types::{WorkContextMembershipLevel, WorkContextOutputPolicy};
-
-        InvocationAuthority {
-            work_context: WorkContextId::new("mission").unwrap(),
-            tenant: TenantId::new("tenant-a").unwrap(),
-            membership: WorkContextMembershipLevel::Owner,
-            policy_revision: PolicyVersion::new("r1").unwrap(),
-            output_policy: WorkContextOutputPolicy {
-                owner: AccessSubject::Principal(principal().id),
-                initial_grants: Vec::new(),
-                classification: None,
-                data_labels: BTreeSet::new(),
-            },
-            provenance: InvocationProvenance::Direct {
-                initiator: principal().id,
-            },
-        }
-    }
+    pub(crate) use crate::hosting::testing::{
+        PUBLIC_KEY_X, authority, principal, signing_key, trust_bundle,
+    };
 
     #[test]
     fn upload_assertions_require_dedicated_audience_and_signed_policy_binding() {
