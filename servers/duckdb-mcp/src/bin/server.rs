@@ -291,9 +291,20 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
+    let readiness_store = state.tasks.platform_store().clone();
     let server = HostedServer::for_domain::<DuckdbMcp>()
         .deployment(&public_deployment, args.allow_loopback_hosts)?
         .allowed_hosts(args.allowed_hosts.iter().cloned())
+        .readiness(move || {
+            let store = readiness_store.clone();
+            async move {
+                matches!(
+                    tokio::time::timeout(std::time::Duration::from_secs(5), store.healthcheck())
+                        .await,
+                    Ok(Ok(()))
+                )
+            }
+        })
         .internal_trust(GatewayInternalTrustBundle::from_json(
             &args.internal_trust_jwks,
         )?)?

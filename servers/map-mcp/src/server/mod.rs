@@ -176,6 +176,22 @@ async fn serve(args: Args) -> Result<()> {
         valhalla_client.clone(),
         valhalla_process.clone(),
     );
+    let engine_health = move || {
+        let (analytics, valhalla, process) = (
+            health_analytics.clone(),
+            health_valhalla.clone(),
+            health_process.clone(),
+        );
+        async move {
+            let spatial = tokio::task::spawn_blocking(move || analytics.verify_spatial())
+                .await
+                .is_ok_and(|result| result.is_ok());
+            spatial
+                && process.exited().await.is_ok_and(|exited| !exited)
+                && valhalla.health().await.is_ok()
+        }
+    };
+    let readiness_store = catalog.store().clone();
     let server = HostedServer::for_domain::<MapMcp>()
         .deployment(&public_deployment, args.allow_loopback_hosts)?
         .allowed_hosts(args.allowed_hosts.iter().cloned())
@@ -190,19 +206,18 @@ async fn serve(args: Args) -> Result<()> {
             ))
         })
         // A failed spatial engine or an exited routing process needs a restart.
-        .liveness(move || {
-            let (analytics, valhalla, process) = (
-                health_analytics.clone(),
-                health_valhalla.clone(),
-                health_process.clone(),
-            );
+        .liveness(engine_health.clone())
+        .readiness(move || {
+            let store = readiness_store.clone();
+            let engine = engine_health();
             async move {
-                let spatial = tokio::task::spawn_blocking(move || analytics.verify_spatial())
-                    .await
-                    .is_ok_and(|result| result.is_ok());
-                spatial
-                    && process.exited().await.is_ok_and(|exited| !exited)
-                    && valhalla.health().await.is_ok()
+                matches!(
+                    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+                        engine.await && store.healthcheck().await.is_ok()
+                    })
+                    .await,
+                    Ok(true)
+                )
             }
         })
         .build();

@@ -48,6 +48,32 @@ pub struct Fixture {
     mcp_http: HttpServer,
 }
 impl Fixture {
+    pub async fn probe(&self, path: &str) -> reqwest::StatusCode {
+        reqwest::Client::builder()
+            .no_proxy()
+            .timeout(Duration::from_secs(7))
+            .build()
+            .unwrap()
+            .get(
+                reqwest::Url::parse(&self.mcp_http.url)
+                    .unwrap()
+                    .join(path)
+                    .unwrap(),
+            )
+            .send()
+            .await
+            .unwrap()
+            .status()
+    }
+
+    pub async fn stop_artifact_service(&mut self) {
+        self._artifact_http.stop.cancel();
+        tokio::time::timeout(Duration::from_secs(5), &mut self._artifact_http.task)
+            .await
+            .unwrap()
+            .unwrap();
+    }
+
     pub async fn new(store: PlatformStore) -> Self {
         let signing = Signing::new();
         let owner = signing.caller("author", "mission");
@@ -72,7 +98,7 @@ impl Fixture {
         let subscriptions = ArtifactSubscriptions::new(store.clone());
         let stop = CancellationToken::new();
         start_dispatcher(
-            store,
+            store.clone(),
             subscriptions.clone(),
             stop.child_token(),
             veoveo_platform_store::ChangefeedConsumerId::new(format!(
@@ -90,6 +116,7 @@ impl Fixture {
         });
         let router = super::super::hosted_server(
             state,
+            store.clone(),
             &veoveo_mcp_contract::PublicDeployment::new("http://127.0.0.1").unwrap(),
             true,
             Vec::new(),

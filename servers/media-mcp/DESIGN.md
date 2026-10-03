@@ -184,3 +184,11 @@ the terminal handoff test requires one result link and identity-free status text
 Installed current-format catalog and result acceptance are pending. Model-catalog paging,
 remaining provider DTO relationships and recovery budgets are tracked in the foundations plan
 and the [server manual](AGENTS.md).
+
+## HTTP Probes
+
+The shared host serves `/media/healthz` and `/media/readyz` with its
+normal Host validation. Liveness reports that the HTTP process is running. Readiness requires the selected
+platform database to accept a query within five seconds. Provider availability is
+reported by each operation; probes never submit a provider request or generation.
+A database outage returns 503 from readiness while liveness stays 200.

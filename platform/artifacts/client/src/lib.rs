@@ -43,6 +43,19 @@ pub struct HttpArtifactPlane {
 }
 
 impl HttpArtifactPlane {
+    /// Check the internal service's readiness without borrowing a caller's authority.
+    /// Callers bound the duration of their composed dependency probe.
+    pub async fn readiness(&self) -> Result<(), ArtifactPlaneError> {
+        self.http
+            .get(self.url("/readyz"))
+            .send()
+            .await
+            .map_err(transport)?
+            .error_for_status()
+            .map_err(transport)?;
+        Ok(())
+    }
+
     pub fn new(base_url: impl Into<String>) -> Self {
         Self {
             base_url: base_url.into().trim_end_matches('/').to_string(),

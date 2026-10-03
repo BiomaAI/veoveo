@@ -439,3 +439,11 @@ math, arbitrary static tree conversion, schemas, ownership, and tasks. The Rust
 smoke creates an empty world, publishes a multi-frame tree, reads its immutable
 resources, converts through the tree, runs a durable batch, and verifies
 artifact and usage isolation.
+
+## HTTP Probes
+
+The shared host serves `/frames/healthz` and `/frames/readyz` with its
+normal Host validation. Liveness reports that the HTTP process is running. Readiness requires the selected
+platform database to accept a query within five seconds. A database outage returns
+503 from readiness while liveness stays 200; the worker can reconnect without a
+liveness-driven restart.

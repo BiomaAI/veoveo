@@ -10,6 +10,44 @@ use veoveo_mcp_contract::{ArtifactPlane, PlaneCaller, PutArtifactRequest};
 use veoveo_mcp_knowledge_extension as extension;
 use veoveo_types::{AccessLevel, AccessSubject, ResourceUri};
 
+#[tokio::test]
+async fn readiness_detects_plane_loss_without_failing_liveness() {
+    let db = crate::store_fixture::TestDb::new().await;
+    let mut fixture = Fixture::new(db.a.clone()).await;
+    assert_eq!(
+        fixture.probe("/artifact/readyz").await,
+        reqwest::StatusCode::OK
+    );
+    fixture.stop_artifact_service().await;
+    assert_eq!(
+        fixture.probe("/artifact/readyz").await,
+        reqwest::StatusCode::SERVICE_UNAVAILABLE
+    );
+    assert_eq!(
+        fixture.probe("/artifact/healthz").await,
+        reqwest::StatusCode::OK
+    );
+}
+
+#[tokio::test]
+async fn readiness_detects_store_loss_without_failing_liveness() {
+    let db = crate::store_fixture::TestDb::new().await;
+    let fixture = Fixture::new(db.a.clone()).await;
+    assert_eq!(
+        fixture.probe("/artifact/readyz").await,
+        reqwest::StatusCode::OK
+    );
+    drop(db);
+    assert_eq!(
+        fixture.probe("/artifact/readyz").await,
+        reqwest::StatusCode::SERVICE_UNAVAILABLE
+    );
+    assert_eq!(
+        fixture.probe("/artifact/healthz").await,
+        reqwest::StatusCode::OK
+    );
+}
+
 async fn read(
     client: &Client,
     uri: &ResourceUri,

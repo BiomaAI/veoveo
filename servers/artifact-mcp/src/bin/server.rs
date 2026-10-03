@@ -60,7 +60,7 @@ async fn main() -> anyhow::Result<()> {
     });
     let cancellation = CancellationToken::new();
     start_dispatcher(
-        store,
+        store.clone(),
         subscriptions,
         cancellation.child_token(),
         veoveo_platform_store::ChangefeedConsumerId::new(format!(
@@ -72,6 +72,7 @@ async fn main() -> anyhow::Result<()> {
 
     let server = hosted_server(
         state,
+        store,
         &public_deployment,
         args.allow_loopback_hosts,
         args.allowed_hosts,
@@ -89,14 +90,29 @@ async fn main() -> anyhow::Result<()> {
 /// Builds the hosted Artifact server for the binary and the subscription tests.
 fn hosted_server(
     state: Arc<AppState>,
+    store: PlatformStore,
     deployment: &veoveo_mcp_contract::PublicDeployment,
     allow_loopback_hosts: bool,
     allowed_hosts: Vec<String>,
     trust: GatewayInternalTrustBundle,
 ) -> anyhow::Result<HostedServer> {
+    let readiness_plane = state.plane.clone();
     Ok(HostedServer::for_domain::<ArtifactMcp>()
         .deployment(deployment, allow_loopback_hosts)?
         .allowed_hosts(allowed_hosts)
+        .readiness(move || {
+            let store = store.clone();
+            let plane = readiness_plane.clone();
+            async move {
+                matches!(
+                    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+                        store.healthcheck().await.is_ok() && plane.readiness().await.is_ok()
+                    })
+                    .await,
+                    Ok(true)
+                )
+            }
+        })
         .internal_trust(trust)?
         .handler(move || {
             Hosted::new(ArtifactMcp::new(state.clone())).with_tasks(ListenOnly::new(

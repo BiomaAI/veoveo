@@ -144,12 +144,12 @@ duckdb://usage{?cursor}
 duckdb://usage/task/{task_id}
 ```
 
-The server binds one Axum listener. Its HTTP surface contains protocol and
-health routes only.
+The shared host binds one listener for MCP, authenticated documents and probes.
 
 ```text
 /duckdb/mcp       internal MCP over streamable HTTP
-/duckdb/healthz   operational health
+/duckdb/healthz   process liveness
+/duckdb/readyz    selected platform database accepts queries within five seconds
 ```
 
 The MCP transport is stateless Streamable HTTP. Ordinary terminal responses are JSON;

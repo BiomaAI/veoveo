@@ -1094,3 +1094,11 @@ The risk-based suite targets representative acquisition, land routing,
 governed-network routing, restriction, invalidation, Task API, and persistence
 boundaries. Authority datasets and certified performance models add their own
 domain acceptance cases as they enter an installation.
+
+## HTTP Probes
+
+The shared host serves `/map/healthz` and `/map/readyz` with its
+normal Host validation. Liveness checks the spatial engine, supervised routing process and routing HTTP
+endpoint. Readiness requires those checks and a query against the selected platform
+database to succeed within five seconds. Database loss affects readiness without
+turning a recoverable connection outage into a liveness-driven restart.

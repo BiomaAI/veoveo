@@ -185,3 +185,11 @@ in policy — see `configs/gateway.local.json`.
   model already has.
 - Size caps: app HTML ≤ 2 MiB (host-enforced and locally tested), call
   arguments ≤ 256 KiB, call results ≤ 2 MiB (console BFF).
+
+## HTTP Probes
+
+The shared host serves `/timeseries/healthz` and `/timeseries/readyz` with its
+normal Host validation. Liveness reports that the HTTP process is running. Readiness requires the selected
+platform database to accept a query within five seconds. A database outage returns
+503 from readiness while liveness stays 200; forecast Tasks retain their existing
+recovery semantics.

@@ -204,3 +204,11 @@ timeout and each notification has a 10-second timeout.
 typed caller and member identities to `deadlines.surql`. Native HTTP tests run the
 MCP adapter and Artifact service against an isolated Store and exercise revocation,
 grant expiry without a write, and retention of a member beyond the first index page.
+
+## HTTP Probes
+
+The shared host serves `/artifact/healthz` and `/artifact/readyz` with its
+normal Host validation. Liveness reports that the HTTP process is running. Readiness requires the selected
+platform database to accept a query and the internal Artifact service to report
+ready, within one five-second deadline. Dependency loss returns 503 from readiness
+while liveness stays 200; recovering a dependency requires no MCP process restart.
