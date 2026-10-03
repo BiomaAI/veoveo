@@ -2,11 +2,7 @@
 use super::{
     app_state::AppState,
     outputs::usage_record,
-    ownership::{
-        database_page_for_identity, internal_caller, internal_identity, resolve_readable_database,
-        runtime_owner,
-    },
-    setup::SERVER_DOCS,
+    ownership::{database_page_for_identity, resolve_readable_database, runtime_owner},
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use rmcp::{
@@ -23,7 +19,10 @@ use veoveo_duckdb_mcp::{
     uris,
     usage::DuckDbUsage,
 };
-use veoveo_mcp_contract::UsageReport;
+use veoveo_mcp_contract::{
+    UsageReport,
+    hosting::{gateway_identity, plane_caller, served_by_host},
+};
 
 fn json_resource(uri: &str, value: &impl Serialize) -> Result<ReadResourceResult, McpError> {
     let text = serde_json::to_string(value)
@@ -33,25 +32,18 @@ fn json_resource(uri: &str, value: &impl Serialize) -> Result<ReadResourceResult
     ]))
 }
 
+/// Reads one admitted address. The host serves documents and the contract.
 pub(super) async fn read(
     state: &Arc<AppState>,
+    resource: DuckDbResource,
     uri: &str,
     context: &RequestContext<RoleServer>,
 ) -> Result<ReadResourceResult, McpError> {
-    let identity = internal_identity(context)?;
-    let resource = DuckDbResource::parse(uri)
-        .map_err(|_| McpError::invalid_params("invalid DuckDB resource address", None))?;
+    let identity = gateway_identity(context)?;
     match resource {
-        DuckDbResource::Docs => json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>()),
-        DuckDbResource::Document(id) => {
-            let doc = SERVER_DOCS
-                .doc(id.as_str())
-                .ok_or_else(|| McpError::resource_not_found("unknown DuckDB document", None))?;
-            Ok(ReadResourceResult::new(vec![
-                ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
-            ]))
+        DuckDbResource::Docs | DuckDbResource::Document(_) | DuckDbResource::Contract => {
+            Err(served_by_host())
         }
-        DuckDbResource::Contract => json_resource(uri, &SERVER_DOCS.contract_declaration()),
         DuckDbResource::Workbench => Ok(ReadResourceResult::new(vec![
             veoveo_mcp_apps_extension::app_html_contents(uri, &workbench_html()),
         ])),
@@ -93,7 +85,7 @@ pub(super) async fn read(
         DuckDbResource::Artifact(id) => {
             let artifact = state
                 .artifacts
-                .get(&internal_caller(context)?, &id)
+                .get(&plane_caller(context)?, &id)
                 .await
                 .map_err(|error| McpError::internal_error(error.to_string(), None))?
                 .ok_or_else(|| McpError::resource_not_found("unknown artifact", None))?;

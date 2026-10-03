@@ -4,69 +4,16 @@ use std::{
 };
 
 use chrono::{TimeDelta, Utc};
-use rmcp::{ErrorData as McpError, RoleServer, service::RequestContext};
+use rmcp::ErrorData as McpError;
 use sha2::{Digest, Sha256};
 use veoveo_duckdb_mcp::contract::DuckDbDatabaseId;
 use veoveo_mcp_contract::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalIdentity, GatewayProfileId, JwtId, PlaneCaller,
-    Principal, PrincipalKind, ServerSlug, TokenIssuer, TokenSubject,
+    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalIdentity, GatewayProfileId, JwtId, Principal,
+    PrincipalKind, ServerSlug, TokenIssuer, TokenSubject,
 };
 use veoveo_types::{PrincipalId, TenantId};
 
 use super::app_state::AppState;
-
-pub(super) fn internal_identity(
-    context: &RequestContext<RoleServer>,
-) -> Result<GatewayInternalIdentity, McpError> {
-    let parts = context
-        .extensions
-        .get::<axum::http::request::Parts>()
-        .ok_or_else(|| {
-            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
-        })?;
-    parts
-        .extensions
-        .get::<GatewayInternalIdentity>()
-        .cloned()
-        .ok_or_else(|| {
-            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
-        })
-}
-
-pub(super) fn internal_caller(
-    context: &RequestContext<RoleServer>,
-) -> Result<PlaneCaller, McpError> {
-    let parts = context
-        .extensions
-        .get::<axum::http::request::Parts>()
-        .ok_or_else(|| {
-            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
-        })?;
-    let identity = parts
-        .extensions
-        .get::<GatewayInternalIdentity>()
-        .cloned()
-        .ok_or_else(|| {
-            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
-        })?;
-    let bearer = parts
-        .extensions
-        .get::<super::internal_auth::ForwardedBearer>()
-        .map(|bearer| bearer.0.clone())
-        .ok_or_else(|| {
-            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
-        })?;
-    Ok(caller_from(identity, bearer))
-}
-
-pub(super) fn caller_from(identity: GatewayInternalIdentity, bearer: String) -> PlaneCaller {
-    let memberships = identity.actor.group_memberships();
-    PlaneCaller {
-        bearer_token: bearer,
-        identity,
-        memberships,
-    }
-}
 
 pub(super) fn runtime_owner(identity: &GatewayInternalIdentity) -> veoveo_task_runtime::TaskOwner {
     veoveo_task_runtime::TaskOwner {

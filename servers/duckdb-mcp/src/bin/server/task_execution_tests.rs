@@ -79,7 +79,10 @@ async fn execution_and_recovered_query_keep_native_ids_in_results_and_usage() {
         // Exercise the checked source options and preserve the quoted identifier
         // through real ingest, result metadata and a subsequent read.
         let table = "  Order \"Lines\"  ";
-        let caller = crate::ownership::caller_from(identity.clone(), "fixture-bearer".into());
+        let caller = veoveo_mcp_contract::PlaneCaller::from_gateway(
+            identity.clone(),
+            veoveo_mcp_contract::hosting::ForwardedBearer::new("fixture-bearer"),
+        );
         let request = serde_json::from_value(json!({
             "db":"metrics", "table":table, "mode":"create",
             "source":{"kind":"inline_csv", "csv":"value\n43\nNA\n", "options":{

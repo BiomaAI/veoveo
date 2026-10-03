@@ -492,6 +492,7 @@ even when that server is first-party.
 | `bootstrap.rs` | generic installation-time server bootstrap envelope, constants, and semantics |
 | `tasks.rs` | platform task ownership and durable routing vocabulary; official MCP Task wire types come from `rmcp` |
 | `provider.rs` | provider job/event contracts; no status polling API |
+| `hosting/` | the shared hosted server: `HostedServer` builder, `Hosted` handler over a typed `DomainServer` and `TaskSupport`, gateway authentication and caller extraction, host validation, administrative documents and discovery results |
 | `subscriptions.rs` | request-scoped resource and list-change event hub for final `subscriptions/listen` streams |
 | `protocol.rs` | sole final MCP revision, shared cache lifetimes, and W3C trace metadata validation |
 | `transport.rs` | stateless Streamable HTTP configuration, no-session adapter, and the 8 MiB whole-response JSON limit |

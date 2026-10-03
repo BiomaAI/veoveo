@@ -38,9 +38,11 @@ and do not override this status or the requirements below.
 3. Close the inventory's outstanding cross-replica, provider and current-format
    restart requirements, including UAV outcome recovery and the Computers installed
    batch. Native checks do not substitute for those installed cases.
-4. Resolve [Deferred Work](#deferred-work): Rerun timeline/playback/timing and landing
+4. Move every Rust server onto the shared host, as
+   [Hosted Server Adoption](#hosted-server-adoption) describes. DuckDB is migrated.
+5. Resolve [Deferred Work](#deferred-work): Rerun timeline/playback/timing and landing
    visual acceptance. Keep the declared hardware, freshness and flight-health gates.
-5. Audit every phase's numbered requirements and acceptance conditions against the
+6. Audit every phase's numbered requirements and acceptance conditions against the
    final source and deployed revisions. Update owning designs and standards registers.
    Delete this plan and its CODEMAP row only when all required work is accepted.
 
@@ -517,6 +519,30 @@ invariants are checked. Record remaining adoption explicitly in the inventory be
   keeps authentication, authorization, recovery, SQL selection, and required hardware
   checks distinct from compile-time structure. Update owning designs and compliance
   declarations with their actual implementation and qualification status.
+
+#### Hosted Server Adoption
+
+`veoveo_mcp_contract::hosting` hosts a server from its checked setup, a typed
+`DomainServer` and optional `TaskSupport`. The contract's
+[Hosting A Server](../mcp/contract/DESIGN.md#hosting-a-server) section is the
+procedure, and `servers/duckdb-mcp` is the reference migration: it deleted its host
+check, authentication middleware, administrative routes, list handlers, task
+forwarding and router wiring, 487 lines net.
+
+Migrate each remaining server in its own commit. Each migration deletes the server's
+`impl ServerHandler`, `host.rs`, `internal_auth.rs`, `admin.rs`, `mcp_page` helper and
+identity extractors, then passes the server's tests and strict Clippy. Behavior that
+the host now standardizes changes deliberately: a missing Host authority is 400, an
+unparseable address is Invalid Params, and lists are authenticated.
+
+| Order | Servers | Builder extension needed first |
+|---|---|---|
+| 1 | timeseries, frames, media, time, view, uav-sim, optimization | Prompts on `DomainServer` for servers that declare them |
+| 2 | stream, reason, speech, recording | `TaskSupport` with typed resource-subscription admission and the shared hub, beside `DurableTasks::tasks_only` |
+| 3 | map, artifact, knowledge, computers | Domain hooks for dynamic `resources/list` and caller-filtered tool lists; computers and knowledge move their tools onto `#[tool_router]` |
+
+Add each extension to the host with a test before the servers that need it migrate.
+A server-specific HTTP route uses `authenticated_routes`; a probe uses `readiness`.
 
 #### Migration Inventory And Status
 

@@ -437,6 +437,58 @@ URI conventions, Work Context propagation, and internal identity.
   `response_serialization_failed`. Neither diagnostic contains a partial
   result or an internal error detail.
 
+## Hosting A Server
+
+A Rust server is hosted through `veoveo_mcp_contract::hosting` and writes no
+`impl ServerHandler`, router, authentication middleware, or host check. It
+supplies three things:
+
+1. **A checked setup.** Implement `McpServerContract` with the server's scope enum,
+   typed resource address, documents and resource declarations, and force its
+   `McpServerSetup` before Store or engine initialization.
+2. **A domain.** Implement `DomainServer`: `tool_router` for the tools,
+   `describe_tool` to adjust descriptors such as App links, `read` for one admitted
+   address, and optionally `complete`. `read` receives a parsed address; its
+   documents and contract variants answer `served_by_host()`, because the host serves
+   them first.
+3. **Optional task support.** A server with durable tasks wraps its
+   `DurableTaskService` in `veoveo_task_runtime::DurableTasks`; a server without
+   tasks uses the default `NoTasks`.
+
+```rust
+let server = HostedServer::builder(&*setup::SERVER_SETUP)
+    .deployment(&public_deployment, args.allow_loopback_hosts)?
+    .allowed_hosts(args.allowed_hosts.iter().cloned())
+    .internal_trust(GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?)?
+    .handler(move || {
+        Hosted::new(MyDomain::new(state.clone()))
+            .with_tasks(DurableTasks::tasks_only(MyTasks::new(state.clone())))
+    })
+    .build();
+server.serve(SocketAddr::from(([0, 0, 0, 0], args.port))).await
+```
+
+The builder offers `build` only after the deployment, internal trust and handler
+are set. `authenticated_routes`, `public_routes` and `readiness` add
+server-specific HTTP. Inside a domain method, `gateway_identity`,
+`forwarded_bearer` and `plane_caller` return the verified caller.
+
+The host gives every server the same behavior:
+
+| Behavior | Host rule |
+|---|---|
+| Routes | `{mount}/healthz`, optional `{mount}/readyz`, `{mount}/admin/docs/*` and `{mount}/mcp` |
+| Authentication | Gateway internal assertion on MCP, admin and authenticated routes; the token audience is the server slug |
+| Host validation | 400 without a Host authority, 421 for an authority outside the deployment's allowed hosts |
+| Discovery | Authenticated `resources/list`, `resources/templates/list` and `tools/list` from the setup, sorted, 100 per page, private, five-second cache |
+| Well-known reads | `{scheme}://docs` routes and `{scheme}://contract` |
+| Address admission | An unparseable URI is Invalid Params (-32602) before domain code runs |
+| Read cache | The private resource cache policy on every domain read |
+| Tools | Durable tasks start first; other calls dispatch through the tool router |
+| Shutdown | SIGTERM or Ctrl-C, cancelling in-flight MCP work |
+
+`servers/duckdb-mcp` is the reference implementation.
+
 ## Deployment Identity
 
 Ordinary hosted MCP endpoints and the gateway run behind load-balanced replicas.

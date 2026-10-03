@@ -172,8 +172,10 @@ mod tests {
             .actor
             .data_labels
             .insert(DataLabelId::new("mission").unwrap());
-        let caller =
-            super::super::ownership::caller_from(identity.clone(), "fixture-bearer".into());
+        let caller = veoveo_mcp_contract::PlaneCaller::from_gateway(
+            identity.clone(),
+            veoveo_mcp_contract::hosting::ForwardedBearer::new("fixture-bearer"),
+        );
         let writer = ArtifactWriter::caller(caller);
         let output = writer
             .prepare(ArtifactPut::new(vec![1, 2, 3]), origin())

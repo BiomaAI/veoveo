@@ -48,6 +48,9 @@ engine rather than by narrowing SQL.
   disabled. Keep MCP and engine dependencies outside it; source policy belongs to the
   materializing server. Database, document, Artifact and usage routes use the contract-owned
   `DuckDbResource` admission and typed builders. Never reconstruct a resource with string prefixes.
+- The server is hosted through `veoveo_mcp_contract::hosting`: `DuckdbMcp` implements
+  `DomainServer`, and `DurableTasks` adapts its task service. Do not add a
+  `ServerHandler`, router, host check or authentication middleware here.
 - Force `setup::SERVER_SETUP` before Store or engine initialization. The setup owns
   static discovery; resource reads dispatch admitted variants. Database pagination
   scans only the directory derived from verified identity, with no schema or file-byte reads.

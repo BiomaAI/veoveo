@@ -15,23 +15,15 @@ use std::{
     sync::{Arc, LazyLock},
 };
 
-use axum::{Router, middleware, routing::get};
 use clap::Parser;
 use rmcp::tool;
 use rmcp::{
-    ErrorData as McpError, RoleServer, ServerHandler,
+    ErrorData as McpError, RoleServer,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
-    model::{
-        CallToolRequestParams, CallToolResponse, CallToolResult, CancelTaskParams, GetTaskParams,
-        GetTaskResult, ListResourceTemplatesResult, ListResourcesResult, ListToolsResult,
-        PaginatedRequestParams, ReadResourceRequestParams, ServerConfig, SubscriptionFilter,
-        UpdateTaskParams,
-    },
-    service::{RequestContext, SubscriptionContext},
-    tool_handler, tool_router,
-    transport::streamable_http_server::StreamableHttpService,
+    model::{CallToolResult, ReadResourceRequestParams, ReadResourceResult, Tool},
+    service::RequestContext,
+    tool_router,
 };
-use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_duckdb_mcp::{
     artifacts::ArtifactRepository,
     contract::{
@@ -42,23 +34,19 @@ use veoveo_duckdb_mcp::{
     uris,
 };
 use veoveo_mcp_contract::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle, Page,
-    ServerSlug, TelemetryGuard, TokenIssuer, init_server_telemetry, paginate, public_allowed_hosts,
+    GatewayInternalTrustBundle, TelemetryGuard,
+    hosting::{DomainAddress, DomainServer, Hosted, HostedServer, gateway_identity, plane_caller},
+    init_server_telemetry,
+    server_contract::McpServerSetup,
 };
-use veoveo_task_runtime::{TaskError, TaskRuntime, TaskRuntimeConfig};
+use veoveo_task_runtime::{DurableTasks, TaskError, TaskRuntime, TaskRuntimeConfig};
 
-#[path = "server/admin.rs"]
-mod admin;
 #[path = "server/app_state.rs"]
 mod app_state;
 #[path = "server/artifact_output.rs"]
 mod artifact_output;
 #[path = "server/config.rs"]
 mod config;
-#[path = "server/host.rs"]
-mod host;
-#[path = "server/internal_auth.rs"]
-mod internal_auth;
 #[path = "server/outputs.rs"]
 mod outputs;
 #[path = "server/ownership.rs"]
@@ -80,26 +68,24 @@ mod test_support;
 use app_state::{AppState, Caps, ServerDirs};
 use artifact_output::ArtifactWriter;
 use config::Args;
-use host::validate_host;
-use internal_auth::{InternalMcpAuthState, authenticate_internal_mcp};
-use ownership::{internal_caller, internal_identity};
+use setup::DuckDbContract;
 use task_extension::DuckdbTaskService;
 use tasks::resume_duckdb_task;
 
 const SERVER_SLUG: &str = "duckdb";
-const LIST_PAGE_SIZE: usize = 100;
 
+#[cfg(test)]
 use setup::SERVER_DOCS;
 
 fn install_rustls_provider() {
     let _ = rustls::crypto::ring::default_provider().install_default();
 }
 
+/// DuckDB's domain: tools and admitted resource reads. The host supplies the
+/// rest of the MCP surface.
 #[derive(Clone)]
 struct DuckdbMcp {
     state: Arc<AppState>,
-    task_service: DuckdbTaskService,
-    #[allow(dead_code)]
     tool_router: ToolRouter<DuckdbMcp>,
 }
 
@@ -107,7 +93,6 @@ struct DuckdbMcp {
 impl DuckdbMcp {
     fn new(state: Arc<AppState>) -> Self {
         Self {
-            task_service: DuckdbTaskService::new(state.clone()),
             state,
             tool_router: Self::tool_router(),
         }
@@ -129,8 +114,8 @@ impl DuckdbMcp {
         Parameters(args): Parameters<DuckDbQueryRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let caller = internal_caller(&context)?;
-        let identity = internal_identity(&context)?;
+        let caller = plane_caller(&context)?;
+        let identity = gateway_identity(&context)?;
         let writer = ArtifactWriter::caller(caller);
         let output = sql_ops::query_op(&self.state, &writer, &identity, args).await?;
         outputs::query_result(&output)
@@ -152,7 +137,7 @@ impl DuckdbMcp {
         Parameters(args): Parameters<DuckDbExecuteRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = internal_identity(&context)?;
+        let identity = gateway_identity(&context)?;
         let output = sql_ops::execute_op(&self.state, &identity, args).await?;
         outputs::execute_result(&output)
     }
@@ -200,179 +185,35 @@ impl DuckdbMcp {
     }
 }
 
-fn mcp_page<T>(
-    items: Vec<T>,
-    request: Option<&PaginatedRequestParams>,
-) -> Result<Page<T>, McpError> {
-    paginate(items, request, LIST_PAGE_SIZE)
-        .map_err(|err| McpError::invalid_params(err.to_string(), None))
-}
+impl DomainServer for DuckdbMcp {
+    type Contract = DuckDbContract;
 
-#[tool_handler]
-impl ServerHandler for DuckdbMcp {
-    fn supported_protocol_versions(
-        &self,
-    ) -> std::borrow::Cow<'static, [rmcp::model::ProtocolVersion]> {
-        veoveo_mcp_contract::final_protocol_versions()
+    fn setup() -> &'static McpServerSetup<DuckDbContract> {
+        &setup::SERVER_SETUP
     }
 
-    fn get_info(&self) -> ServerConfig {
-        setup::SERVER_SETUP.server_config().clone()
+    fn tool_router(&self) -> &ToolRouter<Self> {
+        &self.tool_router
     }
 
-    async fn call_tool(
-        &self,
-        mut request: CallToolRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<CallToolResponse, McpError> {
-        if let Some(created) =
-            veoveo_task_runtime::start_durable_tool_task(&self.task_service, &mut request, &context)
-                .await?
-        {
-            return Ok(created.into());
-        }
-        let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
-        self.tool_router.call(call).await
-    }
-
-    async fn get_task(
-        &self,
-        request: GetTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<GetTaskResult, McpError> {
-        let caller =
-            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
-        veoveo_task_runtime::DurableTaskService::get_task(&self.task_service, &caller, request)
-            .await
-    }
-
-    async fn update_task(
-        &self,
-        request: UpdateTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        let caller =
-            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
-        veoveo_task_runtime::DurableTaskService::update_task(&self.task_service, &caller, request)
-            .await
-    }
-
-    async fn cancel_task(
-        &self,
-        request: CancelTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        let caller =
-            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
-        veoveo_task_runtime::DurableTaskService::cancel_task(
-            &self.task_service,
-            &caller,
-            request.task_id,
+    fn describe_tool(&self, tool: Tool) -> Tool {
+        veoveo_mcp_apps_extension::link_tool_to_app(
+            tool,
+            uris::WORKBENCH_APP_URI,
+            &[
+                veoveo_mcp_apps_extension::UiVisibility::Model,
+                veoveo_mcp_apps_extension::UiVisibility::App,
+            ],
         )
-        .await
     }
 
-    fn accepted_subscription_filter(
+    async fn read(
         &self,
-        requested: &SubscriptionFilter,
-    ) -> Option<SubscriptionFilter> {
-        veoveo_mcp_contract::accepted_task_subscription_filter(requested)
-    }
-
-    async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
-        veoveo_task_runtime::listen_durable_subscriptions(&self.task_service, context, None, None)
-            .await
-    }
-
-    async fn list_tools(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListToolsResult, McpError> {
-        let mut tools = self.tool_router.list_all();
-        tools.sort_by(|left, right| left.name.cmp(&right.name));
-        tools = tools
-            .into_iter()
-            .map(|tool| {
-                veoveo_mcp_apps_extension::link_tool_to_app(
-                    tool,
-                    uris::WORKBENCH_APP_URI,
-                    &[
-                        veoveo_mcp_apps_extension::UiVisibility::Model,
-                        veoveo_mcp_apps_extension::UiVisibility::App,
-                    ],
-                )
-            })
-            .collect();
-        let page = mcp_page(tools, request.as_ref())?;
-        Ok(ListToolsResult {
-            tools: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
-    }
-
-    async fn list_resources(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        context: RequestContext<RoleServer>,
-    ) -> Result<ListResourcesResult, McpError> {
-        internal_identity(&context)?;
-        let mut resources = setup::SERVER_SETUP
-            .resources()
-            .iter()
-            .map(|r| r.descriptor().clone())
-            .collect::<Vec<_>>();
-        resources.sort_by(|left, right| left.uri.cmp(&right.uri));
-        let page = mcp_page(resources, request.as_ref())?;
-        Ok(ListResourcesResult {
-            resources: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
-    }
-
-    async fn list_resource_templates(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListResourceTemplatesResult, McpError> {
-        let page = mcp_page(
-            setup::SERVER_SETUP
-                .resource_templates()
-                .iter()
-                .map(|r| r.descriptor().clone())
-                .collect::<Vec<_>>(),
-            request.as_ref(),
-        )?;
-        Ok(ListResourceTemplatesResult {
-            resource_templates: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
-    }
-
-    async fn read_resource(
-        &self,
-        request: ReadResourceRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
-        if let Some(result) = setup::SERVER_SETUP.read_documents(&request, &context)? {
-            return Ok(result);
-        }
-        let cacheable = request.request_state.is_none() && request.input_responses.is_none();
-        resources::read(&self.state, &request.uri, &context)
-            .await
-            .map(|result| veoveo_mcp_contract::private_resource_response(result, cacheable))
+        address: DomainAddress<DuckDbContract>,
+        request: &ReadResourceRequestParams,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<ReadResourceResult, McpError> {
+        resources::read(&self.state, address, &request.uri, context).await
     }
 }
 
@@ -385,7 +226,6 @@ async fn main() -> anyhow::Result<()> {
         init_server_telemetry("veoveo-duckdb-mcp", "info,veoveo_duckdb_mcp=debug")?;
     let args = Args::parse();
     let public_deployment = args.public_deployment()?;
-    let public_endpoint = public_deployment.server(SERVER_SLUG)?;
     for dir in [&args.database_dir, &args.exchange_dir, &args.spill_dir] {
         std::fs::create_dir_all(dir)?;
     }
@@ -400,11 +240,6 @@ async fn main() -> anyhow::Result<()> {
         spatial_axis_policy: engine::SpatialAxisPolicy::Native,
     };
     engine::verify_spatial(&engine_settings)?;
-    let internal_token_verifier = GatewayInternalTokenVerifier::new(
-        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
-        ServerSlug::new(SERVER_SLUG)?,
-        GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?,
-    );
     let artifacts = ArtifactRepository::new(args.artifact_service_url.clone());
     let tasks = TaskRuntime::connect(
         TaskRuntimeConfig::new(
@@ -451,69 +286,21 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    let ct = tokio_util::sync::CancellationToken::new();
-    let mut allowed_hosts = public_allowed_hosts(&public_deployment, args.allow_loopback_hosts);
-    allowed_hosts.extend(args.allowed_hosts.iter().cloned());
-    let allowed_hosts = Arc::new(allowed_hosts);
-    let internal_auth_state = InternalMcpAuthState {
-        verifier: internal_token_verifier,
-    };
-    let mcp_service = StreamableHttpService::new(
-        {
-            let state = state.clone();
-            move || Ok(DuckdbMcp::new(state.clone()))
-        },
-        veoveo_mcp_contract::stateless_session_manager(),
-        veoveo_mcp_contract::canonical_streamable_http_server_config()
-            .with_allowed_hosts(allowed_hosts.iter().cloned())
-            .with_cancellation_token(ct.child_token()),
-    );
-    let mcp_router = Router::new()
-        .route_service("/", mcp_service.clone())
-        .route_service("/{*path}", mcp_service)
-        .layer(middleware::from_fn(
-            veoveo_mcp_contract::enforce_serialized_mcp_response,
-        ))
-        .layer(middleware::from_fn_with_state(
-            internal_auth_state.clone(),
-            authenticate_internal_mcp,
-        ));
-    let admin_router = admin::router().layer(middleware::from_fn_with_state(
-        internal_auth_state,
-        authenticate_internal_mcp,
-    ));
-    let server_router = Router::new()
-        .route("/healthz", get(|| async { "ok" }))
-        .with_state(state.clone())
-        .nest("/admin", admin_router)
-        .nest("/mcp", mcp_router);
-    let router = Router::new()
-        .nest(public_endpoint.mount_path(), server_router)
-        .layer(middleware::from_fn_with_state(
-            allowed_hosts.clone(),
-            validate_host,
-        ))
-        .layer(
-            TraceLayer::new_for_http()
-                .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO)),
-        );
-
-    let addr = SocketAddr::from(([0, 0, 0, 0], args.port));
-    tracing::info!(
-        service = "veoveo-duckdb-mcp",
-        address = %addr,
-        mcp_path = public_endpoint.path("mcp"),
-        public_url = public_endpoint.public_url(),
-        "listening"
-    );
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, router)
-        .with_graceful_shutdown(async move {
-            let _ = tokio::signal::ctrl_c().await;
-            ct.cancel();
+    let server = HostedServer::builder(&*setup::SERVER_SETUP)
+        .deployment(&public_deployment, args.allow_loopback_hosts)?
+        .allowed_hosts(args.allowed_hosts.iter().cloned())
+        .internal_trust(GatewayInternalTrustBundle::from_json(
+            &args.internal_trust_jwks,
+        )?)?
+        .handler(move || {
+            Hosted::new(DuckdbMcp::new(state.clone())).with_tasks(DurableTasks::tasks_only(
+                DuckdbTaskService::new(state.clone()),
+            ))
         })
-        .await?;
-    Ok(())
+        .build();
+    server
+        .serve(SocketAddr::from(([0, 0, 0, 0], args.port)))
+        .await
 }
 
 #[cfg(test)]
