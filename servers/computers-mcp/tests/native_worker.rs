@@ -217,11 +217,7 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
     let ready = a.get(&actor, computer.computer_id).await.unwrap();
     assert_eq!(ready.phase, ComputerPhase::Ready);
     assert!(ready.active_operation.is_none());
-    let result = tasks_a
-        .get(&create.task_id().to_string())
-        .await
-        .unwrap()
-        .unwrap();
+    let result = tasks_a.get(create.task_id()).await.unwrap().unwrap();
     assert_eq!(result.status, TaskStatus::Succeeded);
     assert!(result.retention_pins.is_empty());
     assert!(a.pending_operations(None, 100).await.unwrap().is_empty());
@@ -290,7 +286,7 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
         .await
         .unwrap();
     let claim = tasks_a
-        .claim_observation(&stop.task_id().to_string(), Duration::from_secs(60))
+        .claim_observation(stop.task_id(), Duration::from_secs(60))
         .await
         .unwrap();
     drop(a.begin_dispatch(&claim).await.unwrap());
@@ -310,7 +306,7 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
         .wait_for_lifecycle(&checkpoint, &stopping, Duration::from_secs(30))
         .await
         .unwrap();
-    tasks_a.cancel(&stop.task_id().to_string()).await.unwrap();
+    tasks_a.cancel(stop.task_id()).await.unwrap();
     expire(&tasks_a, &stop).await;
     let preparations = gate.preparations.load(Ordering::SeqCst);
     assert_eq!(
@@ -322,11 +318,7 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
         preparations,
         "recovery cannot enter dispatch preflight"
     );
-    let result = tasks_b
-        .get(&stop.task_id().to_string())
-        .await
-        .unwrap()
-        .unwrap();
+    let result = tasks_b.get(stop.task_id()).await.unwrap().unwrap();
     assert_eq!(result.status, TaskStatus::Succeeded);
     assert!(result.cancel_requested_at.is_some());
     assert_eq!(
@@ -352,7 +344,7 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
             .await
             .unwrap();
         if cancelled {
-            tasks_a.cancel(&start.task_id().to_string()).await.unwrap();
+            tasks_a.cancel(start.task_id()).await.unwrap();
         }
         if !cancelled {
             let mut denied = support::policy::control();
@@ -363,11 +355,7 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
             worker_a.step(start.clone()).await.unwrap(),
             WorkerStep::Settled
         );
-        let result = tasks_a
-            .get(&start.task_id().to_string())
-            .await
-            .unwrap()
-            .unwrap();
+        let result = tasks_a.get(start.task_id()).await.unwrap().unwrap();
         assert_eq!(
             result.status,
             if cancelled {
@@ -405,7 +393,7 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
         .await
         .unwrap();
     let claim = tasks_a
-        .claim_observation(&start.task_id().to_string(), Duration::from_secs(60))
+        .claim_observation(start.task_id(), Duration::from_secs(60))
         .await
         .unwrap();
     drop(a.begin_dispatch(&claim).await.unwrap());
@@ -445,7 +433,7 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
     assert!(a.pending_operations(None, 100).await.unwrap().is_empty());
     assert!(
         tasks_b
-            .get(&start.task_id().to_string())
+            .get(start.task_id())
             .await
             .unwrap()
             .unwrap()

@@ -14,7 +14,7 @@ impl<G: Preflight> LifecycleWorker<G> {
             tokio::select! {
                 biased;
                 _ = renewal.tick() => {
-                    let snapshot = tokio::time::timeout(Duration::from_secs(5), self.tasks.renew_lease(&claimed.snapshot.task_id.to_string(), LEASE_DURATION))
+                    let snapshot = tokio::time::timeout(Duration::from_secs(5), self.tasks.renew_lease(claimed.snapshot.task_id, LEASE_DURATION))
                         .await.map_err(|_| WorkerError::LeaseLost)??;
                     claimed.lease_expires_at = snapshot.lease_expires_at.ok_or(WorkerError::LeaseLost)?;
                     claimed.snapshot = snapshot;

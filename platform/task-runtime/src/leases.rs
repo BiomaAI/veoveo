@@ -2,14 +2,15 @@
 use crate::{
     TaskRuntime,
     types::{
-        ClaimedTask, RecoveryClass, RequestEnvelope, TaskError, TaskSnapshot, parse_task_id,
-        record_to_snapshot,
+        ClaimedTask, RecoveryClass, RequestEnvelope, TaskError, TaskSnapshot, record_to_snapshot,
+        validate_task_id,
     },
 };
 use chrono::{TimeDelta, Utc};
 use std::time::Duration;
 use veoveo_platform_store::task_record_id;
 use veoveo_platform_store::{TaskRecord, TaskStatus as StoreTaskStatus};
+use veoveo_types::TaskId;
 #[derive(Clone, Copy, PartialEq)]
 enum ClaimKind {
     Execution,
@@ -42,7 +43,7 @@ impl TaskRuntime {
     }
     pub async fn claim(
         &self,
-        task_id: &str,
+        task_id: TaskId,
         lease_duration: Duration,
     ) -> Result<ClaimedTask, TaskError> {
         self.claim_kind(task_id, lease_duration, ClaimKind::Execution)
@@ -53,7 +54,7 @@ impl TaskRuntime {
     /// result and cancellation stay intact; this does not authorize redispatch.
     pub async fn claim_observation(
         &self,
-        task_id: &str,
+        task_id: TaskId,
         lease_duration: Duration,
     ) -> Result<ClaimedTask, TaskError> {
         self.claim_kind(task_id, lease_duration, ClaimKind::ProviderObservation)
@@ -62,7 +63,7 @@ impl TaskRuntime {
 
     async fn claim_kind(
         &self,
-        task_id: &str,
+        task_id: TaskId,
         lease_duration: Duration,
         kind: ClaimKind,
     ) -> Result<ClaimedTask, TaskError> {
@@ -75,9 +76,9 @@ impl TaskRuntime {
         let snapshot = self
             .get(task_id)
             .await?
-            .ok_or_else(|| TaskError::NotFound(task_id.to_owned()))?;
+            .ok_or_else(|| TaskError::NotFound(task_id.to_string()))?;
         if snapshot.server != self.server() {
-            return Err(TaskError::WrongServer(task_id.to_owned()));
+            return Err(TaskError::WrongServer(task_id.to_string()));
         }
         if (snapshot.recovery_class == RecoveryClass::ProviderWait) != observation {
             return Err(TaskError::InvalidRecord(
@@ -88,7 +89,7 @@ impl TaskRuntime {
         if snapshot.lease_expires_at.is_some_and(|expiry| {
             expiry > now && snapshot.lease_owner.as_deref() != Some(self.worker_id())
         }) {
-            return Err(TaskError::LeaseHeld(task_id.to_owned()));
+            return Err(TaskError::LeaseHeld(task_id.to_string()));
         }
         if snapshot.is_terminal()
             || (!observation && snapshot.status == StoreTaskStatus::CancelRequested)
@@ -135,7 +136,7 @@ impl TaskRuntime {
         let snapshot = updated
             .map(record_to_snapshot)
             .transpose()?
-            .ok_or_else(|| TaskError::Conflict(task_id.to_owned()))?;
+            .ok_or_else(|| TaskError::Conflict(task_id.to_string()))?;
         self.note_change();
         Ok(ClaimedTask {
             snapshot,
@@ -146,7 +147,7 @@ impl TaskRuntime {
 
     pub async fn renew_lease(
         &self,
-        task_id: &str,
+        task_id: TaskId,
         lease_duration: Duration,
     ) -> Result<TaskSnapshot, TaskError> {
         if lease_duration.is_zero() {
@@ -154,8 +155,8 @@ impl TaskRuntime {
                 "task lease duration must be greater than zero".to_owned(),
             ));
         }
-        let task_id = parse_task_id(task_id)?;
-        self.get(&task_id.to_string())
+        let task_id = validate_task_id(task_id)?;
+        self.get(task_id)
             .await?
             .ok_or_else(|| TaskError::NotFound(task_id.to_string()))?;
         let now = Utc::now();

@@ -52,12 +52,12 @@ async fn execution_and_recovered_query_keep_native_ids_in_results_and_usage() {
                 idempotency_key: None, ttl_ms: Some(MCP_TASK_TTL_MS), poll_interval_ms: None,
                 retention_pins: BTreeSet::new(),
             }).await.unwrap();
-            state.tasks.claim(&task_id.to_string(), TASK_LEASE_DURATION).await.unwrap();
+            state.tasks.claim(task_id, TASK_LEASE_DURATION).await.unwrap();
             // Recover the exact retained identity and request before running the worker.
             let identity = identity_from_runtime(&created.snapshot.owner).unwrap();
             let request = serde_json::from_value(created.snapshot.request).unwrap();
             run_task(state.clone(), task_id, identity, request, None, CancellationToken::new()).await;
-            let TaskPayloadState::Completed(payload) = state.tasks.payload_state(&task_id.to_string()).await.unwrap() else { panic!("Task did not settle"); };
+            let TaskPayloadState::Completed(payload) = state.tasks.payload_state(task_id).await.unwrap() else { panic!("Task did not settle"); };
             let usage = DuckDbUsage::new(&observer).unwrap().task(&owner, &veoveo_duckdb_mcp::contract::DuckDbTaskUsageUri::new(task_id).unwrap()).await.unwrap();
             if wrong_capability {
                 assert_eq!(payload["isError"], true);

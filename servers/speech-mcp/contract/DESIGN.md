@@ -27,6 +27,8 @@ admission obtains its name through `veoveo-types::TaskTypeDefinition`. Shared Ta
 infrastructure imports no Speech types.
 
 `identity.rs` owns distinct `TranscriptionId` and `DictationSessionId` values.
+`TranscriptionId::try_from(TaskId)` checks the native UUIDv7 profile without a text
+round trip; `task_id()` supplies its native runtime identity.
 `resources.rs` owns all Speech resource families and document names. Its
 `TranscriptionUri` and `DictationUri` constructors require the matching identity type;
 their JSON representation is a string. `SpeechScope` declares no additional domain

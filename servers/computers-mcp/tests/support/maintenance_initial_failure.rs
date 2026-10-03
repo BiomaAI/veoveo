@@ -72,7 +72,7 @@ impl Scenario<'_> {
             .await
             .unwrap();
         let claim = tasks
-            .claim_observation(&original.task_id().to_string(), Duration::from_secs(60))
+            .claim_observation(original.task_id(), Duration::from_secs(60))
             .await
             .unwrap();
         let ticket = store.begin_dispatch(&claim).await.unwrap();

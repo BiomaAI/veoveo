@@ -218,7 +218,9 @@ mod tests {
             SpeechResource::parse(&draft.to_string()).unwrap(),
             SpeechResource::Dictation(session)
         );
-        let task = TranscriptionId::new();
+        let native_task = veoveo_types::TaskId::new();
+        let task = TranscriptionId::try_from(native_task).unwrap();
+        assert_eq!(task.task_id(), native_task);
         assert_eq!(
             SpeechResource::parse(&TranscriptionUri::new(task).to_string()).unwrap(),
             SpeechResource::Transcript(task)

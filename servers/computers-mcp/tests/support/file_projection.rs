@@ -344,7 +344,7 @@ async fn exercise(import: bool) {
     // Qualify projection of a verified domain receipt without claiming native I/O.
     let tasks = TaskRuntime::new(db.a.clone(), "computers", "file-projection-worker");
     let claim = tasks
-        .claim_observation(id, Duration::from_secs(60))
+        .claim_observation(id.parse().unwrap(), Duration::from_secs(60))
         .await
         .unwrap();
     let ticket = a
@@ -366,7 +366,7 @@ async fn exercise(import: bool) {
     };
     tasks
         .transition(
-            id,
+            id.parse().unwrap(),
             TaskTransition::Succeeded {
                 message: "File transferred".into(),
                 result: json!({"content":[],"structuredContent":result,"isError":false}),
@@ -469,7 +469,7 @@ async fn exercise(import: bool) {
     assert_eq!(failed.status(), StatusCode::NOT_FOUND);
     assert!(
         tasks
-            .get(&owned.task_id.to_string())
+            .get(owned.task_id)
             .await
             .unwrap()
             .unwrap()

@@ -54,17 +54,17 @@ impl MaintenanceWorker {
         })
     }
     pub async fn step(&self, operation: MaintenanceOperation) -> Result<WorkerStep> {
-        let id = operation.task_id().to_string();
-        let task = match self.tasks.get(&id).await? {
+        let id = operation.task_id();
+        let task = match self.tasks.get(id).await? {
             Some(task) => task,
             None => {
                 self.store
                     .ensure_maintenance_task(&operation.actor, operation.operation_id)
                     .await?;
                 self.tasks
-                    .get(&id)
+                    .get(id)
                     .await?
-                    .ok_or_else(|| TaskError::NotFound(id.clone()))?
+                    .ok_or_else(|| TaskError::NotFound(id.to_string()))?
             }
         };
         if task.is_terminal() {
@@ -75,7 +75,7 @@ impl MaintenanceWorker {
             self.acknowledge(&current).await?;
             return Ok(WorkerStep::Settled);
         }
-        let mut claim = match self.tasks.claim_observation(&id, LEASE).await {
+        let mut claim = match self.tasks.claim_observation(id, LEASE).await {
             Ok(claim) => claim,
             Err(TaskError::Conflict(_) | TaskError::LeaseHeld(_)) => return Ok(WorkerStep::Busy),
             Err(error) => return Err(error.into()),
@@ -117,10 +117,7 @@ impl MaintenanceWorker {
                 }
                 _ => {}
             }
-            let cancel = self
-                .tasks
-                .is_cancel_requested(&operation.task_id().to_string())
-                .await?;
+            let cancel = self.tasks.is_cancel_requested(operation.task_id()).await?;
             if cancel && operation.steps().is_empty() {
                 let cancelled = self.store.cancel_undispatched_maintenance(claim).await?;
                 self.project(&cancelled).await?;

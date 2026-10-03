@@ -207,7 +207,7 @@ impl veoveo_task_runtime::DurableTaskService for MapTaskExtension {
                     artifact_write_capability: issue_output_capability(
                         self.state.as_ref(),
                         &caller.caller,
-                        &task_id,
+                        task_id,
                     )
                     .await
                     .map_err(|error| rmcp::ErrorData::internal_error(error.to_string(), None))?,
@@ -229,7 +229,7 @@ impl veoveo_task_runtime::DurableTaskService for MapTaskExtension {
                     feature_transfers::prepare_inspection(
                         self.state.as_ref(),
                         caller,
-                        &task_id,
+                        task_id,
                         input,
                     )
                     .await
@@ -241,7 +241,7 @@ impl veoveo_task_runtime::DurableTaskService for MapTaskExtension {
                 let input: ImportFeatureLayerRequest = serde_json::from_value(arguments)
                     .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?;
                 MapTaskRequest::ImportFeatureLayer(
-                    prepare_import_request(self.state.as_ref(), caller, &task_id, input)
+                    prepare_import_request(self.state.as_ref(), caller, task_id, input)
                         .await
                         .map_err(|error| {
                             rmcp::ErrorData::invalid_params(error.to_string(), None)
@@ -263,7 +263,7 @@ impl veoveo_task_runtime::DurableTaskService for MapTaskExtension {
                     artifact_write_capability: issue_output_capability(
                         self.state.as_ref(),
                         &caller.caller,
-                        &task_id,
+                        task_id,
                     )
                     .await
                     .map_err(|error| rmcp::ErrorData::internal_error(error.to_string(), None))?,
@@ -294,7 +294,7 @@ impl veoveo_task_runtime::DurableTaskService for MapTaskExtension {
                     artifact_write_capability: issue_output_capability(
                         self.state.as_ref(),
                         &caller.caller,
-                        &task_id,
+                        task_id,
                     )
                     .await
                     .map_err(|error| rmcp::ErrorData::internal_error(error.to_string(), None))?,
@@ -306,7 +306,7 @@ impl veoveo_task_runtime::DurableTaskService for MapTaskExtension {
                 let input: DeriveRasterRequest = serde_json::from_value(arguments)
                     .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?;
                 MapTaskRequest::DeriveRaster(
-                    prepare_raster_request(self.state.as_ref(), caller, &task_id, input)
+                    prepare_raster_request(self.state.as_ref(), caller, task_id, input)
                         .await
                         .map_err(|error| {
                             rmcp::ErrorData::invalid_params(error.to_string(), None)
@@ -317,7 +317,7 @@ impl veoveo_task_runtime::DurableTaskService for MapTaskExtension {
         };
         let retention_pins = veoveo_task_runtime::retention_pins(request.meta.as_ref())?;
         let uses_task_directory = args.uses_task_directory();
-        let task_key = task_id.to_string();
+        let task_key = task_id;
         let snapshot = start_map_task(
             self.state.clone(),
             task_id,
@@ -330,7 +330,7 @@ impl veoveo_task_runtime::DurableTaskService for MapTaskExtension {
             Ok(snapshot) => snapshot,
             Err(error) => {
                 if uses_task_directory {
-                    cleanup_task_directory(self.state.as_ref(), &task_key).await;
+                    cleanup_task_directory(self.state.as_ref(), task_key).await;
                 }
                 return Err(rmcp::ErrorData::internal_error(error.to_string(), None));
             }
@@ -404,7 +404,7 @@ pub(super) async fn recover_tasks(
         if let Err(error) = schedule_map_task(state.clone(), snapshot, request).await {
             match error.downcast_ref::<TaskError>() {
                 Some(TaskError::LeaseHeld(task_id) | TaskError::Conflict(task_id)) => {
-                    tracing::info!(task_id, "another replica claimed recovered Map task");
+                    tracing::info!(%task_id, "another replica claimed recovered Map task");
                 }
                 _ => return Err(error),
             }
@@ -444,38 +444,32 @@ async fn schedule_map_task(
     snapshot: TaskSnapshot,
     request: MapTaskRequest,
 ) -> anyhow::Result<TaskSnapshot> {
-    let task_id = snapshot.task_id.to_string();
-    let claimed = state.tasks.claim(&task_id, TASK_LEASE_DURATION).await?;
+    let task_id = snapshot.task_id;
+    let claimed = state.tasks.claim(task_id, TASK_LEASE_DURATION).await?;
     let owner = snapshot.owner.clone();
     let cancellation = CancellationToken::new();
     let join = tokio::spawn(run_map_task(
         state.clone(),
-        task_id.clone(),
+        task_id,
         owner,
         request,
         cancellation.clone(),
     ));
     state
         .tasks
-        .register_worker(&task_id, cancellation, join)
+        .register_worker(task_id, cancellation, join)
         .await?;
     Ok(claimed.snapshot)
 }
 
 async fn run_map_task(
     state: Arc<MapApplication>,
-    task_id: String,
+    task_id: TaskId,
     owner: TaskOwner,
     request: MapTaskRequest,
     cancellation: CancellationToken,
 ) {
-    let work = run_map_task_inner(
-        state.clone(),
-        task_id.clone(),
-        owner,
-        request,
-        cancellation.clone(),
-    );
+    let work = run_map_task_inner(state.clone(), task_id, owner, request, cancellation.clone());
     tokio::pin!(work);
     let mut heartbeat = tokio::time::interval(TASK_LEASE_HEARTBEAT);
     heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
@@ -484,8 +478,8 @@ async fn run_map_task(
         tokio::select! {
             () = &mut work => break,
             _ = heartbeat.tick() => {
-                if let Err(error) = state.tasks.renew_lease(&task_id, TASK_LEASE_DURATION).await {
-                    tracing::warn!(task_id, "Map task lease heartbeat failed: {error}");
+                if let Err(error) = state.tasks.renew_lease(task_id, TASK_LEASE_DURATION).await {
+                    tracing::warn!(%task_id, "Map task lease heartbeat failed: {error}");
                     cancellation.cancel();
                     break;
                 }
@@ -496,7 +490,7 @@ async fn run_map_task(
 
 async fn run_map_task_inner(
     state: Arc<MapApplication>,
-    task_id: String,
+    task_id: TaskId,
     owner: TaskOwner,
     request: MapTaskRequest,
     cancellation: CancellationToken,
@@ -505,7 +499,7 @@ async fn run_map_task_inner(
     let publishes_travel_model = matches!(&request, MapTaskRequest::BuildTravelModel(_));
     update_task(
         &state,
-        &task_id,
+        task_id,
         TaskTransition::Running {
             message: format!("calculating {}", request.description()),
             progress: 0.05,
@@ -513,9 +507,9 @@ async fn run_map_task_inner(
     )
     .await;
     if cancellation.is_cancelled() {
-        update_task(&state, &task_id, TaskTransition::Cancelled).await;
+        update_task(&state, task_id, TaskTransition::Cancelled).await;
         if uses_task_directory {
-            cleanup_task_directory(state.as_ref(), &task_id).await;
+            cleanup_task_directory(state.as_ref(), task_id).await;
         }
         return;
     }
@@ -539,7 +533,7 @@ async fn run_map_task_inner(
             Err(error) => Err(error),
         },
         MapTaskRequest::BuildTravelModel(request) => {
-            run_travel_model_task(state.as_ref(), &task_id, request).await
+            run_travel_model_task(state.as_ref(), task_id, request).await
         }
         MapTaskRequest::ReachableArea(request) => match state.scope_from_task_owner(&owner).await {
             Ok(scope) => state
@@ -557,30 +551,29 @@ async fn run_map_task_inner(
         MapTaskRequest::InspectGeoPackage(request) => {
             feature_transfers::run_inspection(
                 state.as_ref(),
-                &task_id,
+                task_id,
                 request,
                 cancellation.clone(),
             )
             .await
         }
         MapTaskRequest::ImportFeatureLayer(request) => {
-            run_import_task(state.as_ref(), &task_id, request, cancellation.clone()).await
+            run_import_task(state.as_ref(), task_id, request, cancellation.clone()).await
         }
         MapTaskRequest::ExportFeatureLayer(request) => {
-            run_export_task(state.as_ref(), &task_id, request, cancellation.clone()).await
+            run_export_task(state.as_ref(), task_id, request, cancellation.clone()).await
         }
         MapTaskRequest::BuildVectorTiles(request) => {
-            run_vector_tile_task(state.as_ref(), &task_id, request).await
+            run_vector_tile_task(state.as_ref(), task_id, request).await
         }
         MapTaskRequest::DeriveRaster(request) => {
-            run_raster_derivation_task(state.as_ref(), &task_id, request, cancellation.clone())
-                .await
+            run_raster_derivation_task(state.as_ref(), task_id, request, cancellation.clone()).await
         }
     };
     if cancellation.is_cancelled() {
-        update_task(&state, &task_id, TaskTransition::Cancelled).await;
+        update_task(&state, task_id, TaskTransition::Cancelled).await;
         if uses_task_directory {
-            cleanup_task_directory(state.as_ref(), &task_id).await;
+            cleanup_task_directory(state.as_ref(), task_id).await;
         }
         return;
     }
@@ -589,7 +582,7 @@ async fn run_map_task_inner(
             Ok(result) => {
                 update_task(
                     &state,
-                    &task_id,
+                    task_id,
                     TaskTransition::Succeeded {
                         message: "Map calculation completed".to_owned(),
                         result,
@@ -603,12 +596,12 @@ async fn run_map_task_inner(
                         .await;
                 }
             }
-            Err(error) => fail_task(&state, &task_id, "result_serialization_failed", error).await,
+            Err(error) => fail_task(&state, task_id, "result_serialization_failed", error).await,
         },
-        Err(error) => fail_task(&state, &task_id, "map_calculation_failed", error).await,
+        Err(error) => fail_task(&state, task_id, "map_calculation_failed", error).await,
     }
     if uses_task_directory {
-        cleanup_task_directory(state.as_ref(), &task_id).await;
+        cleanup_task_directory(state.as_ref(), task_id).await;
     }
 }
 
@@ -685,7 +678,7 @@ where
 async fn prepare_raster_request(
     state: &MapApplication,
     caller: &AuthenticatedCaller,
-    task_id: &TaskId,
+    task_id: TaskId,
     input: DeriveRasterRequest,
 ) -> anyhow::Result<DurableRasterDerivationRequest> {
     input.validate()?;
@@ -722,7 +715,7 @@ async fn prepare_raster_request(
     {
         bail!("raster source artifact failed its bound size or digest check");
     }
-    let directory = task_directory(state, &task_id.to_string())?;
+    let directory = task_directory(state, task_id)?;
     tokio::fs::create_dir(&directory)
         .await
         .with_context(|| format!("creating raster task directory {}", directory.display()))?;
@@ -737,14 +730,14 @@ async fn prepare_raster_request(
     }
     .await;
     if let Err(error) = staging {
-        cleanup_task_directory(state, &task_id.to_string()).await;
+        cleanup_task_directory(state, task_id).await;
         return Err(error).context("staging authorized raster artifact");
     }
     let artifact_write_capability =
         match issue_output_capability(state, &caller.caller, task_id).await {
             Ok(capability) => capability,
             Err(error) => {
-                cleanup_task_directory(state, &task_id.to_string()).await;
+                cleanup_task_directory(state, task_id).await;
                 return Err(error).context("issuing raster output capability");
             }
         };
@@ -785,7 +778,7 @@ fn raster_operation_reads_full_source(operation: &RasterDerivationOperation) -> 
 
 async fn run_raster_derivation_task(
     state: &MapApplication,
-    task_id: &str,
+    task_id: TaskId,
     request: DurableRasterDerivationRequest,
     cancellation: CancellationToken,
 ) -> anyhow::Result<CallToolResult> {
@@ -889,7 +882,7 @@ async fn run_raster_derivation_task(
 async fn prepare_import_request(
     state: &MapApplication,
     caller: &AuthenticatedCaller,
-    task_id: &TaskId,
+    task_id: TaskId,
     input: ImportFeatureLayerRequest,
 ) -> anyhow::Result<DurableImportRequest> {
     let scope = state.scope(&caller.identity).await?;
@@ -912,7 +905,7 @@ async fn prepare_import_request(
     {
         bail!("source artifact exceeds the configured byte limit or has inconsistent metadata");
     }
-    let directory = task_directory(state, &task_id.to_string())?;
+    let directory = task_directory(state, task_id)?;
     tokio::fs::create_dir(&directory)
         .await
         .with_context(|| format!("creating import task directory {}", directory.display()))?;
@@ -928,7 +921,7 @@ async fn prepare_import_request(
     }
     .await;
     if let Err(error) = staging {
-        cleanup_task_directory(state, &task_id.to_string()).await;
+        cleanup_task_directory(state, task_id).await;
         return Err(error).context("staging authorized import artifact");
     }
     Ok(DurableImportRequest {
@@ -972,7 +965,7 @@ fn validate_tile_request(input: &BuildVectorTilesRequest) -> anyhow::Result<()> 
 async fn issue_output_capability(
     state: &MapApplication,
     caller: &PlaneCaller,
-    task_id: &TaskId,
+    task_id: TaskId,
 ) -> anyhow::Result<IssuedArtifactWriteCapability> {
     state
         .artifacts
@@ -992,7 +985,7 @@ async fn issue_output_capability(
 
 async fn run_travel_model_task(
     state: &MapApplication,
-    task_id: &str,
+    task_id: TaskId,
     request: DurableTravelModelRequest,
 ) -> anyhow::Result<CallToolResult> {
     let scope = state.scope(&request.identity).await?;
@@ -1073,7 +1066,7 @@ async fn run_travel_model_task(
 
 async fn run_import_task(
     state: &MapApplication,
-    task_id: &str,
+    task_id: TaskId,
     mut request: DurableImportRequest,
     cancellation: CancellationToken,
 ) -> anyhow::Result<CallToolResult> {
@@ -1136,7 +1129,7 @@ async fn run_import_task(
 
 async fn run_export_task(
     state: &MapApplication,
-    task_id: &str,
+    task_id: TaskId,
     request: DurableExportRequest,
     cancellation: CancellationToken,
 ) -> anyhow::Result<CallToolResult> {
@@ -1180,7 +1173,7 @@ async fn run_export_task(
 
 async fn run_vector_tile_task(
     state: &MapApplication,
-    task_id: &str,
+    task_id: TaskId,
     request: DurableVectorTileRequest,
 ) -> anyhow::Result<CallToolResult> {
     let directory = task_directory(state, task_id)?;
@@ -1229,7 +1222,7 @@ async fn run_vector_tile_task(
 #[allow(clippy::too_many_arguments)]
 async fn publish_generated_product(
     state: &MapApplication,
-    task_id: &str,
+    task_id: TaskId,
     identity: &GatewayInternalIdentity,
     scope: &crate::catalog::MapAccessContext,
     layer_id: &crate::contract::FeatureLayerId,
@@ -1313,26 +1306,25 @@ fn artifact_provenance(identity: &GatewayInternalIdentity) -> ArtifactProvenance
 
 pub(super) fn task_directory(
     state: &MapApplication,
-    task_id: &str,
+    task_id: TaskId,
 ) -> anyhow::Result<std::path::PathBuf> {
-    let task_id: TaskId = task_id.parse().context("invalid durable task id")?;
     Ok(state.authoring_task_root.join(task_id.to_string()))
 }
 
-pub(super) async fn cleanup_task_directory(state: &MapApplication, task_id: &str) {
+pub(super) async fn cleanup_task_directory(state: &MapApplication, task_id: TaskId) {
     let Ok(directory) = task_directory(state, task_id) else {
         return;
     };
     match tokio::fs::remove_dir_all(&directory).await {
         Ok(()) => {}
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => tracing::warn!(task_id, "failed to clean Map task directory: {error}"),
+        Err(error) => tracing::warn!(%task_id, "failed to clean Map task directory: {error}"),
     }
 }
 
 async fn fail_task(
     state: &MapApplication,
-    task_id: &str,
+    task_id: TaskId,
     code: &str,
     error: impl std::fmt::Display,
 ) {
@@ -1344,9 +1336,9 @@ async fn fail_task(
     .await;
 }
 
-async fn update_task(state: &MapApplication, task_id: &str, transition: TaskTransition) {
+async fn update_task(state: &MapApplication, task_id: TaskId, transition: TaskTransition) {
     if let Err(error) = state.tasks.transition(task_id, transition).await {
-        tracing::warn!(task_id, "Map task update failed: {error}");
+        tracing::warn!(%task_id, "Map task update failed: {error}");
     }
 }
 

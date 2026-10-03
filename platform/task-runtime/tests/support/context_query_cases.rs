@@ -78,7 +78,7 @@ async fn context_agreement_precedes_decode_limits_and_subscription_admission() {
                 .unwrap()
                 .check()
                 .unwrap();
-            assert!(runtime.get(&id.to_string()).await.is_err());
+            assert!(runtime.get(id).await.is_err());
             assert!(query.get(id).await.unwrap().is_none());
             assert!(matches!(
                 query.cancel(id).await,
@@ -205,17 +205,11 @@ async fn protocol_reads_and_mutations_preserve_the_selected_context() {
             if !allowed {
                 input.owner.authority.work_context = WorkContextId::new("another-context").unwrap();
             }
-            let id = runtime
-                .create(input)
-                .await
-                .unwrap()
-                .snapshot
-                .task_id
-                .to_string();
-            runtime.claim(&id, Duration::from_secs(30)).await.unwrap();
+            let id = runtime.create(input).await.unwrap().snapshot.task_id;
+            runtime.claim(id, Duration::from_secs(30)).await.unwrap();
             runtime
                 .request_input(
-                    &id,
+                    id,
                     "choice",
                     TaskInputRequest {
                         method: "elicitation/create".into(),
@@ -234,7 +228,8 @@ async fn protocol_reads_and_mutations_preserve_the_selected_context() {
                 )
                 .await
                 .unwrap();
-            let read = get_durable_task(&query, rmcp::model::GetTaskParams::new(id.clone())).await;
+            let read =
+                get_durable_task(&query, rmcp::model::GetTaskParams::new(id.to_string())).await;
             let update = update_durable_task(
                 &query,
                 serde_json::from_value(json!({
@@ -244,15 +239,15 @@ async fn protocol_reads_and_mutations_preserve_the_selected_context() {
                 .unwrap(),
             )
             .await;
-            let cancel = cancel_durable_task(&query, id.clone()).await;
+            let cancel = cancel_durable_task(&query, id.to_string()).await;
             if allowed {
                 read.unwrap();
                 update.unwrap();
                 cancel.unwrap();
-                assert!(runtime.outstanding_inputs(&id).await.unwrap().is_empty());
+                assert!(runtime.outstanding_inputs(id).await.unwrap().is_empty());
                 assert!(
                     runtime
-                        .get(&id)
+                        .get(id)
                         .await
                         .unwrap()
                         .expect("created Task exists")
@@ -265,14 +260,14 @@ async fn protocol_reads_and_mutations_preserve_the_selected_context() {
                 assert_eq!(cancel.unwrap_err().message, "unknown task id");
                 assert!(
                     runtime
-                        .outstanding_inputs(&id)
+                        .outstanding_inputs(id)
                         .await
                         .unwrap()
                         .contains_key("choice")
                 );
                 assert!(
                     runtime
-                        .get(&id)
+                        .get(id)
                         .await
                         .unwrap()
                         .expect("created Task exists")
@@ -299,7 +294,7 @@ async fn context_selection_survives_updates_and_store_reconnect_without_events()
         let mut ids = Vec::new();
         for _ in 0..3 {
             let task = writer.create(draft(SELECTED.as_str(), RecoveryClass::Resume)).await.unwrap().snapshot;
-            writer.claim(&task.task_id.to_string(), Duration::from_secs(60)).await.unwrap();
+            writer.claim(task.task_id, Duration::from_secs(60)).await.unwrap();
             ids.push(task.task_id);
         }
         let query = reader.for_owner(&owner()).of_type(SELECTED).in_work_context().unwrap();
@@ -307,7 +302,7 @@ async fn context_selection_survives_updates_and_store_reconnect_without_events()
         for _ in 0..3 { updates.next().await.unwrap().unwrap(); }
         db.b.client().query("UPDATE ONLY $task SET authority.context_key = 'another-context', request.input = NONE RETURN NONE;")
             .bind(("task", task_record_id(ids[0]))).await.unwrap().check().unwrap();
-        writer.transition(&ids[2].to_string(), TaskTransition::Running { progress: 0.5, message: "halfway".into() }).await.unwrap();
+        writer.transition(ids[2], TaskTransition::Running { progress: 0.5, message: "halfway".into() }).await.unwrap();
         loop {
             let update = updates.next().await.unwrap().unwrap();
             assert_ne!(update.snapshot.task_id, ids[0]);
@@ -316,7 +311,7 @@ async fn context_selection_survives_updates_and_store_reconnect_without_events()
         switch.set_enabled(false).await;
         db.b.client().query("UPDATE ONLY $task SET request.owner.authority.work_context = 'another-context', request.input = NONE RETURN NONE;")
             .bind(("task", task_record_id(ids[1]))).await.unwrap().check().unwrap();
-        writer.transition(&ids[2].to_string(), TaskTransition::Succeeded { message: "finished".into(), result: json!({"answer":42}) }).await.unwrap();
+        writer.transition(ids[2], TaskTransition::Succeeded { message: "finished".into(), result: json!({"answer":42}) }).await.unwrap();
 
         switch.set_enabled(true).await;
         loop {

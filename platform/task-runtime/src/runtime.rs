@@ -40,8 +40,8 @@ use crate::types::{
     CreateTask, CreateTaskResult, RecoveryClass, RequestEnvelope, TaskError, TaskFailure,
     TaskInputExchange, TaskInputRequest, TaskInputSubmission, TaskOwner, TaskPayloadState,
     TaskRetentionPin, TaskRuntimeConfig, TaskSnapshot, TaskTransition, TaskUpdate,
-    TaskUpdateCursor, failure_to_open_object, open_object_to_value, parse_task_id,
-    record_to_snapshot,
+    TaskUpdateCursor, failure_to_open_object, open_object_to_value, record_to_snapshot,
+    validate_task_id,
 };
 
 const DEFAULT_RETENTION: Duration = Duration::from_secs(7 * 24 * 60 * 60);
@@ -164,6 +164,7 @@ impl TaskRuntime {
     }
 
     pub async fn create(&self, draft: CreateTask) -> Result<CreateTaskResult, TaskError> {
+        validate_task_id(draft.task_id)?;
         if draft.server != self.server {
             return Err(TaskError::WrongServer(draft.server));
         }
@@ -304,7 +305,7 @@ impl TaskRuntime {
         }
 
         let snapshot = self
-            .get(task_id.to_string().as_str())
+            .get(task_id)
             .await?
             .ok_or_else(|| TaskError::NotFound(task_id.to_string()))?;
         self.note_change();
@@ -314,8 +315,15 @@ impl TaskRuntime {
         })
     }
 
-    pub async fn get(&self, task_id: &str) -> Result<Option<TaskSnapshot>, TaskError> {
-        let task_id = parse_task_id(task_id)?;
+    /// Read native identity without a text conversion. Public reads use `for_owner`.
+    /// ```compile_fail
+    /// use veoveo_task_runtime::TaskRuntime;
+    /// async fn raw_identity(runtime: &TaskRuntime) {
+    ///     runtime.get("01983da0-0000-7000-8000-000000000001").await;
+    /// }
+    /// ```
+    pub async fn get(&self, task_id: TaskId) -> Result<Option<TaskSnapshot>, TaskError> {
+        let task_id = validate_task_id(task_id)?;
         let mut response = self
             .store
             .client()
@@ -344,7 +352,7 @@ impl TaskRuntime {
         records.into_iter().map(record_to_snapshot).collect()
     }
 
-    pub async fn owner(&self, task_id: &str) -> Result<Option<TaskOwner>, TaskError> {
+    pub async fn owner(&self, task_id: TaskId) -> Result<Option<TaskOwner>, TaskError> {
         Ok(self.get(task_id).await?.map(|snapshot| snapshot.owner))
     }
 
@@ -353,10 +361,10 @@ impl TaskRuntime {
     /// creation and retention protection are one atomic write.
     pub async fn adopt_retention_pin_for_repair(
         &self,
-        task_id: &str,
+        task_id: TaskId,
         pin: &TaskRetentionPin,
     ) -> Result<TaskSnapshot, TaskError> {
-        let task_id = parse_task_id(task_id)?;
+        let task_id = validate_task_id(task_id)?;
         let mut response = self
             .store
             .client()
@@ -372,7 +380,7 @@ impl TaskRuntime {
         if let Some(updated) = updated {
             return record_to_snapshot(updated);
         }
-        self.get(&task_id.to_string())
+        self.get(task_id)
             .await?
             .ok_or_else(|| TaskError::NotFound(task_id.to_string()))
     }
@@ -381,10 +389,10 @@ impl TaskRuntime {
     /// acknowledgement is durable. Repeating an acknowledgement is harmless.
     pub async fn acknowledge_retention_pin(
         &self,
-        task_id: &str,
+        task_id: TaskId,
         pin: &TaskRetentionPin,
     ) -> Result<TaskSnapshot, TaskError> {
-        let task_id = parse_task_id(task_id)?;
+        let task_id = validate_task_id(task_id)?;
         let mut response = self
             .store
             .client()
@@ -400,14 +408,14 @@ impl TaskRuntime {
         if let Some(updated) = updated {
             return record_to_snapshot(updated);
         }
-        self.get(&task_id.to_string())
+        self.get(task_id)
             .await?
             .ok_or_else(|| TaskError::NotFound(task_id.to_string()))
     }
 
     pub async fn request_input(
         &self,
-        task_id: &str,
+        task_id: TaskId,
         key: &str,
         request: TaskInputRequest,
     ) -> Result<TaskInputExchange, TaskError> {
@@ -416,7 +424,7 @@ impl TaskRuntime {
         let current = self
             .get(task_id)
             .await?
-            .ok_or_else(|| TaskError::NotFound(task_id.to_owned()))?;
+            .ok_or_else(|| TaskError::NotFound(task_id.to_string()))?;
         if !matches!(
             current.status,
             StoreTaskStatus::Queued | StoreTaskStatus::Running | StoreTaskStatus::Waiting
@@ -430,7 +438,7 @@ impl TaskRuntime {
         if current.lease_owner.as_deref() != Some(&self.worker_id)
             || current.lease_expires_at.is_none_or(|expiry| expiry <= now)
         {
-            return Err(TaskError::LeaseHeld(task_id.to_owned()));
+            return Err(TaskError::LeaseHeld(task_id.to_string()));
         }
 
         let input_id = task_input_record(current.task_id, key);
@@ -477,7 +485,7 @@ impl TaskRuntime {
                 .await?
                 .is_none_or(|snapshot| snapshot.updated_at != current.updated_at)
             {
-                return Err(TaskError::Conflict(task_id.to_owned()));
+                return Err(TaskError::Conflict(task_id.to_string()));
             }
             return Err(TaskError::Database(error));
         }
@@ -489,10 +497,10 @@ impl TaskRuntime {
 
     pub async fn outstanding_inputs(
         &self,
-        task_id: &str,
+        task_id: TaskId,
     ) -> Result<BTreeMap<String, TaskInputRequest>, TaskError> {
-        let task_id = parse_task_id(task_id)?;
-        self.get(&task_id.to_string())
+        let task_id = validate_task_id(task_id)?;
+        self.get(task_id)
             .await?
             .ok_or_else(|| TaskError::NotFound(task_id.to_string()))?;
         let mut response = self
@@ -514,13 +522,13 @@ impl TaskRuntime {
 
     pub async fn submit_input_responses(
         &self,
-        task_id: &str,
+        task_id: TaskId,
         responses: BTreeMap<String, BTreeMap<String, serde_json::Value>>,
     ) -> Result<TaskInputSubmission, TaskError> {
         let current = self
             .get(task_id)
             .await?
-            .ok_or_else(|| TaskError::NotFound(task_id.to_owned()))?;
+            .ok_or_else(|| TaskError::NotFound(task_id.to_string()))?;
         if current.is_terminal() || current.status == StoreTaskStatus::CancelRequested {
             return Err(TaskError::InvalidTransition {
                 from: current.status,
@@ -571,13 +579,13 @@ impl TaskRuntime {
 
     pub async fn transition(
         &self,
-        task_id: &str,
+        task_id: TaskId,
         transition: TaskTransition,
     ) -> Result<TaskSnapshot, TaskError> {
         let current = self
             .get(task_id)
             .await?
-            .ok_or_else(|| TaskError::NotFound(task_id.to_owned()))?;
+            .ok_or_else(|| TaskError::NotFound(task_id.to_string()))?;
         self.transition_if_current(&current, transition).await
     }
 
@@ -599,7 +607,7 @@ impl TaskRuntime {
     ) -> Result<TaskSnapshot, TaskError> {
         let snapshot = match selection {
             Some(query) => query.get(task).await?,
-            None => self.get(&task.to_string()).await?,
+            None => self.get(task).await?,
         };
         snapshot.ok_or_else(|| TaskError::NotFound(task.to_string()))
     }
@@ -729,8 +737,8 @@ impl TaskRuntime {
         Ok(snapshot)
     }
 
-    pub async fn cancel(&self, task_id: &str) -> Result<TaskSnapshot, TaskError> {
-        self.cancel_selected(parse_task_id(task_id)?, None).await
+    pub async fn cancel(&self, task_id: TaskId) -> Result<TaskSnapshot, TaskError> {
+        self.cancel_selected(validate_task_id(task_id)?, None).await
     }
 
     async fn cancel_selected(
@@ -774,14 +782,14 @@ impl TaskRuntime {
         }
     }
 
-    pub async fn is_cancel_requested(&self, task_id: &str) -> Result<bool, TaskError> {
+    pub async fn is_cancel_requested(&self, task_id: TaskId) -> Result<bool, TaskError> {
         Ok(self
             .get(task_id)
             .await?
             .is_some_and(|snapshot| snapshot.status == StoreTaskStatus::CancelRequested))
     }
 
-    pub async fn payload_state(&self, task_id: &str) -> Result<TaskPayloadState, TaskError> {
+    pub async fn payload_state(&self, task_id: TaskId) -> Result<TaskPayloadState, TaskError> {
         let Some(snapshot) = self.get(task_id).await? else {
             return Ok(TaskPayloadState::Unknown);
         };
@@ -805,7 +813,10 @@ impl TaskRuntime {
         })
     }
 
-    pub async fn await_payload_state(&self, task_id: &str) -> Result<TaskPayloadState, TaskError> {
+    pub async fn await_payload_state(
+        &self,
+        task_id: TaskId,
+    ) -> Result<TaskPayloadState, TaskError> {
         let mut changed = self.changed.subscribe();
         loop {
             let state = self.payload_state(task_id).await?;
@@ -822,11 +833,11 @@ impl TaskRuntime {
 
     pub async fn register_worker(
         &self,
-        task_id: &str,
+        task_id: TaskId,
         cancellation: CancellationToken,
         join: JoinHandle<()>,
     ) -> Result<(), TaskError> {
-        let task_id = parse_task_id(task_id)?;
+        let task_id = validate_task_id(task_id)?;
         self.workers
             .lock()
             .await
@@ -877,7 +888,7 @@ impl TaskRuntime {
             return Ok(None);
         };
         let task_id = crate::types::task_id_from_record(&task)?;
-        self.get(&task_id.to_string()).await
+        self.get(task_id).await
     }
 
     async fn input_exchange_by_id(

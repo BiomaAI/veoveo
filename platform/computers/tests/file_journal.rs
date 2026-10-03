@@ -84,7 +84,7 @@ async fn one_dispatch_survives_a_lost_ticket_and_owner_authority_is_current() {
     let tasks = TaskRuntime::new(db.a.clone(), "computers", "file-worker");
     tasks.release_observation(&claim).await.unwrap();
     let successor = TaskRuntime::new(db.b.clone(), "computers", "successor")
-        .claim_observation(&claim.snapshot.task_id.to_string(), Duration::from_secs(60))
+        .claim_observation(claim.snapshot.task_id, Duration::from_secs(60))
         .await
         .unwrap();
     assert!(b.begin_file_dispatch(&successor, &key).await.is_err());
@@ -154,10 +154,7 @@ async fn known_import_export_and_rejection_release_the_slot_and_preserve_exact_r
         let exit = ticket.observe_file_result(native).unwrap();
         // A cancellation that arrives after verified completion cannot erase a known effect.
         let tasks = TaskRuntime::new(db.a.clone(), "computers", "file-worker");
-        tasks
-            .cancel(&claim.snapshot.task_id.to_string())
-            .await
-            .unwrap();
+        tasks.cancel(claim.snapshot.task_id).await.unwrap();
         let completed = a
             .complete_file_result(&claim, exit, (scenario != "reject").then_some(artifact))
             .await
@@ -185,7 +182,7 @@ async fn known_import_export_and_rejection_release_the_slot_and_preserve_exact_r
             );
             tasks
                 .transition(
-                    &completed.task_id().to_string(),
+                    completed.task_id(),
                     TaskTransition::Failed(veoveo_task_runtime::TaskFailure {
                         code: "destination_exists".into(),
                         message: "File was rejected".into(),
@@ -206,7 +203,7 @@ async fn known_import_export_and_rejection_release_the_slot_and_preserve_exact_r
                 FileTransferResultUri::new(completed.transfer_id())
             );
             assert_eq!(result.direction(), payload.transfer().direction());
-            tasks.transition(&completed.task_id().to_string(), TaskTransition::Succeeded {message:"File transferred".into(),result:serde_json::json!({"content":[],"structuredContent":result,"isError":false})}).await.unwrap();
+            tasks.transition(completed.task_id(), TaskTransition::Succeeded {message:"File transferred".into(),result:serde_json::json!({"content":[],"structuredContent":result,"isError":false})}).await.unwrap();
             db.a.client()
                 .query("UPDATE $task SET result.payload.structuredContent.artifactId=$wrong;")
                 .bind(("task", task_record_id(completed.task_id())))
@@ -233,7 +230,7 @@ async fn known_import_export_and_rejection_release_the_slot_and_preserve_exact_r
         ))
         .unwrap();
         tasks
-            .acknowledge_retention_pin(&completed.task_id().to_string(), &pin)
+            .acknowledge_retention_pin(completed.task_id(), &pin)
             .await
             .unwrap();
         assert!(
@@ -343,7 +340,7 @@ async fn preparation_expiry_and_cancelled_admission_never_dispatch() {
         );
         if cancel {
             TaskRuntime::new(db.a.clone(), "computers", "client")
-                .cancel(&claim.snapshot.task_id.to_string())
+                .cancel(claim.snapshot.task_id)
                 .await
                 .unwrap();
         } else {
@@ -376,10 +373,7 @@ async fn source_preparation_keeps_queued_authority_short_and_cancellable() {
     assert!(prepared.authority.valid_until <= Instant::now() + Duration::from_secs(5));
     assert!(prepared.authority.execution_deadline <= Instant::now() + Duration::from_secs(300));
     let tasks = TaskRuntime::new(db.a.clone(), "computers", "file-worker");
-    tasks
-        .cancel(&claim.snapshot.task_id.to_string())
-        .await
-        .unwrap();
+    tasks.cancel(claim.snapshot.task_id).await.unwrap();
     assert!(matches!(
         a.file_continuation(&claim, &prepared.operation)
             .await

@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use veoveo_types::TaskId;
 
 use crate::contract::{
     TimeseriesFilterCombination, TimeseriesFilterPredicate, TimeseriesFilterValue,
@@ -99,7 +100,7 @@ struct SeriesForecastDocument {
 
 #[derive(Debug, Serialize)]
 struct RrdProvenance<'a> {
-    task_id: &'a str,
+    task_id: TaskId,
     source_digest: String,
     source: SourceProvenance,
     mapping: &'a TimeseriesTableMapping,
@@ -129,7 +130,7 @@ enum SourceProvenance {
 }
 
 pub fn run_forecast(
-    task_id: &str,
+    task_id: TaskId,
     request: &TimeseriesForecastRequest,
     source_policy: &HttpsSourcePolicy,
 ) -> Result<ForecastArtifact> {
@@ -444,7 +445,7 @@ fn residual_spread(rows: &[Observation]) -> f64 {
 }
 
 fn write_rrd(
-    task_id: &str,
+    task_id: TaskId,
     request: &TimeseriesForecastRequest,
     provenance: &RrdProvenance<'_>,
     series_docs: &[SeriesForecastDocument],
@@ -537,12 +538,12 @@ fn write_rrd(
 struct DeterministicRrdWriter {
     encoder: Encoder<Vec<u8>>,
     store_id: StoreId,
-    task_id: String,
+    task_id: TaskId,
     row_sequence: u64,
 }
 
 impl DeterministicRrdWriter {
-    fn new(task_id: &str) -> Result<Self> {
+    fn new(task_id: TaskId) -> Result<Self> {
         let mut encoder = Encoder::local().context("opening deterministic Rerun RRD encoder")?;
         // Rerun's manifest builder iterates an internal hash map when it emits the optional
         // footer. The message stream is deterministic, but that manifest column order is not.
@@ -551,7 +552,7 @@ impl DeterministicRrdWriter {
         let store_id = StoreId::new(
             StoreKind::Recording,
             "veoveo_timeseries_forecast",
-            task_id.to_owned(),
+            task_id.to_string(),
         );
         let info = StoreInfo::new_unversioned(
             store_id.clone(),
@@ -570,7 +571,7 @@ impl DeterministicRrdWriter {
         Ok(Self {
             encoder,
             store_id,
-            task_id: task_id.to_owned(),
+            task_id,
             row_sequence: 0,
         })
     }
@@ -582,8 +583,8 @@ impl DeterministicRrdWriter {
         components: &dyn AsComponents,
     ) -> Result<()> {
         let sequence = self.row_sequence;
-        let chunk_id = deterministic_rerun_id::<ChunkId>(&self.task_id, sequence, "chunk")?;
-        let row_id = deterministic_rerun_id::<RowId>(&self.task_id, sequence, "row")?;
+        let chunk_id = deterministic_rerun_id::<ChunkId>(self.task_id, sequence, "chunk")?;
+        let row_id = deterministic_rerun_id::<RowId>(self.task_id, sequence, "row")?;
         let chunk = Chunk::builder_with_id(chunk_id, entity_path)
             .with_archetype(row_id, timepoint, components)
             .build()
@@ -610,7 +611,7 @@ impl DeterministicRrdWriter {
     }
 }
 
-fn deterministic_rerun_id<T>(task_id: &str, sequence: u64, kind: &str) -> Result<T>
+fn deterministic_rerun_id<T>(task_id: TaskId, sequence: u64, kind: &str) -> Result<T>
 where
     T: std::str::FromStr,
     T::Err: std::fmt::Display,
@@ -714,7 +715,7 @@ mod tests {
     #[test]
     fn inline_csv_materializes_and_forecasts() {
         let artifact = run_forecast(
-            "task-1",
+            TaskId::new(),
             &TimeseriesForecastRequest {
                 source: DuckDbTabularSource::InlineCsv {
                     csv: "ts,value\n2026-01-01,10\n2026-01-02,12\n2026-01-03,15\n".into(),
@@ -799,13 +800,13 @@ mod tests {
         };
 
         let first = run_forecast(
-            "019f0000-0000-7000-8000-000000000001",
+            "019f0000-0000-7000-8000-000000000001".parse().unwrap(),
             &request,
             &HttpsSourcePolicy::deny_network(),
         )
         .unwrap();
         let second = run_forecast(
-            "019f0000-0000-7000-8000-000000000001",
+            "019f0000-0000-7000-8000-000000000001".parse().unwrap(),
             &request,
             &HttpsSourcePolicy::deny_network(),
         )
@@ -829,7 +830,7 @@ mod tests {
             .join(&example.file);
         let csv = std::fs::read_to_string(fixture).unwrap();
         let artifact = run_forecast(
-            "timesfm-fixture-task",
+            TaskId::new(),
             &TimeseriesForecastRequest {
                 source: DuckDbTabularSource::InlineCsv {
                     csv,
@@ -899,7 +900,7 @@ mod tests {
     fn remote_source_rejects_private_addresses_before_duckdb() {
         let policy = HttpsSourcePolicy::new(["127.0.0.1".to_string()]);
         let error = run_forecast(
-            "task-private-source",
+            TaskId::new(),
             &TimeseriesForecastRequest {
                 source: DuckDbTabularSource::Uri {
                     uri: "https://127.0.0.1/input.csv".parse().unwrap(),

@@ -42,18 +42,18 @@ async fn queued_snapshot_guard_rejects_claim_cancel_and_changed_input_or_pins() 
             .unwrap();
         for changed in 0..5 {
             let task = runtime.create(draft()).await.unwrap().snapshot;
-            let id = task.task_id.to_string();
+            let id = task.task_id;
             match changed {
                 0 => {
-                    runtime.claim(&id, Duration::from_secs(60)).await.unwrap();
+                    runtime.claim(id, Duration::from_secs(60)).await.unwrap();
                 }
                 1 => {
-                    runtime.cancel(&id).await.unwrap();
+                    runtime.cancel(id).await.unwrap();
                 }
                 2 => {
                     runtime
                         .acknowledge_retention_pin(
-                            &id,
+                            id,
                             &TaskRetentionPin::new("native:admission").unwrap(),
                         )
                         .await
@@ -84,7 +84,10 @@ async fn queued_snapshot_guard_rejects_claim_cancel_and_changed_input_or_pins() 
                     .commit_admission(
                         &task,
                         "CREATE ONLY $probe CONTENT {accepted: true} RETURN NONE;",
-                        vec![("probe", RecordId::new("admission_probe", id).into_value()),]
+                        vec![(
+                            "probe",
+                            RecordId::new("admission_probe", id.to_string()).into_value()
+                        ),]
                     )
                     .await
                     .is_err(),
@@ -154,14 +157,7 @@ async fn domain_admission_commits_atomically_without_changing_task_status_or_pro
                 )
                 .await
                 .unwrap();
-            assert_eq!(
-                runtime
-                    .get(&task.task_id.to_string())
-                    .await
-                    .unwrap()
-                    .unwrap(),
-                task
-            );
+            assert_eq!(runtime.get(task.task_id).await.unwrap().unwrap(), task);
             assert!(
                 runtime
                     .commit_admission(
@@ -181,14 +177,7 @@ async fn domain_admission_commits_atomically_without_changing_task_status_or_pro
                     .check()
                     .unwrap();
             assert_eq!(response.take::<Option<bool>>(0).unwrap(), Some(true));
-            assert_eq!(
-                runtime
-                    .get(&task.task_id.to_string())
-                    .await
-                    .unwrap()
-                    .unwrap(),
-                task
-            );
+            assert_eq!(runtime.get(task.task_id).await.unwrap().unwrap(), task);
         }
     })
     .await

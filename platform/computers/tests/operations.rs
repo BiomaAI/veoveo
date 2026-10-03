@@ -103,19 +103,13 @@ async fn concurrent_operation_retry_has_one_fence_task_and_audit_identity() {
     assert_eq!(computer.active_operation, Some(op_id));
     assert_eq!(computer.phase, ComputerPhase::Provisioning);
     let task_runtime = TaskRuntime::new(db.a.clone(), "computers", "worker");
-    assert!(
-        task_runtime
-            .get(&op_id.to_string())
-            .await
-            .unwrap()
-            .is_none()
-    );
+    assert!(task_runtime.get(op_id).await.unwrap().is_none());
     // Simulate a crash after journal commit: another replica repairs only the Task link.
     let repaired = b.ensure_operation_task(&alice, op_id).await.unwrap();
     let retries =
         futures::future::join_all((0..4).map(|_| a.ensure_operation_task(&alice, op_id))).await;
     assert!(retries.iter().all(Result::is_ok));
-    let task = task_runtime.get(&op_id.to_string()).await.unwrap().unwrap();
+    let task = task_runtime.get(op_id).await.unwrap().unwrap();
     assert_eq!(task.task_id, repaired.task_id());
     assert_eq!(task.recovery_class, RecoveryClass::ProviderWait);
     assert_eq!(task.status, TaskStatus::Queued);

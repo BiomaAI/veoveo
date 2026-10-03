@@ -84,10 +84,7 @@ async fn one_dispatch_survives_competing_workers_and_lost_ticket_without_replay(
     let runtime = TaskRuntime::new(db.a.clone(), "computers", "command-worker");
     runtime.release_observation(&claim).await.unwrap();
     let successor = TaskRuntime::new(db.b.clone(), "computers", "successor")
-        .claim_observation(
-            &claim.snapshot.task_id.to_string(),
-            std::time::Duration::from_secs(60),
-        )
+        .claim_observation(claim.snapshot.task_id, std::time::Duration::from_secs(60))
         .await
         .unwrap();
     assert!(matches!(
@@ -134,7 +131,7 @@ async fn cancellation_revocation_and_changed_run_prevent_command_dispatch() {
         match scenario {
             "cancel" => {
                 TaskRuntime::new(db.a.clone(), "computers", "client")
-                    .cancel(&claim.snapshot.task_id.to_string())
+                    .cancel(claim.snapshot.task_id)
                     .await
                     .unwrap();
             }
@@ -305,7 +302,7 @@ async fn racing_command_retry_has_one_private_slot_event_and_recoverable_task() 
     l.unwrap();
     r.unwrap();
     let task = TaskRuntime::new(db.a.clone(), "computers", "fixture")
-        .get(&left.task_id().to_string())
+        .get(left.task_id())
         .await
         .unwrap()
         .unwrap();

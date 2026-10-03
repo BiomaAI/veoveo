@@ -18,7 +18,7 @@ use super::app_state::AppState;
 pub(super) async fn forecast_result(
     state: &AppState,
     capability: &IssuedArtifactWriteCapability,
-    task_id: &str,
+    task_id: TaskId,
     owner: &TaskOwner,
     artifact: ForecastArtifact,
 ) -> anyhow::Result<CallToolResult> {
@@ -68,14 +68,14 @@ pub(super) async fn forecast_result(
 
 async fn record_usage(
     state: &AppState,
-    task_id: &str,
+    task_id: TaskId,
     summary: &TimeseriesForecastSummary,
 ) -> anyhow::Result<()> {
     state
         .tasks
         .platform_store()
         .upsert_domain_usage(DomainUsageDraft {
-            task_id: task_id.parse::<TaskId>()?,
+            task_id,
             server: "timeseries".to_owned(),
             source_id: None,
             provider_job_id: None,

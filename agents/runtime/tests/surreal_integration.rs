@@ -650,13 +650,13 @@ async fn task_settlement_survives_restart_and_is_consumed_once() {
         .unwrap();
     fixture
         .tasks
-        .claim(&task.task_id.to_string(), Duration::from_secs(30))
+        .claim(task.task_id, Duration::from_secs(30))
         .await
         .unwrap();
     fixture
         .tasks
         .transition(
-            &task.task_id.to_string(),
+            task.task_id,
             TaskTransition::Succeeded {
                 message: "done".to_owned(),
                 result: json!({"output": "done"}),
@@ -719,7 +719,7 @@ async fn task_settlement_survives_restart_and_is_consumed_once() {
 
     let canonical = fixture
         .tasks
-        .get(&task.task_id.to_string())
+        .get(task.task_id)
         .await
         .unwrap()
         .expect("task remains pinned through delivery");

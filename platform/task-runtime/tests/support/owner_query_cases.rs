@@ -112,7 +112,7 @@ async fn operation_selection_survives_updates_and_store_reconnect_without_events
         let mut ids = Vec::new();
         for _ in 0..3 {
             let task = writer.create(draft(SELECTED.as_str(), RecoveryClass::Resume)).await.unwrap().snapshot;
-            writer.claim(&task.task_id.to_string(), Duration::from_secs(60)).await.unwrap();
+            writer.claim(task.task_id, Duration::from_secs(60)).await.unwrap();
             ids.push(task.task_id);
         }
         let query = reader.for_owner(&owner()).of_type(SELECTED);
@@ -123,7 +123,7 @@ async fn operation_selection_survives_updates_and_store_reconnect_without_events
         // previously admitted row changes to a malformed unrelated operation.
         db.b.client().query("UPDATE ONLY $task SET task_type = 'other-operation', request.input = NONE RETURN NONE;")
             .bind(("task", task_record_id(ids[0]))).await.unwrap().check().unwrap();
-        writer.transition(&ids[2].to_string(), TaskTransition::Running { progress: 0.5, message: "halfway".into() }).await.unwrap();
+        writer.transition(ids[2], TaskTransition::Running { progress: 0.5, message: "halfway".into() }).await.unwrap();
         loop {
             let update = updates.next().await.unwrap().unwrap();
             assert_ne!(update.snapshot.task_id, ids[0]);
@@ -133,7 +133,7 @@ async fn operation_selection_survives_updates_and_store_reconnect_without_events
         switch.set_enabled(false).await;
         db.b.client().query("UPDATE ONLY $task SET task_type = 'other-operation', request.input = NONE RETURN NONE;")
             .bind(("task", task_record_id(ids[1]))).await.unwrap().check().unwrap();
-        writer.transition(&ids[2].to_string(), TaskTransition::Succeeded { message: "finished".into(), result: json!({"answer":42}) }).await.unwrap();
+        writer.transition(ids[2], TaskTransition::Succeeded { message: "finished".into(), result: json!({"answer":42}) }).await.unwrap();
 
         switch.set_enabled(true).await;
         loop {

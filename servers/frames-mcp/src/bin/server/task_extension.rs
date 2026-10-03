@@ -1,6 +1,5 @@
-use std::{collections::BTreeSet, sync::Arc};
+use std::sync::Arc;
 
-use futures::StreamExt;
 use rmcp::{
     ErrorData as McpError, RoleServer,
     model::{
@@ -10,11 +9,7 @@ use rmcp::{
 };
 use veoveo_frames_mcp::contract::BatchTransformRequest;
 use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller};
-use veoveo_task_runtime::{
-    DurableTaskService, DurableTaskSubscription, TaskSnapshot, durable_input_responses,
-    project_snapshot, retention_pins, task_seed,
-};
-use veoveo_types::TaskId;
+use veoveo_task_runtime::{DurableTaskService, DurableTaskSubscription, retention_pins, task_seed};
 
 use super::{
     app_state::AppState,
@@ -31,34 +26,6 @@ pub(super) struct FramesTaskService {
 impl FramesTaskService {
     pub(super) fn new(state: Arc<AppState>) -> Self {
         Self { state }
-    }
-
-    async fn authorized_snapshot(
-        &self,
-        caller: &AuthenticatedCaller,
-        task_id: &str,
-    ) -> Result<TaskSnapshot, McpError> {
-        let not_found =
-            || McpError::invalid_params(format!("Task `{task_id}` was not found."), None);
-        let task_id = task_id.parse::<TaskId>().map_err(|_| not_found())?;
-        let snapshot = self
-            .state
-            .tasks
-            .get(&task_id.to_string())
-            .await
-            .map_err(|error| McpError::internal_error(error.to_string(), None))?
-            .ok_or_else(not_found)?;
-        let caller_owner = runtime_owner(&caller.identity);
-        if snapshot.owner.allows(
-            &caller_owner.principal_key,
-            &caller_owner.profile,
-            caller_owner.tenant_key.as_deref(),
-            &caller_owner.data_labels,
-        ) {
-            Ok(snapshot)
-        } else {
-            Err(not_found())
-        }
     }
 }
 
@@ -128,11 +95,11 @@ impl DurableTaskService for FramesTaskService {
         caller: &Self::Caller,
         request: GetTaskParams,
     ) -> Result<GetTaskResult, McpError> {
-        let snapshot = self.authorized_snapshot(caller, &request.task_id).await?;
-        project_snapshot(&self.state.tasks, snapshot)
-            .await
-            .map(GetTaskResult::new)
-            .map_err(|error| McpError::internal_error(error.to_string(), None))
+        veoveo_task_runtime::get_durable_task(
+            &self.state.tasks.for_owner(&runtime_owner(&caller.identity)),
+            request,
+        )
+        .await
     }
 
     async fn update_task(
@@ -140,25 +107,19 @@ impl DurableTaskService for FramesTaskService {
         caller: &Self::Caller,
         request: UpdateTaskParams,
     ) -> Result<(), McpError> {
-        self.authorized_snapshot(caller, &request.task_id).await?;
-        let task_id = request.task_id.clone();
-        let responses = durable_input_responses(request)?;
-        self.state
-            .tasks
-            .submit_input_responses(&task_id, responses)
-            .await
-            .map_err(|error| McpError::internal_error(error.to_string(), None))?;
-        Ok(())
+        veoveo_task_runtime::update_durable_task(
+            &self.state.tasks.for_owner(&runtime_owner(&caller.identity)),
+            request,
+        )
+        .await
     }
 
     async fn cancel_task(&self, caller: &Self::Caller, task_id: String) -> Result<(), McpError> {
-        self.authorized_snapshot(caller, &task_id).await?;
-        self.state
-            .tasks
-            .cancel(&task_id)
-            .await
-            .map_err(|error| McpError::internal_error(error.to_string(), None))?;
-        Ok(())
+        veoveo_task_runtime::cancel_durable_task(
+            &self.state.tasks.for_owner(&runtime_owner(&caller.identity)),
+            task_id,
+        )
+        .await
     }
 
     async fn subscribe_tasks(
@@ -166,52 +127,10 @@ impl DurableTaskService for FramesTaskService {
         caller: &Self::Caller,
         task_ids: Vec<String>,
     ) -> Result<DurableTaskSubscription, McpError> {
-        let updates = self
-            .state
-            .tasks
-            .live_updates()
-            .await
-            .map_err(|error| McpError::internal_error(error.to_string(), None))?;
-        let mut accepted = Vec::new();
-        for task_id in task_ids {
-            if self.authorized_snapshot(caller, &task_id).await.is_ok() {
-                accepted.push(task_id);
-            }
-        }
-        let accepted_set: BTreeSet<_> = accepted.iter().cloned().collect();
-        let runtime = self.state.tasks.clone();
-        let caller_owner = runtime_owner(&caller.identity);
-        let stream = updates.filter_map(move |update| {
-            let accepted = accepted_set.clone();
-            let runtime = runtime.clone();
-            let caller_owner = caller_owner.clone();
-            async move {
-                let snapshot = match update {
-                    Ok(update) => update.snapshot,
-                    Err(error) => {
-                        return Some(Err(McpError::internal_error(error.to_string(), None)));
-                    }
-                };
-                if !accepted.contains(&snapshot.task_id.to_string())
-                    || !snapshot.owner.allows(
-                        &caller_owner.principal_key,
-                        &caller_owner.profile,
-                        caller_owner.tenant_key.as_deref(),
-                        &caller_owner.data_labels,
-                    )
-                {
-                    return None;
-                }
-                Some(
-                    project_snapshot(&runtime, snapshot)
-                        .await
-                        .map_err(|error| McpError::internal_error(error.to_string(), None)),
-                )
-            }
-        });
-        Ok(DurableTaskSubscription {
-            accepted_task_ids: accepted,
-            updates: Box::pin(stream),
-        })
+        veoveo_task_runtime::subscribe_durable_tasks(
+            &self.state.tasks.for_owner(&runtime_owner(&caller.identity)),
+            task_ids,
+        )
+        .await
     }
 }

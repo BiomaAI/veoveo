@@ -42,7 +42,7 @@ pub(super) struct DurableGeoPackageInspectionRequest {
 pub(super) async fn prepare_inspection(
     state: &MapApplication,
     caller: &AuthenticatedCaller,
-    task_id: &TaskId,
+    task_id: TaskId,
     input: InspectGeoPackageRequest,
 ) -> Result<DurableGeoPackageInspectionRequest> {
     let digest = stage_authorized_artifact(
@@ -62,7 +62,7 @@ pub(super) async fn prepare_inspection(
 
 pub(super) async fn run_inspection(
     state: &MapApplication,
-    task_id: &str,
+    task_id: TaskId,
     request: DurableGeoPackageInspectionRequest,
     cancellation: CancellationToken,
 ) -> Result<CallToolResult> {
@@ -86,7 +86,7 @@ pub(super) async fn run_inspection(
 
 pub(super) async fn transcode_import(
     state: &MapApplication,
-    task_id: &str,
+    task_id: TaskId,
     request: &mut ImportFeatureLayerRequest,
     original: Vec<u8>,
     cancellation: CancellationToken,
@@ -204,7 +204,7 @@ pub(super) async fn generate_export(
 async fn stage_authorized_artifact(
     state: &MapApplication,
     caller: &AuthenticatedCaller,
-    task_id: &TaskId,
+    task_id: TaskId,
     artifact_id: &veoveo_artifact_contract::ArtifactId,
     operation: &str,
 ) -> Result<String> {
@@ -219,7 +219,7 @@ async fn stage_authorized_artifact(
     {
         bail!("source artifact exceeds the configured byte limit or has inconsistent metadata");
     }
-    let directory = task_directory(state, &task_id.to_string())?;
+    let directory = task_directory(state, task_id)?;
     tokio::fs::create_dir(&directory).await.with_context(|| {
         format!(
             "creating {operation} task directory {}",
@@ -238,7 +238,7 @@ async fn stage_authorized_artifact(
     }
     .await;
     if let Err(error) = staging {
-        cleanup_task_directory(state, &task_id.to_string()).await;
+        cleanup_task_directory(state, task_id).await;
         return Err(error).with_context(|| format!("staging authorized artifact for {operation}"));
     }
     Ok(digest)

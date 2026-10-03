@@ -53,11 +53,11 @@ impl SpeechService {
             ("vtt", "text/vtt", captions),
         ] {
             anyhow::ensure!(
-                !self.tasks.is_cancel_requested(&task.to_string()).await?,
+                !self.tasks.is_cancel_requested(task.task_id()).await?,
                 "publication cancelled"
             );
             self.tasks
-                .renew_lease(&task.to_string(), std::time::Duration::from_secs(60))
+                .renew_lease(task.task_id(), std::time::Duration::from_secs(60))
                 .await?;
             let request = RedeemArtifactWriteCapabilityRequest {
                 capability_id: capability.capability_id,

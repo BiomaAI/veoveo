@@ -89,16 +89,13 @@ async fn create(runtime: &TaskRuntime, owner: TaskOwner, id: TaskId) {
         })
         .await
         .unwrap();
-    runtime
-        .claim(&id.to_string(), Duration::from_secs(30))
-        .await
-        .unwrap();
+    runtime.claim(id, Duration::from_secs(30)).await.unwrap();
 }
 
 async fn finish(runtime: &TaskRuntime, id: TaskId, stored: Value) {
     runtime
         .transition(
-            &id.to_string(),
+            id,
             TaskTransition::Succeeded {
                 message: ANALYSIS_COMPLETED.into(),
                 result: stored,

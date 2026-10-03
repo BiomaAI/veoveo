@@ -140,6 +140,14 @@ cursor continuation, current labels and parent metadata through the library read
 TaskRuntime owns the complete shared owner-policy matrix. Contract isolation is
 qualified with an independent consumer; runtime-only builds check feature composition.
 
+## Task Admission
+
+Both server dispatch paths delegate Task reads, updates, cancellation and subscriptions
+to the shared Task service. Public reads select current owner visibility in SQL before
+decoding; cancellation checks the same selection in its transaction. Forecast workers
+keep foundational Task IDs through native runtime calls and serialize them for external
+Artifact capabilities and RRD store names.
+
 ## MCP App (ext-apps "2026-01-26")
 
 The server declares `io.modelcontextprotocol/ui` in its capabilities

@@ -28,7 +28,7 @@ pub(super) enum RequestedArtifacts<'a> {
 pub(super) async fn solution_result(
     state: &AppState,
     capability: &IssuedArtifactWriteCapability,
-    task_id: &str,
+    task_id: TaskId,
     owner: &TaskOwner,
     prepared: &PreparedProblem,
     solution: OptimizationSolution,
@@ -310,7 +310,7 @@ fn route_table(solution: &OptimizationSolution) -> anyhow::Result<String> {
 
 async fn record_usage(
     state: &AppState,
-    task_id: &str,
+    task_id: TaskId,
     problem: &OptimizationProblemResource,
     solution: &OptimizationSolution,
 ) -> anyhow::Result<()> {
@@ -319,7 +319,7 @@ async fn record_usage(
         .tasks
         .platform_store()
         .upsert_domain_usage(DomainUsageDraft {
-            task_id: task_id.parse::<TaskId>()?,
+            task_id,
             server: "optimization".to_owned(),
             source_id: solution.engine.gpu_uuid.clone(),
             provider_job_id: Some(solution.run_id.to_string()),

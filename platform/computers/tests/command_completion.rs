@@ -63,16 +63,12 @@ async fn known_exit_and_outputs_settle_once_before_task_projection_and_allow_the
         );
         assert!(a.acknowledge_command_task(&completed).await.is_err());
         let tasks = TaskRuntime::new(db.a.clone(), "computers", "command-worker");
-        let task = tasks
-            .get(&completed.task_id().to_string())
-            .await
-            .unwrap()
-            .unwrap();
+        let task = tasks.get(completed.task_id()).await.unwrap().unwrap();
         assert!(!task.is_terminal());
         let pin = TaskRetentionPin::new(format!("computer-execution/{}", completed.execution_id()))
             .unwrap();
         assert!(task.retention_pins.contains(&pin));
-        tasks.transition(&completed.task_id().to_string(), TaskTransition::Succeeded {
+        tasks.transition(completed.task_id(), TaskTransition::Succeeded {
             message: "Command completed".into(),
             result: serde_json::json!({"content":[], "structuredContent":result, "isError":code != 0}),
         }).await.unwrap();
@@ -128,7 +124,7 @@ async fn known_exit_and_outputs_settle_once_before_task_projection_and_allow_the
                 .any(|c| c.execution_id() == completed.execution_id())
         );
         tasks
-            .acknowledge_retention_pin(&completed.task_id().to_string(), &pin)
+            .acknowledge_retention_pin(completed.task_id(), &pin)
             .await
             .unwrap();
         assert!(b.pending_commands(None, 100).await.unwrap().is_empty());
@@ -230,10 +226,7 @@ async fn a_late_cancel_preserves_the_known_result_and_an_independent_owner_stop(
         .observe_exit(0, 0, 0)
         .unwrap();
     let tasks = TaskRuntime::new(db.a.clone(), "computers", "command-worker");
-    tasks
-        .cancel(&claim.snapshot.task_id.to_string())
-        .await
-        .unwrap();
+    tasks.cancel(claim.snapshot.task_id).await.unwrap();
     let stop = a
         .queue_operation(
             owner,
@@ -248,11 +241,7 @@ async fn a_late_cancel_preserves_the_known_result_and_an_independent_owner_stop(
         .await
         .unwrap();
     assert_eq!(command.stage(), CommandStage::Completed);
-    let task = tasks
-        .get(&command.task_id().to_string())
-        .await
-        .unwrap()
-        .unwrap();
+    let task = tasks.get(command.task_id()).await.unwrap().unwrap();
     assert_eq!(task.status, TaskStatus::CancelRequested);
     let mut read =
         db.a.client()

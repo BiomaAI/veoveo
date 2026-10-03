@@ -6,7 +6,7 @@ impl CommandWorker {
     async fn current_claim(&self, claim: &ClaimedTask) -> Result<ClaimedTask> {
         let snapshot = tokio::time::timeout(
             Duration::from_secs(4),
-            self.tasks.get(&claim.snapshot.task_id.to_string()),
+            self.tasks.get(claim.snapshot.task_id),
         )
         .await
         .map_err(|_| CommandWorkerError::LeaseLost)??
@@ -47,7 +47,7 @@ impl CommandWorker {
         if claim.lease_expires_at - chrono::Utc::now() < chrono::TimeDelta::seconds(45) {
             let snapshot = self
                 .tasks
-                .renew_lease(&claim.snapshot.task_id.to_string(), LEASE_DURATION)
+                .renew_lease(claim.snapshot.task_id, LEASE_DURATION)
                 .await?;
             claim.lease_expires_at = snapshot
                 .lease_expires_at
@@ -77,7 +77,7 @@ impl CommandWorker {
                 output = &mut future => { self.recover_lease(claim).await?; return Ok(output); },
                 snapshot = async {
                     renew.tick().await;
-                    tokio::time::timeout(Duration::from_secs(4), self.tasks.renew_lease(&claim.snapshot.task_id.to_string(), LEASE_DURATION)).await
+                    tokio::time::timeout(Duration::from_secs(4), self.tasks.renew_lease(claim.snapshot.task_id, LEASE_DURATION)).await
                 } => {
                     let snapshot = snapshot.map_err(|_| CommandWorkerError::LeaseLost)??;
                     claim.lease_expires_at = snapshot.lease_expires_at.ok_or(CommandWorkerError::LeaseLost)?;

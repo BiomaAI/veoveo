@@ -168,12 +168,12 @@ impl ServerHandler for Domain {
             .await
             .unwrap()
             .snapshot;
-        let id = task.task_id.to_string();
+        let id = task.task_id;
         self.runtime
-            .claim(&id, Duration::from_secs(60))
+            .claim(id, Duration::from_secs(60))
             .await
             .unwrap();
-        self.runtime.request_input(&id, "approval-1", TaskInputRequest {
+        self.runtime.request_input(id, "approval-1", TaskInputRequest {
             method: "elicitation/create".into(), params: serde_json::from_value(json!({"mode":"form","message":"Choose a count for the fixture.",
                 "requestedSchema":{"type":"object","properties":{"count":{"type":"integer","minimum":1,"maximum":3}},"required":["count"]}})).unwrap(),
         }).await.unwrap();

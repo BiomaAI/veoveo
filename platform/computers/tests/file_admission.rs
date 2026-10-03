@@ -77,7 +77,7 @@ async fn replicas_reserve_one_file_slot_and_recover_the_same_private_task() {
         b.ensure_file_task(&operation).await.unwrap();
     }
     let task = TaskRuntime::new(db.b.clone(), "computers", "observer")
-        .get(&id.to_string())
+        .get(veoveo_types::TaskId::from_uuid(*id.as_uuid()))
         .await
         .unwrap()
         .unwrap();

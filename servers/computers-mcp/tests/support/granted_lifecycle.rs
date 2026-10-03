@@ -222,7 +222,7 @@ async fn named_start_and_stop_share_public_discovery_retry_and_owner_recovery() 
             .as_str()
             .expect("named lifecycle Task");
         let stored = TaskRuntime::new(db.a.clone(), "computers", "inspect")
-            .get(task)
+            .get(task.parse().unwrap())
             .await
             .unwrap()
             .unwrap();
@@ -326,7 +326,7 @@ async fn named_start_and_stop_share_public_discovery_retry_and_owner_recovery() 
             assert!(recovered.get("error").is_none(), "{recovered}");
         }
         let stored = TaskRuntime::new(db.a.clone(), "computers", "inspect")
-            .get(task)
+            .get(task.parse().unwrap())
             .await
             .unwrap()
             .unwrap();

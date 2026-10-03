@@ -33,7 +33,7 @@ impl<G: Preflight> LifecycleWorker<G> {
             _ => return Err(WorkerError::Configuration),
         };
         self.tasks
-            .transition(&operation.task_id().to_string(), transition)
+            .transition(operation.task_id(), transition)
             .await?;
         self.acknowledge(operation).await
     }
@@ -41,7 +41,7 @@ impl<G: Preflight> LifecycleWorker<G> {
         self.store.acknowledge_task_projection(operation).await?;
         self.tasks
             .acknowledge_retention_pin(
-                &operation.task_id().to_string(),
+                operation.task_id(),
                 &TaskRetentionPin::new(format!("computer-operation/{}", operation.operation_id))
                     .map_err(|_| WorkerError::Configuration)?,
             )

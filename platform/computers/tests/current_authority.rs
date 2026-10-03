@@ -76,7 +76,7 @@ async fn queued(
         .unwrap();
     let tasks = TaskRuntime::new(db.b.clone(), "computers", "worker-b");
     let claim = tasks
-        .claim_observation(&operation.task_id().to_string(), Duration::from_secs(60))
+        .claim_observation(operation.task_id(), Duration::from_secs(60))
         .await
         .unwrap();
     (store, owner, operation, claim)

@@ -1,6 +1,7 @@
 use veoveo_duckdb_runtime::HttpsSourcePolicy;
 use veoveo_task_runtime::{TaskRuntime, TaskTransition};
 use veoveo_timeseries_mcp::artifacts::ArtifactRepository;
+use veoveo_types::TaskId;
 
 pub(super) struct AppState {
     pub(super) tasks: TaskRuntime,
@@ -9,7 +10,7 @@ pub(super) struct AppState {
     pub(super) max_artifact_bytes: u64,
 }
 
-pub(super) async fn update_task(state: &AppState, task_id: &str, transition: TaskTransition) {
+pub(super) async fn update_task(state: &AppState, task_id: TaskId, transition: TaskTransition) {
     let transition = if state
         .tasks
         .is_cancel_requested(task_id)
@@ -21,6 +22,6 @@ pub(super) async fn update_task(state: &AppState, task_id: &str, transition: Tas
         transition
     };
     if let Err(err) = state.tasks.transition(task_id, transition).await {
-        tracing::warn!(task_id, "failed to transition durable task: {err}");
+        tracing::warn!(%task_id, "failed to transition durable task: {err}");
     }
 }

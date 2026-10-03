@@ -164,7 +164,7 @@ pub(super) async fn recover_tasks(
         if let Err(error) = schedule_capture_task(state.clone(), snapshot, request, true).await {
             match error.downcast_ref::<TaskError>() {
                 Some(TaskError::LeaseHeld(task_id) | TaskError::Conflict(task_id)) => {
-                    tracing::info!(task_id, "another replica claimed recovered View task");
+                    tracing::info!(%task_id, "another replica claimed recovered View task");
                 }
                 _ => return Err(error),
             }
@@ -214,12 +214,12 @@ async fn schedule_capture_task(
     state
         .views
         .validate_capture_snapshot(&owner, request.snapshot(), request.request())?;
-    let task_id = snapshot.task_id.to_string();
-    let claimed = state.tasks.claim(&task_id, TASK_LEASE_DURATION).await?;
+    let task_id = snapshot.task_id;
+    let claimed = state.tasks.claim(task_id, TASK_LEASE_DURATION).await?;
     let cancellation = CancellationToken::new();
     let join = tokio::spawn(run_capture_task(
         state.clone(),
-        task_id.clone(),
+        task_id,
         owner,
         request,
         recovered,
@@ -227,14 +227,14 @@ async fn schedule_capture_task(
     ));
     state
         .tasks
-        .register_worker(&task_id, cancellation, join)
+        .register_worker(task_id, cancellation, join)
         .await?;
     Ok(claimed.snapshot)
 }
 
 async fn run_capture_task(
     state: Arc<AppState>,
-    task_id: String,
+    task_id: TaskId,
     owner: ResourceOwner,
     request: ViewCaptureTaskRequest,
     recovered: bool,
@@ -242,7 +242,7 @@ async fn run_capture_task(
 ) {
     let work = run_capture_task_inner(
         state.clone(),
-        task_id.clone(),
+        task_id,
         owner,
         request,
         recovered,
@@ -256,8 +256,8 @@ async fn run_capture_task(
         tokio::select! {
             () = &mut work => break,
             _ = heartbeat.tick() => {
-                if let Err(error) = state.tasks.renew_lease(&task_id, TASK_LEASE_DURATION).await {
-                    tracing::warn!(task_id, "View task lease heartbeat failed: {error}");
+                if let Err(error) = state.tasks.renew_lease(task_id, TASK_LEASE_DURATION).await {
+                    tracing::warn!(%task_id, "View task lease heartbeat failed: {error}");
                     cancellation.cancel();
                     break;
                 }
@@ -268,7 +268,7 @@ async fn run_capture_task(
 
 async fn run_capture_task_inner(
     state: Arc<AppState>,
-    task_id: String,
+    task_id: TaskId,
     owner: ResourceOwner,
     request: ViewCaptureTaskRequest,
     recovered: bool,
@@ -276,7 +276,7 @@ async fn run_capture_task_inner(
 ) {
     update_task(
         &state,
-        &task_id,
+        task_id,
         TaskTransition::Running {
             message: "selecting and loading visible 3D tiles".to_owned(),
             progress: 0.05,
@@ -285,13 +285,13 @@ async fn run_capture_task_inner(
     .await;
     let permit = tokio::select! {
         () = cancellation.cancelled() => {
-            update_task(&state, &task_id, TaskTransition::Cancelled).await;
+            update_task(&state, task_id, TaskTransition::Cancelled).await;
             return;
         }
         permit = state.captures.acquire() => match permit {
             Ok(permit) => permit,
             Err(_) => {
-                fail_task(&state, &task_id, "capture_scheduler_closed", "capture scheduler closed").await;
+                fail_task(&state, task_id, "capture_scheduler_closed", "capture scheduler closed").await;
                 return;
             }
         }
@@ -322,7 +322,7 @@ async fn run_capture_task_inner(
     };
     drop(permit);
     if cancellation.is_cancelled() {
-        update_task(&state, &task_id, TaskTransition::Cancelled).await;
+        update_task(&state, task_id, TaskTransition::Cancelled).await;
         return;
     }
     match result {
@@ -336,7 +336,7 @@ async fn run_capture_task_inner(
                     .await;
                 update_task(
                     &state,
-                    &task_id,
+                    task_id,
                     TaskTransition::Succeeded {
                         message: format!("captured {}", frame.record().frame_uri()),
                         result,
@@ -344,16 +344,16 @@ async fn run_capture_task_inner(
                 )
                 .await;
             }
-            Err(error) => fail_task(&state, &task_id, "result_serialization_failed", error).await,
+            Err(error) => fail_task(&state, task_id, "result_serialization_failed", error).await,
         },
         Err(crate::state::ServiceError::Cancelled) => {
-            update_task(&state, &task_id, TaskTransition::Cancelled).await;
+            update_task(&state, task_id, TaskTransition::Cancelled).await;
         }
-        Err(error) => fail_task(&state, &task_id, "view_capture_failed", error).await,
+        Err(error) => fail_task(&state, task_id, "view_capture_failed", error).await,
     }
 }
 
-async fn fail_task(state: &AppState, task_id: &str, code: &str, error: impl std::fmt::Display) {
+async fn fail_task(state: &AppState, task_id: TaskId, code: &str, error: impl std::fmt::Display) {
     update_task(
         state,
         task_id,
@@ -362,9 +362,9 @@ async fn fail_task(state: &AppState, task_id: &str, code: &str, error: impl std:
     .await;
 }
 
-async fn update_task(state: &AppState, task_id: &str, transition: TaskTransition) {
+async fn update_task(state: &AppState, task_id: TaskId, transition: TaskTransition) {
     if let Err(error) = state.tasks.transition(task_id, transition).await {
-        tracing::warn!(task_id, "View task update failed: {error}");
+        tracing::warn!(%task_id, "View task update failed: {error}");
     }
 }
 

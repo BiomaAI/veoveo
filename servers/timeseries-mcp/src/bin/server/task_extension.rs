@@ -11,12 +11,10 @@ use rmcp::{
 };
 use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller};
 use veoveo_task_runtime::{
-    DurableTaskService, DurableTaskSubscription, TaskRetentionPin, TaskSnapshot,
-    cancel_durable_task, get_durable_task, project_snapshot, retention_pins,
-    subscribe_durable_tasks, task_seed, update_durable_task,
+    DurableTaskService, DurableTaskSubscription, TaskRetentionPin, cancel_durable_task,
+    get_durable_task, retention_pins, subscribe_durable_tasks, task_seed, update_durable_task,
 };
 use veoveo_timeseries_mcp::contract::TimeseriesForecastRequest;
-use veoveo_types::TaskId;
 
 use super::{
     TASK_RETENTION_PIN_META_KEY,
@@ -78,11 +76,11 @@ impl TimeseriesTaskService {
         context: &RequestContext<RoleServer>,
     ) -> Result<GetTaskResult, McpError> {
         let caller = authenticated_caller(context)?;
-        let snapshot = self.authorized_snapshot(&caller, &request.task_id).await?;
-        project_snapshot(&self.state.tasks, snapshot)
-            .await
-            .map(GetTaskResult::new)
-            .map_err(|error| McpError::internal_error(error.to_string(), None))
+        get_durable_task(
+            &self.state.tasks.for_owner(&runtime_owner(&caller.identity)),
+            request,
+        )
+        .await
     }
 
     pub(super) async fn update_task(
@@ -91,26 +89,11 @@ impl TimeseriesTaskService {
         context: &RequestContext<RoleServer>,
     ) -> Result<(), McpError> {
         let caller = authenticated_caller(context)?;
-        self.authorized_snapshot(&caller, &request.task_id).await?;
-        let responses = request
-            .input_responses
-            .into_iter()
-            .map(|(key, value)| {
-                value
-                    .as_object()
-                    .cloned()
-                    .map(|value| (key, value.into_iter().collect()))
-                    .ok_or_else(|| {
-                        McpError::invalid_params("task input responses must be objects", None)
-                    })
-            })
-            .collect::<Result<_, _>>()?;
-        self.state
-            .tasks
-            .submit_input_responses(&request.task_id, responses)
-            .await
-            .map_err(|error| McpError::internal_error(error.to_string(), None))?;
-        Ok(())
+        update_durable_task(
+            &self.state.tasks.for_owner(&runtime_owner(&caller.identity)),
+            request,
+        )
+        .await
     }
 
     pub(super) async fn cancel_task(
@@ -119,41 +102,11 @@ impl TimeseriesTaskService {
         context: &RequestContext<RoleServer>,
     ) -> Result<(), McpError> {
         let caller = authenticated_caller(context)?;
-        self.authorized_snapshot(&caller, task_id).await?;
-        self.state
-            .tasks
-            .cancel(task_id)
-            .await
-            .map_err(|error| McpError::internal_error(error.to_string(), None))?;
-        Ok(())
-    }
-
-    async fn authorized_snapshot(
-        &self,
-        caller: &AuthenticatedCaller,
-        task_id: &str,
-    ) -> Result<TaskSnapshot, McpError> {
-        let not_found =
-            || McpError::invalid_params(format!("Task `{task_id}` was not found."), None);
-        let task_id = task_id.parse::<TaskId>().map_err(|_| not_found())?;
-        let snapshot = self
-            .state
-            .tasks
-            .get(&task_id.to_string())
-            .await
-            .map_err(|error| McpError::internal_error(error.to_string(), None))?
-            .ok_or_else(not_found)?;
-        let caller_owner = runtime_owner(&caller.identity);
-        if snapshot.owner.allows(
-            &caller_owner.principal_key,
-            &caller_owner.profile,
-            caller_owner.tenant_key.as_deref(),
-            &caller_owner.data_labels,
-        ) {
-            Ok(snapshot)
-        } else {
-            Err(not_found())
-        }
+        cancel_durable_task(
+            &self.state.tasks.for_owner(&runtime_owner(&caller.identity)),
+            task_id.to_owned(),
+        )
+        .await
     }
 }
 

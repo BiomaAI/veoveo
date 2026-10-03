@@ -184,7 +184,7 @@ impl ComputersMcp {
                 }
             };
             match result {
-                Ok(operation) => operation.task_id().to_string(),
+                Ok(operation) => operation.task_id(),
                 Err(error) => return rejection(error),
             }
         } else if matches!(request.name.as_ref(), "update_template" | "resume_update") {
@@ -199,7 +199,7 @@ impl ComputersMcp {
                     .await
             };
             match result {
-                Ok(operation) => operation.task_id().to_string(),
+                Ok(operation) => operation.task_id(),
                 Err(error) => return rejection(error),
             }
         } else if request.name == "transfer_file" {
@@ -208,7 +208,7 @@ impl ComputersMcp {
                 .transfer_file(&auth::caller(&context)?, input(request.arguments)?)
                 .await
             {
-                Ok(operation) => operation.task_id().to_string(),
+                Ok(operation) => operation.task_id(),
                 Err(error) => return rejection(error),
             }
         } else {
@@ -217,17 +217,19 @@ impl ComputersMcp {
                 .execute(&auth::caller(&context)?, input(request.arguments)?)
                 .await
             {
-                Ok(command) => command.task_id().to_string(),
+                Ok(command) => command.task_id(),
                 Err(error) => return rejection(error),
             }
         };
-        let access = self.task_access(&context, &task_id, false).await?;
+        let access = self
+            .task_access(&context, &task_id.to_string(), false)
+            .await?;
         for pin in pins {
             access
                 .run(async {
                     self.app
                         .tasks
-                        .adopt_retention_pin_for_repair(&task_id, &pin)
+                        .adopt_retention_pin_for_repair(task_id, &pin)
                         .await
                         .map_err(|_| auth::unavailable())
                 })
@@ -236,7 +238,7 @@ impl ComputersMcp {
         let task = access
             .run(veoveo_task_runtime::authorized_snapshot(
                 &self.app.tasks.for_owner(&access.owner),
-                &task_id,
+                &task_id.to_string(),
             ))
             .await?;
         Ok(CreateTaskResult::new(veoveo_task_runtime::task_seed(&task)).into())

@@ -78,11 +78,7 @@ async fn replicas_share_one_replacement_task_fence_and_retained_capacity() {
     assert_eq!(after.instance_id(), before.instance_id());
     assert_eq!(after.provider_resource_id, before.provider_resource_id);
     let tasks = TaskRuntime::new(db.b.clone(), "computers", "other-worker");
-    let task = tasks
-        .get(&expected.task_id().to_string())
-        .await
-        .unwrap()
-        .unwrap();
+    let task = tasks.get(expected.task_id()).await.unwrap().unwrap();
     assert_eq!(task.owner, *actor.owner());
     assert_eq!(task.recovery_class, RecoveryClass::ProviderWait);
     assert_eq!(
@@ -152,7 +148,7 @@ async fn replicas_share_one_replacement_task_fence_and_retained_capacity() {
     assert_eq!(repaired.target_instance_id, expected.target_instance_id);
     assert_eq!(
         tasks
-            .get(&expected.task_id().to_string())
+            .get(expected.task_id())
             .await
             .unwrap()
             .unwrap()
@@ -241,7 +237,7 @@ async fn failed_initial_create_is_fenced_without_reclassifying_its_unknown_effec
         .unwrap();
     let tasks = TaskRuntime::new(db.a.clone(), "computers", "source-worker");
     let claim = tasks
-        .claim_observation(&original.task_id().to_string(), Duration::from_secs(60))
+        .claim_observation(original.task_id(), Duration::from_secs(60))
         .await
         .unwrap();
     drop(a.begin_dispatch(&claim).await.unwrap());

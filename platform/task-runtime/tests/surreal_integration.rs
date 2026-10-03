@@ -75,6 +75,44 @@ async fn runtime(worker: &str) -> (fixture::TestDb, TaskRuntime) {
 }
 
 #[tokio::test]
+async fn typed_native_admission_rejects_non_rfc_v7_without_creating_tasks() {
+    tokio::time::timeout(Duration::from_secs(60), async {
+        let (_db, runtime) = runtime("id-admission").await;
+        for invalid in [
+            "01983da0-0000-4000-8000-000000000001",
+            "01983da0-0000-7000-0000-000000000001",
+        ] {
+            let id = veoveo_types::TaskId::from_uuid(invalid.parse().unwrap());
+            let mut request = draft("forecast", RecoveryClass::Resume);
+            request.task_id = id;
+            assert!(matches!(
+                runtime.create(request).await,
+                Err(TaskError::InvalidRecord(_))
+            ));
+            assert!(matches!(
+                runtime.get(id).await,
+                Err(TaskError::InvalidRecord(_))
+            ));
+            assert!(matches!(
+                runtime.claim(id, Duration::from_secs(30)).await,
+                Err(TaskError::InvalidRecord(_))
+            ));
+            assert!(matches!(
+                runtime.renew_lease(id, Duration::from_secs(30)).await,
+                Err(TaskError::InvalidRecord(_))
+            ));
+            assert!(matches!(
+                runtime.cancel(id).await,
+                Err(TaskError::InvalidRecord(_))
+            ));
+        }
+        assert!(runtime.list().await.unwrap().is_empty());
+    })
+    .await
+    .expect("native identity admission exceeded 60 seconds");
+}
+
+#[tokio::test]
 async fn task_lifecycle_is_durable_atomic_and_idempotent() {
     tokio::time::timeout(Duration::from_secs(60), async {
         let (db, runtime) = runtime("worker-a").await;
@@ -88,13 +126,12 @@ async fn task_lifecycle_is_durable_atomic_and_idempotent() {
         assert_eq!(first.snapshot.task_id.as_uuid().get_version_num(), 7);
 
         let claimed = runtime
-            .claim(&first.snapshot.task_id.to_string(), Duration::from_secs(30))
+            .claim(first.snapshot.task_id, Duration::from_secs(30))
             .await
             .unwrap();
         assert_eq!(claimed.lease_owner, "worker-a");
         let completed = runtime
-            .transition(
-                &first.snapshot.task_id.to_string(),
+            .transition(first.snapshot.task_id,
                 TaskTransition::Succeeded {
                     message: "done".to_owned(),
                     result: json!({"answer": 42}),
@@ -105,7 +142,7 @@ async fn task_lifecycle_is_durable_atomic_and_idempotent() {
         assert!(completed.is_terminal());
         assert_eq!(
             runtime
-                .await_payload_state(&first.snapshot.task_id.to_string())
+                .await_payload_state(first.snapshot.task_id)
                 .await
                 .unwrap(),
             TaskPayloadState::Completed(json!({"answer": 42}))
@@ -127,7 +164,7 @@ async fn recovery_classes_and_leases_are_enforced() {
             .unwrap()
             .snapshot;
         runtime
-            .claim(&active.task_id.to_string(), Duration::from_secs(30))
+            .claim(active.task_id, Duration::from_secs(30))
             .await
             .unwrap();
         let active_replica = TaskRuntime::new(db.b.clone(), "integration-server", "worker-b");
@@ -145,7 +182,7 @@ async fn recovery_classes_and_leases_are_enforced() {
             .unwrap()
             .snapshot;
         runtime
-            .claim(&resumable.task_id.to_string(), Duration::from_millis(10))
+            .claim(resumable.task_id, Duration::from_millis(10))
             .await
             .unwrap();
 
@@ -158,7 +195,7 @@ async fn recovery_classes_and_leases_are_enforced() {
             .unwrap()
             .snapshot;
         runtime
-            .claim(&mutating.task_id.to_string(), Duration::from_millis(10))
+            .claim(mutating.task_id, Duration::from_millis(10))
             .await
             .unwrap();
 
@@ -168,13 +205,10 @@ async fn recovery_classes_and_leases_are_enforced() {
             .unwrap()
             .snapshot;
         runtime
-            .claim(&cancelling.task_id.to_string(), Duration::from_millis(10))
+            .claim(cancelling.task_id, Duration::from_millis(10))
             .await
             .unwrap();
-        runtime
-            .cancel(&cancelling.task_id.to_string())
-            .await
-            .unwrap();
+        runtime.cancel(cancelling.task_id).await.unwrap();
 
         let webhook = runtime
             .create(draft("media_generation", RecoveryClass::WebhookWait))
@@ -182,12 +216,12 @@ async fn recovery_classes_and_leases_are_enforced() {
             .unwrap()
             .snapshot;
         runtime
-            .claim(&webhook.task_id.to_string(), Duration::from_millis(10))
+            .claim(webhook.task_id, Duration::from_millis(10))
             .await
             .unwrap();
         runtime
             .transition(
-                &webhook.task_id.to_string(),
+                webhook.task_id,
                 TaskTransition::Waiting {
                     message: "waiting for provider webhook".to_owned(),
                     progress: 0.1,
@@ -227,10 +261,7 @@ async fn recovery_classes_and_leases_are_enforced() {
             Some("interrupted_indeterminate")
         );
         assert_eq!(
-            restarted
-                .payload_state(&mutating.task_id.to_string())
-                .await
-                .unwrap(),
+            restarted.payload_state(mutating.task_id).await.unwrap(),
             TaskPayloadState::Failed(TaskFailure::interrupted_indeterminate())
         );
     })
@@ -248,11 +279,11 @@ async fn replicas_use_revision_cas_and_commit_only_accepted_transitions() {
             .await
             .unwrap()
             .snapshot;
-        let task_id = task.task_id.to_string();
+        let task_id = task.task_id;
 
         let (left, right) = tokio::join!(
-            first.claim(&task_id, Duration::from_secs(30)),
-            second.claim(&task_id, Duration::from_secs(30))
+            first.claim(task_id, Duration::from_secs(30)),
+            second.claim(task_id, Duration::from_secs(30))
         );
         assert_ne!(
             left.is_ok(),
@@ -278,7 +309,7 @@ async fn replicas_use_revision_cas_and_commit_only_accepted_transitions() {
             Err(TaskError::LeaseHeld(_))
         ));
         let renewed = owner_runtime
-            .renew_lease(&task_id, Duration::from_secs(30))
+            .renew_lease(task_id, Duration::from_secs(30))
             .await
             .unwrap();
         assert_eq!(renewed.updated_at, running.updated_at);
@@ -356,7 +387,7 @@ async fn input_requests_are_lifetime_unique_and_responses_are_deduplicated() {
             .unwrap()
             .snapshot;
         first
-            .claim(&task.task_id.to_string(), Duration::from_secs(30))
+            .claim(task.task_id, Duration::from_secs(30))
             .await
             .unwrap();
         let request = TaskInputRequest {
@@ -367,12 +398,12 @@ async fn input_requests_are_lifetime_unique_and_responses_are_deduplicated() {
             )]),
         };
         first
-            .request_input(&task.task_id.to_string(), "choice", request.clone())
+            .request_input(task.task_id, "choice", request.clone())
             .await
             .unwrap();
         assert_eq!(
             first
-                .outstanding_inputs(&task.task_id.to_string())
+                .outstanding_inputs(task.task_id)
                 .await
                 .unwrap()
                 .get("choice"),
@@ -380,7 +411,7 @@ async fn input_requests_are_lifetime_unique_and_responses_are_deduplicated() {
         );
         assert!(matches!(
             first
-                .request_input(&task.task_id.to_string(), "choice", request)
+                .request_input(task.task_id, "choice", request)
                 .await,
             Err(TaskError::DuplicateInputKey(key)) if key == "choice"
         ));
@@ -392,10 +423,10 @@ async fn input_requests_are_lifetime_unique_and_responses_are_deduplicated() {
                 ("content".to_owned(), json!({"value": 7})),
             ]),
         )]);
-        let task_id = task.task_id.to_string();
+        let task_id = task.task_id;
         let (left, right) = tokio::join!(
-            first.submit_input_responses(&task_id, responses.clone()),
-            second.submit_input_responses(&task_id, responses),
+            first.submit_input_responses(task_id, responses.clone()),
+            second.submit_input_responses(task_id, responses),
         );
         let left = left.unwrap();
         let right = right.unwrap();
@@ -403,7 +434,7 @@ async fn input_requests_are_lifetime_unique_and_responses_are_deduplicated() {
         assert_eq!(left.ignored + right.ignored, 1);
         assert!(
             first
-                .outstanding_inputs(&task.task_id.to_string())
+                .outstanding_inputs(task.task_id)
                 .await
                 .unwrap()
                 .is_empty()
@@ -430,7 +461,7 @@ async fn live_updates_deliver_durable_cross_replica_transitions() {
         assert_eq!(baseline.snapshot.task_id, task.task_id);
         assert_eq!(baseline.snapshot.status, TaskStatus::Queued);
         second
-            .claim(&task.task_id.to_string(), Duration::from_secs(30))
+            .claim(task.task_id, Duration::from_secs(30))
             .await
             .unwrap();
         let update = tokio::time::timeout(Duration::from_secs(2), updates.next())
@@ -461,12 +492,12 @@ async fn durable_cursor_replays_every_transition_after_live_disconnect() {
         drop(first_stream);
 
         runtime
-            .claim(&task.task_id.to_string(), Duration::from_secs(30))
+            .claim(task.task_id, Duration::from_secs(30))
             .await
             .unwrap();
         runtime
             .transition(
-                &task.task_id.to_string(),
+                task.task_id,
                 TaskTransition::Running {
                     message: "forecasting".to_owned(),
                     progress: 0.5,
@@ -476,7 +507,7 @@ async fn durable_cursor_replays_every_transition_after_live_disconnect() {
             .unwrap();
         runtime
             .transition(
-                &task.task_id.to_string(),
+                task.task_id,
                 TaskTransition::Succeeded {
                     message: "complete".to_owned(),
                     result: json!({"answer": 42}),
@@ -522,13 +553,10 @@ async fn cancellation_is_durable_and_terminal_without_a_worker() {
             .await
             .unwrap()
             .snapshot;
-        let cancelled = runtime.cancel(&task.task_id.to_string()).await.unwrap();
+        let cancelled = runtime.cancel(task.task_id).await.unwrap();
         assert!(cancelled.is_terminal());
         assert_eq!(
-            runtime
-                .payload_state(&task.task_id.to_string())
-                .await
-                .unwrap(),
+            runtime.payload_state(task.task_id).await.unwrap(),
             TaskPayloadState::Cancelled
         );
     })
@@ -546,38 +574,36 @@ async fn cancellation_signals_an_active_worker_and_reaches_terminal_state() {
             .unwrap()
             .snapshot;
         runtime
-            .claim(&task.task_id.to_string(), Duration::from_secs(30))
+            .claim(task.task_id, Duration::from_secs(30))
             .await
             .unwrap();
 
         let cancellation = CancellationToken::new();
         let worker_cancellation = cancellation.clone();
         let worker_runtime = runtime.clone();
-        let task_id = task.task_id.to_string();
-        let worker_task_id = task_id.clone();
+        let task_id = task.task_id;
+        let worker_task_id = task_id;
         let join = tokio::spawn(async move {
             worker_cancellation.cancelled().await;
             worker_runtime
-                .transition(&worker_task_id, TaskTransition::Cancelled)
+                .transition(worker_task_id, TaskTransition::Cancelled)
                 .await
                 .unwrap();
         });
         runtime
-            .register_worker(&task_id, cancellation, join)
+            .register_worker(task_id, cancellation, join)
             .await
             .unwrap();
 
-        let requested = runtime.cancel(&task_id).await.unwrap();
+        let requested = runtime.cancel(task_id).await.unwrap();
         assert_eq!(requested.status, TaskStatus::CancelRequested);
-        let terminal = tokio::time::timeout(
-            Duration::from_secs(5),
-            runtime.await_payload_state(&task_id),
-        )
-        .await
-        .expect("active worker cancellation timed out")
-        .unwrap();
+        let terminal =
+            tokio::time::timeout(Duration::from_secs(5), runtime.await_payload_state(task_id))
+                .await
+                .expect("active worker cancellation timed out")
+                .unwrap();
         assert_eq!(terminal, TaskPayloadState::Cancelled);
-        assert!(runtime.cancel(&task_id).await.unwrap().is_terminal());
+        assert!(runtime.cancel(task_id).await.unwrap().is_terminal());
     })
     .await
     .expect("cancellation_signals_an_active_worker_and_reaches_terminal_state exceeded 60 seconds");
@@ -592,12 +618,7 @@ async fn zero_length_leases_are_rejected() {
             .await
             .unwrap()
             .snapshot;
-        assert!(
-            runtime
-                .claim(&task.task_id.to_string(), Duration::ZERO)
-                .await
-                .is_err()
-        );
+        assert!(runtime.claim(task.task_id, Duration::ZERO).await.is_err());
     })
     .await
     .expect("zero_length_leases_are_rejected exceeded 60 seconds");
@@ -615,12 +636,11 @@ async fn pruning_a_terminal_task_also_releases_its_idempotency_key() {
 
         let first = runtime.create(request.clone()).await.unwrap().snapshot;
         runtime
-            .claim(&first.task_id.to_string(), Duration::from_secs(30))
+            .claim(first.task_id, Duration::from_secs(30))
             .await
             .unwrap();
         runtime
-            .request_input(
-                &first.task_id.to_string(),
+            .request_input(first.task_id,
                 "retained-input",
                 TaskInputRequest {
                     method: "elicitation/create".to_owned(),
@@ -630,8 +650,7 @@ async fn pruning_a_terminal_task_also_releases_its_idempotency_key() {
             .await
             .unwrap();
         runtime
-            .transition(
-                &first.task_id.to_string(),
+            .transition(first.task_id,
                 TaskTransition::Failed(TaskFailure::new("expected", "test completion")),
             )
             .await
@@ -641,7 +660,7 @@ async fn pruning_a_terminal_task_also_releases_its_idempotency_key() {
         assert!(runtime.prune_expired().await.unwrap().is_empty());
         assert!(
             runtime
-                .get(&first.task_id.to_string())
+                .get(first.task_id)
                 .await
                 .unwrap()
                 .is_some()
@@ -662,13 +681,13 @@ async fn pruning_a_terminal_task_also_releases_its_idempotency_key() {
         active_request.idempotency_key = Some("active-key".into());
         let active = runtime.create(active_request.clone()).await.unwrap().snapshot;
         let acknowledged = runtime
-            .acknowledge_retention_pin(&first.task_id.to_string(), &pin)
+            .acknowledge_retention_pin(first.task_id, &pin)
             .await
             .unwrap();
         assert!(acknowledged.retention_pins.is_empty());
         assert!(
             runtime
-                .acknowledge_retention_pin(&first.task_id.to_string(), &pin)
+                .acknowledge_retention_pin(first.task_id, &pin)
                 .await
                 .unwrap()
                 .retention_pins

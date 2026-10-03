@@ -77,11 +77,7 @@ async fn settle(
                 current.steps().last().map(|step| step.step),
                 current.recovery()
             );
-            let task = tasks
-                .get(&operation.task_id().to_string())
-                .await
-                .unwrap()
-                .unwrap();
+            let task = tasks.get(operation.task_id()).await.unwrap().unwrap();
             if task.is_terminal()
                 && store
                     .pending_maintenance(None, 100)
@@ -328,7 +324,7 @@ async fn installation_templates_upgrade_recover_and_rollback_retained_home() {
         .await
         .unwrap();
     let claim = tasks_a
-        .claim_observation(&operation.task_id().to_string(), Duration::from_secs(60))
+        .claim_observation(operation.task_id(), Duration::from_secs(60))
         .await
         .unwrap();
     let ticket = a.begin_maintenance_step(&claim).await.unwrap();

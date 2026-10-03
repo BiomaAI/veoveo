@@ -200,7 +200,7 @@ async fn native_tasks_survive_restart_require_current_input_and_confirm_cancella
         assert_eq!(request(&app, "POST", &input_path, answer(2)).await.0, StatusCode::NO_CONTENT);
         assert_eq!(request(&app, "POST", &input_path, answer(2)).await.0, StatusCode::CONFLICT);
         let image = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
-        domain.runtime.transition(&task.id, TaskTransition::Succeeded { message: "fixture domain rejection".into(),
+        domain.runtime.transition(task.id.parse().unwrap(), TaskTransition::Succeeded { message: "fixture domain rejection".into(),
             result: serde_json::to_value(CallToolResult::error(vec![ContentBlock::text("Fixture rejected the requested action."),
                 serde_json::from_value(json!({"type":"image","mimeType":"image/png","data":image})).unwrap()])).unwrap() }).await.unwrap();
         let changed = tokio::time::timeout(Duration::from_secs(3), async {
@@ -228,7 +228,7 @@ async fn native_tasks_survive_restart_require_current_input_and_confirm_cancella
         let waiting = detail(&app, second).await.task.unwrap();
         assert_eq!(request(&app, "POST", &format!("/operations/{second}/cancel"), Value::Null).await.0, StatusCode::NO_CONTENT);
         assert_eq!(detail(&app, second).await.task.unwrap().state, wire::TaskState::Working, "acknowledgement is not cancellation");
-        domain.runtime.transition(&waiting.id, TaskTransition::Cancelled).await.unwrap();
+        domain.runtime.transition(waiting.id.parse().unwrap(), TaskTransition::Cancelled).await.unwrap();
         assert_eq!(detail(&app, second).await.task.unwrap().state, wire::TaskState::Cancelled);
         assert_eq!(domain.calls.load(Ordering::SeqCst), 2);
         let continuation = Uuid::now_v7();

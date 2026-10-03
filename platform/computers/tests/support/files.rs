@@ -113,10 +113,7 @@ pub async fn queue(
         .unwrap();
     store.ensure_file_task(&operation).await.unwrap();
     TaskRuntime::new(db.a.clone(), "computers", "file-worker")
-        .claim_observation(
-            &operation.task_id().to_string(),
-            std::time::Duration::from_secs(60),
-        )
+        .claim_observation(operation.task_id(), std::time::Duration::from_secs(60))
         .await
         .unwrap()
 }

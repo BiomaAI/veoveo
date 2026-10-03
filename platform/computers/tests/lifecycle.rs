@@ -173,7 +173,7 @@ async fn queue(
         .await
         .unwrap();
     let claimed = tasks
-        .claim_observation(&operation.task_id().to_string(), Duration::from_secs(60))
+        .claim_observation(operation.task_id(), Duration::from_secs(60))
         .await
         .unwrap();
     (operation, claimed)
@@ -227,12 +227,7 @@ async fn only_one_replica_receives_dispatch_and_domain_settles_before_task_proje
     assert!(computer.active_operation.is_none());
     assert_eq!(computer.process_id.as_deref(), Some("run-1"));
     assert_eq!(
-        tasks
-            .get(&op.task_id().to_string())
-            .await
-            .unwrap()
-            .unwrap()
-            .status,
+        tasks.get(op.task_id()).await.unwrap().unwrap().status,
         TaskStatus::Queued
     );
     assert!(b.begin_dispatch(&claimed).await.is_err());
@@ -273,7 +268,7 @@ async fn lost_dispatch_receipt_recovers_by_one_charged_observation_without_repla
         .unwrap();
     let successor = TaskRuntime::new(db.b.clone(), "computers", "worker-b");
     let claimed = successor
-        .claim_observation(&op.task_id().to_string(), Duration::from_secs(60))
+        .claim_observation(op.task_id(), Duration::from_secs(60))
         .await
         .unwrap();
     assert!(b.begin_dispatch(&claimed).await.is_err());
@@ -383,10 +378,7 @@ async fn cancellation_blocks_dispatch_and_stale_process_cannot_complete_start() 
     let db = TestDb::new().await;
     let (a, _, tasks) = setup(&db).await;
     let (cancelled, claim) = create(&a, &tasks).await;
-    tasks
-        .cancel(&cancelled.task_id().to_string())
-        .await
-        .unwrap();
+    tasks.cancel(cancelled.task_id()).await.unwrap();
     assert!(a.begin_dispatch(&claim).await.is_err());
     assert_eq!(
         a.operation(&owner("alice"), cancelled.operation_id)

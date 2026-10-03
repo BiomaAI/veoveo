@@ -19,12 +19,12 @@ impl MaintenanceWorker {
         operation: &MaintenanceOperation,
         message: &str,
     ) -> Result<()> {
-        let id = operation.task_id().to_string();
+        let id = operation.task_id();
         let task = self
             .tasks
-            .get(&id)
+            .get(id)
             .await?
-            .ok_or_else(|| TaskError::NotFound(id.clone()))?;
+            .ok_or_else(|| TaskError::NotFound(id.to_string()))?;
         if task.is_terminal()
             || task.status == TaskStatus::CancelRequested
             || task.status == TaskStatus::Waiting && task.status_message.as_deref() == Some(message)
@@ -71,7 +71,7 @@ impl MaintenanceWorker {
             _ => return Err(WorkerError::Configuration),
         };
         self.tasks
-            .transition(&operation.task_id().to_string(), transition)
+            .transition(operation.task_id(), transition)
             .await?;
         self.acknowledge(operation).await
     }
@@ -79,7 +79,7 @@ impl MaintenanceWorker {
         self.store.acknowledge_maintenance_task(operation).await?;
         self.tasks
             .acknowledge_retention_pin(
-                &operation.task_id().to_string(),
+                operation.task_id(),
                 &TaskRetentionPin::new(format!("computer-maintenance/{}", operation.operation_id))
                     .map_err(|_| WorkerError::Configuration)?,
             )
@@ -99,7 +99,7 @@ impl MaintenanceWorker {
             tokio::select! {
                 biased;
                 _ = renewal.tick() => {
-                    let snapshot = tokio::time::timeout(Duration::from_secs(5),self.tasks.renew_lease(&claim.snapshot.task_id.to_string(),LEASE))
+                    let snapshot = tokio::time::timeout(Duration::from_secs(5),self.tasks.renew_lease(claim.snapshot.task_id,LEASE))
                         .await.map_err(|_|WorkerError::LeaseLost)??;
                     claim.lease_expires_at = snapshot.lease_expires_at.ok_or(WorkerError::LeaseLost)?;
                     claim.snapshot = snapshot;

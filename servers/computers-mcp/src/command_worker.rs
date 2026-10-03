@@ -74,13 +74,13 @@ impl CommandWorker {
             self.acknowledge(&operation).await?;
             return Ok(WorkerStep::Settled);
         }
-        let id = operation.task_id().to_string();
-        let task = match self.tasks.get(&id).await? {
+        let id = operation.task_id();
+        let task = match self.tasks.get(id).await? {
             Some(task) => task,
             None => {
                 self.store.ensure_command_task(&operation).await?;
                 self.tasks
-                    .get(&id)
+                    .get(id)
                     .await?
                     .ok_or(CommandWorkerError::LeaseLost)?
             }
@@ -89,7 +89,7 @@ impl CommandWorker {
             self.acknowledge(&operation).await?;
             return Ok(WorkerStep::Settled);
         }
-        let mut claim = match self.tasks.claim_observation(&id, LEASE_DURATION).await {
+        let mut claim = match self.tasks.claim_observation(id, LEASE_DURATION).await {
             Ok(claim) => claim,
             Err(TaskError::LeaseHeld(_) | TaskError::Conflict(_)) => return Ok(WorkerStep::Busy),
             Err(error) => return Err(error.into()),
@@ -101,8 +101,7 @@ impl CommandWorker {
                 WorkerStep::Settled
             }
             CommandStage::RecoveryRequired => {
-                self.waiting(
-                    &id,
+                self.waiting(id,
                     "Needs recovery: this command's outcome is uncertain, so it won't run again automatically. Open the Computer to check before retrying.",
                 )
                 .await?;
@@ -124,8 +123,8 @@ impl CommandWorker {
         claim: &mut ClaimedTask,
         operation: &CommandOperation,
     ) -> Result<WorkerStep> {
-        let id = operation.task_id().to_string();
-        let refusal = if self.tasks.is_cancel_requested(&id).await? {
+        let id = operation.task_id();
+        let refusal = if self.tasks.is_cancel_requested(id).await? {
             Some(CommandRefusal::CancelledBeforeDispatch)
         } else if chrono::Utc::now() - operation.created_at() > chrono::TimeDelta::seconds(301) {
             Some(CommandRefusal::PreparationExpired)
@@ -139,12 +138,12 @@ impl CommandWorker {
             .templates
             .contains(&operation.binding().template_fingerprint)
         {
-            self.waiting(&id, "The Computer execution profile is unavailable")
+            self.waiting(id, "The Computer execution profile is unavailable")
                 .await?;
             return Ok(WorkerStep::Waiting);
         }
         if operation.output_capability_request(&self.keys)?.is_some() {
-            self.waiting(&id, "Preparing authorized command output")
+            self.waiting(id, "Preparing authorized command output")
                 .await?;
             return Ok(WorkerStep::Waiting);
         }
@@ -164,7 +163,7 @@ impl CommandWorker {
                 return self.refuse(claim, CommandRefusal::RunChanged).await;
             }
             Err(_) => {
-                self.waiting(&id, "Waiting for current execution authority")
+                self.waiting(id, "Waiting for current execution authority")
                     .await?;
                 return Ok(WorkerStep::Waiting);
             }
@@ -186,7 +185,7 @@ impl CommandWorker {
         )));
         let capture = output.clone();
         let constrain = output.clone();
-        self.waiting(&id, "Running command").await?;
+        self.waiting(id, "Running command").await?;
         let started = Instant::now();
         let initial = CommandRunAuthority {
             valid_until: ticket.authority_deadline(),
@@ -238,7 +237,7 @@ impl CommandWorker {
                             .await;
                     }
                 };
-                self.waiting(&id, "Publishing command output").await?;
+                self.waiting(id, "Publishing command output").await?;
                 let buffers = output
                     .lock()
                     .map_err(|_| CommandWorkerError::OutputUnavailable)?

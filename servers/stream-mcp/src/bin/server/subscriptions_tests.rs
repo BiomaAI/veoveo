@@ -222,12 +222,7 @@ async fn mixed_sources_deliver_cross_instance_runs_live_updates_and_reconnect_ba
             }
         }
         assert_eq!(
-            writer
-                .get(&second.to_string())
-                .await
-                .unwrap()
-                .unwrap()
-                .status,
+            writer.get(second).await.unwrap().unwrap().status,
             StoredTaskStatus::Succeeded
         );
         // Local run signals and unrequested resources cannot supply run invalidations.
@@ -284,7 +279,7 @@ async fn denied_resources_and_lost_live_sessions_never_emit_updates() {
         create(&runtime, owner(), id).await;
         db.b.client().query("UPDATE ONLY $task SET request.owner.data_labels = ['restricted'], request.input = NONE RETURN NONE;")
             .bind(("task", veoveo_platform_store::task_record_id(id))).await.unwrap().check().unwrap();
-        assert!(runtime.get(&id.to_string()).await.is_err());
+        assert!(runtime.get(id).await.is_err());
         let filter = SubscriptionFilter::builder().resource_subscriptions([uris::run_uri(run(id)).to_string()]).build();
         assert_eq!(service.subscribe(&filter, owner()).await.err().unwrap().message, "Stream run not found");
         let filter = SubscriptionFilter::builder().resource_subscriptions([uris::session_uri(session).to_string()]).build();

@@ -44,25 +44,25 @@ async fn qualified_provider_completion_survives_queued_state_and_cancellation_ra
             .await
             .unwrap()
             .snapshot;
-        let id = task.task_id.to_string();
+        let id = task.task_id;
         runtime
-            .claim_observation(&id, Duration::from_secs(30))
+            .claim_observation(id, Duration::from_secs(30))
             .await
             .unwrap();
         if cancelled {
-            runtime.cancel(&id).await.unwrap();
+            runtime.cancel(id).await.unwrap();
         }
         let result = || TaskTransition::Succeeded {
             message: "provider outcome committed".into(),
             result: serde_json::json!({"content": []}),
         };
         expire(&runtime, &task).await;
-        assert!(runtime.transition(&id, result()).await.is_err());
+        assert!(runtime.transition(id, result()).await.is_err());
         runtime
-            .claim_observation(&id, Duration::from_secs(30))
+            .claim_observation(id, Duration::from_secs(30))
             .await
             .unwrap();
-        let completed = runtime.transition(&id, result()).await.unwrap();
+        let completed = runtime.transition(id, result()).await.unwrap();
         assert_eq!(completed.status, TaskStatus::Succeeded);
         assert_eq!(completed.cancel_requested_at.is_some(), cancelled);
         assert!(completed.result.is_some());
@@ -80,13 +80,13 @@ async fn qualified_provider_completion_survives_queued_state_and_cancellation_ra
         RecoveryClass::InterruptedIndeterminate,
     ] {
         let task = runtime.create(draft(class)).await.unwrap().snapshot;
-        let id = task.task_id.to_string();
-        runtime.claim(&id, Duration::from_secs(30)).await.unwrap();
-        runtime.cancel(&id).await.unwrap();
+        let id = task.task_id;
+        runtime.claim(id, Duration::from_secs(30)).await.unwrap();
+        runtime.cancel(id).await.unwrap();
         assert!(
             runtime
                 .transition(
-                    &id,
+                    id,
                     TaskTransition::Succeeded {
                         message: "rejected".into(),
                         result: serde_json::json!({"content": []})
@@ -107,15 +107,15 @@ async fn provider_wait_progress_updates_preserve_status_and_require_current_leas
         .await
         .unwrap()
         .snapshot;
-    let id = task.task_id.to_string();
+    let id = task.task_id;
     runtime
-        .claim_observation(&id, Duration::from_secs(30))
+        .claim_observation(id, Duration::from_secs(30))
         .await
         .unwrap();
     for (message, progress) in [("preparing", 0.0), ("observing", 0.5)] {
         let updated = runtime
             .transition(
-                &id,
+                id,
                 TaskTransition::Waiting {
                     message: message.into(),
                     progress,
@@ -131,7 +131,7 @@ async fn provider_wait_progress_updates_preserve_status_and_require_current_leas
     assert!(
         runtime
             .transition(
-                &id,
+                id,
                 TaskTransition::Waiting {
                     message: "stale observer".into(),
                     progress: 0.9
@@ -152,27 +152,27 @@ async fn observer_release_hands_off_without_waiting_for_expiry_and_rejects_old_r
         .await
         .unwrap()
         .snapshot;
-    let id = task.task_id.to_string();
+    let id = task.task_id;
     let old = a
-        .claim_observation(&id, Duration::from_secs(30))
+        .claim_observation(id, Duration::from_secs(30))
         .await
         .unwrap();
-    a.renew_lease(&id, Duration::from_secs(60)).await.unwrap();
+    a.renew_lease(id, Duration::from_secs(60)).await.unwrap();
     assert!(a.release_observation(&old).await.is_err());
     let current = a
-        .claim_observation(&id, Duration::from_secs(30))
+        .claim_observation(id, Duration::from_secs(30))
         .await
         .unwrap();
     a.release_observation(&current).await.unwrap();
     let successor = b
-        .claim_observation(&id, Duration::from_secs(30))
+        .claim_observation(id, Duration::from_secs(30))
         .await
         .unwrap();
     assert_eq!(successor.snapshot.status, TaskStatus::Queued);
     assert_eq!(successor.snapshot.request, task.request);
     assert!(a.release_observation(&current).await.is_err());
     assert_eq!(
-        a.get(&id).await.unwrap().unwrap().lease_owner.as_deref(),
+        a.get(id).await.unwrap().unwrap().lease_owner.as_deref(),
         Some("worker-b")
     );
 }
@@ -188,11 +188,7 @@ async fn expire(runtime: &TaskRuntime, task: &TaskSnapshot) {
         .unwrap();
 }
 async fn current(runtime: &TaskRuntime, task: &TaskSnapshot) -> TaskSnapshot {
-    runtime
-        .get(&task.task_id.to_string())
-        .await
-        .unwrap()
-        .unwrap()
+    runtime.get(task.task_id).await.unwrap().unwrap()
 }
 
 #[tokio::test]
@@ -208,7 +204,7 @@ async fn domain_journal_commits_with_the_current_lease_and_preserves_cancellatio
         .unwrap()
         .snapshot;
     let claimed = a
-        .claim_observation(&task.task_id.to_string(), Duration::from_secs(30))
+        .claim_observation(task.task_id, Duration::from_secs(30))
         .await
         .unwrap();
     let body = "UPDATE ONLY $journal SET dispatches += 1;";
@@ -250,7 +246,7 @@ async fn domain_journal_commits_with_the_current_lease_and_preserves_cancellatio
             .take(0)
             .unwrap();
     assert_eq!(count, Some(1));
-    a.cancel(&task.task_id.to_string()).await.unwrap();
+    a.cancel(task.task_id).await.unwrap();
     assert!(
         a.commit_provider_journal(&claimed, ProviderCommit::Dispatch, body, bindings())
             .await
@@ -266,7 +262,7 @@ async fn domain_journal_commits_with_the_current_lease_and_preserves_cancellatio
             .is_err()
     );
     let successor = b
-        .claim_observation(&task.task_id.to_string(), Duration::from_secs(30))
+        .claim_observation(task.task_id, Duration::from_secs(30))
         .await
         .unwrap();
     assert!(
@@ -300,11 +296,11 @@ async fn renewing_a_task_lease_invalidates_an_old_journal_receipt() {
         .unwrap()
         .snapshot;
     let claimed = runtime
-        .claim_observation(&task.task_id.to_string(), Duration::from_secs(30))
+        .claim_observation(task.task_id, Duration::from_secs(30))
         .await
         .unwrap();
     let renewed = runtime
-        .renew_lease(&task.task_id.to_string(), Duration::from_secs(60))
+        .renew_lease(task.task_id, Duration::from_secs(60))
         .await
         .unwrap();
     assert!(
@@ -351,17 +347,17 @@ async fn provider_recovery_preserves_every_nonterminal_state_and_cancel_intent()
             .await
             .unwrap()
             .snapshot;
-        let id = task.task_id.to_string();
+        let id = task.task_id;
         assert!(matches!(
-            a.claim(&id, Duration::from_secs(10)).await,
+            a.claim(id, Duration::from_secs(10)).await,
             Err(TaskError::InvalidRecord(_))
         ));
         if status != TaskStatus::Queued {
-            a.claim_observation(&id, Duration::from_secs(30))
+            a.claim_observation(id, Duration::from_secs(30))
                 .await
                 .unwrap();
             a.transition(
-                &id,
+                id,
                 TaskTransition::Running {
                     message: "intent persisted".into(),
                     progress: 0.25,
@@ -371,7 +367,7 @@ async fn provider_recovery_preserves_every_nonterminal_state_and_cancel_intent()
             .unwrap();
             if status == TaskStatus::Waiting {
                 a.transition(
-                    &id,
+                    id,
                     TaskTransition::Waiting {
                         message: "watch lost; retaining operation".into(),
                         progress: 0.25,
@@ -380,7 +376,7 @@ async fn provider_recovery_preserves_every_nonterminal_state_and_cancel_intent()
                 .await
                 .unwrap();
             } else if status == TaskStatus::CancelRequested {
-                a.cancel(&id).await.unwrap();
+                a.cancel(id).await.unwrap();
             }
             expire(&a, &task).await;
         }
@@ -420,13 +416,13 @@ async fn provider_recovery_preserves_every_nonterminal_state_and_cancel_intent()
         before
     );
     let cancelled = originals.last().unwrap();
-    let id = cancelled.task_id.to_string();
+    let id = cancelled.task_id;
     assert!(
-        a.transition(&id, TaskTransition::Cancelled).await.is_err(),
+        a.transition(id, TaskTransition::Cancelled).await.is_err(),
         "expired lease must not settle provider cancellation"
     );
     let claimed = b
-        .claim_observation(&id, Duration::from_secs(30))
+        .claim_observation(id, Duration::from_secs(30))
         .await
         .unwrap();
     assert_eq!(claimed.snapshot.status, TaskStatus::CancelRequested);
@@ -434,9 +430,9 @@ async fn provider_recovery_preserves_every_nonterminal_state_and_cancel_intent()
         claimed.snapshot.cancel_requested_at,
         cancelled.cancel_requested_at
     );
-    assert!(a.transition(&id, TaskTransition::Cancelled).await.is_err());
+    assert!(a.transition(id, TaskTransition::Cancelled).await.is_err());
     // Only the current observer can report an authoritative cancellation outcome.
-    let result = b.transition(&id, TaskTransition::Cancelled).await.unwrap();
+    let result = b.transition(id, TaskTransition::Cancelled).await.unwrap();
     assert_eq!(result.status, TaskStatus::Cancelled);
     assert_eq!(result.retention_pins, cancelled.retention_pins);
 }
@@ -450,10 +446,10 @@ async fn observation_claims_race_across_replicas_and_cannot_claim_other_profiles
         .await
         .unwrap()
         .snapshot;
-    let id = task.task_id.to_string();
+    let id = task.task_id;
     let (left, right) = tokio::join!(
-        a.claim_observation(&id, Duration::from_secs(30)),
-        b.claim_observation(&id, Duration::from_secs(30))
+        a.claim_observation(id, Duration::from_secs(30)),
+        b.claim_observation(id, Duration::from_secs(30))
     );
     assert_eq!(usize::from(left.is_ok()) + usize::from(right.is_ok()), 1);
     let original = current(&a, &task).await;
@@ -461,7 +457,7 @@ async fn observation_claims_race_across_replicas_and_cannot_claim_other_profiles
     assert_eq!(original.request, task.request);
     let winner = if left.is_ok() { &a } else { &b };
     let renewed = winner
-        .renew_lease(&id, Duration::from_secs(60))
+        .renew_lease(id, Duration::from_secs(60))
         .await
         .unwrap();
     assert_eq!(renewed.status, TaskStatus::Queued);
@@ -474,7 +470,7 @@ async fn observation_claims_race_across_replicas_and_cannot_claim_other_profiles
     ] {
         let task = a.create(draft(class)).await.unwrap().snapshot;
         assert!(matches!(
-            b.claim_observation(&task.task_id.to_string(), Duration::from_secs(30))
+            b.claim_observation(task.task_id, Duration::from_secs(30))
                 .await,
             Err(TaskError::InvalidRecord(_))
         ));
@@ -492,7 +488,7 @@ async fn existing_recovery_profiles_keep_their_qualified_behavior() {
         RecoveryClass::InterruptedIndeterminate,
     ] {
         let task = a.create(draft(class)).await.unwrap().snapshot;
-        a.claim(&task.task_id.to_string(), Duration::from_secs(30))
+        a.claim(task.task_id, Duration::from_secs(30))
             .await
             .unwrap();
         expire(&a, &task).await;
@@ -528,7 +524,7 @@ async fn additive_schema_expansion_preserves_existing_tasks_and_rejects_early_ad
     let rejected = draft(RecoveryClass::ProviderWait);
     let id = rejected.task_id;
     assert!(runtime.create(rejected).await.is_err());
-    assert!(runtime.get(&id.to_string()).await.unwrap().is_none());
+    assert!(runtime.get(id).await.unwrap().is_none());
     db.a.client()
         .query(include_str!(
             "../../store/migrations/0052_provider_wait.surql"
@@ -565,12 +561,12 @@ async fn provider_cancel_without_a_lease_preserves_a_successful_cancellation_req
         .await
         .unwrap()
         .snapshot;
-    let id = task.task_id.to_string();
-    let requested = a.cancel(&id).await.unwrap();
+    let id = task.task_id;
+    let requested = a.cancel(id).await.unwrap();
     assert_eq!(requested.status, TaskStatus::CancelRequested);
     assert!(requested.lease_owner.is_none());
     assert_eq!(
-        b.cancel(&id).await.unwrap().cancel_requested_at,
+        b.cancel(id).await.unwrap().cancel_requested_at,
         requested.cancel_requested_at
     );
     let recovered = b.recover().await.unwrap();
@@ -579,11 +575,11 @@ async fn provider_cancel_without_a_lease_preserves_a_successful_cancellation_req
         TaskStatus::CancelRequested
     );
     assert!(recovered.cancelled.is_empty());
-    b.claim_observation(&id, Duration::from_secs(30))
+    b.claim_observation(id, Duration::from_secs(30))
         .await
         .unwrap();
     assert_eq!(
-        b.transition(&id, TaskTransition::Cancelled)
+        b.transition(id, TaskTransition::Cancelled)
             .await
             .unwrap()
             .status,

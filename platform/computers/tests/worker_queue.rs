@@ -67,9 +67,9 @@ async fn queued_cancellation_is_atomic_and_projection_ack_survives_pin_interrupt
         a.ensure_operation_task(&actor, op.operation_id)
             .await
             .unwrap();
-        let id = op.task_id().to_string();
+        let id = op.task_id();
         let claim = tasks
-            .claim_observation(&id, Duration::from_secs(60))
+            .claim_observation(id, Duration::from_secs(60))
             .await
             .unwrap();
         assert!(
@@ -78,7 +78,7 @@ async fn queued_cancellation_is_atomic_and_projection_ack_survives_pin_interrupt
                 .is_err()
         );
         let outcome = if cancel {
-            tasks.cancel(&id).await.unwrap();
+            tasks.cancel(id).await.unwrap();
             UndispatchedOutcome::CancelledBeforeDispatch
         } else {
             UndispatchedOutcome::AuthorityDenied
@@ -108,7 +108,7 @@ async fn queued_cancellation_is_atomic_and_projection_ack_survives_pin_interrupt
         );
         tasks
             .transition(
-                &id,
+                id,
                 if cancel {
                     TaskTransition::Cancelled
                 } else {
@@ -127,14 +127,14 @@ async fn queued_cancellation_is_atomic_and_projection_ack_survives_pin_interrupt
         assert!(repair[0].task_projected_at.is_some());
         tasks
             .acknowledge_retention_pin(
-                &id,
+                id,
                 &TaskRetentionPin::new(format!("computer-operation/{}", op.operation_id)).unwrap(),
             )
             .await
             .unwrap();
         assert!(b.pending_operations(None, 100).await.unwrap().is_empty());
         assert_eq!(
-            tasks.get(&id).await.unwrap().unwrap().status,
+            tasks.get(id).await.unwrap().unwrap().status,
             if cancel {
                 TaskStatus::Cancelled
             } else {
@@ -199,13 +199,13 @@ async fn undispatched_abort_cannot_clear_an_uncertain_dispatch() {
         .await
         .unwrap();
     let tasks = TaskRuntime::new(db.a.clone(), "computers", "worker-a");
-    let id = op.task_id().to_string();
+    let id = op.task_id();
     let claim = tasks
-        .claim_observation(&id, Duration::from_secs(60))
+        .claim_observation(id, Duration::from_secs(60))
         .await
         .unwrap();
     drop(a.begin_dispatch(&claim).await.unwrap());
-    tasks.cancel(&id).await.unwrap();
+    tasks.cancel(id).await.unwrap();
     for outcome in [
         UndispatchedOutcome::AuthorityDenied,
         UndispatchedOutcome::CancelledBeforeDispatch,

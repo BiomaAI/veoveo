@@ -93,7 +93,7 @@ async fn personal_feeds_follow_native_tasks_on_two_replicas_without_private_payl
         let waiting = |event: &wire::PersonalEvent| matches!(event, wire::PersonalEvent::Task { operation, state: wire::TaskState::InputRequired, .. } if operation.0 == id);
         first.until(waiting).await;
         second.until(waiting).await;
-        fixture.domain.runtime.transition(&task.id, TaskTransition::Succeeded { message: "Done".into(), result: serde_json::to_value(CallToolResult::success(vec![ContentBlock::text("PRIVATE TASK RESULT")])).unwrap() }).await.unwrap();
+        fixture.domain.runtime.transition(task.id.parse().unwrap(), TaskTransition::Succeeded { message: "Done".into(), result: serde_json::to_value(CallToolResult::success(vec![ContentBlock::text("PRIVATE TASK RESULT")])).unwrap() }).await.unwrap();
         let done = |event: &wire::PersonalEvent| matches!(event, wire::PersonalEvent::Task { operation, state: wire::TaskState::Completed, .. } if operation.0 == id);
         first.until(done).await;
         second.until(done).await;

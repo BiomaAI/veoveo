@@ -516,12 +516,12 @@ async fn current_generation_results_survive_cross_replica_reads_and_reconnects()
             rmcp::model::TaskPayload::Working
         ));
         writer
-            .claim(&task.task_id.to_string(), Duration::from_secs(30))
+            .claim(task.task_id, Duration::from_secs(30))
             .await
             .unwrap();
         writer
             .transition(
-                &task.task_id.to_string(),
+                task.task_id,
                 veoveo_task_runtime::TaskTransition::Succeeded {
                     message: task_results::GENERATION_COMPLETED.into(),
                     result: stored.clone(),
@@ -566,12 +566,7 @@ async fn current_generation_results_survive_cross_replica_reads_and_reconnects()
             );
         }
         assert_eq!(
-            reader
-                .get(&task.task_id.to_string())
-                .await
-                .unwrap()
-                .unwrap()
-                .result,
+            reader.get(task.task_id).await.unwrap().unwrap().result,
             Some(stored)
         );
         // The immutable result is an exact read; no subscription is advertised.

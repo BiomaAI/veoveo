@@ -140,7 +140,8 @@ impl veoveo_task_runtime::DurableTaskService for MediaTaskExtension {
         let cancelled = self
             .state
             .tasks
-            .cancel(&task_id)
+            .for_owner(&runtime_owner(&caller.identity))
+            .cancel(snapshot.task_id)
             .await
             .map_err(|error| rmcp::ErrorData::internal_error(error.to_string(), None))?;
         if matches!(

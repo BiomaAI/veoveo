@@ -128,7 +128,7 @@ impl ComputersStore {
                 .saturating_sub(began.elapsed())
         };
         let task = TaskRuntime::new(self.platform.clone(), "computers", &claim.lease_owner)
-            .get(&operation.task_id().to_string())
+            .get(operation.task_id())
             .await
             .map_err(|_| ComputerError::Unavailable)?
             .ok_or(ComputerError::StateConflict)?;

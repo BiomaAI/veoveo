@@ -237,7 +237,7 @@ impl MissionCase {
         let task_id = created.snapshot.task_id;
         state
             .tasks
-            .claim(&task_id.to_string(), TASK_LEASE_DURATION)
+            .claim(task_id, TASK_LEASE_DURATION)
             .await
             .unwrap();
         let cancellation = CancellationToken::new();
@@ -259,7 +259,7 @@ impl MissionCase {
         let worker = join.abort_handle();
         state
             .tasks
-            .register_worker(&task_id.to_string(), cancellation, join)
+            .register_worker(task_id, cancellation, join)
             .await
             .unwrap();
         tokio::time::timeout(Duration::from_secs(5), http.state.started.notified())
@@ -281,12 +281,7 @@ impl MissionCase {
             .await
             .expect("mission worker exceeded 55 seconds")
             .unwrap();
-        self.state
-            .tasks
-            .get(&self.task_id.to_string())
-            .await
-            .unwrap()
-            .unwrap()
+        self.state.tasks.get(self.task_id).await.unwrap().unwrap()
     }
 
     async fn assert_fenced(&self) {
@@ -345,11 +340,7 @@ async fn native_cancellation_keeps_vehicle_fenced_after_provider_continues() {
     let db = TestDb::new().await;
     tokio::time::timeout(Duration::from_secs(65), async {
         let mut case = MissionCase::start(&db.a, Reply::Completed, Duration::from_secs(60)).await;
-        case.state
-            .tasks
-            .cancel(&case.task_id.to_string())
-            .await
-            .unwrap();
+        case.state.tasks.cancel(case.task_id).await.unwrap();
         let task = case.wait().await;
         assert_eq!(task.status, TaskStatus::Failed);
         assert!(task.retention_pins.contains(&task_link::retention_pin()));
@@ -359,7 +350,7 @@ async fn native_cancellation_keeps_vehicle_fenced_after_provider_continues() {
         assert!(
             case.state
                 .tasks
-                .get(&case.task_id.to_string())
+                .get(case.task_id)
                 .await
                 .unwrap()
                 .unwrap()
@@ -508,11 +499,7 @@ async fn native_cancellation_after_physical_completion_preserves_settlement() {
             })
             .await
             .expect("physical completion did not settle before catalog lookup");
-            case.state
-                .tasks
-                .cancel(&case.task_id.to_string())
-                .await
-                .unwrap();
+            case.state.tasks.cancel(case.task_id).await.unwrap();
             let task = if publication_race {
                 // The physical receipt is retained, but cancellation commits before the Task result.
                 case.worker.abort();
@@ -529,12 +516,7 @@ async fn native_cancellation_after_physical_completion_preserves_settlement() {
                     },
                 )
                 .await;
-                case.state
-                    .tasks
-                    .get(&case.task_id.to_string())
-                    .await
-                    .unwrap()
-                    .unwrap()
+                case.state.tasks.get(case.task_id).await.unwrap().unwrap()
             } else {
                 case.wait().await
             };
@@ -638,7 +620,7 @@ async fn native_queued_mission_recovery_does_not_decode_or_replay_a_simulator_co
         .unwrap();
         let task = state
             .tasks
-            .get(&created.snapshot.task_id.to_string())
+            .get(created.snapshot.task_id)
             .await
             .unwrap()
             .unwrap();
@@ -759,18 +741,13 @@ async fn native_restart_releases_only_the_domain_pin_for_a_never_admitted_task()
         )
         .await
         .unwrap();
-        let failed = state
-            .tasks
-            .get(&task.task_id.to_string())
-            .await
-            .unwrap()
-            .unwrap();
+        let failed = state.tasks.get(task.task_id).await.unwrap().unwrap();
         assert_eq!(failed.status, TaskStatus::Failed);
         assert_eq!(failed.retention_pins, BTreeSet::from([external.clone()]));
         // A lost acknowledgement after a terminal write is repaired independently of Task recovery.
         state
             .tasks
-            .adopt_retention_pin_for_repair(&task.task_id.to_string(), &task_link::retention_pin())
+            .adopt_retention_pin_for_repair(task.task_id, &task_link::retention_pin())
             .await
             .unwrap();
         assert!(state.tasks.recover().await.unwrap().resumable.is_empty());
@@ -778,7 +755,7 @@ async fn native_restart_releases_only_the_domain_pin_for_a_never_admitted_task()
         assert_eq!(
             state
                 .tasks
-                .get(&task.task_id.to_string())
+                .get(task.task_id)
                 .await
                 .unwrap()
                 .unwrap()

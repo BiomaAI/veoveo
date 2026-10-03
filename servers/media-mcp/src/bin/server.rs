@@ -22,7 +22,7 @@ use std::{
     sync::{Arc, LazyLock},
     time::Duration,
 };
-use veoveo_types::TaskTypeDefinition;
+use veoveo_types::{TaskId, TaskTypeDefinition};
 
 use axum::{
     Router,
@@ -558,14 +558,13 @@ async fn start_media_task(
     retention_pins: std::collections::BTreeSet<TaskRetentionPin>,
 ) -> Result<TaskSnapshot, String> {
     let task_id = veoveo_types::TaskId::new();
-    let task_id_text = task_id.to_string();
     let capability = state
         .artifacts
         .issue_write_capability(
             &caller,
             &IssueArtifactWriteCapabilityRequest {
                 required_data_labels: Default::default(),
-                task_id: task_id_text.clone(),
+                task_id: task_id.to_string(),
                 expires_at: Utc::now() + TimeDelta::hours(ARTIFACT_WRITE_CAPABILITY_TTL_HOURS),
                 max_artifact_count: NonZeroU32::new(ARTIFACT_WRITE_CAPABILITY_MAX_ARTIFACTS)
                     .expect("artifact count limit is non-zero"),
@@ -599,7 +598,7 @@ async fn start_media_task(
         .map_err(|error| error.to_string())?;
     let claimed = state
         .tasks
-        .claim(&task_id_text, TASK_LEASE_DURATION)
+        .claim(task_id, TASK_LEASE_DURATION)
         .await
         .map_err(|error| error.to_string())?;
     let cancellation = tokio_util::sync::CancellationToken::new();
@@ -608,10 +607,10 @@ async fn start_media_task(
         let cancellation = cancellation.clone();
         async move {
             tokio::select! {
-                () = submit_task(state.clone(), task_id_text.clone(), args) => {}
+                () = submit_task(state.clone(), task_id, args) => {}
                 () = cancellation.cancelled() => {
-                    if let Err(error) = state.tasks.transition(&task_id_text, TaskTransition::Cancelled).await {
-                        tracing::warn!(task_id = task_id_text, "failed to persist cancelled media submission: {error}");
+                    if let Err(error) = state.tasks.transition(task_id, TaskTransition::Cancelled).await {
+                        tracing::warn!(task_id = %task_id, "failed to persist cancelled media submission: {error}");
                     }
                 }
             }
@@ -619,7 +618,7 @@ async fn start_media_task(
     });
     state
         .tasks
-        .register_worker(&claimed.snapshot.task_id.to_string(), cancellation, join)
+        .register_worker(claimed.snapshot.task_id, cancellation, join)
         .await
         .map_err(|error| error.to_string())?;
     Ok(claimed.snapshot)
@@ -631,7 +630,7 @@ async fn start_media_task(
 
 async fn media_webhook(
     State(state): State<Arc<AppState>>,
-    AxumPath(task_id): AxumPath<String>,
+    AxumPath(task_id): AxumPath<TaskId>,
     headers: HeaderMap,
     body: axum::body::Bytes,
 ) -> impl IntoResponse {
@@ -671,7 +670,7 @@ async fn media_webhook(
         prediction.status,
         prediction.outputs.len()
     );
-    match state.receive_webhook(&task_id, &id, prediction).await {
+    match state.receive_webhook(task_id, &id, prediction).await {
         Ok(receipt) => {
             let status = if receipt.event.processed_at.is_some() {
                 StatusCode::OK
@@ -681,7 +680,7 @@ async fn media_webhook(
             (status, "accepted").into_response()
         }
         Err(error) => {
-            tracing::error!(task_id, "failed to durably accept signed webhook: {error}");
+            tracing::error!(%task_id, "failed to durably accept signed webhook: {error}");
             (StatusCode::INTERNAL_SERVER_ERROR, "durable receipt failed").into_response()
         }
     }

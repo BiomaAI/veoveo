@@ -155,12 +155,12 @@ impl TimeseriesMcp {
         )
         .await
         .map_err(|err| McpError::internal_error(err, None))?;
-        let task_id = snapshot.task_id.to_string();
+        let task_id = snapshot.task_id;
 
         match self
             .state
             .tasks
-            .await_payload_state(&task_id)
+            .await_payload_state(task_id)
             .await
             .map_err(|err| McpError::internal_error(err.to_string(), None))?
         {
@@ -417,7 +417,7 @@ async fn start_forecast_task(
         state,
         created.snapshot,
         request,
-        task_owner_from_identity(&task_id.to_string(), &identity),
+        task_owner_from_identity(task_id, &identity),
         progress,
     )
     .await
@@ -431,12 +431,12 @@ async fn schedule_forecast_task(
     owner: veoveo_timeseries_mcp::state::TaskOwner,
     progress: Option<TaskProgress>,
 ) -> anyhow::Result<TaskSnapshot> {
-    let task_id = snapshot.task_id.to_string();
-    let claimed = state.tasks.claim(&task_id, TASK_LEASE_DURATION).await?;
+    let task_id = snapshot.task_id;
+    let claimed = state.tasks.claim(task_id, TASK_LEASE_DURATION).await?;
     let cancellation = CancellationToken::new();
     let join = tokio::spawn(run_task(
         state.clone(),
-        task_id.clone(),
+        task_id,
         request,
         owner,
         progress,
@@ -444,15 +444,15 @@ async fn schedule_forecast_task(
     ));
     state
         .tasks
-        .register_worker(&task_id, cancellation, join)
+        .register_worker(task_id, cancellation, join)
         .await?;
     Ok(claimed.snapshot)
 }
 
 async fn resume_forecast_task(state: Arc<AppState>, snapshot: TaskSnapshot) -> anyhow::Result<()> {
     let request: ForecastTaskRequest = serde_json::from_value(snapshot.request.clone())?;
-    let task_id = snapshot.task_id.to_string();
-    let owner = task_owner_from_runtime(&task_id, &snapshot.owner).map_err(anyhow::Error::msg)?;
+    let task_id = snapshot.task_id;
+    let owner = task_owner_from_runtime(task_id, &snapshot.owner).map_err(anyhow::Error::msg)?;
     schedule_forecast_task(state, snapshot, request, owner, None)
         .await
         .map(|_| ())
@@ -464,7 +464,7 @@ async fn notify_task_progress(progress: &Option<TaskProgress>, value: f64, messa
     }
 }
 
-async fn complete_tool_error(state: &AppState, task_id: &str, message: String) {
+async fn complete_tool_error(state: &AppState, task_id: TaskId, message: String) {
     let result = CallToolResult::error(vec![ContentBlock::text(message.clone())]);
     let transition = match serde_json::to_value(result) {
         Ok(result) => TaskTransition::Succeeded { message, result },
@@ -478,7 +478,7 @@ async fn complete_tool_error(state: &AppState, task_id: &str, message: String) {
 
 async fn run_task(
     state: Arc<AppState>,
-    task_id: String,
+    task_id: TaskId,
     request: ForecastTaskRequest,
     owner: veoveo_timeseries_mcp::state::TaskOwner,
     progress: Option<TaskProgress>,
@@ -486,7 +486,7 @@ async fn run_task(
 ) {
     let work = run_task_inner(
         state.clone(),
-        task_id.clone(),
+        task_id,
         request,
         owner,
         progress,
@@ -500,8 +500,8 @@ async fn run_task(
         tokio::select! {
             () = &mut work => break,
             _ = heartbeat.tick() => {
-                if let Err(error) = state.tasks.renew_lease(&task_id, TASK_LEASE_DURATION).await {
-                    tracing::warn!(task_id, "task lease heartbeat failed: {error}");
+                if let Err(error) = state.tasks.renew_lease(task_id, TASK_LEASE_DURATION).await {
+                    tracing::warn!(%task_id, "task lease heartbeat failed: {error}");
                     cancellation.cancel();
                     break;
                 }
@@ -512,7 +512,7 @@ async fn run_task(
 
 async fn run_task_inner(
     state: Arc<AppState>,
-    task_id: String,
+    task_id: TaskId,
     request: ForecastTaskRequest,
     owner: veoveo_timeseries_mcp::state::TaskOwner,
     progress: Option<TaskProgress>,
@@ -521,17 +521,16 @@ async fn run_task_inner(
     macro_rules! fail {
         ($msg:expr) => {{
             let msg: String = $msg;
-            tracing::warn!(task_id, "timeseries task failed: {msg}");
-            complete_tool_error(&state, &task_id, msg).await;
+            tracing::warn!(%task_id, "timeseries task failed: {msg}");
+            complete_tool_error(&state, task_id, msg).await;
             return;
         }};
     }
     notify_task_progress(&progress, 0.1, "materializing source").await;
     let artifact = match tokio::task::spawn_blocking({
-        let task_id = task_id.clone();
         let input = request.input.clone();
         let source_policy = state.source_policy.clone();
-        move || run_forecast(&task_id, &input, &source_policy)
+        move || run_forecast(task_id, &input, &source_policy)
     })
     .await
     {
@@ -540,14 +539,14 @@ async fn run_task_inner(
         Err(err) => fail!(format!("forecast worker failed: {err}")),
     };
     if cancellation.is_cancelled() {
-        update_task(&state, &task_id, TaskTransition::Cancelled).await;
+        update_task(&state, task_id, TaskTransition::Cancelled).await;
         return;
     }
     notify_task_progress(&progress, 0.8, "writing artifact").await;
     let result = match forecast_result(
         &state,
         &request.artifact_write_capability,
-        &task_id,
+        task_id,
         &owner,
         artifact,
     )
@@ -563,7 +562,7 @@ async fn run_task_inner(
     };
     update_task(
         &state,
-        &task_id,
+        task_id,
         TaskTransition::Succeeded {
             message: "completed; RRD artifact available".to_owned(),
             result: payload,
@@ -614,7 +613,7 @@ async fn main() -> anyhow::Result<()> {
         if let Err(error) = resume_forecast_task(state.clone(), snapshot).await {
             match error.downcast_ref::<TaskError>() {
                 Some(TaskError::LeaseHeld(task_id) | TaskError::Conflict(task_id)) => {
-                    tracing::info!(task_id, "another replica claimed recovered forecast task");
+                    tracing::info!(%task_id, "another replica claimed recovered forecast task");
                 }
                 _ => return Err(error),
             }

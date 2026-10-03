@@ -80,7 +80,7 @@ impl SumoMcp {
         )
         .await
         .map_err(|error| McpError::internal_error(error, None))?;
-        await_result(&self.state, &snapshot.task_id.to_string()).await
+        await_result(&self.state, snapshot.task_id).await
     }
 }
 

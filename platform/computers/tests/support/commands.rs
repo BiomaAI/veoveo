@@ -75,10 +75,7 @@ pub async fn queue_claim(
         .unwrap();
     store.ensure_command_task(&operation).await.unwrap();
     TaskRuntime::new(db.a.clone(), "computers", "command-worker")
-        .claim_observation(
-            &operation.task_id().to_string(),
-            std::time::Duration::from_secs(60),
-        )
+        .claim_observation(operation.task_id(), std::time::Duration::from_secs(60))
         .await
         .unwrap()
 }

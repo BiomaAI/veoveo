@@ -71,7 +71,7 @@ async fn operation_policy_and_participant_checks_precede_private_state_decoding(
         store.authorize_operation_task(&agent, operation.operation_id, false).await.unwrap();
         store.ensure_automation_operation_task(&agent, operation.operation_id).await.unwrap();
         let tasks = veoveo_task_runtime::TaskRuntime::new(db.a.clone(), "computers", "sql-worker");
-        let claim = tasks.claim_observation(&operation.task_id().to_string(), Duration::from_secs(30)).await.unwrap();
+        let claim = tasks.claim_observation(operation.task_id(), Duration::from_secs(30)).await.unwrap();
         store.operation_for_claim(&claim).await.unwrap();
         db.a.client().query("UPDATE ONLY $row SET execution_authority.request_context.access_token.expires_at = 42;")
             .bind(("row", record("computer_operation", operation.operation_id.as_uuid()))).await.unwrap().check().unwrap();

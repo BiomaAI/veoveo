@@ -132,10 +132,7 @@ pub(super) async fn create(
         .unwrap()
         .snapshot
         .task_id;
-    runtime
-        .claim(&id.to_string(), Duration::from_secs(90))
-        .await
-        .unwrap();
+    runtime.claim(id, Duration::from_secs(90)).await.unwrap();
     id
 }
 
@@ -146,7 +143,7 @@ pub(super) async fn finish(
 ) {
     runtime
         .transition(
-            &id.to_string(),
+            id,
             TaskTransition::Succeeded {
                 message: "capture completed".into(),
                 result,

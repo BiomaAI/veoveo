@@ -192,7 +192,10 @@ fails with a request for timestamped stream or recording data; the server does
 not invent a current pose.
 
 `batch_transform` uses official Tasks. Direct calls are
-rejected. Large results go through the artifact plane.
+rejected. Large results go through the artifact plane. The shared Task service selects
+current owner, profile, tenant and label visibility in SQL before decoding public
+reads or subscription updates. Cancellation repeats that selection in its write
+transaction. Workers carry foundational Task IDs through claims and transitions.
 
 ## Resources
 

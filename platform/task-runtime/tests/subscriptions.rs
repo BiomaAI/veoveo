@@ -91,23 +91,26 @@ async fn exact_subscriptions_share_wakes_and_observe_other_replicas_without_unre
             .await
             .unwrap()
             .snapshot;
-        let id = target.task_id.to_string();
-        let mut first = subscribe_durable_tasks(&reader.for_owner(&owner()), vec![id.clone()])
+        let id = target.task_id;
+        let mut first = subscribe_durable_tasks(&reader.for_owner(&owner()), vec![id.to_string()])
             .await
             .unwrap()
             .updates;
         let mut second =
-            subscribe_durable_tasks(&reader.clone().for_owner(&owner()), vec![id.clone()])
+            subscribe_durable_tasks(&reader.clone().for_owner(&owner()), vec![id.to_string()])
                 .await
                 .unwrap()
                 .updates;
         for stream in [&mut first, &mut second] {
-            assert_eq!(stream.next().await.unwrap().unwrap().task.task_id, id);
+            assert_eq!(
+                stream.next().await.unwrap().unwrap().task.task_id,
+                id.to_string()
+            );
         }
-        writer.claim(&id, Duration::from_secs(30)).await.unwrap();
+        writer.claim(id, Duration::from_secs(30)).await.unwrap();
         writer
             .transition(
-                &id,
+                id,
                 TaskTransition::Succeeded {
                     message: "finished".into(),
                     result: json!({"value":42}),
@@ -118,7 +121,7 @@ async fn exact_subscriptions_share_wakes_and_observe_other_replicas_without_unre
         for stream in [&mut first, &mut second] {
             loop {
                 let task = stream.next().await.unwrap().unwrap();
-                assert_eq!(task.task.task_id, id);
+                assert_eq!(task.task.task_id, id.to_string());
                 if task.task.status == rmcp::model::TaskStatus::Completed {
                     break;
                 }
@@ -126,17 +129,18 @@ async fn exact_subscriptions_share_wakes_and_observe_other_replicas_without_unre
         }
         drop(first);
         drop(second);
-        let mut resumed = subscribe_durable_tasks(&reader.for_owner(&owner()), vec![id.clone()])
-            .await
-            .unwrap()
-            .updates;
+        let mut resumed =
+            subscribe_durable_tasks(&reader.for_owner(&owner()), vec![id.to_string()])
+                .await
+                .unwrap()
+                .updates;
         assert_eq!(
             resumed.next().await.unwrap().unwrap().task.status,
             rmcp::model::TaskStatus::Completed
         );
         let mut stranger = owner();
         stranger.principal_key = "stranger".into();
-        let denied = subscribe_durable_tasks(&reader.for_owner(&stranger), vec![id])
+        let denied = subscribe_durable_tasks(&reader.for_owner(&stranger), vec![id.to_string()])
             .await
             .unwrap();
         assert!(denied.accepted_task_ids.is_empty());
@@ -353,13 +357,7 @@ async fn owner_reads_and_subscription_baselines_filter_before_decoding() {
                 .unwrap_err();
             assert_eq!(error.message.as_ref(), "unknown task id");
             if mutation == "server = mcp_server:other" {
-                assert!(
-                    reader
-                        .get(&task.task_id.to_string())
-                        .await
-                        .unwrap()
-                        .is_none()
-                );
+                assert!(reader.get(task.task_id).await.unwrap().is_none());
             }
             ids.push(task.task_id.to_string());
         }
@@ -490,8 +488,8 @@ async fn owner_updates_recheck_authority_and_advance_past_denied_change_pages() 
             db.b.client().query("UPDATE ONLY $task SET request.input = { ordinal: $ordinal } RETURN NONE;")
                 .bind(("task", task_record_id(revoked.task_id))).bind(("ordinal", ordinal)).await.unwrap().check().unwrap();
         }
-        writer.claim(&target.task_id.to_string(), Duration::from_secs(30)).await.unwrap();
-        writer.transition(&target.task_id.to_string(), TaskTransition::Succeeded { message: "finished".into(), result: json!({"value":42}) }).await.unwrap();
+        writer.claim(target.task_id, Duration::from_secs(30)).await.unwrap();
+        writer.transition(target.task_id, TaskTransition::Succeeded { message: "finished".into(), result: json!({"value":42}) }).await.unwrap();
         loop {
             let update = stream.next().await.unwrap().unwrap();
             assert_eq!(update.task.task_id, target.task_id.to_string());

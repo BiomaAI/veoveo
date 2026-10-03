@@ -11,9 +11,9 @@ async fn resumption_is_atomic_and_requires_the_exact_current_cancellation_and_le
         .await
         .unwrap()
         .snapshot;
-    let id = task.task_id.to_string();
+    let id = task.task_id;
     let claim = a
-        .claim_observation(&id, Duration::from_secs(30))
+        .claim_observation(id, Duration::from_secs(30))
         .await
         .unwrap();
     let body = "UPDATE ONLY recovery_fixture:one SET windows += 1;";
@@ -23,14 +23,14 @@ async fn resumption_is_atomic_and_requires_the_exact_current_cancellation_and_le
             .is_err()
     );
     // Cancellation arriving after a read cannot be acknowledged by that snapshot.
-    let cancelled = a.cancel(&id).await.unwrap();
+    let cancelled = a.cancel(id).await.unwrap();
     assert!(
         a.resume_provider_journal(&claim, None, body, vec![])
             .await
             .is_err()
     );
     let claim = a
-        .claim_observation(&id, Duration::from_secs(30))
+        .claim_observation(id, Duration::from_secs(30))
         .await
         .unwrap();
     assert!(
@@ -80,7 +80,7 @@ async fn resumption_is_atomic_and_requires_the_exact_current_cancellation_and_le
             .is_err()
     );
     let claim = a
-        .claim_observation(&id, Duration::from_secs(30))
+        .claim_observation(id, Duration::from_secs(30))
         .await
         .unwrap();
     assert!(
@@ -88,7 +88,7 @@ async fn resumption_is_atomic_and_requires_the_exact_current_cancellation_and_le
             .await
             .is_err()
     );
-    let recancelled = a.cancel(&id).await.unwrap();
+    let recancelled = a.cancel(id).await.unwrap();
     assert!(recancelled.cancel_requested_at > cancelled.cancel_requested_at);
     assert!(
         a.resume_provider_journal(&claim, None, body, vec![])
@@ -96,7 +96,7 @@ async fn resumption_is_atomic_and_requires_the_exact_current_cancellation_and_le
             .is_err()
     );
     let claim = a
-        .claim_observation(&id, Duration::from_secs(30))
+        .claim_observation(id, Duration::from_secs(30))
         .await
         .unwrap();
     expire(&a, &task).await;
@@ -130,12 +130,12 @@ async fn resumption_rejects_other_recovery_classes_and_preserves_uncancelled_pro
         let task = runtime.create(draft(class)).await.unwrap().snapshot;
         let claim = if class == RecoveryClass::ProviderWait {
             runtime
-                .claim_observation(&task.task_id.to_string(), Duration::from_secs(30))
+                .claim_observation(task.task_id, Duration::from_secs(30))
                 .await
                 .unwrap()
         } else {
             runtime
-                .claim(&task.task_id.to_string(), Duration::from_secs(30))
+                .claim(task.task_id, Duration::from_secs(30))
                 .await
                 .unwrap()
         };

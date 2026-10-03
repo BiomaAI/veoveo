@@ -71,7 +71,7 @@ async fn view_task_selection_uses_the_authenticated_work_context() {
         );
         assert!(
             runtime
-                .get(&ids[1].to_string())
+                .get(ids[1])
                 .await
                 .unwrap()
                 .expect("created Task exists")

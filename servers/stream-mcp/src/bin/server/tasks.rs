@@ -166,12 +166,12 @@ pub(super) async fn resume_task(state: Arc<AppState>, snapshot: TaskSnapshot) ->
             let task_id = RunId::try_from(snapshot.task_id)?;
             state
                 .tasks
-                .claim(&task_id.to_string(), TASK_LEASE_DURATION)
+                .claim(task_id.task_id(), TASK_LEASE_DURATION)
                 .await?;
             state
                 .tasks
                 .transition(
-                    &task_id.to_string(),
+                    task_id.task_id(),
                     TaskTransition::Failed(TaskFailure::new(
                         "invalid_task_request",
                         error.to_string(),
@@ -198,7 +198,7 @@ async fn schedule_task(
     let task_id = RunId::try_from(snapshot.task_id)?;
     let claimed = state
         .tasks
-        .claim(&task_id.to_string(), TASK_LEASE_DURATION)
+        .claim(task_id.task_id(), TASK_LEASE_DURATION)
         .await?;
     let cancellation = CancellationToken::new();
     let join = tokio::spawn(run_task(
@@ -211,7 +211,7 @@ async fn schedule_task(
     ));
     state
         .tasks
-        .register_worker(&task_id.to_string(), cancellation, join)
+        .register_worker(task_id.task_id(), cancellation, join)
         .await?;
     Ok(claimed.snapshot)
 }
@@ -240,7 +240,7 @@ async fn run_task(
         tokio::select! {
             () = &mut work => break,
             _ = heartbeat.tick() => {
-                if let Err(error) = state.tasks.renew_lease(&task_id.to_string(), TASK_LEASE_DURATION).await {
+                if let Err(error) = state.tasks.renew_lease(task_id.task_id(), TASK_LEASE_DURATION).await {
                     tracing::warn!(%task_id, "stream task lease heartbeat failed: {error}");
                     cancellation.cancel();
                     break;
@@ -446,7 +446,7 @@ async fn set_progress(
     if let Err(error) = state
         .tasks
         .transition(
-            &task_id.to_string(),
+            task_id.task_id(),
             TaskTransition::Running {
                 message: message.to_owned(),
                 progress: value,

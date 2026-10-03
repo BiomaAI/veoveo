@@ -28,7 +28,7 @@ async fn result_shapes_survive_store_reads_events_and_authorized_reconnects() {
                 .await
                 .unwrap()
                 .snapshot;
-            let id = task.task_id.to_string();
+            let id = task.task_id;
             let pending = serde_json::to_value(&task).unwrap();
             assert!(pending.get("result").is_none());
             assert_eq!(
@@ -42,10 +42,10 @@ async fn result_shapes_survive_store_reads_events_and_authorized_reconnects() {
                 .await
                 .unwrap();
             assert_eq!(events.next().await.unwrap().unwrap().snapshot.result, None);
-            writer.claim(&id, Duration::from_secs(30)).await.unwrap();
+            writer.claim(id, Duration::from_secs(30)).await.unwrap();
             let completed = writer
                 .transition(
-                    &id,
+                    id,
                     TaskTransition::Succeeded {
                         message: "completed".into(),
                         result: payload.clone(),
@@ -55,7 +55,7 @@ async fn result_shapes_survive_store_reads_events_and_authorized_reconnects() {
                 .unwrap();
             assert_eq!(completed.result, Some(payload.clone()));
             assert_eq!(
-                reader.get(&id).await.unwrap().unwrap().result,
+                reader.get(id).await.unwrap().unwrap().result,
                 Some(payload.clone())
             );
             assert_eq!(
@@ -69,7 +69,7 @@ async fn result_shapes_survive_store_reads_events_and_authorized_reconnects() {
                 Some(payload.clone())
             );
             assert_eq!(
-                reader.await_payload_state(&id).await.unwrap(),
+                reader.await_payload_state(id).await.unwrap(),
                 TaskPayloadState::Completed(payload.clone())
             );
             let json = serde_json::to_value(&completed).unwrap();
@@ -139,12 +139,7 @@ async fn schema_rejects_incomplete_envelopes_and_format_installation_over_tasks(
                     .is_err()
             );
             assert_eq!(
-                runtime
-                    .get(&task.task_id.to_string())
-                    .await
-                    .unwrap()
-                    .unwrap()
-                    .result,
+                runtime.get(task.task_id).await.unwrap().unwrap().result,
                 None
             );
         }
@@ -159,13 +154,7 @@ async fn schema_rejects_incomplete_envelopes_and_format_installation_over_tasks(
                 .check()
                 .unwrap_err();
         assert!(error.to_string().contains("task_result_reset_required"));
-        assert!(
-            runtime
-                .get(&task.task_id.to_string())
-                .await
-                .unwrap()
-                .is_some()
-        );
+        assert!(runtime.get(task.task_id).await.unwrap().is_some());
         db.b.client()
             .query("DELETE ONLY $task;")
             .bind(("task", task_record_id(task.task_id)))

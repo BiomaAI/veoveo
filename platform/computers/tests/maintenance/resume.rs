@@ -64,7 +64,7 @@ async fn explicit_windows_retain_dispatch_history_and_exact_retries_never_renew_
         Err(ComputerError::RequestConflict)
     ));
     let claim = tasks
-        .claim_observation(&resumed.task_id().to_string(), Duration::from_secs(60))
+        .claim_observation(resumed.task_id(), Duration::from_secs(60))
         .await
         .unwrap();
     assert!(b.begin_maintenance_step(&claim).await.is_err());
@@ -127,7 +127,7 @@ async fn cancellation_requires_exact_consent_current_recovery_policy_and_private
         .pause_maintenance(&claim, MaintenanceRecovery::CancellationRequested)
         .await
         .unwrap();
-    let cancelled = tasks.cancel(&paused.task_id().to_string()).await.unwrap();
+    let cancelled = tasks.cancel(paused.task_id()).await.unwrap();
     tasks.release_observation(&claim).await.unwrap();
     let actor = support::authenticated(&paused.actor);
     let mut input = input(&paused);
@@ -152,23 +152,14 @@ async fn cancellation_requires_exact_consent_current_recovery_policy_and_private
     support::policy::install(&db.a, control()).await;
     let resumed = b.resume_maintenance(&actor, &input).await.unwrap();
     assert_eq!(resumed.stage, MaintenanceStage::Stopping);
-    let task = tasks
-        .get(&resumed.task_id().to_string())
-        .await
-        .unwrap()
-        .unwrap();
+    let task = tasks.get(resumed.task_id()).await.unwrap().unwrap();
     assert_eq!(task.status, TaskStatus::Waiting);
     assert_eq!(task.cancel_requested_at, cancelled.cancel_requested_at);
-    let recancelled = tasks.cancel(&resumed.task_id().to_string()).await.unwrap();
+    let recancelled = tasks.cancel(resumed.task_id()).await.unwrap();
     let retry = b.resume_maintenance(&actor, &input).await.unwrap();
     assert_eq!(retry.updated_at, resumed.updated_at);
     assert_eq!(
-        tasks
-            .get(&resumed.task_id().to_string())
-            .await
-            .unwrap()
-            .unwrap()
-            .status,
+        tasks.get(resumed.task_id()).await.unwrap().unwrap().status,
         TaskStatus::CancelRequested
     );
     assert!(recancelled.cancel_requested_at > cancelled.cancel_requested_at);

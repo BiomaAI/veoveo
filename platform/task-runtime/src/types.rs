@@ -596,7 +596,7 @@ pub(crate) fn validate_task_id(task_id: TaskId) -> Result<TaskId, TaskError> {
 }
 
 fn task_id_from_uuid(uuid: uuid::Uuid) -> Result<TaskId, TaskError> {
-    if uuid.get_version_num() != 7 {
+    if uuid.get_version_num() != 7 || uuid.get_variant() != uuid::Variant::RFC4122 {
         return Err(TaskError::InvalidRecord(
             "task id must be a UUIDv7".to_owned(),
         ));
@@ -613,6 +613,10 @@ mod tests {
         let version_seven = uuid::Uuid::now_v7().to_string();
         assert!(parse_task_id(&version_seven).is_ok());
 
+        assert!(validate_task_id(TaskId::new()).is_ok());
+        let wrong_variant = "01983da0-0000-7000-0000-000000000001";
+        assert!(parse_task_id(wrong_variant).is_err());
+        assert!(validate_task_id(TaskId::from_uuid(wrong_variant.parse().unwrap())).is_err());
         let version_four = uuid::Uuid::new_v4().to_string();
         assert!(matches!(
             parse_task_id(&version_four),

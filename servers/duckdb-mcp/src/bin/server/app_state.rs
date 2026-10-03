@@ -78,7 +78,7 @@ impl AppState {
 pub(super) async fn update_task(state: &AppState, task_id: TaskId, transition: TaskTransition) {
     let transition = if state
         .tasks
-        .is_cancel_requested(&task_id.to_string())
+        .is_cancel_requested(task_id)
         .await
         .unwrap_or(false)
     {
@@ -86,11 +86,7 @@ pub(super) async fn update_task(state: &AppState, task_id: TaskId, transition: T
     } else {
         transition
     };
-    if let Err(error) = state
-        .tasks
-        .transition(&task_id.to_string(), transition)
-        .await
-    {
+    if let Err(error) = state.tasks.transition(task_id, transition).await {
         tracing::warn!(%task_id, "failed to transition durable task: {error}");
     }
 }

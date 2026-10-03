@@ -81,24 +81,24 @@ impl<G: Preflight> LifecycleWorker<G> {
             self.acknowledge(&operation).await?;
             return Ok(WorkerStep::Settled);
         }
-        let id = operation.task_id().to_string();
-        let task = match self.tasks.get(&id).await? {
+        let id = operation.task_id();
+        let task = match self.tasks.get(id).await? {
             Some(task) => task,
             None => {
                 self.store
                     .ensure_operation_task(&operation.owner, operation.operation_id)
                     .await?;
                 self.tasks
-                    .get(&id)
+                    .get(id)
                     .await?
-                    .ok_or_else(|| TaskError::NotFound(id.clone()))?
+                    .ok_or_else(|| TaskError::NotFound(id.to_string()))?
             }
         };
         if task.is_terminal() {
             self.acknowledge(&operation).await?;
             return Ok(WorkerStep::Settled);
         }
-        let mut claimed = match self.tasks.claim_observation(&id, LEASE_DURATION).await {
+        let mut claimed = match self.tasks.claim_observation(id, LEASE_DURATION).await {
             Ok(claimed) => claimed,
             Err(TaskError::LeaseHeld(_) | TaskError::Conflict(_)) => return Ok(WorkerStep::Busy),
             Err(error) => return Err(error.into()),
@@ -110,7 +110,7 @@ impl<G: Preflight> LifecycleWorker<G> {
                 Ok(WorkerStep::Settled)
             }
             OperationStage::RecoveryRequired => {
-                self.waiting(&id, OPERATION_NEEDS_RECOVERY).await?;
+                self.waiting(id, OPERATION_NEEDS_RECOVERY).await?;
                 Ok(WorkerStep::RecoveryRequired)
             }
             OperationStage::Queued => self.dispatch(&mut claimed, &operation).await,
@@ -127,8 +127,8 @@ impl<G: Preflight> LifecycleWorker<G> {
         claimed: &mut ClaimedTask,
         operation: &Operation,
     ) -> Result<WorkerStep> {
-        let id = operation.task_id().to_string();
-        if self.tasks.is_cancel_requested(&id).await? {
+        let id = operation.task_id();
+        if self.tasks.is_cancel_requested(id).await? {
             let aborted = self
                 .store
                 .abort_undispatched(claimed, UndispatchedOutcome::CancelledBeforeDispatch)
@@ -142,7 +142,7 @@ impl<G: Preflight> LifecycleWorker<G> {
             .ok_or(WorkerError::Configuration)?;
         let (binding, checkpoint, before) = native_intent(operation)?;
         if operation.action != Action::Stop {
-            self.waiting(&id, "Preparing retained storage").await?;
+            self.waiting(id, "Preparing retained storage").await?;
             let prepared = self
                 .with_lease(
                     claimed,
@@ -153,7 +153,7 @@ impl<G: Preflight> LifecycleWorker<G> {
                 )
                 .await?;
             if !matches!(prepared, Ok(Ok(()))) {
-                self.waiting(&id, "Retained storage is unavailable; files are retained")
+                self.waiting(id, "Retained storage is unavailable; files are retained")
                     .await?;
                 return Ok(WorkerStep::Waiting);
             }
@@ -174,7 +174,7 @@ impl<G: Preflight> LifecycleWorker<G> {
                     return Ok(WorkerStep::Settled);
                 }
                 _ => {
-                    self.waiting(&id, "Current action authority is unavailable")
+                    self.waiting(id, "Current action authority is unavailable")
                         .await?;
                     return Ok(WorkerStep::Waiting);
                 }
@@ -260,25 +260,25 @@ impl<G: Preflight> LifecycleWorker<G> {
             }
             ObservationAdmission::Wait { .. } => {}
             ObservationAdmission::RecoveryRequired => {
-                self.waiting(&operation.task_id().to_string(), OPERATION_NEEDS_RECOVERY)
+                self.waiting(operation.task_id(), OPERATION_NEEDS_RECOVERY)
                     .await?;
                 return Ok(WorkerStep::RecoveryRequired);
             }
         }
         self.waiting(
-            &operation.task_id().to_string(),
+            operation.task_id(),
             "Observing the original operation; files are retained",
         )
         .await?;
         Ok(WorkerStep::Waiting)
     }
 
-    async fn waiting(&self, id: &str, message: &str) -> Result<()> {
+    async fn waiting(&self, id: veoveo_types::TaskId, message: &str) -> Result<()> {
         let task = self
             .tasks
             .get(id)
             .await?
-            .ok_or_else(|| TaskError::NotFound(id.into()))?;
+            .ok_or_else(|| TaskError::NotFound(id.to_string()))?;
         if task.status == TaskStatus::CancelRequested
             || task.is_terminal()
             || (task.status == TaskStatus::Waiting

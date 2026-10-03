@@ -118,22 +118,22 @@ async fn schedule_operation(
     snapshot: TaskSnapshot,
     request: DurableTaskRequest,
 ) -> Result<TaskSnapshot, String> {
-    let task_id = snapshot.task_id.to_string();
+    let task_id = snapshot.task_id;
     let claimed = state
         .tasks
-        .claim(&task_id, TASK_LEASE_DURATION)
+        .claim(task_id, TASK_LEASE_DURATION)
         .await
         .map_err(|error| error.to_string())?;
     let cancellation = CancellationToken::new();
     let join = tokio::spawn(run_task(
         state.clone(),
-        task_id.clone(),
+        task_id,
         request,
         cancellation.clone(),
     ));
     state
         .tasks
-        .register_worker(&task_id, cancellation, join)
+        .register_worker(task_id, cancellation, join)
         .await
         .map_err(|error| error.to_string())?;
     Ok(claimed.snapshot)
@@ -141,16 +141,11 @@ async fn schedule_operation(
 
 async fn run_task(
     state: Arc<AppState>,
-    task_id: String,
+    task_id: TaskId,
     request: DurableTaskRequest,
     cancellation: CancellationToken,
 ) {
-    let work = execute_operation(
-        state.clone(),
-        task_id.clone(),
-        request,
-        cancellation.clone(),
-    );
+    let work = execute_operation(state.clone(), task_id, request, cancellation.clone());
     tokio::pin!(work);
     let mut heartbeat = tokio::time::interval(TASK_LEASE_HEARTBEAT);
     heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
@@ -159,8 +154,8 @@ async fn run_task(
         tokio::select! {
             () = &mut work => break,
             _ = heartbeat.tick() => {
-                if let Err(error) = state.tasks.renew_lease(&task_id, TASK_LEASE_DURATION).await {
-                    tracing::warn!(task_id, %error, "SUMO task lease heartbeat failed");
+                if let Err(error) = state.tasks.renew_lease(task_id, TASK_LEASE_DURATION).await {
+                    tracing::warn!(%task_id, %error, "SUMO task lease heartbeat failed");
                     cancellation.cancel();
                     break;
                 }
@@ -171,7 +166,7 @@ async fn run_task(
 
 async fn execute_operation(
     state: Arc<AppState>,
-    task_id: String,
+    task_id: TaskId,
     request: DurableTaskRequest,
     cancellation: CancellationToken,
 ) {
@@ -199,7 +194,7 @@ async fn execute_operation(
             match require_capability(artifact_write_capability.as_ref()) {
                 Ok(capability) => run_offline(
                     &state,
-                    &task_id,
+                    task_id,
                     OfflineOperation::GenerateNetwork,
                     input,
                     capability,
@@ -214,7 +209,7 @@ async fn execute_operation(
             match require_capability(artifact_write_capability.as_ref()) {
                 Ok(capability) => run_offline(
                     &state,
-                    &task_id,
+                    task_id,
                     OfflineOperation::ComputeRoutes,
                     input,
                     capability,
@@ -229,7 +224,7 @@ async fn execute_operation(
             match require_capability(artifact_write_capability.as_ref()) {
                 Ok(capability) => run_offline(
                     &state,
-                    &task_id,
+                    task_id,
                     OfflineOperation::OptimizeSignals,
                     input,
                     capability,
@@ -243,7 +238,7 @@ async fn execute_operation(
     };
 
     if cancellation.is_cancelled() {
-        transition(&state, &task_id, TaskTransition::Cancelled).await;
+        transition(&state, task_id, TaskTransition::Cancelled).await;
         return;
     }
     match result {
@@ -251,7 +246,7 @@ async fn execute_operation(
             Ok(result) => {
                 transition(
                     &state,
-                    &task_id,
+                    task_id,
                     TaskTransition::Succeeded {
                         message: "completed".to_owned(),
                         result,
@@ -262,7 +257,7 @@ async fn execute_operation(
             Err(error) => {
                 transition(
                     &state,
-                    &task_id,
+                    task_id,
                     TaskTransition::Failed(TaskFailure::new(
                         "result_serialization_failed",
                         error.to_string(),
@@ -272,10 +267,10 @@ async fn execute_operation(
             }
         },
         Err(error) => {
-            tracing::warn!(task_id, %error, "SUMO task failed");
+            tracing::warn!(%task_id, %error, "SUMO task failed");
             transition(
                 &state,
-                &task_id,
+                task_id,
                 TaskTransition::Failed(TaskFailure::new(
                     "sumo_operation_failed",
                     error.to_string(),
@@ -314,7 +309,7 @@ async fn run_batch(
 
 async fn run_offline(
     state: &AppState,
-    task_id: &str,
+    task_id: TaskId,
     operation: OfflineOperation,
     request: OfflineOperationRequest,
     capability: &IssuedArtifactWriteCapability,
@@ -324,7 +319,7 @@ async fn run_offline(
         matches!(request.kind.as_str(), "grid" | "spider" | "osm"),
         "kind must be grid, spider, or osm"
     );
-    let task_dir = state.work_dir.join(task_id);
+    let task_dir = state.work_dir.join(task_id.to_string());
     tokio::fs::create_dir_all(&task_dir)
         .await
         .with_context(|| format!("creating {}", task_dir.display()))?;
@@ -526,15 +521,15 @@ fn operation_name(operation: &DurableOperation) -> veoveo_types::TaskTypeName {
     }
 }
 
-async fn transition(state: &AppState, task_id: &str, next: TaskTransition) {
+async fn transition(state: &AppState, task_id: TaskId, next: TaskTransition) {
     if let Err(error) = state.tasks.transition(task_id, next).await {
-        tracing::warn!(task_id, %error, "SUMO task transition failed");
+        tracing::warn!(%task_id, %error, "SUMO task transition failed");
     }
 }
 
 pub(super) async fn await_result(
     state: &AppState,
-    task_id: &str,
+    task_id: TaskId,
 ) -> Result<CallToolResult, rmcp::ErrorData> {
     match state
         .tasks

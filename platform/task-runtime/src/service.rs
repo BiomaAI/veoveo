@@ -184,12 +184,11 @@ pub async fn update_durable_task(
     query: &OwnerTaskQuery,
     request: UpdateTaskParams,
 ) -> Result<(), McpError> {
-    authorized_snapshot(query, &request.task_id).await?;
-    let task_id = request.task_id.clone();
+    let task_id = authorized_snapshot(query, &request.task_id).await?.task_id;
     let responses = durable_input_responses(request)?;
     query
         .runtime
-        .submit_input_responses(&task_id, responses)
+        .submit_input_responses(task_id, responses)
         .await
         .map_err(task_error)?;
     Ok(())

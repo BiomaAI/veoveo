@@ -1,4 +1,5 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
+use veoveo_types::TaskId;
 
 use rmcp::model::CallToolResult;
 use secrecy::SecretString;
@@ -99,7 +100,7 @@ impl AppState {
 
     pub(super) async fn receive_webhook(
         self: &Arc<Self>,
-        task_id: &str,
+        task_id: TaskId,
         webhook_id: &str,
         prediction: Prediction,
     ) -> anyhow::Result<WebhookReceipt> {
@@ -117,7 +118,7 @@ impl AppState {
                 .record_processing_error(&receipt.event, &error.to_string())
                 .await?;
             tracing::warn!(
-                task_id,
+                %task_id,
                 provider_job_id = %prediction.id,
                 "webhook is durable but completion processing will retry: {error}"
             );
@@ -126,10 +127,10 @@ impl AppState {
     }
 
     async fn process_event(self: &Arc<Self>, event: &MediaProviderEvent) -> anyhow::Result<()> {
-        let task_id = event.job.task_id.to_string();
+        let task_id = event.job.task_id;
         let snapshot = self
             .tasks
-            .get(&task_id)
+            .get(task_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("media task {task_id} no longer exists"))?;
 

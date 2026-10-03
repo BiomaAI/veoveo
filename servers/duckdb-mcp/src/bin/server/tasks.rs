@@ -154,10 +154,7 @@ async fn schedule_duckdb_task(
     caller: Option<veoveo_mcp_contract::PlaneCaller>,
 ) -> anyhow::Result<TaskSnapshot> {
     let task_id = snapshot.task_id;
-    let claimed = state
-        .tasks
-        .claim(&task_id.to_string(), TASK_LEASE_DURATION)
-        .await?;
+    let claimed = state.tasks.claim(task_id, TASK_LEASE_DURATION).await?;
     let cancellation = CancellationToken::new();
     let join = tokio::spawn(run_task(
         state.clone(),
@@ -169,7 +166,7 @@ async fn schedule_duckdb_task(
     ));
     state
         .tasks
-        .register_worker(&task_id.to_string(), cancellation, join)
+        .register_worker(task_id, cancellation, join)
         .await?;
     Ok(claimed.snapshot)
 }
@@ -224,7 +221,7 @@ async fn run_task(
         tokio::select! {
             () = &mut work => break,
             _ = heartbeat.tick() => {
-                if let Err(error) = state.tasks.renew_lease(&task_id.to_string(), TASK_LEASE_DURATION).await {
+                if let Err(error) = state.tasks.renew_lease(task_id, TASK_LEASE_DURATION).await {
                     tracing::warn!(%task_id, "task lease heartbeat failed: {error}");
                     cancellation.cancel();
                     break;

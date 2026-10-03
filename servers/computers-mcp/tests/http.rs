@@ -369,7 +369,7 @@ async fn canonical_http_and_mcp_share_one_private_idempotent_task_across_replica
     assert_eq!(current["status"], "queued");
     let tasks = veoveo_task_runtime::TaskRuntime::new(db.b.clone(), "computers", "receipt-test");
     let claim = tasks
-        .claim_observation(task_id, Duration::from_secs(60))
+        .claim_observation(task_id.parse().unwrap(), Duration::from_secs(60))
         .await
         .unwrap();
     veoveo_computers::ComputersStore::new(

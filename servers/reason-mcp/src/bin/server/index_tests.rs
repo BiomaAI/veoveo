@@ -180,7 +180,7 @@ async fn resource_reads_and_subscription_admission_filter_before_decoding() {
                 .check()
                 .unwrap();
             // The old unrestricted lookup cannot decode this persisted envelope.
-            assert!(reader.get(&task.task_id.to_string()).await.is_err());
+            assert!(reader.get(task.task_id).await.is_err());
             let id = AnalysisId::try_from(task.task_id).unwrap();
             for uri in [
                 uris::analysis_uri(id).to_string(),

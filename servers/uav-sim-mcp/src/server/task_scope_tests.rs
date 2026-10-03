@@ -106,7 +106,9 @@ async fn call_paths_require_the_tool_scope_before_persistence_or_execution() {
                 let result = match response {
                     CallToolResponse::Task(created) => {
                         assert!(tasks);
-                        await_result(&state, &created.task.task_id).await.unwrap()
+                        await_result(&state, created.task.task_id.parse().unwrap())
+                            .await
+                            .unwrap()
                     }
                     CallToolResponse::Complete(result) => {
                         assert!(!tasks);

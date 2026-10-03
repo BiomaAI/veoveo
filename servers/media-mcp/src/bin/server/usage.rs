@@ -104,7 +104,7 @@ pub(super) async fn record_usage_estimate(
 ) -> anyhow::Result<()> {
     let task = state
         .tasks
-        .get(&task_id.to_string())
+        .get(task_id)
         .await?
         .ok_or_else(|| anyhow::anyhow!("media usage task {task_id} not found"))?;
     state
@@ -132,7 +132,7 @@ async fn reconcile_actual_usage_once(
     }
     let task = state
         .tasks
-        .get(&task_id.to_string())
+        .get(task_id)
         .await?
         .ok_or_else(|| anyhow::anyhow!("media billing task {task_id} not found"))?;
     let job = state

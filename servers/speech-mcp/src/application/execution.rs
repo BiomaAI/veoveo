@@ -20,8 +20,8 @@ impl SpeechService {
         request: DurableRequest,
         permit: tokio::sync::OwnedSemaphorePermit,
     ) -> Result<TaskSnapshot> {
-        let task = TranscriptionId::parse(snapshot.task_id.to_string())?;
-        let claimed = self.tasks.claim(&task.to_string(), LEASE).await?;
+        let task = TranscriptionId::try_from(snapshot.task_id)?;
+        let claimed = self.tasks.claim(task.task_id(), LEASE).await?;
         let cancel = CancellationToken::new();
         let worker = {
             let service = self.clone();
@@ -32,7 +32,7 @@ impl SpeechService {
             })
         };
         self.tasks
-            .register_worker(&task.to_string(), cancel, worker)
+            .register_worker(task.task_id(), cancel, worker)
             .await?;
         Ok(claimed.snapshot)
     }
@@ -43,7 +43,7 @@ impl SpeechService {
         request: DurableRequest,
         cancel: CancellationToken,
     ) {
-        let task_ids = [task.to_string()];
+        let task_ids = [task.task_id()];
         // Subscription establishment participates in the same select as lease
         // renewal and cancellation; a slow baseline cannot strand a live worker.
         let mut updates =
@@ -73,7 +73,7 @@ impl SpeechService {
                     }
                 },
                 _ = heartbeat.tick() => {
-                    match self.tasks.renew_lease(&task.to_string(), LEASE).await {
+                    match self.tasks.renew_lease(task.task_id(), LEASE).await {
                         Ok(snapshot) if snapshot.status == TaskStatus::CancelRequested => break TaskTransition::Cancelled,
                         Ok(_) => (),
                         Err(_) => return,
@@ -85,7 +85,7 @@ impl SpeechService {
         drop(work);
         let transition = if self
             .tasks
-            .is_cancel_requested(&task.to_string())
+            .is_cancel_requested(task.task_id())
             .await
             .unwrap_or(true)
         {
@@ -93,7 +93,7 @@ impl SpeechService {
         } else {
             transition
         };
-        if let Err(error) = self.tasks.transition(&task.to_string(), transition).await {
+        if let Err(error) = self.tasks.transition(task.task_id(), transition).await {
             tracing::warn!(%task, %error, "speech Task settlement lost its lease");
         }
     }
@@ -101,7 +101,7 @@ impl SpeechService {
     async fn progress(&self, task: TranscriptionId, message: &str, progress: f64) -> Result<()> {
         self.tasks
             .transition(
-                &task.to_string(),
+                task.task_id(),
                 TaskTransition::Running {
                     message: message.into(),
                     progress,
@@ -203,7 +203,7 @@ impl SpeechService {
             .artifacts
             .read_metadata(authority, source.artifact_id())
             .await?;
-        self.tasks.renew_lease(&task.to_string(), LEASE).await?;
+        self.tasks.renew_lease(task.task_id(), LEASE).await?;
         self.publish(
             task,
             &request.write,

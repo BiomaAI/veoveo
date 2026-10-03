@@ -151,24 +151,37 @@ async fn exercise() -> Result<()> {
     let task = service
         .transcribe(&alice, input.clone(), Default::default())
         .await?;
-    let id = task.task_id.to_string();
+    let id = task.task_id;
     ensure!(
-        service.authorize(&bob, id.parse()?, true).await.is_err(),
+        service
+            .authorize(
+                &bob,
+                veoveo_speech_contract::TranscriptionId::try_from(id)?,
+                true
+            )
+            .await
+            .is_err(),
         "private Task leaked"
     );
     let mut switched = alice.clone();
     switched.identity.authority.work_context = WorkContextId::new("another-context")?;
     ensure!(
         service
-            .authorize(&switched, id.parse()?, false)
+            .authorize(
+                &switched,
+                veoveo_speech_contract::TranscriptionId::try_from(id)?,
+                false
+            )
             .await
             .is_err(),
         "Task crossed Work Context"
     );
-    let mut subscription =
-        subscribe_durable_tasks(&reader.for_owner(&owner(&alice.identity)), vec![id.clone()])
-            .await?
-            .updates;
+    let mut subscription = subscribe_durable_tasks(
+        &reader.for_owner(&owner(&alice.identity)),
+        vec![id.to_string()],
+    )
+    .await?
+    .updates;
     loop {
         let update = subscription
             .next()
@@ -183,7 +196,13 @@ async fn exercise() -> Result<()> {
             break;
         }
     }
-    let finished = service.authorize(&alice, id.parse()?, true).await?;
+    let finished = service
+        .authorize(
+            &alice,
+            veoveo_speech_contract::TranscriptionId::try_from(id)?,
+            true,
+        )
+        .await?;
     ensure!(
         finished.status == TaskStatus::Succeeded,
         "transcription failed: {:?}",
@@ -248,7 +267,7 @@ async fn exercise() -> Result<()> {
         .await?
         .resumable
         .into_iter()
-        .find(|task| task.task_id.to_string() == id)
+        .find(|task| task.task_id == id)
         .ok_or_else(|| anyhow::anyhow!("expired work not recovered"))?;
     let restarted = Arc::new(SpeechService::new(
         reader.clone(),
@@ -260,7 +279,7 @@ async fn exercise() -> Result<()> {
     restarted.resume(recovered).await?;
     tokio::time::timeout(Duration::from_secs(15), async {
         loop {
-            let snapshot = reader.get(&id).await?.unwrap();
+            let snapshot = reader.get(id).await?.unwrap();
             if snapshot.is_terminal() {
                 ensure!(
                     snapshot.status == TaskStatus::Succeeded,
@@ -286,11 +305,11 @@ async fn exercise() -> Result<()> {
     let queued = waiting
         .transcribe(&alice, input, Default::default())
         .await?;
-    let cancelled = queued.task_id.to_string();
-    reader.cancel(&cancelled).await?;
+    let cancelled = queued.task_id;
+    reader.cancel(cancelled).await?;
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
-            let snapshot = reader.get(&cancelled).await?.unwrap();
+            let snapshot = reader.get(cancelled).await?.unwrap();
             if snapshot.status == TaskStatus::Cancelled {
                 ensure!(snapshot.result.is_none(), "cancelled work published output");
                 return Ok::<_, anyhow::Error>(());

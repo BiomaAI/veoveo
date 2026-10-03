@@ -185,7 +185,7 @@ pub(super) async fn recover_tasks(
         if let Err(error) = schedule_time_task(state.clone(), snapshot, request).await {
             match error.downcast_ref::<TaskError>() {
                 Some(TaskError::LeaseHeld(task_id) | TaskError::Conflict(task_id)) => {
-                    tracing::info!(task_id, "another replica claimed recovered Time task")
+                    tracing::info!(%task_id, "another replica claimed recovered Time task")
                 }
                 _ => return Err(error),
             }
@@ -223,56 +223,50 @@ async fn schedule_time_task(
     snapshot: TaskSnapshot,
     request: TimeTaskRequest,
 ) -> anyhow::Result<TaskSnapshot> {
-    let task_id = snapshot.task_id.to_string();
-    let claimed = state.tasks.claim(&task_id, TASK_LEASE_DURATION).await?;
+    let task_id = snapshot.task_id;
+    let claimed = state.tasks.claim(task_id, TASK_LEASE_DURATION).await?;
     let cancellation = CancellationToken::new();
     let join = tokio::spawn(run_time_task(
         state.clone(),
-        task_id.clone(),
+        task_id,
         snapshot.owner,
         request,
         cancellation.clone(),
     ));
     state
         .tasks
-        .register_worker(&task_id, cancellation, join)
+        .register_worker(task_id, cancellation, join)
         .await?;
     Ok(claimed.snapshot)
 }
 
 async fn run_time_task(
     state: Arc<TimeApplication>,
-    task_id: String,
+    task_id: TaskId,
     owner: TaskOwner,
     request: TimeTaskRequest,
     cancellation: CancellationToken,
 ) {
-    let work = run_time_task_inner(
-        state.clone(),
-        task_id.clone(),
-        owner,
-        request,
-        cancellation.clone(),
-    );
+    let work = run_time_task_inner(state.clone(), task_id, owner, request, cancellation.clone());
     tokio::pin!(work);
     let mut heartbeat = tokio::time::interval(TASK_LEASE_HEARTBEAT);
     heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     heartbeat.tick().await;
     loop {
-        tokio::select! { () = &mut work => break, _ = heartbeat.tick() => { if let Err(error) = state.tasks.renew_lease(&task_id, TASK_LEASE_DURATION).await { tracing::warn!(task_id, "Time task lease heartbeat failed: {error}"); cancellation.cancel(); break; } } }
+        tokio::select! { () = &mut work => break, _ = heartbeat.tick() => { if let Err(error) = state.tasks.renew_lease(task_id, TASK_LEASE_DURATION).await { tracing::warn!(%task_id, "Time task lease heartbeat failed: {error}"); cancellation.cancel(); break; } } }
     }
 }
 
 async fn run_time_task_inner(
     state: Arc<TimeApplication>,
-    task_id: String,
+    task_id: TaskId,
     owner: TaskOwner,
     request: TimeTaskRequest,
     cancellation: CancellationToken,
 ) {
     update_task(
         &state,
-        &task_id,
+        task_id,
         TaskTransition::Running {
             message: request.description().to_owned(),
             progress: 0.05,
@@ -280,7 +274,7 @@ async fn run_time_task_inner(
     )
     .await;
     if cancellation.is_cancelled() {
-        update_task(&state, &task_id, TaskTransition::Cancelled).await;
+        update_task(&state, task_id, TaskTransition::Cancelled).await;
         return;
     }
     let result = async {
@@ -301,7 +295,7 @@ async fn run_time_task_inner(
     }
     .await;
     if cancellation.is_cancelled() {
-        update_task(&state, &task_id, TaskTransition::Cancelled).await;
+        update_task(&state, task_id, TaskTransition::Cancelled).await;
         return;
     }
     match result {
@@ -309,7 +303,7 @@ async fn run_time_task_inner(
             Ok(result) => {
                 update_task(
                     &state,
-                    &task_id,
+                    task_id,
                     TaskTransition::Succeeded {
                         message: "Temporal calculation completed".to_owned(),
                         result,
@@ -317,9 +311,9 @@ async fn run_time_task_inner(
                 )
                 .await
             }
-            Err(error) => fail_task(&state, &task_id, "result_serialization_failed", error).await,
+            Err(error) => fail_task(&state, task_id, "result_serialization_failed", error).await,
         },
-        Err(error) => fail_task(&state, &task_id, "temporal_calculation_failed", error).await,
+        Err(error) => fail_task(&state, task_id, "temporal_calculation_failed", error).await,
     }
 }
 
@@ -346,7 +340,7 @@ fn tool_result<T: Serialize>(text: &str, value: &T) -> anyhow::Result<CallToolRe
 
 async fn fail_task(
     state: &TimeApplication,
-    task_id: &str,
+    task_id: TaskId,
     code: &str,
     error: impl std::fmt::Display,
 ) {
@@ -357,9 +351,9 @@ async fn fail_task(
     )
     .await;
 }
-async fn update_task(state: &TimeApplication, task_id: &str, transition: TaskTransition) {
+async fn update_task(state: &TimeApplication, task_id: TaskId, transition: TaskTransition) {
     if let Err(error) = state.tasks.transition(task_id, transition).await {
-        tracing::warn!(task_id, "Time task update failed: {error}");
+        tracing::warn!(%task_id, "Time task update failed: {error}");
     }
 }
 

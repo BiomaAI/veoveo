@@ -1,6 +1,7 @@
 use rmcp::{ErrorData as McpError, RoleServer, service::RequestContext};
 use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller};
 use veoveo_optimization_mcp::state::TaskOwner;
+use veoveo_types::TaskId;
 
 pub(super) fn internal_identity(
     context: &RequestContext<RoleServer>,
@@ -60,11 +61,11 @@ pub(super) fn caller_from(identity: GatewayInternalIdentity, bearer: String) -> 
 }
 
 pub(super) fn task_owner_from_runtime(
-    task_id: &str,
+    task_id: TaskId,
     owner: &veoveo_task_runtime::TaskOwner,
 ) -> Result<TaskOwner, String> {
     Ok(TaskOwner {
-        task_id: task_id.to_owned(),
+        task_id,
         principal_id: veoveo_types::PrincipalId::new(owner.principal_key.clone())
             .map_err(|error| error.to_string())?,
         profile: veoveo_mcp_contract::GatewayProfileId::new(owner.profile.clone())

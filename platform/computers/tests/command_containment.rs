@@ -86,10 +86,7 @@ async fn cancelled_command_is_settled_only_after_original_run_termination() {
             .is_err()
     );
     let tasks = TaskRuntime::new(db.a.clone(), "computers", "command-worker");
-    tasks
-        .cancel(&claim.snapshot.task_id.to_string())
-        .await
-        .unwrap();
+    tasks.cancel(claim.snapshot.task_id).await.unwrap();
     a.revoke_automation_grant(
         &owner,
         &RevokeAutomationGrantInput {
@@ -118,10 +115,7 @@ async fn cancelled_command_is_settled_only_after_original_run_termination() {
     assert_eq!(slots(&db).await, 1);
     tasks.release_observation(&claim).await.unwrap();
     let successor = TaskRuntime::new(db.b.clone(), "computers", "successor")
-        .claim_observation(
-            &claim.snapshot.task_id.to_string(),
-            std::time::Duration::from_secs(60),
-        )
+        .claim_observation(claim.snapshot.task_id, std::time::Duration::from_secs(60))
         .await
         .unwrap();
     let same = b
@@ -147,11 +141,7 @@ async fn cancelled_command_is_settled_only_after_original_run_termination() {
         ComputerPhase::Stopped
     );
     // Domain termination commits before shared Task projection and pin acknowledgement.
-    let task = tasks
-        .get(&claim.snapshot.task_id.to_string())
-        .await
-        .unwrap()
-        .unwrap();
+    let task = tasks.get(claim.snapshot.task_id).await.unwrap().unwrap();
     assert_eq!(task.status, TaskStatus::CancelRequested);
     assert!(!task.retention_pins.is_empty());
     a.queue_operation(
@@ -183,17 +173,14 @@ async fn an_owner_stop_can_abort_before_containment_gets_its_first_stop_ticket()
         .unwrap();
     let tasks = TaskRuntime::new(db.a.clone(), "computers", "owner-stop-worker");
     let stop_claim = tasks
-        .claim_observation(
-            &stop.task_id().to_string(),
-            std::time::Duration::from_secs(60),
-        )
+        .claim_observation(stop.task_id(), std::time::Duration::from_secs(60))
         .await
         .unwrap();
     a.begin_command_containment(&claim, CommandInterruption::ExecutionUnknown)
         .await
         .unwrap();
     assert!(a.admit_command_stop(&claim).await.unwrap().is_none());
-    tasks.cancel(&stop.task_id().to_string()).await.unwrap();
+    tasks.cancel(stop.task_id()).await.unwrap();
     a.abort_undispatched(&stop_claim, UndispatchedOutcome::CancelledBeforeDispatch)
         .await
         .unwrap();
@@ -232,10 +219,7 @@ async fn containment_does_not_clear_an_independent_owner_stop_fence() {
         .unwrap();
     let tasks = TaskRuntime::new(db.a.clone(), "computers", "owner-stop-worker");
     let stop_claim = tasks
-        .claim_observation(
-            &stop.task_id().to_string(),
-            std::time::Duration::from_secs(60),
-        )
+        .claim_observation(stop.task_id(), std::time::Duration::from_secs(60))
         .await
         .unwrap();
     let native_stop = a.begin_dispatch(&stop_claim).await.unwrap();
@@ -294,10 +278,7 @@ async fn wrong_run_evidence_and_exhausted_reads_keep_the_slot_across_workers() {
         .await
         .unwrap();
     let claim = TaskRuntime::new(db.b.clone(), "computers", "successor")
-        .claim_observation(
-            &claim.snapshot.task_id.to_string(),
-            std::time::Duration::from_secs(60),
-        )
+        .claim_observation(claim.snapshot.task_id, std::time::Duration::from_secs(60))
         .await
         .unwrap();
     assert!(matches!(
@@ -347,7 +328,7 @@ async fn queued_cancellation_releases_only_an_undispatched_slot() {
             .is_err()
     );
     TaskRuntime::new(db.a.clone(), "computers", "client")
-        .cancel(&claim.snapshot.task_id.to_string())
+        .cancel(claim.snapshot.task_id)
         .await
         .unwrap();
     let terminal = a
@@ -371,7 +352,7 @@ async fn queued_cancellation_releases_only_an_undispatched_slot() {
     let tasks = TaskRuntime::new(db.a.clone(), "computers", "command-worker");
     tasks
         .transition(
-            &terminal.task_id().to_string(),
+            terminal.task_id(),
             veoveo_task_runtime::TaskTransition::Cancelled,
         )
         .await
@@ -382,7 +363,7 @@ async fn queued_cancellation_releases_only_an_undispatched_slot() {
     a.acknowledge_command_task(&terminal).await.unwrap();
     tasks
         .acknowledge_retention_pin(
-            &terminal.task_id().to_string(),
+            terminal.task_id(),
             &veoveo_task_runtime::TaskRetentionPin::new(format!(
                 "computer-execution/{}",
                 terminal.execution_id()

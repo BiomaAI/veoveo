@@ -16,7 +16,7 @@ async fn command_task_reads_and_cancellation_preserve_actual_actor_and_owner_aut
         .await
         .unwrap();
     let claim = command_support::queue_claim(&db, &a, &agent, computer, grant.grant_id).await;
-    let id = claim.snapshot.task_id.to_string();
+    let id = claim.snapshot.task_id;
     let signing = Signing::new();
     let (health, receiver) = tokio::sync::watch::channel(CapacityHealth {
         availability: CapacityAvailability::ComputeUnavailable,
@@ -77,7 +77,9 @@ async fn command_task_reads_and_cancellation_preserve_actual_actor_and_owner_aut
     }
     let agent_peer = sdk(&left, actor_token.clone()).await;
     let owner_peer = sdk(&right, owner_token.clone()).await;
-    let filter = SubscriptionFilter::builder().task_id(id.clone()).build();
+    let filter = SubscriptionFilter::builder()
+        .task_id(id.to_string())
+        .build();
     let mut agent_updates = agent_peer.listen(filter.clone()).await.unwrap();
     let mut owner_updates = owner_peer.listen(filter).await.unwrap();
     for stream in [&mut agent_updates, &mut owner_updates] {
@@ -89,11 +91,11 @@ async fn command_task_reads_and_cancellation_preserve_actual_actor_and_owner_aut
         let ServerNotification::TaskStatusNotification(update) = baseline else {
             panic!("missing Task baseline");
         };
-        assert_eq!(update.params.task.task.task_id, id);
+        assert_eq!(update.params.task.task.task_id, id.to_string());
     }
     TaskRuntime::new(db.a.clone(), "computers", &claim.lease_owner)
         .transition(
-            &id,
+            id,
             veoveo_task_runtime::TaskTransition::Waiting {
                 message: "Waiting for command preparation".into(),
                 progress: 0.0,
@@ -110,7 +112,7 @@ async fn command_task_reads_and_cancellation_preserve_actual_actor_and_owner_aut
         let ServerNotification::TaskStatusNotification(update) = next else {
             panic!("missing Task update");
         };
-        assert_eq!(update.params.task.task.task_id, id);
+        assert_eq!(update.params.task.task.task_id, id.to_string());
     }
     a.revoke_automation_grant(
         &owner,
@@ -150,7 +152,7 @@ async fn command_task_reads_and_cancellation_preserve_actual_actor_and_owner_aut
     .await;
     assert!(cancelled.get("error").is_none(), "{cancelled}");
     let snapshot = TaskRuntime::new(db.a.clone(), "computers", "inspect")
-        .get(&id)
+        .get(id)
         .await
         .unwrap()
         .unwrap();
@@ -244,7 +246,7 @@ async fn completed_command_has_one_canonical_governed_result_resource() {
     let tasks = TaskRuntime::new(db.a.clone(), "computers", &claim.lease_owner);
     tasks
         .transition(
-            &claim.snapshot.task_id.to_string(),
+            claim.snapshot.task_id,
             veoveo_task_runtime::TaskTransition::Succeeded {
                 message: "Command completed".into(),
                 result: json!({

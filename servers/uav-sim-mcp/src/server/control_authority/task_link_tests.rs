@@ -122,12 +122,12 @@ async fn native_mission_read_uses_the_admitted_task_and_retains_unresolved_ident
             .check()
             .unwrap();
         tasks
-            .claim(&admitted.task_id.to_string(), Timeout::from_secs(60))
+            .claim(admitted.task_id, Timeout::from_secs(60))
             .await
             .unwrap();
         let interrupted = tasks
             .transition(
-                &admitted.task_id.to_string(),
+                admitted.task_id,
                 TaskTransition::Failed(TaskFailure::interrupted_indeterminate()),
             )
             .await
@@ -154,11 +154,7 @@ async fn native_mission_read_uses_the_admitted_task_and_retains_unresolved_ident
             .unwrap()
             .check()
             .unwrap();
-        let damaged = tasks
-            .get(&admitted.task_id.to_string())
-            .await
-            .unwrap()
-            .unwrap();
+        let damaged = tasks.get(admitted.task_id).await.unwrap().unwrap();
         assert!(authority.task_retention_releasable(&damaged).await.is_err());
         db.b.client()
             .query("UPDATE ONLY $task SET request.input.plan_id = $plan;")
@@ -183,12 +179,7 @@ async fn native_mission_read_uses_the_admitted_task_and_retains_unresolved_ident
             .unwrap();
         assert!(tasks.prune_expired().await.unwrap().is_empty());
         assert_eq!(
-            tasks
-                .get(&admitted.task_id.to_string())
-                .await
-                .unwrap()
-                .unwrap()
-                .status,
+            tasks.get(admitted.task_id).await.unwrap().unwrap().status,
             TaskStatus::Failed
         );
         authority
@@ -202,7 +193,7 @@ async fn native_mission_read_uses_the_admitted_task_and_retains_unresolved_ident
                 .unwrap()
         );
         tasks
-            .acknowledge_retention_pin(&admitted.task_id.to_string(), &task_link::retention_pin())
+            .acknowledge_retention_pin(admitted.task_id, &task_link::retention_pin())
             .await
             .unwrap();
         assert_eq!(tasks.prune_expired().await.unwrap(), vec![admitted.task_id]);
@@ -222,7 +213,7 @@ async fn native_cancelled_task_and_link_failure_cannot_partially_admit_a_mission
         let plan = authority.prepare_plan(&pilot, mission_request("mission")).await.unwrap();
         let draft = authority.prepare_execution(&pilot, &plan.plan_id, 0).await.unwrap();
         let (tasks, cancelled) = execution_test_support::task(&authority, &pilot, &plan).await;
-        let terminal = tasks.cancel(&cancelled.task_id.to_string()).await.unwrap();
+        let terminal = tasks.cancel(cancelled.task_id).await.unwrap();
         assert!(matches!(authority.admit_execution(draft, &tasks, &cancelled).await, Err(ControlAuthorityError::Conflict)));
         assert!(authority.task_retention_releasable(&terminal).await.unwrap());
         assert_eq!(authority.visible_plan(&pilot, false, &plan.plan_id).await.unwrap().unwrap(), plan);
@@ -232,7 +223,7 @@ async fn native_cancelled_task_and_link_failure_cannot_partially_admit_a_mission
         let draft = authority.prepare_execution(&pilot, &plan.plan_id, 0).await.unwrap();
         assert!(authority.admit_execution(draft, &tasks, &task).await.is_err());
         assert_eq!(authority.visible_plan(&pilot, false, &plan.plan_id).await.unwrap().unwrap(), plan);
-        assert_eq!(tasks.get(&task.task_id.to_string()).await.unwrap().unwrap(), task);
+        assert_eq!(tasks.get(task.task_id).await.unwrap().unwrap(), task);
         let mut empty = db.b.client().query("SELECT VALUE id FROM uav_mission_execution; SELECT VALUE id FROM uav_vehicle_command_lease;")
             .await.unwrap().check().unwrap();
         assert!(empty.take::<Vec<RecordId>>(0).unwrap().is_empty());
@@ -272,12 +263,12 @@ async fn native_pin_reconciliation_filters_before_its_page_limit() {
             let plan = if i < 110 { &active } else { &prepared };
             let (tasks, task) = execution_test_support::task(&authority, &pilot, plan).await;
             tasks
-                .claim(&task.task_id.to_string(), Timeout::from_secs(30))
+                .claim(task.task_id, Timeout::from_secs(30))
                 .await
                 .unwrap();
             tasks
                 .transition(
-                    &task.task_id.to_string(),
+                    task.task_id,
                     TaskTransition::Failed(TaskFailure::interrupted_indeterminate()),
                 )
                 .await

@@ -92,7 +92,7 @@ async fn accepted_lifecycle_outlives_the_source_token_but_not_the_named_grant() 
     );
     let tasks = TaskRuntime::new(db.a.clone(), "computers", "independent-worker");
     let claim = tasks
-        .claim_observation(&operation.task_id().to_string(), Duration::from_secs(60))
+        .claim_observation(operation.task_id(), Duration::from_secs(60))
         .await
         .unwrap();
     assert!(store.begin_dispatch(&claim).await.is_ok());
@@ -134,7 +134,7 @@ async fn prior_owner_only_rows_migrate_without_inventing_a_delegation() {
         .unwrap();
     let tasks = TaskRuntime::new(db.a.clone(), "computers", "migrated-worker");
     let claim = tasks
-        .claim_observation(&operation.task_id().to_string(), Duration::from_secs(60))
+        .claim_observation(operation.task_id(), Duration::from_secs(60))
         .await
         .unwrap();
     assert!(store.begin_dispatch(&claim).await.is_ok());
@@ -226,7 +226,7 @@ async fn queued_agent_work_rechecks_both_principals_and_policy() {
         }
         let tasks = TaskRuntime::new(db.a.clone(), "computers", "denied-worker");
         let claim = tasks
-            .claim_observation(&operation.task_id().to_string(), Duration::from_secs(60))
+            .claim_observation(operation.task_id(), Duration::from_secs(60))
             .await
             .unwrap();
         assert!(
@@ -283,14 +283,10 @@ async fn agent_stop_start_preserve_owner_and_current_named_dispatch_evidence() {
             .ensure_automation_operation_task(&agent, operation.operation_id)
             .await
             .unwrap();
-        let task = tasks
-            .get(&operation.task_id().to_string())
-            .await
-            .unwrap()
-            .unwrap();
+        let task = tasks.get(operation.task_id()).await.unwrap().unwrap();
         assert_eq!(task.owner, *agent.owner());
         let claim = tasks
-            .claim_observation(&operation.task_id().to_string(), Duration::from_secs(60))
+            .claim_observation(operation.task_id(), Duration::from_secs(60))
             .await
             .unwrap();
         let ticket = store.begin_dispatch(&claim).await.unwrap();
@@ -446,7 +442,7 @@ async fn revocation_fences_admission_and_dispatch_but_preserves_owner_recovery()
         .unwrap();
     let tasks = TaskRuntime::new(db.a.clone(), "computers", "lifecycle-worker");
     let claim = tasks
-        .claim_observation(&operation.task_id().to_string(), Duration::from_secs(60))
+        .claim_observation(operation.task_id(), Duration::from_secs(60))
         .await
         .unwrap();
     assert!(matches!(
@@ -485,7 +481,7 @@ async fn lost_agent_dispatch_can_settle_after_revocation_without_repeating_the_e
         .unwrap();
     let tasks = TaskRuntime::new(db.a.clone(), "computers", "lifecycle-worker");
     let claim = tasks
-        .claim_observation(&operation.task_id().to_string(), Duration::from_secs(60))
+        .claim_observation(operation.task_id(), Duration::from_secs(60))
         .await
         .unwrap();
     drop(store.begin_dispatch(&claim).await.unwrap());

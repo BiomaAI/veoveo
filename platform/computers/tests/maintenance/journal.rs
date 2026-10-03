@@ -41,7 +41,7 @@ pub(super) async fn queued(
         .unwrap();
     let tasks = TaskRuntime::new(db.a.clone(), "computers", "maintenance-a");
     let claim = tasks
-        .claim_observation(&operation.task_id().to_string(), Duration::from_secs(60))
+        .claim_observation(operation.task_id(), Duration::from_secs(60))
         .await
         .unwrap();
     (a, b, tasks, claim)
@@ -169,7 +169,7 @@ async fn durable_steps_capture_encrypted_policy_and_adopt_exactly_one_instance()
         assert_eq!(before.settled_at, after.settled_at);
     }
     claim = tasks
-        .claim_observation(&resumed.task_id().to_string(), Duration::from_secs(60))
+        .claim_observation(resumed.task_id(), Duration::from_secs(60))
         .await
         .unwrap();
     let complete = b
@@ -207,7 +207,7 @@ async fn durable_steps_capture_encrypted_policy_and_adopt_exactly_one_instance()
     assert!(a.acknowledge_maintenance_task(&complete).await.is_err());
     tasks
         .transition(
-            &complete.task_id().to_string(),
+            complete.task_id(),
             veoveo_task_runtime::TaskTransition::Succeeded {
                 message: "isolated domain adoption proof".into(),
                 result: serde_json::json!({"maintenanceId":complete.operation_id}),
@@ -218,7 +218,7 @@ async fn durable_steps_capture_encrypted_policy_and_adopt_exactly_one_instance()
     a.acknowledge_maintenance_task(&complete).await.unwrap();
     tasks
         .acknowledge_retention_pin(
-            &complete.task_id().to_string(),
+            complete.task_id(),
             &veoveo_task_runtime::TaskRetentionPin::new(format!(
                 "computer-maintenance/{}",
                 complete.operation_id
@@ -250,7 +250,7 @@ async fn lost_worker_ticket_allows_observation_under_new_lease_without_redispatc
     tasks.release_observation(&claim).await.unwrap();
     let other = TaskRuntime::new(db.b.clone(), "computers", "maintenance-b");
     let next = other
-        .claim_observation(&operation.task_id().to_string(), Duration::from_secs(60))
+        .claim_observation(operation.task_id(), Duration::from_secs(60))
         .await
         .unwrap();
     assert!(
@@ -281,7 +281,7 @@ async fn lost_worker_ticket_allows_observation_under_new_lease_without_redispatc
     let ticket = b.begin_maintenance_step(&next).await.unwrap();
     other.release_observation(&next).await.unwrap();
     let next = tasks
-        .claim_observation(&operation.task_id().to_string(), Duration::from_secs(60))
+        .claim_observation(operation.task_id(), Duration::from_secs(60))
         .await
         .unwrap();
     let checkpoint =
@@ -323,7 +323,7 @@ pub(super) async fn initial_failure_retains_unknown_source_through_cancel_and_ad
     first: &veoveo_computers::maintenance::MaintenanceOperation,
 ) {
     let claim = tasks
-        .claim_observation(&first.task_id().to_string(), Duration::from_secs(60))
+        .claim_observation(first.task_id(), Duration::from_secs(60))
         .await
         .unwrap();
     a.cancel_undispatched_maintenance(&claim).await.unwrap();
@@ -345,7 +345,7 @@ pub(super) async fn initial_failure_retains_unknown_source_through_cancel_and_ad
         .unwrap();
     assert_ne!(operation.target_instance_id, first.target_instance_id);
     let claim = tasks
-        .claim_observation(&operation.task_id().to_string(), Duration::from_secs(60))
+        .claim_observation(operation.task_id(), Duration::from_secs(60))
         .await
         .unwrap();
     for (step, evidence) in [
@@ -444,10 +444,7 @@ async fn cancellation_before_dispatch_preserves_run_and_policy_revocation_blocks
     let db = TestDb::new().await;
     let (a, b, tasks, claim) = queued(&db).await;
     let operation = a.maintenance_for_claim(&claim).await.unwrap();
-    tasks
-        .cancel(&operation.task_id().to_string())
-        .await
-        .unwrap();
+    tasks.cancel(operation.task_id()).await.unwrap();
     assert!(b.begin_maintenance_step(&claim).await.is_err());
     a.cancel_undispatched_maintenance(&claim).await.unwrap();
     let current = b
@@ -468,7 +465,7 @@ async fn cancellation_before_dispatch_preserves_run_and_policy_revocation_blocks
         .await
         .unwrap();
     let claim = tasks
-        .claim_observation(&operation.task_id().to_string(), Duration::from_secs(60))
+        .claim_observation(operation.task_id(), Duration::from_secs(60))
         .await
         .unwrap();
     let ticket = a.begin_maintenance_step(&claim).await.unwrap();

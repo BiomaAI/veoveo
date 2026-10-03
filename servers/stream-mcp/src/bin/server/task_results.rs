@@ -235,7 +235,7 @@ pub(super) async fn completed_payload(
     .await?;
     validate_snapshot(&snapshot)?;
     match runtime
-        .await_payload_state(&id.to_string())
+        .await_payload_state(id.task_id())
         .await
         .map_err(internal)?
     {

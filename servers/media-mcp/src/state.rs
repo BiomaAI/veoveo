@@ -222,7 +222,7 @@ impl MediaState {
     pub async fn bind_submission_and_wait(
         &self,
         runtime: &TaskRuntime,
-        task_id: &str,
+        task_id: TaskId,
         prediction: &Prediction,
     ) -> Result<MediaProviderJob, StoreError> {
         let current = runtime
@@ -307,7 +307,7 @@ impl MediaState {
     pub async fn receive_webhook(
         &self,
         runtime: &TaskRuntime,
-        task_id: &str,
+        task_id: TaskId,
         webhook_id: &str,
         prediction: &Prediction,
     ) -> Result<WebhookReceipt, StoreError> {
@@ -466,7 +466,7 @@ impl MediaState {
         message: String,
     ) -> Result<TaskSnapshot, StoreError> {
         let current = runtime
-            .get(&event.job.task_id.to_string())
+            .get(event.job.task_id)
             .await
             .map_err(task_store_error)?
             .ok_or(StoreError::MissingRecord {
@@ -533,7 +533,7 @@ impl MediaState {
             .and_then(|response| response.check());
         if let Err(error) = response {
             let latest = runtime
-                .get(&current.task_id.to_string())
+                .get(current.task_id)
                 .await
                 .map_err(task_store_error)?;
             if let Some(latest) = latest
@@ -545,7 +545,7 @@ impl MediaState {
             return Err(error.into());
         }
         runtime
-            .get(&current.task_id.to_string())
+            .get(current.task_id)
             .await
             .map_err(task_store_error)?
             .ok_or(StoreError::MissingRecord {
@@ -559,7 +559,7 @@ impl MediaState {
         event: &MediaProviderEvent,
     ) -> Result<TaskSnapshot, StoreError> {
         let current = runtime
-            .get(&event.job.task_id.to_string())
+            .get(event.job.task_id)
             .await
             .map_err(task_store_error)?
             .ok_or(StoreError::MissingRecord {
@@ -712,7 +712,7 @@ impl MediaState {
     async fn ensure_task_waiting(
         &self,
         runtime: &TaskRuntime,
-        task_id: &str,
+        task_id: TaskId,
         job: &MediaProviderJob,
     ) -> Result<(), StoreError> {
         let Some(current) = runtime.get(task_id).await.map_err(task_store_error)? else {

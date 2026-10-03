@@ -146,7 +146,7 @@ impl veoveo_task_runtime::DurableTaskService for OptimizationTaskExtension {
                 let capability = issue_output_capability(
                     self.state.as_ref(),
                     &caller.plane,
-                    &task_id,
+                    task_id,
                     2 + u32::from(input.output.include_route_table_artifact),
                 )
                 .await
@@ -184,7 +184,7 @@ impl veoveo_task_runtime::DurableTaskService for OptimizationTaskExtension {
                 let capability = issue_output_capability(
                     self.state.as_ref(),
                     &caller.plane,
-                    &task_id,
+                    task_id,
                     2 + u32::from(input.output.include_route_table_artifact),
                 )
                 .await
@@ -218,7 +218,7 @@ impl veoveo_task_runtime::DurableTaskService for OptimizationTaskExtension {
                 let capability = issue_output_capability(
                     self.state.as_ref(),
                     &caller.plane,
-                    &task_id,
+                    task_id,
                     artifact_count,
                 )
                 .await
@@ -259,7 +259,7 @@ impl veoveo_task_runtime::DurableTaskService for OptimizationTaskExtension {
                 let capability = issue_output_capability(
                     self.state.as_ref(),
                     &caller.plane,
-                    &task_id,
+                    task_id,
                     artifact_count,
                 )
                 .await
@@ -304,7 +304,7 @@ impl veoveo_task_runtime::DurableTaskService for OptimizationTaskExtension {
                         .await
                         .map_err(internal)?;
                 let capability =
-                    issue_output_capability(self.state.as_ref(), &caller.plane, &task_id, 1)
+                    issue_output_capability(self.state.as_ref(), &caller.plane, task_id, 1)
                         .await
                         .map_err(internal)?;
                 OptimizationTaskRequest::VerifySolution {
@@ -402,7 +402,7 @@ pub(super) async fn recover_tasks(
             match error.downcast_ref::<TaskError>() {
                 Some(TaskError::LeaseHeld(task_id) | TaskError::Conflict(task_id)) => {
                     tracing::info!(
-                        task_id,
+                        %task_id,
                         "another worker claimed recovered Optimization task"
                     );
                 }
@@ -444,38 +444,32 @@ async fn schedule_task(
     snapshot: TaskSnapshot,
     request: OptimizationTaskRequest,
 ) -> anyhow::Result<TaskSnapshot> {
-    let task_id = snapshot.task_id.to_string();
-    let claimed = state.tasks.claim(&task_id, TASK_LEASE_DURATION).await?;
+    let task_id = snapshot.task_id;
+    let claimed = state.tasks.claim(task_id, TASK_LEASE_DURATION).await?;
     let owner = snapshot.owner.clone();
     let cancellation = tokio_util::sync::CancellationToken::new();
     let join = tokio::spawn(run_task(
         state.clone(),
-        task_id.clone(),
+        task_id,
         owner,
         request,
         cancellation.clone(),
     ));
     state
         .tasks
-        .register_worker(&task_id, cancellation, join)
+        .register_worker(task_id, cancellation, join)
         .await?;
     Ok(claimed.snapshot)
 }
 
 async fn run_task(
     state: Arc<AppState>,
-    task_id: String,
+    task_id: TaskId,
     owner: TaskOwner,
     request: OptimizationTaskRequest,
     cancellation: tokio_util::sync::CancellationToken,
 ) {
-    let work = run_task_inner(
-        state.clone(),
-        task_id.clone(),
-        owner,
-        request,
-        cancellation.clone(),
-    );
+    let work = run_task_inner(state.clone(), task_id, owner, request, cancellation.clone());
     tokio::pin!(work);
     let mut heartbeat = tokio::time::interval(TASK_LEASE_HEARTBEAT);
     heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
@@ -484,8 +478,8 @@ async fn run_task(
         tokio::select! {
             () = &mut work => break,
             _ = heartbeat.tick() => {
-                if let Err(error) = state.tasks.renew_lease(&task_id, TASK_LEASE_DURATION).await {
-                    tracing::warn!(task_id, "Optimization task lease heartbeat failed: {error}");
+                if let Err(error) = state.tasks.renew_lease(task_id, TASK_LEASE_DURATION).await {
+                    tracing::warn!(%task_id, "Optimization task lease heartbeat failed: {error}");
                     cancellation.cancel();
                     break;
                 }
@@ -496,14 +490,14 @@ async fn run_task(
 
 async fn run_task_inner(
     state: Arc<AppState>,
-    task_id: String,
+    task_id: TaskId,
     runtime_owner: TaskOwner,
     request: OptimizationTaskRequest,
     cancellation: tokio_util::sync::CancellationToken,
 ) {
     update_task(
         &state,
-        &task_id,
+        task_id,
         TaskTransition::Running {
             message: "preparing governed cuOpt execution".to_owned(),
             progress: 0.05,
@@ -512,14 +506,14 @@ async fn run_task_inner(
     .await;
     let result = execute_task(
         state.as_ref(),
-        &task_id,
+        task_id,
         &runtime_owner,
         request,
         cancellation.clone(),
     )
     .await;
     if cancellation.is_cancelled() {
-        update_task(&state, &task_id, TaskTransition::Cancelled).await;
+        update_task(&state, task_id, TaskTransition::Cancelled).await;
         return;
     }
     match result {
@@ -527,7 +521,7 @@ async fn run_task_inner(
             Ok(result) => {
                 update_task(
                     &state,
-                    &task_id,
+                    task_id,
                     TaskTransition::Succeeded {
                         message: "cuOpt execution completed".to_owned(),
                         result,
@@ -543,15 +537,15 @@ async fn run_task_inner(
                 }
                 state.resource_observers.notify_changed().await;
             }
-            Err(error) => fail_task(&state, &task_id, "result_serialization_failed", error).await,
+            Err(error) => fail_task(&state, task_id, "result_serialization_failed", error).await,
         },
-        Err(error) => fail_task(&state, &task_id, "optimization_failed", error).await,
+        Err(error) => fail_task(&state, task_id, "optimization_failed", error).await,
     }
 }
 
 async fn execute_task(
     state: &AppState,
-    task_id: &str,
+    task_id: TaskId,
     runtime_owner: &TaskOwner,
     request: OptimizationTaskRequest,
     cancellation: tokio_util::sync::CancellationToken,
@@ -870,7 +864,7 @@ struct ExecutorPermit {
 
 async fn acquire_executor_slot(
     state: &AppState,
-    task_id: &str,
+    task_id: TaskId,
     cancellation: &tokio_util::sync::CancellationToken,
 ) -> anyhow::Result<ExecutorPermit> {
     update_task(
@@ -1078,7 +1072,7 @@ fn maximum(left: Option<NonNegativeF64>, right: Option<NonNegativeF64>) -> Optio
     }
 }
 
-async fn update_solving(state: &AppState, task_id: &str, common: &SolveTaskCommon) {
+async fn update_solving(state: &AppState, task_id: TaskId, common: &SolveTaskCommon) {
     update_task(
         state,
         task_id,
@@ -1090,7 +1084,7 @@ async fn update_solving(state: &AppState, task_id: &str, common: &SolveTaskCommo
     .await;
 }
 
-async fn update_publishing(state: &AppState, task_id: &str) {
+async fn update_publishing(state: &AppState, task_id: TaskId) {
     update_task(
         state,
         task_id,
@@ -1133,7 +1127,7 @@ fn common(
 async fn issue_output_capability(
     state: &AppState,
     caller: &PlaneCaller,
-    task_id: &TaskId,
+    task_id: TaskId,
     count: u32,
 ) -> anyhow::Result<veoveo_mcp_contract::IssuedArtifactWriteCapability> {
     state
@@ -1170,8 +1164,8 @@ async fn find_prepared_ref(
         .clone())
 }
 
-async fn fail_task(state: &AppState, task_id: &str, code: &str, error: impl std::fmt::Display) {
-    tracing::warn!(task_id, "Optimization task failed: {error}");
+async fn fail_task(state: &AppState, task_id: TaskId, code: &str, error: impl std::fmt::Display) {
+    tracing::warn!(%task_id, "Optimization task failed: {error}");
     update_task(
         state,
         task_id,

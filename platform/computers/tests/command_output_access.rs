@@ -27,10 +27,7 @@ async fn output_capability_precedes_dispatch_survives_replica_loss_and_never_ent
         .unwrap();
     a.ensure_command_task(&command).await.unwrap();
     let claim = TaskRuntime::new(db.a.clone(), "computers", "output-worker")
-        .claim_observation(
-            &command.task_id().to_string(),
-            std::time::Duration::from_secs(60),
-        )
+        .claim_observation(command.task_id(), std::time::Duration::from_secs(60))
         .await
         .unwrap();
     assert!(matches!(

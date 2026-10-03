@@ -147,7 +147,7 @@ impl ComputersStore {
             format!("maintenance-resume/{}", Uuid::now_v7()),
         );
         let claim = match tasks
-            .claim_observation(&before.task_id().to_string(), Duration::from_secs(30))
+            .claim_observation(before.task_id(), Duration::from_secs(30))
             .await
         {
             Ok(claim) => claim,

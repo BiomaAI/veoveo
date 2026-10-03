@@ -482,7 +482,7 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         panic!("completed retry lost its Task");
     };
     assert_eq!(retried.task.task_id, id);
-    let task = tasks_a.get(&id).await.unwrap().unwrap();
+    let task = tasks_a.get(id.parse().unwrap()).await.unwrap().unwrap();
     assert_eq!(
         task.status,
         TaskStatus::Succeeded,
@@ -549,7 +549,7 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         &caller,
     )
     .await;
-    let id = command.task_id().to_string();
+    let id = command.task_id();
     let worker = worker_a.clone();
     let job = tokio::spawn(async move { worker.step(command).boxed().await });
     // One native fixture observer waits for the command's start marker. This is
@@ -577,11 +577,11 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
             let operations = b.pending_commands(None, 100).await.unwrap();
             if operations
                 .iter()
-                .any(|op| op.task_id().to_string() == id && op.stage() != CommandStage::Dispatched)
+                .any(|op| op.task_id() == id && op.stage() != CommandStage::Dispatched)
             {
                 break;
             }
-            if tasks_a.get(&id).await.unwrap().unwrap().is_terminal() {
+            if tasks_a.get(id).await.unwrap().unwrap().is_terminal() {
                 break;
             }
             tokio::time::sleep(Duration::from_millis(20)).await;
@@ -612,7 +612,7 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         ComputerPhase::Stopped
     );
     assert_eq!(
-        tasks_a.get(&id).await.unwrap().unwrap().status,
+        tasks_a.get(id).await.unwrap().unwrap().status,
         TaskStatus::Failed
     );
     assert!(matches!(
@@ -657,7 +657,7 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         &caller,
     )
     .await;
-    let cancelled_id = command.task_id().to_string();
+    let cancelled_id = command.task_id();
     let worker = worker_a.clone();
     let job = tokio::spawn(async move { worker.step(command).boxed().await });
     inspect(
@@ -666,7 +666,7 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         "while ! test -f active-cancel; do sleep 0.02; done",
     )
     .await;
-    tasks_b.cancel(&cancelled_id).await.unwrap();
+    tasks_b.cancel(cancelled_id).await.unwrap();
     assert_eq!(
         tokio::time::timeout(Duration::from_secs(60), job)
             .await
@@ -676,7 +676,7 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         WorkerStep::Settled
     );
     assert_eq!(
-        tasks_b.get(&cancelled_id).await.unwrap().unwrap().status,
+        tasks_b.get(cancelled_id).await.unwrap().unwrap().status,
         TaskStatus::Cancelled
     );
     let start = a
@@ -712,9 +712,9 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         &caller,
     )
     .await;
-    let lost_id = command.task_id().to_string();
+    let lost_id = command.task_id();
     let claim = tasks_a
-        .claim_observation(&lost_id, Duration::from_secs(60))
+        .claim_observation(lost_id, Duration::from_secs(60))
         .await
         .unwrap();
     drop(a.begin_command_dispatch(&claim, &keys).await.unwrap());
@@ -727,7 +727,7 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
             .unwrap(),
         WorkerStep::Settled
     );
-    let lost = tasks_a.get(&lost_id).await.unwrap().unwrap();
+    let lost = tasks_a.get(lost_id).await.unwrap().unwrap();
     assert_eq!(lost.status, TaskStatus::Failed);
     assert_eq!(lost.error.unwrap().code, "execution_unknown");
     let start = a
@@ -807,11 +807,7 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
                 "native maintenance requires recovery at {:?}",
                 current.steps().last().map(|step| step.step)
             );
-            let task = tasks_a
-                .get(&operation.task_id().to_string())
-                .await
-                .unwrap()
-                .unwrap();
+            let task = tasks_a.get(operation.task_id()).await.unwrap().unwrap();
             if task.is_terminal() && b.pending_maintenance(None, 100).await.unwrap().is_empty() {
                 break;
             }
@@ -842,11 +838,7 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
     )
     .unwrap();
     assert!(provider.runtime.get(&binding).await.unwrap().is_none());
-    let task = tasks_a
-        .get(&operation.task_id().to_string())
-        .await
-        .unwrap()
-        .unwrap();
+    let task = tasks_a.get(operation.task_id()).await.unwrap().unwrap();
     assert_eq!(task.status, TaskStatus::Succeeded);
     let result: rmcp::model::CallToolResult = serde_json::from_value(task.result.unwrap()).unwrap();
     let result: MaintenanceResult =

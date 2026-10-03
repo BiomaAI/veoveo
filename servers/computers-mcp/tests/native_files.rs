@@ -90,7 +90,11 @@ async fn task_result(
     tasks: &TaskRuntime,
     id: veoveo_computers_contract::FileTransferId,
 ) -> FileTransferResult {
-    let task = tasks.get(&id.to_string()).await.unwrap().unwrap();
+    let task = tasks
+        .get(veoveo_types::TaskId::from_uuid(*id.as_uuid()))
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(task.status, TaskStatus::Succeeded);
     let tool: rmcp::model::CallToolResult = serde_json::from_value(task.result.unwrap()).unwrap();
     assert_eq!(tool.is_error, Some(false));
@@ -492,7 +496,7 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
         WorkerStep::Settled
     );
     let duplicate_task = tasks_a
-        .get(&duplicate_id.to_string())
+        .get(veoveo_types::TaskId::from_uuid(*duplicate_id.as_uuid()))
         .await
         .unwrap()
         .unwrap();
@@ -531,7 +535,11 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
         worker.step(denied).boxed().await.unwrap(),
         WorkerStep::Settled
     );
-    let denied_task = tasks_a.get(&denied_id.to_string()).await.unwrap().unwrap();
+    let denied_task = tasks_a
+        .get(veoveo_types::TaskId::from_uuid(*denied_id.as_uuid()))
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(denied_task.error.unwrap().code, "artifact_unavailable");
     assert!(provider.runtime.get(&binding).await.unwrap().unwrap().phase == Phase::Ready);
     let cancelled = queue(
@@ -549,14 +557,17 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
     )
     .await;
     let cancelled_id = cancelled.transfer_id();
-    tasks_a.cancel(&cancelled_id.to_string()).await.unwrap();
+    tasks_a
+        .cancel(veoveo_types::TaskId::from_uuid(*cancelled_id.as_uuid()))
+        .await
+        .unwrap();
     assert_eq!(
         worker.step(cancelled).boxed().await.unwrap(),
         WorkerStep::Settled
     );
     assert_eq!(
         tasks_a
-            .get(&cancelled_id.to_string())
+            .get(veoveo_types::TaskId::from_uuid(*cancelled_id.as_uuid()))
             .await
             .unwrap()
             .unwrap()
@@ -580,7 +591,7 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
     )
     .await;
     let claim = tasks_a
-        .claim_observation(&lost.task_id().to_string(), Duration::from_secs(60))
+        .claim_observation(lost.task_id(), Duration::from_secs(60))
         .await
         .unwrap();
     drop(a.begin_file_dispatch(&claim, &keys).await.unwrap());

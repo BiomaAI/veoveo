@@ -89,7 +89,7 @@ async fn lifecycle_and_maintenance_keep_the_actual_client_actor() {
             operation.task_id()
         };
         let task = TaskRuntime::new(db.b.clone(), "computers", "observer")
-            .get(&task_id.to_string())
+            .get(task_id)
             .await
             .unwrap()
             .unwrap();
@@ -188,7 +188,7 @@ async fn file_task_recovery_preserves_ciphertext_and_original_actor() {
         "retained-owner-fixture.txt"
     );
     let task = TaskRuntime::new(db.b.clone(), "computers", "observer")
-        .get(&operation.task_id().to_string())
+        .get(operation.task_id())
         .await
         .unwrap()
         .unwrap();

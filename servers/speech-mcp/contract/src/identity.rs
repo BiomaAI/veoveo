@@ -67,6 +67,17 @@ identity!(DictationSessionId, "[47]", |version| matches!(
     4 | 7
 ));
 
+impl TryFrom<veoveo_types::TaskId> for TranscriptionId {
+    type Error = SpeechIdentityError;
+    fn try_from(value: veoveo_types::TaskId) -> Result<Self, Self::Error> {
+        let value = value.as_uuid();
+        if value.get_version_num() != 7 || value.get_variant() != uuid::Variant::RFC4122 {
+            return Err(SpeechIdentityError);
+        }
+        Ok(Self(value))
+    }
+}
+
 impl TranscriptionId {
     pub fn task_id(self) -> veoveo_types::TaskId {
         veoveo_types::TaskId::from_uuid(self.0)
@@ -83,6 +94,18 @@ mod tests {
         assert!(TranscriptionId::parse(browser).is_err());
         let task = TranscriptionId::new();
         assert_eq!(task.task_id().to_string(), task.to_string());
+        assert_eq!(TranscriptionId::try_from(task.task_id()).unwrap(), task);
+        for invalid in [
+            "01983da0-0000-4000-8000-000000000001",
+            "01983da0-0000-7000-0000-000000000001",
+        ] {
+            assert!(
+                TranscriptionId::try_from(veoveo_types::TaskId::from_uuid(
+                    invalid.parse().unwrap()
+                ))
+                .is_err()
+            );
+        }
         assert_eq!(
             serde_json::from_str::<TranscriptionId>(&serde_json::to_string(&task).unwrap())
                 .unwrap(),

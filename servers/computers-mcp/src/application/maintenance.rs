@@ -134,7 +134,7 @@ impl Application {
         let mut view = view(operation);
         if let Some(task) = self
             .tasks
-            .get(&operation.task_id().to_string())
+            .get(operation.task_id())
             .await
             .map_err(|_| ApplicationError::Unavailable)?
         {

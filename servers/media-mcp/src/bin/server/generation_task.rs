@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use veoveo_types::TaskId;
 
 use serde_json::Value;
 use veoveo_task_runtime::{TaskFailure, TaskTransition};
@@ -10,13 +11,13 @@ use veoveo_media_mcp::contract::RunArgs;
 /// Validate and submit one provider job. The worker intentionally stops after
 /// the durable provider binding enters `waiting`; only a signed webhook can
 /// drive the terminal transition.
-pub(super) async fn submit_task(state: Arc<AppState>, task_id: String, args: RunArgs) {
+pub(super) async fn submit_task(state: Arc<AppState>, task_id: TaskId, args: RunArgs) {
     let entry = match state.find_model(&args.model).await {
         Ok(Some(entry)) => entry,
         Ok(None) => {
             fail(
                 &state,
-                &task_id,
+                task_id,
                 "unknown_model",
                 format!("unknown model '{}'; browse media://models", args.model),
             )
@@ -24,7 +25,7 @@ pub(super) async fn submit_task(state: Arc<AppState>, task_id: String, args: Run
             return;
         }
         Err(error) => {
-            fail(&state, &task_id, "model_registry_failed", error).await;
+            fail(&state, task_id, "model_registry_failed", error).await;
             return;
         }
     };
@@ -39,7 +40,7 @@ pub(super) async fn submit_task(state: Arc<AppState>, task_id: String, args: Run
         if !errors.is_empty() {
             fail(
                 &state,
-                &task_id,
+                task_id,
                 "invalid_model_input",
                 format!(
                     "input failed schema validation for {}: {}; see {}",
@@ -55,7 +56,7 @@ pub(super) async fn submit_task(state: Arc<AppState>, task_id: String, args: Run
     if let Err(error) = state
         .tasks
         .transition(
-            &task_id,
+            task_id,
             TaskTransition::Running {
                 message: "input validated; submitting provider job".into(),
                 progress: 0.1,
@@ -64,7 +65,7 @@ pub(super) async fn submit_task(state: Arc<AppState>, task_id: String, args: Run
         .await
     {
         tracing::warn!(
-            task_id,
+            %task_id,
             "failed to publish media validation progress: {error}"
         );
         return;
@@ -80,7 +81,7 @@ pub(super) async fn submit_task(state: Arc<AppState>, task_id: String, args: Run
         Err(error) => {
             fail(
                 &state,
-                &task_id,
+                task_id,
                 "provider_submit_failed",
                 format!("media provider submission failed: {error}"),
             )
@@ -91,16 +92,16 @@ pub(super) async fn submit_task(state: Arc<AppState>, task_id: String, args: Run
 
     match state
         .durable
-        .bind_submission_and_wait(&state.tasks, &task_id, &prediction)
+        .bind_submission_and_wait(&state.tasks, task_id, &prediction)
         .await
     {
         Ok(job) => {
             if let Err(error) = record_usage_estimate(&state, job.task_id, &job, &entry).await {
-                tracing::warn!(task_id, "failed to persist usage estimate: {error}");
+                tracing::warn!(%task_id, "failed to persist usage estimate: {error}");
             }
             state.subscribers.notify_resource_contents_changed().await;
             tracing::info!(
-                task_id,
+                %task_id,
                 provider_job_id = %prediction.id,
                 "media task is durably waiting for a signed webhook"
             );
@@ -110,7 +111,7 @@ pub(super) async fn submit_task(state: Arc<AppState>, task_id: String, args: Run
             // not query it. The task remains webhook-recoverable through its
             // task-specific callback URL.
             tracing::error!(
-                task_id,
+                %task_id,
                 provider_job_id = %prediction.id,
                 "provider accepted the job but durable binding failed: {error}"
             );
@@ -118,8 +119,8 @@ pub(super) async fn submit_task(state: Arc<AppState>, task_id: String, args: Run
     }
 }
 
-async fn fail(state: &AppState, task_id: &str, code: &str, message: String) {
-    tracing::warn!(task_id, "media submission failed: {message}");
+async fn fail(state: &AppState, task_id: TaskId, code: &str, message: String) {
+    tracing::warn!(%task_id, "media submission failed: {message}");
     if let Err(error) = state
         .tasks
         .transition(
@@ -128,6 +129,6 @@ async fn fail(state: &AppState, task_id: &str, code: &str, message: String) {
         )
         .await
     {
-        tracing::warn!(task_id, "failed to persist media task failure: {error}");
+        tracing::warn!(%task_id, "failed to persist media task failure: {error}");
     }
 }

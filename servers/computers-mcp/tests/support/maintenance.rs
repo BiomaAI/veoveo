@@ -256,7 +256,7 @@ async fn maintenance_http_mcp_retry_and_current_task_authority_share_one_fence()
     support::policy::install(&db.b, control()).await;
     let tasks = TaskRuntime::new(db.a.clone(), "computers", "maintenance-inspect");
     let claim = tasks
-        .claim_observation(&id, Duration::from_secs(30))
+        .claim_observation(id.parse().unwrap(), Duration::from_secs(30))
         .await
         .unwrap();
     let ticket = store.begin_maintenance_step(&claim).await.unwrap();
@@ -296,7 +296,7 @@ async fn maintenance_http_mcp_retry_and_current_task_authority_share_one_fence()
     )
     .await;
     assert!(cancelled.get("error").is_none(), "{cancelled}");
-    let task = tasks.get(&id).await.unwrap().unwrap();
+    let task = tasks.get(id.parse().unwrap()).await.unwrap().unwrap();
     assert!(task.cancel_requested_at.is_some());
     let event = tokio::time::timeout(Duration::from_secs(5), resources.next())
         .await

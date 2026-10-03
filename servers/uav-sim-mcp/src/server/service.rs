@@ -193,7 +193,7 @@ impl UavSimMcp {
         )
         .await
         .map_err(|error| McpError::internal_error(error, None))?;
-        await_result(&self.state, &snapshot.task_id.to_string()).await
+        await_result(&self.state, snapshot.task_id).await
     }
 }
 
@@ -752,7 +752,7 @@ impl UavSimMcp {
         )
         .await
         .map_err(|error| McpError::invalid_request(error, None))?;
-        await_result(&self.state, &snapshot.task_id.to_string()).await
+        await_result(&self.state, snapshot.task_id).await
     }
 
     #[tool(

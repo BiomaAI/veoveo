@@ -57,7 +57,7 @@ async fn app_tasks_recover_with_exact_origin_and_native_input_without_replay() {
         assert_eq!(request(&restored, "POST", "/app-tasks/update", answer(2)).await.0, StatusCode::CONFLICT);
         assert_eq!(request(&restored, "POST", "/app-tasks/cancel", own.clone()).await.0, StatusCode::OK);
         assert_eq!(request(&restored, "POST", "/app-tasks/get", own.clone()).await.1["status"], "working", "an acknowledgement is not terminal");
-        fixture.domain.runtime.transition(task, TaskTransition::Cancelled).await.unwrap();
+        fixture.domain.runtime.transition(task.parse().unwrap(), TaskTransition::Cancelled).await.unwrap();
         assert_eq!(request(&restored, "POST", "/app-tasks/get", own.clone()).await.1["status"], "cancelled");
         assert_eq!(fixture.domain.calls.load(Ordering::SeqCst), 1);
         // Current App catalog admission is rechecked after restart, independent of Task ownership.

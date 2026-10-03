@@ -84,12 +84,7 @@ pub(super) async fn start_vehicle_mission_plan(
         Err(error) => {
             let id = created.snapshot.task_id;
             // Claiming closes admission's queued-state guard, including a transaction with a lost reply.
-            if state
-                .tasks
-                .claim(&id.to_string(), TASK_LEASE_DURATION)
-                .await
-                .is_ok()
-            {
+            if state.tasks.claim(id, TASK_LEASE_DURATION).await.is_ok() {
                 transition(
                     &state,
                     id,
@@ -137,16 +132,16 @@ pub(super) async fn resume_queued_operation(
     if snapshot.task_type == crate::contract::UavTaskKind::ExecuteMission.name() {
         // The public request contains a plan address, never a replayable simulator command.
         // Recovery has no live dispatch guard. Preserve any retained vehicle fence.
-        let id = snapshot.task_id.to_string();
+        let id = snapshot.task_id;
         state
             .tasks
-            .claim(&id, TASK_LEASE_DURATION)
+            .claim(id, TASK_LEASE_DURATION)
             .await
             .map_err(|error| error.to_string())?;
         state
             .tasks
             .transition(
-                &id,
+                id,
                 indeterminate("mission worker interrupted before recovery"),
             )
             .await
@@ -179,11 +174,7 @@ async fn schedule_operation(
     {
         return Err("mission dispatch guard belongs to a different Task".into());
     }
-    let claimed = match state
-        .tasks
-        .claim(&task_id.to_string(), TASK_LEASE_DURATION)
-        .await
-    {
+    let claimed = match state.tasks.claim(task_id, TASK_LEASE_DURATION).await {
         Ok(claimed) => claimed,
         Err(error) => {
             if let Some(guard) = authority.as_ref()
@@ -206,7 +197,7 @@ async fn schedule_operation(
     let worker_cancellation = cancellation.clone();
     if let Err(error) = state
         .tasks
-        .register_worker(&task_id.to_string(), cancellation, join)
+        .register_worker(task_id, cancellation, join)
         .await
     {
         worker_cancellation.cancel();
@@ -245,7 +236,7 @@ async fn run_task(
         tokio::select! {
             next = &mut work => break next,
             _ = heartbeat.tick() => {
-                match state.tasks.renew_lease(&task_id.to_string(), TASK_LEASE_DURATION).await {
+                match state.tasks.renew_lease(task_id, TASK_LEASE_DURATION).await {
                     Ok(snapshot) => {
                         if snapshot.cancel_requested_at.is_some() {
                             cancellation.cancel();
@@ -437,18 +428,18 @@ fn recovery_class(_operation: &DurableOperation) -> RecoveryClass {
 
 async fn transition(state: &AppState, task_id: TaskId, next: TaskTransition) {
     let completed = matches!(next, TaskTransition::Succeeded { .. });
-    if let Err(error) = state.tasks.transition(&task_id.to_string(), next).await {
+    if let Err(error) = state.tasks.transition(task_id, next).await {
         // Cancellation may commit between observing completion and publishing its Task result.
         // The physical receipt has already settled the mission; preserve that distinction.
         if completed
-            && let Ok(Some(snapshot)) = state.tasks.get(&task_id.to_string()).await
+            && let Ok(Some(snapshot)) = state.tasks.get(task_id).await
             && snapshot.status == veoveo_platform_store::TaskStatus::CancelRequested
         {
             let next = TaskTransition::Failed(TaskFailure::new(
                 "completed_after_cancellation",
                 "simulator completion was confirmed after cancellation of the Task wait; inspect the mission plan",
             ));
-            if let Err(error) = state.tasks.transition(&task_id.to_string(), next).await {
+            if let Err(error) = state.tasks.transition(task_id, next).await {
                 tracing::warn!(%task_id, %error, "UAV completed Task cancellation settlement failed");
             }
             return;
@@ -459,7 +450,7 @@ async fn transition(state: &AppState, task_id: TaskId, next: TaskTransition) {
 
 async fn release_settled_pin(state: &AppState, task_id: TaskId) {
     let result = async {
-        let Some(snapshot) = state.tasks.get(&task_id.to_string()).await? else {
+        let Some(snapshot) = state.tasks.get(task_id).await? else {
             return Ok::<(), anyhow::Error>(());
         };
         if snapshot.is_terminal()
@@ -470,7 +461,7 @@ async fn release_settled_pin(state: &AppState, task_id: TaskId) {
         {
             state
                 .tasks
-                .acknowledge_retention_pin(&task_id.to_string(), &task_link::retention_pin())
+                .acknowledge_retention_pin(task_id, &task_link::retention_pin())
                 .await?;
         }
         Ok(())
@@ -511,7 +502,7 @@ pub(super) async fn reconcile_mission_retention(state: &AppState) -> anyhow::Res
 
 pub(super) async fn await_result(
     state: &AppState,
-    task_id: &str,
+    task_id: TaskId,
 ) -> Result<CallToolResult, rmcp::ErrorData> {
     match state
         .tasks

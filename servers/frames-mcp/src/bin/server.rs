@@ -606,20 +606,20 @@ async fn schedule_batch_task(
     snapshot: TaskSnapshot,
     request: BatchTaskRequest,
 ) -> anyhow::Result<TaskSnapshot> {
-    let task_id = snapshot.task_id.to_string();
-    let claimed = state.tasks.claim(&task_id, TASK_LEASE_DURATION).await?;
+    let task_id = snapshot.task_id;
+    let claimed = state.tasks.claim(task_id, TASK_LEASE_DURATION).await?;
     let owner = snapshot.owner.clone();
     let cancellation = CancellationToken::new();
     let join = tokio::spawn(run_task(
         state.clone(),
-        task_id.clone(),
+        task_id,
         owner,
         request,
         cancellation.clone(),
     ));
     state
         .tasks
-        .register_worker(&task_id, cancellation, join)
+        .register_worker(task_id, cancellation, join)
         .await?;
     Ok(claimed.snapshot)
 }
@@ -631,7 +631,7 @@ async fn resume_batch_task(state: Arc<AppState>, snapshot: TaskSnapshot) -> anyh
         .map(|_| ())
 }
 
-async fn complete_tool_error(state: &AppState, task_id: &str, message: String) {
+async fn complete_tool_error(state: &AppState, task_id: TaskId, message: String) {
     let result = CallToolResult::error(vec![ContentBlock::text(message.clone())]);
     let transition = match serde_json::to_value(result) {
         Ok(result) => TaskTransition::Succeeded { message, result },
@@ -645,18 +645,12 @@ async fn complete_tool_error(state: &AppState, task_id: &str, message: String) {
 
 async fn run_task(
     state: Arc<AppState>,
-    task_id: String,
+    task_id: TaskId,
     owner: veoveo_task_runtime::TaskOwner,
     request: BatchTaskRequest,
     cancellation: CancellationToken,
 ) {
-    let work = run_task_inner(
-        state.clone(),
-        task_id.clone(),
-        owner,
-        request,
-        cancellation.clone(),
-    );
+    let work = run_task_inner(state.clone(), task_id, owner, request, cancellation.clone());
     tokio::pin!(work);
     let mut heartbeat = tokio::time::interval(TASK_LEASE_HEARTBEAT);
     heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
@@ -665,8 +659,8 @@ async fn run_task(
         tokio::select! {
             () = &mut work => break,
             _ = heartbeat.tick() => {
-                if let Err(error) = state.tasks.renew_lease(&task_id, TASK_LEASE_DURATION).await {
-                    tracing::warn!(task_id, "task lease heartbeat failed: {error}");
+                if let Err(error) = state.tasks.renew_lease(task_id, TASK_LEASE_DURATION).await {
+                    tracing::warn!(%task_id, "task lease heartbeat failed: {error}");
                     cancellation.cancel();
                     break;
                 }
@@ -677,7 +671,7 @@ async fn run_task(
 
 async fn run_task_inner(
     state: Arc<AppState>,
-    task_id: String,
+    task_id: TaskId,
     owner: veoveo_task_runtime::TaskOwner,
     request: BatchTaskRequest,
     cancellation: CancellationToken,
@@ -685,14 +679,14 @@ async fn run_task_inner(
     macro_rules! fail {
         ($msg:expr) => {{
             let msg: String = $msg;
-            tracing::warn!(task_id, "Frames task failed: {msg}");
-            complete_tool_error(&state, &task_id, msg).await;
+            tracing::warn!(%task_id, "Frames task failed: {msg}");
+            complete_tool_error(&state, task_id, msg).await;
             return;
         }};
     }
     update_task(
         &state,
-        &task_id,
+        task_id,
         TaskTransition::Running {
             message: "running batch coordinate transform".to_owned(),
             progress: 0.1,
@@ -717,7 +711,7 @@ async fn run_task_inner(
             Err(error) => fail!(format!("batch worker failed: {error}")),
         };
     if cancellation.is_cancelled() {
-        update_task(&state, &task_id, TaskTransition::Cancelled).await;
+        update_task(&state, task_id, TaskTransition::Cancelled).await;
         return;
     }
     stamp_batch_provenance(
@@ -725,21 +719,13 @@ async fn run_task_inner(
         request.operation_id,
         request.operation_created_at,
     );
-    let platform_task_id = match task_id.parse::<veoveo_types::TaskId>() {
-        Ok(task_id) => task_id,
-        Err(error) => fail!(format!("invalid durable task id: {error}")),
-    };
     let operation_scope = match ownership::operation_scope_from_runtime(&owner) {
         Ok(scope) => scope,
         Err(error) => fail!(format!("operation authority failed: {error}")),
     };
     if let Err(error) = state
         .frames
-        .record_operation(
-            &operation_scope,
-            Some(platform_task_id),
-            &converted.provenance,
-        )
+        .record_operation(&operation_scope, Some(task_id), &converted.provenance)
         .await
     {
         fail!(format!("operation provenance write failed: {error}"));
@@ -751,7 +737,7 @@ async fn run_task_inner(
     let result = match outputs::batch_result(
         &state,
         request.artifact_write_capability.as_ref(),
-        platform_task_id,
+        task_id,
         &owner,
         output,
         request.args.artifact,
@@ -762,7 +748,7 @@ async fn run_task_inner(
         Err(error) => fail!(format!("batch output failed: {error}")),
     };
     if cancellation.is_cancelled() {
-        update_task(&state, &task_id, TaskTransition::Cancelled).await;
+        update_task(&state, task_id, TaskTransition::Cancelled).await;
         return;
     }
     let payload = match serde_json::to_value(&result) {
@@ -771,7 +757,7 @@ async fn run_task_inner(
     };
     update_task(
         &state,
-        &task_id,
+        task_id,
         TaskTransition::Succeeded {
             message: "batch coordinate transform completed".to_owned(),
             result: payload,
@@ -823,7 +809,7 @@ async fn main() -> anyhow::Result<()> {
         if let Err(error) = resume_batch_task(state.clone(), snapshot).await {
             match error.downcast_ref::<TaskError>() {
                 Some(TaskError::LeaseHeld(task_id) | TaskError::Conflict(task_id)) => {
-                    tracing::info!(task_id, "another replica claimed recovered Frames task");
+                    tracing::info!(%task_id, "another replica claimed recovered Frames task");
                 }
                 _ => return Err(error),
             }

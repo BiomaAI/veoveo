@@ -117,15 +117,11 @@ async fn create_waiting_task(
         .await
         .unwrap();
     runtime
-        .claim(&task_id.to_string(), Duration::from_secs(30))
+        .claim(task_id, Duration::from_secs(30))
         .await
         .unwrap();
     state
-        .bind_submission_and_wait(
-            runtime,
-            &task_id.to_string(),
-            &prediction(external_job_id, "processing"),
-        )
+        .bind_submission_and_wait(runtime, task_id, &prediction(external_job_id, "processing"))
         .await
         .unwrap();
     task_id
@@ -150,24 +146,24 @@ async fn webhook_on_other_replica_is_idempotent_and_restart_recoverable() {
 
         let terminal = prediction("provider-job-1", "completed");
         let receipt = second_state
-            .receive_webhook(&second, &task_id.to_string(), "webhook-1", &terminal)
+            .receive_webhook(&second, task_id, "webhook-1", &terminal)
             .await
             .unwrap();
         assert!(receipt.inserted);
         let duplicate = first_state
-            .receive_webhook(&first, &task_id.to_string(), "webhook-1", &terminal)
+            .receive_webhook(&first, task_id, "webhook-1", &terminal)
             .await
             .unwrap();
         assert!(!duplicate.inserted);
         let other_task_id = create_waiting_task(&first, &first_state, "provider-job-2").await;
         assert!(matches!(
             second_state
-                .receive_webhook(&second, &other_task_id.to_string(), "webhook-1", &terminal,)
+                .receive_webhook(&second, other_task_id, "webhook-1", &terminal,)
                 .await,
             Err(StoreError::ArtifactWriteConflict { .. })
         ));
         let payload = json!({"value":{"artifacts": [], "prediction": {"id": terminal.id}, "count": u64::MAX}});
-        let mut updates = first.live_updates_for(&[task_id.to_string()]).await.unwrap();
+        let mut updates = first.live_updates_for(&[task_id]).await.unwrap();
         updates.next().await.unwrap().unwrap();
         second_state
             .complete_event(
@@ -178,7 +174,7 @@ async fn webhook_on_other_replica_is_idempotent_and_restart_recoverable() {
             )
             .await
             .unwrap();
-        let completed = first.get(&task_id.to_string()).await.unwrap().unwrap();
+        let completed = first.get(task_id).await.unwrap().unwrap();
         assert_eq!(completed.status, TaskStatus::Succeeded);
         assert_eq!(completed.result, Some(payload.clone()));
         loop {
@@ -204,7 +200,7 @@ async fn webhook_on_other_replica_is_idempotent_and_restart_recoverable() {
         let reordered = second_state
             .receive_webhook(
                 &second,
-                &task_id.to_string(),
+                task_id,
                 "webhook-2",
                 &prediction("provider-job-1", "failed"),
             )
@@ -221,7 +217,7 @@ async fn webhook_on_other_replica_is_idempotent_and_restart_recoverable() {
             .unwrap();
         assert_eq!(
             first
-                .get(&task_id.to_string())
+                .get(task_id)
                 .await
                 .unwrap()
                 .unwrap()
@@ -241,7 +237,7 @@ async fn signed_failure_webhook_completes_task_as_failed() {
         let task_id = create_waiting_task(&first, &first_state, "provider-job-failed").await;
         let terminal = prediction("provider-job-failed", "failed");
         let receipt = second_state
-            .receive_webhook(&second, &task_id.to_string(), "webhook-failed", &terminal)
+            .receive_webhook(&second, task_id, "webhook-failed", &terminal)
             .await
             .unwrap();
         second_state
@@ -256,7 +252,7 @@ async fn signed_failure_webhook_completes_task_as_failed() {
             )
             .await
             .unwrap();
-        let failed = first.get(&task_id.to_string()).await.unwrap().unwrap();
+        let failed = first.get(task_id).await.unwrap().unwrap();
         assert_eq!(failed.status, TaskStatus::Failed);
         assert_eq!(failed.error.unwrap().code, "provider_failed");
     })
@@ -269,7 +265,7 @@ async fn cancellation_is_audited_and_late_webhook_cannot_replace_the_task_result
     tokio::time::timeout(Duration::from_secs(90), async {
         let (_db, first, second, first_state, second_state) = fixture().await;
         let task_id = create_waiting_task(&first, &first_state, "provider-job-cancelled").await;
-        let cancelled = first.cancel(&task_id.to_string()).await.unwrap();
+        let cancelled = first.cancel(task_id).await.unwrap();
         assert_eq!(cancelled.status, TaskStatus::Cancelled);
         assert!(cancelled.result.is_none());
         let waiting_job = first_state
@@ -320,12 +316,7 @@ async fn cancellation_is_audited_and_late_webhook_cannot_replace_the_task_result
 
         let terminal = prediction("provider-job-cancelled", "completed");
         let receipt = second_state
-            .receive_webhook(
-                &second,
-                &task_id.to_string(),
-                "webhook-after-cancellation",
-                &terminal,
-            )
+            .receive_webhook(&second, task_id, "webhook-after-cancellation", &terminal)
             .await
             .unwrap();
         assert!(receipt.inserted);
@@ -334,7 +325,7 @@ async fn cancellation_is_audited_and_late_webhook_cannot_replace_the_task_result
             .await
             .unwrap();
 
-        let still_cancelled = first.get(&task_id.to_string()).await.unwrap().unwrap();
+        let still_cancelled = first.get(task_id).await.unwrap().unwrap();
         assert_eq!(still_cancelled.status, TaskStatus::Cancelled);
         assert!(still_cancelled.result.is_none());
         assert!(still_cancelled.error.is_none());

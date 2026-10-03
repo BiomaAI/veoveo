@@ -87,10 +87,11 @@ impl TaskRuntime {
     }
 
     /// Trusted domain workers observe exact IDs. Public readers use OwnerTaskQuery.
-    pub async fn live_updates_for(&self, ids: &[String]) -> Result<TaskUpdateStream, TaskError> {
+    pub async fn live_updates_for(&self, ids: &[TaskId]) -> Result<TaskUpdateStream, TaskError> {
         let ids = ids
             .iter()
-            .map(|id| parse_task_id(id))
+            .copied()
+            .map(validate_task_id)
             .collect::<Result<BTreeSet<_>, _>>()?;
         if ids.is_empty() {
             return Ok(Box::pin(futures::stream::pending()));

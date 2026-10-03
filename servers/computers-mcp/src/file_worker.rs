@@ -75,13 +75,13 @@ impl FileWorker {
             self.acknowledge(&operation).await?;
             return Ok(WorkerStep::Settled);
         }
-        let id = operation.task_id().to_string();
-        let task = match self.tasks.get(&id).await? {
+        let id = operation.task_id();
+        let task = match self.tasks.get(id).await? {
             Some(task) => task,
             None => {
                 self.store.ensure_file_task(&operation).await?;
                 self.tasks
-                    .get(&id)
+                    .get(id)
                     .await?
                     .ok_or(FileWorkerError::LeaseLost)?
             }
@@ -90,7 +90,7 @@ impl FileWorker {
             self.acknowledge(&operation).await?;
             return Ok(WorkerStep::Settled);
         }
-        let mut claim = match self.tasks.claim_observation(&id, LEASE_DURATION).await {
+        let mut claim = match self.tasks.claim_observation(id, LEASE_DURATION).await {
             Ok(claim) => claim,
             Err(TaskError::LeaseHeld(_) | TaskError::Conflict(_)) => return Ok(WorkerStep::Busy),
             Err(error) => return Err(error.into()),
@@ -104,8 +104,7 @@ impl FileWorker {
                 WorkerStep::Settled
             }
             FileTransferStage::RecoveryRequired => {
-                self.waiting(
-                    &id,
+                self.waiting(id,
                     "Needs recovery: this file transfer's outcome is uncertain, so it won't run again automatically. Check the destination before retrying.",
                 )
                 .await?;
@@ -128,8 +127,8 @@ impl FileWorker {
         claim: &mut ClaimedTask,
         operation: &FileOperation,
     ) -> Result<WorkerStep> {
-        let id = operation.task_id().to_string();
-        if self.tasks.is_cancel_requested(&id).await? {
+        let id = operation.task_id();
+        if self.tasks.is_cancel_requested(id).await? {
             return self
                 .refuse(claim, FileRefusal::CancelledBeforeDispatch)
                 .await;
@@ -142,15 +141,14 @@ impl FileWorker {
             .contains(&operation.binding().template_fingerprint)
         {
             self.waiting(
-                &id,
+                id,
                 "Update this Computer to a template qualified for file transfers",
             )
             .await?;
             return Ok(WorkerStep::Waiting);
         }
         if operation.file_capability_request(&self.keys)?.is_some() {
-            self.waiting(&id, "Preparing authorized file access")
-                .await?;
+            self.waiting(id, "Preparing authorized file access").await?;
             return Ok(WorkerStep::Waiting);
         }
         let mut authority_changes = self.store.authority_changes().await?.into_stream(
@@ -174,7 +172,7 @@ impl FileWorker {
                 return self.refuse(claim, FileRefusal::RunChanged).await;
             }
             _ => {
-                self.waiting(&id, "Waiting for current transfer authority")
+                self.waiting(id, "Waiting for current transfer authority")
                     .await?;
                 return Ok(WorkerStep::Waiting);
             }
@@ -182,7 +180,7 @@ impl FileWorker {
         let capture = Arc::new(Mutex::new(data::Buffer::new(
             preparation.authority.maximum_bytes,
         )));
-        self.waiting(&id, "Preparing source file").await?;
+        self.waiting(id, "Preparing source file").await?;
         // Borrow the private preparation while the guard owns its independent timer.
         let initial = FileRunAuthority {
             valid_until: preparation.authority.valid_until,
@@ -229,7 +227,7 @@ impl FileWorker {
                 | ComputerError::OperationBusy,
             ) => return self.refuse(claim, FileRefusal::RunChanged).await,
             Err(_) => {
-                self.waiting(&id, "Waiting for current transfer authority")
+                self.waiting(id, "Waiting for current transfer authority")
                     .await?;
                 return Ok(WorkerStep::Waiting);
             }
@@ -278,7 +276,7 @@ impl FileWorker {
         };
         let mut input = body.as_slice();
         let source = hash.map(|_| &mut input as &mut (dyn tokio::io::AsyncRead + Unpin + Send));
-        self.waiting(&id, "Transferring file").await?;
+        self.waiting(id, "Transferring file").await?;
         let initial = FileRunAuthority {
             valid_until: ticket.authority_deadline(),
             execution_deadline: ticket.execution_deadline(),
@@ -338,7 +336,7 @@ impl FileWorker {
                     .await;
             }
         };
-        self.waiting(&id, "Completing file transfer").await?;
+        self.waiting(id, "Completing file transfer").await?;
         let bytes = capture
             .lock()
             .map_err(|_| FileWorkerError::Configuration)?

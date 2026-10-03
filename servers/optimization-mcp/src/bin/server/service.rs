@@ -826,7 +826,7 @@ fn run_record(
     common: &SolveTaskCommon,
     solution: Option<&OptimizationSolution>,
 ) -> Result<OptimizationRunRecord, McpError> {
-    let owner = task_owner_from_runtime(&snapshot.task_id.to_string(), &snapshot.owner)
+    let owner = task_owner_from_runtime(snapshot.task_id, &snapshot.owner)
         .map_err(|error| McpError::internal_error(error, None))?;
     let output = snapshot
         .result

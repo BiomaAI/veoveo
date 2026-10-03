@@ -56,7 +56,7 @@ async fn live_authority_is_short_and_rechecks_policy_under_the_current_task_leas
     assert_eq!(reduced.deadline_reason, CommandInterruption::AuthorityLost);
     let tasks = TaskRuntime::new(db.a.clone(), "computers", "command-worker");
     let renewed = tasks
-        .renew_lease(&claim.snapshot.task_id.to_string(), Duration::from_secs(60))
+        .renew_lease(claim.snapshot.task_id, Duration::from_secs(60))
         .await
         .unwrap();
     assert!(
@@ -80,10 +80,7 @@ async fn live_authority_is_short_and_rechecks_policy_under_the_current_task_leas
             .unwrap(),
         CommandContinuation::Authorized(_)
     ));
-    tasks
-        .cancel(&claim.snapshot.task_id.to_string())
-        .await
-        .unwrap();
+    tasks.cancel(claim.snapshot.task_id).await.unwrap();
     assert!(matches!(
         a.command_continuation(&claim, dispatch.operation())
             .await

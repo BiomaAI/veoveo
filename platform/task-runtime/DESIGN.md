@@ -45,11 +45,13 @@ shared by Task observation and linked usage reads.
 `resource_subscriptions` maps that authorized Task stream to requested Task status
 and resource invalidations using domain-owned `TaskResourceAddress` implementations.
 
-Consumers import native `TaskId` directly from `veoveo-types`. Store's `task_record_id`
-function performs the database conversion at bindings. TaskRuntime owns Task lifecycle
-and external lookup admission; public identity consumers do not depend on this runtime
-or Store. UUID generation, serialization, persisted UUID keys and admission profiles
-are unchanged by this ownership split. It requires no data conversion or deployment drain.
+Consumers import native `TaskId` directly from `veoveo-types`. Native reads, claims,
+transitions, cancellation, input exchanges, retention and worker registration take that
+value through Store's `task_record_id` conversion at bindings. Creation and lookup
+admit RFC UUIDv7 values, including their variant. The MCP service adapter parses text
+handles once before calling the owner query. Public identity consumers do not depend
+on this runtime or Store. Domain workers keep their own Task-derived identity types
+and use checked conversions at the runtime adapter.
 
 Rust subscription baselines anchor native versionstamp cursors before selecting Task
 state. One projected LIVE source per runtime wakes readers and persists its cursor

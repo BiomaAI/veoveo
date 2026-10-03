@@ -33,9 +33,7 @@ pub async fn project_snapshot(
             TaskPayload::Working
         }
         TaskStatus::Waiting => {
-            let requests = runtime
-                .outstanding_inputs(&snapshot.task_id.to_string())
-                .await?;
+            let requests = runtime.outstanding_inputs(snapshot.task_id).await?;
             if requests.is_empty() {
                 TaskPayload::Working
             } else {

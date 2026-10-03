@@ -609,7 +609,7 @@ observation lease and cancellation epoch in one transaction.
 | `types.rs` | runtime configuration, recovery classes, pins, claims, outcomes |
 | `../types/src/task.rs` and `../store/src/task_ids.rs` | foundational native Task identity and explicit Store record conversion |
 | [`DESIGN.md`](../platform/task-runtime/DESIGN.md) | durable Task and recovery-class contract, provider observation, migration and rollback |
-| `runtime.rs` | create/idempotency, update, cancel, finish, subscriptions and prune |
+| `runtime.rs` | create/idempotency, update, cancel, finish, subscriptions and prune; native APIs carry foundational Task IDs and admit RFC UUIDv7 before Store access |
 | `admission.rs`, `tests/admission.rs` | shared queued-Task transaction guard and native qualification; domains supply their own admission SQL and retain ownership of resource policy |
 | `runtime/task_pages.rs` | caller-owned collection pages with Store authorization filters, creation-time and Task-ID cursors |
 | `runtime/owner_query.rs`, `runtime/owner_reads.rs` and `runtime/owner_subscriptions.rs` | typed owner/context/operation query builder and shared SQL selection for exact reads, cancellation, collection pages and public Task delivery; current-state projection from native Task identities |
