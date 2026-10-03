@@ -8,6 +8,37 @@ requirements, accepted risks and remaining work. This log does not establish com
 
 ## Implementation And Installation Checkpoints
 
+Installed gateway expiry and flight checkpoint (2026-10-03): source `ae638056`
+publishes in 96 seconds with cache reuse, and gateway-only selection `5c6639fc`
+converges in seven seconds. Ten rollout tests and Helm configuration pass. An ordinary
+OAuth credential returns 200 immediately before its signed expiry, then 401 at two
+and forty-one seconds afterward with the existing challenge and body. Gateway logs
+report `ExpiredSignature`; a fresh credential returns 200. This closes the admission
+failure reproduced by the preceding native checkpoint.
+
+Installed verification passes all 24 declared deployments, public Console/OAuth,
+DuckDB execution and large Artifact delivery. Discovery validates 111 tool schemas
+while Reason and Knowledge stay deliberately stopped. Admin server health returns
+all nineteen states and check times; the operator receives 403, and both admissions
+appear in the tenant audit view. DuckDB and Timeseries complete `de` to `design`.
+The original oversized Computers request returns HTTP 413. Initial raw requests
+without MCP method headers and an unsupported completion CLI flag were corrected;
+those request mistakes did not establish product failures.
+
+The composed UAV domain scenario passes Map routing, mission execution, live GPU
+Stream inference, Recording replay, return to launch, landing and Artifact access
+isolation. Its owned cleanup completes. The separate headed Rerun check renders the
+fleet, aerial camera and map with RTX 4090 WebGL, but rejects its source bracket:
+the immediate after-sample timestamp precedes the browser observation by 105 ms.
+This exposes the existing sampler's timing race; it does not determine playback lag
+or establish a product regression. The sampler needs a later authoritative sample.
+The one-second lag limit and composed landing visual requirement stay open.
+
+Requests, responses, screenshots and pod logs are under
+`output/development/gateway-expiry-installed-ae638056/`. WebGPU reports SwiftShader
+and contributes no hardware evidence. Temporary token files are removed. The cluster
+and BuildKit are stopped after acceptance; useful caches and required images remain.
+
 Gateway access-token expiry checkpoint (2026-10-03): signed-token and actual HTTP
 middleware regressions reproduce the installed failure before the correction. A token
 expired 41 seconds earlier reaches the test handler with 204 because JWT validation

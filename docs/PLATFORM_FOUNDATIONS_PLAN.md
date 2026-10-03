@@ -15,15 +15,18 @@ from `7583087e` through `f1282cf0`; both UAV App restart stages pass with the ha
 at `b63d85a2`. Gateway `e1969257`, selected through `a5db6d66`, also passes the
 Computers HTTP 413 check with normal OAuth. Map, Knowledge and Computers from
 `e1c5d3d7`, selected through `c9b590ac`, pass their affected installed checks. An
-expired-token admission correction in the gateway awaits publication and installed
-qualification.
+expired-token admission correction from `ae638056`, selected through `5c6639fc`,
+passes installed normal-OAuth checks immediately before and after expiry. The UAV
+domain scenario passes mission execution, live Stream, Recording replay, return to
+launch, landing and Artifact isolation. Headed Rerun timing still needs a valid
+source-sample bracket before its one-second lag requirement can be assessed.
 The cluster and BuildKit stay stopped during development; Reason runs only when
 a selected acceptance scenario requires it.
 
 | Phase | Qualified checkpoint | Remaining work |
 |---|---|---|
 | 0 — Retire finished plans | Accepted | Retire this plan only after full acceptance |
-| 1 — Identifier hard cut | Implemented and installed | Final composed flight, Rerun playback/timing and landing visual checks |
+| 1 — Identifier hard cut | Implemented and installed; composed domain flight and landing pass | Final composed headed flight, Rerun playback/timing and landing visual checks |
 | 2 — Installation targets | Implemented and used by installed harnesses | Run the outstanding installed scenarios with the selected service targets |
 | 3 — Contract corrections and types | Foundational types, server libraries, scope declarations and SQL admission have qualified batches | Complete the [migration inventory](#migration-inventory-and-status), then publish and qualify its remaining consumers |
 | 4 — Unified audit | Native and installed audit checks pass | Preserve those guarantees through the pending composed release and final audit |
@@ -611,7 +614,7 @@ Implementation work also remains:
 | Work | Owner |
 |---|---|
 | Close the acceptance gaps above and qualify affected consumers after implementation changes | Composed publication |
-| Gateway access-token admission rejects the signed expiry instant before dispatch; native signed-token and HTTP regressions cover the former JWT grace window and committed denial audit | Publish the gateway correction and qualify its installed expiry response with a normal OAuth client |
+| Collect an advancing source sample after the headed Rerun observation, then rerun playback timing without weakening the one-second lag limit | Browser acceptance harness |
 
 Knowledge and Computers bind tools directly to typed RMCP handlers. Input schemas
 come from those parameter types; the domain-specific policy recheck, Task capability
@@ -637,6 +640,9 @@ admin documents, health/readiness and Host rejection checks. The expired-token i
 above predates this three-server release. Its native reproduction admits a token
 expired 41 seconds earlier; the correction requires its signed expiry to be in the
 future and returns the existing 401 challenge with a committed authentication denial.
+Installed normal OAuth returns 200 just before expiry, 401 at two and forty-one
+seconds afterward, and 200 with a fresh credential. Admin server health, its denial
+and audit checks, DuckDB/Timeseries completion and Computers HTTP 413 also pass.
 
 #### Migration Inventory And Status
 
@@ -1192,4 +1198,4 @@ not complete while a row remains.
 
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
-| Phase 1 reference reset | `testing/flight-smoke/src/domain.rs` | Diagnose Rerun timeline initialization and finish composed playback/timing and landing visual acceptance | At `bf0fe31d`, the selected 24-service batch passes Stream App capture and Recording replay. Rerun receives frames but has no healthy timeline at the failing checkpoint; the capture acknowledgement correctly fails and cleanup lands the aircraft. Continue independent contract work before repeating this gate. Preserve freshness, spatial-content, flight-health and hardware requirements; Reason stays in its separate acceptance batch |
+| Phase 1 reference reset | `testing/flight-smoke/src/domain.rs`, `testing/browser-smoke/src/main.rs` | Finish composed headed playback/timing and landing visual acceptance; correct the source sampler to bracket the browser observation | At `5c6639fc`, the domain scenario passes mission, live Stream, Recording replay, return to launch, landing and Artifact isolation. Headed hardware WebGL renders the Rerun scene, but the immediate source sample predates capture by 105 ms and cannot establish playback lag. Preserve strict source bracketing, the one-second lag limit, spatial content and flight-health requirements; Reason stays in its separate acceptance batch |
