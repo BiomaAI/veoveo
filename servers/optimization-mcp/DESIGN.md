@@ -23,6 +23,7 @@ slug        optimization
 URI scheme  optimization
 MCP         /optimization/mcp
 health      /optimization/healthz
+readiness   /optimization/readyz (ready while the cuOpt GPU executor reports ready)
 ```
 
 Gateway-mounted tools use the `optimization__` prefix. Resource identities

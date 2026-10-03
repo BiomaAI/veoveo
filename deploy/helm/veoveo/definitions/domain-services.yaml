@@ -50,6 +50,8 @@
     digest: ""
   port: 8792
   healthPath: /optimization/healthz
+  # Ready only while the cuOpt GPU executor reports ready.
+  readinessPath: /optimization/readyz
   args:
     - --port
     - "8792"

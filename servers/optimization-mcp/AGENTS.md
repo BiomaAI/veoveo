@@ -13,6 +13,11 @@ run, solution, and evidence resources.
 
 ## Invariants
 
+- The server is hosted through `veoveo_mcp_contract::hosting`: `OptimizationMcp`
+  implements `DomainServer`, `OptimizationSubscriptions` implements
+  `ResourceSubscriptions` with resource-list changes, and `/optimization/readyz`
+  reports ready only while the cuOpt GPU executor does. Do not add a
+  `ServerHandler`, router, host check or authentication middleware here.
 - Canonical identity: slug `optimization`, URI scheme `optimization://`,
   endpoint `/optimization/mcp`.
 - The public tools are `optimize_routes`, `optimize_route_scenarios`,

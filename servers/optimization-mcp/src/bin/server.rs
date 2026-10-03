@@ -2,15 +2,11 @@
 
 use std::{net::SocketAddr, sync::Arc};
 
-use axum::{Router, middleware, routing::get};
 use clap::Parser;
-use rmcp::transport::streamable_http_server::StreamableHttpService;
-use serde_json::json;
-use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_mcp_contract::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
-    ResourceListObservers, ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer,
-    init_server_telemetry, public_allowed_hosts,
+    GatewayInternalTrustBundle, ResourceListObservers, SubscriptionHub, TelemetryGuard,
+    hosting::{Hosted, HostedServer},
+    init_server_telemetry,
 };
 use veoveo_optimization_mcp::{
     artifacts::ArtifactRepository,
@@ -18,18 +14,12 @@ use veoveo_optimization_mcp::{
     executor::{ExecutorClient, ExecutorResult},
     problem_store::ProblemStore,
 };
-use veoveo_task_runtime::{TaskRuntime, TaskRuntimeConfig};
+use veoveo_task_runtime::{DurableTasks, TaskRuntime, TaskRuntimeConfig};
 
-#[path = "server/admin.rs"]
-mod admin;
 #[path = "server/app_state.rs"]
 mod app_state;
 #[path = "server/config.rs"]
 mod config;
-#[path = "server/host.rs"]
-mod host;
-#[path = "server/internal_auth.rs"]
-mod internal_auth;
 #[path = "server/outputs.rs"]
 mod outputs;
 #[path = "server/ownership.rs"]
@@ -47,10 +37,8 @@ mod task_extension;
 
 use app_state::AppState;
 use config::Args;
-use host::validate_host;
-use internal_auth::{InternalMcpAuthState, authenticate_internal_mcp};
-use service::OptimizationMcp;
-use task_extension::recover_tasks;
+use service::{OptimizationMcp, OptimizationSubscriptions};
+use task_extension::{OptimizationTaskExtension, recover_tasks};
 
 const SERVER_SLUG: &str = "optimization";
 
@@ -69,12 +57,6 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     std::sync::LazyLock::force(&setup::SERVER_SETUP);
     let public_deployment = args.public_deployment()?;
-    let public_endpoint = public_deployment.server(SERVER_SLUG)?;
-    let internal_token_verifier = GatewayInternalTokenVerifier::new(
-        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
-        ServerSlug::new(SERVER_SLUG)?,
-        GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?,
-    );
 
     let executor = ExecutorClient::new(args.executor_socket.clone(), args.max_executor_frame_bytes);
     let executor_health = match executor.health().await?.result {
@@ -131,101 +113,42 @@ async fn main() -> anyhow::Result<()> {
     });
     recover_tasks(state.clone(), recovery.resumable).await?;
 
-    let cancellation = tokio_util::sync::CancellationToken::new();
-    let _resource_observer =
-        app_state::spawn_resource_observer(state.clone(), cancellation.child_token());
-    let mut allowed_hosts = public_allowed_hosts(&public_deployment, args.allow_loopback_hosts);
-    allowed_hosts.extend(args.allowed_hosts.iter().cloned());
-    let allowed_hosts = Arc::new(allowed_hosts);
-    let auth_state = InternalMcpAuthState {
-        verifier: internal_token_verifier,
-    };
-    let mcp_service = StreamableHttpService::new(
-        {
-            let state = state.clone();
-            move || Ok(OptimizationMcp::new(state.clone()))
-        },
-        veoveo_mcp_contract::stateless_session_manager(),
-        veoveo_mcp_contract::canonical_streamable_http_server_config()
-            .with_allowed_hosts(allowed_hosts.iter().cloned())
-            .with_cancellation_token(cancellation.child_token()),
-    );
-    let mcp_router = Router::new()
-        .route_service("/", mcp_service.clone())
-        .route_service("/{*path}", mcp_service)
-        .layer(middleware::from_fn(
-            veoveo_mcp_contract::enforce_serialized_mcp_response,
-        ))
-        .layer(middleware::from_fn_with_state(
-            auth_state.clone(),
-            authenticate_internal_mcp,
-        ));
-    let admin_router = admin::router().layer(middleware::from_fn_with_state(
-        auth_state,
-        authenticate_internal_mcp,
-    ));
-    let health_state = state.clone();
-    let server_router = Router::new()
-        .route(
-            "/healthz",
-            get(move || {
-                let state = health_state.clone();
-                async move {
-                    let response = state.executor.health().await;
-                    let ready = response.is_ok_and(|response| {
-                        matches!(
-                            response.result,
-                            ExecutorResult::Health { health }
-                                if health.ready
-                                    && health.cuopt_version.starts_with(CUOPT_STABLE_VERSION)
-                        )
-                    });
-                    let status = if ready {
-                        axum::http::StatusCode::OK
-                    } else {
-                        axum::http::StatusCode::SERVICE_UNAVAILABLE
-                    };
-                    (
-                        status,
-                        axum::Json(json!({
-                                        "ready": ready,
-                                        "gpu_required": true,
-                        "cuopt_version": state.executor_health.cuopt_version.clone(),
-                        "gpu_uuid": state.executor_health.gpu_uuid.clone(),
-                                    })),
-                    )
-                }
-            }),
-        )
-        .nest("/mcp", mcp_router)
-        .nest("/admin", admin_router);
-    let router = Router::new()
-        .nest(public_endpoint.mount_path(), server_router)
-        .layer(middleware::from_fn_with_state(
-            allowed_hosts.clone(),
-            validate_host,
-        ))
-        .layer(
-            TraceLayer::new_for_http()
-                .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO)),
-        );
-
-    let address = SocketAddr::from(([0, 0, 0, 0], args.port));
-    tracing::info!(
-        service = "veoveo-optimization-mcp",
-        %address,
-        mcp_path = public_endpoint.path("mcp"),
-        admin_path = public_endpoint.path("admin"),
-        "listening"
-    );
-    let listener = tokio::net::TcpListener::bind(address).await?;
-    axum::serve(listener, router)
-        .with_graceful_shutdown(async move {
-            let _ = tokio::signal::ctrl_c().await;
-            cancellation.cancel();
+    let observer_state = state.clone();
+    let readiness_state = state.clone();
+    let server = HostedServer::for_domain::<OptimizationMcp>()
+        .deployment(&public_deployment, args.allow_loopback_hosts)?
+        .allowed_hosts(args.allowed_hosts.iter().cloned())
+        .internal_trust(GatewayInternalTrustBundle::from_json(
+            &args.internal_trust_jwks,
+        )?)?
+        .handler(move || {
+            Hosted::new(OptimizationMcp::new(state.clone())).with_tasks(
+                DurableTasks::with_resources(
+                    OptimizationTaskExtension::new(state.clone()),
+                    OptimizationSubscriptions::new(state.clone()),
+                ),
+            )
         })
-        .await?;
-    Ok(())
+        // Optimization serves only while the cuOpt GPU executor reports ready.
+        .readiness(move || {
+            let state = readiness_state.clone();
+            async move {
+                state.executor.health().await.is_ok_and(|response| {
+                    matches!(
+                        response.result,
+                        ExecutorResult::Health { health }
+                            if health.ready
+                                && health.cuopt_version.starts_with(CUOPT_STABLE_VERSION)
+                    )
+                })
+            }
+        })
+        .build();
+    let _resource_observer =
+        app_state::spawn_resource_observer(observer_state, server.cancellation_token());
+    server
+        .serve(SocketAddr::from(([0, 0, 0, 0], args.port)))
+        .await
 }
 
 #[cfg(test)]

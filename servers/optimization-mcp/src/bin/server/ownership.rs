@@ -1,64 +1,6 @@
-use rmcp::{ErrorData as McpError, RoleServer, service::RequestContext};
-use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller};
+use veoveo_mcp_contract::GatewayInternalIdentity;
 use veoveo_optimization_mcp::state::TaskOwner;
 use veoveo_types::TaskId;
-
-pub(super) fn internal_identity(
-    context: &RequestContext<RoleServer>,
-) -> Result<GatewayInternalIdentity, McpError> {
-    let parts = context
-        .extensions
-        .get::<axum::http::request::Parts>()
-        .ok_or_else(|| {
-            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
-        })?;
-    parts
-        .extensions
-        .get::<GatewayInternalIdentity>()
-        .cloned()
-        .ok_or_else(|| {
-            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
-        })
-}
-
-/// Build the PlaneCaller for artifact-plane calls: the verified identity plus
-/// the raw bearer to forward. Group memberships come from the signed identity
-/// via Principal::group_memberships() (bare membership = Read).
-pub(super) fn internal_caller(
-    context: &RequestContext<RoleServer>,
-) -> Result<PlaneCaller, McpError> {
-    let parts = context
-        .extensions
-        .get::<axum::http::request::Parts>()
-        .ok_or_else(|| {
-            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
-        })?;
-    let identity = parts
-        .extensions
-        .get::<GatewayInternalIdentity>()
-        .cloned()
-        .ok_or_else(|| {
-            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
-        })?;
-    let bearer = parts
-        .extensions
-        .get::<super::internal_auth::ForwardedBearer>()
-        .map(|b| b.0.clone())
-        .ok_or_else(|| {
-            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
-        })?;
-    Ok(caller_from(identity, bearer))
-}
-
-/// Assemble a PlaneCaller from a verified identity and its raw bearer.
-pub(super) fn caller_from(identity: GatewayInternalIdentity, bearer: String) -> PlaneCaller {
-    let memberships = identity.actor.group_memberships();
-    PlaneCaller {
-        bearer_token: bearer,
-        identity,
-        memberships,
-    }
-}
 
 pub(super) fn task_owner_from_runtime(
     task_id: TaskId,

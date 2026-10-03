@@ -43,9 +43,8 @@ use veoveo_types::TaskId;
 
 use super::{
     app_state::{AppState, update_task},
-    internal_auth::ForwardedBearer,
     outputs::{RequestedArtifacts, solution_result, verification_result},
-    ownership::{caller_from, runtime_owner, task_owner_from_runtime},
+    ownership::{runtime_owner, task_owner_from_runtime},
     problems::{
         load_prepared_problem_by_uri, load_solution, prepare_convex, prepare_milp,
         prepare_route_scenarios, prepare_routes,
@@ -83,37 +82,12 @@ impl veoveo_task_runtime::DurableTaskService for OptimizationTaskExtension {
         &self,
         context: &rmcp::service::RequestContext<rmcp::RoleServer>,
     ) -> Result<Self::Caller, rmcp::ErrorData> {
-        let parts = context
-            .extensions
-            .get::<axum::http::request::Parts>()
-            .ok_or_else(|| {
-                rmcp::ErrorData::invalid_request(
-                    veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED,
-                    None,
-                )
-            })?;
-        let identity = parts
-            .extensions
-            .get::<GatewayInternalIdentity>()
-            .cloned()
-            .ok_or_else(|| {
-                rmcp::ErrorData::invalid_request(
-                    veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED,
-                    None,
-                )
-            })?;
-        let bearer = parts
-            .extensions
-            .get::<ForwardedBearer>()
-            .map(|bearer| bearer.0.clone())
-            .ok_or_else(|| {
-                rmcp::ErrorData::invalid_request(
-                    veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED,
-                    None,
-                )
-            })?;
+        let identity = veoveo_mcp_contract::hosting::gateway_identity(context)?;
         Ok(AuthenticatedCaller {
-            plane: caller_from(identity.clone(), bearer),
+            plane: PlaneCaller::from_gateway(
+                identity.clone(),
+                veoveo_mcp_contract::hosting::forwarded_bearer(context)?,
+            ),
             identity,
         })
     }

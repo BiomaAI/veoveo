@@ -690,7 +690,7 @@ pub(crate) async fn agent_pilot_mission(
         log: &tmpdir.join("optimization.log"),
     })?;
     wait_for_http(&format!("{frames_base}/frames/healthz")).await?;
-    wait_for_http(&format!("{optimization_base}/optimization/healthz")).await?;
+    wait_for_http(&format!("{optimization_base}/optimization/readyz")).await?;
 
     let otlp_port = 18854u16;
     let otlp_ready = tmpdir.join("otlp.ready");

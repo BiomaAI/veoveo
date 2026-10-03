@@ -318,7 +318,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://optimization-mcp:8792/optimization/mcp",
-        "health_url": "http://optimization-mcp:8792/optimization/healthz",
+        "health_url": "http://optimization-mcp:8792/optimization/readyz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
