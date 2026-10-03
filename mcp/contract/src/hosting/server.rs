@@ -106,6 +106,7 @@ pub(super) enum Mount {
 
 impl Mount {
     /// The path prefix of every route: the mount path, or empty at the root.
+    #[cfg(any(test, feature = "testing"))]
     pub(super) fn prefix(&self) -> &str {
         match self {
             Self::Public(endpoint) => endpoint.mount_path(),
