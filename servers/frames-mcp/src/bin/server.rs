@@ -51,8 +51,8 @@ use veoveo_mcp_contract::{
     server_contract::McpServerSetup,
 };
 use veoveo_task_runtime::{
-    CreateTask as DurableCreateTask, DurableTasksWithResources, RecoveryClass, TaskError,
-    TaskFailure, TaskRetentionPin, TaskRuntime, TaskRuntimeConfig, TaskSnapshot, TaskTransition,
+    CreateTask as DurableCreateTask, DurableTasks, RecoveryClass, TaskError, TaskFailure,
+    TaskRetentionPin, TaskRuntime, TaskRuntimeConfig, TaskSnapshot, TaskTransition,
 };
 use veoveo_types::TaskId;
 
@@ -633,12 +633,10 @@ async fn main() -> anyhow::Result<()> {
         .handler({
             let state = state.clone();
             move || {
-                Hosted::new(FramesMcp::new(state.clone())).with_tasks(
-                    DurableTasksWithResources::new(
-                        FramesTaskService::new(state.clone()),
-                        FramesSubscriptions::new(state.clone()),
-                    ),
-                )
+                Hosted::new(FramesMcp::new(state.clone())).with_tasks(DurableTasks::with_resources(
+                    FramesTaskService::new(state.clone()),
+                    FramesSubscriptions::new(state.clone()),
+                ))
             }
         })
         .build();

@@ -13,7 +13,7 @@ state, task usage records, and generated artifacts under the `media://` scheme.
 
 - The server is hosted through `veoveo_mcp_contract::hosting`: `MediaMcp` implements
   `DomainServer`, `MediaSubscriptions` implements `ResourceSubscriptions`, and
-  `DurableTasksWithResources` joins them with the task service. The signed provider
+  `DurableTasks::with_resources` joins them with the task service. The signed provider
   webhook and the optional static input directory are the only `public_routes`. Do not
   add a `ServerHandler`, router, host check or authentication middleware here.
 - Public requests, model and prediction IDs, all resource variants, cursors and pages

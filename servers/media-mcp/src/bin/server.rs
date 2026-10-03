@@ -66,8 +66,8 @@ use veoveo_media_mcp::{
     uris, webhook,
 };
 use veoveo_task_runtime::{
-    CreateTask as DurableCreateTask, DurableTasksWithResources, RecoveryClass, TaskRetentionPin,
-    TaskRuntime, TaskRuntimeConfig, TaskSnapshot, TaskTransition,
+    CreateTask as DurableCreateTask, DurableTasks, RecoveryClass, TaskRetentionPin, TaskRuntime,
+    TaskRuntimeConfig, TaskSnapshot, TaskTransition,
 };
 
 #[path = "server/app_state.rs"]
@@ -556,12 +556,10 @@ async fn main() -> anyhow::Result<()> {
         .handler({
             let state = state.clone();
             move || {
-                Hosted::new(MediaMcp::new(state.clone())).with_tasks(
-                    DurableTasksWithResources::new(
-                        MediaTaskExtension::new(state.clone()),
-                        MediaSubscriptions::new(state.clone()),
-                    ),
-                )
+                Hosted::new(MediaMcp::new(state.clone())).with_tasks(DurableTasks::with_resources(
+                    MediaTaskExtension::new(state.clone()),
+                    MediaSubscriptions::new(state.clone()),
+                ))
             }
         })
         .public_routes(public_routes)

@@ -23,7 +23,7 @@ use veoveo_mcp_contract::{
     hosting::{Hosted, HostedServer},
     init_server_telemetry,
 };
-use veoveo_task_runtime::{DurableTasksWithResources, TaskRuntime, TaskRuntimeConfig};
+use veoveo_task_runtime::{DurableTasks, TaskRuntime, TaskRuntimeConfig, WithResources};
 
 pub(in crate::server) async fn serve() -> anyhow::Result<()> {
     let _ = dotenvy::dotenv();
@@ -203,12 +203,12 @@ pub(in crate::server) async fn serve() -> anyhow::Result<()> {
 
 /// The hosted UAV handler.
 pub(in crate::server) type HostedUav =
-    Hosted<UavSimMcp, DurableTasksWithResources<UavSimTaskExtension, UavSimMcp>>;
+    Hosted<UavSimMcp, DurableTasks<UavSimTaskExtension, WithResources<UavSimMcp>>>;
 
 /// The hosted handler: the domain, its durable tasks, and itself as the
 /// resource-change source.
 pub(in crate::server) fn hosted(state: Arc<AppState>) -> HostedUav {
-    Hosted::new(UavSimMcp::new(state.clone())).with_tasks(DurableTasksWithResources::new(
+    Hosted::new(UavSimMcp::new(state.clone())).with_tasks(DurableTasks::with_resources(
         UavSimTaskExtension::new(state.clone()),
         UavSimMcp::new(state),
     ))

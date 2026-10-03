@@ -13,7 +13,7 @@ use veoveo_mcp_contract::{
     hosting::{Hosted, HostedServer},
     init_server_telemetry,
 };
-use veoveo_task_runtime::{DurableTasksWithResources, TaskRuntime, TaskRuntimeConfig};
+use veoveo_task_runtime::{DurableTasks, TaskRuntime, TaskRuntimeConfig};
 
 use crate::{
     acquisition::{AcquisitionService, AcquisitionServiceConfig},
@@ -141,7 +141,7 @@ pub async fn run() -> Result<()> {
             &args.internal_trust_jwks,
         )?)?
         .handler(move || {
-            Hosted::new(TimeMcp::new(state.clone())).with_tasks(DurableTasksWithResources::new(
+            Hosted::new(TimeMcp::new(state.clone())).with_tasks(DurableTasks::with_resources(
                 TimeTaskExtension::new(state.clone()),
                 TimeSubscriptions::new(state.clone()),
             ))

@@ -31,7 +31,7 @@ holds only its contract, its setup and its domain.
    | Need | Reference |
    |---|---|
    | Durable tasks | `servers/duckdb-mcp`: a `DurableTaskService` wrapped in `DurableTasks::tasks_only` |
-   | Resource subscriptions | `servers/frames-mcp`: `ResourceSubscriptions` with `DurableTasksWithResources` |
+   | Resource subscriptions | `servers/frames-mcp`: `ResourceSubscriptions` with `DurableTasks::with_resources` |
    | A tool result that creates a product | `hosting::product_result`, which checks `result_uri` against the link |
    | Content that must not be reused | `DomainRead::no_store` |
    | A signed provider callback | `servers/media-mcp`: `public_routes` |

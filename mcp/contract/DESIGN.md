@@ -467,9 +467,11 @@ supplies three things:
 3. **Optional task support.** A server with durable tasks wraps its
    `DurableTaskService` in `veoveo_task_runtime::DurableTasks::tasks_only`. A server
    that also publishes resource changes implements `ResourceSubscriptions` and uses
-   `DurableTasksWithResources`. The host parses each subscribed URI into the server's
-   address type, and `authorize` checks those typed addresses for the caller before
-   delivery starts. A server without tasks uses the default `NoTasks`.
+   `DurableTasks::with_resources`. The host parses each subscribed URI into the
+   server's address type, and `authorize` checks those typed addresses for the caller
+   before delivery starts. A server whose subscriptions combine tasks with live or
+   domain event streams implements `DurableListener` and uses
+   `DurableTasks::with_listener`. A server without tasks uses the default `NoTasks`.
 
 ```rust
 let server = HostedServer::for_domain::<MyDomain>()

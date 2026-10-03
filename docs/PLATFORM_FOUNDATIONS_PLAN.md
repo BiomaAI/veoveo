@@ -546,7 +546,7 @@ are authenticated.
 | Order | Servers left | Builder extension |
 |---|---|---|
 | 1 | time, view, uav-sim, optimization | Available: prompts and completion on `DomainServer` |
-| 2 | stream, reason, speech, recording | Available: `ResourceSubscriptions` with `DurableTasksWithResources` |
+| 2 | stream, reason, speech, recording | Available: `ResourceSubscriptions` with `DurableTasks::with_resources` |
 | 3 | map, artifact, knowledge, computers | Needed first: domain hooks for dynamic `resources/list` and caller-filtered tool lists; computers and knowledge move their tools onto `#[tool_router]` |
 
 Add each remaining extension to the host with a test before the servers that need it

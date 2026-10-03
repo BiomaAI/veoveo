@@ -15,7 +15,7 @@ work, geodesics, geofences, and routing belong to `map-mcp`.
 
 - The server is hosted through `veoveo_mcp_contract::hosting`: `FramesMcp`
   implements `DomainServer`, `FramesSubscriptions` implements
-  `ResourceSubscriptions`, and `DurableTasksWithResources` joins them with the task
+  `ResourceSubscriptions`, and `DurableTasks::with_resources` joins them with the task
   service. Do not add a `ServerHandler`, router, host check or authentication
   middleware here.
 - Canonical identity: slug `frames`, URI scheme `frames://`, endpoint

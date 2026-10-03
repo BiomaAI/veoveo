@@ -14,7 +14,7 @@ use veoveo_mcp_contract::{
     hosting::{Hosted, HostedServer},
     init_server_telemetry,
 };
-use veoveo_task_runtime::{DurableTasksWithResources, TaskRuntime, TaskRuntimeConfig};
+use veoveo_task_runtime::{DurableTasks, TaskRuntime, TaskRuntimeConfig};
 
 use crate::{
     mcp::{ViewMcp, ViewSubscriptions},
@@ -96,7 +96,7 @@ pub async fn run() -> Result<()> {
             &args.internal_trust_jwks,
         )?)?
         .handler(move || {
-            Hosted::new(ViewMcp::new(state.clone())).with_tasks(DurableTasksWithResources::new(
+            Hosted::new(ViewMcp::new(state.clone())).with_tasks(DurableTasks::with_resources(
                 ViewTaskExtension::new(state.clone()),
                 ViewSubscriptions::new(state.clone()),
             ))
