@@ -31,7 +31,9 @@ mod auth;
 mod catalog;
 mod domain;
 mod host;
+mod results;
 mod server;
+mod subscriptions;
 #[cfg(test)]
 mod tests;
 
@@ -39,6 +41,8 @@ pub use auth::{ForwardedBearer, forwarded_bearer, gateway_identity, plane_caller
 pub use catalog::CATALOG_PAGE_SIZE;
 pub use domain::{
     DomainAddress, DomainRead, DomainServer, Hosted, NoTasks, ReadCache, TaskSupport,
-    served_by_host,
+    served_by_host, unknown_prompt,
 };
+pub use results::{completion, json_read, product_result, rank_completions, structured_result};
 pub use server::{Deployment, HostedServer, HostedServerBuilder, Missing, Provided};
+pub use subscriptions::{ResourceSubscriptions, admit_resource_subscriptions, requested_addresses};

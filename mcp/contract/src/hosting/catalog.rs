@@ -7,8 +7,9 @@
 use rmcp::{
     ErrorData, RoleServer,
     model::{
-        CacheScope, ListResourceTemplatesResult, ListResourcesResult, ListToolsResult,
-        PaginatedRequestParams, ResultType, Tool,
+        CacheScope, CompleteRequestParams, CompleteResult, ListPromptsResult,
+        ListResourceTemplatesResult, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
+        Prompt, Reference, ResultType, Tool,
     },
     service::RequestContext,
 };
@@ -96,5 +97,48 @@ impl<C: McpServerContract> McpServerSetup<C> {
             cache_scope: Some(CacheScope::Private),
             meta: None,
         })
+    }
+
+    /// `prompts/list` for the server's prompts, sorted by name.
+    pub fn list_prompts(
+        &self,
+        mut prompts: Vec<Prompt>,
+        request: Option<&PaginatedRequestParams>,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<ListPromptsResult, ErrorData> {
+        gateway_identity(context)?;
+        prompts.sort_by(|left, right| left.name.cmp(&right.name));
+        let page = page(prompts, request)?;
+        Ok(ListPromptsResult {
+            prompts: page.items,
+            next_cursor: page.next_cursor,
+            result_type: Some(ResultType::COMPLETE),
+            ttl_ms: Some(PRIVATE_CATALOG_TTL_MS),
+            cache_scope: Some(CacheScope::Private),
+            meta: None,
+        })
+    }
+
+    /// Completes `doc_id` on the `{scheme}://docs/{doc_id}` template from the
+    /// embedded documents. Returns `None` for every other completion request.
+    pub fn complete_documents(
+        &self,
+        request: &CompleteRequestParams,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<Option<CompleteResult>, ErrorData> {
+        let Reference::Resource(reference) = &request.r#ref else {
+            return Ok(None);
+        };
+        let template = crate::docs::knowledge_extension::docs::member_template(&C::scheme());
+        if reference.uri != template.as_str() || request.argument.name != "doc_id" {
+            return Ok(None);
+        }
+        gateway_identity(context)?;
+        let ids = self.documents().iter().map(|doc| doc.id);
+        super::results::completion(super::results::rank_completions(
+            ids,
+            &request.argument.value,
+        ))
+        .map(Some)
     }
 }

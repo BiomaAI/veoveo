@@ -180,6 +180,28 @@ impl DomainServer for FixtureDomain {
     fn tool_router(&self) -> &ToolRouter<Self> {
         &self.tool_router
     }
+    fn prompts(&self) -> Vec<rmcp::model::Prompt> {
+        vec![rmcp::model::Prompt::new(
+            "summarize",
+            Some("Summarize the items."),
+            None,
+        )]
+    }
+    async fn get_prompt(
+        &self,
+        request: rmcp::model::GetPromptRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<rmcp::model::GetPromptResult, ErrorData> {
+        if request.name != "summarize" {
+            return Err(super::unknown_prompt(&request.name));
+        }
+        Ok(rmcp::model::GetPromptResult::new(vec![
+            rmcp::model::PromptMessage::new_text(
+                rmcp::model::Role::User,
+                "Summarize fixture://items.",
+            ),
+        ]))
+    }
     async fn read(
         &self,
         address: DomainAddress<FixtureContract>,
@@ -423,4 +445,45 @@ async fn each_read_keeps_the_cache_policy_its_domain_chose() {
     .await;
     assert_eq!(body["result"]["ttlMs"], 0);
     assert_eq!(body["result"]["cacheScope"], "private");
+}
+
+#[tokio::test]
+async fn prompts_come_from_the_domain() {
+    let token = token();
+    let (_, body) = rpc("prompts/list", serde_json::json!({}), Some(&token)).await;
+    assert_eq!(body["result"]["prompts"][0]["name"], "summarize");
+    let (_, body) = rpc(
+        "prompts/get",
+        serde_json::json!({"name": "summarize"}),
+        Some(&token),
+    )
+    .await;
+    assert_eq!(
+        body["result"]["messages"][0]["content"]["text"],
+        "Summarize fixture://items."
+    );
+    let (_, body) = rpc(
+        "prompts/get",
+        serde_json::json!({"name": "unknown"}),
+        Some(&token),
+    )
+    .await;
+    assert_eq!(body["error"]["code"], -32602);
+}
+
+#[tokio::test]
+async fn the_host_completes_document_ids() {
+    let (_, body) = rpc(
+        "completion/complete",
+        serde_json::json!({
+            "ref": {"type": "ref/resource", "uri": "fixture://docs/{doc_id}"},
+            "argument": {"name": "doc_id", "value": "de"}
+        }),
+        Some(&token()),
+    )
+    .await;
+    assert_eq!(
+        body["result"]["completion"]["values"],
+        serde_json::json!(["design"])
+    );
 }

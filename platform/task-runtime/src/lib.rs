@@ -16,7 +16,7 @@ mod runtime;
 mod service;
 mod types;
 
-pub use hosting::DurableTasks;
+pub use hosting::{DurableTasks, DurableTasksWithResources};
 pub use mcp::{project_snapshot, task_seed};
 pub use provider_transaction::ProviderCommit;
 pub use resource_subscriptions::{

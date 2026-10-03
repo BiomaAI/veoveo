@@ -8,7 +8,8 @@
 //! - protocol versions and `get_info` from the checked setup;
 //! - authenticated, paged `resources/list`, `resources/templates/list` and
 //!   `tools/list`;
-//! - `{scheme}://docs` and `{scheme}://contract` reads;
+//! - `{scheme}://docs` and `{scheme}://contract` reads, and `doc_id` completion;
+//! - `prompts/list` and `prompts/get` from the domain's prompts;
 //! - address admission: an unparseable URI is Invalid Params (-32602), as the
 //!   server contract requires, before any domain code runs;
 //! - the cache policy each domain read declares through [`DomainRead`];
@@ -22,10 +23,11 @@ use rmcp::{
     handler::server::{router::tool::ToolRouter, tool::ToolCallContext},
     model::{
         CallToolRequestParams, CallToolResponse, CancelTaskParams, CompleteRequestParams,
-        CompleteResult, CreateTaskResult, GetTaskParams, GetTaskResult,
+        CompleteResult, CreateTaskResult, GetPromptRequestParams, GetPromptResponse,
+        GetPromptResult, GetTaskParams, GetTaskResult, ListPromptsResult,
         ListResourceTemplatesResult, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
-        ProtocolVersion, ReadResourceRequestParams, ReadResourceResponse, ReadResourceResult,
-        ServerConfig, SubscriptionFilter, Tool, UpdateTaskParams,
+        Prompt, ProtocolVersion, ReadResourceRequestParams, ReadResourceResponse,
+        ReadResourceResult, ServerConfig, SubscriptionFilter, Tool, UpdateTaskParams,
     },
     service::{RequestContext, SubscriptionContext},
 };
@@ -112,7 +114,23 @@ pub trait DomainServer: Send + Sync + Sized + 'static {
         context: &RequestContext<RoleServer>,
     ) -> impl Future<Output = Result<DomainRead, ErrorData>> + Send;
 
-    /// Completes template arguments. The default offers no completions.
+    /// The server's prompts. The default has none.
+    fn prompts(&self) -> Vec<Prompt> {
+        Vec::new()
+    }
+
+    /// Renders one prompt by name. The default knows no prompts.
+    fn get_prompt(
+        &self,
+        request: GetPromptRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> impl Future<Output = Result<GetPromptResult, ErrorData>> + Send {
+        let _ = context;
+        std::future::ready(Err(unknown_prompt(&request.name)))
+    }
+
+    /// Completes template arguments. The host completes `doc_id` on the docs
+    /// template before calling this. The default offers no completions.
     fn complete(
         &self,
         request: CompleteRequestParams,
@@ -121,6 +139,11 @@ pub trait DomainServer: Send + Sync + Sized + 'static {
         let _ = (request, context);
         std::future::ready(Ok(CompleteResult::default()))
     }
+}
+
+/// The error for a prompt name the server does not declare.
+pub fn unknown_prompt(name: &str) -> ErrorData {
+    ErrorData::invalid_params(format!("unknown prompt `{name}`"), None)
 }
 
 /// The answer for a well-known variant in a domain `read`: the host serves
@@ -307,7 +330,29 @@ impl<D: DomainServer, T: TaskSupport> ServerHandler for Hosted<D, T> {
         request: CompleteRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CompleteResult, ErrorData> {
+        if let Some(result) = Self::setup().complete_documents(&request, &context)? {
+            return Ok(result);
+        }
         self.domain.complete(request, context).await
+    }
+
+    async fn list_prompts(
+        &self,
+        request: Option<PaginatedRequestParams>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<ListPromptsResult, ErrorData> {
+        Self::setup().list_prompts(self.domain.prompts(), request.as_ref(), &context)
+    }
+
+    async fn get_prompt(
+        &self,
+        request: GetPromptRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<GetPromptResponse, ErrorData> {
+        self.domain
+            .get_prompt(request, context)
+            .await
+            .map(Into::into)
     }
 
     async fn list_tools(
