@@ -16,7 +16,7 @@
 | Browser automation | Headed Chrome DevTools Protocol, hardware-backed WebGPU or WebGL, shared browser assertions owned by `testing/browser-smoke` |
 | GPU workload evidence | Existing NVIDIA resource identity, NVENC source and concurrent workload assertions; software rendering is rejected |
 | World publication | Frames-owned immutable revisions and typed frame URIs; UAV-owned validated installation binding; `veoveo.ai/uav-world-publication/v1` JSON receipt with the output file SHA-256 |
-| Evidence | `veoveo.ai/uav-showcase-acceptance-evidence/v5` JSON and revision-qualified captures; `veoveo.ai/uav-showcase-phase-outcomes/v2` records domain and visual outcomes even when either phase fails; both mark Reason `not_run` because its acceptance runs separately |
+| Evidence | `veoveo.ai/uav-showcase-acceptance-evidence/v6` JSON and revision-qualified captures; `veoveo.ai/uav-showcase-phase-outcomes/v2` records domain and visual outcomes even when either phase fails; both mark Reason `not_run` because its acceptance runs separately |
 | Focused restart stages | `veoveo.ai/uav-live-view-restart-stage/v1` records each accepted container restart and its headed hardware browser observations before the next restart begins |
 
 ## Ownership
@@ -145,6 +145,14 @@ Browser attachment, GPU rejection and visual assertions have one source owner in
 `testing/browser-smoke/src/browser.rs`. Both focused clients compile that source.
 Small process, GPU identity and token-exchange helpers likewise keep one Rust source.
 No new test-support framework or upstream dependency is introduced.
+`testing/browser-smoke/src/source_timeline.rs` aligns the final Rerun observation
+with the simulator's published timestamps in both focused and composed acceptance.
+The sampler keeps the closest earlier sample and waits up to ten seconds for a sample
+at or after the observation. That deadline includes source reads and 100 ms waits;
+unchanged cached samples can wait, while backward clocks, malformed samples and a
+non-running simulation fail. Interpolation requires both clocks to advance and the
+observation to fall inside the sample interval. Playback must trail the aligned source
+by zero to one second. Both samples and the interpolation fraction enter the report.
 Takeoff, live Stream and moving Recording holds require an explicit successful capture
 acknowledgement. A closed capture channel or expired deadline ends domain progression
 and enters owned cleanup. The domain branch cannot infer capture success from the

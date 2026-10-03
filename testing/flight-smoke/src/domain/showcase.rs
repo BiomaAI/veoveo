@@ -1,6 +1,11 @@
 use chrono::Utc;
 use serde::Serialize;
 
+use crate::source_timeline::{
+    SOURCE_SAMPLE_TIMEOUT, SourceTimelineAlignmentEvidence, sample_source_alignment,
+    source_timeline_sample,
+};
+
 use super::browser::{
     ConsoleLiveCaptureEvidence, ConsoleRecordingCaptureEvidence, ConsoleStreamCaptureEvidence,
     capture_console_live_app, capture_console_recording, capture_console_stream_app,
@@ -8,7 +13,7 @@ use super::browser::{
 };
 use super::*;
 
-const EVIDENCE_SCHEMA: &str = "veoveo.ai/uav-showcase-acceptance-evidence/v5";
+const EVIDENCE_SCHEMA: &str = "veoveo.ai/uav-showcase-acceptance-evidence/v6";
 const PRIMARY_CAMERA_ID: &str = "follow";
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
@@ -83,6 +88,7 @@ struct ShowcaseEvidence {
 #[serde(rename_all = "camelCase")]
 struct RecordingSourceLatencyEvidence {
     sampled_at: chrono::DateTime<Utc>,
+    source_alignment: SourceTimelineAlignmentEvidence,
     source_timeline_seconds: f64,
     viewer_timeline_seconds: f64,
     source_to_viewer_seconds: f64,
@@ -403,6 +409,7 @@ async fn monitor_flight(
     .await?;
     let _ = capture_signals.stream_complete.send(());
 
+    let source_before = source_timeline_sample(&simulation_state(operator, scenario).await?)?;
     let recording = capture_console_recording(
         chrome_cdp_url,
         public_base_url,
@@ -412,21 +419,25 @@ async fn monitor_flight(
     )
     .await
     .context("capturing composed UAV Rerun evidence while its camera is airborne")?;
-    let source_state = simulation_state(operator, scenario).await?;
-    let source_timeline_seconds = source_state
-        .get("simulation_time_s")
-        .and_then(Value::as_f64)
-        .context("UAV state omitted simulation_time_s")?;
+    let source_alignment = sample_source_alignment(
+        source_before,
+        recording.captured_at(),
+        SOURCE_SAMPLE_TIMEOUT,
+        || async { source_timeline_sample(&simulation_state(operator, scenario).await?) },
+    )
+    .await?;
+    let source_timeline_seconds = source_alignment.aligned_simulation_time_seconds;
     let viewer_timeline_seconds = recording.final_timeline_seconds();
     let source_to_viewer_seconds = source_timeline_seconds - viewer_timeline_seconds;
     ensure!(
-        (-0.25..=1.0).contains(&source_to_viewer_seconds),
+        (0.0..=1.0).contains(&source_to_viewer_seconds),
         "Rerun live playback is not close to its authoritative simulation timeline: \
          source={source_timeline_seconds:.3}s viewer={viewer_timeline_seconds:.3}s \
          lag={source_to_viewer_seconds:.3}s"
     );
     let recording_source_latency = RecordingSourceLatencyEvidence {
         sampled_at: Utc::now(),
+        source_alignment,
         source_timeline_seconds,
         viewer_timeline_seconds,
         source_to_viewer_seconds,

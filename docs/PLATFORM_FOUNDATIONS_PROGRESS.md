@@ -8,6 +8,23 @@ requirements, accepted risks and remaining work. This log does not establish com
 
 ## Implementation And Installation Checkpoints
 
+Browser source alignment checkpoint (2026-10-03): focused Recording and composed
+flight acceptance share the sampler in `testing/browser-smoke/src/source_timeline.rs`.
+It admits the running lifecycle through UAV's enum, validates source timestamps and
+simulation time, and retains the closest sample preceding the browser observation.
+Cached samples can advance within a ten-second deadline that includes reads and
+100 ms waits. Backward clocks and invalid state fail. Both timestamps must bracket
+the observation before interpolation; playback still must trail the source by zero
+to one second. Composed evidence v6 includes the source bracket and fraction.
+
+The grouped browser/flight native run passes 127 cases, including the actual failed
+timestamp sequence, repeated cached samples, malformed state, clock regression and
+a read that never responds. Extraction initially left the timestamp private from
+the existing camera-cadence consumer; its crate visibility is corrected. This batch
+changes neither a deployed image nor shared-host code. Headed installed playback
+and composed landing visual acceptance remain pending. Native outputs are under
+`output/development/source-timeline-bracket/`.
+
 Installed gateway expiry and flight checkpoint (2026-10-03): source `ae638056`
 publishes in 96 seconds with cache reuse, and gateway-only selection `5c6639fc`
 converges in seven seconds. Ten rollout tests and Helm configuration pass. An ordinary

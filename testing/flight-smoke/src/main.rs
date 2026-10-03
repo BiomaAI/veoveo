@@ -8,6 +8,8 @@ use std::{fs, time::Duration};
 mod browser;
 mod cli;
 mod domain;
+#[path = "../../browser-smoke/src/source_timeline.rs"]
+mod source_timeline;
 mod support;
 use cli::{Args, SmokeCommand};
 use domain::{

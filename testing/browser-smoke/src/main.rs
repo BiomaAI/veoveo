@@ -18,6 +18,12 @@ mod cli;
 mod support;
 use support::InstalledTarget;
 mod restart;
+mod source_timeline;
+
+use source_timeline::{
+    SOURCE_SAMPLE_TIMEOUT, SourceTimelineAlignmentEvidence, SourceTimelineWindowEvidence,
+    sample_source_alignment, source_timeline_sample, source_timeline_window,
+};
 
 use cli::{Args, SmokeCommand};
 
@@ -282,20 +288,6 @@ struct ConsoleAppsBrowserAcceptanceEvidence {
     catalog: ConsoleAppsCatalogEvidence,
 }
 
-#[derive(Debug, Clone, Copy, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct SourceTimelineSample {
-    updated_at: chrono::DateTime<Utc>,
-    simulation_time_seconds: f64,
-}
-
-#[derive(Debug, Clone, Copy, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct SourceTimelineWindowEvidence {
-    before: SourceTimelineSample,
-    after: SourceTimelineSample,
-}
-
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SensorIsolationEvidence {
@@ -305,16 +297,6 @@ struct SensorIsolationEvidence {
     frames_after: u64,
     simulation_seconds: f64,
     observed_frame_rate_hz: f64,
-}
-
-#[derive(Debug, Clone, Copy, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct SourceTimelineAlignmentEvidence {
-    before: SourceTimelineSample,
-    after: SourceTimelineSample,
-    recording_observed_at: chrono::DateTime<Utc>,
-    interpolation_fraction: f64,
-    aligned_simulation_time_seconds: f64,
 }
 
 #[derive(Debug, Serialize)]
@@ -901,13 +883,15 @@ async fn verify_running_recording(
         Duration::from_secs(scenario.view.timeout_seconds),
     )
     .await?;
-    let final_state = simulation_state(&operator, &scenario.session_id).await?;
-    ensure!(
-        json_string(&final_state, "/lifecycle")? == "running",
-        "recording browser acceptance altered the running simulation: {final_state}"
-    );
-    let source_alignment =
-        align_source_timeline(&initial_state, &final_state, recording.captured_at())?;
+    let source_alignment = sample_source_alignment(
+        source_timeline_sample(&initial_state)?,
+        recording.captured_at(),
+        SOURCE_SAMPLE_TIMEOUT,
+        || async {
+            source_timeline_sample(&simulation_state(&operator, &scenario.session_id).await?)
+        },
+    )
+    .await?;
     let source_simulation_time_seconds = source_alignment.aligned_simulation_time_seconds;
     let recording_simulation_time_seconds = recording.final_timeline_seconds();
     let recording_source_lag_seconds =
@@ -1255,17 +1239,6 @@ fn live_view_performance(
     })
 }
 
-fn source_timeline_window(before: &Value, after: &Value) -> Result<SourceTimelineWindowEvidence> {
-    let before = source_timeline_sample(before)?;
-    let after = source_timeline_sample(after)?;
-    ensure!(
-        after.updated_at > before.updated_at
-            && after.simulation_time_seconds > before.simulation_time_seconds,
-        "running simulation source timeline did not advance: {before:?} -> {after:?}"
-    );
-    Ok(SourceTimelineWindowEvidence { before, after })
-}
-
 fn sensor_isolation(
     before: &Value,
     after: &Value,
@@ -1325,58 +1298,6 @@ fn physical_sensor<'a>(state: &'a Value, vehicle_id: &str) -> Result<&'a Value> 
                 .find(|camera| camera.get("vehicle_id").and_then(Value::as_str) == Some(vehicle_id))
         })
         .with_context(|| format!("simulation state omitted physical sensor for {vehicle_id}"))
-}
-
-fn align_source_timeline(
-    before: &Value,
-    after: &Value,
-    recording_observed_at: chrono::DateTime<Utc>,
-) -> Result<SourceTimelineAlignmentEvidence> {
-    let before = source_timeline_sample(before)?;
-    let after = source_timeline_sample(after)?;
-    ensure!(
-        after.updated_at > before.updated_at
-            && after.simulation_time_seconds > before.simulation_time_seconds,
-        "running simulation source timeline did not advance: {before:?} -> {after:?}"
-    );
-    ensure!(
-        (before.updated_at..=after.updated_at).contains(&recording_observed_at),
-        "Rerun observation is not bracketed by source samples: before={before:?} observation={recording_observed_at} after={after:?}"
-    );
-    let total_nanoseconds = (after.updated_at - before.updated_at)
-        .num_nanoseconds()
-        .context("source timeline bracket exceeds supported duration")?;
-    let observed_nanoseconds = (recording_observed_at - before.updated_at)
-        .num_nanoseconds()
-        .context("source timeline observation exceeds supported duration")?;
-    let interpolation_fraction = observed_nanoseconds as f64 / total_nanoseconds as f64;
-    let aligned_simulation_time_seconds = before.simulation_time_seconds
-        + (after.simulation_time_seconds - before.simulation_time_seconds) * interpolation_fraction;
-    Ok(SourceTimelineAlignmentEvidence {
-        before,
-        after,
-        recording_observed_at,
-        interpolation_fraction,
-        aligned_simulation_time_seconds,
-    })
-}
-
-fn source_timeline_sample(state: &Value) -> Result<SourceTimelineSample> {
-    let simulation_time_seconds = state
-        .get("simulation_time_s")
-        .and_then(Value::as_f64)
-        .context("running simulation omitted simulation_time_s")?;
-    ensure!(
-        simulation_time_seconds.is_finite() && simulation_time_seconds >= 0.0,
-        "running simulation returned invalid simulation_time_s {simulation_time_seconds}"
-    );
-    let updated_at = chrono::DateTime::parse_from_rfc3339(json_string(state, "/updated_at")?)
-        .context("running simulation returned invalid updated_at")?
-        .with_timezone(&Utc);
-    Ok(SourceTimelineSample {
-        updated_at,
-        simulation_time_seconds,
-    })
 }
 
 async fn simulation_state(operator: &OperatorClient<'_>, session_id: &str) -> Result<Value> {
@@ -1496,45 +1417,9 @@ mod tests {
     }
 
     #[test]
-    fn source_timeline_is_aligned_at_the_rerun_observation() {
-        let before = serde_json::json!({
-            "simulation_time_s": 100.0,
-            "updated_at": "2026-08-05T12:00:00Z"
-        });
-        let after = serde_json::json!({
-            "simulation_time_s": 120.0,
-            "updated_at": "2026-08-05T12:00:20Z"
-        });
-        let observed_at = chrono::DateTime::parse_from_rfc3339("2026-08-05T12:00:07.5Z")
-            .unwrap()
-            .with_timezone(&Utc);
-
-        let aligned = align_source_timeline(&before, &after, observed_at).unwrap();
-
-        assert_eq!(aligned.interpolation_fraction, 0.375);
-        assert_eq!(aligned.aligned_simulation_time_seconds, 107.5);
-    }
-
-    #[test]
-    fn source_timeline_rejects_unbracketed_rerun_observation() {
-        let before = serde_json::json!({
-            "simulation_time_s": 100.0,
-            "updated_at": "2026-08-05T12:00:00Z"
-        });
-        let after = serde_json::json!({
-            "simulation_time_s": 120.0,
-            "updated_at": "2026-08-05T12:00:20Z"
-        });
-        let observed_at = chrono::DateTime::parse_from_rfc3339("2026-08-05T12:00:21Z")
-            .unwrap()
-            .with_timezone(&Utc);
-
-        assert!(align_source_timeline(&before, &after, observed_at).is_err());
-    }
-
-    #[test]
     fn live_view_window_preserves_the_declared_sensor_cadence() {
         let before = serde_json::json!({
+            "lifecycle": "running",
             "simulation_time_s": 100.0,
             "updated_at": "2026-08-05T12:00:00Z",
             "cameras": [{
@@ -1545,6 +1430,7 @@ mod tests {
             }]
         });
         let after = serde_json::json!({
+            "lifecycle": "running",
             "simulation_time_s": 120.0,
             "updated_at": "2026-08-05T12:00:20Z",
             "cameras": [{
@@ -1565,6 +1451,7 @@ mod tests {
     #[test]
     fn live_view_window_rejects_sensor_cadence_coupled_to_operator_video() {
         let before = serde_json::json!({
+            "lifecycle": "running",
             "simulation_time_s": 100.0,
             "updated_at": "2026-08-05T12:00:00Z",
             "cameras": [{
@@ -1575,6 +1462,7 @@ mod tests {
             }]
         });
         let after = serde_json::json!({
+            "lifecycle": "running",
             "simulation_time_s": 110.0,
             "updated_at": "2026-08-05T12:00:10Z",
             "cameras": [{
