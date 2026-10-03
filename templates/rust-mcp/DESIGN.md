@@ -24,14 +24,24 @@ template, so its domain stays small and its structure is the part to copy.
 
 ## Module Layout
 
+The library exposes the public contract to clients, tests and tools. Its features
+layer the crate so a consumer builds only what it uses:
+
+| Feature | Adds | Dependencies |
+|---|---|---|
+| `contract` | `contract` module | `schemars`, `serde`, `veoveo-types` |
+| `runtime` | `glossary` module | none beyond `contract` |
+| `mcp` (default) | the `glossary-mcp` binary | rmcp, tokio, clap and `veoveo-mcp-contract` |
+
 ```text
 src/
-  main.rs      configuration and the HostedServer builder
-  contract.rs  TermId, GlossaryResource and the tool shapes
-  setup.rs     GlossaryContract: identity, capabilities and discovery
-  server.rs    GlossaryMcp: tools, reads, prompts and completion
-  glossary.rs  domain data and lookup, without MCP types
-  tests.rs     in-process gateway tests
+  lib.rs                 feature-gated library modules
+  contract.rs            TermId, GlossaryResource and the tool shapes
+  glossary.rs            domain data and lookup, without MCP types
+  bin/server.rs          configuration and the HostedServer builder
+  bin/server/setup.rs    GlossaryContract: identity, capabilities and discovery
+  bin/server/handler.rs  GlossaryMcp: tools, reads, prompts and completion
+  bin/server/tests.rs    in-process gateway tests
 ```
 
 ## Reads And Caching

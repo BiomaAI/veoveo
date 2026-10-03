@@ -4,21 +4,44 @@ version.workspace = true
 edition.workspace = true
 publish = false
 
+[lib]
+name = "veoveo_glossary_mcp"
+path = "src/lib.rs"
+
 [[bin]]
 name = "glossary-mcp"
-path = "src/main.rs"
+path = "src/bin/server.rs"
+required-features = ["mcp"]
+
+[features]
+default = ["mcp"]
+# Public types only: no MCP, transport or runtime dependency.
+contract = ["dep:schemars", "dep:serde", "dep:veoveo-types"]
+# Domain logic. A server with Store, provider or engine dependencies gates them here.
+runtime = ["contract"]
+# The hosted server binary.
+mcp = [
+    "runtime",
+    "dep:anyhow",
+    "dep:clap",
+    "dep:rmcp",
+    "dep:serde_json",
+    "dep:tokio",
+    "dep:tracing",
+    "dep:veoveo-mcp-contract",
+]
 
 [dependencies]
-anyhow.workspace = true
-clap.workspace = true
-rmcp = { workspace = true, features = ["server", "macros", "transport-streamable-http-server"] }
-schemars.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-tokio = { workspace = true, features = ["full"] }
-tracing.workspace = true
-veoveo-mcp-contract.workspace = true
-veoveo-types.workspace = true
+anyhow = { workspace = true, optional = true }
+clap = { workspace = true, optional = true }
+rmcp = { workspace = true, features = ["server", "macros", "transport-streamable-http-server"], optional = true }
+schemars = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+tokio = { workspace = true, features = ["full"], optional = true }
+tracing = { workspace = true, optional = true }
+veoveo-mcp-contract = { workspace = true, optional = true }
+veoveo-types = { workspace = true, optional = true }
 
 [dev-dependencies]
 veoveo-mcp-contract = { workspace = true, features = ["testing"] }

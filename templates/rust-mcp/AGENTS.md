@@ -17,18 +17,25 @@ setup, tools, typed reads, prompts, completion and in-process tests.
   authentication middleware here.
 - Canonical identity: slug `glossary`, URI scheme `glossary://`, endpoint
   `/glossary/mcp`, health `/glossary/healthz`.
+- The library's `contract` feature holds the public types and builds with default
+  features disabled. It depends on `schemars`, `serde` and `veoveo-types` only;
+  MCP, transport and runtime dependencies belong to `runtime` or `mcp`.
 - `GlossaryResource` is the complete address vocabulary. Every descriptor in
   `setup.rs` is built from one of its values, and every address round-trips through
   one spelling.
 - Identifiers are types. `TermId` admits lowercase slugs only. The host rejects a
   read of another spelling as Invalid Params, `explain_term` rejects it while decoding
   its arguments, and `define` returns a tool error result.
-- `glossary.rs` holds domain logic without MCP types.
+- `glossary.rs` holds domain logic under the `runtime` feature, without MCP types.
 
 ## Build And Test
 
-- `cargo test -p veoveo-glossary-mcp` runs the domain, setup and in-process gateway
-  tests.
+- `cargo test -p veoveo-glossary-mcp` runs the contract, domain, setup and
+  in-process gateway tests.
+- `cargo test -p veoveo-glossary-mcp --no-default-features --features contract`
+  checks the public types alone.
+- `cargo tree -p veoveo-glossary-mcp --no-default-features --features contract -e normal`
+  lists the contract build's dependencies; it must contain no MCP or runtime crate.
 - `cargo clippy -p veoveo-glossary-mcp --all-targets -- -D warnings`
 
 ## Contract Compliance

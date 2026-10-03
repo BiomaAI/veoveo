@@ -25,11 +25,12 @@ use veoveo_mcp_contract::{
 };
 use veoveo_types::ResourceAddress;
 
-use crate::{
+use veoveo_glossary_mcp::{
     contract::{DefineRequest, Definition, GlossaryResource, TERM_TEMPLATE, TermId, TermSummary},
     glossary,
-    setup::{GlossaryContract, SERVER_SETUP},
 };
+
+use crate::setup::{GlossaryContract, SERVER_SETUP};
 
 const EXPLAIN_PROMPT: &str = "explain_term";
 

@@ -352,7 +352,7 @@ designs above.
 | [`examples/bioma/acceptance/`](../examples/bioma/acceptance/DESIGN.md) | owner-local compiled composition checks and the retained-pilot ownership migration; native record and volume recovery rehearsals |
 | `sdk/python/` | Python platform package for hosted MCP servers |
 | `templates/python-mcp/` | Python server template (`datasheet`) |
-| `templates/rust-mcp/` | Rust server template (`glossary`) built on `veoveo_mcp_contract::hosting` with in-process gateway tests |
+| `templates/rust-mcp/` | Rust server template (`glossary`): a library with isolated `contract` and `runtime` features, and a binary built on `veoveo_mcp_contract::hosting` with in-process gateway tests |
 | `testing/fixtures/chart-library-consumer/` | anonymous cross-release Helm library acceptance fixture |
 | `testing/fixtures/platform-selection/` | anonymous deployment v5 platform selection and Artifact/Frames/Map/Media/Recording/RRD image-closure acceptance |
 | `testing/fixtures/fork-workload/` | in-repository Python simulation protocol fixture with typed camera and render-product declarations; it is not visual GPU evidence |

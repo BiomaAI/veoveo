@@ -6,7 +6,7 @@ use veoveo_mcp_contract::hosting::{
     testing::{self, TestGateway},
 };
 
-use crate::server::GlossaryMcp;
+use crate::handler::GlossaryMcp;
 
 fn gateway() -> TestGateway {
     TestGateway::new(

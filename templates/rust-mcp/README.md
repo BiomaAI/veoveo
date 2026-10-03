@@ -10,12 +10,13 @@ holds only its contract, its setup and its domain.
 
 | Part | File | What to change |
 |---|---|---|
-| Configuration and startup | `src/main.rs` | Port, service name, and any domain state to build before `HostedServer` |
+| Library features | `Cargo.toml`, `src/lib.rs` | Keep `contract` free of MCP and runtime dependencies; gate engine, Store and provider crates under `runtime` |
 | Identifiers and addresses | `src/contract.rs` | Replace `TermId` and `GlossaryResource` with the new domain's types |
-| Checked setup | `src/setup.rs` | Slug, scheme, capabilities, resources and templates |
-| MCP surface | `src/server.rs` | Tools in `#[tool_router]`, `read`, prompts and completion |
 | Domain logic | `src/glossary.rs` | Replace with the domain; keep MCP types out of it |
-| Tests | `src/tests.rs` | Keep one test per surface, through `TestGateway` |
+| Configuration and startup | `src/bin/server.rs` | Port, service name, and any domain state to build before `HostedServer` |
+| Checked setup | `src/bin/server/setup.rs` | Slug, scheme, capabilities, resources and templates |
+| MCP surface | `src/bin/server/handler.rs` | Tools in `#[tool_router]`, `read`, prompts and completion |
+| Tests | `src/bin/server/tests.rs` | Keep one test per surface, through `TestGateway` |
 | Agent manual and design | `AGENTS.md`, `DESIGN.md` | Embedded at build time and served at `{scheme}://docs` |
 
 ## Creating a server from this template
@@ -47,6 +48,7 @@ the host does for every server.
 
 ```sh
 cargo test -p veoveo-glossary-mcp
+cargo test -p veoveo-glossary-mcp --no-default-features --features contract
 cargo clippy -p veoveo-glossary-mcp --all-targets -- -D warnings
 ```
 

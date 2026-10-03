@@ -15,7 +15,9 @@ use veoveo_mcp_contract::{
 };
 use veoveo_types::{ResourceScheme, ResourceTemplateUri};
 
-use crate::contract::{GlossaryDocument, GlossaryResource, GlossaryScope, SCHEME, TERM_TEMPLATE};
+use veoveo_glossary_mcp::contract::{
+    GlossaryDocument, GlossaryResource, GlossaryScope, SCHEME, TERM_TEMPLATE,
+};
 
 pub static SERVER_DOCS: LazyLock<ServerDocs> =
     LazyLock::new(|| veoveo_mcp_contract::server_docs!("glossary"));

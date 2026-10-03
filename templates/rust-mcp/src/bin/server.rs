@@ -1,7 +1,8 @@
 //! Glossary MCP server: the Rust template for a hosted Veoveo MCP server.
 //!
 //! The entrypoint parses configuration, checks the setup and hands the domain
-//! to the shared host. Domain behavior lives in the modules.
+//! to the shared host. The MCP surface lives in the `server/` modules, and the
+//! contract and domain logic live in the library.
 
 use std::{net::SocketAddr, sync::LazyLock};
 
@@ -11,14 +12,15 @@ use veoveo_mcp_contract::{
     init_server_telemetry, parse_allowed_host_authority,
 };
 
-mod contract;
-mod glossary;
-mod server;
+#[path = "server/handler.rs"]
+mod handler;
+#[path = "server/setup.rs"]
 mod setup;
 #[cfg(test)]
+#[path = "server/tests.rs"]
 mod tests;
 
-use server::GlossaryMcp;
+use handler::GlossaryMcp;
 use setup::SERVER_SETUP;
 
 #[derive(Parser)]
