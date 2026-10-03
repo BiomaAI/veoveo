@@ -29,6 +29,7 @@ URI scheme  time
 MCP         /time/mcp
 admin REST  /time/admin
 health      /time/healthz
+readiness   /time/readyz (ready while the clock is observed)
 port        8800
 ```
 

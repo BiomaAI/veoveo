@@ -16,7 +16,7 @@ use crate::{
     uris,
 };
 
-pub(crate) struct TimeContract;
+pub struct TimeContract;
 pub(crate) static SERVER_SETUP: LazyLock<McpServerSetup<TimeContract>> =
     LazyLock::new(|| McpServerSetup::new().expect("Time MCP contract setup"));
 

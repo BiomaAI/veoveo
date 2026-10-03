@@ -2,22 +2,26 @@ use std::sync::{Arc, LazyLock};
 
 use rmcp::tool;
 use rmcp::{
-    ErrorData as McpError, RoleServer, ServerHandler,
+    ErrorData as McpError, RoleServer,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolRequestParams, CallToolResponse, CallToolResult, CancelTaskParams,
-        CompleteRequestParams, CompleteResult, CompletionInfo, ContentBlock,
-        GetPromptRequestParams, GetTaskParams, GetTaskResult, ListPromptsResult,
-        ListResourceTemplatesResult, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
-        Prompt, ReadResourceRequestParams, ReadResourceResult, Reference, ResourceContents,
-        ServerConfig, SubscriptionFilter, UpdateTaskParams,
+        CallToolResult, CompleteRequestParams, CompleteResult, CompletionInfo,
+        GetPromptRequestParams, GetPromptResult, Prompt, ReadResourceRequestParams, Reference,
+        Resource, Tool,
     },
-    service::{RequestContext, SubscriptionContext},
-    tool_handler, tool_router,
+    service::RequestContext,
+    tool_router,
 };
-use serde::Serialize;
 use uuid::Uuid;
-use veoveo_mcp_contract::{GatewayInternalIdentity, Page, docs::ServerDocs, paginate};
+use veoveo_mcp_contract::{
+    GatewayInternalIdentity,
+    docs::ServerDocs,
+    hosting::{
+        DomainAddress, DomainRead, DomainServer, completion, gateway_identity, rank_completions,
+        structured_result, unknown_prompt,
+    },
+    server_contract::McpServerSetup,
+};
 
 use crate::{
     clock::assess_clock,
@@ -29,16 +33,16 @@ use crate::{
         ValidateTimelineOutput, ValidateTimelineRequest,
     },
     prompts::TimePrompt,
-    server::tasks::TimeTaskExtension,
     state::TimeApplication,
     uris,
 };
 
 mod resources;
 mod setup;
+mod subscriptions;
 pub(crate) use setup::SERVER_SETUP;
-
-const LIST_PAGE_SIZE: usize = 100;
+use setup::TimeContract;
+pub(crate) use subscriptions::TimeSubscriptions;
 
 /// The crate documents embedded at build time and served under the well-known
 /// surface: `time://docs`, `time://docs/{doc_id}`, `time://contract`, and the
@@ -49,8 +53,6 @@ pub(crate) static SERVER_DOCS: LazyLock<ServerDocs> =
 #[derive(Clone)]
 pub struct TimeMcp {
     state: Arc<TimeApplication>,
-    task_service: TimeTaskExtension,
-    #[allow(dead_code)]
     tool_router: ToolRouter<TimeMcp>,
 }
 
@@ -58,7 +60,6 @@ pub struct TimeMcp {
 impl TimeMcp {
     pub fn new(state: Arc<TimeApplication>) -> Self {
         Self {
-            task_service: TimeTaskExtension::new(state.clone()),
             state,
             tool_router: Self::tool_router(),
         }
@@ -296,189 +297,63 @@ impl TimeMcp {
     }
 }
 
-#[tool_handler]
-impl ServerHandler for TimeMcp {
-    fn supported_protocol_versions(
-        &self,
-    ) -> std::borrow::Cow<'static, [rmcp::model::ProtocolVersion]> {
-        veoveo_mcp_contract::final_protocol_versions()
+impl DomainServer for TimeMcp {
+    type Contract = TimeContract;
+
+    fn setup() -> &'static McpServerSetup<TimeContract> {
+        &SERVER_SETUP
     }
 
-    fn get_info(&self) -> ServerConfig {
-        SERVER_SETUP.server_config().clone()
+    fn tool_router(&self) -> &ToolRouter<Self> {
+        &self.tool_router
     }
 
-    async fn call_tool(
-        &self,
-        mut request: CallToolRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<CallToolResponse, McpError> {
-        if let Some(created) =
-            veoveo_task_runtime::start_durable_tool_task(&self.task_service, &mut request, &context)
-                .await?
-        {
-            return Ok(created.into());
-        }
-        let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
-        self.tool_router.call(call).await
-    }
-
-    async fn get_task(
-        &self,
-        request: GetTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<GetTaskResult, McpError> {
-        let caller =
-            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
-        veoveo_task_runtime::DurableTaskService::get_task(&self.task_service, &caller, request)
-            .await
-    }
-
-    async fn update_task(
-        &self,
-        request: UpdateTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        let caller =
-            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
-        veoveo_task_runtime::DurableTaskService::update_task(&self.task_service, &caller, request)
-            .await
-    }
-
-    async fn cancel_task(
-        &self,
-        request: CancelTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        let caller =
-            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
-        veoveo_task_runtime::DurableTaskService::cancel_task(
-            &self.task_service,
-            &caller,
-            request.task_id,
+    fn describe_tool(&self, tool: Tool) -> Tool {
+        veoveo_mcp_apps_extension::link_tool_to_app(
+            tool,
+            uris::TIMELINE_APP_URI,
+            &[
+                veoveo_mcp_apps_extension::UiVisibility::Model,
+                veoveo_mcp_apps_extension::UiVisibility::App,
+            ],
         )
-        .await
-    }
-
-    async fn list_tools(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListToolsResult, McpError> {
-        let mut tools = self.tool_router.list_all();
-        tools.sort_by(|left, right| left.name.cmp(&right.name));
-        tools = tools
-            .into_iter()
-            .map(|tool| {
-                veoveo_mcp_apps_extension::link_tool_to_app(
-                    tool,
-                    uris::TIMELINE_APP_URI,
-                    &[
-                        veoveo_mcp_apps_extension::UiVisibility::Model,
-                        veoveo_mcp_apps_extension::UiVisibility::App,
-                    ],
-                )
-            })
-            .collect();
-        let page = mcp_page(tools, request.as_ref())?;
-        Ok(ListToolsResult {
-            tools: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
     }
 
     async fn list_resources(
         &self,
-        request: Option<PaginatedRequestParams>,
-        context: RequestContext<RoleServer>,
-    ) -> Result<ListResourcesResult, McpError> {
-        require_scope(&context, TimeScope::Read)?;
-        let resources = SERVER_SETUP
-            .resources()
-            .iter()
-            .map(|resource| resource.descriptor().clone())
-            .collect();
-        let page = mcp_page(resources, request.as_ref())?;
-        Ok(ListResourcesResult {
-            resources: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
+        declared: Vec<Resource>,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<Vec<Resource>, McpError> {
+        require_scope(context, TimeScope::Read)?;
+        Ok(declared)
     }
 
-    async fn list_resource_templates(
+    async fn read(
         &self,
-        request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListResourceTemplatesResult, McpError> {
-        let page = mcp_page(
-            SERVER_SETUP
-                .resource_templates()
-                .iter()
-                .map(|template| template.descriptor().clone())
-                .collect(),
-            request.as_ref(),
-        )?;
-        Ok(ListResourceTemplatesResult {
-            resource_templates: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
+        address: DomainAddress<TimeContract>,
+        request: &ReadResourceRequestParams,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<DomainRead, McpError> {
+        self.read_time_resource(address, &request.uri, context)
+            .await
+            .map(DomainRead::private)
     }
 
-    async fn read_resource(
-        &self,
-        request: ReadResourceRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
-        if let Some(result) = SERVER_SETUP.read_documents(&request, &context)? {
-            return Ok(result);
-        }
-        self.read_time_resource(request, context).await
-    }
-
-    async fn list_prompts(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListPromptsResult, McpError> {
-        let prompts: Vec<Prompt> = TimePrompt::ALL
+    fn prompts(&self) -> Vec<Prompt> {
+        TimePrompt::ALL
             .into_iter()
             .map(TimePrompt::definition)
-            .collect();
-        let page = mcp_page(prompts, request.as_ref())?;
-        Ok(ListPromptsResult {
-            prompts: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
+            .collect()
     }
 
     async fn get_prompt(
         &self,
         request: GetPromptRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<rmcp::model::GetPromptResponse, McpError> {
-        async {
-            TimePrompt::by_name(&request.name)
-                .ok_or_else(|| McpError::invalid_params("unknown Time prompt", None))?
-                .render(request.arguments)
-        }
-        .await
-        .map(Into::into)
+    ) -> Result<GetPromptResult, McpError> {
+        TimePrompt::by_name(&request.name)
+            .ok_or_else(|| unknown_prompt(&request.name))?
+            .render(request.arguments)
     }
 
     async fn complete(
@@ -523,31 +398,23 @@ impl ServerHandler for TimeMcp {
             _ => None,
         };
         if let Some(domain) = domain {
+            // One value beyond a page shows that more matches exist.
             let values = self
                 .state
                 .catalog
-                .complete_values(&scope, domain, &request.argument.value, 101)
+                .complete_values(
+                    &scope,
+                    domain,
+                    &request.argument.value,
+                    u32::try_from(CompletionInfo::MAX_VALUES + 1).unwrap_or(u32::MAX),
+                )
                 .await
                 .map_err(internal)?;
-            let has_more = values.len() > CompletionInfo::MAX_VALUES;
-            return Ok(CompleteResult::new(
-                CompletionInfo::with_pagination(
-                    values
-                        .iter()
-                        .take(CompletionInfo::MAX_VALUES)
-                        .cloned()
-                        .collect(),
-                    (!has_more).then_some(values.len() as u32),
-                    has_more,
-                )
-                .map_err(internal)?,
-            ));
+            return completion(values);
         }
-        // These catalogs are packaged with the server's documents and TZDB.
-        let values: Vec<String> = match (reference.uri.as_str(), request.argument.name.as_str()) {
-            (uris::DOC_TEMPLATE, "doc_id") => {
-                SERVER_DOCS.iter().map(|doc| doc.id.to_owned()).collect()
-            }
+        // These catalogs are packaged with the server's TZDB and bootstrap data.
+        let mut values: Vec<String> = match (reference.uri.as_str(), request.argument.name.as_str())
+        {
             (uris::BOOTSTRAP_AUTHORITY_TEMPLATE, "release_id") => self
                 .state
                 .authorities
@@ -567,112 +434,22 @@ impl ServerHandler for TimeMcp {
                 .collect(),
             _ => Vec::new(),
         };
-        let needle = request.argument.value.to_ascii_lowercase();
-        let mut matching: Vec<String> = values
-            .into_iter()
-            .filter(|value| value.to_ascii_lowercase().contains(&needle))
-            .collect();
-        matching.sort();
-        matching.dedup();
-        let total = matching.len();
-        matching.truncate(CompletionInfo::MAX_VALUES);
-        Ok(CompleteResult::new(
-            CompletionInfo::with_pagination(
-                matching,
-                Some(total as u32),
-                total > CompletionInfo::MAX_VALUES,
-            )
-            .map_err(internal)?,
+        values.sort();
+        values.dedup();
+        completion(rank_completions(
+            values.iter().map(String::as_str),
+            &request.argument.value,
         ))
     }
-
-    fn accepted_subscription_filter(
-        &self,
-        requested: &SubscriptionFilter,
-    ) -> Option<SubscriptionFilter> {
-        veoveo_mcp_contract::accepted_subscription_filter(requested)
-    }
-
-    async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
-        let request_context = context.request_context().clone();
-        let identity = require_scope(&request_context, TimeScope::Read)?;
-        let scope = self.state.scope(&identity).await.map_err(internal)?;
-        for uri in context.accepted().resource_subscriptions.iter().flatten() {
-            let resource = crate::contract::TimeResource::parse(uri).map_err(invalid_params)?;
-            if !resource.is_subscribable() {
-                return Err(McpError::invalid_params(
-                    "resource is immutable or not subscribable",
-                    None,
-                ));
-            }
-            if matches!(
-                resource,
-                crate::contract::TimeResource::Events { cursor: None }
-            ) {
-                self.state
-                    .restore_event_watchers(&scope)
-                    .await
-                    .map_err(internal)?;
-            } else if let crate::contract::TimeResource::Event(event_id) = resource
-                && let Some(event) = self
-                    .state
-                    .catalog
-                    .event(&scope, &event_id)
-                    .await
-                    .map_err(internal)?
-            {
-                self.state
-                    .schedule_event(scope.clone(), event)
-                    .await
-                    .map_err(internal)?;
-            }
-        }
-        veoveo_task_runtime::listen_durable_subscriptions(
-            &self.task_service,
-            context,
-            Some(self.state.subscriptions.as_ref()),
-            None,
-        )
-        .await
-    }
 }
 
-fn internal_identity(
-    context: &RequestContext<RoleServer>,
-) -> Result<GatewayInternalIdentity, McpError> {
-    context
-        .extensions
-        .get::<axum::http::request::Parts>()
-        .and_then(|parts| parts.extensions.get::<GatewayInternalIdentity>())
-        .cloned()
-        .ok_or_else(|| {
-            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
-        })
-}
 fn require_scope(
     context: &RequestContext<RoleServer>,
     required: TimeScope,
 ) -> Result<GatewayInternalIdentity, McpError> {
-    let identity = internal_identity(context)?;
+    let identity = gateway_identity(context)?;
     crate::server::auth::require_scope(&identity.actor.scopes, required)?;
     Ok(identity)
-}
-fn structured_result<T: Serialize>(text: String, value: &T) -> Result<CallToolResult, McpError> {
-    let mut result = CallToolResult::success(vec![ContentBlock::text(text)]);
-    result.structured_content = Some(serde_json::to_value(value).map_err(internal)?);
-    Ok(result)
-}
-fn json_resource<T: Serialize>(uri: &str, value: &T) -> Result<ReadResourceResult, McpError> {
-    Ok(ReadResourceResult::new(vec![
-        ResourceContents::text(serde_json::to_string(value).map_err(internal)?, uri)
-            .with_mime_type("application/json"),
-    ]))
-}
-fn mcp_page<T>(
-    items: Vec<T>,
-    request: Option<&PaginatedRequestParams>,
-) -> Result<Page<T>, McpError> {
-    paginate(items, request, LIST_PAGE_SIZE).map_err(invalid_params)
 }
 fn invalid_params(error: impl std::fmt::Display) -> McpError {
     McpError::invalid_params(error.to_string(), None)

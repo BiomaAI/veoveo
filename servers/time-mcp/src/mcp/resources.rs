@@ -1,7 +1,4 @@
-use super::{
-    SERVER_DOCS, TimeMcp, default_clock_policy, internal, invalid_params, json_resource, not_found,
-    require_scope,
-};
+use super::{TimeMcp, default_clock_policy, internal, invalid_params, not_found, require_scope};
 use crate::contract::{
     TimeKnowledgeCollection as Collection, TimeResourceEntry as Entry, TimeResourcePage as Page,
 };
@@ -9,52 +6,20 @@ use crate::{
     contract::{ConvertTimeRequest, ResolveTimeRequest, TimeResource, TimeScope},
     uris,
 };
-use rmcp::{
-    ErrorData as McpError, RoleServer,
-    model::{ReadResourceRequestParams, ReadResourceResult, ResourceContents},
-    service::RequestContext,
-};
+use rmcp::{ErrorData as McpError, RoleServer, model::ReadResourceResult, service::RequestContext};
 use serde_json::json;
+use veoveo_mcp_contract::hosting::{json_read, served_by_host};
 use veoveo_types::ResourceAddress;
 
 impl TimeMcp {
+    /// Reads one admitted address. The host serves documents and the contract.
     pub(super) async fn read_time_resource(
         &self,
-        request: ReadResourceRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
-        let cacheable = request.request_state.is_none() && request.input_responses.is_none();
-        self.read_time_contents(&request.uri, &context)
-            .await
-            .map(|result| veoveo_mcp_contract::private_resource_response(result, cacheable))
-    }
-
-    async fn read_time_contents(
-        &self,
+        resource: TimeResource,
         uri: &str,
         context: &RequestContext<RoleServer>,
     ) -> Result<ReadResourceResult, McpError> {
         let identity = require_scope(context, TimeScope::Read)?;
-        let resource = TimeResource::parse(uri).map_err(|error| match error {
-            crate::contract::TimeResourceError::UnknownResource => not_found("Time resource"),
-            _ => invalid_params(error),
-        })?;
-        // Well-known surface (contract C18, C19): readable by any identity
-        // that can list resources.
-        if resource == TimeResource::Docs {
-            return json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>());
-        }
-        if let TimeResource::Document(doc_id) = &resource {
-            let doc = SERVER_DOCS
-                .doc(doc_id.as_str())
-                .ok_or_else(|| not_found("server document"))?;
-            return Ok(ReadResourceResult::new(vec![
-                ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
-            ]));
-        }
-        if resource == TimeResource::Contract {
-            return json_resource(uri, SERVER_DOCS.contract_declaration());
-        }
         if resource == TimeResource::TimelineApp {
             let html = veoveo_mcp_apps_extension::workbench_app_html(
                 &veoveo_mcp_apps_extension::WorkbenchApp {
@@ -127,7 +92,7 @@ impl TimeMcp {
                     .calendars_page(&scope, after.as_ref())
                     .await
                     .map_err(crate::index::query_error)?;
-                json_resource(
+                json_read(
                     uri,
                     &Page::from_page(page, |calendar| {
                         Entry::new(
@@ -147,7 +112,7 @@ impl TimeMcp {
                     .epochs_page(&scope, after.as_ref())
                     .await
                     .map_err(crate::index::query_error)?;
-                json_resource(
+                json_read(
                     uri,
                     &Page::from_page(page, |epoch| {
                         Entry::new(
@@ -171,7 +136,7 @@ impl TimeMcp {
                     .schedule_events(scope.clone(), page.items.clone())
                     .await
                     .map_err(internal)?;
-                json_resource(
+                json_read(
                     uri,
                     &Page::from_page(page, |event| {
                         Entry::new(TimeResource::Event(event.event_id), event.name)
@@ -185,7 +150,7 @@ impl TimeMcp {
                     .releases_page(&scope, cursor.as_ref())
                     .await
                     .map_err(crate::index::query_error)?;
-                json_resource(
+                json_read(
                     uri,
                     &Page::from_page(page, |release| {
                         Entry::new(
@@ -218,7 +183,7 @@ impl TimeMcp {
                         )
                     })
                     .collect();
-                json_resource(
+                json_read(
                     uri,
                     &Page::<crate::BootstrapAuthorityCursor> {
                         items,
@@ -276,7 +241,7 @@ impl TimeMcp {
                         scales: Vec::new(),
                     })
                     .map_err(invalid_params)?;
-                json_resource(
+                json_read(
                     uri,
                     &json!({"zone_id": zone_id, "tzdb_release_id": engine.authority().binding().tzdb_release_id(), "current": projection.zoned.into_iter().next()}),
                 )
@@ -301,7 +266,7 @@ impl TimeMcp {
                     .ok_or_else(|| not_found("mission epoch version"))?;
                 observed_resource(&resource, member, context)
             }
-            TimeResource::Epoch(id) => json_resource(
+            TimeResource::Epoch(id) => json_read(
                 uri,
                 &self
                     .state
@@ -326,7 +291,7 @@ impl TimeMcp {
                 observed_resource(&resource, member, context)
             }
             TimeResource::ClockQuality => {
-                json_resource(uri, &self.state.clock.quality().await.map_err(internal)?)
+                json_read(uri, &self.state.clock.quality().await.map_err(internal)?)
             }
             TimeResource::ClockCurrent => {
                 let engine = self.state.engine(&scope).await.map_err(internal)?;
@@ -347,19 +312,19 @@ impl TimeMcp {
                         additional_uncertainty_nanoseconds: quality.error_bound_nanoseconds,
                     })
                     .map_err(invalid_params)?;
-                json_resource(
+                json_read(
                     uri,
                     &json!({"time": time, "effective_policy": policy, "clock_quality": quality}),
                 )
             }
             TimeResource::AuthoritiesCurrent => {
                 let engine = self.state.engine(&scope).await.map_err(internal)?;
-                json_resource(uri, engine.authority().effective())
+                json_read(uri, engine.authority().effective())
             }
-            TimeResource::Docs
-            | TimeResource::Document(_)
-            | TimeResource::Contract
-            | TimeResource::TimelineApp => Err(not_found("Time resource")),
+            TimeResource::Docs | TimeResource::Document(_) | TimeResource::Contract => {
+                Err(served_by_host())
+            }
+            TimeResource::TimelineApp => Err(not_found("Time resource")),
         }
     }
 }

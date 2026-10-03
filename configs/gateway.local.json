@@ -527,7 +527,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://time-mcp:8800/time/mcp",
-        "health_url": "http://time-mcp:8800/time/healthz",
+        "health_url": "http://time-mcp:8800/time/readyz",
         "security": "cluster_internal_http"
       },
       "capabilities": {

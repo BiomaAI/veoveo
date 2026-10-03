@@ -207,6 +207,8 @@
     digest: ""
   port: 8800
   healthPath: /time/healthz
+  # Ready only while the clock is observed; liveness does not depend on it.
+  readinessPath: /time/readyz
   args:
     - --port
     - "8800"

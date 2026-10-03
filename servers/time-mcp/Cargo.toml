@@ -91,7 +91,6 @@ mcp = [
     "dep:dotenvy",
     "dep:rmcp",
     "dep:secrecy",
-    "dep:tower-http",
     "dep:veoveo-mcp-apps-extension",
 ]
 
@@ -122,7 +121,6 @@ tar = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["full"], optional = true }
 tokio-util = { workspace = true, optional = true }
 thiserror = { workspace = true, optional = true }
-tower-http = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
 url = { workspace = true, optional = true }
 uuid = { workspace = true, optional = true }
@@ -141,4 +139,3 @@ rmcp = { workspace = true, features = ["client", "transport-streamable-http-clie
 iri-string.workspace = true
 serde_json.workspace = true
 tempfile = "3"
-tower = { workspace = true, features = ["util"] }

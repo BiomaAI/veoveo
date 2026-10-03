@@ -13,6 +13,11 @@ leap second assumptions.
 
 ## Invariants
 
+- The server is hosted through `veoveo_mcp_contract::hosting`: `TimeMcp` implements
+  `DomainServer`, `TimeSubscriptions` implements `ResourceSubscriptions`, and the
+  administration router joins the host's admin routes behind the admin scope check.
+  `/time/readyz` reports ready while the clock is observed. Do not add a
+  `ServerHandler`, router, host check or authentication middleware here.
 - Owns the `time://` URI scheme. Identity: slug `time`, MCP `/time/mcp`,
   admin REST `/time/admin`, port 8800.
 - The canonical instant is `TimeInstant`: integral TAI seconds plus nanosecond,

@@ -1,23 +1,19 @@
 pub(super) mod auth;
 mod bootstrap;
 mod config;
-mod host;
 pub(crate) mod tasks;
 
 use std::{collections::BTreeMap, net::SocketAddr, sync::Arc, time::Duration};
 
 use anyhow::Result;
-use axum::{Router, middleware, routing::get};
+use axum::middleware;
 use clap::Parser;
-use rmcp::transport::streamable_http_server::StreamableHttpService;
-use serde_json::json;
-use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_mcp_contract::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
-    ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, init_server_telemetry,
-    public_allowed_hosts,
+    GatewayInternalTrustBundle, SubscriptionHub, TelemetryGuard,
+    hosting::{Hosted, HostedServer},
+    init_server_telemetry,
 };
-use veoveo_task_runtime::{TaskRuntime, TaskRuntimeConfig};
+use veoveo_task_runtime::{DurableTasksWithResources, TaskRuntime, TaskRuntimeConfig};
 
 use crate::{
     acquisition::{AcquisitionService, AcquisitionServiceConfig},
@@ -26,15 +22,14 @@ use crate::{
     catalog::TimeCatalog,
     clock::{ClockMonitor, ClockSource},
     contract::{AuthorityDatasetKind, EffectiveTimeAuthority},
-    mcp::TimeMcp,
+    mcp::{TimeMcp, TimeSubscriptions},
     registry::AuthorityRegistry,
     state::TimeApplication,
 };
 
-use auth::{AdminAuthState, InternalAuthState, authenticate_internal, authorize_admin};
+use auth::{AdminAuthState, authorize_admin};
 use config::Args;
-use host::validate_host;
-use tasks::recover_tasks;
+use tasks::{TimeTaskExtension, recover_tasks};
 
 const SERVER_SLUG: &str = "time";
 
@@ -44,13 +39,8 @@ pub async fn run() -> Result<()> {
     let _telemetry: TelemetryGuard =
         init_server_telemetry("veoveo-time-mcp", "info,veoveo_time_mcp=debug")?;
     let args = Args::parse();
+    std::sync::LazyLock::force(&crate::mcp::SERVER_SETUP);
     let public_deployment = args.public_deployment()?;
-    let public_endpoint = public_deployment.server(SERVER_SLUG)?;
-    let verifier = GatewayInternalTokenVerifier::new(
-        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
-        ServerSlug::new(SERVER_SLUG)?,
-        GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?,
-    );
     let tasks = TaskRuntime::connect(
         TaskRuntimeConfig::new(
             args.surreal_endpoint.clone(),
@@ -115,10 +105,6 @@ pub async fn run() -> Result<()> {
     });
     recover_tasks(state.clone(), recovery.resumable).await?;
 
-    let cancellation = tokio_util::sync::CancellationToken::new();
-    let mut allowed_hosts = public_allowed_hosts(&public_deployment, args.allow_loopback_hosts);
-    allowed_hosts.extend(args.allowed_hosts.iter().cloned());
-    let allowed_hosts = Arc::new(allowed_hosts);
     let resource_state = state.clone();
     let _resource_observer = tokio::spawn(async move {
         use futures::StreamExt;
@@ -141,83 +127,35 @@ pub async fn run() -> Result<()> {
                 .await;
         }
     });
-    let auth_state = InternalAuthState {
-        verifier: verifier.clone(),
-    };
-    std::sync::LazyLock::force(&crate::mcp::SERVER_SETUP);
-    let mcp_service = StreamableHttpService::new(
-        {
-            let state = state.clone();
-            move || Ok(TimeMcp::new(state.clone()))
+    let admin = admin::router(state.clone()).layer(middleware::from_fn_with_state(
+        AdminAuthState {
+            required_scope: args.admin_scope.clone(),
         },
-        veoveo_mcp_contract::stateless_session_manager(),
-        veoveo_mcp_contract::canonical_streamable_http_server_config()
-            .with_allowed_hosts(allowed_hosts.iter().cloned())
-            .with_cancellation_token(cancellation.child_token()),
-    );
-    let mcp_router = Router::new()
-        .route_service("/", mcp_service.clone())
-        .route_service("/{*path}", mcp_service)
-        .layer(middleware::from_fn(
-            veoveo_mcp_contract::enforce_serialized_mcp_response,
-        ))
-        .layer(middleware::from_fn_with_state(
-            auth_state.clone(),
-            authenticate_internal,
-        ));
-    let admin_router = admin::router(state.clone())
-        .layer(middleware::from_fn_with_state(
-            AdminAuthState {
-                required_scope: args.admin_scope.clone(),
-            },
-            authorize_admin,
-        ))
-        .layer(middleware::from_fn_with_state(
-            auth_state,
-            authenticate_internal,
-        ));
-    let health_state = state.clone();
-    let server_router = Router::new()
-        .route(
-            "/healthz",
-            get(move || {
-                let state = health_state.clone();
-                async move {
-                    let clock_observed = state.clock.quality().await.is_ok();
-                    let status = if clock_observed {
-                        axum::http::StatusCode::OK
-                    } else {
-                        axum::http::StatusCode::SERVICE_UNAVAILABLE
-                    };
-                    (
-                        status,
-                        axum::Json(json!({"authority": true, "clock_observed": clock_observed})),
-                    )
-                }
-            }),
-        )
-        .nest("/mcp", mcp_router)
-        .nest("/admin", admin_router);
-    let router = Router::new()
-        .nest(public_endpoint.mount_path(), server_router)
-        .layer(middleware::from_fn_with_state(
-            allowed_hosts.clone(),
-            validate_host,
-        ))
-        .layer(
-            TraceLayer::new_for_http()
-                .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO)),
-        );
-    let address = SocketAddr::from(([0, 0, 0, 0], args.port));
-    tracing::info!(service = "veoveo-time-mcp", %address, mcp_path = public_endpoint.path("mcp"), admin_path = public_endpoint.path("admin"), "listening");
-    let listener = tokio::net::TcpListener::bind(address).await?;
-    axum::serve(listener, router)
-        .with_graceful_shutdown(async move {
-            let _ = tokio::signal::ctrl_c().await;
-            cancellation.cancel();
+        authorize_admin,
+    ));
+    let clock_state = state.clone();
+    let server = HostedServer::for_domain::<TimeMcp>()
+        .deployment(&public_deployment, args.allow_loopback_hosts)?
+        .allowed_hosts(args.allowed_hosts.iter().cloned())
+        .internal_trust(GatewayInternalTrustBundle::from_json(
+            &args.internal_trust_jwks,
+        )?)?
+        .handler(move || {
+            Hosted::new(TimeMcp::new(state.clone())).with_tasks(DurableTasksWithResources::new(
+                TimeTaskExtension::new(state.clone()),
+                TimeSubscriptions::new(state.clone()),
+            ))
         })
-        .await?;
-    Ok(())
+        .admin_routes(admin)
+        // Time serves only while it observes a clock.
+        .readiness(move || {
+            let state = clock_state.clone();
+            async move { state.clock.quality().await.is_ok() }
+        })
+        .build();
+    server
+        .serve(SocketAddr::from(([0, 0, 0, 0], args.port)))
+        .await
 }
 
 fn install_rustls_provider() {
