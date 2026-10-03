@@ -16579,6 +16579,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-glossary-mcp"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "rmcp",
+ "schemars 1.2.2",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "veoveo-mcp-contract",
+ "veoveo-types",
+]
+
+[[package]]
 name = "veoveo-image-build-control"
 version = "0.1.0"
 dependencies = [

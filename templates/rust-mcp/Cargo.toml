@@ -1,0 +1,24 @@
+[package]
+name = "veoveo-glossary-mcp"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[[bin]]
+name = "glossary-mcp"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+rmcp = { workspace = true, features = ["server", "macros", "transport-streamable-http-server"] }
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tracing.workspace = true
+veoveo-mcp-contract.workspace = true
+veoveo-types.workspace = true
+
+[dev-dependencies]
+veoveo-mcp-contract = { workspace = true, features = ["testing"] }

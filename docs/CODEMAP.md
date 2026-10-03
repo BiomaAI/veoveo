@@ -148,6 +148,7 @@ material they operate:
 | [`showcase/uav-sim/agents/DESIGN.md`](../showcase/uav-sim/agents/DESIGN.md) | reviewed managed pilot template, seed instructions, retained identity and volume transfer |
 | [`showcase/uav-sim/ACCEPTANCE.md`](../showcase/uav-sim/ACCEPTANCE.md) | deployed UAV acceptance catalog and the repeatable per-agent named-location mission E2E runbook |
 | [`templates/python-mcp/README.md`](../templates/python-mcp/README.md) | Python MCP server template |
+| [`templates/rust-mcp/README.md`](../templates/rust-mcp/README.md) | Rust MCP server template on the shared host |
 | [`sdk/python/DESIGN.md`](../sdk/python/DESIGN.md) | Python foundational types, owner extension protocols, URI libraries and checked MCP setup |
 | [`timesfm-showcase/README.md`](../servers/timeseries-mcp/testdata/timesfm-showcase/README.md) | TimesFM test fixture provenance and use |
 
@@ -351,6 +352,7 @@ designs above.
 | [`examples/bioma/acceptance/`](../examples/bioma/acceptance/DESIGN.md) | owner-local compiled composition checks and the retained-pilot ownership migration; native record and volume recovery rehearsals |
 | `sdk/python/` | Python platform package for hosted MCP servers |
 | `templates/python-mcp/` | Python server template (`datasheet`) |
+| `templates/rust-mcp/` | Rust server template (`glossary`) built on `veoveo_mcp_contract::hosting` with in-process gateway tests |
 | `testing/fixtures/chart-library-consumer/` | anonymous cross-release Helm library acceptance fixture |
 | `testing/fixtures/platform-selection/` | anonymous deployment v5 platform selection and Artifact/Frames/Map/Media/Recording/RRD image-closure acceptance |
 | `testing/fixtures/fork-workload/` | in-repository Python simulation protocol fixture with typed camera and render-product declarations; it is not visual GPU evidence |
@@ -492,7 +494,7 @@ even when that server is first-party.
 | `bootstrap.rs` | generic installation-time server bootstrap envelope, constants, and semantics |
 | `tasks.rs` | platform task ownership and durable routing vocabulary; official MCP Task wire types come from `rmcp` |
 | `provider.rs` | provider job/event contracts; no status polling API |
-| `hosting/` | the shared hosted server: `HostedServer` builder, `Hosted` handler over a typed `DomainServer` and `TaskSupport`, gateway authentication and caller extraction, host validation, administrative documents and discovery results |
+| `hosting/` | the shared hosted server: `HostedServer` builder, `Hosted` handler over a typed `DomainServer` and `TaskSupport`, typed resource-subscription admission, gateway authentication and caller extraction, host validation, administrative documents, discovery and result helpers; `hosting/testing.rs` is the in-process test gateway behind the `testing` feature |
 | `subscriptions.rs` | request-scoped resource and list-change event hub for final `subscriptions/listen` streams |
 | `protocol.rs` | sole final MCP revision, shared cache lifetimes, and W3C trace metadata validation |
 | `transport.rs` | stateless Streamable HTTP configuration, no-session adapter, and the 8 MiB whole-response JSON limit |

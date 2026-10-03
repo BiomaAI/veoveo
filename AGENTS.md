@@ -18,8 +18,8 @@ gateway and runtimes, `agents/` the kernel and durable runtime, `mcp/` shared
 contracts and bridges, `apps/console` the Console and shared browser edge,
 `apps/workspace` the productivity client, `examples/bioma` the enterprise GitOps reference,
 `showcase/` the simulator workloads, `testing/` conformance and smoke,
-`sdk/` and `templates/` the Python surface, `tools/` xtask and screenshots,
-and `deploy/` installation material. `docs/CODEMAP.md` indexes all of it.
+`sdk/` the Python surface, `templates/` the Python and Rust server templates,
+`tools/` xtask and screenshots, and `deploy/` installation material. `docs/CODEMAP.md` indexes all of it.
 
 ## Worktrees and Commit Discipline
 

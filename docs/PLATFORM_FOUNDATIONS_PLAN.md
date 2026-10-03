@@ -530,6 +530,8 @@ invariants are checked. Record remaining adoption explicitly in the inventory be
 procedure. `servers/duckdb-mcp` is the reference for a server with durable tasks, and
 `servers/frames-mcp` for one that also publishes resource changes. DuckDB, Timeseries,
 Frames and Media are migrated; each migration removed between 480 and 650 lines.
+`templates/rust-mcp` is the starting point for a new server. A migrated server can add
+in-process router tests through the contract crate's `testing` feature.
 
 Migrate each group below together, then run its grouped checks once: the affected
 packages' tests and strict Clippy in one pass. Commits may stay split by server where

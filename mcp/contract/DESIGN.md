@@ -502,8 +502,15 @@ The host gives every server the same behavior:
 | Tools | Durable tasks start first; other calls dispatch through the tool router |
 | Shutdown | SIGTERM or Ctrl-C, cancelling in-flight MCP work |
 
+A new server starts from [`templates/rust-mcp`](../../templates/rust-mcp/README.md).
 `servers/duckdb-mcp` is the reference for a server with durable tasks, and
 `servers/frames-mcp` is the reference for one that also publishes resource changes.
+
+The crate's `testing` feature provides `hosting::testing` for a server's
+dev-dependencies. `testing::for_domain` starts the builder on a fixed test deployment
+that trusts a published test key. `TestGateway` signs gateway assertions for a test
+user and sends MCP and HTTP requests through the complete router, so discovery,
+reads, tools and prompts are testable without a deployment.
 
 ## Deployment Identity
 
