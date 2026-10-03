@@ -253,6 +253,9 @@ fn gateway() -> TestGateway {
     TestGateway::new(
         testing::for_domain::<FixtureDomain>()
             .handler(|| Hosted::new(FixtureDomain::new()))
+            .admin_routes(
+                axum::Router::new().route("/status", axum::routing::get(|| async { "admin ok" })),
+            )
             .readiness(|| async { true })
             .build(),
     )
@@ -326,6 +329,27 @@ async fn mcp_and_admin_routes_require_a_gateway_token() {
         .await;
     assert_eq!(status, StatusCode::OK);
     assert!(body.contains("(agents)"));
+
+    // Server admin routes sit beside the documents, behind the same check.
+    let (status, _) = gateway
+        .send(
+            gateway
+                .request("/admin/status")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let (status, body) = gateway
+        .send(
+            gateway
+                .request("/admin/status")
+                .header("authorization", format!("Bearer {}", gateway.token()))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!((status, body.as_str()), (StatusCode::OK, "admin ok"));
 }
 
 #[tokio::test]

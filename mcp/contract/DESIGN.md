@@ -487,8 +487,10 @@ server.serve(SocketAddr::from(([0, 0, 0, 0], args.port))).await
 The builder starts from the domain type, which names its checked setup, and offers
 `build` only after the deployment, internal trust and handler are set. The handler
 must be that domain's `Hosted` value: a hand-written `ServerHandler` or another
-domain's handler does not compile. `authenticated_routes`, `public_routes` and `readiness` add
-server-specific HTTP. Public routes carry no gateway authentication, so they serve
+domain's handler does not compile. `authenticated_routes`, `admin_routes`,
+`public_routes` and `readiness` add server-specific HTTP. Admin routes join the
+document routes under `{mount}/admin` behind gateway authentication, and a server
+layers any administrative scope check onto them. Public routes carry no gateway authentication, so they serve
 only endpoints that verify their own callers, such as a signed provider webhook.
 Inside a domain method, `gateway_identity`, `forwarded_bearer` and `plane_caller`
 return the verified caller. `json_read`, `structured_result`, `product_result`,

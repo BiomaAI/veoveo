@@ -106,6 +106,7 @@ pub struct HostedServerBuilder<D: DomainServer, Dep, Trust, H> {
     handler: H,
     extra_hosts: Vec<String>,
     authenticated_routes: Router,
+    admin_routes: Router,
     public_routes: Router,
     readiness: Option<Readiness>,
 }
@@ -129,6 +130,7 @@ impl HostedServer {
             handler: Missing,
             extra_hosts: Vec::new(),
             authenticated_routes: Router::new(),
+            admin_routes: Router::new(),
             public_routes: Router::new(),
             readiness: None,
         }
@@ -219,6 +221,7 @@ impl<D: DomainServer, Dep, Trust, H> HostedServerBuilder<D, Dep, Trust, H> {
             handler: self.handler,
             extra_hosts: self.extra_hosts,
             authenticated_routes: self.authenticated_routes,
+            admin_routes: self.admin_routes,
             public_routes: self.public_routes,
             readiness: self.readiness,
         })
@@ -242,6 +245,7 @@ impl<D: DomainServer, Dep, Trust, H> HostedServerBuilder<D, Dep, Trust, H> {
             handler: self.handler,
             extra_hosts: self.extra_hosts,
             authenticated_routes: self.authenticated_routes,
+            admin_routes: self.admin_routes,
             public_routes: self.public_routes,
             readiness: self.readiness,
         })
@@ -261,6 +265,7 @@ impl<D: DomainServer, Dep, Trust, H> HostedServerBuilder<D, Dep, Trust, H> {
             handler: Provided(factory),
             extra_hosts: self.extra_hosts,
             authenticated_routes: self.authenticated_routes,
+            admin_routes: self.admin_routes,
             public_routes: self.public_routes,
             readiness: self.readiness,
         }
@@ -275,6 +280,14 @@ impl<D: DomainServer, Dep, Trust, H> HostedServerBuilder<D, Dep, Trust, H> {
     /// Adds server-specific routes under the mount, behind gateway authentication.
     pub fn authenticated_routes(mut self, routes: Router) -> Self {
         self.authenticated_routes = self.authenticated_routes.merge(routes);
+        self
+    }
+
+    /// Adds administrative routes under `{mount}/admin`, beside the document
+    /// routes and behind gateway authentication. Layer any additional
+    /// authorization, such as an administrative scope, onto `routes`.
+    pub fn admin_routes(mut self, routes: Router) -> Self {
+        self.admin_routes = self.admin_routes.merge(routes);
         self
     }
 
@@ -341,7 +354,9 @@ where
             .route_service("/{*path}", mcp_service)
             .layer(middleware::from_fn(enforce_serialized_mcp_response))
             .layer(authenticate());
-        let admin = admin::docs_router(D::setup().documents()).layer(authenticate());
+        let admin = admin::docs_router(D::setup().documents())
+            .merge(self.admin_routes)
+            .layer(authenticate());
         let authenticated = self.authenticated_routes.layer(authenticate());
 
         let mut server = Router::new()
