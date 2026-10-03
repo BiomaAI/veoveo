@@ -22,6 +22,17 @@
 //! | `{mount}/mcp` | gateway | stateless Streamable HTTP with the 8 MiB response budget |
 //! | additional authenticated routes | gateway | server-specific HTTP, such as playback |
 //!
+//! `{mount}` is the public endpoint's path from [`deployment`], `/{slug}` for an
+//! [`internal`] server, or empty for an [`internal_root`] server.
+//! [`mcp_request_limit`] and [`request_timeout`] bound the MCP request size and
+//! the time an authenticated request may take to start its response.
+//!
+//! [`deployment`]: HostedServerBuilder::deployment
+//! [`internal`]: HostedServerBuilder::internal
+//! [`internal_root`]: HostedServerBuilder::internal_root
+//! [`mcp_request_limit`]: HostedServerBuilder::mcp_request_limit
+//! [`request_timeout`]: HostedServerBuilder::request_timeout
+//!
 //! Every request passes host validation, then tracing. Shutdown follows SIGTERM or
 //! Ctrl-C and cancels in-flight MCP work.
 //!
@@ -63,9 +74,16 @@
 //! # }
 //! ```
 
-use std::{future::Future, net::SocketAddr, sync::Arc};
+use std::{future::Future, net::SocketAddr, sync::Arc, time::Duration};
 
-use axum::{Router, http::StatusCode, middleware, response::IntoResponse, routing::get};
+use axum::{
+    Router,
+    extract::{Request, State},
+    http::StatusCode,
+    middleware::{self, Next},
+    response::{IntoResponse, Response},
+    routing::get,
+};
 use rmcp::transport::streamable_http_server::StreamableHttpService;
 use tokio_util::sync::CancellationToken;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
@@ -100,22 +118,36 @@ pub struct Deployment {
 pub(super) enum Mount {
     /// Under the public endpoint for the server's slug, such as `/frames`.
     Public(ServerPublicEndpoint),
+    /// Under `/{slug}` on a cluster-internal listener.
+    Internal(String),
     /// At the root of a cluster-internal listener.
     InternalRoot,
 }
 
 impl Mount {
     /// The path prefix of every route: the mount path, or empty at the root.
-    #[cfg(any(test, feature = "testing"))]
     pub(super) fn prefix(&self) -> &str {
         match self {
             Self::Public(endpoint) => endpoint.mount_path(),
+            Self::Internal(path) => path,
             Self::InternalRoot => "",
         }
     }
 }
 
 type Probe = Arc<dyn Fn() -> futures::future::BoxFuture<'static, bool> + Send + Sync>;
+
+/// The optional builder inputs, carried unchanged through the required ones.
+struct Options {
+    extra_hosts: Vec<String>,
+    authenticated_routes: Router,
+    admin_routes: Router,
+    public_routes: Router,
+    liveness: Option<Probe>,
+    readiness: Option<Probe>,
+    mcp_request_limit: Option<usize>,
+    request_timeout: Option<Duration>,
+}
 
 /// Builds a [`HostedServer`] for the domain `D`. See the [module
 /// documentation](crate::hosting).
@@ -124,12 +156,7 @@ pub struct HostedServerBuilder<D: DomainServer, Dep, Trust, H> {
     deployment: Dep,
     trust: Trust,
     handler: H,
-    extra_hosts: Vec<String>,
-    authenticated_routes: Router,
-    admin_routes: Router,
-    public_routes: Router,
-    liveness: Option<Probe>,
-    readiness: Option<Probe>,
+    options: Options,
 }
 
 /// A hosted MCP server, ready to serve.
@@ -149,12 +176,16 @@ impl HostedServer {
             deployment: Missing,
             trust: Missing,
             handler: Missing,
-            extra_hosts: Vec::new(),
-            authenticated_routes: Router::new(),
-            admin_routes: Router::new(),
-            public_routes: Router::new(),
-            liveness: None,
-            readiness: None,
+            options: Options {
+                extra_hosts: Vec::new(),
+                authenticated_routes: Router::new(),
+                admin_routes: Router::new(),
+                public_routes: Router::new(),
+                liveness: None,
+                readiness: None,
+                mcp_request_limit: None,
+                request_timeout: None,
+            },
         }
     }
 
@@ -188,11 +219,11 @@ impl HostedServer {
                 public_url = endpoint.public_url(),
                 "listening"
             ),
-            Mount::InternalRoot => tracing::info!(
+            Mount::Internal(_) | Mount::InternalRoot => tracing::info!(
                 server = self.slug.as_str(),
                 address = %address,
-                mcp_path = "/mcp",
-                "listening at the internal root"
+                mcp_path = format!("{}/mcp", self.mount.prefix()),
+                "listening on a cluster-internal mount"
             ),
         }
         let cancel = self.cancel.clone();
@@ -231,6 +262,23 @@ async fn shutdown_signal() {
 }
 
 impl<D: DomainServer, Dep, Trust, H> HostedServerBuilder<D, Dep, Trust, H> {
+    fn with_deployment(
+        self,
+        mount: Mount,
+        allowed_hosts: Vec<String>,
+    ) -> HostedServerBuilder<D, Provided<Deployment>, Trust, H> {
+        HostedServerBuilder {
+            domain: self.domain,
+            deployment: Provided(Deployment {
+                mount,
+                allowed_hosts,
+            }),
+            trust: self.trust,
+            handler: self.handler,
+            options: self.options,
+        }
+    }
+
     /// Sets the public deployment. The endpoint for this server's slug fixes the
     /// mount path; the deployment's host, plus loopback when allowed, forms the
     /// allowed hosts.
@@ -241,21 +289,18 @@ impl<D: DomainServer, Dep, Trust, H> HostedServerBuilder<D, Dep, Trust, H> {
     ) -> anyhow::Result<HostedServerBuilder<D, Provided<Deployment>, Trust, H>> {
         let endpoint = deployment.server(D::Contract::slug().as_str())?;
         let allowed_hosts = public_allowed_hosts(deployment, allow_loopback_hosts);
-        Ok(HostedServerBuilder {
-            domain: self.domain,
-            deployment: Provided(Deployment {
-                mount: Mount::Public(endpoint),
-                allowed_hosts,
-            }),
-            trust: self.trust,
-            handler: self.handler,
-            extra_hosts: self.extra_hosts,
-            authenticated_routes: self.authenticated_routes,
-            admin_routes: self.admin_routes,
-            public_routes: self.public_routes,
-            liveness: self.liveness,
-            readiness: self.readiness,
-        })
+        Ok(self.with_deployment(Mount::Public(endpoint), allowed_hosts))
+    }
+
+    /// Serves under `/{slug}` on a cluster-internal listener, for a server the
+    /// gateway reaches at an internal authority. Only `allowed_hosts` pass host
+    /// validation.
+    pub fn internal(
+        self,
+        allowed_hosts: impl IntoIterator<Item = String>,
+    ) -> HostedServerBuilder<D, Provided<Deployment>, Trust, H> {
+        let mount = Mount::Internal(format!("/{}", D::Contract::slug().as_str()));
+        self.with_deployment(mount, allowed_hosts.into_iter().collect())
     }
 
     /// Serves at the root of a cluster-internal listener, for a server whose
@@ -265,21 +310,7 @@ impl<D: DomainServer, Dep, Trust, H> HostedServerBuilder<D, Dep, Trust, H> {
         self,
         allowed_hosts: impl IntoIterator<Item = String>,
     ) -> HostedServerBuilder<D, Provided<Deployment>, Trust, H> {
-        HostedServerBuilder {
-            domain: self.domain,
-            deployment: Provided(Deployment {
-                mount: Mount::InternalRoot,
-                allowed_hosts: allowed_hosts.into_iter().collect(),
-            }),
-            trust: self.trust,
-            handler: self.handler,
-            extra_hosts: self.extra_hosts,
-            authenticated_routes: self.authenticated_routes,
-            admin_routes: self.admin_routes,
-            public_routes: self.public_routes,
-            liveness: self.liveness,
-            readiness: self.readiness,
-        }
+        self.with_deployment(Mount::InternalRoot, allowed_hosts.into_iter().collect())
     }
 
     /// Admits the gateway's internal tokens addressed to this server's slug.
@@ -298,12 +329,7 @@ impl<D: DomainServer, Dep, Trust, H> HostedServerBuilder<D, Dep, Trust, H> {
             deployment: self.deployment,
             trust: Provided(Arc::new(verifier)),
             handler: self.handler,
-            extra_hosts: self.extra_hosts,
-            authenticated_routes: self.authenticated_routes,
-            admin_routes: self.admin_routes,
-            public_routes: self.public_routes,
-            liveness: self.liveness,
-            readiness: self.readiness,
+            options: self.options,
         })
     }
 
@@ -319,24 +345,19 @@ impl<D: DomainServer, Dep, Trust, H> HostedServerBuilder<D, Dep, Trust, H> {
             deployment: self.deployment,
             trust: self.trust,
             handler: Provided(factory),
-            extra_hosts: self.extra_hosts,
-            authenticated_routes: self.authenticated_routes,
-            admin_routes: self.admin_routes,
-            public_routes: self.public_routes,
-            liveness: self.liveness,
-            readiness: self.readiness,
+            options: self.options,
         }
     }
 
     /// Adds allowed host authorities beyond the deployment's own.
     pub fn allowed_hosts(mut self, hosts: impl IntoIterator<Item = String>) -> Self {
-        self.extra_hosts.extend(hosts);
+        self.options.extra_hosts.extend(hosts);
         self
     }
 
     /// Adds server-specific routes under the mount, behind gateway authentication.
     pub fn authenticated_routes(mut self, routes: Router) -> Self {
-        self.authenticated_routes = self.authenticated_routes.merge(routes);
+        self.options.authenticated_routes = self.options.authenticated_routes.merge(routes);
         self
     }
 
@@ -344,7 +365,7 @@ impl<D: DomainServer, Dep, Trust, H> HostedServerBuilder<D, Dep, Trust, H> {
     /// routes and behind gateway authentication. Layer any additional
     /// authorization, such as an administrative scope, onto `routes`.
     pub fn admin_routes(mut self, routes: Router) -> Self {
-        self.admin_routes = self.admin_routes.merge(routes);
+        self.options.admin_routes = self.options.admin_routes.merge(routes);
         self
     }
 
@@ -352,7 +373,7 @@ impl<D: DomainServer, Dep, Trust, H> HostedServerBuilder<D, Dep, Trust, H> {
     /// authentication. Use only for endpoints that verify their own callers, such
     /// as signed provider webhooks, or that serve no caller data.
     pub fn public_routes(mut self, routes: Router) -> Self {
-        self.public_routes = self.public_routes.merge(routes);
+        self.options.public_routes = self.options.public_routes.merge(routes);
         self
     }
 
@@ -364,7 +385,7 @@ impl<D: DomainServer, Dep, Trust, H> HostedServerBuilder<D, Dep, Trust, H> {
         F: Fn() -> Fut + Send + Sync + 'static,
         Fut: Future<Output = bool> + Send + 'static,
     {
-        self.liveness = Some(Arc::new(move || Box::pin(check())));
+        self.options.liveness = Some(Arc::new(move || Box::pin(check())));
         self
     }
 
@@ -374,7 +395,22 @@ impl<D: DomainServer, Dep, Trust, H> HostedServerBuilder<D, Dep, Trust, H> {
         F: Fn() -> Fut + Send + Sync + 'static,
         Fut: Future<Output = bool> + Send + 'static,
     {
-        self.readiness = Some(Arc::new(move || Box::pin(check())));
+        self.options.readiness = Some(Arc::new(move || Box::pin(check())));
+        self
+    }
+
+    /// Rejects an MCP request body larger than `bytes` with 413. Without a limit,
+    /// the transport admits 4 MiB.
+    pub fn mcp_request_limit(mut self, bytes: usize) -> Self {
+        self.options.mcp_request_limit = Some(bytes);
+        self
+    }
+
+    /// Answers 504 when an authenticated request has not started its response
+    /// within `timeout`. A streamed body, such as a subscription, continues past
+    /// it once its response has started.
+    pub fn request_timeout(mut self, timeout: Duration) -> Self {
+        self.options.request_timeout = Some(timeout);
         self
     }
 }
@@ -398,7 +434,8 @@ where
             mount,
             mut allowed_hosts,
         }) = self.deployment;
-        allowed_hosts.extend(self.extra_hosts);
+        let options = self.options;
+        allowed_hosts.extend(options.extra_hosts);
         let allowed_hosts = Arc::new(allowed_hosts);
         let Provided(verifier) = self.trust;
         let Provided(factory) = self.handler;
@@ -417,42 +454,57 @@ where
                 })
             })
         };
+        let mut transport = canonical_streamable_http_server_config()
+            .with_allowed_hosts(allowed_hosts.iter().cloned())
+            .with_cancellation_token(cancel.child_token());
+        if let Some(bytes) = options.mcp_request_limit {
+            transport = transport.with_max_request_body_bytes(bytes);
+        }
         let mcp_service = StreamableHttpService::new(
             move || Ok(factory()),
             stateless_session_manager(),
-            canonical_streamable_http_server_config()
-                .with_allowed_hosts(allowed_hosts.iter().cloned())
-                .with_cancellation_token(cancel.child_token()),
+            transport,
         );
         let auth_state = InternalAuth {
             verifier,
             slug: slug.clone(),
         };
-        let authenticate =
-            || middleware::from_fn_with_state(auth_state.clone(), auth::authenticate);
+        let timeout = options.request_timeout;
+        let authenticate = |routes: Router| {
+            let routes = match timeout {
+                Some(timeout) => routes.layer(middleware::from_fn_with_state(timeout, bounded)),
+                None => routes,
+            };
+            routes.layer(middleware::from_fn_with_state(
+                auth_state.clone(),
+                auth::authenticate,
+            ))
+        };
 
-        let mcp = Router::new()
-            .route_service("/", mcp_service.clone())
-            .route_service("/{*path}", mcp_service)
-            .layer(middleware::from_fn(enforce_serialized_mcp_response))
-            .layer(authenticate());
-        let admin = admin::docs_router(D::setup().documents(), D::Contract::scheme(), authorize)
-            .merge(self.admin_routes)
-            .layer(authenticate());
-        let authenticated = self.authenticated_routes.layer(authenticate());
+        let mcp = authenticate(
+            Router::new()
+                .route_service("/", mcp_service.clone())
+                .route_service("/{*path}", mcp_service)
+                .layer(middleware::from_fn(enforce_serialized_mcp_response)),
+        );
+        let admin = authenticate(
+            admin::docs_router(D::setup().documents(), D::Contract::scheme(), authorize)
+                .merge(options.admin_routes),
+        );
+        let authenticated = authenticate(options.authenticated_routes);
 
         let mut server = Router::new()
-            .route("/healthz", get(probe(self.liveness, "ok", "not alive")))
+            .route("/healthz", get(probe(options.liveness, "ok", "not alive")))
             .nest("/admin", admin)
             .nest("/mcp", mcp)
             .merge(authenticated)
-            .merge(self.public_routes);
-        if let Some(readiness) = self.readiness {
+            .merge(options.public_routes);
+        if let Some(readiness) = options.readiness {
             server = server.route("/readyz", get(probe(Some(readiness), "ready", "not ready")));
         }
         let router = match &mount {
-            Mount::Public(endpoint) => Router::new().nest(endpoint.mount_path(), server),
             Mount::InternalRoot => server,
+            mount => Router::new().nest(mount.prefix(), server),
         };
         let router = router
             .layer(middleware::from_fn_with_state(
@@ -473,6 +525,19 @@ where
             cancel,
         }
     }
+}
+
+/// Answers 504 when the response has not started within `timeout`.
+async fn bounded(State(timeout): State<Duration>, request: Request, next: Next) -> Response {
+    tokio::time::timeout(timeout, next.run(request))
+        .await
+        .unwrap_or_else(|_| {
+            (
+                StatusCode::GATEWAY_TIMEOUT,
+                "request timed out before its response started",
+            )
+                .into_response()
+        })
 }
 
 /// A probe handler: `pass` with 200 while `check` holds, or without a check.

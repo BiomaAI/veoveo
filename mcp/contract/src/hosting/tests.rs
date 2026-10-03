@@ -330,6 +330,69 @@ async fn internal_root_servers_route_from_the_listener_root() {
 }
 
 #[tokio::test]
+async fn internal_servers_mount_at_their_slug_for_internal_hosts() {
+    let gateway = TestGateway::new(
+        testing::internal_for_domain::<FixtureDomain>()
+            .handler(|| Hosted::new(FixtureDomain::new()))
+            .build(),
+    );
+    let (status, _) = gateway
+        .send(gateway.request("/healthz").body(Body::empty()).unwrap())
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let body = gateway.rpc("tools/list", serde_json::json!({})).await;
+    assert_eq!(body["result"]["tools"][0]["name"], "echo");
+    let (status, _) = gateway
+        .send(
+            Request::builder()
+                .uri("/fixture/healthz")
+                .header("host", "fixture.example")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::MISDIRECTED_REQUEST);
+}
+
+#[tokio::test]
+async fn request_limits_bound_mcp_bodies_and_authenticated_responses() {
+    let gateway = TestGateway::new(
+        testing::for_domain::<FixtureDomain>()
+            .handler(|| Hosted::new(FixtureDomain::new()))
+            .admin_routes(axum::Router::new().route(
+                "/slow",
+                axum::routing::get(|| async {
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                    "late"
+                }),
+            ))
+            .mcp_request_limit(512)
+            .request_timeout(std::time::Duration::from_millis(50))
+            .build(),
+    );
+    let (status, _) = gateway
+        .rpc_with(
+            "tools/call",
+            serde_json::json!({"name": "echo", "arguments": {"text": "x".repeat(1024)}}),
+            Some(&gateway.token()),
+        )
+        .await;
+    assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
+    let (status, _) = gateway
+        .send(
+            gateway
+                .request("/admin/slow")
+                .header("authorization", format!("Bearer {}", gateway.token()))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::GATEWAY_TIMEOUT);
+    let body = gateway.rpc("tools/list", serde_json::json!({})).await;
+    assert_eq!(body["result"]["tools"][0]["name"], "echo");
+}
+
+#[tokio::test]
 async fn hosts_are_validated_before_routing() {
     let gateway = gateway();
     let (status, _) = gateway

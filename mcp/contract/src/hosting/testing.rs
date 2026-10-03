@@ -120,6 +120,20 @@ pub fn for_domain<D: DomainServer>() -> HostedServerBuilder<
         .unwrap()
 }
 
+/// Starts the builder for `D` under `/{slug}` on the test host as an internal
+/// server, trusting the test key.
+pub fn internal_for_domain<D: DomainServer>() -> HostedServerBuilder<
+    D,
+    Provided<Deployment>,
+    Provided<Arc<GatewayInternalTokenVerifier>>,
+    Missing,
+> {
+    HostedServer::for_domain::<D>()
+        .internal([TEST_HOST.to_owned()])
+        .internal_trust(trust_bundle(TEST_KEY_ID))
+        .unwrap()
+}
+
 /// Starts the builder for `D` at the internal root on the test host, trusting
 /// the test key.
 pub fn internal_root_for_domain<D: DomainServer>() -> HostedServerBuilder<
