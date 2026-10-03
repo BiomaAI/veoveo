@@ -33,8 +33,9 @@ fn owned_parser_rejects_wrong_routes_ids_and_parameters() {
         "observatory://reading/sensor-a#bad",
         "observatory://reading/{reading_id}",
     ] {
+        // The URI profile rejects some spellings before the owner parser sees them.
         assert!(
-            ObservatoryResource::parse(&ResourceUri::new(value).unwrap()).is_err(),
+            ResourceUri::new(value).map_or(true, |uri| ObservatoryResource::parse(&uri).is_err()),
             "{value}"
         );
     }
