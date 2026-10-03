@@ -8,6 +8,40 @@ requirements, accepted risks and remaining work. This log does not establish com
 
 ## Implementation And Installation Checkpoints
 
+Installed typed-dispatch checkpoint (2026-10-03): Map, Knowledge and Computers publish
+from `e1c5d3d7` and converge through `c9b590ac`. Publication reuses BuildKit and takes
+194 seconds. Ten rollout tests and Helm configuration pass. All three deployed servers
+pass discovery, documents, document completion, authenticated admin docs, probes and
+Host rejection. Invalid resources return -32602. Admin server health returns 200;
+the operator is denied with 403, and an anonymous resource read returns 401.
+
+Map passes all 35 source checks, including owned changes, publications, release
+activation/restoration and restart probes. Fourteen catalog roots, typed release
+cursors, filtered publication features and Artifact reads pass. Knowledge passes its
+nineteen-collection catalog/search/subscription/embedding scenario across five sources,
+with thirteen verified source links and CUDA execution. Computers reuses the owned
+fixture for real start, execute, 25-byte file export and integrity verification,
+completed Task notification, stop and grant revocation. Cancellation of a completed
+Task succeeds; this does not qualify cancellation during provider execution.
+
+A recently expired OAuth token fails upstream discovery with MCP -32603 and
+`internal token expiration is not in the future`. Fresh credentials complete cleanup.
+The gateway image did not change in this batch; its expiry admission needs a native
+regression and correction. The CLI captured the protocol error and pod logs, but no
+HTTP status for that request. A later, long-expired token returns 401. The unchanged
+Computer guest template also logs a sitecustomize permission warning while successful
+commands still return exit zero. An initial malformed Python command and a Host value
+without the configured port were request mistakes; corrected requests pass.
+
+Temporary Flux overrides require suspending the parent Kustomization before its
+HelmReleases. The reference runbook now states that order. Source fixtures are cleaned,
+the Computer is stopped, its temporary grant is revoked and token files are removed.
+Declared replicas and reconciliation are restored before stopping the cluster.
+BuildKit is stopped, the registry is retained, and 357 GiB remains free. Requests,
+responses, native outputs and pod logs are under
+`output/development/typed-dispatch-installed-e1c5d3d7/`. Broader recovery, remaining
+Phase 3 types and composed hardware flight/playback acceptance stay open.
+
 Map address and reader checkpoint (2026-10-03): `MapAddress` admits the owner product,
 paging and filtered-feature families alongside direct resources and knowledge.
 Readers dispatch the admitted typed target. `MapCatalogPage` owns operational cursors,

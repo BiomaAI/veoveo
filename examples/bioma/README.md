@@ -946,14 +946,20 @@ make GPU capacity available. A Task timeout requires reconciling that Task befor
 submitting another analysis.
 
 Reason, Knowledge and embedding are stopped by the reference release's post-render
-patch. For their focused
-acceptance, suspend the platform HelmRelease, scale Reason to one replica, and stop
-unneeded GPU workloads. After the check, return Reason to zero, restore the selected
-workloads, and resume reconciliation. The composed flight command runs Stream replay
-and Artifact isolation; its reports mark Reason `not_run`.
+patch. For their focused acceptance, first suspend the `flux-system/bioma`
+Kustomization, then suspend the `flux-system/veoveo` HelmRelease and any other release
+whose workloads the check scales. The parent Kustomization controls the HelmRelease
+specifications and must stay suspended while those temporary overrides are in use.
 
-Knowledge acceptance also starts embedding and every approved source, then returns
-Knowledge and embedding to zero. This batch is separate from composed flight.
+Scale Reason to one replica when required. Knowledge acceptance also starts embedding,
+Knowledge and every approved source. Keep required GPU requests and limits intact.
+To release the simulator's GPU capacity, suspend `flux-system/uav-sim` before scaling
+its `uav-sim` Deployment to zero; keep the UAV MCP source available for indexing.
+
+After acceptance, return Reason, Knowledge and embedding to zero and restore the
+selected workloads' declared replica counts. Resume the affected HelmReleases, then
+the parent Kustomization. The composed flight command runs Stream replay and Artifact
+isolation; its reports mark Reason `not_run`. Knowledge acceptance runs separately.
 
 Flight verification also requires the administrator client's private key through
 `VEOVEO_ADMIN_SERVICE_CLIENT_PRIVATE_KEY_FILE` and its ID through
