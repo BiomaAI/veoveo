@@ -153,6 +153,16 @@ impl FixtureDomain {
         }
     }
 
+    #[tool(description = "Echo text for administrators.")]
+    async fn admin_echo(
+        &self,
+        Parameters(request): Parameters<EchoRequest>,
+    ) -> Result<CallToolResult, ErrorData> {
+        Ok(CallToolResult::success(vec![
+            rmcp::model::ContentBlock::text(request.text),
+        ]))
+    }
+
     #[tool(description = "Echo text back to the verified caller.")]
     async fn echo(
         &self,
@@ -176,6 +186,26 @@ impl DomainServer for FixtureDomain {
     }
     fn tool_router(&self) -> &ToolRouter<Self> {
         &self.tool_router
+    }
+    async fn list_tools(
+        &self,
+        tools: Vec<rmcp::model::Tool>,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<Vec<rmcp::model::Tool>, ErrorData> {
+        let admin = veoveo_types::ScopeName::new("admin:use").unwrap();
+        let is_admin = gateway_identity(context)?.actor.scopes.contains(&admin);
+        Ok(tools
+            .into_iter()
+            .filter(|tool| is_admin || tool.name != "admin_echo")
+            .collect())
+    }
+    async fn list_resources(
+        &self,
+        mut declared: Vec<Resource>,
+        _context: &RequestContext<RoleServer>,
+    ) -> Result<Vec<Resource>, ErrorData> {
+        declared.push(Resource::new("fixture://items/1", "item-1"));
+        Ok(declared)
     }
     fn prompts(&self) -> Vec<rmcp::model::Prompt> {
         vec![rmcp::model::Prompt::new(
@@ -310,6 +340,9 @@ async fn discovery_comes_from_the_checked_setup() {
         .collect();
     assert!(uris.contains(&"fixture://items".to_owned()));
     assert!(uris.contains(&"fixture://contract".to_owned()));
+    // The domain adds instance resources; the host sorts the combined list.
+    assert!(uris.contains(&"fixture://items/1".to_owned()));
+    assert!(uris.is_sorted());
     assert_eq!(body["result"]["cacheScope"], "private");
 
     let body = gateway
@@ -323,8 +356,11 @@ async fn discovery_comes_from_the_checked_setup() {
         2
     );
 
+    // The domain hides tools this caller lacks the scope for.
     let body = gateway.rpc("tools/list", serde_json::json!({})).await;
-    assert_eq!(body["result"]["tools"][0]["name"], "echo");
+    let tools = body["result"]["tools"].as_array().unwrap();
+    assert_eq!(tools.len(), 1);
+    assert_eq!(tools[0]["name"], "echo");
 }
 
 #[tokio::test]

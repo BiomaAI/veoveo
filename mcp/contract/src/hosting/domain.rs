@@ -27,12 +27,13 @@ use rmcp::{
         GetPromptResult, GetTaskParams, GetTaskResult, ListPromptsResult,
         ListResourceTemplatesResult, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
         Prompt, ProtocolVersion, ReadResourceRequestParams, ReadResourceResponse,
-        ReadResourceResult, ServerConfig, SubscriptionFilter, Tool, UpdateTaskParams,
+        ReadResourceResult, Resource, ServerConfig, SubscriptionFilter, Tool, UpdateTaskParams,
     },
     service::{RequestContext, SubscriptionContext},
 };
 use veoveo_types::{ResourceAddress, ResourceUri};
 
+use super::auth::gateway_identity;
 use crate::{
     final_protocol_versions, private_resource_response,
     server_contract::{McpServerContract, McpServerSetup},
@@ -102,6 +103,33 @@ pub trait DomainServer: Send + Sync + Sized + 'static {
     /// Adjusts each tool descriptor before discovery, such as linking it to an App.
     fn describe_tool(&self, tool: Tool) -> Tool {
         tool
+    }
+
+    /// The tools `tools/list` shows this caller, after [`describe_tool`]. The
+    /// default shows every routed tool. Override it to require a scope or to hide
+    /// tools the caller cannot call; the tool itself still enforces access.
+    ///
+    /// [`describe_tool`]: DomainServer::describe_tool
+    fn list_tools(
+        &self,
+        tools: Vec<Tool>,
+        context: &RequestContext<RoleServer>,
+    ) -> impl Future<Output = Result<Vec<Tool>, ErrorData>> + Send {
+        let _ = context;
+        std::future::ready(Ok(tools))
+    }
+
+    /// The resources `resources/list` shows this caller. `declared` holds the
+    /// setup's fixed resources, and the default returns them. Override it to
+    /// require a scope, filter by caller, or add instance resources. The host
+    /// sorts and pages the result.
+    fn list_resources(
+        &self,
+        declared: Vec<Resource>,
+        context: &RequestContext<RoleServer>,
+    ) -> impl Future<Output = Result<Vec<Resource>, ErrorData>> + Send {
+        let _ = context;
+        std::future::ready(Ok(declared))
     }
 
     /// Reads one admitted domain address and names its cache policy. The
@@ -298,7 +326,12 @@ impl<D: DomainServer, T: TaskSupport> ServerHandler for Hosted<D, T> {
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, ErrorData> {
-        Self::setup().list_resources(request.as_ref(), &context)
+        gateway_identity(&context)?;
+        let resources = self
+            .domain
+            .list_resources(Self::setup().declared_resources(), &context)
+            .await?;
+        Self::setup().list_resources(resources, request.as_ref())
     }
 
     async fn list_resource_templates(
@@ -360,6 +393,7 @@ impl<D: DomainServer, T: TaskSupport> ServerHandler for Hosted<D, T> {
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, ErrorData> {
+        gateway_identity(&context)?;
         let tools = self
             .domain
             .tool_router()
@@ -367,7 +401,8 @@ impl<D: DomainServer, T: TaskSupport> ServerHandler for Hosted<D, T> {
             .into_iter()
             .map(|tool| self.domain.describe_tool(tool))
             .collect();
-        Self::setup().list_tools(tools, request.as_ref(), &context)
+        let tools = self.domain.list_tools(tools, &context).await?;
+        Self::setup().list_tools(tools, request.as_ref())
     }
 
     fn get_tool(&self, name: &str) -> Option<Tool> {

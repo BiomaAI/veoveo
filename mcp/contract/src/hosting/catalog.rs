@@ -9,7 +9,7 @@ use rmcp::{
     model::{
         CacheScope, CompleteRequestParams, CompleteResult, ListPromptsResult,
         ListResourceTemplatesResult, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
-        Prompt, Reference, ResultType, Tool,
+        Prompt, Reference, Resource, ResultType, Tool,
     },
     service::RequestContext,
 };
@@ -33,18 +33,21 @@ fn page<T>(
 }
 
 impl<C: McpServerContract> McpServerSetup<C> {
-    /// `resources/list` from the checked resource declarations.
-    pub fn list_resources(
-        &self,
-        request: Option<&PaginatedRequestParams>,
-        context: &RequestContext<RoleServer>,
-    ) -> Result<ListResourcesResult, ErrorData> {
-        gateway_identity(context)?;
-        let resources = self
-            .resources()
+    /// The checked resource declarations, as `resources/list` descriptors.
+    pub fn declared_resources(&self) -> Vec<Resource> {
+        self.resources()
             .iter()
             .map(|resource| resource.descriptor().clone())
-            .collect();
+            .collect()
+    }
+
+    /// `resources/list` for `resources`, sorted by URI.
+    pub fn list_resources(
+        &self,
+        mut resources: Vec<Resource>,
+        request: Option<&PaginatedRequestParams>,
+    ) -> Result<ListResourcesResult, ErrorData> {
+        resources.sort_by(|left, right| left.uri.cmp(&right.uri));
         let page = page(resources, request)?;
         Ok(ListResourcesResult {
             resources: page.items,
@@ -79,14 +82,12 @@ impl<C: McpServerContract> McpServerSetup<C> {
         })
     }
 
-    /// `tools/list` for the server's tools, sorted by name.
+    /// `tools/list` for `tools`, sorted by name.
     pub fn list_tools(
         &self,
         mut tools: Vec<Tool>,
         request: Option<&PaginatedRequestParams>,
-        context: &RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, ErrorData> {
-        gateway_identity(context)?;
         tools.sort_by(|left, right| left.name.cmp(&right.name));
         let page = page(tools, request)?;
         Ok(ListToolsResult {

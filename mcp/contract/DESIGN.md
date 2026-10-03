@@ -455,7 +455,10 @@ supplies three things:
 2. **A domain.** Implement `DomainServer`: `tool_router` for the tools,
    `describe_tool` to adjust descriptors such as App links, and `read` for one
    admitted address. `prompts`, `get_prompt` and `complete` are optional; their
-   defaults declare no prompts and offer no completions. `read` receives a parsed
+   defaults declare no prompts and offer no completions. `list_resources` and
+   `list_tools` receive the default list and the caller. A server overrides them to
+   require a scope, hide entries the caller cannot use, or add instance resources;
+   the host still authenticates, sorts and pages the result. `read` receives a parsed
    address and returns a `DomainRead` that names its cache policy:
    `DomainRead::private` for ordinary content, or `DomainRead::no_store` for content
    whose access or freshness can change between reads, such as knowledge-source
@@ -500,7 +503,7 @@ The host gives every server the same behavior:
 | Routes | `{mount}/healthz`, optional `{mount}/readyz`, `{mount}/admin/docs/*` and `{mount}/mcp` |
 | Authentication | Gateway internal assertion on MCP, admin and authenticated routes; the token audience is the server slug |
 | Host validation | 400 without a Host authority, 421 for an authority outside the deployment's allowed hosts |
-| Discovery | Authenticated `resources/list`, `resources/templates/list`, `tools/list` and `prompts/list`, sorted, 100 per page, private, five-second cache |
+| Discovery | Authenticated `resources/list`, `resources/templates/list`, `tools/list` and `prompts/list` after the domain's list hooks, sorted, 100 per page, private, five-second cache |
 | Well-known reads | `{scheme}://docs` routes and `{scheme}://contract` |
 | Completion | `doc_id` on the document template; other references go to the domain |
 | Address admission | An unparseable read or subscribed URI is Invalid Params (-32602) before domain code runs |
