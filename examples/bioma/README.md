@@ -320,16 +320,17 @@ MIG, or time-slicing placement instead of inheriting this development profile.
 Each required workload still requests nvidia.com/gpu: 1 and the nvidia runtime
 class. Every GPU workload requires a hardware allocation.
 
-The reference HelmRelease keeps Reason at zero replicas. Its checkpoint and caches
-stay installed for separate Reason acceptance. The local Reason profile reserves
+The reference HelmRelease keeps Reason, Knowledge and embedding at zero replicas
+during foundations flight acceptance. Their checkpoints and caches stay installed
+for separate acceptance batches. Knowledge requires discovery of its configured
+sources, including Reason, before it becomes ready. The local Reason profile reserves
 42% of the 24 GiB NVIDIA device for its six-frame, 8192-token pass. Run it with the
 services its focused check requires, after stopping other GPU workloads as needed.
 Installations with different checkpoints, solver pools, or GPU capacity
 size `reason.engine.gpuMemoryUtilization` and
 `embedding.engine.gpuMemoryUtilization` and `VEOVEO_CUOPT_POOL_GIB` against all
-concurrently resident workloads. The embedding profile requests 25% of device memory.
-Flight acceptance includes embedding alongside the other selected deployments and
-reports Reason as a separate check.
+concurrently resident workloads. The embedding profile requests 25% of device memory
+when its acceptance batch runs. Flight acceptance reports Reason as a separate check.
 The development chart requests 4 GiB of host memory for the cuOpt executor. The
 simulator's operator-camera products run inside the simulator allocation. Higher
 memory limits allow bursts without making the seven-workload placement unschedulable on
@@ -944,11 +945,15 @@ Release any live Stream session owned by the acceptance run before invoking it t
 make GPU capacity available. A Task timeout requires reconciling that Task before
 submitting another analysis.
 
-Reason is stopped by the reference release's post-render patch. For its focused
+Reason, Knowledge and embedding are stopped by the reference release's post-render
+patch. For their focused
 acceptance, suspend the platform HelmRelease, scale Reason to one replica, and stop
 unneeded GPU workloads. After the check, return Reason to zero, restore the selected
 workloads, and resume reconciliation. The composed flight command runs Stream replay
 and Artifact isolation; its reports mark Reason `not_run`.
+
+Knowledge acceptance also starts embedding and every approved source, then returns
+Knowledge and embedding to zero. This batch is separate from composed flight.
 
 Flight verification also requires the administrator client's private key through
 `VEOVEO_ADMIN_SERVICE_CLIENT_PRIVATE_KEY_FILE` and its ID through

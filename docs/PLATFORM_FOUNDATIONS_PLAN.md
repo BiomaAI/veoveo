@@ -15,20 +15,28 @@ remaining domain gates are open.
 Reference resource decision (2026-10-02): the user permits separate service batches
 and explicitly leaves Reason off. Reason implementation, source conformance and GPU
 acceptance stay in scope, but simultaneous residency with the complete deployment is
-removed from this plan's acceptance. The reference HelmRelease holds Reason at zero
-replicas while preserving its checkpoint and caches. Installed readiness expects the
-other 26 deployments. Composed flight verifies live Stream, Recording replay, Artifact
+removed from this plan's acceptance. The reference HelmRelease holds Reason, Knowledge
+and embedding at zero replicas while preserving their checkpoints and caches. Flight
+batch readiness expects the other 24 deployments. Composed flight verifies live
+Stream, Recording replay, Artifact
 isolation and headed hardware visuals; its reports explicitly mark Reason `not_run`.
 The existing focused `uav-recording-verify` owns grounded Reason acceptance. Start only
 its required services for that check and stop Reason afterward. This decision
 supersedes earlier full-deployment residency requirements and checkpoints below.
 The separation passes 71 native flight checks with one timing measurement ignored,
 strict Clippy and the complete Helm configuration check. Rendering the reference
-post-render patch verifies zero Reason replicas, both retained PVCs and its NVIDIA
+post-render patch verifies stopped batch services, retained PVCs and their NVIDIA
 request. Stream publishes from `d8431efa` in 113 seconds, preserving the C++ runner
 cache. The reference selects its runtime digest; BuildKit stops before installation.
 Installed flight repetition follows this checkpoint. Publication metadata is under
 `output/development/foundations-stream-separate-reason-20261002/`.
+
+The first installation attempt confirms that Knowledge's configured-source discovery
+does not become ready with Reason unavailable. The rollout is stopped before simulator
+startup. Knowledge and its embedding runtime therefore join the separate batch;
+Knowledge acceptance starts its approved sources and preserves the complete-discovery
+requirement. This follows the user's service-batching decision and changes no model
+precision, context length or readiness check.
 
 Map installation checkpoint (2026-10-02): GitOps converges at `9d7d0b6a`, with all
 27 deployments ready and eight GPU shares. The composed run passes Map and Stream

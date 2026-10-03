@@ -34,8 +34,8 @@ spec:
       retryInterval: 1m
   driftDetection:
     mode: enabled
-  # Foundations development runs Reason acceptance separately on this GPU.
-  # Keep its Deployment, checkpoint and recording-cache PVCs installed.
+  # Foundations flight acceptance runs Reason and Knowledge in separate batches.
+  # Keep their Deployments, checkpoints and cache PVCs installed.
   postRenderers:
     - kustomize:
         patches:
@@ -43,7 +43,7 @@ spec:
               group: apps
               version: v1
               kind: Deployment
-              name: reason-mcp
+              name: (reason-mcp|knowledge-mcp|embedding)
             patch: |-
               - op: replace
                 path: /spec/replicas
