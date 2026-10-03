@@ -295,6 +295,27 @@ async fn liveness_and_readiness_report_their_checks() {
 }
 
 #[tokio::test]
+async fn internal_root_servers_route_from_the_listener_root() {
+    let gateway = TestGateway::new(
+        testing::internal_root_for_domain::<FixtureDomain>()
+            .handler(|| Hosted::new(FixtureDomain::new()))
+            .build(),
+    );
+    let (status, _) = gateway
+        .send(
+            Request::builder()
+                .uri("/healthz")
+                .header("host", testing::TEST_HOST)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let body = gateway.rpc("tools/list", serde_json::json!({})).await;
+    assert_eq!(body["result"]["tools"][0]["name"], "echo");
+}
+
+#[tokio::test]
 async fn hosts_are_validated_before_routing() {
     let gateway = gateway();
     let (status, _) = gateway

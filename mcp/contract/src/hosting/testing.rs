@@ -120,6 +120,20 @@ pub fn for_domain<D: DomainServer>() -> HostedServerBuilder<
         .unwrap()
 }
 
+/// Starts the builder for `D` at the internal root on the test host, trusting
+/// the test key.
+pub fn internal_root_for_domain<D: DomainServer>() -> HostedServerBuilder<
+    D,
+    Provided<Deployment>,
+    Provided<Arc<GatewayInternalTokenVerifier>>,
+    Missing,
+> {
+    HostedServer::for_domain::<D>()
+        .internal_root([TEST_HOST.to_owned()])
+        .internal_trust(trust_bundle(TEST_KEY_ID))
+        .unwrap()
+}
+
 /// A built server and the gateway calls that reach it.
 pub struct TestGateway {
     router: Router,
@@ -131,7 +145,7 @@ impl TestGateway {
     pub fn new(server: HostedServer) -> Self {
         Self {
             slug: server.slug.clone(),
-            mount: server.endpoint.mount_path().to_owned(),
+            mount: server.mount.prefix().to_owned(),
             router: server.router,
         }
     }

@@ -491,7 +491,10 @@ The builder starts from the domain type, which names its checked setup, and offe
 must be that domain's `Hosted` value: a hand-written `ServerHandler` or another
 domain's handler does not compile. `authenticated_routes`, `admin_routes`,
 `public_routes`, `liveness` and `readiness` add server-specific HTTP. A liveness
-check covers only failures a restart repairs, such as a dead worker process. Admin routes join the
+check covers only failures a restart repairs, such as a dead worker process.
+`internal_root` replaces `deployment` for a cluster-internal server whose gateway
+upstream and protocol paths are root-relative, such as Recording with its Rerun
+gRPC service; it admits only the internal authorities it is given. Admin routes join the
 document routes under `{mount}/admin` behind gateway authentication, and a server
 layers any administrative scope check onto them. Public routes carry no gateway authentication, so they serve
 only endpoints that verify their own callers, such as a signed provider webhook.

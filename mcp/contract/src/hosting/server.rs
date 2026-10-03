@@ -89,10 +89,29 @@ pub struct Missing;
 /// A required builder input that has been supplied.
 pub struct Provided<T>(T);
 
-/// The deployment inputs: the server's public endpoint and its allowed hosts.
+/// The deployment inputs: where the server is mounted and its allowed hosts.
 pub struct Deployment {
-    endpoint: ServerPublicEndpoint,
+    mount: Mount,
     allowed_hosts: Vec<String>,
+}
+
+/// Where a hosted server's routes are mounted.
+#[derive(Clone)]
+pub(super) enum Mount {
+    /// Under the public endpoint for the server's slug, such as `/frames`.
+    Public(ServerPublicEndpoint),
+    /// At the root of a cluster-internal listener.
+    InternalRoot,
+}
+
+impl Mount {
+    /// The path prefix of every route: the mount path, or empty at the root.
+    pub(super) fn prefix(&self) -> &str {
+        match self {
+            Self::Public(endpoint) => endpoint.mount_path(),
+            Self::InternalRoot => "",
+        }
+    }
 }
 
 type Probe = Arc<dyn Fn() -> futures::future::BoxFuture<'static, bool> + Send + Sync>;
@@ -116,7 +135,7 @@ pub struct HostedServerBuilder<D: DomainServer, Dep, Trust, H> {
 pub struct HostedServer {
     pub(super) router: Router,
     pub(super) slug: ServerSlug,
-    pub(super) endpoint: ServerPublicEndpoint,
+    pub(super) mount: Mount,
     cancel: CancellationToken,
 }
 
@@ -160,13 +179,21 @@ impl HostedServer {
         shutdown: impl Future<Output = ()> + Send + 'static,
     ) -> anyhow::Result<()> {
         let listener = tokio::net::TcpListener::bind(address).await?;
-        tracing::info!(
-            server = self.slug.as_str(),
-            address = %address,
-            mcp_path = self.endpoint.path("mcp"),
-            public_url = self.endpoint.public_url(),
-            "listening"
-        );
+        match &self.mount {
+            Mount::Public(endpoint) => tracing::info!(
+                server = self.slug.as_str(),
+                address = %address,
+                mcp_path = endpoint.path("mcp"),
+                public_url = endpoint.public_url(),
+                "listening"
+            ),
+            Mount::InternalRoot => tracing::info!(
+                server = self.slug.as_str(),
+                address = %address,
+                mcp_path = "/mcp",
+                "listening at the internal root"
+            ),
+        }
         let cancel = self.cancel.clone();
         axum::serve(listener, self.router)
             .with_graceful_shutdown(async move {
@@ -216,7 +243,7 @@ impl<D: DomainServer, Dep, Trust, H> HostedServerBuilder<D, Dep, Trust, H> {
         Ok(HostedServerBuilder {
             domain: self.domain,
             deployment: Provided(Deployment {
-                endpoint,
+                mount: Mount::Public(endpoint),
                 allowed_hosts,
             }),
             trust: self.trust,
@@ -228,6 +255,30 @@ impl<D: DomainServer, Dep, Trust, H> HostedServerBuilder<D, Dep, Trust, H> {
             liveness: self.liveness,
             readiness: self.readiness,
         })
+    }
+
+    /// Serves at the root of a cluster-internal listener, for a server whose
+    /// gateway upstream and protocol paths are root-relative. Only
+    /// `allowed_hosts`, the internal authorities clients use, pass host validation.
+    pub fn internal_root(
+        self,
+        allowed_hosts: impl IntoIterator<Item = String>,
+    ) -> HostedServerBuilder<D, Provided<Deployment>, Trust, H> {
+        HostedServerBuilder {
+            domain: self.domain,
+            deployment: Provided(Deployment {
+                mount: Mount::InternalRoot,
+                allowed_hosts: allowed_hosts.into_iter().collect(),
+            }),
+            trust: self.trust,
+            handler: self.handler,
+            extra_hosts: self.extra_hosts,
+            authenticated_routes: self.authenticated_routes,
+            admin_routes: self.admin_routes,
+            public_routes: self.public_routes,
+            liveness: self.liveness,
+            readiness: self.readiness,
+        }
     }
 
     /// Admits the gateway's internal tokens addressed to this server's slug.
@@ -343,7 +394,7 @@ where
     pub fn build(self) -> HostedServer {
         let slug = D::Contract::slug();
         let Provided(Deployment {
-            endpoint,
+            mount,
             mut allowed_hosts,
         }) = self.deployment;
         allowed_hosts.extend(self.extra_hosts);
@@ -385,8 +436,11 @@ where
         if let Some(readiness) = self.readiness {
             server = server.route("/readyz", get(probe(Some(readiness), "ready", "not ready")));
         }
-        let router = Router::new()
-            .nest(endpoint.mount_path(), server)
+        let router = match &mount {
+            Mount::Public(endpoint) => Router::new().nest(endpoint.mount_path(), server),
+            Mount::InternalRoot => server,
+        };
+        let router = router
             .layer(middleware::from_fn_with_state(
                 AllowedHosts {
                     hosts: allowed_hosts,
@@ -401,7 +455,7 @@ where
         HostedServer {
             router,
             slug,
-            endpoint,
+            mount,
             cancel,
         }
     }
