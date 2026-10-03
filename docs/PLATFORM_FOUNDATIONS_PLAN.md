@@ -38,10 +38,10 @@ and do not override this status or the requirements below.
 3. Close the inventory's outstanding cross-replica, provider and current-format
    restart requirements, including UAV outcome recovery and the Computers installed
    batch. Native checks do not substitute for those installed cases.
-4. Move every Rust server onto the shared host, as
-   [Hosted Server Adoption](#hosted-server-adoption) describes. DuckDB, Timeseries,
-   Frames and Media are migrated, and their native suites pass. Installed acceptance of
-   the four migrated servers is outstanding.
+4. Qualify the shared host in an installation, as
+   [Hosted Server Adoption](#hosted-server-adoption) describes. All sixteen Rust
+   servers are hosted and their macOS-buildable native suites pass. Installed
+   acceptance and the Linux-only native suites are outstanding.
 5. Resolve [Deferred Work](#deferred-work): Rerun timeline/playback/timing and landing
    visual acceptance. Keep the declared hardware, freshness and flight-health gates.
 6. Audit every phase's numbered requirements and acceptance conditions against the
@@ -524,37 +524,33 @@ invariants are checked. Record remaining adoption explicitly in the inventory be
 
 #### Hosted Server Adoption
 
-`veoveo_mcp_contract::hosting` hosts a server from its checked setup, a typed
-`DomainServer` and optional `TaskSupport`. The contract's
+`veoveo_mcp_contract::hosting` hosts every Rust MCP server from its checked setup, a
+typed `DomainServer` and a `TaskSupport`. The contract's
 [Hosting A Server](../mcp/contract/DESIGN.md#hosting-a-server) section is the
-procedure. `servers/duckdb-mcp` is the reference for a server with durable tasks, and
-`servers/frames-mcp` for one that also publishes resource changes. DuckDB, Timeseries,
-Frames and Media are migrated; each migration removed between 480 and 650 lines.
-`templates/rust-mcp` is the starting point for a new server. A migrated server can add
-in-process router tests through the contract crate's `testing` feature.
+procedure, and `templates/rust-mcp` is the starting point for a new server.
+`servers/duckdb-mcp` is the reference for durable tasks, `servers/frames-mcp` for
+resource changes, and `servers/computers-mcp` for a server that owns its Task
+authority. Python servers, the packaged Chart server and the modular fixture keep
+their own hosts.
 
-Migrate each group below together, then run its grouped checks once: the affected
-packages' tests and strict Clippy in one pass. Commits may stay split by server where
-that keeps them coherent. Each migration deletes the server's `impl ServerHandler`,
-`host.rs`, `internal_auth.rs`, `admin.rs`, `mcp_page` helper and identity extractors.
-Each domain read names its cache policy through `DomainRead`; reads that set a zero
-TTL today, such as knowledge-source members in Artifact, Knowledge and Reason, use
-`DomainRead::no_store`. Behavior that the host now standardizes changes deliberately:
-a missing Host authority is 400, an unparseable address is Invalid Params, and lists
-are authenticated.
+The host standardizes these behaviors across servers:
 
-| Order | Servers left | Builder extension |
-|---|---|---|
-| 1 | time, view, uav-sim, optimization | Available: prompts and completion on `DomainServer` |
-| 2 | stream, reason, speech, recording | Available: `ResourceSubscriptions` with `DurableTasks::with_resources` |
-| 3 | map, artifact, knowledge, computers | Needed first: domain hooks for dynamic `resources/list` and caller-filtered tool lists; computers and knowledge move their tools onto `#[tool_router]` |
+| Behavior | Hosted result |
+|---|---|
+| Host authority | A missing authority is 400; an authority outside the allowed hosts is 421, including on probe and server-specific routes |
+| Addresses | An unparseable resource or subscription URI is Invalid Params before domain code runs |
+| Discovery | Tool, resource and template lists require gateway authentication |
+| Probes | `{mount}/healthz` reports liveness and `{mount}/readyz` readiness. Time, Optimization, Knowledge and Computers register `readyz` as their gateway health URL and Helm readiness probe |
+| Documents | Any authenticated caller reads the well-known documents unless the domain authorizes them; Knowledge does |
 
-Add each remaining extension to the host with a test before the servers that need it
-migrate. A server-specific HTTP route uses `authenticated_routes`; a probe uses
-`readiness`. A route that verifies its own caller, such as Media's signed provider
-webhook, uses `public_routes`. A server whose integration tests include a server
-module by path keeps Store-backed authorization in a free function over typed
-addresses, as Media's `subscriptions::authorize` does.
+The following work is outstanding:
+
+| Work | Owner |
+|---|---|
+| Installed acceptance of every hosted server, GPU servers first: discovery, documents, completion, subscriptions, Tasks and probes | Composed publication |
+| Linux-only native suites: Computers `native_*`, the Map DuckDB Spatial cases, Recording live playback and catalog projection paths | Linux qualification host |
+| Typed tool dispatch for Knowledge and Computers, which register hand-written descriptors through `ToolRoute::new_dyn` and dispatch by name in one `call` | Each server |
+| Map reads, which receive a typed `MapAddress` but dispatch Store queries by the admitted URI | Map |
 
 #### Migration Inventory And Status
 
