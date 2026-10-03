@@ -11,12 +11,12 @@ use url::Url;
 use veoveo_artifact_contract::{ArtifactId, ArtifactMetadata};
 use veoveo_mcp_contract::{PutArtifactRequest, StreamArtifactRequest};
 use veoveo_platform_store::RecordingLayerId;
+use veoveo_recording_contract::RecordingProducerScope;
 use veoveo_recording_forwarder::{
     config::ClientAssertionAlgorithm,
     oauth::{OAuthTokenProvider, OAuthTokenProviderConfig},
 };
 
-const PUBLICATION_SCOPE: &str = "recording:publish";
 const MAXIMUM_PUBLICATION_SECONDS: u64 = 300;
 
 pub struct GatewayLayerPublisherConfig {
@@ -80,7 +80,7 @@ impl GatewayLayerPublisher {
             token_transport_endpoint,
             protected_resource: config.protected_resource,
             client_id: config.client_id,
-            scope: PUBLICATION_SCOPE.to_owned(),
+            scope: RecordingProducerScope::Publish,
             key_id: config.key_id,
             algorithm: config.algorithm,
             private_key_pem_file: config.private_key_pem_file,

@@ -9,6 +9,28 @@ mod second_server {
     veoveo_types::scope_enum! { pub enum Scope { Read => "second:read" } }
 }
 
+mod empty_server {
+    veoveo_types::scope_enum! { pub enum Scope {} }
+}
+
+#[test]
+fn empty_vocabulary_rejects_every_name_and_has_an_uninhabited_schema() {
+    use empty_server::Scope;
+    use veoveo_types::ScopeName;
+    assert!(Scope::ALL.is_empty());
+    for name in ["", "other:read", "two scopes", "openid"] {
+        assert!(name.parse::<Scope>().is_err());
+        assert!(serde_json::from_value::<Scope>(serde_json::json!(name)).is_err());
+    }
+    assert!(Scope::try_from(&ScopeName::new("other:read").unwrap()).is_err());
+    assert_eq!(
+        serde_json::to_value(Scope::json_schema(&mut schemars::SchemaGenerator::default()))
+            .unwrap(),
+        serde_json::json!(false)
+    );
+    assert_ne!(Scope::schema_id(), first_server::Scope::schema_id());
+}
+
 #[derive(JsonSchema, Serialize)]
 struct Combined {
     first: first_server::Scope,

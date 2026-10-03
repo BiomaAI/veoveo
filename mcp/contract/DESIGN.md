@@ -172,6 +172,9 @@ opaque `PolicyTarget::Task` identity. Both apply the same server exposure and po
 The gateway converts these targets into the [unified audit contract](../../platform/audit/contract/DESIGN.md).
 Server contracts may use the foundation's `scope_enum!` declaration helper to generate
 their scope conversions and schemas from one set of wire spellings.
+The helper also supports empty vocabularies. Generic control-plane validation checks
+scope syntax and configured grant relationships; transport adapters enforce their
+owner's required permissions before activating a Gateway catalog.
 
 Handlers, task admission, and configuration defaults share the owning definitions.
 The wire protocol still carries scope strings, and its parser validates them before

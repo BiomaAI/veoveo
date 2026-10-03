@@ -17137,8 +17137,10 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "uuid",
+ "veoveo-recording-contract",
  "veoveo-recording-protocol",
  "veoveo-rrd",
+ "veoveo-types",
 ]
 
 [[package]]

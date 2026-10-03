@@ -7,6 +7,7 @@ mod mcp_support;
 mod metadata;
 mod policy;
 mod principal_audit;
+mod recording;
 pub mod request_observation;
 pub mod secrets;
 pub mod state;

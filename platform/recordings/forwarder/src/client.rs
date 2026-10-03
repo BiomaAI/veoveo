@@ -2,8 +2,9 @@ use anyhow::{Context, Result, ensure};
 use prost::Message;
 use secrecy::ExposeSecret;
 use url::Url;
+use veoveo_recording_contract::RecordingProducerScope;
 use veoveo_recording_protocol::{
-    DISCOVERY_PATH, MEDIA_TYPE, PROTOCOL_VERSION, REQUIRED_SCOPE, STREAMS_PATH,
+    DISCOVERY_PATH, MEDIA_TYPE, PROTOCOL_VERSION, STREAMS_PATH,
     v1::{
         AppendRecordingBatchResult, FinishRecordingStreamRequest, FinishRecordingStreamResult,
         IngestError, IngestErrorCode, OpenRecordingStreamRequest, PublishRecordingBlueprintResult,
@@ -58,7 +59,7 @@ impl RecordingIngestClient {
         let discovery = RecordingIngestDiscovery::decode(response.bytes().await?)?;
         ensure!(
             discovery.protocol_version == PROTOCOL_VERSION
-                && discovery.required_scope == REQUIRED_SCOPE
+                && discovery.required_scope.parse() == Ok(RecordingProducerScope::Ingest)
                 && discovery.protected_resource == expected_protected_resource.as_str(),
             "recording ingest discovery does not match the configured protocol and resource"
         );

@@ -75,7 +75,7 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
                 token_transport_endpoint,
                 protected_resource,
                 client_id,
-                scope: "recording:ingest".to_owned(),
+                scope: veoveo_recording_contract::RecordingProducerScope::Ingest,
                 key_id,
                 algorithm,
                 private_key_pem_file,

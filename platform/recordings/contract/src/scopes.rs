@@ -4,3 +4,17 @@ veoveo_types::scope_enum! {
         Seal => "recording:seal",
     }
 }
+
+veoveo_types::scope_enum! {
+    /// Permissions for machine producers. These do not grant Recording MCP operations.
+    ///
+    /// ```compile_fail
+    /// use veoveo_recording_contract::{RecordingProducerScope, RecordingScope};
+    /// fn producer(_: RecordingProducerScope) {}
+    /// producer(RecordingScope::Seal);
+    /// ```
+    pub enum RecordingProducerScope {
+        Ingest => "recording:ingest",
+        Publish => "recording:publish",
+    }
+}

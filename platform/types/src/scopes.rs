@@ -6,6 +6,8 @@
 /// those names into the domain enum.
 /// Declared spellings must be unique OAuth scope tokens (RFC 6749 section 3.3).
 /// Invalid declarations fail compilation; dynamic names keep `ScopeName`'s lexical profile.
+/// An empty declaration represents a server with no domain scopes. It accepts no
+/// wire value and emits the JSON Schema `false` schema.
 ///
 /// ```
 /// use veoveo_types::{ScopeDefinition, scope_enum};
@@ -36,10 +38,10 @@
 #[macro_export]
 macro_rules! scope_enum {
     ($(#[$attr:meta])* $vis:vis enum $name:ident {
-        $($variant:ident => $wire:literal),+ $(,)?
+        $($variant:ident => $wire:literal),* $(,)?
     }) => {
         const _: () = {
-            let names = [$($wire),+];
+            let names: &[&str] = &[$($wire),*];
             let mut index = 0;
             while index < names.len() {
                 let bytes = names[index].as_bytes();
@@ -67,10 +69,10 @@ macro_rules! scope_enum {
         };
         $(#[$attr])*
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        $vis enum $name { $($variant),+ }
+        $vis enum $name { $($variant),* }
 
         impl $name {
-            $vis const ALL: &'static [Self] = &[$(Self::$variant),+];
+            $vis const ALL: &'static [Self] = &[$(Self::$variant),*];
         }
 
         impl $crate::ScopeDefinition for $name {
@@ -81,7 +83,7 @@ macro_rules! scope_enum {
                             ::std::sync::LazyLock::new(||
                                 $crate::ScopeName::new($wire).expect("invalid declared scope"));
                         &NAME
-                    }),+
+                    }),*
                 }
             }
         }
@@ -136,6 +138,9 @@ macro_rules! scope_enum {
                 ::std::borrow::Cow::Borrowed(concat!(module_path!(), "::", stringify!($name)))
             }
             fn json_schema(_: &mut ::schemars::SchemaGenerator) -> ::schemars::Schema {
+                if Self::ALL.is_empty() {
+                    return false.into();
+                }
                 ::schemars::json_schema!({
                     "type": "string",
                     "enum": Self::ALL.iter().map(|value|

@@ -18,9 +18,18 @@ mod tests {
     use super::*;
     #[test]
     fn map_direct_resources_preserve_parent_identity_without_mcp() {
-        use veoveo_map_mcp::contract::{FeatureLayerId, LayerPublicationId, LayerProductId, MapResource};
-        let address = MapResource::Product { layer: FeatureLayerId::new(), publication: LayerPublicationId::new(), product: LayerProductId::new() };
-        assert_eq!(MapResource::parse(address.to_uri().as_str()).unwrap(), address);
+        use veoveo_map_mcp::contract::{
+            FeatureLayerId, LayerProductId, LayerPublicationId, MapResource,
+        };
+        let address = MapResource::Product {
+            layer: FeatureLayerId::new(),
+            publication: LayerPublicationId::new(),
+            product: LayerProductId::new(),
+        };
+        assert_eq!(
+            MapResource::parse(address.to_uri().as_str()).unwrap(),
+            address
+        );
     }
     #[test]
     #[cfg(feature = "knowledge")]
@@ -72,10 +81,16 @@ mod tests {
             ExecutionId, ExecutionResultUri, RevokeAccessInput,
         };
         let computer = ComputerId::new();
-        let revoke = RevokeAccessInput { computer_id: computer, grant_id: AccessGrantId::new() };
+        let revoke = RevokeAccessInput {
+            computer_id: computer,
+            grant_id: AccessGrantId::new(),
+        };
         assert_eq!(revoke.computer_id, computer);
         let pairing = CliPairingId::new();
-        assert_eq!(pairing.to_string().parse::<CliPairingId>().unwrap(), pairing);
+        assert_eq!(
+            pairing.to_string().parse::<CliPairingId>().unwrap(),
+            pairing
+        );
         let grant = AutomationGrantId::new();
         let execution = ExecutionId::new();
         let result = ExecutionResultUri::new(execution);
@@ -95,19 +110,35 @@ mod tests {
     #[test]
     fn computer_results_share_artifact_identity_without_loading_workers() {
         use veoveo_computers_mcp::contract::{
-            ComputerId, ExecutionId, ExecutionOutput, ExecutionResult, RequestId, StartInput, TemplateId,
+            ComputerId, ExecutionId, ExecutionOutput, ExecutionResult, RequestId, StartInput,
+            TemplateId,
         };
-        let request = StartInput { request_id: RequestId::new(), grant_id: None };
-        assert_eq!(request.request_id.to_string().parse::<RequestId>().unwrap(), request.request_id);
+        let request = StartInput {
+            request_id: RequestId::new(),
+            grant_id: None,
+        };
+        assert_eq!(
+            request.request_id.to_string().parse::<RequestId>().unwrap(),
+            request.request_id
+        );
         let template: TemplateId = "development".parse().unwrap();
         assert_eq!(template.as_str(), "development");
         let stdout = ArtifactId::new();
         let execution = ExecutionId::new();
         let result = ExecutionResult::new(
-            ComputerId::new(), execution, 0,
-            ExecutionOutput { artifact_id: stdout, byte_count: 3 },
-            ExecutionOutput { artifact_id: ArtifactId::new(), byte_count: 0 },
-        ).unwrap();
+            ComputerId::new(),
+            execution,
+            0,
+            ExecutionOutput {
+                artifact_id: stdout,
+                byte_count: 3,
+            },
+            ExecutionOutput {
+                artifact_id: ArtifactId::new(),
+                byte_count: 0,
+            },
+        )
+        .unwrap();
         assert_eq!(result.stdout().artifact_id, stdout);
         assert_eq!(result.result_uri().execution_id(), execution);
     }
@@ -191,6 +222,48 @@ mod tests {
     }
 
     #[test]
+    fn all_server_scope_vocabularies_are_available_without_service_dependencies() {
+        use veoveo_types::ScopeName;
+        let external = ScopeName::new("independent:read").unwrap();
+        macro_rules! empty {
+            ($($scope:ty),+ $(,)?) => { $(
+                assert!(<$scope>::ALL.is_empty());
+                assert!(<$scope>::try_from(&external).is_err());
+            )+ };
+        }
+        empty!(
+            veoveo_artifact_mcp::contract::ArtifactScope,
+            veoveo_computers_mcp::contract::ComputerScope,
+            veoveo_speech_mcp::contract::SpeechScope,
+            veoveo_frames_mcp::contract::FramesScope,
+            veoveo_timeseries_mcp::contract::TimeseriesScope,
+            veoveo_media_mcp::contract::MediaScope,
+            veoveo_duckdb_mcp::contract::DuckDbScope,
+            veoveo_optimization_mcp::contract::OptimizationScope,
+            veoveo_stream_mcp::contract::StreamScope,
+            veoveo_reason_mcp::contract::ReasonScope,
+        );
+        macro_rules! declared {
+            ($($scope:ty),+ $(,)?) => { $(
+                assert!(!<$scope>::ALL.is_empty());
+                for scope in <$scope>::ALL {
+                    assert_eq!(scope.to_string().parse::<$scope>().unwrap(), *scope);
+                }
+                assert!(<$scope>::try_from(&external).is_err());
+            )+ };
+        }
+        declared!(
+            veoveo_map_mcp::contract::MapScope,
+            veoveo_time_mcp::contract::TimeScope,
+            veoveo_view_mcp::contract::ViewScope,
+            veoveo_uav_sim_mcp::contract::UavScope,
+            veoveo_recording_mcp::contract::RecordingScope,
+            veoveo_recording_mcp::contract::RecordingProducerScope,
+            veoveo_knowledge_mcp::contract::KnowledgeScope,
+        );
+    }
+
+    #[test]
     fn resolved_graph_contains_only_public_contracts() {
         let mut command = std::process::Command::new("timeout");
         command
@@ -235,6 +308,11 @@ mod tests {
                 "veoveo-reason-mcp",
                 "veoveo-stream-mcp",
                 "veoveo-recording-mcp",
+                "veoveo-optimization-mcp",
+                "veoveo-time-mcp",
+                "veoveo-view-mcp",
+                "veoveo-uav-sim-mcp",
+                "veoveo-knowledge-mcp",
             ]
             .contains(&name)
             {
@@ -274,6 +352,13 @@ mod tests {
                         "veoveo-reason-mcp",
                         "veoveo-stream-mcp",
                         "veoveo-recording-mcp",
+                        "veoveo-optimization-mcp",
+                        "veoveo-time-mcp",
+                        "veoveo-view-mcp",
+                        "veoveo-uav-sim-mcp",
+                        "veoveo-knowledge-mcp",
+                        "veoveo-knowledge-contract",
+                        "veoveo-embedding-contract",
                         "veoveo-recording-contract",
                         "veoveo-recording-video",
                         "veoveo-mcp-knowledge-extension",

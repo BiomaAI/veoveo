@@ -130,6 +130,9 @@ Its parser, serializer, schema, display, and `ScopeDefinition` implementation us
 same declaration. Duplicate spellings and values outside the OAuth scope-token grammar
 fail compilation. Consumers need Serde and Schemars. A domain may also
 implement the public trait directly.
+Empty declarations produce uninhabited enums, reject every parsed name, and emit
+the JSON Schema `false` schema. Servers expose the generated `ALL` slice to checked
+MCP setup, including when they declare no domain permissions.
 Schema identities include the declaring module, so independently owned enums with
 the same Rust name keep distinct definitions in a combined schema.
 

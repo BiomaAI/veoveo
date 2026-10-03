@@ -31,7 +31,7 @@ impl McpServerContract for StreamContract {
         uris::SCHEME.clone()
     }
     fn scopes() -> &'static [StreamScope] {
-        &[]
+        StreamScope::ALL
     }
     fn documents() -> &'static ServerDocs {
         &SERVER_DOCS

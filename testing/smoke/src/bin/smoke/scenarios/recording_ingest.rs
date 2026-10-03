@@ -152,7 +152,7 @@ pub(crate) async fn recording_ingest(
                 token_transport_endpoint,
                 protected_resource: token_resource,
                 client_id: "smoke-recording-producer".to_owned(),
-                scope: "recording:ingest".to_owned(),
+                scope: veoveo_recording_contract::RecordingProducerScope::Ingest,
                 key_id: "test-key".to_owned(),
                 algorithm: ClientAssertionAlgorithm::Rs256,
                 private_key_pem_file: token_key,

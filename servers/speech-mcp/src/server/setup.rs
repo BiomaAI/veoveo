@@ -25,7 +25,7 @@ impl McpServerContract for SpeechContract {
         veoveo_speech_contract::ARTIFACT_SCHEME.clone()
     }
     fn scopes() -> &'static [SpeechScope] {
-        &[]
+        SpeechScope::ALL
     }
     fn documents() -> &'static ServerDocs {
         &SERVER_DOCS

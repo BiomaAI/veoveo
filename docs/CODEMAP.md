@@ -633,6 +633,7 @@ Task state lives in this runtime. RMCP defines the Tasks wire types.
 | Path | Responsibility |
 |---|---|
 | `catalog.rs` | validated active catalog and profile/server lookup |
+| `recording.rs` | Recording adapter's producer-scope admission before catalog activation; consumes the owner's contract without adding a domain dependency to MCP core |
 | `control_store.rs` and `control_store/audit.rs` | immutable SurrealDB control revisions, compare-and-set activation, and transactional Work Context change records |
 | `auth/` | access tokens, OIDC, ID-JAG, client assertions, immutable principals, and independently typed OIDC display labels |
 | `policy.rs` | gateway catalog adapter for the shared evaluator in `platform/policy` |
@@ -1184,7 +1185,8 @@ Simulation live-view ownership:
 
 [`DESIGN.md`](../platform/recordings/contract/DESIGN.md) defines Recording’s shared
 IDs, resource addresses, catalog continuations and public models. `scopes.rs` owns
-the typed sealing permission shared by runtime admission and MCP setup. `ids.rs`,
+the typed sealing permission shared by runtime admission and MCP setup, and the
+separate ingest/publication permissions used by machine producers. `ids.rs`,
 `resources.rs`, `cursor.rs` and `uris.rs` own admission and construction; `catalog.rs`
 owns grants. `views.rs`, `layers.rs` and `sealing.rs` own immutable public metadata
 with checked Artifact references, integrity digests and lifecycle relationships.

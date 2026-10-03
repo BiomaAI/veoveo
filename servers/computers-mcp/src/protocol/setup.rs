@@ -26,7 +26,7 @@ impl McpServerContract for ComputersContract {
         ResourceScheme::new("computer").expect("declared resource scheme")
     }
     fn scopes() -> &'static [Self::Scope] {
-        &[]
+        Self::Scope::ALL
     }
     fn documents() -> &'static ServerDocs {
         &SERVER_DOCS

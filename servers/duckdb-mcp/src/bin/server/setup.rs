@@ -31,7 +31,7 @@ impl McpServerContract for DuckDbContract {
         uris::SCHEME.clone()
     }
     fn scopes() -> &'static [DuckDbScope] {
-        &[]
+        DuckDbScope::ALL
     }
     fn documents() -> &'static ServerDocs {
         &SERVER_DOCS

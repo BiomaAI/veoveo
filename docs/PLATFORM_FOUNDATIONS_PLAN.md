@@ -4,13 +4,42 @@ Status: Phase 0 is accepted. Phases 1–3 have the installed gaps listed under
 Deferred Work and the remaining type work in the Phase 3 migration inventory.
 Phase 4's installed audit checks pass. Composed flight domain checks pass at
 `eeaa8442`, including Recording replay and grounded Reason. Final acceptance remains
-open for Stream App startup and composed visual/playback
-checks. Phase 5's native consumer migration,
+open for Rerun timeline/playback and landing visual checks. Stream App startup and
+its headed capture pass at `bf0fe31d`. Phase 5's native consumer migration,
 writer/schema removal and private payload separation pass. Its published deployment
 passes installed certification, Artifact byte delivery, Speech CUDA, Recording replay,
 Reason grounding and Stream inference. Stream Task/result delivery now passes across
 installed replicas. Live-session notifications pass through the public Gateway; the
 remaining domain gates are open.
+
+Scope adoption batch (2026-10-03): all sixteen Rust MCP server libraries use
+owner-local `scope_enum!` declarations, including empty vocabularies. Checked setup
+reads the declaration's `ALL` slice. Empty vocabularies reject every name and expose
+an uninhabited schema. Recording owns a separate producer enum for ingest and
+publication; its OAuth client keeps that type until wire serialization. Hub checks
+the same ingest permission. Gateway composes the owner's required-permission check
+when constructing, publishing and loading a catalog; MCP core contains no Recording
+scope spelling or new domain dependency. The independent consumer now imports all sixteen server contracts.
+The shared contracts pass 112 native checks, and the independent consumer passes
+nine default-profile and ten knowledge-profile checks. The five-package native batch
+passes 444 checks with one measurement ignored; its environment-gated control-store
+integration case performs no work without explicit opt-in. After the persistence
+admission change, all 117 Gateway library checks pass, including a disposable-Store
+regression proving denied producer scopes write no revision or active pointer.
+Strict workspace Clippy passes across all targets and features, and documentation
+links pass. Publication and installed producer acceptance remain open; the cluster
+and BuildKit stay stopped during development.
+
+Flight batch checkpoint (2026-10-03): `bf0fe31d` converges to the selected 24 ready
+deployments with Reason, Knowledge and embedding stopped. Stream App capture and
+Recording replay pass. Rerun connects and receives 58 frames, but the failing visual
+checkpoint has no timeline name or time updates. Its capture acknowledgement fails,
+owned cleanup lands the aircraft, and the cluster stops. Both composed phases report
+failed, with Reason explicitly `not_run`. The observer records 997 samples over
+501.68 seconds with no read failures. The viewer or harness cause is unresolved;
+resume its diagnosis after the grouped contract work. This deferral preserves the
+playback, camera freshness, spatial-content and headed hardware requirements.
+Artifacts are under the resource batch's `flight-batch/` directory.
 
 Reference resource decision (2026-10-02): the user permits separate service batches
 and explicitly leaves Reason off. Reason implementation, source conformance and GPU
@@ -3436,7 +3465,7 @@ invariants are checked. Record remaining adoption explicitly in the inventory be
 
 #### Migration Inventory And Status
 
-All 15 Rust MCP server packages under `servers/` have library targets and define the
+All sixteen Rust MCP server packages under `servers/` have library targets and define the
 `contract` feature. Independent consumer qualification is recorded in each owning row.
 Artifact, Computers and Speech also pass one separately resolved consumer and grouped
 native default-feature tests; their runtime-only libraries compile. Existing libraries remain the
@@ -3446,7 +3475,7 @@ default owner; the inventory must not become a central domain-type registry.
 |---|---|---|
 | Foundational primitives | `ScopeName`, `ResourceScheme`, `ResourceUri`, and `IdentifierError` are extracted into `platform/types`; direct callers use that crate. `ResourceUri` validates concrete RFC 3986 references through the existing URI library and returns redacted `ResourceUriError`; templates use `ResourceTemplateUri`. Generic references preserve network resource URLs with ports, while domain routes apply the stricter component profile. Native shared/server contract, independent consumer and Gateway tests and workspace-wide all-target strict Clippy pass. The 26-image release converges at `dc9cbf6f`; 91 public URI checks, Knowledge source-linked retrieval, Artifact delivery and Stream live GPU notifications pass | Complete the owner-specific builders and relationship admission listed below |
 | Independent extension traits | `ScopeDefinition`, `ResourceAddress` and `TaskResourceAddress` are public and contain no domain variants; `McpServerContract` associates server-owned types with descriptors and documents. Artifact, Computers, Speech, Frames, Timeseries, Media, Time, UAV, Reason, DuckDB, Optimization, Recording, View, Stream and Map consume checked setup. The independently owned fixture passes hosted conformance, typed access/denial and contract-only consumption. Map's installed discovery and change/restart checks pass. Python defines nominal foundational types and open generic MCP associations; Datasheet consumes checked setup and the independent owner fixture passes | Preserve domain-owned authorization and complete the remaining owner-specific type gaps |
-| Scope declarations | `scope_enum!` generates conversions and schemas from server-owned spellings, with compile-time rejection of invalid or duplicate declarations | Adopt it across server libraries while keeping each domain's vocabulary local |
+| Scope declarations | Every Rust server contract uses `scope_enum!`, including uninhabited empty vocabularies; checked setup consumes its `ALL` slice. Nonempty declarations reject invalid or duplicate spellings at compilation. Recording producer permissions also remain owner-local and typed through OAuth requests, discovery and Hub admission. The independent consumer covers all sixteen server libraries | Qualify installed producer admission with the next composed publication; wider field relationships remain in their owner rows |
 | Resolved invocation authority | Capability and Work Context membership levels, invocation authority and output defaults belong to `veoveo-types`; callers import them directly. Five schemas, serialized authority bytes, nested identity admission and level ordering pass native and independent-consumer checks. MCP retains configuration and membership matching | Preserve complete authority when extracting domain contracts; qualify installed policy and composition consumers |
 | Concrete URI components | `ResourceUriParts` validates the concrete profile with URL 2.5.8; `ResourceUriBuilder`, `UriAuthority`, and percent-encoding 2.3.2 encode typed scheme/authority and path/query components, preserve segment identity, and reject duplicate query names | Adopt through domain constructors with specific ID types; qualify each family's spelling and parameters |
 | HTTPS network addresses | `HttpsUrl` owns canonical ASCII HTTPS syntax, immutable parsed access and redacted diagnostics. Source URLs retain signed query bytes and permit nondefault ports and repeated query names. DuckDB, Map and Timeseries preserve the type into the shared download runtime; host/DNS/redirect policy still controls access | Adopt this profile where other domain contracts require HTTPS; qualify installed source consumers |
@@ -3520,7 +3549,7 @@ Foundation tests cover wire strings, schema descriptions, lexical rejection, ind
 trait implementations, and compile-fail examples. A separately resolved consumer builds
 without MCP, runtime, database, GPU, or provider dependencies. The shared MCP contract,
 policy, and gateway library suites pass, as does strict workspace Clippy across all
-targets and features. These checks qualify the extraction. All 15 Rust server packages
+targets and features. These checks qualify the extraction. All sixteen Rust server packages
 expose isolated contract features. Datasheet consumes Python checked setup and passes
 installed hosted and documentation-source qualification. Remaining domain builders and
 field-relationship checks are tracked in the owner rows above.
@@ -4873,4 +4902,4 @@ not complete while a row remains.
 
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
-| Phase 1 reference reset | `testing/flight-smoke/src/domain.rs` | Finish composed visual/timing acceptance after qualifying the Stream App startup and capture-acknowledgement corrections | At `9d7d0b6a`, re-arm, takeoff, Map handoff, mission and replay pass. The Stream App race prevents its visual capture; Reason lacks GPU memory. Maximum observed render cycle is 757.72 ms, but final playback and landing camera checks are unreached. Preserve freshness, spatial-content, flight-health and hardware requirements during the repeat |
+| Phase 1 reference reset | `testing/flight-smoke/src/domain.rs` | Diagnose Rerun timeline initialization and finish composed playback/timing and landing visual acceptance | At `bf0fe31d`, the selected 24-service batch passes Stream App capture and Recording replay. Rerun receives frames but has no healthy timeline at the failing checkpoint; the capture acknowledgement correctly fails and cleanup lands the aircraft. Continue independent contract work before repeating this gate. Preserve freshness, spatial-content, flight-health and hardware requirements; Reason stays in its separate acceptance batch |

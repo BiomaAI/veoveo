@@ -11,7 +11,6 @@ pub mod v1 {
 }
 
 pub const PROTOCOL_VERSION: &str = "2026-09-23";
-pub const REQUIRED_SCOPE: &str = "recording:ingest";
 pub const DEFAULT_MAXIMUM_BATCH_BYTES: u64 = 8 * 1024 * 1024;
 pub const DEFAULT_MAXIMUM_BLUEPRINT_BYTES: u64 = 2 * 1024 * 1024;
 pub const DEFAULT_MAXIMUM_BLUEPRINT_MESSAGES: u64 = 10_000;

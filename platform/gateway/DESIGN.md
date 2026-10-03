@@ -171,6 +171,13 @@ readback through the public gateway before configuring a simulator.
 
 ## Audit And Catalog Cache
 
+Catalog admission composes generic MCP configuration checks with the Recording
+adapter's producer-scope check in `src/recording.rs`. Catalog construction, revision
+publication and stored-revision loading use that same admission. The adapter imports Recording's
+contract-only library and requires its `Ingest` permission. Additional installation
+scopes stay in the configured set and are enforced by policy. Generic MCP contracts
+own no Recording scope spelling and require no domain library dependency.
+
 Console's native inventory stream retains prior rows for tenant-scoped deletions of
 principals, Tasks, Artifact blobs/occurrences/access requests, agents, wakes and
 Recordings/layers. Grant and share deletions resolve their parent through the admitted

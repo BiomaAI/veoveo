@@ -400,7 +400,6 @@ impl GatewayControlPlane {
 
         let mut recording_ingest_resources = BTreeMap::new();
         let mut recording_producers = BTreeSet::new();
-        let recording_scope = ScopeName::new("recording:ingest").expect("valid recording scope");
         for resource in &self.recording_ingest_resources {
             if recording_ingest_resources
                 .insert(resource.id.clone(), resource)
@@ -436,10 +435,10 @@ impl GatewayControlPlane {
                     reason: "maximum_batch_bytes must be positive".to_owned(),
                 });
             }
-            if !resource.required_scopes.contains(&recording_scope) {
+            if resource.required_scopes.is_empty() {
                 return Err(GatewayControlPlaneError::InvalidRecordingIngestResource {
                     resource: resource.id.clone(),
-                    reason: "required_scopes must contain recording:ingest".to_owned(),
+                    reason: "required_scopes must not be empty".to_owned(),
                 });
             }
             if resource.upstream.security != UpstreamTransportSecurity::ClusterInternalHttp

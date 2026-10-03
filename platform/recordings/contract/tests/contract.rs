@@ -25,6 +25,37 @@ const DATASET: &str = "0197f78e-f2f0-7a6e-8a5d-f41c691e4471";
 const RECORDING: &str = "0197f78e-f2f0-7a6e-8a5d-f41c691e4472";
 
 #[test]
+fn producer_permissions_are_distinct_from_sealing_and_match_the_wire_profile() {
+    use veoveo_recording_contract::{RecordingProducerScope, RecordingScope};
+    use veoveo_types::ScopeDefinition;
+    for (scope, name) in [
+        (RecordingProducerScope::Ingest, "recording:ingest"),
+        (RecordingProducerScope::Publish, "recording:publish"),
+    ] {
+        assert_eq!(scope.name().as_str(), name);
+        assert_eq!(name.parse(), Ok(scope));
+        assert_eq!(serde_json::to_value(scope).unwrap(), json!(name));
+        assert_eq!(
+            serde_json::from_value::<RecordingProducerScope>(json!(name)).unwrap(),
+            scope
+        );
+        assert!(RecordingScope::try_from(scope.name()).is_err());
+    }
+    for name in [
+        "recording:seal",
+        "admin:manage",
+        "recording:Ingest",
+        "recording:ingest recording:publish",
+    ] {
+        assert!(name.parse::<RecordingProducerScope>().is_err());
+    }
+    assert_eq!(
+        serde_json::to_value(schemars::schema_for!(RecordingProducerScope)).unwrap()["enum"],
+        json!(["recording:ingest", "recording:publish"])
+    );
+}
+
+#[test]
 fn sealing_permission_is_an_owner_type_with_one_wire_spelling() {
     use veoveo_recording_contract::RecordingScope;
     use veoveo_types::{ScopeDefinition, ScopeName};

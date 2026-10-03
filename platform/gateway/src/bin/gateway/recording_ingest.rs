@@ -23,8 +23,9 @@ use veoveo_mcp_contract::{
 use veoveo_mcp_gateway::{
     AuthenticatedSubject, BearerToken, JwtAuthConfig, JwtVerifier, RecordingIngestPolicyRequest,
 };
+use veoveo_recording_mcp::contract::RecordingProducerScope;
 use veoveo_recording_protocol::{
-    DISCOVERY_PATH, MEDIA_TYPE, PROTOCOL_VERSION, REQUIRED_SCOPE, STREAMS_PATH,
+    DISCOVERY_PATH, MEDIA_TYPE, PROTOCOL_VERSION, STREAMS_PATH,
     v1::{
         AuthorizedFinishRecordingStreamRequest, AuthorizedOpenRecordingStreamRequest,
         AuthorizedRecordingBatchRequest, AuthorizedRecordingBlueprintRequest,
@@ -99,7 +100,7 @@ async fn discovery(State(state): State<RecordingIngestGatewayState>) -> Response
             protocol_version: PROTOCOL_VERSION.to_owned(),
             protected_resource: resource.protected_resource.to_string(),
             authorization_server: authorization_server.issuer.to_string(),
-            required_scope: REQUIRED_SCOPE.to_owned(),
+            required_scope: RecordingProducerScope::Ingest.to_string(),
             streams_endpoint: format!(
                 "{}{}",
                 state.public_base_url.trim_end_matches('/'),

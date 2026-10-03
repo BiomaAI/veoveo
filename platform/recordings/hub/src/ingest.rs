@@ -26,14 +26,16 @@ use veoveo_platform_store::{
     RecordingLayerKind, RecordingLayerRecord, RecordingLayerState, RecordingState, StoreError,
     TenantId,
 };
+use veoveo_recording_contract::RecordingProducerScope;
 use veoveo_recording_protocol::{
-    BatchValidationError, DEFAULT_MAXIMUM_BATCH_BYTES, REQUIRED_SCOPE,
+    BatchValidationError, DEFAULT_MAXIMUM_BATCH_BYTES,
     v1::{
         AppendRecordingBatchResult, AuthorizedRecordingProducer, PublishRecordingBlueprintResult,
         RecordingBatch, RecordingBlueprint, RecordingStream, RecordingStreamFinishMode,
         RecordingStreamState, RerunPayloadFormat,
     },
 };
+use veoveo_types::ScopeDefinition;
 
 use crate::diagnostics::IngestDiagnostics;
 use crate::governance::{governed_classification, governed_labels};
@@ -898,8 +900,7 @@ impl RecordingIngestService {
             gateway
                 .actor
                 .scopes
-                .iter()
-                .any(|scope| scope.as_str() == REQUIRED_SCOPE),
+                .contains(RecordingProducerScope::Ingest.name()),
             "recording ingest scope is missing"
         );
         validate_producer(producer)?;

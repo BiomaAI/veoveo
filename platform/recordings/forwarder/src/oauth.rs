@@ -7,6 +7,8 @@ use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use url::Url;
+use veoveo_recording_contract::RecordingProducerScope;
+use veoveo_types::ScopeDefinition;
 
 use crate::config::ClientAssertionAlgorithm;
 
@@ -42,7 +44,7 @@ pub struct OAuthTokenProvider {
     token_transport_endpoint: Url,
     protected_resource: Url,
     client_id: String,
-    scope: String,
+    scope: RecordingProducerScope,
     key_id: String,
     algorithm: Algorithm,
     encoding_key: Arc<EncodingKey>,
@@ -60,7 +62,7 @@ pub struct OAuthTokenProviderConfig {
     pub token_transport_endpoint: Url,
     pub protected_resource: Url,
     pub client_id: String,
-    pub scope: String,
+    pub scope: RecordingProducerScope,
     pub key_id: String,
     pub algorithm: ClientAssertionAlgorithm,
     pub private_key_pem_file: PathBuf,
@@ -85,8 +87,8 @@ impl OAuthTokenProvider {
             "OAuth token transport endpoint must use HTTP(S)"
         );
         ensure!(
-            !config.client_id.trim().is_empty() && !config.scope.trim().is_empty(),
-            "OAuth client ID and scope must not be empty"
+            !config.client_id.trim().is_empty(),
+            "OAuth client ID must not be empty"
         );
         let pem = std::fs::read(&config.private_key_pem_file).with_context(|| {
             format!(
@@ -145,7 +147,7 @@ impl OAuthTokenProvider {
                 ("client_id", self.client_id.as_str()),
                 ("client_assertion_type", CLIENT_ASSERTION_TYPE),
                 ("client_assertion", assertion.as_str()),
-                ("scope", self.scope.as_str()),
+                ("scope", self.scope.name().as_str()),
                 ("resource", self.protected_resource.as_str()),
             ])
             .send()

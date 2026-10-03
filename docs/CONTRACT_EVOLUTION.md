@@ -423,6 +423,10 @@ Scope mapping has one declared wire spelling per variant. Generic policy accepts
 validated names because an installation may introduce scopes unknown to core. Domain
 authorization helpers accept the owning enum. A caller's grants remain a set of
 validated names; unrelated scopes do not need conversion into a server's closed enum.
+Recording's producer adapter imports its owner's scope enum for ingest and publication.
+The Gateway composes that adapter's required-permission admission when constructing,
+publishing or loading its catalog. MCP core validates configuration structure and
+grant relationships without owning the producer vocabulary.
 Resource variants carry their specific ID and query types. Domain builders select
 route shapes, while a maintained URI library handles component encoding and parsing.
 Builders validate field combinations before exposing usable values. Authorization

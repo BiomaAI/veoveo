@@ -14,7 +14,7 @@ pub use ids::{
 };
 pub use redap::{PlaybackArchiveUri, RecordingCatalogUri, RecordingRedapOrigin};
 pub use resources::{RecordingDocument, RecordingLayersUri, RecordingResource, RecordingUri};
-pub use scopes::RecordingScope;
+pub use scopes::{RecordingProducerScope, RecordingScope};
 
 mod playback;
 pub use playback::{

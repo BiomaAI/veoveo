@@ -19,6 +19,10 @@ The OAuth protected resource is installation-specific. A representative installa
 `https://platform.example/ingest/recordings` and the `recording:ingest` scope. Public and
 split-horizon local DNS select different network routes to the same gateway resource.
 Network location never changes producer authority.
+The Recording domain contract owns the producer scope enum shared by the forwarder,
+Hub and Gateway adapter. The OAuth client accepts that enum and serializes its name
+in the token request. Gateway checks the configured ingest permission before catalog
+activation, and Hub checks the same permission in the authenticated internal identity.
 
 ## Protocol
 

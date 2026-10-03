@@ -58,7 +58,7 @@ pub(crate) async fn recording_fixture_finish(
                 token_transport_endpoint,
                 protected_resource: resource.clone(),
                 client_id,
-                scope: "recording:ingest".to_owned(),
+                scope: veoveo_recording_contract::RecordingProducerScope::Ingest,
                 key_id,
                 algorithm: ClientAssertionAlgorithm::Rs256,
                 private_key_pem_file: key.path().to_owned(),

@@ -25,6 +25,13 @@ use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel};
 use crate::policy::{exposure_contains, resource_scheme};
 use crate::{AuthenticatedSubject, VerifiedAccessToken};
 
+pub(crate) fn validate_control_plane(
+    control_plane: &GatewayControlPlane,
+) -> Result<(), veoveo_mcp_contract::GatewayControlPlaneError> {
+    control_plane.validate()?;
+    crate::recording::validate_ingest_scopes(control_plane)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GatewayAuthorityError {
     UnknownOAuthClient(OAuthClientId),
@@ -176,7 +183,7 @@ impl GatewayCatalog {
         let mut document = serde_json::to_value(control_plane)?;
         document.sort_all_objects();
         let control_plane: GatewayControlPlane = serde_json::from_value(document)?;
-        control_plane.validate()?;
+        validate_control_plane(&control_plane)?;
         let configuration_sha256 = Sha256::digest(serde_json::to_vec(&control_plane)?).into();
 
         let identity_providers = control_plane

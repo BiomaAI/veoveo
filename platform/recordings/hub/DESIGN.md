@@ -16,6 +16,9 @@ public Recording URI returned by ingest. Store IDs convert to its checked RFC UU
 identity before the shared builder emits the protobuf string. Hub has no dependency
 on the Recording MCP server. The domain crate also supplies the MCP server’s public
 contract, keeping producer and reader address admission identical.
+Hub also consumes its `RecordingProducerScope`: ingest checks the caller's granted
+names against `Ingest`, and Artifact publication requests `Publish` through the
+typed producer OAuth client. MCP sealing uses the separate `RecordingScope` enum.
 
 ## Archive Materialization
 

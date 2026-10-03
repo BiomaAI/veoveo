@@ -38,6 +38,8 @@ tracing-subscriber.workspace = true
 url.workspace = true
 uuid.workspace = true
 veoveo-recording-protocol.workspace = true
+veoveo-recording-contract.workspace = true
+veoveo-types.workspace = true
 veoveo-rrd.workspace = true
 
 [dev-dependencies]

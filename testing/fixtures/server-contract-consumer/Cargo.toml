@@ -8,10 +8,18 @@ publish = false
 resolver = "3"
 
 [features]
-knowledge = ["veoveo-map-mcp/knowledge", "dep:veoveo-reason-mcp"]
+knowledge = ["veoveo-map-mcp/knowledge", "veoveo-reason-mcp/knowledge"]
 
 [dependencies]
-veoveo-reason-mcp = { path = "../../../servers/reason-mcp", default-features = false, features = ["knowledge"], optional = true }
+veoveo-reason-mcp = { path = "../../../servers/reason-mcp", default-features = false, features = ["contract"] }
+veoveo-stream-mcp = { path = "../../../servers/stream-mcp", default-features = false, features = ["contract"] }
+veoveo-duckdb-mcp = { path = "../../../servers/duckdb-mcp", default-features = false, features = ["contract"] }
+veoveo-optimization-mcp = { path = "../../../servers/optimization-mcp", default-features = false, features = ["contract"] }
+veoveo-time-mcp = { path = "../../../servers/time-mcp", default-features = false, features = ["contract"] }
+veoveo-view-mcp = { path = "../../../servers/view-mcp", default-features = false, features = ["contract"] }
+veoveo-uav-sim-mcp = { path = "../../../servers/uav-sim-mcp", default-features = false, features = ["contract"] }
+veoveo-recording-mcp = { path = "../../../servers/recording-mcp", default-features = false, features = ["contract"] }
+veoveo-knowledge-mcp = { path = "../../../servers/knowledge-mcp", default-features = false, features = ["contract"] }
 veoveo-map-mcp = { path = "../../../servers/map-mcp", default-features = false, features = ["contract"] }
 veoveo-artifact-mcp = { path = "../../../servers/artifact-mcp", default-features = false, features = ["contract"] }
 veoveo-computers-mcp = { path = "../../../servers/computers-mcp", default-features = false, features = ["contract"] }

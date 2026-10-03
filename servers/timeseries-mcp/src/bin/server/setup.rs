@@ -99,7 +99,7 @@ impl McpServerContract for TimeseriesContract {
         uris::SCHEME.clone()
     }
     fn scopes() -> &'static [Self::Scope] {
-        &[]
+        Self::Scope::ALL
     }
     fn documents() -> &'static ServerDocs {
         &SERVER_DOCS

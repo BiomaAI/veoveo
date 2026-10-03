@@ -31,7 +31,7 @@ impl McpServerContract for ReasonContract {
         uris::SCHEME.clone()
     }
     fn scopes() -> &'static [ReasonScope] {
-        &[]
+        ReasonScope::ALL
     }
     fn documents() -> &'static ServerDocs {
         &SERVER_DOCS

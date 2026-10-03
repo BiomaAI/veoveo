@@ -34,7 +34,7 @@ impl McpServerContract for OptimizationContract {
         uris::SCHEME.clone()
     }
     fn scopes() -> &'static [OptimizationScope] {
-        &[]
+        OptimizationScope::ALL
     }
     fn documents() -> &'static ServerDocs {
         &SERVER_DOCS

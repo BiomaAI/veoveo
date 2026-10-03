@@ -31,7 +31,7 @@ impl McpServerContract for ArtifactContract {
         ResourceScheme::new("artifact").expect("declared scheme")
     }
     fn scopes() -> &'static [ArtifactScope] {
-        &[]
+        ArtifactScope::ALL
     }
     fn documents() -> &'static ServerDocs {
         &SERVER_DOCS

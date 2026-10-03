@@ -2,8 +2,8 @@
 
 ## Standards And Protocols
 
-Cargo resolver 3 selects Artifact, Computers, Speech, Frames, Timeseries, Media and Map libraries with default
-features disabled and `contract` enabled. The fixture calls their public Rust APIs;
+Cargo resolver 3 selects all sixteen Rust MCP server libraries under `servers/` with
+default features disabled and `contract` enabled. The fixture calls their public Rust APIs;
 it implements no transport or installed service protocol.
 Its `knowledge` feature also consumes Map and Reason collection descriptors through
 their lightweight knowledge features.
@@ -16,6 +16,8 @@ Artifact MCP library, constructs Computers identities and resource addresses, an
 Timeseries resource addresses from their owner types. Map callers construct direct addresses with typed parent and member identities. Media consumers construct model
 requests and Artifact addresses through the same isolated contract. Its graph test
 rejects Veoveo implementation crates, RMCP, databases and asynchronous runtimes.
+Scope checks consume every library's declaration, reject foreign names, and round-trip
+all nonempty vocabularies. Recording producer permissions remain distinct from sealing.
 
 Run the isolated checks with one shared build directory:
 

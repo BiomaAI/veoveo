@@ -314,6 +314,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "glam"
+version = "0.33.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c426daf70099baff33fac0ba85151c42424861c56828cef9ba02dacb78eb6b26"
+dependencies = [
+ "serde_core",
+]
+
+[[package]]
 name = "hash32"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1158,6 +1167,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-embedding-contract"
+version = "0.1.0"
+dependencies = [
+ "schemars",
+ "serde",
+ "veoveo-types",
+]
+
+[[package]]
 name = "veoveo-frames-contract"
 version = "0.1.0"
 dependencies = [
@@ -1181,6 +1199,34 @@ dependencies = [
  "serde_json",
  "veoveo-artifact-contract",
  "veoveo-frames-contract",
+ "veoveo-types",
+]
+
+[[package]]
+name = "veoveo-knowledge-contract"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sha2",
+ "uuid",
+ "veoveo-embedding-contract",
+ "veoveo-mcp-knowledge-extension",
+ "veoveo-types",
+]
+
+[[package]]
+name = "veoveo-knowledge-mcp"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "schemars",
+ "serde",
+ "veoveo-embedding-contract",
+ "veoveo-knowledge-contract",
+ "veoveo-mcp-knowledge-extension",
  "veoveo-types",
 ]
 
@@ -1226,6 +1272,22 @@ dependencies = [
  "serde_json",
  "uuid",
  "veoveo-artifact-contract",
+ "veoveo-types",
+]
+
+[[package]]
+name = "veoveo-optimization-mcp"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "chrono",
+ "schemars",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "uuid",
+ "veoveo-artifact-contract",
+ "veoveo-map-mcp",
  "veoveo-types",
 ]
 
@@ -1291,13 +1353,21 @@ version = "0.1.0"
 dependencies = [
  "veoveo-artifact-mcp",
  "veoveo-computers-mcp",
+ "veoveo-duckdb-mcp",
  "veoveo-frames-mcp",
+ "veoveo-knowledge-mcp",
  "veoveo-map-mcp",
  "veoveo-media-mcp",
+ "veoveo-optimization-mcp",
  "veoveo-reason-mcp",
+ "veoveo-recording-mcp",
  "veoveo-speech-mcp",
+ "veoveo-stream-mcp",
+ "veoveo-time-mcp",
  "veoveo-timeseries-mcp",
  "veoveo-types",
+ "veoveo-uav-sim-mcp",
+ "veoveo-view-mcp",
 ]
 
 [[package]]
@@ -1337,6 +1407,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-time-mcp"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "hex",
+ "schemars",
+ "serde",
+ "serde_json",
+ "veoveo-mcp-knowledge-extension",
+ "veoveo-types",
+]
+
+[[package]]
 name = "veoveo-timeseries-mcp"
 version = "0.1.0"
 dependencies = [
@@ -1361,6 +1444,43 @@ dependencies = [
  "serde",
  "url",
  "uuid",
+]
+
+[[package]]
+name = "veoveo-uav-sim-mcp"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "hex",
+ "schemars",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "url",
+ "veoveo-frames-mcp",
+ "veoveo-map-mcp",
+ "veoveo-recording-contract",
+ "veoveo-types",
+]
+
+[[package]]
+name = "veoveo-view-mcp"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "glam",
+ "hex",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
+ "uuid",
+ "veoveo-artifact-contract",
+ "veoveo-frames-mcp",
+ "veoveo-map-mcp",
+ "veoveo-recording-contract",
+ "veoveo-types",
 ]
 
 [[package]]
