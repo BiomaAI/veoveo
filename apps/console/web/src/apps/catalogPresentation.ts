@@ -1,4 +1,21 @@
-import type { AppCatalogDegradation, AppDescriptor } from "../types";
+import type { AppCatalog, AppCatalogDegradation, AppDescriptor } from "../types";
+
+/** Preserve an open document during partial discovery, without caching admission. */
+export function selectMountedApp(
+  selectedUri: string | undefined,
+  catalog: AppCatalog | undefined,
+  mounted: AppDescriptor | undefined,
+): AppDescriptor | undefined {
+  if (!selectedUri || !catalog) return undefined;
+  const current = catalog.apps.find(app => app.resourceUri === selectedUri);
+  if (!mounted || mounted.resourceUri !== selectedUri) return current;
+  const incomplete = catalog.degradations.filter(failure => failure.server === mounted.server);
+  const resourcesIncomplete = incomplete.some(failure => failure.surface === "resources");
+  // A complete resource list may remove an App independently of tool discovery.
+  if (!current && !resourcesIncomplete) return undefined;
+  if (resourcesIncomplete || incomplete.some(failure => failure.surface === "tools")) return mounted;
+  return current;
+}
 
 export interface AppServerGroup {
   server: string;

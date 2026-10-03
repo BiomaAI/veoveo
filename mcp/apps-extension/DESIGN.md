@@ -165,6 +165,12 @@ The hosting core (gateway + console BFF + console web) stays fully generic:
   Console catalog updates with unchanged descriptor values preserve the iframe and
   bridge. Theme changes travel through `ui/notifications/host-context-changed`;
   link callbacks use the current shell navigation without replacing the bridge.
+  An open App keeps its last complete descriptor while that server's resource or
+  tool discovery reports pending or unavailable. A complete resource list that
+  omits the App closes its frame, even if tool discovery is incomplete. Navigating
+  away or clearing the caller's catalog also discards the retained descriptor.
+  This preserves document state across server restarts; every operation still uses
+  the BFF's current App admission and gateway policy.
   A changed descriptor replaces both the document and bridge, so a newly admitted
   resource or tool set starts with a fresh handshake and subscriptions.
 - **Tasks** — task-based tools stay task-based inside apps. A view may send

@@ -5,9 +5,30 @@ import {
   appServerTitle,
   groupAppsByServer,
   namespacedAppTitle,
+  selectMountedApp,
   unavailableAppServers,
 } from "./apps/catalogPresentation.ts";
 import type { AppCatalogDegradation, AppDescriptor } from "./types.ts";
+
+test("only incomplete discovery of the selected App preserves its mounted descriptor", () => {
+  const mounted: AppDescriptor = {
+    server: "map", resourceUri: "ui://map/workspace.html", standalonePath: "/apps/map/workspace",
+    name: "Map Explorer", tools: [], resourceDependencies: [], toolDependencies: [], agentMessageTargets: [],
+  };
+  const changed = { ...mounted, title: "Updated App" };
+  const pending: AppCatalogDegradation = { server: "map", surface: "resources", code: "discovery_pending" };
+  const uri = mounted.resourceUri;
+  assert.equal(selectMountedApp(uri, { apps: [], degradations: [pending] }, mounted), mounted);
+  assert.equal(selectMountedApp(uri, { apps: [changed], degradations: [{ ...pending, surface: "tools" }] }, mounted), mounted);
+  assert.equal(selectMountedApp(uri, { apps: [changed], degradations: [] }, mounted), changed);
+  assert.equal(selectMountedApp(uri, { apps: [], degradations: [] }, mounted), undefined);
+  assert.equal(selectMountedApp(uri, { apps: [], degradations: [{ ...pending, surface: "tools" }] }, mounted), undefined);
+  assert.equal(selectMountedApp(uri, { apps: [], degradations: [{ ...pending, server: "media" }] }, mounted), undefined);
+  assert.equal(selectMountedApp("ui://map/another.html", { apps: [], degradations: [pending] }, mounted), undefined);
+  assert.equal(selectMountedApp(undefined, { apps: [], degradations: [pending] }, mounted), undefined);
+  assert.equal(selectMountedApp(uri, undefined, mounted), undefined);
+  assert.equal(selectMountedApp(uri, { apps: [], degradations: [pending] }, undefined), undefined);
+});
 
 test("pending discovery is distinct from failed services", () => {
   const degradations: AppCatalogDegradation[] = [

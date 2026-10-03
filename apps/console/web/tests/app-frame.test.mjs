@@ -19,13 +19,27 @@ document.querySelector('button').onclick=async()=>{document.querySelector('outpu
 const entry = `import React from 'react';
 import {createRoot} from 'react-dom/client';
 import {AppFrame} from '/src/apps/AppFrame.tsx';
+import {AppsView} from '/src/views/Apps.tsx';
+import {QueryClient,QueryClientProvider} from '@tanstack/react-query';
+import {queryKeys} from '/src/queries.ts';
 import {ThemeContext} from '/src/theme.ts';
 import {initializeAppSession,loadSnapshot} from '/src/api.ts';
 initializeAppSession('fixture');
 window.failSnapshot=()=>loadSnapshot().catch(error=>error.message);
 const root=createRoot(document.querySelector('#root'));
+const client=new QueryClient({defaultOptions:{queries:{retry:false}}});
 const app={server:'map',resourceUri:'ui://map/workspace.html',standalonePath:'/apps/map/workspace',name:'Map Explorer',tools:[{name:'query_features',inputSchema:{}}],resourceDependencies:[],toolDependencies:[],agentMessageTargets:[]};
 window.renderFrame=(theme='light',title='Map Explorer',visible=true)=>root.render(React.createElement(ThemeContext.Provider,{value:{theme,appTheme:theme,setTheme:()=>{}}},visible?React.createElement(AppFrame,{app:{...app,title},onInternalLink:()=>false}):null));
+window.renderCatalog=(stage)=>{
+ const pending=stage==='restarting';
+ const partial=stage==='tools-pending';
+ const removed=stage==='removed';
+ const catalog={apps:pending||removed?[]:[partial?{...app,tools:[]}:app],degradations:pending?[{server:'map',surface:'resources',code:'upstream_unavailable'}]:partial||removed?[{server:'map',surface:'tools',code:'discovery_pending'}]:[]};
+ client.setQueryData(queryKeys.apps,catalog);
+ root.render(React.createElement(ThemeContext.Provider,{value:{theme:'light',appTheme:'light',setTheme:()=>{}}},React.createElement(QueryClientProvider,{client},React.createElement(React.Fragment,null,
+   React.createElement('output',{id:'catalog-stage'},stage),
+   React.createElement(AppsView,{selectedUri:app.resourceUri,onSelect:()=>{},onPlatformSelect:()=>{}})))));
+};
 window.renderFrame();`;
 
 test('snapshot failures, catalog churn and theme changes preserve calls; descriptor changes and remount get fresh frames', {timeout: 60_000}, async () => {
@@ -77,5 +91,19 @@ test('snapshot failures, catalog churn and theme changes preserve calls; descrip
     await page.evaluate(()=>window.renderFrame());
     await app.getByText('ready',{exact:true}).waitFor();
     assert.equal(frames,3);
+    await page.evaluate(()=>window.renderCatalog('initial'));
+    await app.getByText('ready',{exact:true}).waitFor();
+    assert.equal(frames,4);
+    await app.locator('output').evaluate(node=>{node.textContent='retained selection';});
+    for(const stage of ['restarting','tools-pending','recovered']) {
+      await page.evaluate(stage=>window.renderCatalog(stage),stage);
+      await page.locator('#catalog-stage').filter({hasText:stage}).waitFor();
+      await app.getByText('retained selection',{exact:true}).waitFor();
+      assert.equal(frames,4,stage);
+    }
+    // A successful resource list that omits this App revokes its frame even
+    // when tools from the same server are still discovering.
+    await page.evaluate(()=>window.renderCatalog('removed'));
+    await page.locator('iframe').waitFor({state:'detached'});
   }finally{await context.close();await browser.close();for(const res of streams)res.end();await server.close();}
 });
