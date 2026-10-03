@@ -15,6 +15,8 @@ use rmcp::{
     service::RequestContext,
 };
 
+use veoveo_types::{ResourceUri, ResourceUriParts};
+
 use crate::{
     PRIVATE_CATALOG_TTL_MS, paginate,
     server_contract::{McpServerContract, McpServerSetup},
@@ -122,6 +124,25 @@ impl<C: McpServerContract> McpServerSetup<C> {
         })
     }
 
+    /// The address of a well-known document read: `{scheme}://contract` or any
+    /// `{scheme}://docs` route. `None` for every domain address.
+    pub fn document_address(&self, uri: &str) -> Option<ResourceUri> {
+        let parts = ResourceUriParts::parse(uri).ok()?;
+        (parts.scheme() == C::scheme().as_str() && matches!(parts.authority(), "docs" | "contract"))
+            .then(|| ResourceUri::new(uri).ok())
+            .flatten()
+    }
+
+    /// Whether `request` completes `doc_id` on the `{scheme}://docs/{doc_id}`
+    /// template, which the host answers from the embedded documents.
+    pub fn is_document_completion(&self, request: &CompleteRequestParams) -> bool {
+        let Reference::Resource(reference) = &request.r#ref else {
+            return false;
+        };
+        let template = crate::docs::knowledge_extension::docs::member_template(&C::scheme());
+        reference.uri == template.as_str() && request.argument.name == "doc_id"
+    }
+
     /// Completes `doc_id` on the `{scheme}://docs/{doc_id}` template from the
     /// embedded documents. Returns `None` for every other completion request.
     pub fn complete_documents(
@@ -129,11 +150,7 @@ impl<C: McpServerContract> McpServerSetup<C> {
         request: &CompleteRequestParams,
         context: &RequestContext<RoleServer>,
     ) -> Result<Option<CompleteResult>, ErrorData> {
-        let Reference::Resource(reference) = &request.r#ref else {
-            return Ok(None);
-        };
-        let template = crate::docs::knowledge_extension::docs::member_template(&C::scheme());
-        if reference.uri != template.as_str() || request.argument.name != "doc_id" {
+        if !self.is_document_completion(request) {
             return Ok(None);
         }
         gateway_identity(context)?;

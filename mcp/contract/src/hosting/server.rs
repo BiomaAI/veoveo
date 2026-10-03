@@ -404,6 +404,19 @@ where
         let Provided(factory) = self.handler;
         let cancel = CancellationToken::new();
 
+        let factory = Arc::new(factory);
+        let authorize: admin::DocumentAuthorizer = {
+            let factory = factory.clone();
+            Arc::new(move |identity, address| {
+                let hosted = factory();
+                Box::pin(async move {
+                    hosted
+                        .domain()
+                        .authorize_documents(&identity, &address)
+                        .await
+                })
+            })
+        };
         let mcp_service = StreamableHttpService::new(
             move || Ok(factory()),
             stateless_session_manager(),
@@ -423,7 +436,7 @@ where
             .route_service("/{*path}", mcp_service)
             .layer(middleware::from_fn(enforce_serialized_mcp_response))
             .layer(authenticate());
-        let admin = admin::docs_router(D::setup().documents())
+        let admin = admin::docs_router(D::setup().documents(), D::Contract::scheme(), authorize)
             .merge(self.admin_routes)
             .layer(authenticate());
         let authenticated = self.authenticated_routes.layer(authenticate());

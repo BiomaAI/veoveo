@@ -34,6 +34,8 @@ use rmcp::{
 };
 use veoveo_types::{ResourceAddress, ResourceUri};
 
+use crate::GatewayInternalIdentity;
+
 use super::{auth::gateway_identity, listing::Listing};
 use crate::{
     final_protocol_versions, private_resource_response,
@@ -154,6 +156,19 @@ pub trait DomainServer: Send + Sync + Sized + 'static {
         request: &ReadResourceRequestParams,
         context: &RequestContext<RoleServer>,
     ) -> impl Future<Output = Result<DomainRead, ErrorData>> + Send;
+
+    /// Authorizes a caller to read the well-known documents or the contract at
+    /// `address`, over MCP, `doc_id` completion or the administrative document
+    /// routes. The default admits every authenticated caller; a server whose
+    /// documents follow current policy checks it here.
+    fn authorize_documents(
+        &self,
+        identity: &GatewayInternalIdentity,
+        address: &ResourceUri,
+    ) -> impl Future<Output = Result<(), ErrorData>> + Send {
+        let _ = (identity, address);
+        std::future::ready(Ok(()))
+    }
 
     /// The server's prompts. The default has none.
     fn prompts(&self) -> Vec<Prompt> {
@@ -368,6 +383,10 @@ impl<D: DomainServer, T: TaskSupport> ServerHandler for Hosted<D, T> {
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResponse, ErrorData> {
+        if let Some(address) = Self::setup().document_address(&request.uri) {
+            let identity = gateway_identity(&context)?;
+            self.domain.authorize_documents(&identity, &address).await?;
+        }
         if let Some(result) = Self::setup().read_documents(&request, &context)? {
             return Ok(result);
         }
@@ -384,6 +403,11 @@ impl<D: DomainServer, T: TaskSupport> ServerHandler for Hosted<D, T> {
         request: CompleteRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CompleteResult, ErrorData> {
+        if Self::setup().is_document_completion(&request) {
+            let identity = gateway_identity(&context)?;
+            let index = crate::docs::knowledge_extension::docs::index_uri(&D::Contract::scheme());
+            self.domain.authorize_documents(&identity, &index).await?;
+        }
         if let Some(result) = Self::setup().complete_documents(&request, &context)? {
             return Ok(result);
         }

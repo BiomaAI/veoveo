@@ -461,7 +461,9 @@ supplies three things:
    entries the caller cannot use, or add instance resources. `Listing::all` lets the
    host sort and page the list, `Listing::page` returns one page of a remote catalog
    with its own cursor, and `no_store` marks a list whose visibility follows current
-   authority. The host authenticates first in every case. `read` receives a parsed
+   authority. The host authenticates first in every case. `authorize_documents`
+   decides each read of the documents or contract, over MCP, `doc_id` completion
+   and the admin routes; the default admits every authenticated caller. `read` receives a parsed
    address and returns a `DomainRead` that names its cache policy:
    `DomainRead::private` for ordinary content, or `DomainRead::no_store` for content
    whose access or freshness can change between reads, such as knowledge-source

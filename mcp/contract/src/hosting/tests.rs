@@ -210,6 +210,17 @@ impl DomainServer for FixtureDomain {
         declared.push(Resource::new("fixture://items/1", "item-1"));
         Ok(super::Listing::all(declared))
     }
+    async fn authorize_documents(
+        &self,
+        _identity: &crate::GatewayInternalIdentity,
+        address: &ResourceUri,
+    ) -> Result<(), ErrorData> {
+        if address.as_str() == "fixture://docs/design" {
+            Err(ErrorData::invalid_request("design is restricted", None))
+        } else {
+            Ok(())
+        }
+    }
     fn prompts(&self) -> Vec<rmcp::model::Prompt> {
         vec![rmcp::model::Prompt::new(
             "summarize",
@@ -526,4 +537,33 @@ async fn the_host_completes_document_ids() {
         body["result"]["completion"]["values"],
         serde_json::json!(["design"])
     );
+}
+
+#[tokio::test]
+async fn document_authorization_covers_mcp_reads_and_admin_routes() {
+    let gateway = gateway();
+    let allowed = gateway
+        .rpc(
+            "resources/read",
+            serde_json::json!({"uri": "fixture://docs/agents"}),
+        )
+        .await;
+    assert!(allowed["result"]["contents"][0]["text"].is_string());
+    let denied = gateway
+        .rpc(
+            "resources/read",
+            serde_json::json!({"uri": "fixture://docs/design"}),
+        )
+        .await;
+    assert_eq!(denied["error"]["code"], -32600);
+    let (status, _) = gateway
+        .send(
+            gateway
+                .request("/admin/docs/design")
+                .header("authorization", format!("Bearer {}", gateway.token()))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
 }
