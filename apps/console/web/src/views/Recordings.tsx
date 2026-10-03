@@ -182,7 +182,6 @@ export function RecordingsView({
 
   const refreshPlaybackManifest = useCallback(async () => {
     if (!resolvedSelectedId || !manifest || refreshingManifest.current) return;
-    const currentLiveLayerId = manifest.live?.layer_id;
     const currentManifestState = manifest.state;
     const currentArchiveRevision = manifest.archive?.catalog_revision;
     const currentRecordingGrant = manifest.access.grant_id;
@@ -193,7 +192,6 @@ export function RecordingsView({
       });
       if (selectedRecordingRef.current !== resolvedSelectedId) return;
       if (
-        value.live?.layer_id === currentLiveLayerId &&
         value.state === currentManifestState &&
         value.archive?.catalog_revision === currentArchiveRevision &&
         value.access.grant_id === currentRecordingGrant &&

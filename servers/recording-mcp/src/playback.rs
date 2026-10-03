@@ -147,7 +147,7 @@ impl PlaybackManager {
         let access = self.issue_access(&grant)?;
         self.prune_catalogs();
         PlaybackManifestBuilder {
-            schema: PlaybackManifestSchema::V9,
+            schema: PlaybackManifestSchema::V10,
             dataset_id: crate::contract::RecordingDatasetId::try_from(plan.dataset_id.as_uuid())?,
             recording_segment_id: crate::contract::RecordingId::try_from(
                 plan.recording_id.as_uuid(),
@@ -160,7 +160,7 @@ impl PlaybackManager {
             catalog_revision: plan.catalog_revision,
             access,
             archive,
-            live: plan.live.map(|live| live.descriptor),
+            live: plan.live,
             blueprint: plan
                 .blueprint
                 .map(|blueprint| -> Result<_> {
@@ -874,8 +874,8 @@ mod tests {
     }
 
     #[test]
-    fn manifest_schema_is_the_v9_hard_cut() {
-        assert_eq!(PLAYBACK_MANIFEST_SCHEMA, "veoveo.ai/recording-playback/v9");
+    fn manifest_schema_is_the_v10_hard_cut() {
+        assert_eq!(PLAYBACK_MANIFEST_SCHEMA, "veoveo.ai/recording-playback/v10");
     }
 
     #[test]

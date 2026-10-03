@@ -55,6 +55,10 @@ and projection IDs and delegates component encoding to `url`. The shared manifes
 decoder checks archive parents, catalog revision, lifecycle, timestamps and Blueprint
 integrity fields and rejects malformed identities and unknown fields. The route then
 checks the requested Recording before forwarding the admitted model.
+Playback manifest v10 requires a live receiver throughout the live recording lifecycle.
+The receiver belongs to the recording; capture-layer changes do not replace the mounted
+viewer. Console and Recording deploy together under the
+[domain contract's qualification profile](../../../platform/recordings/contract/DESIGN.md#qualification).
 
 The Workspace API and asset contracts are owned by
 [`src/workspace/DESIGN.md`](src/workspace/DESIGN.md). Console bootstrap, Computers,

@@ -7,7 +7,7 @@ recording contract is [`docs/RECORDINGS.md`](../../docs/RECORDINGS.md).
 ## Purpose
 
 This server owns governed recording discovery, immutable layer inspection, sealing,
-dataset-scoped virtual Redap catalogs, manifest v9 playback, bounded Arrow projection,
+dataset-scoped virtual Redap catalogs, manifest v10 playback, bounded Arrow projection,
 and reactive Rerun live following.
 
 ## Invariants
@@ -36,7 +36,7 @@ and reactive Rerun live following.
 - Committed capture, properties, and derived layers are immutable Artifact occurrences.
   SurrealDB manifests and Artifact digests are authoritative. Cache and spool paths are
   never historical playback authority.
-- Playback manifest v9 is the only manifest. It returns one stable Redap archive URI,
+- Playback manifest v10 is the only manifest. It returns one stable Redap archive URI,
   one short-lived viewer grant, one optional live receiver, and the governed Blueprint.
 - A virtual catalog registers only the exact recording set admitted by its durable grant.
   Direct manifest, asset, query, and chunk requests cannot escape that set.
@@ -48,7 +48,9 @@ and reactive Rerun live following.
   frame receives no credential, internal URL, object coordinate, path, RRD source, or
   whole-result buffer.
 - Live playback uses one recording channel. It preserves static context, skips replayed
-  bootstrap rows on reconnect, and advances writing layers reactively.
+  bootstrap rows on reconnect, and advances writing layers reactively. The manifest
+  and HTTP admission keep this channel available throughout `live`, even when no
+  writing layer exists. An idle channel observes recording lifecycle changes.
 - Committed Artifact reads require a fresh caller credential. Durable Reason and Stream
   replay are outside this activation and must not persist a submitted bearer.
 - `/readyz` checks Store, layer-cache, and projection-scratch readiness. Authenticated

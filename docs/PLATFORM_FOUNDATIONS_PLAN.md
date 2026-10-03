@@ -20,8 +20,14 @@ passes installed normal-OAuth checks immediately before and after expiry. The UA
 domain scenario passes mission execution, live Stream, Recording replay, return to
 launch, landing and Artifact isolation. The focused and composed browser harnesses
 now share a ten-second source sampler that brackets the observation without
-extrapolation. Its native checks pass; headed qualification of the one-second
-playback lag requirement remains open.
+extrapolation. Its 127 native cases pass. Focused headed RTX 4090 WebGL playback at
+`04cf2ed2` passes the 120-second stability and reconnect checks with 0.170 seconds
+of source-to-viewer lag. The composed flight exposes a separate capture-layer
+rollover gap: a live manifest without a writing layer removes Console's viewer.
+Recording playback manifest v10 gives every live recording a recording-scoped
+channel, with capture-layer selection kept inside the service. This producer/Console
+batch passes 200 native cases, 108 browser unit cases and the receiver-ownership
+behavioral check. Coordinated publication and composed visual acceptance remain open.
 The cluster and BuildKit stay stopped during development; Reason runs only when
 a selected acceptance scenario requires it.
 
@@ -616,7 +622,7 @@ Implementation work also remains:
 | Work | Owner |
 |---|---|
 | Close the acceptance gaps above and qualify affected consumers after implementation changes | Composed publication |
-| Qualify the shared source sampler in headed playback, then complete composed visual acceptance without weakening the one-second lag limit | Browser and flight acceptance harnesses |
+| Qualify and deploy the Recording/Console rollover correction, then complete composed visual acceptance without weakening the one-second lag limit | Recording, Console and flight acceptance |
 
 Knowledge and Computers bind tools directly to typed RMCP handlers. Input schemas
 come from those parameter types; the domain-specific policy recheck, Task capability
@@ -1200,4 +1206,4 @@ not complete while a row remains.
 
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
-| Phase 1 reference reset | `testing/flight-smoke/src/domain.rs`, `testing/browser-smoke/src/source_timeline.rs` | Finish composed headed playback/timing and landing visual acceptance; qualify the shared sampler against installed source updates | At `5c6639fc`, the domain scenario passes mission, live Stream, Recording replay, return to launch, landing and Artifact isolation. Headed hardware WebGL renders the Rerun scene, but the immediate source sample predates capture by 105 ms and cannot establish playback lag. The corrected sampler passes native regression and deadline checks. Preserve strict source bracketing, the one-second lag limit, spatial content and flight-health requirements; Reason stays in its separate acceptance batch |
+| Phase 1 reference reset | Recording playback, Console, `testing/flight-smoke/src/domain.rs` | Qualify and deploy playback manifest v10; finish composed headed playback/timing and landing visual acceptance | The domain scenario passes at `5c6639fc`. Focused headed hardware playback at `04cf2ed2` passes stability and reconnect with 0.170 seconds of lag. The subsequent composed flight passes Map/live Stream prerequisites and Recording replay, then loses its viewer during capture-layer rollover before lag calculation. Cleanup lands the aircraft. A native regression reproduces the absent live receiver. Preserve source bracketing, the one-second lag limit, spatial content and flight-health requirements; Reason stays in its separate acceptance batch |

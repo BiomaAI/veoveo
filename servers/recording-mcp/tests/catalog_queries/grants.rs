@@ -132,7 +132,7 @@ async fn qualify_live_manifest(
     );
     assert_eq!(manifest.recording_segment_id.as_uuid(), recording.as_uuid());
     assert!(manifest.archive.is_none());
-    assert!(manifest.live.is_none());
+    assert!(manifest.live.is_some());
     let wire = serde_json::to_vec(&manifest).unwrap();
     let admitted: veoveo_recording_mcp::contract::PlaybackManifest =
         serde_json::from_slice(&wire).unwrap();

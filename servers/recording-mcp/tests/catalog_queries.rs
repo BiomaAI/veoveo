@@ -31,6 +31,9 @@ mod fixture;
 mod grants;
 #[path = "catalog_queries/metadata.rs"]
 mod metadata;
+#[cfg(feature = "redap")]
+#[path = "catalog_queries/playback.rs"]
+mod playback;
 #[path = "catalog_queries/projections.rs"]
 mod projections;
 

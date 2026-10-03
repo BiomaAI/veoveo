@@ -13,7 +13,7 @@ use veoveo_platform_store::{
     RecordingLayerId, RecordingLayerKind, RecordingLayerRecord, RecordingLayerState,
     RecordingRecord, RecordingSeal, RecordingState,
 };
-use veoveo_recording_hub::{GatewayLayerPublisher, live_segment_byte_len};
+use veoveo_recording_hub::GatewayLayerPublisher;
 use veoveo_rrd::properties_layer::{RecordingProperties, build_properties_layer};
 use veoveo_types::{DataLabelId, ScopeDefinition, ScopeName, Sha256Digest};
 
@@ -52,7 +52,8 @@ pub struct RecordingPlaybackPlan {
     pub started_at: chrono::DateTime<Utc>,
     pub ended_at: Option<chrono::DateTime<Utc>>,
     pub archive_layers: Vec<PlaybackArchiveLayerPlan>,
-    pub live: Option<PlaybackLiveLayerPlan>,
+    pub live: Option<PlaybackLiveReceiver>,
+    pub live_layer: Option<PlaybackLiveLayerPlan>,
     pub blueprint: Option<PlaybackBlueprintPlan>,
 }
 
@@ -86,7 +87,8 @@ pub struct PlaybackArchiveLayerPlan {
 
 #[derive(Clone, Debug)]
 pub struct PlaybackLiveLayerPlan {
-    pub descriptor: PlaybackLiveReceiver,
+    pub layer_id: crate::contract::RecordingLayerId,
+    pub ordinal: i64,
     pub path: PathBuf,
 }
 
@@ -342,7 +344,14 @@ impl RecordingService {
             )
         });
 
-        let live = catalog_layers
+        // Channel availability follows the recording lifecycle. A Writing layer
+        // can be absent at startup or between publication and the next ingest.
+        let live = (recording.state == RecordingState::Live).then_some(PlaybackLiveReceiver {
+            history_seconds: self.live_history_seconds,
+            video_preroll_seconds: LIVE_VIDEO_PREROLL_SECONDS,
+            transport: crate::contract::PlaybackLiveTransport::RerunRrdChannelV2,
+        });
+        let live_layer = catalog_layers
             .iter()
             .filter(|layer| layer.state == RecordingLayerState::Writing)
             .filter_map(|layer| layer.ordinal.map(|ordinal| (ordinal, layer)))
@@ -354,18 +363,11 @@ impl RecordingService {
                     .context("writing recording layer has no staging path")?;
                 let path = authorized_live_layer_path(&self.spool_root, relative)?;
                 Ok::<_, anyhow::Error>(PlaybackLiveLayerPlan {
-                    descriptor: PlaybackLiveReceiver {
-                        layer_id: crate::contract::RecordingLayerId::try_from(record_uuid(
-                            &layer.id,
-                            "recording_layer",
-                        )?)?,
-                        layer_name: layer.layer_name.clone(),
-                        ordinal,
-                        current_byte_len: live_segment_byte_len(&path)?,
-                        history_seconds: self.live_history_seconds,
-                        video_preroll_seconds: LIVE_VIDEO_PREROLL_SECONDS,
-                        transport: crate::contract::PlaybackLiveTransport::RerunRrdChannelV2,
-                    },
+                    layer_id: crate::contract::RecordingLayerId::try_from(record_uuid(
+                        &layer.id,
+                        "recording_layer",
+                    )?)?,
+                    ordinal,
                     path,
                 })
             })
@@ -395,6 +397,7 @@ impl RecordingService {
             ended_at: recording.ended_at,
             archive_layers,
             live,
+            live_layer,
             blueprint,
         }))
     }

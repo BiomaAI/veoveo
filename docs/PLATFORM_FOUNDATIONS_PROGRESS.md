@@ -8,6 +8,39 @@ requirements, accepted risks and remaining work. This log does not establish com
 
 ## Implementation And Installation Checkpoints
 
+Installed source alignment and rollover checkpoint (2026-10-03): focused headed
+Recording acceptance at `04cf2ed2` passes 120-second stability, reconnect, advancing
+camera content and source-to-viewer lag of 0.1704809477 seconds. Chrome uses RTX 4090
+WebGL; WebGPU reports SwiftShader and supplies no hardware evidence. The accepted
+source bracket encloses the browser observation without extrapolation.
+
+The subsequent composed flight passes Map and live Stream prerequisites, takeoff,
+mission capture and Stream replay of simulation seconds 750.7–775.7. Its Rerun
+stability check fails before source alignment: the viewer host disappears and Console
+shows loading. At 22:20:37 UTC, a successful playback-manifest refresh overlaps the
+transition to capture layer ordinal 2. The service can return `live: null` while the
+recording is live and its previous layer has left Writing. Console then unmounts the
+viewer. The new native rollover case reproduces missing channel admission before any
+layer exists. This is distinct from the corrected source-sampling race. Postflight
+cleanup lands the aircraft and closes its owned sessions; composed visual acceptance
+has not passed. The cluster and BuildKit are stopped with 334 GiB free.
+
+Playback manifest v10 separates the recording-scoped live receiver from private
+capture-layer selection. Live channels admit startup and rollover gaps, and idle
+channels observe lifecycle changes. The grouped contract, Recording and Console BFF
+run passes 200 native cases with none ignored. The startup/rollover regression also
+checks denied callers and idle-channel closure on recording interruption. An initial
+compile caught a Store/domain layer-ID mismatch; the private plan now preserves the
+domain ID. Console passes 108 unit cases, one headless receiver-ownership behavioral
+case, frontend build and lint. That renderer test double supplies no visual evidence.
+Documentation checks pass. Recording and Console need coordinated deployment
+and managed-tab reload under the domain contract's upgrade profile. Native outputs
+for the correction are under `output/development/recording-live-rollover/`; installed
+requests, screenshots and pod logs for the preceding run are under
+`output/development/source-timeline-bracket/`. The initial cold start needed an
+existing readiness wait and a second showcase-up invocation; all required pods then
+became Ready. No workload image or permanent replica count changed during that run.
+
 Browser source alignment checkpoint (2026-10-03): focused Recording and composed
 flight acceptance share the sampler in `testing/browser-smoke/src/source_timeline.rs`.
 It admits the running lifecycle through UAV's enum, validates source timestamps and

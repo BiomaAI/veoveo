@@ -8,16 +8,16 @@ use serde::{Deserialize, Deserializer, Serialize};
 use veoveo_types::Sha256Digest;
 
 use crate::{
-    PlaybackArchiveUri, RecordingContractError, RecordingDatasetId, RecordingId, RecordingLayerId,
+    PlaybackArchiveUri, RecordingContractError, RecordingDatasetId, RecordingId,
     RecordingReadGrantId,
 };
 
-pub const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.ai/recording-playback/v9";
+pub const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.ai/recording-playback/v10";
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
 pub enum PlaybackManifestSchema {
-    #[serde(rename = "veoveo.ai/recording-playback/v9")]
-    V9,
+    #[serde(rename = "veoveo.ai/recording-playback/v10")]
+    V10,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
@@ -75,7 +75,7 @@ impl PlaybackManifestBuilder {
             && self.ended_at.is_none_or(|end| end >= self.started_at)
             && !(self.live.is_some() && self.archive.is_some());
         if self.state == RecordingState::Live {
-            valid &= self.archive.is_none() && self.ended_at.is_none();
+            valid &= self.live.is_some() && self.archive.is_none() && self.ended_at.is_none();
         } else {
             valid &= self.live.is_none();
         }
@@ -91,10 +91,7 @@ impl PlaybackManifestBuilder {
                 && archive.byte_len > 0;
         }
         if let Some(live) = &self.live {
-            valid &= live.ordinal >= 0
-                && live.layer_name == format!("capture-{:020}", live.ordinal)
-                && live.history_seconds > 0
-                && live.video_preroll_seconds > 0;
+            valid &= live.history_seconds > 0 && live.video_preroll_seconds > 0;
         }
         if let Some(blueprint) = &self.blueprint {
             valid &= text(&blueprint.blueprint_id, 512);
@@ -155,11 +152,8 @@ pub struct PlaybackArchive {
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+/// Recording-scoped channel, available throughout Live, including capture-layer gaps.
 pub struct PlaybackLiveReceiver {
-    pub layer_id: RecordingLayerId,
-    pub layer_name: String,
-    pub ordinal: i64,
-    pub current_byte_len: u64,
     pub history_seconds: u64,
     pub video_preroll_seconds: u64,
     pub transport: PlaybackLiveTransport,

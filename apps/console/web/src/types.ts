@@ -217,7 +217,7 @@ export interface RecordingSummary {
 }
 
 export interface RecordingPlaybackManifest {
-  schema: "veoveo.ai/recording-playback/v9";
+  schema: "veoveo.ai/recording-playback/v10";
   dataset_id: string;
   recording_segment_id: string;
   application_id: string;
@@ -242,10 +242,6 @@ export interface RecordingPlaybackManifest {
     layer_count: number;
   };
   live?: {
-    layer_id: string;
-    layer_name: string;
-    ordinal: number;
-    current_byte_len: number;
     history_seconds: number;
     video_preroll_seconds: number;
     transport: "rerun_rrd_channel_v2";

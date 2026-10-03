@@ -1,8 +1,8 @@
 use serde_json::{Value, json};
 use veoveo_recording_contract::{
     PLAYBACK_MANIFEST_SCHEMA, PlaybackArchiveUri, PlaybackManifest, PlaybackManifestBuilder,
-    PlaybackManifestSchema, RecordingDatasetId, RecordingId, RecordingLayerId,
-    RecordingReadGrantId, RecordingRedapOrigin, RecordingState,
+    PlaybackManifestSchema, RecordingDatasetId, RecordingId, RecordingReadGrantId,
+    RecordingRedapOrigin, RecordingState,
 };
 
 fn manifest() -> Value {
@@ -31,7 +31,7 @@ fn checked_playback_construction_and_json_share_the_wire_model() {
     let wire = manifest();
     let builder: PlaybackManifestBuilder = serde_json::from_value(wire.clone()).unwrap();
     let admitted = builder.build().unwrap();
-    assert_eq!(admitted.schema, PlaybackManifestSchema::V9);
+    assert_eq!(admitted.schema, PlaybackManifestSchema::V10);
     assert_eq!(admitted.state, RecordingState::Sealed);
     assert_eq!(
         admitted.blueprint.as_ref().unwrap().sha256.hex(),
@@ -63,7 +63,7 @@ fn manifest_admission_rejects_wrong_parents_shapes_and_values() {
     let recording: RecordingId =
         serde_json::from_value(wire["recording_segment_id"].clone()).unwrap();
     for (pointer, invalid) in [
-        ("/schema", json!("veoveo.ai/recording-playback/v8")),
+        ("/schema", json!("veoveo.ai/recording-playback/v9")),
         ("/state", json!("recording")),
         ("/application_id", json!(" ")),
         ("/recording_key", json!("bad\nkey")),
@@ -123,24 +123,21 @@ fn manifest_admission_rejects_wrong_parents_shapes_and_values() {
 }
 
 #[test]
-fn lifecycle_selects_one_playback_plane_and_validates_live_layer_identity() {
+fn lifecycle_requires_the_recording_scoped_live_channel() {
     let mut live = manifest();
     live["state"] = json!("live");
     live["ended_at"] = Value::Null;
     live["live"] = json!({
-        "layer_id": RecordingLayerId::new(), "layer_name": "capture-00000000000000000007",
-        "ordinal": 7, "current_byte_len": 0, "history_seconds": 1,
+        "history_seconds": 1,
         "video_preroll_seconds": 2, "transport": "rerun_rrd_channel_v2"
     });
     assert!(serde_json::from_value::<PlaybackManifest>(live.clone()).is_err());
     live["archive"] = Value::Null;
     assert!(serde_json::from_value::<PlaybackManifest>(live.clone()).is_ok());
     for (pointer, invalid) in [
+        ("/live", Value::Null),
         ("/state", json!("sealed")),
         ("/ended_at", json!("2026-09-29T00:01:00Z")),
-        ("/live/ordinal", json!(-1)),
-        ("/live/ordinal", json!(8)),
-        ("/live/layer_name", json!("other")),
         ("/live/history_seconds", json!(0)),
         ("/live/video_preroll_seconds", json!(0)),
     ] {
@@ -151,7 +148,18 @@ fn lifecycle_selects_one_playback_plane_and_validates_live_layer_identity() {
             "{pointer}"
         );
     }
-    // A live capture can exist before the first layer is available.
-    live["live"] = Value::Null;
-    assert!(serde_json::from_value::<PlaybackManifest>(live).is_ok());
+    for state in ["ready", "sealing", "sealed", "interrupted", "failed"] {
+        let mut terminal = live.clone();
+        terminal["state"] = json!(state);
+        assert!(serde_json::from_value::<PlaybackManifest>(terminal.clone()).is_err());
+        terminal["live"] = Value::Null;
+        assert!(serde_json::from_value::<PlaybackManifest>(terminal).is_ok());
+    }
+    // Capture-layer details belong to the server's current-layer selection, not
+    // a recording receiver. Stale versioned payloads must not be accepted.
+    for field in ["layer_id", "layer_name", "ordinal", "current_byte_len"] {
+        let mut unknown = live.clone();
+        unknown["live"][field] = json!(0);
+        assert!(serde_json::from_value::<PlaybackManifest>(unknown).is_err());
+    }
 }

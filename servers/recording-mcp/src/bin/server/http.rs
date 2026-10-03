@@ -343,10 +343,9 @@ async fn playback_live_recording(
     };
     tracing::info!(
         %recording_id,
-        layer_id = %live.descriptor.layer_id,
-        current_byte_len = live.descriptor.current_byte_len,
-        history_seconds = live.descriptor.history_seconds,
-        video_preroll_seconds = live.descriptor.video_preroll_seconds,
+        layer_id = ?plan.live_layer.as_ref().map(|layer| layer.layer_id),
+        history_seconds = live.history_seconds,
+        video_preroll_seconds = live.video_preroll_seconds,
         ?start,
         "governed Rerun channel playback opened"
     );

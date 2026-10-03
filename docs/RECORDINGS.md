@@ -16,7 +16,7 @@ the manifest that binds those bytes.
 | MCP Apps SEP-1865 / `io.modelcontextprotocol/ui` `2026-01-26` | The Recording Explorer is the sole App admitted to the recording projection stream extension. |
 | Veoveo recording ingest `2026-09-23` | Authenticated protobuf batches and Blueprint publications from a producer-local forwarder to Recording Hub. |
 | Veoveo framed RRD stream v2 | Same-origin live transport. Each frame is a four-byte big-endian length followed by one complete RRD payload. |
-| Veoveo playback manifest v9 | `veoveo.ai/recording-playback/v9` binds the durable dataset, recording segment, catalog revision, governed archive grant, optional live receiver, and Blueprint. No version negotiation exists. |
+| Veoveo playback manifest v10 | `veoveo.ai/recording-playback/v10` binds the durable dataset, recording segment, catalog revision, governed archive grant, optional live receiver, and Blueprint. No version negotiation exists. |
 | OAuth metadata, client credentials, and `private_key_jwt` | Recording Hub and Recording MCP publish with separate service identities. Producer and browser bearers are not retained for background work. |
 | H.264/AVC Annex B | Decoder-reentrant capture rollover keeps SPS, PPS, and IDR boundaries. Archive and live playback preserve the original timeline indices. |
 | SHA-256 | Immutable layer, manifest, schema, cache, and Arrow-result identity. |
@@ -182,16 +182,20 @@ without transferable streams fail closed.
 
 ## Playback And Live Continuity
 
-Playback manifest v9 identifies the durable dataset and recording segment directly.
-Its archive URI is the stable Rerun dataset-segment URI for the grant. The optional live
-receiver names the active writing layer, but all outgoing Rerun messages use the same
-dataset and recording Store ID as archive playback.
+Playback manifest v10 identifies the durable dataset and recording segment directly.
+Its archive URI is the stable Rerun dataset-segment URI for the grant. Every live
+recording advertises a recording-scoped channel, including before the first capture
+layer and between layer publications. The service selects the current writing layer
+internally. All outgoing Rerun messages use the same dataset and recording Store ID
+as archive playback.
 
 Console opens one `LogChannel` for the selected live recording. A bounded bootstrap
 includes static context and recent rows, then filesystem notifications advance complete
 durable parts. Reconnect on the existing channel starts at the durable head. It never
 replays the bootstrap. Rollover stays event-driven, preserves Blueprint state, and does
-not poll a manifest or provider.
+not poll a manifest or provider. Layer and recording lifecycle notifications wake
+an idle channel; leaving the live lifecycle closes it. Console catalog refreshes keep
+the recording's receiver mounted across capture-layer changes.
 
 Rerun `0.38.1` derives H.264 sync samples from access-unit bytes. The live adapter removes
 sparse `VideoStream:is_keyframe` columns after compaction because the viewer requires a

@@ -9,7 +9,7 @@
 | RFC 3986 and RFC 6570 | Foundational component parsing/building and discovery templates for Recording resources. The domain fixes each route and its parameter types. |
 | WHATWG URL, URL 2.5.8 and Rerun 0.38.1 Redap addresses | URL parsing and setters implement the public-origin, dataset-entry and single-segment address profile. Runtime tests compare the profile with pinned Rerun builders and parsers. This is a selected Redap address profile, not a general Rerun URI implementation. |
 | RFC 3339 and SHA-256 | Catalog, layer, seal and playback timestamps decode to UTC values; layer, Blueprint and projection digests use the foundational digest type and lowercase 64-character hex on the wire. |
-| JSON and JSON Schema Draft 2020-12 | Public Recording views, seal requests/results, playback manifest v9, catalog grants and Arrow projection models. |
+| JSON and JSON Schema Draft 2020-12 | Public Recording views, seal requests/results, playback manifest v10, catalog grants and Arrow projection models. |
 | Recording catalog cursor version 1 | Collection-bound JSON encoded as lowercase hexadecimal, at most 2048 input bytes, with a timestamp and Recording ID. |
 | Veoveo Recording resources | `recording://recordings/{UUIDv7}`, its `layers` child, the catalog, well-known documents and the Recording Explorer address. These are domain declarations; the crate implements no MCP transport. |
 
@@ -64,8 +64,11 @@ verifies occurrence bytes and access.
 closed Recording lifecycle, manifest schema, typed timestamps and Blueprint integrity
 fields. `PlaybackManifestBuilder::build` checks the archive's dataset, Recording and
 catalog revision against the manifest. It admits one playback plane according to the
-lifecycle, checks capture layer names against their ordinals and rejects reversed
-capture timestamps. Blueprint revision and byte length are nonzero types.
+lifecycle and rejects reversed capture timestamps. Every live recording requires a
+recording-scoped receiver with its transport and positive history/preroll windows.
+Capture-layer identity and current size belong to the service's private selection;
+startup and the gap between capture layers do not withdraw the receiver. Other
+lifecycles reject a live receiver. Blueprint revision and byte length are nonzero types.
 
 `redap.rs` owns `RecordingRedapOrigin`, `RecordingCatalogUri` and `PlaybackArchiveUri`.
 Constructors require distinct dataset and Recording IDs. The URL library encodes the
@@ -136,6 +139,15 @@ record keys are not part of the current storage profile. Remaining address-field
 tracked in the [foundations plan](../../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 
 ## Qualification
+
+Playback manifest v10 requires a coordinated Recording MCP and Console BFF/browser
+upgrade. Recording owns this wire profile. Drain browser playback requests, deploy
+both images, and reload managed Console tabs before resuming playback. Every decoder
+accepts only v10; mixed manifest versions have no support window or adapter. Qualification
+covers startup without a layer, capture-layer publication gaps, reconnect admission,
+lifecycle completion, caller visibility and Console receiver ownership. This cut changes
+no persisted recording, sealed manifest or ingest format. Rollback restores both
+images and reloads clients together; recording data needs no conversion.
 
 `cargo test -p veoveo-recording-contract` checks wire/schema shapes, UUID admission,
 every resource family's round trip, malformed cursors, discovery template expansion

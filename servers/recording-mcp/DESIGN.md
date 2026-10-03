@@ -16,7 +16,7 @@ repository-wide ingest, storage, publication, activation, and operations contrac
 | Rerun `0.38.1` RRD | Immutable Artifact-backed capture, properties, and derived layers. Dataset UUID is the Rerun application ID, and recording UUID is the Rerun recording and segment ID. |
 | Rerun Data Protocol `rerun.cloud.v1alpha1` | Read-only WebViewer and Catalog SDK subset over HTTP/2 or gRPC-Web. The service does not claim complete Redap conformance. |
 | Apache Arrow IPC stream | Deterministic bounded projection payload produced from exact admitted RRD layers. |
-| Veoveo playback manifest v9 | `veoveo.ai/recording-playback/v9` is the only accepted manifest. |
+| Veoveo playback manifest v10 | `veoveo.ai/recording-playback/v10` is the only accepted manifest. |
 | Veoveo framed RRD stream v2 | Same-origin live channel adapter using one complete RRD per big-endian length frame. |
 | OAuth service authentication and JWT | Gateway internal assertions, short-lived host-limited Redap grants, and separate Artifact-read credentials. |
 | H.264 Annex B and SHA-256 | Decoder-reentrant live continuity and immutable byte identity. |
@@ -298,17 +298,22 @@ Recording Explorer descriptor. It transfers a `ReadableStream` through a dedicat
 
 ## Playback Manifest And Live Stream
 
-Manifest v9 contains the durable dataset ID, recording segment ID, catalog revision,
+Manifest v10 contains the durable dataset ID, recording segment ID, catalog revision,
 short-lived viewer grant, optional archive descriptor, optional live receiver, and
 governed Blueprint. An active recording exposes the live receiver without prewarming its
-committed archive. A recording that has left `live` exposes the archive. Archive URI is
+committed archive. The receiver describes the recording channel, independent of the
+current capture layer. Initial and reconnect requests can wait for a writing layer
+through Store notifications. A recording that has left `live` exposes the archive. Archive URI is
 one stable Rerun dataset-segment URI. It is not a URL per capture layer.
 
 Live playback retains one WebViewer `LogChannel`. The first transport supplies bounded
 static and temporal bootstrap state. A reconnect on the same channel starts at the
 current durable head. Filesystem notifications advance complete ingest parts and writing
-layers without polling. All messages are rewritten to the same Store ID used by archive
-playback.
+layers without polling. Recording lifecycle notifications close a channel that is
+waiting without a writing layer when capture ends. All messages are rewritten to
+the same Store ID used by archive playback. The
+[domain contract](../../platform/recordings/contract/DESIGN.md#qualification) specifies
+the coordinated manifest deployment and rollback requirements.
 
 The live adapter removes sparse H.264 keyframe columns after compaction because Rerun
 derives sync samples from the access-unit bytes and requires dense sample chunks. The
@@ -318,7 +323,7 @@ durable capture bytes are not modified by this browser adapter.
 
 | Path | Responsibility |
 |---|---|
-| `contract.rs` | recording, layer, seal, manifest v9, and manifest-occurrence views |
+| `contract.rs` | recording, layer, seal, playback manifest v10, and manifest-occurrence views |
 | `contract.rs`, `uris.rs` | public access to the shared Recording domain contract and its resource factories |
 | `service.rs` | playback plans, sealing, properties publication, and catalog revision |
 | `service/index.rs`, `index.rs` | SQL-authorized catalog assembly, completions, direct reads, and versioned resource cursors |
@@ -340,7 +345,7 @@ SurrealDB image and no GPU. Shared workbench tests provide browser behavioral ev
 for page navigation and notification refresh.
 
 Focused component evidence includes deterministic RRD normalization and Arrow bytes,
-cache corruption and eviction behavior, scratch cleanup, manifest v9 rejection of other
+cache corruption and eviction behavior, scratch cleanup, playback manifest v10 rejection of other
 schemas, durable grant transactions, and selected official Redap assertions. Console
 tests prove that no bearer, URL, local path, RRD bytes, or whole `ArrayBuffer` crosses the
 projection bridge.

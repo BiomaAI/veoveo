@@ -15,7 +15,9 @@ use re_build_info::CrateVersion;
 use re_log_encoding::{EncodingOptions, rrd::Encoder};
 use re_log_types::{LogMsg, StoreId};
 use veoveo_mcp_contract::GatewayInternalIdentity;
-use veoveo_platform_store::{PlatformTable, RecordingId, RecordingLayerRecord, RecordingState};
+use veoveo_platform_store::{
+    PlatformTable, RecordingId, RecordingLayerRecord, RecordingRecord, RecordingState,
+};
 
 use crate::{
     live_playback::{LiveMessageStart, stream_live_message_batches},
@@ -66,6 +68,13 @@ pub fn authorized_live_rrd_stream(
         let mut first_layer = true;
 
         loop {
+            // Observe lifecycle while waiting for a layer. Drop this subscription
+            // during byte delivery instead of queuing every capture timestamp update.
+            let mut recording_wake = recordings
+                .platform_store()
+                .live::<RecordingRecord>(PlatformTable::Recording)
+                .await
+                .map_err(|error| io::Error::other(format!("subscribe to recording lifecycle: {error}")))?;
             let next = loop {
                 let plan = recordings
                     .playback_plan(
@@ -77,24 +86,29 @@ pub fn authorized_live_rrd_stream(
                     .await
                     .map_err(|error| io::Error::other(format!("authorize live recording: {error}")))?
                     .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "recording is not visible"))?;
-                if let Some(live) = next_live_layer(plan.live, last_ordinal) {
+                if let Some(live) = next_live_layer(plan.live_layer, last_ordinal) {
                     break Some(live);
                 }
                 if plan.state != RecordingState::Live {
                     break None;
                 }
-                match layer_wake.next().await {
+                let wake = tokio::select! {
+                    wake = layer_wake.next() => wake.map(|result| result.map(|_| ())),
+                    wake = recording_wake.next() => wake.map(|result| result.map(|_| ())),
+                };
+                match wake {
                     Some(Ok(_)) => {}
                     Some(Err(error)) => {
-                        Err(io::Error::other(format!("recording layer subscription failed: {error}")))?;
+                        Err(io::Error::other(format!("recording playback subscription failed: {error}")))?;
                     }
-                    None => Err(io::Error::other("recording layer subscription ended"))?,
+                    None => Err(io::Error::other("recording playback subscription ended"))?,
                 }
             };
+            drop(recording_wake);
 
             let Some(live) = next else { break; };
-            let ordinal = live.descriptor.ordinal;
-            let layer_id = live.descriptor.layer_id;
+            let ordinal = live.ordinal;
+            let layer_id = live.layer_id;
             let message_start = if first_layer {
                 match start {
                     LiveRrdStart::Bootstrap => LiveMessageStart::Bootstrap,
@@ -142,7 +156,7 @@ fn next_live_layer(
     live: Option<PlaybackLiveLayerPlan>,
     last_ordinal: Option<i64>,
 ) -> Option<PlaybackLiveLayerPlan> {
-    live.filter(|candidate| last_ordinal.is_none_or(|last| candidate.descriptor.ordinal > last))
+    live.filter(|candidate| last_ordinal.is_none_or(|last| candidate.ordinal > last))
 }
 
 fn encode_frame(messages: Vec<LogMsg>) -> Result<Bytes, io::Error> {
@@ -234,34 +248,15 @@ mod tests {
     fn rollover_advances_only_to_a_strictly_newer_writing_layer() {
         fn layer(ordinal: i64) -> PlaybackLiveLayerPlan {
             PlaybackLiveLayerPlan {
-                descriptor: crate::contract::PlaybackLiveReceiver {
-                    layer_id: crate::contract::RecordingLayerId::new(),
-                    layer_name: format!("capture-{ordinal:020}"),
-                    ordinal,
-                    current_byte_len: 0,
-                    history_seconds: 1,
-                    video_preroll_seconds: 2,
-                    transport: crate::contract::PlaybackLiveTransport::RerunRrdChannelV2,
-                },
+                layer_id: crate::contract::RecordingLayerId::new(),
+                ordinal,
                 path: std::path::PathBuf::from("/tmp/recording.rrd"),
             }
         }
 
-        assert_eq!(
-            next_live_layer(Some(layer(2)), None)
-                .unwrap()
-                .descriptor
-                .ordinal,
-            2
-        );
+        assert_eq!(next_live_layer(Some(layer(2)), None).unwrap().ordinal, 2);
         assert!(next_live_layer(Some(layer(2)), Some(2)).is_none());
         assert!(next_live_layer(Some(layer(1)), Some(2)).is_none());
-        assert_eq!(
-            next_live_layer(Some(layer(3)), Some(2))
-                .unwrap()
-                .descriptor
-                .ordinal,
-            3
-        );
+        assert_eq!(next_live_layer(Some(layer(3)), Some(2)).unwrap().ordinal, 3);
     }
 }

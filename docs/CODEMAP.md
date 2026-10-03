@@ -1211,7 +1211,8 @@ with the URL library handling network components and runtime checks against pinn
 `projection/query.rs` and `projection/request.rs`
 own checked projection construction and shared bounds; RRD admits the selectors through
 its upstream grammar before loading sources. Its `src/playback.rs` owns sealed manifest construction,
-lifecycle and nested-field admission shared with Console. Hub and Video import this domain crate directly.
+lifecycle and nested-field admission shared with Console, including recording-scoped
+live-channel availability through capture-layer gaps. Hub and Video import this domain crate directly.
 The MCP library exposes the same types through its isolated contract feature. Console's
 browser edge imports its playback DTOs and distinct Recording/dataset/layer/grant/projection
 identities; catalog request construction owns bounded, sorted Recording selections.
@@ -1271,7 +1272,7 @@ Store, MCP and Rerun.
 roots and templates before runtime initialization. Recording content
 changes notify accepted resource readers without invalidating App discovery.
 
-`contract.rs` exposes recording, layer, seal, playback-manifest v9, Blueprint, live,
+`contract.rs` exposes recording, layer, seal, playback-manifest v10, Blueprint, live,
 catalog grant and Arrow projection models from the shared domain crate. The isolated
 `contract` feature exposes these models without
 MCP, Store, async or Rerun implementations; the gateway's Recording adapter imports
@@ -1497,6 +1498,7 @@ dispatch preflights and budgeted execution.
 | `browserApp.ts`, `browserHttp.ts`, `artifactUrls.ts` | Console/Workspace entrypoint selection, shared cookie/CSRF transport and fixed file URLs; shared capability components do not choose their own profile |
 | `appHost.tsx`, `StandaloneAppHost.tsx`, `standaloneBootstrap.ts` | minimal standalone App entry, authorized same-path bootstrap, shared OAuth/CSRF settlement, authorized title, and Console return link |
 | `views/Recordings.tsx` | searchable lifecycle browser and lazy Rerun playback workspace |
+| `tests/recording-playback.test.mjs` | headless behavioral receiver ownership across catalog rollover and recording completion; renderer is a test double |
 | `components/GovernedRerunViewer.tsx`, `rerunSources.ts`, `rerunLiveChannel.ts`, `recordingRrdFetch.ts`, `rerunMap.ts` | recording-scoped Redap archive or recent-history live playback, persistent WebViewer lifecycle, producer Blueprint-first opening, one native incremental-RRD or lazy-archive receiver, same-origin RRD authorization, duplicate-free current-head reconnect, event-driven rollover without cursor forcing, archive-only credential renewal, and installation-owned browser map-provider activation |
 | `views/Agents.tsx`, `agentControl.ts` | reactive agent state, actor-attributed conversation, idempotent message submission, pending input-request decisions, and client-owned UUIDv7 retry identity |
 | `views/` | platform-plane views (overview, work, artifacts, MCP, apps, access, audit, cluster); Computers has a native view in `computers/`, and other domain views ship as MCP Apps |

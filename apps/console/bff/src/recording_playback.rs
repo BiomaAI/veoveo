@@ -384,16 +384,12 @@ mod tests {
     }
 
     #[test]
-    fn manifest_v9_is_canonicalized_after_identity_validation() {
+    fn manifest_v10_is_canonicalized_after_identity_validation() {
         let recording_id = RecordingId::new();
         let mut manifest = manifest_value(recording_id);
         manifest["state"] = json!("live");
         manifest["archive"] = serde_json::Value::Null;
         manifest["live"] = json!({
-            "layer_id": uuid::Uuid::now_v7(),
-            "layer_name": "capture-00000000000000000000",
-            "ordinal": 0,
-            "current_byte_len": 1024,
             "history_seconds": 1,
             "video_preroll_seconds": 2,
             "transport": "rerun_rrd_channel_v2"
@@ -414,10 +410,6 @@ mod tests {
         manifest["state"] = json!("live");
         manifest["archive"] = serde_json::Value::Null;
         manifest["live"] = json!({
-            "layer_id": uuid::Uuid::now_v7(),
-            "layer_name": "capture-00000000000000000000",
-            "ordinal": 0,
-            "current_byte_len": 1024,
             "history_seconds": 1,
             "video_preroll_seconds": 2,
             "transport": "http_rrd"
@@ -501,7 +493,7 @@ mod tests {
     fn obsolete_or_cross_recording_manifests_are_rejected() {
         let recording_id = RecordingId::new();
         let mut obsolete = manifest_value(recording_id);
-        obsolete["schema"] = json!("veoveo.ai/recording-playback/v8");
+        obsolete["schema"] = json!("veoveo.ai/recording-playback/v9");
         assert!(
             validated_manifest_bytes(&serde_json::to_vec(&obsolete).unwrap(), recording_id)
                 .is_err()
