@@ -151,3 +151,7 @@ veoveo-mcp-conformance = { path = "../../mcp/conformance" }
 rmcp = { workspace = true, features = ["client", "transport-streamable-http-client-reqwest"] }
 iri-string = { workspace = true }
 tempfile = "3"
+
+[[test]]
+name = "catalog_contract"
+required-features = ["contract"]

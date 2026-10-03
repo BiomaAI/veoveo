@@ -3,7 +3,7 @@ use super::{
     SERVER_DOCS,
     discovery::{declared_resources, declared_templates},
 };
-use crate::contract::{MapAddress, MapResource, MapScope};
+use crate::contract::{MapAddress, MapScope};
 use rmcp::model::{ServerCapabilities, ServerConfig};
 use std::sync::LazyLock;
 use veoveo_mcp_contract::{
@@ -39,8 +39,7 @@ impl McpServerContract for MapContract {
         declared_resources()
             .into_iter()
             .map(|descriptor| {
-                let address = MapResource::parse(&descriptor.uri)
-                    .map(MapAddress::Resource)
+                let address = MapAddress::parse(&descriptor.uri)
                     .map_err(|_| McpSetupError::InvalidResource)?;
                 McpResource::new(address, |_| descriptor)
             })

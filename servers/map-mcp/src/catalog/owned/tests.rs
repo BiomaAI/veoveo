@@ -151,13 +151,14 @@ async fn qualify() {
         Collection::Matrices,
         Collection::Acquisitions,
     ] {
-        let mut after = None;
+        let mut cursor = None;
         let mut ids = Vec::new();
         let mut lengths = Vec::new();
         for _ in 0..3 {
-            let (keys, cursor) = match collection {
-                Collection::Routes => {
-                    let page = reader.routes_page(&owner, after.as_deref()).await.unwrap();
+            let selection = collection.selection().resume(cursor.as_deref()).unwrap();
+            let (keys, next_cursor) = match selection {
+                MapCatalogPage::Routes { after } => {
+                    let page = reader.routes_page(&owner, after.as_ref()).await.unwrap();
                     assert_eq!(page.limit, 100);
                     let wire = serde_json::to_value(&page).unwrap();
                     assert!(wire["items"][0].get("legs").is_none());
@@ -174,11 +175,8 @@ async fn qualify() {
                         page.next_cursor,
                     )
                 }
-                Collection::Matrices => {
-                    let page = reader
-                        .matrices_page(&owner, after.as_deref())
-                        .await
-                        .unwrap();
+                MapCatalogPage::Matrices { after } => {
+                    let page = reader.matrices_page(&owner, after.as_ref()).await.unwrap();
                     assert_eq!(page.limit, 100);
                     assert!(
                         serde_json::to_value(&page).unwrap()["items"][0]
@@ -193,9 +191,9 @@ async fn qualify() {
                         page.next_cursor,
                     )
                 }
-                Collection::Acquisitions => {
+                MapCatalogPage::Acquisitions { after } => {
                     let page = reader
-                        .acquisitions_page(&owner, after.as_deref())
+                        .acquisitions_page(&owner, after.as_ref())
                         .await
                         .unwrap();
                     assert_eq!(page.limit, 100);
@@ -207,15 +205,16 @@ async fn qualify() {
                         page.next_cursor,
                     )
                 }
+                _ => unreachable!("owned catalog selection"),
             };
             lengths.push(keys.len());
             ids.extend(keys);
-            after = collection.parse_cursor(cursor.as_deref()).unwrap();
-            if after.is_none() {
+            cursor = next_cursor;
+            if cursor.is_none() {
                 break;
             }
         }
-        assert!(after.is_none());
+        assert!(cursor.is_none());
         assert_eq!(lengths, [100, 25]);
         let prefix = match collection {
             Collection::Routes => "route",
@@ -525,38 +524,4 @@ async fn qualify_invalidation(
             .await
             .unwrap()
     );
-}
-
-#[test]
-fn cursors_reject_cross_collection_keys_versions_and_unbounded_input() {
-    let encode = |version, collection, after: String| {
-        hex::encode(
-            serde_json::to_vec(&Cursor {
-                version,
-                collection,
-                after,
-            })
-            .unwrap(),
-        )
-    };
-    let cursor = encode(1, Collection::Routes, key("route", 100));
-    assert_eq!(
-        Collection::Routes.parse_cursor(Some(&cursor)).unwrap(),
-        Some(key("route", 100))
-    );
-    assert!(Collection::Matrices.parse_cursor(Some(&cursor)).is_err());
-    assert!(
-        Collection::Acquisitions
-            .parse_cursor(Some(&cursor))
-            .is_err()
-    );
-    for invalid in [
-        "".into(),
-        "gg".into(),
-        "a".repeat(2049),
-        encode(2, Collection::Routes, key("route", 100)),
-        encode(1, Collection::Routes, key("matrix", 100)),
-    ] {
-        assert!(Collection::Routes.parse_cursor(Some(&invalid)).is_err());
-    }
 }

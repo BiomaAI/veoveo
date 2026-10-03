@@ -129,6 +129,7 @@ fn addresses() -> Vec<(MapResource, &'static str)> {
 fn direct_addresses_preserve_their_declared_templates_and_wire_shape() {
     for (address, template) in addresses() {
         let uri = address.to_uri();
+        assert_eq!(MapAddress::parse(uri.as_str()).unwrap().to_uri(), uri);
         assert_eq!(MapResource::parse(uri.as_str()).unwrap(), address);
         let wire = serde_json::to_value(&address).unwrap();
         assert_eq!(wire, uri.as_str());

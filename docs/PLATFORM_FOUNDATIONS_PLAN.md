@@ -607,7 +607,7 @@ Implementation work also remains:
 | Work | Owner |
 |---|---|
 | Close the acceptance gaps above and qualify affected consumers after implementation changes | Composed publication |
-| Map's hosted `MapAddress` covers direct resources and knowledge, but omits other advertised product and paging URI families; admitted reads then dispatch Store queries by URI | Map must compose every owner address into host admission and dispatch those typed variants directly |
+| Map admits its product and paging families and dispatches their typed selections; operational cursor positions retain domain IDs through catalog APIs | Publish with the typed Knowledge and Computers handlers, then qualify current installed readers and page traversal |
 
 Knowledge and Computers bind tools directly to typed RMCP handlers. Input schemas
 come from those parameter types; the domain-specific policy recheck, Task capability
@@ -616,6 +616,13 @@ cases, including malformed arguments, retention before reservation, cross-replic
 Tasks, current-policy revocation and hosted conformance. Invalid tool arguments now
 use the same RMCP `isError: true` result as the other typed servers. Installed
 qualification belongs to the next composed publication.
+
+Map's native batch passes 166 cases. Its host address composes product, catalog,
+metadata, filtered-feature, Artifact and knowledge parsers, and resource readers use
+the resulting typed selection. Operational cursors bind collection and dataset parent;
+catalog APIs retain specific position IDs until Store binding. SQL admission, spatial
+projection recovery and the two million-feature checks pass. The installed source
+scenario requires its separate deployment and disposable fixtures.
 
 #### Migration Inventory And Status
 
@@ -636,7 +643,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Resource templates | `ResourceTemplateUri` uses iri-string 0.7.14 with guards for RFC prefix bounds and dotted variable names; `McpResourceTemplate` prevents descriptor mutation. Time, UAV, Reason, DuckDB and the independent fixture consume checked template declarations. Native and isolated-consumer cases qualify syntax, expansion, existing addresses and error redaction | Extend checked declarations and domain-builder agreement across remaining servers |
 | Gateway completion and audit targets | Completion and template discovery use `PolicyTarget::ResourceTemplate`. Stored policy events require the current v2 marker and typed event; the historical DTO adapter is removed. Native cross-connection reads and invalid-write checks pass | Qualify installed authorization and current-format audit reads; tighten the opaque resource validator after remaining URI families are inventoried |
 | Platform identity and attribution | Principal, tenant, group, role, Work Context, delegation, data-label, and policy-version types, access subjects, and invocation provenance are extracted into `platform/types`; consumers import them directly; eleven baseline schemas, wire/profile tests, independent consumer tests, and strict workspace Clippy pass | Preserve these contracts during domain extraction; qualify installed identity and policy behavior with the affected services |
-| Map | `MapScope` owns handler, Task, and default administrative scope spellings. Checked setup supplies startup and discovery with current-grant filtering and configured App metadata. Fixed resources, documents and direct authoring/catalog addresses use `MapResource`; builders require parent ID types and parsers return those IDs. Workers and tool links consume the builders. Authoring metadata pages use typed IDs and shared components; identity, Artifact metadata and geodetic IDs come from owner libraries. Contract-only consumption excludes runtime dependencies. The checked-setup and direct-address batch passes 35 installed source checks, including creation, changes, restart persistence and denial | Complete remaining paged-query addresses, DTO relationships and Store query IDs |
+| Map | `MapScope` owns handler, Task, and default administrative scope spellings. Checked setup supplies startup and discovery with current-grant filtering and configured App metadata. `MapAddress` composes all hosted resource families and readers dispatch its typed selection. `MapCatalogPage` owns operational continuation positions, while metadata and product addresses preserve their owner IDs and parents. Workers and tool links consume the builders; identity, Artifact metadata and geodetic IDs come from owner libraries. Contract-only consumption excludes runtime dependencies. Earlier checked-setup and direct-address work passes 35 installed source checks; the full address/dispatch batch passes 166 native cases and awaits deployment | Qualify current installed paging and product reads; complete DTO relationships and Store query IDs |
 | Coordinate vocabulary | Map owns geodetic IDs; Frames owns worlds, conversions, and typed world/revision/frame addresses; RRD owns recorded frame/geofence metadata. Shared MCP coordinates are removed. Independent contract consumption and schema compatibility pass | Qualify installed consumers with the current absolute frame-ID profile |
 | Map identity admission | Source, restriction, mobility, travel-model and six product-address families use canonical RFC UUIDv5/v7 IDs. Other domain IDs accept broader UUID-library spellings; Store authoring keys check only a prefix, byte bound, and slash exclusion | Apply the owner admission profile to remaining IDs and Store query APIs; qualify current-format installed consumption |
 | Time | The contract feature excludes runtime dependencies; handlers, Tasks, and configuration defaults use `TimeScope`; `TimeResource` owns every URI family and the five collection cursor types. Checked server setup supplies startup, discovery and scope membership. Private runtime persistence owns SQL, mutation drafts and driver records; catalog calls retain domain IDs, versions, completion parents and cursors until driver conversion. Checked catalog decoding binds JSON identity, versions and indexed fields to the stored row; native corruption and immutable-acquisition checks pass | Complete broader DTO types and qualify current-format installed behavior; completion now requires the advertised reserved-expansion zone template |

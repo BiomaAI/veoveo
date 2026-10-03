@@ -4,67 +4,6 @@ use crate::catalog::MapAccessContext;
 use veoveo_platform_store::MapDerivationKind;
 
 impl MapMcp {
-    pub(super) async fn read_derivation_resource(
-        &self,
-        uri: &str,
-        identity: &GatewayInternalIdentity,
-        scope: &MapAccessContext,
-    ) -> Result<Option<ReadResourceResult>, McpError> {
-        let (root, query) = uri
-            .split_once('?')
-            .map_or((uri, None), |(root, query)| (root, Some(query)));
-        let kind = match root {
-            uris::RASTER_DERIVATIONS_URI => Some(MapDerivationKind::Raster),
-            uris::SPATIAL_DERIVATIONS_URI => Some(MapDerivationKind::Spatial),
-            _ => None,
-        };
-        if let Some(kind) = kind {
-            spatial_scope(identity, kind)?;
-            let cursor = query
-                .map(|query| {
-                    query
-                        .strip_prefix("cursor=")
-                        .ok_or_else(|| invalid_params("expected one derivation cursor"))
-                })
-                .transpose()?;
-            let after = crate::derivations::parse_cursor(kind, cursor).map_err(invalid_params)?;
-            let page = self
-                .state
-                .catalog
-                .derivations_page(
-                    scope,
-                    &identity.authority.work_context,
-                    kind,
-                    after.as_deref(),
-                )
-                .await
-                .map_err(internal)?;
-            return json_read(uri, &page).map(Some);
-        }
-        if let Ok(address) = crate::contract::MapRasterDerivationUri::parse(uri) {
-            let value = self
-                .state
-                .catalog
-                .raster_derivation(scope, &identity.authority.work_context, address.id())
-                .await
-                .map_err(internal)?
-                .ok_or_else(|| not_found("raster derivation"))?;
-            return json_read(uri, &value).map(Some);
-        }
-        if let Ok(address) = crate::contract::MapSpatialDerivationUri::parse(uri) {
-            spatial_scope(identity, MapDerivationKind::Spatial)?;
-            let value = self
-                .state
-                .catalog
-                .spatial_derivation(scope, &identity.authority.work_context, address.id())
-                .await
-                .map_err(internal)?
-                .ok_or_else(|| not_found("spatial derivation"))?;
-            return json_read(uri, &value).map(Some);
-        }
-        Ok(None)
-    }
-
     pub(super) async fn complete_derivation(
         &self,
         identity: &GatewayInternalIdentity,

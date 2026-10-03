@@ -1,13 +1,16 @@
 //! Shared derivation persistence and lightweight cursor pages.
 use anyhow::{Result, ensure};
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use veoveo_platform_store::{MapDerivationDraft, MapDerivationKind, MapDerivationScope};
 use veoveo_types::{PrincipalId, WorkContextId};
 
 use crate::{
     catalog::{MapAccessContext, MapCatalog},
-    contract::{RasterDerivation, RasterDerivationId, SpatialDerivation, SpatialDerivationId},
+    contract::{
+        MapCatalogPage, RasterDerivation, RasterDerivationId, SpatialDerivation,
+        SpatialDerivationId,
+    },
 };
 #[cfg(test)]
 mod tests;
@@ -26,37 +29,11 @@ pub struct DerivationSummary {
     pub created_by: PrincipalId,
     pub created_at: DateTime<Utc>,
 }
-#[derive(Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Cursor {
-    version: u8,
-    kind: MapDerivationKind,
-    after: String,
+pub enum DerivationSelection<'a> {
+    Raster(Option<&'a RasterDerivationId>),
+    Spatial(Option<&'a SpatialDerivationId>),
 }
 
-pub fn parse_cursor(kind: MapDerivationKind, cursor: Option<&str>) -> Result<Option<String>> {
-    let Some(cursor) = cursor else {
-        return Ok(None);
-    };
-    ensure!(
-        !cursor.is_empty() && cursor.len() <= 2048,
-        "invalid Map derivation cursor"
-    );
-    let cursor: Cursor = serde_json::from_slice(&hex::decode(cursor)?)?;
-    ensure!(
-        cursor.version == 1 && cursor.kind == kind,
-        "invalid Map derivation cursor"
-    );
-    match kind {
-        MapDerivationKind::Raster => {
-            RasterDerivationId::parse(&cursor.after)?;
-        }
-        MapDerivationKind::Spatial => {
-            SpatialDerivationId::parse(&cursor.after)?;
-        }
-    }
-    Ok(Some(cursor.after))
-}
 fn scope(scope: &MapAccessContext, context: &WorkContextId) -> Result<MapDerivationScope> {
     Ok(MapDerivationScope::from_keys(
         &scope.identity.tenant_key,
@@ -155,9 +132,18 @@ impl MapCatalog {
         &self,
         scope: &MapAccessContext,
         context: &WorkContextId,
-        kind: MapDerivationKind,
-        after: Option<&str>,
+        selection: DerivationSelection<'_>,
     ) -> Result<DerivationPage> {
+        let (kind, after) = match selection {
+            DerivationSelection::Raster(after) => (
+                MapDerivationKind::Raster,
+                after.map(RasterDerivationId::as_str),
+            ),
+            DerivationSelection::Spatial(after) => (
+                MapDerivationKind::Spatial,
+                after.map(SpatialDerivationId::as_str),
+            ),
+        };
         let mut rows = self
             .store()
             .map_derivations_page(self::scope(scope, context)?, kind, after, PAGE_SIZE + 1)
@@ -165,11 +151,16 @@ impl MapCatalog {
         let more = rows.len() > PAGE_SIZE;
         rows.truncate(PAGE_SIZE);
         let next_cursor = if more {
-            Some(hex::encode(serde_json::to_vec(&Cursor {
-                version: 1,
-                kind,
-                after: rows.last().expect("nonempty page").derivation_key.clone(),
-            })?))
+            let key = &rows.last().expect("nonempty page").derivation_key;
+            match kind {
+                MapDerivationKind::Raster => MapCatalogPage::RasterDerivations {
+                    after: Some(key.parse()?),
+                },
+                MapDerivationKind::Spatial => MapCatalogPage::SpatialDerivations {
+                    after: Some(key.parse()?),
+                },
+            }
+            .cursor()
         } else {
             None
         };

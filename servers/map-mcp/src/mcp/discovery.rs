@@ -449,49 +449,41 @@ pub(super) fn discoverable_resources(
     access: ResourceDiscoveryAccess,
     basemap: &crate::contract::MapWorkspaceBasemap,
 ) -> Vec<Resource> {
-    use crate::contract::{MapAddress, MapResource, MapRoot};
+    use crate::contract::{MapCatalogPage, MapDatasetAddress, MapResource, MapRoot, MapTarget};
     super::setup::SERVER_SETUP
         .resources()
         .iter()
         .filter_map(|resource| {
-            let MapAddress::Resource(address) = resource.address() else {
-                return None;
-            };
+            let address = resource.address().target();
             let visible = match address {
-                MapResource::Root(MapRoot::Docs | MapRoot::Contract) | MapResource::Document(_) => {
-                    true
-                }
-                MapResource::WorkspaceApp | MapResource::Root(MapRoot::Workspace) => {
-                    access.admin || access.dataset_read || access.feature_read
-                }
-                MapResource::Root(MapRoot::Acquisitions) => access.admin,
-                MapResource::Root(
-                    MapRoot::FeatureLayers
-                    | MapRoot::Publications
-                    | MapRoot::LayerProducts
-                    | MapRoot::Compositions,
-                ) => access.feature_read,
-                MapResource::Root(MapRoot::SpatialDerivations) => {
+                MapTarget::Resource(
+                    MapResource::Root(MapRoot::Docs | MapRoot::Contract) | MapResource::Document(_),
+                ) => true,
+                MapTarget::Resource(
+                    MapResource::WorkspaceApp | MapResource::Root(MapRoot::Workspace),
+                ) => access.admin || access.dataset_read || access.feature_read,
+                MapTarget::Catalog(MapCatalogPage::Acquisitions { .. }) => access.admin,
+                MapTarget::Metadata(_) => access.feature_read,
+                MapTarget::Catalog(MapCatalogPage::SpatialDerivations { .. }) => {
                     access.dataset_read && access.spatial_derive
                 }
-                MapResource::Root(
-                    MapRoot::Sources
-                    | MapRoot::Datasets
-                    | MapRoot::ActiveReleases
+                MapTarget::Catalog(_)
+                | MapTarget::Dataset(
+                    MapDatasetAddress::Sources(_)
+                    | MapDatasetAddress::MobilityProfiles(_)
+                    | MapDatasetAddress::Restrictions(_)
+                    | MapDatasetAddress::TravelModels(_),
+                )
+                | MapTarget::Resource(MapResource::Root(
+                    MapRoot::ActiveReleases
                     | MapRoot::Locations
                     | MapRoot::Facilities
-                    | MapRoot::MobilityProfiles
-                    | MapRoot::Restrictions
-                    | MapRoot::Routes
-                    | MapRoot::Matrices
-                    | MapRoot::TravelModels
-                    | MapRoot::Rasters
-                    | MapRoot::RasterDerivations,
-                ) => access.dataset_read,
+                    | MapRoot::Rasters,
+                )) => access.dataset_read,
                 _ => false,
             };
             visible.then(|| {
-                if matches!(address, MapResource::WorkspaceApp) {
+                if matches!(address, MapTarget::Resource(MapResource::WorkspaceApp)) {
                     workspace_resource(Some(basemap))
                 } else {
                     resource.descriptor().clone()

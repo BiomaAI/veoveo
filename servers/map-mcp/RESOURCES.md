@@ -12,7 +12,7 @@ features. The MCP adapter exposes these contracts through checked declarations.
 | Veoveo MCP server contract revision 3 | `McpServerContract` and `McpServerSetup` validate startup and discovery declarations for MCP `2026-07-28`. |
 | RFC 9562 | Map identity types own their generated UUIDv7 and stable UUIDv5 profiles. |
 | JSON Schema Draft 2020-12 | Public Rust types supply the schemas used by the MCP adapter. |
-| Veoveo Map metadata cursor version 1 | Hex-encoded typed JSON binds continuation to its collection and selected parent. |
+| Veoveo Map cursor version 1 | Hex-encoded typed JSON binds metadata and operational continuations to their collection and selected parent. |
 
 ## Public Types And Authorization
 
@@ -21,8 +21,21 @@ and direct acquisition, dataset, location, facility, matrix and authoring addres
 `MapResource` keeps each parent and member ID in its owning type. Shared URI components
 encode those values; parsing rejects extra paths, escaped aliases and unsupported queries.
 Resource readers receive the parsed IDs, and authoring mutations and workers use the
-same builders for links and notifications. Paged collections and filtered feature
-queries keep their own parsers; the shared component parser admits their URI syntax.
+same builders for links and notifications.
+
+`contract/address.rs` composes the owner parsers into `MapAddress`, the host's complete
+resource admission type. Its private construction pairs the validated URI with a
+`MapTarget` for direct resources, products, pages, filtered feature queries, Artifact
+references or knowledge. Readers dispatch that target and pass its typed fields to the
+domain reader. The retained URI supplies the response address without reparsing it.
+
+`contract/catalog_pages.rs` owns `MapCatalogPage` for route, matrix, acquisition,
+release and derivation pages. Each continuation carries its specific domain ID;
+release continuations also bind the optional dataset parent. Parsing rejects unknown
+query fields, duplicate parameters, invalid IDs, other collections and cursor versions
+other than 1. Reader APIs retain the position type until the Store call binds its key.
+Cursor JSON preserves each collection's version-1 field profile. Deployments need no
+persisted conversion; discarding a cursor restarts its collection traversal.
 
 `MapContract` implements `McpServerContract` in `src/mcp/setup.rs`. Startup validates
 the server identity, scopes, resources, templates and embedded documents before opening
@@ -71,9 +84,10 @@ clock feature; UUID supplies the existing generated and stable ID profiles.
 The runtime owns engines and persistence. The MCP adapter owns App HTML and hosted
 protocol wiring; the default `mcp` feature includes the runtime.
 
-Remaining resource families and typed Store query keys are work in the
+Remaining DTO relationships and typed Store query keys are work in the
 [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 
 The MCP adapter separates resource reads in `src/mcp/resources.rs` from descriptors
-and templates in `src/mcp/discovery.rs`. The authoring metadata adapter delegates
-parsing to the public contract and executes the selected catalog query.
+and templates in `src/mcp/discovery.rs`. `src/mcp/owned.rs` handles operational pages;
+`src/mcp/metadata.rs` handles authored records and metadata pages. Both receive the
+selection already admitted by the public contract and enforce current domain policy.

@@ -180,7 +180,7 @@ async fn qualify_sql_pages() {
         Some(other)
     );
     let first = reader
-        .derivations_page(&scope, &context(), MapDerivationKind::Raster, None)
+        .derivations_page(&scope, &context(), DerivationSelection::Raster(None))
         .await
         .unwrap();
     assert_eq!(first.items.len(), 100);
@@ -190,15 +190,29 @@ async fn qualify_sql_pages() {
         "pages contain metadata, not full derivation documents"
     );
     let cursor = first.next_cursor.as_deref().unwrap();
-    assert!(parse_cursor(MapDerivationKind::Spatial, Some(cursor)).is_err());
-    assert!(parse_cursor(MapDerivationKind::Raster, Some("not-hex")).is_err());
-    let after = parse_cursor(MapDerivationKind::Raster, Some(cursor)).unwrap();
+    assert!(
+        MapCatalogPage::SpatialDerivations { after: None }
+            .resume(Some(cursor))
+            .is_err()
+    );
+    assert!(
+        MapCatalogPage::RasterDerivations { after: None }
+            .resume(Some("not-hex"))
+            .is_err()
+    );
+    let MapCatalogPage::RasterDerivations { after } =
+        MapCatalogPage::RasterDerivations { after: None }
+            .resume(Some(cursor))
+            .unwrap()
+    else {
+        unreachable!()
+    };
+
     let second = reader
         .derivations_page(
             &scope,
             &context(),
-            MapDerivationKind::Raster,
-            after.as_deref(),
+            DerivationSelection::Raster(after.as_ref()),
         )
         .await
         .unwrap();
@@ -240,7 +254,7 @@ async fn qualify_sql_pages() {
             .is_empty()
     );
     let mut plan=db.b.client().query("SELECT derivation_key, created_by, created_at FROM map_derivation WHERE tenant = $tenant AND work_context = $context AND kind = 'raster' AND derivation_key > $after ORDER BY derivation_key ASC LIMIT 101 EXPLAIN;")
-            .bind(("tenant",scope.identity.tenant_id.record_id())).bind(("context",super::scope(&scope,&context()).unwrap().work_context.record_id())).bind(("after",after.unwrap())).await.unwrap().check().unwrap();
+            .bind(("tenant",scope.identity.tenant_id.record_id())).bind(("context",super::scope(&scope,&context()).unwrap().work_context.record_id())).bind(("after",after.unwrap().as_str().to_owned())).await.unwrap().check().unwrap();
     let plan: Vec<serde_json::Value> = plan.take(0).unwrap();
     let plan = serde_json::to_string(&plan).unwrap();
     assert!(plan.contains("map_derivation_scope_key"), "{plan}");

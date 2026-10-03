@@ -4,6 +4,7 @@ mod geodetic_ids;
 pub use geodetic_ids::*;
 mod address;
 mod admin;
+mod catalog_pages;
 mod compositions;
 mod datasets;
 mod features;
@@ -36,8 +37,9 @@ mod travel_models;
 mod units;
 mod workspace;
 
-pub use address::*;
+pub use address::{MapAddress, MapDatasetAddress, MapTarget};
 pub use admin::*;
+pub use catalog_pages::*;
 pub use compositions::*;
 pub use datasets::*;
 pub use features::*;

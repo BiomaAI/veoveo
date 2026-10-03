@@ -1,59 +1,46 @@
-//! SQL-scoped indexes for owner-visible routes, matrices, and acquisition jobs.
+//! Typed operational catalog pages selected under current SQL authority.
 use super::*;
-use crate::catalog::owned::Collection;
+use crate::contract::MapCatalogPage;
+use crate::derivations::DerivationSelection;
 
 impl MapMcp {
-    pub(super) async fn read_owned_page(
+    pub(super) async fn read_catalog_page(
         &self,
+        page: MapCatalogPage,
         uri: &str,
         context: &RequestContext<RoleServer>,
-    ) -> Result<Option<ReadResourceResult>, McpError> {
-        let (root, query) = uri
-            .split_once('?')
-            .map_or((uri, None), |(root, query)| (root, Some(query)));
-        let collection = match root {
-            uris::ROUTES_URI => Collection::Routes,
-            uris::MATRICES_URI => Collection::Matrices,
-            uris::ACQUISITIONS_URI => Collection::Acquisitions,
-            _ => return Ok(None),
-        };
+    ) -> Result<ReadResourceResult, McpError> {
         let identity = require_scope(
             context,
-            if collection == Collection::Acquisitions {
-                MapScope::Admin
-            } else {
-                MapScope::DatasetRead
+            match &page {
+                MapCatalogPage::Acquisitions { .. } => MapScope::Admin,
+                _ => MapScope::DatasetRead,
             },
         )?;
-        let cursor = query
-            .map(|query| {
-                query
-                    .strip_prefix("cursor=")
-                    .ok_or_else(|| invalid_params("expected one Map catalog cursor"))
-            })
-            .transpose()?;
-        let after = collection.parse_cursor(cursor).map_err(invalid_params)?;
+        if matches!(&page, MapCatalogPage::SpatialDerivations { .. }) {
+            require_scope(context, MapScope::SpatialDerive)?;
+        }
         let scope = self.state.scope(&identity).await.map_err(internal)?;
-        let result = match collection {
-            Collection::Routes => json_read(
+        match page {
+            MapCatalogPage::Routes { after } => json_read(
                 uri,
                 &self
                     .state
                     .catalog
-                    .routes_page(&scope, after.as_deref())
+                    .routes_page(&scope, after.as_ref())
                     .await
                     .map_err(internal)?,
-            )?,
-            Collection::Matrices => json_read(
+            ),
+            MapCatalogPage::Matrices { after } => json_read(
                 uri,
                 &self
                     .state
                     .catalog
-                    .matrices_page(&scope, after.as_deref())
+                    .matrices_page(&scope, after.as_ref())
                     .await
                     .map_err(internal)?,
-            )?,
-            Collection::Acquisitions => {
+            ),
+            MapCatalogPage::Acquisitions { after } => {
                 if after.is_none() {
                     self.state
                         .acquisitions
@@ -66,12 +53,49 @@ impl MapMcp {
                     &self
                         .state
                         .catalog
-                        .acquisitions_page(&scope, after.as_deref())
+                        .acquisitions_page(&scope, after.as_ref())
                         .await
                         .map_err(internal)?,
-                )?
+                )
             }
-        };
-        Ok(Some(result))
+            MapCatalogPage::Releases { dataset, after } => {
+                let page = self
+                    .state
+                    .catalog
+                    .releases_page(&scope, dataset.as_ref(), after.as_ref())
+                    .await
+                    .map_err(internal)?;
+                if dataset.is_some() && after.is_none() && page.items.is_empty() {
+                    return Err(not_found("dataset"));
+                }
+                json_read(uri, &page)
+            }
+            MapCatalogPage::RasterDerivations { after } => json_read(
+                uri,
+                &self
+                    .state
+                    .catalog
+                    .derivations_page(
+                        &scope,
+                        &identity.authority.work_context,
+                        DerivationSelection::Raster(after.as_ref()),
+                    )
+                    .await
+                    .map_err(internal)?,
+            ),
+            MapCatalogPage::SpatialDerivations { after } => json_read(
+                uri,
+                &self
+                    .state
+                    .catalog
+                    .derivations_page(
+                        &scope,
+                        &identity.authority.work_context,
+                        DerivationSelection::Spatial(after.as_ref()),
+                    )
+                    .await
+                    .map_err(internal)?,
+            ),
+        }
     }
 }

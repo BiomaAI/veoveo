@@ -134,7 +134,7 @@ fn resource_discovery_is_bounded_by_the_protocol_surface() {
 #[test]
 fn checked_setup_preserves_each_discovery_grant_and_configured_app_origin() {
     use super::setup::SERVER_SETUP;
-    use crate::contract::{MapResource, MapScope};
+    use crate::contract::{MapAddress, MapScope};
     use veoveo_types::{ResourceTemplateUri, ScopeDefinition};
     assert_eq!(SERVER_SETUP.scope_names().len(), MapScope::ALL.len());
     for scope in MapScope::ALL {
@@ -179,7 +179,7 @@ fn checked_setup_preserves_each_discovery_grant_and_configured_app_origin() {
             assert_eq!(visible.contains(uri), allowed, "mask {mask}, {uri}");
         }
         for resource in actual {
-            MapResource::parse(&resource.uri).unwrap();
+            MapAddress::parse(&resource.uri).unwrap();
             if resource.uri == uris::WORKSPACE_APP_URI {
                 let meta = serde_json::to_string(&resource.meta).unwrap();
                 assert!(meta.contains("https://maps.example.test"));

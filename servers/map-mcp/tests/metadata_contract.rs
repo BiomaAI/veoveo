@@ -1,6 +1,6 @@
 use veoveo_map_mcp::contract::{
-    FeatureLayerId, LayerProductId, LayerPublicationId, MapCompositionId, MapMetadataCursor,
-    MapMetadataRequest, MapScope,
+    FeatureLayerId, LayerProductId, LayerPublicationId, MapAddress, MapCompositionId,
+    MapMetadataCursor, MapMetadataRequest, MapScope,
 };
 use veoveo_types::{ResourceAddress, ResourceUri, ScopeDefinition};
 
@@ -43,6 +43,7 @@ fn every_metadata_selection_builds_and_round_trips_with_typed_cursors() {
         },
     ] {
         let uri = request.to_uri().unwrap();
+        assert_eq!(MapAddress::parse(uri.as_str()).unwrap().to_uri(), uri);
         assert_eq!(MapMetadataRequest::parse(uri.as_str()).unwrap(), request);
         assert_eq!(
             <MapMetadataRequest as ResourceAddress>::parse(&uri).unwrap(),

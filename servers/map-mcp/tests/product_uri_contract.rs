@@ -14,6 +14,7 @@ where
     T::Error: std::fmt::Debug,
 {
     let uri = address.to_uri().unwrap();
+    assert_eq!(MapAddress::parse(uri.as_str()).unwrap().to_uri(), uri);
     assert_eq!(T::parse(&uri).unwrap(), address);
     let json = serde_json::to_value(&address).unwrap();
     assert_eq!(json, uri.as_str());

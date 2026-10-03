@@ -1,5 +1,5 @@
 //! Owner-scoped catalog pages and database-selected maintenance batches.
-use anyhow::{Context, Result, ensure};
+use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use veoveo_platform_store::{MapDependencyKind, MapRouteState};
@@ -7,8 +7,9 @@ use veoveo_platform_store::{MapDependencyKind, MapRouteState};
 use super::{MapAccessContext, MapCatalog, decode, encode};
 use crate::{
     contract::{
-        AcquisitionId, AcquisitionJob, AcquisitionStatus, DatasetReleaseId, MobilityProfileId,
-        RestrictionId, RouteId, RouteMatrix, RouteMatrixId, RoutePlan, RouteStatus,
+        AcquisitionId, AcquisitionJob, AcquisitionStatus, DatasetReleaseId, MapCatalogPage,
+        MobilityProfileId, RestrictionId, RouteId, RouteMatrix, RouteMatrixId, RoutePlan,
+        RouteStatus,
     },
     uris,
 };
@@ -30,40 +31,13 @@ pub enum Collection {
     Acquisitions,
 }
 
-#[derive(Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Cursor {
-    version: u8,
-    collection: Collection,
-    after: String,
-}
-
 impl Collection {
-    pub fn parse_cursor(self, cursor: Option<&str>) -> Result<Option<String>> {
-        let Some(cursor) = cursor else {
-            return Ok(None);
-        };
-        ensure!(
-            !cursor.is_empty() && cursor.len() <= 2048,
-            "invalid Map catalog cursor"
-        );
-        let cursor: Cursor = serde_json::from_slice(&hex::decode(cursor)?)?;
-        ensure!(
-            cursor.version == 1 && cursor.collection == self,
-            "Map cursor belongs to another collection or version"
-        );
+    pub fn selection(self) -> MapCatalogPage {
         match self {
-            Self::Routes => {
-                RouteId::parse(&cursor.after)?;
-            }
-            Self::Matrices => {
-                RouteMatrixId::parse(&cursor.after)?;
-            }
-            Self::Acquisitions => {
-                AcquisitionId::parse(&cursor.after)?;
-            }
+            Self::Routes => MapCatalogPage::Routes { after: None },
+            Self::Matrices => MapCatalogPage::Matrices { after: None },
+            Self::Acquisitions => MapCatalogPage::Acquisitions { after: None },
         }
-        Ok(Some(cursor.after))
     }
 
     fn page<T, U>(
@@ -75,11 +49,19 @@ impl Collection {
         let more = rows.len() > PAGE_SIZE;
         rows.truncate(PAGE_SIZE);
         let next_cursor = if more {
-            Some(hex::encode(serde_json::to_vec(&Cursor {
-                version: 1,
-                collection: self,
-                after: key(rows.last().expect("nonempty page")).to_owned(),
-            })?))
+            let key = key(rows.last().expect("nonempty page"));
+            match self {
+                Self::Routes => MapCatalogPage::Routes {
+                    after: Some(key.parse()?),
+                },
+                Self::Matrices => MapCatalogPage::Matrices {
+                    after: Some(key.parse()?),
+                },
+                Self::Acquisitions => MapCatalogPage::Acquisitions {
+                    after: Some(key.parse()?),
+                },
+            }
+            .cursor()
         } else {
             None
         };
@@ -155,11 +137,11 @@ impl MapCatalog {
     pub async fn routes_page(
         &self,
         scope: &MapAccessContext,
-        after: Option<&str>,
+        after: Option<&RouteId>,
     ) -> Result<OwnedPage<RouteSummary>> {
         let rows = self
             .store()
-            .map_routes_page(&scope.identity, after, PAGE_SIZE + 1)
+            .map_routes_page(&scope.identity, after.map(RouteId::as_str), PAGE_SIZE + 1)
             .await?;
         Collection::Routes.page(
             rows,
@@ -189,11 +171,15 @@ impl MapCatalog {
     pub async fn matrices_page(
         &self,
         scope: &MapAccessContext,
-        after: Option<&str>,
+        after: Option<&RouteMatrixId>,
     ) -> Result<OwnedPage<MatrixSummary>> {
         let rows = self
             .store()
-            .map_matrices_page(&scope.identity, after, PAGE_SIZE + 1)
+            .map_matrices_page(
+                &scope.identity,
+                after.map(RouteMatrixId::as_str),
+                PAGE_SIZE + 1,
+            )
             .await?;
         Collection::Matrices.page(
             rows,
@@ -213,11 +199,15 @@ impl MapCatalog {
     pub async fn acquisitions_page(
         &self,
         scope: &MapAccessContext,
-        after: Option<&str>,
+        after: Option<&AcquisitionId>,
     ) -> Result<OwnedPage<AcquisitionJob>> {
         let rows = self
             .store()
-            .map_acquisitions_page(&scope.identity, after, PAGE_SIZE + 1)
+            .map_acquisitions_page(
+                &scope.identity,
+                after.map(AcquisitionId::as_str),
+                PAGE_SIZE + 1,
+            )
             .await?;
         Collection::Acquisitions.page(
             rows,

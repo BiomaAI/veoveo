@@ -65,7 +65,6 @@ use setup::MapContract;
 mod knowledge;
 mod metadata;
 mod owned;
-mod releases;
 
 /// The crate documents embedded at build time and served under the well-known
 /// surface: `map://docs`, `map://docs/{doc_id}`, `map://contract`, and the
@@ -887,31 +886,26 @@ impl DomainServer for MapMcp {
         )))
     }
 
-    /// Knowledge pages and members follow current authority, so no read of them
-    /// is reused. Map dispatches its other reads by the admitted URI.
+    /// The host parses every address before domain policy and Store dispatch.
     async fn read(
         &self,
         address: DomainAddress<MapContract>,
         request: &ReadResourceRequestParams,
         context: &RequestContext<RoleServer>,
     ) -> Result<DomainRead, McpError> {
-        match address {
-            MapAddress::KnowledgePage(_) | MapAddress::KnowledgeMember(_) => self
-                .read_knowledge_resource(&request.uri, context)
-                .await?
-                .map(DomainRead::no_store)
-                .ok_or_else(|| not_found("Map knowledge resource")),
-            MapAddress::Resource(
-                crate::contract::MapResource::Root(
-                    crate::contract::MapRoot::Docs | crate::contract::MapRoot::Contract,
-                )
-                | crate::contract::MapResource::Document(_),
-            ) => Err(served_by_host()),
-            MapAddress::Resource(_) => self
-                .read_map_resource(&request.uri, context)
-                .await
-                .map(DomainRead::private),
-        }
+        let no_store = matches!(
+            address.target(),
+            crate::contract::MapTarget::KnowledgePage(_)
+                | crate::contract::MapTarget::KnowledgeMember(_)
+        );
+        let result = self
+            .read_map_resource(address.into_target(), &request.uri, context)
+            .await?;
+        Ok(if no_store {
+            DomainRead::no_store(result)
+        } else {
+            DomainRead::private(result)
+        })
     }
 
     fn prompts(&self) -> Vec<Prompt> {
@@ -992,8 +986,8 @@ impl ResourceSubscriptions for MapSubscriptions {
         for address in addresses {
             let uri = address.to_uri();
             let uri = uri.as_str();
-            if matches!(address, MapAddress::KnowledgeMember(_)) {
-                self.server.read_knowledge_resource(uri, context).await?;
+            if let crate::contract::MapTarget::KnowledgeMember(member) = address.into_target() {
+                self.server.read_knowledge_member(member, context).await?;
             }
             if !is_subscribable(uri) {
                 return Err(McpError::invalid_params(

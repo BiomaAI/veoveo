@@ -6,7 +6,7 @@ use super::{MapAccessContext, MapCatalog, decode};
 use crate::contract::{
     ActiveDatasetRelease, ActiveReleasePointer, DatasetRelease, DatasetReleaseId,
     DatasetReleaseState, ListActiveDatasetReleasesOutput, ListActiveDatasetReleasesRequest,
-    MapDatasetId, MapSourceId,
+    MapCatalogPage, MapDatasetId, MapSourceId,
 };
 
 pub const PAGE_SIZE: usize = 100;
@@ -73,36 +73,6 @@ pub struct ReleasePage {
     pub items: Vec<DatasetRelease>,
     pub limit: usize,
     pub next_cursor: Option<String>,
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Cursor {
-    version: u8,
-    collection: String,
-    dataset: Option<MapDatasetId>,
-    after: DatasetReleaseId,
-}
-
-pub fn parse_cursor(
-    dataset: Option<&MapDatasetId>,
-    cursor: Option<&str>,
-) -> Result<Option<DatasetReleaseId>> {
-    let Some(cursor) = cursor else {
-        return Ok(None);
-    };
-    ensure!(
-        !cursor.is_empty() && cursor.len() <= 2048,
-        "invalid release cursor"
-    );
-    let cursor: Cursor = serde_json::from_slice(&hex::decode(cursor)?)?;
-    ensure!(
-        cursor.version == 1
-            && cursor.collection == "releases"
-            && cursor.dataset.as_ref() == dataset,
-        "release cursor belongs to another collection or version"
-    );
-    Ok(Some(cursor.after))
 }
 
 impl MapCatalog {
@@ -177,16 +147,16 @@ impl MapCatalog {
         let more = rows.len() > PAGE_SIZE;
         rows.truncate(PAGE_SIZE);
         let next_cursor = if more {
-            Some(hex::encode(serde_json::to_vec(&Cursor {
-                version: 1,
-                collection: "releases".into(),
+            MapCatalogPage::Releases {
                 dataset: dataset.cloned(),
-                after: rows
-                    .last()
-                    .expect("nonempty release page")
-                    .release_key
-                    .parse()?,
-            })?))
+                after: Some(
+                    rows.last()
+                        .expect("nonempty release page")
+                        .release_key
+                        .parse()?,
+                ),
+            }
+            .cursor()
         } else {
             None
         };
@@ -221,6 +191,21 @@ fn checked_release(row: veoveo_platform_store::MapDatasetReleaseRecord) -> Resul
 
 #[cfg(test)]
 mod tests {
+    fn parse_cursor(
+        dataset: Option<&MapDatasetId>,
+        cursor: Option<&str>,
+    ) -> Result<Option<DatasetReleaseId>> {
+        let MapCatalogPage::Releases { after, .. } = (MapCatalogPage::Releases {
+            dataset: dataset.cloned(),
+            after: None,
+        })
+        .resume(cursor)?
+        else {
+            unreachable!("release selection")
+        };
+        Ok(after)
+    }
+
     use super::*;
 
     use crate::contract::{DatasetLicense, DatasetReleaseState, Wgs84BoundingBox};
@@ -638,31 +623,5 @@ mod tests {
                 .await
                 .is_err()
         );
-    }
-
-    #[test]
-    fn release_cursors_bind_the_dataset_and_validate_the_key() {
-        let dataset: MapDatasetId = format!("dataset-{}", uuid::Uuid::now_v7()).parse().unwrap();
-        let after: DatasetReleaseId = format!("release-{}", uuid::Uuid::now_v7()).parse().unwrap();
-        let cursor = hex::encode(
-            serde_json::to_vec(&Cursor {
-                version: 1,
-                collection: "releases".into(),
-                dataset: Some(dataset.clone()),
-                after: after.clone(),
-            })
-            .unwrap(),
-        );
-        assert_eq!(
-            parse_cursor(Some(&dataset), Some(&cursor)).unwrap(),
-            Some(after)
-        );
-        assert!(parse_cursor(None, Some(&cursor)).is_err());
-        let other = format!("dataset-{}", uuid::Uuid::now_v7()).parse().unwrap();
-        assert!(parse_cursor(Some(&other), Some(&cursor)).is_err());
-        for invalid in ["".into(), "gg".into(), "a".repeat(2049), hex::encode(br#"{"version":1,"collection":"releases","dataset":null,"after":"release-invalid"}"#)] {
-            assert!(parse_cursor(None, Some(&invalid)).is_err());
-        }
-        assert!(parse_cursor(None, None).unwrap().is_none());
     }
 }

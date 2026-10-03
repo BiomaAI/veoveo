@@ -15,11 +15,11 @@ Map Explorer App.
 ## Invariants
 
 - The server is hosted through `veoveo_mcp_contract::hosting`: `MapMcp` implements
-  `DomainServer` over `MapAddress`, which covers Map resources and knowledge pages and
-  members; knowledge reads are `DomainRead::no_store`. `MapSubscriptions` is its
+  `DomainServer` over `MapAddress`, which composes the owner parsers for direct resources,
+  product addresses, catalog pages, filtered features and knowledge. Readers dispatch
+  the admitted typed target; knowledge reads are `DomainRead::no_store`. `MapSubscriptions` is its
   `ResourceSubscriptions` source, and `/map/healthz` reports the spatial engine and
-  routing process through the host's liveness check. Reads still dispatch by the
-  admitted URI. Do not add a `ServerHandler`, router, host check or authentication
+  routing process through the host's liveness check. Do not add a `ServerHandler`, router, host check or authentication
   middleware here.
 - Canonical identity: slug `map`, URI scheme `map://`, endpoint `/map/mcp`,
   app `ui://map/workspace.html`. Resource identities
@@ -57,6 +57,8 @@ Map Explorer App.
   these types with scene consumers. Dataset and release parent checks belong to SQL.
 - Direct authoring and catalog addresses use `MapResource` and its typed helpers.
   Parsers return each parent's owner ID; do not convert them to text and parse again.
+  Operational catalog continuations use `MapCatalogPage`; retain its specific position
+  ID through the reader and convert it to text only when binding the Store query.
   Startup and discovery consume `mcp/setup.rs`; keep current-scope filtering and the
   configured App origin when adding a discovery resource.
 - Active-release tool selection joins pointers to releases in SQL. Tenant, source

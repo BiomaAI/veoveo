@@ -8,6 +8,21 @@ requirements, accepted risks and remaining work. This log does not establish com
 
 ## Implementation And Installation Checkpoints
 
+Map address and reader checkpoint (2026-10-03): `MapAddress` admits the owner product,
+paging and filtered-feature families alongside direct resources and knowledge.
+Readers dispatch the admitted typed target. `MapCatalogPage` owns operational cursors,
+including collection and dataset-parent checks, and catalog APIs preserve each position
+ID until Store binding. The shared host and SQL admission statements are unchanged.
+
+The native batch passes 166 tests, including catalog visibility, wrong-parent cursors,
+source and authoring spatial recovery, and both million-feature spatial checks. Strict
+Clippy passes all Map targets and features; the contract-only library builds without
+the runtime. Two compilation corrections fixed a borrowed URI parameter and conversion
+at a test's database binding. Logs are under `output/development/map-typed-dispatch/`.
+The installed source scenario remains pending. Publish Map together with the qualified
+Knowledge and Computers handler changes, then run the affected installed checks.
+The cluster and BuildKit stay stopped during development.
+
 Typed server dispatch checkpoint (2026-10-03): Knowledge and Computers replace their
 dynamic catch-all tool routes with RMCP handlers whose parameter types also generate
 the input schemas. Knowledge keeps its declared scope, current-policy admission,

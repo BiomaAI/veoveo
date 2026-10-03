@@ -1009,7 +1009,7 @@ provenance, and shared Store persistence.
 Map derivation storage lives in `platform/store/src/map_derivations.rs` and
 `platform/store/migrations/0094_map_derivations.surql`. The Map-owned
 `src/derivations.rs` validates domain documents and returns summary pages.
-`src/mcp/derivations.rs` owns resource and completion dispatch.
+`src/mcp/derivations.rs` owns derivation completion dispatch.
 `src/resource_changes.rs` connects catalog, authoring, derivation, and Task writes to
 each replica's resource hub through the shared Store LIVE/change-feed observer.
 
@@ -1023,8 +1023,8 @@ uniqueness before its 101-ID limit.
 Map release pages and parent-scoped reads live in `src/catalog/releases.rs` and
 `platform/store/src/map/releases.rs`. The catalog module also joins active pointers
 to releases for source/dataset-filtered tool queries before their SQL limit.
-`src/mcp/releases.rs` dispatches their resource
-URIs; `app/resources.js` owns the bounded client page walk. Exact layer-product reads
+`src/mcp/owned.rs` dispatches their admitted catalog selections;
+`app/resources.js` owns the bounded client page walk. Exact layer-product reads
 bind their URI parents in `platform/store/src/map_authoring/reads.rs`.
 
 Map owner-scoped route, matrix, and acquisition reads live in
@@ -1033,6 +1033,12 @@ resource dispatch in `src/mcp/owned.rs`. The catalog module also settles interru
 acquisitions and invalidates routes in database-selected batches. Acquisition
 admission and recovery synchronize the local worker inventory in
 `src/acquisition/service.rs`.
+
+`src/contract/address.rs` composes every hosted family into `MapAddress` and its
+typed target. `src/contract/catalog_pages.rs` owns operational collection selections
+and continuation IDs. `src/mcp/resources.rs` dispatches admitted targets, with authored
+records and metadata pages in `src/mcp/metadata.rs`. The host never enumerates Map's
+domain vocabulary.
 
 ### Optimization And Travel Models
 
