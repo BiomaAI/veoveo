@@ -87,7 +87,7 @@ spec:
               containerPort: 8804
           readinessProbe:
             httpGet:
-              path: /computers/healthz
+              path: /computers/readyz
               port: http
               httpHeaders:
                 - name: Host

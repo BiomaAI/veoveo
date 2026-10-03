@@ -13,7 +13,7 @@ use veoveo_types::{ResourceScheme, ResourceTemplateUri};
 
 pub(crate) static SERVER_DOCS: LazyLock<ServerDocs> =
     LazyLock::new(|| veoveo_mcp_contract::server_docs!("computers"));
-pub(crate) struct ComputersContract;
+pub struct ComputersContract;
 pub(crate) static SERVER_SETUP: LazyLock<McpServerSetup<ComputersContract>> =
     LazyLock::new(|| McpServerSetup::new().expect("declared Computers setup"));
 impl McpServerContract for ComputersContract {

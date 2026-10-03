@@ -1,7 +1,4 @@
-use super::{
-    auth::ForwardedBearer,
-    http_error::{HttpError, actor},
-};
+use super::http_error::{HttpError, actor};
 use crate::Application;
 use axum::{
     Extension, Json, Router,
@@ -11,7 +8,7 @@ use axum::{
 };
 use std::sync::Arc;
 use veoveo_computers::{ComputerError, api::*};
-use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller};
+use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller, hosting::ForwardedBearer};
 
 async fn transfer(
     State(app): State<Arc<Application>>,
@@ -23,11 +20,7 @@ async fn transfer(
     if input.computer_id != computer {
         return Err(crate::ApplicationError::Domain(ComputerError::InvalidInput).into());
     }
-    let caller = PlaneCaller {
-        memberships: identity.actor.group_memberships(),
-        identity,
-        bearer_token: bearer.0,
-    };
+    let caller = PlaneCaller::from_gateway(identity, bearer);
     let operation = app.transfer_file(&caller, input).await?;
     let view = app
         .file_transfer(

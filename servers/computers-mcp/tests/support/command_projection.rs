@@ -27,15 +27,16 @@ impl Projection {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let shutdown = CancellationToken::new();
-        let router = veoveo_computers_mcp::server::router(
+        let router = veoveo_computers_mcp::server::hosted(
             Arc::new(app),
-            signing.verifier.clone(),
+            signing.trust.clone(),
             vec![address.to_string()],
             veoveo_computers_mcp::server::BrowserOrigins::new(vec![format!("http://{address}")])
                 .unwrap(),
             shutdown.clone(),
         )
-        .unwrap();
+        .unwrap()
+        .into_router();
         let stop = shutdown.clone();
         let job = tokio::spawn(async move {
             axum::serve(listener, router)

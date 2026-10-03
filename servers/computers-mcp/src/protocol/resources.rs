@@ -1,11 +1,11 @@
-use super::setup::SERVER_DOCS;
 use super::{ComputersMcp, auth};
 use rmcp::{ErrorData, RoleServer, model::*, service::RequestContext};
 use serde::Serialize;
 use veoveo_computers_contract::ComputerResource;
+use veoveo_mcp_contract::hosting::served_by_host;
 use veoveo_types::TaskTypeDefinition;
 
-pub fn json<T: Serialize>(uri: &str, value: &T) -> Result<ReadResourceResult, ErrorData> {
+fn json<T: Serialize>(uri: &str, value: &T) -> Result<ReadResourceResult, ErrorData> {
     Ok(ReadResourceResult::new(vec![
         ResourceContents::text(
             serde_json::to_string(value).map_err(|_| auth::unavailable())?,
@@ -17,10 +17,11 @@ pub fn json<T: Serialize>(uri: &str, value: &T) -> Result<ReadResourceResult, Er
 impl ComputersMcp {
     pub(super) async fn resource(
         &self,
-        request: ReadResourceRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResponse, ErrorData> {
-        let actor = auth::actor(&context)?;
+        address: ComputerResource,
+        request: &ReadResourceRequestParams,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<ReadResourceResult, ErrorData> {
+        let actor = auth::actor(context)?;
         if request.request_state.is_some() || request.input_responses.is_some() {
             return Err(ErrorData::invalid_params(
                 "Computer resources have no interactive request state",
@@ -28,9 +29,7 @@ impl ComputersMcp {
             ));
         }
         let uri = &request.uri;
-        let result = match ComputerResource::parse(uri)
-            .map_err(|_| ErrorData::invalid_params("unknown Computer resource", None))?
-        {
+        let result = match address {
             ComputerResource::Maintenance(id) => json(
                 uri,
                 &self
@@ -136,17 +135,10 @@ impl ComputersMcp {
                     .await
                     .map_err(super::read_error)?,
             )?,
-            ComputerResource::Docs => json(uri, &SERVER_DOCS.iter().collect::<Vec<_>>())?,
-            ComputerResource::Contract => json(uri, SERVER_DOCS.contract_declaration())?,
-            ComputerResource::Document(id) => {
-                let doc = SERVER_DOCS
-                    .doc(id.as_str())
-                    .ok_or_else(|| ErrorData::invalid_params("unknown document", None))?;
-                ReadResourceResult::new(vec![
-                    ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
-                ])
+            ComputerResource::Docs | ComputerResource::Contract | ComputerResource::Document(_) => {
+                return Err(served_by_host());
             }
         };
-        Ok(veoveo_mcp_contract::private_resource_response(result, true))
+        Ok(result)
     }
 }

@@ -9,6 +9,11 @@ composes the domain with the private native provider runtime.
 
 ## Invariants
 
+The server is hosted through `veoveo_mcp_contract::hosting`. `ComputersMcp`
+implements `DomainServer`, and `ComputerTasks` resolves each Task to its owning
+record before the task store sees it. Do not add a `ServerHandler`, router, host
+check or authentication middleware here.
+
 Never dispatch without a durable ticket and current action authority. A lost
 ticket, provider reply, observer or Task lease permits observation only. A fake
 preflight is test-only; production requires current policy and retained allocation.

@@ -4,8 +4,6 @@ use serde_json::json;
 use veoveo_mcp_contract::*;
 pub struct Signing {
     issuer: GatewayInternalTokenIssuer,
-    pub verifier: GatewayInternalTokenVerifier,
-    #[allow(dead_code)] // Only the Artifact integration needs a second verifier.
     pub trust: GatewayInternalTrustBundle,
 }
 impl Signing {
@@ -15,13 +13,8 @@ impl Signing {
         let issuer = TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER).unwrap();
         Self {
             issuer: GatewayInternalTokenIssuer::new(
-                issuer.clone(),
-                GatewayInternalSigningKey::new("fixture", key.serialize_der()).unwrap(),
-            ),
-            verifier: GatewayInternalTokenVerifier::new(
                 issuer,
-                ServerSlug::new("computers").unwrap(),
-                trust.clone(),
+                GatewayInternalSigningKey::new("fixture", key.serialize_der()).unwrap(),
             ),
             trust,
         }

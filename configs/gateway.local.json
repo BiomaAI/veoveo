@@ -771,7 +771,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://computers-mcp:8804/computers/mcp",
-        "health_url": "http://computers-mcp:8804/computers/healthz",
+        "health_url": "http://computers-mcp:8804/computers/readyz",
         "security": "cluster_internal_http"
       },
       "capabilities": {

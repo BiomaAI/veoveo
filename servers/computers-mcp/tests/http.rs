@@ -44,15 +44,16 @@ impl Server {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let stop = CancellationToken::new();
-        let router = veoveo_computers_mcp::server::router(
+        let router = veoveo_computers_mcp::server::hosted(
             Arc::new(app),
-            signing.verifier.clone(),
+            signing.trust.clone(),
             vec![address.to_string()],
             veoveo_computers_mcp::server::BrowserOrigins::new(vec![format!("http://{address}")])
                 .unwrap(),
             stop.clone(),
         )
-        .unwrap();
+        .unwrap()
+        .into_router();
         let shutdown = stop.clone();
         let task = tokio::spawn(async move {
             axum::serve(listener, router)

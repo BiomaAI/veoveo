@@ -206,7 +206,7 @@ command key. See the service design for the coordinated v2 migration and key ove
 The document listens on `0.0.0.0:8804`, admits Host `computers-mcp:8804`, and uses
 the installation's exact public origin. The gateway registers
 `http://computers-mcp:8804/computers/mcp` and health URL
-`http://computers-mcp:8804/computers/healthz` through its ordinary catalog.
+`http://computers-mcp:8804/computers/readyz` through its ordinary catalog.
 The chart supplies no provider administrator credentials or guest trust to Console.
 
 External configuration fields in unconfigured mode are rejected. Missing configured

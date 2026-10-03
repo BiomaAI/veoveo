@@ -16,7 +16,7 @@
 | OCI Linux AMD64 | `computers-mcp` Bake target, shared Veoveo Rust compiler and digest-pinned Debian trixie runtime with signed archive snapshot `20260910T000000Z` |
 
 The worker and MCP/relay compose in one Computers deployment. The gateway owns
-ordinary catalog and action policy without importing the provider SDK. The `computers-mcp` executable serves the same HTTP router used by fixtures.
+ordinary catalog and action policy without importing the provider SDK. The `computers-mcp` executable serves the same hosted server used by fixtures.
 
 After authorizing an individual Computer read, browser attachment or owner lifecycle
 request, the service may make one provider `GetSandbox` read with a five-second
@@ -458,11 +458,15 @@ the current grants with installation availability and durable operation fences.
 
 ## Canonical Protocol Projection
 
-The authenticated mount is `/computers`. `/mcp` serves MCP and `/admin` serves the
-native Console projection over the same `Application`. Only `/healthz` is anonymous;
-it checks the platform store with a five-second deadline. Provider outages appear in
-the collection independently of control-plane liveness. Every secured request requires
-a gateway-signed Computers-audience assertion and an admitted Host authority.
+The shared hosting builder serves Computers under `/computers` and admits only the
+configured internal Host authorities. `/mcp` serves MCP and `/admin` serves the
+native Console projection over the same `Application`. `/healthz` reports process
+liveness, and `/readyz` checks the platform store with a five-second deadline. Both
+are anonymous, as are the `/cli` routes, which verify their own grants. Provider
+outages appear in the collection independently of control-plane readiness. Every
+other request requires a gateway-signed Computers-audience assertion. An MCP request
+body is limited to 2 MiB, an admin body to 64 KiB, and an authenticated request
+receives 504 when its response has not started within 30 seconds.
 
 The collection is `computer://computers`. Exact resources use
 `computer://computers/{computer_id}` and subsequent pages use

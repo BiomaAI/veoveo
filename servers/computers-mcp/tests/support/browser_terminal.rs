@@ -66,14 +66,15 @@ impl Server {
         .unwrap();
         let stop = CancellationToken::new();
         let origin = "https://browser.fixture.invalid".to_owned();
-        let router = veoveo_computers_mcp::server::router(
+        let router = veoveo_computers_mcp::server::hosted(
             Arc::new(app),
-            signing.verifier.clone(),
+            signing.trust.clone(),
             vec![address.to_string()],
             veoveo_computers_mcp::server::BrowserOrigins::new(vec![origin.clone()]).unwrap(),
             stop.clone(),
         )
-        .unwrap();
+        .unwrap()
+        .into_router();
         let token = stop.clone();
         let serve = tokio::spawn(async move {
             axum::serve(listener, router)

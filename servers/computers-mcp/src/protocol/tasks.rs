@@ -1,10 +1,19 @@
 use super::{ComputersMcp, auth};
 use crate::{ApplicationError, application};
-use rmcp::{ErrorData, RoleServer, model::*, service::RequestContext};
+use rmcp::{
+    ErrorData, RoleServer,
+    handler::server::{
+        router::tool::{ToolRoute, ToolRouter},
+        tool::ToolCallContext,
+    },
+    model::*,
+    service::RequestContext,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use veoveo_computers::api::ErrorCode as ApiErrorCode;
 use veoveo_computers::{ComputerError, Operation, api::*};
+use veoveo_mcp_contract::hosting::plane_caller;
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(untagged)]
@@ -36,7 +45,7 @@ enum MaintenanceOutputSchema {
     Completed(MaintenanceResult),
     Rejected(ApiError),
 }
-pub fn tools() -> Vec<Tool> {
+fn tools() -> Vec<Tool> {
     let create = Tool::new("create", "Create a Computer from the installation's default environment. Its home directory is kept across Stop and Start. Reuse requestId when retrying. Run as an MCP Task.", rmcp::handler::server::tool::schema_for_type::<CreateInput>())
         .with_title("Create Computer").with_output_schema::<LifecycleOutput>()
         .with_annotations(ToolAnnotations::new().read_only(false).destructive(false).idempotent(true).open_world(false));
@@ -87,6 +96,24 @@ pub fn tools() -> Vec<Tool> {
         ),
     ]
 }
+/// Routes every Computers tool to [`ComputersMcp::call`], which admits the call
+/// and creates its domain operation and Task.
+pub(super) fn router() -> ToolRouter<ComputersMcp> {
+    let mut router = ToolRouter::new();
+    for tool in tools().into_iter().chain(super::automation::tools()) {
+        router.add_route(ToolRoute::new_dyn(
+            tool,
+            |call: ToolCallContext<'_, ComputersMcp>| {
+                Box::pin(async move {
+                    let mut request = CallToolRequestParams::new(call.name.clone());
+                    request.arguments = call.arguments;
+                    call.service.call(request, call.request_context).await
+                })
+            },
+        ));
+    }
+    router
+}
 pub(super) fn input<T: DeserializeOwned>(arguments: Option<JsonObject>) -> Result<T, ErrorData> {
     serde_json::from_value(serde_json::Value::Object(arguments.unwrap_or_default())).map_err(
         |error| {
@@ -122,7 +149,7 @@ pub(super) fn rejection(error: ApplicationError) -> Result<CallToolResponse, Err
     Ok(reply.into())
 }
 impl ComputersMcp {
-    pub(super) async fn call(
+    async fn call(
         &self,
         mut request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
@@ -205,7 +232,7 @@ impl ComputersMcp {
         } else if request.name == "transfer_file" {
             match self
                 .app
-                .transfer_file(&auth::caller(&context)?, input(request.arguments)?)
+                .transfer_file(&plane_caller(&context)?, input(request.arguments)?)
                 .await
             {
                 Ok(operation) => operation.task_id(),
@@ -214,7 +241,7 @@ impl ComputersMcp {
         } else {
             match self
                 .app
-                .execute(&auth::caller(&context)?, input(request.arguments)?)
+                .execute(&plane_caller(&context)?, input(request.arguments)?)
                 .await
             {
                 Ok(command) => command.task_id(),

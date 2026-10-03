@@ -6,7 +6,7 @@ use std::{
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 use veoveo_computers::{ComputersStore, api::CapacityAvailability};
-use veoveo_mcp_contract::GatewayInternalTokenVerifier;
+use veoveo_mcp_contract::GatewayInternalTrustBundle;
 use veoveo_task_runtime::TaskRuntime;
 
 /// Serves an already validated installation profile. The same path is used by
@@ -14,12 +14,12 @@ use veoveo_task_runtime::TaskRuntime;
 pub async fn serve(
     config: PreparedConfiguration,
     tasks: TaskRuntime,
-    verifier: GatewayInternalTokenVerifier,
+    trust: GatewayInternalTrustBundle,
     shutdown: CancellationToken,
 ) -> anyhow::Result<()> {
     crate::protocol::validate_contract();
     let _cancel_on_drop = shutdown.clone().drop_guard();
-    let listener = tokio::net::TcpListener::bind(config.listen).await?;
+    let listen = config.listen;
     let store = ComputersStore::new(tasks.platform_store().clone(), config.provider_instance_id)?;
     tokio::time::timeout(
         Duration::from_secs(5),
@@ -71,9 +71,9 @@ pub async fn serve(
         )?;
     }
     let app = Arc::new(app);
-    let router = super::router(
+    let server = super::hosted(
         app,
-        verifier,
+        trust,
         config.allowed_hosts,
         config.allowed_origins,
         shutdown.clone(),
@@ -89,8 +89,8 @@ pub async fn serve(
             shutdown.clone(),
         ))
     });
-    let result = axum::serve(listener, router)
-        .with_graceful_shutdown(shutdown.clone().cancelled_owned())
+    let result = server
+        .serve_with_shutdown(listen, shutdown.clone().cancelled_owned())
         .await;
     shutdown.cancel();
     if let Some(mut background) = background
@@ -101,5 +101,5 @@ pub async fn serve(
         background.abort();
         let _ = background.await;
     }
-    result.map_err(Into::into)
+    result
 }

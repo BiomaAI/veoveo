@@ -152,7 +152,7 @@ async fn service_reports_setup_or_outage_and_stops_without_waiting_for_compute()
         let task = tokio::spawn(veoveo_computers_mcp::server::serve(
             config,
             TaskRuntime::new(db.a.clone(), "computers", "service-fixture"),
-            signing.verifier.clone(),
+            signing.trust.clone(),
             shutdown.clone(),
         ));
         let guard = task.abort_handle();
@@ -167,7 +167,7 @@ async fn service_reports_setup_or_outage_and_stops_without_waiting_for_compute()
             loop {
                 assert!(!task.is_finished(), "service stopped during startup");
                 if let Ok(response) = client
-                    .get(format!("http://{address}/computers/healthz"))
+                    .get(format!("http://{address}/computers/readyz"))
                     .send()
                     .await
                     && response.status().is_success()
@@ -220,7 +220,7 @@ async fn service_reports_setup_or_outage_and_stops_without_waiting_for_compute()
         veoveo_computers_mcp::server::serve(
             config,
             TaskRuntime::new(db.b.clone(), "computers", "stale-quota"),
-            signing.verifier.clone(),
+            signing.trust.clone(),
             CancellationToken::new(),
         ),
     )

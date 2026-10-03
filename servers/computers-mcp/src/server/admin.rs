@@ -4,7 +4,6 @@ use axum::{
     Extension, Json,
     extract::{Path, Query, State},
     http::StatusCode,
-    response::IntoResponse,
     routing::{get, post},
 };
 use serde::Deserialize;
@@ -142,28 +141,6 @@ async fn stop(
 }
 pub fn router(app: Arc<Application>) -> Router {
     Router::new()
-        .route(
-            "/docs/llms.txt",
-            get(|| async { crate::protocol::setup::SERVER_DOCS.llms_txt() }),
-        )
-        .route(
-            "/docs/{id}",
-            get(|Path(id): Path<String>| async move {
-                crate::protocol::setup::SERVER_DOCS
-                    .doc(&id)
-                    .map(|d| {
-                        (
-                            [(
-                                axum::http::header::CONTENT_TYPE,
-                                "text/markdown; charset=utf-8",
-                            )],
-                            d.body,
-                        )
-                            .into_response()
-                    })
-                    .unwrap_or_else(|| StatusCode::NOT_FOUND.into_response())
-            }),
-        )
         .route("/computers", get(collection).post(create))
         .route("/computers/{id}", get(computer))
         .route("/computers/{id}/operations/{operation_id}", get(operation))

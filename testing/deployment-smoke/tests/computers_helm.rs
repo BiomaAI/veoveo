@@ -66,7 +66,7 @@ fn core_presets_render_stable_unconfigured_control_without_privileged_capacity()
         ensure!(container["resources"]["limits"]["memory"] == "1Gi");
         ensure!(container["securityContext"]["allowPrivilegeEscalation"] == false);
         ensure!(container["securityContext"]["readOnlyRootFilesystem"] == true);
-        ensure!(container["readinessProbe"]["httpGet"]["path"] == "/computers/healthz");
+        ensure!(container["readinessProbe"]["httpGet"]["path"] == "/computers/readyz");
         ensure!(
             container["readinessProbe"]["httpGet"]["httpHeaders"][0]["value"]
                 == "computers-mcp:8804"

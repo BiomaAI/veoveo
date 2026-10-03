@@ -2,10 +2,7 @@
 mod config;
 use clap::Parser;
 use tokio_util::sync::CancellationToken;
-use veoveo_mcp_contract::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
-    ServerSlug, TokenIssuer,
-};
+use veoveo_mcp_contract::GatewayInternalTrustBundle;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -17,11 +14,7 @@ async fn main() -> anyhow::Result<()> {
         .await?
         .prepare()
         .await?;
-    let verifier = GatewayInternalTokenVerifier::new(
-        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
-        ServerSlug::new("computers")?,
-        GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?,
-    );
+    let trust = GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?;
     let tasks = tokio::time::timeout(
         std::time::Duration::from_secs(20),
         veoveo_task_runtime::TaskRuntime::connect(
@@ -50,5 +43,5 @@ async fn main() -> anyhow::Result<()> {
         let _ = tokio::signal::ctrl_c().await;
         signal.cancel();
     });
-    veoveo_computers_mcp::server::serve(config, tasks, verifier, shutdown).await
+    veoveo_computers_mcp::server::serve(config, tasks, trust, shutdown).await
 }
