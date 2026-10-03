@@ -67,13 +67,18 @@ pub fn product_result<T: Serialize>(
 }
 
 /// A completion result from ranked candidates: at most
-/// [`CompletionInfo::MAX_VALUES`] values, with the total and `has_more` set when
-/// candidates were cut.
+/// [`CompletionInfo::MAX_VALUES`] values. When candidates exceed that, the
+/// result sets `has_more` and omits `total`, because a bounded query that
+/// returned the candidates does not know the full count.
 pub fn completion(mut values: Vec<String>) -> Result<CompleteResult, ErrorData> {
-    let total = values.len();
-    let has_more = total > CompletionInfo::MAX_VALUES;
+    let has_more = values.len() > CompletionInfo::MAX_VALUES;
+    let total = if has_more {
+        None
+    } else {
+        u32::try_from(values.len()).ok()
+    };
     values.truncate(CompletionInfo::MAX_VALUES);
-    let info = CompletionInfo::with_pagination(values, u32::try_from(total).ok(), has_more)
+    let info = CompletionInfo::with_pagination(values, total, has_more)
         .map_err(|error| ErrorData::internal_error(error, None))?;
     Ok(CompleteResult::new(info))
 }
@@ -137,7 +142,7 @@ mod tests {
     }
 
     #[test]
-    fn completions_rank_prefixes_first_and_report_truncation() {
+    fn completions_rank_prefixes_first_and_report_only_known_totals() {
         assert_eq!(
             rank_completions(["design", "agents", "redesign"], "des"),
             ["design", "redesign"]
@@ -145,7 +150,10 @@ mod tests {
         let many = (0..150).map(|i| format!("v{i}")).collect();
         let result = completion(many).unwrap();
         assert_eq!(result.completion.values.len(), CompletionInfo::MAX_VALUES);
-        assert_eq!(result.completion.total, Some(150));
+        assert_eq!(result.completion.total, None);
         assert_eq!(result.completion.has_more, Some(true));
+        let exact = completion(vec!["design".into()]).unwrap().completion;
+        assert_eq!(exact.total, Some(1));
+        assert_eq!(exact.has_more, Some(false));
     }
 }
