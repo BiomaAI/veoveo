@@ -10,9 +10,10 @@ images from `0b50d664` selected through `c88bcca5`. All sixteen Rust servers rea
 Ready during their installed acceptance batches. Discovery, authenticated document
 reads, completion, Host admission and the requested Linux native suites passed.
 The follow-up closes six missing readiness routes, Recording admin document routing
-and Optimization's empty-constraint failure. Computers' HTTP rejection and UAV App
-continuity still fail installed acceptance. The cluster and BuildKit stay stopped
-during development; Reason runs only for its separate acceptance.
+and Optimization's empty-constraint failure. Console's route-retention fix is deployed
+from `7583087e` through `f1282cf0`; both UAV App restart stages pass with the harness
+at `b63d85a2`. Computers' HTTP rejection still fails. The cluster and BuildKit stay
+stopped during development; Reason runs only for its separate acceptance.
 
 | Phase | Qualified checkpoint | Remaining work |
 |---|---|---|
@@ -562,7 +563,6 @@ The remaining acceptance work is:
 | Gap | Owner and required result |
 |---|---|
 | Computers' upstream body-limit 413 becomes HTTP 200 with an MCP transport error | Gateway preserves the upstream request rejection at its HTTP boundary without inspecting error strings or adding a server-name special case |
-| UAV MCP restart recovers video but remounts the App | Console/UAV live-view recovery preserves the mounted App and obtains fresh stream authority; complete the subsequent simulator-restart check |
 | Media installed generation remains unqualified | The maintained fake-provider smoke passed; the earlier user limit on real generation still applies until explicitly changed |
 
 The deployed follow-up registers readiness for Artifact, DuckDB, Frames, Map, Media
@@ -578,18 +578,24 @@ pass on the RTX 4090 with the pinned cuOpt executor; Python, Helm and documentat
 checks pass. Installed replay of the original failed request completes with an
 independently verified optimal objective of 10.
 
-Console retains open Apps during explicitly incomplete discovery. The native
-lifecycle regression passes, including removal after a complete catalog omits the
-App, but the installed restart still changes the document epoch and viewer identity.
-Video returns at 1280 by 720; App continuity is not accepted, and the subsequent
-simulator-restart check has not run. Computers still returns HTTP 200 with MCP
--32603 for its upstream 413. Its fix needs a typed upstream HTTP rejection path;
-the pinned MCP SDK currently discards the status into an error string.
+Console resolves the selected App at the parent route while discovery is incomplete.
+Installed MCP and simulator restarts now preserve the mounted document and viewer
+identity, issue fresh live-view authority, and recover detailed video within the
+existing cadence and delivery limits. Both stages pass with headed RTX 4090 WebGL;
+WebGPU reports SwiftShader and supplies no hardware evidence. The harness waits for
+warming cameras and detailed startup frames within its existing deadlines and saves
+each accepted stage independently. This closes hosted App continuity, while composed
+flight, mission outcome recovery and landing visual acceptance remain separate.
+
+Computers still returns HTTP 200 with MCP -32603 for its upstream 413. Its fix needs
+a typed upstream HTTP rejection path; the pinned MCP SDK currently discards the
+status into an error string.
 
 Readiness absence, Recording admin routing, gateway body-limit conversion and the
-Optimization edge case predate this batch. UAV remount regression status is unknown;
-the installed failure must still be fixed. The successful Recording playback check
-does not close composed flight timing or landing visual acceptance.
+Optimization edge case predate this batch. The cause of UAV remounts relative to
+the pre-handover deployment is unclassified; the installed restart cases now pass.
+The successful Recording playback check does not close composed flight timing or
+landing visual acceptance.
 
 Implementation work also remains:
 

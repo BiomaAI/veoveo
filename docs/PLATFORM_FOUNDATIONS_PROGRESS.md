@@ -8,6 +8,32 @@ requirements, accepted risks and remaining work. This log does not establish com
 
 ## Implementation And Installation Checkpoints
 
+Console restart acceptance (2026-10-03): the parent route retains the selected App
+through incomplete discovery in `7583087e`. A Console-only publication and GitOps
+update at `f1282cf0` select image
+`sha256:e5a4cd158353e08d94b6e7ed59a8ea6cac817ad5e8f04fb5b3db3592f6482b11`.
+The production Console regression fails before this correction and passes afterward;
+108 unit checks, the production build and lint also pass.
+
+The maintained restart harness at `b63d85a2` passes both the MCP-container and
+simulator-container restart stages. Each preserves its App document epoch and viewer
+ID, obtains a fresh live-view ID, recovers detailed 1280 by 720 video and passes the
+existing cadence and delivery checks. Headed Chrome uses hardware RTX 4090 WebGL.
+WebGPU exposes SwiftShader and is excluded from hardware evidence. The UI declares
+software H.264 client decoding and NVIDIA NVENC server encoding.
+
+The earlier attempts expose an initially warming camera and uniform frames during
+world startup. The harness now waits for healthy cameras and detailed frames within
+the existing deadlines; malformed samples and failed camera states still reject.
+Its 119 browser/flight native tests pass. Each successful stage writes its own result
+before the next restart begins. The final run is
+`01a10345-3d32-7693-bbb9-b2fa9c4b9110`; results, captures and pod logs are under
+`output/development/shared-host-console-route-7583087e/`. The cluster and BuildKit
+are stopped after acceptance, with useful caches preserved and about 433 GiB free.
+Computers HTTP rejection, composed flight and broader recovery requirements remain
+open. No Media generation ran.
+
+
 Hosted acceptance follow-up (2026-10-03): ten affected images publish from
 `0b50d664`, and the platform chart and image locks converge at `c88bcca5` in
 45.7 seconds. Other image pins stay unchanged. Reason, Knowledge and embedding
