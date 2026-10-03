@@ -1,7 +1,7 @@
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: OCIRepository
 metadata:
-  name: veoveo-chart-ad6fc35f7ff7d55cb27550f23baab9b48bc8b3f392079f6036570f1bcab68e72
+  name: veoveo-chart-0ef75dcf504bfc15392fbf9dc66454e95624804b24446e8b8021d171813620e4
   namespace: flux-system
 spec:
   interval: 5m
@@ -9,7 +9,7 @@ spec:
   url: oci://charts-registry.flux-system.svc.cluster.local:5000/charts/veoveo
   insecure: true
   ref:
-    digest: sha256:ad6fc35f7ff7d55cb27550f23baab9b48bc8b3f392079f6036570f1bcab68e72
+    digest: sha256:0ef75dcf504bfc15392fbf9dc66454e95624804b24446e8b8021d171813620e4
   layerSelector:
     mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
     operation: copy
