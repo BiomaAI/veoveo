@@ -566,6 +566,20 @@ The remaining acceptance work is:
 | Optimization rejects a valid model with no constraints in cuOpt | Optimization's adapter qualifies the zero-row model on the GPU and preserves the public model's meaning |
 | Media installed generation remains unqualified | The maintained fake-provider smoke passed; the earlier user limit on real generation still applies until explicitly changed |
 
+The follow-up source batch implements the six readiness callbacks and their Helm
+and gateway selection, corrects admin proxy mounts, and preserves open Console Apps
+during explicitly incomplete discovery. Native readiness tests exercise Store and
+Artifact service loss; the browser lifecycle regression fails on the previous
+Console and passes with frame retention, including removal after a complete catalog
+omits the App. These fixes still need installed acceptance.
+
+Optimization's compiled-model adapter now preserves empty CSR inputs through a
+solver-only auxiliary variable. The existing GPU suite and nine empty-matrix cases
+pass on the RTX 4090 with the pinned cuOpt executor; Python, Helm and documentation
+checks pass. Publication and installed replay of the failed request remain pending.
+The Computers 413 conversion still needs a typed upstream HTTP rejection path; the
+pinned MCP SDK currently discards its status into an error string.
+
 Readiness absence, Recording admin routing, gateway body-limit conversion and the
 Optimization edge case predate this batch. UAV remount regression status is unknown;
 the installed failure must still be fixed. The successful Recording playback check
