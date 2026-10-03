@@ -11,6 +11,11 @@ links. It fronts `artifact-service` and holds no bytes of its own.
 
 ## Invariants
 
+- The server is hosted through `veoveo_mcp_contract::hosting`: `ArtifactMcp`
+  implements `DomainServer`, pages `resources/list` with the Artifact plane cursor
+  through `Listing::page`, and reads metadata members as `DomainRead::no_store`.
+  `ArtifactListener` serves subscriptions through `ListenOnly`. Do not add a
+  `ServerHandler`, router, host check or authentication middleware here.
 - Canonical URI scheme is `artifact://`: `artifact://index`,
   `artifact://{artifact_id}`, `artifact://metadata/{artifact_id}`, and
   `artifact://grants/{artifact_id}`.

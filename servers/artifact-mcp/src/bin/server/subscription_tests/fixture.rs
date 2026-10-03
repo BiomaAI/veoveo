@@ -1,7 +1,6 @@
 use super::auth::Signing;
 use crate::{
-    auth,
-    handler::{AppState, ArtifactMcp},
+    handler::AppState,
     subscriptions::{ArtifactSubscriptions, start_dispatcher},
 };
 use std::{sync::Arc, time::Duration};
@@ -89,23 +88,15 @@ impl Fixture {
             subscriptions: subscriptions.clone(),
             public_base_url: "https://artifact.fixture".into(),
         });
-        let transport = rmcp::transport::streamable_http_server::StreamableHttpService::new(
-            move || Ok(ArtifactMcp::new(state.clone())),
-            veoveo_mcp_contract::stateless_session_manager(),
-            veoveo_mcp_contract::canonical_streamable_http_server_config()
-                .with_cancellation_token(stop.child_token()),
-        );
-        let router = axum::Router::new()
-            .route_service("/mcp", transport)
-            .layer(axum::middleware::from_fn(
-                veoveo_mcp_contract::enforce_serialized_mcp_response,
-            ))
-            .layer(axum::middleware::from_fn_with_state(
-                auth::InternalAuthState {
-                    verifier: signing.verifier(),
-                },
-                auth::authenticate,
-            ));
+        let router = super::super::hosted_server(
+            state,
+            &veoveo_mcp_contract::PublicDeployment::new("http://127.0.0.1").unwrap(),
+            true,
+            Vec::new(),
+            signing.trust.clone(),
+        )
+        .unwrap()
+        .into_router();
         let mcp_http = HttpServer::start(router, stop).await;
         Self {
             signing,
@@ -132,8 +123,11 @@ impl Fixture {
                 .timeout(Duration::from_secs(20))
                 .build()
                 .unwrap(),
-            StreamableHttpClientTransportConfig::with_uri(format!("{}/mcp", self.mcp_http.url))
-                .auth_header(caller.bearer_token.clone()),
+            StreamableHttpClientTransportConfig::with_uri(format!(
+                "{}/artifact/mcp",
+                self.mcp_http.url
+            ))
+            .auth_header(caller.bearer_token.clone()),
         );
         tokio::time::timeout(
             Duration::from_secs(10),

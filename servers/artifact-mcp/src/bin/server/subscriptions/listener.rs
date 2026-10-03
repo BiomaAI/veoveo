@@ -15,7 +15,7 @@ pub(crate) async fn listen(
     source: &ArtifactSubscriptions,
     context: SubscriptionContext,
 ) -> Result<(), McpError> {
-    let caller = super::super::auth::caller(context.request_context())?;
+    let caller = veoveo_mcp_contract::hosting::plane_caller(context.request_context())?;
     let accepted = context.accepted();
     // Observe before authorization and baseline reads so concurrent changes queue.
     let mut updates = source.listen();

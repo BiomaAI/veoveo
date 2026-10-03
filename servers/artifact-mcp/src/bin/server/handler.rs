@@ -3,43 +3,44 @@ use std::{num::NonZeroU64, sync::Arc};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use rmcp::tool;
 use rmcp::{
-    ErrorData as McpError, RoleServer, ServerHandler,
+    ErrorData as McpError, RoleServer,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CacheScope, CallToolResult, CompleteRequestParams, CompleteResult, CompletionInfo,
-        ContentBlock, GetPromptRequestParams, GetPromptResponse, ListPromptsResult,
-        ListResourceTemplatesResult, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
-        Prompt, ReadResourceRequestParams, ReadResourceResponse, ReadResourceResult, Reference,
-        Resource, ResourceContents, ServerConfig, SubscriptionFilter,
+        CallToolResult, CompleteRequestParams, CompleteResult, CompletionInfo,
+        GetPromptRequestParams, GetPromptResult, Prompt, ReadResourceRequestParams,
+        ReadResourceResult, Reference, Resource, ResourceContents, SubscriptionFilter, Tool,
     },
     service::{RequestContext, SubscriptionContext},
-    tool_handler, tool_router,
+    tool_router,
 };
-use serde::Serialize;
 use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_artifact_contract::{ArtifactId, ArtifactMetadata, parse_artifact_plane_uri};
 use veoveo_artifact_mcp::contract::{
     ARTIFACT_TEMPLATE, ArtifactGrantsOutput, ArtifactIndexPage, ArtifactMetadataOutput,
-    ArtifactMutationOutput, ArtifactReference, ArtifactResource, ArtifactShareOutput, CONTRACT_URI,
-    CreateArtifactShareRequest, DOC_TEMPLATE, DOCS_URI, GRANTS_TEMPLATE, GrantArtifactRequest,
-    INDEX_URI, LIBRARY_APP_URI, METADATA_TEMPLATE, RevokeArtifactGrantRequest,
-    RevokeArtifactShareRequest, SetArtifactReleaseRequest, parse_doc_uri, parse_grants_uri,
-    parse_metadata_uri,
+    ArtifactMutationOutput, ArtifactReference, ArtifactResource, ArtifactShareOutput,
+    CreateArtifactShareRequest, GRANTS_TEMPLATE, GrantArtifactRequest, INDEX_URI, LIBRARY_APP_URI,
+    METADATA_TEMPLATE, RevokeArtifactGrantRequest, RevokeArtifactShareRequest,
+    SetArtifactReleaseRequest, parse_grants_uri, parse_metadata_uri,
 };
 use veoveo_mcp_contract::{
-    ArtifactPlane, ArtifactPlaneError, CreateArtifactShareLinkRequest, ListArtifactsRequest, Page,
-    PlaneCaller, paginate,
+    ArtifactPlane, ArtifactPlaneError, CreateArtifactShareLinkRequest, ListArtifactsRequest,
+    PlaneCaller,
+    hosting::{
+        CATALOG_PAGE_SIZE, DomainAddress, DomainRead, DomainServer, Listing, SubscriptionListener,
+        json_read, plane_caller, structured_result, unknown_prompt,
+    },
+    server_contract::McpServerSetup,
 };
 use veoveo_types::AccessLevel;
 
+#[cfg(test)]
+use super::setup::SERVER_DOCS;
 use super::{
-    auth,
     prompts::ArtifactPrompt,
-    setup::{SERVER_DOCS, SERVER_SETUP},
+    setup::{ArtifactContract, SERVER_SETUP},
     subscriptions::ArtifactSubscriptions,
 };
 
-const LIST_PAGE_SIZE: usize = 100;
 const LIBRARY_TOOLS: &[&str] = &[
     "create_share_link",
     "grant_access",
@@ -75,7 +76,6 @@ impl AppState {
 #[derive(Clone)]
 pub(super) struct ArtifactMcp {
     state: Arc<AppState>,
-    #[allow(dead_code)]
     tool_router: ToolRouter<ArtifactMcp>,
 }
 
@@ -100,7 +100,7 @@ impl ArtifactMcp {
         Parameters(request): Parameters<ArtifactReference>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let caller = auth::caller(&context)?;
+        let caller = plane_caller(&context)?;
         let artifact = self
             .state
             .plane
@@ -108,7 +108,7 @@ impl ArtifactMcp {
             .await
             .map_err(plane_error)?;
         let artifact = self.state.expose_download(&caller, artifact);
-        structured(
+        structured_result(
             format!("artifact {} metadata", request.artifact_id),
             &ArtifactMetadataOutput { artifact },
         )
@@ -125,7 +125,7 @@ impl ArtifactMcp {
         Parameters(request): Parameters<GrantArtifactRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let caller = auth::caller(&context)?;
+        let caller = plane_caller(&context)?;
         self.state
             .plane
             .grant(
@@ -142,7 +142,7 @@ impl ArtifactMcp {
             .list_grants(&caller, &request.artifact_id)
             .await
             .map_err(plane_error)?;
-        structured(
+        structured_result(
             format!("updated grants for artifact {}", request.artifact_id),
             &ArtifactGrantsOutput {
                 artifact_id: request.artifact_id,
@@ -162,7 +162,7 @@ impl ArtifactMcp {
         Parameters(request): Parameters<RevokeArtifactGrantRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let caller = auth::caller(&context)?;
+        let caller = plane_caller(&context)?;
         self.state
             .plane
             .revoke(&caller, &request.artifact_id, &request.subject)
@@ -174,7 +174,7 @@ impl ArtifactMcp {
             .list_grants(&caller, &request.artifact_id)
             .await
             .map_err(plane_error)?;
-        structured(
+        structured_result(
             format!("updated grants for artifact {}", request.artifact_id),
             &ArtifactGrantsOutput {
                 artifact_id: request.artifact_id,
@@ -194,7 +194,7 @@ impl ArtifactMcp {
         Parameters(request): Parameters<SetArtifactReleaseRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let caller = auth::caller(&context)?;
+        let caller = plane_caller(&context)?;
         let artifact = self
             .state
             .plane
@@ -202,7 +202,7 @@ impl ArtifactMcp {
             .await
             .map_err(plane_error)?;
         let artifact = self.state.expose_download(&caller, artifact);
-        structured(
+        structured_result(
             format!("updated release state for artifact {}", request.artifact_id),
             &ArtifactMetadataOutput { artifact },
         )
@@ -232,7 +232,7 @@ impl ArtifactMcp {
             .state
             .plane
             .create_share_link(
-                &auth::caller(&context)?,
+                &plane_caller(&context)?,
                 &request.artifact_id,
                 CreateArtifactShareLinkRequest {
                     expires_at: request.options.expires_at,
@@ -241,7 +241,7 @@ impl ArtifactMcp {
             )
             .await
             .map_err(plane_error)?;
-        structured(
+        structured_result(
             format!("created share link for artifact {}", request.artifact_id),
             &ArtifactShareOutput { share_link },
         )
@@ -261,13 +261,13 @@ impl ArtifactMcp {
         self.state
             .plane
             .revoke_share_link(
-                &auth::caller(&context)?,
+                &plane_caller(&context)?,
                 &request.artifact_id,
                 &request.link_id,
             )
             .await
             .map_err(plane_error)?;
-        structured(
+        structured_result(
             format!("revoked share link for artifact {}", request.artifact_id),
             &ArtifactMutationOutput {
                 artifact_id: request.artifact_id,
@@ -277,87 +277,40 @@ impl ArtifactMcp {
     }
 }
 
-#[tool_handler]
-impl ServerHandler for ArtifactMcp {
-    fn supported_protocol_versions(
-        &self,
-    ) -> std::borrow::Cow<'static, [rmcp::model::ProtocolVersion]> {
-        veoveo_mcp_contract::final_protocol_versions()
+impl DomainServer for ArtifactMcp {
+    type Contract = ArtifactContract;
+
+    fn setup() -> &'static McpServerSetup<ArtifactContract> {
+        &SERVER_SETUP
     }
 
-    fn get_info(&self) -> ServerConfig {
-        SERVER_SETUP.server_config().clone()
+    fn tool_router(&self) -> &ToolRouter<Self> {
+        &self.tool_router
     }
 
-    async fn list_tools(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListToolsResult, McpError> {
-        let mut tools = self.tool_router.list_all();
-        tools.sort_by(|left, right| left.name.cmp(&right.name));
-        tools = tools
-            .into_iter()
-            .map(|tool| {
-                if LIBRARY_TOOLS.contains(&tool.name.as_ref()) {
-                    veoveo_mcp_apps_extension::link_tool_to_app(
-                        tool,
-                        LIBRARY_APP_URI,
-                        &[
-                            veoveo_mcp_apps_extension::UiVisibility::Model,
-                            veoveo_mcp_apps_extension::UiVisibility::App,
-                        ],
-                    )
-                } else {
-                    tool
-                }
-            })
-            .collect();
-        let page = static_page(tools, request.as_ref())?;
-        let mut result = ListToolsResult::with_all_items(page.items)
-            .with_ttl_ms(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS)
-            .with_cache_scope(CacheScope::Private);
-        result.next_cursor = page.next_cursor;
-        Ok(result)
+    fn describe_tool(&self, tool: Tool) -> Tool {
+        if !LIBRARY_TOOLS.contains(&tool.name.as_ref()) {
+            return tool;
+        }
+        veoveo_mcp_apps_extension::link_tool_to_app(
+            tool,
+            LIBRARY_APP_URI,
+            &[
+                veoveo_mcp_apps_extension::UiVisibility::Model,
+                veoveo_mcp_apps_extension::UiVisibility::App,
+            ],
+        )
     }
 
-    async fn list_prompts(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListPromptsResult, McpError> {
-        let prompts: Vec<Prompt> = ArtifactPrompt::ALL
-            .into_iter()
-            .map(ArtifactPrompt::prompt)
-            .collect();
-        let page = static_page(prompts, request.as_ref())?;
-        let mut result = ListPromptsResult::with_all_items(page.items)
-            .with_ttl_ms(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS)
-            .with_cache_scope(CacheScope::Private);
-        result.next_cursor = page.next_cursor;
-        Ok(result)
-    }
-
-    async fn get_prompt(
-        &self,
-        request: GetPromptRequestParams,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<GetPromptResponse, McpError> {
-        ArtifactPrompt::by_name(&request.name)
-            .ok_or_else(|| {
-                McpError::invalid_params(format!("unknown prompt '{}'", request.name), None)
-            })?
-            .render(request.arguments)
-            .map(Into::into)
-    }
-
+    /// The well-known resources ride the first page, and the caller's artifacts
+    /// continue under the Artifact plane's cursor (contract C18, C19).
     async fn list_resources(
         &self,
-        request: Option<PaginatedRequestParams>,
-        context: RequestContext<RoleServer>,
-    ) -> Result<ListResourcesResult, McpError> {
-        let cursor = request
-            .and_then(|request| request.cursor)
+        declared: Vec<Resource>,
+        cursor: Option<&str>,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<Listing<Resource>, McpError> {
+        let cursor = cursor
             .map(ArtifactId::parse)
             .transpose()
             .map_err(|error| McpError::invalid_params(error.to_string(), None))?;
@@ -365,22 +318,16 @@ impl ServerHandler for ArtifactMcp {
             .state
             .plane
             .list(
-                &auth::caller(&context)?,
+                &plane_caller(context)?,
                 ListArtifactsRequest {
                     cursor,
-                    limit: Some(LIST_PAGE_SIZE as u16),
+                    limit: Some(CATALOG_PAGE_SIZE as u16),
                 },
             )
             .await
             .map_err(plane_error)?;
-        // The well-known surface rides the first plane page; artifact pages
-        // continue under the plane cursor (contract C18, C19).
         let mut resources = if cursor.is_none() {
-            SERVER_SETUP
-                .resources()
-                .iter()
-                .map(|resource| resource.descriptor().clone())
-                .collect()
+            declared
         } else {
             Vec::new()
         };
@@ -404,60 +351,22 @@ impl ServerHandler for ArtifactMcp {
                     .unwrap_or_else(|| "application/octet-stream".to_owned()),
             )
         }));
-        let mut result = ListResourcesResult::with_all_items(resources)
-            .with_ttl_ms(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS)
-            .with_cache_scope(CacheScope::Private);
-        result.next_cursor = page.next_cursor.map(|cursor| cursor.to_string());
-        Ok(result)
+        Ok(Listing::page(
+            resources,
+            page.next_cursor.map(|cursor| cursor.to_string()),
+        ))
     }
 
-    async fn list_resource_templates(
+    /// The host serves documents and the contract. Artifact dispatches its
+    /// other reads by the admitted URI.
+    async fn read(
         &self,
-        request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListResourceTemplatesResult, McpError> {
-        let page = static_page(
-            SERVER_SETUP
-                .resource_templates()
-                .iter()
-                .map(|template| template.descriptor().clone())
-                .collect(),
-            request.as_ref(),
-        )?;
-        let mut result = ListResourceTemplatesResult::with_all_items(page.items)
-            .with_ttl_ms(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS)
-            .with_cache_scope(CacheScope::Private);
-        result.next_cursor = page.next_cursor;
-        Ok(result)
-    }
-
-    async fn read_resource(
-        &self,
-        request: ReadResourceRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResponse, McpError> {
-        if let Some(result) = SERVER_SETUP.read_documents(&request, &context)? {
-            return Ok(result);
-        }
-        let caller = auth::caller(&context)?;
+        _address: DomainAddress<ArtifactContract>,
+        request: &ReadResourceRequestParams,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<DomainRead, McpError> {
+        let caller = plane_caller(context)?;
         let uri = request.uri.as_str();
-        // Well-known surface (contract C18, C19): readable by any
-        // authenticated identity, like `list_resources`.
-        if uri == DOCS_URI {
-            return json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>());
-        }
-        if let Some(doc_id) = parse_doc_uri(uri) {
-            let doc = SERVER_DOCS
-                .doc(doc_id.as_str())
-                .ok_or_else(|| McpError::invalid_params("unknown server document", None))?;
-            return Ok(private_resource(vec![
-                ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
-            ])
-            .into());
-        }
-        if uri == CONTRACT_URI {
-            return json_resource(uri, SERVER_DOCS.contract_declaration());
-        }
         if uri == LIBRARY_APP_URI {
             let html = veoveo_mcp_apps_extension::workbench_app_html(
                 &veoveo_mcp_apps_extension::WorkbenchApp {
@@ -489,12 +398,9 @@ impl ServerHandler for ArtifactMcp {
                     stream_result: None,
                 },
             );
-            return Ok(
-                private_resource(vec![veoveo_mcp_apps_extension::app_html_contents(
-                    uri, &html,
-                )])
-                .into(),
-            );
+            return Ok(DomainRead::private(ReadResourceResult::new(vec![
+                veoveo_mcp_apps_extension::app_html_contents(uri, &html),
+            ])));
         }
         if let Ok(ArtifactResource::Index { cursor }) = ArtifactResource::parse(uri) {
             let page = self
@@ -511,7 +417,7 @@ impl ServerHandler for ArtifactMcp {
                 .map_err(plane_error)?;
             let index = ArtifactIndexPage::new(page.artifacts, page.next_cursor)
                 .map_err(|error| McpError::internal_error(error.to_string(), None))?;
-            return json_resource(uri, &index);
+            return json_read(uri, &index).map(DomainRead::private);
         }
         if let Some(artifact_id) = parse_metadata_uri(uri) {
             let snapshot = self
@@ -533,10 +439,8 @@ impl ServerHandler for ArtifactMcp {
                 Some(&context.meta),
             )
             .map_err(|error| McpError::invalid_params(error.to_string(), None))?;
-            return Ok(result
-                .with_ttl_ms(0)
-                .with_cache_scope(CacheScope::Private)
-                .into());
+            // Metadata members follow current grants, so no read is reused.
+            return Ok(DomainRead::no_store(result));
         }
         if let Some(artifact_id) = parse_grants_uri(uri) {
             let grants = self
@@ -545,13 +449,14 @@ impl ServerHandler for ArtifactMcp {
                 .list_grants(&caller, &artifact_id)
                 .await
                 .map_err(resource_error)?;
-            return json_resource(
+            return json_read(
                 uri,
                 &ArtifactGrantsOutput {
                     artifact_id,
                     grants,
                 },
-            );
+            )
+            .map(DomainRead::private);
         }
         if let Some(artifact_id) = parse_artifact_plane_uri(uri) {
             let artifact = self
@@ -567,7 +472,7 @@ impl ServerHandler for ArtifactMcp {
                     .mime_type
                     .unwrap_or_else(|| "application/octet-stream".to_owned()),
             );
-            return Ok(private_resource(vec![contents]).into());
+            return Ok(DomainRead::private(ReadResourceResult::new(vec![contents])));
         }
         Err(McpError::invalid_params(
             format!("unknown resource uri: {uri}"),
@@ -575,15 +480,21 @@ impl ServerHandler for ArtifactMcp {
         ))
     }
 
-    fn accepted_subscription_filter(
-        &self,
-        requested: &SubscriptionFilter,
-    ) -> Option<SubscriptionFilter> {
-        veoveo_mcp_contract::accepted_subscription_filter(requested)
+    fn prompts(&self) -> Vec<Prompt> {
+        ArtifactPrompt::ALL
+            .into_iter()
+            .map(ArtifactPrompt::prompt)
+            .collect()
     }
 
-    async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
-        super::subscriptions::listen(&self.state.plane, &self.state.subscriptions, context).await
+    async fn get_prompt(
+        &self,
+        request: GetPromptRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<GetPromptResult, McpError> {
+        ArtifactPrompt::by_name(&request.name)
+            .ok_or_else(|| unknown_prompt(&request.name))?
+            .render(request.arguments)
     }
 
     async fn complete(
@@ -594,17 +505,6 @@ impl ServerHandler for ArtifactMcp {
         let Reference::Resource(reference) = &request.r#ref else {
             return Ok(CompleteResult::default());
         };
-        if reference.uri.as_str() == DOC_TEMPLATE && request.argument.name == "doc_id" {
-            let needle = request.argument.value.to_ascii_lowercase();
-            let values: Vec<String> = SERVER_DOCS
-                .iter()
-                .map(|doc| doc.id.to_owned())
-                .filter(|id| id.starts_with(&needle))
-                .collect();
-            let completion = CompletionInfo::new(values)
-                .map_err(|error| McpError::internal_error(error, None))?;
-            return Ok(CompleteResult::new(completion));
-        }
         if !matches!(
             reference.uri.as_str(),
             ARTIFACT_TEMPLATE | METADATA_TEMPLATE | GRANTS_TEMPLATE
@@ -617,7 +517,7 @@ impl ServerHandler for ArtifactMcp {
             .state
             .plane
             .list(
-                &auth::caller(&context)?,
+                &plane_caller(&context)?,
                 ListArtifactsRequest {
                     cursor: None,
                     limit: Some(100),
@@ -638,36 +538,23 @@ impl ServerHandler for ArtifactMcp {
     }
 }
 
-fn static_page<T>(
-    items: Vec<T>,
-    request: Option<&PaginatedRequestParams>,
-) -> Result<Page<T>, McpError> {
-    paginate(items, request, LIST_PAGE_SIZE)
-        .map_err(|error| McpError::invalid_params(error.to_string(), None))
+/// Artifact subscriptions follow the Artifact plane's change stream and end
+/// when the caller loses access.
+pub(super) struct ArtifactListener {
+    pub(super) state: Arc<AppState>,
 }
 
-fn structured<T: Serialize>(text: String, output: &T) -> Result<CallToolResult, McpError> {
-    let mut result = CallToolResult::success(vec![ContentBlock::text(text)]);
-    result.structured_content = Some(
-        serde_json::to_value(output)
-            .map_err(|error| McpError::internal_error(error.to_string(), None))?,
-    );
-    Ok(result)
-}
+impl SubscriptionListener for ArtifactListener {
+    fn accepted_subscription_filter(
+        &self,
+        requested: &SubscriptionFilter,
+    ) -> Option<SubscriptionFilter> {
+        veoveo_mcp_contract::accepted_subscription_filter(requested)
+    }
 
-fn private_resource(contents: Vec<ResourceContents>) -> ReadResourceResult {
-    ReadResourceResult::new(contents)
-        .with_ttl_ms(veoveo_mcp_contract::PRIVATE_RESOURCE_TTL_MS)
-        .with_cache_scope(CacheScope::Private)
-}
-
-fn json_resource<T: Serialize>(uri: &str, value: &T) -> Result<ReadResourceResponse, McpError> {
-    let text = serde_json::to_string(value)
-        .map_err(|error| McpError::internal_error(error.to_string(), None))?;
-    Ok(private_resource(vec![
-        ResourceContents::text(text, uri).with_mime_type("application/json"),
-    ])
-    .into())
+    async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
+        super::subscriptions::listen(&self.state.plane, &self.state.subscriptions, context).await
+    }
 }
 
 fn resource_error(error: ArtifactPlaneError) -> McpError {

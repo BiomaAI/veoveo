@@ -2,28 +2,20 @@
 
 use std::{net::SocketAddr, sync::Arc};
 
-use axum::{Router, middleware, routing::get};
 use clap::Parser;
-use rmcp::transport::streamable_http_server::StreamableHttpService;
 use tokio_util::sync::CancellationToken;
-use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_mcp_contract::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
-    ServerSlug, TelemetryGuard, TokenIssuer, init_server_telemetry, public_allowed_hosts,
+    GatewayInternalTrustBundle, TelemetryGuard,
+    hosting::{Hosted, HostedServer, ListenOnly},
+    init_server_telemetry,
 };
 use veoveo_platform_store::PlatformStore;
 
-#[path = "server/admin.rs"]
-mod admin;
-#[path = "server/auth.rs"]
-mod auth;
 #[path = "server/config.rs"]
 mod config;
 #[path = "server/handler.rs"]
 mod handler;
-#[path = "server/host.rs"]
-mod host;
 #[path = "server/prompts.rs"]
 mod prompts;
 #[path = "server/setup.rs"]
@@ -38,12 +30,9 @@ mod store_fixture;
 #[path = "server/subscription_tests/mod.rs"]
 mod subscription_tests;
 
-use auth::InternalAuthState;
 use config::Args;
-use handler::{AppState, ArtifactMcp};
+use handler::{AppState, ArtifactListener, ArtifactMcp};
 use subscriptions::{ArtifactSubscriptions, start_dispatcher};
-
-const SERVER_SLUG: &str = "artifact";
 
 fn install_rustls_provider() {
     let _ = rustls::crypto::ring::default_provider().install_default();
@@ -58,7 +47,6 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     std::sync::LazyLock::force(&setup::SERVER_SETUP);
     let public_deployment = args.public_deployment()?;
-    let public_endpoint = public_deployment.server(SERVER_SLUG)?;
     let store = PlatformStore::connect(args.store_config()?).await?;
     let plane = HttpArtifactPlane::new(args.artifact_service_url);
     let subscriptions = ArtifactSubscriptions::new(store.clone());
@@ -70,11 +58,6 @@ async fn main() -> anyhow::Result<()> {
             .trim_end_matches('/')
             .to_owned(),
     });
-    let verifier = GatewayInternalTokenVerifier::new(
-        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
-        ServerSlug::new(SERVER_SLUG)?,
-        GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?,
-    );
     let cancellation = CancellationToken::new();
     start_dispatcher(
         store,
@@ -87,62 +70,40 @@ async fn main() -> anyhow::Result<()> {
     )
     .await?;
 
-    let mut allowed_hosts = public_allowed_hosts(&public_deployment, args.allow_loopback_hosts);
-    allowed_hosts.extend(args.allowed_hosts);
-    let allowed_hosts = Arc::new(allowed_hosts);
-    let mcp_service = StreamableHttpService::new(
-        {
-            let state = state.clone();
-            move || Ok(ArtifactMcp::new(state.clone()))
-        },
-        veoveo_mcp_contract::stateless_session_manager(),
-        veoveo_mcp_contract::canonical_streamable_http_server_config()
-            .with_allowed_hosts(allowed_hosts.iter().cloned())
-            .with_cancellation_token(cancellation.child_token()),
-    );
-    let auth_state = InternalAuthState { verifier };
-    let mcp_router = Router::new()
-        .route_service("/", mcp_service.clone())
-        .route_service("/{*path}", mcp_service)
-        .layer(middleware::from_fn(
-            veoveo_mcp_contract::enforce_serialized_mcp_response,
-        ))
-        .layer(middleware::from_fn_with_state(
-            auth_state.clone(),
-            auth::authenticate,
-        ));
-    let admin_router = admin::router().layer(middleware::from_fn_with_state(
-        auth_state,
-        auth::authenticate,
-    ));
-    let server_router = Router::new()
-        .route("/healthz", get(|| async { "ok" }))
-        .nest("/admin", admin_router)
-        .nest("/mcp", mcp_router);
-    let router = Router::new()
-        .nest(public_endpoint.mount_path(), server_router)
-        .layer(middleware::from_fn_with_state(
-            allowed_hosts.clone(),
-            host::validate,
-        ))
-        .layer(
-            TraceLayer::new_for_http()
-                .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO)),
-        );
+    let server = hosted_server(
+        state,
+        &public_deployment,
+        args.allow_loopback_hosts,
+        args.allowed_hosts,
+        GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?,
+    )?;
+    let stop = server.cancellation_token();
+    let served = server
+        .serve(SocketAddr::from(([0, 0, 0, 0], args.port)))
+        .await;
+    cancellation.cancel();
+    stop.cancel();
+    served
+}
 
-    let address = SocketAddr::from(([0, 0, 0, 0], args.port));
-    tracing::info!(
-        service = "veoveo-artifact-mcp",
-        %address,
-        mcp_path = public_endpoint.path("mcp"),
-        "listening"
-    );
-    let listener = tokio::net::TcpListener::bind(address).await?;
-    axum::serve(listener, router)
-        .with_graceful_shutdown(async move {
-            let _ = tokio::signal::ctrl_c().await;
-            cancellation.cancel();
+/// Builds the hosted Artifact server for the binary and the subscription tests.
+fn hosted_server(
+    state: Arc<AppState>,
+    deployment: &veoveo_mcp_contract::PublicDeployment,
+    allow_loopback_hosts: bool,
+    allowed_hosts: Vec<String>,
+    trust: GatewayInternalTrustBundle,
+) -> anyhow::Result<HostedServer> {
+    Ok(HostedServer::for_domain::<ArtifactMcp>()
+        .deployment(deployment, allow_loopback_hosts)?
+        .allowed_hosts(allowed_hosts)
+        .internal_trust(trust)?
+        .handler(move || {
+            Hosted::new(ArtifactMcp::new(state.clone())).with_tasks(ListenOnly::new(
+                ArtifactListener {
+                    state: state.clone(),
+                },
+            ))
         })
-        .await?;
-    Ok(())
+        .build())
 }
