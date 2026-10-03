@@ -1,16 +1,11 @@
-mod admin;
-mod auth;
 mod config;
 mod dictation;
-mod host;
 mod mcp;
 mod setup;
 mod tasks;
 
 use crate::{application::SpeechService, process::WorkerProcess};
-use axum::{Router, extract::State, http::StatusCode, middleware, routing::get};
 use clap::Parser;
-use rmcp::transport::streamable_http_server::StreamableHttpService;
 use std::{
     sync::{Arc, LazyLock},
     time::Duration,
@@ -18,10 +13,11 @@ use std::{
 use tokio_util::sync::CancellationToken;
 use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_mcp_contract::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
-    PublicDeployment, ServerSlug, TokenIssuer, docs::ServerDocs, public_allowed_hosts,
+    GatewayInternalTrustBundle, PublicDeployment,
+    docs::ServerDocs,
+    hosting::{Hosted, HostedServer},
 };
-use veoveo_task_runtime::{TaskRuntime, TaskRuntimeConfig};
+use veoveo_task_runtime::{DurableTasks, TaskRuntime, TaskRuntimeConfig};
 
 pub(super) static SERVER_DOCS: LazyLock<ServerDocs> =
     LazyLock::new(|| veoveo_mcp_contract::server_docs!("speech"));
@@ -37,12 +33,6 @@ pub async fn run() -> anyhow::Result<()> {
         "recording capacity must reserve at least one inference slot for dictation"
     );
     let deployment = PublicDeployment::new(&args.public_base_url)?;
-    let endpoint = deployment.server("speech")?;
-    let verifier = GatewayInternalTokenVerifier::new(
-        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
-        ServerSlug::new("speech")?,
-        GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?,
-    );
     let worker = Arc::new(WorkerProcess::start(&args.python, args.inference_capacity).await?);
     let tasks = TaskRuntime::connect(
         TaskRuntimeConfig::new(
@@ -88,41 +78,38 @@ pub async fn run() -> anyhow::Result<()> {
             }
         })
     };
-    let mut hosts = public_allowed_hosts(&deployment, args.allow_loopback_hosts);
-    for host in args.allowed_hosts {
+    for host in &args.allowed_hosts {
         anyhow::ensure!(
-            veoveo_mcp_contract::parse_allowed_host_authority(&host).is_some(),
+            veoveo_mcp_contract::parse_allowed_host_authority(host).is_some(),
             "invalid allowed host"
         );
-        hosts.push(host);
     }
-    let router = router(
+    let server = hosted_server(
         service.clone(),
-        verifier,
-        hosts,
-        endpoint.mount_path(),
-        stop.clone(),
-    );
-    let listener =
-        tokio::net::TcpListener::bind((std::net::Ipv4Addr::UNSPECIFIED, args.port)).await?;
-    let serving = std::future::IntoFuture::into_future(axum::serve(listener, router)
-        .with_graceful_shutdown({
-            let stop = stop.clone();
-            let audit = service.audit.clone();
-            async move {
-                let mut terminate =
-                    tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-                        .expect("install SIGTERM handler");
-                tokio::select! { _ = tokio::signal::ctrl_c() => {}, _ = terminate.recv() => {}, _ = audit.closed() => {} }
-                stop.cancel();
-            }
-        }));
+        &deployment,
+        args.allow_loopback_hosts,
+        args.allowed_hosts,
+        GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?,
+    )?;
+    let address = std::net::SocketAddr::from((std::net::Ipv4Addr::UNSPECIFIED, args.port));
+    // Audit closure stops the server as SIGTERM and Ctrl-C do.
+    let serving = server.serve_with_shutdown(address, {
+        let stop = stop.clone();
+        let audit = service.audit.clone();
+        async move {
+            let mut terminate =
+                tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                    .expect("install SIGTERM handler");
+            tokio::select! { _ = tokio::signal::ctrl_c() => {}, _ = terminate.recv() => {}, _ = audit.closed() => {} }
+            stop.cancel();
+        }
+    });
     tokio::pin!(serving);
     let result: anyhow::Result<()> = tokio::select! {
-        result = &mut serving => result.map_err(Into::into),
+        result = &mut serving => result,
         _ = stop.cancelled() => tokio::time::timeout(Duration::from_secs(30), &mut serving)
             .await.map_err(|_| anyhow::anyhow!("Speech HTTP shutdown deadline exceeded"))
-            .and_then(|result| result.map_err(Into::into)),
+            .and_then(|result| result),
     };
     stop.cancel();
     recovery.abort();
@@ -135,58 +122,46 @@ pub async fn run() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Wire the same authenticated hosted boundary for the executable and native qualification.
-pub fn router(
+/// Builds the hosted Speech server for the executable and native qualification.
+pub fn hosted_server(
     service: Arc<SpeechService>,
-    verifier: GatewayInternalTokenVerifier,
-    hosts: Vec<String>,
-    mount_path: &str,
-    stop: CancellationToken,
-) -> Router {
-    let hosts = Arc::new(hosts.into_iter().collect::<Vec<_>>());
-    let transport = StreamableHttpService::new(
-        {
-            let service = service.clone();
-            move || Ok(mcp::SpeechMcp::new(service.clone()))
-        },
-        veoveo_mcp_contract::stateless_session_manager(),
-        veoveo_mcp_contract::canonical_streamable_http_server_config()
-            .with_allowed_hosts(hosts.iter().cloned())
-            .with_cancellation_token(stop.child_token()),
-    );
-    let authenticated = auth::InternalMcpAuthState { verifier };
-    let mcp = Router::new()
-        .route_service("/", transport.clone())
-        .route_service("/{*path}", transport)
-        .layer(middleware::from_fn(
-            veoveo_mcp_contract::enforce_serialized_mcp_response,
-        ))
-        .layer(middleware::from_fn_with_state(
-            authenticated.clone(),
-            auth::authenticate_internal_mcp,
-        ));
-    let admin = admin::router().layer(middleware::from_fn_with_state(
-        authenticated.clone(),
-        auth::authenticate_internal_mcp,
-    ));
-    let dictation = dictation::router().layer(middleware::from_fn_with_state(
-        authenticated,
-        auth::authenticate_internal_mcp,
-    ));
-    let routes = Router::new()
-        .merge(dictation)
-        .route("/healthz", get(health))
-        .route("/readyz", get(ready))
-        .with_state(service)
-        .nest("/mcp", mcp)
-        .nest("/admin", admin);
-    Router::new()
-        .nest(mount_path, routes)
-        .layer(middleware::from_fn_with_state(hosts, host::validate_host))
+    deployment: &PublicDeployment,
+    allow_loopback_hosts: bool,
+    allowed_hosts: Vec<String>,
+    trust: GatewayInternalTrustBundle,
+) -> anyhow::Result<HostedServer> {
+    let (alive, ready_state) = (service.clone(), service.clone());
+    let dictation = dictation::router().with_state(service.clone());
+    Ok(HostedServer::for_domain::<mcp::SpeechMcp>()
+        .deployment(deployment, allow_loopback_hosts)?
+        .allowed_hosts(allowed_hosts)
+        .internal_trust(trust)?
+        .handler(move || {
+            Hosted::new(mcp::SpeechMcp::new(service.clone())).with_tasks(
+                DurableTasks::with_listener(
+                    tasks::SpeechTasks(service.clone()),
+                    mcp::SpeechListener {
+                        state: service.clone(),
+                    },
+                ),
+            )
+        })
+        .authenticated_routes(dictation)
+        // A dead inference worker needs a restart.
+        .liveness(move || {
+            let state = alive.clone();
+            async move { state.worker.ready().await.is_ok() }
+        })
+        .readiness(move || {
+            let state = ready_state.clone();
+            async move { ready(&state).await }
+        })
+        .build())
 }
 
-async fn ready(State(state): State<Arc<SpeechService>>) -> StatusCode {
-    if state.audit.is_running()
+/// Ready while audit runs, the worker answers and the Store responds.
+async fn ready(state: &SpeechService) -> bool {
+    state.audit.is_running()
         && state.worker.ready().await.is_ok()
         && matches!(
             tokio::time::timeout(
@@ -196,17 +171,4 @@ async fn ready(State(state): State<Arc<SpeechService>>) -> StatusCode {
             .await,
             Ok(Ok(()))
         )
-    {
-        StatusCode::OK
-    } else {
-        StatusCode::SERVICE_UNAVAILABLE
-    }
-}
-
-async fn health(State(state): State<Arc<SpeechService>>) -> StatusCode {
-    if state.worker.ready().await.is_ok() {
-        StatusCode::OK
-    } else {
-        StatusCode::SERVICE_UNAVAILABLE
-    }
 }

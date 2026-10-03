@@ -76,7 +76,6 @@ veoveo-mcp-conformance = { path = "../../mcp/conformance" }
 base64.workspace = true
 rcgen.workspace = true
 veoveo-artifact-service = { path = "../../platform/artifacts/service" }
-tower = { workspace = true, features = ["util"] }
 
 [[bin]]
 name = "speech-mcp"

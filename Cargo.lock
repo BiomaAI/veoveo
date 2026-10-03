@@ -17449,7 +17449,6 @@ dependencies = [
  "tempfile",
  "tokio",
  "tokio-util",
- "tower",
  "tracing",
  "uuid",
  "veoveo-artifact-client",

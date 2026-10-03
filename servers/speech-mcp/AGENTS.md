@@ -6,6 +6,12 @@ Governed recording transcription and private human dictation.
 
 ## Invariants
 
+- The server is hosted through `veoveo_mcp_contract::hosting`: `SpeechMcp`
+  implements `DomainServer` with every read `DomainRead::no_store`, `SpeechListener`
+  is its `DurableListener`, and the dictation routes are authenticated routes.
+  `/speech/healthz` reports the inference worker, so a dead worker restarts the pod.
+  `server::hosted_server` builds the server for the binary and native qualification.
+  Do not add a `ServerHandler`, router, host check or authentication middleware here.
 Follow the root instructions and this component's DESIGN.md. Keep source authority,
 Task lifecycle and publication in Rust. The inference worker accepts only private
 bounded requests and never receives browser credentials or arbitrary URLs.

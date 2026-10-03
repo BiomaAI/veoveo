@@ -7,7 +7,7 @@ use rmcp::{
     service::RequestContext,
 };
 use std::sync::Arc;
-use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller};
+use veoveo_mcp_contract::PlaneCaller;
 use veoveo_speech_contract::{TranscribeRequest, TranscriptionId};
 use veoveo_task_runtime::{
     DurableTaskService, DurableTaskSubscription, cancel_durable_task, get_durable_task,
@@ -18,26 +18,7 @@ use veoveo_task_runtime::{
 pub(super) struct SpeechTasks(pub Arc<SpeechService>);
 
 pub(super) fn caller(context: &RequestContext<RoleServer>) -> Result<PlaneCaller, McpError> {
-    let parts = context
-        .extensions
-        .get::<axum::http::request::Parts>()
-        .ok_or_else(|| McpError::invalid_request("authenticated context required", None))?;
-    let identity = parts
-        .extensions
-        .get::<GatewayInternalIdentity>()
-        .cloned()
-        .ok_or_else(|| McpError::invalid_request("gateway identity required", None))?;
-    let bearer = parts
-        .extensions
-        .get::<super::auth::ForwardedBearer>()
-        .ok_or_else(|| McpError::invalid_request("gateway authority required", None))?
-        .0
-        .clone();
-    Ok(PlaneCaller {
-        bearer_token: bearer,
-        memberships: identity.actor.group_memberships(),
-        identity,
-    })
+    veoveo_mcp_contract::hosting::plane_caller(context)
 }
 
 impl DurableTaskService for SpeechTasks {

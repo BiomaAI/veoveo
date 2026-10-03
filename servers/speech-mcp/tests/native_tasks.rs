@@ -333,13 +333,14 @@ async fn qualify_hosted(
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
     let address = listener.local_addr()?;
     let base = format!("http://{address}/speech");
-    let router = veoveo_speech_mcp::server::router(
+    let router = veoveo_speech_mcp::server::hosted_server(
         service,
-        signing.verifier.clone(),
+        &veoveo_mcp_contract::PublicDeployment::new(format!("http://{address}"))?,
+        true,
         vec![address.to_string()],
-        "/speech",
-        tokio_util::sync::CancellationToken::new(),
-    );
+        signing.trust.clone(),
+    )?
+    .into_router();
     let _server = Server(tokio::spawn(async move {
         axum::serve(listener, router).await.unwrap();
     }));
