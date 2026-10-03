@@ -27,7 +27,15 @@ rollover gap: a live manifest without a writing layer removes Console's viewer.
 Recording playback manifest v10 gives every live recording a recording-scoped
 channel, with capture-layer selection kept inside the service. This producer/Console
 batch passes 200 native cases, 108 browser unit cases and the receiver-ownership
-behavioral check. Coordinated publication and composed visual acceptance remain open.
+behavioral check.
+Recording and Console are now published and deployed through `59077ec0`; both reach
+Ready and GitOps converges. The next composed flight passes Map and live Stream
+prerequisites but fails to rearm after preflight landing, before playback capture.
+PX4 reports a disarmed vehicle on the ground in Land mode. The adapter correction
+selects Loiter from that reported state before requesting arming, including when
+the commander has no in-air history. All 127 unit cases and the isolated RTX 4090
+CUDA/PX4 two-flight regression pass. Simulator publication and composed playback
+and landing visual acceptance are still open.
 The cluster and BuildKit stay stopped during development; Reason runs only when
 a selected acceptance scenario requires it.
 
@@ -622,7 +630,7 @@ Implementation work also remains:
 | Work | Owner |
 |---|---|
 | Close the acceptance gaps above and qualify affected consumers after implementation changes | Composed publication |
-| Qualify and deploy the Recording/Console rollover correction, then complete composed visual acceptance without weakening the one-second lag limit | Recording, Console and flight acceptance |
+| Deploy the qualified PX4 rearming correction, then verify the deployed Recording/Console rollover correction in composed visual acceptance without weakening the one-second lag limit | UAV simulator, Recording, Console and flight acceptance |
 
 Knowledge and Computers bind tools directly to typed RMCP handlers. Input schemas
 come from those parameter types; the domain-specific policy recheck, Task capability
@@ -1206,4 +1214,4 @@ not complete while a row remains.
 
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
-| Phase 1 reference reset | Recording playback, Console, `testing/flight-smoke/src/domain.rs` | Qualify and deploy playback manifest v10; finish composed headed playback/timing and landing visual acceptance | The domain scenario passes at `5c6639fc`. Focused headed hardware playback at `04cf2ed2` passes stability and reconnect with 0.170 seconds of lag. The subsequent composed flight passes Map/live Stream prerequisites and Recording replay, then loses its viewer during capture-layer rollover before lag calculation. Cleanup lands the aircraft. A native regression reproduces the absent live receiver. Preserve source bracketing, the one-second lag limit, spatial content and flight-health requirements; Reason stays in its separate acceptance batch |
+| Phase 1 reference reset | UAV simulator PX4 adapter, Recording playback, Console, `testing/flight-smoke/src/domain.rs` | Deploy the rearming correction and qualify playback manifest v10; finish composed headed playback/timing and landing visual acceptance | Focused headed hardware playback passes stability and reconnect with 0.170 seconds of lag. The Recording/Console rollover correction is deployed through `59077ec0`, but the subsequent composed run fails to rearm after preflight landing before reaching playback. The adapter correction passes native and CUDA/PX4 regression checks. Preserve source bracketing, the one-second lag limit, spatial content and flight-health requirements; Reason stays in its separate acceptance batch |

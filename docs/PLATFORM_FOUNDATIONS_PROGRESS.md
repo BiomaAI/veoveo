@@ -8,6 +8,41 @@ requirements, accepted risks and remaining work. This log does not establish com
 
 ## Implementation And Installation Checkpoints
 
+Recording rollout and PX4 rearming checkpoint (2026-10-03): Recording and Console
+from `f681a23d` are published and selected through `59077ec0`. Console was drained
+for the coordinated playback-manifest v10 upgrade. Both deployments reached Ready,
+GitOps converged on that revision, and both reconciliation controllers were restored.
+Only the Recording and Console image selections changed. Ten rollout cases and
+Helm configuration passed. Normal operator OAuth reads of Recording's contract and
+agents document passed.
+
+The composed flight at `59077ec0` passed Map and live Stream prerequisites, then
+failed before browser capture. Preflight landed the vehicle and issued another Land
+command after touchdown. The subsequent `uav-sim__takeoff_vehicle` call for 197 m
+returned MCP `-32602`, wrapping adapter HTTP 409 with
+`PX4 command deadline expired; inspect vehicle state before another mutation`.
+PX4 repeatedly rejected arming; its status reported disarmed, Land mode and no
+failsafe. The vehicle was on the ground with no collision. This run does not qualify
+the Recording rollover correction or final visual acceptance.
+
+The adapter's mode transition depended on whether this commander had observed
+`IN_AIR`. The correction uses the reported ground state and Land mode, then waits
+for Loiter before requesting arming within the existing deadline. The unit batch
+initially passed 126 of 127 cases; the older rearming fixture lacked a reported Land
+mode. After correcting that fixture, all five commander cases pass, giving coverage
+of all 127 cases. The first hardware run showed that a normal landing returns to
+Loiter, so the regression now reproduces the extra Land command after reconnecting
+a commander with no flight history. That RTX 4090 CUDA/PX4 regression passes both
+takeoff, movement and landing cycles in 140.807 seconds, including observed grounded
+Land mode before the second arming request and healthy estimator checks after both
+flights. The test shuts down its owned PX4 process and sensor publisher. Simulator
+publication and installed composed acceptance remain open.
+
+Deployment requests and pod logs are under
+`output/development/recording-rollover-installed-f681a23d/`; native regression logs
+are under `output/development/px4-grounded-rearm/`. The cluster and BuildKit are
+stopped during development, with 316 GiB free. The OCI registry stays running.
+
 Installed source alignment and rollover checkpoint (2026-10-03): focused headed
 Recording acceptance at `04cf2ed2` passes 120-second stability, reconnect, advancing
 camera content and source-to-viewer lag of 0.1704809477 seconds. Chrome uses RTX 4090

@@ -187,6 +187,11 @@ owns the vehicle asset, rotor model, aerodynamics, coordinate transforms, HIL se
 model, and process lifecycle. Every PX4 instance runs against an isolated writable root
 and one dedicated concurrent HIL transport.
 
+Before rearming a grounded vehicle in PX4's Land mode, the commander selects Loiter
+and waits for its acknowledged mode report within the same command deadline. This
+uses the reported mode and ground state, including after interrupted takeoff or a
+commander reconnect. PX4's health checks still admit arming.
+
 One Experimental `RigidPrim` resolves the whole fleet. A single Warp launch updates all
 motor states, integrates Newton's native `body_q` and `body_qd` arrays, applies the launch
 surface constraint, and samples every HIL sensor. The plant preserves the backend's native
@@ -358,7 +363,9 @@ and provenance.
 The isolated plant and PX4 checks use hardware CUDA without starting the cluster.
 `UAV_SIM_PX4_DIRECTORY` must point to the pinned, patched PX4 tree with its executable
 and ROMFS. Instances 41 and 42 require free local ports. The flight check commands two
-takeoff, movement and landing cycles and requires re-arming with a healthy estimator.
+takeoff, movement and landing cycles and reconnects the commander between cycles.
+Rearming must work from the reported Land mode with a healthy estimator, without
+requiring the new commander to have observed the previous flight.
 Every test owns its processes and temporary storage. No camera or rendering acceptance
 is implied by these sensor and flight checks.
 Set `UAV_SIM_PX4_FLIGHT_LOG_DIRECTORY` to retain the isolated flight's sensor samples,

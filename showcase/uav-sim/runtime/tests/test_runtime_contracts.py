@@ -1502,6 +1502,7 @@ class Px4CommanderTests(unittest.TestCase):
         commander._connected = True
         commander._has_flown = True
         commander._landed_state = mavutil.mavlink.MAV_LANDED_STATE_ON_GROUND
+        _, commander._px4_main_mode, commander._px4_sub_mode = mavutil.px4_map["LAND"]
 
         commander.arm()
 

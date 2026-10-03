@@ -16,6 +16,7 @@ import time
 import unittest
 
 import numpy as np
+from pymavlink import mavutil
 
 from test_plant import CudaPlant
 from veoveo_uav_sim.contracts import Waypoint
@@ -119,6 +120,21 @@ class Px4FlightTests(unittest.TestCase):
                 wait_for(f"postflight preflight {cycle + 1}", 20.0,
                          lambda: "pre_flight_checks_pass: True" in topic("vehicle_status"))
                 self.assertIn("cs_mag_fault: False", topic("estimator_status_flags"))
+                if cycle == 0:
+                    # This commander has no IN_AIR history. Preflight can send
+                    # Land after touchdown; reproduce that observed PX4 mode
+                    # before asking the newly connected commander to rearm.
+                    commander.close()
+                    commander = Px4Commander(instance=instance, origin_height_m=-17.0)
+                    commander.connect(timeout_seconds=15.0)
+                    wait_for("grounded commander reconnect", 10.0,
+                             lambda: commander.status().flight_state == "standby"
+                             and commander._landed_state == mavutil.mavlink.MAV_LANDED_STATE_ON_GROUND)
+                    self.assertFalse(commander._has_flown)
+                    commander.land(deadline=CommandDeadline.after(20.0))
+                    wait_for("grounded Land mode", 10.0,
+                             lambda: (commander._px4_main_mode, commander._px4_sub_mode)
+                             == mavutil.px4_map["LAND"][1:])
             self.assertFalse(failures, str(failures))
         finally:
             # Simulator process teardown ends any unresolved simulated operation;
