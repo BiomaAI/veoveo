@@ -312,54 +312,6 @@ fn task_error(error: TaskError) -> McpError {
     }
 }
 
-/// Adds official Tasks dispatch to a hosted server while preserving its ordinary tool router.
-#[macro_export]
-macro_rules! durable_task_handlers {
-    ($task_service:ident, $tool_router:ident) => {
-        async fn call_tool(
-            &self,
-            mut request: rmcp::model::CallToolRequestParams,
-            context: rmcp::service::RequestContext<rmcp::RoleServer>,
-        ) -> Result<rmcp::model::CallToolResponse, rmcp::ErrorData> {
-            if let Some(created) =
-                $crate::start_durable_tool_task(&self.$task_service, &mut request, &context).await?
-            {
-                return Ok(created.into());
-            }
-            let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
-            self.$tool_router.call(call).await
-        }
-
-        async fn get_task(
-            &self,
-            request: rmcp::model::GetTaskParams,
-            context: rmcp::service::RequestContext<rmcp::RoleServer>,
-        ) -> Result<rmcp::model::GetTaskResult, rmcp::ErrorData> {
-            let caller = $crate::DurableTaskService::authenticate(&self.$task_service, &context)?;
-            $crate::DurableTaskService::get_task(&self.$task_service, &caller, request).await
-        }
-
-        async fn update_task(
-            &self,
-            request: rmcp::model::UpdateTaskParams,
-            context: rmcp::service::RequestContext<rmcp::RoleServer>,
-        ) -> Result<(), rmcp::ErrorData> {
-            let caller = $crate::DurableTaskService::authenticate(&self.$task_service, &context)?;
-            $crate::DurableTaskService::update_task(&self.$task_service, &caller, request).await
-        }
-
-        async fn cancel_task(
-            &self,
-            request: rmcp::model::CancelTaskParams,
-            context: rmcp::service::RequestContext<rmcp::RoleServer>,
-        ) -> Result<(), rmcp::ErrorData> {
-            let caller = $crate::DurableTaskService::authenticate(&self.$task_service, &context)?;
-            $crate::DurableTaskService::cancel_task(&self.$task_service, &caller, request.task_id)
-                .await
-        }
-    };
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
