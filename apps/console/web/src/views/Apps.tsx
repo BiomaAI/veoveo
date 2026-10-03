@@ -1,11 +1,10 @@
 import { LayoutGrid } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { EmptyState, SectionHeader } from "../components/primitives";
 import { AppFrame } from "../apps/AppFrame";
 import {
   groupAppsByServer,
   namespacedAppTitle,
-  selectMountedApp,
 } from "../apps/catalogPresentation";
 import { resolveAppLink, type PlatformAppLink } from "../apps/links";
 import { isFullBleedApp } from "../appPresentation";
@@ -13,19 +12,15 @@ import { useApps } from "../queries";
 import type { AppDescriptor } from "../types";
 
 export function AppsView({
-  selectedUri,
+  selected,
   onSelect,
   onPlatformSelect,
 }: {
-  selectedUri?: string;
+  selected?: AppDescriptor;
   onSelect: (app: AppDescriptor) => void;
   onPlatformSelect: (view: PlatformAppLink) => void;
 }) {
   const { data, error, isLoading } = useApps();
-  const [mounted, setMounted] = useState<AppDescriptor>();
-  const selected = selectMountedApp(selectedUri, data, mounted);
-  // Update before children render: an effect would first remove the live frame.
-  if (selected !== mounted) setMounted(selected);
   const apps = useMemo(() => data?.apps ?? [], [data?.apps]);
   const openInternalLink = useCallback(
     (url: string) => {

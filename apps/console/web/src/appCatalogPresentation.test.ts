@@ -17,17 +17,17 @@ test("only incomplete discovery of the selected App preserves its mounted descri
   };
   const changed = { ...mounted, title: "Updated App" };
   const pending: AppCatalogDegradation = { server: "map", surface: "resources", code: "discovery_pending" };
-  const uri = mounted.resourceUri;
-  assert.equal(selectMountedApp(uri, { apps: [], degradations: [pending] }, mounted), mounted);
-  assert.equal(selectMountedApp(uri, { apps: [changed], degradations: [{ ...pending, surface: "tools" }] }, mounted), mounted);
-  assert.equal(selectMountedApp(uri, { apps: [changed], degradations: [] }, mounted), changed);
-  assert.equal(selectMountedApp(uri, { apps: [], degradations: [] }, mounted), undefined);
-  assert.equal(selectMountedApp(uri, { apps: [], degradations: [{ ...pending, surface: "tools" }] }, mounted), undefined);
-  assert.equal(selectMountedApp(uri, { apps: [], degradations: [{ ...pending, server: "media" }] }, mounted), undefined);
-  assert.equal(selectMountedApp("ui://map/another.html", { apps: [], degradations: [pending] }, mounted), undefined);
+  const routeKey = "map/workspace";
+  assert.equal(selectMountedApp(routeKey, { apps: [], degradations: [pending] }, mounted), mounted);
+  assert.equal(selectMountedApp(routeKey, { apps: [changed], degradations: [{ ...pending, surface: "tools" }] }, mounted), mounted);
+  assert.equal(selectMountedApp(routeKey, { apps: [changed], degradations: [] }, mounted), changed);
+  assert.equal(selectMountedApp(routeKey, { apps: [], degradations: [] }, mounted), undefined);
+  assert.equal(selectMountedApp(routeKey, { apps: [], degradations: [{ ...pending, surface: "tools" }] }, mounted), undefined);
+  assert.equal(selectMountedApp(routeKey, { apps: [], degradations: [{ ...pending, server: "media" }] }, mounted), undefined);
+  assert.equal(selectMountedApp("map/another", { apps: [], degradations: [pending] }, mounted), undefined);
   assert.equal(selectMountedApp(undefined, { apps: [], degradations: [pending] }, mounted), undefined);
-  assert.equal(selectMountedApp(uri, undefined, mounted), undefined);
-  assert.equal(selectMountedApp(uri, { apps: [], degradations: [pending] }, undefined), undefined);
+  assert.equal(selectMountedApp(routeKey, undefined, mounted), undefined);
+  assert.equal(selectMountedApp(routeKey, { apps: [], degradations: [pending] }, undefined), undefined);
 });
 
 test("pending discovery is distinct from failed services", () => {

@@ -45,8 +45,8 @@ import { TaskDrawer } from "./drawers/TaskDrawer";
 import type { AppDescriptor, ArtifactSummary, InstallationSnapshot, TaskSummary } from "./types";
 import { consoleThemes, useTheme, type ConsoleTheme } from "./theme";
 import { isFullBleedApp } from "./appPresentation";
-import { groupAppsByServer, namespacedAppTitle } from "./apps/catalogPresentation";
-import { appForRoute, appRouteKey, consoleAppRoute } from "./apps/links";
+import { groupAppsByServer, namespacedAppTitle, selectMountedApp } from "./apps/catalogPresentation";
+import { appRouteKey, consoleAppRoute } from "./apps/links";
 
 // Core Computers has an accepted native projection. Other domain pages come from the MCP App catalog.
 const navItems = [
@@ -120,6 +120,7 @@ function Console({ bootstrap }: { bootstrap: ConsoleBootstrap }) {
   const permitsView = (id: ViewId) => id === "audit" ? bootstrap.canReadAudit : bootstrap.canReadInstallation || id === "computers" || id === "apps";
   const view = permitsView(selectedView) ? selectedView : "computers";
   const [selectedAppKey, setSelectedAppKey] = useState<string | undefined>(initial.appKey);
+  const [mountedApp, setMountedApp] = useState<AppDescriptor>();
   const [mobileNav, setMobileNav] = useState(false);
   const [artifactSelection, setArtifactSelection] = useState<{ artifact: ArtifactSummary; scope: string }>();
   const [uploadsOpen, setUploadsOpen] = useState(false);
@@ -159,7 +160,10 @@ function Console({ bootstrap }: { bootstrap: ConsoleBootstrap }) {
     () => groupAppsByServer(apps, appsCatalog?.degradations ?? []),
     [apps, appsCatalog?.degradations],
   );
-  const selectedApp = appForRoute(selectedAppKey, apps);
+  const selectedApp = selectMountedApp(selectedAppKey, appsCatalog, mountedApp);
+  // The route remains selected while discovery is incomplete. Resolve retention
+  // here, before navigation and the frame receive a missing selection.
+  if (selectedApp !== mountedApp) setMountedApp(selectedApp);
   const unavailableAppServices = appGroups.filter((group) => group.unavailable).length;
 
   const navigate = useCallback((next: ViewId, recordingId?: string) => {
@@ -377,7 +381,7 @@ function Console({ bootstrap }: { bootstrap: ConsoleBootstrap }) {
           {snapshot && view === "mcp" && <McpView snapshot={snapshot} />}
           {view === "apps" && (
             <AppsView
-              selectedUri={selectedApp?.resourceUri}
+              selected={selectedApp}
               onSelect={navigateApp}
               onPlatformSelect={navigate}
             />

@@ -19,34 +19,38 @@ document.querySelector('button').onclick=async()=>{document.querySelector('outpu
 const entry = `import React from 'react';
 import {createRoot} from 'react-dom/client';
 import {AppFrame} from '/src/apps/AppFrame.tsx';
-import {AppsView} from '/src/views/Apps.tsx';
+import {App} from '/src/App.tsx';
+import {demoSnapshot} from '/src/demo.ts';
 import {QueryClient,QueryClientProvider} from '@tanstack/react-query';
-import {queryKeys} from '/src/queries.ts';
 import {ThemeContext} from '/src/theme.ts';
 import {initializeAppSession,loadSnapshot} from '/src/api.ts';
+import {configureBrowserApplication} from '/src/browserApp.ts';
+configureBrowserApplication('console');
 initializeAppSession('fixture');
 window.failSnapshot=()=>loadSnapshot().catch(error=>error.message);
 const root=createRoot(document.querySelector('#root'));
 const client=new QueryClient({defaultOptions:{queries:{retry:false}}});
 const app={server:'map',resourceUri:'ui://map/workspace.html',standalonePath:'/apps/map/workspace',name:'Map Explorer',tools:[{name:'query_features',inputSchema:{}}],resourceDependencies:[],toolDependencies:[],agentMessageTargets:[]};
 window.renderFrame=(theme='light',title='Map Explorer',visible=true)=>root.render(React.createElement(ThemeContext.Provider,{value:{theme,appTheme:theme,setTheme:()=>{}}},visible?React.createElement(AppFrame,{app:{...app,title},onInternalLink:()=>false}):null));
-window.renderCatalog=(stage)=>{
- const pending=stage==='restarting';
- const partial=stage==='tools-pending';
- const removed=stage==='removed';
- const catalog={apps:pending||removed?[]:[partial?{...app,tools:[]}:app],degradations:pending?[{server:'map',surface:'resources',code:'upstream_unavailable'}]:partial||removed?[{server:'map',surface:'tools',code:'discovery_pending'}]:[]};
- client.setQueryData(queryKeys.apps,catalog);
- root.render(React.createElement(ThemeContext.Provider,{value:{theme:'light',appTheme:'light',setTheme:()=>{}}},React.createElement(QueryClientProvider,{client},React.createElement(React.Fragment,null,
-   React.createElement('output',{id:'catalog-stage'},stage),
-   React.createElement(AppsView,{selectedUri:app.resourceUri,onSelect:()=>{},onPlatformSelect:()=>{}})))));
+window.renderCatalog=async(stage)=>{
+ const catalog=await fetch('/console/fixture-catalog?stage='+stage,{method:'POST'});
+ if(!catalog.ok)throw new Error('catalog fixture failed');
+ if(stage==='initial') {
+   window.history.replaceState(null,'','#/apps/map/workspace');
+   client.setQueryData(['console-session'],{profile:'operator',canReadInstallation:false,canReadAudit:false,installation:demoSnapshot.installation,session:demoSnapshot.session});
+   root.render(React.createElement(ThemeContext.Provider,{value:{theme:'light',appTheme:'light',setTheme:()=>{}}},React.createElement(QueryClientProvider,{client},React.createElement(App))));
+ }
 };
 window.renderFrame();`;
 
-test('snapshot failures, catalog churn and theme changes preserve calls; descriptor changes and remount get fresh frames', {timeout: 60_000}, async () => {
+test('Console navigation retains live frames through catalog loss and clears them on removal or navigation', {timeout: 60_000}, async () => {
   let frames = 0, opened = 0, unsubscribed = 0;
   let release, callArrived;
   const requested = new Promise(resolve => {callArrived = resolve;});
-  const streams = new Set();
+  const streams = new Set(), catalogs = new Set();
+  const app = {server:'map',resourceUri:'ui://map/workspace.html',standalonePath:'/apps/map/workspace',name:'Map Explorer',tools:[{name:'query_features',inputSchema:{}}],resourceDependencies:[],toolDependencies:[],agentMessageTargets:[]};
+  let catalog = {apps:[app],degradations:[]};
+  const sendCatalog = res => res.write(`event: catalog\ndata: ${JSON.stringify(catalog)}\n\n`);
   const server = await createServer({root:fileURLToPath(new URL('../',import.meta.url)),configFile:false,base:'/console/',
     optimizeDeps:{include:['react','react-dom/client']},
     server:{host:'127.0.0.1',port:0},plugins:[react(),{name:'fixtures',
@@ -56,6 +60,15 @@ test('snapshot failures, catalog churn and theme changes preserve calls; descrip
       server.middlewares.use(async (req,res,next)=>{
         const path=new URL(req.url,'http://fixture.test').pathname;
         if(path==='/console/fixture') {res.setHeader('Content-Type','text/html');res.end(await server.transformIndexHtml('/console/fixture','<!doctype html><div id="root"></div><script type="module" src="/console/fixture-entry.js"></script>'));}
+        else if(path==='/console/fixture-catalog') {
+          const stage=new URL(req.url,'http://fixture.test').searchParams.get('stage');
+          const pending=stage==='restarting', partial=stage==='tools-pending', removed=stage==='removed';
+          catalog={apps:pending||removed?[]:[partial?{...app,tools:[]}:app],degradations:pending?[{server:'map',surface:'resources',code:'upstream_unavailable'}]:partial||removed?[{server:'map',surface:'tools',code:'discovery_pending'}]:[]};
+          for(const stream of catalogs)sendCatalog(stream);
+          res.end('ok');
+        }
+        else if(path==='/console/api/apps'){res.setHeader('Content-Type','application/json');res.end(JSON.stringify(catalog));}
+        else if(path==='/console/api/apps/events'){res.setHeader('Content-Type','text/event-stream');catalogs.add(res);sendCatalog(res);res.on('close',()=>catalogs.delete(res));}
         else if(path==='/console/api/snapshot'){res.statusCode=503;res.setHeader('Content-Type','application/json');res.end('{"error":"fixture unavailable"}');}
         else if(path==='/console/api/apps/frame'){++frames;res.setHeader('Content-Type','text/html');res.end(frame);}
         else if(path==='/console/api/apps/call'){release=()=>{res.setHeader('Content-Type','application/json');res.end('{"content":[]}');};callArrived();}
@@ -97,13 +110,19 @@ test('snapshot failures, catalog churn and theme changes preserve calls; descrip
     await app.locator('output').evaluate(node=>{node.textContent='retained selection';});
     for(const stage of ['restarting','tools-pending','recovered']) {
       await page.evaluate(stage=>window.renderCatalog(stage),stage);
-      await page.locator('#catalog-stage').filter({hasText:stage}).waitFor();
+      if(stage==='restarting')await page.locator('.nav-app-unavailable').filter({hasText:'Unavailable'}).waitFor();
+      else await page.getByRole('button',{name:'Map Explorer',exact:true}).waitFor();
       await app.getByText('retained selection',{exact:true}).waitFor();
       assert.equal(frames,4,stage);
     }
+    await page.getByRole('button',{name:'Apps',exact:true}).click();
+    await page.locator('iframe').waitFor({state:'detached'});
+    await page.locator('.nav-app').filter({hasText:'Map Explorer'}).click();
+    await app.getByText('ready',{exact:true}).waitFor();
+    assert.equal(frames,5);
     // A successful resource list that omits this App revokes its frame even
     // when tools from the same server are still discovering.
     await page.evaluate(()=>window.renderCatalog('removed'));
     await page.locator('iframe').waitFor({state:'detached'});
-  }finally{await context.close();await browser.close();for(const res of streams)res.end();await server.close();}
+  }finally{await context.close();await browser.close();for(const res of [...streams,...catalogs])res.end();await server.close();}
 });
