@@ -14,6 +14,11 @@ plant, PX4 transport, and authoritative operator cameras and encoded products.
 
 ## Invariants
 
+- The server is hosted through `veoveo_mcp_contract::hosting`: `UavSimMcp` implements
+  `DomainServer` and is its own `ResourceSubscriptions` source, reusing the read
+  path's checks. `serve_with_shutdown` runs it beside the live-stream gate, and
+  either stopping ends both. Do not add a `ServerHandler`, router, host check or
+  authentication middleware here.
 - Declare MCP scopes, resource descriptors, templates, capabilities and documents in
   `server/setup.rs`. Startup and handlers consume `McpServerSetup<UavContract>`.
   Keep checked declaration metadata separate from caller authority. Every added

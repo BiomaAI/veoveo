@@ -8,7 +8,7 @@ use crate::contract::{
 };
 
 use super::auth::require_scope;
-use super::ownership::{plane_caller, runtime_owner};
+use super::ownership::runtime_owner;
 use super::state::AppState;
 use super::task_worker::{start_operation, start_vehicle_mission_plan};
 
@@ -40,37 +40,12 @@ impl veoveo_task_runtime::DurableTaskService for UavSimTaskExtension {
         &self,
         context: &rmcp::service::RequestContext<rmcp::RoleServer>,
     ) -> Result<Self::Caller, rmcp::ErrorData> {
-        let parts = context
-            .extensions
-            .get::<axum::http::request::Parts>()
-            .ok_or_else(|| {
-                rmcp::ErrorData::invalid_request(
-                    veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED,
-                    None,
-                )
-            })?;
-        let identity = parts
-            .extensions
-            .get::<GatewayInternalIdentity>()
-            .cloned()
-            .ok_or_else(|| {
-                rmcp::ErrorData::invalid_request(
-                    veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED,
-                    None,
-                )
-            })?;
-        let bearer = parts
-            .extensions
-            .get::<super::auth::ForwardedBearer>()
-            .map(|bearer| bearer.0.clone())
-            .ok_or_else(|| {
-                rmcp::ErrorData::invalid_request(
-                    veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED,
-                    None,
-                )
-            })?;
+        let identity = veoveo_mcp_contract::hosting::gateway_identity(context)?;
         Ok(AuthenticatedCaller {
-            plane: plane_caller(identity.clone(), bearer),
+            plane: PlaneCaller::from_gateway(
+                identity.clone(),
+                veoveo_mcp_contract::hosting::forwarded_bearer(context)?,
+            ),
             identity,
         })
     }

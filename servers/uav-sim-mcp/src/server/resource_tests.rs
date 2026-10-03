@@ -4,6 +4,7 @@ use crate::{
     adapter::{Adapter, FakeAdapter},
     server::test_support,
 };
+use rmcp::ServerHandler;
 use std::time::Duration;
 use tokio::sync::Mutex;
 
@@ -66,7 +67,7 @@ async fn reads_and_subscription_admission_reject_bad_routes_scopes_and_parents()
             "resource-test",
         );
         let mut running = rmcp::service::serve_directly(
-            UavSimMcp::new(state.clone()),
+            crate::server::service::hosted(state.clone()),
             (futures::sink::drain(), futures::stream::pending()),
             None,
         );
@@ -84,7 +85,7 @@ async fn reads_and_subscription_admission_reject_bad_routes_scopes_and_parents()
                 .read_resource(ReadResourceRequestParams::new(uri), context.clone())
                 .await
                 .unwrap();
-            server.require_subscribable(uri, &context).await.unwrap();
+            subscribe(server, uri, &context).await.unwrap();
         }
         for uri in [
             "uav-sim://session/other/world",
@@ -106,10 +107,7 @@ async fn reads_and_subscription_admission_reject_bad_routes_scopes_and_parents()
                     .is_err(),
                 "{uri}"
             );
-            assert!(
-                server.require_subscribable(uri, &context).await.is_err(),
-                "{uri}"
-            );
+            assert!(subscribe(server, uri, &context).await.is_err(), "{uri}");
         }
         for (uri, scopes) in [
             (uris::CONTROL_GRANTS, vec![UavScope::Read]),
@@ -130,7 +128,7 @@ async fn reads_and_subscription_admission_reject_bad_routes_scopes_and_parents()
                     .await
                     .is_err()
             );
-            assert!(server.require_subscribable(uri, &context).await.is_err());
+            assert!(subscribe(server, uri, &context).await.is_err());
         }
         let cursor =
             UavMissionCursor::new(crate::contract::MissionId::new("last").unwrap()).unwrap();
@@ -144,7 +142,7 @@ async fn reads_and_subscription_admission_reject_bad_routes_scopes_and_parents()
             .read_resource(ReadResourceRequestParams::new(uri), context.clone())
             .await
             .unwrap();
-        assert!(server.require_subscribable(uri, &context).await.is_err());
+        assert!(subscribe(server, uri, &context).await.is_err());
         let identity = test_support::identity("scope-test", "operations", "pilot", &[]);
         let connection = state
             .live_views
@@ -171,8 +169,7 @@ async fn reads_and_subscription_admission_reject_bad_routes_scopes_and_parents()
             )
             .await
             .unwrap();
-        server
-            .require_subscribable(connection.stream.resource_uri.as_str(), &context)
+        subscribe(server, connection.stream.resource_uri.as_str(), &context)
             .await
             .unwrap();
         simulation.session_id = SessionId::new("other").unwrap();
@@ -190,8 +187,7 @@ async fn reads_and_subscription_admission_reject_bad_routes_scopes_and_parents()
             .unwrap_err();
         assert_eq!(error.message, "live view not found in session");
         assert!(
-            server
-                .require_subscribable(wrong_parent.as_str(), &context)
+            subscribe(server, wrong_parent.as_str(), &context)
                 .await
                 .is_err()
         );
@@ -199,4 +195,21 @@ async fn reads_and_subscription_admission_reject_bad_routes_scopes_and_parents()
     })
     .await
     .expect("native resource admission exceeded 60 seconds");
+}
+
+/// Admits one subscribed URI the way the host does: parse, then authorize.
+async fn subscribe(
+    server: &crate::server::service::HostedUav,
+    uri: &str,
+    context: &rmcp::service::RequestContext<rmcp::RoleServer>,
+) -> Result<(), rmcp::ErrorData> {
+    let addresses = veoveo_mcp_contract::hosting::requested_addresses::<
+        crate::contract::UavResource,
+    >(Some(&[uri.to_owned()]))?;
+    veoveo_mcp_contract::hosting::ResourceSubscriptions::authorize(
+        server.domain(),
+        addresses,
+        context,
+    )
+    .await
 }

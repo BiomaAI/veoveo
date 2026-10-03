@@ -1,23 +1,21 @@
 //! Domain resource discovery, reads, completions, and subscription admission.
 use super::super::{control_authority::ControlCollection, task_index};
 use super::*;
-use crate::contract::{
-    UavLiveViewCursor, UavMissionCursor, UavPlanCursor, UavResource, UavUsageCursor,
-};
+use crate::contract::{UavLiveViewCursor, UavMissionCursor, UavPlanCursor, UavUsageCursor};
+use veoveo_mcp_contract::hosting::{completion, json_read, rank_completions, served_by_host};
+use veoveo_types::ResourceAddress;
 
 impl UavSimMcp {
+    /// Reads one admitted address. The host serves documents and the contract.
     pub(super) async fn resource_read(
         &self,
-        request: ReadResourceRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
-        let cacheable = request.request_state.is_none() && request.input_responses.is_none();
-        let resource = UavResource::parse(&request.uri).map_err(invalid)?;
-        let identity = internal_identity(&context)?;
+        resource: UavResource,
+        uri: &str,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<ReadResourceResult, McpError> {
+        let identity = gateway_identity(context)?;
         require_resource_scope(&identity, &resource)?;
-        self.read_address(&request.uri, &resource, &identity)
-            .await
-            .map(|result| veoveo_mcp_contract::private_resource_response(result, cacheable))
+        self.read_address(uri, &resource, &identity).await
     }
 
     async fn read_address(
@@ -30,19 +28,8 @@ impl UavSimMcp {
             UavResource::LiveApp => Ok(ReadResourceResult::new(vec![
                 veoveo_mcp_apps_extension::app_html_contents(uri, crate::live_app::html()),
             ])),
-            UavResource::Docs => {
-                json_resource(uri, &SERVER_SETUP.documents().iter().collect::<Vec<_>>())
-            }
-            UavResource::Document(document) => {
-                let doc = SERVER_SETUP.documents().doc(document.id()).ok_or_else(|| {
-                    McpError::resource_not_found("unknown UAV simulation document", None)
-                })?;
-                Ok(ReadResourceResult::new(vec![
-                    ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
-                ]))
-            }
-            UavResource::Contract => {
-                json_resource(uri, SERVER_SETUP.documents().contract_declaration())
+            UavResource::Docs | UavResource::Document(_) | UavResource::Contract => {
+                Err(served_by_host())
             }
             UavResource::ControlGrants { cursor } => {
                 let page = self
@@ -56,7 +43,7 @@ impl UavSimMcp {
                     )
                     .await
                     .map_err(authority_error)?;
-                json_resource(uri, &page)
+                json_read(uri, &page)
             }
             UavResource::ControlGrant(id) => {
                 let grant = self
@@ -66,7 +53,7 @@ impl UavSimMcp {
                     .await
                     .map_err(authority_error)?
                     .ok_or_else(|| McpError::resource_not_found("control grant not found", None))?;
-                json_resource(uri, &grant)
+                json_read(uri, &grant)
             }
             UavResource::MissionPlans { cursor } => {
                 let page = self
@@ -79,7 +66,7 @@ impl UavSimMcp {
                     )
                     .await
                     .map_err(authority_error)?;
-                json_resource(uri, &page)
+                json_read(uri, &page)
             }
             UavResource::MissionPlan(id) => {
                 let plan = self
@@ -89,9 +76,9 @@ impl UavSimMcp {
                     .await
                     .map_err(authority_error)?
                     .ok_or_else(|| McpError::resource_not_found("mission plan not found", None))?;
-                json_resource(uri, &plan)
+                json_read(uri, &plan)
             }
-            UavResource::Usage { cursor } => json_resource(
+            UavResource::Usage { cursor } => json_read(
                 uri,
                 &task_index::usage_page(
                     &self.state.tasks,
@@ -101,7 +88,7 @@ impl UavSimMcp {
                 .await
                 .map_err(internal)?,
             ),
-            UavResource::Missions { cursor } => json_resource(
+            UavResource::Missions { cursor } => json_read(
                 uri,
                 &task_index::missions_page(
                     self.state.tasks.platform_store(),
@@ -116,14 +103,14 @@ impl UavSimMcp {
                     .await
                     .map_err(internal)?
                     .ok_or_else(|| McpError::resource_not_found("task not found", None))?;
-                json_resource(uri, &task_usage(&task, uri))
+                json_read(uri, &task_usage(&task, uri))
             }
             UavResource::Mission(id) => {
                 let task = task_index::mission(self.state.tasks.platform_store(), identity, id)
                     .await
                     .map_err(internal)?
                     .ok_or_else(|| McpError::resource_not_found("mission not found", None))?;
-                json_resource(uri, &task)
+                json_read(uri, &task)
             }
             UavResource::Sessions
             | UavResource::Session(_)
@@ -140,12 +127,12 @@ impl UavSimMcp {
             | UavResource::LiveView { .. } => {
                 let state = self.resource_state(resource, identity).await?;
                 match resource {
-                    UavResource::Sessions => json_resource(uri, &vec![session_summary(&state)]),
-                    UavResource::Session(_) => json_resource(uri, &state),
-                    UavResource::World(_) => json_resource(uri, &world_view(&state)),
-                    UavResource::Tiles(_) => json_resource(uri, &state.tiles),
-                    UavResource::Vehicles(_) => json_resource(uri, &state.vehicles),
-                    UavResource::Recordings(_) => json_resource(uri, &state.recordings),
+                    UavResource::Sessions => json_read(uri, &vec![session_summary(&state)]),
+                    UavResource::Session(_) => json_read(uri, &state),
+                    UavResource::World(_) => json_read(uri, &world_view(&state)),
+                    UavResource::Tiles(_) => json_read(uri, &state.tiles),
+                    UavResource::Vehicles(_) => json_read(uri, &state.vehicles),
+                    UavResource::Recordings(_) => json_read(uri, &state.recordings),
                     UavResource::Vehicle { vehicle, .. } => {
                         let vehicle = state
                             .vehicles
@@ -154,9 +141,9 @@ impl UavSimMcp {
                             .ok_or_else(|| {
                                 McpError::resource_not_found("vehicle not found", None)
                             })?;
-                        json_resource(uri, vehicle)
+                        json_read(uri, vehicle)
                     }
-                    UavResource::LiveCameras(_) => json_resource(uri, &state.live_cameras),
+                    UavResource::LiveCameras(_) => json_read(uri, &state.live_cameras),
                     UavResource::LiveCamera { camera, .. } => {
                         let camera = state
                             .live_cameras
@@ -165,9 +152,9 @@ impl UavSimMcp {
                             .ok_or_else(|| {
                                 McpError::resource_not_found("live camera not found", None)
                             })?;
-                        json_resource(uri, camera)
+                        json_read(uri, camera)
                     }
-                    UavResource::StreamProducts(_) => json_resource(uri, &state.stream_products),
+                    UavResource::StreamProducts(_) => json_read(uri, &state.stream_products),
                     UavResource::StreamProduct { product, .. } => {
                         let product = state
                             .stream_products
@@ -176,7 +163,7 @@ impl UavSimMcp {
                             .ok_or_else(|| {
                                 McpError::resource_not_found("stream product not found", None)
                             })?;
-                        json_resource(uri, product)
+                        json_read(uri, product)
                     }
                     UavResource::LiveViews { session, cursor } => {
                         let owner = crate::server::ownership::live_view_owner(identity);
@@ -203,7 +190,7 @@ impl UavSimMcp {
                             Ok,
                         )
                         .map_err(internal)?;
-                        json_resource(uri, &page)
+                        json_read(uri, &page)
                     }
                     UavResource::LiveView { session, view } => {
                         let owner = crate::server::ownership::live_view_owner(identity);
@@ -219,7 +206,7 @@ impl UavSimMcp {
                                 None,
                             ));
                         }
-                        json_resource(uri, &view)
+                        json_read(uri, &view)
                     }
                     _ => Err(McpError::resource_not_found(
                         "unknown simulation state resource",
@@ -268,7 +255,7 @@ impl UavSimMcp {
         let Reference::Resource(reference) = &request.r#ref else {
             return Ok(CompleteResult::default());
         };
-        let identity = internal_identity(&context)?;
+        let identity = gateway_identity(&context)?;
         index::validate_needle(&request.argument.value)?;
         let completion = match (reference.uri.as_str(), request.argument.name.as_str()) {
             (uris::CONTROL_GRANT_TEMPLATE, "grant_id") => Some(ControlCollection::Grants),
@@ -309,16 +296,6 @@ impl UavSimMcp {
                 )
                 .await
                 .map_err(internal)?,
-            );
-        }
-        if reference.uri == uris::DOC_TEMPLATE && request.argument.name == "doc_id" {
-            return complete_values(
-                SERVER_SETUP
-                    .documents()
-                    .iter()
-                    .map(|doc| doc.id.to_owned())
-                    .collect(),
-                &request.argument.value,
             );
         }
         let state = self.visible_state(&identity).await?;
@@ -403,29 +380,29 @@ fn require_resource_scope(
 impl UavSimMcp {
     pub(super) async fn require_subscribable(
         &self,
-        uri: &str,
+        resource: &UavResource,
         context: &RequestContext<RoleServer>,
     ) -> Result<(), McpError> {
-        let resource = UavResource::parse(uri).map_err(invalid)?;
-        let identity = internal_identity(context)?;
-        require_resource_scope(&identity, &resource)?;
+        let uri = resource.to_uri().map_err(invalid)?;
+        let identity = gateway_identity(context)?;
+        require_resource_scope(&identity, resource)?;
         if !resource.is_subscribable() {
             return Err(McpError::resource_not_found(
                 "resource is not subscribable",
                 None,
             ));
         }
-        match &resource {
+        match resource {
             UavResource::ControlGrants { .. }
             | UavResource::MissionPlans { .. }
             | UavResource::Usage { .. }
             | UavResource::Missions { .. } => Ok(()),
             UavResource::LiveViews { .. } => {
-                self.resource_state(&resource, &identity).await.map(|_| ())
+                self.resource_state(resource, &identity).await.map(|_| ())
             }
             // Exact targets share the read path's SQL visibility, session and child checks.
             _ => self
-                .read_address(uri, &resource, &identity)
+                .read_address(uri.as_str(), resource, &identity)
                 .await
                 .map(|_| ()),
         }
@@ -437,7 +414,7 @@ impl UavSimMcp {
         &self,
         context: &RequestContext<RoleServer>,
     ) -> Result<Vec<Resource>, McpError> {
-        let identity = internal_identity(context)?;
+        let identity = gateway_identity(context)?;
         self.resource_descriptors_for_identity(&identity).await
     }
 
@@ -565,30 +542,10 @@ fn task_usage(task: &TaskSnapshot, uri: &str) -> UsageReport {
     }])
 }
 
-fn complete_values(values: Vec<String>, needle: &str) -> Result<CompleteResult, McpError> {
-    let needle = needle.to_lowercase();
-    let mut matches = values
-        .into_iter()
-        .filter(|value| value.to_lowercase().contains(&needle))
-        .collect::<Vec<_>>();
-    matches.sort();
-    matches.dedup();
-    let total = matches.len();
-    matches.truncate(CompletionInfo::MAX_VALUES);
-    let completion = CompletionInfo::with_pagination(
-        matches,
-        Some(total as u32),
-        total > CompletionInfo::MAX_VALUES,
-    )
-    .map_err(internal)?;
-    Ok(CompleteResult::new(completion))
-}
-
-fn json_resource<T: Serialize>(uri: &str, value: &T) -> Result<ReadResourceResult, McpError> {
-    Ok(ReadResourceResult::new(vec![
-        ResourceContents::text(serde_json::to_string(value).map_err(internal)?, uri)
-            .with_mime_type("application/json"),
-    ]))
+fn complete_values(mut values: Vec<String>, needle: &str) -> Result<CompleteResult, McpError> {
+    values.sort();
+    values.dedup();
+    completion(rank_completions(values.iter().map(String::as_str), needle))
 }
 
 #[cfg(test)]

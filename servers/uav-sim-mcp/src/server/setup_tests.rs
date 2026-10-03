@@ -300,7 +300,7 @@ fn optional_cursor_templates_expand_the_exact_collection_bound_cursor() {
 async fn handlers_consume_checked_discovery_without_contacting_the_simulator() {
     use crate::{
         adapter::{Adapter, HttpAdapter},
-        server::{service::UavSimMcp, test_support},
+        server::test_support,
     };
     use rmcp::{ServerHandler, service::serve_directly};
     use std::{sync::Arc, time::Duration};
@@ -323,7 +323,7 @@ async fn handlers_consume_checked_discovery_without_contacting_the_simulator() {
             "setup-test",
         );
         let mut running = serve_directly(
-            UavSimMcp::new(state.clone()),
+            crate::server::service::hosted(state.clone()),
             (futures::sink::drain(), futures::stream::pending()),
             None,
         );

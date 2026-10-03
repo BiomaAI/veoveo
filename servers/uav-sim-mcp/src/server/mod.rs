@@ -1,10 +1,8 @@
 //! Hosted server implementation.
-mod admin;
 mod agent_targets;
 mod auth;
 mod config;
 mod control_authority;
-mod host;
 mod index;
 mod live_stream;
 mod live_view;

@@ -2,32 +2,28 @@
 use super::{SERVER_SLUG, UavSimMcp, fake_state, resources};
 use crate::contract::LiveSessionId;
 use crate::server::{
-    auth::{InternalMcpAuthState, authenticate_internal_mcp},
     config::{AdapterKind, Args},
     control_authority::VehicleControlAuthority,
-    host::validate_host,
     live_view::{LiveViewConfig, LiveViewService},
     live_view_audit::LiveViewAudit,
     state::AppState,
+    task_extension::UavSimTaskExtension,
     task_worker::resume_queued_operation,
 };
 use crate::{
     adapter::{Adapter, FakeAdapter, HttpAdapter},
     contract::SimulationLifecycle,
 };
-use axum::{Router, extract::State, http::StatusCode, middleware, routing::get};
 use clap::Parser;
-use rmcp::transport::streamable_http_server::StreamableHttpService;
 use std::{net::SocketAddr, sync::Arc};
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
-use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_mcp_contract::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
-    ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, init_server_telemetry,
-    public_allowed_hosts,
+    GatewayInternalTrustBundle, SubscriptionHub, TelemetryGuard,
+    hosting::{Hosted, HostedServer},
+    init_server_telemetry,
 };
-use veoveo_task_runtime::{TaskRuntime, TaskRuntimeConfig};
+use veoveo_task_runtime::{DurableTasksWithResources, TaskRuntime, TaskRuntimeConfig};
 
 pub(in crate::server) async fn serve() -> anyhow::Result<()> {
     let _ = dotenvy::dotenv();
@@ -36,7 +32,6 @@ pub(in crate::server) async fn serve() -> anyhow::Result<()> {
     std::sync::LazyLock::force(&super::super::setup::SERVER_SETUP);
     let args = Args::parse();
     let public_deployment = args.public_deployment()?;
-    let public_endpoint = public_deployment.server(SERVER_SLUG)?;
     let tasks = TaskRuntime::connect(
         TaskRuntimeConfig::new(
             args.surreal_endpoint.clone(),
@@ -123,42 +118,6 @@ pub(in crate::server) async fn serve() -> anyhow::Result<()> {
     ));
     let runtime_event_task = runtime_event_listener
         .map(|listener| tokio::spawn(listener.run(subscribers.clone(), shutdown.child_token())));
-    let verifier = GatewayInternalTokenVerifier::new(
-        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
-        ServerSlug::new(SERVER_SLUG)?,
-        GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?,
-    );
-    let mut allowed_hosts = public_allowed_hosts(&public_deployment, args.allow_loopback_hosts);
-    allowed_hosts.extend(args.allowed_hosts.iter().cloned());
-    let allowed_hosts = Arc::new(allowed_hosts);
-    let mcp_service = StreamableHttpService::new(
-        {
-            let state = state.clone();
-            move || Ok(UavSimMcp::new(state.clone()))
-        },
-        veoveo_mcp_contract::stateless_session_manager(),
-        veoveo_mcp_contract::canonical_streamable_http_server_config()
-            .with_allowed_hosts(allowed_hosts.iter().cloned())
-            .with_cancellation_token(shutdown.child_token()),
-    );
-    let mcp_router = Router::new()
-        .route_service("/", mcp_service.clone())
-        .route_service("/{*path}", mcp_service)
-        .layer(middleware::from_fn(
-            veoveo_mcp_contract::enforce_serialized_mcp_response,
-        ))
-        .layer(middleware::from_fn_with_state(
-            InternalMcpAuthState {
-                verifier: verifier.clone(),
-            },
-            authenticate_internal_mcp,
-        ));
-    // Read-only well-known projection (contract C20) behind the same gateway
-    // authentication as the MCP surface.
-    let admin_router = super::super::admin::router().layer(middleware::from_fn_with_state(
-        InternalMcpAuthState { verifier },
-        authenticate_internal_mcp,
-    ));
     anyhow::ensure!(
         args.live_stream_gate_port != args.port,
         "live-stream gate port must differ from the MCP port"
@@ -170,48 +129,43 @@ pub(in crate::server) async fn serve() -> anyhow::Result<()> {
         &args.runtime_stream_url,
         args.adapter_bearer_token.clone(),
     )?;
-    let router = Router::new()
-        .nest(
-            public_endpoint.mount_path(),
-            Router::new()
-                .route("/healthz", get(|| async { "ok" }))
-                .route("/readyz", get(ready))
-                .nest("/admin", admin_router)
-                .nest("/mcp", mcp_router),
-        )
-        .with_state(state.clone())
-        .layer(middleware::from_fn_with_state(allowed_hosts, validate_host))
-        .layer(
-            TraceLayer::new_for_http()
-                .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO)),
-        );
-
+    let readiness_state = state.clone();
+    let hosted_state = state.clone();
+    let hosted = HostedServer::for_domain::<UavSimMcp>()
+        .deployment(&public_deployment, args.allow_loopback_hosts)?
+        .allowed_hosts(args.allowed_hosts.iter().cloned())
+        .internal_trust(GatewayInternalTrustBundle::from_json(
+            &args.internal_trust_jwks,
+        )?)?
+        .handler(move || hosted(hosted_state.clone()))
+        .readiness(move || {
+            let state = readiness_state.clone();
+            async move { ready(&state).await }
+        })
+        .build();
     let address = SocketAddr::from(([0, 0, 0, 0], args.port));
     let live_stream_address = SocketAddr::from(([0, 0, 0, 0], args.live_stream_gate_port));
-    tracing::info!(%address, public_url = public_endpoint.public_url(), "UAV simulation MCP listening");
-    let listener = tokio::net::TcpListener::bind(address).await?;
-    let server = std::future::IntoFuture::into_future(
-        axum::serve(listener, router).with_graceful_shutdown({
-            let shutdown = shutdown.clone();
-            let audit = live_view_audit.clone();
-            async move {
-                let mut terminate =
-                    tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-                        .expect("install SIGTERM handler");
-                tokio::select! {
-                    _ = tokio::signal::ctrl_c() => {}, _ = terminate.recv() => {},
-                    _ = audit.closed() => {}, _ = shutdown.cancelled() => {},
-                }
-                shutdown.cancel();
+    // Live-view audit closure or the live-stream gate also stops the server.
+    let server = hosted.serve_with_shutdown(address, {
+        let shutdown = shutdown.clone();
+        let audit = live_view_audit.clone();
+        async move {
+            let mut terminate =
+                tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                    .expect("install SIGTERM handler");
+            tokio::select! {
+                _ = tokio::signal::ctrl_c() => {}, _ = terminate.recv() => {},
+                _ = audit.closed() => {}, _ = shutdown.cancelled() => {},
             }
-        }),
-    );
+            shutdown.cancel();
+        }
+    });
     let mut live_stream_task =
         tokio::spawn(live_stream_gate.run(live_stream_address, shutdown.child_token()));
     tokio::pin!(server);
     let (result, server_finished) = tokio::select! {
         _ = shutdown.cancelled() => (Ok(()), false),
-        result = &mut server => (result.map_err(anyhow::Error::from), true),
+        result = &mut server => (result, true),
         result = &mut live_stream_task => (match result {
             Ok(result) => result,
             Err(error) => Err(error.into()),
@@ -222,7 +176,7 @@ pub(in crate::server) async fn serve() -> anyhow::Result<()> {
         tokio::time::timeout(std::time::Duration::from_secs(30), &mut server)
             .await
             .map_err(anyhow::Error::from)
-            .and_then(|result| result.map_err(Into::into))
+            .and_then(|result| result)
     } else {
         Ok(())
     };
@@ -247,16 +201,29 @@ pub(in crate::server) async fn serve() -> anyhow::Result<()> {
     result
 }
 
-async fn ready(State(state): State<Arc<AppState>>) -> StatusCode {
+/// The hosted UAV handler.
+pub(in crate::server) type HostedUav =
+    Hosted<UavSimMcp, DurableTasksWithResources<UavSimTaskExtension, UavSimMcp>>;
+
+/// The hosted handler: the domain, its durable tasks, and itself as the
+/// resource-change source.
+pub(in crate::server) fn hosted(state: Arc<AppState>) -> HostedUav {
+    Hosted::new(UavSimMcp::new(state.clone())).with_tasks(DurableTasksWithResources::new(
+        UavSimTaskExtension::new(state.clone()),
+        UavSimMcp::new(state),
+    ))
+}
+
+/// Ready while live-view auditing runs and the simulation has not failed.
+async fn ready(state: &AppState) -> bool {
     if !state.live_view_audit.is_running() {
-        return StatusCode::SERVICE_UNAVAILABLE;
+        return false;
     }
     match state.adapter.state().await {
-        Ok(simulation) if simulation.lifecycle != SimulationLifecycle::Failed => StatusCode::OK,
-        Ok(_) => StatusCode::SERVICE_UNAVAILABLE,
+        Ok(simulation) => simulation.lifecycle != SimulationLifecycle::Failed,
         Err(error) => {
             tracing::warn!(%error, "UAV simulation MCP readiness failed");
-            StatusCode::SERVICE_UNAVAILABLE
+            false
         }
     }
 }

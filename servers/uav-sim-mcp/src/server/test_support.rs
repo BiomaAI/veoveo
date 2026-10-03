@@ -106,8 +106,8 @@ pub(super) fn context(
     scopes: &[crate::contract::UavScope],
     tasks: bool,
 ) -> rmcp::service::RequestContext<rmcp::RoleServer> {
-    use super::auth::ForwardedBearer;
     use rmcp::{model::ClientCapabilities, service::RequestContext};
+    use veoveo_mcp_contract::hosting::ForwardedBearer;
     use veoveo_types::ScopeName;
     let mut identity = identity("scope-test", "operations", "pilot", &[]);
     identity.actor.scopes = scopes.iter().copied().map(Into::into).collect();
@@ -120,7 +120,7 @@ pub(super) fn context(
     parts.extensions.insert(identity);
     parts
         .extensions
-        .insert(ForwardedBearer("native-fixture".into()));
+        .insert(ForwardedBearer::new("native-fixture"));
     let mut context = RequestContext::new(rmcp::model::NumberOrString::Number(1), peer.clone());
     context.extensions.insert(parts);
     if tasks {

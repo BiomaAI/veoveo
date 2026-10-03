@@ -4,11 +4,7 @@ use crate::server::test_support::context;
 use crate::{
     adapter::{Adapter, FakeAdapter},
     contract::UavScope,
-    server::{
-        service::{UavSimMcp, fake_state},
-        task_worker::await_result,
-        test_support,
-    },
+    server::{service::fake_state, task_worker::await_result, test_support},
 };
 use rmcp::{
     ServerHandler,
@@ -51,7 +47,7 @@ async fn call_paths_require_the_tool_scope_before_persistence_or_execution() {
         // The SDK owns the peer lifetime; requests invoke the real ServerHandler router.
         // Authentication is supplied by the fixture, independently of HTTP/JWT qualification.
         let mut running = serve_directly(
-            UavSimMcp::new(state.clone()),
+            crate::server::service::hosted(state.clone()),
             (futures::sink::drain(), futures::stream::pending()),
             None,
         );

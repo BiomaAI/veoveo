@@ -5,28 +5,30 @@ use crate::contract::{LiveSessionId, UavGrantCursor, UavScope};
 use chrono::Utc;
 use rmcp::tool;
 use rmcp::{
-    ErrorData as McpError, RoleServer, ServerHandler,
+    ErrorData as McpError, RoleServer,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolRequestParams, CallToolResponse, CallToolResult, CancelTaskParams,
-        CompleteRequestParams, CompleteResult, CompletionInfo, ContentBlock,
-        GetPromptRequestParams, GetTaskParams, GetTaskResult, ListPromptsResult,
-        ListResourceTemplatesResult, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
-        Prompt, ReadResourceRequestParams, ReadResourceResult, Reference, Resource,
-        ResourceContents, ServerConfig, SubscriptionFilter, UpdateTaskParams,
+        CallToolResult, CompleteRequestParams, CompleteResult, GetPromptRequestParams,
+        GetPromptResult, Prompt, ReadResourceRequestParams, ReadResourceResult, Reference,
+        Resource, Tool,
     },
-    service::{RequestContext, SubscriptionContext},
-    tool_handler, tool_router,
+    service::RequestContext,
+    tool_router,
 };
-use serde::Serialize;
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::audit::{AuditOutcome, LiveViewActivity};
 use veoveo_mcp_contract::{
-    GatewayInternalIdentity, Page, SubscriptionHub, UsageKind, UsageRecord, UsageReport, paginate,
+    GatewayInternalIdentity, SubscriptionHub, UsageKind, UsageRecord, UsageReport,
+    hosting::{
+        DomainAddress, DomainRead, DomainServer, ResourceSubscriptions, gateway_identity,
+        plane_caller, structured_result, unknown_prompt,
+    },
+    server_contract::McpServerSetup,
 };
 use veoveo_task_runtime::{TaskRetentionPin, TaskSnapshot, TaskStatus};
 
+use crate::contract::UavResource;
 use crate::contract::{
     CameraCodec, CameraEncoder, CameraLifecycle, CameraState, CaptureDatasetRequest,
     CloseLiveViewRequest, CommandAcknowledgement, ConfigureWorldOutput, ConfigureWorldRequest,
@@ -46,15 +48,14 @@ mod bootstrap;
 #[path = "resources.rs"]
 pub(super) mod resources;
 use super::live_view::LiveViewError;
-use super::ownership::{internal_caller, internal_identity};
 use super::prompts::UavSimPrompt;
-use super::setup::{SERVER_SETUP, SERVER_SLUG};
+use super::setup::{SERVER_SETUP, SERVER_SLUG, UavContract};
 use super::state::AppState;
-use super::task_extension::UavSimTaskExtension;
 use super::task_worker::{await_result, start_operation, start_vehicle_mission_plan};
 pub(super) use bootstrap::serve;
+#[cfg(test)]
+pub(super) use bootstrap::{HostedUav, hosted};
 
-const LIST_PAGE_SIZE: usize = 100;
 const LIVE_APP_TOOLS: &[&str] = &[
     "list_live_cameras",
     "open_live_view",
@@ -64,8 +65,6 @@ const LIVE_APP_TOOLS: &[&str] = &[
 #[derive(Clone)]
 pub(super) struct UavSimMcp {
     state: Arc<AppState>,
-    task_service: UavSimTaskExtension,
-    #[allow(dead_code)]
     tool_router: ToolRouter<UavSimMcp>,
 }
 
@@ -73,7 +72,6 @@ impl UavSimMcp {
     pub(super) fn new(state: Arc<AppState>) -> Self {
         std::sync::LazyLock::force(&SERVER_SETUP);
         Self {
-            task_service: UavSimTaskExtension::new(state.clone()),
             state,
             tool_router: Self::tool_router(),
         }
@@ -187,7 +185,7 @@ impl UavSimMcp {
     ) -> Result<CallToolResult, McpError> {
         let snapshot = start_operation(
             self.state.clone(),
-            internal_caller(context)?,
+            plane_caller(context)?,
             operation,
             BTreeSet::<TaskRetentionPin>::new(),
         )
@@ -746,7 +744,7 @@ impl UavSimMcp {
         require_scope(&context, UavScope::Control)?;
         let snapshot = start_vehicle_mission_plan(
             self.state.clone(),
-            internal_caller(&context)?,
+            plane_caller(&context)?,
             request,
             BTreeSet::<TaskRetentionPin>::new(),
         )
@@ -772,209 +770,65 @@ impl UavSimMcp {
     }
 }
 
-#[tool_handler]
-impl ServerHandler for UavSimMcp {
-    fn supported_protocol_versions(
-        &self,
-    ) -> std::borrow::Cow<'static, [rmcp::model::ProtocolVersion]> {
-        veoveo_mcp_contract::final_protocol_versions()
+impl DomainServer for UavSimMcp {
+    type Contract = UavContract;
+
+    fn setup() -> &'static McpServerSetup<UavContract> {
+        &SERVER_SETUP
     }
 
-    fn get_info(&self) -> ServerConfig {
-        SERVER_SETUP.server_config().clone()
+    fn tool_router(&self) -> &ToolRouter<Self> {
+        &self.tool_router
     }
 
-    async fn call_tool(
-        &self,
-        mut request: CallToolRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<CallToolResponse, McpError> {
-        if let Some(created) =
-            veoveo_task_runtime::start_durable_tool_task(&self.task_service, &mut request, &context)
-                .await?
-        {
-            return Ok(created.into());
+    fn describe_tool(&self, tool: Tool) -> Tool {
+        if !LIVE_APP_TOOLS.contains(&tool.name.as_ref()) {
+            return tool;
         }
-        let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
-        self.tool_router.call(call).await
-    }
-
-    async fn get_task(
-        &self,
-        request: GetTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<GetTaskResult, McpError> {
-        let caller =
-            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
-        veoveo_task_runtime::DurableTaskService::get_task(&self.task_service, &caller, request)
-            .await
-    }
-
-    async fn update_task(
-        &self,
-        request: UpdateTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        let caller =
-            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
-        veoveo_task_runtime::DurableTaskService::update_task(&self.task_service, &caller, request)
-            .await
-    }
-
-    async fn cancel_task(
-        &self,
-        request: CancelTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        let caller =
-            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
-        veoveo_task_runtime::DurableTaskService::cancel_task(
-            &self.task_service,
-            &caller,
-            request.task_id,
+        veoveo_mcp_apps_extension::link_tool_to_app(
+            tool,
+            uris::LIVE_APP_URI,
+            &[
+                veoveo_mcp_apps_extension::UiVisibility::Model,
+                veoveo_mcp_apps_extension::UiVisibility::App,
+            ],
         )
-        .await
-    }
-
-    async fn list_tools(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListToolsResult, McpError> {
-        let mut tools = self.tool_router.list_all();
-        tools.sort_by(|left, right| left.name.cmp(&right.name));
-        let tools = tools
-            .into_iter()
-            .map(|tool| {
-                if LIVE_APP_TOOLS.contains(&tool.name.as_ref()) {
-                    veoveo_mcp_apps_extension::link_tool_to_app(
-                        tool,
-                        uris::LIVE_APP_URI,
-                        &[
-                            veoveo_mcp_apps_extension::UiVisibility::Model,
-                            veoveo_mcp_apps_extension::UiVisibility::App,
-                        ],
-                    )
-                } else {
-                    tool
-                }
-            })
-            .collect();
-        let page = mcp_page(tools, request.as_ref())?;
-        Ok(ListToolsResult {
-            tools: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
     }
 
     async fn list_resources(
         &self,
-        request: Option<PaginatedRequestParams>,
-        context: RequestContext<RoleServer>,
-    ) -> Result<ListResourcesResult, McpError> {
-        let resources = self.resource_descriptors(&context).await?;
-        let page = mcp_page(resources, request.as_ref())?;
-        Ok(ListResourcesResult {
-            resources: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
+        _declared: Vec<Resource>,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<Vec<Resource>, McpError> {
+        self.resource_descriptors(context).await
     }
 
-    async fn list_resource_templates(
+    async fn read(
         &self,
-        request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListResourceTemplatesResult, McpError> {
-        let page = mcp_page(
-            SERVER_SETUP
-                .resource_templates()
-                .iter()
-                .map(|template| template.descriptor().clone())
-                .collect(),
-            request.as_ref(),
-        )?;
-        Ok(ListResourceTemplatesResult {
-            resource_templates: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
+        address: DomainAddress<UavContract>,
+        request: &ReadResourceRequestParams,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<DomainRead, McpError> {
+        self.resource_read(address, &request.uri, context)
+            .await
+            .map(DomainRead::private)
     }
 
-    async fn read_resource(
-        &self,
-        request: ReadResourceRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
-        if let Some(result) = SERVER_SETUP.read_documents(&request, &context)? {
-            return Ok(result);
-        }
-        self.resource_read(request, context).await
-    }
-
-    async fn list_prompts(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListPromptsResult, McpError> {
-        let prompts: Vec<Prompt> = UavSimPrompt::ALL
+    fn prompts(&self) -> Vec<Prompt> {
+        UavSimPrompt::ALL
             .into_iter()
             .map(UavSimPrompt::definition)
-            .collect();
-        let page = mcp_page(prompts, request.as_ref())?;
-        Ok(ListPromptsResult {
-            prompts: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
+            .collect()
     }
 
     async fn get_prompt(
         &self,
         request: GetPromptRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<rmcp::model::GetPromptResponse, McpError> {
-        async {
-            UavSimPrompt::by_name(&request.name)
-                .ok_or_else(|| McpError::invalid_params("unknown UAV simulation prompt", None))?
-                .render(request.arguments)
-        }
-        .await
-        .map(Into::into)
-    }
-
-    fn accepted_subscription_filter(
-        &self,
-        requested: &SubscriptionFilter,
-    ) -> Option<SubscriptionFilter> {
-        veoveo_mcp_contract::accepted_subscription_filter(requested)
-    }
-
-    async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
-        let request_context = context.request_context().clone();
-        for uri in context.accepted().resource_subscriptions.iter().flatten() {
-            self.require_subscribable(uri, &request_context).await?;
-        }
-        veoveo_task_runtime::listen_durable_subscriptions(
-            &self.task_service,
-            context,
-            Some(self.state.subscribers.as_ref()),
-            None,
-        )
-        .await
+    ) -> Result<GetPromptResult, McpError> {
+        UavSimPrompt::by_name(&request.name)
+            .ok_or_else(|| unknown_prompt(&request.name))?
+            .render(request.arguments)
     }
 
     async fn complete(
@@ -983,6 +837,27 @@ impl ServerHandler for UavSimMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<CompleteResult, McpError> {
         self.resource_complete(request, context).await
+    }
+}
+
+/// UAV resource changes. Subscription admission uses the read path's scope,
+/// session and visibility checks.
+impl ResourceSubscriptions for UavSimMcp {
+    type Address = UavResource;
+
+    async fn authorize(
+        &self,
+        addresses: Vec<UavResource>,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        for address in &addresses {
+            self.require_subscribable(address, context).await?;
+        }
+        Ok(())
+    }
+
+    fn hub(&self) -> &SubscriptionHub {
+        self.state.subscribers.as_ref()
     }
 }
 
@@ -1184,7 +1059,7 @@ fn require_scope(
     context: &RequestContext<RoleServer>,
     required: UavScope,
 ) -> Result<GatewayInternalIdentity, McpError> {
-    let identity = internal_identity(context)?;
+    let identity = gateway_identity(context)?;
     super::auth::require_scope(&identity, required)?;
     Ok(identity)
 }
@@ -1193,7 +1068,7 @@ fn require_any_scope(
     context: &RequestContext<RoleServer>,
     required: &[UavScope],
 ) -> Result<GatewayInternalIdentity, McpError> {
-    let identity = internal_identity(context)?;
+    let identity = gateway_identity(context)?;
     require_any_identity_scope(&identity, required)?;
     Ok(identity)
 }
@@ -1255,19 +1130,6 @@ fn live_view_error(error: LiveViewError) -> McpError {
         }
         _ => McpError::internal_error(error.to_string(), None),
     }
-}
-
-fn structured_result<T: Serialize>(message: String, value: &T) -> Result<CallToolResult, McpError> {
-    let mut result = CallToolResult::success(vec![ContentBlock::text(message)]);
-    result.structured_content = Some(serde_json::to_value(value).map_err(internal)?);
-    Ok(result)
-}
-
-fn mcp_page<T>(
-    items: Vec<T>,
-    request: Option<&PaginatedRequestParams>,
-) -> Result<Page<T>, McpError> {
-    paginate(items, request, LIST_PAGE_SIZE).map_err(invalid)
 }
 
 fn internal(error: impl std::fmt::Display) -> McpError {
