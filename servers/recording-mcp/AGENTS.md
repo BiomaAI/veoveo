@@ -74,7 +74,7 @@ and reactive Rerun live following.
 - `live_playback.rs` and `live_stream.rs` own the Rerun live adapter and framed transport.
 - `mcp_setup.rs` owns checked protocol configuration, documents, scope inventory and discovery.
 - `bin/server/mcp.rs` owns protocol handlers and subscription admission.
-- `bin/server/http.rs` owns authenticated HTTP routes, readiness and diagnostics.
+- `bin/server/http.rs` builds the hosted server and owns playback, readiness and diagnostics.
 - `bin/server.rs` initializes dependencies and starts the listener.
 
 ## Build And Test

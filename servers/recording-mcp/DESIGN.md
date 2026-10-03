@@ -54,10 +54,12 @@ Redap token subjects use the same grant ID admission. The optional reusable-gran
 header accepts one canonical ID; malformed or duplicate values fail before catalog work.
 Authorization, dataset membership and operational limits belong to runtime owners.
 
-Gateway-authenticated MCP, administrative and playback HTTP routes admit the configured
-Host authority before checking the bearer token. A missing, malformed or untrusted Host
-returns HTTP 421; an admitted Host with invalid credentials returns HTTP 401. Health and
-readiness probes remain unauthenticated, and Redap uses its own host-bound read grants.
+The shared host serves Recording at the internal root and admits a request only for the
+cluster-internal authority or the playback public host. A missing Host returns HTTP 400
+and an untrusted one HTTP 421, before any credential check; an admitted Host with
+invalid gateway credentials returns HTTP 401 on the MCP, administrative and playback
+routes. Health and readiness probes are unauthenticated, and Redap authorizes each call
+with its own host-bound read grant.
 
 Store grant requests validate the catalog revision and normalize the selected Recording
 IDs. Viewer and projection grants admit one Recording; catalog grants admit up to 500.
@@ -123,8 +125,9 @@ server, gateway configuration and clients deploy together; callers request a fre
 token containing `recording:seal`. The service accepts no `admin:manage` alias.
 
 The binary initializes dependencies and starts the listener. `bin/server/mcp.rs` owns
-MCP handlers; `bin/server/http.rs` wires authenticated HTTP and Redap routes and owns
-playback, projection, readiness and storage diagnostics. The shared service enforces
+the `DomainServer` and its subscriptions; `bin/server/http.rs` builds the hosted server
+with its playback, Redap and diagnostics routes and owns playback, projection,
+readiness and storage diagnostics. The shared service enforces
 sealing permission for every adapter.
 
 ## Durable Authority

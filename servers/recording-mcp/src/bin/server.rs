@@ -3,7 +3,8 @@ use secrecy::ExposeSecret as _;
 use std::{collections::BTreeSet, net::SocketAddr, sync::Arc};
 use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_mcp_contract::{
-    GatewayInternalTrustBundle, SubscriptionHub, TelemetryGuard, init_server_telemetry,
+    GatewayInternalTrustBundle, PublicDeployment, SubscriptionHub, TelemetryGuard,
+    init_server_telemetry, public_allowed_hosts,
 };
 use veoveo_platform_store::{PlatformStore, StoreConfig, StoreCredentials};
 use veoveo_recording_hub::{GatewayLayerPublisher, GatewayLayerPublisherConfig};
@@ -121,6 +122,11 @@ async fn main() -> anyhow::Result<()> {
         allowed_hosts.insert(format!("localhost:{}", args.port));
         allowed_hosts.insert(format!("127.0.0.1:{}", args.port));
     }
+    // The public ingress sends Rerun gRPC calls here under the playback host.
+    allowed_hosts.extend(public_allowed_hosts(
+        &PublicDeployment::new(args.playback_public_url.clone())?,
+        false,
+    ));
     http::server(
         state,
         allowed_hosts,
