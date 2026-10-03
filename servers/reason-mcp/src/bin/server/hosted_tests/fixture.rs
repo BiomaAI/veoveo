@@ -1,5 +1,5 @@
 use super::auth::Signing;
-use crate::{AppState, host};
+use crate::{AppState, hosted};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio_util::sync::CancellationToken;
 use veoveo_artifact_service::{ArtifactObjectStore, ArtifactService, SurrealArtifactRepository};
@@ -186,13 +186,15 @@ impl Fixture {
         .unwrap();
         let address = listener.local_addr().unwrap();
         let cancel = CancellationToken::new();
-        let router = host::router(
+        let router = hosted::server(
             self.state(),
-            self.signing.verifier(),
-            Arc::new(vec![address.to_string()]),
-            "/reason",
-            cancel.clone(),
-        );
+            &veoveo_mcp_contract::PublicDeployment::new(format!("http://{address}")).unwrap(),
+            true,
+            vec![address.to_string()],
+            self.signing.trust.clone(),
+        )
+        .unwrap()
+        .into_router();
         HttpServer::serve(listener, router, cancel).await
     }
     pub async fn sdk(

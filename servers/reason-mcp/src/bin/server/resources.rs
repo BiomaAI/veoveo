@@ -19,32 +19,28 @@ use veoveo_reason_mcp::{
 use veoveo_task_runtime::{TaskOwner, TaskRuntime, TaskSnapshot};
 use veoveo_types::TaskTypeDefinition;
 
+use veoveo_mcp_contract::hosting::{gateway_identity, plane_caller, served_by_host};
+
 use super::{
-    SERVER_DOCS,
     app_state::AppState,
     index, internal, invalid_params,
-    ownership::{internal_caller, internal_identity, runtime_owner},
+    ownership::runtime_owner,
     tasks::{self, ReasonTaskInput},
 };
 
+/// Reads one admitted address. The host serves documents and the contract.
 pub(super) async fn read(
     state: &AppState,
+    resource: ReasonResource,
     uri: &str,
     context: &RequestContext<RoleServer>,
 ) -> Result<ReadResourceResult, McpError> {
-    let identity = internal_identity(context)?;
-    match ReasonResource::parse(uri).map_err(invalid_params)? {
+    let identity = gateway_identity(context)?;
+    match resource {
         ReasonResource::Knowledge(address) => super::knowledge::read(state, address, context).await,
-        ReasonResource::Docs => json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>()),
-        ReasonResource::Document(id) => {
-            let doc = SERVER_DOCS
-                .doc(id.as_str())
-                .ok_or_else(|| McpError::resource_not_found("server document not found", None))?;
-            Ok(ReadResourceResult::new(vec![
-                ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
-            ]))
+        ReasonResource::Docs | ReasonResource::Document(_) | ReasonResource::Contract => {
+            Err(served_by_host())
         }
-        ReasonResource::Contract => json_resource(uri, SERVER_DOCS.contract_declaration()),
         ReasonResource::AnalysesApp => {
             let html = veoveo_mcp_apps_extension::workbench_app_html(
                 &veoveo_mcp_apps_extension::WorkbenchApp {
@@ -112,7 +108,7 @@ pub(super) async fn read(
             let output = view.output().ok_or_else(|| {
                 McpError::resource_not_found("analysis results are not available", None)
             })?;
-            let caller = internal_caller(context)?;
+            let caller = plane_caller(context)?;
             let artifact =
                 inline_artifact(state, &caller, &output.results_artifact.artifact_id()).await?;
             let text = String::from_utf8(artifact.bytes)
@@ -123,7 +119,7 @@ pub(super) async fn read(
             ]))
         }
         ReasonResource::Artifact(id) => {
-            let caller = internal_caller(context)?;
+            let caller = plane_caller(context)?;
             let artifact = inline_artifact(state, &caller, &id).await?;
             let mut content = ResourceContents::blob(BASE64_STANDARD.encode(artifact.bytes), uri);
             if let Some(mime_type) = artifact.metadata.mime_type {

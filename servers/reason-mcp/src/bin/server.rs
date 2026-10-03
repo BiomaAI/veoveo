@@ -12,22 +12,23 @@ use std::sync::{Arc, LazyLock};
 use clap::Parser;
 use rmcp::tool;
 use rmcp::{
-    ErrorData as McpError, RoleServer, ServerHandler,
+    ErrorData as McpError, RoleServer,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolRequestParams, CallToolResponse, CallToolResult, CancelTaskParams,
-        CompleteRequestParams, CompleteResult, CompletionInfo, GetPromptRequestParams,
-        GetTaskParams, GetTaskResult, ListPromptsResult, ListResourceTemplatesResult,
-        ListResourcesResult, ListToolsResult, PaginatedRequestParams, Prompt,
-        ReadResourceRequestParams, Reference, ServerConfig, SubscriptionFilter, UpdateTaskParams,
+        CallToolResult, CompleteRequestParams, CompleteResult, CompletionInfo,
+        GetPromptRequestParams, GetPromptResult, Prompt, ReadResourceRequestParams, Reference,
+        Resource, SubscriptionFilter, Tool,
     },
     service::{RequestContext, SubscriptionContext},
-    tool_handler, tool_router,
+    tool_router,
 };
-use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle, Page,
-    ServerSlug, TelemetryGuard, TokenIssuer, init_server_telemetry, paginate, public_allowed_hosts,
+    GatewayInternalTrustBundle, TelemetryGuard,
+    hosting::{
+        DomainAddress, DomainRead, DomainServer, gateway_identity, plane_caller, unknown_prompt,
+    },
+    init_server_telemetry,
+    server_contract::McpServerSetup,
 };
 use veoveo_reason_mcp::{
     artifacts::ArtifactRepository,
@@ -38,25 +39,21 @@ use veoveo_reason_mcp::{
 };
 use veoveo_recording_reader::RecordingReader;
 use veoveo_recording_video::runtime::VideoSourceLimits;
-use veoveo_task_runtime::{TaskError, TaskRuntime, TaskRuntimeConfig};
+use veoveo_task_runtime::{DurableListener, TaskError, TaskRuntime, TaskRuntimeConfig};
 
-#[path = "server/admin.rs"]
-mod admin;
 #[path = "server/app_state.rs"]
 mod app_state;
 #[path = "server/config.rs"]
 mod config;
 #[path = "server/grounding_input.rs"]
 mod grounding_input;
-#[path = "server/host.rs"]
-mod host;
+#[path = "server/hosted.rs"]
+mod hosted;
 #[cfg(test)]
 #[path = "server/hosted_tests/mod.rs"]
 mod hosted_tests;
 #[path = "server/index.rs"]
 mod index;
-#[path = "server/internal_auth.rs"]
-mod internal_auth;
 #[path = "server/knowledge.rs"]
 mod knowledge;
 #[path = "server/outputs.rs"]
@@ -83,23 +80,21 @@ mod tasks;
 
 use app_state::AppState;
 use config::Args;
-use ownership::{internal_caller, internal_identity, runtime_owner};
+use ownership::runtime_owner;
 use prompts::ReasonPrompt;
 use task_extension::ReasonTaskService;
 use tasks::{
     ReasonTaskInput, SERVER_SLUG, TaskProgress, completed_payload, resume_task, start_reason_task,
 };
-use veoveo_reason_mcp::contract::AnalysisId;
+use veoveo_reason_mcp::contract::{AnalysisId, ReasonResource};
 
-const LIST_PAGE_SIZE: usize = 100;
-
+use setup::ReasonContract;
+#[cfg(test)]
 use setup::SERVER_DOCS;
 
 #[derive(Clone)]
 struct ReasonMcp {
     state: Arc<AppState>,
-    task_service: ReasonTaskService,
-    #[allow(dead_code)]
     tool_router: ToolRouter<ReasonMcp>,
 }
 
@@ -109,7 +104,6 @@ impl ReasonMcp {
         LazyLock::force(&setup::SERVER_SETUP);
         setup::catalog_resources(&state.catalog).expect("validated Reason catalog descriptors");
         Self {
-            task_service: ReasonTaskService::new(state.clone()),
             state,
             tool_router: Self::tool_router(),
         }
@@ -133,8 +127,8 @@ impl ReasonMcp {
     ) -> Result<CallToolResult, McpError> {
         let snapshot = start_reason_task(
             self.state.clone(),
-            internal_identity(&context)?,
-            internal_caller(&context)?,
+            gateway_identity(&context)?,
+            plane_caller(&context)?,
             ReasonTaskInput::Analyze(request),
             Some(TaskProgress {
                 peer: context.peer.clone(),
@@ -149,208 +143,68 @@ impl ReasonMcp {
     }
 }
 
-#[tool_handler]
-impl ServerHandler for ReasonMcp {
-    fn supported_protocol_versions(
-        &self,
-    ) -> std::borrow::Cow<'static, [rmcp::model::ProtocolVersion]> {
-        veoveo_mcp_contract::final_protocol_versions()
+impl DomainServer for ReasonMcp {
+    type Contract = ReasonContract;
+
+    fn setup() -> &'static McpServerSetup<ReasonContract> {
+        &setup::SERVER_SETUP
     }
 
-    fn get_info(&self) -> ServerConfig {
-        setup::SERVER_SETUP.server_config().clone()
+    fn tool_router(&self) -> &ToolRouter<Self> {
+        &self.tool_router
     }
 
-    async fn call_tool(
-        &self,
-        mut request: CallToolRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<CallToolResponse, McpError> {
-        if let Some(created) =
-            veoveo_task_runtime::start_durable_tool_task(&self.task_service, &mut request, &context)
-                .await?
-        {
-            return Ok(created.into());
-        }
-        let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
-        self.tool_router.call(call).await
-    }
-
-    async fn get_task(
-        &self,
-        request: GetTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<GetTaskResult, McpError> {
-        let caller =
-            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
-        veoveo_task_runtime::DurableTaskService::get_task(&self.task_service, &caller, request)
-            .await
-    }
-
-    async fn update_task(
-        &self,
-        request: UpdateTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        let caller =
-            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
-        veoveo_task_runtime::DurableTaskService::update_task(&self.task_service, &caller, request)
-            .await
-    }
-
-    async fn cancel_task(
-        &self,
-        request: CancelTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        let caller =
-            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
-        veoveo_task_runtime::DurableTaskService::cancel_task(
-            &self.task_service,
-            &caller,
-            request.task_id,
+    fn describe_tool(&self, tool: Tool) -> Tool {
+        veoveo_mcp_apps_extension::link_tool_to_app(
+            tool,
+            uris::ANALYSES_APP_URI,
+            &[
+                veoveo_mcp_apps_extension::UiVisibility::Model,
+                veoveo_mcp_apps_extension::UiVisibility::App,
+            ],
         )
-        .await
-    }
-
-    async fn list_tools(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListToolsResult, McpError> {
-        let mut tools = self.tool_router.list_all();
-        tools.sort_by(|left, right| left.name.cmp(&right.name));
-        tools = tools
-            .into_iter()
-            .map(|tool| {
-                veoveo_mcp_apps_extension::link_tool_to_app(
-                    tool,
-                    uris::ANALYSES_APP_URI,
-                    &[
-                        veoveo_mcp_apps_extension::UiVisibility::Model,
-                        veoveo_mcp_apps_extension::UiVisibility::App,
-                    ],
-                )
-            })
-            .collect();
-        let page = mcp_page(tools, request.as_ref())?;
-        Ok(ListToolsResult {
-            tools: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
     }
 
     async fn list_resources(
         &self,
-        request: Option<PaginatedRequestParams>,
-        context: RequestContext<RoleServer>,
-    ) -> Result<ListResourcesResult, McpError> {
-        internal_identity(&context)?;
-        let mut resources = setup::SERVER_SETUP
-            .resources()
-            .iter()
-            .map(|resource| resource.descriptor().clone())
-            .collect::<Vec<_>>();
-        resources.extend(setup::catalog_resources(&self.state.catalog).map_err(internal)?);
-        resources.sort_by(|left, right| left.uri.cmp(&right.uri));
-        let page = mcp_page(resources, request.as_ref())?;
-        Ok(ListResourcesResult {
-            resources: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
+        mut declared: Vec<Resource>,
+        _context: &RequestContext<RoleServer>,
+    ) -> Result<Vec<Resource>, McpError> {
+        declared.extend(setup::catalog_resources(&self.state.catalog).map_err(internal)?);
+        Ok(declared)
+    }
+
+    async fn read(
+        &self,
+        address: DomainAddress<ReasonContract>,
+        request: &ReadResourceRequestParams,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<DomainRead, McpError> {
+        // Knowledge members follow current Artifact grants, so no read is reused.
+        let knowledge = matches!(address, ReasonResource::Knowledge(_));
+        let result = resources::read(&self.state, address, &request.uri, context).await?;
+        Ok(if knowledge {
+            DomainRead::no_store(result)
+        } else {
+            DomainRead::private(result)
         })
     }
 
-    async fn list_resource_templates(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListResourceTemplatesResult, McpError> {
-        let templates = setup::SERVER_SETUP
-            .resource_templates()
-            .iter()
-            .map(|template| template.descriptor().clone())
-            .collect();
-        let page = mcp_page(templates, request.as_ref())?;
-        Ok(ListResourceTemplatesResult {
-            resource_templates: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
-    }
-
-    async fn read_resource(
-        &self,
-        request: ReadResourceRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
-        if let Some(result) = setup::SERVER_SETUP.read_documents(&request, &context)? {
-            return Ok(result);
-        }
-        let cacheable = request.request_state.is_none()
-            && request.input_responses.is_none()
-            && !matches!(
-                veoveo_reason_mcp::contract::ReasonResource::parse(&request.uri),
-                Ok(veoveo_reason_mcp::contract::ReasonResource::Knowledge(_))
-            );
-        resources::read(&self.state, &request.uri, &context)
-            .await
-            .map(|result| veoveo_mcp_contract::private_resource_response(result, cacheable))
-    }
-
-    async fn list_prompts(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListPromptsResult, McpError> {
-        let prompts: Vec<Prompt> = ReasonPrompt::ALL
+    fn prompts(&self) -> Vec<Prompt> {
+        ReasonPrompt::ALL
             .into_iter()
             .map(ReasonPrompt::definition)
-            .collect();
-        let page = mcp_page(prompts, request.as_ref())?;
-        Ok(ListPromptsResult {
-            prompts: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
+            .collect()
     }
 
     async fn get_prompt(
         &self,
         request: GetPromptRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<rmcp::model::GetPromptResponse, McpError> {
-        async {
-            ReasonPrompt::by_name(&request.name)
-                .ok_or_else(|| McpError::invalid_params("unknown reason prompt", None))?
-                .render(request.arguments)
-        }
-        .await
-        .map(Into::into)
-    }
-
-    fn accepted_subscription_filter(
-        &self,
-        requested: &SubscriptionFilter,
-    ) -> Option<SubscriptionFilter> {
-        resources::accepted_subscription_filter(requested)
-    }
-
-    async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
-        subscriptions::listen(self, context).await
+    ) -> Result<GetPromptResult, McpError> {
+        ReasonPrompt::by_name(&request.name)
+            .ok_or_else(|| unknown_prompt(&request.name))?
+            .render(request.arguments)
     }
 
     async fn complete(
@@ -366,7 +220,7 @@ impl ServerHandler for ReasonMcp {
             .any(|collection| collection.member_template() == reference.uri)
             && request.argument.name == "analysis_id"
         {
-            let caller = internal_caller(&context)?;
+            let caller = plane_caller(&context)?;
             let scope = knowledge::scope(&caller).map_err(internal)?;
             if request.argument.value.len() > 128 {
                 return Err(invalid_params(
@@ -411,7 +265,7 @@ impl ServerHandler for ReasonMcp {
                 .map(String::from)
                 .collect::<Vec<_>>(),
             (uris::ANALYSIS_TEMPLATE | uris::RESULTS_TEMPLATE, "analysis_id") => {
-                let identity = internal_identity(&context)?;
+                let identity = gateway_identity(&context)?;
                 return index::complete(
                     &self.state.tasks,
                     &runtime_owner(&identity),
@@ -422,7 +276,7 @@ impl ServerHandler for ReasonMcp {
                 .map(CompleteResult::new);
             }
             (uris::ARTIFACT_TEMPLATE, "artifact_id") => {
-                let identity = internal_identity(&context)?;
+                let identity = gateway_identity(&context)?;
                 return index::complete(
                     &self.state.tasks,
                     &runtime_owner(&identity),
@@ -453,11 +307,27 @@ impl ServerHandler for ReasonMcp {
     }
 }
 
-fn mcp_page<T>(
-    items: Vec<T>,
-    request: Option<&PaginatedRequestParams>,
-) -> Result<Page<T>, McpError> {
-    paginate(items, request, LIST_PAGE_SIZE).map_err(invalid_params)
+/// Reason subscriptions: analysis resources follow their tasks, and finding
+/// resources follow Artifact-authorized knowledge changes.
+struct ReasonListener {
+    state: Arc<AppState>,
+}
+
+impl DurableListener<ReasonTaskService> for ReasonListener {
+    fn accepted_subscription_filter(
+        &self,
+        requested: &SubscriptionFilter,
+    ) -> Option<SubscriptionFilter> {
+        resources::accepted_subscription_filter(requested)
+    }
+
+    async fn listen(
+        &self,
+        service: &ReasonTaskService,
+        context: SubscriptionContext,
+    ) -> Result<(), McpError> {
+        subscriptions::listen(&self.state, service, context).await
+    }
 }
 
 fn invalid_params(error: impl std::fmt::Display) -> McpError {
@@ -481,12 +351,6 @@ async fn main() -> anyhow::Result<()> {
         init_server_telemetry("veoveo-reason-mcp", "info,veoveo_reason_mcp=debug")?;
     let args = Args::parse();
     let public_deployment = args.public_deployment()?;
-    let public_endpoint = public_deployment.server(SERVER_SLUG)?;
-    let verifier = GatewayInternalTokenVerifier::new(
-        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
-        ServerSlug::new(SERVER_SLUG)?,
-        GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?,
-    );
     let tasks = TaskRuntime::connect(
         TaskRuntimeConfig::new(
             args.surreal_endpoint.clone(),
@@ -575,33 +439,15 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    let cancellation = CancellationToken::new();
-    let mut allowed_hosts = public_allowed_hosts(&public_deployment, args.allow_loopback_hosts);
-    allowed_hosts.extend(args.allowed_hosts.iter().cloned());
-    let allowed_hosts = Arc::new(allowed_hosts.into_iter().collect::<Vec<_>>());
-    let router = host::router(
+    hosted::server(
         state,
-        verifier,
-        allowed_hosts,
-        public_endpoint.mount_path(),
-        cancellation.clone(),
-    );
-    let address = SocketAddr::from(([0, 0, 0, 0], args.port));
-    tracing::info!(
-        service = "veoveo-reason-mcp",
-        %address,
-        mcp_path = public_endpoint.path("mcp"),
-        public_url = public_endpoint.public_url(),
-        "listening"
-    );
-    let listener = tokio::net::TcpListener::bind(address).await?;
-    axum::serve(listener, router)
-        .with_graceful_shutdown(async move {
-            let _ = tokio::signal::ctrl_c().await;
-            cancellation.cancel();
-        })
-        .await?;
-    Ok(())
+        &public_deployment,
+        args.allow_loopback_hosts,
+        args.allowed_hosts.clone(),
+        GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?,
+    )?
+    .serve(SocketAddr::from(([0, 0, 0, 0], args.port)))
+    .await
 }
 
 #[cfg(test)]

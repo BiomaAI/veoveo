@@ -13,6 +13,12 @@ appear in its public MCP identities.
 
 ## Invariants
 
+- The server is hosted through `veoveo_mcp_contract::hosting`: `ReasonMcp` implements
+  `DomainServer`, knowledge members read as `DomainRead::no_store`, and
+  `ReasonListener` is the `DurableListener` that joins analysis task updates with
+  finding changes. `hosted::server` builds the server for the binary and the hosted
+  tests. Do not add a `ServerHandler`, router, host check or authentication
+  middleware here.
 - Owns the `reason://` scheme: pipelines, models, analyses, results, and
   artifacts.
 - Keep pipeline, model and analysis IDs distinct through internal APIs. Public

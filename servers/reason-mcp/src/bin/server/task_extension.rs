@@ -16,8 +16,7 @@ use veoveo_task_runtime::{
 
 use super::{
     app_state::AppState,
-    internal_auth::ForwardedBearer,
-    ownership::{caller_from, runtime_owner},
+    ownership::runtime_owner,
     task_results,
     tasks::{ReasonTaskInput, start_reason_task},
 };
@@ -43,28 +42,12 @@ impl DurableTaskService for ReasonTaskService {
     type Caller = AuthenticatedCaller;
 
     fn authenticate(&self, context: &RequestContext<RoleServer>) -> Result<Self::Caller, McpError> {
-        let parts = context
-            .extensions
-            .get::<axum::http::request::Parts>()
-            .ok_or_else(|| {
-                McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
-            })?;
-        let identity = parts
-            .extensions
-            .get::<GatewayInternalIdentity>()
-            .cloned()
-            .ok_or_else(|| {
-                McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
-            })?;
-        let bearer = parts
-            .extensions
-            .get::<ForwardedBearer>()
-            .map(|bearer| bearer.0.clone())
-            .ok_or_else(|| {
-                McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
-            })?;
+        let identity = veoveo_mcp_contract::hosting::gateway_identity(context)?;
         Ok(AuthenticatedCaller {
-            plane: caller_from(identity.clone(), bearer),
+            plane: PlaneCaller::from_gateway(
+                identity.clone(),
+                veoveo_mcp_contract::hosting::forwarded_bearer(context)?,
+            ),
             identity,
         })
     }

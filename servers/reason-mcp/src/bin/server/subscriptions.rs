@@ -1,5 +1,8 @@
 //! Task-owner updates and Artifact-authorized finding changes share the MCP stream.
-use super::{ReasonMcp, internal, invalid_params, knowledge, ownership, resources};
+use super::{
+    app_state::AppState, internal, invalid_params, knowledge, ownership, resources,
+    task_extension::ReasonTaskService,
+};
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
 use rmcp::{ErrorData as McpError, service::SubscriptionContext};
@@ -27,7 +30,7 @@ struct State {
 }
 
 async fn snapshot(
-    server: &ReasonMcp,
+    app: &AppState,
     caller: &PlaneCaller,
     addresses: &[(ResourceUri, FindingResource)],
 ) -> Result<State, McpError> {
@@ -46,7 +49,7 @@ async fn snapshot(
             };
             if let std::collections::btree_map::Entry::Vacant(entry) = selected.entry(id) {
                 entry.insert(
-                    observe::snapshot(server.state.tasks.platform_store(), &scope, id)
+                    observe::snapshot(app.tasks.platform_store(), &scope, id)
                         .await
                         .map_err(internal)?,
                 );
@@ -79,11 +82,12 @@ async fn notify(context: &SubscriptionContext, uri: &ResourceUri) -> Result<(), 
 }
 
 pub(super) async fn listen(
-    server: &ReasonMcp,
+    app: &AppState,
+    task_service: &ReasonTaskService,
     context: SubscriptionContext,
 ) -> Result<(), McpError> {
-    let mut changes = server.state.finding_changes.subscribe();
-    let caller = ownership::internal_caller(context.request_context())?;
+    let mut changes = app.finding_changes.subscribe();
+    let caller = veoveo_mcp_contract::hosting::plane_caller(context.request_context())?;
     let mut tasks_filter = context.accepted().clone();
     let mut addresses = Vec::new();
     let mut tasks_resources = Vec::new();
@@ -106,16 +110,14 @@ pub(super) async fn listen(
     let tasks = TaskResourceSubscriptions::from_filter::<AnalysisResource>(&tasks_filter)?;
     for id in tasks.resource_task_ids() {
         resources::analysis_snapshot(
-            &server.state.tasks,
+            &app.tasks,
             &ownership::runtime_owner(&caller.identity),
             AnalysisId::try_from(id).map_err(invalid_params)?,
         )
         .await?;
     }
-    let task_caller = server
-        .task_service
-        .authenticate(context.request_context())?;
-    let mut tasks = tasks.subscribe(&server.task_service, &task_caller).await?;
+    let task_caller = task_service.authenticate(context.request_context())?;
+    let mut tasks = tasks.subscribe(task_service, &task_caller).await?;
     if !addresses.is_empty() {
         let ready = async {
             while changes.borrow_and_update().is_none() {
@@ -128,7 +130,7 @@ pub(super) async fn listen(
             result = tokio::time::timeout(Duration::from_secs(10), ready) => result.map_err(|_| internal("finding observer is unavailable"))??,
         }
     }
-    let mut previous = snapshot(server, &caller, &addresses).await?;
+    let mut previous = snapshot(app, &caller, &addresses).await?;
     if previous.lost_member {
         return Err(lost_member());
     }
@@ -159,7 +161,7 @@ pub(super) async fn listen(
         };
         let current = tokio::select! {
             _ = context.cancelled() => return Ok(()),
-            result = snapshot(server, &caller, &addresses) => result?,
+            result = snapshot(app, &caller, &addresses) => result?,
         };
         for (uri, hash) in &current.fingerprints {
             if reconcile || previous.fingerprints.get(uri) != Some(hash) {

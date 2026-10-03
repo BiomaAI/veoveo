@@ -1,9 +1,10 @@
 //! Caller-admitted finding resources. Artifact remains the byte and access owner.
-use super::{app_state::AppState, internal, invalid_params, ownership::internal_caller};
+use super::{app_state::AppState, internal, invalid_params};
 use anyhow::{Result, ensure};
 use chrono::Utc;
 use rmcp::{ErrorData as McpError, RoleServer, model::*, service::RequestContext};
 use veoveo_mcp_contract::PlaneCaller;
+use veoveo_mcp_contract::hosting::plane_caller;
 use veoveo_platform_store::{
     ArtifactReadScope, PlatformIdentity, deterministic_principal_id, deterministic_tenant_id,
 };
@@ -43,7 +44,7 @@ pub(super) async fn read(
     address: FindingResource,
     context: &RequestContext<RoleServer>,
 ) -> Result<ReadResourceResult, McpError> {
-    let caller = internal_caller(context)?;
+    let caller = plane_caller(context)?;
     tokio::time::timeout(std::time::Duration::from_secs(60), async {
         let scope = scope(&caller).map_err(internal)?;
         let uri = address.to_uri().map_err(invalid_params)?;

@@ -100,6 +100,9 @@ impl Signing {
             )
             .unwrap();
         let identity = self.verifier().verify(&token.bearer_token).unwrap();
-        super::super::ownership::caller_from(identity, token.bearer_token)
+        PlaneCaller::from_gateway(
+            identity,
+            veoveo_mcp_contract::hosting::ForwardedBearer::new(token.bearer_token),
+        )
     }
 }
