@@ -12,6 +12,12 @@ and reactive Rerun live following.
 
 ## Invariants
 
+- The server is hosted through `veoveo_mcp_contract::hosting` at the internal root:
+  `RecordingMcp` implements `DomainServer`, `RecordingSubscriptions` is its
+  `ResourceSubscriptions` source through `ResourcesOnly`, the playback routes are
+  authenticated routes, storage diagnostics are admin routes, and the Rerun gRPC
+  service is a public route that authorizes each call with its playback grant. Do not
+  add a `ServerHandler`, router, host check or authentication middleware here.
 - Keep public recording, playback, catalog grant and projection models in the
   shared [Recording domain contract](../../platform/recordings/contract/DESIGN.md),
   exposed by this library’s isolated `contract` feature. Cross-server consumers import it with

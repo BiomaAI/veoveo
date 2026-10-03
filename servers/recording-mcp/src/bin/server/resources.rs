@@ -1,14 +1,13 @@
-use super::{
-    mcp::{internal, json_resource},
-    state::AppState,
-};
+use super::{mcp::internal, state::AppState};
 use rmcp::{
     ErrorData as McpError,
     model::{ReadResourceResult, ResourceContents},
 };
-use veoveo_mcp_contract::GatewayInternalIdentity;
+use veoveo_mcp_contract::{
+    GatewayInternalIdentity,
+    hosting::{json_read, served_by_host},
+};
 use veoveo_platform_store::RecordingId;
-use veoveo_recording_mcp::admin::SERVER_DOCS;
 use veoveo_recording_mcp::{contract::RecordingResource, uris};
 
 pub(super) async fn read(
@@ -18,16 +17,9 @@ pub(super) async fn read(
     resource: RecordingResource,
 ) -> Result<ReadResourceResult, McpError> {
     match resource {
-        RecordingResource::Docs => json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>()),
-        RecordingResource::Document(doc) => {
-            let doc = SERVER_DOCS
-                .doc(doc.as_str())
-                .ok_or_else(|| McpError::resource_not_found("server document not found", None))?;
-            Ok(ReadResourceResult::new(vec![
-                ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
-            ]))
+        RecordingResource::Docs | RecordingResource::Document(_) | RecordingResource::Contract => {
+            Err(served_by_host())
         }
-        RecordingResource::Contract => json_resource(uri, SERVER_DOCS.contract_declaration()),
         RecordingResource::Explorer => {
             let html = veoveo_mcp_apps_extension::workbench_app_html(
                 &veoveo_mcp_apps_extension::WorkbenchApp {
@@ -62,7 +54,7 @@ pub(super) async fn read(
                 veoveo_mcp_apps_extension::app_html_contents(uri, &html),
             ]))
         }
-        RecordingResource::Catalog(after) => json_resource(
+        RecordingResource::Catalog(after) => json_read(
             uri,
             &state
                 .recordings
@@ -78,7 +70,7 @@ pub(super) async fn read(
                 .await
                 .map_err(internal)?
                 .ok_or_else(|| McpError::resource_not_found("Recording was not found", None))?;
-            json_resource(uri, &value)
+            json_read(uri, &value)
         }
         RecordingResource::Layers(address) => {
             let id = RecordingId::from_uuid(address.id().as_uuid());
@@ -88,7 +80,7 @@ pub(super) async fn read(
                 .await
                 .map_err(internal)?
                 .ok_or_else(|| McpError::resource_not_found("Recording was not found", None))?;
-            json_resource(uri, &value)
+            json_read(uri, &value)
         }
     }
 }

@@ -17244,8 +17244,6 @@ dependencies = [
  "tokio-util",
  "tonic",
  "tonic-web",
- "tower",
- "tower-http 0.7.0",
  "tracing",
  "tracing-subscriber",
  "url",

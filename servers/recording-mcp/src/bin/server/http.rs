@@ -1,6 +1,6 @@
 use super::{
-    auth::{InternalAuthState, artifact_caller, authenticate},
-    mcp::RecordingMcp,
+    auth::artifact_caller,
+    mcp::{RecordingMcp, RecordingSubscriptions},
     state::AppState,
 };
 use axum::{
@@ -8,20 +8,18 @@ use axum::{
     body::Body,
     extract::{Path, State},
     http::{HeaderMap, StatusCode, header},
-    middleware,
     response::{IntoResponse, Response},
     routing::{get, post},
 };
 use re_protos::cloud::v1alpha1::rerun_cloud_service_server::RerunCloudServiceServer;
-use rmcp::transport::streamable_http_server::StreamableHttpService;
 use serde::Serialize;
 use std::{collections::BTreeSet, sync::Arc};
-use tokio_util::sync::CancellationToken;
-use tower_http::trace::{DefaultMakeSpan, TraceLayer};
-use veoveo_mcp_contract::GatewayInternalTokenVerifier;
+use veoveo_mcp_contract::{
+    GatewayInternalTrustBundle,
+    hosting::{Hosted, HostedServer, ResourcesOnly},
+};
 use veoveo_platform_store::{RecordingId, RecordingProjectionReceiptId};
 use veoveo_recording_mcp::{
-    admin,
     blueprint_playback::recording_scoped_blueprint,
     contract::CreateRecordingCatalogGrantRequest,
     live_stream::{
@@ -31,46 +29,14 @@ use veoveo_recording_mcp::{
     service::PlaybackArchiveSelection,
 };
 
-pub(super) fn router(
+/// Builds the hosted Recording server at the internal root. The gateway
+/// reaches `/mcp` and the playback routes there, and Rerun clients reach the
+/// gRPC service at its root-relative paths.
+pub(super) fn server(
     state: Arc<AppState>,
-    verifier: GatewayInternalTokenVerifier,
     allowed_hosts: BTreeSet<String>,
-    cancellation: &CancellationToken,
-) -> Router {
-    let auth_state = InternalAuthState {
-        verifier,
-        allowed_hosts: Arc::new(allowed_hosts.iter().cloned().collect()),
-    };
-    let service = StreamableHttpService::new(
-        {
-            let state = state.clone();
-            move || Ok(RecordingMcp::new(state.clone()))
-        },
-        veoveo_mcp_contract::stateless_session_manager(),
-        veoveo_mcp_contract::canonical_streamable_http_server_config()
-            .with_allowed_hosts(allowed_hosts)
-            .with_cancellation_token(cancellation.child_token()),
-    );
-    let mcp = Router::new()
-        .route_service("/", service.clone())
-        .route_service("/{*path}", service)
-        .layer(middleware::from_fn(
-            veoveo_mcp_contract::enforce_serialized_mcp_response,
-        ))
-        .layer(middleware::from_fn_with_state(
-            auth_state.clone(),
-            authenticate,
-        ));
-    let admin_router = admin::router().layer(middleware::from_fn_with_state(
-        auth_state.clone(),
-        authenticate,
-    ));
-    let storage_diagnostics_router = Router::new()
-        .route("/admin/storage", get(storage_diagnostics))
-        .layer(middleware::from_fn_with_state(
-            auth_state.clone(),
-            authenticate,
-        ));
+    trust: GatewayInternalTrustBundle,
+) -> anyhow::Result<HostedServer> {
     let playback = Router::new()
         .route("/catalog-grants", post(catalog_grant))
         .route("/{recording_id}/playback", get(playback_manifest))
@@ -85,27 +51,38 @@ pub(super) fn router(
         .route(
             "/{recording_id}/projections/{projection_id}/data.arrow",
             get(projection_data),
-        )
-        .layer(middleware::from_fn_with_state(auth_state, authenticate));
+        );
+    let storage = Router::new().route("/storage", get(storage_diagnostics));
+    // Rerun's gRPC service authorizes each call with its playback grant.
     let redap = tonic::service::Routes::new(RerunCloudServiceServer::new(
         state.playback.scoped_redap_service(),
     ))
     .into_axum_router()
-    .layer(tonic_web::GrpcWebLayer::new())
-    .with_state::<Arc<AppState>>(());
-    Router::new()
-        .route("/healthz", get(|| async { "ok" }))
-        .route("/readyz", get(ready))
-        .merge(storage_diagnostics_router)
-        .nest_service("/admin", admin_router)
-        .nest("/mcp", mcp)
-        .nest("/recordings", playback)
-        .merge(redap)
-        .with_state(state)
-        .layer(
-            TraceLayer::new_for_http()
-                .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO)),
+    .layer(tonic_web::GrpcWebLayer::new());
+    let readiness_state = state.clone();
+    Ok(HostedServer::for_domain::<RecordingMcp>()
+        .internal_root(allowed_hosts)
+        .internal_trust(trust)?
+        .handler({
+            let state = state.clone();
+            move || {
+                Hosted::new(RecordingMcp::new(state.clone())).with_tasks(ResourcesOnly::new(
+                    RecordingSubscriptions::new(state.clone()),
+                ))
+            }
+        })
+        .authenticated_routes(
+            Router::new()
+                .nest("/recordings", playback)
+                .with_state(state.clone()),
         )
+        .admin_routes(storage.with_state(state))
+        .public_routes(redap)
+        .readiness(move || {
+            let state = readiness_state.clone();
+            async move { ready(&state).await }
+        })
+        .build())
 }
 
 fn parse_recording_id(
@@ -115,16 +92,17 @@ fn parse_recording_id(
     Ok(RecordingId::from_uuid(id.as_uuid()))
 }
 
-async fn ready(State(state): State<Arc<AppState>>) -> StatusCode {
+/// Ready while the Store and recording storage are.
+async fn ready(state: &AppState) -> bool {
     if let Err(error) = state.recordings.platform_store().healthcheck().await {
         tracing::warn!("recording MCP store readiness failed: {error}");
-        return StatusCode::SERVICE_UNAVAILABLE;
+        return false;
     }
     if let Err(error) = state.recordings.storage_readiness() {
         tracing::warn!("recording MCP storage readiness failed: {error}");
-        return StatusCode::SERVICE_UNAVAILABLE;
+        return false;
     }
-    StatusCode::OK
+    true
 }
 
 #[derive(Serialize)]

@@ -1,42 +1,41 @@
 use super::{
-    auth::{artifact_caller_from_context, identity},
-    prompts::RecordingPrompt,
-    resources,
-    state::AppState,
+    auth::artifact_caller_from_context, prompts::RecordingPrompt, resources, state::AppState,
 };
 use rmcp::{
-    ErrorData as McpError, RoleServer, ServerHandler,
+    ErrorData as McpError, RoleServer,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolResult, CompleteRequestParams, CompleteResult, CompletionInfo, ContentBlock,
-        GetPromptRequestParams, ListPromptsResult, ListResourceTemplatesResult,
-        ListResourcesResult, ListToolsResult, PaginatedRequestParams, Prompt,
-        ReadResourceRequestParams, ReadResourceResult, Reference, ResourceContents, ServerConfig,
-        SubscriptionFilter,
+        CallToolResult, CompleteRequestParams, CompleteResult, CompletionInfo,
+        GetPromptRequestParams, GetPromptResult, Prompt, ReadResourceRequestParams, Reference,
+        Tool,
     },
-    service::{RequestContext, SubscriptionContext},
-    tool, tool_handler, tool_router,
+    service::RequestContext,
+    tool, tool_router,
 };
-use serde::Serialize;
 use std::sync::Arc;
-use veoveo_mcp_contract::{Page, paginate};
+use veoveo_mcp_contract::{
+    SubscriptionHub,
+    hosting::{
+        DomainAddress, DomainRead, DomainServer, ResourceSubscriptions, gateway_identity,
+        structured_result, unknown_prompt,
+    },
+    server_contract::McpServerSetup,
+};
 use veoveo_platform_store::RecordingId;
 use veoveo_recording_mcp::{
     contract::{
         CreateRecordingProjectionRequest, RecordingProjectionHandle, RecordingResource,
         SealRecordingOutput, SealRecordingRequest,
     },
-    mcp_setup::SERVER_SETUP,
+    mcp_setup::{RecordingContract, SERVER_SETUP},
     uris,
 };
 
-const LIST_PAGE_SIZE: usize = 100;
 const EXPLORER_TOOLS: &[&str] = &["create_recording_projection", "seal_recording"];
 
 #[derive(Clone)]
 pub(super) struct RecordingMcp {
     state: Arc<AppState>,
-    #[allow(dead_code)]
     tool_router: ToolRouter<RecordingMcp>,
 }
 
@@ -66,7 +65,7 @@ impl RecordingMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         let recording_id = RecordingId::from_uuid(request.recording_id.as_uuid());
-        let identity = identity(&context)?;
+        let identity = gateway_identity(&context)?;
         let output = self
             .state
             .recordings
@@ -104,7 +103,7 @@ impl RecordingMcp {
         Parameters(request): Parameters<CreateRecordingProjectionRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = identity(&context)?;
+        let identity = gateway_identity(&context)?;
         let artifact_caller = artifact_caller_from_context(&context, identity.clone())?;
         let cancellation = context.ct.clone();
         self.state.playback.prune_catalogs();
@@ -126,158 +125,115 @@ impl RecordingMcp {
     }
 }
 
-#[tool_handler]
-impl ServerHandler for RecordingMcp {
-    fn supported_protocol_versions(
-        &self,
-    ) -> std::borrow::Cow<'static, [rmcp::model::ProtocolVersion]> {
-        veoveo_mcp_contract::final_protocol_versions()
+impl DomainServer for RecordingMcp {
+    type Contract = RecordingContract;
+
+    fn setup() -> &'static McpServerSetup<RecordingContract> {
+        &SERVER_SETUP
     }
 
-    fn get_info(&self) -> ServerConfig {
-        SERVER_SETUP.server_config().clone()
+    fn tool_router(&self) -> &ToolRouter<Self> {
+        &self.tool_router
     }
 
-    async fn list_tools(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListToolsResult, McpError> {
-        let mut tools = self.tool_router.list_all();
-        tools.sort_by(|left, right| left.name.cmp(&right.name));
-        tools = tools
-            .into_iter()
-            .map(|tool| {
-                if EXPLORER_TOOLS.contains(&tool.name.as_ref()) {
-                    veoveo_mcp_apps_extension::link_tool_to_app(
-                        tool,
-                        uris::EXPLORER_APP_URI,
-                        &[
-                            veoveo_mcp_apps_extension::UiVisibility::Model,
-                            veoveo_mcp_apps_extension::UiVisibility::App,
-                        ],
-                    )
-                } else {
-                    tool
-                }
-            })
-            .collect();
-        let page = mcp_page(tools, request.as_ref())?;
-        Ok(ListToolsResult {
-            tools: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
-    }
-
-    async fn list_resources(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        context: RequestContext<RoleServer>,
-    ) -> Result<ListResourcesResult, McpError> {
-        identity(&context)?;
-        let resources = SERVER_SETUP
-            .resources()
-            .iter()
-            .map(|item| item.descriptor().clone())
-            .collect();
-        let page = mcp_page(resources, request.as_ref())?;
-        Ok(ListResourcesResult {
-            resources: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
-    }
-
-    async fn list_resource_templates(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListResourceTemplatesResult, McpError> {
-        let templates = SERVER_SETUP
-            .resource_templates()
-            .iter()
-            .map(|item| item.descriptor().clone())
-            .collect();
-        let page = mcp_page(templates, request.as_ref())?;
-        Ok(ListResourceTemplatesResult {
-            resource_templates: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
-    }
-
-    async fn read_resource(
-        &self,
-        request: ReadResourceRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
-        if let Some(result) = SERVER_SETUP.read_documents(&request, &context)? {
-            return Ok(result);
+    fn describe_tool(&self, tool: Tool) -> Tool {
+        if !EXPLORER_TOOLS.contains(&tool.name.as_ref()) {
+            return tool;
         }
-        let cacheable = request.request_state.is_none() && request.input_responses.is_none();
-        let identity = identity(&context)?;
-        let resource = RecordingResource::parse(&request.uri).map_err(invalid_params)?;
-        resources::read(&self.state, &identity, &request.uri, resource)
-            .await
-            .map(|result| veoveo_mcp_contract::private_resource_response(result, cacheable))
+        veoveo_mcp_apps_extension::link_tool_to_app(
+            tool,
+            uris::EXPLORER_APP_URI,
+            &[
+                veoveo_mcp_apps_extension::UiVisibility::Model,
+                veoveo_mcp_apps_extension::UiVisibility::App,
+            ],
+        )
     }
 
-    async fn list_prompts(
+    async fn read(
         &self,
-        request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListPromptsResult, McpError> {
-        let prompts: Vec<Prompt> = RecordingPrompt::ALL
+        address: DomainAddress<RecordingContract>,
+        request: &ReadResourceRequestParams,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<DomainRead, McpError> {
+        let identity = gateway_identity(context)?;
+        resources::read(&self.state, &identity, &request.uri, address)
+            .await
+            .map(DomainRead::private)
+    }
+
+    fn prompts(&self) -> Vec<Prompt> {
+        RecordingPrompt::ALL
             .into_iter()
             .map(RecordingPrompt::definition)
-            .collect();
-        let page = mcp_page(prompts, request.as_ref())?;
-        Ok(ListPromptsResult {
-            prompts: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
+            .collect()
     }
 
     async fn get_prompt(
         &self,
         request: GetPromptRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<rmcp::model::GetPromptResponse, McpError> {
-        async {
-            RecordingPrompt::by_name(&request.name)
-                .ok_or_else(|| McpError::invalid_params("unknown recording prompt", None))?
-                .render(request.arguments)
-        }
-        .await
-        .map(Into::into)
+    ) -> Result<GetPromptResult, McpError> {
+        RecordingPrompt::by_name(&request.name)
+            .ok_or_else(|| unknown_prompt(&request.name))?
+            .render(request.arguments)
     }
 
-    fn accepted_subscription_filter(
+    async fn complete(
         &self,
-        requested: &SubscriptionFilter,
-    ) -> Option<SubscriptionFilter> {
-        accepted_subscription_filter(requested)
+        request: CompleteRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CompleteResult, McpError> {
+        let Reference::Resource(reference) = &request.r#ref else {
+            return Ok(CompleteResult::default());
+        };
+        if !matches!(
+            reference.uri.as_str(),
+            uris::RECORDING_TEMPLATE | uris::LAYERS_TEMPLATE
+        ) || request.argument.name != "recording_id"
+        {
+            return Ok(CompleteResult::default());
+        }
+        let identity = gateway_gateway_identity(&context)?;
+        let mut values = self
+            .state
+            .recordings
+            .complete_recording_ids(&identity, &request.argument.value)
+            .await
+            .map_err(resources::query_error)?;
+        let has_more = values.len() > CompletionInfo::MAX_VALUES;
+        values.truncate(CompletionInfo::MAX_VALUES);
+        let total = (!has_more).then_some(values.len() as u32);
+        let completion =
+            CompletionInfo::with_pagination(values, total, has_more).map_err(internal)?;
+        Ok(CompleteResult::new(completion))
     }
+}
 
-    async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
-        let request_context = context.request_context().clone();
-        let identity = identity(&request_context)?;
-        for uri in context.accepted().resource_subscriptions.iter().flatten() {
-            let SubscriptionResource::Recording(recording_id) = subscription_resource(uri)? else {
+/// The recording catalog and individual recordings. Subscribing to a recording
+/// requires that the caller can currently see it.
+pub(super) struct RecordingSubscriptions {
+    state: Arc<AppState>,
+}
+
+impl RecordingSubscriptions {
+    pub(super) fn new(state: Arc<AppState>) -> Self {
+        Self { state }
+    }
+}
+
+impl ResourceSubscriptions for RecordingSubscriptions {
+    type Address = RecordingResource;
+
+    async fn authorize(
+        &self,
+        addresses: Vec<RecordingResource>,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        let identity = gateway_identity(context)?;
+        for address in addresses {
+            let SubscriptionResource::Recording(recording_id) = subscription_resource(address)?
+            else {
                 // The catalog itself is readable by every authenticated caller;
                 // its contents are filtered by current recording visibility.
                 continue;
@@ -296,61 +252,12 @@ impl ServerHandler for RecordingMcp {
                 ));
             }
         }
-        veoveo_mcp_contract::listen_resources(context, &self.state.subscribers, None).await
+        Ok(())
     }
 
-    async fn complete(
-        &self,
-        request: CompleteRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<CompleteResult, McpError> {
-        let Reference::Resource(reference) = &request.r#ref else {
-            return Ok(CompleteResult::default());
-        };
-        if !matches!(
-            reference.uri.as_str(),
-            uris::RECORDING_TEMPLATE | uris::LAYERS_TEMPLATE
-        ) || request.argument.name != "recording_id"
-        {
-            return Ok(CompleteResult::default());
-        }
-        let identity = identity(&context)?;
-        let mut values = self
-            .state
-            .recordings
-            .complete_recording_ids(&identity, &request.argument.value)
-            .await
-            .map_err(resources::query_error)?;
-        let has_more = values.len() > CompletionInfo::MAX_VALUES;
-        values.truncate(CompletionInfo::MAX_VALUES);
-        let total = (!has_more).then_some(values.len() as u32);
-        let completion =
-            CompletionInfo::with_pagination(values, total, has_more).map_err(internal)?;
-        Ok(CompleteResult::new(completion))
+    fn hub(&self) -> &SubscriptionHub {
+        &self.state.subscribers
     }
-}
-
-fn structured_result<T: Serialize>(text: String, value: &T) -> Result<CallToolResult, McpError> {
-    let mut result = CallToolResult::success(vec![ContentBlock::text(text)]);
-    result.structured_content = Some(serde_json::to_value(value).map_err(internal)?);
-    Ok(result)
-}
-
-pub(super) fn json_resource<T: Serialize>(
-    uri: &str,
-    value: &T,
-) -> Result<ReadResourceResult, McpError> {
-    Ok(ReadResourceResult::new(vec![
-        ResourceContents::text(serde_json::to_string(value).map_err(internal)?, uri)
-            .with_mime_type("application/json"),
-    ]))
-}
-
-fn mcp_page<T>(
-    items: Vec<T>,
-    request: Option<&PaginatedRequestParams>,
-) -> Result<Page<T>, McpError> {
-    paginate(items, request, LIST_PAGE_SIZE).map_err(invalid_params)
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -359,8 +266,8 @@ enum SubscriptionResource {
     Recording(RecordingId),
 }
 
-fn subscription_resource(uri: &str) -> Result<SubscriptionResource, McpError> {
-    match RecordingResource::parse(uri).map_err(invalid_params)? {
+fn subscription_resource(address: RecordingResource) -> Result<SubscriptionResource, McpError> {
+    match address {
         RecordingResource::Catalog(None) => Ok(SubscriptionResource::Catalog),
         RecordingResource::Recording(uri) => Ok(SubscriptionResource::Recording(
             RecordingId::from_uuid(uri.id().as_uuid()),
@@ -383,56 +290,10 @@ pub(super) fn internal(error: impl std::fmt::Display) -> McpError {
     McpError::internal_error(error.to_string(), None)
 }
 
-fn accepted_subscription_filter(requested: &SubscriptionFilter) -> Option<SubscriptionFilter> {
-    let resources = requested
-        .resource_subscriptions
-        .as_ref()?
-        .iter()
-        .filter(|uri| subscription_resource(uri).is_ok())
-        .cloned()
-        .collect::<Vec<_>>();
-    (!resources.is_empty()).then(|| {
-        SubscriptionFilter::builder()
-            .resource_subscriptions(resources)
-            .build()
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use veoveo_recording_mcp::admin::SERVER_DOCS;
-
-    #[test]
-    fn listener_does_not_accept_static_lists_documents_or_foreign_tasks() {
-        let requested = SubscriptionFilter::builder()
-            .resources_list_changed()
-            .task_ids(["foreign-task".to_owned()])
-            .resource_subscriptions([
-                uris::DOCS_URI.to_owned(),
-                "recording://catalog?extra=1".into(),
-            ])
-            .build();
-        assert!(accepted_subscription_filter(&requested).is_none());
-        let recording =
-            uris::recording_uri(veoveo_recording_mcp::contract::RecordingId::new()).to_string();
-        let requested = SubscriptionFilter::builder()
-            .resources_list_changed()
-            .task_ids(["foreign-task".to_owned()])
-            .resource_subscriptions([
-                uris::CATALOG_URI.to_owned(),
-                recording.clone(),
-                uris::DOCS_URI.into(),
-            ])
-            .build();
-        let accepted = accepted_subscription_filter(&requested).unwrap();
-        assert_eq!(
-            accepted.resource_subscriptions,
-            Some(vec![uris::CATALOG_URI.into(), recording])
-        );
-        assert_ne!(accepted.resources_list_changed, Some(true));
-        assert!(accepted.task_ids.is_none());
-    }
 
     #[test]
     fn tool_input_schemas_use_the_canonical_profile() {
@@ -473,12 +334,12 @@ mod tests {
                 .to_string(),
         ] {
             assert_eq!(
-                subscription_resource(&uri).unwrap(),
+                subscription_resource(RecordingResource::parse(&uri).unwrap()).unwrap(),
                 SubscriptionResource::Recording(RecordingId::from_uuid(id))
             );
         }
         assert_eq!(
-            subscription_resource(uris::CATALOG_URI).unwrap(),
+            subscription_resource(RecordingResource::parse(uris::CATALOG_URI).unwrap()).unwrap(),
             SubscriptionResource::Catalog
         );
         for uri in [
@@ -487,7 +348,13 @@ mod tests {
             "recording://recordings/not-a-uuid",
             "recording://recordings/00000000-0000-0000-0000-000000000000",
         ] {
-            assert!(subscription_resource(uri).is_err(), "{uri}");
+            assert!(
+                RecordingResource::parse(uri)
+                    .map_err(invalid_params)
+                    .and_then(subscription_resource)
+                    .is_err(),
+                "{uri}"
+            );
         }
     }
 

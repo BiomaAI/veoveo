@@ -1,11 +1,9 @@
 use clap::Parser;
 use secrecy::ExposeSecret as _;
 use std::{collections::BTreeSet, net::SocketAddr, sync::Arc};
-use tokio_util::sync::CancellationToken;
 use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_mcp_contract::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
-    ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, init_server_telemetry,
+    GatewayInternalTrustBundle, SubscriptionHub, TelemetryGuard, init_server_telemetry,
 };
 use veoveo_platform_store::{PlatformStore, StoreConfig, StoreCredentials};
 use veoveo_recording_hub::{GatewayLayerPublisher, GatewayLayerPublisherConfig};
@@ -60,11 +58,6 @@ async fn main() -> anyhow::Result<()> {
         .build()?,
     )
     .await?;
-    let verifier = GatewayInternalTokenVerifier::new(
-        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
-        ServerSlug::new(SERVER_SLUG)?,
-        GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?,
-    );
     let state = Arc::new(AppState {
         recordings: RecordingService::new(
             store.clone(),
@@ -122,22 +115,17 @@ async fn main() -> anyhow::Result<()> {
                 .await;
         }
     });
-    let cancellation = CancellationToken::new();
     let mut allowed_hosts: BTreeSet<String> = args.allowed_hosts.into_iter().collect();
     allowed_hosts.insert(format!("recording-mcp:{}", args.port));
     if args.allow_loopback_hosts {
         allowed_hosts.insert(format!("localhost:{}", args.port));
         allowed_hosts.insert(format!("127.0.0.1:{}", args.port));
     }
-    let router = http::router(state, verifier, allowed_hosts, &cancellation);
-    let address = SocketAddr::from(([0, 0, 0, 0], args.port));
-    tracing::info!(service = "veoveo-recording-mcp", %address, "listening");
-    let listener = tokio::net::TcpListener::bind(address).await?;
-    axum::serve(listener, router)
-        .with_graceful_shutdown(async move {
-            let _ = tokio::signal::ctrl_c().await;
-            cancellation.cancel();
-        })
-        .await?;
-    Ok(())
+    http::server(
+        state,
+        allowed_hosts,
+        GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?,
+    )?
+    .serve(SocketAddr::from(([0, 0, 0, 0], args.port)))
+    .await
 }
