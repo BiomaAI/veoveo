@@ -1,15 +1,13 @@
 use std::{sync::Arc, time::Duration};
 
-use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller};
+use veoveo_mcp_contract::{
+    GatewayInternalIdentity, PlaneCaller,
+    hosting::{forwarded_bearer, gateway_identity},
+};
 use veoveo_media_mcp::state::ProviderCancellationOutcome;
 use veoveo_platform_store::{ProviderJobState, TaskStatus};
 
-use super::{
-    AppState, RunArgs,
-    internal_auth::ForwardedBearer,
-    ownership::{caller_from, runtime_owner},
-    start_media_task,
-};
+use super::{AppState, RunArgs, ownership::runtime_owner, start_media_task};
 
 #[derive(Clone)]
 pub(super) struct MediaTaskExtension {
@@ -35,37 +33,9 @@ impl veoveo_task_runtime::DurableTaskService for MediaTaskExtension {
         &self,
         context: &rmcp::service::RequestContext<rmcp::RoleServer>,
     ) -> Result<Self::Caller, rmcp::ErrorData> {
-        let parts = context
-            .extensions
-            .get::<axum::http::request::Parts>()
-            .ok_or_else(|| {
-                rmcp::ErrorData::invalid_request(
-                    veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED,
-                    None,
-                )
-            })?;
-        let identity = parts
-            .extensions
-            .get::<GatewayInternalIdentity>()
-            .cloned()
-            .ok_or_else(|| {
-                rmcp::ErrorData::invalid_request(
-                    veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED,
-                    None,
-                )
-            })?;
-        let bearer = parts
-            .extensions
-            .get::<ForwardedBearer>()
-            .map(|bearer| bearer.0.clone())
-            .ok_or_else(|| {
-                rmcp::ErrorData::invalid_request(
-                    veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED,
-                    None,
-                )
-            })?;
+        let identity = gateway_identity(context)?;
         Ok(AuthenticatedCaller {
-            plane: caller_from(identity.clone(), bearer),
+            plane: PlaneCaller::from_gateway(identity.clone(), forwarded_bearer(context)?),
             identity,
         })
     }

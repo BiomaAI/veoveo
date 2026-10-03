@@ -28,35 +28,34 @@ use axum::{
     Router,
     extract::{Path as AxumPath, State},
     http::{HeaderMap, StatusCode},
-    middleware,
     response::IntoResponse,
-    routing::{get, post},
+    routing::post,
 };
 use chrono::{TimeDelta, Utc};
 use clap::Parser;
 use rmcp::tool;
 use rmcp::{
-    ErrorData as McpError, RoleServer, ServerHandler,
+    ErrorData as McpError, RoleServer,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolRequestParams, CallToolResponse, CallToolResult, CancelTaskParams,
-        CompleteRequestParams, CompleteResult, CompletionInfo, GetPromptRequestParams,
-        GetTaskParams, GetTaskResult, ListPromptsResult, ListResourceTemplatesResult,
-        ListResourcesResult, ListToolsResult, PaginatedRequestParams, Prompt,
-        ReadResourceRequestParams, Reference, ServerConfig, SubscriptionFilter, UpdateTaskParams,
+        CallToolResult, CompleteRequestParams, CompleteResult, GetPromptRequestParams,
+        GetPromptResult, Prompt, ReadResourceRequestParams, Reference, Tool,
     },
-    service::{RequestContext, SubscriptionContext},
-    tool_handler, tool_router,
-    transport::streamable_http_server::StreamableHttpService,
+    service::RequestContext,
+    tool_router,
 };
 use secrecy::ExposeSecret;
 use serde_json::{Value, json};
 use tokio::sync::RwLock;
-use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_mcp_contract::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
-    IssueArtifactWriteCapabilityRequest, Page, ServerSlug, SubscriptionHub, TelemetryGuard,
-    TokenIssuer, init_server_telemetry, paginate, public_allowed_hosts,
+    GatewayInternalTrustBundle, IssueArtifactWriteCapabilityRequest, SubscriptionHub,
+    TelemetryGuard,
+    hosting::{
+        DomainAddress, DomainRead, DomainServer, Hosted, HostedServer, completion,
+        rank_completions, unknown_prompt,
+    },
+    init_server_telemetry,
+    server_contract::McpServerSetup,
 };
 use veoveo_media_mcp::{
     artifacts::ArtifactRepository,
@@ -67,12 +66,10 @@ use veoveo_media_mcp::{
     uris, webhook,
 };
 use veoveo_task_runtime::{
-    CreateTask as DurableCreateTask, RecoveryClass, TaskRetentionPin, TaskRuntime,
-    TaskRuntimeConfig, TaskSnapshot, TaskTransition,
+    CreateTask as DurableCreateTask, DurableTasksWithResources, RecoveryClass, TaskRetentionPin,
+    TaskRuntime, TaskRuntimeConfig, TaskSnapshot, TaskTransition,
 };
 
-#[path = "server/admin.rs"]
-mod admin;
 #[path = "server/app_state.rs"]
 mod app_state;
 #[path = "server/artifact_tools.rs"]
@@ -81,10 +78,6 @@ mod artifact_tools;
 mod config;
 #[path = "server/generation_task.rs"]
 mod generation_task;
-#[path = "server/host.rs"]
-mod host;
-#[path = "server/internal_auth.rs"]
-mod internal_auth;
 #[path = "server/model_tools.rs"]
 mod model_tools;
 #[path = "server/outputs.rs"]
@@ -99,7 +92,9 @@ mod resources;
 mod setup;
 #[path = "server/subscriptions.rs"]
 mod subscriptions;
-use setup::{SERVER_DOCS, SERVER_SETUP};
+#[cfg(test)]
+use setup::SERVER_DOCS;
+use setup::{MediaContract, SERVER_SETUP};
 #[path = "server/retention.rs"]
 mod retention;
 #[path = "server/task_extension.rs"]
@@ -107,12 +102,13 @@ mod task_extension;
 #[path = "server/usage.rs"]
 mod usage;
 
-use app_state::{AppState, spawn_provider_event_reconciliation, spawn_subscription_projection};
+use app_state::{
+    AppState, MediaSubscriptions, spawn_provider_event_reconciliation,
+    spawn_subscription_projection,
+};
 use config::Args;
 use generation_task::submit_task;
-use host::validate_host;
-use internal_auth::{InternalMcpAuthState, authenticate_internal_mcp};
-use ownership::{internal_identity, runtime_owner};
+use ownership::runtime_owner;
 use prompts::MediaPrompt;
 use retention::{run_retention_gc, spawn_retention_gc_loop};
 use task_extension::MediaTaskExtension;
@@ -132,23 +128,18 @@ const ARTIFACT_WRITE_CAPABILITY_MAX_TOTAL_BYTES: u64 = 8 * 1024 * 1024 * 1024;
 const BILLING_RECONCILE_INITIAL_DELAY: Duration = Duration::from_secs(10);
 const BILLING_RECONCILE_MAX_DELAY: Duration = Duration::from_secs(10 * 60);
 const SERVER_SLUG: &str = "media";
-const LIST_PAGE_SIZE: usize = 100;
 const TASK_LEASE_DURATION: Duration = Duration::from_secs(120);
 
 #[derive(Clone)]
 struct MediaMcp {
     state: Arc<AppState>,
-    task_service: MediaTaskExtension,
-    #[allow(dead_code)]
     tool_router: ToolRouter<MediaMcp>,
 }
 
 #[tool_router]
 impl MediaMcp {
     fn new(state: Arc<AppState>) -> Self {
-        LazyLock::force(&SERVER_SETUP);
         Self {
-            task_service: MediaTaskExtension::new(state.clone()),
             state,
             tool_router: Self::tool_router(),
         }
@@ -271,230 +262,54 @@ impl MediaMcp {
     }
 }
 
-fn mcp_page<T>(
-    items: Vec<T>,
-    request: Option<&PaginatedRequestParams>,
-) -> Result<Page<T>, McpError> {
-    paginate(items, request, LIST_PAGE_SIZE)
-        .map_err(|e| McpError::invalid_params(e.to_string(), None))
-}
+impl DomainServer for MediaMcp {
+    type Contract = MediaContract;
 
-/// Well-known surface resources (contract C18, C19). `list_resources` serves
-/// these for every authenticated identity and `capability_inventory` declares
-/// them at `media://contract`, so the two cannot diverge.
-#[tool_handler]
-impl ServerHandler for MediaMcp {
-    fn supported_protocol_versions(
-        &self,
-    ) -> std::borrow::Cow<'static, [rmcp::model::ProtocolVersion]> {
-        veoveo_mcp_contract::final_protocol_versions()
+    fn setup() -> &'static McpServerSetup<MediaContract> {
+        &SERVER_SETUP
     }
 
-    fn get_info(&self) -> ServerConfig {
-        SERVER_SETUP.server_config().clone()
+    fn tool_router(&self) -> &ToolRouter<Self> {
+        &self.tool_router
     }
 
-    async fn call_tool(
-        &self,
-        mut request: CallToolRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<CallToolResponse, McpError> {
-        if let Some(created) =
-            veoveo_task_runtime::start_durable_tool_task(&self.task_service, &mut request, &context)
-                .await?
-        {
-            return Ok(created.into());
-        }
-        let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
-        self.tool_router.call(call).await
-    }
-
-    async fn get_task(
-        &self,
-        request: GetTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<GetTaskResult, McpError> {
-        let caller =
-            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
-        veoveo_task_runtime::DurableTaskService::get_task(&self.task_service, &caller, request)
-            .await
-    }
-
-    async fn update_task(
-        &self,
-        request: UpdateTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        let caller =
-            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
-        veoveo_task_runtime::DurableTaskService::update_task(&self.task_service, &caller, request)
-            .await
-    }
-
-    async fn cancel_task(
-        &self,
-        request: CancelTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        let caller =
-            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
-        veoveo_task_runtime::DurableTaskService::cancel_task(
-            &self.task_service,
-            &caller,
-            request.task_id,
+    fn describe_tool(&self, tool: Tool) -> Tool {
+        veoveo_mcp_apps_extension::link_tool_to_app(
+            tool,
+            uris::STUDIO_APP_URI,
+            &[
+                veoveo_mcp_apps_extension::UiVisibility::Model,
+                veoveo_mcp_apps_extension::UiVisibility::App,
+            ],
         )
-        .await
     }
 
-    async fn list_tools(
+    async fn read(
         &self,
-        request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListToolsResult, McpError> {
-        let mut tools = self.tool_router.list_all();
-        tools.sort_by(|a, b| a.name.cmp(&b.name));
-        tools = tools
-            .into_iter()
-            .map(|tool| {
-                veoveo_mcp_apps_extension::link_tool_to_app(
-                    tool,
-                    uris::STUDIO_APP_URI,
-                    &[
-                        veoveo_mcp_apps_extension::UiVisibility::Model,
-                        veoveo_mcp_apps_extension::UiVisibility::App,
-                    ],
-                )
-            })
-            .collect();
-        let page = mcp_page(tools, request.as_ref())?;
-        Ok(ListToolsResult {
-            tools: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
+        address: DomainAddress<MediaContract>,
+        request: &ReadResourceRequestParams,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<DomainRead, McpError> {
+        self.read_media_resource(address, &request.uri, context)
+            .await
+            .map(DomainRead::private)
     }
 
-    async fn list_prompts(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListPromptsResult, McpError> {
-        let prompts: Vec<Prompt> = MediaPrompt::ALL
+    fn prompts(&self) -> Vec<Prompt> {
+        MediaPrompt::ALL
             .into_iter()
             .map(MediaPrompt::prompt)
-            .collect();
-        let page = mcp_page(prompts, request.as_ref())?;
-        Ok(ListPromptsResult {
-            prompts: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
+            .collect()
     }
 
     async fn get_prompt(
         &self,
         request: GetPromptRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<rmcp::model::GetPromptResponse, McpError> {
-        async {
-            let prompt = MediaPrompt::by_name(&request.name).ok_or_else(|| {
-                McpError::invalid_params(
-                    format!("unknown prompt '{}'; read prompts/list", request.name),
-                    None,
-                )
-            })?;
-            prompt.render(request.arguments)
-        }
-        .await
-        .map(Into::into)
-    }
-
-    async fn list_resources(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        context: RequestContext<RoleServer>,
-    ) -> Result<ListResourcesResult, McpError> {
-        internal_identity(&context)?;
-        let page = mcp_page(
-            SERVER_SETUP
-                .resources()
-                .iter()
-                .map(|resource| resource.descriptor().clone())
-                .collect(),
-            request.as_ref(),
-        )?;
-        Ok(ListResourcesResult {
-            resources: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
-    }
-
-    async fn list_resource_templates(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListResourceTemplatesResult, McpError> {
-        let page = mcp_page(
-            SERVER_SETUP
-                .resource_templates()
-                .iter()
-                .map(|template| template.descriptor().clone())
-                .collect(),
-            request.as_ref(),
-        )?;
-        Ok(ListResourceTemplatesResult {
-            resource_templates: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
-    }
-
-    async fn read_resource(
-        &self,
-        request: ReadResourceRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
-        if let Some(result) = SERVER_SETUP.read_documents(&request, &context)? {
-            return Ok(result);
-        }
-        self.read_media_resource(request, context).await
-    }
-
-    fn accepted_subscription_filter(
-        &self,
-        requested: &SubscriptionFilter,
-    ) -> Option<SubscriptionFilter> {
-        veoveo_mcp_contract::accepted_subscription_filter(requested)
-    }
-
-    async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
-        let identity = internal_identity(context.request_context())?;
-        subscriptions::authorize(
-            &self.state.tasks,
-            &runtime_owner(&identity),
-            context.accepted(),
-        )
-        .await?;
-        veoveo_task_runtime::listen_durable_subscriptions(
-            &self.task_service,
-            context,
-            Some(&self.state.subscribers),
-            None,
-        )
-        .await
+    ) -> Result<GetPromptResult, McpError> {
+        MediaPrompt::by_name(&request.name)
+            .ok_or_else(|| unknown_prompt(&request.name))?
+            .render(request.arguments)
     }
 
     async fn complete(
@@ -502,51 +317,21 @@ impl ServerHandler for MediaMcp {
         request: CompleteRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> Result<CompleteResult, McpError> {
-        let Reference::Resource(res_ref) = &request.r#ref else {
+        let Reference::Resource(reference) = &request.r#ref else {
             return Ok(CompleteResult::default());
         };
-        if res_ref.uri.as_str() == uris::DOC_TEMPLATE && request.argument.name == "doc_id" {
-            let needle = request.argument.value.to_lowercase();
-            let values: Vec<String> = SERVER_DOCS
-                .iter()
-                .map(|doc| doc.id.to_owned())
-                .filter(|doc_id| doc_id.contains(&needle))
-                .collect();
-            let completion =
-                CompletionInfo::new(values).map_err(|e| McpError::internal_error(e, None))?;
-            return Ok(CompleteResult::new(completion));
-        }
-        if res_ref.uri != uris::MODEL_TEMPLATE || request.argument.name != "model_id" {
+        if reference.uri != uris::MODEL_TEMPLATE || request.argument.name != "model_id" {
             return Ok(CompleteResult::default());
         }
-        let needle = request.argument.value.to_lowercase();
         let models = self
             .state
             .registry()
             .await
             .map_err(|e| McpError::internal_error(e, None))?;
-        // Prefix matches rank above substring matches.
-        let mut prefixed: Vec<&str> = Vec::new();
-        let mut contained: Vec<&str> = Vec::new();
-        for m in models.iter() {
-            let id = m.model_id.as_str().to_lowercase();
-            if id.starts_with(&needle) {
-                prefixed.push(m.model_id.as_str());
-            } else if id.contains(&needle) {
-                contained.push(m.model_id.as_str());
-            }
-        }
-        let total = (prefixed.len() + contained.len()) as u32;
-        let values: Vec<String> = prefixed
-            .into_iter()
-            .chain(contained)
-            .take(CompletionInfo::MAX_VALUES)
-            .map(String::from)
-            .collect();
-        let has_more = (values.len() as u32) < total;
-        let completion = CompletionInfo::with_pagination(values, Some(total), has_more)
-            .map_err(|e| McpError::internal_error(e, None))?;
-        Ok(CompleteResult::new(completion))
+        completion(rank_completions(
+            models.iter().map(|model| model.model_id.as_str()),
+            &request.argument.value,
+        ))
     }
 }
 
@@ -697,11 +482,6 @@ async fn main() -> anyhow::Result<()> {
     let retention = args.retention_policy();
     let public_deployment = args.public_deployment()?;
     let public_endpoint = public_deployment.server(SERVER_SLUG)?;
-    let internal_token_verifier = GatewayInternalTokenVerifier::new(
-        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
-        ServerSlug::new(SERVER_SLUG)?,
-        GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?,
-    );
     let artifacts = ArtifactRepository::new(args.artifact_service_url.clone());
     let tasks = TaskRuntime::connect(
         TaskRuntimeConfig::new(
@@ -755,81 +535,42 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
-    let ct = tokio_util::sync::CancellationToken::new();
-    let _resource_observer = spawn_subscription_projection(state.clone(), ct.child_token());
-    let mut allowed_hosts = public_allowed_hosts(&public_deployment, args.allow_loopback_hosts);
-    allowed_hosts.extend(args.allowed_hosts.iter().cloned());
-    let allowed_hosts = Arc::new(allowed_hosts);
-    let internal_auth_state = InternalMcpAuthState {
-        verifier: internal_token_verifier,
-    };
-    let mcp_service = StreamableHttpService::new(
-        {
-            let state = state.clone();
-            move || Ok(MediaMcp::new(state.clone()))
-        },
-        veoveo_mcp_contract::stateless_session_manager(),
-        veoveo_mcp_contract::canonical_streamable_http_server_config()
-            .with_allowed_hosts(allowed_hosts.iter().cloned())
-            .with_cancellation_token(ct.child_token()),
-    );
-    let mcp_router = Router::new()
-        .route_service("/", mcp_service.clone())
-        .route_service("/{*path}", mcp_service)
-        .layer(middleware::from_fn(
-            veoveo_mcp_contract::enforce_serialized_mcp_response,
-        ))
-        .layer(middleware::from_fn_with_state(
-            internal_auth_state.clone(),
-            authenticate_internal_mcp,
-        ));
-    let admin_router = admin::router().layer(middleware::from_fn_with_state(
-        internal_auth_state,
-        authenticate_internal_mcp,
-    ));
-
-    let mut server_router = Router::new()
-        .route("/healthz", get(|| async { "ok" }))
+    let mut public_routes = Router::new()
         .route("/webhooks/{task_id}", post(media_webhook))
-        .with_state(state.clone())
-        .nest("/admin", admin_router)
-        .nest("/mcp", mcp_router);
+        .with_state(state.clone());
     if let Some(dir) = &args.static_dir {
         tracing::info!(
             "serving static files from {} at {}/files",
             dir.display(),
             public_endpoint.mount_path()
         );
-        server_router =
-            server_router.nest_service("/files", tower_http::services::ServeDir::new(dir));
+        public_routes =
+            public_routes.nest_service("/files", tower_http::services::ServeDir::new(dir));
     }
-    let router = Router::new()
-        .nest(public_endpoint.mount_path(), server_router)
-        .layer(middleware::from_fn_with_state(
-            allowed_hosts.clone(),
-            validate_host,
-        ))
-        .layer(
-            TraceLayer::new_for_http()
-                .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO)),
-        );
-
-    let addr = SocketAddr::from(([0, 0, 0, 0], args.port));
-    tracing::info!(
-        service = "veoveo-media-mcp",
-        address = %addr,
-        mcp_path = public_endpoint.path("mcp"),
-        public_url = public_endpoint.public_url(),
-        "listening"
-    );
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, router)
-        .with_graceful_shutdown(async move {
-            let _ = tokio::signal::ctrl_c().await;
-            ct.cancel();
+    let server = HostedServer::for_domain::<MediaMcp>()
+        .deployment(&public_deployment, args.allow_loopback_hosts)?
+        .allowed_hosts(args.allowed_hosts.iter().cloned())
+        .internal_trust(GatewayInternalTrustBundle::from_json(
+            &args.internal_trust_jwks,
+        )?)?
+        .handler({
+            let state = state.clone();
+            move || {
+                Hosted::new(MediaMcp::new(state.clone())).with_tasks(
+                    DurableTasksWithResources::new(
+                        MediaTaskExtension::new(state.clone()),
+                        MediaSubscriptions::new(state.clone()),
+                    ),
+                )
+            }
         })
-        .await?;
-    Ok(())
+        .public_routes(public_routes)
+        .build();
+    let _resource_observer =
+        spawn_subscription_projection(state.clone(), server.cancellation_token());
+    server
+        .serve(SocketAddr::from(([0, 0, 0, 0], args.port)))
+        .await
 }
 
 #[cfg(test)]

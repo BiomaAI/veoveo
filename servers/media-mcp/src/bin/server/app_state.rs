@@ -1,15 +1,18 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use veoveo_types::TaskId;
 
-use rmcp::model::CallToolResult;
+use rmcp::{ErrorData as McpError, RoleServer, model::CallToolResult, service::RequestContext};
 use secrecy::SecretString;
 use serde_json::Value;
 use tokio::sync::RwLock;
-use veoveo_mcp_contract::{ServerPublicEndpoint, SubscriptionHub};
+use veoveo_mcp_contract::{
+    ServerPublicEndpoint, SubscriptionHub,
+    hosting::{ResourceSubscriptions, gateway_identity},
+};
 use veoveo_media_mcp::{
     artifacts::ArtifactRepository,
-    contract::MediaPredictionUri,
     contract::{MediaModelId, ModelEntry},
+    contract::{MediaPredictionUri, MediaResource},
     provider::{Prediction, ProviderClient},
     state::{MediaProviderEvent, MediaState, WebhookReceipt},
     task_results::GENERATION_COMPLETED,
@@ -18,8 +21,8 @@ use veoveo_platform_store::TaskStatus;
 use veoveo_task_runtime::{TaskFailure, TaskRuntime};
 
 use super::{
-    config::MediaRetentionPolicy, outputs::prediction_result,
-    usage::spawn_actual_usage_reconciliation,
+    config::MediaRetentionPolicy, outputs::prediction_result, ownership::runtime_owner,
+    subscriptions, usage::spawn_actual_usage_reconciliation,
 };
 
 const REGISTRY_TTL: Duration = Duration::from_secs(3600);
@@ -257,6 +260,34 @@ pub(super) fn spawn_provider_event_reconciliation(state: Arc<AppState>) {
 
 /// Every replica observes committed prediction and billing changes through one
 /// shared Store LIVE source. Resource reads still enforce the caller's authority.
+/// Media resource changes, admitted for the subscribing caller's task authority.
+pub(super) struct MediaSubscriptions {
+    state: Arc<AppState>,
+}
+
+impl MediaSubscriptions {
+    pub(super) fn new(state: Arc<AppState>) -> Self {
+        Self { state }
+    }
+}
+
+impl ResourceSubscriptions for MediaSubscriptions {
+    type Address = MediaResource;
+
+    async fn authorize(
+        &self,
+        addresses: Vec<MediaResource>,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        let owner = runtime_owner(&gateway_identity(context)?);
+        subscriptions::authorize(&self.state.tasks, &owner, addresses).await
+    }
+
+    fn hub(&self) -> &SubscriptionHub {
+        &self.state.subscribers
+    }
+}
+
 pub(super) fn spawn_subscription_projection(
     state: Arc<AppState>,
     cancellation: tokio_util::sync::CancellationToken,

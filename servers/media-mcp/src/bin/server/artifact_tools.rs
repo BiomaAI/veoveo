@@ -5,7 +5,8 @@ use rmcp::{
     service::{RequestContext, RoleServer},
 };
 
-use super::{AppState, ownership::internal_caller};
+use super::AppState;
+use veoveo_mcp_contract::hosting::plane_caller;
 
 const MAX_INLINE_ARTIFACT_BYTES: u64 = 3 * 1024 * 1024;
 
@@ -18,7 +19,7 @@ pub(super) async fn artifact_result(
 ) -> Result<CallToolResult, McpError> {
     let artifact_id = args.artifact_uri.artifact_id();
     // The plane enforces access with the caller's identity.
-    let caller = internal_caller(context)?;
+    let caller = plane_caller(context)?;
     let artifact = state
         .artifacts
         .get(&caller, &artifact_id)

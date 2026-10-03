@@ -107,7 +107,7 @@ fn subscription_targets_share_the_typed_resource_profile() {
         MediaUsageIndexUri::new(None).to_string(),
         MediaPredictionIndexUri::new(None).to_string(),
     ] {
-        assert!(MediaSubscriptionResource::parse(&uri).is_some());
+        assert!(subscribable(&uri).is_some());
     }
     for uri in [
         "media://models",
@@ -115,6 +115,10 @@ fn subscription_targets_share_the_typed_resource_profile() {
         "media://predictions?extra=1",
         "other://prediction/1",
     ] {
-        assert!(MediaSubscriptionResource::parse(uri).is_none());
+        assert!(subscribable(uri).is_none());
     }
+}
+
+fn subscribable(uri: &str) -> Option<MediaSubscriptionResource> {
+    MediaSubscriptionResource::from_resource(MediaResource::parse(uri).ok()?)
 }

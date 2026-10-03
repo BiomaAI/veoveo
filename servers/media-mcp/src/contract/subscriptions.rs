@@ -11,13 +11,22 @@ pub enum MediaSubscriptionResource {
     TaskUsage(MediaTaskUsageUri),
 }
 impl MediaSubscriptionResource {
-    pub fn parse(uri: &str) -> Option<Self> {
-        match MediaResource::parse(uri).ok()? {
+    /// The subscribable form of a Media address. Catalogs, models, documents,
+    /// generation results and artifacts do not change and return `None`.
+    pub fn from_resource(resource: MediaResource) -> Option<Self> {
+        match resource {
             MediaResource::Prediction(uri) => Some(Self::Prediction(uri)),
             MediaResource::Predictions(uri) => Some(Self::PredictionsIndex(uri)),
             MediaResource::TaskUsage(uri) => Some(Self::TaskUsage(uri)),
             MediaResource::Usage(uri) => Some(Self::UsageIndex(uri)),
-            _ => None,
+            MediaResource::Docs
+            | MediaResource::Document(_)
+            | MediaResource::Contract
+            | MediaResource::StudioApp
+            | MediaResource::Models
+            | MediaResource::Model(_)
+            | MediaResource::Generation(_)
+            | MediaResource::Artifact(_) => None,
         }
     }
 }

@@ -28,7 +28,9 @@ from Media. MCP core has no dependency on the Media library.
 `runtime` owns provider access, Artifact publication, Store operations and `MediaReads`.
 `mcp` adds the hosted server and protocol adapter. The default feature selects `mcp`.
 `MediaResource` owns the complete resource vocabulary, including closed document IDs
-and the Studio App. Resource reads and subscription admission share its parser.
+and the Studio App. The shared host parses every read and subscribed URI into a
+`MediaResource` before Media code runs. `MediaSubscriptionResource::from_resource`
+selects the mutable prediction and usage variants for subscription.
 `MediaArtifactUri` requires an Artifact occurrence ID and accepts only Media's
 presentation scheme. `MediaScope` is empty because gateway operation policy and
 current owner/label authority supply access control.

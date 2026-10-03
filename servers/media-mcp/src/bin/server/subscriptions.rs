@@ -1,15 +1,19 @@
-use rmcp::{ErrorData as McpError, model::SubscriptionFilter};
-use veoveo_media_mcp::{contract::MediaSubscriptionResource, reads::MediaReads};
+use rmcp::ErrorData as McpError;
+use veoveo_media_mcp::{
+    contract::{MediaResource, MediaSubscriptionResource},
+    reads::MediaReads,
+};
 use veoveo_task_runtime::{TaskOwner, TaskRuntime};
 
+/// Authorizes subscriptions to typed Media addresses for one task owner.
 pub(super) async fn authorize(
     tasks: &TaskRuntime,
     owner: &TaskOwner,
-    filter: &SubscriptionFilter,
+    addresses: Vec<MediaResource>,
 ) -> Result<(), McpError> {
     let reads = MediaReads::new(tasks).map_err(internal)?;
-    for uri in filter.resource_subscriptions.iter().flatten() {
-        let resource = MediaSubscriptionResource::parse(uri)
+    for address in addresses {
+        let resource = MediaSubscriptionResource::from_resource(address)
             .ok_or_else(|| McpError::invalid_params("resource is not subscribable", None))?;
         let allowed = match resource {
             MediaSubscriptionResource::UsageIndex(_)

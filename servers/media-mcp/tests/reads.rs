@@ -22,6 +22,15 @@ use veoveo_platform_store::{
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRuntime, TaskSnapshot};
 use veoveo_types::TaskId;
 
+/// Parses one subscribed URI as the host does, then authorizes it.
+async fn admit(tasks: &TaskRuntime, owner: &TaskOwner, uri: &str) -> Result<(), rmcp::ErrorData> {
+    let addresses =
+        veoveo_mcp_contract::hosting::requested_addresses::<MediaResource>(Some(
+            &[uri.to_owned()],
+        ))?;
+    subscriptions::authorize(tasks, owner, addresses).await
+}
+
 fn owner(tenant: Option<&str>, principal: &str, profile: &str, labels: &[&str]) -> TaskOwner {
     serde_json::from_value(json!({"principal_key":principal,"principal_kind":"service","issuer":"https://media.test","subject":principal,"profile":profile,"tenant_key":tenant,"data_labels":labels,
         "authority":{"work_context":"studio","tenant":tenant.unwrap_or("installation"),"membership":"contributor","policy_revision":"r1","output_policy":{"owner":{"kind":"principal","id":principal}},"provenance":{"mode":"automated"}}})).unwrap()
@@ -366,29 +375,12 @@ async fn subscriptions_and_unlinked_estimates_follow_current_task_authority() {
         let (task, job) = create(&tasks, &caller, 1, "subscription-job").await;
         let usage = MediaTaskUsageUri::new(task.task_id).unwrap();
         let prediction = MediaPredictionUri::new(job.external_job_id.clone());
-        let filter = |uri: &str| {
-            rmcp::model::SubscriptionFilter::builder()
-                .resource_subscriptions([uri])
-                .build()
-        };
-        assert!(
-            subscriptions::authorize(&reader, &caller, &filter(prediction.as_str()))
-                .await
-                .is_ok()
-        );
+        assert!(admit(&reader, &caller, prediction.as_str()).await.is_ok());
         let denied = owner(Some("tenant-a"), "other", "operator", &[]);
+        assert!(admit(&reader, &denied, prediction.as_str()).await.is_err());
+        assert!(admit(&reader, &denied, usage.as_str()).await.is_err());
         assert!(
-            subscriptions::authorize(&reader, &denied, &filter(prediction.as_str()))
-                .await
-                .is_err()
-        );
-        assert!(
-            subscriptions::authorize(&reader, &denied, &filter(usage.as_str()))
-                .await
-                .is_err()
-        );
-        assert!(
-            subscriptions::authorize(&reader, &caller, &filter("media://usage?unknown=1"))
+            admit(&reader, &caller, "media://usage?unknown=1")
                 .await
                 .is_err()
         );
@@ -401,16 +393,8 @@ async fn subscriptions_and_unlinked_estimates_follow_current_task_authority() {
             .check()
             .unwrap();
         // Usage can be observed before the first record. Missing predictions cannot.
-        assert!(
-            subscriptions::authorize(&reader, &caller, &filter(usage.as_str()))
-                .await
-                .is_ok()
-        );
-        assert!(
-            subscriptions::authorize(&reader, &caller, &filter(prediction.as_str()))
-                .await
-                .is_err()
-        );
+        assert!(admit(&reader, &caller, usage.as_str()).await.is_ok());
+        assert!(admit(&reader, &caller, prediction.as_str()).await.is_err());
         let state = MediaState::new(db.a.clone());
         let estimate = UsageRecord {
             task_id: task.task_id.to_string(),
@@ -453,17 +437,9 @@ async fn subscriptions_and_unlinked_estimates_follow_current_task_authority() {
                 .items()
                 .is_empty()
         );
-        assert!(
-            subscriptions::authorize(&reader, &caller, &filter(usage.as_str()))
-                .await
-                .is_err()
-        );
+        assert!(admit(&reader, &caller, usage.as_str()).await.is_err());
         for root in [MediaUsageIndexUri::ROOT, MediaPredictionIndexUri::ROOT] {
-            assert!(
-                subscriptions::authorize(&reader, &caller, &filter(root))
-                    .await
-                    .is_ok()
-            );
+            assert!(admit(&reader, &caller, root).await.is_ok());
         }
     })
     .await
@@ -570,11 +546,8 @@ async fn current_generation_results_survive_cross_replica_reads_and_reconnects()
             Some(stored)
         );
         // The immutable result is an exact read; no subscription is advertised.
-        let filter = rmcp::model::SubscriptionFilter::builder()
-            .resource_subscriptions([expected.result_uri().as_str()])
-            .build();
         assert!(
-            subscriptions::authorize(&reader, &caller, &filter)
+            admit(&reader, &caller, expected.result_uri().as_str())
                 .await
                 .is_err()
         );
