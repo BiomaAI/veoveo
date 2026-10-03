@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use rmcp::{
     ClientHandler, ClientLifecycleMode, ClientServiceExt, RoleClient,
-    model::{ErrorData as McpError, ProtocolVersion},
+    model::ProtocolVersion,
     service::{ClientInitializeError, RunningService},
     transport::{
         StreamableHttpClientTransport,
@@ -11,6 +11,7 @@ use rmcp::{
     },
 };
 
+use super::http_response::RequestError;
 use super::upstream_authorized_http::{GatewayAuthorizedHttpClient, GatewayAuthorizedHttpError};
 use crate::mcp_support::mcp_internal;
 
@@ -20,7 +21,7 @@ pub(super) async fn discover<S: ClientHandler + Clone>(
     handler: S,
     http: GatewayAuthorizedHttpClient,
     config: StreamableHttpClientTransportConfig,
-) -> Result<RunningService<RoleClient, S>, McpError> {
+) -> Result<RunningService<RoleClient, S>, RequestError> {
     for attempt in 0..2 {
         let transport = StreamableHttpClientTransport::with_client(http.clone(), config.clone());
         let result = tokio::time::timeout(
@@ -42,9 +43,7 @@ pub(super) async fn discover<S: ClientHandler + Clone>(
                 tracing::warn!("retrying upstream discovery once after a transport failure");
             }
             Err(error) => {
-                return Err(mcp_internal(format!(
-                    "failed to discover upstream MCP: {error}"
-                )));
+                return Err(RequestError::from_initialize(error));
             }
         }
     }

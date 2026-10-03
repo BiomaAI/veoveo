@@ -652,6 +652,7 @@ Task state lives in this runtime. RMCP defines the Tasks wire types.
 | `mcp/knowledge_indexing.rs` | machine-client collection approval, source-contract bootstrap, enumeration/member admission, SQL-selected subscription roots and delivery recheck |
 | `mcp/prompts.rs`, `completion.rs` | prompt and completion aggregation |
 | `mcp/tasks.rs` | upstream Task client and the opt-in Task tools for clients with weak Task support |
+| `mcp/http_response.rs` | typed upstream HTTP rejections, final-handler response status, and isolation from successful aggregated discovery |
 | `mcp/health.rs` | `health_url` GET probes; only a success status counts as healthy |
 | `mcp/upstream*.rs` | authenticated Streamable HTTP, session-local protocol state, and catalog-revision-scoped sharing of transport-equivalent HTTP/TLS clients |
 | `mcp/upstream_connection.rs` | ten-second discovery attempts with one transport-only reconnect before domain dispatch; native HTTP disconnect and refusal qualification |

@@ -8,6 +8,30 @@ requirements, accepted risks and remaining work. This log does not establish com
 
 ## Implementation And Installation Checkpoints
 
+Gateway HTTP rejection qualification (2026-10-03): RMCP stable 3.5.0 is pinned through
+fork `917e7914`, retaining exact Task subscriptions and adding typed non-MCP HTTP
+rejections. Rig `4125e888` selects the same SDK revision. The lockfile contains one
+RMCP version. SDK qualification passes 453 tests. Rig's native agent suite passes
+584 tests; two provider cases requiring API keys stay explicitly ignored.
+
+Gateway handlers retain protocol errors separately from HTTP rejections until their
+final response. An absorbed discovery failure leaves a successful partial list at
+200. A definitive HTTP rejection does not reconnect and retry. The production
+handler regression sends simultaneous oversized and small calls: one returns 413,
+one succeeds, and the upstream observes one dispatch per request with only the small
+mutation executed. Domain error text and data cannot select an HTTP status.
+
+The combined gateway, MCP contract and Task-runtime batch passes 467 tests, including
+integration and compile-fail cases. The ignored native blob case also passes when
+explicitly run against SurrealDB 3.3.0 extracted from the existing pinned test image;
+the ambient CLI does not meet that fixture's version assertion. Strict workspace
+Clippy passes every target and feature after removing an unused Recording entrypoint
+constant. Neither shared-host implementation file changes. Logs are under
+`output/development/gateway-http-rejections-917e7914/`. The cluster and BuildKit stay
+stopped during qualification; gateway publication and installed 413 acceptance remain
+pending. Later SDK consumers need qualification against their newly selected images.
+
+
 Console restart acceptance (2026-10-03): the parent route retains the selected App
 through incomplete discovery in `7583087e`. A Console-only publication and GitOps
 update at `f1282cf0` select image

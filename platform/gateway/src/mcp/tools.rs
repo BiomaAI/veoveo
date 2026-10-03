@@ -1,3 +1,4 @@
+use super::http_response::RequestError;
 use std::{borrow::Cow, time::Instant};
 use veoveo_audit_contract::{AuditDetail, AuditOutcome, AuditReason, AuditTarget, ToolResultKind};
 
@@ -22,7 +23,7 @@ use crate::{
     AuthenticatedSubject,
     mcp_support::{
         mcp_internal, mcp_invalid_params, parse_gateway_tool, project_call_tool_resource_uris,
-        project_tool_resource_metadata, unexpected_upstream_response, upstream_error,
+        project_tool_resource_metadata, unexpected_upstream_response,
     },
     state::GatewayTaskRouteDraft,
 };
@@ -272,7 +273,8 @@ impl GatewayMcp {
                 subject,
                 |upstream| async move { upstream.list_all_tools().await },
             )
-            .await?;
+            .await
+            .map_err(RequestError::into_protocol)?;
         let upstream_ms = started.elapsed().as_millis();
         let mut tools = Vec::with_capacity(upstream_tools.len());
         let mut client_denied = 0u32;
@@ -334,7 +336,7 @@ impl GatewayMcp {
         &self,
         mut request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
-    ) -> Result<CallToolResponse, McpError> {
+    ) -> Result<CallToolResponse, RequestError> {
         let catalog = self.catalog.current();
         let projection = parse_gateway_tool(&catalog, &request.name)?;
         let subject = self.authenticated(&context)?;
@@ -352,7 +354,7 @@ impl GatewayMcp {
                 veoveo_mcp_contract::PolicyReasonCode::UnknownTool,
             )
             .await?;
-            return Err(mcp_invalid_params("unknown tool"));
+            return Err(mcp_invalid_params("unknown tool").into());
         }
         let (subject, _) = self
             .authorize_tool(
@@ -399,7 +401,7 @@ impl GatewayMcp {
                     PeerRequestOptions::no_options(),
                 )
                 .await
-                .map_err(upstream_error)?;
+                .map_err(RequestError::from)?;
             if let Some(downstream_token) = downstream_progress_token {
                 self.progress_tokens
                     .register(
@@ -412,7 +414,7 @@ impl GatewayMcp {
                     .await;
             }
             let upstream_token = handle.progress_token.clone();
-            let result = handle.await_response().await.map_err(upstream_error);
+            let result = handle.await_response().await.map_err(RequestError::from);
             self.progress_tokens
                 .remove_token(
                     &self.profile_id,
@@ -465,9 +467,10 @@ impl GatewayMcp {
                         rmcp::model::ClientCapabilities::builder()
                             .enable_tasks()
                             .build(),
-                    ))
+                    )
+                    .into())
                 }
-                other => Err(unexpected_upstream_response("tools/call", other)),
+                other => Err(unexpected_upstream_response("tools/call", other).into()),
             }
         }
         .await;
@@ -561,7 +564,7 @@ impl GatewayMcp {
 }
 
 fn tool_call_result_kind(
-    response: &Result<CallToolResponse, McpError>,
+    response: &Result<CallToolResponse, RequestError>,
 ) -> (ToolResultKind, Option<i32>) {
     match response {
         Ok(CallToolResponse::Complete(result)) if result.is_error == Some(true) => {
@@ -571,7 +574,7 @@ fn tool_call_result_kind(
         Ok(CallToolResponse::InputRequired(_)) => (ToolResultKind::InputRequired, None),
         Ok(CallToolResponse::Task(_)) => (ToolResultKind::TaskCreated, None),
         Ok(_) => (ToolResultKind::OtherResponse, None),
-        Err(error) => (ToolResultKind::ProtocolError, Some(error.code.0)),
+        Err(error) => (ToolResultKind::ProtocolError, Some(error.protocol().code.0)),
     }
 }
 
@@ -593,13 +596,13 @@ async fn await_terminal_task(
     task_id: String,
     cancellation: tokio_util::sync::CancellationToken,
     initial_poll_interval_ms: Option<u64>,
-) -> Result<DetailedTask, McpError> {
+) -> Result<DetailedTask, RequestError> {
     let mut poll_interval_ms = initial_poll_interval_ms.unwrap_or(1_000).clamp(100, 30_000);
     loop {
         let current = peer
             .get_task(rmcp::model::GetTaskParams::new(task_id.clone()))
             .await
-            .map_err(upstream_error)?
+            .map_err(RequestError::from)?
             .task;
         if current.status().is_terminal() {
             return Ok(current);
@@ -612,7 +615,7 @@ async fn await_terminal_task(
         tokio::select! {
             () = cancellation.cancelled() => {
                 let _ = peer.cancel_task(rmcp::model::CancelTaskParams::new(task_id)).await;
-                return Err(McpError::invalid_request("task wait was cancelled", None));
+                return Err(McpError::invalid_request("task wait was cancelled", None).into());
             }
             () = tokio::time::sleep(std::time::Duration::from_millis(poll_interval_ms)) => {}
         }
@@ -681,7 +684,7 @@ mod tests {
             tool_call_result_kind(&domain_failure),
             (ToolResultKind::ErrorResult, None)
         );
-        let protocol_failure = Err(McpError::invalid_params("bad arguments", None));
+        let protocol_failure = Err(McpError::invalid_params("bad arguments", None).into());
         assert_eq!(
             tool_call_result_kind(&protocol_failure),
             (

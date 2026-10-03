@@ -31,7 +31,6 @@ mod state;
 
 use config::Args;
 use state::AppState;
-const SERVER_SLUG: &str = "recording";
 
 fn install_rustls_provider() {
     let _ = rustls::crypto::ring::default_provider().install_default();

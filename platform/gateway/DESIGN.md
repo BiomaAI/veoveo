@@ -61,11 +61,41 @@ payloads itself. The gateway cannot repair arbitrary result strings, recompute d
 digests or infer foreign-resource ownership. Installation upgrades use one gateway
 behavior; no compatibility mode rewrites domain payloads.
 
-Upstream MCP errors preserve their protocol code, message and domain data. The gateway
-maps transport failures to internal errors. This distinction lets clients handle a
-resource rejection without treating it as a broken connection, and lets completion
-audit classify the source response. The SDK applies the negotiated MCP version's
-error-code profile at each transport.
+Upstream MCP errors preserve their protocol code, message and domain data. A final
+non-success HTTP response without a valid MCP error carries its typed status through
+the gateway handler. HTTP 4xx and 5xx retain their status; an unexpected redirect
+becomes 502 without forwarding its location or credentials. Connection failures map
+to MCP internal errors. Authentication challenges keep their dedicated SDK path.
+
+`mcp/http_response.rs` separates a protocol error from an HTTP rejection until the
+handler finishes. Only a returned HTTP rejection sets the request's response status.
+Source errors absorbed by catalog aggregation cannot change a successful partial list.
+The middleware waits for the profile's JSON response before writing HTTP headers;
+request-stream failures after subscription acknowledgement follow stream termination.
+Audit classification uses the protocol error while retaining the transport status for
+HTTP delivery. Neither messages nor domain error data select an HTTP status.
+
+## SDK Transport Profile
+
+The workspace pins stable RMCP 3.5.0 with the maintained fork revision
+`917e7914c93975fc1eddbff8792f1e2de933bc17`. The upstream base is release
+[`rmcp-v3.5.0`](https://github.com/modelcontextprotocol/rust-sdk/releases/tag/rmcp-v3.5.0).
+Rig selects the same SDK revision through `4125e888edc7609413e9e9092a67ddbaf59422b5`,
+so native agent clients and the gateway share one protocol type graph.
+The fork retains exact Task subscription filters and exposes HTTP rejection status
+and body through `StreamableHttpError::HttpResponse`. Valid MCP error envelopes keep
+the SDK's protocol-error path. Sessionless legacy discovery follows its existing
+explicit adapter profile.
+
+The gateway owns qualification of the HTTP patch: plain-text 413, malformed error
+bodies, preserved MCP errors, rejected redirects, isolated discovery failures,
+concurrent requests and no dispatch retry after rejection. SDK native suites cover
+its model, protocol, header, Task and subscription profiles; gateway and shared-host
+consumer suites qualify the repository pin. Installed qualification must also repeat
+the Computers oversized-request case. The patch can retire when stable upstream
+exposes equivalent typed HTTP rejection and exact Task filtering and those suites
+pass against the replacement. The gateway then removes its fork pin in the same
+qualified dependency change.
 
 ## Upstream Discovery Recovery
 
@@ -76,7 +106,8 @@ identity and HTTP trust configuration. Authorization challenges, malformed respo
 and MCP application errors fail immediately. The gateway keeps its shared HTTP pool.
 
 Discovery recovery dispatches no domain mutation. After discovery, the existing
-idempotent request path may reconnect once when its transport fails. Tool mutations
+idempotent request path may reconnect once when its connection fails. A typed
+HTTP rejection is definitive and does not retry. Tool mutations
 and Task mutations do not gain a dispatch retry. The native HTTP fixture drops a
 discovery connection, verifies recovery and one subsequent tool call, and checks that
 repeated disconnection exhausts the retry while authorization, JSON and MCP errors do

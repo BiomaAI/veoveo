@@ -1,3 +1,4 @@
+use super::http_response::RequestError;
 use futures::{StreamExt, stream};
 use rmcp::{
     model::{
@@ -155,7 +156,8 @@ impl GatewayMcp {
                 subject,
                 |upstream| async move { upstream.list_all_prompts().await },
             )
-            .await?;
+            .await
+            .map_err(RequestError::into_protocol)?;
         let targets = upstream
             .iter()
             .map(|prompt| {
@@ -187,7 +189,7 @@ impl GatewayMcp {
         &self,
         request: GetPromptRequestParams,
         context: RequestContext<RoleServer>,
-    ) -> Result<GetPromptResult, McpError> {
+    ) -> Result<GetPromptResult, RequestError> {
         let server = self.server_for_prompt(&request.name)?;
         let prompt = PromptName::new(request.name.clone())
             .map_err(|err| mcp_invalid_params(format!("invalid prompt name: {err}")))?;

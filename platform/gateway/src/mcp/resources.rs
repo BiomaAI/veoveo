@@ -1,3 +1,4 @@
+use super::http_response::RequestError;
 use rmcp::{
     model::{
         ErrorData as McpError, ListResourceTemplatesResult, ListResourcesResult,
@@ -15,7 +16,6 @@ use crate::mcp_support::{
     mcp_internal, mcp_invalid_params, project_app_resource_dependencies,
     project_app_tool_dependencies, project_listed_resource, project_listed_resource_uri,
     project_resource_template_uri, resource_policy_target, resource_template_policy_target,
-    upstream_error,
 };
 
 use super::tools::{project_detailed_task_resource_uris, rewrite_detailed_task_id};
@@ -195,7 +195,8 @@ impl GatewayMcp {
                 subject,
                 |upstream| async move { upstream.list_all_resources().await },
             )
-            .await?;
+            .await
+            .map_err(RequestError::into_protocol)?;
         let upstream_ms = started.elapsed().as_millis();
         let mut resources = Vec::with_capacity(upstream_resources.len());
         let mut targets = Vec::with_capacity(upstream_resources.len());
@@ -426,7 +427,8 @@ impl GatewayMcp {
                     Ok((upstream.list_all_resource_templates().await?, declared))
                 },
             )
-            .await?;
+            .await
+            .map_err(RequestError::into_protocol)?;
         let mut templates = Vec::with_capacity(upstream_templates.len());
         let mut targets = Vec::with_capacity(upstream_templates.len());
         for mut template in upstream_templates {
@@ -479,12 +481,10 @@ impl GatewayMcp {
         task_id: &str,
         uri: &str,
         context: &RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResult, McpError> {
+    ) -> Result<ReadResourceResult, RequestError> {
         let subject = self.authenticated(context)?;
         if !self.client_allows_task_projection(&subject).await? {
-            return Err(mcp_invalid_params(format!(
-                "resource URI is not exposed: {uri}"
-            )));
+            return Err(mcp_invalid_params(format!("resource URI is not exposed: {uri}")).into());
         }
         let route = self
             .authorize_canonical_task_for_subject(&subject, GatewayAction::TasksGet, task_id)
@@ -496,7 +496,7 @@ impl GatewayMcp {
             .peer
             .get_task(rmcp::model::GetTaskParams::new(route.task_id))
             .await
-            .map_err(upstream_error)?
+            .map_err(RequestError::from)?
             .task;
         let catalog = self.catalog.current();
         let manifest = catalog

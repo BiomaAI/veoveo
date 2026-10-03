@@ -1,12 +1,11 @@
+use super::http_response::RequestError;
 use rmcp::{
-    model::{
-        CancelTaskParams, ErrorData as McpError, GetTaskParams, GetTaskResult, UpdateTaskParams,
-    },
+    model::{CancelTaskParams, GetTaskParams, GetTaskResult, UpdateTaskParams},
     service::{RequestContext, RoleServer},
 };
 use veoveo_mcp_contract::GatewayAction;
 
-use crate::mcp_support::{mcp_internal, mcp_invalid_params, upstream_error};
+use crate::mcp_support::{mcp_internal, mcp_invalid_params};
 
 use super::{
     GatewayMcp,
@@ -18,10 +17,10 @@ impl GatewayMcp {
         &self,
         request: GetTaskParams,
         context: RequestContext<RoleServer>,
-    ) -> Result<GetTaskResult, McpError> {
+    ) -> Result<GetTaskResult, RequestError> {
         let subject = self.authenticated(&context)?;
         if !self.client_allows_task_projection(&subject).await? {
-            return Err(mcp_invalid_params("unknown method"));
+            return Err(mcp_invalid_params("unknown method").into());
         }
         let canonical_task_id = request.task_id.clone();
         let route = self
@@ -36,7 +35,7 @@ impl GatewayMcp {
             .peer
             .get_task(upstream_request)
             .await
-            .map_err(upstream_error)?;
+            .map_err(RequestError::from)?;
         let catalog = self.catalog.current();
         let manifest = catalog
             .server(&route.server)
@@ -50,10 +49,10 @@ impl GatewayMcp {
         &self,
         request: UpdateTaskParams,
         context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
+    ) -> Result<(), RequestError> {
         let subject = self.authenticated(&context)?;
         if !self.client_allows_task_projection(&subject).await? {
-            return Err(mcp_invalid_params("unknown method"));
+            return Err(mcp_invalid_params("unknown method").into());
         }
         let route = self
             .authorize_canonical_task(&context, GatewayAction::TasksUpdate, &request.task_id)
@@ -67,17 +66,17 @@ impl GatewayMcp {
             .peer
             .update_task(upstream_request)
             .await
-            .map_err(upstream_error)
+            .map_err(RequestError::from)
     }
 
     pub(super) async fn handle_cancel_task(
         &self,
         request: CancelTaskParams,
         context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
+    ) -> Result<(), RequestError> {
         let subject = self.authenticated(&context)?;
         if !self.client_allows_task_projection(&subject).await? {
-            return Err(mcp_invalid_params("unknown method"));
+            return Err(mcp_invalid_params("unknown method").into());
         }
         let route = self
             .authorize_canonical_task(&context, GatewayAction::TasksCancel, &request.task_id)
@@ -91,6 +90,6 @@ impl GatewayMcp {
             .peer
             .cancel_task(upstream_request)
             .await
-            .map_err(upstream_error)
+            .map_err(RequestError::from)
     }
 }

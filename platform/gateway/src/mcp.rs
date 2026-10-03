@@ -4,6 +4,7 @@ mod completion;
 mod discovery;
 mod discovery_watch;
 mod health;
+pub mod http_response;
 mod info;
 mod knowledge_indexing;
 mod progress;
@@ -49,6 +50,7 @@ use crate::{
     mcp_support::{mcp_internal, mcp_invalid_params, mcp_invalid_request},
 };
 use discovery::CatalogDiscoveryCache;
+use http_response::{HttpResponseContext, RequestError};
 use upstream::{GatewayUpstreamHandler, GatewayUpstreamHandlerConfig};
 use upstream_authorized_http::GatewayAuthorizedHttpClient;
 
@@ -98,7 +100,7 @@ impl GatewayMcp {
         server_slug: &ServerSlug,
         downstream: Peer<RoleServer>,
         subject: &AuthenticatedSubject,
-    ) -> Result<RequestUpstream, McpError> {
+    ) -> Result<RequestUpstream, RequestError> {
         self.upstream_with_tasks(server_slug, downstream, subject, false)
             .await
     }
@@ -109,7 +111,7 @@ impl GatewayMcp {
         downstream: Peer<RoleServer>,
         subject: &AuthenticatedSubject,
         tasks: bool,
-    ) -> Result<RequestUpstream, McpError> {
+    ) -> Result<RequestUpstream, RequestError> {
         let snapshot = self.catalog.snapshot();
         let server = snapshot
             .catalog()
@@ -119,7 +121,8 @@ impl GatewayMcp {
         if server.upstream.transport != UpstreamTransport::StreamableHttp {
             return Err(mcp_internal(format!(
                 "unsupported upstream transport for server `{server_slug}`"
-            )));
+            ))
+            .into());
         }
 
         let http_client = self
@@ -164,7 +167,7 @@ impl GatewayMcp {
         downstream: Peer<RoleServer>,
         subject: &AuthenticatedSubject,
         request: F,
-    ) -> Result<T, McpError>
+    ) -> Result<T, RequestError>
     where
         F: Fn(Peer<RoleClient>) -> Fut,
         Fut: Future<Output = Result<T, ServiceError>>,
@@ -186,11 +189,9 @@ impl GatewayMcp {
                 );
                 drop(upstream);
                 let retry = self.upstream(server_slug, downstream, subject).await?;
-                request(retry.peer)
-                    .await
-                    .map_err(crate::mcp_support::upstream_error)
+                request(retry.peer).await.map_err(RequestError::from)
             }
-            Err(error) => Err(crate::mcp_support::upstream_error(error)),
+            Err(error) => Err(RequestError::from(error)),
         }
     }
 }
@@ -201,7 +202,15 @@ fn upstream_transport_config(uri: &str) -> StreamableHttpClientTransportConfig {
 
 fn recoverable_upstream_connection_error(error: &ServiceError) -> bool {
     match error {
-        ServiceError::TransportSend(_) | ServiceError::TransportClosed => true,
+        ServiceError::TransportSend(error) => !matches!(
+            error
+                .error
+                .downcast_ref::<rmcp::transport::streamable_http_client::StreamableHttpError<
+                    upstream_authorized_http::GatewayAuthorizedHttpError,
+                >>(),
+            Some(rmcp::transport::streamable_http_client::StreamableHttpError::HttpResponse { .. })
+        ),
+        ServiceError::TransportClosed => true,
         // RMCP currently maps an abruptly terminated Streamable HTTP response
         // (including "no close frame received or sent") to its transport-level
         // pseudo JSON-RPC code 0. No conforming MCP application error uses 0.
@@ -263,9 +272,12 @@ impl ServerHandler for GatewayMcp {
         request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
-        request_observation(&context)?
-            .scope(self.handle_call_tool(request, context))
-            .await
+        let response = HttpResponseContext::from_request(&context)?;
+        response.finish(
+            request_observation(&context)?
+                .scope(self.handle_call_tool(request, context))
+                .await,
+        )
     }
 
     async fn list_resources(
@@ -293,9 +305,13 @@ impl ServerHandler for GatewayMcp {
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResponse, McpError> {
-        request_observation(&context)?
-            .scope(self.handle_read_resource(request, context))
-            .await
+        let response = HttpResponseContext::from_request(&context)?;
+        response
+            .finish(
+                request_observation(&context)?
+                    .scope(self.handle_read_resource(request, context))
+                    .await,
+            )
             .map(Into::into)
     }
 
@@ -325,9 +341,13 @@ impl ServerHandler for GatewayMcp {
         request: GetPromptRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<rmcp::model::GetPromptResponse, McpError> {
-        request_observation(&context)?
-            .scope(self.handle_get_prompt(request, context))
-            .await
+        let response = HttpResponseContext::from_request(&context)?;
+        response
+            .finish(
+                request_observation(&context)?
+                    .scope(self.handle_get_prompt(request, context))
+                    .await,
+            )
             .map(Into::into)
     }
 
@@ -336,9 +356,12 @@ impl ServerHandler for GatewayMcp {
         request: CompleteRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CompleteResult, McpError> {
-        request_observation(&context)?
-            .scope(self.handle_complete(request, context))
-            .await
+        let response = HttpResponseContext::from_request(&context)?;
+        response.finish(
+            request_observation(&context)?
+                .scope(self.handle_complete(request, context))
+                .await,
+        )
     }
 
     async fn get_task(
@@ -346,9 +369,12 @@ impl ServerHandler for GatewayMcp {
         request: GetTaskParams,
         context: RequestContext<RoleServer>,
     ) -> Result<GetTaskResult, McpError> {
-        request_observation(&context)?
-            .scope(self.handle_get_task(request, context))
-            .await
+        let response = HttpResponseContext::from_request(&context)?;
+        response.finish(
+            request_observation(&context)?
+                .scope(self.handle_get_task(request, context))
+                .await,
+        )
     }
 
     async fn update_task(
@@ -356,9 +382,12 @@ impl ServerHandler for GatewayMcp {
         request: UpdateTaskParams,
         context: RequestContext<RoleServer>,
     ) -> Result<(), McpError> {
-        request_observation(&context)?
-            .scope(self.handle_update_task(request, context))
-            .await
+        let response = HttpResponseContext::from_request(&context)?;
+        response.finish(
+            request_observation(&context)?
+                .scope(self.handle_update_task(request, context))
+                .await,
+        )
     }
 
     async fn cancel_task(
@@ -366,9 +395,12 @@ impl ServerHandler for GatewayMcp {
         request: CancelTaskParams,
         context: RequestContext<RoleServer>,
     ) -> Result<(), McpError> {
-        request_observation(&context)?
-            .scope(self.handle_cancel_task(request, context))
-            .await
+        let response = HttpResponseContext::from_request(&context)?;
+        response.finish(
+            request_observation(&context)?
+                .scope(self.handle_cancel_task(request, context))
+                .await,
+        )
     }
 }
 

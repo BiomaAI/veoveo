@@ -239,6 +239,9 @@ fn map_reqwest_transport_error(
         StreamableHttpError::UnexpectedServerResponse(response) => {
             StreamableHttpError::UnexpectedServerResponse(response)
         }
+        StreamableHttpError::HttpResponse { status, body } => {
+            StreamableHttpError::HttpResponse { status, body }
+        }
         StreamableHttpError::UnexpectedContentType(content_type) => {
             StreamableHttpError::UnexpectedContentType(content_type)
         }

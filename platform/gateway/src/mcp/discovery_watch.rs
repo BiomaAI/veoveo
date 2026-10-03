@@ -102,7 +102,7 @@ impl GatewayMcp {
             let deadline = tokio::time::Instant::now() + remaining;
             let mut generation = self.catalog.subscribe();
             let (connection, mut subscription) = tokio::time::timeout(OPEN_DEADLINE, async {
-                let connection = self.upstream(&key.server, downstream, subject).await?;
+                let connection = self.upstream(&key.server, downstream, subject).await.map_err(super::http_response::RequestError::into_protocol)?;
                 let subscription = open_catalog_subscription(&connection.peer, &filter, indexing).await?;
                 Ok::<_,McpError>((connection, subscription))
             }).await.map_err(|_| mcp_internal("catalog subscription open deadline exceeded"))??;

@@ -1,4 +1,5 @@
 //! Resource delivery commits a validated source observation before returning content.
+use super::http_response::RequestError;
 use super::{GatewayMcp, discovery::DiscoveryCacheKey};
 use crate::{
     AuthenticatedSubject,
@@ -29,8 +30,8 @@ impl GatewayMcp {
         subject: &AuthenticatedSubject,
         projection: &GatewayResourceProjection,
         indexing: Option<&super::knowledge_indexing::IndexingReadPermit>,
-        result: Result<(ReadResourceResult, Option<Observation>), McpError>,
-    ) -> Result<ReadResourceResult, McpError> {
+        result: Result<(ReadResourceResult, Option<Observation>), RequestError>,
+    ) -> Result<ReadResourceResult, RequestError> {
         let ordinary = || AuditDetail::Read {
             method: AuditReadMethod::ResourceRead,
         };
@@ -49,15 +50,15 @@ impl GatewayMcp {
                 AuditReason::Accepted,
             ),
             Ok((_, None)) => (ordinary(), AuditOutcome::Succeeded, AuditReason::Accepted),
-            Err(error) if error.code == rmcp::model::ErrorCode::INVALID_REQUEST => {
+            Err(error) if error.protocol().code == rmcp::model::ErrorCode::INVALID_REQUEST => {
                 (ordinary(), AuditOutcome::Denied, AuditReason::PolicyDenied)
             }
-            Err(error) if error.code == rmcp::model::ErrorCode::INVALID_PARAMS => (
+            Err(error) if error.protocol().code == rmcp::model::ErrorCode::INVALID_PARAMS => (
                 ordinary(),
                 AuditOutcome::Failed,
                 AuditReason::InvalidRequest,
             ),
-            Err(error) if error.code == rmcp::model::ErrorCode::RESOURCE_NOT_FOUND => {
+            Err(error) if error.protocol().code == rmcp::model::ErrorCode::RESOURCE_NOT_FOUND => {
                 (ordinary(), AuditOutcome::Failed, AuditReason::NotFound)
             }
             Err(_) => (
@@ -97,7 +98,7 @@ impl GatewayMcp {
         &self,
         mut request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResult, McpError> {
+    ) -> Result<ReadResourceResult, RequestError> {
         if let Some(task_id) = parse_gateway_task_resource_uri(&request.uri) {
             return self
                 .read_task_status_resource(task_id, &request.uri, &context)
@@ -167,7 +168,7 @@ impl GatewayMcp {
                                 self.discovery
                                     .finish_failure(GatewayDiscoverySurface::Resources, fetch)
                                     .await;
-                                return Err(error);
+                                return Err(error.into());
                             }
                         }
                     } else {
@@ -198,7 +199,8 @@ impl GatewayMcp {
                 return Err(mcp_invalid_params(format!(
                     "resource URI is not exposed: {}",
                     request.uri
-                )));
+                ))
+                .into());
             };
             let projection = GatewayResourceProjection {
                 server,

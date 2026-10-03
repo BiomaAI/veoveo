@@ -626,6 +626,9 @@ fn build_profile_mcp_service(
         .layer(middleware::from_fn(
             veoveo_mcp_contract::enforce_serialized_mcp_response,
         ))
+        .layer(middleware::from_fn(
+            veoveo_mcp_gateway::mcp::http_response::preserve_upstream_http_rejection,
+        ))
 }
 
 async fn readyz(State(state): State<AppState>) -> (StatusCode, Json<Readiness>) {

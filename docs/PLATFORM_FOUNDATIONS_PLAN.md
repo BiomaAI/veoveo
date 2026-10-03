@@ -587,9 +587,12 @@ warming cameras and detailed startup frames within its existing deadlines and sa
 each accepted stage independently. This closes hosted App continuity, while composed
 flight, mission outcome recovery and landing visual acceptance remain separate.
 
-Computers still returns HTTP 200 with MCP -32603 for its upstream 413. Its fix needs
-a typed upstream HTTP rejection path; the pinned MCP SDK currently discards the
-status into an error string.
+The deployed gateway still returns HTTP 200 with MCP -32603 for Computers' upstream
+413. The source fix preserves typed rejection status through the gateway handler,
+sets HTTP status only for its final failure and excludes definitive rejections from
+connection retry. Its native regression verifies 413 alongside a successful concurrent
+request, with no rejected mutation or replay. RMCP 3.5.0 and the matching Rig pin pass
+native qualification; publication and installed rejection acceptance are pending.
 
 Readiness absence, Recording admin routing, gateway body-limit conversion and the
 Optimization edge case predate this batch. The cause of UAV remounts relative to

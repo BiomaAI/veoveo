@@ -369,7 +369,8 @@ impl GatewayMcp {
         let needs_tasks = route.filter.task_ids.is_some();
         let upstream = self
             .upstream_with_tasks(&server, downstream, &subject, needs_tasks)
-            .await?;
+            .await
+            .map_err(super::http_response::RequestError::into_protocol)?;
         let observed = upstream
             .peer
             .peer_info()

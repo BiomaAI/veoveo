@@ -1,5 +1,6 @@
+use super::http_response::RequestError;
 use rmcp::{
-    model::{CompleteRequestParams, CompleteResult, ErrorData as McpError, Reference},
+    model::{CompleteRequestParams, CompleteResult, Reference},
     service::{RequestContext, RoleServer},
 };
 use veoveo_mcp_contract::{CompletionExposure, GatewayAction, PolicyTarget, PromptName};
@@ -15,11 +16,11 @@ impl GatewayMcp {
         &self,
         request: CompleteRequestParams,
         context: RequestContext<RoleServer>,
-    ) -> Result<CompleteResult, McpError> {
+    ) -> Result<CompleteResult, RequestError> {
         let server = match &request.r#ref {
             Reference::Resource(reference) => self.server_for_resource(&reference.uri)?,
             Reference::Prompt(reference) => self.server_for_prompt(&reference.name)?,
-            _ => return Err(mcp_invalid_params("unsupported completion reference kind")),
+            _ => return Err(mcp_invalid_params("unsupported completion reference kind").into()),
         };
         let catalog = self.catalog.current();
         let (_profile, exposure, manifest) = catalog
@@ -27,7 +28,7 @@ impl GatewayMcp {
             .ok_or_else(|| mcp_invalid_params(format!("server `{server}` is not exposed")))?;
         if exposure.completions != CompletionExposure::Enabled || !manifest.capabilities.completions
         {
-            return Err(mcp_invalid_request("profile does not expose completions"));
+            return Err(mcp_invalid_request("profile does not expose completions").into());
         }
         let target = match &request.r#ref {
             Reference::Resource(reference) => {
@@ -42,7 +43,7 @@ impl GatewayMcp {
                     prompt,
                 }
             }
-            _ => return Err(mcp_invalid_params("unsupported completion reference kind")),
+            _ => return Err(mcp_invalid_params("unsupported completion reference kind").into()),
         };
         let subject = self
             .authorize(&context, GatewayAction::CompletionComplete, target)

@@ -211,10 +211,10 @@ async fn qualify() {
     .unwrap_err();
     assert_eq!(denial.code, rmcp::model::ErrorCode::INVALID_REQUEST);
     let delivered = gateway
-        .finish_resource_read(&subject, &projection(), None, Err(denial.clone()))
+        .finish_resource_read(&subject, &projection(), None, Err(denial.clone().into()))
         .await
         .unwrap_err();
-    assert_eq!(delivered, denial);
+    assert_eq!(delivered.into_protocol(), denial);
     assert_eq!(calls.load(Ordering::SeqCst), 3);
     let page = db.b.audit_page(&scope, &query).await.unwrap();
     assert_eq!(page.records.len(), 3);
@@ -224,7 +224,7 @@ async fn qualify() {
             &subject,
             &projection(),
             None,
-            Err(McpError::resource_not_found("fixture member missing", None)),
+            Err(McpError::resource_not_found("fixture member missing", None).into()),
         )
         .await
         .unwrap_err();
@@ -480,7 +480,7 @@ async fn indexing_gate_binds_approval_enumeration_members_and_revocation() {
             .unwrap_err();
         assert!(
             gateway
-                .finish_resource_read(&subject, &member, Some(&permit), Err(error))
+                .finish_resource_read(&subject, &member, Some(&permit), Err(error.into()))
                 .await
                 .is_err()
         );
