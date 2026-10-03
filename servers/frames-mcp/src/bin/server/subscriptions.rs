@@ -2,80 +2,108 @@ use std::sync::Arc;
 use veoveo_task_runtime::TaskUsageAccess;
 
 use futures::StreamExt;
-use rmcp::{ErrorData as McpError, service::SubscriptionContext};
+use rmcp::{ErrorData as McpError, RoleServer, service::RequestContext};
 use tokio_util::sync::CancellationToken;
 use veoveo_frames_mcp::contract::{FrameWorldId, FramesResource};
+use veoveo_mcp_contract::{
+    SubscriptionHub,
+    hosting::{ResourceSubscriptions, gateway_identity},
+};
 use veoveo_platform_store::PlatformTable;
 use veoveo_types::TaskId;
 
 use super::{
     AppState,
-    ownership::{frame_scope_from_identity, internal_identity, runtime_owner},
+    ownership::{frame_scope_from_identity, runtime_owner},
 };
 
+/// What a subscription to one Frames address observes. Revisions, frames,
+/// operations, artifacts and documents are immutable and refuse subscription.
 #[derive(Debug, PartialEq, Eq)]
-enum Resource {
-    Worlds,
+enum Watched {
+    Catalog,
     World(FrameWorldId),
-    Usage,
     TaskUsage(TaskId),
 }
 
-fn parse_resource(uri: &str) -> Result<Resource, McpError> {
-    match FramesResource::parse(uri) {
-        Ok(FramesResource::Worlds(_)) => Ok(Resource::Worlds),
-        Ok(FramesResource::Usage(_)) => Ok(Resource::Usage),
-        Ok(FramesResource::World(world)) => Ok(Resource::World(world.world_id())),
-        Ok(FramesResource::TaskUsage(usage)) => Ok(Resource::TaskUsage(usage.task_id())),
-        _ => Err(McpError::invalid_params(
+fn watched(address: FramesResource) -> Result<Watched, McpError> {
+    match address {
+        FramesResource::Worlds(_) | FramesResource::Usage(_) => Ok(Watched::Catalog),
+        FramesResource::World(world) => Ok(Watched::World(world.world_id())),
+        FramesResource::TaskUsage(usage) => Ok(Watched::TaskUsage(usage.task_id())),
+        FramesResource::Docs
+        | FramesResource::Document(_)
+        | FramesResource::Contract
+        | FramesResource::WorkspaceApp
+        | FramesResource::Revision(_)
+        | FramesResource::Frame(_)
+        | FramesResource::Operation(_)
+        | FramesResource::Artifact(_) => Err(McpError::invalid_params(
             "resource is immutable or not subscribable",
             None,
         )),
     }
 }
 
-pub(super) async fn authorize(
-    state: &AppState,
-    context: &SubscriptionContext,
-) -> Result<(), McpError> {
-    let Some(uris) = context
-        .accepted()
-        .resource_subscriptions
-        .as_ref()
-        .filter(|uris| !uris.is_empty())
-    else {
-        return Ok(());
-    };
-    let request = context.request_context();
-    let identity = internal_identity(request)?;
-    let scope = frame_scope_from_identity(state, &identity).await?;
-    for uri in uris {
-        match parse_resource(uri)? {
-            Resource::Worlds | Resource::Usage => {}
-            Resource::World(world_id) => {
-                if state
-                    .frames
-                    .get_world(&scope, &world_id)
-                    .await
-                    .map_err(|error| McpError::internal_error(error.to_string(), None))?
-                    .is_none()
-                {
-                    return Err(McpError::resource_not_found("unknown frame world", None));
+/// Frames resource changes and the caller checks for subscribing to them.
+pub(super) struct FramesSubscriptions {
+    state: Arc<AppState>,
+}
+
+impl FramesSubscriptions {
+    pub(super) fn new(state: Arc<AppState>) -> Self {
+        Self { state }
+    }
+}
+
+impl ResourceSubscriptions for FramesSubscriptions {
+    type Address = FramesResource;
+
+    async fn authorize(
+        &self,
+        addresses: Vec<FramesResource>,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        let watched = addresses
+            .into_iter()
+            .map(watched)
+            .collect::<Result<Vec<_>, _>>()?;
+        let identity = gateway_identity(context)?;
+        let scope = frame_scope_from_identity(&self.state, &identity).await?;
+        for watched in watched {
+            match watched {
+                Watched::Catalog => {}
+                Watched::World(world_id) => {
+                    if self
+                        .state
+                        .frames
+                        .get_world(&scope, &world_id)
+                        .await
+                        .map_err(|error| McpError::internal_error(error.to_string(), None))?
+                        .is_none()
+                    {
+                        return Err(McpError::resource_not_found("unknown frame world", None));
+                    }
                 }
-            }
-            Resource::TaskUsage(task_id) => {
-                if !state
-                    .tasks
-                    .task_visible(TaskUsageAccess::Owner(&runtime_owner(&identity)), task_id)
-                    .await
-                    .map_err(|error| McpError::internal_error(error.to_string(), None))?
-                {
-                    return Err(McpError::resource_not_found("unknown usage task", None));
+                Watched::TaskUsage(task_id) => {
+                    if !self
+                        .state
+                        .tasks
+                        .task_visible(TaskUsageAccess::Owner(&runtime_owner(&identity)), task_id)
+                        .await
+                        .map_err(|error| McpError::internal_error(error.to_string(), None))?
+                    {
+                        return Err(McpError::resource_not_found("unknown usage task", None));
+                    }
                 }
             }
         }
+        Ok(())
     }
-    Ok(())
+
+    fn hub(&self) -> &SubscriptionHub {
+        &self.state.subscriptions
+    }
 }
 
 pub(super) fn spawn_observer(
@@ -108,38 +136,41 @@ mod tests {
         contract::{FrameTaskUsageUri, FrameUsageIndexUri, FrameWorldsUri},
         uris,
     };
+    use veoveo_mcp_contract::hosting::requested_addresses;
+
+    fn subscribe(uri: &str) -> Result<Watched, McpError> {
+        let mut addresses = requested_addresses::<FramesResource>(Some(&[uri.to_owned()]))?;
+        watched(addresses.remove(0))
+    }
 
     #[test]
     fn subscriptions_admit_mutable_worlds_and_usage() {
-        assert_eq!(
-            parse_resource(FrameWorldsUri::ROOT).unwrap(),
-            Resource::Worlds
-        );
+        assert_eq!(subscribe(FrameWorldsUri::ROOT).unwrap(), Watched::Catalog);
         let cursor = veoveo_frames_mcp::contract::FrameWorldCursor::new(
             &FrameWorldId::new("world").unwrap(),
         );
         assert_eq!(
-            parse_resource(FrameWorldsUri::new(Some(&cursor)).as_str()).unwrap(),
-            Resource::Worlds
+            subscribe(FrameWorldsUri::new(Some(&cursor)).as_str()).unwrap(),
+            Watched::Catalog
         );
         assert_eq!(
-            parse_resource(FrameUsageIndexUri::ROOT).unwrap(),
-            Resource::Usage
+            subscribe(FrameUsageIndexUri::ROOT).unwrap(),
+            Watched::Catalog
         );
         assert_eq!(
-            parse_resource("frames://world/fixture").unwrap(),
-            Resource::World(FrameWorldId::new("fixture").unwrap())
+            subscribe("frames://world/fixture").unwrap(),
+            Watched::World(FrameWorldId::new("fixture").unwrap())
         );
         let task_id = TaskId::new();
         let usage = FrameTaskUsageUri::new(task_id).unwrap();
         assert_eq!(
-            parse_resource(usage.as_str()).unwrap(),
-            Resource::TaskUsage(task_id)
+            subscribe(usage.as_str()).unwrap(),
+            Watched::TaskUsage(task_id)
         );
         let cursor = veoveo_frames_mcp::contract::FrameUsageCursor::new(task_id).unwrap();
         assert_eq!(
-            parse_resource(FrameUsageIndexUri::new(Some(&cursor)).as_str()).unwrap(),
-            Resource::Usage
+            subscribe(FrameUsageIndexUri::new(Some(&cursor)).as_str()).unwrap(),
+            Watched::Catalog
         );
         for uri in [
             uris::DOCS_URI,
@@ -153,7 +184,11 @@ mod tests {
             "frames://worlds?cursor=bad",
             "frames://worlds?unknown=x",
         ] {
-            assert!(parse_resource(uri).is_err(), "{uri}");
+            assert_eq!(
+                subscribe(uri).unwrap_err().code,
+                rmcp::model::ErrorCode::INVALID_PARAMS,
+                "{uri}"
+            );
         }
     }
 }

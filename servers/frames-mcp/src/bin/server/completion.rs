@@ -1,16 +1,14 @@
-use super::{
-    FramesMcp, SERVER_DOCS,
-    ownership::{frame_scope_from_identity, internal_identity},
-};
+use super::{FramesMcp, ownership::frame_scope_from_identity};
 use rmcp::{
     ErrorData as McpError, RoleServer,
-    model::{CompleteRequestParams, CompleteResult, CompletionInfo, Reference},
+    model::{CompleteRequestParams, CompleteResult, Reference},
     service::RequestContext,
 };
 use veoveo_frames_mcp::{
     contract::{FrameWorldId, FrameWorldRevisionId, FrameWorldRevisionUri},
     uris,
 };
+use veoveo_mcp_contract::hosting::{completion, gateway_identity};
 
 #[derive(Debug, PartialEq, Eq)]
 enum Selection {
@@ -70,22 +68,13 @@ fn selection(
     }
 }
 
-fn completion(mut values: Vec<String>) -> Result<CompleteResult, McpError> {
-    let has_more = values.len() > CompletionInfo::MAX_VALUES;
-    let total = (!has_more).then_some(values.len() as u32);
-    values.truncate(CompletionInfo::MAX_VALUES);
-    Ok(CompleteResult::new(
-        CompletionInfo::with_pagination(values, total, has_more).map_err(internal)?,
-    ))
-}
-
 impl FramesMcp {
     pub(super) async fn complete_frames(
         &self,
         request: CompleteRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CompleteResult, McpError> {
-        let identity = internal_identity(&context)?;
+        let identity = gateway_identity(&context)?;
         let Reference::Resource(reference) = &request.r#ref else {
             return Ok(CompleteResult::default());
         };
@@ -94,16 +83,6 @@ impl FramesMcp {
             return Err(invalid(
                 "completion search text must be at most 512 bytes without control characters",
             ));
-        }
-        if reference.uri == uris::DOC_TEMPLATE && request.argument.name == "doc_id" {
-            let needle = needle.to_lowercase();
-            return completion(
-                SERVER_DOCS
-                    .iter()
-                    .map(|doc| doc.id.to_owned())
-                    .filter(|id| id.contains(&needle))
-                    .collect(),
-            );
         }
         let Some(selection) = selection(&reference.uri, &request)? else {
             return completion(vec![]);
@@ -145,19 +124,6 @@ impl FramesMcp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test]
-    fn completion_reports_only_known_totals() {
-        let bounded = completion((0..101).map(|i| i.to_string()).collect())
-            .unwrap()
-            .completion;
-        assert_eq!(bounded.values.len(), 100);
-        assert_eq!(bounded.total, None);
-        assert_eq!(bounded.has_more, Some(true));
-        let exact = completion(vec!["world".into()]).unwrap().completion;
-        assert_eq!(exact.total, Some(1));
-        assert_eq!(exact.has_more, Some(false));
-    }
-
     #[test]
     fn parent_completion_requires_typed_world_and_revision_arguments() {
         use rmcp::model::{ArgumentInfo, CompletionContext};

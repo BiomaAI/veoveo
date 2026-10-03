@@ -14,27 +14,21 @@ use std::{
 };
 use veoveo_types::TaskTypeDefinition;
 
-use axum::{Router, middleware, routing::get};
 use chrono::{DateTime, TimeDelta, Utc};
 use clap::Parser;
 use rmcp::tool;
 use rmcp::{
-    ErrorData as McpError, RoleServer, ServerHandler,
+    ErrorData as McpError, RoleServer,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolRequestParams, CallToolResponse, CallToolResult, CancelTaskParams,
-        CompleteRequestParams, CompleteResult, ContentBlock, GetPromptRequestParams, GetTaskParams,
-        GetTaskResult, ListPromptsResult, ListResourceTemplatesResult, ListResourcesResult,
-        ListToolsResult, PaginatedRequestParams, Prompt, ReadResourceRequestParams, ServerConfig,
-        SubscriptionFilter, UpdateTaskParams,
+        CallToolResult, CompleteRequestParams, CompleteResult, ContentBlock,
+        GetPromptRequestParams, GetPromptResult, Prompt, ReadResourceRequestParams, Tool,
     },
-    service::{RequestContext, SubscriptionContext},
-    tool_handler, tool_router,
-    transport::streamable_http_server::StreamableHttpService,
+    service::RequestContext,
+    tool_router,
 };
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
-use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_frames_mcp::contract::{CoordinateOperationId, CoordinateSpace};
 use veoveo_frames_mcp::{
     artifacts::ArtifactRepository,
@@ -47,28 +41,27 @@ use veoveo_frames_mcp::{
     uris,
 };
 use veoveo_mcp_contract::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
-    IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, Page, ServerSlug,
-    TelemetryGuard, TokenIssuer, init_server_telemetry, paginate, public_allowed_hosts,
+    GatewayInternalTrustBundle, IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability,
+    TelemetryGuard,
+    hosting::{
+        DomainAddress, DomainRead, DomainServer, Hosted, HostedServer, gateway_identity,
+        structured_result, unknown_prompt,
+    },
+    init_server_telemetry,
+    server_contract::McpServerSetup,
 };
 use veoveo_task_runtime::{
-    CreateTask as DurableCreateTask, DurableTaskService, RecoveryClass, TaskError, TaskFailure,
-    TaskRetentionPin, TaskRuntime, TaskRuntimeConfig, TaskSnapshot, TaskTransition,
+    CreateTask as DurableCreateTask, DurableTasksWithResources, RecoveryClass, TaskError,
+    TaskFailure, TaskRetentionPin, TaskRuntime, TaskRuntimeConfig, TaskSnapshot, TaskTransition,
 };
 use veoveo_types::TaskId;
 
-#[path = "server/admin.rs"]
-mod admin;
 #[path = "server/app_state.rs"]
 mod app_state;
 #[path = "server/completion.rs"]
 mod completion;
 #[path = "server/config.rs"]
 mod config;
-#[path = "server/host.rs"]
-mod host;
-#[path = "server/internal_auth.rs"]
-mod internal_auth;
 #[path = "server/outputs.rs"]
 mod outputs;
 #[path = "server/ownership.rs"]
@@ -86,13 +79,12 @@ mod task_extension;
 
 use app_state::{AppState, update_task};
 use config::Cli;
-use host::validate_host;
-use internal_auth::{InternalMcpAuthState, authenticate_internal_mcp};
-use ownership::{
-    frame_scope_from_identity, frame_scope_from_runtime, internal_identity, runtime_owner,
-};
+use ownership::{frame_scope_from_identity, frame_scope_from_runtime, runtime_owner};
 use prompts::FramesPrompt;
-use setup::{SERVER_DOCS, SERVER_SETUP};
+#[cfg(test)]
+use setup::SERVER_DOCS;
+use setup::{FramesContract, SERVER_SETUP};
+use subscriptions::FramesSubscriptions;
 use task_extension::FramesTaskService;
 
 const MCP_TASK_POLL_INTERVAL_MS: u64 = 3_000;
@@ -101,7 +93,6 @@ const TASK_LEASE_DURATION: Duration = Duration::from_secs(120);
 const TASK_LEASE_HEARTBEAT: Duration = Duration::from_secs(40);
 const ARTIFACT_CAPABILITY_TTL: TimeDelta = TimeDelta::hours(24);
 const SERVER_SLUG: &str = "frames";
-const LIST_PAGE_SIZE: usize = 100;
 const BATCH_ARTIFACT_MIME: &str = "application/json";
 
 fn install_rustls_provider() {
@@ -111,17 +102,13 @@ fn install_rustls_provider() {
 #[derive(Clone)]
 struct FramesMcp {
     state: Arc<AppState>,
-    task_service: FramesTaskService,
-    #[allow(dead_code)]
     tool_router: ToolRouter<FramesMcp>,
 }
 
 #[tool_router]
 impl FramesMcp {
     fn new(state: Arc<AppState>) -> Self {
-        LazyLock::force(&SERVER_SETUP);
         Self {
-            task_service: FramesTaskService::new(state.clone()),
             state,
             tool_router: Self::tool_router(),
         }
@@ -143,7 +130,7 @@ impl FramesMcp {
         Parameters(args): Parameters<ConvertFrameRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = internal_identity(&context)?;
+        let identity = gateway_identity(&context)?;
         let scope = frame_scope_from_identity(&self.state, &identity).await?;
         let worlds = resolve_worlds(&self.state, &scope, &args).await?;
         let output = engine::convert_frame(args, &worlds).map_err(invalid_params)?;
@@ -170,7 +157,7 @@ impl FramesMcp {
         Parameters(args): Parameters<CreateWorldRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = internal_identity(&context)?;
+        let identity = gateway_identity(&context)?;
         let scope = frame_scope_from_identity(&self.state, &identity).await?;
         let world = self
             .state
@@ -201,7 +188,7 @@ impl FramesMcp {
         Parameters(args): Parameters<PublishWorldRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = internal_identity(&context)?;
+        let identity = gateway_identity(&context)?;
         let scope = frame_scope_from_identity(&self.state, &identity).await?;
         let output = self
             .state
@@ -240,15 +227,6 @@ impl FramesMcp {
             None,
         ))
     }
-}
-
-fn structured_result<T: Serialize>(text: String, value: &T) -> Result<CallToolResult, McpError> {
-    let mut result = CallToolResult::success(vec![ContentBlock::text(text)]);
-    result.structured_content = Some(
-        serde_json::to_value(value)
-            .map_err(|err| McpError::internal_error(err.to_string(), None))?,
-    );
-    Ok(result)
 }
 
 fn invalid_params(err: impl std::fmt::Display) -> McpError {
@@ -301,218 +279,54 @@ async fn resolve_worlds(
     Ok(resolved)
 }
 
-fn mcp_page<T>(
-    items: Vec<T>,
-    request: Option<&PaginatedRequestParams>,
-) -> Result<Page<T>, McpError> {
-    paginate(items, request, LIST_PAGE_SIZE)
-        .map_err(|err| McpError::invalid_params(err.to_string(), None))
-}
+impl DomainServer for FramesMcp {
+    type Contract = FramesContract;
 
-#[tool_handler]
-impl ServerHandler for FramesMcp {
-    fn supported_protocol_versions(
-        &self,
-    ) -> std::borrow::Cow<'static, [rmcp::model::ProtocolVersion]> {
-        veoveo_mcp_contract::final_protocol_versions()
+    fn setup() -> &'static McpServerSetup<FramesContract> {
+        &SERVER_SETUP
     }
 
-    fn get_info(&self) -> ServerConfig {
-        SERVER_SETUP.server_config().clone()
+    fn tool_router(&self) -> &ToolRouter<Self> {
+        &self.tool_router
     }
 
-    async fn call_tool(
-        &self,
-        request: CallToolRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<CallToolResponse, McpError> {
-        if context
-            .meta
-            .client_capabilities()
-            .is_some_and(|capabilities| capabilities.supports_tasks())
-        {
-            let caller = self.task_service.authenticate(&context)?;
-            if let Some(created) = self
-                .task_service
-                .start_tool_task(&caller, request.clone())
-                .await?
-            {
-                return Ok(created.into());
-            }
-        }
-        let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
-        self.tool_router.call(call).await
-    }
-
-    async fn get_task(
-        &self,
-        request: GetTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<GetTaskResult, McpError> {
-        let caller = self.task_service.authenticate(&context)?;
-        self.task_service.get_task(&caller, request).await
-    }
-
-    async fn update_task(
-        &self,
-        request: UpdateTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        let caller = self.task_service.authenticate(&context)?;
-        self.task_service.update_task(&caller, request).await
-    }
-
-    async fn cancel_task(
-        &self,
-        request: CancelTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        let caller = self.task_service.authenticate(&context)?;
-        self.task_service
-            .cancel_task(&caller, request.task_id)
-            .await
-    }
-
-    fn accepted_subscription_filter(
-        &self,
-        requested: &SubscriptionFilter,
-    ) -> Option<SubscriptionFilter> {
-        veoveo_mcp_contract::accepted_subscription_filter(requested)
-    }
-
-    async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
-        subscriptions::authorize(&self.state, &context).await?;
-        veoveo_task_runtime::listen_durable_subscriptions(
-            &self.task_service,
-            context,
-            Some(&self.state.subscriptions),
-            None,
+    fn describe_tool(&self, tool: Tool) -> Tool {
+        veoveo_mcp_apps_extension::link_tool_to_app(
+            tool,
+            uris::WORKSPACE_APP_URI,
+            &[
+                veoveo_mcp_apps_extension::UiVisibility::Model,
+                veoveo_mcp_apps_extension::UiVisibility::App,
+            ],
         )
-        .await
     }
 
-    async fn list_tools(
+    async fn read(
         &self,
-        request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListToolsResult, McpError> {
-        let mut tools = self.tool_router.list_all();
-        tools.sort_by(|left, right| left.name.cmp(&right.name));
-        tools = tools
-            .into_iter()
-            .map(|tool| {
-                veoveo_mcp_apps_extension::link_tool_to_app(
-                    tool,
-                    uris::WORKSPACE_APP_URI,
-                    &[
-                        veoveo_mcp_apps_extension::UiVisibility::Model,
-                        veoveo_mcp_apps_extension::UiVisibility::App,
-                    ],
-                )
-            })
-            .collect();
-        let page = mcp_page(tools, request.as_ref())?;
-        Ok(ListToolsResult {
-            tools: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
+        address: DomainAddress<FramesContract>,
+        request: &ReadResourceRequestParams,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<DomainRead, McpError> {
+        self.read_frames_resource(address, &request.uri, context)
+            .await
+            .map(DomainRead::private)
     }
 
-    async fn list_resources(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        context: RequestContext<RoleServer>,
-    ) -> Result<ListResourcesResult, McpError> {
-        internal_identity(&context)?;
-        let page = mcp_page(
-            SERVER_SETUP
-                .resources()
-                .iter()
-                .map(|resource| resource.descriptor().clone())
-                .collect(),
-            request.as_ref(),
-        )?;
-        Ok(ListResourcesResult {
-            resources: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
-    }
-
-    async fn list_resource_templates(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListResourceTemplatesResult, McpError> {
-        let page = mcp_page(
-            SERVER_SETUP
-                .resource_templates()
-                .iter()
-                .map(|template| template.descriptor().clone())
-                .collect(),
-            request.as_ref(),
-        )?;
-        Ok(ListResourceTemplatesResult {
-            resource_templates: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
-    }
-
-    async fn read_resource(
-        &self,
-        request: ReadResourceRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
-        if let Some(result) = SERVER_SETUP.read_documents(&request, &context)? {
-            return Ok(result);
-        }
-        self.read_frames_resource(request, context).await
-    }
-
-    async fn list_prompts(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListPromptsResult, McpError> {
-        let prompts: Vec<Prompt> = FramesPrompt::ALL
+    fn prompts(&self) -> Vec<Prompt> {
+        FramesPrompt::ALL
             .into_iter()
             .map(FramesPrompt::prompt)
-            .collect();
-        let page = mcp_page(prompts, request.as_ref())?;
-        Ok(ListPromptsResult {
-            prompts: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
+            .collect()
     }
 
     async fn get_prompt(
         &self,
         request: GetPromptRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<rmcp::model::GetPromptResponse, McpError> {
-        async {
-            let prompt = FramesPrompt::by_name(&request.name).ok_or_else(|| {
-                McpError::invalid_params(format!("unknown prompt `{}`", request.name), None)
-            })?;
-            prompt.render(request.arguments)
-        }
-        .await
-        .map(Into::into)
+    ) -> Result<GetPromptResult, McpError> {
+        FramesPrompt::by_name(&request.name)
+            .ok_or_else(|| unknown_prompt(&request.name))?
+            .render(request.arguments)
     }
 
     async fn complete(
@@ -777,12 +591,6 @@ async fn main() -> anyhow::Result<()> {
         Cli::Serve(args) => *args,
     };
     let public_deployment = args.public_deployment()?;
-    let public_endpoint = public_deployment.server(SERVER_SLUG)?;
-    let internal_token_verifier = GatewayInternalTokenVerifier::new(
-        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
-        ServerSlug::new(SERVER_SLUG)?,
-        GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?,
-    );
     let tasks = TaskRuntime::connect(
         TaskRuntimeConfig::new(
             args.surreal_endpoint.clone(),
@@ -816,70 +624,28 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    let ct = tokio_util::sync::CancellationToken::new();
-    let _resource_observer = subscriptions::spawn_observer(state.clone(), ct.clone());
-    let mut allowed_hosts = public_allowed_hosts(&public_deployment, args.allow_loopback_hosts);
-    allowed_hosts.extend(args.allowed_hosts.iter().cloned());
-    let allowed_hosts = Arc::new(allowed_hosts);
-    let internal_auth_state = InternalMcpAuthState {
-        verifier: internal_token_verifier,
-    };
-    let mcp_service = StreamableHttpService::new(
-        {
+    let server = HostedServer::for_domain::<FramesMcp>()
+        .deployment(&public_deployment, args.allow_loopback_hosts)?
+        .allowed_hosts(args.allowed_hosts.iter().cloned())
+        .internal_trust(GatewayInternalTrustBundle::from_json(
+            &args.internal_trust_jwks,
+        )?)?
+        .handler({
             let state = state.clone();
-            move || Ok(FramesMcp::new(state.clone()))
-        },
-        veoveo_mcp_contract::stateless_session_manager(),
-        veoveo_mcp_contract::canonical_streamable_http_server_config()
-            .with_allowed_hosts(allowed_hosts.iter().cloned())
-            .with_cancellation_token(ct.child_token()),
-    );
-    let mcp_router = Router::new()
-        .route_service("/", mcp_service.clone())
-        .route_service("/{*path}", mcp_service)
-        .layer(middleware::from_fn(
-            veoveo_mcp_contract::enforce_serialized_mcp_response,
-        ))
-        .layer(middleware::from_fn_with_state(
-            internal_auth_state.clone(),
-            authenticate_internal_mcp,
-        ));
-    let admin_router = admin::router().layer(middleware::from_fn_with_state(
-        internal_auth_state,
-        authenticate_internal_mcp,
-    ));
-    let server_router = Router::new()
-        .route("/healthz", get(|| async { "ok" }))
-        .with_state(state.clone())
-        .nest("/admin", admin_router)
-        .nest("/mcp", mcp_router);
-    let router = Router::new()
-        .nest(public_endpoint.mount_path(), server_router)
-        .layer(middleware::from_fn_with_state(
-            allowed_hosts.clone(),
-            validate_host,
-        ))
-        .layer(
-            TraceLayer::new_for_http()
-                .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO)),
-        );
-
-    let addr = SocketAddr::from(([0, 0, 0, 0], args.port));
-    tracing::info!(
-        service = "veoveo-frames-mcp",
-        address = %addr,
-        mcp_path = public_endpoint.path("mcp"),
-        public_url = public_endpoint.public_url(),
-        "listening"
-    );
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, router)
-        .with_graceful_shutdown(async move {
-            let _ = tokio::signal::ctrl_c().await;
-            ct.cancel();
+            move || {
+                Hosted::new(FramesMcp::new(state.clone())).with_tasks(
+                    DurableTasksWithResources::new(
+                        FramesTaskService::new(state.clone()),
+                        FramesSubscriptions::new(state.clone()),
+                    ),
+                )
+            }
         })
-        .await?;
-    Ok(())
+        .build();
+    let _resource_observer = subscriptions::spawn_observer(state, server.cancellation_token());
+    server
+        .serve(SocketAddr::from(([0, 0, 0, 0], args.port)))
+        .await
 }
 
 #[cfg(test)]

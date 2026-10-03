@@ -78,7 +78,11 @@ unsupported query fields and cross-family paths before accessing services.
 
 `FramesContract` implements the open `McpServerContract` trait. Startup checks the
 configuration, fixed descriptors and templates before connecting to Store. Discovery
-and initialization read that setup. The empty `FramesScope` vocabulary adds no domain
+and initialization read that setup. `FramesMcp` implements the shared host's
+`DomainServer`, which serves documents, the contract and `doc_id` completion and
+calls Frames only for its own addresses. `FramesSubscriptions` receives requested
+URIs as `FramesResource` values and checks world existence and task visibility for
+the caller. The empty `FramesScope` vocabulary adds no domain
 permissions; gateway operation policy and SQL owner/label selection govern access.
 The fixed catalog declares resource subscriptions and omits resource-list changes.
 
@@ -420,12 +424,11 @@ servers/frames-mcp/src/
     config.rs
     completion.rs
     setup.rs
-    host.rs
-    internal_auth.rs
     outputs.rs
     ownership.rs
     prompts.rs
     resources.rs
+    subscriptions.rs
     task_extension.rs
 ```
 
