@@ -17,8 +17,8 @@ use veoveo_mcp_contract::{
     GatewayInternalIdentity,
     docs::ServerDocs,
     hosting::{
-        DomainAddress, DomainRead, DomainServer, completion, gateway_identity, rank_completions,
-        structured_result, unknown_prompt,
+        DomainAddress, DomainRead, DomainServer, Listing, completion, gateway_identity,
+        rank_completions, structured_result, unknown_prompt,
     },
     server_contract::McpServerSetup,
 };
@@ -322,10 +322,11 @@ impl DomainServer for TimeMcp {
     async fn list_resources(
         &self,
         declared: Vec<Resource>,
+        _cursor: Option<&str>,
         context: &RequestContext<RoleServer>,
-    ) -> Result<Vec<Resource>, McpError> {
+    ) -> Result<Listing<Resource>, McpError> {
         require_scope(context, TimeScope::Read)?;
-        Ok(declared)
+        Ok(Listing::all(declared))
     }
 
     async fn read(

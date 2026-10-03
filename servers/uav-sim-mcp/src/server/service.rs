@@ -21,7 +21,7 @@ use veoveo_mcp_contract::audit::{AuditOutcome, LiveViewActivity};
 use veoveo_mcp_contract::{
     GatewayInternalIdentity, SubscriptionHub, UsageKind, UsageRecord, UsageReport,
     hosting::{
-        DomainAddress, DomainRead, DomainServer, ResourceSubscriptions, gateway_identity,
+        DomainAddress, DomainRead, DomainServer, Listing, ResourceSubscriptions, gateway_identity,
         plane_caller, structured_result, unknown_prompt,
     },
     server_contract::McpServerSetup,
@@ -798,9 +798,10 @@ impl DomainServer for UavSimMcp {
     async fn list_resources(
         &self,
         _declared: Vec<Resource>,
+        _cursor: Option<&str>,
         context: &RequestContext<RoleServer>,
-    ) -> Result<Vec<Resource>, McpError> {
-        self.resource_descriptors(context).await
+    ) -> Result<Listing<Resource>, McpError> {
+        self.resource_descriptors(context).await.map(Listing::all)
     }
 
     async fn read(

@@ -25,7 +25,8 @@ use rmcp::{
 use veoveo_mcp_contract::{
     GatewayInternalTrustBundle, TelemetryGuard,
     hosting::{
-        DomainAddress, DomainRead, DomainServer, gateway_identity, plane_caller, unknown_prompt,
+        DomainAddress, DomainRead, DomainServer, Listing, gateway_identity, plane_caller,
+        unknown_prompt,
     },
     init_server_telemetry,
     server_contract::McpServerSetup,
@@ -168,10 +169,11 @@ impl DomainServer for ReasonMcp {
     async fn list_resources(
         &self,
         mut declared: Vec<Resource>,
+        _cursor: Option<&str>,
         _context: &RequestContext<RoleServer>,
-    ) -> Result<Vec<Resource>, McpError> {
+    ) -> Result<Listing<Resource>, McpError> {
         declared.extend(setup::catalog_resources(&self.state.catalog).map_err(internal)?);
-        Ok(declared)
+        Ok(Listing::all(declared))
     }
 
     async fn read(

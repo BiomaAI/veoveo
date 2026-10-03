@@ -27,13 +27,14 @@ use rmcp::{
         GetPromptResult, GetTaskParams, GetTaskResult, ListPromptsResult,
         ListResourceTemplatesResult, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
         Prompt, ProtocolVersion, ReadResourceRequestParams, ReadResourceResponse,
-        ReadResourceResult, Resource, ServerConfig, SubscriptionFilter, Tool, UpdateTaskParams,
+        ReadResourceResult, Resource, ResourceTemplate, ServerConfig, SubscriptionFilter, Tool,
+        UpdateTaskParams,
     },
     service::{RequestContext, SubscriptionContext},
 };
 use veoveo_types::{ResourceAddress, ResourceUri};
 
-use super::auth::gateway_identity;
+use super::{auth::gateway_identity, listing::Listing};
 use crate::{
     final_protocol_versions, private_resource_response,
     server_contract::{McpServerContract, McpServerSetup},
@@ -114,22 +115,34 @@ pub trait DomainServer: Send + Sync + Sized + 'static {
         &self,
         tools: Vec<Tool>,
         context: &RequestContext<RoleServer>,
-    ) -> impl Future<Output = Result<Vec<Tool>, ErrorData>> + Send {
+    ) -> impl Future<Output = Result<Listing<Tool>, ErrorData>> + Send {
         let _ = context;
-        std::future::ready(Ok(tools))
+        std::future::ready(Ok(Listing::all(tools)))
     }
 
     /// The resources `resources/list` shows this caller. `declared` holds the
-    /// setup's fixed resources, and the default returns them. Override it to
-    /// require a scope, filter by caller, or add instance resources. The host
-    /// sorts and pages the result.
+    /// setup's fixed resources, and the default lists them. Override it to
+    /// require a scope, filter by caller, or add instance resources; a domain
+    /// that pages a remote catalog uses `cursor` and returns [`Listing::page`].
     fn list_resources(
         &self,
         declared: Vec<Resource>,
+        cursor: Option<&str>,
         context: &RequestContext<RoleServer>,
-    ) -> impl Future<Output = Result<Vec<Resource>, ErrorData>> + Send {
+    ) -> impl Future<Output = Result<Listing<Resource>, ErrorData>> + Send {
+        let _ = (cursor, context);
+        std::future::ready(Ok(Listing::all(declared)))
+    }
+
+    /// The templates `resources/templates/list` shows this caller. `declared`
+    /// holds the setup's templates, and the default lists them.
+    fn list_resource_templates(
+        &self,
+        declared: Vec<ResourceTemplate>,
+        context: &RequestContext<RoleServer>,
+    ) -> impl Future<Output = Result<Listing<ResourceTemplate>, ErrorData>> + Send {
         let _ = context;
-        std::future::ready(Ok(declared))
+        std::future::ready(Ok(Listing::all(declared)))
     }
 
     /// Reads one admitted domain address and names its cache policy. The
@@ -327,9 +340,12 @@ impl<D: DomainServer, T: TaskSupport> ServerHandler for Hosted<D, T> {
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, ErrorData> {
         gateway_identity(&context)?;
+        let cursor = request
+            .as_ref()
+            .and_then(|request| request.cursor.as_deref());
         let resources = self
             .domain
-            .list_resources(Self::setup().declared_resources(), &context)
+            .list_resources(Self::setup().declared_resources(), cursor, &context)
             .await?;
         Self::setup().list_resources(resources, request.as_ref())
     }
@@ -339,7 +355,12 @@ impl<D: DomainServer, T: TaskSupport> ServerHandler for Hosted<D, T> {
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, ErrorData> {
-        Self::setup().list_resource_templates(request.as_ref(), &context)
+        gateway_identity(&context)?;
+        let templates = self
+            .domain
+            .list_resource_templates(Self::setup().declared_resource_templates(), &context)
+            .await?;
+        Self::setup().list_resource_templates(templates, request.as_ref())
     }
 
     async fn read_resource(

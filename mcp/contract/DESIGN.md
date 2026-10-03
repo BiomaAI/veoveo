@@ -455,10 +455,13 @@ supplies three things:
 2. **A domain.** Implement `DomainServer`: `tool_router` for the tools,
    `describe_tool` to adjust descriptors such as App links, and `read` for one
    admitted address. `prompts`, `get_prompt` and `complete` are optional; their
-   defaults declare no prompts and offer no completions. `list_resources` and
-   `list_tools` receive the default list and the caller. A server overrides them to
-   require a scope, hide entries the caller cannot use, or add instance resources;
-   the host still authenticates, sorts and pages the result. `read` receives a parsed
+   defaults declare no prompts and offer no completions. `list_tools`,
+   `list_resources` and `list_resource_templates` receive the default list and the
+   caller, and return a `Listing`. A server overrides them to require a scope, hide
+   entries the caller cannot use, or add instance resources. `Listing::all` lets the
+   host sort and page the list, `Listing::page` returns one page of a remote catalog
+   with its own cursor, and `no_store` marks a list whose visibility follows current
+   authority. The host authenticates first in every case. `read` receives a parsed
    address and returns a `DomainRead` that names its cache policy:
    `DomainRead::private` for ordinary content, or `DomainRead::no_store` for content
    whose access or freshness can change between reads, such as knowledge-source
@@ -472,8 +475,9 @@ supplies three things:
    before delivery starts. A server whose subscriptions combine tasks with live or
    domain event streams implements `DurableListener` and uses
    `DurableTasks::with_listener`. A server without durable tasks that publishes
-   resource changes uses `ResourcesOnly`, and one with neither uses the default
-   `NoTasks`.
+   resource changes uses `ResourcesOnly`, one whose subscriptions follow its own
+   live or remote source implements `SubscriptionListener` and uses `ListenOnly`,
+   and one with neither uses the default `NoTasks`.
 
 ```rust
 let server = HostedServer::for_domain::<MyDomain>()

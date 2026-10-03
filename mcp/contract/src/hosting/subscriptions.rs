@@ -131,6 +131,78 @@ impl<R: ResourceSubscriptions> TaskSupport for ResourcesOnly<R> {
     }
 }
 
+/// A server's own `subscriptions/listen` delivery, for servers without durable
+/// tasks whose subscriptions follow a live or remote source.
+pub trait SubscriptionListener: Send + Sync + 'static {
+    /// The subset of a requested filter the server accepts.
+    fn accepted_subscription_filter(
+        &self,
+        requested: &SubscriptionFilter,
+    ) -> Option<SubscriptionFilter>;
+
+    /// Delivers updates for the accepted filter until the request ends.
+    fn listen(
+        &self,
+        context: SubscriptionContext,
+    ) -> impl Future<Output = Result<(), ErrorData>> + Send;
+}
+
+/// Task support for a server without durable tasks that delivers
+/// subscriptions through its own [`SubscriptionListener`]. Task calls fail as
+/// they do for [`NoTasks`](super::NoTasks).
+pub struct ListenOnly<L>(L);
+
+impl<L: SubscriptionListener> ListenOnly<L> {
+    pub fn new(listener: L) -> Self {
+        Self(listener)
+    }
+}
+
+impl<L: SubscriptionListener> TaskSupport for ListenOnly<L> {
+    async fn start_task(
+        &self,
+        _request: &mut CallToolRequestParams,
+        _context: &RequestContext<RoleServer>,
+    ) -> Result<Option<CreateTaskResult>, ErrorData> {
+        Ok(None)
+    }
+
+    async fn get_task(
+        &self,
+        _request: GetTaskParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<GetTaskResult, ErrorData> {
+        Err(no_tasks())
+    }
+
+    async fn update_task(
+        &self,
+        _request: UpdateTaskParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<(), ErrorData> {
+        Err(no_tasks())
+    }
+
+    async fn cancel_task(
+        &self,
+        _request: CancelTaskParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<(), ErrorData> {
+        Err(no_tasks())
+    }
+
+    fn accepted_subscription_filter(
+        &self,
+        requested: &SubscriptionFilter,
+    ) -> Option<SubscriptionFilter> {
+        self.0.accepted_subscription_filter(requested)
+    }
+
+    async fn listen(&self, context: SubscriptionContext) -> Result<(), ErrorData> {
+        self.0.listen(context).await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::requested_addresses;

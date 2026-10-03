@@ -191,21 +191,24 @@ impl DomainServer for FixtureDomain {
         &self,
         tools: Vec<rmcp::model::Tool>,
         context: &RequestContext<RoleServer>,
-    ) -> Result<Vec<rmcp::model::Tool>, ErrorData> {
+    ) -> Result<super::Listing<rmcp::model::Tool>, ErrorData> {
         let admin = veoveo_types::ScopeName::new("admin:use").unwrap();
         let is_admin = gateway_identity(context)?.actor.scopes.contains(&admin);
-        Ok(tools
-            .into_iter()
-            .filter(|tool| is_admin || tool.name != "admin_echo")
-            .collect())
+        Ok(super::Listing::all(
+            tools
+                .into_iter()
+                .filter(|tool| is_admin || tool.name != "admin_echo")
+                .collect(),
+        ))
     }
     async fn list_resources(
         &self,
         mut declared: Vec<Resource>,
+        _cursor: Option<&str>,
         _context: &RequestContext<RoleServer>,
-    ) -> Result<Vec<Resource>, ErrorData> {
+    ) -> Result<super::Listing<Resource>, ErrorData> {
         declared.push(Resource::new("fixture://items/1", "item-1"));
-        Ok(declared)
+        Ok(super::Listing::all(declared))
     }
     fn prompts(&self) -> Vec<rmcp::model::Prompt> {
         vec![rmcp::model::Prompt::new(

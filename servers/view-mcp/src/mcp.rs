@@ -17,8 +17,8 @@ use rmcp::{
 use veoveo_mcp_contract::{
     GatewayInternalIdentity, PlaneCaller,
     hosting::{
-        DomainAddress, DomainRead, DomainServer, completion, forwarded_bearer, gateway_identity,
-        json_read, rank_completions, served_by_host, structured_result,
+        DomainAddress, DomainRead, DomainServer, Listing, completion, forwarded_bearer,
+        gateway_identity, json_read, rank_completions, served_by_host, structured_result,
     },
     server_contract::McpServerSetup,
 };
@@ -228,12 +228,13 @@ impl DomainServer for ViewMcp {
     async fn list_resources(
         &self,
         _declared: Vec<Resource>,
+        _cursor: Option<&str>,
         context: &RequestContext<RoleServer>,
-    ) -> Result<Vec<Resource>, McpError> {
+    ) -> Result<Listing<Resource>, McpError> {
         let identity = require_scope(context, ViewScope::Read)?;
-        Ok(crate::server::setup::visible_resources(
+        Ok(Listing::all(crate::server::setup::visible_resources(
             &identity.actor.scopes,
-        ))
+        )))
     }
 
     async fn read(

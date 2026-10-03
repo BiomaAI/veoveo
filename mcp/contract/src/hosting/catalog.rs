@@ -1,15 +1,16 @@
 //! Discovery results generated from the checked setup.
 //!
 //! Every hosted server lists its resources, templates, and tools the same way:
-//! authenticated, sorted, in pages of [`CATALOG_PAGE_SIZE`], complete, private,
-//! and cached for [`PRIVATE_CATALOG_TTL_MS`](crate::PRIVATE_CATALOG_TTL_MS).
+//! authenticated, complete and private. A [`Listing`] chooses who pages the list
+//! and whether a client may reuse it for
+//! [`PRIVATE_CATALOG_TTL_MS`](crate::PRIVATE_CATALOG_TTL_MS).
 
 use rmcp::{
     ErrorData, RoleServer,
     model::{
         CacheScope, CompleteRequestParams, CompleteResult, ListPromptsResult,
         ListResourceTemplatesResult, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
-        Prompt, Reference, Resource, ResultType, Tool,
+        Prompt, Reference, Resource, ResourceTemplate, ResultType, Tool,
     },
     service::RequestContext,
 };
@@ -19,10 +20,10 @@ use crate::{
     server_contract::{McpServerContract, McpServerSetup},
 };
 
-use super::auth::gateway_identity;
-
-/// Items per discovery page.
-pub const CATALOG_PAGE_SIZE: usize = 100;
+use super::{
+    auth::gateway_identity,
+    listing::{CATALOG_PAGE_SIZE, Listing},
+};
 
 fn page<T>(
     items: Vec<T>,
@@ -41,61 +42,62 @@ impl<C: McpServerContract> McpServerSetup<C> {
             .collect()
     }
 
-    /// `resources/list` for `resources`, sorted by URI.
+    /// The checked template declarations, as `resources/templates/list`
+    /// descriptors.
+    pub fn declared_resource_templates(&self) -> Vec<ResourceTemplate> {
+        self.resource_templates()
+            .iter()
+            .map(|template| template.descriptor().clone())
+            .collect()
+    }
+
+    /// `resources/list` for `listing`, sorted by URI when the host pages it.
     pub fn list_resources(
         &self,
-        mut resources: Vec<Resource>,
+        listing: Listing<Resource>,
         request: Option<&PaginatedRequestParams>,
     ) -> Result<ListResourcesResult, ErrorData> {
-        resources.sort_by(|left, right| left.uri.cmp(&right.uri));
-        let page = page(resources, request)?;
+        let page = listing.serve(request, |resource| resource.uri.clone())?;
         Ok(ListResourcesResult {
             resources: page.items,
             next_cursor: page.next_cursor,
             result_type: Some(ResultType::COMPLETE),
-            ttl_ms: Some(PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(CacheScope::Private),
+            ttl_ms: Some(page.ttl_ms),
+            cache_scope: Some(page.cache_scope),
             meta: None,
         })
     }
 
-    /// `resources/templates/list` from the checked template declarations.
+    /// `resources/templates/list` for `listing`, sorted by template.
     pub fn list_resource_templates(
         &self,
+        listing: Listing<ResourceTemplate>,
         request: Option<&PaginatedRequestParams>,
-        context: &RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, ErrorData> {
-        gateway_identity(context)?;
-        let templates = self
-            .resource_templates()
-            .iter()
-            .map(|template| template.descriptor().clone())
-            .collect();
-        let page = page(templates, request)?;
+        let page = listing.serve(request, |template| template.uri_template.clone())?;
         Ok(ListResourceTemplatesResult {
             resource_templates: page.items,
             next_cursor: page.next_cursor,
             result_type: Some(ResultType::COMPLETE),
-            ttl_ms: Some(PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(CacheScope::Private),
+            ttl_ms: Some(page.ttl_ms),
+            cache_scope: Some(page.cache_scope),
             meta: None,
         })
     }
 
-    /// `tools/list` for `tools`, sorted by name.
+    /// `tools/list` for `listing`, sorted by name.
     pub fn list_tools(
         &self,
-        mut tools: Vec<Tool>,
+        listing: Listing<Tool>,
         request: Option<&PaginatedRequestParams>,
     ) -> Result<ListToolsResult, ErrorData> {
-        tools.sort_by(|left, right| left.name.cmp(&right.name));
-        let page = page(tools, request)?;
+        let page = listing.serve(request, |tool| tool.name.clone())?;
         Ok(ListToolsResult {
             tools: page.items,
             next_cursor: page.next_cursor,
             result_type: Some(ResultType::COMPLETE),
-            ttl_ms: Some(PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(CacheScope::Private),
+            ttl_ms: Some(page.ttl_ms),
+            cache_scope: Some(page.cache_scope),
             meta: None,
         })
     }

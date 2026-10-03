@@ -25,7 +25,7 @@ use veoveo_mcp_apps_extension::{UiVisibility, link_tool_to_app};
 use veoveo_mcp_contract::{
     GatewayInternalTrustBundle, SubscriptionHub, TelemetryGuard,
     hosting::{
-        DomainAddress, DomainRead, DomainServer, Hosted, HostedServer, gateway_identity,
+        DomainAddress, DomainRead, DomainServer, Hosted, HostedServer, Listing, gateway_identity,
         plane_caller, unknown_prompt,
     },
     init_server_telemetry,
@@ -220,10 +220,11 @@ impl DomainServer for StreamMcp {
     async fn list_resources(
         &self,
         mut declared: Vec<Resource>,
+        _cursor: Option<&str>,
         _context: &RequestContext<RoleServer>,
-    ) -> Result<Vec<Resource>, McpError> {
+    ) -> Result<Listing<Resource>, McpError> {
         declared.extend(setup::catalog_resources(&self.state.catalog).map_err(internal)?);
-        Ok(declared)
+        Ok(Listing::all(declared))
     }
 
     async fn read(

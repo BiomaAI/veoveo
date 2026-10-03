@@ -17,7 +17,7 @@ use veoveo_mcp_contract::{
     GatewayInternalIdentity, SubscriptionHub,
     docs::ServerDocs,
     hosting::{
-        DomainAddress, DomainRead, DomainServer, ResourceSubscriptions, gateway_identity,
+        DomainAddress, DomainRead, DomainServer, Listing, ResourceSubscriptions, gateway_identity,
         json_read, plane_caller, served_by_host, structured_result, unknown_prompt,
     },
     server_contract::McpServerSetup,
@@ -877,13 +877,14 @@ impl DomainServer for MapMcp {
     async fn list_resources(
         &self,
         _declared: Vec<Resource>,
+        _cursor: Option<&str>,
         context: &RequestContext<RoleServer>,
-    ) -> Result<Vec<Resource>, McpError> {
+    ) -> Result<Listing<Resource>, McpError> {
         let identity = require_any_scope(context, WELL_KNOWN_SCOPES)?;
-        Ok(discoverable_resources(
+        Ok(Listing::all(discoverable_resources(
             ResourceDiscoveryAccess::from_identity(&identity),
             &self.state.workspace_basemap,
-        ))
+        )))
     }
 
     /// Knowledge pages and members follow current authority, so no read of them

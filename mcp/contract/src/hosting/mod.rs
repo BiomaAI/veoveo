@@ -31,6 +31,7 @@ mod auth;
 mod catalog;
 mod domain;
 mod host;
+mod listing;
 mod results;
 mod server;
 mod subscriptions;
@@ -40,13 +41,14 @@ pub mod testing;
 mod tests;
 
 pub use auth::{ForwardedBearer, forwarded_bearer, gateway_identity, plane_caller};
-pub use catalog::CATALOG_PAGE_SIZE;
 pub use domain::{
     DomainAddress, DomainRead, DomainServer, Hosted, NoTasks, ReadCache, TaskSupport,
     served_by_host, unknown_prompt,
 };
+pub use listing::{CATALOG_PAGE_SIZE, Listing};
 pub use results::{completion, json_read, product_result, rank_completions, structured_result};
 pub use server::{Deployment, HostedServer, HostedServerBuilder, Missing, Provided};
 pub use subscriptions::{
-    ResourceSubscriptions, ResourcesOnly, admit_resource_subscriptions, requested_addresses,
+    ListenOnly, ResourceSubscriptions, ResourcesOnly, SubscriptionListener,
+    admit_resource_subscriptions, requested_addresses,
 };
