@@ -5,6 +5,7 @@
 //! against durable state. Native changefeeds record committed Task transitions.
 
 mod admission;
+pub mod hosting;
 mod leases;
 mod mcp;
 mod provider_resume;
@@ -15,6 +16,7 @@ mod runtime;
 mod service;
 mod types;
 
+pub use hosting::DurableTasks;
 pub use mcp::{project_snapshot, task_seed};
 pub use provider_transaction::ProviderCommit;
 pub use resource_subscriptions::{

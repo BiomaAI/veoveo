@@ -28,6 +28,11 @@ use crate::{
 pub struct ForwardedBearer(String);
 
 impl ForwardedBearer {
+    /// Wraps a bearer the middleware did not produce, such as a test fixture.
+    pub fn new(token: impl Into<String>) -> Self {
+        Self(token.into())
+    }
+
     pub fn as_str(&self) -> &str {
         &self.0
     }
