@@ -194,7 +194,7 @@ impl DomainServer for RecordingMcp {
         {
             return Ok(CompleteResult::default());
         }
-        let identity = gateway_gateway_identity(&context)?;
+        let identity = gateway_identity(&context)?;
         let mut values = self
             .state
             .recordings

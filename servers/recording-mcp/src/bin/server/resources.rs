@@ -1,8 +1,5 @@
 use super::{mcp::internal, state::AppState};
-use rmcp::{
-    ErrorData as McpError,
-    model::{ReadResourceResult, ResourceContents},
-};
+use rmcp::{ErrorData as McpError, model::ReadResourceResult};
 use veoveo_mcp_contract::{
     GatewayInternalIdentity,
     hosting::{json_read, served_by_host},
