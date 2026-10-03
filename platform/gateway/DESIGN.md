@@ -10,6 +10,7 @@
 | Resource addresses | Repository-owned server schemes and `ui://` App routes validated through foundational URI types; installation manifests select identity or server-owned projection |
 | Gateway catalog cursor | Veoveo opaque version 1: base64url JSON with a typed surface and exclusive last identity; up to 16 KiB; internal to Gateway list pagination |
 | Installation authority | Typed server manifests, profile exposure and policy from the MCP gateway contract; [authentication](src/auth/DESIGN.md) resolves request identity |
+| Administrative HTTP | RFC 9110 request methods and response status; gateway-authenticated proxy routes with bounded request and response bodies |
 
 ## Ownership
 
@@ -145,6 +146,16 @@ on reconnect.
 Indexing reads currently commit ordinary per-read audit records. Five-minute collection
 aggregation and installation of the indexing client are pending with the hosted
 Knowledge coordinator in the [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#phase-8-knowledge-service).
+
+## Administrative HTTP Routes
+
+The authenticated `/admin/{profile}/servers/{server}/{path}` proxy resolves the
+upstream admin route beside the registered MCP endpoint. An upstream at `/mcp`
+serves `/admin/{path}`; one at `/frames/mcp` serves `/frames/admin/{path}`.
+The public mount does not determine the internal route. The URL library appends
+validated path segments and preserves the request query. An endpoint that does
+not end in `/mcp` fails with a configuration diagnostic. Profile policy and audit
+admission still run before forwarding.
 
 ## Qualification
 

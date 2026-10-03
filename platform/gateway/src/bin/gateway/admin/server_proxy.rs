@@ -89,13 +89,14 @@ pub(crate) async fn proxy_server_admin(
         Ok(token) => token,
         Err(error) => return internal_error_response(error),
     };
-    let mut upstream_url = match url::Url::parse(server_manifest.upstream.url.as_str()) {
+    let upstream_url = match upstream_admin_url(
+        server_manifest.upstream.url.as_str(),
+        &path,
+        request.uri().query(),
+    ) {
         Ok(url) => url,
         Err(error) => return internal_error_response(error),
     };
-    let mount = server_manifest.mount_path.as_str().trim_end_matches('/');
-    upstream_url.set_path(&format!("{mount}/admin/{path}"));
-    upstream_url.set_query(request.uri().query());
 
     let method = request.method().clone();
     let request_headers = request.headers().clone();
@@ -185,6 +186,26 @@ pub(crate) async fn proxy_server_admin(
     response
 }
 
+/// Admin and MCP routes share the upstream mount, independent of its public mount.
+fn upstream_admin_url(endpoint: &str, path: &str, query: Option<&str>) -> anyhow::Result<url::Url> {
+    anyhow::ensure!(valid_admin_path(path), "invalid server admin path");
+    let mut url = url::Url::parse(endpoint)?;
+    anyhow::ensure!(
+        url.path_segments()
+            .and_then(|mut segments| segments.next_back())
+            == Some("mcp"),
+        "server admin proxy requires an upstream MCP endpoint ending in /mcp"
+    );
+    url.path_segments_mut()
+        .map_err(|_| anyhow::anyhow!("server admin upstream must have a hierarchical URL"))?
+        .pop()
+        .push("admin")
+        .extend(path.split('/'));
+    url.set_query(query);
+    url.set_fragment(None);
+    Ok(url)
+}
+
 fn valid_admin_path(path: &str) -> bool {
     !path.is_empty() && path.len() <= 2_048 && path.split('/').all(valid_admin_path_segment)
 }
@@ -253,7 +274,31 @@ async fn record_result(
 
 #[cfg(test)]
 mod tests {
-    use super::valid_admin_path;
+    use super::{upstream_admin_url, valid_admin_path};
+
+    #[test]
+    fn admin_routes_follow_the_internal_mount_including_root() {
+        for (endpoint, expected) in [
+            (
+                "http://recording:8796/mcp",
+                "http://recording:8796/admin/docs/llms.txt",
+            ),
+            (
+                "http://frames:8783/frames/mcp",
+                "http://frames:8783/frames/admin/docs/llms.txt",
+            ),
+            (
+                "https://internal.example/services/custom/mcp",
+                "https://internal.example/services/custom/admin/docs/llms.txt",
+            ),
+        ] {
+            let url = upstream_admin_url(endpoint, "docs/llms.txt", Some("cursor=a%2Fb&limit=10"))
+                .unwrap();
+            assert_eq!(url.as_str(), format!("{expected}?cursor=a%2Fb&limit=10"));
+        }
+        assert!(upstream_admin_url("http://server/custom", "docs/agents", None).is_err());
+        assert!(upstream_admin_url("http://server/mcp", "../secrets", None).is_err());
+    }
 
     #[test]
     fn admin_path_rejects_traversal_and_encoded_punctuation() {
