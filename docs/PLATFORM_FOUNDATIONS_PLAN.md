@@ -39,8 +39,7 @@ and do not override this status or the requirements below.
    restart requirements, including UAV outcome recovery and the Computers installed
    batch. Native checks do not substitute for those installed cases.
 4. Move every Rust server onto the shared host, as
-   [Hosted Server Adoption](#hosted-server-adoption) describes. DuckDB is migrated; its Docker-backed native Store recovery case still needs a
-   run on a host with Docker.
+   [Hosted Server Adoption](#hosted-server-adoption) describes. DuckDB is migrated, and its full suite passes, including native Store recovery.
 5. Resolve [Deferred Work](#deferred-work): Rerun timeline/playback/timing and landing
    visual acceptance. Keep the declared hardware, freshness and flight-health gates.
 6. Audit every phase's numbered requirements and acceptance conditions against the
