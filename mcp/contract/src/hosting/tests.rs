@@ -275,6 +275,26 @@ async fn health_and_readiness_need_no_authentication() {
 }
 
 #[tokio::test]
+async fn liveness_and_readiness_report_their_checks() {
+    let gateway = TestGateway::new(
+        testing::for_domain::<FixtureDomain>()
+            .handler(|| Hosted::new(FixtureDomain::new()))
+            .liveness(|| async { false })
+            .readiness(|| async { false })
+            .build(),
+    );
+    for (path, body) in [("/healthz", "not alive"), ("/readyz", "not ready")] {
+        let (status, text) = gateway
+            .send(gateway.request(path).body(Body::empty()).unwrap())
+            .await;
+        assert_eq!(
+            (status, text.as_str()),
+            (StatusCode::SERVICE_UNAVAILABLE, body)
+        );
+    }
+}
+
+#[tokio::test]
 async fn hosts_are_validated_before_routing() {
     let gateway = gateway();
     let (status, _) = gateway

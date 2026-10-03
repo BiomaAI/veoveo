@@ -16,7 +16,7 @@
 //!
 //! | Route | Authentication | Purpose |
 //! |---|---|---|
-//! | `{mount}/healthz` | none | liveness |
+//! | `{mount}/healthz` | none | liveness, from a check when one is configured |
 //! | `{mount}/readyz` | none | readiness, when a check is configured |
 //! | `{mount}/admin/docs/llms.txt`, `{mount}/admin/docs/{doc_id}` | gateway | embedded documents (C20, C21) |
 //! | `{mount}/mcp` | gateway | stateless Streamable HTTP with the 8 MiB response budget |
@@ -95,7 +95,7 @@ pub struct Deployment {
     allowed_hosts: Vec<String>,
 }
 
-type Readiness = Arc<dyn Fn() -> futures::future::BoxFuture<'static, bool> + Send + Sync>;
+type Probe = Arc<dyn Fn() -> futures::future::BoxFuture<'static, bool> + Send + Sync>;
 
 /// Builds a [`HostedServer`] for the domain `D`. See the [module
 /// documentation](crate::hosting).
@@ -108,7 +108,8 @@ pub struct HostedServerBuilder<D: DomainServer, Dep, Trust, H> {
     authenticated_routes: Router,
     admin_routes: Router,
     public_routes: Router,
-    readiness: Option<Readiness>,
+    liveness: Option<Probe>,
+    readiness: Option<Probe>,
 }
 
 /// A hosted MCP server, ready to serve.
@@ -132,6 +133,7 @@ impl HostedServer {
             authenticated_routes: Router::new(),
             admin_routes: Router::new(),
             public_routes: Router::new(),
+            liveness: None,
             readiness: None,
         }
     }
@@ -223,6 +225,7 @@ impl<D: DomainServer, Dep, Trust, H> HostedServerBuilder<D, Dep, Trust, H> {
             authenticated_routes: self.authenticated_routes,
             admin_routes: self.admin_routes,
             public_routes: self.public_routes,
+            liveness: self.liveness,
             readiness: self.readiness,
         })
     }
@@ -247,6 +250,7 @@ impl<D: DomainServer, Dep, Trust, H> HostedServerBuilder<D, Dep, Trust, H> {
             authenticated_routes: self.authenticated_routes,
             admin_routes: self.admin_routes,
             public_routes: self.public_routes,
+            liveness: self.liveness,
             readiness: self.readiness,
         })
     }
@@ -267,6 +271,7 @@ impl<D: DomainServer, Dep, Trust, H> HostedServerBuilder<D, Dep, Trust, H> {
             authenticated_routes: self.authenticated_routes,
             admin_routes: self.admin_routes,
             public_routes: self.public_routes,
+            liveness: self.liveness,
             readiness: self.readiness,
         }
     }
@@ -296,6 +301,18 @@ impl<D: DomainServer, Dep, Trust, H> HostedServerBuilder<D, Dep, Trust, H> {
     /// as signed provider webhooks, or that serve no caller data.
     pub fn public_routes(mut self, routes: Router) -> Self {
         self.public_routes = self.public_routes.merge(routes);
+        self
+    }
+
+    /// Makes `{mount}/healthz` report `check`: 200 while it reports alive, 503
+    /// otherwise. Use it only for a failure a restart repairs, such as a dead
+    /// worker process; without a check, `healthz` reports the process alive.
+    pub fn liveness<F, Fut>(mut self, check: F) -> Self
+    where
+        F: Fn() -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = bool> + Send + 'static,
+    {
+        self.liveness = Some(Arc::new(move || Box::pin(check())));
         self
     }
 
@@ -360,25 +377,13 @@ where
         let authenticated = self.authenticated_routes.layer(authenticate());
 
         let mut server = Router::new()
-            .route("/healthz", get(|| async { "ok" }))
+            .route("/healthz", get(probe(self.liveness, "ok", "not alive")))
             .nest("/admin", admin)
             .nest("/mcp", mcp)
             .merge(authenticated)
             .merge(self.public_routes);
         if let Some(readiness) = self.readiness {
-            server = server.route(
-                "/readyz",
-                get(move || {
-                    let readiness = readiness.clone();
-                    async move {
-                        if readiness().await {
-                            (StatusCode::OK, "ready").into_response()
-                        } else {
-                            (StatusCode::SERVICE_UNAVAILABLE, "not ready").into_response()
-                        }
-                    }
-                }),
-            );
+            server = server.route("/readyz", get(probe(Some(readiness), "ready", "not ready")));
         }
         let router = Router::new()
             .nest(endpoint.mount_path(), server)
@@ -399,5 +404,25 @@ where
             endpoint,
             cancel,
         }
+    }
+}
+
+/// A probe handler: `pass` with 200 while `check` holds, or without a check.
+fn probe(
+    check: Option<Probe>,
+    pass: &'static str,
+    fail: &'static str,
+) -> impl Fn() -> futures::future::BoxFuture<'static, axum::response::Response> + Clone + Send + 'static
+{
+    move || {
+        let check = check.clone();
+        Box::pin(async move {
+            match check {
+                Some(check) if !check().await => {
+                    (StatusCode::SERVICE_UNAVAILABLE, fail).into_response()
+                }
+                _ => (StatusCode::OK, pass).into_response(),
+            }
+        })
     }
 }

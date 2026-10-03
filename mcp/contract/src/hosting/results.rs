@@ -20,7 +20,10 @@ fn serialize<T: Serialize + ?Sized>(value: &T) -> Result<serde_json::Value, Erro
 }
 
 /// A JSON resource body for `uri`.
-pub fn json_read<T: Serialize + ?Sized>(uri: &str, value: &T) -> Result<ReadResourceResult, ErrorData> {
+pub fn json_read<T: Serialize + ?Sized>(
+    uri: &str,
+    value: &T,
+) -> Result<ReadResourceResult, ErrorData> {
     let text = serde_json::to_string(value)
         .map_err(|_| ErrorData::internal_error("resource serialization failed", None))?;
     Ok(ReadResourceResult::new(vec![
