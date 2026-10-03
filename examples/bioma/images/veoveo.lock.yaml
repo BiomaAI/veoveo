@@ -4,7 +4,7 @@ global:
   imageDigests:
     veoveo/computer-host: sha256:23be8c337356bb521a222ddf8566c9694a907d5db0946b7cc18d544fd1cfb41d
     veoveo/computer-template: sha256:cb4b086519e572c6e26cd15cb4cc1b2878e181b059ec3cac55ee9bf387bd73e4
-    veoveo/computers-mcp: sha256:63066616a41cddc7291c2bf27139e10d1c065c2cd911618f5eef3396792f3a9d
+    veoveo/computers-mcp: sha256:8fe5b6563cbc6cc6507eb9e2ea76d5ab91b3ae1f58862a09597c9dcdcceda041
     veoveo/artifact-mcp: sha256:a4a49d22ffdcf9275777191f37423730be322d051fb3040e1d71fed18336fec4
     veoveo/artifact-service: sha256:e47dd99fd5ad7ff58707ce54ccc7c0586cd19bf95ca797e4e53250345b885343
     veoveo/chart-mcp: sha256:d247dde769d1c633ecc47282f3f34741556cb62885468a861c79b3e02188f321
@@ -13,7 +13,7 @@ global:
     veoveo/datasheet-mcp: sha256:f93c39200c511931e30408204143caf907554df4d458fc3865e417460d050bf6
     veoveo/duckdb-mcp: sha256:118ab6c125e31074d790a1705dceab1577394862afba8a64969985344a3e19d5
     veoveo/frames-mcp: sha256:8ccee2e471931e62d5777ca3d2584bb009dd1976ecfadfcb0e2b393a937c1af2
-    veoveo/map-mcp: sha256:9de031103add825b08eacce25a232aa6d5cfdf21d4701a104850a5da6b5975b2
+    veoveo/map-mcp: sha256:7781b63d4f91017d467269b9ce549fecfe2ce1562d283c84c221e1a2b3c23146
     veoveo/mcp-gateway: sha256:d3a116c7b331a69a2127da1235ad4bd80571a3645cdbe8871b3110e83a6541be
     veoveo/mcp-legacy-bridge: sha256:427d69a80e80016039e532c99fb3b73c40e20937e863a47319e589d79abeac47
     veoveo/media-mcp: sha256:6239b4d17060ea56414b310d55dc89e22e7cf76436a4a1db15b529e377e9ee58
@@ -28,4 +28,4 @@ global:
     veoveo/agent-kernel: sha256:cb7f0899430845d7d4f631d5475d44407536ca0f965ec5a7c8ceafdd336a1d37
     veoveo/agent-manager: sha256:5bcc97190c421f25af0507858c94a4fb4b0c7e9d10792767e41582e4b5d79e62
     veoveo/speech-mcp: sha256:73319dcfdab38526c6df2d08f914989247c4c4dc16c7f4cde201f6e6ca8264cd
-    veoveo/knowledge-mcp: sha256:f5457ee3ea48515f534d4a2c2c700d065a7749ce26982cca61beeac8fb149bd6
+    veoveo/knowledge-mcp: sha256:ee194febb92ee547f21bbe347151a4b025c2e296e913f5c53a5290be723820fd
