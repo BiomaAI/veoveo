@@ -288,7 +288,7 @@
         "resource_templates": true,
         "resource_subscriptions": false,
         "prompts": false,
-        "completions": false,
+        "completions": true,
         "tasks": true,
         "resources_list_changed": false,
         "apps": true
@@ -321,7 +321,7 @@
         "resource_templates": true,
         "resource_subscriptions": false,
         "prompts": false,
-        "completions": false,
+        "completions": true,
         "tasks": true,
         "resources_list_changed": false,
         "apps": true
@@ -1230,7 +1230,7 @@
           "prompts": {
             "mode": "none"
           },
-          "completions": "disabled",
+          "completions": "enabled",
           "tasks": "enabled"
         },
         {
@@ -1260,7 +1260,7 @@
           "prompts": {
             "mode": "none"
           },
-          "completions": "disabled",
+          "completions": "enabled",
           "tasks": "enabled"
         },
         {
@@ -2046,7 +2046,7 @@
           "prompts": {
             "mode": "none"
           },
-          "completions": "disabled",
+          "completions": "enabled",
           "tasks": "enabled"
         },
         {
@@ -2076,7 +2076,7 @@
           "prompts": {
             "mode": "none"
           },
-          "completions": "disabled",
+          "completions": "enabled",
           "tasks": "enabled"
         },
         {
@@ -2646,7 +2646,7 @@
           "prompts": {
             "mode": "none"
           },
-          "completions": "disabled",
+          "completions": "enabled",
           "tasks": "enabled"
         },
         {
@@ -2676,7 +2676,7 @@
           "prompts": {
             "mode": "none"
           },
-          "completions": "disabled",
+          "completions": "enabled",
           "tasks": "enabled"
         },
         {

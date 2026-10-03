@@ -99,6 +99,7 @@ impl McpServerContract for FixtureContract {
             ServerCapabilities::builder()
                 .enable_tools()
                 .enable_resources()
+                .enable_completions()
                 .build(),
         );
         config.server_info = rmcp::model::Implementation::new("fixture", "1");

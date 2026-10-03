@@ -138,6 +138,10 @@ impl<C: McpServerContract> McpServerSetup<C> {
         if info.capabilities.resources.is_none() {
             return Err(McpSetupError::MissingResourcesCapability);
         }
+        // Every server declares the docs member template, whose `doc_id` completes.
+        if info.capabilities.completions.is_none() {
+            return Err(McpSetupError::MissingCompletionsCapability);
+        }
         let mut scopes = BTreeSet::new();
         for scope in C::scopes() {
             if !scopes.insert(scope.name().clone()) {
@@ -308,6 +312,7 @@ fn well_known_builder(
 pub enum McpSetupError {
     IdentityMismatch,
     MissingResourcesCapability,
+    MissingCompletionsCapability,
     InvalidResource,
     ResourceRoundTrip,
     DescriptorAddressMismatch,
@@ -330,6 +335,9 @@ impl fmt::Display for McpSetupError {
                 "server slug, implementation name and document owner must agree"
             }
             Self::MissingResourcesCapability => "hosted server setup requires resource capability",
+            Self::MissingCompletionsCapability => {
+                "hosted server setup requires completion capability for document ids"
+            }
             Self::InvalidResource => "resource address must build and parse as a concrete URI",
             Self::ResourceRoundTrip => {
                 "resource address does not round-trip through its owning parser"

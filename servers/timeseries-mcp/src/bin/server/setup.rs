@@ -133,6 +133,7 @@ fn server_info() -> ServerConfig {
     let mut caps: ServerCapabilities = ServerCapabilities::builder()
         .enable_tools()
         .enable_resources()
+        .enable_completions()
         .build();
     veoveo_mcp_apps_extension::extend_capabilities(&mut caps);
     caps.extensions.get_or_insert_default().insert(

@@ -147,7 +147,7 @@ fn replace_media_server_with_duckdb(
             "resource_templates": true,
             "resource_subscriptions": false,
             "prompts": false,
-            "completions": false,
+            "completions": true,
             "tasks": true,
             "resources_list_changed": true
         },
@@ -172,7 +172,7 @@ fn configure_profiles_for_duckdb(control_plane: &mut Value) -> Result<()> {
                 "items": [{ "kind": "scheme", "scheme": "duckdb" }]
             },
             "prompts": { "mode": "none" },
-            "completions": "disabled",
+            "completions": "enabled",
             "tasks": "enabled"
         }]);
     }

@@ -76,6 +76,7 @@ const EMPTY_SCOPES: u8 = 10;
 const BAD_TEMPLATE: u8 = 11;
 const DUPLICATE_TEMPLATE: u8 = 12;
 const EMPTY_DOCUMENT_BODY: u8 = 13;
+const NO_COMPLETIONS: u8 = 14;
 struct Fixture<const CASE: u8>;
 
 impl<const CASE: u8> McpServerContract for Fixture<CASE> {
@@ -113,9 +114,14 @@ impl<const CASE: u8> McpServerContract for Fixture<CASE> {
             },
             "1.0.0",
         );
-        if CASE != NO_RESOURCES {
-            config.capabilities = ServerCapabilities::builder().enable_resources().build();
-        }
+        config.capabilities = match CASE {
+            NO_RESOURCES => ServerCapabilities::builder().enable_completions().build(),
+            NO_COMPLETIONS => ServerCapabilities::builder().enable_resources().build(),
+            _ => ServerCapabilities::builder()
+                .enable_resources()
+                .enable_completions()
+                .build(),
+        };
         config
     }
     fn resources() -> Result<Vec<McpResource<Address>>, McpSetupError> {
@@ -245,6 +251,7 @@ fn inconsistent_server_identity_and_missing_capability_fail_before_serving() {
     rejects::<WRONG_NAME>(McpSetupError::IdentityMismatch);
     rejects::<WRONG_OWNER>(McpSetupError::IdentityMismatch);
     rejects::<NO_RESOURCES>(McpSetupError::MissingResourcesCapability);
+    rejects::<NO_COMPLETIONS>(McpSetupError::MissingCompletionsCapability);
 }
 
 #[test]

@@ -4,9 +4,10 @@ use crate::contract::{
 use rmcp::{
     ErrorData, RoleServer, ServerHandler,
     model::{
-        Implementation, ListResourceTemplatesResult, ListResourcesResult, PaginatedRequestParams,
-        ReadResourceRequestParams, ReadResourceResponse, ReadResourceResult, Resource,
-        ResourceContents, ResourceTemplate, ServerCapabilities, ServerConfig,
+        CompleteRequestParams, CompleteResult, Implementation, ListResourceTemplatesResult,
+        ListResourcesResult, PaginatedRequestParams, ReadResourceRequestParams,
+        ReadResourceResponse, ReadResourceResult, Reference, Resource, ResourceContents,
+        ResourceTemplate, ServerCapabilities, ServerConfig,
     },
     service::RequestContext,
 };
@@ -14,6 +15,7 @@ use std::{collections::BTreeSet, sync::LazyLock};
 use veoveo_mcp_contract::{
     ServerSlug,
     docs::ServerDocs,
+    hosting::{completion, rank_completions},
     server_contract::{
         McpResource, McpResourceTemplate, McpServerContract, McpServerSetup, McpSetupError,
     },
@@ -44,7 +46,10 @@ impl McpServerContract for ObservatoryContract {
     fn server_config() -> ServerConfig {
         let mut info = ServerConfig::default();
         info.server_info = Implementation::new("observatory", env!("CARGO_PKG_VERSION"));
-        info.capabilities = ServerCapabilities::builder().enable_resources().build();
+        info.capabilities = ServerCapabilities::builder()
+            .enable_resources()
+            .enable_completions()
+            .build();
         info
     }
     fn resources() -> Result<Vec<McpResource<ObservatoryResource>>, McpSetupError> {
@@ -117,6 +122,26 @@ fn authorize(context: &RequestContext<RoleServer>) -> Result<(), ErrorData> {
 impl ServerHandler for ObservatoryMcp {
     fn get_info(&self) -> ServerConfig {
         SETUP.server_config().clone()
+    }
+    async fn complete(
+        &self,
+        request: CompleteRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CompleteResult, ErrorData> {
+        authorize(&context)?;
+        let Reference::Resource(reference) = &request.r#ref else {
+            return Ok(CompleteResult::default());
+        };
+        let template = veoveo_mcp_contract::docs::knowledge_extension::docs::member_template(
+            &ObservatoryContract::scheme(),
+        );
+        if reference.uri != template.as_str() || request.argument.name != "doc_id" {
+            return Ok(CompleteResult::default());
+        }
+        completion(rank_completions(
+            SETUP.documents().iter().map(|doc| doc.id),
+            &request.argument.value,
+        ))
     }
     async fn list_resources(
         &self,

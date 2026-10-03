@@ -125,7 +125,7 @@ async fn qualify() -> anyhow::Result<()> {
             resources: SurfaceExpectation::Required,
             resource_templates: SurfaceExpectation::Required,
             prompts: SurfaceExpectation::Forbidden,
-            completions: SurfaceExpectation::Forbidden,
+            completions: SurfaceExpectation::Required,
             tasks: SurfaceExpectation::Forbidden,
             subscriptions: SurfaceExpectation::Forbidden,
             required_tools: BTreeSet::new(),

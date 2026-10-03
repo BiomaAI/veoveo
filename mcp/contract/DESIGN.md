@@ -445,7 +445,9 @@ supplies three things:
 
 1. **A checked setup.** Implement `McpServerContract` with the server's scope enum,
    typed resource address, documents and resource declarations, and force its
-   `McpServerSetup` before Store or engine initialization.
+   `McpServerSetup` before Store or engine initialization. The setup must declare
+   the resources and completions capabilities, because every server serves the docs
+   member template and completes its `doc_id`; startup fails without them.
 2. **A domain.** Implement `DomainServer`: `tool_router` for the tools,
    `describe_tool` to adjust descriptors such as App links, and `read` for one
    admitted address. `prompts`, `get_prompt` and `complete` are optional; their
