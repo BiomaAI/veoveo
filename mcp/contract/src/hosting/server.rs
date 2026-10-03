@@ -98,7 +98,7 @@ pub struct Deployment {
 type Readiness = Arc<dyn Fn() -> futures::future::BoxFuture<'static, bool> + Send + Sync>;
 
 /// Builds a [`HostedServer`] for the domain `D`. See the [module
-/// documentation](self).
+/// documentation](crate::hosting).
 pub struct HostedServerBuilder<D: DomainServer, Dep, Trust, H> {
     domain: std::marker::PhantomData<fn() -> D>,
     deployment: Dep,
