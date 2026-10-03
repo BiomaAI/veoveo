@@ -99,7 +99,7 @@ chacha20poly1305 = { version = "=0.11.0", features = ["alloc", "getrandom", "ran
 chrono = { version = "0.4.45", default-features = false, features = ["serde", "clock"] }
 clap = { version = "4.6.6", features = ["derive", "env"] }
 dotenvy = "0.15.7"
-draco-gltf = { version = "0.2.0", default-features = false, features = ["full"] }
+draco-gltf = { version = "0.4.1", default-features = false, features = ["full"] }
 flate2 = "1.1.9"
 # Rust adapter 1.10505.0 with compatible comfy-table and download-version patches.
 # Core/Spatial 1.5.6 qualification and fork retirement: platform/runtimes/duckdb/DESIGN.md.
