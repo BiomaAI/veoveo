@@ -14,36 +14,33 @@ use std::{
 };
 use veoveo_types::TaskTypeDefinition;
 
-use axum::{Router, middleware, routing::get};
 use chrono::{TimeDelta, Utc};
 use clap::Parser;
 use rmcp::tool;
 use rmcp::{
-    ErrorData as McpError, RoleServer, ServerHandler,
+    ErrorData as McpError, RoleServer,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
-    model::{
-        CallToolRequestParams, CallToolResponse, CallToolResult, CancelTaskParams, ContentBlock,
-        GetTaskParams, GetTaskResult, ListResourceTemplatesResult, ListResourcesResult,
-        ListToolsResult, PaginatedRequestParams, ReadResourceRequestParams, ServerConfig,
-        SubscriptionFilter, UpdateTaskParams,
-    },
-    service::{RequestContext, SubscriptionContext},
-    tool_handler, tool_router,
-    transport::streamable_http_server::StreamableHttpService,
+    model::{CallToolResult, ContentBlock, ReadResourceRequestParams, Tool},
+    service::RequestContext,
+    tool_router,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
-use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_duckdb_runtime::HttpsSourcePolicy;
 use veoveo_mcp_contract::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
-    IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, Page, ServerSlug,
-    TelemetryGuard, TokenIssuer, init_server_telemetry, paginate, public_allowed_hosts,
+    GatewayInternalTrustBundle, IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability,
+    TelemetryGuard,
+    hosting::{
+        DomainAddress, DomainRead, DomainServer, Hosted, HostedServer, gateway_identity,
+        plane_caller,
+    },
+    init_server_telemetry,
+    server_contract::McpServerSetup,
 };
 use veoveo_task_runtime::{
-    CreateTask as DurableCreateTask, RecoveryClass, TaskError, TaskFailure, TaskPayloadState,
-    TaskRuntime, TaskRuntimeConfig, TaskSnapshot, TaskTransition,
+    CreateTask as DurableCreateTask, DurableTasks, RecoveryClass, TaskError, TaskFailure,
+    TaskPayloadState, TaskRuntime, TaskRuntimeConfig, TaskSnapshot, TaskTransition,
 };
 use veoveo_timeseries_mcp::{
     artifacts::ArtifactRepository,
@@ -53,16 +50,10 @@ use veoveo_timeseries_mcp::{
 };
 use veoveo_types::TaskId;
 
-#[path = "server/admin.rs"]
-mod admin;
 #[path = "server/app_state.rs"]
 mod app_state;
 #[path = "server/config.rs"]
 mod config;
-#[path = "server/host.rs"]
-mod host;
-#[path = "server/internal_auth.rs"]
-mod internal_auth;
 #[path = "server/outputs.rs"]
 mod outputs;
 #[path = "server/ownership.rs"]
@@ -76,14 +67,11 @@ mod task_extension;
 
 use app_state::{AppState, update_task};
 use config::Args;
-use host::validate_host;
-use internal_auth::{InternalMcpAuthState, authenticate_internal_mcp};
 use outputs::forecast_result;
-use ownership::{
-    internal_caller, internal_identity, runtime_owner, task_owner_from_identity,
-    task_owner_from_runtime,
-};
-use setup::{SERVER_DOCS, SERVER_SETUP};
+use ownership::{runtime_owner, task_owner_from_identity, task_owner_from_runtime};
+#[cfg(test)]
+use setup::SERVER_DOCS;
+use setup::{SERVER_SETUP, TimeseriesContract};
 use task_extension::TimeseriesTaskService;
 
 const MCP_TASK_POLL_INTERVAL_MS: u64 = 3000;
@@ -92,8 +80,6 @@ const TASK_LEASE_DURATION: Duration = Duration::from_secs(120);
 const TASK_LEASE_HEARTBEAT: Duration = Duration::from_secs(40);
 const ARTIFACT_CAPABILITY_TTL: TimeDelta = TimeDelta::hours(24);
 const SERVER_SLUG: &str = "timeseries";
-const LIST_PAGE_SIZE: usize = 100;
-const TASK_RETENTION_PIN_META_KEY: &str = "ai.veoveo/task-retention-pin";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct ForecastTaskRequest {
@@ -105,20 +91,17 @@ fn install_rustls_provider() {
     let _ = rustls::crypto::ring::default_provider().install_default();
 }
 
+/// Timeseries's domain: the forecast tool and admitted resource reads.
 #[derive(Clone)]
 struct TimeseriesMcp {
     state: Arc<AppState>,
-    task_service: TimeseriesTaskService,
-    #[allow(dead_code)]
     tool_router: ToolRouter<TimeseriesMcp>,
 }
 
 #[tool_router]
 impl TimeseriesMcp {
     fn new(state: Arc<AppState>) -> Self {
-        LazyLock::force(&SERVER_SETUP);
         Self {
-            task_service: TimeseriesTaskService::new(state.clone()),
             state,
             tool_router: Self::tool_router(),
         }
@@ -140,8 +123,8 @@ impl TimeseriesMcp {
         Parameters(args): Parameters<TimeseriesForecastRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let caller = internal_caller(&context)?;
-        let identity = internal_identity(&context)?;
+        let caller = plane_caller(&context)?;
+        let identity = gateway_identity(&context)?;
         let snapshot = start_forecast_task(
             self.state.clone(),
             identity,
@@ -191,176 +174,40 @@ impl TimeseriesMcp {
     }
 }
 
-fn mcp_page<T>(
-    items: Vec<T>,
-    request: Option<&PaginatedRequestParams>,
-) -> Result<Page<T>, McpError> {
-    paginate(items, request, LIST_PAGE_SIZE)
-        .map_err(|err| McpError::invalid_params(err.to_string(), None))
-}
+impl DomainServer for TimeseriesMcp {
+    type Contract = TimeseriesContract;
 
-#[tool_handler]
-impl ServerHandler for TimeseriesMcp {
-    fn supported_protocol_versions(
-        &self,
-    ) -> std::borrow::Cow<'static, [rmcp::model::ProtocolVersion]> {
-        veoveo_mcp_contract::final_protocol_versions()
+    fn setup() -> &'static McpServerSetup<TimeseriesContract> {
+        &SERVER_SETUP
     }
 
-    fn get_info(&self) -> ServerConfig {
-        SERVER_SETUP.server_config().clone()
+    fn tool_router(&self) -> &ToolRouter<Self> {
+        &self.tool_router
     }
 
-    async fn call_tool(
-        &self,
-        request: CallToolRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<CallToolResponse, McpError> {
-        if context
-            .meta
-            .client_capabilities()
-            .is_some_and(|capabilities| capabilities.supports_tasks())
-            && let Some(created) = self
-                .task_service
-                .start_tool_task(&request, &context)
-                .await?
-        {
-            return Ok(created.into());
+    fn describe_tool(&self, tool: Tool) -> Tool {
+        if tool.name != "forecast" {
+            return tool;
         }
-        let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
-        self.tool_router.call(call).await
+        veoveo_mcp_apps_extension::link_tool_to_app(
+            tool,
+            uris::FORECAST_APP_URI,
+            &[
+                veoveo_mcp_apps_extension::UiVisibility::Model,
+                veoveo_mcp_apps_extension::UiVisibility::App,
+            ],
+        )
     }
 
-    async fn get_task(
+    async fn read(
         &self,
-        request: GetTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<GetTaskResult, McpError> {
-        self.task_service.get_task(request, &context).await
-    }
-
-    async fn update_task(
-        &self,
-        request: UpdateTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        self.task_service.update_task(request, &context).await
-    }
-
-    async fn cancel_task(
-        &self,
-        request: CancelTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        self.task_service
-            .cancel_task(&request.task_id, &context)
+        address: DomainAddress<TimeseriesContract>,
+        request: &ReadResourceRequestParams,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<DomainRead, McpError> {
+        self.read_timeseries_resource(address, &request.uri, context)
             .await
-    }
-
-    fn accepted_subscription_filter(
-        &self,
-        requested: &SubscriptionFilter,
-    ) -> Option<SubscriptionFilter> {
-        veoveo_mcp_contract::accepted_task_subscription_filter(requested)
-    }
-
-    async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
-        veoveo_task_runtime::listen_durable_subscriptions(&self.task_service, context, None, None)
-            .await
-    }
-
-    async fn list_tools(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListToolsResult, McpError> {
-        let mut tools = self.tool_router.list_all();
-        tools.sort_by(|left, right| left.name.cmp(&right.name));
-        // The #[tool] macro has no meta attribute; the app link is attached
-        // to the listed tool here.
-        tools = tools
-            .into_iter()
-            .map(|tool| {
-                if tool.name == "forecast" {
-                    veoveo_mcp_apps_extension::link_tool_to_app(
-                        tool,
-                        uris::FORECAST_APP_URI,
-                        &[
-                            veoveo_mcp_apps_extension::UiVisibility::Model,
-                            veoveo_mcp_apps_extension::UiVisibility::App,
-                        ],
-                    )
-                } else {
-                    tool
-                }
-            })
-            .collect();
-        let page = mcp_page(tools, request.as_ref())?;
-        Ok(ListToolsResult {
-            tools: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
-    }
-
-    async fn list_resources(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListResourcesResult, McpError> {
-        let page = mcp_page(
-            SERVER_SETUP
-                .resources()
-                .iter()
-                .map(|resource| resource.descriptor().clone())
-                .collect(),
-            request.as_ref(),
-        )?;
-        Ok(ListResourcesResult {
-            resources: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
-    }
-
-    async fn list_resource_templates(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListResourceTemplatesResult, McpError> {
-        let page = mcp_page(
-            SERVER_SETUP
-                .resource_templates()
-                .iter()
-                .map(|template| template.descriptor().clone())
-                .collect(),
-            request.as_ref(),
-        )?;
-        Ok(ListResourceTemplatesResult {
-            resource_templates: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
-    }
-
-    async fn read_resource(
-        &self,
-        request: ReadResourceRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
-        if let Some(result) = SERVER_SETUP.read_documents(&request, &context)? {
-            return Ok(result);
-        }
-        self.read_timeseries_resource(request, context).await
+            .map(DomainRead::private)
     }
 }
 
@@ -580,12 +427,6 @@ async fn main() -> anyhow::Result<()> {
         init_server_telemetry("veoveo-timeseries-mcp", "info,veoveo_timeseries_mcp=debug")?;
     let args = Args::parse();
     let public_deployment = args.public_deployment()?;
-    let public_endpoint = public_deployment.server(SERVER_SLUG)?;
-    let internal_token_verifier = GatewayInternalTokenVerifier::new(
-        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
-        ServerSlug::new(SERVER_SLUG)?,
-        GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?,
-    );
     let artifacts = ArtifactRepository::new(args.artifact_service_url.clone());
     let tasks = TaskRuntime::connect(
         TaskRuntimeConfig::new(
@@ -620,72 +461,21 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    let ct = tokio_util::sync::CancellationToken::new();
-    let mut allowed_hosts = public_allowed_hosts(&public_deployment, args.allow_loopback_hosts);
-    allowed_hosts.extend(args.allowed_hosts.iter().cloned());
-    let allowed_hosts = Arc::new(allowed_hosts);
-    let internal_auth_state = InternalMcpAuthState {
-        verifier: internal_token_verifier,
-    };
-    let mcp_service = StreamableHttpService::new(
-        {
-            let state = state.clone();
-            move || Ok(TimeseriesMcp::new(state.clone()))
-        },
-        veoveo_mcp_contract::stateless_session_manager(),
-        veoveo_mcp_contract::canonical_streamable_http_server_config()
-            .with_allowed_hosts(allowed_hosts.iter().cloned())
-            .with_cancellation_token(ct.child_token()),
-    );
-    let mcp_router = Router::new()
-        .route_service("/", mcp_service.clone())
-        .route_service("/{*path}", mcp_service)
-        .layer(middleware::from_fn(
-            veoveo_mcp_contract::enforce_serialized_mcp_response,
-        ))
-        .layer(middleware::from_fn_with_state(
-            internal_auth_state.clone(),
-            authenticate_internal_mcp,
-        ));
-    // Read-only well-known projection (contract C20) behind the same gateway
-    // authentication as the MCP surface.
-    let admin_router = admin::router().layer(middleware::from_fn_with_state(
-        internal_auth_state,
-        authenticate_internal_mcp,
-    ));
-    let server_router = Router::new()
-        .route("/healthz", get(|| async { "ok" }))
-        .with_state(state.clone())
-        .nest("/admin", admin_router)
-        .nest("/mcp", mcp_router);
-    let router = Router::new()
-        .nest(public_endpoint.mount_path(), server_router)
-        .layer(middleware::from_fn_with_state(
-            allowed_hosts.clone(),
-            validate_host,
-        ))
-        .layer(
-            TraceLayer::new_for_http()
-                .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO)),
-        );
-
-    let addr = SocketAddr::from(([0, 0, 0, 0], args.port));
-    tracing::info!(
-        service = "veoveo-timeseries-mcp",
-        address = %addr,
-        mcp_path = public_endpoint.path("mcp"),
-        admin_path = public_endpoint.path("admin"),
-        public_url = public_endpoint.public_url(),
-        "listening"
-    );
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, router)
-        .with_graceful_shutdown(async move {
-            let _ = tokio::signal::ctrl_c().await;
-            ct.cancel();
+    let server = HostedServer::for_domain::<TimeseriesMcp>()
+        .deployment(&public_deployment, args.allow_loopback_hosts)?
+        .allowed_hosts(args.allowed_hosts.iter().cloned())
+        .internal_trust(GatewayInternalTrustBundle::from_json(
+            &args.internal_trust_jwks,
+        )?)?
+        .handler(move || {
+            Hosted::new(TimeseriesMcp::new(state.clone())).with_tasks(DurableTasks::tasks_only(
+                TimeseriesTaskService::new(state.clone()),
+            ))
         })
-        .await?;
-    Ok(())
+        .build();
+    server
+        .serve(SocketAddr::from(([0, 0, 0, 0], args.port)))
+        .await
 }
 
 #[cfg(test)]

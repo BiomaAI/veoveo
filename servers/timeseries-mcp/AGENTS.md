@@ -12,6 +12,9 @@ returns structured output with a bounded chartable preview.
 
 ## Invariants
 
+- The server is hosted through `veoveo_mcp_contract::hosting`: `TimeseriesMcp`
+  implements `DomainServer`, and `DurableTasks` adapts its task service. Do not add a
+  `ServerHandler`, router, host check or authentication middleware here.
 - Owns the `timeseries://` URI scheme plus the `ui://timeseries/forecast.html`
   app view.
 - `forecast` executes only as a durable task on the shared task runtime
