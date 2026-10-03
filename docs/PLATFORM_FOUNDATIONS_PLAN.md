@@ -5,10 +5,12 @@ recovery and visual acceptance gates remain. The plan is not ready for retiremen
 
 ## Current Status
 
-The Task input-response fix is source-qualified at `af1101d4`. It joins the scope,
-analytical-request and native Task-ID batches awaiting publication. The reference
-installation's last selected flight batch is `bf0fe31d`; the cluster and BuildKit are
-stopped during development. Reason runs only for its separate acceptance.
+The shared-host batch is published from `5d3fd6fe`, with reference deployment and
+policy corrections selected through `e0c8000f`. All sixteen Rust servers reached
+Ready during installed acceptance. Discovery, authenticated document reads,
+completion, Host admission and the requested Linux native suites passed. The
+remaining failures below prevent full hosted acceptance. The cluster and BuildKit
+stay stopped during development; Reason runs only for its separate acceptance.
 
 | Phase | Qualified checkpoint | Remaining work |
 |---|---|---|
@@ -38,10 +40,10 @@ and do not override this status or the requirements below.
 3. Close the inventory's outstanding cross-replica, provider and current-format
    restart requirements, including UAV outcome recovery and the Computers installed
    batch. Native checks do not substitute for those installed cases.
-4. Qualify the shared host in an installation, as
-   [Hosted Server Adoption](#hosted-server-adoption) describes. All sixteen Rust
-   servers are hosted and their macOS-buildable native suites pass. Installed
-   acceptance and the Linux-only native suites are outstanding.
+4. Close the [hosted acceptance gaps](#hosted-server-adoption), then rerun affected
+   installed checks. Linux-only native qualification passed. Reuse unaffected
+   checks from the composed acceptance batch; a source or dependency change
+   invalidates only the qualification whose inputs it changes.
 5. Resolve [Deferred Work](#deferred-work): Rerun timeline/playback/timing and landing
    visual acceptance. Keep the declared hardware, freshness and flight-health gates.
 6. Audit every phase's numbered requirements and acceptance conditions against the
@@ -543,12 +545,37 @@ The host standardizes these behaviors across servers:
 | Probes | `{mount}/healthz` reports liveness and `{mount}/readyz` readiness. Time, Optimization, Knowledge and Computers register `readyz` as their gateway health URL and Helm readiness probe |
 | Documents | Any authenticated caller reads the well-known documents unless the domain authorizes them; Knowledge does |
 
-The following work is outstanding:
+Installed acceptance at `e0c8000f` passed discovery and anonymous denial, document
+resources, `doc_id` completion, unknown-resource errors and Host checks for all
+sixteen servers. Twelve Task-bearing domains completed a Task and delivered its
+notification; cancellation requests after completion were acknowledged. This does
+not establish interruption of running provider work. Recording gRPC and headed
+hardware playback, Speech GPU conformance, Knowledge indexing and policy isolation,
+and Computers terminal and paired CLI access passed. A DuckDB rollout removed the
+old pod in under one second against its thirty-second grace period. Linux native
+suites, including explicitly selected ignored Computer fixtures, passed.
+
+The remaining acceptance work is:
+
+| Gap | Owner and required result |
+|---|---|
+| Artifact, DuckDB, Frames, Map, Media and Timeseries return 404 from `readyz` | Each server registers its dependency readiness through the existing host callback; dependency loss must not turn liveness into a restart loop |
+| Recording admin documents return 400 through the gateway | Gateway resolves admin routes against the internal MCP endpoint's mount, including a root-mounted upstream |
+| Computers' upstream body-limit 413 becomes HTTP 200 with an MCP transport error | Gateway preserves the upstream request rejection at its HTTP boundary without inspecting error strings or adding a server-name special case |
+| UAV MCP restart recovers video but remounts the App | Console/UAV live-view recovery preserves the mounted App and obtains fresh stream authority; complete the subsequent simulator-restart check |
+| Optimization rejects a valid model with no constraints in cuOpt | Optimization's adapter qualifies the zero-row model on the GPU and preserves the public model's meaning |
+| Media installed generation remains unqualified | The maintained fake-provider smoke passed; the earlier user limit on real generation still applies until explicitly changed |
+
+Readiness absence, Recording admin routing, gateway body-limit conversion and the
+Optimization edge case predate this batch. UAV remount regression status is unknown;
+the installed failure must still be fixed. The successful Recording playback check
+does not close composed flight timing or landing visual acceptance.
+
+Implementation work also remains:
 
 | Work | Owner |
 |---|---|
-| Installed acceptance of every hosted server, GPU servers first: discovery, documents, completion, subscriptions, Tasks and probes | Composed publication |
-| Linux-only native suites: Computers `native_*`, the Map DuckDB Spatial cases, Recording live playback and catalog projection paths | Linux qualification host |
+| Close the acceptance gaps above and qualify affected consumers after implementation changes | Composed publication |
 | Typed tool dispatch for Knowledge and Computers, which register hand-written descriptors through `ToolRoute::new_dyn` and dispatch by name in one `call` | Each server |
 | Map reads, which receive a typed `MapAddress` but dispatch Store queries by the admitted URI | Map |
 
