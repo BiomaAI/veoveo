@@ -13,46 +13,39 @@ use veoveo_stream_mcp::{
 use veoveo_task_runtime::{TaskOwner, TaskRuntime, TaskSnapshot};
 use veoveo_types::TaskTypeDefinition;
 
-use super::{
-    SERVER_DOCS, app_state::AppState, index, inline_artifact, internal, internal_caller,
-    internal_identity, invalid_params, json_resource, run_view, runtime_owner,
-};
+use veoveo_mcp_contract::hosting::{gateway_identity, json_read, plane_caller, served_by_host};
 
+use super::{app_state::AppState, index, inline_artifact, internal, run_view, runtime_owner};
+
+/// Reads one admitted address. The host serves documents and the contract.
 pub(super) async fn read(
     state: &AppState,
+    resource: StreamResource,
     uri: &str,
     context: &RequestContext<RoleServer>,
 ) -> Result<ReadResourceResult, McpError> {
-    let resource = StreamResource::parse(uri).map_err(invalid_params)?;
     match resource {
         StreamResource::LiveApp => Ok(ReadResourceResult::new(vec![
             veoveo_mcp_apps_extension::app_html_contents(uri, state.live_app.as_str()),
         ])),
-        StreamResource::Docs => json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>()),
-        StreamResource::Document(doc) => {
-            let doc = SERVER_DOCS
-                .doc(doc.as_str())
-                .ok_or_else(|| McpError::resource_not_found("server document not found", None))?;
-            Ok(ReadResourceResult::new(vec![
-                ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
-            ]))
+        StreamResource::Docs | StreamResource::Document(_) | StreamResource::Contract => {
+            Err(served_by_host())
         }
-        StreamResource::Contract => json_resource(uri, SERVER_DOCS.contract_declaration()),
-        StreamResource::Pipelines => json_resource(uri, &state.catalog.pipeline_views()),
-        StreamResource::Models => json_resource(uri, &state.catalog.model_views()),
+        StreamResource::Pipelines => json_read(uri, &state.catalog.pipeline_views()),
+        StreamResource::Models => json_read(uri, &state.catalog.model_views()),
         StreamResource::Pipeline(address) => {
             let pipeline = state
                 .catalog
                 .pipeline(address.id())
                 .ok_or_else(|| McpError::resource_not_found("Stream pipeline not found", None))?;
-            json_resource(uri, &pipeline_view(pipeline))
+            json_read(uri, &pipeline_view(pipeline))
         }
         StreamResource::Model(address) => {
             let model = state
                 .catalog
                 .model(address.id())
                 .ok_or_else(|| McpError::resource_not_found("Stream model not found", None))?;
-            json_resource(uri, &model_view(model))
+            json_read(uri, &model_view(model))
         }
         private @ (StreamResource::Runs(_)
         | StreamResource::Sessions(_)
@@ -62,13 +55,13 @@ pub(super) async fn read(
         | StreamResource::Run(_)
         | StreamResource::RunResults(_)
         | StreamResource::Artifact(_)) => {
-            let owner = runtime_owner(&internal_identity(context)?);
+            let owner = runtime_owner(&gateway_identity(context)?);
             match private {
-                StreamResource::Runs(cursor) => json_resource(
+                StreamResource::Runs(cursor) => json_read(
                     uri,
                     &index::runs_page(&state.tasks, &owner, cursor.as_ref()).await?,
                 ),
-                StreamResource::Sessions(cursor) => json_resource(
+                StreamResource::Sessions(cursor) => json_read(
                     uri,
                     &index::sessions_page(&state.live, &owner, cursor.as_ref()).await?,
                 ),
@@ -78,7 +71,7 @@ pub(super) async fn read(
                         .view(*address.id(), &owner)
                         .await
                         .ok_or_else(session_missing)?;
-                    json_resource(uri, &view)
+                    json_read(uri, &view)
                 }
                 StreamResource::SessionResults(address) => {
                     let results = state
@@ -86,7 +79,7 @@ pub(super) async fn read(
                         .results(*address.id(), &owner)
                         .await
                         .ok_or_else(session_missing)?;
-                    json_resource(uri, &results)
+                    json_read(uri, &results)
                 }
                 StreamResource::SessionPreview(address) => {
                     let preview = state
@@ -94,11 +87,11 @@ pub(super) async fn read(
                         .preview(*address.id(), &owner)
                         .await
                         .ok_or_else(session_missing)?;
-                    json_resource(uri, &preview)
+                    json_read(uri, &preview)
                 }
                 StreamResource::Run(address) => {
                     let snapshot = run_snapshot(&state.tasks, &owner, *address.id()).await?;
-                    json_resource(uri, &run_view(&snapshot)?)
+                    json_read(uri, &run_view(&snapshot)?)
                 }
                 StreamResource::RunResults(address) => {
                     let snapshot = run_snapshot(&state.tasks, &owner, *address.id()).await?;
@@ -106,7 +99,7 @@ pub(super) async fn read(
                     let output = run.output().ok_or_else(|| {
                         McpError::resource_not_found("run results are not available", None)
                     })?;
-                    let caller = internal_caller(context)?;
+                    let caller = plane_caller(context)?;
                     let artifact =
                         inline_artifact(state, &caller, &output.results_artifact.artifact_id())
                             .await?;
@@ -119,7 +112,7 @@ pub(super) async fn read(
                     ]))
                 }
                 StreamResource::Artifact(id) => {
-                    let caller = internal_caller(context)?;
+                    let caller = plane_caller(context)?;
                     let artifact = inline_artifact(state, &caller, &id).await?;
                     let mut content =
                         ResourceContents::blob(BASE64_STANDARD.encode(artifact.bytes), uri);

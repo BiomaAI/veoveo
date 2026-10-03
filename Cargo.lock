@@ -17471,7 +17471,6 @@ name = "veoveo-stream-mcp"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "axum",
  "base64 0.23.1",
  "chrono",
  "clap",
@@ -17489,8 +17488,6 @@ dependencies = [
  "tempfile",
  "tokio",
  "tokio-util",
- "tower",
- "tower-http 0.7.0",
  "tracing",
  "uuid",
  "veoveo-artifact-client",

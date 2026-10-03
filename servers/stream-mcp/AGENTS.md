@@ -12,6 +12,10 @@ provider-neutral.
 
 ## Invariants
 
+- The server is hosted through `veoveo_mcp_contract::hosting`: `StreamMcp`
+  implements `DomainServer`, and `StreamListener` is the `DurableListener` that joins
+  run task updates with live-session updates. Do not add a `ServerHandler`, router,
+  host check or authentication middleware here.
 - Own `stream://` and `ui://stream/live.html`.
 - Build hosted declarations through `McpServerContract` and `McpServerSetup` before
   Store access. Catalogs are static; accepted subscriptions contain only requested

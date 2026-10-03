@@ -7,7 +7,10 @@ use rmcp::{
     },
     service::RequestContext,
 };
-use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller};
+use veoveo_mcp_contract::{
+    GatewayInternalIdentity, PlaneCaller,
+    hosting::{forwarded_bearer, gateway_identity},
+};
 use veoveo_stream_mcp::contract::RunRecordingRequest;
 use veoveo_task_runtime::{
     DurableTaskService, DurableTaskSubscription, cancel_durable_task, retention_pins, task_seed,
@@ -16,8 +19,7 @@ use veoveo_task_runtime::{
 
 use super::{
     app_state::AppState,
-    internal_auth::ForwardedBearer,
-    ownership::{caller_from, runtime_owner},
+    ownership::runtime_owner,
     tasks::{StreamTaskInput, start_stream_task},
 };
 
@@ -48,28 +50,9 @@ impl DurableTaskService for StreamTaskService {
     type Caller = AuthenticatedCaller;
 
     fn authenticate(&self, context: &RequestContext<RoleServer>) -> Result<Self::Caller, McpError> {
-        let parts = context
-            .extensions
-            .get::<axum::http::request::Parts>()
-            .ok_or_else(|| {
-                McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
-            })?;
-        let identity = parts
-            .extensions
-            .get::<GatewayInternalIdentity>()
-            .cloned()
-            .ok_or_else(|| {
-                McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
-            })?;
-        let bearer = parts
-            .extensions
-            .get::<ForwardedBearer>()
-            .map(|bearer| bearer.0.clone())
-            .ok_or_else(|| {
-                McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
-            })?;
+        let identity = gateway_identity(context)?;
         Ok(AuthenticatedCaller {
-            plane: caller_from(identity.clone(), bearer),
+            plane: PlaneCaller::from_gateway(identity.clone(), forwarded_bearer(context)?),
             identity,
         })
     }
