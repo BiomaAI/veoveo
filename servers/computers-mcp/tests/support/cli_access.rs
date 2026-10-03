@@ -185,17 +185,18 @@ async fn run(
     let grant: veoveo_computers::api::CliPairingResult = response.json().await.unwrap();
     assert_eq!(grant.pairing_id, challenge.pairing_id);
     assert_eq!(grant.computer_id, computer);
-    assert_eq!(
-        http.post(&confirmation_url)
-            .bearer_auth(&auth)
-            .header("origin", &b.origin)
-            .json(&veoveo_computers::api::CliPairingConfirmBody::default())
-            .send()
-            .await
-            .unwrap()
-            .status(),
-        reqwest::StatusCode::FORBIDDEN
-    );
+    let reused = http
+        .post(&confirmation_url)
+        .bearer_auth(&auth)
+        .header("origin", &b.origin)
+        .json(&veoveo_computers::api::CliPairingConfirmBody::default())
+        .send()
+        .await
+        .unwrap();
+    // SQL admission excludes consumed pairings from the caller's visible rows.
+    assert_eq!(reused.status(), reqwest::StatusCode::NOT_FOUND);
+    let error: veoveo_computers::api::ApiError = reused.json().await.unwrap();
+    assert_eq!(error.code, veoveo_computers::api::ErrorCode::NotFound);
     let gateway = directory.join("config/openshell/gateways/cli-native");
     fs::create_dir_all(&gateway).unwrap();
     fs::set_permissions(&gateway, fs::Permissions::from_mode(0o700)).unwrap();
