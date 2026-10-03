@@ -39,7 +39,9 @@ and do not override this status or the requirements below.
    restart requirements, including UAV outcome recovery and the Computers installed
    batch. Native checks do not substitute for those installed cases.
 4. Move every Rust server onto the shared host, as
-   [Hosted Server Adoption](#hosted-server-adoption) describes. DuckDB is migrated, and its full suite passes, including native Store recovery.
+   [Hosted Server Adoption](#hosted-server-adoption) describes. DuckDB, Timeseries,
+   Frames and Media are migrated, and their native suites pass. Installed acceptance of
+   the four migrated servers is outstanding.
 5. Resolve [Deferred Work](#deferred-work): Rerun timeline/playback/timing and landing
    visual acceptance. Keep the declared hardware, freshness and flight-health gates.
 6. Audit every phase's numbered requirements and acceptance conditions against the
@@ -525,9 +527,9 @@ invariants are checked. Record remaining adoption explicitly in the inventory be
 `veoveo_mcp_contract::hosting` hosts a server from its checked setup, a typed
 `DomainServer` and optional `TaskSupport`. The contract's
 [Hosting A Server](../mcp/contract/DESIGN.md#hosting-a-server) section is the
-procedure, and `servers/duckdb-mcp` is the reference migration: it deleted its host
-check, authentication middleware, administrative routes, list handlers, task
-forwarding and router wiring, 487 lines net.
+procedure. `servers/duckdb-mcp` is the reference for a server with durable tasks, and
+`servers/frames-mcp` for one that also publishes resource changes. DuckDB, Timeseries,
+Frames and Media are migrated; each migration removed between 480 and 650 lines.
 
 Migrate each group below together, then run its grouped checks once: the affected
 packages' tests and strict Clippy in one pass. Commits may stay split by server where
@@ -539,14 +541,18 @@ TTL today, such as knowledge-source members in Artifact, Knowledge and Reason, u
 a missing Host authority is 400, an unparseable address is Invalid Params, and lists
 are authenticated.
 
-| Order | Servers | Builder extension needed first |
+| Order | Servers left | Builder extension |
 |---|---|---|
-| 1 | timeseries, frames, media, time, view, uav-sim, optimization | Prompts on `DomainServer` for servers that declare them |
-| 2 | stream, reason, speech, recording | `TaskSupport` with typed resource-subscription admission and the shared hub, beside `DurableTasks::tasks_only` |
-| 3 | map, artifact, knowledge, computers | Domain hooks for dynamic `resources/list` and caller-filtered tool lists; computers and knowledge move their tools onto `#[tool_router]` |
+| 1 | time, view, uav-sim, optimization | Available: prompts and completion on `DomainServer` |
+| 2 | stream, reason, speech, recording | Available: `ResourceSubscriptions` with `DurableTasksWithResources` |
+| 3 | map, artifact, knowledge, computers | Needed first: domain hooks for dynamic `resources/list` and caller-filtered tool lists; computers and knowledge move their tools onto `#[tool_router]` |
 
-Add each extension to the host with a test before the servers that need it migrate.
-A server-specific HTTP route uses `authenticated_routes`; a probe uses `readiness`.
+Add each remaining extension to the host with a test before the servers that need it
+migrate. A server-specific HTTP route uses `authenticated_routes`; a probe uses
+`readiness`. A route that verifies its own caller, such as Media's signed provider
+webhook, uses `public_routes`. A server whose integration tests include a server
+module by path keeps Store-backed authorization in a free function over typed
+addresses, as Media's `subscriptions::authorize` does.
 
 #### Migration Inventory And Status
 

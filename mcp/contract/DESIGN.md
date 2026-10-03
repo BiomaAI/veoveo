@@ -447,16 +447,20 @@ supplies three things:
    typed resource address, documents and resource declarations, and force its
    `McpServerSetup` before Store or engine initialization.
 2. **A domain.** Implement `DomainServer`: `tool_router` for the tools,
-   `describe_tool` to adjust descriptors such as App links, `read` for one admitted
-   address, and optionally `complete`. `read` receives a parsed address and returns a
-   `DomainRead` that names its cache policy: `DomainRead::private` for ordinary
-   content, or `DomainRead::no_store` for content whose access or freshness can change
-   between reads, such as knowledge-source members. There is no default. Documents
-   and contract variants answer `served_by_host()`, because the host serves them
-   first.
+   `describe_tool` to adjust descriptors such as App links, and `read` for one
+   admitted address. `prompts`, `get_prompt` and `complete` are optional; their
+   defaults declare no prompts and offer no completions. `read` receives a parsed
+   address and returns a `DomainRead` that names its cache policy:
+   `DomainRead::private` for ordinary content, or `DomainRead::no_store` for content
+   whose access or freshness can change between reads, such as knowledge-source
+   members. There is no default. Documents and contract variants answer
+   `served_by_host()`, because the host serves them first.
 3. **Optional task support.** A server with durable tasks wraps its
-   `DurableTaskService` in `veoveo_task_runtime::DurableTasks`; a server without
-   tasks uses the default `NoTasks`.
+   `DurableTaskService` in `veoveo_task_runtime::DurableTasks::tasks_only`. A server
+   that also publishes resource changes implements `ResourceSubscriptions` and uses
+   `DurableTasksWithResources`. The host parses each subscribed URI into the server's
+   address type, and `authorize` checks those typed addresses for the caller before
+   delivery starts. A server without tasks uses the default `NoTasks`.
 
 ```rust
 let server = HostedServer::for_domain::<MyDomain>()
@@ -475,8 +479,13 @@ The builder starts from the domain type, which names its checked setup, and offe
 `build` only after the deployment, internal trust and handler are set. The handler
 must be that domain's `Hosted` value: a hand-written `ServerHandler` or another
 domain's handler does not compile. `authenticated_routes`, `public_routes` and `readiness` add
-server-specific HTTP. Inside a domain method, `gateway_identity`,
-`forwarded_bearer` and `plane_caller` return the verified caller.
+server-specific HTTP. Public routes carry no gateway authentication, so they serve
+only endpoints that verify their own callers, such as a signed provider webhook.
+Inside a domain method, `gateway_identity`, `forwarded_bearer` and `plane_caller`
+return the verified caller. `json_read`, `structured_result`, `product_result`,
+`completion` and `rank_completions` build the common results. `product_result`
+rejects output whose `result_uri` differs from its resource link (C02), and
+`completion` omits `total` when it cuts candidates at 100 values.
 
 The host gives every server the same behavior:
 
@@ -485,14 +494,16 @@ The host gives every server the same behavior:
 | Routes | `{mount}/healthz`, optional `{mount}/readyz`, `{mount}/admin/docs/*` and `{mount}/mcp` |
 | Authentication | Gateway internal assertion on MCP, admin and authenticated routes; the token audience is the server slug |
 | Host validation | 400 without a Host authority, 421 for an authority outside the deployment's allowed hosts |
-| Discovery | Authenticated `resources/list`, `resources/templates/list` and `tools/list` from the setup, sorted, 100 per page, private, five-second cache |
+| Discovery | Authenticated `resources/list`, `resources/templates/list`, `tools/list` and `prompts/list`, sorted, 100 per page, private, five-second cache |
 | Well-known reads | `{scheme}://docs` routes and `{scheme}://contract` |
-| Address admission | An unparseable URI is Invalid Params (-32602) before domain code runs |
+| Completion | `doc_id` on the document template; other references go to the domain |
+| Address admission | An unparseable read or subscribed URI is Invalid Params (-32602) before domain code runs |
 | Read cache | The policy each `DomainRead` names: one second private, or no reuse; continuation reads are never reused |
 | Tools | Durable tasks start first; other calls dispatch through the tool router |
 | Shutdown | SIGTERM or Ctrl-C, cancelling in-flight MCP work |
 
-`servers/duckdb-mcp` is the reference implementation.
+`servers/duckdb-mcp` is the reference for a server with durable tasks, and
+`servers/frames-mcp` is the reference for one that also publishes resource changes.
 
 ## Deployment Identity
 

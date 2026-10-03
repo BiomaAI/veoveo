@@ -278,8 +278,9 @@ impl<D: DomainServer, Dep, Trust, H> HostedServerBuilder<D, Dep, Trust, H> {
         self
     }
 
-    /// Adds server-specific routes under the mount without authentication. Use
-    /// only for probes and other data-free endpoints.
+    /// Adds server-specific routes under the mount without gateway
+    /// authentication. Use only for endpoints that verify their own callers, such
+    /// as signed provider webhooks, or that serve no caller data.
     pub fn public_routes(mut self, routes: Router) -> Self {
         self.public_routes = self.public_routes.merge(routes);
         self
