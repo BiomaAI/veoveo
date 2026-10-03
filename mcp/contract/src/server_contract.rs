@@ -229,13 +229,41 @@ impl<C: McpServerContract> McpServerSetup<C> {
         self.documents
     }
 
+    /// Serves the well-known `{scheme}://docs` routes and `{scheme}://contract`.
+    /// Returns `None` for every other address, which the domain then reads.
     pub fn read_documents(
         &self,
         request: &rmcp::model::ReadResourceRequestParams,
         context: &rmcp::service::RequestContext<rmcp::RoleServer>,
     ) -> Result<Option<rmcp::model::ReadResourceResponse>, rmcp::ErrorData> {
+        if let Some(result) = self.read_contract(request, context)? {
+            return Ok(Some(result));
+        }
         self.documents
             .read_knowledge(&C::scheme(), request, context)
+    }
+
+    fn read_contract(
+        &self,
+        request: &rmcp::model::ReadResourceRequestParams,
+        context: &rmcp::service::RequestContext<rmcp::RoleServer>,
+    ) -> Result<Option<rmcp::model::ReadResourceResponse>, rmcp::ErrorData> {
+        let contract = well_known_builder(&C::scheme(), "contract")
+            .and_then(|builder| builder.build().map_err(|_| McpSetupError::InvalidDocument))
+            .map_err(|_| rmcp::ErrorData::internal_error("invalid contract address", None))?;
+        if request.uri != contract.as_str() {
+            return Ok(None);
+        }
+        crate::hosting::gateway_identity(context)?;
+        let text = serde_json::to_string(&self.documents.contract_declaration()).map_err(|_| {
+            rmcp::ErrorData::internal_error("contract declaration serialization failed", None)
+        })?;
+        let result = rmcp::model::ReadResourceResult::new(vec![
+            rmcp::model::ResourceContents::text(text, &request.uri)
+                .with_mime_type("application/json"),
+        ]);
+        let cacheable = request.request_state.is_none() && request.input_responses.is_none();
+        Ok(Some(crate::private_resource_response(result, cacheable)))
     }
     pub fn scope_names(&self) -> &BTreeSet<ScopeName> {
         &self.scopes

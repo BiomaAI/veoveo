@@ -20,6 +20,7 @@ pub mod deployment;
 pub mod docs;
 pub mod gateway;
 pub mod host;
+pub mod hosting;
 pub mod internal_auth;
 pub mod pagination;
 pub mod protocol;

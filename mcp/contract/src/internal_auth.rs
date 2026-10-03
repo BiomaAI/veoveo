@@ -692,7 +692,7 @@ fn timestamp_to_datetime(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::collections::BTreeSet;
 
     use chrono::TimeDelta;
@@ -705,21 +705,21 @@ mod tests {
         "MC4CAQAwBQYDK2VwBCIEII4AsVspz8h7mpqvOkgslJP07HfqpiWMZA+6Ii90lVBl";
     const PUBLIC_KEY_X: &str = "OMOoJJu_AQS7UM8u2GVtMVj8W1zcE6QhR0DMBr9HEcg";
 
-    pub(super) fn signing_key(key_id: &str) -> GatewayInternalSigningKey {
+    pub(crate) fn signing_key(key_id: &str) -> GatewayInternalSigningKey {
         use base64::{Engine as _, engine::general_purpose::STANDARD};
 
         GatewayInternalSigningKey::new(key_id, STANDARD.decode(PRIVATE_KEY_DER_B64).unwrap())
             .unwrap()
     }
 
-    pub(super) fn trust_bundle(key_id: &str) -> GatewayInternalTrustBundle {
+    pub(crate) fn trust_bundle(key_id: &str) -> GatewayInternalTrustBundle {
         GatewayInternalTrustBundle::from_json(&format!(
             r#"{{"keys":[{{"kty":"OKP","crv":"Ed25519","x":"{PUBLIC_KEY_X}","alg":"EdDSA","use":"sig","kid":"{key_id}"}}]}}"#
         ))
         .unwrap()
     }
 
-    fn principal() -> Principal {
+    pub(crate) fn principal() -> Principal {
         Principal {
             id: PrincipalId::new("https://idp.example.com#user-1").unwrap(),
             kind: PrincipalKind::User,
@@ -736,7 +736,7 @@ mod tests {
         }
     }
 
-    fn authority() -> InvocationAuthority {
+    pub(crate) fn authority() -> InvocationAuthority {
         use veoveo_types::{AccessSubject, InvocationProvenance, PolicyVersion, WorkContextId};
         use veoveo_types::{WorkContextMembershipLevel, WorkContextOutputPolicy};
 
