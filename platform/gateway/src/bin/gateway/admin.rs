@@ -11,6 +11,8 @@ pub(crate) use console::audit as console_audit;
 mod control_plane;
 #[path = "admin/jwt_revocations.rs"]
 mod jwt_revocations;
+#[path = "admin/server_health.rs"]
+mod server_health;
 #[path = "admin/server_proxy.rs"]
 mod server_proxy;
 #[path = "admin/tasks.rs"]
@@ -38,6 +40,7 @@ pub(super) use console::{
 };
 pub(super) use control_plane::{read_control_plane, update_control_plane};
 pub(super) use jwt_revocations::{prune_jwt_revocations, revoke_jwt};
+pub(super) use server_health::read_server_health;
 pub(crate) use server_proxy::proxy_server_admin;
 pub(super) use tasks::cancel_task;
 

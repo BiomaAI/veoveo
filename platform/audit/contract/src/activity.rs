@@ -133,6 +133,7 @@ vocabulary!(AdministrativeOperation {
     ConsoleSnapshot,
     ConsoleStream,
     ConsoleArtifact,
+    ServerHealth,
     ServerProxy,
     TaskCancel
 });

@@ -202,6 +202,7 @@ export type AdministrativeOperation =
   | "console_snapshot"
   | "console_stream"
   | "console_artifact"
+  | "server_health"
   | "server_proxy"
   | "task_cancel";
 /**

@@ -54,8 +54,13 @@ works from a toolset that is silently incomplete.
 Each catalog entry declares two typed upstream URLs: the MCP endpoint and a required
 health endpoint. The gateway sends `health_url` an unauthenticated GET and treats only
 a success status as healthy. It never reads an MCP response, an authentication
-failure, or a rejected method as a health signal. Health state feeds the Console. For
-profiles that isolate failures, it does not affect discovery.
+failure, or a rejected method as a health signal. The gateway probes every server
+each 15 seconds. The Console snapshot and `GET /admin/{profile}/server-health` read
+the latest results. That endpoint requires an administrator authorized for the
+profile, audits the read as `server_health`, and returns each registered server's
+`healthy`, `degraded` or `offline` state with its check time. Both fields are null
+before the first probe. For profiles that isolate failures, health does not affect
+discovery.
 
 ### Tool input schemas
 
