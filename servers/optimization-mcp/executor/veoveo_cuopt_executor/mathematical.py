@@ -47,7 +47,9 @@ def solve_model(
 ) -> dict[str, Any]:
     from cuopt import linear_programming
 
-    model = _build_model(model_data, linear_programming)
+    needs_auxiliary = not model_data["constraint_matrix"]["values"]
+    native_data = _with_auxiliary_row(model_data) if needs_auxiliary else model_data
+    model = _build_model(native_data, linear_programming)
     settings, recorder = _settings(
         family,
         profile,
@@ -59,12 +61,69 @@ def solve_model(
         model, solver_settings=settings
     )
     elapsed = time.monotonic() - started
-    return _solution(
+    result = _solution(
         family,
         solution,
         elapsed,
         recorder.instance.items if recorder is not None else [],
     )
+    if needs_auxiliary:
+        # Solver-only dimensions never enter the public solution or warm starts.
+        result["primal_solution"] = result["primal_solution"][:-1]
+        for incumbent in result["incumbents"]:
+            incumbent["values"] = incumbent["values"][:-1]
+        row = model_data["constraint_matrix"]["rows"]
+        dual = result["dual_solution"]
+        result["dual_solution"] = dual[:row] + dual[row + 1:]
+    return result
+
+
+def _with_auxiliary_row(data: dict[str, Any]) -> dict[str, Any]:
+    """Represent an empty CSR using an independent continuous variable fixed at zero.
+
+    cuOpt 26.08's Python wrapper omits empty CSR input. Its MIP heuristic also
+    faults on an all-zero coefficient matrix. The equation z=0 supplies one
+    nonzero while preserving the original feasible set and objective exactly.
+    Retire this adapter when a pinned cuOpt release qualifies empty CSR directly.
+    """
+    native = dict(data)
+    variable_ids = data["variable_ids"]
+    auxiliary_name = "__veoveo_auxiliary"
+    while auxiliary_name in variable_ids:
+        auxiliary_name += "_"
+    for key, value in [
+        ("variable_ids", auxiliary_name),
+        ("variable_kinds", "continuous"),
+        ("variable_lower_bounds", 0.0),
+        ("variable_upper_bounds", 0.0),
+        ("objective_coefficients", 0.0),
+        ("constraint_lower_bounds", 0.0),
+        ("constraint_upper_bounds", 0.0),
+    ]:
+        native[key] = [*data[key], value]
+    matrix = data["constraint_matrix"]
+    native["constraint_matrix"] = {
+        "rows": matrix["rows"] + 1,
+        "columns": matrix["columns"] + 1,
+        "offsets": [*matrix["offsets"], 1],
+        "indices": [matrix["columns"]],
+        "values": [1.0],
+    }
+    if data.get("quadratic_objective") is not None:
+        quadratic = data["quadratic_objective"]
+        native["quadratic_objective"] = {
+            **quadratic,
+            "rows": quadratic["rows"] + 1,
+            "columns": quadratic["columns"] + 1,
+            "offsets": [*quadratic["offsets"], quadratic["offsets"][-1]],
+        }
+    if data.get("initial_primal_solution") is not None:
+        native["initial_primal_solution"] = [*data["initial_primal_solution"], 0.0]
+    if data.get("initial_dual_solution") is not None:
+        row = matrix["rows"]
+        dual = data["initial_dual_solution"]
+        native["initial_dual_solution"] = [*dual[:row], 0.0, *dual[row:]]
+    return native
 
 
 def solve_model_file(

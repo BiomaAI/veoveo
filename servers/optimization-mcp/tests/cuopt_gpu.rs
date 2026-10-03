@@ -11,8 +11,8 @@ use veoveo_optimization_mcp::{
         CompiledDenseMatrix, CompiledMathematicalModel, CompiledQuadraticConstraint,
         CompiledRouteNode, CompiledRouteObjective, CompiledRoutingProblem, CompiledVehicle,
         ConvexMethod, ConvexSolverSettings, CsrMatrix, ExecutorClient, ExecutorModelFamily,
-        ExecutorOperation, ExecutorProfile, ExecutorResult, ExecutorRoutingStatus,
-        MilpSolverSettings, QuadraticConstraintSense, RoutingSolverSettings,
+        ExecutorModelStatus, ExecutorOperation, ExecutorProfile, ExecutorResult,
+        ExecutorRoutingStatus, MilpSolverSettings, QuadraticConstraintSense, RoutingSolverSettings,
     },
 };
 
@@ -150,6 +150,173 @@ fn quadratic_program() -> CompiledMathematicalModel {
         values: vec![finite(1.0), finite(1.0)],
     });
     model
+}
+
+fn bound_only_model(variable_kind: VariableKind) -> CompiledMathematicalModel {
+    let mut model = mathematical_model(variable_kind);
+    model.variable_lower_bounds = vec![Some(finite(-1.5)); 2];
+    model.variable_upper_bounds = vec![Some(finite(2.5)); 2];
+    model.objective_coefficients = vec![finite(1.0), finite(-1.0)];
+    model.objective_offset = finite(1.0);
+    model.constraint_ids.clear();
+    model.constraint_matrix.rows = 0;
+    model.constraint_matrix.offsets = vec![0];
+    model.constraint_matrix.indices.clear();
+    model.constraint_matrix.values.clear();
+    model.constraint_lower_bounds.clear();
+    model.constraint_upper_bounds.clear();
+    model.initial_dual_solution = Some(vec![]);
+    model
+}
+
+#[tokio::test]
+#[ignore = "requires the pinned cuOpt image and one NVIDIA GPU"]
+async fn solves_models_with_empty_linear_matrices_on_the_gpu() {
+    let socket = env::var("VEOVEO_CUOPT_TEST_SOCKET")
+        .expect("VEOVEO_CUOPT_TEST_SOCKET must identify the executor socket");
+    let client = ExecutorClient::with_default_limit(socket);
+    let ExecutorResult::Health { health } = client.health().await.unwrap().result else {
+        panic!("executor returned a non-health response");
+    };
+    assert!(health.ready);
+    assert!(!health.gpu_uuid.is_empty());
+
+    let linear = bound_only_model(VariableKind::Continuous);
+    let mut integer = bound_only_model(VariableKind::Integer);
+    integer.initial_dual_solution = None;
+    let mut quadratic = linear.clone();
+    quadratic.variable_lower_bounds = vec![Some(finite(1.0)), Some(finite(2.0))];
+    quadratic.objective_coefficients = vec![finite(0.0); 2];
+    quadratic.objective_offset = finite(0.0);
+    quadratic.quadratic_objective = quadratic_program().quadratic_objective;
+    let mut empty_row = linear.clone();
+    empty_row.constraint_ids = vec![ConstraintId::new("zero-row").unwrap()];
+    empty_row.constraint_matrix.rows = 1;
+    empty_row.constraint_matrix.offsets.push(0);
+    empty_row.constraint_lower_bounds = vec![Some(finite(0.0))];
+    empty_row.constraint_upper_bounds = vec![Some(finite(0.0))];
+    empty_row.initial_dual_solution = Some(vec![finite(0.0)]);
+    let mut semi_continuous = bound_only_model(VariableKind::SemiContinuous);
+    semi_continuous.variable_lower_bounds = vec![Some(finite(2.0)); 2];
+    semi_continuous.variable_upper_bounds = vec![Some(finite(5.0)); 2];
+    semi_continuous.objective_coefficients = vec![finite(1.0); 2];
+    semi_continuous.initial_dual_solution = None;
+    let mut free_quadratic = quadratic.clone();
+    free_quadratic.variable_lower_bounds = vec![None; 2];
+    free_quadratic.variable_upper_bounds = vec![None; 2];
+    free_quadratic.objective_coefficients = vec![finite(-2.0), finite(-4.0)];
+    free_quadratic.objective_offset = finite(5.0);
+    let mut quadratic_only = linear.clone();
+    quadratic_only.quadratic_constraints =
+        quadratically_constrained_program().quadratic_constraints;
+    quadratic_only.constraint_ids = vec![ConstraintId::new("unit-circle").unwrap()];
+    quadratic_only.objective_coefficients = vec![finite(-1.0); 2];
+    quadratic_only.objective_offset = finite(0.0);
+    quadratic_only.initial_dual_solution = Some(vec![finite(0.0)]);
+    let mut infeasible = empty_row.clone();
+    infeasible.constraint_lower_bounds = vec![Some(finite(1.0))];
+    infeasible.constraint_upper_bounds = vec![Some(finite(1.0))];
+    let mut unbounded = linear.clone();
+    unbounded.variable_upper_bounds = vec![None; 2];
+
+    for (label, family, model, expected_objective) in [
+        ("bound-only LP", ExecutorModelFamily::Convex, linear, -3.0),
+        ("bound-only MILP", ExecutorModelFamily::Milp, integer, -2.0),
+        ("bound-only QP", ExecutorModelFamily::Convex, quadratic, 5.0),
+        (
+            "empty linear row",
+            ExecutorModelFamily::Convex,
+            empty_row,
+            -3.0,
+        ),
+        (
+            "semi-continuous zero",
+            ExecutorModelFamily::Milp,
+            semi_continuous,
+            1.0,
+        ),
+        (
+            "free-variable QP",
+            ExecutorModelFamily::Convex,
+            free_quadratic,
+            0.0,
+        ),
+        (
+            "quadratic-only constraints",
+            ExecutorModelFamily::Convex,
+            quadratic_only,
+            -std::f64::consts::SQRT_2,
+        ),
+    ] {
+        let constraint_count = model.constraint_ids.len();
+        let request = veoveo_optimization_mcp::executor::ExecutorRequest::new(
+            RunId::new(),
+            profile(),
+            ExecutorOperation::SolveModel { family, model },
+        );
+        let response = tokio::time::timeout(
+            std::time::Duration::from_secs(30),
+            client.execute(&request, CancellationToken::new()),
+        )
+        .await
+        .unwrap_or_else(|_| panic!("{label} exceeded 30 seconds"))
+        .unwrap_or_else(|error| panic!("{label} executor request failed: {error:?}"));
+        let ExecutorResult::Model { solution } = response.result else {
+            panic!("{label} executor returned {response:?}");
+        };
+        assert_eq!(solution.status, ExecutorModelStatus::Optimal, "{label}");
+        assert_eq!(solution.primal_solution.len(), 2, "{label}");
+        assert!(
+            solution
+                .incumbents
+                .iter()
+                .all(|incumbent| incumbent.values.len() == 2),
+            "{label}"
+        );
+        assert!(
+            solution.dual_solution.is_empty() || solution.dual_solution.len() == constraint_count,
+            "{label} exposed a solver-only constraint"
+        );
+        let objective = solution.primal_objective.unwrap().get();
+        assert!(
+            (objective - expected_objective).abs() <= 1e-4,
+            "{label} objective {objective}, expected {expected_objective}"
+        );
+    }
+
+    for (label, model, status) in [
+        (
+            "infeasible empty row",
+            infeasible,
+            ExecutorModelStatus::Infeasible,
+        ),
+        (
+            "unbounded LP",
+            unbounded,
+            // The selected PSLP presolver preserves this ambiguous terminal result.
+            ExecutorModelStatus::InfeasibleOrUnbounded,
+        ),
+    ] {
+        let request = veoveo_optimization_mcp::executor::ExecutorRequest::new(
+            RunId::new(),
+            profile(),
+            ExecutorOperation::SolveModel {
+                family: ExecutorModelFamily::Convex,
+                model,
+            },
+        );
+        let response = tokio::time::timeout(
+            std::time::Duration::from_secs(30),
+            client.execute(&request, CancellationToken::new()),
+        )
+        .await
+        .expect("executor exceeded 30 seconds")
+        .unwrap();
+        let ExecutorResult::Model { solution } = response.result else {
+            panic!("{label} executor returned {response:?}");
+        };
+        assert_eq!(solution.status, status, "{label}");
+    }
 }
 
 fn quadratically_constrained_program() -> CompiledMathematicalModel {

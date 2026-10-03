@@ -249,6 +249,21 @@ constraint matrices and quadratic objectives use CSR. The controlled model is
 bounded at 16,384 nonzero input terms. Artifact input follows the same bound;
 it changes transport and governance, not the accepted mathematical profile.
 
+For compiled models with no nonzero linear coefficients, the cuOpt 26.08 Python
+adapter adds a private continuous variable fixed at zero and the equation `z = 0`.
+The wrapper requires nonempty CSR arrays, and its MIP heuristic requires a nonzero
+coefficient. This construction preserves every original variable bound, including
+the separate zero allowed by a semi-continuous variable. It also preserves empty
+rows that make a model infeasible. Quadratic dimensions and warm starts include the
+auxiliary value only inside the executor. Returned primal values, dual values and
+incumbents exclude it; public problems, digests and independent verification use the
+submitted model.
+
+The GPU suite qualifies bound-only LP, MILP and QP, semi-continuous zero solutions,
+free-variable QP, quadratic-only constraints, empty linear rows, infeasibility and
+the presolver's infeasible-or-unbounded outcome. Remove this adapter when a pinned
+cuOpt release passes those cases directly with empty CSR input.
+
 ## Solver Profiles
 
 Clients select an immutable `optimization://profile/{profile_id}`. A request
