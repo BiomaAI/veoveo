@@ -12,8 +12,9 @@ reads, completion, Host admission and the requested Linux native suites passed.
 The follow-up closes six missing readiness routes, Recording admin document routing
 and Optimization's empty-constraint failure. Console's route-retention fix is deployed
 from `7583087e` through `f1282cf0`; both UAV App restart stages pass with the harness
-at `b63d85a2`. Computers' HTTP rejection still fails. The cluster and BuildKit stay
-stopped during development; Reason runs only for its separate acceptance.
+at `b63d85a2`. Gateway `e1969257`, selected through `a5db6d66`, also passes the
+Computers HTTP 413 check with normal OAuth. The cluster and BuildKit stay stopped
+during development; Reason runs only for its separate acceptance.
 
 | Phase | Qualified checkpoint | Remaining work |
 |---|---|---|
@@ -562,7 +563,6 @@ The remaining acceptance work is:
 
 | Gap | Owner and required result |
 |---|---|
-| Computers' upstream body-limit 413 becomes HTTP 200 with an MCP transport error | Gateway preserves the upstream request rejection at its HTTP boundary without inspecting error strings or adding a server-name special case |
 | Media installed generation remains unqualified | The maintained fake-provider smoke passed; the earlier user limit on real generation still applies until explicitly changed |
 
 The deployed follow-up registers readiness for Artifact, DuckDB, Frames, Map, Media
@@ -587,12 +587,14 @@ warming cameras and detailed startup frames within its existing deadlines and sa
 each accepted stage independently. This closes hosted App continuity, while composed
 flight, mission outcome recovery and landing visual acceptance remain separate.
 
-The deployed gateway still returns HTTP 200 with MCP -32603 for Computers' upstream
-413. The source fix preserves typed rejection status through the gateway handler,
-sets HTTP status only for its final failure and excludes definitive rejections from
-connection retry. Its native regression verifies 413 alongside a successful concurrent
-request, with no rejected mutation or replay. RMCP 3.5.0 and the matching Rig pin pass
-native qualification; publication and installed rejection acceptance are pending.
+The deployed gateway preserves Computers' upstream body-limit rejection as HTTP 413.
+The original 2,097,630-byte request passes this check through normal operator OAuth;
+authenticated tool, prompt, template and resource discovery also succeeds with
+Reason and Knowledge stopped. Typed rejection status reaches the final handler
+response, and definitive rejections do not trigger connection retry. The native
+regression verifies 413 alongside a successful concurrent request, with no rejected
+mutation or replay. RMCP 3.5.0 and the matching Rig pin pass native qualification.
+Other SDK consumers still need qualification when their images adopt these pins.
 
 Readiness absence, Recording admin routing, gateway body-limit conversion and the
 Optimization edge case predate this batch. The cause of UAV remounts relative to

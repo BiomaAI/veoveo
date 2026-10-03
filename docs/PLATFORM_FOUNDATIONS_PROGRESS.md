@@ -8,6 +8,25 @@ requirements, accepted risks and remaining work. This log does not establish com
 
 ## Implementation And Installation Checkpoints
 
+Installed gateway HTTP rejection acceptance (2026-10-03): gateway source `e1969257`
+publishes runnable image
+`sha256:d3a116c7b331a69a2127da1235ad4bd80571a3645cdbe8871b3110e83a6541be`.
+The gateway-only lock change at `a5db6d66` converges in 62.4 seconds. Its pod and
+Computers are Ready. Replaying the original 2,097,630-byte `computers__create`
+request through operator OAuth returns HTTP 413 and the original 2 MiB limit reason.
+The maintained conformance client's discovery and resources commands pass, including
+111 valid tool schemas and prompt discovery while Reason and Knowledge stay stopped.
+
+Requests, responses, deployment state, native results and pod logs are under
+`output/development/gateway-http-rejections-917e7914/`. This closes the installed
+body-limit forwarding defect. The source-isolation warnings name the deliberately
+stopped services; a Recording ingest 503 during cluster startup is also retained in
+the logs and does not establish a composed recovery pass. The cluster and BuildKit
+are stopped after acceptance, with about 393 GiB free and useful caches preserved.
+Other SDK consumers keep their existing image pins and require qualification when
+rebuilt. No real Media generation ran. Phase 3 implementation, domain recovery and
+composed flight/playback gates remain open.
+
 Gateway HTTP rejection qualification (2026-10-03): RMCP stable 3.5.0 is pinned through
 fork `917e7914`, retaining exact Task subscriptions and adding typed non-MCP HTTP
 rejections. Rig `4125e888` selects the same SDK revision. The lockfile contains one
