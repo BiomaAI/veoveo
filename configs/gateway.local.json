@@ -55,7 +55,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://media-mcp:8787/media/mcp",
-        "health_url": "http://media-mcp:8787/media/healthz",
+        "health_url": "http://media-mcp:8787/media/readyz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
@@ -249,7 +249,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://timeseries-mcp:8789/timeseries/mcp",
-        "health_url": "http://timeseries-mcp:8789/timeseries/healthz",
+        "health_url": "http://timeseries-mcp:8789/timeseries/readyz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
@@ -282,7 +282,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://duckdb-mcp:8791/duckdb/mcp",
-        "health_url": "http://duckdb-mcp:8791/duckdb/healthz",
+        "health_url": "http://duckdb-mcp:8791/duckdb/readyz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
@@ -365,7 +365,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://frames-mcp:8793/frames/mcp",
-        "health_url": "http://frames-mcp:8793/frames/healthz",
+        "health_url": "http://frames-mcp:8793/frames/readyz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
@@ -406,7 +406,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://map-mcp:8799/map/mcp",
-        "health_url": "http://map-mcp:8799/map/healthz",
+        "health_url": "http://map-mcp:8799/map/readyz",
         "security": "cluster_internal_http"
       },
       "capabilities": {
@@ -611,7 +611,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://artifact-mcp:8794/artifact/mcp",
-        "health_url": "http://artifact-mcp:8794/artifact/healthz",
+        "health_url": "http://artifact-mcp:8794/artifact/readyz",
         "security": "cluster_internal_http"
       },
       "capabilities": {

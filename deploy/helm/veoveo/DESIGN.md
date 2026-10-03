@@ -18,6 +18,13 @@
 | `veoveo.ai/computer-host/v1` | Private compute-container configuration; dedicated daemon, provider and retained ext4 storage |
 | RFC 9562 UUIDv8 | Deterministic identity for explicitly unconfigured Computers; configured provider identity remains an installation input |
 
+## Hosted Server Probes
+
+Artifact, DuckDB, Frames, Map, Media and Timeseries use their mounted `/readyz`
+for Kubernetes readiness and gateway health checks. Their `/healthz` routes serve
+liveness independently of Store availability. Each Kubernetes HTTP probe sends a
+Host value admitted by the server. The owning server defines its dependency checks.
+
 ## Embedding Runtime
 
 The `embedding-runtime` component renders the `embedding` Deployment and Service,

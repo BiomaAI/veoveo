@@ -5,6 +5,7 @@
     digest: ""
   port: 8794
   healthPath: /artifact/healthz
+  readinessPath: /artifact/readyz
   args:
     - --port
     - "8794"
@@ -19,6 +20,7 @@
     digest: ""
   port: 8787
   healthPath: /media/healthz
+  readinessPath: /media/readyz
   args:
     - --port
     - "8787"
@@ -33,6 +35,7 @@
     digest: ""
   port: 8789
   healthPath: /timeseries/healthz
+  readinessPath: /timeseries/readyz
   args:
     - --port
     - "8789"
@@ -150,6 +153,7 @@
     digest: ""
   port: 8793
   healthPath: /frames/healthz
+  readinessPath: /frames/readyz
   args:
     - serve
     - --port
@@ -171,6 +175,7 @@
     digest: ""
   port: 8799
   healthPath: /map/healthz
+  readinessPath: /map/readyz
   args:
     - serve
     - --port
@@ -272,6 +277,7 @@
     digest: ""
   port: 8791
   healthPath: /duckdb/healthz
+  readinessPath: /duckdb/readyz
   args:
     - --port
     - "8791"

@@ -24,6 +24,7 @@ pub(super) fn check() -> Result<()> {
         [],
     )?;
     recording_probe_hosts(&bioma)?;
+    dependency_readiness_probes(&bioma)?;
     for expected in [
         "host: veoveo.bioma.ai",
         "https://veoveo.bioma.ai",
@@ -98,6 +99,18 @@ pub(super) fn check() -> Result<()> {
         fs::read_to_string("configs/gateway.local.json")?,
     ] {
         let config: Value = serde_json::from_str(&config)?;
+        for slug in ["artifact", "duckdb", "frames", "map", "media", "timeseries"] {
+            let server = config["servers"]
+                .as_array()
+                .and_then(|servers| servers.iter().find(|server| server["slug"] == slug))
+                .with_context(|| format!("{slug} registration missing"))?;
+            ensure!(
+                server["upstream"]["health_url"]
+                    .as_str()
+                    .is_some_and(|url| url.ends_with(&format!("/{slug}/readyz"))),
+                "{slug} gateway health must use dependency readiness"
+            );
+        }
         let speech = config["servers"]
             .as_array()
             .and_then(|servers| servers.iter().find(|server| server["slug"] == "speech"))
@@ -407,6 +420,49 @@ fn recording_probe_hosts(rendered: &str) -> Result<()> {
                 .any(|pair| pair[0] == "--allowed-host" && pair[1] == host),
             "Recording {probe} Host is absent from its allowed-host arguments"
         );
+    }
+    Ok(())
+}
+
+fn dependency_readiness_probes(rendered: &str) -> Result<()> {
+    let objects = serde_yaml_ng::Deserializer::from_str(rendered)
+        .map(Value::deserialize)
+        .collect::<std::result::Result<Vec<_>, _>>()?;
+    for slug in ["artifact", "duckdb", "frames", "map", "media", "timeseries"] {
+        let name = format!("{slug}-mcp");
+        let deployment = objects
+            .iter()
+            .find(|object| object["kind"] == "Deployment" && object["metadata"]["name"] == name)
+            .with_context(|| format!("rendered {name} deployment"))?;
+        let container = deployment["spec"]["template"]["spec"]["containers"]
+            .as_array()
+            .context("MCP containers")?
+            .iter()
+            .find(|container| container["name"] == name)
+            .with_context(|| format!("{name} container"))?;
+        ensure!(
+            container["readinessProbe"]["httpGet"]["path"] == format!("/{slug}/readyz"),
+            "{name} readiness must check dependencies"
+        );
+        ensure!(
+            container["livenessProbe"]["httpGet"]["path"] == format!("/{slug}/healthz"),
+            "{name} liveness must not restart on a database outage"
+        );
+        for probe in ["readinessProbe", "livenessProbe"] {
+            let host = container[probe]["httpGet"]["httpHeaders"]
+                .as_array()
+                .and_then(|headers| headers.iter().find(|h| h["name"] == "Host"))
+                .and_then(|header| header["value"].as_str())
+                .with_context(|| format!("{name} {probe} admitted Host"))?;
+            ensure!(
+                container["args"]
+                    .as_array()
+                    .context("MCP arguments")?
+                    .windows(2)
+                    .any(|pair| pair[0] == "--allowed-host" && pair[1] == host),
+                "{name} {probe} Host is not admitted"
+            );
+        }
     }
     Ok(())
 }
