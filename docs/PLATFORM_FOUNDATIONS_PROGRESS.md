@@ -8,6 +8,23 @@ requirements, accepted risks and remaining work. This log does not establish com
 
 ## Implementation And Installation Checkpoints
 
+Gateway access-token expiry checkpoint (2026-10-03): signed-token and actual HTTP
+middleware regressions reproduce the installed failure before the correction. A token
+expired 41 seconds earlier reaches the test handler with 204 because JWT validation
+accepts its default sixty-second grace period. The downstream assertion issuer still
+requires an expiry in the future. Access-token verification now checks the signed
+expiry immediately after signature/claim validation, before constructing authority.
+It rejects the exact expiry second and tokens inside the former grace window.
+
+The grouped native run passes 202 cases across the gateway library, binary and
+cross-replica session-family integration. The HTTP regression checks a valid control,
+four expiry cases, the 401 challenge/body and four committed authentication denials
+read through the second Store client. One existing native blob test stays ignored;
+this change does not touch its path. Strict Clippy and documentation checks pass.
+Neither shared-host implementation changed. Outputs are under
+`output/development/gateway-expiry/`. The correction still needs
+publication and installed acceptance with an ordinary OAuth credential.
+
 Installed typed-dispatch checkpoint (2026-10-03): Map, Knowledge and Computers publish
 from `e1c5d3d7` and converge through `c9b590ac`. Publication reuses BuildKit and takes
 194 seconds. Ten rollout tests and Helm configuration pass. All three deployed servers

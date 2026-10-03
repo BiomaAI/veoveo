@@ -452,3 +452,157 @@ pub(super) async fn load_resource_authorization_jwks(
         load_jwks(http, &authorization_server.jwks).await
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::{Router, body::Body, http::header::WWW_AUTHENTICATE, middleware, routing::post};
+    use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+    use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
+    use parking_lot::RwLock;
+    use serde::Serialize;
+    use std::{path::PathBuf, sync::Arc, time::Duration};
+    use tower::ServiceExt;
+    use veoveo_audit_contract::{
+        AuditClass, AuditDetail, AuditOutcome, AuditPartition, AuditQuery, AuditReadScope,
+    };
+    use veoveo_mcp_contract::{GatewayControlPlane, JwksSource};
+    use veoveo_mcp_gateway::{GatewayCatalogHandle, GatewayState};
+
+    struct PublicKeyFile(PathBuf);
+    impl Drop for PublicKeyFile {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.0);
+        }
+    }
+
+    #[derive(Serialize)]
+    struct Claims {
+        iss: &'static str,
+        sub: &'static str,
+        principal_id: &'static str,
+        client_id: &'static str,
+        aud: &'static str,
+        work_context: &'static str,
+        invocation_mode: veoveo_types::InvocationMode,
+        initiator: &'static str,
+        tenant: &'static str,
+        scope: &'static str,
+        exp: i64,
+    }
+
+    #[tokio::test]
+    async fn expired_bearer_returns_401_before_dispatch_and_commits_denial() {
+        let _ = jsonwebtoken::crypto::rust_crypto::DEFAULT_PROVIDER.install_default();
+        let db = crate::test_store::TestDb::new().await;
+        let key = rcgen::KeyPair::generate_for(&rcgen::PKCS_ED25519).unwrap();
+        let key_file = PublicKeyFile(
+            std::env::temp_dir().join(format!("gateway-expiry-{}.jwks.json", uuid::Uuid::now_v7())),
+        );
+        std::fs::write(
+            &key_file.0,
+            serde_json::to_vec(&serde_json::json!({"keys": [{
+                "kty": "OKP", "crv": "Ed25519", "x": URL_SAFE_NO_PAD.encode(key.public_key_raw()),
+                "alg": "EdDSA", "use": "sig", "kid": "expiry-test"
+            }]}))
+            .unwrap(),
+        )
+        .unwrap();
+        let mut control: GatewayControlPlane = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../computers/tests/support/gateway.json"
+        )))
+        .unwrap();
+        control.authorization_servers[0].jwks = JwksSource::File {
+            path: veoveo_mcp_contract::JwksFilePath::new(key_file.0.to_str().unwrap()).unwrap(),
+        };
+        let state = ProfileAuthState {
+            catalog: GatewayCatalogHandle::new(Arc::new(
+                GatewayCatalog::from_control_plane(control).unwrap(),
+            )),
+            gateway_state: GatewayState::new(db.a.clone()),
+            public_base_url: "https://computers.test".to_owned(),
+            http: Arc::new(RwLock::new(reqwest::Client::new())),
+        };
+        let app = Router::new()
+            .route("/mcp/operator", post(|| async { StatusCode::NO_CONTENT }))
+            .route_layer(middleware::from_fn_with_state(state, authenticate_mcp));
+        let mut header = Header::new(Algorithm::EdDSA);
+        header.kid = Some("expiry-test".to_owned());
+        let encoding_key = EncodingKey::from_ed_der(&key.serialize_der());
+        tokio::time::timeout(Duration::from_secs(30), async {
+            // A valid control proves this fixture can pass all the real middleware gates.
+            // Expired cases cover the default JWT leeway and its exact expiry second.
+            for offset in [120, -41, -1, 0, -120] {
+                let token = encode(
+                    &header,
+                    &Claims {
+                        iss: "https://computers.test",
+                        sub: "alice",
+                        principal_id: "https://computers.test#alice",
+                        client_id: "console",
+                        aud: "https://computers.test/mcp/operator",
+                        work_context: "computers-test",
+                        invocation_mode: veoveo_types::InvocationMode::Direct,
+                        initiator: "https://computers.test#alice",
+                        tenant: "test",
+                        scope: "operator:use",
+                        exp: Utc::now().timestamp() + offset,
+                    },
+                    &encoding_key,
+                )
+                .unwrap();
+                let response = app
+                    .clone()
+                    .oneshot(
+                        Request::builder()
+                            .method("POST")
+                            .uri("/mcp/operator")
+                            .header(AUTHORIZATION, format!("Bearer {token}"))
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap();
+                if offset > 0 {
+                    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+                } else {
+                    assert_eq!(
+                        response.status(),
+                        StatusCode::UNAUTHORIZED,
+                        "expiry offset {offset}"
+                    );
+                    assert!(
+                        response.headers()[WWW_AUTHENTICATE]
+                            .to_str()
+                            .unwrap()
+                            .contains("/.well-known/oauth-protected-resource/mcp/operator")
+                    );
+                    let body = axum::body::to_bytes(response.into_body(), 1024)
+                        .await
+                        .unwrap();
+                    assert_eq!(body.as_ref(), b"authorization required for gateway profile");
+                }
+            }
+            let mut query = AuditQuery::new(AuditPartition::Installation);
+            query.class = Some(AuditClass::Authentication);
+            let page =
+                db.b.audit_page(&AuditReadScope::new(None, true), &query)
+                    .await
+                    .unwrap();
+            assert_eq!(page.records.len(), 4);
+            for record in page.records {
+                assert_eq!(record.draft.outcome(), AuditOutcome::Denied);
+                assert!(matches!(
+                    record.draft.detail(),
+                    AuditDetail::Authentication {
+                        reason: AuthReasonCode::InvalidBearerToken,
+                        ..
+                    }
+                ));
+            }
+        })
+        .await
+        .expect("authentication regression exceeded 30 seconds");
+    }
+}

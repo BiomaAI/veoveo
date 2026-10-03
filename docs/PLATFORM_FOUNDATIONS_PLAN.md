@@ -15,7 +15,8 @@ from `7583087e` through `f1282cf0`; both UAV App restart stages pass with the ha
 at `b63d85a2`. Gateway `e1969257`, selected through `a5db6d66`, also passes the
 Computers HTTP 413 check with normal OAuth. Map, Knowledge and Computers from
 `e1c5d3d7`, selected through `c9b590ac`, pass their affected installed checks. An
-expired-token admission error in the unchanged gateway still needs correction.
+expired-token admission correction in the gateway awaits publication and installed
+qualification.
 The cluster and BuildKit stay stopped during development; Reason runs only when
 a selected acceptance scenario requires it.
 
@@ -610,7 +611,7 @@ Implementation work also remains:
 | Work | Owner |
 |---|---|
 | Close the acceptance gaps above and qualify affected consumers after implementation changes | Composed publication |
-| A recently expired OAuth token reaches upstream discovery and fails internal assertion issuance with MCP -32603 instead of an authentication rejection | Gateway access-token admission; reproduce natively, fix, publish and qualify the expiry window |
+| Gateway access-token admission rejects the signed expiry instant before dispatch; native signed-token and HTTP regressions cover the former JWT grace window and committed denial audit | Publish the gateway correction and qualify its installed expiry response with a normal OAuth client |
 
 Knowledge and Computers bind tools directly to typed RMCP handlers. Input schemas
 come from those parameter types; the domain-specific policy recheck, Task capability
@@ -633,7 +634,9 @@ Fourteen catalog roots, operational and dataset-bound release cursors, a filtere
 publication feature read and Artifact delivery also pass through the gateway.
 All three servers pass discovery, document reads, document completion, authenticated
 admin documents, health/readiness and Host rejection checks. The expired-token issue
-above predates this three-server release; its introduction is not yet classified.
+above predates this three-server release. Its native reproduction admits a token
+expired 41 seconds earlier; the correction requires its signed expiry to be in the
+future and returns the existing 401 challenge with a committed authentication denial.
 
 #### Migration Inventory And Status
 

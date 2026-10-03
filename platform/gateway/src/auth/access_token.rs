@@ -57,6 +57,14 @@ impl JwtVerifier {
         let data =
             decode::<JwtClaims>(token.as_str(), &key, &validation).map_err(AuthError::Jwt)?;
         let claims = data.claims;
+        let expires_at = unix_timestamp(claims.exp, "exp")?;
+        // JWT leeway must not extend caller authority: downstream assertions cannot
+        // outlive this instant, including the exact expiration second.
+        if expires_at <= Utc::now() {
+            return Err(AuthError::Jwt(
+                jsonwebtoken::errors::ErrorKind::ExpiredSignature.into(),
+            ));
+        }
         let scopes = claims.scopes()?;
         if !self.config.required_scopes.is_subset(&scopes) {
             return Err(AuthError::MissingRequiredScope);
@@ -97,7 +105,7 @@ impl JwtVerifier {
                 .nbf
                 .map(|value| unix_timestamp(value, "nbf"))
                 .transpose()?,
-            expires_at: unix_timestamp(claims.exp, "exp")?,
+            expires_at,
         };
         let principal = Principal {
             id: PrincipalId::new(claims.principal_id).map_err(AuthError::Claim)?,

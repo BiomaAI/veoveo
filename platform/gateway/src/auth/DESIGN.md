@@ -17,6 +17,13 @@ token. When that client supports refresh, the token carries `session_family`. Ea
 rotation preserves the same family identity. Client-credentials and ID-JAG exchanges
 do not acquire a browser session family.
 
+Access-token verification requires the signed `exp` instant to be strictly in the
+future. JWT clock-skew tolerance cannot extend that authority: downstream assertions
+expire at or before the source token. An expired bearer receives HTTP 401 with the
+profile's authentication challenge before upstream discovery or dispatch. The denial
+commits an `InvalidBearerToken` authentication record. Other JWT time checks retain
+their configured validation profile.
+
 After JWT validation and current Work Context resolution, gateway authentication
 reads a bound family and checks its authorization server, profile, client, context,
 principal identity, tenant, scope and lifetime. A missing, expired or revoked family

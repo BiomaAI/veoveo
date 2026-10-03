@@ -185,6 +185,15 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         principal_assurances: Vec<&str>,
         session_family: Option<&str>,
     ) -> BearerToken {
+        token_with_expiration(scope, principal_assurances, session_family, 4_102_444_800)
+    }
+
+    fn token_with_expiration(
+        scope: &str,
+        principal_assurances: Vec<&str>,
+        session_family: Option<&str>,
+        exp: u64,
+    ) -> BearerToken {
         let mut header = Header::new(Algorithm::RS256);
         header.kid = Some("test-key".to_string());
         let encoding_key = rsa_encoding_key();
@@ -201,7 +210,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
                 invocation_mode: InvocationMode::Direct,
                 initiator: "https://idp.example.com#00u123",
                 aud: AUDIENCE,
-                exp: 4_102_444_800,
+                exp,
                 nbf: 1_700_000_000,
                 iat: 1_700_000_000,
                 jti: "jwt-1",
@@ -438,6 +447,24 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
                 .principal
                 .assurances
                 .contains(&PrincipalAssurance::UsPerson)
+        );
+    }
+
+    #[test]
+    fn access_tokens_reject_expiry_without_extending_signed_authority() {
+        let verifier = verifier(&["operator:use"]);
+        let now = u64::try_from(chrono::Utc::now().timestamp()).unwrap();
+        for seconds_ago in [0, 1, 41, 120] {
+            let token = token_with_expiration("operator:use", vec![], None, now - seconds_ago);
+            let error = verifier.verify(&token).expect_err("expired token admitted");
+            assert!(matches!(error, AuthError::Jwt(error)
+                if error.kind() == &jsonwebtoken::errors::ErrorKind::ExpiredSignature));
+        }
+        let token = token_with_expiration("operator:use", vec![], None, now + 120);
+        let verified = verifier.verify(&token).unwrap();
+        assert_eq!(
+            verified.access_token.expires_at.timestamp(),
+            (now + 120) as i64
         );
     }
 
