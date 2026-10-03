@@ -6,10 +6,7 @@ use veoveo_knowledge_mcp::{
     coordinator::CoordinatorState,
     indexing::{IndexingConfig, IndexingReadiness, IndexingService},
 };
-use veoveo_mcp_contract::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
-    PublicDeployment,
-};
+use veoveo_mcp_contract::{GatewayInternalTrustBundle, PublicDeployment};
 use veoveo_platform_store::{PlatformStore, StoreConfig, StoreCredentials};
 
 #[derive(Parser)]
@@ -51,12 +48,7 @@ async fn main() -> anyhow::Result<()> {
     let _telemetry = veoveo_mcp_contract::init_server_telemetry("veoveo-knowledge-mcp", "info")?;
     let args = Args::parse();
     let deployment = PublicDeployment::new(&args.public_base_url)?;
-    let endpoint = deployment.server("knowledge")?;
-    let verifier = GatewayInternalTokenVerifier::new(
-        GATEWAY_INTERNAL_TOKEN_ISSUER.parse()?,
-        "knowledge".parse()?,
-        GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?,
-    );
+    let trust = GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?;
     let store = PlatformStore::connect(
         StoreConfig::builder(
             &args.surreal_endpoint,
@@ -76,15 +68,12 @@ async fn main() -> anyhow::Result<()> {
         ))
         .await?,
     );
-    let mut allowed_hosts =
-        veoveo_mcp_contract::public_allowed_hosts(&deployment, args.allow_loopback_hosts);
     for host in &args.allowed_hosts {
         anyhow::ensure!(
             veoveo_mcp_contract::parse_allowed_host_authority(host).is_some(),
             "invalid allowed host"
         );
     }
-    allowed_hosts.extend(args.allowed_hosts);
     let cancel = tokio_util::sync::CancellationToken::new();
     let mut tenants = std::collections::BTreeSet::new();
     let mut configurations = Vec::new();
@@ -119,25 +108,17 @@ async fn main() -> anyhow::Result<()> {
         });
     }
     let readiness = IndexingReadiness::new(states)?;
-    let server = veoveo_knowledge_mcp::mcp::KnowledgeMcp::new(store, embeddings);
-    let router = axum::Router::new().nest(
-        endpoint.mount_path(),
-        veoveo_knowledge_mcp::host::router(
-            server,
-            verifier,
-            allowed_hosts,
-            cancel.child_token(),
-            readiness,
-        ),
-    );
-    let listener =
-        tokio::net::TcpListener::bind((std::net::Ipv4Addr::UNSPECIFIED, args.port)).await?;
+    let server = veoveo_knowledge_mcp::host::server(
+        veoveo_knowledge_mcp::mcp::KnowledgeMcp::new(store, embeddings),
+        &deployment,
+        args.allow_loopback_hosts,
+        args.allowed_hosts,
+        trust,
+        readiness,
+    )?;
+    let address = std::net::SocketAddr::from((std::net::Ipv4Addr::UNSPECIFIED, args.port));
     let shutdown = cancel.clone();
-    let mut http = tokio::spawn(async move {
-        axum::serve(listener, router)
-            .with_graceful_shutdown(shutdown.cancelled_owned())
-            .await
-    });
+    let mut http = tokio::spawn(server.serve_with_shutdown(address, shutdown.cancelled_owned()));
     let mut http_ended = false;
     let result = tokio::select! {
         signal = shutdown_signal() => signal,
@@ -146,7 +127,7 @@ async fn main() -> anyhow::Result<()> {
             Some(Err(error)) => Err(anyhow::Error::from(error)),
             _ => Err(anyhow::anyhow!("indexing worker ended before shutdown")),
         },
-        finished = &mut http => { http_ended = true; finished.map_err(anyhow::Error::from).and_then(|result| result.map_err(anyhow::Error::from)) },
+        finished = &mut http => { http_ended = true; finished.map_err(anyhow::Error::from).and_then(|result| result) },
     };
     cancel.cancel();
     if tokio::time::timeout(std::time::Duration::from_secs(20), async {

@@ -68,11 +68,11 @@ async fn hosted_search_links_catalog_and_embedding_follow_current_sql_authority(
         // Approval and scope predicates must exclude an undecodable hidden row.
         db.a.client().query("UPDATE knowledge_collection SET document.sourceContractRevision = 'invalid' WHERE collection = 'media.private';").await.unwrap().check().unwrap();
         let server=Server::new(db.b.clone(),embedding,&signing).await;
-        let health = format!("{}/healthz", server.base);
+        let health = format!("{}/readyz", server.base);
         assert_eq!(reqwest::get(&health).await.unwrap().status(), reqwest::StatusCode::OK);
         server.indexing.send_replace(veoveo_knowledge_mcp::coordinator::CoordinatorState::Starting);
         assert_eq!(reqwest::get(&health).await.unwrap().status(), reqwest::StatusCode::SERVICE_UNAVAILABLE);
-        assert_eq!(reqwest::get(format!("{}/livez", server.base)).await.unwrap().status(), reqwest::StatusCode::OK);
+        assert_eq!(reqwest::get(format!("{}/healthz", server.base)).await.unwrap().status(), reqwest::StatusCode::OK);
         server.indexing.send_replace(veoveo_knowledge_mcp::coordinator::CoordinatorState::Updating(generation));
         assert_eq!(reqwest::get(&health).await.unwrap().status(), reqwest::StatusCode::OK);
         server.indexing.send_replace(veoveo_knowledge_mcp::coordinator::CoordinatorState::CatalogReady);

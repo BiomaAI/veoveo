@@ -75,7 +75,7 @@ The generated embedding-space document binds its model identity to the qualified
 checkpoint and vLLM image digest. A changed public configuration or embedding space
 changes the Pod template. Key rotation is read on each new machine connection.
 
-Startup and liveness use `/knowledge/livez`; readiness uses `/knowledge/healthz`.
+Startup and liveness use `/knowledge/healthz`; readiness uses `/knowledge/readyz`.
 An initial index build or reconnection can remove readiness while HTTP liveness stays
 healthy. Termination allows 45 seconds for the service's worker and HTTP drain.
 The [native chart suite](../../../testing/deployment-smoke/tests/knowledge_helm.rs)

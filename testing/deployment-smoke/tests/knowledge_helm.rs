@@ -69,9 +69,9 @@ fn deployment_uses_private_credentials_shared_gpu_and_independent_liveness() -> 
             .get("nvidia.com/gpu")
             .is_none()
     );
-    ensure!(container["livenessProbe"]["httpGet"]["path"] == "/knowledge/livez");
-    ensure!(container["startupProbe"]["httpGet"]["path"] == "/knowledge/livez");
-    ensure!(container["readinessProbe"]["httpGet"]["path"] == "/knowledge/healthz");
+    ensure!(container["livenessProbe"]["httpGet"]["path"] == "/knowledge/healthz");
+    ensure!(container["startupProbe"]["httpGet"]["path"] == "/knowledge/healthz");
+    ensure!(container["readinessProbe"]["httpGet"]["path"] == "/knowledge/readyz");
     ensure!(
         container["args"]
             == json!([

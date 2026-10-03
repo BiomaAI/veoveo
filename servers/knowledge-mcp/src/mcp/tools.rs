@@ -3,7 +3,10 @@ use crate::{
     contract::{EmbedRequest, EmbedResponse, SearchRequest, SearchResponse},
     search::SearchService,
 };
-use rmcp::handler::server::tool::schema_for_type;
+use rmcp::handler::server::{
+    router::tool::ToolRoute,
+    tool::{ToolCallContext, schema_for_type},
+};
 use serde::{Serialize, de::DeserializeOwned};
 use veoveo_types::LocalToolName;
 
@@ -26,6 +29,27 @@ pub(super) fn definitions() -> Vec<Tool> {
         Tool::new("embed", "Embed document or query texts in the installation's declared embedding space.", schema_for_type::<EmbedRequest>())
             .with_title("Embed texts").with_output_schema::<EmbedResponse>().with_annotations(annotations),
     ]
+}
+/// The declared tools, each dispatched through [`KnowledgeMcp::call`] so policy
+/// and scope checks stay in one place.
+pub(super) fn router<E: Embeddings + 'static>() -> ToolRouter<KnowledgeMcp<E>> {
+    let mut router = ToolRouter::new();
+    for tool in definitions() {
+        router.add_route(ToolRoute::new_dyn(
+            tool,
+            |call: ToolCallContext<'_, KnowledgeMcp<E>>| {
+                Box::pin(async move {
+                    let mut request = CallToolRequestParams::new(call.name.clone());
+                    request.arguments = call.arguments;
+                    call.service
+                        .call(request, call.request_context)
+                        .await
+                        .map(Into::into)
+                })
+            },
+        ));
+    }
+    router
 }
 impl<E: Embeddings + 'static> KnowledgeMcp<E> {
     pub(super) async fn call(

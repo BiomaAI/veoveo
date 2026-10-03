@@ -29,7 +29,7 @@ pub fn plane(registrations: &[CollectionRegistration]) -> GatewayControlPlane {
     server["mount_path"] = "/knowledge".into();
     server["mcp_path"] = "/knowledge/mcp".into();
     server["upstream"]["url"] = "http://127.0.0.1:18802/knowledge/mcp".into();
-    server["upstream"]["health_url"] = "http://127.0.0.1:18802/knowledge/healthz".into();
+    server["upstream"]["health_url"] = "http://127.0.0.1:18802/knowledge/readyz".into();
     server["owned_routes"] = serde_json::json!([]);
     server["tools"] = serde_json::json!(["search", "embed"]);
     server["prompts"] = serde_json::json!([]);
@@ -107,7 +107,7 @@ pub async fn install(store: &PlatformStore, plane: &GatewayControlPlane) {
 
 pub struct Signing {
     issuer: GatewayInternalTokenIssuer,
-    pub verifier: GatewayInternalTokenVerifier,
+    pub trust: GatewayInternalTrustBundle,
 }
 impl Signing {
     pub fn new() -> Self {
@@ -117,14 +117,10 @@ impl Signing {
         let issuer = TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER).unwrap();
         Self {
             issuer: GatewayInternalTokenIssuer::new(
-                issuer.clone(),
+                issuer,
                 GatewayInternalSigningKey::new("fixture", key.serialize_der()).unwrap(),
             ),
-            verifier: GatewayInternalTokenVerifier::new(
-                issuer,
-                "knowledge".parse().unwrap(),
-                trust,
-            ),
+            trust,
         }
     }
     pub fn issue(&self, identity: GatewayInternalIdentity) -> IssuedGatewayInternalToken {
@@ -265,13 +261,16 @@ impl Server {
         let (indexing, ready) = tokio::sync::watch::channel(
             veoveo_knowledge_mcp::coordinator::CoordinatorState::CatalogReady,
         );
-        let router = veoveo_knowledge_mcp::host::router(
+        let router = veoveo_knowledge_mcp::host::server(
             KnowledgeMcp::new(store, embeddings),
-            signing.verifier.clone(),
+            &veoveo_mcp_contract::PublicDeployment::new(format!("http://{address}")).unwrap(),
+            true,
             vec![address.to_string()],
-            stop.child_token(),
+            signing.trust.clone(),
             veoveo_knowledge_mcp::indexing::IndexingReadiness::new(vec![ready]).unwrap(),
-        );
+        )
+        .unwrap()
+        .into_router();
         let shutdown = stop.clone();
         let task = tokio::spawn(async move {
             axum::serve(listener, router)
@@ -281,7 +280,7 @@ impl Server {
         });
         Self {
             indexing,
-            base: format!("http://{address}"),
+            base: format!("http://{address}/knowledge"),
             stop,
             task,
         }

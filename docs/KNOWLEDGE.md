@@ -40,7 +40,7 @@ slug        knowledge
 URI scheme  knowledge
 MCP         /knowledge/mcp
 admin REST  /knowledge/admin
-health      /knowledge/healthz
+health      /knowledge/readyz
 ```
 
 ## Standards And Protocols

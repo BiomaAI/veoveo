@@ -7,6 +7,12 @@ records and source authorization with their owning servers.
 
 ## Invariants
 
+- The server is hosted through `veoveo_mcp_contract::hosting`: `KnowledgeMcp`
+  implements `DomainServer`, filters its lists by caller policy as `no_store`
+  listings, and authorizes its documents through `authorize_documents`.
+  `KnowledgeListener` serves subscriptions through `ListenOnly`; `/readyz` reports
+  indexing readiness. Do not add a `ServerHandler`, router, host check or
+  authentication middleware here.
 - Source reads go through the gateway with the Knowledge extension declared.
 - Caller collection exposure and access predicates run in SQL before ranking limits
   and decoding. Final access checks reuse the shared evaluator.

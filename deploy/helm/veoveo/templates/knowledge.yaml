@@ -93,7 +93,7 @@ spec:
             - {name: http, containerPort: 8800}
           startupProbe:
             httpGet:
-              path: /knowledge/livez
+              path: /knowledge/healthz
               port: http
               httpHeaders: [{name: Host, value: 'knowledge-mcp:8800'}]
             failureThreshold: 60
@@ -101,14 +101,14 @@ spec:
             timeoutSeconds: 3
           readinessProbe:
             httpGet:
-              path: /knowledge/healthz
+              path: /knowledge/readyz
               port: http
               httpHeaders: [{name: Host, value: 'knowledge-mcp:8800'}]
             periodSeconds: 5
             timeoutSeconds: 3
           livenessProbe:
             httpGet:
-              path: /knowledge/livez
+              path: /knowledge/healthz
               port: http
               httpHeaders: [{name: Host, value: 'knowledge-mcp:8800'}]
             periodSeconds: 10

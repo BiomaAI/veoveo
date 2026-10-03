@@ -6,30 +6,28 @@ use veoveo_platform_store::knowledge::CatalogSelection;
 use veoveo_types::{ResourceAddress, ResourceUri, ServerSlug};
 
 impl<E: Embeddings + 'static> KnowledgeMcp<E> {
+    /// Reads one admitted address under current policy. The host serves the
+    /// documents and contract after `authorize_documents`.
     pub(super) async fn read(
         &self,
-        request: ReadResourceRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResponse, ErrorData> {
-        let uri = ResourceUri::new(&request.uri)
+        address: KnowledgeResource,
+        uri: &str,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<ReadResourceResult, ErrorData> {
+        let uri = ResourceUri::new(uri)
             .map_err(|_| ErrorData::invalid_params("invalid Knowledge URI", None))?;
-        let address = KnowledgeResource::parse(&uri)
-            .map_err(|_| ErrorData::invalid_params("unknown Knowledge resource", None))?;
         let target = PolicyTarget::Resource {
             server: "knowledge".parse().unwrap(),
             uri: uri.clone(),
         };
         let (identity, admitted) = self
             .authority(
-                &context,
+                context,
                 KnowledgeScope::Read,
                 GatewayAction::ResourcesRead,
                 &target,
             )
             .await?;
-        if let Some(result) = SETUP.read_documents(&request, &context)? {
-            return Ok(result);
-        }
         let snapshot = self.catalog(&identity, &admitted, &uri, address).await?;
         let current = authorize(
             &self.store,
@@ -50,10 +48,7 @@ impl<E: Embeddings + 'static> KnowledgeMcp<E> {
         }
         Ok(ReadResourceResult::new(vec![
             ResourceContents::text(snapshot.body, uri.as_str()).with_mime_type("application/json"),
-        ])
-        .with_ttl_ms(0)
-        .with_cache_scope(CacheScope::Private)
-        .into())
+        ]))
     }
 
     pub(super) async fn catalog(

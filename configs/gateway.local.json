@@ -857,7 +857,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://knowledge-mcp:8800/knowledge/mcp",
-        "health_url": "http://knowledge-mcp:8800/knowledge/healthz",
+        "health_url": "http://knowledge-mcp:8800/knowledge/readyz",
         "security": "cluster_internal_http"
       },
       "capabilities": {

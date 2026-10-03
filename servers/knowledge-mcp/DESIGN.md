@@ -119,14 +119,14 @@ have a 60-second deadline and catalog SQL statements stop after 10 seconds.
 The binary reads Store credentials and internal public trust from installation
 configuration. It connects to the shared embedding endpoint using its API key and a
 JSON `EmbeddingSpace` file. Database migrations belong to installation bootstrap.
-`healthz` requires every configured tenant worker to have an active index or a complete
+`readyz` requires every configured tenant worker to have an active index or a complete
 catalog-only selection, and checks Store's control pointer within two seconds.
 After initial synchronization, the worker keeps serving while reconciling collection
 changes. SQL source epochs and freshness still exclude invalidated members until their
 source observations are current. Initial builds, connection recovery, failed workers
 and shutdown withdraw readiness; a content or grant update does not remove the HTTP
 endpoint that clients use to observe its completion.
-`livez` reports HTTP process liveness independently of indexing. The reference
+`healthz` reports HTTP process liveness independently of indexing. The reference
 installation reaches readiness after indexing its approved collections.
 
 ## Packaging And Deployment
@@ -152,12 +152,12 @@ rotation. The embedding key comes from `embedding.apiKeySecret`; the chart gener
 the embedding-space document from the qualified model, revision, dimension and runtime
 image. Helm rejects inline credentials and missing deployment dependencies.
 
-Startup and liveness probes use `livez`; readiness uses `healthz`. The 45-second
+Startup and liveness probes use `healthz`; readiness uses `readyz`. The 45-second
 termination allowance covers worker cleanup and HTTP draining. Configuration changes
 use a new public bundle revision; key rotation uses Kubernetes Secret projection and
 the worker's next authenticated connection. The installation registers the service at
 `http://knowledge-mcp:8800/knowledge/mcp` with health URL
-`http://knowledge-mcp:8800/knowledge/healthz`.
+`http://knowledge-mcp:8800/knowledge/readyz`.
 
 ## Indexing Configuration And Lifecycle
 

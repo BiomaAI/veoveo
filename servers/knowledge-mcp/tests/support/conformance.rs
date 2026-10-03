@@ -24,8 +24,8 @@ async fn hosted_contract_and_immutable_knowledge_documents_conform() {
             http: HttpBoundaryProfile {
                 require_authentication_rejection: true,
                 rejected_host: Some("untrusted.invalid".into()),
-                health_url: Some(format!("{}/livez", server.base)),
-                readiness_url: Some(format!("{}/healthz", server.base)),
+                health_url: Some(format!("{}/healthz", server.base)),
+                readiness_url: Some(format!("{}/readyz", server.base)),
                 docs_llms_url: format!("{}/admin/docs/llms.txt", server.base),
             },
             surfaces: SurfaceProfile {

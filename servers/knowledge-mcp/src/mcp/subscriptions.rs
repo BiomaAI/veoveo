@@ -126,13 +126,7 @@ impl<E: Embeddings + 'static> KnowledgeMcp<E> {
     ) -> Result<Snapshot, ErrorData> {
         tokio::time::timeout(std::time::Duration::from_secs(60), async {
             let request = context.request_context();
-            let identity = request
-                .extensions
-                .get::<axum::http::request::Parts>()
-                .and_then(|parts| parts.extensions.get::<GatewayInternalIdentity>())
-                .ok_or_else(|| {
-                    ErrorData::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
-                })?;
+            let identity = &gateway_identity(request)?;
             let admitted =
                 crate::authority::authenticate(&self.store, identity, KnowledgeScope::Read)
                     .await
@@ -159,7 +153,10 @@ impl<E: Embeddings + 'static> KnowledgeMcp<E> {
                 ) {
                     return Err(error(crate::ServiceError::AccessChanged));
                 }
-                let page = self.list_resources(None, request.clone()).await?;
+                let listing =
+                    DomainServer::list_resources(self, SETUP.declared_resources(), None, request)
+                        .await?;
+                let page = SETUP.list_resources(listing, None)?;
                 snapshot.discovery = Some(digest(
                     &serde_json::to_vec(&page).map_err(|_| unavailable())?,
                 ));

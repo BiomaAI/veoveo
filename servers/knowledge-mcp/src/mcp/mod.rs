@@ -9,16 +9,26 @@ use crate::{
     contract::KnowledgeScope,
     embed::Embeddings,
 };
-use rmcp::{ErrorData, RoleServer, ServerHandler, model::*, service::RequestContext};
+use rmcp::{
+    ErrorData, RoleServer, handler::server::router::tool::ToolRouter, model::*,
+    service::RequestContext,
+};
 pub use setup::{KnowledgeContract, SETUP};
 use std::sync::Arc;
-use veoveo_mcp_contract::{GatewayAction, GatewayInternalIdentity, PolicyTarget};
+use veoveo_mcp_contract::{
+    GatewayAction, GatewayInternalIdentity, PolicyTarget,
+    hosting::{
+        DomainAddress, DomainRead, DomainServer, Listing, SubscriptionListener, gateway_identity,
+    },
+    server_contract::McpServerSetup,
+};
 use veoveo_platform_store::PlatformStore;
 
 pub struct KnowledgeMcp<E> {
     pub(crate) store: PlatformStore,
     pub(crate) embeddings: Arc<E>,
     changes: tokio::sync::watch::Sender<Option<veoveo_platform_store::ResourceInvalidation>>,
+    tool_router: Arc<ToolRouter<Self>>,
 }
 impl<E> Clone for KnowledgeMcp<E> {
     fn clone(&self) -> Self {
@@ -26,6 +36,7 @@ impl<E> Clone for KnowledgeMcp<E> {
             store: self.store.clone(),
             embeddings: self.embeddings.clone(),
             changes: self.changes.clone(),
+            tool_router: self.tool_router.clone(),
         }
     }
 }
@@ -35,6 +46,7 @@ impl<E: Embeddings + 'static> KnowledgeMcp<E> {
             store,
             embeddings,
             changes: tokio::sync::watch::channel(None).0,
+            tool_router: Arc::new(tools::router()),
         }
     }
     async fn authority(
@@ -44,21 +56,153 @@ impl<E: Embeddings + 'static> KnowledgeMcp<E> {
         action: GatewayAction,
         target: &PolicyTarget,
     ) -> Result<(GatewayInternalIdentity, RequestAuthority), ErrorData> {
-        let identity = context
-            .extensions
-            .get::<axum::http::request::Parts>()
-            .and_then(|parts| parts.extensions.get::<GatewayInternalIdentity>())
-            .cloned()
-            .ok_or_else(|| {
-                ErrorData::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
-            })?;
+        let identity = gateway_identity(context)?;
         let authority = authorize(&self.store, &identity, scope, action, target)
             .await
             .map_err(error)?;
         Ok((identity, authority))
     }
 }
-impl<E: Embeddings + 'static> ServerHandler for KnowledgeMcp<E> {
+impl<E: Embeddings + 'static> DomainServer for KnowledgeMcp<E> {
+    type Contract = KnowledgeContract;
+
+    fn setup() -> &'static McpServerSetup<KnowledgeContract> {
+        &SETUP
+    }
+
+    fn tool_router(&self) -> &ToolRouter<Self> {
+        &self.tool_router
+    }
+
+    /// Tools this caller's scopes and current gateway policy admit. Policy can
+    /// change at any time, so the list is never reused.
+    async fn list_tools(
+        &self,
+        tools: Vec<Tool>,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<Listing<Tool>, ErrorData> {
+        let identity = gateway_identity(context)?;
+        let scope = if SETUP.has_scope(&identity.actor.scopes, KnowledgeScope::Search) {
+            KnowledgeScope::Search
+        } else {
+            KnowledgeScope::Embed
+        };
+        let authority = crate::authority::authenticate(&self.store, &identity, scope)
+            .await
+            .map_err(error)?;
+        let tools = tools
+            .into_iter()
+            .filter(|tool| {
+                tools::scope(&tool.name)
+                    .is_some_and(|required| SETUP.has_scope(&identity.actor.scopes, required))
+                    && authority.allows(
+                        &identity,
+                        GatewayAction::ToolsList,
+                        &PolicyTarget::Tool {
+                            server: "knowledge".parse().unwrap(),
+                            tool: tool.name.as_ref().parse().expect("declared tool"),
+                        },
+                    )
+            })
+            .collect();
+        Ok(Listing::all(tools).no_store())
+    }
+
+    /// Resources current gateway policy admits for this caller; never reused.
+    async fn list_resources(
+        &self,
+        declared: Vec<Resource>,
+        _cursor: Option<&str>,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<Listing<Resource>, ErrorData> {
+        let identity = gateway_identity(context)?;
+        let authority =
+            crate::authority::authenticate(&self.store, &identity, KnowledgeScope::Read)
+                .await
+                .map_err(error)?;
+        let resources = declared
+            .into_iter()
+            .filter(|resource| {
+                veoveo_types::ResourceUri::new(&resource.uri).is_ok_and(|uri| {
+                    authority.allows(
+                        &identity,
+                        GatewayAction::ResourcesList,
+                        &PolicyTarget::Resource {
+                            server: "knowledge".parse().unwrap(),
+                            uri,
+                        },
+                    )
+                })
+            })
+            .collect();
+        Ok(Listing::all(resources).no_store())
+    }
+
+    /// Templates current gateway policy admits for this caller; never reused.
+    async fn list_resource_templates(
+        &self,
+        declared: Vec<ResourceTemplate>,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<Listing<ResourceTemplate>, ErrorData> {
+        let identity = gateway_identity(context)?;
+        let authority =
+            crate::authority::authenticate(&self.store, &identity, KnowledgeScope::Read)
+                .await
+                .map_err(error)?;
+        let templates = declared
+            .into_iter()
+            .filter(|template| {
+                veoveo_types::ResourceTemplateUri::new(&template.uri_template).is_ok_and(|uri| {
+                    authority.allows(
+                        &identity,
+                        GatewayAction::ResourcesTemplatesList,
+                        &PolicyTarget::ResourceTemplate {
+                            server: "knowledge".parse().unwrap(),
+                            uri,
+                        },
+                    )
+                })
+            })
+            .collect();
+        Ok(Listing::all(templates).no_store())
+    }
+
+    /// Documents follow the same current policy as every Knowledge read.
+    async fn authorize_documents(
+        &self,
+        identity: &GatewayInternalIdentity,
+        address: &veoveo_types::ResourceUri,
+    ) -> Result<(), ErrorData> {
+        authorize(
+            &self.store,
+            identity,
+            KnowledgeScope::Read,
+            GatewayAction::ResourcesRead,
+            &PolicyTarget::Resource {
+                server: "knowledge".parse().unwrap(),
+                uri: address.clone(),
+            },
+        )
+        .await
+        .map(|_| ())
+        .map_err(error)
+    }
+
+    async fn read(
+        &self,
+        address: DomainAddress<KnowledgeContract>,
+        request: &ReadResourceRequestParams,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<DomainRead, ErrorData> {
+        tokio::time::timeout(
+            std::time::Duration::from_secs(60),
+            self.read(address, &request.uri, context),
+        )
+        .await
+        .map_err(|_| error(crate::ServiceError::Deadline))?
+        .map(DomainRead::no_store)
+    }
+
     async fn complete(
         &self,
         request: CompleteRequestParams,
@@ -71,6 +215,15 @@ impl<E: Embeddings + 'static> ServerHandler for KnowledgeMcp<E> {
         .await
         .map_err(|_| error(crate::ServiceError::Deadline))?
     }
+}
+
+/// Knowledge subscriptions follow the catalog observer and re-authorize each
+/// snapshot.
+pub struct KnowledgeListener<E> {
+    pub(crate) server: KnowledgeMcp<E>,
+}
+
+impl<E: Embeddings + 'static> SubscriptionListener for KnowledgeListener<E> {
     fn accepted_subscription_filter(
         &self,
         requested: &SubscriptionFilter,
@@ -84,171 +237,12 @@ impl<E: Embeddings + 'static> ServerHandler for KnowledgeMcp<E> {
         }
         Some(accepted.build())
     }
+
     async fn listen(&self, context: rmcp::service::SubscriptionContext) -> Result<(), ErrorData> {
-        self.listen_catalog(context).await
-    }
-    fn supported_protocol_versions(&self) -> std::borrow::Cow<'static, [ProtocolVersion]> {
-        veoveo_mcp_contract::final_protocol_versions()
-    }
-    fn get_info(&self) -> ServerConfig {
-        SETUP.server_config().clone()
-    }
-    async fn list_tools(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        context: RequestContext<RoleServer>,
-    ) -> Result<ListToolsResult, ErrorData> {
-        let identity = context
-            .extensions
-            .get::<axum::http::request::Parts>()
-            .and_then(|parts| parts.extensions.get::<GatewayInternalIdentity>())
-            .ok_or_else(|| {
-                ErrorData::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
-            })?;
-        let scope = if SETUP.has_scope(&identity.actor.scopes, KnowledgeScope::Search) {
-            KnowledgeScope::Search
-        } else {
-            KnowledgeScope::Embed
-        };
-        let authority = crate::authority::authenticate(&self.store, identity, scope)
-            .await
-            .map_err(error)?;
-        let tools = tools::definitions()
-            .into_iter()
-            .filter(|tool| {
-                SETUP.has_scope(
-                    &identity.actor.scopes,
-                    tools::scope(&tool.name).expect("declared tool"),
-                ) && authority.allows(
-                    identity,
-                    GatewayAction::ToolsList,
-                    &PolicyTarget::Tool {
-                        server: "knowledge".parse().unwrap(),
-                        tool: tool.name.as_ref().parse().expect("declared tool"),
-                    },
-                )
-            })
-            .collect();
-        let page = page(tools, request.as_ref())?;
-        Ok(ListToolsResult {
-            tools: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(ResultType::COMPLETE),
-            ttl_ms: Some(0),
-            cache_scope: Some(CacheScope::Private),
-            meta: None,
-        })
-    }
-    async fn call_tool(
-        &self,
-        request: CallToolRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<CallToolResponse, ErrorData> {
-        self.call(request, context).await.map(Into::into)
-    }
-    async fn list_resources(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        context: RequestContext<RoleServer>,
-    ) -> Result<ListResourcesResult, ErrorData> {
-        let identity = context
-            .extensions
-            .get::<axum::http::request::Parts>()
-            .and_then(|parts| parts.extensions.get::<GatewayInternalIdentity>())
-            .ok_or_else(|| {
-                ErrorData::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
-            })?;
-        let authority = crate::authority::authenticate(&self.store, identity, KnowledgeScope::Read)
-            .await
-            .map_err(error)?;
-        let page = page(
-            SETUP
-                .resources()
-                .iter()
-                .filter(|r| {
-                    veoveo_types::ResourceUri::new(&r.descriptor().uri).is_ok_and(|uri| {
-                        authority.allows(
-                            identity,
-                            GatewayAction::ResourcesList,
-                            &PolicyTarget::Resource {
-                                server: "knowledge".parse().unwrap(),
-                                uri,
-                            },
-                        )
-                    })
-                })
-                .map(|r| r.descriptor().clone())
-                .collect(),
-            request.as_ref(),
-        )?;
-        Ok(ListResourcesResult {
-            resources: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(ResultType::COMPLETE),
-            ttl_ms: Some(0),
-            cache_scope: Some(CacheScope::Private),
-            meta: None,
-        })
-    }
-    async fn list_resource_templates(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        context: RequestContext<RoleServer>,
-    ) -> Result<ListResourceTemplatesResult, ErrorData> {
-        let identity = context
-            .extensions
-            .get::<axum::http::request::Parts>()
-            .and_then(|parts| parts.extensions.get::<GatewayInternalIdentity>())
-            .ok_or_else(|| {
-                ErrorData::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
-            })?;
-        let authority = crate::authority::authenticate(&self.store, identity, KnowledgeScope::Read)
-            .await
-            .map_err(error)?;
-        let page = page(
-            SETUP
-                .resource_templates()
-                .iter()
-                .filter(|r| {
-                    veoveo_types::ResourceTemplateUri::new(&r.descriptor().uri_template).is_ok_and(
-                        |uri| {
-                            authority.allows(
-                                identity,
-                                GatewayAction::ResourcesTemplatesList,
-                                &PolicyTarget::ResourceTemplate {
-                                    server: "knowledge".parse().unwrap(),
-                                    uri,
-                                },
-                            )
-                        },
-                    )
-                })
-                .map(|r| r.descriptor().clone())
-                .collect(),
-            request.as_ref(),
-        )?;
-        Ok(ListResourceTemplatesResult {
-            resource_templates: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(ResultType::COMPLETE),
-            ttl_ms: Some(0),
-            cache_scope: Some(CacheScope::Private),
-            meta: None,
-        })
-    }
-    async fn read_resource(
-        &self,
-        request: ReadResourceRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResponse, ErrorData> {
-        tokio::time::timeout(
-            std::time::Duration::from_secs(60),
-            self.read(request, context),
-        )
-        .await
-        .map_err(|_| error(crate::ServiceError::Deadline))?
+        self.server.listen_catalog(context).await
     }
 }
+
 fn error(error: crate::ServiceError) -> ErrorData {
     match error {
         crate::ServiceError::AccessChanged => {
@@ -259,12 +253,4 @@ fn error(error: crate::ServiceError) -> ErrorData {
         }
         _ => ErrorData::internal_error(error.to_string(), None),
     }
-}
-
-fn page<T>(
-    items: Vec<T>,
-    request: Option<&PaginatedRequestParams>,
-) -> Result<veoveo_mcp_contract::pagination::Page<T>, ErrorData> {
-    veoveo_mcp_contract::pagination::paginate(items, request, 100)
-        .map_err(|_| ErrorData::invalid_params("invalid Knowledge catalog cursor", None))
 }
