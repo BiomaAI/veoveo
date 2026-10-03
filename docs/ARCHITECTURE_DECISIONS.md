@@ -290,8 +290,9 @@ operation a second time or complete it by a different path.
 
 Each profile chooses how it handles a failed server during discovery. By default,
 the gateway leaves the unavailable server out and reports the gap in typed metadata.
-A profile that declares `fail_closed` discovery refuses the whole tool list instead,
-so an autonomous client never acts on a toolset that is incomplete without saying so.
+A profile that declares `fail_closed` discovery refuses the whole tool or prompt
+list instead, so an autonomous client never acts on a toolset that is incomplete
+without saying so.
 No profile may drop a server silently.
 
 ## Hosted server administration

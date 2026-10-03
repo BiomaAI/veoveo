@@ -1,5 +1,6 @@
 use std::{collections::BTreeMap, time::Duration};
 
+use rmcp::ErrorData as McpError;
 use rmcp::model::{Prompt, Resource, ResourceTemplate, Tool};
 use tokio::{
     sync::{Mutex, Notify, broadcast},
@@ -7,8 +8,8 @@ use tokio::{
 };
 use uuid::Uuid;
 use veoveo_mcp_contract::{
-    GatewayDiscoveryDegradation, GatewayDiscoveryFailure, GatewayDiscoveryFailureCode,
-    GatewayDiscoverySurface, ServerSlug,
+    DiscoveryFailureMode, GatewayDiscoveryDegradation, GatewayDiscoveryFailure,
+    GatewayDiscoveryFailureCode, GatewayDiscoverySurface, ServerSlug,
 };
 use veoveo_types::{PrincipalId, ResourceUri};
 
@@ -249,6 +250,7 @@ impl CatalogDiscoveryCache {
                 self.resource_templates.contains(key).await
             }
             GatewayDiscoverySurface::Tools => self.tools.contains(key).await,
+            GatewayDiscoverySurface::Prompts => self.prompts.contains(key).await,
         }
     }
 
@@ -273,6 +275,9 @@ impl CatalogDiscoveryCache {
                     }
                     GatewayDiscoverySurface::Tools => {
                         self.tools.awaiting_initial_result(keys).await
+                    }
+                    GatewayDiscoverySurface::Prompts => {
+                        self.prompts.awaiting_initial_result(keys).await
                     }
                 };
                 if !pending {
@@ -300,6 +305,7 @@ impl CatalogDiscoveryCache {
                 self.resource_templates.pending(keys).await
             }
             GatewayDiscoverySurface::Tools => self.tools.pending(keys).await,
+            GatewayDiscoverySurface::Prompts => self.prompts.pending(keys).await,
         };
         if pending {
             GatewayDiscoveryFailureCode::DiscoveryPending
@@ -319,6 +325,7 @@ impl CatalogDiscoveryCache {
                 self.resource_templates.begin(key, true).await
             }
             GatewayDiscoverySurface::Tools => self.tools.begin(key, true).await,
+            GatewayDiscoverySurface::Prompts => self.prompts.begin(key, true).await,
         }
     }
     pub(super) async fn finish_failure(
@@ -332,6 +339,7 @@ impl CatalogDiscoveryCache {
                 self.resource_templates.finish(&fetch, None).await
             }
             GatewayDiscoverySurface::Tools => self.tools.finish(&fetch, None).await,
+            GatewayDiscoverySurface::Prompts => self.prompts.finish(&fetch, None).await,
         };
         self.settled.notify_waiters();
     }
@@ -487,9 +495,81 @@ pub(super) fn isolate_discovery_failures<T, E>(
     (values, GatewayDiscoveryDegradation::new(failures), errors)
 }
 
+/// Fails a list whose profile requires complete discovery when any server failed.
+pub(super) fn enforce_complete_discovery<E>(
+    surface: GatewayDiscoverySurface,
+    mode: DiscoveryFailureMode,
+    errors: &[(ServerSlug, E)],
+) -> Result<(), McpError> {
+    if mode != DiscoveryFailureMode::FailClosed || errors.is_empty() {
+        return Ok(());
+    }
+    let mut servers = errors
+        .iter()
+        .map(|(server, _)| server.to_string())
+        .collect::<Vec<_>>();
+    servers.sort();
+    let surface = match surface {
+        GatewayDiscoverySurface::Resources => "resource",
+        GatewayDiscoverySurface::ResourceTemplates => "resource template",
+        GatewayDiscoverySurface::Tools => "tool",
+        GatewayDiscoverySurface::Prompts => "prompt",
+    };
+    Err(crate::mcp_support::mcp_internal(format!(
+        "profile requires complete {surface} discovery; unavailable servers: {}",
+        servers.join(", ")
+    )))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fail_closed_profiles_reject_incomplete_tool_and_prompt_catalogs() {
+        let errors = [
+            (ServerSlug::new("uav-sim").unwrap(), ()),
+            (ServerSlug::new("map").unwrap(), ()),
+        ];
+        for surface in [
+            GatewayDiscoverySurface::Tools,
+            GatewayDiscoverySurface::Prompts,
+        ] {
+            assert!(
+                enforce_complete_discovery(surface, DiscoveryFailureMode::Isolate, &errors).is_ok()
+            );
+        }
+        let error = enforce_complete_discovery(
+            GatewayDiscoverySurface::Prompts,
+            DiscoveryFailureMode::FailClosed,
+            &errors,
+        )
+        .unwrap_err();
+        assert_eq!(
+            error.message,
+            "profile requires complete prompt discovery; unavailable servers: map, uav-sim"
+        );
+    }
+
+    #[test]
+    fn isolated_prompt_failures_name_the_missing_server() {
+        let results: Vec<(ServerSlug, Result<Vec<&str>, ()>)> = vec![
+            (ServerSlug::new("frames").unwrap(), Ok(vec!["frame_audit"])),
+            (ServerSlug::new("uav-sim").unwrap(), Err(())),
+        ];
+        let (prompts, degradation, errors) =
+            isolate_discovery_failures(GatewayDiscoverySurface::Prompts, results);
+        assert_eq!(prompts, ["frame_audit"]);
+        assert_eq!(errors.len(), 1);
+        assert_eq!(
+            degradation.failures,
+            [GatewayDiscoveryFailure {
+                server: ServerSlug::new("uav-sim").unwrap(),
+                surface: GatewayDiscoverySurface::Prompts,
+                code: GatewayDiscoveryFailureCode::UpstreamUnavailable,
+            }]
+        );
+    }
 
     fn key(generation: u64, server: &str) -> DiscoveryCacheKey {
         DiscoveryCacheKey {

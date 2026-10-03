@@ -48,8 +48,8 @@ scheme.
 Each profile chooses what happens when discovery fails. By default, the gateway drops
 the failing server from the combined list and reports the gap in typed degradation
 metadata. A profile may instead declare `fail_closed` discovery, in which case any
-unavailable server fails the whole tool list, so an autonomous client never works
-from a toolset that is silently incomplete.
+unavailable server fails the whole tool or prompt list, so an autonomous client never
+works from a toolset that is silently incomplete.
 
 Each catalog entry declares two typed upstream URLs: the MCP endpoint and a required
 health endpoint. The gateway sends `health_url` an unauthenticated GET and treats only

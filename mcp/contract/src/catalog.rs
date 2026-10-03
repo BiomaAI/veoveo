@@ -12,6 +12,7 @@ pub enum GatewayDiscoverySurface {
     Resources,
     ResourceTemplates,
     Tools,
+    Prompts,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

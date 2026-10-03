@@ -366,10 +366,14 @@ counts and the visible-set digest before returning. A warm list evaluates no pol
 A failed fetch becomes eligible on the next explicit
 list call.
 
+Prompt discovery contacts only servers that declare prompts and whose profile
+exposure lists them. A server that fails prompt discovery is left out and named in
+the same degradation metadata under the `prompts` surface.
+
 A profile whose work requires a complete tool catalog sets
-`discovery_failure_mode` to `fail_closed`; its tool list fails until every
-exposed server is reachable, which prevents an autonomous client from retaining
-a silently incomplete toolset. Upstream `listChanged` notifications invalidate
+`discovery_failure_mode` to `fail_closed`; its tool and prompt lists fail until
+every exposed server is reachable, which prevents an autonomous client from
+retaining a silently incomplete toolset. Upstream `listChanged` notifications invalidate
 successful per-server entries and wake callers without polling. Direct resource
 reads and tool calls remain fail closed.
 
