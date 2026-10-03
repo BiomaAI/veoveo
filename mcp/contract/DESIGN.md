@@ -471,7 +471,9 @@ supplies three things:
    server's address type, and `authorize` checks those typed addresses for the caller
    before delivery starts. A server whose subscriptions combine tasks with live or
    domain event streams implements `DurableListener` and uses
-   `DurableTasks::with_listener`. A server without tasks uses the default `NoTasks`.
+   `DurableTasks::with_listener`. A server without durable tasks that publishes
+   resource changes uses `ResourcesOnly`, and one with neither uses the default
+   `NoTasks`.
 
 ```rust
 let server = HostedServer::for_domain::<MyDomain>()

@@ -7,9 +7,17 @@
 
 use std::future::Future;
 
-use rmcp::{ErrorData, RoleServer, service::RequestContext, service::SubscriptionContext};
+use rmcp::{
+    ErrorData, RoleServer,
+    model::{
+        CallToolRequestParams, CancelTaskParams, CreateTaskResult, GetTaskParams, GetTaskResult,
+        SubscriptionFilter, UpdateTaskParams,
+    },
+    service::{RequestContext, SubscriptionContext},
+};
 use veoveo_types::{ResourceAddress, ResourceUri};
 
+use super::{TaskSupport, domain::no_tasks};
 use crate::{ResourceListObservers, SubscriptionHub};
 
 /// A server's resource-change source and its subscription authorization.
@@ -62,6 +70,67 @@ pub async fn admit_resource_subscriptions<R: ResourceSubscriptions>(
     source.authorize(addresses, context.request_context()).await
 }
 
+/// Task support for a server without durable tasks that publishes resource
+/// changes. Task calls fail as they do for [`NoTasks`](super::NoTasks), and
+/// `subscriptions/listen` delivers the source's changes after it authorizes the
+/// typed addresses.
+pub struct ResourcesOnly<R>(R);
+
+impl<R: ResourceSubscriptions> ResourcesOnly<R> {
+    pub fn new(source: R) -> Self {
+        Self(source)
+    }
+}
+
+impl<R: ResourceSubscriptions> TaskSupport for ResourcesOnly<R> {
+    async fn start_task(
+        &self,
+        _request: &mut CallToolRequestParams,
+        _context: &RequestContext<RoleServer>,
+    ) -> Result<Option<CreateTaskResult>, ErrorData> {
+        Ok(None)
+    }
+
+    async fn get_task(
+        &self,
+        _request: GetTaskParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<GetTaskResult, ErrorData> {
+        Err(no_tasks())
+    }
+
+    async fn update_task(
+        &self,
+        _request: UpdateTaskParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<(), ErrorData> {
+        Err(no_tasks())
+    }
+
+    async fn cancel_task(
+        &self,
+        _request: CancelTaskParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<(), ErrorData> {
+        Err(no_tasks())
+    }
+
+    fn accepted_subscription_filter(
+        &self,
+        requested: &SubscriptionFilter,
+    ) -> Option<SubscriptionFilter> {
+        let mut accepted = requested.clone();
+        accepted.task_ids = None;
+        (accepted.resource_subscriptions.is_some() || accepted.resources_list_changed.is_some())
+            .then_some(accepted)
+    }
+
+    async fn listen(&self, context: SubscriptionContext) -> Result<(), ErrorData> {
+        admit_resource_subscriptions(&self.0, &context).await?;
+        crate::listen_resources(context, self.0.hub(), self.0.resource_lists()).await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::requested_addresses;
@@ -82,6 +151,43 @@ mod tests {
             ResourceUri::new(format!("fixture://items/{}", self.0))
                 .map_err(|_| IdentifierError::new(&self.0, "invalid item"))
         }
+    }
+
+    struct Items(crate::SubscriptionHub);
+
+    impl super::ResourceSubscriptions for Items {
+        type Address = Item;
+        async fn authorize(
+            &self,
+            _addresses: Vec<Item>,
+            _context: &rmcp::service::RequestContext<rmcp::RoleServer>,
+        ) -> Result<(), rmcp::ErrorData> {
+            Ok(())
+        }
+        fn hub(&self) -> &crate::SubscriptionHub {
+            &self.0
+        }
+    }
+
+    #[test]
+    fn resources_only_support_drops_task_observations() {
+        use super::{ResourcesOnly, TaskSupport};
+        use rmcp::model::SubscriptionFilter;
+        let support = ResourcesOnly::new(Items(crate::SubscriptionHub::new()));
+        let requested = SubscriptionFilter::builder()
+            .task_ids(["task-1".to_owned()])
+            .resource_subscriptions(["fixture://items/1".to_owned()])
+            .build();
+        let accepted = support.accepted_subscription_filter(&requested).unwrap();
+        assert!(accepted.task_ids.is_none());
+        assert_eq!(
+            accepted.resource_subscriptions,
+            Some(vec!["fixture://items/1".to_owned()])
+        );
+        let tasks_only = SubscriptionFilter::builder()
+            .task_ids(["task-1".to_owned()])
+            .build();
+        assert!(support.accepted_subscription_filter(&tasks_only).is_none());
     }
 
     #[test]

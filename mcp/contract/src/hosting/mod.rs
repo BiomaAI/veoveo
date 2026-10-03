@@ -47,4 +47,6 @@ pub use domain::{
 };
 pub use results::{completion, json_read, product_result, rank_completions, structured_result};
 pub use server::{Deployment, HostedServer, HostedServerBuilder, Missing, Provided};
-pub use subscriptions::{ResourceSubscriptions, admit_resource_subscriptions, requested_addresses};
+pub use subscriptions::{
+    ResourceSubscriptions, ResourcesOnly, admit_resource_subscriptions, requested_addresses,
+};

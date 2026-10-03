@@ -228,7 +228,7 @@ pub trait TaskSupport: Send + Sync + 'static {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct NoTasks;
 
-fn no_tasks() -> ErrorData {
+pub(super) fn no_tasks() -> ErrorData {
     ErrorData::invalid_request("this server has no tasks", None)
 }
 
