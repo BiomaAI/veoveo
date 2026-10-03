@@ -614,6 +614,7 @@ observation lease and cancellation epoch in one transaction.
 | `runtime/task_pages.rs` | caller-owned collection pages with Store authorization filters, creation-time and Task-ID cursors |
 | `runtime/owner_query.rs`, `runtime/owner_reads.rs` and `runtime/owner_subscriptions.rs` | typed owner/context/operation query builder and shared SQL selection for exact reads, cancellation, collection pages and public Task delivery; current-state projection from native Task identities |
 | `runtime/transition.surql` | Task compare-and-set transitions with owner-query selection repeated inside caller cancellations |
+| `runtime/input_responses.rs`, `runtime/input_responses.surql`, `tests/input_responses.rs` | input answer transactions with current caller selection, matching input identities and per-key deduplication; public API rollback and contention qualification |
 | `runtime/context_scope.rs` | checked Work Context predicates and bindings shared by Task observation and linked usage reads |
 | `runtime/usage.rs` | caller-owned usage reads and Task-ID pages; SQL checks both usage and linked Task metadata before grouping and limits under an explicit owner or Work Context policy; Task existence admission before the first usage row |
 | `leases.rs` | distinct execution/observation claims and lease renewal |

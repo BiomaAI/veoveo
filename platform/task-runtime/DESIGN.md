@@ -38,6 +38,9 @@ The transition transaction checks current profile, owner, clearance and selected
 Work Context before updating the Task or writing its event. A denied Task has the
 same unknown-ID response as an absent Task. The MCP service adapter uses this method;
 domain workers keep the trusted runtime API for their own lifecycle transitions.
+`runtime/input_responses` owns trusted and caller-scoped input answers. Public
+updates use `OwnerTaskQuery::submit_input_responses`, which repeats the same
+selection inside each answer's transaction.
 `runtime/context_scope` owns the Work Context predicates and typed scalar bindings
 shared by Task observation and linked usage reads.
 `runtime/owner_reads` owns SQL Task-owner selection and bindings;
@@ -277,6 +280,30 @@ repeat the final transaction in full. Python Task and domain-usage mutations wri
 their domain records. The MCP adapter closes readers when acknowledgement or delivery
 fails, including before their first iteration.
 The [Python SDK guide](../../sdk/python/README.md) documents public and trusted APIs.
+
+## Input Responses
+
+Caller input submission selects the Task under the owner query before decoding.
+Each answer updates only an unanswered input with the matching Task and request key.
+The same transaction updates the parent Task under its current owner, profile,
+clearance, selected operation and optional Work Context predicates. It accepts only
+Queued, Running or Waiting Tasks. A rejected parent update rolls back the answer.
+Cancellation or completion cannot leave a newly accepted answer behind that guard.
+
+Answers commit separately, preserving the protocol's per-input deduplication.
+Concurrent submissions accept one answer; duplicates and unknown keys leave the
+existing response and Task timestamp unchanged. Recognized transaction failures
+use the runtime's retry policy, capped at eight attempts. Store's shared transaction
+error selection preserves the rejection cause instead of retrying a guard rejection
+hidden by an earlier unexecuted statement. Trusted workers use
+`TaskRuntime::submit_input_responses`, which checks server and status without caller
+selection. Both paths share the transaction and input-identity checks.
+
+`tests/input_responses.rs` exercises the public owner query and MCP update adapter
+against disposable stores. Database events inject authority and status changes
+between the input write and parent guard, and assertions check full rollback.
+Separate clients compete for one answer on RocksDB. Other cases cover denied
+malformed Tasks, cancellation, completion and mismatched input keys or parent links.
 
 ## Task-Backed Resource Observation
 

@@ -1,5 +1,6 @@
 mod context_scope;
 mod history;
+mod input_responses;
 mod owner_query;
 mod owner_reads;
 mod owner_subscriptions;
@@ -38,10 +39,9 @@ use veoveo_types::{AccessSubject, InvocationProvenance};
 
 use crate::types::{
     CreateTask, CreateTaskResult, RecoveryClass, RequestEnvelope, TaskError, TaskFailure,
-    TaskInputExchange, TaskInputRequest, TaskInputSubmission, TaskOwner, TaskPayloadState,
-    TaskRetentionPin, TaskRuntimeConfig, TaskSnapshot, TaskTransition, TaskUpdate,
-    TaskUpdateCursor, failure_to_open_object, open_object_to_value, record_to_snapshot,
-    validate_task_id,
+    TaskInputExchange, TaskInputRequest, TaskOwner, TaskPayloadState, TaskRetentionPin,
+    TaskRuntimeConfig, TaskSnapshot, TaskTransition, TaskUpdate, TaskUpdateCursor,
+    failure_to_open_object, open_object_to_value, record_to_snapshot, validate_task_id,
 };
 
 const DEFAULT_RETENTION: Duration = Duration::from_secs(7 * 24 * 60 * 60);
@@ -518,63 +518,6 @@ impl TaskRuntime {
             .map(task_input_record_to_exchange)
             .map(|exchange| exchange.map(|exchange| (exchange.key, exchange.request)))
             .collect()
-    }
-
-    pub async fn submit_input_responses(
-        &self,
-        task_id: TaskId,
-        responses: BTreeMap<String, BTreeMap<String, serde_json::Value>>,
-    ) -> Result<TaskInputSubmission, TaskError> {
-        let current = self
-            .get(task_id)
-            .await?
-            .ok_or_else(|| TaskError::NotFound(task_id.to_string()))?;
-        if current.is_terminal() || current.status == StoreTaskStatus::CancelRequested {
-            return Err(TaskError::InvalidTransition {
-                from: current.status,
-                to: StoreTaskStatus::Running,
-            });
-        }
-        let mut submission = TaskInputSubmission::default();
-        for (key, response_value) in responses {
-            validate_input_key(&key)?;
-            let mut attempt = 0;
-            let accepted = loop {
-                let now = Utc::now();
-
-                let result = self
-                    .store
-                    .client()
-                    .query(
-                        "BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $input SET response = $response, responded_at = $now WHERE task = $task AND response = NONE RETURN AFTER); IF $updated != NONE { LET $task_updated = (UPDATE ONLY $task SET updated_at = $now WHERE server = $server AND status IN ['queued', 'running', 'waiting'] RETURN AFTER); IF $task_updated = NONE { THROW 'task cannot accept input'; }; }; RETURN $updated; COMMIT TRANSACTION;",
-                    )
-                    .bind(("input", task_input_record(current.task_id, &key)))
-                    .bind(("response", OpenObject::new(response_value.clone())))
-                    .bind(("now", now))
-                    .bind(("task", task_record_id(current.task_id)))
-                    .bind(("server", RecordId::new("mcp_server", self.server.clone())))
-                    .await
-                    .and_then(|response| response.check());
-                match result {
-                    Ok(mut response) => break response.take::<Option<TaskInputRecord>>(3)?,
-                    Err(error)
-                        if is_retryable_transaction_failure(&error)
-                            && attempt + 1 < MAX_TRANSACTION_ATTEMPTS =>
-                    {
-                        transaction_retry_backoff(attempt).await;
-                        attempt += 1;
-                    }
-                    Err(error) => return Err(TaskError::Database(error)),
-                }
-            };
-            if accepted.is_some() {
-                submission.accepted += 1;
-                self.note_change();
-            } else {
-                submission.ignored += 1;
-            }
-        }
-        Ok(submission)
     }
 
     pub async fn transition(
