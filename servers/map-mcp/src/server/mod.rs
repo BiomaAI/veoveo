@@ -1,23 +1,18 @@
 pub(super) mod auth;
 mod bootstrap;
 mod config;
-mod host;
 pub(crate) mod tasks;
 
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use anyhow::Result;
-use axum::{Router, middleware, routing::get};
 use clap::Parser;
-use rmcp::transport::streamable_http_server::StreamableHttpService;
-use serde_json::json;
-use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_mcp_contract::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
-    ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, init_server_telemetry,
-    public_allowed_hosts,
+    GatewayInternalTrustBundle, SubscriptionHub, TelemetryGuard,
+    hosting::{Hosted, HostedServer},
+    init_server_telemetry,
 };
-use veoveo_task_runtime::{TaskRuntime, TaskRuntimeConfig};
+use veoveo_task_runtime::{DurableTasks, TaskRuntime, TaskRuntimeConfig};
 
 use crate::{
     acquisition::{
@@ -28,7 +23,7 @@ use crate::{
     authoring::AuthoringService,
     catalog::MapCatalog,
     geography::GeographyService,
-    mcp::MapMcp,
+    mcp::{MapMcp, MapSubscriptions},
     release_products::{ReleaseProductConfig, ReleaseProducts},
     routes::{
         RouteService,
@@ -41,10 +36,8 @@ use crate::{
     state::MapApplication,
 };
 
-use auth::{AdminAuthState, InternalAuthState, authenticate_internal, authorize_admin};
 use config::{Args, Cli};
-use host::validate_host;
-use tasks::recover_tasks;
+use tasks::{MapTaskExtension, recover_tasks};
 
 const SERVER_SLUG: &str = "map";
 
@@ -64,12 +57,6 @@ async fn serve(args: Args) -> Result<()> {
         init_server_telemetry("veoveo-map-mcp", "info,veoveo_map_mcp=debug")?;
     let public_deployment = args.public_deployment()?;
     let workspace_basemap = args.workspace_basemap()?;
-    let public_endpoint = public_deployment.server(SERVER_SLUG)?;
-    let verifier = GatewayInternalTokenVerifier::new(
-        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
-        ServerSlug::new(SERVER_SLUG)?,
-        GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?,
-    );
     let tasks = TaskRuntime::connect(
         TaskRuntimeConfig::new(
             args.surreal_endpoint.clone(),
@@ -182,113 +169,55 @@ async fn serve(args: Args) -> Result<()> {
     });
     recover_tasks(state.clone(), recovery.resumable).await?;
 
-    let cancellation = tokio_util::sync::CancellationToken::new();
     let observer_hub = state.subscriptions.clone();
-    let mut allowed_hosts = public_allowed_hosts(&public_deployment, args.allow_loopback_hosts);
-    allowed_hosts.extend(args.allowed_hosts.iter().cloned());
-    let allowed_hosts = Arc::new(allowed_hosts);
-    let auth_state = InternalAuthState {
-        verifier: verifier.clone(),
-    };
-    let mcp_service = StreamableHttpService::new(
-        {
-            let state = state.clone();
-            move || Ok(MapMcp::new(state.clone(), workspace_app.clone()))
-        },
-        veoveo_mcp_contract::stateless_session_manager(),
-        veoveo_mcp_contract::canonical_streamable_http_server_config()
-            .with_allowed_hosts(allowed_hosts.iter().cloned())
-            .with_cancellation_token(cancellation.child_token()),
+    let observer_store = catalog.store().clone();
+    let (health_analytics, health_valhalla, health_process) = (
+        analytics.clone(),
+        valhalla_client.clone(),
+        valhalla_process.clone(),
     );
-    let mcp_router = Router::new()
-        .route_service("/", mcp_service.clone())
-        .route_service("/{*path}", mcp_service)
-        .layer(middleware::from_fn(
-            veoveo_mcp_contract::enforce_serialized_mcp_response,
-        ))
-        .layer(middleware::from_fn_with_state(
-            auth_state.clone(),
-            authenticate_internal,
-        ));
-    let admin_router = crate::admin::router()
-        .layer(middleware::from_fn_with_state(
-            AdminAuthState {
-                required_scope: args.admin_scope.clone(),
-            },
-            authorize_admin,
-        ))
-        .layer(middleware::from_fn_with_state(
-            auth_state,
-            authenticate_internal,
-        ));
-    let health_analytics = analytics.clone();
-    let health_valhalla = valhalla_client.clone();
-    let health_process = valhalla_process.clone();
-    let server_router = Router::new()
-        .route(
-            "/healthz",
-            get(move || {
-                let analytics = health_analytics.clone();
-                let valhalla = health_valhalla.clone();
-                let process = health_process.clone();
-                async move {
-                    let spatial = tokio::task::spawn_blocking(move || analytics.verify_spatial())
-                        .await
-                        .is_ok_and(|result| result.is_ok());
-                    let routing = process.exited().await.is_ok_and(|exited| !exited)
-                        && valhalla.health().await.is_ok();
-                    let status = if spatial && routing {
-                        axum::http::StatusCode::OK
-                    } else {
-                        axum::http::StatusCode::SERVICE_UNAVAILABLE
-                    };
-                    (
-                        status,
-                        axum::Json(json!({"spatial": spatial, "routing": routing})),
-                    )
-                }
-            }),
-        )
-        .nest("/mcp", mcp_router)
-        .nest("/admin", admin_router);
-    let router = Router::new()
-        .nest(public_endpoint.mount_path(), server_router)
-        .layer(middleware::from_fn_with_state(
-            allowed_hosts.clone(),
-            validate_host,
-        ))
-        .layer(
-            TraceLayer::new_for_http()
-                .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO)),
-        );
-
-    let address = SocketAddr::from(([0, 0, 0, 0], args.port));
-    tracing::info!(
-        service = "veoveo-map-mcp",
-        %address,
-        mcp_path = public_endpoint.path("mcp"),
-        admin_path = public_endpoint.path("admin"),
-        "listening"
-    );
-    let listener = tokio::net::TcpListener::bind(address).await?;
-    let observer = tokio::spawn(crate::resource_changes::observe(
-        catalog.store().clone(),
-        observer_hub,
-        cancellation.child_token(),
-    ));
-    let signal_cancel = cancellation.clone();
-    let serve_result = axum::serve(listener, router)
-        .with_graceful_shutdown(async move {
-            let _ = tokio::signal::ctrl_c().await;
-            signal_cancel.cancel();
+    let server = HostedServer::for_domain::<MapMcp>()
+        .deployment(&public_deployment, args.allow_loopback_hosts)?
+        .allowed_hosts(args.allowed_hosts.iter().cloned())
+        .internal_trust(GatewayInternalTrustBundle::from_json(
+            &args.internal_trust_jwks,
+        )?)?
+        .handler(move || {
+            let server = MapMcp::new(state.clone(), workspace_app.clone());
+            Hosted::new(server.clone()).with_tasks(DurableTasks::with_resources(
+                MapTaskExtension::new(state.clone()),
+                MapSubscriptions::new(server),
+            ))
         })
+        // A failed spatial engine or an exited routing process needs a restart.
+        .liveness(move || {
+            let (analytics, valhalla, process) = (
+                health_analytics.clone(),
+                health_valhalla.clone(),
+                health_process.clone(),
+            );
+            async move {
+                let spatial = tokio::task::spawn_blocking(move || analytics.verify_spatial())
+                    .await
+                    .is_ok_and(|result| result.is_ok());
+                spatial
+                    && process.exited().await.is_ok_and(|exited| !exited)
+                    && valhalla.health().await.is_ok()
+            }
+        })
+        .build();
+    let observer = tokio::spawn(crate::resource_changes::observe(
+        observer_store,
+        observer_hub,
+        server.cancellation_token(),
+    ));
+    let serve_result = server
+        .serve(SocketAddr::from(([0, 0, 0, 0], args.port)))
         .await;
-    cancellation.cancel();
     let observer_result = observer.await;
     valhalla_process.stop().await;
     observer_result?;
-    serve_result?;
-    Ok(())
+    serve_result
 }
 
 fn install_rustls_provider() {

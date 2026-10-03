@@ -21,6 +21,6 @@ impl MapMcp {
             .metadata_page(&identity, &scope, request)
             .await
             .map_err(internal)?;
-        json_resource(uri, &page).map(Some)
+        json_read(uri, &page).map(Some)
     }
 }

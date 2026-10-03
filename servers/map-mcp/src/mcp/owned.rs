@@ -35,7 +35,7 @@ impl MapMcp {
         let after = collection.parse_cursor(cursor).map_err(invalid_params)?;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
         let result = match collection {
-            Collection::Routes => json_resource(
+            Collection::Routes => json_read(
                 uri,
                 &self
                     .state
@@ -44,7 +44,7 @@ impl MapMcp {
                     .await
                     .map_err(internal)?,
             )?,
-            Collection::Matrices => json_resource(
+            Collection::Matrices => json_read(
                 uri,
                 &self
                     .state
@@ -61,7 +61,7 @@ impl MapMcp {
                         .await
                         .map_err(internal)?;
                 }
-                json_resource(
+                json_read(
                     uri,
                     &self
                         .state

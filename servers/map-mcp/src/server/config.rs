@@ -6,8 +6,7 @@ use url::Url;
 use veoveo_mcp_contract::{PublicDeployment, parse_allowed_host_authority};
 use veoveo_task_runtime::StoreAuthLevel;
 
-use crate::contract::{MapScope, MapWorkspaceBasemap};
-use veoveo_types::{ScopeDefinition, ScopeName};
+use crate::contract::MapWorkspaceBasemap;
 
 #[derive(Parser)]
 #[command(name = "map-mcp", about = "Map MCP and administrative server")]
@@ -100,8 +99,6 @@ pub(super) struct Args {
     pub max_artifact_bytes: u64,
     #[arg(long, default_value_t = 17_179_869_184)]
     pub max_routing_expanded_bytes: u64,
-    #[arg(long, default_value_t = MapScope::Admin.name().clone())]
-    pub admin_scope: ScopeName,
     #[arg(long, default_value_t = false)]
     pub allow_loopback_hosts: bool,
     #[arg(long = "allowed-host", value_name = "HOST", value_parser = parse_allowed_host)]
@@ -164,51 +161,4 @@ fn parse_allowed_host(value: &str) -> Result<String, String> {
     parse_allowed_host_authority(value)
         .map(|_| value.to_owned())
         .ok_or_else(|| "expected a host authority such as map-mcp:8799".to_owned())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn args(extra: &[&str]) -> Result<Box<Args>, clap::Error> {
-        let mut argv = vec![
-            "map-mcp",
-            "serve",
-            "--public-base-url",
-            "https://map.example",
-            "--surreal-endpoint",
-            "ws://127.0.0.1:1",
-            "--surreal-namespace",
-            "fixture",
-            "--surreal-database",
-            "fixture",
-            "--surreal-auth-level",
-            "database",
-            "--surreal-username",
-            "fixture",
-            "--surreal-password",
-            "fixture-only",
-            "--internal-trust-jwks",
-            "{}",
-        ];
-        argv.extend(extra);
-        match Cli::try_parse_from(argv)? {
-            Cli::Serve(args) => Ok(args),
-            _ => unreachable!(),
-        }
-    }
-
-    #[test]
-    fn administrative_scope_defaults_to_the_domain_and_accepts_valid_installation_names() {
-        assert_eq!(args(&[]).unwrap().admin_scope, *MapScope::Admin.name());
-        assert_eq!(
-            args(&["--admin-scope", "installation:map-admin"])
-                .unwrap()
-                .admin_scope
-                .as_str(),
-            "installation:map-admin"
-        );
-        assert!(args(&["--admin-scope", ""]).is_err());
-        assert!(args(&["--admin-scope", "two scopes"]).is_err());
-    }
 }

@@ -3,25 +3,30 @@ use std::sync::{Arc, LazyLock};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use rmcp::tool;
 use rmcp::{
-    ErrorData as McpError, RoleServer, ServerHandler,
+    ErrorData as McpError, RoleServer,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolRequestParams, CallToolResponse, CallToolResult, CancelTaskParams,
-        CompleteRequestParams, CompleteResult, CompletionInfo, ContentBlock,
-        GetPromptRequestParams, GetTaskParams, GetTaskResult, ListPromptsResult,
-        ListResourceTemplatesResult, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
-        Prompt, ReadResourceRequestParams, ReadResourceResult, Reference, Resource,
-        ResourceContents, ResourceTemplate, ServerConfig, SubscriptionFilter, UpdateTaskParams,
+        CallToolResult, CompleteRequestParams, CompleteResult, CompletionInfo,
+        GetPromptRequestParams, GetPromptResult, Prompt, ReadResourceRequestParams,
+        ReadResourceResult, Reference, Resource, ResourceContents, ResourceTemplate, Tool,
     },
-    service::{RequestContext, SubscriptionContext},
-    tool_handler, tool_router,
+    service::RequestContext,
+    tool_router,
 };
-use serde::Serialize;
-use veoveo_mcp_contract::{GatewayInternalIdentity, Page, PlaneCaller, docs::ServerDocs, paginate};
+use veoveo_mcp_contract::{
+    GatewayInternalIdentity, SubscriptionHub,
+    docs::ServerDocs,
+    hosting::{
+        DomainAddress, DomainRead, DomainServer, ResourceSubscriptions, gateway_identity,
+        json_read, plane_caller, served_by_host, structured_result, unknown_prompt,
+    },
+    server_contract::McpServerSetup,
+};
 use veoveo_types::ScopeDefinition;
 
 use crate::{
     administration::{self, AdminOpError},
+    contract::MapAddress,
     contract::{
         AcquisitionJob, BuildTravelModelRequest, CancelAcquisitionRequest,
         CorridorInspectionOutput, CorridorInspectionRequest, CreateAcquisitionRequest,
@@ -41,7 +46,6 @@ use crate::{
     },
     geodesy,
     prompts::MapPrompt,
-    server::{auth::ForwardedBearer, tasks::MapTaskExtension},
     state::MapApplication,
     uris,
 };
@@ -53,14 +57,15 @@ mod discovery;
 mod resources;
 pub(crate) mod setup;
 #[cfg(test)]
+use discovery::resource_templates;
+#[cfg(test)]
 use discovery::stable_resource_uris;
-use discovery::{ResourceDiscoveryAccess, discoverable_resources, resource_templates};
+use discovery::{ResourceDiscoveryAccess, discoverable_resources};
+use setup::MapContract;
 mod knowledge;
 mod metadata;
 mod owned;
 mod releases;
-
-const LIST_PAGE_SIZE: usize = 100;
 
 /// The crate documents embedded at build time and served under the well-known
 /// surface: `map://docs`, `map://docs/{doc_id}`, `map://contract`, and the
@@ -135,8 +140,6 @@ const WORKSPACE_APP_ICON: &str = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0
 pub struct MapMcp {
     workspace_app: veoveo_mcp_apps_extension::AppHtml,
     state: Arc<MapApplication>,
-    task_service: MapTaskExtension,
-    #[allow(dead_code)]
     tool_router: ToolRouter<MapMcp>,
 }
 
@@ -148,7 +151,6 @@ impl MapMcp {
     ) -> Self {
         Self {
             workspace_app,
-            task_service: MapTaskExtension::new(state.clone()),
             state,
             tool_router: Self::full_tool_router(),
         }
@@ -715,7 +717,7 @@ impl MapMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         let scope = self.admin_scope(&context).await?;
-        let caller = internal_caller(&context)?;
+        let caller = plane_caller(&context)?;
         let job = administration::start_acquisition(&self.state, scope, caller, request)
             .await
             .map_err(admin_error)?;
@@ -840,197 +842,92 @@ impl MapMcp {
     }
 }
 
-#[tool_handler(router = self.tool_router)]
-impl ServerHandler for MapMcp {
-    fn supported_protocol_versions(
-        &self,
-    ) -> std::borrow::Cow<'static, [rmcp::model::ProtocolVersion]> {
-        veoveo_mcp_contract::final_protocol_versions()
+impl DomainServer for MapMcp {
+    type Contract = MapContract;
+
+    fn setup() -> &'static McpServerSetup<MapContract> {
+        &setup::SERVER_SETUP
     }
 
-    fn get_info(&self) -> ServerConfig {
-        setup::SERVER_SETUP.server_config().clone()
+    fn tool_router(&self) -> &ToolRouter<Self> {
+        &self.tool_router
     }
 
-    async fn call_tool(
-        &self,
-        mut request: CallToolRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<CallToolResponse, McpError> {
-        if let Some(created) =
-            veoveo_task_runtime::start_durable_tool_task(&self.task_service, &mut request, &context)
-                .await?
-        {
-            return Ok(created.into());
+    // The #[tool] macro has no meta attribute; search and App links attach here.
+    fn describe_tool(&self, mut tool: Tool) -> Tool {
+        if tool.name == "search_locations" {
+            veoveo_mcp_knowledge_extension::server::attach_search(
+                &mut tool,
+                &crate::knowledge::search_declaration(),
+            );
         }
-        let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
-        self.tool_router.call(call).await
-    }
-
-    async fn get_task(
-        &self,
-        request: GetTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<GetTaskResult, McpError> {
-        let caller =
-            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
-        veoveo_task_runtime::DurableTaskService::get_task(&self.task_service, &caller, request)
-            .await
-    }
-
-    async fn update_task(
-        &self,
-        request: UpdateTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        let caller =
-            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
-        veoveo_task_runtime::DurableTaskService::update_task(&self.task_service, &caller, request)
-            .await
-    }
-
-    async fn cancel_task(
-        &self,
-        request: CancelTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        let caller =
-            veoveo_task_runtime::DurableTaskService::authenticate(&self.task_service, &context)?;
-        veoveo_task_runtime::DurableTaskService::cancel_task(
-            &self.task_service,
-            &caller,
-            request.task_id,
+        if !WORKSPACE_TOOLS.contains(&tool.name.as_ref()) {
+            return tool;
+        }
+        veoveo_mcp_apps_extension::link_tool_to_app(
+            tool,
+            uris::WORKSPACE_APP_URI,
+            &[
+                veoveo_mcp_apps_extension::UiVisibility::Model,
+                veoveo_mcp_apps_extension::UiVisibility::App,
+            ],
         )
-        .await
-    }
-
-    async fn list_tools(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListToolsResult, McpError> {
-        let mut tools = self.tool_router.list_all();
-        for tool in &mut tools {
-            if tool.name == "search_locations" {
-                veoveo_mcp_knowledge_extension::server::attach_search(
-                    tool,
-                    &crate::knowledge::search_declaration(),
-                );
-            }
-        }
-        tools.sort_by(|left, right| left.name.cmp(&right.name));
-        // The #[tool] macro has no meta attribute; app links attach here.
-        tools = tools
-            .into_iter()
-            .map(|tool| {
-                if WORKSPACE_TOOLS.contains(&tool.name.as_ref()) {
-                    veoveo_mcp_apps_extension::link_tool_to_app(
-                        tool,
-                        uris::WORKSPACE_APP_URI,
-                        &[
-                            veoveo_mcp_apps_extension::UiVisibility::Model,
-                            veoveo_mcp_apps_extension::UiVisibility::App,
-                        ],
-                    )
-                } else {
-                    tool
-                }
-            })
-            .collect();
-        let page = mcp_page(tools, request.as_ref())?;
-        Ok(ListToolsResult {
-            tools: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
     }
 
     async fn list_resources(
         &self,
-        request: Option<PaginatedRequestParams>,
-        context: RequestContext<RoleServer>,
-    ) -> Result<ListResourcesResult, McpError> {
-        let identity = require_any_scope(&context, WELL_KNOWN_SCOPES)?;
-        let resources = discoverable_resources(
+        _declared: Vec<Resource>,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<Vec<Resource>, McpError> {
+        let identity = require_any_scope(context, WELL_KNOWN_SCOPES)?;
+        Ok(discoverable_resources(
             ResourceDiscoveryAccess::from_identity(&identity),
             &self.state.workspace_basemap,
-        );
-        let page = mcp_page(resources, request.as_ref())?;
-        Ok(ListResourcesResult {
-            resources: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
+        ))
     }
 
-    async fn list_resource_templates(
+    /// Knowledge pages and members follow current authority, so no read of them
+    /// is reused. Map dispatches its other reads by the admitted URI.
+    async fn read(
         &self,
-        request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListResourceTemplatesResult, McpError> {
-        let page = mcp_page(resource_templates(), request.as_ref())?;
-        Ok(ListResourceTemplatesResult {
-            resource_templates: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
-    }
-
-    async fn read_resource(
-        &self,
-        request: ReadResourceRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
-        if let Some(result) = setup::SERVER_SETUP.read_documents(&request, &context)? {
-            return Ok(result);
+        address: DomainAddress<MapContract>,
+        request: &ReadResourceRequestParams,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<DomainRead, McpError> {
+        match address {
+            MapAddress::KnowledgePage(_) | MapAddress::KnowledgeMember(_) => self
+                .read_knowledge_resource(&request.uri, context)
+                .await?
+                .map(DomainRead::no_store)
+                .ok_or_else(|| not_found("Map knowledge resource")),
+            MapAddress::Resource(
+                crate::contract::MapResource::Root(
+                    crate::contract::MapRoot::Docs | crate::contract::MapRoot::Contract,
+                )
+                | crate::contract::MapResource::Document(_),
+            ) => Err(served_by_host()),
+            MapAddress::Resource(_) => self
+                .read_map_resource(&request.uri, context)
+                .await
+                .map(DomainRead::private),
         }
-        if let Some(result) = self.read_knowledge_resource(&request.uri, &context).await? {
-            return Ok(result.into());
-        }
-        self.read_map_resource(request, context).await
     }
 
-    async fn list_prompts(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListPromptsResult, McpError> {
-        let prompts: Vec<Prompt> = MapPrompt::ALL
+    fn prompts(&self) -> Vec<Prompt> {
+        MapPrompt::ALL
             .into_iter()
             .map(MapPrompt::definition)
-            .collect();
-        let page = mcp_page(prompts, request.as_ref())?;
-        Ok(ListPromptsResult {
-            prompts: page.items,
-            next_cursor: page.next_cursor,
-            result_type: Some(rmcp::model::ResultType::COMPLETE),
-            ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
-            cache_scope: Some(rmcp::model::CacheScope::Private),
-            meta: None,
-        })
+            .collect()
     }
 
     async fn get_prompt(
         &self,
         request: GetPromptRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<rmcp::model::GetPromptResponse, McpError> {
-        async {
-            MapPrompt::by_name(&request.name)
-                .ok_or_else(|| McpError::invalid_params("unknown Map prompt", None))?
-                .render(request.arguments)
-        }
-        .await
-        .map(Into::into)
+    ) -> Result<GetPromptResult, McpError> {
+        MapPrompt::by_name(&request.name)
+            .ok_or_else(|| unknown_prompt(&request.name))?
+            .render(request.arguments)
     }
 
     async fn complete(
@@ -1069,19 +966,33 @@ impl ServerHandler for MapMcp {
         self.complete_index(&identity, &scope, &reference.uri, &request)
             .await
     }
+}
 
-    fn accepted_subscription_filter(
-        &self,
-        requested: &SubscriptionFilter,
-    ) -> Option<SubscriptionFilter> {
-        veoveo_mcp_contract::accepted_subscription_filter(requested)
+/// Map's mutable catalogs, records and knowledge sources. Admission requires the
+/// read scope of the resource's family, and knowledge members must be readable.
+pub(crate) struct MapSubscriptions {
+    server: MapMcp,
+}
+
+impl MapSubscriptions {
+    pub(crate) fn new(server: MapMcp) -> Self {
+        Self { server }
     }
+}
 
-    async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
-        let request_context = context.request_context().clone();
-        for uri in context.accepted().resource_subscriptions.iter().flatten() {
-            if crate::contract::MapKnowledgeMember::parse(uri).is_ok() {
-                self.read_knowledge_resource(uri, &request_context).await?;
+impl ResourceSubscriptions for MapSubscriptions {
+    type Address = MapAddress;
+
+    async fn authorize(
+        &self,
+        addresses: Vec<MapAddress>,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        for address in addresses {
+            let uri = address.to_uri();
+            let uri = uri.as_str();
+            if matches!(address, MapAddress::KnowledgeMember(_)) {
+                self.server.read_knowledge_resource(uri, context).await?;
             }
             if !is_subscribable(uri) {
                 return Err(McpError::invalid_params(
@@ -1090,53 +1001,20 @@ impl ServerHandler for MapMcp {
                 ));
             }
             if is_feature_subscribable(uri) {
-                require_scope(&request_context, MapScope::FeatureRead)?;
+                require_scope(context, MapScope::FeatureRead)?;
             } else {
-                require_scope(&request_context, MapScope::DatasetRead)?;
+                require_scope(context, MapScope::DatasetRead)?;
                 if uri == uris::SPATIAL_DERIVATIONS_URI {
-                    require_scope(&request_context, MapScope::SpatialDerive)?;
+                    require_scope(context, MapScope::SpatialDerive)?;
                 }
             }
         }
-        veoveo_task_runtime::listen_durable_subscriptions(
-            &self.task_service,
-            context,
-            Some(self.state.subscriptions.as_ref()),
-            None,
-        )
-        .await
+        Ok(())
     }
-}
 
-fn internal_identity(
-    context: &RequestContext<RoleServer>,
-) -> Result<GatewayInternalIdentity, McpError> {
-    context
-        .extensions
-        .get::<axum::http::request::Parts>()
-        .and_then(|parts| parts.extensions.get::<GatewayInternalIdentity>())
-        .cloned()
-        .ok_or_else(|| {
-            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
-        })
-}
-
-fn internal_caller(context: &RequestContext<RoleServer>) -> Result<PlaneCaller, McpError> {
-    let identity = internal_identity(context)?;
-    let bearer_token = context
-        .extensions
-        .get::<axum::http::request::Parts>()
-        .and_then(|parts| parts.extensions.get::<ForwardedBearer>())
-        .map(|bearer| bearer.0.clone())
-        .ok_or_else(|| {
-            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
-        })?;
-    let memberships = identity.actor.group_memberships();
-    Ok(PlaneCaller {
-        identity,
-        memberships,
-        bearer_token,
-    })
+    fn hub(&self) -> &SubscriptionHub {
+        self.server.state.subscriptions.as_ref()
+    }
 }
 
 fn identity_has_scope(identity: &GatewayInternalIdentity, required: MapScope) -> bool {
@@ -1159,7 +1037,7 @@ fn require_scope(
     context: &RequestContext<RoleServer>,
     required: MapScope,
 ) -> Result<GatewayInternalIdentity, McpError> {
-    let identity = internal_identity(context)?;
+    let identity = gateway_identity(context)?;
     crate::server::auth::require_scope(&identity.actor.scopes, required)?;
     Ok(identity)
 }
@@ -1168,7 +1046,7 @@ fn require_any_scope(
     context: &RequestContext<RoleServer>,
     required: &[MapScope],
 ) -> Result<GatewayInternalIdentity, McpError> {
-    let identity = internal_identity(context)?;
+    let identity = gateway_identity(context)?;
     if !required
         .iter()
         .any(|required| identity_has_scope(&identity, *required))
@@ -1186,26 +1064,6 @@ fn require_any_scope(
         ));
     }
     Ok(identity)
-}
-
-fn structured_result<T: Serialize>(text: String, value: &T) -> Result<CallToolResult, McpError> {
-    let mut result = CallToolResult::success(vec![ContentBlock::text(text)]);
-    result.structured_content = Some(serde_json::to_value(value).map_err(internal)?);
-    Ok(result)
-}
-
-fn json_resource<T: Serialize>(uri: &str, value: &T) -> Result<ReadResourceResult, McpError> {
-    Ok(ReadResourceResult::new(vec![
-        ResourceContents::text(serde_json::to_string(value).map_err(internal)?, uri)
-            .with_mime_type("application/json"),
-    ]))
-}
-
-fn mcp_page<T>(
-    items: Vec<T>,
-    request: Option<&PaginatedRequestParams>,
-) -> Result<Page<T>, McpError> {
-    paginate(items, request, LIST_PAGE_SIZE).map_err(invalid_params)
 }
 
 fn invalid_params(error: impl std::fmt::Display) -> McpError {

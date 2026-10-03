@@ -6,7 +6,6 @@
 #[cfg(feature = "runtime")]
 pub mod acquisition;
 #[cfg(feature = "mcp")]
-mod admin;
 #[cfg(feature = "runtime")]
 pub mod administration;
 #[cfg(feature = "runtime")]

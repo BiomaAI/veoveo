@@ -3,7 +3,7 @@ use super::{
     SERVER_DOCS,
     discovery::{declared_resources, declared_templates},
 };
-use crate::contract::{MapResource, MapScope};
+use crate::contract::{MapAddress, MapResource, MapScope};
 use rmcp::model::{ServerCapabilities, ServerConfig};
 use std::sync::LazyLock;
 use veoveo_mcp_contract::{
@@ -14,12 +14,12 @@ use veoveo_mcp_contract::{
 };
 use veoveo_types::{ResourceScheme, ResourceTemplateUri, ServerSlug};
 
-pub(crate) struct MapContract;
+pub struct MapContract;
 pub(crate) static SERVER_SETUP: LazyLock<McpServerSetup<MapContract>> =
     LazyLock::new(|| McpServerSetup::new().expect("declared Map MCP setup"));
 impl McpServerContract for MapContract {
     type Scope = MapScope;
-    type Resource = MapResource;
+    type Resource = MapAddress;
     fn slug() -> ServerSlug {
         ServerSlug::new("map").expect("declared Map slug")
     }
@@ -35,11 +35,12 @@ impl McpServerContract for MapContract {
     fn server_config() -> ServerConfig {
         server_info()
     }
-    fn resources() -> Result<Vec<McpResource<MapResource>>, McpSetupError> {
+    fn resources() -> Result<Vec<McpResource<MapAddress>>, McpSetupError> {
         declared_resources()
             .into_iter()
             .map(|descriptor| {
                 let address = MapResource::parse(&descriptor.uri)
+                    .map(MapAddress::Resource)
                     .map_err(|_| McpSetupError::InvalidResource)?;
                 McpResource::new(address, |_| descriptor)
             })

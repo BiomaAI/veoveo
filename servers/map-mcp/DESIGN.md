@@ -997,7 +997,6 @@ servers/map-mcp/
     server/
       auth.rs
       config.rs
-      host.rs
       tasks.rs
     analytics.rs
     artifacts.rs

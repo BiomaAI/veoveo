@@ -14,6 +14,13 @@ Map Explorer App.
 
 ## Invariants
 
+- The server is hosted through `veoveo_mcp_contract::hosting`: `MapMcp` implements
+  `DomainServer` over `MapAddress`, which covers Map resources and knowledge pages and
+  members; knowledge reads are `DomainRead::no_store`. `MapSubscriptions` is its
+  `ResourceSubscriptions` source, and `/map/healthz` reports the spatial engine and
+  routing process through the host's liveness check. Reads still dispatch by the
+  admitted URI. Do not add a `ServerHandler`, router, host check or authentication
+  middleware here.
 - Canonical identity: slug `map`, URI scheme `map://`, endpoint `/map/mcp`,
   app `ui://map/workspace.html`. Resource identities
   keep the `map://` scheme under the gateway `map__` projection.

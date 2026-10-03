@@ -39,7 +39,7 @@ impl MapMcp {
                 )
                 .await
                 .map_err(internal)?;
-            return json_resource(uri, &page).map(Some);
+            return json_read(uri, &page).map(Some);
         }
         if let Ok(address) = crate::contract::MapRasterDerivationUri::parse(uri) {
             let value = self
@@ -49,7 +49,7 @@ impl MapMcp {
                 .await
                 .map_err(internal)?
                 .ok_or_else(|| not_found("raster derivation"))?;
-            return json_resource(uri, &value).map(Some);
+            return json_read(uri, &value).map(Some);
         }
         if let Ok(address) = crate::contract::MapSpatialDerivationUri::parse(uri) {
             spatial_scope(identity, MapDerivationKind::Spatial)?;
@@ -60,7 +60,7 @@ impl MapMcp {
                 .await
                 .map_err(internal)?
                 .ok_or_else(|| not_found("spatial derivation"))?;
-            return json_resource(uri, &value).map(Some);
+            return json_read(uri, &value).map(Some);
         }
         Ok(None)
     }

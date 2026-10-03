@@ -35,6 +35,6 @@ impl MapMcp {
         if dataset.is_some() && after.is_none() && page.items.is_empty() {
             return Err(not_found("dataset"));
         }
-        json_resource(uri, &page).map(Some)
+        json_read(uri, &page).map(Some)
     }
 }

@@ -449,12 +449,15 @@ pub(super) fn discoverable_resources(
     access: ResourceDiscoveryAccess,
     basemap: &crate::contract::MapWorkspaceBasemap,
 ) -> Vec<Resource> {
-    use crate::contract::{MapResource, MapRoot};
+    use crate::contract::{MapAddress, MapResource, MapRoot};
     super::setup::SERVER_SETUP
         .resources()
         .iter()
         .filter_map(|resource| {
-            let visible = match resource.address() {
+            let MapAddress::Resource(address) = resource.address() else {
+                return None;
+            };
+            let visible = match address {
                 MapResource::Root(MapRoot::Docs | MapRoot::Contract) | MapResource::Document(_) => {
                     true
                 }
@@ -488,7 +491,7 @@ pub(super) fn discoverable_resources(
                 _ => false,
             };
             visible.then(|| {
-                if matches!(resource.address(), MapResource::WorkspaceApp) {
+                if matches!(address, MapResource::WorkspaceApp) {
                     workspace_resource(Some(basemap))
                 } else {
                     resource.descriptor().clone()
@@ -498,6 +501,7 @@ pub(super) fn discoverable_resources(
         .collect()
 }
 
+#[cfg(test)]
 pub(super) fn resource_templates() -> Vec<ResourceTemplate> {
     super::setup::SERVER_SETUP
         .resource_templates()

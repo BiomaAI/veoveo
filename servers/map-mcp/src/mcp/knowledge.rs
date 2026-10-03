@@ -20,7 +20,7 @@ impl MapMcp {
             )
             .await
             .map_err(internal)?;
-            return json_resource(uri, &page).map(Some);
+            return json_read(uri, &page).map(Some);
         }
         let Ok(address) = MapKnowledgeMember::parse(uri) else {
             return Ok(None);

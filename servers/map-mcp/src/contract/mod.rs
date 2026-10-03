@@ -2,6 +2,7 @@ mod task_kind;
 pub use task_kind::MapTaskKind;
 mod geodetic_ids;
 pub use geodetic_ids::*;
+mod address;
 mod admin;
 mod compositions;
 mod datasets;
@@ -35,6 +36,7 @@ mod travel_models;
 mod units;
 mod workspace;
 
+pub use address::*;
 pub use admin::*;
 pub use compositions::*;
 pub use datasets::*;

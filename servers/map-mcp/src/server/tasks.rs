@@ -34,7 +34,6 @@ use crate::{
         RasterDerivation, RasterDerivationId, RasterDerivationOperation, ReachableAreaRequest,
         RouteMatrixRequest, RouteRequest, TravelModelId, TravelModelRecord,
     },
-    server::auth::ForwardedBearer,
     state::MapApplication,
 };
 
@@ -133,37 +132,10 @@ impl veoveo_task_runtime::DurableTaskService for MapTaskExtension {
         &self,
         context: &rmcp::service::RequestContext<rmcp::RoleServer>,
     ) -> Result<Self::Caller, rmcp::ErrorData> {
-        let parts = context
-            .extensions
-            .get::<axum::http::request::Parts>()
-            .ok_or_else(|| {
-                rmcp::ErrorData::invalid_request(
-                    veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED,
-                    None,
-                )
-            })?;
-        let identity = parts
-            .extensions
-            .get::<GatewayInternalIdentity>()
-            .cloned()
-            .ok_or_else(|| {
-                rmcp::ErrorData::invalid_request(
-                    veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED,
-                    None,
-                )
-            })?;
-        let bearer = parts
-            .extensions
-            .get::<ForwardedBearer>()
-            .map(|bearer| bearer.0.clone())
-            .ok_or_else(|| {
-                rmcp::ErrorData::invalid_request(
-                    veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED,
-                    None,
-                )
-            })?;
+        let identity = veoveo_mcp_contract::hosting::gateway_identity(context)?;
+        let bearer = veoveo_mcp_contract::hosting::forwarded_bearer(context)?;
         Ok(AuthenticatedCaller {
-            caller: self.state.caller(identity.clone(), bearer),
+            caller: self.state.caller(identity.clone(), bearer.into_string()),
             identity,
         })
     }
