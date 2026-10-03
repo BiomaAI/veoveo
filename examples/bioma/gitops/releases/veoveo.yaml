@@ -34,8 +34,9 @@ spec:
       retryInterval: 1m
   driftDetection:
     mode: enabled
-  # Foundations flight acceptance runs Reason and Knowledge in separate batches.
-  # Keep their Deployments, checkpoints and cache PVCs installed.
+  # Reason runs in its separate acceptance batch. Knowledge and embedding are core
+  # services and keep their declared replicas alongside the simulator.
+  # Keep Reason's Deployment, checkpoint and cache PVCs installed.
   postRenderers:
     - kustomize:
         patches:
@@ -43,7 +44,7 @@ spec:
               group: apps
               version: v1
               kind: Deployment
-              name: (reason-mcp|knowledge-mcp|embedding)
+              name: reason-mcp
             patch: |-
               - op: replace
                 path: /spec/replicas

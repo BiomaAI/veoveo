@@ -75,12 +75,18 @@ mod tests {
             servers
         };
         assert_eq!(server_surface(&bioma), server_surface(&local));
-        for key in ["recording_ingest_resources", "data_labels"] {
-            assert_eq!(
-                bioma[key], local[key],
-                "Bioma `{key}` drifted from the canonical platform surface"
-            );
-        }
+        let ingest_surface = |value: &Value| {
+            let mut resources: Vec<veoveo_mcp_contract::RecordingIngestResource> =
+                serde_json::from_value(value["recording_ingest_resources"].clone()).unwrap();
+            // The installation selects policy. Typed validation above checks that
+            // its reference exists; protocol and producer limits still agree.
+            for resource in &mut resources {
+                resource.policy_version = "installation-owned".parse().unwrap();
+            }
+            resources
+        };
+        assert_eq!(ingest_surface(&bioma), ingest_surface(&local));
+        assert_eq!(bioma["data_labels"], local["data_labels"]);
         let secrets = bioma["secrets"].as_array().unwrap();
         let workspace_secret = secrets
             .iter()

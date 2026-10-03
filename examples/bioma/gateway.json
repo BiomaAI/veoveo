@@ -3190,26 +3190,6 @@
           },
           "completions": "disabled",
           "tasks": "disabled"
-        },
-        {
-          "server": "reason",
-          "tools": {
-            "mode": "none"
-          },
-          "resources": {
-            "mode": "listed",
-            "items": [
-              {
-                "kind": "scheme",
-                "scheme": "reason"
-              }
-            ]
-          },
-          "prompts": {
-            "mode": "none"
-          },
-          "completions": "disabled",
-          "tasks": "disabled"
         }
       ],
       "metadata": {}
@@ -7505,9 +7485,6 @@
           "map.locations",
           "map.publications",
           "map.releases",
-          "reason.analyses",
-          "reason.docs",
-          "reason.results",
           "time.authority-releases",
           "time.bootstrap-authorities",
           "time.calendars",

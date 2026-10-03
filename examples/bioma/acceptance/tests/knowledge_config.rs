@@ -78,14 +78,20 @@ fn indexer_discovers_approved_sources_without_write_or_cross_context_authority()
                 source.slug
             );
         }
-        let approved = !source.knowledge.is_empty();
+        let selected = client
+            .knowledge_indexing
+            .as_ref()
+            .unwrap()
+            .collections
+            .iter()
+            .any(|collection| collection.server() == &source.slug);
         let target = PolicyTarget::Resource {
             server: source.slug.clone(),
             uri: ServerResourceUris::new(source.uri_scheme.clone()).contract_uri(),
         };
         assert_eq!(
             decide(GatewayAction::ResourcesRead, &target),
-            if approved {
+            if selected {
                 PolicyEffect::Allow
             } else {
                 PolicyEffect::Deny

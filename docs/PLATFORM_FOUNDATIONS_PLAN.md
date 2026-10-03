@@ -151,8 +151,11 @@ and do not override this status or the requirements below.
   Start only the isolated services a focused check requires. Start the full reference
   cluster for installed acceptance and stop it when those checks finish. Use node
   stop/start for routine development; delete and rebuild when the phase requires a
-  reset. Reason stays off except for its separate acceptance, as the user requested;
-  service batches need not deploy every server simultaneously. Check free disk space
+  reset. Reason stays off except for its separate acceptance, as the user requested.
+  Knowledge and embedding are core services and stay enabled alongside the selected
+  workloads during installed acceptance. Their normal indexing selection includes
+  running sources; Reason's collections join its separate indexing qualification.
+  Service batches need not deploy every server simultaneously. Check free disk space
   and expected build growth before large builds, because
   stopping nodes does not reclaim their volumes or build caches. Required installed
   and hardware GPU acceptance still runs against the services each check requires.

@@ -320,17 +320,18 @@ MIG, or time-slicing placement instead of inheriting this development profile.
 Each required workload still requests nvidia.com/gpu: 1 and the nvidia runtime
 class. Every GPU workload requires a hardware allocation.
 
-The reference HelmRelease keeps Reason, Knowledge and embedding at zero replicas
-during foundations flight acceptance. Their checkpoints and caches stay installed
-for separate acceptance batches. Knowledge requires discovery of its configured
-sources, including Reason, before it becomes ready. The local Reason profile reserves
+Knowledge and embedding run alongside the simulator as core services. The reference
+HelmRelease keeps only Reason at zero replicas between its separate acceptance
+batches, preserving its checkpoint and caches. Knowledge requires discovery and
+indexing of its selected sources before it becomes ready; the normal indexing profile
+selects the running Map, Artifact, Time and Chart sources. The local Reason profile reserves
 42% of the 24 GiB NVIDIA device for its six-frame, 8192-token pass. Run it with the
 services its focused check requires, after stopping other GPU workloads as needed.
 Installations with different checkpoints, solver pools, or GPU capacity
 size `reason.engine.gpuMemoryUtilization` and
 `embedding.engine.gpuMemoryUtilization` and `VEOVEO_CUOPT_POOL_GIB` against all
-concurrently resident workloads. The embedding profile requests 25% of device memory
-when its acceptance batch runs. Flight acceptance reports Reason as a separate check.
+concurrently resident workloads. The embedding profile requests 25% of device memory.
+Flight acceptance reports Reason as a separate check.
 The development chart requests 4 GiB of host memory for the cuOpt executor. The
 simulator's operator-camera products run inside the simulator allocation. Higher
 memory limits allow bursts without making the seven-workload placement unschedulable on
@@ -375,6 +376,9 @@ documents, Artifact metadata and documents, Time's five collections and document
 Chart documents, and Reason analyses, results and documentation. The `operations`
 group stewards these collections. Their empty label ceilings permit unlabelled content
 only. Reason findings inherit the published result Artifact's current access policy.
+The normal indexing client selects sixteen collections from Map, Artifact, Time and
+Chart. Reason's three approved collections join the indexing client and its dedicated
+profile when Reason indexing is explicitly qualified with that server running.
 
 The `knowledge-indexer` machine client uses a dedicated resource-only profile and
 viewer membership in Operations. Its collection registration limits source reads;
@@ -945,21 +949,26 @@ Release any live Stream session owned by the acceptance run before invoking it t
 make GPU capacity available. A Task timeout requires reconciling that Task before
 submitting another analysis.
 
-Reason, Knowledge and embedding are stopped by the reference release's post-render
-patch. For their focused acceptance, first suspend the `flux-system/bioma`
+Only Reason is stopped by the reference release's post-render patch. Knowledge and
+embedding keep their declared replicas. For focused Reason acceptance, first suspend the `flux-system/bioma`
 Kustomization, then suspend the `flux-system/veoveo` HelmRelease and any other release
 whose workloads the check scales. The parent Kustomization controls the HelmRelease
 specifications and must stay suspended while those temporary overrides are in use.
 
-Scale Reason to one replica when required. Knowledge acceptance also starts embedding,
-Knowledge and every approved source. Keep required GPU requests and limits intact.
+Scale Reason to one replica when required. Knowledge acceptance keeps embedding,
+Knowledge and every selected source running. To include Reason in indexing, add its
+source to the `knowledge-indexing` profile and its three approved collections to the
+`knowledge-indexer` client through a reviewed gateway bundle update. Keep required
+GPU requests and limits intact.
 To release the simulator's GPU capacity, suspend `flux-system/uav-sim` before scaling
-its `uav-sim` Deployment to zero; keep the UAV MCP source available for indexing.
+its `uav-sim` Deployment to zero after draining active flights.
 
-After acceptance, return Reason, Knowledge and embedding to zero and restore the
-selected workloads' declared replica counts. Resume the affected HelmReleases, then
+After acceptance, return Reason to zero and restore the normal indexing selection
+and the selected workloads' declared replica counts. Knowledge and embedding stay
+enabled. Resume the affected HelmReleases, then
 the parent Kustomization. The composed flight command runs Stream replay and Artifact
-isolation; its reports mark Reason `not_run`. Knowledge acceptance runs separately.
+isolation; its reports mark Reason `not_run`. Knowledge's focused checks complement
+its availability during flight acceptance.
 
 Flight verification also requires the administrator client's private key through
 `VEOVEO_ADMIN_SERVICE_CLIENT_PRIVATE_KEY_FILE` and its ID through

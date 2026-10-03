@@ -864,11 +864,11 @@
         "tools": true,
         "resources": true,
         "resource_templates": true,
-        "resource_subscriptions": false,
+        "resource_subscriptions": true,
         "prompts": false,
-        "completions": false,
+        "completions": true,
         "tasks": false,
-        "resources_list_changed": false,
+        "resources_list_changed": true,
         "apps": false
       },
       "tools": [
@@ -885,6 +885,7 @@
         "artifact",
         "charts",
         "map",
+        "reason",
         "time"
       ]
     }
