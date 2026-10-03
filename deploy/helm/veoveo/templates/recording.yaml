@@ -262,12 +262,18 @@ spec:
             httpGet:
               path: /readyz
               port: recording-mcp
+              httpHeaders:
+                - name: Host
+                  value: recording-mcp:8796
             periodSeconds: 5
             timeoutSeconds: 3
           livenessProbe:
             httpGet:
               path: /healthz
               port: recording-mcp
+              httpHeaders:
+                - name: Host
+                  value: recording-mcp:8796
             initialDelaySeconds: 10
             periodSeconds: 10
           securityContext:

@@ -23,6 +23,7 @@ pub(super) fn check() -> Result<()> {
         ],
         [],
     )?;
+    recording_probe_hosts(&bioma)?;
     for expected in [
         "host: veoveo.bioma.ai",
         "https://veoveo.bioma.ai",
@@ -372,6 +373,40 @@ pub(super) fn check() -> Result<()> {
         ] {
             contains(&release, expected)?;
         }
+    }
+    Ok(())
+}
+
+fn recording_probe_hosts(rendered: &str) -> Result<()> {
+    let objects = serde_yaml_ng::Deserializer::from_str(rendered)
+        .map(Value::deserialize)
+        .collect::<std::result::Result<Vec<_>, _>>()?;
+    let recording = objects
+        .iter()
+        .find(|object| object["kind"] == "Deployment" && object["metadata"]["name"] == "recording")
+        .context("rendered Recording deployment")?;
+    let container = recording["spec"]["template"]["spec"]["containers"]
+        .as_array()
+        .context("Recording containers")?
+        .iter()
+        .find(|container| container["name"] == "recording-mcp")
+        .context("Recording MCP container")?;
+    let args = container["args"]
+        .as_array()
+        .context("Recording arguments")?;
+    for (probe, path) in [("readinessProbe", "/readyz"), ("livenessProbe", "/healthz")] {
+        let request = &container[probe]["httpGet"];
+        ensure!(request["path"] == path && request["port"] == "recording-mcp");
+        let host = request["httpHeaders"]
+            .as_array()
+            .and_then(|headers| headers.iter().find(|header| header["name"] == "Host"))
+            .and_then(|header| header["value"].as_str())
+            .with_context(|| format!("Recording {probe} requires an admitted Host header"))?;
+        ensure!(
+            args.windows(2)
+                .any(|pair| pair[0] == "--allowed-host" && pair[1] == host),
+            "Recording {probe} Host is absent from its allowed-host arguments"
+        );
     }
     Ok(())
 }
