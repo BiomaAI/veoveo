@@ -11,7 +11,7 @@
 //! - `{scheme}://docs` and `{scheme}://contract` reads;
 //! - address admission: an unparseable URI is Invalid Params (-32602), as the
 //!   server contract requires, before any domain code runs;
-//! - the private cache policy on every read;
+//! - the cache policy each domain read declares through [`DomainRead`];
 //! - tool dispatch, with durable tasks started first when the server has them;
 //! - `tasks/*` and `subscriptions/listen` through its [`TaskSupport`].
 
@@ -39,6 +39,53 @@ use crate::{
 /// The typed address a server owns, for its contract `C`.
 pub type DomainAddress<C> = <C as McpServerContract>::Resource;
 
+/// How long a client may reuse a domain read. Both policies are private to the
+/// caller; a read carrying request state or input responses is never reused.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReadCache {
+    /// Reusable for [`PRIVATE_RESOURCE_TTL_MS`](crate::PRIVATE_RESOURCE_TTL_MS).
+    Private,
+    /// Never reused, for content whose access or freshness can change between
+    /// reads, such as knowledge-source members.
+    NoStore,
+}
+
+/// A domain read and the cache policy the server chose for it. There is no
+/// default policy: each read names one.
+#[derive(Debug, Clone)]
+pub struct DomainRead {
+    result: ReadResourceResult,
+    cache: ReadCache,
+}
+
+impl DomainRead {
+    /// A read the caller may reuse briefly.
+    pub fn private(result: ReadResourceResult) -> Self {
+        Self {
+            result,
+            cache: ReadCache::Private,
+        }
+    }
+
+    /// A read the caller must not reuse.
+    pub fn no_store(result: ReadResourceResult) -> Self {
+        Self {
+            result,
+            cache: ReadCache::NoStore,
+        }
+    }
+
+    pub fn cache(&self) -> ReadCache {
+        self.cache
+    }
+
+    fn into_response(self, request: &ReadResourceRequestParams) -> ReadResourceResponse {
+        let continuation = request.request_state.is_some() || request.input_responses.is_some();
+        let cacheable = self.cache == ReadCache::Private && !continuation;
+        private_resource_response(self.result, cacheable)
+    }
+}
+
 /// A server's domain behavior. Implement this; [`Hosted`] provides the protocol.
 pub trait DomainServer: Send + Sync + Sized + 'static {
     /// The server's checked contract: scopes, resource addresses, and documents.
@@ -55,14 +102,15 @@ pub trait DomainServer: Send + Sync + Sized + 'static {
         tool
     }
 
-    /// Reads one admitted domain address. The well-known documents and contract
-    /// never reach this method; answer their variants with [`served_by_host`].
+    /// Reads one admitted domain address and names its cache policy. The
+    /// well-known documents and contract never reach this method; answer their
+    /// variants with [`served_by_host`].
     fn read(
         &self,
         address: DomainAddress<Self::Contract>,
         request: &ReadResourceRequestParams,
         context: &RequestContext<RoleServer>,
-    ) -> impl Future<Output = Result<ReadResourceResult, ErrorData>> + Send;
+    ) -> impl Future<Output = Result<DomainRead, ErrorData>> + Send;
 
     /// Completes template arguments. The default offers no completions.
     fn complete(
@@ -250,9 +298,8 @@ impl<D: DomainServer, T: TaskSupport> ServerHandler for Hosted<D, T> {
             .ok()
             .and_then(|uri| DomainAddress::<D::Contract>::parse(&uri).ok())
             .ok_or_else(|| ErrorData::invalid_params("unknown resource address", None))?;
-        let cacheable = request.request_state.is_none() && request.input_responses.is_none();
-        let result = self.domain.read(address, &request, &context).await?;
-        Ok(private_resource_response(result, cacheable))
+        let read = self.domain.read(address, &request, &context).await?;
+        Ok(read.into_response(&request))
     }
 
     async fn complete(

@@ -16,7 +16,7 @@
 //! [`plane_caller`] return the verified caller.
 //!
 //! ```ignore
-//! let server = HostedServer::builder(&*setup::SERVER_SETUP)
+//! let server = HostedServer::for_domain::<MyDomain>()
 //!     .deployment(&public_deployment, args.allow_loopback_hosts)?
 //!     .internal_trust(GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?)?
 //!     .handler(move || Hosted::new(MyDomain::new(state.clone())))
@@ -37,5 +37,8 @@ mod tests;
 
 pub use auth::{ForwardedBearer, forwarded_bearer, gateway_identity, plane_caller};
 pub use catalog::CATALOG_PAGE_SIZE;
-pub use domain::{DomainAddress, DomainServer, Hosted, NoTasks, TaskSupport, served_by_host};
+pub use domain::{
+    DomainAddress, DomainRead, DomainServer, Hosted, NoTasks, ReadCache, TaskSupport,
+    served_by_host,
+};
 pub use server::{Deployment, HostedServer, HostedServerBuilder, Missing, Provided};

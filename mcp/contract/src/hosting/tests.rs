@@ -21,7 +21,9 @@ use rmcp::{
 use tower::ServiceExt;
 use veoveo_types::{ResourceAddress, ResourceScheme, ResourceTemplateUri, ResourceUri};
 
-use super::{DomainAddress, DomainServer, Hosted, HostedServer, gateway_identity, served_by_host};
+use super::{
+    DomainAddress, DomainRead, DomainServer, Hosted, HostedServer, gateway_identity, served_by_host,
+};
 use crate::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenIssuer, GatewayProfileId, PublicDeployment,
     ServerSlug, TokenIssuer,
@@ -42,6 +44,7 @@ enum FixtureResource {
     Document(&'static str),
     Contract,
     Items,
+    Volatile,
 }
 
 impl ResourceAddress for FixtureResource {
@@ -53,6 +56,7 @@ impl ResourceAddress for FixtureResource {
             "fixture://docs/design" => Ok(Self::Document("design")),
             "fixture://contract" => Ok(Self::Contract),
             "fixture://items" => Ok(Self::Items),
+            "fixture://volatile" => Ok(Self::Volatile),
             _ => Err(veoveo_types::IdentifierError::new(
                 uri.as_str(),
                 "unknown fixture address",
@@ -65,6 +69,7 @@ impl ResourceAddress for FixtureResource {
             Self::Document(id) => format!("fixture://docs/{id}"),
             Self::Contract => "fixture://contract".to_owned(),
             Self::Items => "fixture://items".to_owned(),
+            Self::Volatile => "fixture://volatile".to_owned(),
         })
         .map_err(|_| veoveo_types::IdentifierError::new("fixture", "invalid fixture address"))
     }
@@ -110,6 +115,7 @@ impl McpServerContract for FixtureContract {
             (FixtureResource::Document("design"), "design"),
             (FixtureResource::Contract, "contract"),
             (FixtureResource::Items, "items"),
+            (FixtureResource::Volatile, "volatile"),
         ]
         .into_iter()
         .map(|(address, name)| McpResource::new(address, |uri| Resource::new(uri, name)))
@@ -179,12 +185,14 @@ impl DomainServer for FixtureDomain {
         address: DomainAddress<FixtureContract>,
         request: &ReadResourceRequestParams,
         _context: &RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResult, ErrorData> {
+    ) -> Result<DomainRead, ErrorData> {
         match address {
-            FixtureResource::Items => Ok(ReadResourceResult::new(vec![ResourceContents::text(
-                "[]",
-                &request.uri,
-            )])),
+            FixtureResource::Items => Ok(DomainRead::private(ReadResourceResult::new(vec![
+                ResourceContents::text("[]", &request.uri),
+            ]))),
+            FixtureResource::Volatile => Ok(DomainRead::no_store(ReadResourceResult::new(vec![
+                ResourceContents::text("{}", &request.uri),
+            ]))),
             FixtureResource::Docs | FixtureResource::Document(_) | FixtureResource::Contract => {
                 Err(served_by_host())
             }
@@ -194,7 +202,7 @@ impl DomainServer for FixtureDomain {
 
 fn router() -> Router {
     let deployment = PublicDeployment::new("https://veoveo.example").unwrap();
-    HostedServer::builder(&*SETUP)
+    HostedServer::for_domain::<FixtureDomain>()
         .deployment(&deployment, false)
         .unwrap()
         .internal_trust(trust_bundle("k1"))
@@ -395,4 +403,24 @@ async fn tools_receive_the_verified_caller() {
     )
     .await;
     assert_eq!(body["result"]["content"][0]["text"], "hello from user-1");
+}
+
+#[tokio::test]
+async fn each_read_keeps_the_cache_policy_its_domain_chose() {
+    let token = token();
+    let (_, body) = rpc(
+        "resources/read",
+        serde_json::json!({"uri": "fixture://items"}),
+        Some(&token),
+    )
+    .await;
+    assert_eq!(body["result"]["ttlMs"], crate::PRIVATE_RESOURCE_TTL_MS);
+    let (_, body) = rpc(
+        "resources/read",
+        serde_json::json!({"uri": "fixture://volatile"}),
+        Some(&token),
+    )
+    .await;
+    assert_eq!(body["result"]["ttlMs"], 0);
+    assert_eq!(body["result"]["cacheScope"], "private");
 }

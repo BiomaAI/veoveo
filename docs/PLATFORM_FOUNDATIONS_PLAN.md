@@ -39,7 +39,8 @@ and do not override this status or the requirements below.
    restart requirements, including UAV outcome recovery and the Computers installed
    batch. Native checks do not substitute for those installed cases.
 4. Move every Rust server onto the shared host, as
-   [Hosted Server Adoption](#hosted-server-adoption) describes. DuckDB is migrated.
+   [Hosted Server Adoption](#hosted-server-adoption) describes. DuckDB is migrated; its Docker-backed native Store recovery case still needs a
+   run on a host with Docker.
 5. Resolve [Deferred Work](#deferred-work): Rerun timeline/playback/timing and landing
    visual acceptance. Keep the declared hardware, freshness and flight-health gates.
 6. Audit every phase's numbered requirements and acceptance conditions against the
@@ -529,11 +530,15 @@ procedure, and `servers/duckdb-mcp` is the reference migration: it deleted its h
 check, authentication middleware, administrative routes, list handlers, task
 forwarding and router wiring, 487 lines net.
 
-Migrate each remaining server in its own commit. Each migration deletes the server's
-`impl ServerHandler`, `host.rs`, `internal_auth.rs`, `admin.rs`, `mcp_page` helper and
-identity extractors, then passes the server's tests and strict Clippy. Behavior that
-the host now standardizes changes deliberately: a missing Host authority is 400, an
-unparseable address is Invalid Params, and lists are authenticated.
+Migrate each group below together, then run its grouped checks once: the affected
+packages' tests and strict Clippy in one pass. Commits may stay split by server where
+that keeps them coherent. Each migration deletes the server's `impl ServerHandler`,
+`host.rs`, `internal_auth.rs`, `admin.rs`, `mcp_page` helper and identity extractors.
+Each domain read names its cache policy through `DomainRead`; reads that set a zero
+TTL today, such as knowledge-source members in Artifact, Knowledge and Reason, use
+`DomainRead::no_store`. Behavior that the host now standardizes changes deliberately:
+a missing Host authority is 400, an unparseable address is Invalid Params, and lists
+are authenticated.
 
 | Order | Servers | Builder extension needed first |
 |---|---|---|

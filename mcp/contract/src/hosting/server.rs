@@ -1,15 +1,16 @@
 //! The single entry point that hosts an MCP server behind the Veoveo gateway.
 //!
-//! [`HostedServer::builder`] starts from the server's checked
-//! [`McpServerSetup`]. The builder only offers `build` once the three required
-//! inputs are present, so a server cannot start without them:
+//! [`HostedServer::for_domain`] starts from the server's [`DomainServer`] type,
+//! which names its checked setup. The builder only offers `build` once the three
+//! required inputs are present, so a server cannot start without them:
 //!
 //! - [`deployment`](HostedServerBuilder::deployment): the public deployment, which
 //!   fixes the mount path and the allowed hosts;
 //! - [`internal_trust`](HostedServerBuilder::internal_trust): the gateway trust
 //!   bundle, bound to this server's slug as the token audience;
-//! - [`handler`](HostedServerBuilder::handler): the factory for the server's
-//!   `ServerHandler`.
+//! - [`handler`](HostedServerBuilder::handler): the factory for that domain's
+//!   [`Hosted`] handler. A hand-written `ServerHandler`, or a domain other than the
+//!   one the builder started from, does not compile.
 //!
 //! The built server always has the same shape:
 //!
@@ -24,19 +25,48 @@
 //! Every request passes host validation, then tracing. Shutdown follows SIGTERM or
 //! Ctrl-C and cancels in-flight MCP work.
 //!
+//! The handler is the domain's own [`Hosted`] value:
+//!
+//! ```
+//! # use veoveo_mcp_contract::hosting::{DomainServer, Hosted, HostedServer};
+//! # fn check<D: DomainServer + Clone>(domain: D) {
+//! let _ = HostedServer::for_domain::<D>().handler(move || Hosted::new(domain.clone()));
+//! # }
+//! ```
+//!
+//! A server without a deployment, trust bundle, and handler has no `build`:
+//!
 //! ```compile_fail
-//! # use veoveo_mcp_contract::hosting::HostedServer;
-//! # fn check<C: veoveo_mcp_contract::server_contract::McpServerContract>(
-//! #     setup: &'static veoveo_mcp_contract::server_contract::McpServerSetup<C>) {
-//! // A server without a deployment, trust bundle, and handler has no `build`.
-//! let _ = HostedServer::builder(setup).build();
+//! # use veoveo_mcp_contract::hosting::{DomainServer, HostedServer};
+//! # fn check<D: DomainServer>() {
+//! let _ = HostedServer::for_domain::<D>().build();
+//! # }
+//! ```
+//!
+//! A hand-written `ServerHandler` cannot replace the host:
+//!
+//! ```compile_fail
+//! # use veoveo_mcp_contract::hosting::{DomainServer, HostedServer};
+//! struct Handwritten;
+//! impl rmcp::ServerHandler for Handwritten {}
+//! # fn check<D: DomainServer>() {
+//! let _ = HostedServer::for_domain::<D>().handler(|| Handwritten);
+//! # }
+//! ```
+//!
+//! Nor can another domain's handler:
+//!
+//! ```compile_fail
+//! # use veoveo_mcp_contract::hosting::{DomainServer, Hosted, HostedServer};
+//! # fn check<D: DomainServer, Other: DomainServer + Clone>(other: Other) {
+//! let _ = HostedServer::for_domain::<D>().handler(move || Hosted::new(other.clone()));
 //! # }
 //! ```
 
 use std::{future::Future, net::SocketAddr, sync::Arc};
 
 use axum::{Router, http::StatusCode, middleware, response::IntoResponse, routing::get};
-use rmcp::{ServerHandler, transport::streamable_http_server::StreamableHttpService};
+use rmcp::transport::streamable_http_server::StreamableHttpService;
 use tokio_util::sync::CancellationToken;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 
@@ -44,12 +74,11 @@ use crate::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
     PublicDeployment, ServerPublicEndpoint, ServerSlug, TokenIssuer,
     canonical_streamable_http_server_config, enforce_serialized_mcp_response, public_allowed_hosts,
-    server_contract::{McpServerContract, McpServerSetup},
-    stateless_session_manager,
+    server_contract::McpServerContract, stateless_session_manager,
 };
 
 use super::{
-    admin,
+    DomainServer, Hosted, TaskSupport, admin,
     auth::{self, InternalAuth},
     host::{self, AllowedHosts},
 };
@@ -68,11 +97,12 @@ pub struct Deployment {
 
 type Readiness = Arc<dyn Fn() -> futures::future::BoxFuture<'static, bool> + Send + Sync>;
 
-/// Builds a [`HostedServer`]. See the [module documentation](self).
-pub struct HostedServerBuilder<C: McpServerContract + 'static, D, T, H> {
-    setup: &'static McpServerSetup<C>,
-    deployment: D,
-    trust: T,
+/// Builds a [`HostedServer`] for the domain `D`. See the [module
+/// documentation](self).
+pub struct HostedServerBuilder<D: DomainServer, Dep, Trust, H> {
+    domain: std::marker::PhantomData<fn() -> D>,
+    deployment: Dep,
+    trust: Trust,
     handler: H,
     extra_hosts: Vec<String>,
     authenticated_routes: Router,
@@ -89,12 +119,11 @@ pub struct HostedServer {
 }
 
 impl HostedServer {
-    /// Starts a builder from the server's checked setup.
-    pub fn builder<C: McpServerContract + 'static>(
-        setup: &'static McpServerSetup<C>,
-    ) -> HostedServerBuilder<C, Missing, Missing, Missing> {
+    /// Starts a builder for the domain `D`, whose checked setup fixes the slug,
+    /// documents, and discovery.
+    pub fn for_domain<D: DomainServer>() -> HostedServerBuilder<D, Missing, Missing, Missing> {
         HostedServerBuilder {
-            setup,
+            domain: std::marker::PhantomData,
             deployment: Missing,
             trust: Missing,
             handler: Missing,
@@ -169,7 +198,7 @@ async fn shutdown_signal() {
     }
 }
 
-impl<C: McpServerContract + 'static, D, T, H> HostedServerBuilder<C, D, T, H> {
+impl<D: DomainServer, Dep, Trust, H> HostedServerBuilder<D, Dep, Trust, H> {
     /// Sets the public deployment. The endpoint for this server's slug fixes the
     /// mount path; the deployment's host, plus loopback when allowed, forms the
     /// allowed hosts.
@@ -177,11 +206,11 @@ impl<C: McpServerContract + 'static, D, T, H> HostedServerBuilder<C, D, T, H> {
         self,
         deployment: &PublicDeployment,
         allow_loopback_hosts: bool,
-    ) -> anyhow::Result<HostedServerBuilder<C, Provided<Deployment>, T, H>> {
-        let endpoint = deployment.server(C::slug().as_str())?;
+    ) -> anyhow::Result<HostedServerBuilder<D, Provided<Deployment>, Trust, H>> {
+        let endpoint = deployment.server(D::Contract::slug().as_str())?;
         let allowed_hosts = public_allowed_hosts(deployment, allow_loopback_hosts);
         Ok(HostedServerBuilder {
-            setup: self.setup,
+            domain: self.domain,
             deployment: Provided(Deployment {
                 endpoint,
                 allowed_hosts,
@@ -199,15 +228,15 @@ impl<C: McpServerContract + 'static, D, T, H> HostedServerBuilder<C, D, T, H> {
     pub fn internal_trust(
         self,
         trust: GatewayInternalTrustBundle,
-    ) -> anyhow::Result<HostedServerBuilder<C, D, Provided<Arc<GatewayInternalTokenVerifier>>, H>>
+    ) -> anyhow::Result<HostedServerBuilder<D, Dep, Provided<Arc<GatewayInternalTokenVerifier>>, H>>
     {
         let verifier = GatewayInternalTokenVerifier::new(
             TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
-            C::slug(),
+            D::Contract::slug(),
             trust,
         );
         Ok(HostedServerBuilder {
-            setup: self.setup,
+            domain: self.domain,
             deployment: self.deployment,
             trust: Provided(Arc::new(verifier)),
             handler: self.handler,
@@ -218,15 +247,15 @@ impl<C: McpServerContract + 'static, D, T, H> HostedServerBuilder<C, D, T, H> {
         })
     }
 
-    /// Sets the factory that creates the server's `ServerHandler`. The transport
-    /// calls it for each stateless request.
-    pub fn handler<F, S>(self, factory: F) -> HostedServerBuilder<C, D, T, Provided<F>>
+    /// Sets the factory for this domain's [`Hosted`] handler, with its task
+    /// support. The transport calls it for each stateless request.
+    pub fn handler<F, T>(self, factory: F) -> HostedServerBuilder<D, Dep, Trust, Provided<F>>
     where
-        F: Fn() -> S + Send + Sync + 'static,
-        S: ServerHandler + Send + 'static,
+        F: Fn() -> Hosted<D, T> + Send + Sync + 'static,
+        T: TaskSupport,
     {
         HostedServerBuilder {
-            setup: self.setup,
+            domain: self.domain,
             deployment: self.deployment,
             trust: self.trust,
             handler: Provided(factory),
@@ -267,21 +296,21 @@ impl<C: McpServerContract + 'static, D, T, H> HostedServerBuilder<C, D, T, H> {
     }
 }
 
-impl<C, F, S>
+impl<D, F, T>
     HostedServerBuilder<
-        C,
+        D,
         Provided<Deployment>,
         Provided<Arc<GatewayInternalTokenVerifier>>,
         Provided<F>,
     >
 where
-    C: McpServerContract + 'static,
-    F: Fn() -> S + Send + Sync + 'static,
-    S: ServerHandler + Send + 'static,
+    D: DomainServer,
+    F: Fn() -> Hosted<D, T> + Send + Sync + 'static,
+    T: TaskSupport,
 {
     /// Assembles the router. Every hosted server has the same routes and layers.
     pub fn build(self) -> HostedServer {
-        let slug = C::slug();
+        let slug = D::Contract::slug();
         let Provided(Deployment {
             endpoint,
             mut allowed_hosts,
@@ -311,7 +340,7 @@ where
             .route_service("/{*path}", mcp_service)
             .layer(middleware::from_fn(enforce_serialized_mcp_response))
             .layer(authenticate());
-        let admin = admin::docs_router(self.setup.documents()).layer(authenticate());
+        let admin = admin::docs_router(D::setup().documents()).layer(authenticate());
         let authenticated = self.authenticated_routes.layer(authenticate());
 
         let mut server = Router::new()

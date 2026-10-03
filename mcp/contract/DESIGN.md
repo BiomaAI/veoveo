@@ -448,15 +448,18 @@ supplies three things:
    `McpServerSetup` before Store or engine initialization.
 2. **A domain.** Implement `DomainServer`: `tool_router` for the tools,
    `describe_tool` to adjust descriptors such as App links, `read` for one admitted
-   address, and optionally `complete`. `read` receives a parsed address; its
-   documents and contract variants answer `served_by_host()`, because the host serves
-   them first.
+   address, and optionally `complete`. `read` receives a parsed address and returns a
+   `DomainRead` that names its cache policy: `DomainRead::private` for ordinary
+   content, or `DomainRead::no_store` for content whose access or freshness can change
+   between reads, such as knowledge-source members. There is no default. Documents
+   and contract variants answer `served_by_host()`, because the host serves them
+   first.
 3. **Optional task support.** A server with durable tasks wraps its
    `DurableTaskService` in `veoveo_task_runtime::DurableTasks`; a server without
    tasks uses the default `NoTasks`.
 
 ```rust
-let server = HostedServer::builder(&*setup::SERVER_SETUP)
+let server = HostedServer::for_domain::<MyDomain>()
     .deployment(&public_deployment, args.allow_loopback_hosts)?
     .allowed_hosts(args.allowed_hosts.iter().cloned())
     .internal_trust(GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?)?
@@ -468,8 +471,10 @@ let server = HostedServer::builder(&*setup::SERVER_SETUP)
 server.serve(SocketAddr::from(([0, 0, 0, 0], args.port))).await
 ```
 
-The builder offers `build` only after the deployment, internal trust and handler
-are set. `authenticated_routes`, `public_routes` and `readiness` add
+The builder starts from the domain type, which names its checked setup, and offers
+`build` only after the deployment, internal trust and handler are set. The handler
+must be that domain's `Hosted` value: a hand-written `ServerHandler` or another
+domain's handler does not compile. `authenticated_routes`, `public_routes` and `readiness` add
 server-specific HTTP. Inside a domain method, `gateway_identity`,
 `forwarded_bearer` and `plane_caller` return the verified caller.
 
@@ -483,7 +488,7 @@ The host gives every server the same behavior:
 | Discovery | Authenticated `resources/list`, `resources/templates/list` and `tools/list` from the setup, sorted, 100 per page, private, five-second cache |
 | Well-known reads | `{scheme}://docs` routes and `{scheme}://contract` |
 | Address admission | An unparseable URI is Invalid Params (-32602) before domain code runs |
-| Read cache | The private resource cache policy on every domain read |
+| Read cache | The policy each `DomainRead` names: one second private, or no reuse; continuation reads are never reused |
 | Tools | Durable tasks start first; other calls dispatch through the tool router |
 | Shutdown | SIGTERM or Ctrl-C, cancelling in-flight MCP work |
 

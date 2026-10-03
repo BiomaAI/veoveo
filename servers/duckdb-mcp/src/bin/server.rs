@@ -20,7 +20,7 @@ use rmcp::tool;
 use rmcp::{
     ErrorData as McpError, RoleServer,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
-    model::{CallToolResult, ReadResourceRequestParams, ReadResourceResult, Tool},
+    model::{CallToolResult, ReadResourceRequestParams, Tool},
     service::RequestContext,
     tool_router,
 };
@@ -35,7 +35,10 @@ use veoveo_duckdb_mcp::{
 };
 use veoveo_mcp_contract::{
     GatewayInternalTrustBundle, TelemetryGuard,
-    hosting::{DomainAddress, DomainServer, Hosted, HostedServer, gateway_identity, plane_caller},
+    hosting::{
+        DomainAddress, DomainRead, DomainServer, Hosted, HostedServer, gateway_identity,
+        plane_caller,
+    },
     init_server_telemetry,
     server_contract::McpServerSetup,
 };
@@ -212,8 +215,10 @@ impl DomainServer for DuckdbMcp {
         address: DomainAddress<DuckDbContract>,
         request: &ReadResourceRequestParams,
         context: &RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResult, McpError> {
-        resources::read(&self.state, address, &request.uri, context).await
+    ) -> Result<DomainRead, McpError> {
+        resources::read(&self.state, address, &request.uri, context)
+            .await
+            .map(DomainRead::private)
     }
 }
 
@@ -286,7 +291,7 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    let server = HostedServer::builder(&*setup::SERVER_SETUP)
+    let server = HostedServer::for_domain::<DuckdbMcp>()
         .deployment(&public_deployment, args.allow_loopback_hosts)?
         .allowed_hosts(args.allowed_hosts.iter().cloned())
         .internal_trust(GatewayInternalTrustBundle::from_json(
