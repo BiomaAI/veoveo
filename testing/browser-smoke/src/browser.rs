@@ -3854,8 +3854,11 @@ async fn wait_for_console_video(
         )
         .await?;
         if state.ready_state >= 2 && state.video_width > 0 && state.current_time > 0.0 {
-            state.validate(expected_camera_id)?;
-            return Ok(state);
+            state.validate_stream(expected_camera_id)?;
+            if state.frame.has_visible_detail()? {
+                state.validate(expected_camera_id)?;
+                return Ok(state);
+            }
         }
         ensure!(
             state.error.is_empty(),
@@ -3863,7 +3866,7 @@ async fn wait_for_console_video(
         );
         ensure!(
             tokio::time::Instant::now() < deadline,
-            "Console UAV live view App did not display real H.264 video: {state:?}"
+            "Console UAV live view App did not display detailed H.264 video before its startup deadline: {state:?}"
         );
         cdp.assert_no_software_renderer_events()?;
         assert_page_visible(cdp, session_id).await?;
@@ -3950,18 +3953,21 @@ async fn wait_for_console_video_replacement(
             && state.current_time > 0.0
             && state.live_view_id != before.live_view_id
         {
-            state.validate(expected_camera_id)?;
+            state.validate_stream(expected_camera_id)?;
             ensure!(
                 state.document_epoch_ms == before.document_epoch_ms
                     && state.viewer_instance_id == before.viewer_instance_id
                     && state.live_view_id != before.live_view_id,
                 "component restart reloaded the App or reused stale stream authorization: {before:?} -> {state:?}"
             );
-            return Ok(state);
+            if state.frame.has_visible_detail()? {
+                state.validate(expected_camera_id)?;
+                return Ok(state);
+            }
         }
         ensure!(
             tokio::time::Instant::now() < deadline,
-            "Console UAV live view App did not replace its stream authorization after component restart: {before:?} -> {state:?}"
+            "Console UAV live view App did not recover detailed video with fresh stream authorization before its restart deadline: {before:?} -> {state:?}"
         );
         cdp.assert_no_software_renderer_events()?;
         assert_page_visible(cdp, session_id).await?;
@@ -4449,6 +4455,13 @@ impl VideoCadenceSample {
 
 impl AppVideoState {
     fn validate(&self, expected_camera_id: &str) -> Result<()> {
+        self.validate_stream(expected_camera_id)?;
+        self.frame.validate().with_context(|| {
+            format!("authoritative live-view App lacks visible image detail: {self:?}")
+        })
+    }
+
+    fn validate_stream(&self, expected_camera_id: &str) -> Result<()> {
         ensure!(
             self.camera_id == expected_camera_id,
             "authoritative live-view App selected camera {:?}, expected {expected_camera_id:?}",
@@ -4468,9 +4481,6 @@ impl AppVideoState {
                 && self.current_time > 0.0,
             "authoritative live-view App did not display the declared 1280x720 H.264 stream: {self:?}"
         );
-        self.frame.validate().with_context(|| {
-            format!("authoritative live-view App lacks visible image detail: {self:?}")
-        })?;
         ensure!(
             self.decode_label == "NVIDIA NVENC · hardware H.264 decode"
                 || self.decode_label == "NVIDIA NVENC · software H.264 decode",

@@ -17,6 +17,7 @@
 | GPU workload evidence | Existing NVIDIA resource identity, NVENC source and concurrent workload assertions; software rendering is rejected |
 | World publication | Frames-owned immutable revisions and typed frame URIs; UAV-owned validated installation binding; `veoveo.ai/uav-world-publication/v1` JSON receipt with the output file SHA-256 |
 | Evidence | `veoveo.ai/uav-showcase-acceptance-evidence/v5` JSON and revision-qualified captures; `veoveo.ai/uav-showcase-phase-outcomes/v2` records domain and visual outcomes even when either phase fails; both mark Reason `not_run` because its acceptance runs separately |
+| Focused restart stages | `veoveo.ai/uav-live-view-restart-stage/v1` records each accepted container restart and its headed hardware browser observations before the next restart begins |
 
 ## Ownership
 
@@ -161,6 +162,17 @@ diagnostic; scene exposure does not determine whether a frame contains detail. U
 images, a small isolated bright patch and failed or incomplete samples fail this check.
 The sampler's native JavaScript cases and the Rust content-policy cases qualify these
 measurements and decisions. They establish no GPU or installed visual acceptance.
+
+Initial and restarted video may produce uniform frames while the world loads. The
+browser harness waits within its existing startup or recovery deadline for a frame
+that meets every content threshold above. Invalid samples and software-renderer
+warnings fail immediately. Restart acceptance also requires the original document
+and viewer identities, a fresh stream authorization, and the unchanged cadence and
+latency checks. A uniform stream that exhausts its deadline fails. The focused
+restart harness waits for a declared warming camera within the scenario's view
+timeout; stale, failed, unknown or missing cameras fail immediately. It saves each
+accepted restart stage before proceeding, so a later failure preserves the earlier
+stage's container and browser observations.
 
 The domain harness releases visual checkpoints after this run's takeoff and mission
 complete. Takeoff requires the selected vehicle to be flying at the scenario's minimum

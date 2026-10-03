@@ -30,6 +30,16 @@ pub(super) struct FrameContent {
 impl FrameContent {
     pub(super) fn validate(&self) -> Result<()> {
         ensure!(
+            self.has_visible_detail()?,
+            "frame lacks visible detail: standard deviation must reach {MINIMUM_STANDARD_DEVIATION} and at least {MINIMUM_TEXTURED_CELLS}/16 regions must contain contrast"
+        );
+        Ok(())
+    }
+
+    /// Startup may await a valid but uniform frame. Invalid observations fail
+    /// immediately, and only a detailed frame can qualify a capture.
+    pub(super) fn has_visible_detail(&self) -> Result<bool> {
+        ensure!(
             self.pixel_sample_error.is_empty(),
             "canvas pixel sampling failed"
         );
@@ -37,9 +47,9 @@ impl FrameContent {
             self.mean_luma.is_finite()
                 && (0.0..=255.0).contains(&self.mean_luma)
                 && self.luma_standard_deviation.is_finite()
-                && (MINIMUM_STANDARD_DEVIATION..=127.5).contains(&self.luma_standard_deviation)
-                && self.minimum_luma < self.maximum_luma,
-            "frame is uniform or its luminance statistics are invalid"
+                && (0.0..=127.5).contains(&self.luma_standard_deviation)
+                && self.minimum_luma <= self.maximum_luma,
+            "frame luminance statistics are invalid"
         );
         ensure!(
             self.luma_cells.iter().all(|cell| {
@@ -57,11 +67,9 @@ impl FrameContent {
                     && cell.standard_deviation >= MINIMUM_STANDARD_DEVIATION
             })
             .count();
-        ensure!(
-            textured >= MINIMUM_TEXTURED_CELLS,
-            "only {textured}/16 frame regions contain contrast; at least {MINIMUM_TEXTURED_CELLS} are required"
-        );
-        Ok(())
+        Ok(self.luma_standard_deviation >= MINIMUM_STANDARD_DEVIATION
+            && self.minimum_luma < self.maximum_luma
+            && textured >= MINIMUM_TEXTURED_CELLS)
     }
 }
 
@@ -113,6 +121,7 @@ mod tests {
                 standard_deviation: 0.0,
             });
             assert!(frame.validate().is_err());
+            assert!(!frame.has_visible_detail().unwrap());
         }
     }
 
@@ -127,8 +136,10 @@ mod tests {
         });
         frame.luma_cells[..3].fill(contrast);
         assert!(frame.validate().is_err());
+        assert!(!frame.has_visible_detail().unwrap());
         frame.luma_cells[3] = contrast;
         assert!(frame.validate().is_ok());
+        assert!(frame.has_visible_detail().unwrap());
     }
 
     #[test]
@@ -155,12 +166,15 @@ mod tests {
         let mut frame = textured(20.50);
         frame.pixel_sample_error = "canvas unavailable".into();
         assert!(frame.validate().is_err());
+        assert!(frame.has_visible_detail().is_err());
         frame.pixel_sample_error.clear();
         frame.mean_luma = f64::NAN;
         assert!(frame.validate().is_err());
+        assert!(frame.has_visible_detail().is_err());
         frame.mean_luma = 20.50;
         frame.luma_cells[0].standard_deviation = f64::INFINITY;
         assert!(frame.validate().is_err());
+        assert!(frame.has_visible_detail().is_err());
     }
 
     #[test]
