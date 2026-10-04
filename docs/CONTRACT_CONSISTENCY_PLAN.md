@@ -627,20 +627,34 @@ and secret redaction. Resource declarations also need shared standard constructo
 accessors and formatting where owners currently repeat them. Qualify the chosen
 surface before updating the implementation rules in AGENTS.md.
 
-Measure complete owner files and the shared implementation together. A smaller macro
-catalog alone does not satisfy this requirement. Existing value, wire, schema and
-independent-consumer tests continue to protect behavior during the correction.
+Measure complete owner families and the shared implementation together, including
+validators, schema helpers and every descendant of a moved file. Compare both the
+current tree and the tree before the Id migration; report subsequently added
+capabilities separately. A smaller macro catalog alone does not satisfy this
+requirement. Existing value, wire, schema and independent-consumer tests continue to
+protect behavior during the correction.
 
 The correction uses attribute front ends for ID and resource declarations so they
 can generate standard derives as well as implementations. Ordinary public traits
-continue to own behavior. A few domain-independent declaration forms select method
-signatures and trait sets; ordinary owner profile types supply shared admission,
-generation, error mapping, serialization and schema policy. Prefixes and typed route
-fields stay in each concrete declaration. Profiles need no runtime registry, and
-custom hooks remain available for contracts outside the standard forms. Replace the
-old public derives in the same owner adoption pass. Complete this correction before
-starting another persistence extraction batch; finish the observation batch already
-under qualification first.
+continue to own behavior. Declaration forms select storage and generation
+capabilities; ordinary owner profile types supply admission, error mapping,
+serialization and schema policy. Prefixes and typed route fields stay in each
+concrete declaration. Profiles need no runtime registry, and custom hooks remain
+available for contracts outside the standard forms. Replace the old public derives
+in the same owner adoption pass.
+
+Normalize internal convenience APIs and update all workspace callers in that pass.
+Use `parse` for admission, `new` for fresh generation and one copied UUID accessor
+convention. Preserve required const construction without adding compatibility forms
+for old method names. UUID admission and generation are separate policies: adding a
+v7 generator does not restrict an owner's previously admitted UUID versions. Text
+profiles call their existing validators directly; they do not repeat complete
+validation through a second grammar description. Parse each declaration once and
+pass a typed configuration to its emitter. Schema identity overrides reuse generated
+metadata instead of copying descriptions into owner callbacks.
+
+The observation batch is qualified and committed. Complete this declaration
+correction before starting another persistence extraction batch.
 
 ### Rollout And Gates
 
