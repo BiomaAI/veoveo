@@ -11,6 +11,8 @@ pub(super) fn check() -> Result<()> {
             "bioma".into(),
             "deploy/helm/veoveo".into(),
             "--values".into(),
+            "examples/bioma/modules-values.yaml".into(),
+            "--values".into(),
             "testing/fixtures/platform-selection/platform-values.yaml".into(),
             "--namespace".into(),
             "veoveo".into(),
@@ -60,6 +62,13 @@ pub(super) fn check() -> Result<()> {
     }
     not_contains(&bioma, "name: frames-mcp-bootstrap")?;
     not_contains(&bioma, "frames://frame/")?;
+    let release = fs::read_to_string("examples/bioma/gitops/releases/veoveo.yaml")?;
+    let kustomization = fs::read_to_string("examples/bioma/kustomization.yaml")?;
+    ensure!(
+        !release.contains("valuesKey: modules-values.yaml")
+            && !kustomization.contains("modules-values.yaml=modules-values.yaml"),
+        "source-only module values must not activate against the previously published chart"
+    );
     let installation = run_checked(
         Path::new("kubectl"),
         ["kustomize".into(), "examples/bioma".into()],
@@ -133,8 +142,7 @@ pub(super) fn check() -> Result<()> {
         &bioma,
         &format!("checksum/control-plane: \"{control_plane_revision}\""),
     )?;
-    contains(&bioma, "veoveo.ai/bootstrap-revision:")?;
-    not_contains(&bioma, "veoveo.ai/bootstrap-revision: \"bootstrap-1\"")?;
+    contains(&bioma, "veoveo.ai/module-job-revision:")?;
     not_contains(&bioma, "secretName: bioma-ingress-tls")?;
     let bioma_tunnel = fs::read_to_string("examples/bioma/gitops/cloudflared.yaml")?;
     contains(&bioma_tunnel, "name: TUNNEL_TOKEN")?;
@@ -150,6 +158,8 @@ pub(super) fn check() -> Result<()> {
             "template".into(),
             "bioma".into(),
             "deploy/helm/veoveo".into(),
+            "--values".into(),
+            "examples/bioma/modules-values.yaml".into(),
             "--values".into(),
             "testing/fixtures/platform-selection/platform-values.yaml".into(),
             "--namespace".into(),

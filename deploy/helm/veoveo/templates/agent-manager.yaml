@@ -69,7 +69,8 @@ roleRef:
   kind: Role
   name: veoveo-agent-manager
 ---
-{{- $config := dict "namespace" $namespace "gateway_url" (printf "%s/" (trimSuffix "/" .Values.global.publicBaseUrl)) "gateway_transport_url" (printf "http://mcp-gateway.%s.svc:8788/" .Release.Namespace) "store_endpoint" (printf "ws://surrealdb.%s.svc:8000" .Release.Namespace) "store_namespace" .Values.surrealdb.namespace "store_database" .Values.surrealdb.database "templates" .Values.gateway.agents.templates "models" .Values.gateway.agents.models }}
+{{- $modulePlan := include "veoveo.modulePlan" . | fromJson -}}
+{{- $config := dict "database_credential_revision" $modulePlan.credentialRevision "namespace" $namespace "gateway_url" (printf "%s/" (trimSuffix "/" .Values.global.publicBaseUrl)) "gateway_transport_url" (printf "http://mcp-gateway.%s.svc:8788/" .Release.Namespace) "store_endpoint" (printf "ws://surrealdb.%s.svc:8000" .Release.Namespace) "store_namespace" .Values.surrealdb.namespace "store_database" .Values.surrealdb.database "templates" .Values.gateway.agents.templates "models" .Values.gateway.agents.models }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -93,6 +94,7 @@ spec:
       labels:
         app.kubernetes.io/component: agent-manager
       annotations:
+        {{- include "veoveo.databasePodAnnotations" . | nindent 8 }}
         checksum/config: {{ $config | toJson | sha256sum }}
         checksum/control-plane: {{ include "veoveo.controlPlaneRevision" . | quote }}
     spec:

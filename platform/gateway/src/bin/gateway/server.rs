@@ -549,7 +549,7 @@ async fn load_initial_catalog(
     expected_sha256: Option<&str>,
 ) -> anyhow::Result<Arc<GatewayCatalog>> {
     let revision = store.load_active_revision().await?.context(
-        "SurrealDB platform store has no active gateway control-plane revision; run installation-bootstrap first",
+        "SurrealDB platform store has no active gateway control-plane revision; run control-plane-publish after installation preparation and module lanes",
     )?;
     verify_expected_control_plane_revision(&revision.sha256, expected_sha256)?;
     let catalog = Arc::new(GatewayCatalog::from_control_plane(revision.control_plane)?);
@@ -571,7 +571,7 @@ fn verify_expected_control_plane_revision(
     if let Some(expected_sha256) = expected_sha256 {
         anyhow::ensure!(
             active_sha256 == expected_sha256,
-            "active gateway control-plane revision {active_sha256} does not match requested revision {expected_sha256}; installation-bootstrap has not converged"
+            "active gateway control-plane revision {active_sha256} does not match requested revision {expected_sha256}; control-plane-publish has not converged"
         );
     }
     Ok(())
@@ -720,7 +720,7 @@ mod tests {
         assert!(
             error
                 .to_string()
-                .contains("installation-bootstrap has not converged")
+                .contains("control-plane-publish has not converged")
         );
         verify_expected_control_plane_revision("requested", Some("requested")).unwrap();
         verify_expected_control_plane_revision("old", None).unwrap();

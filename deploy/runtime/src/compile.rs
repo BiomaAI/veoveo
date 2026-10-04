@@ -28,6 +28,7 @@ pub(crate) mod configuration;
 pub(crate) mod execution;
 mod images;
 mod inputs;
+pub(crate) mod module_plan;
 pub(crate) mod objects;
 #[cfg(test)]
 mod tests;
@@ -199,6 +200,13 @@ fn compile_with_inputs(
                         .images
                         .get(&target)
                         .context("release has no image selection")?;
+                    let module_plan = if release.values_contract
+                        == veoveo_deploy_contract::ReleaseValuesContract::Platform
+                    {
+                        module_plan::prepare(component_profile, &images.digests)?
+                    } else {
+                        None
+                    };
                     let rendered = helm_render_locked(
                         component_profile,
                         snapshot,
@@ -206,6 +214,7 @@ fn compile_with_inputs(
                         &images.digests,
                         &platform.components,
                         &platform.mcp_servers,
+                        module_plan.as_ref(),
                     )?;
                     let mut objects = Vec::new();
                     append_yaml_bytes(rendered.as_bytes(), "component Helm release", &mut objects)?;
@@ -221,6 +230,7 @@ fn compile_with_inputs(
                             &exact.digests,
                             &platform.components,
                             &platform.mcp_servers,
+                            module_plan.as_ref(),
                         )?;
                         objects.clear();
                         append_yaml_bytes(
@@ -253,6 +263,13 @@ fn compile_with_inputs(
                             installation,
                             &component_profile.repository,
                             &component_profile.resolve(path),
+                        )?);
+                    }
+                    if let Some(plan) = &module_plan {
+                        inputs.insert(file_input(
+                            installation,
+                            &component_profile.repository,
+                            &plan.selection_path,
                         )?);
                     }
                     drafts.push(UnitDraft {

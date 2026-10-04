@@ -22,6 +22,7 @@ serde_yaml_ng.workspace = true
 sha2.workspace = true
 tempfile.workspace = true
 veoveo-deploy-contract.workspace = true
+veoveo-modules = { workspace = true, features = ["serialization"] }
 veoveo-deploy-runtime.workspace = true
 veoveo-image-build-control.workspace = true
 veoveo-mcp-contract.workspace = true

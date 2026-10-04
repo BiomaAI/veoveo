@@ -4,6 +4,7 @@
 
 | Boundary | Supported profile |
 |---|---|
+| `veoveo.ai/module-selection/v1` and `veoveo.ai/module-plan/v1` | Checked camelCase JSON; optional selection, decimal-string generation, nonsecret credential revision and composition-generated lane/runtime bindings |
 | Helm v2 chart format and JSON Schema draft-07 | Closed installation values, rendered Kubernetes resources and immutable image references |
 | Kubernetes apps/v1 and core/v1 | Deployments, Services, ConfigMaps and references to installation-owned Secrets |
 | Kubernetes admissionregistration.k8s.io/v1 and CEL | Fail-closed managed kernel and controller resource validation; requires Kubernetes 1.30 or newer |
@@ -17,6 +18,31 @@
 | `veoveo.ai/computers-service/v3` | Private Computers JSON configuration; the typed service validates the selected capacity and trust before store mutation |
 | `veoveo.ai/computer-host/v1` | Private compute-container configuration; dedicated daemon, provider and retained ext4 storage |
 | RFC 9562 UUIDv8 | Deterministic identity for explicitly unconfigured Computers; configured provider identity remains an installation input |
+
+## Module Preparation And Publication
+
+`moduleInstallation.planJson` contains the complete gateway-generated module-plan v1
+JSON document. The chart preserves its bytes in an immutable ConfigMap and consumes
+its lane commands and runtime bindings. The composition binary owns module names and
+dependencies. The chart checks enabled hosts against those bindings and never turns on
+a workload because its schema prerequisite was selected.
+
+Ordinary preparation, per-lane migration and control-plane publication Jobs may start
+concurrently. Gateway commands wait for database readiness and the matching completed
+preparation proof; publication also waits for selected lanes. Preparation explicitly
+runs the mixed Store bootstrap before the new lanes until the ownership cut. This
+prologue does not certify mixed SQL as owner-lane SQL. Runtime credentials serve
+publication and gateway traffic. Root migration credentials enter only preparation
+and lane Jobs, apart from the database's own root provisioning input.
+
+The selection file owns installation generation and `credentialRevision`. Generation
+is independent of Helm release counters. Changed preparation inputs require a higher
+generation; the same generation with a different identity fails. Job names hash their
+complete immutable specs. Repeated unchanged renders preserve object identities.
+Credential revision updates each controlled database client pod template, including
+the agent manager's desired managed-workload configuration. Managed-agent replacement
+uses the manager's lease and pod drain checks; static YAML alone cannot establish that
+all running agents accepted a rotated account.
 
 ## Hosted Server Probes
 

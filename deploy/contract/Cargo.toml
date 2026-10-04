@@ -6,6 +6,7 @@ publish = false
 
 [dependencies]
 veoveo-types.workspace = true
+veoveo-modules = { workspace = true, features = ["serialization"] }
 anyhow.workspace = true
 schemars.workspace = true
 serde.workspace = true

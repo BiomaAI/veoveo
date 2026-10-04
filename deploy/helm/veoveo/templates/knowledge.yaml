@@ -51,6 +51,7 @@ spec:
         app.kubernetes.io/component: knowledge-mcp
       annotations:
         {{- include "veoveo.podAnnotations" . | nindent 8 }}
+        {{- include "veoveo.databasePodAnnotations" . | nindent 8 }}
         checksum/knowledge-configuration: {{ .Values.knowledge.configurationRevision | quote }}
         checksum/embedding-space: {{ $space | sha256sum | quote }}
     spec:

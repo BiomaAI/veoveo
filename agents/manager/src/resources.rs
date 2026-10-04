@@ -13,6 +13,18 @@ use crate::{
     kubernetes_types::*,
 };
 
+pub const DATABASE_CREDENTIAL_REVISION: &str = "veoveo.ai/database-credential-revision";
+
+pub fn database_credentials_current(deployment: &Deployment, config: &Config) -> bool {
+    deployment
+        .spec
+        .template
+        .metadata
+        .annotations
+        .get(DATABASE_CREDENTIAL_REVISION)
+        .is_some_and(|revision| revision == config.database_credential_revision.as_str())
+}
+
 pub fn metadata(instance: &ManagedAgentInstance, name: &str) -> Metadata {
     Metadata {
         name: name.into(),
@@ -195,6 +207,10 @@ pub fn deployment(
         env.push(literal(&binding.environment_variable, value));
     }
     let mut pod_metadata = metadata(instance, &instance.resources.workload);
+    pod_metadata.annotations.insert(
+        DATABASE_CREDENTIAL_REVISION.into(),
+        config.database_credential_revision.as_str().into(),
+    );
     pod_metadata.name.clear();
     pod_metadata.namespace = None;
     let quantity = ComputeQuantity {

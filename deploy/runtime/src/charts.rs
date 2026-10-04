@@ -8,6 +8,7 @@ use crate::{
 use anyhow::{Context, Result, ensure};
 use std::{
     collections::{BTreeMap, BTreeSet},
+    io::Write,
     path::{Path, PathBuf},
 };
 use veoveo_deploy_contract::{
@@ -103,6 +104,7 @@ pub(crate) fn helm_render_locked(
     image_digests: &BTreeMap<String, String>,
     components: &BTreeSet<PlatformComponent>,
     mcp_servers: &BTreeSet<FirstPartyMcpServer>,
+    module_plan: Option<&crate::compile::module_plan::GeneratedModulePlan>,
 ) -> Result<String> {
     let chart = source.repository.join(&release.chart);
     let mut args = vec![
@@ -126,9 +128,20 @@ pub(crate) fn helm_render_locked(
         components,
         mcp_servers,
     )?;
+    let mut module_plan_file = None;
+    if let Some(module_plan) = module_plan {
+        let mut file = tempfile::NamedTempFile::new()?;
+        file.write_all(&serde_json::to_vec(&module_plan.plan)?)?;
+        args.extend([
+            "--set-file".to_owned(),
+            format!("moduleInstallation.planJson={}", path_str(file.path())?),
+        ]);
+        module_plan_file = Some(file);
+    }
     let refs = args.iter().map(String::as_str).collect::<Vec<_>>();
     let rendered = output_checked("helm", refs, None)
         .with_context(|| format!("rendering locked Helm release {}", release.name))?;
+    drop(module_plan_file);
     String::from_utf8(rendered).context("Helm output is not UTF-8")
 }
 
@@ -159,6 +172,35 @@ pub(crate) fn helm_render(
         components,
         mcp_servers,
     )?;
+    if release.values_contract == ReleaseValuesContract::Platform
+        && profile
+            .resolved_platform()?
+            .components
+            .contains(&PlatformComponent::Gateway)
+    {
+        let input = profile
+            .definition
+            .module_installation
+            .as_ref()
+            .context("source validation requires explicit moduleInstallation inputs")?;
+        let fixture = input.development_plan.as_ref()
+            .context("source validation requires an actual generated developmentPlan; it does not qualify an installed composition image")?;
+        let path = profile.resolve(fixture);
+        let plan: veoveo_modules::ModulePlanDocument =
+            serde_json::from_slice(&std::fs::read(&path)?)?;
+        let selection: veoveo_modules::ModuleSelectionDocument =
+            serde_json::from_slice(&std::fs::read(profile.resolve(&input.selection))?)?;
+        veoveo_deploy_contract::validate_module_plan(
+            &plan,
+            &selection,
+            plan.composition().as_str(),
+            &profile.resolved_platform()?,
+        )?;
+        args.extend([
+            "--set-file".into(),
+            format!("moduleInstallation.planJson={}", path_str(&path)?),
+        ]);
+    }
     let refs = args.iter().map(String::as_str).collect::<Vec<_>>();
     let rendered = output_checked("helm", refs, None)
         .with_context(|| format!("rendering Helm release {}", release.name))?;

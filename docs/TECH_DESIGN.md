@@ -256,10 +256,12 @@ the matching `3.3.0` release. The supported release runs one RocksDB-backed node
 The foundations upgrade is a coordinated hard cut onto fresh database state. Stop
 writers before resetting that store, bootstrap the current schema, and start only
 3.3.0 clients. Historical records and older database versions have no support path.
-Installation bootstrap connects with root credentials, applies ordered migrations,
-creates or rotates the database runtime user, and publishes the first gateway control
-revision. Long-running services connect with database-scoped credentials and never run
-migrations.
+Installation preparation connects with root credentials, applies the mixed catalogs
+and rotates the database runtime account under a generation fence. Selected module
+lanes finish before the runtime account publishes the gateway control revision.
+The [gateway command design](../platform/gateway/DESIGN.md#installation-command-composition)
+defines the preparation proof and ordered publication. Long-running services connect
+with database-scoped credentials and never run migrations.
 
 Remote Store connections accept messages up to 64 MiB. Their write-buffer ceiling
 allows one such message plus the 128 KiB flush buffer. Connections allocate buffer

@@ -12,6 +12,8 @@ fn render(workers: Option<&str>) -> Result<Output> {
         "template",
         "object-store-test",
         "deploy/helm/veoveo",
+        "--set-file",
+        "moduleInstallation.planJson=testing/fixtures/module-schema-consumer/module-plan.json",
         "--values",
         "testing/fixtures/platform-selection/platform-values.yaml",
     ]);

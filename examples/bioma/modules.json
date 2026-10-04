@@ -1,0 +1,16 @@
+{
+  "format": "veoveo.ai/module-selection/v1",
+  "enabled": [
+    "agents",
+    "computers",
+    "frames",
+    "map",
+    "media",
+    "recordings",
+    "time",
+    "uav",
+    "workspace"
+  ],
+  "generation": "1",
+  "credentialRevision": "bioma-runtime-1"
+}

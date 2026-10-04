@@ -138,5 +138,9 @@
       "oidc-client-secret",
       "refresh-delivery-key-b64"
     ]
+  },
+  "moduleInstallation": {
+    "selection": "../module-schema-consumer/recordings-selection.json",
+    "developmentPlan": "../module-schema-consumer/recordings-plan.json"
   }
 }

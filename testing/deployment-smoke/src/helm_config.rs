@@ -62,7 +62,11 @@ pub(crate) fn helm_config() -> Result<()> {
         "testing/fixtures/chart-library-consumer",
         "testing/fixtures/fork-workload/deploy/helm",
     ] {
-        run_checked(Path::new("helm"), ["lint".into(), chart.into()], [])
+        let mut arguments = vec!["lint".into(), chart.into()];
+        if chart == "deploy/helm/veoveo" {
+            arguments.extend(["--values".into(), "testing/fixtures/platform-selection/platform-values.yaml".into(), "--set-file".into(), "moduleInstallation.planJson=testing/fixtures/module-schema-consumer/module-plan.json".into()]);
+        }
+        run_checked(Path::new("helm"), arguments, [])
             .with_context(|| format!("linting Helm chart {chart}"))?;
     }
 
@@ -163,6 +167,9 @@ pub(crate) fn helm_config() -> Result<()> {
             "template".into(),
             "veoveo".into(),
             "deploy/helm/veoveo".into(),
+            "--set-file".into(),
+            "moduleInstallation.planJson=testing/fixtures/module-schema-consumer/module-plan.json"
+                .into(),
             "--values".into(),
             "testing/fixtures/platform-selection/platform-values.yaml".into(),
             "--namespace".into(),
@@ -326,6 +333,9 @@ pub(crate) fn helm_config() -> Result<()> {
             "template".into(),
             "veoveo".into(),
             "deploy/helm/veoveo".into(),
+            "--set-file".into(),
+            "moduleInstallation.planJson=testing/fixtures/module-schema-consumer/module-plan.json"
+                .into(),
             "--values".into(),
             "testing/fixtures/platform-selection/platform-values.yaml".into(),
             "--namespace".into(),
@@ -387,6 +397,9 @@ pub(crate) fn helm_config() -> Result<()> {
             "template".into(),
             "veoveo".into(),
             "deploy/helm/veoveo".into(),
+            "--set-file".into(),
+            "moduleInstallation.planJson=testing/fixtures/module-schema-consumer/module-plan.json"
+                .into(),
             "--values".into(),
             "testing/fixtures/platform-selection/platform-values.yaml".into(),
             "--set".into(),
@@ -422,6 +435,9 @@ pub(crate) fn helm_config() -> Result<()> {
             "template".into(),
             "veoveo".into(),
             "deploy/helm/veoveo".into(),
+            "--set-file".into(),
+            "moduleInstallation.planJson=testing/fixtures/module-schema-consumer/module-plan.json"
+                .into(),
             "--values".into(),
             "testing/fixtures/platform-selection/platform-values.yaml".into(),
             "--set".into(),

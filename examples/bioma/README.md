@@ -21,6 +21,30 @@ identity, origins, capacity, and provider selection live here. The build and
 installation architecture does not contain Bioma-specific roles, scopes, or
 release machinery.
 
+## Module Selection
+
+`modules.json` owns optional schema selection, installation generation and the
+nonsecret credential revision. `modules-values.yaml` is the sole generated plan
+payload used by source-render qualification. The active GitOps release does not
+consume it while it selects the previously published chart and gateway image.
+Generate the payload with the gateway producer from the actual pinned gateway image:
+
+```sh
+docker run --rm --network none --read-only \
+  --mount type=bind,src="$PWD/examples/bioma/modules.json",dst=/modules.json,readonly \
+  --entrypoint /usr/local/bin/gateway "$GATEWAY_IMAGE" \
+  module-plan --modules /modules.json --composition "$GATEWAY_DIGEST" --helm-values \
+  > examples/bioma/modules-values.yaml
+```
+
+The checked-in payload supports source/render qualification against its declared
+image binding. It does not establish that the previously published image implements
+these commands. Activate the new OCI chart, matching gateway image and generated
+module values together. That activation adds `modules-values.yaml` to the immutable
+values ConfigMap and HelmRelease `valuesFrom` list. Advance generation when
+preparation identity changes, including
+credential revision, and preserve it for an unchanged installation.
+
 ## Workspace Models
 
 The Workspace configuration in `values.yaml` admits Assistant and Reviewer in the

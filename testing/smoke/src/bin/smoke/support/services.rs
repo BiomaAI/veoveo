@@ -324,6 +324,7 @@ pub(crate) struct PlatformStoreSmoke {
     pub(crate) namespace: String,
     pub(crate) database: String,
     _container: ContainerGuard,
+    module_directory: tempfile::TempDir,
 }
 
 impl PlatformStoreSmoke {
@@ -348,6 +349,23 @@ impl PlatformStoreSmoke {
             ("VEOVEO_SURREAL_AUTH_LEVEL", auth_level.into()),
             ("VEOVEO_SURREAL_USERNAME", username.into()),
             ("VEOVEO_SURREAL_PASSWORD", password.into()),
+            (
+                "VEOVEO_MODULE_PLAN",
+                self.module_directory
+                    .path()
+                    .join("plan.json")
+                    .into_os_string(),
+            ),
+            (
+                "VEOVEO_MODULE_COMPOSITION",
+                format!("sha256:{}", "1".repeat(64)).into(),
+            ),
+            ("VEOVEO_INSTALLATION_GENERATION", "1".into()),
+            ("VEOVEO_CREDENTIAL_REVISION", "smoke-runtime-v1".into()),
+            (
+                "VEOVEO_SURREAL_RUNTIME_USERNAME",
+                SURREAL_RUNTIME_USER.into(),
+            ),
         ]
     }
 }
@@ -385,6 +403,7 @@ async fn spawn_surreal_platform() -> Result<PlatformStoreSmoke> {
         namespace: "veoveo_smoke".to_owned(),
         database: format!("platform_{suffix}"),
         _container: container,
+        module_directory: tempfile::tempdir()?,
     })
 }
 
@@ -430,27 +449,60 @@ pub(crate) async fn bootstrap_gateway_platform_store(
     control_plane: &Path,
     platform: &PlatformStoreSmoke,
 ) -> Result<()> {
-    let mut bootstrap_env = platform.root_env();
-    bootstrap_env.extend([
-        (
-            "VEOVEO_SURREAL_RUNTIME_USERNAME",
-            SURREAL_RUNTIME_USER.into(),
-        ),
-        (
-            "VEOVEO_SURREAL_RUNTIME_PASSWORD",
-            SURREAL_RUNTIME_PASSWORD.into(),
-        ),
-    ]);
+    // The fixture binding identifies this local process test; installed compilation
+    // obtains the digest from the exact locked OCI image instead.
+    let selection_path = platform.module_directory.path().join("selection.json");
+    std::fs::write(
+        &selection_path,
+        serde_json::to_vec(&serde_json::json!({
+            "format":"veoveo.ai/module-selection/v1", "enabled":["agents","computers","frames","map","media","recordings","time","uav","workspace"],
+            "generation":"1", "credentialRevision":"smoke-runtime-v1"
+        }))?,
+    )?;
+    let generated = run_checked(
+        gateway,
+        [
+            "module-plan".into(),
+            "--modules".into(),
+            selection_path.into_os_string(),
+            "--composition".into(),
+            format!("sha256:{}", "1".repeat(64)).into(),
+        ],
+        [],
+    )?;
+    let plan: veoveo_modules::ModulePlanDocument = serde_json::from_str(&generated)?;
+    std::fs::write(
+        platform.module_directory.path().join("plan.json"),
+        generated,
+    )?;
+    let mut prepare_env = platform.root_env();
+    prepare_env.push((
+        "VEOVEO_SURREAL_RUNTIME_PASSWORD",
+        SURREAL_RUNTIME_PASSWORD.into(),
+    ));
+    run_checked(gateway, ["installation-prepare".into()], prepare_env)?;
+    for lane in plan.lanes() {
+        run_checked(
+            gateway,
+            [
+                "module-migrate".into(),
+                "--module".into(),
+                lane.module.as_str().into(),
+            ],
+            platform.root_env(),
+        )?;
+    }
+    run_checked(gateway, ["module-status".into()], platform.runtime_env())?;
     run_checked(
         gateway,
         [
-            "installation-bootstrap".into(),
+            "control-plane-publish".into(),
             "--control-plane".into(),
             control_plane.as_os_str().to_os_string(),
             "--applied-by".into(),
             "smoke-platform-bootstrap".into(),
         ],
-        bootstrap_env,
+        platform.runtime_env(),
     )?;
     let validation = run_checked(
         gateway,

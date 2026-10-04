@@ -20,6 +20,17 @@ management contract's SHA-256 revision profile. Private-key credentials use RSA
 verified as the latest stable release on September 19, 2026. HTTPS uses workspace
 reqwest 0.13.5, verified against its upstream release catalog on the same date.
 
+## Database Credential Revision
+
+Configuration carries a checked, nonsecret `database_credential_revision`. The
+composer records it on managed pod templates. Reconciliation compares this owned
+annotation without changing agent identity, instance generation or retained PVCs.
+A stale Ready workload is retired through existing UID and ownership checks. The
+manager waits for authoritative lease and pod drain observations, then uses the
+existing Ready-to-Workload recovery transition. Unknown or disconnected observations
+keep recovery pending on the existing retry schedule. Owner codecs and configuration
+cannot replace that drain proof with annotation equality.
+
 ## Reconciliation
 
 The API admits immutable resource names and reserves identity and capacity before

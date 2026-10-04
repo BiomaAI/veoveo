@@ -49,6 +49,8 @@ spec:
         {{- end }}
       annotations:
         {{- include "veoveo.podAnnotations" . | nindent 8 }}
+        {{- include "veoveo.databasePodAnnotations" . | nindent 8 }}
+        checksum/module-plan: {{ .Values.moduleInstallation.planJson | sha256sum | quote }}
         checksum/audit-export: {{ .Values.gateway.auditExport.destinations | toJson | sha256sum | quote }}
         checksum/control-plane: {{ $controlPlaneRevision | quote }}
     spec:
@@ -75,6 +77,7 @@ spec:
             - /etc/veoveo/gateway/{{ .Values.gateway.controlPlaneKey }}
           env:
             {{- include "veoveo.surrealEnv" . | nindent 12 }}
+            {{- include "veoveo.modulePlanEnv" . | nindent 12 }}
             {{- range $name, $reference := .Values.gateway.agents.modelSecrets }}
             - name: {{ $name | quote }}
               valueFrom:
@@ -186,6 +189,9 @@ spec:
           resources:
             {{- toYaml .Values.gateway.resources | nindent 12 }}
           volumeMounts:
+            - name: module-plan
+              mountPath: /etc/veoveo/modules
+              readOnly: true
             {{- if or .Values.gateway.auditExport.destinations.s3 .Values.gateway.auditExport.destinations.otlp }}
             - name: audit-export
               mountPath: /etc/veoveo/audit
@@ -197,6 +203,9 @@ spec:
             - name: tmp
               mountPath: /tmp
       volumes:
+        - name: module-plan
+          configMap:
+            name: {{ include "veoveo.modulePlanName" . }}
         {{- if or .Values.gateway.auditExport.destinations.s3 .Values.gateway.auditExport.destinations.otlp }}
         - name: audit-export
           configMap:

@@ -2378,6 +2378,18 @@
           }
         }
       }
+    },
+    "moduleInstallation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "planJson"
+      ],
+      "properties": {
+        "planJson": {
+          "type": "string"
+        }
+      }
     }
   },
   "definitions": {

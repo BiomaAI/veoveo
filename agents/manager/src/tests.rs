@@ -63,6 +63,7 @@ fn fixture() -> (Config, ManagedAgentReconciliation, ConfigMap) {
         store_endpoint: "ws://store.internal:8000".into(),
         store_namespace: "veoveo".into(),
         store_database: "platform".into(),
+        database_credential_revision: veoveo_modules::CredentialRevision::new("fixture-1").unwrap(),
         templates: vec![template],
         models: vec![model],
     };
@@ -181,4 +182,70 @@ fn credential_encoding_matches_the_kernel_pkcs1_signing_boundary() {
         public.n,
         base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(private.n().to_bytes_be())
     );
+}
+
+#[test]
+fn credential_rotation_retires_then_recovers_only_after_known_drain() {
+    use reconcile::{CredentialRecovery as Action, credential_recovery};
+    let (mut config, snapshot, config_map) = fixture();
+    let template = &config.templates[0];
+    let items = resources::configuration_items(&config_map, template).unwrap();
+    let existing = resources::deployment(
+        &config,
+        &snapshot,
+        template,
+        &config.models[0],
+        items.clone(),
+    )
+    .unwrap();
+    assert_eq!(
+        credential_recovery(Some(&existing), &snapshot.instance, &config, None).unwrap(),
+        Action::Keep
+    );
+    config.database_credential_revision =
+        veoveo_modules::CredentialRevision::new("fixture-2").unwrap();
+    assert_eq!(
+        credential_recovery(Some(&existing), &snapshot.instance, &config, None).unwrap(),
+        Action::Retire
+    );
+    assert_eq!(
+        credential_recovery(None, &snapshot.instance, &config, None).unwrap(),
+        Action::WaitForDrain
+    );
+    assert_eq!(
+        credential_recovery(None, &snapshot.instance, &config, Some(false)).unwrap(),
+        Action::WaitForDrain
+    );
+    assert_eq!(
+        credential_recovery(None, &snapshot.instance, &config, Some(true)).unwrap(),
+        Action::Recover
+    );
+    let replacement = resources::deployment(
+        &config,
+        &snapshot,
+        &config.templates[0],
+        &config.models[0],
+        items,
+    )
+    .unwrap();
+    assert_eq!(
+        credential_recovery(Some(&replacement), &snapshot.instance, &config, None).unwrap(),
+        Action::Keep
+    );
+    assert_eq!(existing.metadata.name, replacement.metadata.name);
+    assert_eq!(
+        existing.metadata.annotations,
+        replacement.metadata.annotations
+    );
+    assert_eq!(
+        existing.spec.template.metadata.annotations[crate::kubernetes::GENERATION],
+        replacement.spec.template.metadata.annotations[crate::kubernetes::GENERATION]
+    );
+    assert_eq!(
+        serde_json::to_value(&existing.spec.template.spec.volumes).unwrap(),
+        serde_json::to_value(&replacement.spec.template.spec.volumes).unwrap()
+    );
+    let mut foreign = replacement;
+    foreign.metadata.labels.clear();
+    assert!(credential_recovery(Some(&foreign), &snapshot.instance, &config, Some(true)).is_err());
 }

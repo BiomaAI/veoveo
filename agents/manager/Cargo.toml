@@ -9,6 +9,7 @@ path = "src/main.rs"
 
 [dependencies]
 veoveo-types.workspace = true
+veoveo-modules = { workspace = true, features = ["serialization"] }
 anyhow.workspace = true
 base64.workspace = true
 chrono.workspace = true

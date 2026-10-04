@@ -4,6 +4,7 @@
 
 | Boundary | Supported profile |
 |---|---|
+| `veoveo.ai/module-selection/v1` and `veoveo.ai/module-plan/v1` | Checked camelCase JSON; optional selection, decimal-string generation, nonsecret credential revision and composition-generated lane/runtime bindings |
 | `veoveo.ai/deployment/v8` and `veoveo.ai/deployment-lock/v8` | Disposable installation profiles and immutable artifacts defined by `../contract/DESIGN.md` |
 | `veoveo.ai/source-chart-content/v1` | Shared content identity for source charts in verified immutable checkouts |
 | `veoveo.ai/gateway-activation/v1` | Complete public ConfigMap bundle identity from the deployment contract |
@@ -19,6 +20,24 @@
 | Kubernetes DRA `resource.k8s.io/v1` | Persistent ResourceClaims, named requests, and distinct-device constraints |
 | NVIDIA DRA chart `0.5.0` and `resource.nvidia.com/v1beta1` | Pinned standalone allocator, verified chart and image artifacts, CDI preparation, and declared sharing configuration; hardware qualification is pending and upstream technology-preview features remain bounded by the deployment contract |
 | k3d | Repository-managed disposable cluster and registry lifecycle through native commands |
+
+## Module Plan Generation
+
+Locked compilation runs the gateway producer from the supplied OCI digest after image
+publication and before the platform render. It copies the public selection into a
+read-only mount and runs with no network, dropped capabilities, a read-only root,
+512 MiB memory, one CPU and 64 processes. Docker pull and execution each have a
+120-second deadline; stdout and stderr each have a 2 MiB limit. Cleanup removes only
+the container ID returned by a successful create. Host processes use isolated Unix
+process groups and nonblocking pipe reads to avoid waiting on descendant-held pipes.
+
+The push-registry alias and canonical pull repository must resolve the same supplied
+manifest digest. The producer receives this binding; its output is not image
+self-attestation. Compilation checks the generated selection and runtime bindings,
+then supplies the unchanged JSON bytes to Helm. Existing image, selection File and
+rendered-object digest comparisons bind recompilation to the locked inputs. Source
+validation uses only an explicitly declared development fixture and cannot substitute
+that fixture during locked compilation.
 
 ## Responsibility
 

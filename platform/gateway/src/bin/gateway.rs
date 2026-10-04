@@ -24,6 +24,8 @@ mod console;
 mod host;
 #[path = "gateway/http_util.rs"]
 mod http_util;
+#[path = "gateway/module_installation/mod.rs"]
+mod module_installation;
 #[path = "gateway/oauth.rs"]
 mod oauth;
 #[path = "gateway/oauth_client_credentials.rs"]
@@ -66,7 +68,7 @@ use veoveo_mcp_gateway::{
     GatewayCatalog, GatewayControlStore, GatewayRefreshDeliveryWindow, GatewaySecretResolver,
     RefreshTokenDeliveryCipher, new_gateway_control_plane_revision_id,
 };
-use veoveo_platform_store::{PlatformStore, StoreAuthLevel, StoreConfig, StoreCredentials};
+use veoveo_platform_store::{StoreAuthLevel, StoreConfig, StoreCredentials};
 use veoveo_types::PrincipalId;
 
 fn install_rustls_provider() {
@@ -138,6 +140,15 @@ impl FromStr for RedactedSecret {
 
 #[derive(Subcommand, Debug)]
 enum Command {
+    /// Generate the selected module plan offline from this binary's compiled owner declarations.
+    ModulePlan {
+        #[arg(long)]
+        modules: PathBuf,
+        #[arg(long)]
+        composition: veoveo_modules::CompositionIdentity,
+        #[arg(long)]
+        helm_values: bool,
+    },
     /// Import a reviewed agent catalog and retained chat bindings with all gateways stopped.
     AgentCatalogImport(agent_management::import::Arguments),
     /// Validate typed gateway control data and exit.
@@ -146,29 +157,53 @@ enum Command {
         #[arg(long)]
         control_plane: PathBuf,
     },
-    /// Install the schema, rotate the database runtime user, and publish control data.
-    InstallationBootstrap {
+    /// Prepare the mixed schema and runtime credentials without publishing control data.
+    InstallationPrepare {
         #[command(flatten)]
         store: SurrealStoreArgs,
-        /// Database-scoped username used by all runtime workloads.
-        #[arg(
-            long = "surreal-runtime-username",
-            env = "VEOVEO_SURREAL_RUNTIME_USERNAME"
-        )]
-        runtime_username: String,
-        /// Database-scoped password used by all runtime workloads.
+        #[command(flatten)]
+        plan: module_installation::PlanArgs,
         #[arg(
             long = "surreal-runtime-password",
             env = "VEOVEO_SURREAL_RUNTIME_PASSWORD",
             hide_env_values = true
         )]
         runtime_password: RedactedSecret,
-        /// JSON control plane file.
+        #[arg(long, default_value_t = 60)]
+        wait_seconds: u64,
+    },
+    /// Execute one enabled module lane after its dependencies complete.
+    ModuleMigrate {
+        #[command(flatten)]
+        store: SurrealStoreArgs,
+        #[command(flatten)]
+        plan: module_installation::PlanArgs,
+        #[arg(long)]
+        module: veoveo_modules::ModuleName,
+        #[arg(long, default_value_t = 60)]
+        wait_seconds: u64,
+    },
+    /// Read selected lane readiness without changing database state.
+    ModuleStatus {
+        #[command(flatten)]
+        store: SurrealStoreArgs,
+        #[command(flatten)]
+        plan: module_installation::PlanArgs,
+        #[arg(long, default_value_t = 0)]
+        wait_seconds: u64,
+    },
+    /// Publish reviewed control data using the authenticated runtime account.
+    ControlPlanePublish {
+        #[command(flatten)]
+        store: SurrealStoreArgs,
+        #[command(flatten)]
+        plan: module_installation::PlanArgs,
         #[arg(long)]
         control_plane: PathBuf,
-        /// Principal id recorded as the seeding actor.
         #[arg(long)]
         applied_by: String,
+        #[arg(long, default_value_t = 60)]
+        wait_seconds: u64,
     },
     /// Validate the active gateway control-plane revision in the platform store.
     ControlPlaneValidate {
@@ -210,6 +245,8 @@ enum Command {
         /// Seed control-plane file whose canonical revision must be active before serving.
         #[arg(long)]
         expected_control_plane: Option<PathBuf>,
+        #[command(flatten)]
+        plan: module_installation::PlanArgs,
         #[command(flatten)]
         store: SurrealStoreArgs,
         /// Base64-encoded PKCS#8 Ed25519 private key used only by the gateway
@@ -296,6 +333,11 @@ async fn main() -> anyhow::Result<()> {
     };
 
     match command {
+        Command::ModulePlan {
+            modules,
+            composition,
+            helm_values,
+        } => module_installation::generate(&modules, composition, helm_values),
         Command::AgentCatalogImport(args) => agent_management::import::run(args).await,
         Command::Validate { control_plane } => {
             let catalog = GatewayCatalog::load_json(&control_plane)?;
@@ -306,16 +348,31 @@ async fn main() -> anyhow::Result<()> {
             );
             Ok(())
         }
-        Command::InstallationBootstrap {
+        Command::InstallationPrepare {
             store,
-            runtime_username,
+            plan,
             runtime_password,
+            wait_seconds,
+        } => module_installation::prepare(plan, store, runtime_password, wait_seconds).await,
+        Command::ModuleMigrate {
+            store,
+            plan,
+            module,
+            wait_seconds,
+        } => module_installation::migrate(plan, store, module, wait_seconds).await,
+        Command::ModuleStatus {
+            store,
+            plan,
+            wait_seconds,
+        } => module_installation::status(plan, store, wait_seconds).await,
+        Command::ControlPlanePublish {
+            store,
+            plan,
             control_plane,
             applied_by,
+            wait_seconds,
         } => {
-            if store.auth_level != StoreAuthLevel::Root {
-                anyhow::bail!("installation-bootstrap requires VEOVEO_SURREAL_AUTH_LEVEL=root");
-            }
+            let applied_by = PrincipalId::new(applied_by)?;
             // Audit records identify the database-authenticated operator. The
             // revision's applied_by option is operator-supplied attribution.
             let audit_context = veoveo_mcp_contract::audit::AuditContext {
@@ -334,25 +391,22 @@ async fn main() -> anyhow::Result<()> {
             let catalog = GatewayCatalog::load_json(&control_plane)?;
             let control_plane = catalog.control_plane().clone();
             let sha256 = control_plane_sha256(&control_plane)?;
-            let runtime_config = StoreConfig::builder(
-                &store.endpoint,
-                store.namespace.clone(),
-                store.database.clone(),
-                StoreCredentials::database(runtime_username.clone(), runtime_password.0.clone()),
-            )
-            .build()?;
-            let control_store = GatewayControlStore::connect(store.into_config()?).await?;
-            control_store.migrate().await?;
-            control_store
-                .platform_store()
-                .replace_database_editor(&runtime_username, &runtime_password.0)
-                .await?;
+            plan.load()?;
+            let control_store = GatewayControlStore::from_platform_store(
+                module_installation::wait_current(&plan, store.into_config()?, wait_seconds)
+                    .await?,
+            );
 
-            let (status, revision_id) = match control_store.load_active_revision_head().await? {
+            let preparation = module_installation::preparation_key(&plan, &plan.load()?)?;
+            let (status, revision_id) = match control_store
+                .load_installation_revision(&preparation)
+                .await?
+            {
                 Some(active) if active.sha256 == sha256 => {
-                    let active = control_store.load_active_revision().await?.context(
-                        "active gateway control plane matched the seed hash but failed validation",
-                    )?;
+                    anyhow::ensure!(
+                        active.control_plane == control_plane,
+                        "active control-plane hash matches the seed but the validated document differs"
+                    );
                     ("unchanged", active.revision_id)
                 }
                 _ => {
@@ -362,23 +416,19 @@ async fn main() -> anyhow::Result<()> {
                         sha256: sha256.clone(),
                         source: GatewayControlPlaneRevisionSource::SeedFile,
                         applied_at: Utc::now(),
-                        applied_by: PrincipalId::new(applied_by)?,
+                        applied_by,
                         tenant: None,
                         control_plane,
                     };
                     control_store
-                        .record_revision(&revision, &audit_context)
+                        .record_installation_revision(&revision, &audit_context, &preparation)
                         .await?;
-                    ("bootstrapped", revision_id)
+                    ("published", revision_id)
                 }
             };
-            PlatformStore::connect(runtime_config)
-                .await?
-                .healthcheck()
-                .await?;
             println!(
                 "{}",
-                serde_json::to_string(&InstallationBootstrapResult {
+                serde_json::to_string(&ControlPlanePublishResult {
                     status,
                     revision_id: revision_id.to_string(),
                     sha256,
@@ -435,6 +485,7 @@ async fn main() -> anyhow::Result<()> {
             public_base_url,
             artifact_service_url,
             expected_control_plane,
+            plan,
             store,
             internal_signing_key_der_b64,
             internal_signing_key_id,
@@ -446,7 +497,9 @@ async fn main() -> anyhow::Result<()> {
             audit_signing_key_b64,
             audit_export_config,
         } => {
+            plan.load()?;
             let control_store = GatewayControlStore::connect(store.into_config()?).await?;
+            module_installation::require_current(&plan, control_store.platform_store()).await?;
             let expected_control_plane_sha256 = expected_control_plane
                 .as_ref()
                 .map(|path| {
@@ -497,7 +550,7 @@ fn control_plane_sha256(
 }
 
 #[derive(Debug, Serialize)]
-struct InstallationBootstrapResult {
+struct ControlPlanePublishResult {
     status: &'static str,
     revision_id: String,
     sha256: String,
@@ -577,6 +630,18 @@ mod tests {
             "audit-signing-secret",
         ];
         arguments.extend(CANONICAL_STORE_ARGS);
+        arguments.extend([
+            "--module-plan",
+            "plan.json",
+            "--composition",
+            "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "--generation",
+            "1",
+            "--credential-revision",
+            "fixture-v1",
+            "--surreal-runtime-username",
+            "runtime",
+        ]);
         let parsed = Args::try_parse_from(arguments).unwrap();
         let debug = format!("{parsed:?}");
         assert!(debug.contains("[REDACTED]"));

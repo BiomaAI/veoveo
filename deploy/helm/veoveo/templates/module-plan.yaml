@@ -1,0 +1,13 @@
+{{- if include "veoveo.componentEnabled" (list . "gateway") -}}
+{{- $_ := include "veoveo.modulePlan" . -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "veoveo.modulePlanName" . }}
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: module-plan
+immutable: true
+data:
+  plan.json: {{ .Values.moduleInstallation.planJson | quote }}
+{{- end -}}

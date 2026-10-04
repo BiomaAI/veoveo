@@ -15998,6 +15998,7 @@ dependencies = [
  "tracing-subscriber",
  "uuid",
  "veoveo-mcp-contract",
+ "veoveo-modules",
  "veoveo-platform-store",
  "veoveo-types",
 ]
@@ -16463,6 +16464,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.20",
  "url",
+ "veoveo-modules",
  "veoveo-types",
 ]
 
@@ -16473,6 +16475,7 @@ dependencies = [
  "anyhow",
  "hex",
  "jsonwebtoken 11.0.0",
+ "nix",
  "reqwest 0.13.5",
  "serde",
  "serde_json",
@@ -16482,6 +16485,7 @@ dependencies = [
  "url",
  "veoveo-deploy-contract",
  "veoveo-mcp-contract",
+ "veoveo-modules",
 ]
 
 [[package]]
@@ -16501,6 +16505,7 @@ dependencies = [
  "veoveo-image-build-control",
  "veoveo-mcp-contract",
  "veoveo-mcp-gateway",
+ "veoveo-modules",
  "veoveo-simulation-contract",
 ]
 
@@ -16974,20 +16979,28 @@ dependencies = [
  "veoveo-artifact-contract",
  "veoveo-audit",
  "veoveo-audit-contract",
+ "veoveo-computers",
  "veoveo-computers-contract",
  "veoveo-computers-transport",
+ "veoveo-frames-mcp",
  "veoveo-gateway-contract",
  "veoveo-knowledge-contract",
+ "veoveo-map-mcp",
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
  "veoveo-mcp-knowledge-extension",
+ "veoveo-media-mcp",
+ "veoveo-modules",
  "veoveo-platform-store",
  "veoveo-policy",
  "veoveo-recording-mcp",
  "veoveo-recording-protocol",
  "veoveo-speech-contract",
  "veoveo-task-runtime",
+ "veoveo-time-mcp",
  "veoveo-types",
+ "veoveo-uav-sim-mcp",
+ "veoveo-workspace",
  "zeroize",
 ]
 
@@ -17532,6 +17545,7 @@ dependencies = [
  "veoveo-map-mcp",
  "veoveo-mcp-contract",
  "veoveo-media-mcp",
+ "veoveo-modules",
  "veoveo-platform-store",
  "veoveo-reason-mcp",
  "veoveo-recording-contract",

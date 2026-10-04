@@ -4,6 +4,7 @@
 
 | Boundary | Supported profile |
 |---|---|
+| `veoveo.ai/module-selection/v1` and `veoveo.ai/module-plan/v1` | Checked camelCase JSON; optional selection, decimal-string generation, nonsecret credential revision and composition-generated lane/runtime bindings |
 | Flux source and Kustomization APIs `v1`, HelmRelease API `v2` | exact Git artifact and applied revision, observed generation, readiness, terminal Helm failure, and release inventory |
 | Kubernetes apps `v1` | Deployment rollout status and Available condition through kubectl |
 | Kubernetes batch `v1` | initialization Job names bound to their complete rendered specs, including immutable Pod templates |
@@ -15,6 +16,17 @@
 | `veoveo.ai/component-installation/v2` | successful selected CLI receipt defined by the deployment contract |
 | `veoveo.ai/component-scope-evidence/v1` | independent Git/OCI fixture inputs, selected installation duration, applied/reused units, native API request metadata, runtime snapshots, overlap rejection, and cleanup |
 | kubectl/client-go v1.37.0/v0.37.0 local proxy logs | internal test observer of completed HTTP method and URI at verbosity 6; canary writes and ordered barriers verify the observer before accepting scope evidence |
+
+## Module Render Qualification
+
+`helm-config` renders genuine gateway-generated fixture plans. Its Job assertions
+compare the emitted lane set with the typed plan, preserve no-op identity across
+chart and release metadata changes, and check generation/credential rotation. It
+inspects every rendered database client pod template and confines migration Secret
+references to preparation/lane Jobs and database root provisioning. The manager's
+native recovery decisions qualify stale-workload retirement and drain fencing.
+These source and render checks do not establish OCI command availability or installed
+fresh/upgrade completion; those require the locked image and an isolated installation.
 
 ## Responsibility
 

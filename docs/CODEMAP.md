@@ -407,6 +407,13 @@ live under `platform/store/src/schema/`; optional owners expose `schema::module_
 [independent schema consumer](../testing/fixtures/module-schema-consumer/README.md)
 composes all 16 real exports without contract/runtime dependency graphs.
 
+`platform/gateway/src/bin/gateway/module_installation/` composes those exports and
+owns offline plan generation, mixed-schema preparation, lane execution and readiness
+commands. `deploy/runtime/src/compile/module_plan.rs` runs the selected composition
+image to generate the locked plan. Its process adapter owns execution deadlines and
+container cleanup. `deploy/helm/veoveo/templates/_module-jobs.tpl` renders preparation,
+per-lane migration and control-plane publication Jobs from that plan.
+
 ### `platform/workspace`
 
 The initial schema-only owner declares Workspace tables and its target dependency on

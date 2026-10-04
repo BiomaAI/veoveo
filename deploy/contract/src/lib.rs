@@ -9,12 +9,14 @@ mod gateway_bundle;
 mod image_release;
 mod installation_target;
 mod locked_images;
+mod module_installation;
 mod secret_closure;
 mod source_chart;
 
 pub use gateway_bundle::gateway_bundle_digest;
 pub use image_release::{IMAGE_RELEASE_EVIDENCE_SCHEMA, ImageReleaseEvidence};
 pub use installation_target::*;
+pub use module_installation::{ModuleInstallationSpec, validate_module_plan};
 pub use source_chart::source_chart_content_digest;
 
 pub use secret_closure::{
@@ -101,6 +103,8 @@ pub struct DeploymentProfile {
     pub resources: ResourceSet,
     /// Optional revisioned gateway document and public trust activation.
     pub gateway_activation: Option<GatewayActivationSpec>,
+    /// Public optional-module selection and account-rotation revision.
+    pub module_installation: Option<ModuleInstallationSpec>,
     /// Typed first-party platform selection.
     pub platform: PlatformSelection,
     /// Gateway composition requirement documents checked against `platform`.
@@ -854,6 +858,12 @@ impl LoadedProfile {
                     .map(|path| self.resolve(path)),
             );
         }
+        if let Some(modules) = &self.definition.module_installation {
+            paths.insert(self.resolve(&modules.selection));
+            if let Some(path) = &modules.development_plan {
+                paths.insert(self.resolve(path));
+            }
+        }
         paths.extend(
             self.definition
                 .resources
@@ -1119,6 +1129,16 @@ impl LoadedProfile {
                 &self.resolve(requirements),
                 "gateway composition requirements",
             )?;
+        }
+        if let Some(modules) = &profile.module_installation {
+            modules.validate()?;
+            require_file(&self.resolve(&modules.selection), "module selection")?;
+            let _: veoveo_modules::ModuleSelectionDocument =
+                serde_json::from_slice(&fs::read(self.resolve(&modules.selection))?)
+                    .context("decoding module selection")?;
+            if let Some(path) = &modules.development_plan {
+                require_file(&self.resolve(path), "non-installed development module plan")?;
+            }
         }
         for path in self.installation_inputs()? {
             ensure!(

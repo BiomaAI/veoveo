@@ -30,6 +30,51 @@ const MEMORY_MISSING: OperatorMessage = OperatorMessage(
 
 const UNEXPECTED_FAILURE: &str = "The agent manager couldn't apply this change. The agent-manager log has the cause; retry after fixing it.";
 
+/// A known credential rollout is waiting for owned pods and the runtime lease.
+/// The existing controller retry budget observes that drain without failing the agent.
+#[derive(Debug)]
+struct CredentialDrainPending;
+impl std::fmt::Display for CredentialDrainPending {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .write_str("database credential rollout is waiting for the managed runtime to drain")
+    }
+}
+impl std::error::Error for CredentialDrainPending {}
+
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum CredentialRecovery {
+    Keep,
+    Retire,
+    WaitForDrain,
+    Recover,
+}
+
+/// A failed or unobserved drain never permits replacement of a ready runtime.
+pub(crate) fn credential_recovery(
+    existing: Option<&Deployment>,
+    instance: &ManagedAgentInstance,
+    config: &Config,
+    drained: Option<bool>,
+) -> Result<CredentialRecovery> {
+    if let Some(existing) = existing {
+        owned(&existing.metadata, &instance.resources.workload)?;
+        owned_generation(&existing.metadata, instance.generation)?;
+        return Ok(
+            if resources::database_credentials_current(existing, config) {
+                CredentialRecovery::Keep
+            } else {
+                CredentialRecovery::Retire
+            },
+        );
+    }
+    Ok(if drained == Some(true) {
+        CredentialRecovery::Recover
+    } else {
+        CredentialRecovery::WaitForDrain
+    })
+}
+
 #[derive(Clone)]
 pub struct Manager {
     pub store: PlatformStore,
@@ -39,7 +84,8 @@ pub struct Manager {
 
 fn retryable_reconciliation(error: &anyhow::Error) -> bool {
     use veoveo_platform_store::agent_management::AgentManagementError;
-    kubernetes::retryable(error)
+    error.is::<CredentialDrainPending>()
+        || kubernetes::retryable(error)
         || error
             .downcast_ref::<AgentManagementError>()
             .is_some_and(|error| {
@@ -220,6 +266,7 @@ impl Manager {
                             if existing.metadata.annotations.get(GENERATION)
                                 != Some(&instance.generation.to_string())
                                 || existing.spec.replicas != 1
+                                || !resources::database_credentials_current(&existing, &self.config)
                             {
                                 ensure!(
                                     existing.metadata.deletion_timestamp.is_none(),
@@ -247,14 +294,27 @@ impl Manager {
                     }
                     return Ok(());
                 }
-                ManagedAgentPhase::Ready
-                    if self
+                ManagedAgentPhase::Ready => {
+                    let existing = self
                         .kube
                         .get::<Deployment>(Resource::Deployments, &instance.resources.workload)
-                        .await?
-                        .is_none()
-                        && self.drained(&snapshot).await? =>
-                {
+                        .await?;
+                    let drained = if existing.is_none() {
+                        Some(self.drained(&snapshot).await?)
+                    } else {
+                        None
+                    };
+                    match credential_recovery(existing.as_ref(), instance, &self.config, drained)? {
+                        CredentialRecovery::Keep => return Ok(()),
+                        CredentialRecovery::Retire => {
+                            self.retire_workload(claim, instance).await?;
+                            return Err(CredentialDrainPending.into());
+                        }
+                        CredentialRecovery::WaitForDrain => {
+                            return Err(CredentialDrainPending.into());
+                        }
+                        CredentialRecovery::Recover => {}
+                    }
                     credentials::ensure_credentials(&self.kube, &self.store, claim, instance)
                         .await?;
                     let pvc = self

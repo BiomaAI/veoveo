@@ -1,0 +1,7 @@
+{{- if include "veoveo.componentEnabled" (list . "gateway") -}}
+{{- $plan := include "veoveo.modulePlan" . | fromJson -}}
+{{ range $plan.lanes }}
+{{ include "veoveo.moduleJob" (list $ "module-migration" .) }}
+---
+{{ end }}
+{{ end }}

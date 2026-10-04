@@ -107,5 +107,9 @@
       ],
       "installationInputs": []
     }
-  ]
+  ],
+  "moduleInstallation": {
+    "selection": "../module-schema-consumer/platform-selection.json",
+    "developmentPlan": "../module-schema-consumer/platform-plan.json"
+  }
 }

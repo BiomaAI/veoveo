@@ -4,6 +4,7 @@
 
 | Standard or protocol | Supported profile |
 |---|---|
+| `veoveo.ai/module-selection/v1` and `veoveo.ai/module-plan/v1` | Checked camelCase JSON; optional selection, decimal-string generation, nonsecret credential revision and composition-generated lane/runtime bindings |
 | `veoveo.ai/deployment/v8` | installation-repository profile with exact platform targets, local fork checkouts and workload ownership, split Helm values ownership, explicit host-push and cluster-pull registry endpoints, and a managed GPU allocator closure |
 | `veoveo.ai/deployment-lock/v8` | immutable installation revision, registry endpoints and transport, source-role, OCI image, chart, platform resolution, and GPU allocator artifacts |
 | `veoveo.ai/local-registry/v1` | repository-owned loopback registry declaration |
@@ -28,6 +29,21 @@ The internal platform-store profile selects `native_changefeed` as the source of
 committed recovery and `changefeed_wake` as LIVE's role. The supported database is
 SurrealDB 3.3.0 on single-node RocksDB. Consumers reconcile after disconnect and use
 known deadlines for delayed work.
+
+## Module Installation Inputs
+
+`moduleInstallation.selection` names a checked module-selection v1 JSON file. Its
+optional-module names, positive decimal-string generation and nonsecret
+`credentialRevision` determine preparation identity. Runtime selection requires the
+lane named by each active composition binding. Both keys in a binding must match;
+separate bindings express alternative consumers. Dependencies include schema lanes
+without enabling their runtime workloads.
+
+`developmentPlan` may name a genuine gateway-generated plan for source validation of
+an uninstalled profile. It is currently a tracked-input and existence prerequisite.
+Locked compilation generates its own plan from the bound gateway image and excludes
+development-plan bytes from installed File and object identities. Contract validation
+parses declarations and checks files without building or executing an image.
 
 ## Responsibility
 
@@ -238,7 +254,7 @@ Secret and every required key enter the same rendered closure. After that gate s
 activation revision to the platform Helm release. Repeating the command reuses the same
 public bundle. A changed document or trust file creates a new bundle before rollout.
 The platform chart requires the explicit bundle digest when gateway is selected.
-The same value determines gateway rollout and participates in the complete bootstrap
+The same value determines gateway rollout and participates in the complete publication
 Job spec digest. Helm release counters and cluster reads do not determine those inputs.
 `gateway_bundle_digest` owns the encoding for disposable profiles and GitOps
 installations. The domain prefix is `veoveo.ai/gateway-activation/v1` followed by a zero

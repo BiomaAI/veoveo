@@ -18,6 +18,7 @@ pub struct Config {
     pub store_endpoint: String,
     pub store_namespace: String,
     pub store_database: String,
+    pub database_credential_revision: veoveo_modules::CredentialRevision,
     pub templates: Vec<wire::RuntimeTemplate>,
     pub models: Vec<wire::ModelConnection>,
 }

@@ -44,9 +44,11 @@ require `runtime`.
 Every lane is empty. The composition root supplies an execution image and argument
 vector, and owns command availability and qualification. The existing gateway image
 is the initial composition host candidate because its binary links the Store. Its
-`installation-bootstrap` command applies the mixed catalog and publishes the control
-plane; it is not a named-lane command. An execution declaration alone does not establish
-that a command has been implemented or that a Job can run it.
+`installation-prepare` command applies the mixed catalog without publication.
+`module-migrate` executes one selected lane; runtime-authenticated publication follows
+completed preparation and lane checks. Installed image and Job qualification is tracked
+in the active contract plan. Execution declarations alone do not establish that an
+installation's selected image supports these commands.
 
 Each kernel owner has one declaration in `schema/<owner>.rs`. Owner migrations and
 queries belong together in the corresponding owner folder when persistence is placed

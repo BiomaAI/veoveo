@@ -8,6 +8,7 @@ publish = false
 anyhow.workspace = true
 hex.workspace = true
 jsonwebtoken.workspace = true
+nix = { version = "=0.31.3", default-features = false, features = ["fs", "process", "signal"] }
 reqwest = { workspace = true, features = ["rustls-no-provider"] }
 serde.workspace = true
 serde_json.workspace = true
@@ -16,4 +17,5 @@ sha2.workspace = true
 tempfile.workspace = true
 url.workspace = true
 veoveo-deploy-contract.workspace = true
+veoveo-modules = { workspace = true, features = ["serialization"] }
 veoveo-mcp-contract.workspace = true

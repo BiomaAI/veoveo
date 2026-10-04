@@ -178,5 +178,9 @@
       ],
       "installationInputs": []
     }
-  ]
+  ],
+  "moduleInstallation": {
+    "selection": "../module-schema-consumer/kernels-selection.json",
+    "developmentPlan": "../module-schema-consumer/kernels-plan.json"
+  }
 }

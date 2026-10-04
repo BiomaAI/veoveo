@@ -26,10 +26,11 @@ continue to execute production Workspace queries and migrations. Owner migration
 and queries will live together here when the persistence moves.
 
 The composition root supplies a checked execution image and command. The existing
-gateway image is the initial host candidate; its `installation-bootstrap` command
-applies the mixed catalog and publishes the control plane. A named-lane command and
-migration Job need their own implementation and qualification. This ownership module
-creates no process or image requirement.
+gateway binary hosts `installation-prepare`, `module-migrate` and runtime-authenticated
+`control-plane-publish`. Preparation applies the mixed catalog; lane execution and
+publication require its completed generation proof. Installed image and Job qualification
+is tracked in the active contract plan. This ownership module creates no process or
+image requirement.
 
 ## Agent Participant Import
 

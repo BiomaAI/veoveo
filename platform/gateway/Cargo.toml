@@ -58,17 +58,26 @@ tracing-subscriber.workspace = true
 url.workspace = true
 uuid.workspace = true
 vaultrs.workspace = true
-veoveo-agent-runtime = { path = "../../agents/runtime" }
+veoveo-agent-runtime = { path = "../../agents/runtime", features = ["schema"] }
 veoveo-artifact-client = { path = "../artifacts/client" }
 veoveo-computers-contract = { path = "../computers/contract" }
 veoveo-computers-transport = { path = "../computers/transport" }
 veoveo-mcp-apps-extension = { path = "../../mcp/apps-extension" }
 veoveo-mcp-contract.workspace = true
-veoveo-platform-store = { path = "../store" }
+veoveo-platform-store = { path = "../store", features = ["schema"] }
 veoveo-policy = { path = "../policy" }
-veoveo-recording-mcp = { path = "../../servers/recording-mcp", default-features = false, features = ["contract"] }
+veoveo-recording-mcp = { path = "../../servers/recording-mcp", default-features = false, features = ["contract", "schema"] }
 veoveo-recording-protocol.workspace = true
 veoveo-task-runtime = { path = "../task-runtime" }
+
+veoveo-modules = { workspace = true, features = ["runner", "serialization"] }
+veoveo-workspace = { workspace = true, features = ["schema"] }
+veoveo-computers = { path = "../computers", default-features = false, features = ["schema"] }
+veoveo-map-mcp = { path = "../../servers/map-mcp", default-features = false, features = ["schema"] }
+veoveo-time-mcp = { path = "../../servers/time-mcp", default-features = false, features = ["schema"] }
+veoveo-uav-sim-mcp = { path = "../../servers/uav-sim-mcp", default-features = false, features = ["schema"] }
+veoveo-frames-mcp = { path = "../../servers/frames-mcp", default-features = false, features = ["schema"] }
+veoveo-media-mcp = { path = "../../servers/media-mcp", default-features = false, features = ["schema"] }
 
 [dev-dependencies]
 base64.workspace = true

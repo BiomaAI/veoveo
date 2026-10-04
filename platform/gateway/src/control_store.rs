@@ -1,7 +1,8 @@
 mod audit;
 
 use anyhow::{Context, Result};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use surrealdb::types::SurrealValue;
 use veoveo_mcp_contract::{
     GatewayControlPlane, GatewayControlPlaneRevision, GatewayControlPlaneRevisionId,
     GatewayControlPlaneRevisionSource, WorkContextDefinition,
@@ -44,6 +45,9 @@ struct ControlPlaneObjectRow {
 }
 
 impl GatewayControlStore {
+    pub fn from_platform_store(platform: PlatformStore) -> Self {
+        Self { platform }
+    }
     pub async fn connect(config: StoreConfig) -> Result<Self> {
         let platform = PlatformStore::connect(config)
             .await
@@ -65,6 +69,41 @@ impl GatewayControlStore {
             .map(revision_from_record)
             .transpose()
             .context("active gateway control-plane revision is invalid")
+    }
+
+    /// Read the installation fence and complete active revision in one transaction.
+    /// No-op publication uses this snapshot rather than an unfenced head check.
+    pub async fn load_installation_revision(
+        &self,
+        preparation: &veoveo_modules::PreparationKey,
+    ) -> Result<Option<GatewayControlPlaneRevision>> {
+        #[derive(Deserialize, SurrealValue)]
+        struct Selection {
+            head: Option<GatewayControlActiveRecord>,
+            revision: Option<GatewayControlRevisionRecord>,
+        }
+        let mut response = self
+            .platform
+            .client()
+            .query(include_str!("../queries/installation_read.surql"))
+            .bind(("generation", preparation.generation().to_string()))
+            .bind(("identity", preparation.identity().to_owned()))
+            .await
+            .context("installation publication readiness transaction failed")?
+            .check()
+            .context("installation preparation changed before publication readiness")?;
+        let selected: Selection = response
+            .take::<Option<Selection>>(5)?
+            .context("installation readiness returned no revision selection")?;
+        match (selected.head, selected.revision) {
+            (None, None) => Ok(None),
+            (Some(head), Some(revision))
+                if head.revision == revision.id && head.revision_id == revision.revision_id =>
+            {
+                Ok(Some(revision_from_record(revision)?))
+            }
+            _ => anyhow::bail!("invalid active installation revision pointer"),
+        }
     }
 
     pub async fn load_active_revision_head(
@@ -93,6 +132,27 @@ impl GatewayControlStore {
         &self,
         revision: &GatewayControlPlaneRevision,
         context: &veoveo_audit_contract::AuditContext,
+    ) -> Result<()> {
+        self.record_revision_with_preparation(revision, context, None)
+            .await
+    }
+
+    /// Installation publication compares its preparation fence in the write transaction.
+    pub async fn record_installation_revision(
+        &self,
+        revision: &GatewayControlPlaneRevision,
+        context: &veoveo_audit_contract::AuditContext,
+        preparation: &veoveo_modules::PreparationKey,
+    ) -> Result<()> {
+        self.record_revision_with_preparation(revision, context, Some(preparation))
+            .await
+    }
+
+    async fn record_revision_with_preparation(
+        &self,
+        revision: &GatewayControlPlaneRevision,
+        context: &veoveo_audit_contract::AuditContext,
+        preparation: Option<&veoveo_modules::PreparationKey>,
     ) -> Result<()> {
         crate::catalog::validate_control_plane(&revision.control_plane)
             .context("refusing to persist invalid gateway control plane")?;
@@ -146,6 +206,10 @@ impl GatewayControlStore {
             .query(
                 r#"
                 BEGIN TRANSACTION;
+                IF $preparation_generation != NONE {
+                    LET $preparation = (SELECT * FROM ONLY platform_module_installation:current FOR UPDATE);
+                    IF $preparation.generation != $preparation_generation OR $preparation.identity != $preparation_identity OR $preparation.complete != true { THROW 'installation_preparation_changed'; };
+                };
                 LET $head = (SELECT * FROM ONLY gateway_control_active:current FOR UPDATE);
                 IF $head.revision != $expected { THROW 'control_plane_revision_changed'; };
                 CREATE ONLY $revision_record CONTENT $revision;
@@ -173,6 +237,8 @@ impl GatewayControlStore {
                 COMMIT TRANSACTION;
                 "#,
             )
+            .bind(("preparation_generation", preparation.map(|key| key.generation().to_string())))
+            .bind(("preparation_identity", preparation.map(|key| key.identity().to_owned())))
             .bind(("revision_record", revision_record))
             .bind(("expected", expected))
             .bind(changes.into_binding())

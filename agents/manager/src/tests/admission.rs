@@ -102,6 +102,10 @@ fn rendered(
             "veoveo",
             "--values",
             path.to_str().unwrap(),
+            "--values",
+            "testing/fixtures/platform-selection/platform-values.yaml",
+            "--set-file",
+            "moduleInstallation.planJson=testing/fixtures/module-schema-consumer/module-plan.json",
         ],
         None,
     )?)?;
