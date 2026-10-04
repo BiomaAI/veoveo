@@ -12,6 +12,9 @@ name = "gitops_convergence"
 harness = false
 
 [dependencies]
+# OCI reference admission without registry/network clients; upstream v0.10.0 qualified by the owning harness.
+nix = { version = "=0.31.3", default-features = false, features = ["process", "signal"] }
+oci-spec = { version = "=0.10.0", default-features = false, features = ["distribution"] }
 veoveo-simulation-contract.workspace = true
 anyhow.workspace = true
 clap.workspace = true

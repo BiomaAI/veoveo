@@ -4,6 +4,9 @@
 
 | Boundary | Supported profile |
 |---|---|
+| `veoveo.ai/module-installation-evidence/v1` | Typed setup, installed DB/Job outcomes, runtime image observations, redacted failure excerpts and UID-owned cleanup |
+| Kubernetes `networking.k8s.io/v1` NetworkPolicy | Producer-only deny-all ingress/egress; positive and rejected native health probes qualify enforcement |
+| OCI distribution digest references | Maintained OCI parsing admits untagged SHA-256 gateway images and derives the supplied composition binding |
 | `veoveo.ai/module-selection/v1` and `veoveo.ai/module-plan/v1` | Checked camelCase JSON; optional selection, decimal-string generation, nonsecret credential revision and composition-generated lane/runtime bindings |
 | Flux source and Kustomization APIs `v1`, HelmRelease API `v2` | exact Git artifact and applied revision, observed generation, readiness, terminal Helm failure, and release inventory |
 | Kubernetes apps `v1` | Deployment rollout status and Available condition through kubectl |
@@ -170,4 +173,42 @@ cargo xtask smoke component-scope-verify \
   --pull-registry <cluster-local-http-registry> \
   --base-image <repository@sha256:digest> \
   --evidence-output <new-evidence.json>
+```
+
+## Installed Module Lifecycle
+
+`module-installation-verify` uses the supplied digest-only gateway OCI reference,
+derives its composition binding and generates plans with that actual image. The
+fixture requires a reachable registry, an enforced NetworkPolicy CNI, default
+local-path storage and permission to create an isolated namespace and its resources.
+Positive and denied probes use the chart's pinned SurrealDB 3.3.0 CLI. A deadline,
+scheduling failure or unavailable canary cannot establish policy enforcement.
+
+The harness applies actual chart database, ServiceAccount, plan ConfigMap and
+preparation/lane/publication Jobs. It checks fresh generation 1, unchanged object
+UIDs and persisted publication replay, generation 2 account rotation with stale
+preparation/migration/publication rejection, preserved disabled Time history and
+later Media enablement in generation 3. Current-publication replay after stale Jobs
+checks the persisted revision, hash and counts. The initial owner lanes are empty;
+these checks establish initialized headers rather than fabricate migration bodies.
+Hosted product workloads and GPU execution are outside this DB/Job fixture.
+
+Every account and namespace belongs to the fixture. Secret JSON files have mode
+0600. Errors retain capped pod state/log excerpts with current, root and prior
+fixture passwords redacted before namespace deletion. JSON evidence includes setup
+failure, observed runtime image IDs, each installed outcome and cleanup failure.
+Namespace deletion sends the created UID as a Kubernetes DeleteOptions precondition.
+Commands have deadlines, file-backed output capped at 2 MiB and owned process-group
+cleanup on timeout; no blind mutation retries are added.
+
+The harness pins `oci-spec` 0.10.0 with only its distribution feature for maintained
+OCI reference admission. Its [upstream stable release](https://github.com/youki-dev/oci-spec-rs/releases/tag/v0.10.0)
+was checked before adoption. `nix` reuses qualified 0.31.3 for safe process-group
+signals; neither dependency adds a registry transport client.
+
+```sh
+cargo xtask smoke module-installation-verify \
+  --context "$FIXTURE_CONTEXT" \
+  --gateway-image "$PINNED_GATEWAY_IMAGE" \
+  --evidence-output "$FIXTURE_EVIDENCE"
 ```

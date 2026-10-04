@@ -7,6 +7,7 @@ mod component_scope;
 mod flux_cancellation;
 mod gitops;
 mod helm_config;
+mod module_installation;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -22,6 +23,8 @@ struct Args {
 enum Command {
     /// Render and validate Helm, image packaging, and GitOps configuration.
     HelmConfig,
+    /// Verify the pinned gateway image and installed module Job lifecycle in isolation.
+    ModuleInstallationVerify(module_installation::Args),
     /// Verify obsolete Flux health-check cancellation in a disposable namespace.
     GitopsCancelVerify(flux_cancellation::Args),
     /// Verify selected deployment writes with independent Git and OCI fixtures.
@@ -105,6 +108,7 @@ enum Command {
 fn run() -> Result<()> {
     match Args::parse().command {
         Command::HelmConfig => helm_config::helm_config(),
+        Command::ModuleInstallationVerify(args) => module_installation::verify(args),
         Command::GitopsCancelVerify(args) => flux_cancellation::verify(args),
         Command::ComponentScopeVerify(args) => component_scope::verify(args),
         Command::ProfileValidate { profile } => veoveo_deploy_runtime::profile_validate(&profile),

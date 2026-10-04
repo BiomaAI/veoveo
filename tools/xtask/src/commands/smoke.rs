@@ -174,6 +174,7 @@ fn dispatcher_binary(arguments: &[OsString]) -> Result<CargoBinary> {
             | "gitops-converge"
             | "gitops-cancel-verify"
             | "component-scope-verify"
+            | "module-installation-verify"
     ) {
         Ok(DEPLOYMENT_SMOKE)
     } else if matches!(
@@ -275,6 +276,7 @@ fn scenario_binaries(scenario: &str) -> Result<&'static [CargoBinary]> {
         | "gitops-converge"
         | "gitops-cancel-verify"
         | "component-scope-verify"
+        | "module-installation-verify"
         | "gpu-allocation-verify"
         | "surreal-integration"
         | "view-mcp"
@@ -304,6 +306,23 @@ fn prepend_library_path(command: &mut Command, key: &str, path: &std::path::Path
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn module_lifecycle_dispatches_only_its_own_harness() {
+        let args = [OsString::from("module-installation-verify")];
+        assert_eq!(dispatcher_binary(&args).unwrap(), DEPLOYMENT_SMOKE);
+        assert_eq!(
+            cargo_build_arguments(&args).unwrap(),
+            vec![
+                "build",
+                "--locked",
+                "--package",
+                "veoveo-deployment-smoke",
+                "--bin",
+                "deployment-smoke"
+            ]
+        );
+    }
 
     #[test]
     fn flight_scenarios_build_only_the_focused_client_and_conformance() {

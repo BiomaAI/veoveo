@@ -109,9 +109,14 @@ replacement by a new parser. Both exact pins move together only after AST-child 
 fail-closed policy and native transaction fixtures pass. Replace this private adapter
 when upstream offers a maintained equivalent that preserves complete inspection.
 
-Installation commands, rendered Jobs, fresh-install/upgrade ordering and credential
-provisioning/publication separation still require deployment qualification. Existing
-production schemas, histories and bootstrap stay in use until those hosts qualify.
+The deployment harness qualifies rendered Jobs and the digest-pinned composition
+image's commands through `module-installation-verify`. Its isolated namespace covers
+fresh preparation, lane completion, runtime-authenticated publication, credential
+rotation and stale-generation rejection. It applies selected chart resources directly;
+full Helm rollback, hosted workload startup and managed-agent recovery require their
+own installed checks. Production schemas and histories use the mixed Store catalog
+until ownership moves into the declared lanes.
+
 ## Generated Composition Plans
 
 The optional `serialization` feature adds checked JSON selection and plan documents.

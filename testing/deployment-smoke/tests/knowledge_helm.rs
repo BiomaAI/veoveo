@@ -1,10 +1,12 @@
 //! Rendered deployment contract; requires Helm and GNU timeout, with no cluster writes.
+mod support;
 use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{io::Write, process::Command};
 
 fn render(values: &Value) -> Result<std::process::Output> {
+    let plan = support::module_plan()?;
     let mut file = tempfile::NamedTempFile::new()?;
     serde_json::to_writer(file.as_file_mut(), values)?;
     file.flush()?;
@@ -12,6 +14,8 @@ fn render(values: &Value) -> Result<std::process::Output> {
         .args(["25s", "helm", "template", "knowledge-test", "deploy/helm/veoveo", "--namespace", "platform",
             "--set", "gateway.auditRetentionDays=1",
             "--set", "gateway.controlPlaneRevision=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"])
+        .arg("--set-file")
+        .arg(format!("moduleInstallation.planJson={}", plan.path().display()))
         .arg("--values").arg(file.path())
         .current_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."))
         .output().context("Knowledge chart checks require Helm and GNU timeout")

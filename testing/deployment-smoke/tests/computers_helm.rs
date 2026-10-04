@@ -1,10 +1,12 @@
 //! Real Helm rendering qualifies the core/configured boundary, without a cluster.
+mod support;
 use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
 use serde_json::Value;
 use std::process::Command;
 
 fn render(extra: &[&str]) -> std::process::Output {
+    let plan = support::module_plan().expect("checked composition-generated module plan");
     Command::new("timeout")
         .args([
             "25s",
@@ -20,6 +22,8 @@ fn render(extra: &[&str]) -> std::process::Output {
             "gateway.auditRetentionDays=1",
             "--set", "knowledge.existingConfigMap=knowledge-test,knowledge.existingSigningSecret=knowledge-test,knowledge.configurationRevision=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
         ])
+        .arg("--set-file")
+        .arg(format!("moduleInstallation.planJson={}", plan.path().display()))
         .args(extra)
         .current_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."))
         .output()

@@ -8,9 +8,11 @@ Explicit owner adapters retain normalization, redundant-field projection, mutabl
 representations and codec-specific envelopes. Later phases, Foundations and hardening
 transfer conditions, and installed acceptance remain open. Phase 1 is active: the
 module declarations, native runner, execution commands and rendered installation Jobs
-pass their native checks. Five additional browser contract bundles pass generation,
-consumer tests and builds. Actual-image execution and installed qualification remain
-open; production schema ownership moves in Phase 3.
+pass their native checks. The staged gateway image passes isolated installed checks
+for fresh preparation, lane completion, publication, credential rotation, stale Job
+rejection and later module enablement. Managed-agent credential recovery and product
+activation remain open. Five additional browser contract bundles pass generation,
+consumer tests and builds. Production schema ownership moves in Phase 3.
 This is the single implementation plan for the former Foundations, Contract
 Consistency and Repository Hardening tracks; their required open conditions transfer
 without being declared complete.
@@ -628,9 +630,14 @@ not prove that image's commands work. Native process checks qualify concurrent f
 preparation, dependent lanes and publication without process restarts, plus stale
 generation rejection inside lane and revision transactions. Rendered checks qualify
 the generated lane set, credential confinement and stable Job identities. Integration
-builds and strict lint pass. Actual-image execution, fresh-install/upgrade publication
-ordering and managed-agent credential recovery remain unqualified. Production SQL
-redistribution belongs to Phase 3.
+builds and strict lint pass. The staged gateway image executes the plan generator
+without network access and passes the isolated `module-installation-verify` scenario.
+Three installed generations qualify fresh preparation and publication, runtime account
+rotation, unchanged Job identity, disabled-lane history, stale preparation/lane/publication
+rejection and later module enablement. The fixture applies selected chart resources
+directly; it does not qualify full Helm rollback, hosted workload startup or reference
+activation. Managed-agent credential recovery still needs installed qualification.
+Production SQL redistribution belongs to Phase 3.
 
 | Work | Detail |
 |---|---|

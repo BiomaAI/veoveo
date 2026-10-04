@@ -1,10 +1,12 @@
 //! Speech must retain hardware admission and private session ownership.
+mod support;
 use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{io::Write, process::Command};
 
 fn render(values: Value) -> Result<std::process::Output> {
+    let plan = support::module_plan()?;
     let mut file = tempfile::NamedTempFile::new()?;
     serde_json::to_writer(file.as_file_mut(), &values)?;
     file.flush()?;
@@ -13,6 +15,8 @@ fn render(values: Value) -> Result<std::process::Output> {
             "--set", "gateway.controlPlaneRevision=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "--set", "gateway.auditRetentionDays=1",
             "--set", "knowledge.existingConfigMap=knowledge-test,knowledge.existingSigningSecret=knowledge-test,knowledge.configurationRevision=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"])
+        .arg("--set-file")
+        .arg(format!("moduleInstallation.planJson={}", plan.path().display()))
         .arg("--values").arg(file.path())
         .current_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/../..")).output()?)
 }
