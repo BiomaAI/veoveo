@@ -1,0 +1,761 @@
+//! Authenticated public recording ingest and discovery routes.
+
+#[path = "ingest/audit.rs"]
+mod audit;
+use std::time::{Duration, Instant};
+use veoveo_mcp_contract::audit::{AuditOutcome, AuditReason};
+
+use crate::contract::RecordingProducerScope;
+use axum::{
+    Router,
+    body::Bytes,
+    extract::{DefaultBodyLimit, Path, State},
+    http::{HeaderMap, HeaderValue, StatusCode, header},
+    response::{IntoResponse, Response},
+    routing::{get, post, put},
+};
+use chrono::{TimeDelta, Utc};
+use prost::Message;
+use veoveo_mcp_contract::{
+    AuthOutcome, AuthReasonCode, GatewayAction, PolicyEffect, PrincipalKind,
+    RecordingIngestResource, RecordingIngestStreamId, RecordingProducerRegistration, ServerSlug,
+    TraceId,
+};
+use veoveo_mcp_gateway::{
+    AuthenticatedSubject, BearerToken, JwtAuthConfig, JwtVerifier, RecordingIngestPolicyRequest,
+};
+use veoveo_recording_protocol::{
+    DISCOVERY_PATH, MEDIA_TYPE, PROTOCOL_VERSION, STREAMS_PATH,
+    v1::{
+        AuthorizedFinishRecordingStreamRequest, AuthorizedOpenRecordingStreamRequest,
+        AuthorizedRecordingBatchRequest, AuthorizedRecordingBlueprintRequest,
+        AuthorizedRecordingProducer, FinishRecordingStreamRequest, IngestError, IngestErrorCode,
+        OpenRecordingStreamRequest, RecordingBatch, RecordingBlueprint, RecordingIngestDiscovery,
+        RerunPayloadFormat,
+    },
+};
+
+use super::RecordingIngestGatewayState;
+use veoveo_mcp_gateway::http::{
+    auth_support::{
+        AuthAuditTarget, allowed_gateway_jwt_algorithms, auth_audit_error_response,
+        record_resource_auth_audit,
+    },
+    current_catalog, current_http_client, load_resource_authorization_jwks,
+};
+
+const INTERNAL_STREAMS_PATH: &str = "/internal/recording-ingest/v1/streams";
+const INTERNAL_TOKEN_TTL_SECONDS: i64 = 60;
+const RECORDING_HUB_REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
+
+struct HttpFailure(Box<Response>);
+
+impl From<Response> for HttpFailure {
+    fn from(response: Response) -> Self {
+        Self(Box::new(response))
+    }
+}
+
+impl IntoResponse for HttpFailure {
+    fn into_response(self) -> Response {
+        *self.0
+    }
+}
+
+pub(crate) fn recording_ingest_router(state: RecordingIngestGatewayState) -> Router {
+    Router::new()
+        .route(DISCOVERY_PATH, get(discovery))
+        .route(STREAMS_PATH, post(open_stream))
+        .route(&format!("{STREAMS_PATH}/{{stream_id}}"), get(stream_status))
+        .route(
+            &format!("{STREAMS_PATH}/{{stream_id}}/batches/{{sequence}}"),
+            put(append_batch),
+        )
+        .route(
+            &format!("{STREAMS_PATH}/{{stream_id}}/blueprints/{{revision}}"),
+            put(publish_blueprint),
+        )
+        .route(
+            &format!("{STREAMS_PATH}/{{stream_id}}/finish"),
+            post(finish_stream),
+        )
+        .layer(DefaultBodyLimit::max(
+            usize::try_from(veoveo_recording_protocol::DEFAULT_MAXIMUM_BATCH_BYTES)
+                .unwrap_or(usize::MAX)
+                .saturating_add(64 * 1024),
+        ))
+        .with_state(state)
+}
+
+async fn discovery(State(state): State<RecordingIngestGatewayState>) -> Response {
+    let catalog = current_catalog(&state.catalog);
+    let Some(resource) = catalog.single_recording_ingest_resource() else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let Some(authorization_server) = catalog.authorization_server(&resource.authorization_server)
+    else {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    };
+    protobuf_response(
+        StatusCode::OK,
+        &RecordingIngestDiscovery {
+            protocol_version: PROTOCOL_VERSION.to_owned(),
+            protected_resource: resource.protected_resource.to_string(),
+            authorization_server: authorization_server.issuer.to_string(),
+            required_scope: RecordingProducerScope::Ingest.to_string(),
+            streams_endpoint: format!(
+                "{}{}",
+                state.public_base_url.trim_end_matches('/'),
+                STREAMS_PATH
+            ),
+            maximum_batch_bytes: resource.maximum_batch_bytes,
+            payload_formats: vec![RerunPayloadFormat::Rrd0381.into()],
+            maximum_blueprint_bytes: resource
+                .producers
+                .iter()
+                .filter(|producer| producer.blueprints.enabled)
+                .map(|producer| producer.blueprints.maximum_bytes)
+                .max()
+                .unwrap_or(0),
+            maximum_blueprint_messages: resource
+                .producers
+                .iter()
+                .filter(|producer| producer.blueprints.enabled)
+                .map(|producer| producer.blueprints.maximum_messages)
+                .max()
+                .unwrap_or(0),
+        },
+    )
+}
+
+async fn open_stream(
+    State(state): State<RecordingIngestGatewayState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    let request = match decode::<OpenRecordingStreamRequest>(&headers, &body) {
+        Ok(request) => request,
+        Err(error) => return error.into_response(),
+    };
+    proxy_authorized(
+        &state,
+        &headers,
+        GatewayAction::RecordingStreamOpen,
+        None,
+        INTERNAL_STREAMS_PATH.to_owned(),
+        AuthorizedOpenRecordingStreamRequest {
+            producer: None,
+            request: Some(request),
+        },
+    )
+    .await
+}
+
+async fn stream_status(
+    State(state): State<RecordingIngestGatewayState>,
+    Path(stream_id): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    let stream_id = match RecordingIngestStreamId::new(&stream_id) {
+        Ok(stream_id) => stream_id,
+        Err(_) => return stream_not_found(),
+    };
+    proxy_authorized(
+        &state,
+        &headers,
+        GatewayAction::RecordingStreamStatus,
+        Some(&stream_id),
+        format!("{INTERNAL_STREAMS_PATH}/{stream_id}/status"),
+        AuthorizedRecordingProducer::default(),
+    )
+    .await
+}
+
+async fn append_batch(
+    State(state): State<RecordingIngestGatewayState>,
+    Path((stream_id, sequence)): Path<(String, u64)>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    let stream_id = match RecordingIngestStreamId::new(&stream_id) {
+        Ok(stream_id) => stream_id,
+        Err(_) => return stream_not_found(),
+    };
+    let batch = match decode::<RecordingBatch>(&headers, &body) {
+        Ok(batch) => batch,
+        Err(error) => return error.into_response(),
+    };
+    if batch.sequence != sequence {
+        return ingest_error(
+            StatusCode::BAD_REQUEST,
+            IngestErrorCode::InvalidRequest,
+            "path and batch sequences differ",
+        );
+    }
+    proxy_authorized(
+        &state,
+        &headers,
+        GatewayAction::RecordingBatchAppend,
+        Some(&stream_id),
+        format!("{INTERNAL_STREAMS_PATH}/{stream_id}/batches/{sequence}"),
+        AuthorizedRecordingBatchRequest {
+            producer: None,
+            batch: Some(batch),
+        },
+    )
+    .await
+}
+
+async fn publish_blueprint(
+    State(state): State<RecordingIngestGatewayState>,
+    Path((stream_id, revision)): Path<(String, u64)>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    let stream_id = match RecordingIngestStreamId::new(&stream_id) {
+        Ok(stream_id) => stream_id,
+        Err(_) => return stream_not_found(),
+    };
+    let blueprint = match decode::<RecordingBlueprint>(&headers, &body) {
+        Ok(blueprint) => blueprint,
+        Err(error) => return error.into_response(),
+    };
+    if blueprint.revision != revision {
+        return ingest_error(
+            StatusCode::BAD_REQUEST,
+            IngestErrorCode::InvalidRequest,
+            "path and Blueprint revisions differ",
+        );
+    }
+    proxy_authorized(
+        &state,
+        &headers,
+        GatewayAction::RecordingBlueprintPublish,
+        Some(&stream_id),
+        format!("{INTERNAL_STREAMS_PATH}/{stream_id}/blueprints/{revision}"),
+        AuthorizedRecordingBlueprintRequest {
+            producer: None,
+            blueprint: Some(blueprint),
+        },
+    )
+    .await
+}
+
+async fn finish_stream(
+    State(state): State<RecordingIngestGatewayState>,
+    Path(stream_id): Path<String>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    let stream_id = match RecordingIngestStreamId::new(&stream_id) {
+        Ok(stream_id) => stream_id,
+        Err(_) => return stream_not_found(),
+    };
+    let request = match decode::<FinishRecordingStreamRequest>(&headers, &body) {
+        Ok(request) => request,
+        Err(error) => return error.into_response(),
+    };
+    proxy_authorized(
+        &state,
+        &headers,
+        GatewayAction::RecordingStreamFinish,
+        Some(&stream_id),
+        format!("{INTERNAL_STREAMS_PATH}/{stream_id}/finish"),
+        AuthorizedFinishRecordingStreamRequest {
+            producer: None,
+            request: Some(request),
+        },
+    )
+    .await
+}
+
+trait AuthorizedEnvelope: Message + Default {
+    fn set_producer(&mut self, producer: AuthorizedRecordingProducer);
+}
+
+impl AuthorizedEnvelope for AuthorizedOpenRecordingStreamRequest {
+    fn set_producer(&mut self, producer: AuthorizedRecordingProducer) {
+        self.producer = Some(producer);
+    }
+}
+
+impl AuthorizedEnvelope for AuthorizedRecordingBatchRequest {
+    fn set_producer(&mut self, producer: AuthorizedRecordingProducer) {
+        self.producer = Some(producer);
+    }
+}
+
+impl AuthorizedEnvelope for AuthorizedRecordingBlueprintRequest {
+    fn set_producer(&mut self, producer: AuthorizedRecordingProducer) {
+        self.producer = Some(producer);
+    }
+}
+
+impl AuthorizedEnvelope for AuthorizedFinishRecordingStreamRequest {
+    fn set_producer(&mut self, producer: AuthorizedRecordingProducer) {
+        self.producer = Some(producer);
+    }
+}
+
+impl AuthorizedEnvelope for AuthorizedRecordingProducer {
+    fn set_producer(&mut self, producer: AuthorizedRecordingProducer) {
+        *self = producer;
+    }
+}
+
+async fn proxy_authorized(
+    state: &RecordingIngestGatewayState,
+    headers: &HeaderMap,
+    action: GatewayAction,
+    stream_id: Option<&RecordingIngestStreamId>,
+    internal_path: String,
+    mut envelope: impl AuthorizedEnvelope,
+) -> Response {
+    let started_at = Instant::now();
+    let catalog = current_catalog(&state.catalog);
+    let Some(resource) = catalog.single_recording_ingest_resource() else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let (subject, producer) = match authenticate(state, resource, headers, started_at).await {
+        Ok(authenticated) => authenticated,
+        Err(response) => return *response,
+    };
+    let trace_id = match TraceId::new(subject.audit.trace_id.to_string()) {
+        Ok(trace_id) => trace_id,
+        Err(error) => return auth_audit_error_response(error.into()),
+    };
+    let decision = catalog.decide_recording_ingest(RecordingIngestPolicyRequest {
+        principal: &subject.principal,
+        resource,
+        producer: &producer,
+        action,
+        trace_id: &trace_id,
+    });
+    let allowed = decision.effect == PolicyEffect::Allow;
+    if should_record_authorization_audit(action, &decision.effect) {
+        let draft = match audit::draft(
+            &subject,
+            &producer.id,
+            stream_id,
+            action,
+            if allowed {
+                AuditOutcome::Allowed
+            } else {
+                AuditOutcome::Denied
+            },
+            veoveo_mcp_gateway::audit::policy_reason(decision.reason),
+        ) {
+            Ok(draft) => draft,
+            Err(error) => return auth_audit_error_response(error),
+        };
+        if let Err(error) = state.gateway_state.record_audit(draft).await {
+            return auth_audit_error_response(error);
+        }
+    }
+    if !allowed {
+        return ingest_error(
+            StatusCode::FORBIDDEN,
+            IngestErrorCode::Forbidden,
+            "recording ingest policy denied the request",
+        );
+    }
+
+    let response = async {
+        envelope.set_producer(authorized_producer(&producer));
+        let expires_at = std::cmp::min(
+            subject.access_token.expires_at,
+            Utc::now() + TimeDelta::seconds(INTERNAL_TOKEN_TTL_SECONDS),
+        );
+        let internal_token = match state.internal_token_issuer.issue_resource(
+            resource.protected_resource.clone(),
+            match ServerSlug::new("recording-hub") {
+                Ok(server) => server,
+                Err(error) => return auth_audit_error_response(error.into()),
+            },
+            subject.actor.clone(),
+            subject.authority.clone(),
+            expires_at,
+        ) {
+            Ok(token) => token,
+            Err(error) => return auth_audit_error_response(error.into()),
+        };
+        let url = format!(
+            "{}{}",
+            resource.upstream.url.as_str().trim_end_matches('/'),
+            internal_path
+        );
+        let response = match current_http_client(&state.http)
+            .request(
+                if matches!(
+                    action,
+                    GatewayAction::RecordingBatchAppend | GatewayAction::RecordingBlueprintPublish
+                ) {
+                    reqwest::Method::PUT
+                } else {
+                    reqwest::Method::POST
+                },
+                url,
+            )
+            .bearer_auth(internal_token.bearer_token)
+            .header(header::CONTENT_TYPE.as_str(), MEDIA_TYPE)
+            .timeout(RECORDING_HUB_REQUEST_TIMEOUT)
+            .body(envelope.encode_to_vec())
+            .send()
+            .await
+        {
+            Ok(response) => response,
+            Err(error) => {
+                tracing::warn!("recording hub ingest request failed: {error}");
+                return ingest_error(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    IngestErrorCode::StorageUnavailable,
+                    "recording hub is unavailable",
+                );
+            }
+        };
+        let status = response.status();
+        let body = match response.bytes().await {
+            Ok(body) => body,
+            Err(error) => {
+                tracing::warn!("recording hub ingest response failed: {error}");
+                return ingest_error(
+                    StatusCode::BAD_GATEWAY,
+                    IngestErrorCode::StorageUnavailable,
+                    "recording hub returned an invalid response",
+                );
+            }
+        };
+        let status = StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+        let mut forwarded = (status, body).into_response();
+        forwarded
+            .headers_mut()
+            .insert(header::CONTENT_TYPE, HeaderValue::from_static(MEDIA_TYPE));
+        forwarded
+    }
+    .await;
+    // A successful append/status already has domain state; no per-chunk/per-poll record.
+    if should_record_authorization_audit(action, &PolicyEffect::Allow)
+        || !response.status().is_success()
+    {
+        let outcome = if response.status().is_success() {
+            AuditOutcome::Succeeded
+        } else if response.status().is_client_error() {
+            AuditOutcome::Denied
+        } else {
+            AuditOutcome::Failed
+        };
+        let reason = if response.status().is_success() {
+            AuditReason::Accepted
+        } else if response.status().is_client_error() {
+            AuditReason::InvalidRequest
+        } else {
+            AuditReason::UpstreamFailure
+        };
+        match audit::draft(&subject, &producer.id, stream_id, action, outcome, reason) {
+            Ok(draft) => {
+                state
+                    .gateway_state
+                    .audit_writer()
+                    .await
+                    .record_completion(draft)
+                    .await
+            }
+            Err(error) => tracing::error!(%error, "invalid recording completion audit"),
+        }
+    }
+    response
+}
+
+fn should_record_authorization_audit(action: GatewayAction, effect: &PolicyEffect) -> bool {
+    *effect == PolicyEffect::Deny
+        || !matches!(
+            action,
+            GatewayAction::RecordingBatchAppend | GatewayAction::RecordingStreamStatus
+        )
+}
+
+async fn authenticate(
+    state: &RecordingIngestGatewayState,
+    resource: &RecordingIngestResource,
+    headers: &HeaderMap,
+    started_at: Instant,
+) -> Result<(AuthenticatedSubject, RecordingProducerRegistration), Box<Response>> {
+    let audit_target = AuthAuditTarget {
+        profile: None,
+        protected_resource: &resource.protected_resource,
+    };
+    let catalog = current_catalog(&state.catalog);
+    let Some(authorization_server) = catalog
+        .authorization_server(&resource.authorization_server)
+        .cloned()
+    else {
+        return Err(record_denial(
+            state,
+            audit_target,
+            AuthReasonCode::UnknownAuthorizationServer,
+            started_at,
+            StatusCode::SERVICE_UNAVAILABLE,
+            "authorization server is unavailable",
+        )
+        .await
+        .into());
+    };
+    let Some(raw_authorization) = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+    else {
+        return Err(record_denial(
+            state,
+            audit_target,
+            AuthReasonCode::MissingAuthorizationHeader,
+            started_at,
+            StatusCode::UNAUTHORIZED,
+            "bearer token is required",
+        )
+        .await
+        .into());
+    };
+    let token = match BearerToken::from_authorization_header(raw_authorization) {
+        Ok(token) => token,
+        Err(_) => {
+            return Err(record_denial(
+                state,
+                audit_target,
+                AuthReasonCode::InvalidAuthorizationHeader,
+                started_at,
+                StatusCode::UNAUTHORIZED,
+                "bearer token is invalid",
+            )
+            .await
+            .into());
+        }
+    };
+    let jwks = match load_resource_authorization_jwks(
+        &catalog,
+        &authorization_server,
+        &state.public_base_url,
+        &current_http_client(&state.http),
+    )
+    .await
+    {
+        Ok(jwks) => jwks,
+        Err(_) => {
+            return Err(record_denial(
+                state,
+                audit_target,
+                AuthReasonCode::AuthorizationServerUnavailable,
+                started_at,
+                StatusCode::SERVICE_UNAVAILABLE,
+                "authorization server is unavailable",
+            )
+            .await
+            .into());
+        }
+    };
+    let auth_config = match JwtAuthConfig::new(
+        authorization_server.issuer,
+        resource.protected_resource.clone(),
+        resource.required_scopes.clone(),
+        allowed_gateway_jwt_algorithms(),
+    ) {
+        Ok(config) => config,
+        Err(error) => return Err(auth_audit_error_response(error.into()).into()),
+    };
+    let verified = match JwtVerifier::new(auth_config, jwks).verify(&token) {
+        Ok(verified) => verified,
+        Err(_) => {
+            return Err(record_denial(
+                state,
+                audit_target,
+                AuthReasonCode::InvalidBearerToken,
+                started_at,
+                StatusCode::UNAUTHORIZED,
+                "bearer token is invalid",
+            )
+            .await
+            .into());
+        }
+    };
+    if verified.principal.kind != PrincipalKind::Service {
+        return Err(record_denial(
+            state,
+            audit_target,
+            AuthReasonCode::InvalidBearerToken,
+            started_at,
+            StatusCode::FORBIDDEN,
+            "recording ingest requires a service principal",
+        )
+        .await
+        .into());
+    }
+    let catalog = current_catalog(&state.catalog);
+    let Some(producer) =
+        catalog.recording_producer_for_client(resource, &verified.access_token.oauth_client_id)
+    else {
+        return Err(record_denial(
+            state,
+            audit_target,
+            AuthReasonCode::InvalidClient,
+            started_at,
+            StatusCode::FORBIDDEN,
+            "OAuth client is not a registered recording producer",
+        )
+        .await
+        .into());
+    };
+    let subject = match state
+        .gateway_state
+        .resolve_authenticated_subject(&catalog, verified)
+        .await
+    {
+        Ok(subject) => subject,
+        Err(_) => {
+            return Err(record_denial(
+                state,
+                audit_target,
+                AuthReasonCode::InvalidBearerToken,
+                started_at,
+                StatusCode::FORBIDDEN,
+                "invocation authority is invalid",
+            )
+            .await
+            .into());
+        }
+    };
+    Ok((subject, producer.clone()))
+}
+
+async fn record_denial(
+    state: &RecordingIngestGatewayState,
+    target: AuthAuditTarget<'_>,
+    reason: AuthReasonCode,
+    started_at: Instant,
+    status: StatusCode,
+    message: &str,
+) -> Response {
+    if let Err(error) = record_resource_auth_audit(
+        &state.gateway_state,
+        target,
+        AuthOutcome::Deny,
+        reason,
+        None,
+        started_at,
+    )
+    .await
+    {
+        return auth_audit_error_response(error);
+    }
+    ingest_error(status, IngestErrorCode::Unauthorized, message)
+}
+
+fn authorized_producer(producer: &RecordingProducerRegistration) -> AuthorizedRecordingProducer {
+    AuthorizedRecordingProducer {
+        producer_id: producer.id.to_string(),
+        oauth_client_id: producer.oauth_client.to_string(),
+        tenant_id: producer.tenant.to_string(),
+        dataset: producer.dataset.to_string(),
+        allowed_application_ids: producer
+            .allowed_application_ids
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
+        classification: producer.classification.clone(),
+        labels: producer.labels.iter().map(ToString::to_string).collect(),
+        maximum_stream_bytes: producer.quotas.maximum_stream_bytes,
+        maximum_concurrent_streams: producer.quotas.maximum_concurrent_streams,
+        maximum_batches_per_minute: producer.quotas.maximum_batches_per_minute,
+        maximum_bytes_per_day: producer.quotas.maximum_bytes_per_day,
+        open_stream_days: producer.retention.open_stream_days,
+        blueprint_publication_enabled: producer.blueprints.enabled,
+        maximum_blueprint_bytes: producer.blueprints.maximum_bytes,
+        maximum_blueprint_messages: producer.blueprints.maximum_messages,
+        maximum_blueprint_revisions: producer.blueprints.maximum_revisions,
+        single_recording_application_ids: producer
+            .single_recording_application_ids
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
+    }
+}
+
+fn decode<T: Message + Default>(headers: &HeaderMap, body: &[u8]) -> Result<T, HttpFailure> {
+    if headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        != Some(MEDIA_TYPE)
+    {
+        return Err(ingest_error(
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            IngestErrorCode::InvalidRequest,
+            "canonical recording ingest media type is required",
+        )
+        .into());
+    }
+    T::decode(body).map_err(|_| {
+        HttpFailure::from(ingest_error(
+            StatusCode::BAD_REQUEST,
+            IngestErrorCode::InvalidRequest,
+            "protobuf request is invalid",
+        ))
+    })
+}
+
+fn protobuf_response(status: StatusCode, message: &impl Message) -> Response {
+    let mut response = (status, message.encode_to_vec()).into_response();
+    response
+        .headers_mut()
+        .insert(header::CONTENT_TYPE, HeaderValue::from_static(MEDIA_TYPE));
+    response
+}
+
+fn ingest_error(status: StatusCode, code: IngestErrorCode, message: &str) -> Response {
+    protobuf_response(
+        status,
+        &IngestError {
+            code: code.into(),
+            message: message.to_owned(),
+            expected_sequence: None,
+            retry_after_seconds: None,
+            quota: None,
+        },
+    )
+}
+
+fn stream_not_found() -> Response {
+    ingest_error(
+        StatusCode::NOT_FOUND,
+        IngestErrorCode::StreamNotFound,
+        "recording ingest stream was not found",
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::should_record_authorization_audit;
+    use veoveo_mcp_contract::{GatewayAction, PolicyEffect};
+
+    #[test]
+    fn successful_batch_append_uses_the_durable_ingest_ledger() {
+        assert!(!should_record_authorization_audit(
+            GatewayAction::RecordingBatchAppend,
+            &PolicyEffect::Allow,
+        ));
+    }
+
+    #[test]
+    fn recording_lifecycle_and_every_denial_remain_audited() {
+        for action in [
+            GatewayAction::RecordingStreamOpen,
+            GatewayAction::RecordingStreamFinish,
+        ] {
+            assert!(should_record_authorization_audit(
+                action,
+                &PolicyEffect::Allow,
+            ));
+        }
+        assert!(should_record_authorization_audit(
+            GatewayAction::RecordingBatchAppend,
+            &PolicyEffect::Deny,
+        ));
+    }
+}

@@ -70,3 +70,7 @@ This check governs dispatch; stopping an agent does not cancel an already accept
 domain operation. Native Task observation and domain cancellation retain their own
 contracts. The manager and kernel integrations must qualify these guarantees before
 managed registrations are enabled in an installation.
+
+## HTTP Routes
+
+[`http/DESIGN.md`](http/DESIGN.md) owns Agents authoring, publication, conversation and input-request routes. The native capability reader composes shared MCP transport without a Workspace dependency. Workspace consumes typed publication facts and owns its chat-facing presentation.

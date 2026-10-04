@@ -21,7 +21,7 @@ name = "contract"
 required-features = ["contract"]
 
 [features]
-gateway = ["contract", "dep:veoveo-mcp-gateway", "dep:veoveo-mcp-contract", "dep:veoveo-types", "dep:anyhow"]
+gateway = ["contract", "dep:veoveo-mcp-gateway", "dep:veoveo-mcp-contract", "dep:veoveo-types", "dep:anyhow", "dep:axum", "dep:prost", "dep:veoveo-recording-protocol", "dep:chrono", "dep:secrecy", "dep:reqwest", "dep:parking_lot", "dep:futures", "dep:tokio", "dep:serde", "dep:serde_json", "dep:url", "dep:tracing", "dep:bytes", "chrono/clock", "dep:sha2"]
 schema = ["dep:veoveo-modules"]
 default = ["mcp"]
 contract = ["dep:veoveo-recording-contract"]
@@ -85,6 +85,10 @@ redap = [
 redap-conformance = ["redap", "dep:re_redap_tests"]
 
 [dependencies]
+prost = { workspace = true, optional = true }
+veoveo-recording-protocol = { workspace = true, optional = true }
+reqwest = { workspace = true, features = ["json", "rustls-no-provider", "stream"], optional = true }
+parking_lot = { workspace = true, optional = true }
 veoveo-mcp-gateway = { path = "../../platform/gateway", optional = true }
 veoveo-modules = { workspace = true, default-features = false, optional = true }
 veoveo-recording-contract = { workspace = true, optional = true }

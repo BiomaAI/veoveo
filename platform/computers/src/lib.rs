@@ -133,3 +133,10 @@ pub mod schema;
 
 #[cfg(feature = "gateway")]
 pub mod gateway;
+
+#[cfg(all(test, feature = "gateway"))]
+#[path = "../../../testing/fixtures/catalog_admission.rs"]
+mod test_catalog_admission;
+#[cfg(all(test, feature = "gateway"))]
+#[path = "../../../testing/fixtures/store.rs"]
+mod test_store;

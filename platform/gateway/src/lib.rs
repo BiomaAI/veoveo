@@ -1,6 +1,7 @@
 pub mod auth;
 mod catalog;
 mod catalog_admission;
+pub mod http;
 pub use catalog_admission::{CatalogAdmission, GatewayCatalogAdmission};
 mod control_store;
 pub mod mcp;

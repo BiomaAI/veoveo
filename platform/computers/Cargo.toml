@@ -5,7 +5,7 @@ edition.workspace = true
 publish = false
 
 [features]
-gateway = ["dep:veoveo-mcp-gateway", "dep:veoveo-computers-transport", "dep:veoveo-mcp-contract", "dep:rmcp", "dep:tokio"]
+gateway = ["dep:veoveo-mcp-gateway", "dep:veoveo-computers-transport", "dep:veoveo-mcp-contract", "dep:rmcp", "dep:tokio", "dep:axum", "dep:anyhow", "dep:serde", "dep:serde_json", "dep:chrono", "dep:secrecy", "dep:url", "dep:tokio-util", "dep:futures", "dep:veoveo-computers-contract", "dep:veoveo-types"]
 default = ["runtime"]
 schema = ["dep:veoveo-modules"]
 runtime = [
@@ -35,6 +35,11 @@ runtime = [
 ]
 
 [dependencies]
+axum = { workspace = true, features = ["ws"], optional = true }
+anyhow = { workspace = true, optional = true }
+secrecy = { workspace = true, optional = true }
+url = { workspace = true, optional = true }
+tokio-util = { workspace = true, features = ["rt"], optional = true }
 veoveo-mcp-gateway = { path = "../gateway", optional = true }
 veoveo-computers-transport = { path = "transport", optional = true }
 rmcp = { workspace = true, optional = true }
@@ -64,6 +69,8 @@ veoveo-policy = { path = "../policy", optional = true }
 veoveo-task-runtime = { path = "../task-runtime", optional = true }
 
 [dev-dependencies]
+veoveo-platform-store.workspace = true
+base64.workspace = true
 anyhow.workspace = true
 rcgen.workspace = true
 serde_json.workspace = true

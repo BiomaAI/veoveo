@@ -1,5 +1,3 @@
-#[path = "../../../../testing/fixtures/catalog_admission.rs"]
-mod catalog_admission;
 use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::{TimeDelta, Utc};
@@ -16,8 +14,8 @@ use veoveo_platform_store::{
 };
 use veoveo_types::{PrincipalId, ScopeName, TenantId, WorkContextId};
 
-use super::test_store::TestDb;
 use super::*;
+use crate::test_store::TestDb;
 use std::sync::Arc;
 use veoveo_mcp_gateway::{GatewayCatalog, GatewayState, VerifiedAccessToken};
 
@@ -27,7 +25,7 @@ fn catalog() -> GatewayCatalog {
             "../../../../configs/gateway.smoke.json"
         ))
         .unwrap(),
-        catalog_admission::binding(),
+        crate::catalog_fixture::binding(),
     )
     .unwrap()
 }
@@ -476,7 +474,7 @@ async fn managed_identity_rechecks_binding_tools_revocation_and_source_collision
         static_client.id = client_id.clone();
         plane.oauth_clients.push(static_client);
         let collision =
-            GatewayCatalog::from_control_plane(plane, catalog_admission::binding()).unwrap();
+            GatewayCatalog::from_control_plane(plane, crate::catalog_fixture::binding()).unwrap();
         assert!(
             state
                 .effective_oauth_client(&collision, &client_id)

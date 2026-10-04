@@ -426,12 +426,26 @@ through a `gateway` feature; the reusable library imports none of those implemen
 Catalog replacement preserves its admission binding, and unbound catalog or OAuth
 ports refuse their capabilities.
 
+HTTP modules register deferred factories under `ModuleName`. Their owners supply
+profile-authenticated and owner-authenticated routes through a shared typed context.
+Profile authentication reads the registered capture and its raw request spelling;
+new route namespaces need no gateway prefix list. Registration validates required
+bindings before starting factories. Module scopes own request handlers, stream bodies,
+upgrades and background workers through shutdown, including interrupted construction.
+The process observes cleanup outcomes under one module drain deadline. Authenticated
+server health reports module bindings separately from backend probe results.
+
+Computers, Speech, Recordings, Agents and Workspace own their HTTP handlers. Agents
+discovers capabilities through its own reader using shared native MCP transport;
+Workspace may consume Agents without becoming an Agents runtime requirement. Both
+owners preserve caller credentials and current policy when using that transport.
+
 The shared `ManagedAgentToken` claim and Recording-specific gateway configuration
 still couple wire models to those domains. Their ownership transfer must preserve
-issuance, decoding, policy, administration and installation consumers. The remaining
-route registration and owner-handler extraction are required by
-[Phase 2](CONTRACT_CONSISTENCY_PLAN.md#phase-2-kernel-extension-points); package separation
-does not establish that the extension architecture is complete.
+issuance, decoding, checked audit attribution, policy, administration and installation
+consumers. [Phase 2](CONTRACT_CONSISTENCY_PLAN.md#phase-2-kernel-extension-points) tracks
+that required extraction and qualification of the HTTP extension points. Shared-host
+configuration changes follow the user-directed review recorded in that plan.
 
 Media owns its prediction summaries and generation result DTOs. Protocol utilities
 consume Media's contract feature directly; extracting those DTOs preserves their

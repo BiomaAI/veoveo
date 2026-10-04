@@ -14,3 +14,6 @@ pub mod server;
 
 #[cfg(feature = "runtime")]
 pub mod worker;
+
+#[cfg(feature = "gateway")]
+pub mod gateway;

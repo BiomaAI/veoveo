@@ -370,3 +370,10 @@ and installed fresh-start/upgrade acceptance are tracked in the active contract 
 The transport-free [Gateway Contract](contract/DESIGN.md) owns App dependency DTOs
 and discovery failure values shared with MCP and browser schema consumers. Hosted
 gateway behavior uses these values without making their consumers enable runtime.
+
+## HTTP Module Composition
+
+The [HTTP module design](src/http/DESIGN.md) owns typed contexts, registered raw
+profile capture, deferred optional factories, native MCP discovery and task-scope
+cleanup. Domain routers reside in their owner crates. The composition executable
+supplies their configurations and retains the cleanup supervisor until shutdown.

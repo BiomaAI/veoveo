@@ -8,7 +8,7 @@ name = "veoveo_agent_runtime"
 path = "src/lib.rs"
 
 [features]
-gateway = ["runtime", "dep:veoveo-mcp-gateway", "dep:anyhow", "dep:jsonwebtoken", "dep:veoveo-types"]
+gateway = ["runtime", "dep:veoveo-mcp-gateway", "dep:anyhow", "dep:jsonwebtoken", "dep:veoveo-types", "dep:axum", "dep:parking_lot", "dep:reqwest", "dep:rmcp", "dep:secrecy", "dep:sha2", "dep:hex", "dep:tokio-util", "dep:tower-http", "dep:tracing", "dep:url"]
 default = ["runtime"]
 schema = ["dep:veoveo-modules"]
 runtime = [
@@ -27,6 +27,17 @@ runtime = [
 ]
 
 [dependencies]
+axum = { workspace = true, optional = true }
+parking_lot = { workspace = true, optional = true }
+reqwest = { workspace = true, optional = true }
+rmcp = { workspace = true, optional = true, features = ["client", "transport-streamable-http-client-reqwest", "reqwest-tls-no-provider"] }
+secrecy = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+hex = { workspace = true, optional = true }
+tokio-util = { workspace = true, optional = true }
+tower-http = { workspace = true, optional = true, features = ["set-header"] }
+tracing = { workspace = true, optional = true }
+url = { workspace = true, optional = true }
 veoveo-mcp-gateway = { path = "../../platform/gateway", optional = true }
 anyhow = { workspace = true, optional = true }
 jsonwebtoken = { workspace = true, optional = true }
@@ -46,6 +57,8 @@ veoveo-mcp-contract = { workspace = true, optional = true }
 veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
 
 [dev-dependencies]
+tower.workspace = true
+
 veoveo-types.workspace = true
 secrecy.workspace = true
 tokio = { workspace = true, features = ["process", "io-util", "macros", "rt-multi-thread", "time"] }

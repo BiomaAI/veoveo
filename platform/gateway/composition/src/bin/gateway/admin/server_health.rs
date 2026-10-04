@@ -24,6 +24,7 @@ use crate::{audit::authorize_admin_request, runtime::AdminState};
 #[derive(Debug, Serialize)]
 pub(crate) struct ServerHealthReport {
     servers: Vec<ServerHealthEntry>,
+    module_bindings: Vec<veoveo_mcp_gateway::http::ModuleBindingSnapshot>,
 }
 
 /// One server's latest probe. Both fields are null until the first probe after
@@ -63,7 +64,9 @@ pub(crate) async fn read_server_health(
         .servers
         .iter()
         .map(|server| server.slug.clone());
-    Json(report(servers, |slug| probed.get(slug))).into_response()
+    let mut report = report(servers, |slug| probed.get(slug));
+    report.module_bindings = state.module_bindings.as_ref().clone();
+    Json(report).into_response()
 }
 
 fn report<'a>(
@@ -81,7 +84,10 @@ fn report<'a>(
         })
         .collect::<Vec<_>>();
     servers.sort_by(|left, right| left.server.cmp(&right.server));
-    ServerHealthReport { servers }
+    ServerHealthReport {
+        servers,
+        module_bindings: vec![],
+    }
 }
 
 #[cfg(test)]
@@ -112,5 +118,19 @@ mod tests {
         assert_eq!(json["servers"][1]["server"], "uav-sim");
         assert!(json["servers"][1]["state"].is_null());
         assert!(json["servers"][1]["checked_at"].is_null());
+    }
+    #[test]
+    fn module_binding_snapshot_does_not_invent_backend_probe_health() {
+        use veoveo_mcp_gateway::http::{ModuleBindingSnapshot, ModuleBindingState};
+        let mut report = report(std::iter::empty(), |_| None);
+        report.module_bindings = vec![ModuleBindingSnapshot {
+            module: veoveo_modules::ModuleName::new("extension").unwrap(),
+            state: ModuleBindingState::Unbound,
+            required: false,
+        }];
+        let json = serde_json::to_value(report).unwrap();
+        assert_eq!(json["servers"], serde_json::json!([]));
+        assert_eq!(json["module_bindings"][0]["state"], "unbound");
+        assert_eq!(json["module_bindings"][0]["required"], false);
     }
 }

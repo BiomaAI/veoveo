@@ -155,3 +155,5 @@ mod tests {
 #[cfg(test)]
 #[path = "../../../testing/fixtures/store.rs"]
 mod test_store;
+
+pub mod routes;

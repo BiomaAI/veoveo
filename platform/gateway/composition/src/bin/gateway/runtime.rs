@@ -1,22 +1,16 @@
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
-use anyhow::Context;
 use axum::Router;
 use chrono::Utc;
 use parking_lot::RwLock;
 use serde::Serialize;
 use tokio_util::sync::CancellationToken;
-use veoveo_agent_runtime::AgentControl;
-use veoveo_mcp_contract::{
-    CertificateAuthoritySource, GatewayInternalTokenIssuer, GatewayProfileId,
-    ResourceAuthorizationServer, ServerSlug,
-};
+use veoveo_mcp_contract::{GatewayInternalTokenIssuer, GatewayProfileId, ServerSlug};
 use veoveo_mcp_gateway::{
     GatewayCatalog, GatewayCatalogHandle, GatewayControlStore, GatewayRefreshDeliveryWindow,
     GatewayState, GatewayUpstreamHttpClientPool, RefreshTokenDeliveryCipher,
 };
 
-const GATEWAY_AUTH_HTTP_TIMEOUT: Duration = Duration::from_secs(10);
 const REFRESH_DELIVERY_GC_INTERVAL: Duration = Duration::from_secs(60);
 
 pub(super) type SharedCatalog = GatewayCatalogHandle;
@@ -35,17 +29,10 @@ pub(super) struct AppState {
     pub(super) refresh_delivery_window: GatewayRefreshDeliveryWindow,
 }
 
-#[derive(Clone)]
-pub(super) struct ProfileAuthState {
-    pub(super) catalog: SharedCatalog,
-    pub(super) gateway_state: GatewayState,
-    pub(super) public_base_url: String,
-    pub(super) http: SharedHttpClient,
-}
+pub(super) use veoveo_mcp_gateway::http::ProfileAuthState;
 
 #[derive(Clone)]
 pub(super) struct AdminState {
-    pub(super) agent_control: AgentControl,
     pub(super) catalog: SharedCatalog,
     pub(super) http: SharedHttpClient,
     pub(super) control_store: GatewayControlStore,
@@ -55,6 +42,7 @@ pub(super) struct AdminState {
     pub(super) artifact_server: ServerSlug,
     pub(super) artifact_service_url: String,
     pub(super) offline_mode: bool,
+    pub(super) module_bindings: Arc<Vec<veoveo_mcp_gateway::http::ModuleBindingSnapshot>>,
     pub(super) server_health: crate::admin::ServerHealthMonitor,
     pub(super) console_stream: crate::admin::ConsoleStreamRuntime,
 }
@@ -80,34 +68,6 @@ pub(super) struct ArtifactHttpState {
     pub(super) artifact_service_url: String,
 }
 
-#[derive(Clone)]
-pub(super) struct RecordingPlaybackState {
-    pub(super) catalog: SharedCatalog,
-    pub(super) gateway_state: GatewayState,
-    pub(super) internal_token_issuer: GatewayInternalTokenIssuer,
-    pub(super) upstream_http: GatewayUpstreamHttpClientPool,
-    pub(super) artifact_server: ServerSlug,
-}
-
-#[derive(Clone)]
-pub(super) struct RecordingLayerPublicationState {
-    pub(super) catalog: SharedCatalog,
-    pub(super) gateway_state: GatewayState,
-    pub(super) http: SharedHttpClient,
-    pub(super) internal_token_issuer: GatewayInternalTokenIssuer,
-    pub(super) artifact_server: ServerSlug,
-    pub(super) artifact_service_url: String,
-}
-
-#[derive(Clone)]
-pub(super) struct RecordingIngestGatewayState {
-    pub(super) catalog: SharedCatalog,
-    pub(super) gateway_state: GatewayState,
-    pub(super) http: SharedHttpClient,
-    pub(super) internal_token_issuer: GatewayInternalTokenIssuer,
-    pub(super) public_base_url: String,
-}
-
 #[derive(Debug, Serialize)]
 pub(super) struct Readiness {
     pub(super) status: &'static str,
@@ -115,38 +75,9 @@ pub(super) struct Readiness {
     pub(super) profiles: usize,
 }
 
-pub(super) fn current_catalog(catalog: &SharedCatalog) -> Arc<GatewayCatalog> {
-    catalog.current()
-}
-
-pub(super) fn current_http_client(http: &SharedHttpClient) -> reqwest::Client {
-    http.read().clone()
-}
-
-pub(super) fn public_oauth_issuer(public_base_url: &str) -> String {
-    format!("{}/oauth", public_base_url.trim_end_matches('/'))
-}
-
-pub(super) fn public_authorization_server<'a>(
-    catalog: &'a GatewayCatalog,
-    public_base_url: &str,
-) -> Option<&'a ResourceAuthorizationServer> {
-    catalog.authorization_server_by_issuer(&public_oauth_issuer(public_base_url))
-}
-
-pub(super) fn profile_id_from_gateway_path(path: &str) -> Option<GatewayProfileId> {
-    let mut segments = path.trim_start_matches('/').split('/');
-    match segments.next()? {
-        "mcp" | "admin" | "artifacts" | "recordings" | "computers" | "console-api"
-        | "workspace-api" | "speech" => {}
-        _ => return None,
-    }
-    let profile = segments.next()?;
-    if profile.is_empty() {
-        return None;
-    }
-    GatewayProfileId::new(profile).ok()
-}
+pub(super) use veoveo_mcp_gateway::http::{
+    build_http_client, current_catalog, current_http_client, public_authorization_server,
+};
 
 pub(super) fn replace_catalog(
     catalog: &SharedCatalog,
@@ -224,42 +155,9 @@ pub(super) fn spawn_refresh_delivery_gc_loop(
     })
 }
 
-pub(super) fn build_http_client(catalog: &GatewayCatalog) -> anyhow::Result<reqwest::Client> {
-    let mut builder = reqwest::Client::builder()
-        .timeout(GATEWAY_AUTH_HTTP_TIMEOUT)
-        .redirect(reqwest::redirect::Policy::none());
-
-    for identity_provider in catalog.identity_providers() {
-        for trust_anchor in &identity_provider.trusted_certificate_authorities {
-            match trust_anchor {
-                CertificateAuthoritySource::File { path } => {
-                    let bytes = std::fs::read(path.as_str()).with_context(|| {
-                        format!(
-                            "failed to read trusted CA certificate `{path}` for identity provider `{}`",
-                            identity_provider.id
-                        )
-                    })?;
-                    let certificate = reqwest::Certificate::from_pem(&bytes).with_context(|| {
-                        format!(
-                            "failed to parse trusted CA certificate `{path}` for identity provider `{}`",
-                            identity_provider.id
-                        )
-                    })?;
-                    builder = builder.add_root_certificate(certificate);
-                }
-            }
-        }
-    }
-
-    builder
-        .build()
-        .context("failed to build gateway HTTP client")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn delivery_envelope_gc_cadence_is_bounded_for_the_max_window() {
         assert!(REFRESH_DELIVERY_GC_INTERVAL <= Duration::from_secs(2 * 30));

@@ -1,3 +1,10 @@
+#[path = "gateway/agent_catalog_import.rs"]
+mod agent_catalog_import;
+#[cfg(test)]
+#[path = "gateway/managed_oauth_tests.rs"]
+mod managed_oauth_tests;
+#[path = "gateway/owner_modules.rs"]
+mod owner_modules;
 use std::{
     convert::Infallible, fmt, fmt::Write as _, num::NonZeroU32, path::PathBuf, str::FromStr,
 };
@@ -8,8 +15,6 @@ use bindings::catalog_admission;
 
 #[path = "gateway/admin.rs"]
 mod admin;
-#[path = "gateway/agent_management/mod.rs"]
-mod agent_management;
 #[path = "gateway/artifact_download.rs"]
 mod artifact_download;
 #[path = "gateway/artifact_upload.rs"]
@@ -20,8 +25,6 @@ mod audit;
 mod audit_cli;
 #[path = "gateway/auth.rs"]
 mod auth;
-#[path = "gateway/computers/mod.rs"]
-mod computers;
 #[path = "gateway/console/mod.rs"]
 mod console;
 #[path = "gateway/host.rs"]
@@ -36,27 +39,15 @@ mod oauth;
 mod oauth_client_credentials;
 #[path = "gateway/oauth_grants.rs"]
 mod oauth_grants;
-#[path = "gateway/recording_ingest.rs"]
-mod recording_ingest;
-#[path = "gateway/recording_layer_publication.rs"]
-mod recording_layer_publication;
-#[path = "gateway/recording_playback.rs"]
-mod recording_playback;
 #[path = "gateway/runtime.rs"]
 mod runtime;
 #[path = "gateway/server.rs"]
 mod server;
-#[path = "gateway/speech/mod.rs"]
-mod speech;
-#[path = "gateway/stream_limits.rs"]
-mod stream_limits;
 #[cfg(test)]
 #[path = "../../../../../testing/fixtures/store.rs"]
 mod test_store;
 #[path = "gateway/tokens.rs"]
 mod tokens;
-#[path = "gateway/workspace/mod.rs"]
-mod workspace;
 
 use anyhow::Context;
 use chrono::Utc;
@@ -154,7 +145,7 @@ enum Command {
         helm_values: bool,
     },
     /// Import a reviewed agent catalog and retained chat bindings with all gateways stopped.
-    AgentCatalogImport(agent_management::import::Arguments),
+    AgentCatalogImport(agent_catalog_import::Arguments),
     /// Validate typed gateway control data and exit.
     Validate {
         /// JSON control plane file.
@@ -342,7 +333,7 @@ async fn main() -> anyhow::Result<()> {
             composition,
             helm_values,
         } => module_installation::generate(&modules, composition, helm_values),
-        Command::AgentCatalogImport(args) => agent_management::import::run(args).await,
+        Command::AgentCatalogImport(args) => agent_catalog_import::run(args).await,
         Command::Validate { control_plane } => {
             let catalog = GatewayCatalog::load_json(&control_plane, crate::catalog_admission()?)?;
             println!(

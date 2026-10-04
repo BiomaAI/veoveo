@@ -13,8 +13,10 @@ for fresh preparation, lane completion, publication, credential rotation, stale 
 rejection and later module enablement. Managed-agent credential recovery and product
 activation remain open. Phase 2 Task contributions, versioned kernel SQL admission and
 Optimization's catalog reads pass their native checks. The gateway composition split
-and catalog, OAuth and TLS adapters pass native checks. Module-owned HTTP route
-registration and installed catalog startup admission remain open. Five additional browser contract
+and catalog, OAuth and TLS adapters pass native checks. Computers, Speech, Recordings,
+Agents and Workspace own their HTTP handlers; contributed route authentication and
+worker cleanup pass native checks. Owner-specific OAuth/catalog wire extraction and
+installed catalog startup admission remain open. Five additional browser contract
 bundles pass generation, consumer tests and builds. Production schema ownership moves
 in Phase 3.
 This is the single implementation plan for the former Foundations, Contract
@@ -298,7 +300,7 @@ qualified profile; D12 records the separate Apple proposal.
 | Leak | Evidence |
 |---|---|
 | Module persistence in the kernel store | `platform/store/src`: Workspace 1,885 lines and 27 query files; Agent management 1,634 and 7; Map 3,800 across `map`, `map_authoring`, `map_presentations`, `map_derivations`, `map_projection`; Recordings 3,861 across `recording_catalog`, `recording_ingest`, `recordings`, `recording_blueprints` |
-| Kernel crates depending on optional modules | The reusable gateway's normal/build graph excludes optional owner runtimes, Computers transport, Recording protocol and Speech contract. Composition still houses the domain HTTP handlers; shared wire models still include managed-agent claims and Recording configuration. `platform/store` depends on `veoveo-computers-contract`, which Phase 3 must remove |
+| Kernel crates depending on optional modules | The reusable gateway's normal/build graph excludes optional owner runtimes, Computers transport, Recording protocol and Speech contract. Domain owners supply their HTTP handlers through shared route registration and worker scopes. Native admission and shutdown checks pass. Shared wire models still include managed-agent claims and Recording configuration. `platform/store` depends on `veoveo-computers-contract`, which Phase 3 must remove |
 | Module schema in the kernel catalog | Every table is defined in `platform/store/migrations`; Optimization and UAV add indexes to `task` (migrations `0042`, `0093`) |
 | Module SQL on kernel tables | Statements reading or writing `task`, `artifact_occurrence` and identity tables directly: Computers 27, Reason 5, UAV 4, Map 3, Optimization 3, Frames, Stream, Artifact |
 
@@ -705,22 +707,59 @@ the optional adapters cannot pull gateway code into Console's build inputs.
 The shared OAuth port still uses `ManagedAgentToken`, and the control-plane aggregate
 still names Recording configuration. Extracting these owner-specific wire types and
 their consumers remains required before the extension architecture is complete.
-The remaining route batch must provide
-the typed shared context, cancellation and registration builder, move each domain's
-handlers into its owner, and qualify independently contributed routes. The package
-split alone does not satisfy that gate.
+The route registration builder supplies a typed shared context and validates required
+bindings before starting factories. Each domain supplies its own handlers. Independent
+route fixtures qualify a nested namespace without a core prefix declaration, bearer
+admission and audits, unknown profiles and rejection of encoded aliases. Module scopes
+track request handlers, streaming bodies, upgrades and background work. Closing
+admission and draining use one 30-second deadline; cancelled cleanup observers do not
+reset it. Startup errors, occupied listeners and route conflicts await cleanup before
+returning. Streaming cancellation reports interruption and ordinary streams preserve
+trailers. Composition drains module work before closing audit delivery.
 
-Route registration owns the profile capture; core authentication must not enumerate
-domain URL prefixes. Preserve raw-profile admission and audit behavior, including
-rejection of encoded aliases. Each module tracks its background and request-started
-workers, stops admission on shutdown and awaits cancellation within a declared deadline.
 Agents supplies a typed capability-reader port and a native MCP adapter independent
 of Workspace operation state. Both owners reuse gateway-native transport and discovery
 mechanics; callers supply client capabilities and progress observers. Workspace may
-depend on Agents, while Agents must work with Workspace disabled. Module construction
-starts after registration validation, and failed construction cancels and awaits any
-workers it started. These changes preserve durable operation settlement and
-unresolved-outcome fencing.
+depend on Agents, while Agents works with Workspace disabled. Owner suites qualify
+current policy, caller credentials, durable admission and cancellation. Stopped module
+admission cannot create a new durable operation, and transport cancellation does not
+settle an unresolved provider outcome.
+
+Owner-wire extraction follows the route move. The proposed ownership cut puts the
+managed token binding in Agents' contract feature and producer configuration in
+Recording's contract. A composition-supplied registry declares reserved access-token
+claims and catalog sections separately from their bound owner codecs. A configured section or signed
+reserved claim requires its owner adapter. Disabling an adapter cannot turn a managed
+identity into an ordinary static client. Public OAuth verification enforces this
+rule; unrelated external JWT claims keep their current treatment.
+Core stores immutable admitted extension payloads at the serialization boundary,
+while owner handlers retrieve concrete types through registry-bound typed keys.
+Reject duplicate keys, core-name collisions and replacement of verified claims.
+Recording contributes generic protected-resource descriptors for OAuth cross-reference
+validation. Publication and reload use the same admissions. Preserve the current JWT
+and catalog wire spellings until the composed schema, authority and isolated-contract
+checks qualify the ownership cut.
+
+Internal assertions need the checked execution attribution, rather than the public
+owner claim. Agents' admitted authority supplies the existing audit contract's
+`AuditManagedExecution`, with its nominal instance ID and positive generation and
+dispatch epoch. Gateway signs that projection in the internal request context.
+The verifier checks its relationship to the automated service identity, client,
+tenant, Work Context and absence of a session family. Audit construction consumes
+the same projection and preserves the frozen audit format. Generic hosts do not
+need an Agents codec or a second extension registry.
+
+This projection is gateway-attested execution evidence, not an authorization grant.
+Knowledge's `src/authority.rs` uses the current binding for live registration checks;
+it must retain every instance, generation, epoch, registration, scope, role and tool
+comparison when consuming the projection. Gateway discovery fingerprints must also
+include it. Qualify missing or unexpected attribution, malformed counters, source
+collisions, current revocation and stale discovery. Public token shapes and stored
+audit records stay unchanged. The internal assertion format requires a declared,
+coordinated gateway/server drain and explicit rejection of unsupported formats;
+absence must never downgrade a managed identity to a static client. The proposed
+cut preserves the host builder and verifier call interfaces. If implementation
+requires changes in shared hosting, present them for user-directed review first.
 
 ## Phase 3: Module Ownership Of Persistence And Queries
 
@@ -740,6 +779,24 @@ Phase 3 moves module code to its owner and puts every SurrealQL statement in a f
 | Dependency closure | Isolated Cargo graphs show no optional-module dependency in reusable kernel libraries, including Store; composition packages may bind declared modules |
 | SQL admission | Tenant, owner, context, labels, parent and operation selection remain in SQL before decoding, ranking and limits; kernel functions preserve the same policy |
 | Suites | Store, task-runtime, gateway, computers and every moved module's suite against real SurrealDB |
+
+Move the Computers changefeed decoder to `platform/computers`, then replace Store's
+optional-domain table enums with checked owner observation declarations. Preserve
+checkpoint replay and malformed-row rejection. Domain repositories wrap the shared
+connection and kernel services; their records, errors and queries move together.
+Agents persistence belongs in `agents/runtime`, Workspace in `platform/workspace`
+and Map in the server's persistence feature below its spatial runtime. Agent chat
+imports mutate Workspace participants, so Workspace owns that transaction and consumes
+typed Agent revision admission. Agents must not depend on Workspace.
+
+Recording persistence needs a lower `platform/recordings/store` library. Recording MCP
+already depends on Hub and Reader, while those libraries and Video also consume its
+catalog and ingest persistence. Putting that persistence in the server creates a
+package cycle. The existing Recording contract stays limited to public models; Hub,
+Reader and RRD own different runtime concerns. The new library has independent schema
+and persistence features and adds no process. The server reexports its schema declaration
+under the existing module identity. Move each owner's native tests with its repository,
+and qualify the complete dependency chain against fresh owner lanes in one batch.
 
 ## Phase 4: Database Field Types
 

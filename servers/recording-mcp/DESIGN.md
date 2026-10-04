@@ -398,3 +398,14 @@ require separate implementation and qualification. Future owner migrations and
 queries belong together in this owner's crate, with one declaration per object.
 
 Artifact references in dataset blueprints and layers are covered by the required earlier Artifacts lane. The declaration does not move catalog or ingest persistence from the current Store.
+
+## Gateway HTTP Adapter
+
+The `gateway` feature exports Recording playback, layer publication and producer
+ingest routers from `src/gateway/routes`. It excludes Redap and hosted runtime
+implementation dependencies. Composition declares one deferred Recording factory.
+Playback and publication retain profile authentication; producers retain their
+resource-specific credentials and scopes. Shared module admission tracks request
+workers and streaming bodies. Shutdown interrupts live transport and retains no
+claim that a durable publication or append failed. Hosted internal server paths are
+independent of these public gateway adapters.

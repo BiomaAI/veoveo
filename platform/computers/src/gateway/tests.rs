@@ -1,5 +1,4 @@
-#[path = "../../../../testing/fixtures/catalog_admission.rs"]
-mod catalog_admission;
+use crate::test_catalog_admission as catalog_admission;
 use veoveo_mcp_gateway::GatewayCatalog;
 
 use rcgen::generate_simple_self_signed;

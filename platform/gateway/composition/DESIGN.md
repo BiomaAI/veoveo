@@ -35,3 +35,14 @@ native prerequisites. Reusable library integration tests stay in the parent pack
 Image selection tests prove the Bake target builds this package and includes the
 kernel library through its normal dependency graph. Installed lifecycle qualification
 belongs to [deployment smoke](../../../testing/deployment-smoke/DESIGN.md).
+
+## Optional HTTP Routes
+
+Composition supplies the shared HTTP context and declares owner factories keyed by
+`ModuleName`. Computers, Speech, Recording, Agents and Workspace own their handlers.
+Factory construction is deferred until binding validation succeeds. The executable
+retains the module cleanup supervisor across construction and serving, closes
+admission before shutdown and reports unresolved cleanup within one module deadline.
+Listener setup failures and route composition panics await the same cleanup before
+returning. Module workers drain before the process closes audit delivery.
+Authenticated server health lists module bindings separately from backend probes.

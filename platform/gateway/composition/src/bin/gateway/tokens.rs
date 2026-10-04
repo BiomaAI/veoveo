@@ -1,18 +1,14 @@
 use std::collections::BTreeSet;
 
-use anyhow::{Context, anyhow};
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
+use anyhow::anyhow;
 use chrono::{TimeDelta, Utc};
-use jsonwebtoken::{
-    Algorithm, EncodingKey, Header, encode,
-    jwk::{Jwk, JwkSet},
-};
+use jsonwebtoken::{Algorithm, Header, encode};
 use serde::Serialize;
 use veoveo_mcp_contract::{
     JwtId, OAuthClientId, Principal, PrincipalDisplayName, PrincipalKind, ProtectedResourceId,
-    ResourceAuthorizationServer, SecretPurpose, SecretReferenceId, TokenSubject,
+    ResourceAuthorizationServer, SecretPurpose, TokenSubject,
 };
-use veoveo_mcp_gateway::{GatewayCatalog, GatewaySecretResolver};
+use veoveo_mcp_gateway::GatewayCatalog;
 use veoveo_types::{InvocationProvenance, PrincipalId, ScopeName, TenantId, WorkContextId};
 
 pub(super) const ACCESS_TOKEN_TTL_SECONDS: i64 = 15 * 60;
@@ -248,34 +244,8 @@ pub(super) async fn issue_access_token(
     })
 }
 
-pub(super) async fn authorization_server_jwks_from_signing_key(
-    catalog: &GatewayCatalog,
-    authorization_server: &ResourceAuthorizationServer,
-) -> anyhow::Result<JwkSet> {
-    let signing_key = access_token_signing_key(
-        catalog,
-        &authorization_server.access_token_signing_key,
-        SecretPurpose::JwksPrivateKey,
-    )
-    .await?;
-    let mut jwk = Jwk::from_encoding_key(&signing_key, Algorithm::RS256)?;
-    jwk.common.key_id = Some(authorization_server.access_token_key_id.to_string());
-    Ok(JwkSet { keys: vec![jwk] })
-}
-
-async fn access_token_signing_key(
-    catalog: &GatewayCatalog,
-    secret_id: &SecretReferenceId,
-    expected_purpose: SecretPurpose,
-) -> anyhow::Result<EncodingKey> {
-    let value = GatewaySecretResolver::new()
-        .resolve_string(catalog, secret_id, expected_purpose)
-        .await?;
-    let der = BASE64_STANDARD
-        .decode(value.expose_secret().trim())
-        .context("access-token signing key must be base64-encoded RSA DER")?;
-    Ok(EncodingKey::from_rsa_der(&der))
-}
+use veoveo_mcp_gateway::http::auth_support::access_token_signing_key;
+pub(super) use veoveo_mcp_gateway::http::auth_support::authorization_server_jwks_from_signing_key;
 
 fn unix_seconds(value: i64) -> anyhow::Result<u64> {
     u64::try_from(value).map_err(|_| anyhow!("timestamp before Unix epoch"))

@@ -16,7 +16,6 @@ use secrecy::{ExposeSecret, SecretString};
 use tokio_util::sync::CancellationToken;
 use tower::ServiceExt;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
-use veoveo_agent_runtime::AgentControl;
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalSigningKey, GatewayInternalTokenIssuer,
     GatewayProfileId, PublicDeployment, TokenIssuer, public_allowed_hosts,
@@ -29,13 +28,11 @@ use veoveo_mcp_gateway::{
 use super::{
     admin::{
         authorize_console_cluster, cancel_artifact_access_request, cancel_task,
-        create_artifact_access_request, create_artifact_share_link, decide_agent_input_request,
-        decide_artifact_access_request, grant_artifact, list_agent_input_requests,
-        list_artifact_access_requests, proxy_server_admin, prune_jwt_revocations,
-        read_agent_conversation, read_console_artifact, read_console_snapshot, read_control_plane,
-        read_server_health, revoke_artifact_grant, revoke_artifact_share_link, revoke_jwt,
-        send_agent_message, set_artifact_release_state, spawn_console_wake_hub,
-        spawn_server_health_prober, stream_console, update_control_plane,
+        create_artifact_access_request, create_artifact_share_link, decide_artifact_access_request,
+        grant_artifact, list_artifact_access_requests, proxy_server_admin, prune_jwt_revocations,
+        read_console_artifact, read_console_snapshot, read_control_plane, read_server_health,
+        revoke_artifact_grant, revoke_artifact_share_link, revoke_jwt, set_artifact_release_state,
+        spawn_console_wake_hub, spawn_server_health_prober, stream_console, update_control_plane,
     },
     artifact_download::download_artifact,
     auth::{
@@ -44,16 +41,9 @@ use super::{
     },
     host::validate_host,
     oauth::{authorization_callback, authorize_endpoint, revoke_refresh_token, token_endpoint},
-    recording_ingest::recording_ingest_router,
-    recording_layer_publication::publish_recording_layer,
-    recording_playback::{
-        catalog_grant, playback_blueprint, playback_live_recording, playback_manifest,
-        projection_data,
-    },
     runtime::{
         AdminState, AppState, ArtifactHttpState, DynamicMcpState, ProfileAuthState,
-        ProfileMcpService, Readiness, RecordingIngestGatewayState, RecordingLayerPublicationState,
-        RecordingPlaybackState, build_http_client, current_catalog, profile_id_from_gateway_path,
+        ProfileMcpService, Readiness, build_http_client, current_catalog,
         spawn_authorization_retention_gc_loop, spawn_refresh_delivery_gc_loop,
     },
 };
@@ -102,7 +92,6 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
         managed_templates.clone(),
     )?;
     let audit_store = control_store.platform_store().clone();
-    let agent_control = AgentControl::new(control_store.platform_store().clone())?;
     let catalog = GatewayCatalogHandle::new(initial_catalog.clone());
     let internal_signing_key_der = BASE64_STANDARD
         .decode(internal_signing_key_der_b64.expose_secret().trim())
@@ -113,6 +102,7 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
     );
     let deployment = PublicDeployment::new(public_base_url)?;
     let ct = CancellationToken::new();
+    let _stop = ct.clone().drop_guard();
     let allowed_hosts = Arc::new(public_allowed_hosts(&deployment, allow_loopback_hosts));
     let http = Arc::new(RwLock::new(build_http_client(&initial_catalog)?));
     let upstream_http = GatewayUpstreamHttpClientPool::new();
@@ -147,8 +137,8 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
     let auth_state = ProfileAuthState {
         catalog: catalog.clone(),
         gateway_state: gateway_state.clone(),
-        public_base_url: deployment.base_url().to_string(),
-        http: http.clone(),
+        deployment: deployment.clone(),
+        auth_http: http.clone(),
     };
     let mcp_state = DynamicMcpState {
         catalog: catalog.clone(),
@@ -168,46 +158,6 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
             authenticate_mcp,
         ));
     router = router.merge(mcp_router);
-
-    router = router.merge(
-        crate::speech::router(crate::speech::SpeechState {
-            catalog: catalog.clone(),
-            gateway_state: gateway_state.clone(),
-            issuer: internal_token_issuer.clone(),
-            upstream: upstream_http.clone(),
-            slots: Arc::new(tokio::sync::Semaphore::new(32)),
-        })
-        .layer(middleware::from_fn_with_state(
-            auth_state.clone(),
-            authenticate_mcp,
-        )),
-    );
-
-    let computers_origin = url::Url::parse(deployment.base_url())?
-        .origin()
-        .ascii_serialization();
-    let computers_state = crate::computers::ComputersState {
-        catalog: catalog.clone(),
-        gateway_state: gateway_state.clone(),
-        issuer: internal_token_issuer.clone(),
-        upstream: upstream_http.clone(),
-        transport: veoveo_computers::gateway::ComputersGatewayClientPool::new(),
-        origin: axum::http::HeaderValue::from_str(&computers_origin)?,
-        slots: Arc::new(tokio::sync::Semaphore::new(128)),
-        stop: ct.child_token(),
-    };
-    router = router.merge(crate::computers::cli_router(computers_state.clone()));
-    router = router.merge(crate::computers::router(computers_state).layer(
-        middleware::from_fn_with_state(auth_state.clone(), authenticate_mcp),
-    ));
-
-    router = router.merge(recording_ingest_router(RecordingIngestGatewayState {
-        catalog: catalog.clone(),
-        gateway_state: gateway_state.clone(),
-        http: http.clone(),
-        internal_token_issuer: internal_token_issuer.clone(),
-        public_base_url: deployment.base_url().to_string(),
-    }));
 
     let artifact_http_state = ArtifactHttpState {
         catalog: catalog.clone(),
@@ -234,56 +184,6 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
         ));
     router = router.merge(artifact_download_router);
 
-    let recording_publication_router = Router::new()
-        .route(
-            "/recordings/{profile}/layers",
-            axum::routing::post(publish_recording_layer),
-        )
-        .with_state(RecordingLayerPublicationState {
-            catalog: catalog.clone(),
-            gateway_state: gateway_state.clone(),
-            http: http.clone(),
-            internal_token_issuer: internal_token_issuer.clone(),
-            artifact_server: veoveo_mcp_contract::ServerSlug::new("artifact")?,
-            artifact_service_url: artifact_service_url.trim_end_matches('/').to_owned(),
-        })
-        .layer(middleware::from_fn_with_state(
-            auth_state.clone(),
-            authenticate_mcp,
-        ));
-    router = router.merge(recording_publication_router);
-
-    let recording_playback_router = Router::new()
-        .route("/recordings/{profile}/catalog-grants", post(catalog_grant))
-        .route(
-            "/recordings/{profile}/{recording_id}/playback",
-            get(playback_manifest),
-        )
-        .route(
-            "/recordings/{profile}/{recording_id}/live/rrd-stream",
-            get(playback_live_recording),
-        )
-        .route(
-            "/recordings/{profile}/{recording_id}/blueprints/{revision}/data.rrd",
-            get(playback_blueprint),
-        )
-        .route(
-            "/recordings/{profile}/{recording_id}/projections/{projection_id}/data.arrow",
-            get(projection_data),
-        )
-        .with_state(RecordingPlaybackState {
-            catalog: catalog.clone(),
-            gateway_state: gateway_state.clone(),
-            internal_token_issuer: internal_token_issuer.clone(),
-            upstream_http: upstream_http.clone(),
-            artifact_server: veoveo_mcp_contract::ServerSlug::new("artifact")?,
-        })
-        .layer(middleware::from_fn_with_state(
-            auth_state.clone(),
-            authenticate_mcp,
-        ));
-    router = router.merge(recording_playback_router);
-
     router = router.merge(
         Router::new()
             .route(
@@ -300,62 +200,63 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
             )),
     );
 
-    let workspace_operations = crate::workspace::operations::OperationState::new(
-        control_store.platform_store().clone(),
-        gateway_state.clone(),
-        catalog.clone(),
-        ct.child_token(),
-        port,
-        deployment.base_url(),
-    )?;
-    let agent_management = crate::agent_management::AgentManagementState {
-        gateway: gateway_state.clone(),
-        templates: managed_templates.clone(),
+    let context = veoveo_mcp_gateway::http::GatewayHttpContext {
+        deployment: deployment.clone(),
         catalog: catalog.clone(),
-        models: Arc::new(crate::agent_management::models::from_env(
-            &catalog.current(),
-        )?),
-        operations: workspace_operations.clone(),
-        stop: ct.child_token(),
-        definition_limit: 1_000,
-        instance_limits: crate::agent_management::instance_limits()?,
+        gateway_state: gateway_state.clone(),
+        internal_token_issuer: internal_token_issuer.clone(),
+        upstream_http: upstream_http.clone(),
+        auth_http: http.clone(),
     };
-    router = router.merge(
-        crate::agent_management::router(agent_management.clone()).layer(
-            middleware::from_fn_with_state(auth_state.clone(), authenticate_mcp),
+    let mut registrations = veoveo_mcp_gateway::http::GatewayModules::new();
+    let mut required = vec![];
+    for (name, factory) in [
+        (
+            "computers",
+            veoveo_computers::gateway::routes::build as fn(_, _) -> _,
         ),
-    );
-    router = router.merge(
-        crate::workspace::router(crate::workspace::WorkspaceState {
-            store: control_store.platform_store().clone(),
+        ("speech", veoveo_speech_mcp::gateway::build as fn(_, _) -> _),
+    ] {
+        let module = veoveo_modules::ModuleName::new(name)?;
+        required.push(module.clone());
+        registrations.register(module, move |context, scope| {
+            Box::pin(async move { factory(context, scope) })
+        })?;
+    }
+    let recording_url = artifact_service_url.trim_end_matches('/').to_owned();
+    let recordings = veoveo_modules::ModuleName::new("recordings")?;
+    required.push(recordings.clone());
+    registrations.register(recordings, move |context, scope| {
+        Box::pin(async move {
+            veoveo_recording_mcp::gateway::routes::build(context, scope, recording_url)
         })
-        .merge(crate::workspace::runs::router(
-            control_store.platform_store().clone(),
-            gateway_state.clone(),
-            catalog.clone(),
-            ct.child_token(),
-            workspace_operations.clone(),
-            agent_management,
-        )?)
-        .merge(crate::workspace::operations::router(workspace_operations))
-        .merge(crate::workspace::events::router(
-            control_store.platform_store().clone(),
-            gateway_state.clone(),
-            catalog.clone(),
-            ct.child_token(),
-        ))
-        .layer(middleware::from_fn_with_state(
-            auth_state.clone(),
-            authenticate_mcp,
-        )),
-    );
+    })?;
+    super::owner_modules::register(
+        &mut registrations,
+        &mut required,
+        std::num::NonZeroU16::new(port).context("gateway port must be positive")?,
+        &context,
+        managed_templates,
+    )?;
+    let _module_cleanup = registrations.supervisor();
+    let modules = registrations.build(context, &required).await?;
+    let module_shutdown = modules.shutdown_signal();
+    let module_bindings = Arc::new(modules.bindings().to_vec());
+    for binding in module_bindings.iter() {
+        tracing::info!(module=%binding.module,state=?binding.state,required=binding.required,"gateway module binding");
+    }
+    let module_router = modules.router();
+    modules.run(async {
+    let addr=SocketAddr::from(([0,0,0,0],port));
+    let listener=tokio::net::TcpListener::bind(addr).await?;
+    router = router.merge(module_router);
+
 
     let server_health =
         spawn_server_health_prober(catalog.clone(), upstream_http.clone(), ct.child_token());
     let console_stream =
         spawn_console_wake_hub(control_store.platform_store().clone(), ct.child_token());
     let admin_state = AdminState {
-        agent_control,
         catalog: catalog.clone(),
         http: http.clone(),
         control_store,
@@ -366,6 +267,7 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
         artifact_service_url,
         offline_mode,
         server_health,
+        module_bindings,
         console_stream,
     };
     let admin_router = Router::new()
@@ -418,22 +320,6 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
         .route(
             "/admin/{profile}/tasks/{server}/{task_id}/cancel",
             post(cancel_task),
-        )
-        .route(
-            "/admin/{profile}/agents/{agent_id}/messages",
-            post(send_agent_message),
-        )
-        .route(
-            "/admin/{profile}/agents/{agent_id}/conversation",
-            get(read_agent_conversation),
-        )
-        .route(
-            "/admin/{profile}/agents/{agent_id}/input-requests",
-            get(list_agent_input_requests),
-        )
-        .route(
-            "/admin/{profile}/agents/{agent_id}/input-requests/{input_request_id}/decision",
-            post(decide_agent_input_request),
         )
         .route("/admin/{profile}/server-health", get(read_server_health))
         .route(
@@ -488,7 +374,6 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
                 .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO)),
         );
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
     tracing::info!(
         service = "veoveo-mcp-gateway",
         address = %addr,
@@ -496,7 +381,6 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
         profile_count = initial_catalog.profile_count(),
         "listening"
     );
-    let listener = tokio::net::TcpListener::bind(addr).await?;
     let audit = gateway_state.audit_writer().await.clone();
     let audit_service = veoveo_audit::AuditService::start(
         audit_store,
@@ -515,10 +399,12 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
     .with_graceful_shutdown({
         let audit = audit.clone();
         let ct = ct.clone();
+        let module_shutdown=module_shutdown.clone();
         async move {
             let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
                 .expect("install SIGTERM handler");
             tokio::select! { _ = tokio::signal::ctrl_c() => {}, _ = terminate.recv() => {}, _ = audit.closed() => {} }
+            module_shutdown.cancel();
             ct.cancel();
         }
     }));
@@ -528,7 +414,9 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
         _ = ct.cancelled() => tokio::time::timeout(std::time::Duration::from_secs(30), &mut serving)
             .await.context("gateway HTTP shutdown deadline exceeded").and_then(|result| result.map_err(Into::into)),
     };
+    module_shutdown.cancel();
     ct.cancel();
+    let modules_drained = module_shutdown.drain().await;
     let drained = audit.shutdown(std::time::Duration::from_secs(30)).await;
     let sealed = audit_service
         .shutdown(std::time::Duration::from_secs(30))
@@ -540,10 +428,12 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
     })
     .await;
     result?;
+    modules_drained?;
     drained?;
     sealed?;
     cleanup??;
     Ok(())
+    }).await
 }
 
 async fn load_initial_catalog(
@@ -586,7 +476,7 @@ async fn dynamic_mcp_profile(
     State(state): State<DynamicMcpState>,
     request: Request,
 ) -> axum::response::Response {
-    let Some(profile_id) = profile_id_from_gateway_path(request.uri().path()) else {
+    let Some(profile_id) = veoveo_mcp_gateway::http::profile_from_request(&request) else {
         return StatusCode::NOT_FOUND.into_response();
     };
     let catalog = current_catalog(&state.catalog);
@@ -665,11 +555,19 @@ mod tests {
             "/speech/workspace/dictation/123/finish",
         ] {
             assert_eq!(
-                profile_id_from_gateway_path(path).unwrap().as_str(),
+                veoveo_mcp_gateway::http::profile_from_route("/speech/{profile}/{*path}", path)
+                    .unwrap()
+                    .as_str(),
                 "workspace"
             );
         }
-        assert!(profile_id_from_gateway_path("/speech//dictation").is_none());
+        assert!(
+            veoveo_mcp_gateway::http::profile_from_route(
+                "/speech/{profile}/dictation",
+                "/speech//dictation"
+            )
+            .is_none()
+        );
     }
 
     #[test]
@@ -695,7 +593,8 @@ mod tests {
     #[test]
     fn artifact_download_path_carries_the_authenticated_profile() {
         assert_eq!(
-            profile_id_from_gateway_path(
+            veoveo_mcp_gateway::http::profile_from_route(
+                "/artifacts/{profile}/{artifact_id}/download",
                 "/artifacts/operator/0197f78e-f2f0-7a6e-8a5d-f41c691e4471/download"
             )
             .as_ref()
@@ -708,7 +607,8 @@ mod tests {
     #[test]
     fn recording_live_stream_path_carries_the_authenticated_profile() {
         assert_eq!(
-            profile_id_from_gateway_path(
+            veoveo_mcp_gateway::http::profile_from_route(
+                "/recordings/{profile}/{recording_id}/live/rrd-stream",
                 "/recordings/operator/019faa9f-acc8-7400-ba67-a9b022da1f63/live/rrd-stream"
             )
             .as_ref()

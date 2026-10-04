@@ -66,7 +66,7 @@ and time-read scopes. Work Context and resource policies still apply to every ac
 
 `gateway.agents.models` admits the model connection. `agents.json` is the explicit
 Assistant/Reviewer import source; gateway startup never reconciles it over Console
-edits. The [catalog import procedure](../../platform/gateway/composition/src/bin/gateway/agent_management/DESIGN.md#installation-import)
+edits. The [catalog import procedure](../../agents/runtime/src/gateway/http/DESIGN.md#installation-import)
 preserves existing chat participant IDs and records exact source digests.
 
 The client entry is `/workspace/`. Agent responses can dispatch admitted native MCP

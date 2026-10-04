@@ -45,3 +45,5 @@ impl ComputersGatewayClientPool {
 
 #[cfg(test)]
 mod tests;
+
+pub mod routes;

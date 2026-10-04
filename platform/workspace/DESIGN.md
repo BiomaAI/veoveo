@@ -40,3 +40,10 @@ dependency points from Workspace to Agents, so participant import belongs in a
 Workspace API. Composition must coordinate that operation with Agent catalog
 operations while preserving writer exclusion, transactional checks, explicit rollback
 and audit. The empty declaration does not certify the current reverse writes.
+
+## Gateway Feature
+
+The optional `gateway` feature owns the Workspace HTTP application API in
+[`src/gateway/DESIGN.md`](src/gateway/DESIGN.md). Its dependencies are gated separately
+from schema declarations. Workspace consumes the Agents library and reusable gateway
+HTTP services. The Agents library can initialize and serve without Workspace.

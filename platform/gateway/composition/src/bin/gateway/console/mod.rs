@@ -62,3 +62,6 @@ pub(crate) async fn bootstrap(
     )
         .into_response()
 }
+
+#[cfg(test)]
+mod tests_admission;
