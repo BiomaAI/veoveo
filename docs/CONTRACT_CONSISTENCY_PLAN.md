@@ -193,9 +193,11 @@ designs and AGENTS.md govern implementation until their qualified replacements l
   and reuse unaffected checks. A helper or individual server is not automatically a
   new build, publication or deployment checkpoint.
 - Inspect branch and worktree ownership before editing. Use coherent commits after
-  affected native checks pass. A separate worktree needs a concrete coordination
-  reason; preserve shared build caches and avoid duplicate Cargo targets. Coordinate
-  the naming cut with other writers rather than assuming another agent is idle.
+  affected native checks pass. During this refactor, prefer few active worktrees and
+  integrate completed batches into `main` promptly. Use another worktree when its
+  isolation or coordination benefit warrants the cost; this is a working preference.
+  Preserve shared build caches and avoid duplicate Cargo targets. Coordinate the
+  naming cut with other writers rather than assuming another agent is idle.
 - Run native framework commands. `cargo xtask smoke` dispatches existing harnesses;
   it does not reimplement domain assertions. No CI or committed test-report system
   is introduced by this plan. Documentation changes run `cargo xtask enforce docs`.
