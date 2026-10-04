@@ -66,7 +66,7 @@ and time-read scopes. Work Context and resource policies still apply to every ac
 
 `gateway.agents.models` admits the model connection. `agents.json` is the explicit
 Assistant/Reviewer import source; gateway startup never reconciles it over Console
-edits. The [catalog import procedure](../../platform/gateway/src/bin/gateway/agent_management/DESIGN.md#installation-import)
+edits. The [catalog import procedure](../../platform/gateway/composition/src/bin/gateway/agent_management/DESIGN.md#installation-import)
 preserves existing chat participant IDs and records exact source digests.
 
 The client entry is `/workspace/`. Agent responses can dispatch admitted native MCP
@@ -444,7 +444,7 @@ private directory, keep the public-key output with the installation's verificati
 material, and create the Secret before starting the gateway:
 
 ~~~bash
-cargo run -p veoveo-mcp-gateway --bin gateway -- audit keygen \
+cargo run -p veoveo-gateway-composition --bin gateway -- audit keygen \
   --secret-out /private/installation/audit-seed.b64 > /private/installation/audit-public-key.json
 kubectl --context k3d-veoveo-bioma -n veoveo create secret generic veoveo-audit-signing-key \
   --from-file=seed-b64=/private/installation/audit-seed.b64
@@ -834,7 +834,7 @@ provider:
 Validate control-plane edits before committing:
 
 ~~~bash
-cargo run -p veoveo-mcp-gateway --bin gateway --   validate --control-plane examples/bioma/gateway.json
+cargo run -p veoveo-gateway-composition --bin gateway --   validate --control-plane examples/bioma/gateway.json
 ~~~
 
 Sign out and authenticate again after an app-role or requested-scope change because an

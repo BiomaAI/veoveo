@@ -129,7 +129,11 @@ async fn negotiated_read_commits_observation_before_delivery_and_fails_when_writ
 }
 async fn qualify() {
     let db = crate::test_store::TestDb::new().await;
-    let state = crate::GatewayState::new(db.a.clone());
+    let state = crate::GatewayState::new(db.a.clone())
+        .bind_oauth_client_resolver(std::sync::Arc::new(
+            crate::oauth_clients::CatalogOAuthClientResolver,
+        ))
+        .unwrap();
     let gateway = super::super::task_ownership_tests::gateway(
         state.clone(),
         serde_json::from_str(include_str!("../../../../../configs/gateway.local.json")).unwrap(),
@@ -270,7 +274,11 @@ async fn indexing_gate_binds_approval_enumeration_members_and_revocation() {
         let plane = indexing_fixture::plane();
         plane.validate().unwrap();
         let mut gateway = super::super::task_ownership_tests::gateway(
-            crate::GatewayState::new(db.a.clone()),
+            crate::GatewayState::new(db.a.clone())
+                .bind_oauth_client_resolver(std::sync::Arc::new(
+                    crate::oauth_clients::CatalogOAuthClientResolver,
+                ))
+                .unwrap(),
             plane.clone(),
         );
         gateway.profile_id = "knowledge-indexing".parse().unwrap();
@@ -539,9 +547,16 @@ async fn indexing_gate_binds_approval_enumeration_members_and_revocation() {
         changed.servers[0].knowledge[0]
             .authoritative_for
             .insert(veoveo_knowledge_contract::KnowledgeSubject::new("New approval").unwrap());
-        gateway.catalog.replace(Arc::new(
-            crate::GatewayCatalog::from_control_plane(changed).unwrap(),
-        ));
+        gateway
+            .catalog
+            .replace(Arc::new(
+                crate::GatewayCatalog::from_control_plane(
+                    changed,
+                    crate::test_catalog_admission::binding(),
+                )
+                .unwrap(),
+            ))
+            .unwrap();
         assert!(
             gateway
                 .validate_indexing_delivery(&subject, &member, &permit, Some(&observation(vec![])))
@@ -558,9 +573,16 @@ async fn indexing_gate_binds_approval_enumeration_members_and_revocation() {
         let mut catalog_only = plane.clone();
         catalog_only.servers[0].knowledge[0].mode =
             veoveo_knowledge_contract::CollectionApproval::CatalogOnly;
-        gateway.catalog.replace(Arc::new(
-            crate::GatewayCatalog::from_control_plane(catalog_only).unwrap(),
-        ));
+        gateway
+            .catalog
+            .replace(Arc::new(
+                crate::GatewayCatalog::from_control_plane(
+                    catalog_only,
+                    crate::test_catalog_admission::binding(),
+                )
+                .unwrap(),
+            ))
+            .unwrap();
         assert!(
             gateway
                 .admit_indexing_read(&subject, &contract, &contract_meta)

@@ -193,7 +193,11 @@ async fn gateway_preserves_body_rejection_without_replaying_or_poisoning_other_r
     tokio::time::timeout(Duration::from_secs(90), async {
         let db = crate::test_store::TestDb::new().await;
         let source = Fixture::start(Fault::BodyLimit).await;
-        let state = crate::GatewayState::new(db.a.clone());
+        let state = crate::GatewayState::new(db.a.clone())
+            .bind_oauth_client_resolver(std::sync::Arc::new(
+                crate::oauth_clients::CatalogOAuthClientResolver,
+            ))
+            .unwrap();
         let mut plane: GatewayControlPlane =
             serde_json::from_str(include_str!("../../../../../configs/gateway.local.json"))
                 .unwrap();

@@ -736,7 +736,7 @@ pub(crate) fn helm_config() -> Result<()> {
         "veoveo.ai/device-plugin-config: time-slicing-8",
     )?;
 
-    let gateway_dockerfile = fs::read_to_string("platform/gateway/Dockerfile")?;
+    let gateway_dockerfile = fs::read_to_string("platform/gateway/composition/Dockerfile")?;
     not_contains(&gateway_dockerfile, "libduckdb")?;
     contains(
         &gateway_dockerfile,
@@ -904,7 +904,7 @@ pub(crate) fn helm_config() -> Result<()> {
         "apps/console/bff/Dockerfile",
         "mcp/bridges/stdio/Dockerfile",
         "platform/artifacts/service/Dockerfile",
-        "platform/gateway/Dockerfile",
+        "platform/gateway/composition/Dockerfile",
         "platform/recordings/forwarder/Dockerfile",
         "platform/recordings/hub/Dockerfile",
         "servers/artifact-mcp/Dockerfile",

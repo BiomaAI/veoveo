@@ -1,3 +1,5 @@
+#[path = "../../../testing/fixtures/catalog_admission.rs"]
+mod catalog_admission;
 use std::{collections::BTreeSet, path::Path};
 
 use veoveo_mcp_contract::{
@@ -5,7 +7,7 @@ use veoveo_mcp_contract::{
     PrincipalKind, PromptName, ServerSlug, TokenIssuer, TokenSubject, TraceId,
 };
 use veoveo_mcp_gateway::{GatewayCatalog, PolicyRequest, www_authenticate_challenge};
-use veoveo_recording_mcp::contract::RecordingScope;
+use veoveo_recording_contract::RecordingScope;
 use veoveo_types::{PrincipalId, ResourceUri, RoleId, ScopeDefinition, ScopeName, TenantId};
 
 const LOCAL_CONTROL_PLANE: &str = "../../configs/gateway.local.json";
@@ -16,7 +18,8 @@ const LOCAL_CONTROL_PLANE: &str = "../../configs/gateway.local.json";
 #[test]
 fn local_control_plane_exposes_the_view_preview_app() {
     let catalog =
-        GatewayCatalog::load_json(Path::new(LOCAL_CONTROL_PLANE)).expect("load control plane");
+        GatewayCatalog::load_json(Path::new(LOCAL_CONTROL_PLANE), catalog_admission::binding())
+            .expect("load control plane");
     for profile in ["operator", "admin"] {
         let profile_id = GatewayProfileId::new(profile).unwrap();
         let owner = catalog
@@ -46,7 +49,8 @@ fn local_console_profiles_authorize_every_release_target_app_resource() {
         ("charts", "ui://charts/composer.html"),
     ];
     let catalog =
-        GatewayCatalog::load_json(Path::new(LOCAL_CONTROL_PLANE)).expect("load control plane");
+        GatewayCatalog::load_json(Path::new(LOCAL_CONTROL_PLANE), catalog_admission::binding())
+            .expect("load control plane");
 
     for profile_name in ["operator", "admin"] {
         let profile_id = GatewayProfileId::new(profile_name).unwrap();
@@ -101,7 +105,8 @@ fn local_console_profiles_authorize_every_release_target_app_resource() {
 #[test]
 fn local_recording_reads_and_sealing_have_separate_permissions() {
     let catalog =
-        GatewayCatalog::load_json(Path::new(LOCAL_CONTROL_PLANE)).expect("load control plane");
+        GatewayCatalog::load_json(Path::new(LOCAL_CONTROL_PLANE), catalog_admission::binding())
+            .expect("load control plane");
     let admin = GatewayProfileId::new("admin").unwrap();
     let operator = GatewayProfileId::new("operator").unwrap();
     for (kind, id, roles) in [
@@ -254,7 +259,8 @@ fn local_operator_profile_challenges_for_the_complete_view_scope_bundle() {
     ];
 
     let catalog =
-        GatewayCatalog::load_json(Path::new(LOCAL_CONTROL_PLANE)).expect("load control plane");
+        GatewayCatalog::load_json(Path::new(LOCAL_CONTROL_PLANE), catalog_admission::binding())
+            .expect("load control plane");
     let profile_id = GatewayProfileId::new("operator").unwrap();
     let profile = catalog.profile(&profile_id).expect("operator profile");
     let scopes = profile

@@ -130,3 +130,6 @@ mod audit;
 
 #[cfg(feature = "schema")]
 pub mod schema;
+
+#[cfg(feature = "gateway")]
+pub mod gateway;

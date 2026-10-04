@@ -282,7 +282,14 @@ async fn subscription_list_changes_invalidate_cached_catalog_surfaces() {
     let db = crate::test_store::TestDb::new().await;
     let plane: GatewayControlPlane =
         serde_json::from_str(include_str!("../../../../../configs/gateway.local.json")).unwrap();
-    let gateway = task_ownership_tests::gateway(GatewayState::new(db.a.clone()), plane);
+    let gateway = task_ownership_tests::gateway(
+        GatewayState::new(db.a.clone())
+            .bind_oauth_client_resolver(std::sync::Arc::new(
+                crate::oauth_clients::CatalogOAuthClientResolver,
+            ))
+            .unwrap(),
+        plane,
+    );
     for server in ["media", "time"] {
         let key = key(server);
         let tools = gateway.discovery.start_tools(key.clone()).await;

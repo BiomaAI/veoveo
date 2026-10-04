@@ -23,14 +23,7 @@ use veoveo_types::{
 use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel};
 
 use crate::policy::{exposure_contains, resource_scheme};
-use crate::{AuthenticatedSubject, VerifiedAccessToken};
-
-pub(crate) fn validate_control_plane(
-    control_plane: &GatewayControlPlane,
-) -> Result<(), veoveo_mcp_contract::GatewayControlPlaneError> {
-    control_plane.validate()?;
-    crate::recording::validate_ingest_scopes(control_plane)
-}
+use crate::{AuthenticatedSubject, GatewayCatalogAdmission, VerifiedAccessToken};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GatewayAuthorityError {
@@ -137,11 +130,16 @@ impl GatewayCatalogHandle {
         }
     }
 
-    pub fn replace(&self, catalog: Arc<GatewayCatalog>) {
+    pub fn replace(&self, catalog: Arc<GatewayCatalog>) -> Result<()> {
         let mut state = self.state.write();
+        anyhow::ensure!(
+            state.catalog.admission.same_binding(&catalog.admission),
+            "catalog reload changed its admission binding"
+        );
         state.catalog = catalog;
         state.generation = state.generation.saturating_add(1);
         self.changes.send_replace(state.generation);
+        Ok(())
     }
 }
 
@@ -157,6 +155,7 @@ impl GatewayCatalogSnapshot {
 
 #[derive(Debug, Clone)]
 pub struct GatewayCatalog {
+    admission: GatewayCatalogAdmission,
     control_plane: Arc<GatewayControlPlane>,
     configuration_sha256: [u8; 32],
     identity_providers: BTreeMap<IdentityProviderId, usize>,
@@ -175,7 +174,10 @@ pub struct GatewayCatalog {
 }
 
 impl GatewayCatalog {
-    pub fn from_control_plane(control_plane: GatewayControlPlane) -> Result<Self> {
+    pub fn from_control_plane(
+        control_plane: GatewayControlPlane,
+        admission: GatewayCatalogAdmission,
+    ) -> Result<Self> {
         // Opaque JSON objects must have the same order before publication and
         // after storage. Dependencies may enable serde_json's preserve_order;
         // that must not change the digest checked by independent workers.
@@ -183,7 +185,7 @@ impl GatewayCatalog {
         let mut document = serde_json::to_value(control_plane)?;
         document.sort_all_objects();
         let control_plane: GatewayControlPlane = serde_json::from_value(document)?;
-        validate_control_plane(&control_plane)?;
+        admission.validate(&control_plane)?;
         let configuration_sha256 = Sha256::digest(serde_json::to_vec(&control_plane)?).into();
 
         let identity_providers = control_plane
@@ -274,6 +276,7 @@ impl GatewayCatalog {
             .collect();
 
         Ok(Self {
+            admission,
             control_plane: Arc::new(control_plane),
             configuration_sha256,
             identity_providers,
@@ -292,14 +295,18 @@ impl GatewayCatalog {
         })
     }
 
-    pub fn load_json(path: impl AsRef<Path>) -> Result<Self> {
+    pub fn load_json(path: impl AsRef<Path>, admission: GatewayCatalogAdmission) -> Result<Self> {
         let path = path.as_ref();
         let text = fs::read_to_string(path)
             .with_context(|| format!("failed to read gateway control plane {}", path.display()))?;
         let control_plane: GatewayControlPlane = serde_json::from_str(&text)
             .with_context(|| format!("failed to parse gateway control plane {}", path.display()))?;
-        Self::from_control_plane(control_plane)
+        Self::from_control_plane(control_plane, admission)
             .with_context(|| format!("invalid gateway control plane {}", path.display()))
+    }
+
+    pub fn admission(&self) -> GatewayCatalogAdmission {
+        self.admission.clone()
     }
 
     pub fn control_plane(&self) -> &GatewayControlPlane {

@@ -18,12 +18,23 @@ fn gateway_runtime_does_not_require_analytics_artifacts() {
     .unwrap();
     assert_eq!(plan.plan.families.len(), 1);
     assert!(plan.plan.families[0].auxiliary.is_empty());
+    let packages = runtime_packages(&repository, "veoveo-gateway-composition");
+    assert!(packages.contains("veoveo-gateway-composition"));
+    for package in ["duckdb", "libduckdb-sys"] {
+        assert!(
+            !packages.contains(package),
+            "gateway acquired an analytics dependency: {package}"
+        );
+    }
+}
+
+fn runtime_packages(repository: &RepositoryContext, package: &str) -> BTreeSet<String> {
     let output = Command::new("cargo")
         .args([
             "tree",
             "--locked",
             "--package",
-            "veoveo-mcp-gateway",
+            package,
             "--target",
             "x86_64-unknown-linux-gnu",
             "--edges",
@@ -42,15 +53,35 @@ fn gateway_runtime_does_not_require_analytics_artifacts() {
         String::from_utf8_lossy(&output.stderr)
     );
     let tree = String::from_utf8(output.stdout).unwrap();
-    let packages = tree
-        .lines()
+    tree.lines()
         .filter_map(|line| line.split_whitespace().next())
-        .collect::<BTreeSet<_>>();
-    assert!(packages.contains("veoveo-mcp-gateway"));
-    for package in ["duckdb", "libduckdb-sys"] {
+        .map(str::to_owned)
+        .collect::<BTreeSet<_>>()
+}
+
+#[test]
+fn gateway_library_excludes_optional_owner_adapters() {
+    let repository = RepositoryContext::discover(Path::new(env!("CARGO_MANIFEST_DIR"))).unwrap();
+    let packages = runtime_packages(&repository, "veoveo-mcp-gateway");
+    for package in [
+        "veoveo-gateway-composition",
+        "veoveo-agent-runtime",
+        "veoveo-recording-mcp",
+        "veoveo-recording-protocol",
+        "veoveo-speech-contract",
+        "veoveo-computers-transport",
+        "veoveo-computers",
+        "veoveo-map-mcp",
+        "veoveo-time-mcp",
+        "veoveo-uav-sim-mcp",
+        "veoveo-frames-mcp",
+        "veoveo-media-mcp",
+        "veoveo-optimization-mcp",
+        "veoveo-workspace",
+    ] {
         assert!(
             !packages.contains(package),
-            "gateway acquired an analytics dependency: {package}"
+            "reusable gateway acquired optional owner {package}"
         );
     }
 }

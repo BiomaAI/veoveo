@@ -291,11 +291,11 @@ target "computer-storage" {
 
 target "mcp-gateway" {
   inherits   = ["_rust-trixie-runtime"]
-  dockerfile = "platform/gateway/Dockerfile"
+  dockerfile = "platform/gateway/composition/Dockerfile"
   tags       = [image_ref("mcp-gateway")]
   labels = {
     "ai.veoveo.build.mode"      = "rust-shared"
-    "ai.veoveo.build.package"   = "veoveo-mcp-gateway"
+    "ai.veoveo.build.package"   = "veoveo-gateway-composition"
     "ai.veoveo.build.binaries"  = "gateway"
     "ai.veoveo.build.family"    = "rust-trixie-v1"
     "ai.veoveo.build.auxiliary" = ""

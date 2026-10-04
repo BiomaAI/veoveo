@@ -100,10 +100,15 @@ fn workspace_agent_configuration_has_exact_secret_references_and_separate_browse
         .iter()
         .find(|client| client["id"] == "workspace")
         .context("Workspace client")?;
-    let catalog = veoveo_mcp_gateway::GatewayCatalog::from_control_plane(serde_json::from_value(
-        registered.clone(),
-    )?)?;
-    veoveo_mcp_gateway::managed_agents::ManagedTemplateCatalog::from_json(
+    let catalog = veoveo_mcp_gateway::GatewayCatalog::from_control_plane(
+        serde_json::from_value(registered.clone())?,
+        veoveo_mcp_gateway::GatewayCatalogAdmission::unbound()
+            .bind(std::sync::Arc::new(
+                veoveo_recording_mcp::gateway::RecordingCatalogAdmission,
+            ))
+            .unwrap(),
+    )?;
+    veoveo_agent_runtime::gateway::ManagedTemplateCatalog::from_json(
         &source["gateway"]["agents"]["templates"].to_string(),
         &catalog,
     )?;

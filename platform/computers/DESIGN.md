@@ -6,6 +6,7 @@
 |---|---|
 | Veoveo identity and Work Context | Canonical TaskOwner authority, named user/service principals, tenant and context isolation; current implementation admits private ownership |
 | SurrealDB / SurrealQL 3.3.0 | Existing qualified platform client/server pin; schema-full records, read-only envelopes, reference cascades, atomic multi-record admission and audit append, native table changefeeds, conflict-only bounded transaction retry |
+| HTTP/1.1 / WebSocket RFC 6455 | Gateway adapter reuses installation TLS policy; the transport library owns authenticated upgrade framing, disabled redirects and HTTP/1.1 selection |
 | Veoveo Computers JSON | Public DTOs live in `contract/`; provider identities and persisted authority remain internal |
 | Veoveo audit record v1 | Closed Computer activities and journal stages, verified request attribution and transactional append through the shared Store function |
 | XChaCha20-Poly1305 and HMAC-SHA-256 | Private command, output-capability and maintenance-checkpoint envelope v1; installation-owned keys, random 192-bit nonces, distinct derived encryption and fingerprint keys and authenticated purposes; no public wire extension |
@@ -26,6 +27,17 @@ The domain owns retained Computer identity. Provider transport belongs to
 through the Computers worker service. No provider dependency enters the gateway.
 [Qualification Limits](#qualification-limits) records the installed acceptance scope
 and remaining release gates.
+
+## Gateway Transport Adapter
+
+The optional `gateway` feature exposes `ComputersGatewayClientPool` independently
+of the provider runtime. It obtains checked TLS builders and opaque revision keys
+from the reusable gateway library, then constructs the owning Computers transport's
+HTTP/1.1 WebSocket client. Equivalent trust and client identity configurations share
+one initialized client within a catalog revision. A new revision retires old cache
+entries. Connection establishment has a ten-second timeout; streaming responses
+have no total timeout. Redirects stay disabled and mTLS secrets retain their declared
+purposes. Request authorization and grant renewal stay with the admitted route.
 
 ## Operation And Access Identities
 

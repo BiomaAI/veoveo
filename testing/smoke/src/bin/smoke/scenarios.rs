@@ -80,6 +80,8 @@ pub(crate) async fn gateway_suite(control_plane: &Path, smoke_control_plane: &Pa
             "veoveo-mcp-contract".into(),
             "-p".into(),
             "veoveo-mcp-gateway".into(),
+            "-p".into(),
+            "veoveo-gateway-composition".into(),
         ],
         [],
     )?;

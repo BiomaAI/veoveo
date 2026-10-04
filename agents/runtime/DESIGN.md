@@ -8,6 +8,14 @@ generations are internal Veoveo contracts. Native MCP `2026-07-28` Tasks keep
 their canonical gateway identity and retention pin; this crate owns delivery to
 the agent, not the MCP transport or provider completion protocol.
 
+## Gateway Integration
+
+The optional `gateway` feature owns current managed OAuth registration, installed
+template ceilings and authority admission through the gateway's resolver port.
+Its [adapter design](src/gateway/DESIGN.md) specifies token issuance, current-request
+checks and the remaining shared token vocabulary. Schema-only consumers enable
+neither this adapter nor runtime dependencies.
+
 ## Episode Ownership
 
 One renewable scheduler lease admits episodes for an agent. Admission updates

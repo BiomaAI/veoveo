@@ -1,4 +1,5 @@
 mod audit;
+use crate::GatewayCatalogAdmission;
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -33,6 +34,7 @@ pub fn new_gateway_control_plane_revision_id() -> Result<GatewayControlPlaneRevi
 
 #[derive(Debug, Clone)]
 pub struct GatewayControlStore {
+    admission: GatewayCatalogAdmission,
     platform: PlatformStore,
 }
 
@@ -45,14 +47,27 @@ struct ControlPlaneObjectRow {
 }
 
 impl GatewayControlStore {
-    pub fn from_platform_store(platform: PlatformStore) -> Self {
-        Self { platform }
+    pub fn from_platform_store(
+        platform: PlatformStore,
+        admission: GatewayCatalogAdmission,
+    ) -> Self {
+        Self {
+            platform,
+            admission,
+        }
     }
-    pub async fn connect(config: StoreConfig) -> Result<Self> {
+    pub async fn connect(config: StoreConfig, admission: GatewayCatalogAdmission) -> Result<Self> {
         let platform = PlatformStore::connect(config)
             .await
             .context("failed to connect to the SurrealDB platform store")?;
-        Ok(Self { platform })
+        Ok(Self {
+            platform,
+            admission,
+        })
+    }
+
+    pub fn admission(&self) -> GatewayCatalogAdmission {
+        self.admission.clone()
     }
 
     pub async fn migrate(&self) -> Result<()> {
@@ -64,9 +79,10 @@ impl GatewayControlStore {
     }
 
     pub async fn load_active_revision(&self) -> Result<Option<GatewayControlPlaneRevision>> {
+        self.admission.ensure_bound()?;
         self.load_active_revision_record()
             .await?
-            .map(revision_from_record)
+            .map(|record| revision_from_record(record, &self.admission))
             .transpose()
             .context("active gateway control-plane revision is invalid")
     }
@@ -77,6 +93,7 @@ impl GatewayControlStore {
         &self,
         preparation: &veoveo_modules::PreparationKey,
     ) -> Result<Option<GatewayControlPlaneRevision>> {
+        self.admission.ensure_bound()?;
         #[derive(Deserialize, SurrealValue)]
         struct Selection {
             head: Option<GatewayControlActiveRecord>,
@@ -100,7 +117,7 @@ impl GatewayControlStore {
             (Some(head), Some(revision))
                 if head.revision == revision.id && head.revision_id == revision.revision_id =>
             {
-                Ok(Some(revision_from_record(revision)?))
+                Ok(Some(revision_from_record(revision, &self.admission)?))
             }
             _ => anyhow::bail!("invalid active installation revision pointer"),
         }
@@ -109,6 +126,7 @@ impl GatewayControlStore {
     pub async fn load_active_revision_head(
         &self,
     ) -> Result<Option<GatewayControlPlaneRevisionHead>> {
+        self.admission.ensure_bound()?;
         self.load_active_revision_record()
             .await?
             .map(|record| -> Result<GatewayControlPlaneRevisionHead> {
@@ -154,7 +172,8 @@ impl GatewayControlStore {
         context: &veoveo_audit_contract::AuditContext,
         preparation: Option<&veoveo_modules::PreparationKey>,
     ) -> Result<()> {
-        crate::catalog::validate_control_plane(&revision.control_plane)
+        self.admission
+            .validate(&revision.control_plane)
             .context("refusing to persist invalid gateway control plane")?;
         let previous = self.load_active_revision().await?;
         let expected = previous.as_ref().map(|revision| {
@@ -309,13 +328,15 @@ async fn count_query(
 
 fn revision_from_record(
     record: GatewayControlRevisionRecord,
+    admission: &GatewayCatalogAdmission,
 ) -> Result<GatewayControlPlaneRevision> {
     let control_plane: GatewayControlPlane = serde_json::from_value(
         serde_json::to_value(record.control_plane)
             .context("failed to convert stored control plane to JSON")?,
     )
     .context("failed to deserialize stored gateway control plane")?;
-    crate::catalog::validate_control_plane(&control_plane)
+    admission
+        .validate(&control_plane)
         .context("stored gateway control plane failed validation")?;
 
     Ok(GatewayControlPlaneRevision {
@@ -591,58 +612,6 @@ mod tests {
         let id = new_gateway_control_plane_revision_id().unwrap();
         let uuid = uuid::Uuid::parse_str(id.as_str().strip_prefix("gcp-").unwrap()).unwrap();
         assert_eq!(uuid.get_version_num(), 7);
-    }
-
-    #[tokio::test]
-    async fn producer_scope_denial_cannot_publish_a_control_revision() {
-        use std::time::Duration;
-        use veoveo_audit_contract::{AuditActor, AuditContext, AuditPrincipalKind, AuditRequest};
-        use veoveo_recording_mcp::contract::RecordingProducerScope;
-
-        let db = crate::test_store::TestDb::new().await;
-        let store = GatewayControlStore {
-            platform: db.a.clone(),
-        };
-        let mut control_plane: GatewayControlPlane =
-            serde_json::from_str(include_str!("../../../configs/gateway.smoke.json")).unwrap();
-        control_plane.recording_ingest_resources[0].required_scopes =
-            BTreeSet::from([RecordingProducerScope::Publish.into()]);
-        for client in &mut control_plane.oauth_clients {
-            client
-                .allowed_scopes
-                .insert(RecordingProducerScope::Publish.into());
-        }
-        control_plane.validate().unwrap();
-        let revision = GatewayControlPlaneRevision {
-            revision_id: new_gateway_control_plane_revision_id().unwrap(),
-            sha256: "a".repeat(64),
-            source: GatewayControlPlaneRevisionSource::SeedFile,
-            applied_at: chrono::Utc::now(),
-            applied_by: PrincipalId::new("fixture-admin").unwrap(),
-            tenant: None,
-            control_plane,
-        };
-        let context = AuditContext {
-            actor: AuditActor {
-                principal: revision.applied_by.clone(),
-                kind: AuditPrincipalKind::Service,
-                tenant: None,
-                oauth_client: None,
-                session_family: None,
-                delegating_principal: None,
-                managed_agent: None,
-            },
-            authority: Default::default(),
-            request: AuditRequest::background(),
-        };
-        tokio::time::timeout(Duration::from_secs(30), async {
-            let error = store.record_revision(&revision, &context).await.unwrap_err();
-            assert!(matches!(error.downcast_ref(), Some(
-                veoveo_mcp_contract::GatewayControlPlaneError::InvalidRecordingIngestResource { .. }
-            )));
-            assert_eq!(store.revision_count().await.unwrap(), 0);
-            assert!(store.load_active_revision_head().await.unwrap().is_none());
-        }).await.expect("producer scope admission exceeded 30 seconds");
     }
 
     #[test]

@@ -5,6 +5,7 @@ edition.workspace = true
 publish = false
 
 [features]
+gateway = ["dep:veoveo-mcp-gateway", "dep:veoveo-computers-transport", "dep:veoveo-mcp-contract", "dep:rmcp", "dep:tokio"]
 default = ["runtime"]
 schema = ["dep:veoveo-modules"]
 runtime = [
@@ -34,6 +35,9 @@ runtime = [
 ]
 
 [dependencies]
+veoveo-mcp-gateway = { path = "../gateway", optional = true }
+veoveo-computers-transport = { path = "transport", optional = true }
+rmcp = { workspace = true, optional = true }
 veoveo-modules = { workspace = true, default-features = false, optional = true }
 futures = { workspace = true, optional = true }
 veoveo-types = { workspace = true, optional = true }
@@ -49,7 +53,7 @@ serde_json = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
 surrealdb = { version = "=3.3.0", default-features = false, features = ["protocol-ws", "rustls"], optional = true }
 thiserror = { workspace = true, optional = true }
-tokio = { workspace = true, features = ["time"], optional = true }
+tokio = { workspace = true, features = ["time", "sync"], optional = true }
 uuid = { workspace = true, features = ["serde", "v7"], optional = true }
 zeroize = { workspace = true, optional = true }
 veoveo-computer-execution = { path = "execution", optional = true }
@@ -60,6 +64,10 @@ veoveo-policy = { path = "../policy", optional = true }
 veoveo-task-runtime = { path = "../task-runtime", optional = true }
 
 [dev-dependencies]
+anyhow.workspace = true
+rcgen.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
 tokio = { workspace = true, features = ["process", "io-util", "macros", "rt-multi-thread"] }
 
 [[test]]

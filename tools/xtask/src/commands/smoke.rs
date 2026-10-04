@@ -36,7 +36,7 @@ const CONFORMANCE: CargoBinary = CargoBinary {
     binary: "conformance",
 };
 const GATEWAY: CargoBinary = CargoBinary {
-    package: "veoveo-mcp-gateway",
+    package: "veoveo-gateway-composition",
     binary: "gateway",
 };
 const MEDIA: CargoBinary = CargoBinary {
@@ -649,7 +649,7 @@ mod tests {
                 "--bin",
                 "conformance",
                 "--package",
-                "veoveo-mcp-gateway",
+                "veoveo-gateway-composition",
                 "--bin",
                 "gateway",
                 "--package",

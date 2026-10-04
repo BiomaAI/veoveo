@@ -1,4 +1,6 @@
 //! The lightweight worker catalog and gateway index must make the same decisions.
+#[path = "../../../testing/fixtures/catalog_admission.rs"]
+mod catalog_admission;
 use std::collections::BTreeSet;
 use veoveo_mcp_contract::{
     GatewayAction, GatewayControlPlane, LocalToolName, PolicyTarget, Principal, PrincipalKind,
@@ -12,7 +14,8 @@ use veoveo_types::{PrincipalId, RoleId, TenantId};
 fn gateway_and_background_catalogs_preserve_policy_semantics() {
     let plane: GatewayControlPlane =
         serde_json::from_str(include_str!("../../../configs/gateway.local.json")).unwrap();
-    let gateway = GatewayCatalog::from_control_plane(plane.clone()).unwrap();
+    let gateway =
+        GatewayCatalog::from_control_plane(plane.clone(), catalog_admission::binding()).unwrap();
     let background = PolicyCatalog::new(plane.clone()).unwrap();
     for kind in [PrincipalKind::User, PrincipalKind::Service] {
         for profile in &plane.profiles {

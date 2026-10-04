@@ -33,7 +33,7 @@ the MCP `2025-11-25` revision join through the separate
 [`mcp/bridges/legacy`](../../mcp/bridges/legacy/) connector, so the
 installation's own endpoints stay on the current revision. Register the server and
 a profile entry in the control plane document, then validate with
-`cargo run -p veoveo-mcp-gateway --bin gateway -- validate --control-plane
+`cargo run -p veoveo-gateway-composition --bin gateway -- validate --control-plane
 <file>`. Choose this path for platforms whose calls should appear in the
 installation's audit trail, such as databases with write access or systems
 that act on the physical world.

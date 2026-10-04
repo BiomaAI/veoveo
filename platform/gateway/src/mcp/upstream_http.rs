@@ -10,9 +10,16 @@ use crate::{GatewayCatalog, GatewaySecretResolver, mcp_support::mcp_internal};
 const UPSTREAM_CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-struct UpstreamHttpClientKey {
+pub struct UpstreamClientKey {
     catalog_sha256: [u8; 32],
     configuration_sha256: [u8; 32],
+}
+
+impl UpstreamClientKey {
+    /// Catalog revision controls cache retirement; TLS configuration stays opaque.
+    pub fn catalog_revision(&self) -> [u8; 32] {
+        self.catalog_sha256
+    }
 }
 
 /// Shared transport clients for gateway-to-server traffic.
@@ -22,10 +29,7 @@ struct UpstreamHttpClientKey {
 /// initialized TLS trust store for the active catalog revision.
 #[derive(Debug, Clone, Default)]
 pub struct GatewayUpstreamHttpClientPool {
-    clients: Arc<RwLock<BTreeMap<UpstreamHttpClientKey, Arc<OnceCell<reqwest::Client>>>>>,
-    websockets: Arc<
-        RwLock<BTreeMap<UpstreamHttpClientKey, Arc<OnceCell<veoveo_computers_transport::Client>>>>,
-    >,
+    clients: Arc<RwLock<BTreeMap<UpstreamClientKey, Arc<OnceCell<reqwest::Client>>>>>,
 }
 
 impl GatewayUpstreamHttpClientPool {
@@ -38,7 +42,7 @@ impl GatewayUpstreamHttpClientPool {
         catalog: &GatewayCatalog,
         server: &ServerManifest,
     ) -> Result<reqwest::Client, McpError> {
-        let key = upstream_http_client_key(catalog, server)?;
+        let key = upstream_client_key(catalog, server)?;
         let cell = {
             let mut clients = self.clients.write().await;
             clients
@@ -57,37 +61,12 @@ impl GatewayUpstreamHttpClientPool {
     async fn entry_count(&self) -> usize {
         self.clients.read().await.len()
     }
-
-    /// The same admitted trust and identity, with a separate HTTP/1.1 upgrade pool.
-    pub async fn websocket_client(
-        &self,
-        catalog: &GatewayCatalog,
-        server: &ServerManifest,
-    ) -> Result<veoveo_computers_transport::Client, McpError> {
-        let key = upstream_http_client_key(catalog, server)?;
-        let cell = {
-            let mut clients = self.websockets.write().await;
-            clients
-                .retain(|candidate, _| candidate.catalog_sha256 == catalog.configuration_sha256());
-            clients
-                .entry(key)
-                .or_insert_with(|| Arc::new(OnceCell::new()))
-                .clone()
-        };
-        cell.get_or_try_init(|| async {
-            let builder = upstream_http_client_builder(catalog, server).await?;
-            veoveo_computers_transport::Client::new(builder)
-                .map_err(|_| mcp_internal("failed to build upstream WebSocket client"))
-        })
-        .await
-        .cloned()
-    }
 }
 
-fn upstream_http_client_key(
+pub fn upstream_client_key(
     catalog: &GatewayCatalog,
     server: &ServerManifest,
-) -> Result<UpstreamHttpClientKey, McpError> {
+) -> Result<UpstreamClientKey, McpError> {
     let configuration = serde_json::to_vec(&(
         server.upstream.security,
         &server.upstream.trusted_certificate_authorities,
@@ -99,7 +78,7 @@ fn upstream_http_client_key(
             "failed to fingerprint upstream HTTP client configuration: {error}"
         ))
     })?;
-    Ok(UpstreamHttpClientKey {
+    Ok(UpstreamClientKey {
         catalog_sha256: catalog.configuration_sha256(),
         configuration_sha256: Sha256::digest(configuration).into(),
     })
@@ -109,13 +88,13 @@ async fn build_upstream_http_client(
     catalog: &GatewayCatalog,
     server: &ServerManifest,
 ) -> Result<reqwest::Client, McpError> {
-    upstream_http_client_builder(catalog, server)
+    upstream_client_builder(catalog, server)
         .await?
         .build()
         .map_err(|err| mcp_internal(format!("failed to build upstream HTTP client: {err}")))
 }
 
-async fn upstream_http_client_builder(
+pub async fn upstream_client_builder(
     catalog: &GatewayCatalog,
     server: &ServerManifest,
 ) -> Result<reqwest::ClientBuilder, McpError> {
@@ -219,10 +198,6 @@ mod tests {
         build_upstream_http_client(&catalog, server)
             .await
             .expect("mutual TLS upstream client");
-        GatewayUpstreamHttpClientPool::new()
-            .websocket_client(&catalog, server)
-            .await
-            .expect("WebSocket uses the same mutual TLS identity and roots");
 
         let _ = std::fs::remove_file(ca_path);
     }
@@ -252,12 +227,6 @@ mod tests {
             message.contains("failed to parse upstream TLS client identity"),
             "unexpected error: {message}"
         );
-        assert!(
-            GatewayUpstreamHttpClientPool::new()
-                .websocket_client(&catalog, server)
-                .await
-                .is_err()
-        );
 
         let _ = std::fs::remove_file(ca_path);
     }
@@ -266,7 +235,11 @@ mod tests {
     async fn transport_equivalent_servers_share_one_http_client() {
         let control_plane: GatewayControlPlane =
             serde_json::from_str(SMOKE_CONTROL_PLANE).expect("smoke control plane json");
-        let catalog = GatewayCatalog::from_control_plane(control_plane).expect("validated catalog");
+        let catalog = GatewayCatalog::from_control_plane(
+            control_plane,
+            crate::test_catalog_admission::binding(),
+        )
+        .expect("validated catalog");
         let first = catalog
             .server(&ServerSlug::new("media").expect("server slug"))
             .expect("media server");
@@ -282,13 +255,6 @@ mod tests {
         second_client.expect("second shared client");
 
         assert_eq!(pool.entry_count().await, 1);
-        let (first_ws, second_ws) = tokio::join!(
-            pool.websocket_client(&catalog, first),
-            pool.websocket_client(&catalog, &second)
-        );
-        first_ws.expect("first WebSocket pool");
-        second_ws.expect("second WebSocket pool");
-        assert_eq!(pool.websockets.read().await.len(), 1);
     }
 
     fn catalog_with_mutual_tls_upstream(
@@ -337,7 +303,8 @@ mod tests {
 
         let control_plane: GatewayControlPlane =
             serde_json::from_value(control_plane).expect("typed control plane");
-        GatewayCatalog::from_control_plane(control_plane).expect("validated catalog")
+        GatewayCatalog::from_control_plane(control_plane, crate::test_catalog_admission::binding())
+            .expect("validated catalog")
     }
 
     fn write_temp_ca(cert_pem: &str) -> std::path::PathBuf {

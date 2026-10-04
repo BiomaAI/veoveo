@@ -12,8 +12,9 @@ pass their native checks. The staged gateway image passes isolated installed che
 for fresh preparation, lane completion, publication, credential rotation, stale Job
 rejection and later module enablement. Managed-agent credential recovery and product
 activation remain open. Phase 2 Task contributions, versioned kernel SQL admission and
-Optimization's catalog reads pass their native checks. Gateway extension ports and
-installed catalog startup admission remain open. Five additional browser contract
+Optimization's catalog reads pass their native checks. The gateway composition split
+and catalog, OAuth and TLS adapters pass native checks. Module-owned HTTP route
+registration and installed catalog startup admission remain open. Five additional browser contract
 bundles pass generation, consumer tests and builds. Production schema ownership moves
 in Phase 3.
 This is the single implementation plan for the former Foundations, Contract
@@ -297,7 +298,7 @@ qualified profile; D12 records the separate Apple proposal.
 | Leak | Evidence |
 |---|---|
 | Module persistence in the kernel store | `platform/store/src`: Workspace 1,885 lines and 27 query files; Agent management 1,634 and 7; Map 3,800 across `map`, `map_authoring`, `map_presentations`, `map_derivations`, `map_projection`; Recordings 3,861 across `recording_catalog`, `recording_ingest`, `recordings`, `recording_blueprints` |
-| Kernel crates depending on optional modules | `platform/gateway` depends on `veoveo-agent-runtime`, `veoveo-computers`, `veoveo-recording-mcp`, `veoveo-recording-protocol` and `veoveo-speech-contract`. `platform/store` depends on `veoveo-computers-contract` |
+| Kernel crates depending on optional modules | The reusable gateway's normal/build graph excludes optional owner runtimes, Computers transport, Recording protocol and Speech contract. Composition still houses the domain HTTP handlers; shared wire models still include managed-agent claims and Recording configuration. `platform/store` depends on `veoveo-computers-contract`, which Phase 3 must remove |
 | Module schema in the kernel catalog | Every table is defined in `platform/store/migrations`; Optimization and UAV add indexes to `task` (migrations `0042`, `0093`) |
 | Module SQL on kernel tables | Statements reading or writing `task`, `artifact_occurrence` and identity tables directly: Computers 27, Reason 5, UAV 4, Map 3, Optimization 3, Frames, Stream, Artifact |
 
@@ -692,13 +693,34 @@ Native fixtures install the actual owner lanes
 after mixed-schema preparation. Existing Task indexes stay until the coordinated
 storage cut; this additive batch does not activate the reference installation.
 
-The gateway route batch separates the executable into a composition package while
-keeping its executable name and image. The reusable gateway library sheds optional
-module dependencies, including Computers transport pooling, Recording catalog admission
-and managed-agent authorization. Owner adapters register routes and validation through
-kernel ports. Catalog reload, TLS cache invalidation and rejection of configured but
-unbound capabilities remain required behavior; moving route handlers alone does not
-close the dependency gate.
+The gateway executable lives in `platform/gateway/composition`
+(`veoveo-gateway-composition`) and keeps its executable name and image. The reusable
+library delegates Computers transport pooling, Recording catalog admission and
+managed-agent authorization to their owners. Native checks qualify required bindings,
+catalog reload identity, TLS cache retirement, current managed authority, the real
+installation commands and the affected consumers. Image source selection uses each
+compiler family's actual Cargo feature graph and keeps nested packages separate;
+the optional adapters cannot pull gateway code into Console's build inputs.
+
+The shared OAuth port still uses `ManagedAgentToken`, and the control-plane aggregate
+still names Recording configuration. Extracting these owner-specific wire types and
+their consumers remains required before the extension architecture is complete.
+The remaining route batch must provide
+the typed shared context, cancellation and registration builder, move each domain's
+handlers into its owner, and qualify independently contributed routes. The package
+split alone does not satisfy that gate.
+
+Route registration owns the profile capture; core authentication must not enumerate
+domain URL prefixes. Preserve raw-profile admission and audit behavior, including
+rejection of encoded aliases. Each module tracks its background and request-started
+workers, stops admission on shutdown and awaits cancellation within a declared deadline.
+Agents supplies a typed capability-reader port and a native MCP adapter independent
+of Workspace operation state. Both owners reuse gateway-native transport and discovery
+mechanics; callers supply client capabilities and progress observers. Workspace may
+depend on Agents, while Agents must work with Workspace disabled. Module construction
+starts after registration validation, and failed construction cancels and awaits any
+workers it started. These changes preserve durable operation settlement and
+unresolved-outcome fencing.
 
 ## Phase 3: Module Ownership Of Persistence And Queries
 

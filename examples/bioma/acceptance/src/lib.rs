@@ -165,9 +165,15 @@ mod tests {
 
     #[test]
     fn computers_are_core_governed_resources_in_user_and_agent_profiles() {
-        let catalog =
-            GatewayCatalog::load_json(repository_root().join("examples/bioma/gateway.json"))
-                .expect("Computers installation catalog");
+        let catalog = GatewayCatalog::load_json(
+            repository_root().join("examples/bioma/gateway.json"),
+            veoveo_mcp_gateway::GatewayCatalogAdmission::unbound()
+                .bind(std::sync::Arc::new(
+                    veoveo_recording_mcp::gateway::RecordingCatalogAdmission,
+                ))
+                .unwrap(),
+        )
+        .expect("Computers installation catalog");
         for profile in ["operator", "admin", "agent"] {
             let owner = catalog
                 .server_for_resource_uri(
@@ -206,7 +212,15 @@ mod tests {
     #[test]
     fn operator_profiles_expose_view_and_its_complete_scope_bundle() {
         let path = repository_root().join("examples/bioma/gateway.json");
-        let catalog = GatewayCatalog::load_json(&path).expect("load Bioma control plane");
+        let catalog = GatewayCatalog::load_json(
+            &path,
+            veoveo_mcp_gateway::GatewayCatalogAdmission::unbound()
+                .bind(std::sync::Arc::new(
+                    veoveo_recording_mcp::gateway::RecordingCatalogAdmission,
+                ))
+                .unwrap(),
+        )
+        .expect("load Bioma control plane");
         for profile in ["operator", "admin"] {
             let profile_id = GatewayProfileId::new(profile).expect("profile ID");
             let owner = catalog

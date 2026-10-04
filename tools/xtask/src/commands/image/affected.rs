@@ -662,6 +662,14 @@ mod tests {
     #[test]
     fn cargo_integration_tests_do_not_select_runtime_images() {
         assert!(!package_runtime_path_changed(
+            "platform/gateway/composition/tests/module_installation.rs",
+            "platform/gateway/composition"
+        ));
+        assert!(package_runtime_path_changed(
+            "platform/gateway/composition/src/bin/gateway.rs",
+            "platform/gateway/composition"
+        ));
+        assert!(!package_runtime_path_changed(
             "platform/gateway/tests/exposure_probe.rs",
             "platform/gateway"
         ));

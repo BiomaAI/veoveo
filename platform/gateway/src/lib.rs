@@ -1,13 +1,14 @@
 pub mod auth;
 mod catalog;
+mod catalog_admission;
+pub use catalog_admission::{CatalogAdmission, GatewayCatalogAdmission};
 mod control_store;
-pub mod managed_agents;
 pub mod mcp;
 mod mcp_support;
 mod metadata;
+pub mod oauth_clients;
 mod policy;
 mod principal_audit;
-mod recording;
 pub mod request_observation;
 pub mod secrets;
 pub mod state;
@@ -29,7 +30,7 @@ pub use control_store::{
 };
 pub use mcp::{
     GatewayMcp, GatewayServerHealth, GatewayServerHealthState, GatewayUpstreamHttpClientPool,
-    probe_gateway_server_health,
+    UpstreamClientKey, probe_gateway_server_health, upstream_client_builder, upstream_client_key,
 };
 pub use metadata::{
     AuthorizationExtensionMetadata, AuthorizationServerMetadata, GatewayMetadataError,
@@ -49,3 +50,9 @@ pub use state::{
 pub use tool_name::{GatewayNameError, GatewayToolProjection};
 
 pub mod audit;
+
+#[cfg(test)]
+extern crate self as veoveo_mcp_gateway;
+#[cfg(test)]
+#[path = "../../../testing/fixtures/catalog_admission.rs"]
+mod test_catalog_admission;

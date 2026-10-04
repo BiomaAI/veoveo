@@ -14,9 +14,10 @@ use std::{
 };
 use surrealdb::types::{RecordId, RecordIdKey, ToSql, Value};
 use uuid::Uuid;
+use veoveo_agent_runtime::gateway::runtime_template_revision;
 use veoveo_bioma_acceptance::pilot_cutover::{PilotAdoption, adopt};
 use veoveo_mcp_contract::agent_management::RuntimeTemplate;
-use veoveo_mcp_gateway::{GatewayCatalog, managed_agents::runtime_template_revision};
+use veoveo_mcp_gateway::GatewayCatalog;
 use veoveo_platform_store::{
     AgentRecord, PlatformStore, PrincipalRecord, StoreConfig, StoreCredentials,
     WorkContextMembershipLevel,
@@ -77,6 +78,11 @@ async fn prepare(store: &PlatformStore) -> Result<Vec<PilotAdoption>> {
         serde_json::from_reader(File::open(std::env::var("VEOVEO_PILOT_TEMPLATE_FILE")?)?)?;
     let catalog = GatewayCatalog::load_json(
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../gateway.json"),
+        veoveo_mcp_gateway::GatewayCatalogAdmission::unbound()
+            .bind(std::sync::Arc::new(
+                veoveo_recording_mcp::gateway::RecordingCatalogAdmission,
+            ))
+            .unwrap(),
     )?;
     let profile = catalog
         .profile(&template.profile)

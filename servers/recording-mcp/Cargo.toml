@@ -21,6 +21,7 @@ name = "contract"
 required-features = ["contract"]
 
 [features]
+gateway = ["contract", "dep:veoveo-mcp-gateway", "dep:veoveo-mcp-contract", "dep:veoveo-types", "dep:anyhow"]
 schema = ["dep:veoveo-modules"]
 default = ["mcp"]
 contract = ["dep:veoveo-recording-contract"]
@@ -84,6 +85,7 @@ redap = [
 redap-conformance = ["redap", "dep:re_redap_tests"]
 
 [dependencies]
+veoveo-mcp-gateway = { path = "../../platform/gateway", optional = true }
 veoveo-modules = { workspace = true, default-features = false, optional = true }
 veoveo-recording-contract = { workspace = true, optional = true }
 veoveo-artifact-contract = { workspace = true, optional = true }
@@ -136,4 +138,11 @@ re_sdk = { workspace = true, optional = true }
 re_sdk_types = { workspace = true, optional = true }
 
 [dev-dependencies]
+serde.workspace = true
+veoveo-platform-store.workspace = true
+veoveo-audit-contract.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+secrecy.workspace = true
 tokio = { workspace = true, features = ["process", "io-util"] }

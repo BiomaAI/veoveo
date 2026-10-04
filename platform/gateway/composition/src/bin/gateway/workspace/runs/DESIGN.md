@@ -1,0 +1,157 @@
+# Workspace Model Execution
+
+## Standards And Protocols
+
+This component exposes typed Veoveo HTTP JSON routes for agent admission, response
+runs and cancellation. It uses the repository-qualified Rig revision
+`6a92dacd7802d9105f106344a8e85a8a19ec88b2` and its OpenAI-compatible Chat Completions
+stream adapter. This is an internal provider adapter, not an OpenAI Responses API
+implementation. Existing gateway OAuth, session-family revocation and Work Context
+contracts govern the initiating human. MCP `2026-07-28` tool calls and Tasks use the
+shared [native operation boundary](../operations/DESIGN.md). A model response and
+its Tasks retain separate identities and lifecycles.
+
+## Configuration And Disclosure
+
+Published definitions come from the durable agent registry. `VEOVEO_AGENT_MODELS`
+contains installation-approved connections and budget ceilings. Only installation
+operators select provider destinations and credential references. The authoring API
+changes instructions, capability selections and publication audiences without a
+restart. An empty published catalog permits human collaboration.
+
+The model key is resolved immediately before dispatch. Browsers receive provider,
+model, exact capabilities and the admitted immutable revision. They never receive
+provider destinations or credentials. A chat owner's update preview compares model,
+capabilities and limits. It includes instructions only with current private-content
+authority; other owners see the instruction digest change and publisher attribution.
+
+Admission takes a client UUIDv7 and the current published revision. A participant's
+revision changes only through the owner-controlled revision route with an expected
+revision. Receipt replay cannot reactivate a subsequently removed participant. An
+in-flight run keeps its original revision across participant updates. Current disable,
+model admission, audience and human authority still fence dispatch and output.
+Archived definitions remain usable by retained participants; they leave new admission.
+
+## Execution
+
+The Rust store owns run identity, claim fencing, fixed context and cancellation as
+specified in [`platform/store`](../../../../../../../store/src/workspace/runs/DESIGN.md).
+`messages.rs` admits the human message and all response intents in one store
+transaction. The response does not depend on a second browser request. An owned
+background coordinator resolves current definitions and starts independently fenced
+workers. Process capacity or definition changes settle unclaimed runs with a closed
+failure reason. A human-only turn starts no coordinator. The separate run route
+supports an explicit assignment of an existing message authored by that human. Sixteen workers fit in one process; the store separately
+enforces concurrent room capacity. Retrying admission preserves the same run ID.
+
+Model execution is driven by admitted human requests. Automatic participation
+selects agents for a human message; it does not schedule periodic model calls.
+Chat-watch reconciliation and active-worker heartbeats check durable state and
+authority without invoking a model. Task progress, completion and input requests
+update private Activity without starting another model response. Tool receipts may
+advance the already requested response within its existing call budget.
+
+Preparation reads native discovery degradation before constructing the model's
+tool set. An incomplete surface for a configured tool's server stops preparation;
+an unrelated server's outage remains isolated. A complete, policy-filtered catalog
+can legitimately omit a tool. Cache warm-up cannot silently turn an agent with
+configured capabilities into a text-only model request.
+
+A model call receives a bounded JSON history with stable author IDs and names. Its
+triggering human request remains explicit. Older history can be dropped to fit the
+64 KiB prompt bound, and the prompt marks that truncation. The trigger itself is never
+silently truncated. Model output has a 32 KiB bound. The revision's model-call budget includes retries and continuations. Content telemetry is disabled explicitly.
+
+The worker batches changing text and typed execution feedback into at most four
+store publications per second. Unchanged work retains a one-second authority check
+and heartbeat without producing a visible event. Shared feedback distinguishes
+preparation, response generation and actual tool bodies in flight. A model's tool
+proposal does not establish execution. Concurrent tool bodies retain that phase
+until the last settles; completed receipts count distinct private operations.
+Names, arguments, private results and model reasoning are absent from feedback.
+Each publication rechecks OAuth session and JWT revocation, current Work Context
+membership and the store's run fence. Claim heartbeat, cancellation and output use
+the same transaction boundary. The run ends at the earlier of its revision deadline and token expiry. The installation
+ceiling is 900 seconds; queued intent admission cannot extend the revision deadline.
+Shutdown drops the provider stream; durable lease recovery later marks interruption.
+A browser disconnect does not cancel work and cannot resubmit the model on reconnect.
+
+## Capability Execution
+
+The model receives the intersection of its configured tool allowlist and the
+initiating human's current native MCP discovery. Definitions admit at most 64 tools;
+their combined model schema is capped at 128 KiB. JSON Schema validators compile
+once per run. Arguments are bounded and validated before operation admission.
+Every invocation carries the initiating human's bearer in memory. No service
+credential or caller-supplied destination participates in execution.
+
+The revision bounds distinct tool operations per response, within the approved model
+connection ceiling. A UUID derived from the run,
+tool name and canonical arguments makes an identical repeated request return the
+same private receipt. A new human message can intentionally request another action.
+Admission checks the live run fence and current chat authority. The dispatch worker
+checks them again after connecting and before sending the native tool call.
+Permission failure stops further model turns as well as external dispatch.
+
+The model waits for that bounded invocation receipt before continuing; it does not
+wait for the Task to complete. The private journal retains the Task identity across
+model completion, navigation and service replacement. Native Tasks input and
+cancellation remain explicit human activity actions. Stopping the model prevents
+new dispatch; it does not cancel an already accepted Task.
+
+Tool replies sent to the model contain only a receipt explanation. Native results,
+input prompts and continuation state never enter shared chat context. This release
+does not automatically analyze private tool outputs or chain calls that require
+those outputs. Audience-admitted result sharing is a later explicit operation,
+as required by the accepted private-to-shared publication boundary.
+
+## Browser Experience And Tasks Boundary
+
+Owners admit agents and choose their response policy through chat details. The
+composer displays the current destinations before sending. Explicit selections and
+leading `@Name` addresses become typed agent IDs. The server resolves defaults and
+automatic participation inside the transaction. Agent output cannot trigger a turn. Each response has its own status and stop control while
+humans retain the composer. The bounded activity response contains current agent
+membership and the latest 64 runs; stable IDs replace updated output in place.
+Human-history pagination remains independent from the active run window.
+
+Stopping a response is distinct from requesting MCP Task cancellation. The accepted
+first-class Task behavior is in the
+[Workspace design](../../../../../../../../apps/workspace/DESIGN.md#embedded-apps-and-durable-tasks).
+Task references, native Tasks input rounds, private results and cross-restart
+activity have local runtime and browser qualification. Public releases also qualify
+real Task completion, cancellation and recovery. Installed native-input acceptance
+remains open because the installed domains do not request input.
+
+## Qualification
+
+A Rust HTTP fixture runs the actual Rig streaming client against an explicitly fake
+provider and the real disposable database. It exercises atomic two-agent message admission, concurrent replay, two independent streams,
+human writing during execution, one cancellation and retry without a second provider
+call. A second fixture connects the actual model client to native MCP and the durable
+Task runtime. Repeated tool calls create one Task, current discovery narrows the
+agent allowlist, private input prompts stay out of model context, and cancelling a
+response blocks later dispatch. Browser-edge tests reject caller-selected model settings and forged initiators.
+A headed hardware browser fixture checks four authors, response-specific controls,
+reconnect and mobile layout. None of these fixtures establishes deployed model or
+MCP Task execution. Public evidence and remaining acceptance are recorded in the Workspace plan.
+
+## Reply-Aware Context
+
+Human turns carry a typed human-message or agent-response reference and a bounded
+server-captured quote. The store checks same-chat authority and settled response text
+inside admission. Each model history turn includes its typed identity; the explicit
+request retains its reply reference and quote even when older history is truncated.
+These values remain untrusted shared-chat data. Private Task outputs do not enter
+this path. The real HTTP model fixture verifies the request quote and excludes the
+other chat's text. The persistence design owns migration and coordinated rollout.
+
+## Attachment Context
+
+Model turns include the human-published typed Artifact references and their labels.
+The request retains them under the existing prompt bound. Provider instructions
+identify references as untrusted chat data and prohibit claiming that a reference
+contains file contents or grants reads. Neither the prompt assembler nor message
+admission fetches private files. Tool results continue to follow the private
+operation boundary above. The HTTP provider fixture checks reference projection
+alongside quoted reply context and the existing other-chat exclusion.

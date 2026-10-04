@@ -43,7 +43,15 @@ fn indexer_discovers_approved_sources_without_write_or_cross_context_authority()
         assurances: Default::default(),
         authenticated_at: None,
     };
-    let catalog = GatewayCatalog::from_control_plane(plane.clone()).unwrap();
+    let catalog = GatewayCatalog::from_control_plane(
+        plane.clone(),
+        veoveo_mcp_gateway::GatewayCatalogAdmission::unbound()
+            .bind(std::sync::Arc::new(
+                veoveo_recording_mcp::gateway::RecordingCatalogAdmission,
+            ))
+            .unwrap(),
+    )
+    .unwrap();
     let trace = "knowledge-reference".parse().unwrap();
     let decide = |action: GatewayAction, target: &PolicyTarget| {
         catalog
@@ -136,7 +144,15 @@ fn indexer_discovers_approved_sources_without_write_or_cross_context_authority()
 
 #[test]
 fn user_profiles_can_find_knowledge_without_exposing_the_indexing_profile() {
-    let catalog = GatewayCatalog::from_control_plane(plane()).unwrap();
+    let catalog = GatewayCatalog::from_control_plane(
+        plane(),
+        veoveo_mcp_gateway::GatewayCatalogAdmission::unbound()
+            .bind(std::sync::Arc::new(
+                veoveo_recording_mcp::gateway::RecordingCatalogAdmission,
+            ))
+            .unwrap(),
+    )
+    .unwrap();
     for name in ["operator", "admin", "workspace", "agent"] {
         let profile = name.parse().unwrap();
         assert_eq!(

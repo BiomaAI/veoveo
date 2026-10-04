@@ -360,7 +360,9 @@ fn control_digest_survives_json_object_order_and_storage_round_trip() {
     control.metadata =
         serde_json::from_str(r#"{"z":{"second":2,"first":1},"a":[{"z":0,"a":1}]}"#).unwrap();
     control.servers[0].metadata = control.metadata.clone();
-    let published = GatewayCatalog::from_control_plane(control).unwrap();
+    let published =
+        GatewayCatalog::from_control_plane(control, crate::test_catalog_admission::binding())
+            .unwrap();
     assert_eq!(
         serde_json::to_string(&published.control_plane().metadata).unwrap(),
         r#"{"a":[{"a":1,"z":0}],"z":{"first":1,"second":2}}"#,
@@ -375,7 +377,7 @@ fn control_digest_survives_json_object_order_and_storage_round_trip() {
     assert_eq!(published.configuration_sha256(), worker_digest);
     assert_eq!(
         published.configuration_sha256(),
-        GatewayCatalog::from_control_plane(restored)
+        GatewayCatalog::from_control_plane(restored, crate::test_catalog_admission::binding())
             .unwrap()
             .configuration_sha256(),
     );
@@ -386,36 +388,39 @@ fn catalog_with_policy(policy: PolicySet) -> GatewayCatalog {
 }
 
 fn catalog_with_profile_and_policy(profile: GatewayProfile, policy: PolicySet) -> GatewayCatalog {
-    GatewayCatalog::from_control_plane(GatewayControlPlane {
-        branding: None,
-        identity_providers: vec![identity_provider()],
-        authorization_servers: vec![authorization_server()],
-        servers: vec![media_manifest()],
-        profiles: vec![profile],
-        recording_ingest_resources: Vec::new(),
-        tenants: tenants(),
-        work_contexts: work_contexts(),
-        policies: vec![policy],
-        data_labels: data_labels(),
-        oauth_clients: oauth_clients(),
-        oidc_clients: oidc_clients(),
-        secrets: vec![
-            signing_secret(),
-            oidc_client_secret(),
-            SecretReference {
-                id: SecretReferenceId::new("media_provider_key").unwrap(),
-                source: SecretSource::Env,
-                purpose: SecretPurpose::ProviderApiKey,
-                locator: SecretLocator::new("MEDIA_PROVIDER_API_KEY").unwrap(),
-                owner: SecretOwner::Server {
-                    server: ServerSlug::new("media").unwrap(),
+    GatewayCatalog::from_control_plane(
+        GatewayControlPlane {
+            branding: None,
+            identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
+            servers: vec![media_manifest()],
+            profiles: vec![profile],
+            recording_ingest_resources: Vec::new(),
+            tenants: tenants(),
+            work_contexts: work_contexts(),
+            policies: vec![policy],
+            data_labels: data_labels(),
+            oauth_clients: oauth_clients(),
+            oidc_clients: oidc_clients(),
+            secrets: vec![
+                signing_secret(),
+                oidc_client_secret(),
+                SecretReference {
+                    id: SecretReferenceId::new("media_provider_key").unwrap(),
+                    source: SecretSource::Env,
+                    purpose: SecretPurpose::ProviderApiKey,
+                    locator: SecretLocator::new("MEDIA_PROVIDER_API_KEY").unwrap(),
+                    owner: SecretOwner::Server {
+                        server: ServerSlug::new("media").unwrap(),
+                    },
+                    rotation_hint: None,
+                    metadata: Value::Null,
                 },
-                rotation_hint: None,
-                metadata: Value::Null,
-            },
-        ],
-        metadata: Value::Null,
-    })
+            ],
+            metadata: Value::Null,
+        },
+        crate::test_catalog_admission::binding(),
+    )
     .unwrap()
 }
 
@@ -805,7 +810,9 @@ fn policy_denies_unknown_profile() {
 fn json_config_round_trips_through_contract_validation() {
     let text = serde_json::to_string(&catalog().control_plane().clone()).unwrap();
     let parsed: GatewayControlPlane = serde_json::from_str(&text).unwrap();
-    let catalog = GatewayCatalog::from_control_plane(parsed).unwrap();
+    let catalog =
+        GatewayCatalog::from_control_plane(parsed, crate::test_catalog_admission::binding())
+            .unwrap();
 
     assert_eq!(catalog.server_count(), 1);
     assert_eq!(catalog.profile_count(), 1);
@@ -839,22 +846,25 @@ fn catalog_routes_server_owned_projected_ui_resources() {
         tasks: TaskExposure::Disabled,
     });
 
-    let catalog = GatewayCatalog::from_control_plane(GatewayControlPlane {
-        branding: None,
-        identity_providers: vec![identity_provider()],
-        authorization_servers: vec![authorization_server()],
-        servers: vec![media_manifest(), chart_server],
-        profiles: vec![profile],
-        recording_ingest_resources: Vec::new(),
-        tenants: tenants(),
-        work_contexts: work_contexts(),
-        policies: vec![policy()],
-        data_labels: data_labels(),
-        oauth_clients: oauth_clients(),
-        oidc_clients: oidc_clients(),
-        secrets: vec![signing_secret(), oidc_client_secret()],
-        metadata: Value::Null,
-    })
+    let catalog = GatewayCatalog::from_control_plane(
+        GatewayControlPlane {
+            branding: None,
+            identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
+            servers: vec![media_manifest(), chart_server],
+            profiles: vec![profile],
+            recording_ingest_resources: Vec::new(),
+            tenants: tenants(),
+            work_contexts: work_contexts(),
+            policies: vec![policy()],
+            data_labels: data_labels(),
+            oauth_clients: oauth_clients(),
+            oidc_clients: oidc_clients(),
+            secrets: vec![signing_secret(), oidc_client_secret()],
+            metadata: Value::Null,
+        },
+        crate::test_catalog_admission::binding(),
+    )
     .unwrap();
 
     let (_, server) = catalog
@@ -905,7 +915,9 @@ fn catalog_handle_reads_replaced_catalog_with_new_generation() {
 
     let mut denied_policy = policy();
     denied_policy.rules.clear();
-    handle.replace(Arc::new(catalog_with_policy(denied_policy)));
+    handle
+        .replace(Arc::new(catalog_with_policy(denied_policy)))
+        .unwrap();
     let second = handle.snapshot();
     let second_decision = second.catalog().decide(PolicyRequest {
         principal: &principal,
@@ -1103,26 +1115,29 @@ fn builds_www_authenticate_challenge_with_scope() {
 
 #[test]
 fn keeps_contract_validation_errors_visible() {
-    let err = GatewayCatalog::from_control_plane(GatewayControlPlane {
-        branding: None,
-        identity_providers: vec![identity_provider()],
-        authorization_servers: vec![authorization_server()],
-        servers: vec![media_manifest()],
-        profiles: vec![{
-            let mut profile = profile();
-            profile.servers[0].server = ServerSlug::new("simulation").unwrap();
-            profile
-        }],
-        recording_ingest_resources: Vec::new(),
-        tenants: tenants(),
-        work_contexts: work_contexts(),
-        policies: vec![policy()],
-        data_labels: data_labels(),
-        oauth_clients: oauth_clients(),
-        oidc_clients: oidc_clients(),
-        secrets: vec![signing_secret(), oidc_client_secret()],
-        metadata: Value::Null,
-    })
+    let err = GatewayCatalog::from_control_plane(
+        GatewayControlPlane {
+            branding: None,
+            identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
+            servers: vec![media_manifest()],
+            profiles: vec![{
+                let mut profile = profile();
+                profile.servers[0].server = ServerSlug::new("simulation").unwrap();
+                profile
+            }],
+            recording_ingest_resources: Vec::new(),
+            tenants: tenants(),
+            work_contexts: work_contexts(),
+            policies: vec![policy()],
+            data_labels: data_labels(),
+            oauth_clients: oauth_clients(),
+            oidc_clients: oidc_clients(),
+            secrets: vec![signing_secret(), oidc_client_secret()],
+            metadata: Value::Null,
+        },
+        crate::test_catalog_admission::binding(),
+    )
     .expect_err("unknown server should fail");
 
     let root = err

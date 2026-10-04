@@ -415,6 +415,24 @@ dependencies. Consumers import this owner directly; MCP metadata conversion stay
 the protocol adapter. The extraction preserves public JSON shapes and authorization
 behavior and requires an isolated dependency-graph check.
 
+The reusable gateway library and its executable have separate Cargo packages.
+[`platform/gateway/composition`](../platform/gateway/composition/DESIGN.md) binds
+owner adapters and supplies installation commands and image assembly. It keeps the
+`gateway` executable and `mcp-gateway` image names and adds no process. The reusable
+library accepts catalog admission and current OAuth authority through explicit ports.
+Recording owns producer-scope admission, Agents owns managed registration and template
+policy, and Computers owns its WebSocket client pool. Each owner exposes its adapter
+through a `gateway` feature; the reusable library imports none of those implementations.
+Catalog replacement preserves its admission binding, and unbound catalog or OAuth
+ports refuse their capabilities.
+
+The shared `ManagedAgentToken` claim and Recording-specific gateway configuration
+still couple wire models to those domains. Their ownership transfer must preserve
+issuance, decoding, policy, administration and installation consumers. The remaining
+route registration and owner-handler extraction are required by
+[Phase 2](CONTRACT_CONSISTENCY_PLAN.md#phase-2-kernel-extension-points); package separation
+does not establish that the extension architecture is complete.
+
 Media owns its prediction summaries and generation result DTOs. Protocol utilities
 consume Media's contract feature directly; extracting those DTOs preserves their
 published schema and gives MCP core no dependency on Media.

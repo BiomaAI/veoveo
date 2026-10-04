@@ -1,3 +1,5 @@
+#[path = "../../../testing/fixtures/catalog_admission.rs"]
+mod catalog_admission;
 use std::collections::BTreeSet;
 
 use chrono::Utc;
@@ -36,7 +38,9 @@ async fn publishes_immutable_revisions_and_moves_active_pointer_atomically() {
     .migrate_on_connect(true)
     .build()
     .unwrap();
-    let store = GatewayControlStore::connect(config).await.unwrap();
+    let store = GatewayControlStore::connect(config, catalog_admission::binding())
+        .await
+        .unwrap();
 
     assert!(store.load_active_revision().await.unwrap().is_none());
     assert!(store.load_active_revision_head().await.unwrap().is_none());

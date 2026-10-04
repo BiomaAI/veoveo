@@ -413,9 +413,9 @@ impl GatewayMcp {
         let catalog = self.catalog.current();
         let managed_admitted = self
             .state
-            .managed_action_admitted(&catalog, subject, action, target)
+            .oauth_action_admitted(&catalog, subject, action, target)
             .await
-            .map_err(|_| mcp_internal("managed agent authority unavailable"))?;
+            .map_err(|_| mcp_internal("OAuth client authority unavailable"))?;
         let mut decision = catalog.decide(PolicyRequest {
             principal: &subject.principal,
             profile: &self.profile_id,

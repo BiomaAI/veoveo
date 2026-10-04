@@ -34,7 +34,8 @@ native tool commands remain native.
 
 `xtask` is not a replacement compiler or a second image graph. It contains no fixed
 package list. The planner discovers builder families from Bake labels and derives
-compilation inputs from Cargo metadata. The command selection controls which binaries
+compilation inputs from the selected compiler-family Cargo tree, using metadata for
+manifest and target inventory. The command selection controls which binaries
 are compiled and which runtime images BuildKit exports. Bazel, Buck2, Pants, Earthly, and a custom
 remote-execution service are outside this design. They would add another graph and cache
 authority without addressing a requirement that Cargo, Bake, and the typed planner
@@ -154,7 +155,7 @@ the declared resource budget.
 cargo xtask image builder benchmark \
     --target console-bff --target mcp-gateway \
     --source apps/console/bff/src/main.rs \
-    --source platform/gateway/src/bin/gateway.rs \
+    --source platform/gateway/composition/src/bin/gateway.rs \
     --output output/development/compiler-cpu-comparison
 ```
 
@@ -207,7 +208,7 @@ workers. It uses the existing family recipe and declared resource budget.
 cargo xtask image builder worker-benchmark \
     --target console-bff --target mcp-gateway \
     --source apps/console/bff/src/main.rs \
-    --source platform/gateway/src/bin/gateway.rs \
+    --source platform/gateway/composition/src/bin/gateway.rs \
     --output output/development/compiler-worker-comparison
 ```
 
@@ -433,7 +434,7 @@ unchanged files retain their previous compilation timestamp. UAV MCP uses the sh
 trixie family.
 Every Rust family receives a Cargo-derived context. Standalone vLLM and SUMO recipes
 keep their native/runtime package inputs and all real Cargo workspace metadata. They
-use the same conservative source closure; Cargo selects their production features.
+use the same selected-feature source closure, including normal and build dependencies.
 Standalone Dockerfiles do not copy a
 handwritten subset of workspace members. The
 planner rejects a standalone builder that omits the source mount or introduces a

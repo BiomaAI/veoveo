@@ -24,7 +24,8 @@ pub struct GatewayState {
     pub(super) platform: PlatformStore,
     pub(crate) audit_writer: std::sync::Arc<tokio::sync::OnceCell<veoveo_audit::AuditWriter>>,
     pub(crate) audit_health: std::sync::Arc<std::sync::OnceLock<veoveo_audit::AuditHealth>>,
-    pub(crate) managed_templates: std::sync::Arc<crate::managed_agents::ManagedTemplateCatalog>,
+    pub(crate) oauth_client_resolver:
+        Option<std::sync::Arc<dyn crate::oauth_clients::OAuthClientResolver>>,
 }
 
 impl GatewayState {
@@ -33,20 +34,8 @@ impl GatewayState {
             platform,
             audit_writer: Default::default(),
             audit_health: Default::default(),
-            managed_templates: Default::default(),
+            oauth_client_resolver: None,
         }
-    }
-
-    pub fn with_managed_templates(
-        mut self,
-        templates: crate::managed_agents::ManagedTemplateCatalog,
-    ) -> Self {
-        self.managed_templates = std::sync::Arc::new(templates);
-        self
-    }
-
-    pub fn managed_templates(&self) -> &crate::managed_agents::ManagedTemplateCatalog {
-        &self.managed_templates
     }
 
     pub async fn connect(config: StoreConfig) -> Result<Self> {

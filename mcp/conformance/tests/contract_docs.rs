@@ -67,7 +67,7 @@ fn canonical_transport_and_deployment_surfaces_are_hard_cut() {
     assert!(!chart.contains("sessionIdGenerator"));
 
     for relative in [
-        "platform/gateway/src/bin/gateway/server.rs",
+        "platform/gateway/composition/src/bin/gateway/server.rs",
         "mcp/bridges/legacy/src/main.rs",
         "mcp/bridges/stdio/src/bin/bridge.rs",
         "showcase/sumo/sumo-mcp/src/server/service.rs",
@@ -79,7 +79,11 @@ fn canonical_transport_and_deployment_surfaces_are_hard_cut() {
     }
 
     for server in discovered_server_dirs() {
-        let rust = rust_sources(&server);
+        let production = server.join("src");
+        if !production.is_dir() {
+            continue;
+        }
+        let rust = rust_sources(&production);
         if rust.contains("StreamableHttpService") {
             assert!(
                 rust.contains("stateless_session_manager()"),
@@ -125,7 +129,11 @@ fn discovered_server_dirs() -> Vec<PathBuf> {
 #[test]
 fn every_rust_streamable_server_enforces_the_serialized_response_budget() {
     for server in discovered_server_dirs() {
-        let rust = rust_sources(&server);
+        let production = server.join("src");
+        if !production.is_dir() {
+            continue;
+        }
+        let rust = rust_sources(&production);
         if rust.contains("StreamableHttpService") {
             assert!(
                 rust.contains("enforce_serialized_mcp_response"),
@@ -137,7 +145,7 @@ fn every_rust_streamable_server_enforces_the_serialized_response_budget() {
 
     let root = repository_root();
     for relative in [
-        "platform/gateway/src/bin/gateway/server.rs",
+        "platform/gateway/composition/src/bin/gateway/server.rs",
         "mcp/bridges/legacy/src/main.rs",
         "mcp/bridges/stdio/src/bin/bridge.rs",
     ] {

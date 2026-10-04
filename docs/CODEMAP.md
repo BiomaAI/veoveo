@@ -65,14 +65,15 @@ Component designs live beside the code whose contract they specify:
 |---|---|
 | [`apps/console/web/src/agent-management/DESIGN.md`](../apps/console/web/src/agent-management/DESIGN.md) | shared Console/Workspace agent editor, draft publication, approved connection selection and request recovery |
 | [`apps/console/web/src/audit/DESIGN.md`](../apps/console/web/src/audit/DESIGN.md) | generated audit reader types, SQL-filtered pages, daily aggregate overview, partition-scoped notifications and streamed export |
-| [`platform/gateway/src/bin/gateway/admin/console/audit/DESIGN.md`](../platform/gateway/src/bin/gateway/admin/console/audit/DESIGN.md) | actor-scoped audit admission, committed view receipts, partition block recovery and fixed-range export |
+| [`platform/gateway/composition/src/bin/gateway/admin/console/audit/DESIGN.md`](../platform/gateway/composition/src/bin/gateway/admin/console/audit/DESIGN.md) | actor-scoped audit admission, committed view receipts, partition block recovery and fixed-range export |
 | [`apps/console/bff/src/agent_management/DESIGN.md`](../apps/console/bff/src/agent_management/DESIGN.md) | fixed-profile authoring HTTP and SSE routes with a separate browser session |
-| [`platform/gateway/src/bin/gateway/agent_management/DESIGN.md`](../platform/gateway/src/bin/gateway/agent_management/DESIGN.md) | agent definition API, approved-model admission, policy checks and catalog events |
-| [`platform/gateway/src/managed_agents/DESIGN.md`](../platform/gateway/src/managed_agents/DESIGN.md) | managed template ceilings and effective service registration; current identity and dispatch integration under implementation |
+| [`platform/gateway/composition/src/bin/gateway/agent_management/DESIGN.md`](../platform/gateway/composition/src/bin/gateway/agent_management/DESIGN.md) | agent definition API, approved-model admission, policy checks and catalog events |
+| [`agents/runtime/src/gateway/DESIGN.md`](../agents/runtime/src/gateway/DESIGN.md) | managed template ceilings, current service registration and request/action authority through the gateway resolver port |
 | [`mcp/contract/src/agent_management/DESIGN.md`](../mcp/contract/src/agent_management/DESIGN.md) | authoring DTOs, installation model/template validation and generated browser schema |
 | [`apps/workspace/DESIGN.md`](../apps/workspace/DESIGN.md) | daily productivity client: shared-chat presentation, private Activity, live updates and client acceptance |
 | [`platform/computers/DESIGN.md`](../platform/computers/DESIGN.md) | Computers domain: lifecycle, access checks, named grants, files and maintenance |
 | [`platform/gateway/DESIGN.md`](../platform/gateway/DESIGN.md) | MCP forwarding, protocol resource projection, App links and preservation of server-owned payloads and extension metadata |
+| [`platform/gateway/composition/DESIGN.md`](../platform/gateway/composition/DESIGN.md) | gateway executable, module bindings, installation commands, image assembly and process qualification |
 | [`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md) | the normative MCP `2026-07-28` server contract: Discover, stateless Streamable HTTP, official Tasks and multi-round input, request-scoped subscriptions, replica-safe state, schema bounds, packaging, well-known resources, and compliance |
 | [`platform/audit/DESIGN.md`](../platform/audit/DESIGN.md) | unified audit writer implementation, group acknowledgements, persisted indexing windows and retry receipts, transaction append and integrity services; foundations qualification in progress |
 | [`platform/audit/measurements/2026-09-30.md`](../platform/audit/measurements/2026-09-30.md) | paired native audit timings, batching selection, raw samples and limits of the development measurement |
@@ -89,7 +90,7 @@ Component designs live beside the code whose contract they specify:
 | [`servers/chart-mcp/DESIGN.md`](../servers/chart-mcp/DESIGN.md) | chart generation, the Chart MCP App, and image-hashed knowledge documents in `documents.mjs` and `knowledge.mjs` |
 | [`servers/media-mcp/DESIGN.md`](../servers/media-mcp/DESIGN.md) | provider-neutral media generation and durable webhook completion |
 | [`servers/speech-mcp/DESIGN.md`](../servers/speech-mcp/DESIGN.md) | recording transcription Tasks, private dictation and the persistent CUDA worker; device, scale, release and readiness qualification limits recorded in its design |
-| [`platform/gateway/src/bin/gateway/speech/DESIGN.md`](../platform/gateway/src/bin/gateway/speech/DESIGN.md) | per-chunk Speech policy checks, audit and signed internal forwarding |
+| [`platform/gateway/composition/src/bin/gateway/speech/DESIGN.md`](../platform/gateway/composition/src/bin/gateway/speech/DESIGN.md) | per-chunk Speech policy checks, audit and signed internal forwarding |
 | [`servers/speech-mcp/contract/DESIGN.md`](../servers/speech-mcp/contract/DESIGN.md) | lightweight public Speech types shared by service, gateway and browser edge |
 | [`servers/recording-mcp/DESIGN.md`](../servers/recording-mcp/DESIGN.md) | recording catalog, queries and the Recording Explorer App |
 | [`platform/policy/DESIGN.md`](../platform/policy/DESIGN.md) | policy decisions shared by the gateway and workers, resource-read selections for SQL consumers, indexed revisions, and current authority supplied by the caller |
@@ -242,8 +243,8 @@ designs above.
 | `platform/computers/src/automation_grants/` and `queries/*automation_grant*` | named principal/client grants, idempotent ledger and revocation, installation limits and permission checks; `management.rs` reuses issuance's registration checks for application choices and permission hints |
 | `platform/computers/src/cli_grants/` and `queries/*cli*` | stock-CLI pairing ledger, named session-bound grants, shared browser/CLI quota, profile-bound fenced connection leases and owner revocation; public stock CLI qualified in the Bioma installation |
 | `platform/computers/transport/` | gateway/BFF WebSocket handshakes, terminal-v2 and private CLI relays, service-issued deadlines with clock allowance; the public CLI edge strips internal controls; no dependency on the domain store or private provider SDK; qualification is recorded in the Computers plan |
-| `platform/gateway/src/bin/gateway/computers/` | fixed profile-scoped Computer control and terminal routes, action policy and audit, upstream trust and terminal relay |
-| [`platform/gateway/src/bin/gateway/console/`](../platform/gateway/src/bin/gateway/console/DESIGN.md) | authenticated session bootstrap that does not depend on administrator inventory, navigation permissions, and shared branding and identity display |
+| `platform/gateway/composition/src/bin/gateway/computers/` | fixed profile-scoped Computer control and terminal routes, action policy and audit, upstream trust and terminal relay |
+| [`platform/gateway/composition/src/bin/gateway/console/`](../platform/gateway/composition/src/bin/gateway/console/DESIGN.md) | authenticated session bootstrap that does not depend on administrator inventory, navigation permissions, and shared branding and identity display |
 | [`apps/console/bff/src/bootstrap/`](../apps/console/bff/src/bootstrap/DESIGN.md) | fixed-profile, cookie-authenticated Console session routes with typed responses and token refresh |
 | [`apps/console/bff/src/workspace/`](../apps/console/bff/src/workspace/DESIGN.md) | shared browser edge for Workspace: typed chat routes, cookie credentials, CSRF, event streams and static assets |
 | `platform/gateway/contract/` | lightweight gateway-owned App import declarations and discovery failure DTOs; browser contracts and MCP metadata adapters import this owner directly |
@@ -254,12 +255,12 @@ designs above.
 | `mcp/contract/src/gateway/console.rs` | shared closed Console bootstrap, branding and session DTOs |
 | [`platform/store/src/workspace/runs/`](../platform/store/src/workspace/runs/DESIGN.md) | per-chat agent admission; human-turn participation and same-chat replies in `workspace/participation.rs`, with server-captured quotes tested by `tests/workspace/replies.rs`; immutable Artifact references tested by `tests/workspace/attachments.rs`; concurrent-run limits, fixed context, execution fences, cancellation and interrupted-worker recovery |
 | [`platform/store/src/migrations/`](../platform/store/src/migrations/DESIGN.md) | upstream and fork migration catalogs, checksummed histories, transactional application and drift rejection; fork entries live in `platform/store/downstream/catalog.rs` |
-| `platform/store/src/workspace/personal.rs` and `platform/gateway/src/bin/gateway/workspace/operations/personal.rs` | actor-private inventory, shared LIVE hints, native Task observation and SSE checked against current authorization; `apps/workspace/src/usePersonalEvents.ts` owns global attention and query invalidation |
+| `platform/store/src/workspace/personal.rs` and `platform/gateway/composition/src/bin/gateway/workspace/operations/personal.rs` | actor-private inventory, shared LIVE hints, native Task observation and SSE checked against current authorization; `apps/workspace/src/usePersonalEvents.ts` owns global attention and query invalidation |
 | [`platform/store/src/workspace/operations/`](../platform/store/src/workspace/operations/DESIGN.md) | private MCP operation receipts, at-most-once dispatch claims, Task references, MRTR continuation fences and ambiguous-outcome recovery |
-| [`platform/gateway/src/bin/gateway/workspace/runs/`](../platform/gateway/src/bin/gateway/workspace/runs/DESIGN.md) | `messages.rs` records human-message response intents atomically; per-chat model execution through Rig pinned to the registry, capabilities limited to what the human can currently use, streaming, private Task dispatch and independent cancellation; `feedback.rs` observes tool bodies and publishes shared execution status |
-| [`platform/gateway/src/bin/gateway/workspace/operations/`](../platform/gateway/src/bin/gateway/workspace/operations/DESIGN.md) | human-scoped MCP dispatch, Task recovery, input forms, continuation, cancellation and Task subscriptions; `catalog.rs` waits for required capabilities through list-change notifications; `apps.rs` binds App calls and Task recovery to their persisted origin |
+| [`platform/gateway/composition/src/bin/gateway/workspace/runs/`](../platform/gateway/composition/src/bin/gateway/workspace/runs/DESIGN.md) | `messages.rs` records human-message response intents atomically; per-chat model execution through Rig pinned to the registry, capabilities limited to what the human can currently use, streaming, private Task dispatch and independent cancellation; `feedback.rs` observes tool bodies and publishes shared execution status |
+| [`platform/gateway/composition/src/bin/gateway/workspace/operations/`](../platform/gateway/composition/src/bin/gateway/workspace/operations/DESIGN.md) | human-scoped MCP dispatch, Task recovery, input forms, continuation, cancellation and Task subscriptions; `catalog.rs` waits for required capabilities through list-change notifications; `apps.rs` binds App calls and Task recovery to their persisted origin |
 | `mcp/contract/src/workspace.rs` | typed Workspace chat, membership, invitation, message, agent, run, personal event and private MCP operation/Task HTTP types; `workspace/apps.rs` owns native App bridge envelopes |
-| [`platform/gateway/src/bin/gateway/workspace/`](../platform/gateway/src/bin/gateway/workspace/DESIGN.md) | direct-human Work Context admission, chat/history/invitation routes and membership-checked event streams |
+| [`platform/gateway/composition/src/bin/gateway/workspace/`](../platform/gateway/composition/src/bin/gateway/workspace/DESIGN.md) | direct-human Work Context admission, chat/history/invitation routes and membership-checked event streams |
 | [`apps/console/web/src/computers/`](../apps/console/web/src/computers/DESIGN.md) | Computer list, lifecycle request recovery, live invalidations, lazily loaded hardware terminal and replay/lease state machine; installed evidence is recorded in the Computers plan |
 | `apps/console/web/src/generated/`, `generatedContracts.ts` | generated Audit/Computer/Console schemas and TypeScript models plus pinned-Zod runtime validation; Audit generation and qualification are part of the active foundations batch |
 | [`apps/workspace/`](../apps/workspace/DESIGN.md) | productivity client: shared chats, owner controls and agent response policy in `AgentParticipation.tsx`/`participation.ts`, invitation inbox, assistant-ui renderer, concurrent agents and private Tasks; `Apps.tsx`, `appBridge.ts` and `appApi.ts` host sandboxed Apps with persisted Tasks; `Attachments.tsx` owns reference selection and in-message files; `ResourceResult.tsx` renders Artifact actions; `Uploads.tsx` and `Computers.tsx` reuse shared capabilities under Workspace authorization; acceptance status is in the Workspace plan |
@@ -285,7 +286,7 @@ designs above.
 | `platform/computers/src/active_execution.rs` | one metadata query for visible command/file slots and their typed public Task identities |
 | `apps/console/web/src/computers/FilesPanel.tsx`, `fileApi.ts` and `fileRequest.ts` | retained-file import/export, Artifact selection, saved retry intent, result downloads and Task cancellation |
 | `servers/computers-mcp/src/application/files.rs`, `file_state.rs` and `src/server/files.rs` | public file admission, Artifact capability repair for the actual caller, Task/result authorization and metadata-only Console view |
-| `platform/gateway/src/bin/gateway/computers/files.rs` | typed file request and result validation at the fixed public Computer boundary |
+| `platform/gateway/composition/src/bin/gateway/computers/files.rs` | typed file request and result validation at the fixed public Computer boundary |
 | `servers/computers-mcp/src/application/maintenance.rs` and `src/server/maintenance.rs` | public environment updates, stable target selection, typed progress and HTTP receipts; MCP resources and Tasks use the same domain checks |
 | `servers/computers-mcp/src/application.rs` and `templates.rs` | shared lifecycle and read views, action flags, availability/quota states and original Create selection across default-template changes |
 | `servers/computers-mcp/src/protocol/` and `server/` | authenticated stateless MCP, typed tool handlers and Task admission, lifecycle/resource surfaces, native changefeed subscriptions and Console HTTP routes; service startup and provider readiness in `server/run.rs` and `provider.rs` |
@@ -343,7 +344,7 @@ designs above.
 | `testing/browser-smoke/src/browser/artifact_upload.rs` | public Console upload preflight and real large-file selection, pause/reload/reselection, navigation, durable receipt, and hardware-browser evidence |
 | `testing/browser-smoke/src/browser/artifact_upload/resume.rs` | continuation of an interrupted large-upload acceptance fixture with the same upload identity, independent SHA-256, and public HEAD/Range checks |
 | `testing/browser-smoke/src/browser/artifact_upload/ux.rs` | installed upload keyboard/clipboard actions, receipt recovery behind filters, narrow/desktop transfer/error states, and acknowledged cancellation |
-| `platform/gateway/src/bin/gateway/admin/console/artifact.rs` | direct artifact detail lookup outside the latest catalog window |
+| `platform/gateway/composition/src/bin/gateway/admin/console/artifact.rs` | direct artifact detail lookup outside the latest catalog window |
 | `deploy/helm/common/` | internal labels, image pins, security and GPU helpers bundled into application charts |
 | `deploy/offline/` | pinned image manifest, bundle builder/loader, offline values |
 | `showcase/sumo/` | real SUMO/TraCI domain showcase |
@@ -413,7 +414,7 @@ live under `platform/store/src/schema/`; optional owners expose `schema::module_
 [independent schema consumer](../testing/fixtures/module-schema-consumer/README.md)
 composes the real owner exports without contract/runtime dependency graphs.
 
-`platform/gateway/src/bin/gateway/module_installation/` composes those exports and
+`platform/gateway/composition/src/bin/gateway/module_installation/` composes those exports and
 owns offline plan generation, mixed-schema preparation, lane execution and readiness
 commands. `deploy/runtime/src/compile/module_plan.rs` runs the selected composition
 image to generate the locked plan. Its process adapter owns execution deadlines and
@@ -697,7 +698,8 @@ Task state lives in this runtime. RMCP defines the Tasks wire types.
 | Path | Responsibility |
 |---|---|
 | `catalog.rs` | validated active catalog and profile/server lookup |
-| `recording.rs` | Recording adapter's producer-scope admission before catalog activation; consumes the owner's contract without adding a domain dependency to MCP core |
+| `catalog_admission.rs` | required owner admission before catalog construction, publication and stored revision decoding; reload preserves the bound adapter |
+| `oauth_clients.rs` | contributed OAuth registration and current-authority policy; owner resolvers supply registration, issuance and request/action admission |
 | `control_store.rs` and `control_store/audit.rs` | immutable SurrealDB control revisions, compare-and-set activation, and transactional Work Context change records |
 | `auth/` | access tokens, OIDC, ID-JAG, client assertions, immutable principals, and independently typed OIDC display labels |
 | `policy.rs` | gateway catalog adapter for the shared evaluator in `platform/policy` |
@@ -716,7 +718,6 @@ Task state lives in this runtime. RMCP defines the Tasks wire types.
 | `mcp/upstream*.rs` | authenticated Streamable HTTP, session-local protocol state, and catalog-revision-scoped sharing of transport-equivalent HTTP/TLS clients |
 | `mcp/upstream_connection.rs` | ten-second discovery attempts with one transport-only reconnect before domain dispatch; native HTTP disconnect and refusal qualification |
 | `audit.rs` | verified actor, authority and policy target conversion for the shared audit writer |
-| `bin/gateway/admin/tasks.rs` | native Task cancellation with explicit server identity, current-owner SQL admission and typed audit attribution |
 | `state/auth_state.rs` | durable OAuth authorization and replay state |
 | `state/refresh_tokens.rs` | refresh family issue/rotate/replay/revoke/GC plus signed-in display-label continuity |
 | `state/session.rs` | access-token session-family binding and revocation checks |
@@ -724,7 +725,19 @@ Task state lives in this runtime. RMCP defines the Tasks wire types.
 | `state/task_routes.rs`, `state/task_routes/ownership.rs` and [`state/task_routes/DESIGN.md`](../platform/gateway/src/state/task_routes/DESIGN.md) | opaque upstream Task mapping, idempotent concurrent registration, actor/provenance ownership, permission checks and route expiry; a version-0 reader handles rows from before migration 0081 added ownership metadata |
 | `secrets.rs` | secret-source models and environment/file/Vault resolution |
 
-### Binary surface: `platform/gateway/src/bin/gateway`
+The Computers WebSocket pool lives in `platform/computers/src/gateway.rs`; it reuses
+the library's TLS builder and opaque revision-scoped client key. Recording's producer
+scope admission lives in `servers/recording-mcp/src/gateway.rs`. Managed registration
+and template policy live in `agents/runtime/src/gateway/`. These owner adapters expose
+their integration through each library's `gateway` feature.
+
+### Composition: `platform/gateway/composition`
+
+`veoveo-gateway-composition` owns the `gateway` executable and its concrete module
+bindings. Its package, Dockerfile and process tests are separate from the reusable
+`veoveo-mcp-gateway` library. The executable and image keep their installed names.
+The [composition design](../platform/gateway/composition/DESIGN.md) describes this
+build and runtime assembly. Command and route modules live in `src/bin/gateway`.
 
 | Path | Responsibility |
 |---|---|
@@ -736,7 +749,7 @@ Task state lives in this runtime. RMCP defines the Tasks wire types.
 | `admin/artifacts.rs` | release/grant/link mutations through artifact service |
 | `admin/console/mod.rs` | console snapshot handler, trusted display names for every principal (authenticated identity wins), branding, stream cursor bootstrap |
 | `admin/console/projection.rs` | tenant projection load and per-entity summary builders |
-| [`admin/console/DESIGN.md`](../platform/gateway/src/bin/gateway/admin/console/DESIGN.md), `stream.rs` | live Console SSE: LIVE wake hub, one database replay cursor, tenant filtering, limits and current agent leases |
+| [`admin/console/DESIGN.md`](../platform/gateway/composition/src/bin/gateway/admin/console/DESIGN.md), `stream.rs` | live Console SSE: LIVE wake hub, one database replay cursor, tenant filtering, limits and current agent leases |
 | `admin/console/health.rs` | background MCP server health prober and cache |
 | `admin/server_proxy.rs` | generic policy-checked proxy to a hosted server's contract-defined admin API |
 | `artifact_download.rs` | authorized/audited large download proxy |
@@ -1207,6 +1220,7 @@ Simulation runtime ownership:
 | `platform/runtimes/simulation/probes/` | import-identity and hardware-GPU conformance evidence |
 | `tools/xtask/src/commands/release_cache.rs` | scoped Cargo executable and incremental-cache retention under the build-directory lock |
 | `tools/image-build/control/` | shared pinned Buildx, BuildKit registry configuration, declared resource limits and CPU telemetry, and cross-worktree builder lease used by image release and certification |
+| `tools/xtask/src/commands/image/source_context.rs` and `source_context/selection.rs` | compiler-family Cargo feature selection, package-owned source inputs, nested package isolation, and retained workspace manifests and target entrypoints |
 | `tools/xtask/src/commands/image/benchmark.rs` | controlled compiler source-edit comparisons, temporary input variants, CPU quota experiments under the shared lease, and compiler-only evidence |
 | `tools/xtask/src/commands/image/cache_benchmark.rs` | fresh Cargo target comparisons against a pinned compiler cache, ordinary artifact identity, and typed cache hit/miss evidence |
 | `tools/xtask/src/commands/image/worker_benchmark.rs` and `tools/image-build/control/src/experiment.rs` | exported compiler-result reuse, same-host worker isolation, source-edit comparisons, and disposable worker cleanup |
@@ -1476,7 +1490,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 The [managed instance store](../platform/store/src/agent_management/instances/DESIGN.md)
 owns admitted provisioning intent, retained capacity, service registration
 and controller generation fences.
-[`instances/`](../platform/gateway/src/bin/gateway/agent_management/instances/) in
+[`instances/`](../platform/gateway/composition/src/bin/gateway/agent_management/instances/) in
 the management gateway owns template-derived admission, lifecycle operations,
 public views, and image-only template adoption checked against the previous
 template digest. The lifecycle controller drains retained writers before activation.
@@ -1484,7 +1498,7 @@ template digest. The lifecycle controller drains retained writers before activat
 The [agent catalog store](../platform/store/src/agent_management/DESIGN.md) owns
 definition authoring, immutable executable revisions, mutation replay and publication
 audience fencing. It is separate from episode scheduling. The
-[management gateway](../platform/gateway/src/bin/gateway/agent_management/DESIGN.md)
+[management gateway](../platform/gateway/composition/src/bin/gateway/agent_management/DESIGN.md)
 owns authoring policy, approved model connections, publication validation and
 catalog invalidation. `import.rs` owns the explicit offline installation seed and retained
 chat-binding conversion; startup never overwrites authored definitions. Its [HTTP contract](../mcp/contract/src/agent_management/DESIGN.md)
@@ -1528,7 +1542,7 @@ dispatch preflights and budgeted execution.
 | `connection.rs` | final-profile gateway client epoch, serialized request-boundary credential freshness, acknowledged request-scoped listener restoration, and deferred-task resolver |
 | `resource.rs` | resource reads through the current profile, content-bound observations and provenance within episode budgets, text validation, and fixed-field correction diagnostics |
 
-### `platform/gateway/src/bin/gateway/admin`
+### `platform/gateway/composition/src/bin/gateway/admin`
 
 | File | Responsibility |
 |---|---|

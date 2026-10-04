@@ -14,6 +14,11 @@
 
 ## Ownership
 
+The reusable `veoveo-mcp-gateway` library owns forwarding mechanics. The
+[`veoveo-gateway-composition`](composition/DESIGN.md) package owns the `gateway`
+executable, owner bindings, installation commands and image packaging.
+
+
 The gateway authenticates and authorizes a request before forwarding it to a selected
 server. Its catalog composes server manifests and exposed capabilities. Domain servers
 own their tool schemas, result values, resource content and identifiers. The gateway
@@ -213,12 +218,43 @@ readback through the public gateway before configuring a simulator.
 
 ## Audit And Catalog Cache
 
-Catalog admission composes generic MCP configuration checks with the Recording
-adapter's producer-scope check in `src/recording.rs`. Catalog construction, revision
-publication and stored-revision loading use that same admission. The adapter imports Recording's
-contract-only library and requires its `Ingest` permission. Additional installation
-scopes stay in the configured set and are enforced by policy. Generic MCP contracts
-own no Recording scope spelling and require no domain library dependency.
+`CatalogAdmission` supplies installation-owned validation after the generic control
+plane checks. Catalog constructors and `GatewayControlStore` require an explicit
+`GatewayCatalogAdmission`; unbound loads and publication refuse the capability.
+The store repeats admission when decoding a persisted revision. A catalog carries
+its binding through clones, and `GatewayCatalogHandle::replace` rejects a different
+binding before changing the generation or notifying readers. Reloads reuse the
+current binding rather than constructing another validator.
+
+Recording's `gateway` feature implements producer-scope admission in its owning
+library. It requires `RecordingProducerScope::Ingest` and preserves additional
+installation scopes for normal policy evaluation. The shared control-plane DTO still
+contains `recording_ingest_resources` and related producer fields. Their owner-wire
+extraction is required before this configuration supports independent catalog
+sections; the current port does not change those wire fields.
+
+`OAuthClientResolver` returns a generic effective registration and optional
+`OAuthClientAuthority`. The reusable library handles token scope/resource checks
+and delegates membership, service roles, current-token binding and action admission
+to the registration's owner. `GatewayState` binds one resolver and refuses OAuth
+resolution when unbound. Composition chooses the Agents resolver for durable managed
+registrations. The explicit static-only resolver admits catalog registrations and
+rejects managed claims; it supports installations that exclude durable registrations.
+
+The Agents adapter reads current registration and template authority for each
+resolution. Its implementation and native policy cases live under
+[`agents/runtime/src/gateway`](../../agents/runtime/src/gateway/DESIGN.md).
+The existing `ManagedAgentToken` JWT claim still appears in the generic token-binding
+API and verified token envelope. Independent authority implementations can provide
+policy, but a new module-specific token binding needs owner-wire extraction and
+consumer transfer before activation. The authority port preserves the claim's wire form.
+
+The generic upstream pool owns HTTP clients and checked TLS construction.
+`UpstreamClientKey` exposes the catalog revision while keeping the TLS fingerprint
+opaque. Computers' owner adapter supplies its separate HTTP/1.1 upgrade pool using
+that key and builder. Both paths retain ten-second connection establishment, no
+total response timeout, disabled redirects, declared CA roots and typed mTLS secret
+purposes. The Computers pool retires clients from older catalog revisions.
 
 Console's native inventory stream retains prior rows for tenant-scoped deletions of
 principals, Tasks, Artifact blobs/occurrences/access requests, agents, wakes and

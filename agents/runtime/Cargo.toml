@@ -8,6 +8,7 @@ name = "veoveo_agent_runtime"
 path = "src/lib.rs"
 
 [features]
+gateway = ["runtime", "dep:veoveo-mcp-gateway", "dep:anyhow", "dep:jsonwebtoken", "dep:veoveo-types"]
 default = ["runtime"]
 schema = ["dep:veoveo-modules"]
 runtime = [
@@ -26,6 +27,10 @@ runtime = [
 ]
 
 [dependencies]
+veoveo-mcp-gateway = { path = "../../platform/gateway", optional = true }
+anyhow = { workspace = true, optional = true }
+jsonwebtoken = { workspace = true, optional = true }
+veoveo-types = { workspace = true, optional = true }
 veoveo-modules = { workspace = true, default-features = false, optional = true }
 async-stream = { version = "=0.3.6", optional = true }
 chrono = { workspace = true, optional = true }

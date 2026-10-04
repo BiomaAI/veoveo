@@ -32,7 +32,10 @@ fn browser_compilation_is_identical_alone_and_with_backend_images() {
                         .source_inputs
                         .source_packages
                         .iter()
-                        .any(|p| p == "veoveo-mcp-gateway")
+                        .any(|p| matches!(
+                            p.as_str(),
+                            "veoveo-mcp-gateway" | "veoveo-gateway-composition"
+                        ))
                 );
                 assert!(
                     !family

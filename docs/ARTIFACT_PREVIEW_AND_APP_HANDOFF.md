@@ -350,11 +350,11 @@ domain object, or perform a governed import whose result points back to the sour
 
 | ID | Finding | Evidence |
 |---|---|---|
-| F01 | The Console artifact catalog is a newest-200 tenant snapshot, not complete artifact discovery. | [`projection.rs`](../platform/gateway/src/bin/gateway/admin/console/projection.rs) |
+| F01 | The Console artifact catalog is a newest-200 tenant snapshot, not complete artifact discovery. | [`projection.rs`](../platform/gateway/composition/src/bin/gateway/admin/console/projection.rs) |
 | F02 | Console search and release filtering operate only on the browser's snapshot rows. | [`Artifacts.tsx`](../apps/console/web/src/views/Artifacts.tsx) |
 | F03 | Artifact MCP discovery has cursor and limit only; its page size is 100. | [`artifact_service.rs`](../mcp/contract/src/artifact_service.rs), [`handler.rs`](../servers/artifact-mcp/src/bin/server/handler.rs) |
-| F04 | Console and Artifact MCP catalogs have different membership semantics: tenant occurrence visibility versus effective read visibility. | [`projection.rs`](../platform/gateway/src/bin/gateway/admin/console/projection.rs), [`service.rs`](../platform/artifacts/service/src/service.rs) |
-| F05 | Producer metadata is open JSON, while `ArtifactSummary` projects only a recognized recording relation. | [`metadata.rs`](../platform/artifacts/contract/src/metadata.rs), [`projection.rs`](../platform/gateway/src/bin/gateway/admin/console/projection.rs) |
+| F04 | Console and Artifact MCP catalogs have different membership semantics: tenant occurrence visibility versus effective read visibility. | [`projection.rs`](../platform/gateway/composition/src/bin/gateway/admin/console/projection.rs), [`service.rs`](../platform/artifacts/service/src/service.rs) |
+| F05 | Producer metadata is open JSON, while `ArtifactSummary` projects only a recognized recording relation. | [`metadata.rs`](../platform/artifacts/contract/src/metadata.rs), [`projection.rs`](../platform/gateway/composition/src/bin/gateway/admin/console/projection.rs) |
 | F06 | Preview selection is a fixed Console MIME test with no App lookup or handler choice. | [`ArtifactPreview.tsx`](../apps/console/web/src/components/ArtifactPreview.tsx), [`artifactPreview.ts`](../apps/console/web/src/artifactPreview.ts) |
 | F07 | Timeseries emits `application/vnd.veoveo.rerun-rrd`; the Console Rerun viewer requires exact `application/vnd.rerun.rrd`. | [`forecast.rs`](../servers/timeseries-mcp/src/forecast.rs), [`ArtifactPreview.tsx`](../apps/console/web/src/components/ArtifactPreview.tsx) |
 | F08 | App descriptors contain presentation, tools, dependencies, and agent targets, but no accepted artifact formats or actions. | [`apps.rs`](../apps/console/bff/src/apps.rs), [`models.rs`](../mcp/apps-extension/src/models.rs) |
@@ -403,7 +403,7 @@ The shortest repository paths for continued investigation are:
 - Artifact MCP discovery: [`servers/artifact-mcp/DESIGN.md`](../servers/artifact-mcp/DESIGN.md),
   [`servers/artifact-mcp/src/bin/server/handler.rs`](../servers/artifact-mcp/src/bin/server/handler.rs);
 - Console catalog and preview:
-  [`platform/gateway/src/bin/gateway/admin/console/projection.rs`](../platform/gateway/src/bin/gateway/admin/console/projection.rs),
+  [`platform/gateway/composition/src/bin/gateway/admin/console/projection.rs`](../platform/gateway/composition/src/bin/gateway/admin/console/projection.rs),
   [`apps/console/web/src/components/ArtifactPreview.tsx`](../apps/console/web/src/components/ArtifactPreview.tsx),
   [`apps/console/web/src/drawers/ArtifactDrawer.tsx`](../apps/console/web/src/drawers/ArtifactDrawer.tsx);
 - App discovery, host, and navigation:

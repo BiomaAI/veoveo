@@ -38,7 +38,7 @@ pub(crate) fn subject() -> AuthenticatedSubject {
             managed_agent: None,
             issuer: actor.issuer.clone(),
             subject: actor.subject.clone(),
-            oauth_client_id: OAuthClientId::new("console").unwrap(),
+            oauth_client_id: OAuthClientId::new("workspace").unwrap(),
             session_family: None,
             audience: ProtectedResourceId::new("https://veoveo.example/mcp/workspace").unwrap(),
             work_context: authority.work_context.clone(),
@@ -64,7 +64,10 @@ pub(super) fn gateway(state: GatewayState, plane: GatewayControlPlane) -> Gatewa
         .decode("MC4CAQAwBQYDK2VwBCIEII4AsVspz8h7mpqvOkgslJP07HfqpiWMZA+6Ii90lVBl")
         .unwrap();
     GatewayMcp::new(
-        GatewayCatalogHandle::new(Arc::new(GatewayCatalog::from_control_plane(plane).unwrap())),
+        GatewayCatalogHandle::new(Arc::new(
+            GatewayCatalog::from_control_plane(plane, crate::test_catalog_admission::binding())
+                .unwrap(),
+        )),
         GatewayProfileId::new("workspace").unwrap(),
         state,
         GatewayInternalTokenIssuer::new(
@@ -118,7 +121,11 @@ async fn admitted(gateway: &GatewayMcp, subject: &AuthenticatedSubject, task: &s
 #[tokio::test]
 async fn recovery_uses_durable_identity_and_current_permissions_for_all_task_actions() {
     let db = fixture::TestDb::new().await;
-    let state = GatewayState::new(db.a.clone());
+    let state = GatewayState::new(db.a.clone())
+        .bind_oauth_client_resolver(std::sync::Arc::new(
+            crate::oauth_clients::CatalogOAuthClientResolver,
+        ))
+        .unwrap();
     let plane: GatewayControlPlane =
         serde_json::from_str(include_str!("../../../../configs/gateway.local.json")).unwrap();
     let gateway = gateway(state.clone(), plane.clone());
@@ -196,9 +203,13 @@ async fn recovery_uses_durable_identity_and_current_permissions_for_all_task_act
     for policy in &mut revoked.policies {
         policy.rules.clear();
     }
-    gateway.catalog.replace(Arc::new(
-        GatewayCatalog::from_control_plane(revoked).unwrap(),
-    ));
+    gateway
+        .catalog
+        .replace(Arc::new(
+            GatewayCatalog::from_control_plane(revoked, crate::test_catalog_admission::binding())
+                .unwrap(),
+        ))
+        .unwrap();
     assert!(!admitted(&gateway, &refreshed, id.as_str()).await);
     let mut hidden = plane;
     for profile in &mut hidden.profiles {
@@ -206,9 +217,13 @@ async fn recovery_uses_durable_identity_and_current_permissions_for_all_task_act
             exposure.tasks = TaskExposure::Disabled;
         }
     }
-    gateway.catalog.replace(Arc::new(
-        GatewayCatalog::from_control_plane(hidden).unwrap(),
-    ));
+    gateway
+        .catalog
+        .replace(Arc::new(
+            GatewayCatalog::from_control_plane(hidden, crate::test_catalog_admission::binding())
+                .unwrap(),
+        ))
+        .unwrap();
     assert!(!admitted(&gateway, &refreshed, id.as_str()).await);
 }
 
@@ -243,7 +258,11 @@ fn delegated_ownership_requires_the_same_initiator_and_grant() {
 #[tokio::test]
 async fn version_zero_shared_task_recovers_without_rewriting_or_rebinding_external_routes() {
     let db = fixture::TestDb::new().await;
-    let state = GatewayState::new(db.a.clone());
+    let state = GatewayState::new(db.a.clone())
+        .bind_oauth_client_resolver(std::sync::Arc::new(
+            crate::oauth_clients::CatalogOAuthClientResolver,
+        ))
+        .unwrap();
     let original = subject();
     let runtime = TaskRuntime::new(db.a.clone(), "media", "ownership-fixture");
     let task_id = TaskId::new();
@@ -293,7 +312,11 @@ async fn version_zero_shared_task_recovers_without_rewriting_or_rebinding_extern
         .check()
         .unwrap();
     let gateway = gateway(
-        GatewayState::new(db.b.clone()),
+        GatewayState::new(db.b.clone())
+            .bind_oauth_client_resolver(std::sync::Arc::new(
+                crate::oauth_clients::CatalogOAuthClientResolver,
+            ))
+            .unwrap(),
         serde_json::from_str(include_str!("../../../../configs/gateway.local.json")).unwrap(),
     );
     let mut refreshed = original.clone();

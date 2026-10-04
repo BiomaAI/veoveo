@@ -4,7 +4,7 @@
 
 | Boundary | Profile |
 |---|---|
-| Cargo metadata v1 | locked Linux amd64 graph, all features for conservative input discovery, normal and build edges |
+| Cargo metadata v1 and Cargo tree | locked Linux amd64 manifest/target inventory; selected compiler-family features, normal and build edges |
 | Rust 1.98.1 | Bookworm control compiler, Linux amd64 GNU ABI; separate Cargo selection from analytics consumers |
 | Rust 1.98.1 | dedicated Trixie browser compiler, Linux amd64 GNU ABI; one browser-edge package selection across runtime target sets |
 | Docker Buildx Bake | typed target selection and generated context overrides |
@@ -84,21 +84,23 @@ therefore preserves the root manifest and lockfile, toolchain selection, `.cargo
 configuration, every local package manifest, and every real target entrypoint reported
 by Cargo. It contains no handwritten workspace member list or synthetic Rust stubs.
 
-The planner follows normal and build dependencies from the selected packages. It reads
-an all-feature graph to conservatively include optional production inputs, including
-the package-qualified Recording Redap feature. Dev-only edges do not expand the source
-closure. Selected local packages contribute all versioned and non-ignored package
-files, including build scripts, native code, and embedded assets. Unselected packages
-contribute only the metadata files and target entrypoints Cargo needs for discovery.
+The planner asks Cargo tree for normal and build dependencies of all packages in a
+compiler family together. Cargo applies their default features and unifies enabled
+features across that selection. The Recording artifact receives the same qualified
+`veoveo-recording-mcp/redap` feature as the Docker build command. All-feature metadata
+supplies manifests and target inventory; it does not expand the compiler source set.
 
-The shared task runtime consumes the workspace's feature-neutral MCP contract dependency.
-Analytics is enabled by its actual consumers. A native Cargo feature-graph regression
-requires Stream and Reason to retain the task runtime without DuckDB or its native
-build script, Recording Hub or Forwarder. Recording and Map server libraries enter
-that graph only through their contract features. Source discovery includes their
-optional implementation inputs because it resolves all features; Cargo's production
-selection determines which of those inputs compile. The source checks verify the
-required domain contract files and native build inputs separately.
+Selected local packages contribute their versioned and non-ignored files, including
+build scripts, native code and embedded assets. A file belongs to its nearest nested
+package, which keeps an excluded composition package out of its parent library's
+source set. Unselected packages contribute real manifests and target entrypoints for
+Cargo discovery. Explicit `image-build-inputs` may add files across package boundaries.
+
+The shared Task runtime consumes the feature-neutral MCP contract dependency. Its
+Stream and Reason consumers retain contract libraries and native build inputs without
+activating DuckDB, Recording Hub or Forwarder. Native Cargo fixtures qualify default,
+optional, build and procedural-macro dependencies, family feature unification and the
+Recording feature. Browser source selection stays independent of backend images.
 
 A package that reads compilation inputs outside its own directory declares them as
 repository-relative files or directories:

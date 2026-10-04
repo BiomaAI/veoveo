@@ -20,7 +20,9 @@ mod upstream;
 mod upstream_authorized_http;
 mod upstream_connection;
 mod upstream_http;
-pub use upstream_http::GatewayUpstreamHttpClientPool;
+pub use upstream_http::{
+    GatewayUpstreamHttpClientPool, UpstreamClientKey, upstream_client_builder, upstream_client_key,
+};
 
 use std::{future::Future, sync::Arc};
 

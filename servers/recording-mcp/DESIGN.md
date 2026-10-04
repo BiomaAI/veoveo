@@ -36,6 +36,19 @@ Rerun implementations. The gateway's Recording adapter imports this library's co
 feature and uses its Recording ID admission and URI builder for policy targets.
 MCP core defines no Recording models and depends on neither domain crate nor server.
 
+The optional `gateway` feature implements `RecordingCatalogAdmission` against the
+gateway's generic catalog admission port. Composition binds it before constructing
+catalogs or loading and publishing control revisions. It requires the owned
+`RecordingProducerScope::Ingest` permission and preserves additional installation
+scopes. Persisted revision decoding repeats that check, and hot reload keeps the
+same immutable admission binding. Native cases cover denied publication and a
+malformed stored revision that bypassed publication admission.
+
+The shared control-plane configuration still contains `recording_ingest_resources`
+and producer DTOs. Moving those wire declarations to the Recording contract requires
+transfer of gateway configuration, administration and installation consumers. The
+adapter preserves existing fields and does not claim extensible catalog sections.
+
 `runtime` enables Store access, the reader and caches, sealing, projection execution
 and live playback. `mcp` adds discovery and HTTP adapter dependencies and is enabled
 by default. `redap` includes that profile and adds the Rerun catalog service used by

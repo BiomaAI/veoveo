@@ -11,16 +11,17 @@ use sha2::{Digest, Sha256};
 use tempfile::TempDir;
 
 use crate::process;
+mod selection;
 
 #[derive(Debug, Deserialize)]
 pub(super) struct CargoMetadata {
     pub packages: Vec<CargoPackage>,
-    resolve: Resolve,
 }
 
 #[derive(Debug, Deserialize)]
 pub(super) struct CargoPackage {
     pub name: String,
+    version: String,
     pub targets: Vec<CargoTarget>,
     id: String,
     manifest_path: PathBuf,
@@ -50,35 +51,6 @@ struct VeoveoMetadata {
     image_asset_inputs: Vec<PathBuf>,
 }
 
-#[derive(Debug, Deserialize)]
-struct Resolve {
-    nodes: Vec<Node>,
-}
-
-#[derive(Debug, Deserialize)]
-struct Node {
-    id: String,
-    deps: Vec<Dependency>,
-}
-
-#[derive(Debug, Deserialize)]
-struct Dependency {
-    pkg: String,
-    dep_kinds: Vec<DependencyKind>,
-}
-
-#[derive(Debug, Deserialize)]
-struct DependencyKind {
-    kind: Option<Kind>,
-}
-
-#[derive(Debug, Deserialize, PartialEq)]
-#[serde(rename_all = "lowercase")]
-enum Kind {
-    Build,
-    Dev,
-}
-
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct InputIdentity {
@@ -104,8 +76,8 @@ impl SourceContext {
 }
 
 pub(super) fn metadata(repository: &Path) -> Result<CargoMetadata> {
-    // All features make this a conservative production-input closure even for
-    // the package-qualified Recording redap feature enabled by the image builder.
+    // Inventory every manifest and target. Compilation source selection uses the
+    // compiler family's actual Cargo feature graph, not this all-feature inventory.
     let output = process::output(
         "cargo",
         [
@@ -128,9 +100,14 @@ pub(super) fn prepare(
     packages: &[String],
 ) -> Result<PreparedSources> {
     let files = tracked_files(repository)?;
-    let asset_files = asset_files(repository, metadata, packages, &files)?;
-    let selected = input_files(repository, metadata, packages, &files)?;
-    let context = materialize(repository, selected, source_packages(metadata, packages)?)?;
+    let selected = selection::closure(repository, metadata, packages)?;
+    let asset_files = asset_files(repository, metadata, &selected, &files)?;
+    let selected_files = input_files(repository, metadata, &selected, &files)?;
+    let context = materialize(
+        repository,
+        selected_files,
+        source_packages(metadata, &selected)?,
+    )?;
     process::output(
         "cargo",
         [
@@ -149,7 +126,7 @@ pub(super) fn prepare(
             materialize(
                 repository,
                 asset_files,
-                source_packages(metadata, packages)?,
+                source_packages(metadata, &selected)?,
             )
         })
         .transpose()?;
@@ -197,50 +174,7 @@ pub(super) fn tracked_files(repository: &Path) -> Result<BTreeSet<PathBuf>> {
     Ok(files)
 }
 
-fn closure(metadata: &CargoMetadata, packages: &[String]) -> Result<BTreeSet<String>> {
-    let by_name = metadata
-        .packages
-        .iter()
-        .filter(|package| package.source.is_none())
-        .map(|package| (package.name.as_str(), &package.id))
-        .collect::<BTreeMap<_, _>>();
-    let mut selected = packages
-        .iter()
-        .map(|name| {
-            by_name
-                .get(name.as_str())
-                .map(|id| (*id).clone())
-                .with_context(|| format!("unknown local Cargo package {name}"))
-        })
-        .collect::<Result<BTreeSet<_>>>()?;
-    loop {
-        let previous = selected.len();
-        let dependencies = metadata
-            .resolve
-            .nodes
-            .iter()
-            .filter(|node| selected.contains(&node.id))
-            .flat_map(|node| {
-                node.deps
-                    .iter()
-                    .filter(|dependency| {
-                        dependency
-                            .dep_kinds
-                            .iter()
-                            .any(|kind| kind.kind != Some(Kind::Dev))
-                    })
-                    .map(|dependency| dependency.pkg.clone())
-            })
-            .collect::<Vec<_>>();
-        selected.extend(dependencies);
-        if selected.len() == previous {
-            return Ok(selected);
-        }
-    }
-}
-
-fn source_packages(metadata: &CargoMetadata, packages: &[String]) -> Result<Vec<String>> {
-    let selected = closure(metadata, packages)?;
+fn source_packages(metadata: &CargoMetadata, selected: &BTreeSet<String>) -> Result<Vec<String>> {
     Ok(metadata
         .packages
         .iter()
@@ -271,10 +205,9 @@ fn relative(repository: &Path, path: &Path) -> Result<PathBuf> {
 fn input_files(
     repository: &Path,
     metadata: &CargoMetadata,
-    packages: &[String],
+    selected: &BTreeSet<String>,
     available: &BTreeSet<PathBuf>,
 ) -> Result<BTreeSet<PathBuf>> {
-    let selected = closure(metadata, packages)?;
     let mut required = BTreeSet::from([
         PathBuf::from("Cargo.toml"),
         PathBuf::from("Cargo.lock"),
@@ -284,6 +217,7 @@ fn input_files(
         PathBuf::from("tools/image-build/source-freshness.rs"),
     ]);
     let mut roots = vec![PathBuf::from(".cargo")];
+    let mut package_roots = BTreeMap::new();
     for package in metadata
         .packages
         .iter()
@@ -291,6 +225,13 @@ fn input_files(
     {
         let manifest = relative(repository, &package.manifest_path)?;
         required.insert(manifest.clone());
+        package_roots.insert(
+            manifest
+                .parent()
+                .context("Cargo manifest has no parent")?
+                .to_owned(),
+            &package.id,
+        );
         // Cargo parses every workspace member even when compiling one package.
         // Retain its real declared/autodiscovered target entrypoints as well as
         // its manifest. Only production dependencies receive complete sources.
@@ -298,12 +239,6 @@ fn input_files(
             required.insert(relative(repository, &target.src_path)?);
         }
         if selected.contains(&package.id) {
-            roots.push(
-                manifest
-                    .parent()
-                    .context("Cargo manifest has no parent")?
-                    .to_owned(),
-            );
             for input in package
                 .metadata
                 .iter()
@@ -335,10 +270,17 @@ fn input_files(
     required.extend(
         available
             .iter()
-            .filter(|path| roots.iter().any(|root| path.starts_with(root)))
+            .filter(|path| {
+                roots.iter().any(|root| path.starts_with(root))
+                    || package_roots
+                        .iter()
+                        .filter(|(root, _)| path.starts_with(root))
+                        .max_by_key(|(root, _)| root.components().count())
+                        .is_some_and(|(_, id)| selected.contains(*id))
+            })
             .cloned(),
     );
-    for path in asset_files(repository, metadata, packages, available)? {
+    for path in asset_files(repository, metadata, selected, available)? {
         ensure!(
             !metadata
                 .packages
@@ -368,10 +310,9 @@ fn input_files(
 fn asset_files(
     repository: &Path,
     metadata: &CargoMetadata,
-    packages: &[String],
+    selected: &BTreeSet<String>,
     available: &BTreeSet<PathBuf>,
 ) -> Result<BTreeSet<PathBuf>> {
-    let selected = closure(metadata, packages)?;
     let mut assets = BTreeSet::new();
     for package in metadata
         .packages
@@ -488,9 +429,9 @@ pub(super) fn materialize(
 mod tests {
     use super::*;
 
-    fn graph(root: &Path) -> CargoMetadata {
+    pub(super) fn fixture_metadata(root: &Path) -> CargoMetadata {
         let packages = ["bff", "shared", "unrelated", "test-helper"].map(|name| serde_json::json!({
-            "id":name, "name":name, "manifest_path":root.join(name).join("Cargo.toml"), "source":null, "metadata":{},
+            "id":name, "name":name, "version":"0.1.0", "manifest_path":root.join(name).join("Cargo.toml"), "source":null, "metadata":{},
             "targets":[{"name":name,"kind":["lib"],"src_path":root.join(name).join("src/lib.rs")}]
         }));
         serde_json::from_value(serde_json::json!({"packages":packages,"resolve":{"nodes":[
@@ -500,9 +441,61 @@ mod tests {
     }
 
     #[test]
+    fn nested_packages_keep_entrypoints_but_require_selection_or_explicit_inputs_for_bodies() {
+        let root = Path::new("/source");
+        let mut metadata = fixture_metadata(root);
+        metadata.packages.push(serde_json::from_value(serde_json::json!({
+            "id":"composition", "name":"composition", "version":"0.1.0", "source":null,
+            "manifest_path":root.join("bff/composition/Cargo.toml"),
+            "targets":[{"name":"composition","kind":["bin"],"src_path":root.join("bff/composition/src/main.rs")}]
+        })).unwrap());
+        let mut files = BTreeSet::from(
+            [
+                "Cargo.toml",
+                "Cargo.lock",
+                "rust-toolchain.toml",
+                ".dockerignore",
+                "tools/image-build/rust-workspace.Dockerfile",
+                "tools/image-build/source-freshness.rs",
+                "bff/src/handler.rs",
+                "bff/composition/src/handler.rs",
+                "bff/composition/shared.txt",
+            ]
+            .map(PathBuf::from),
+        );
+        for package in &metadata.packages {
+            files.insert(relative(root, &package.manifest_path).unwrap());
+            for target in &package.targets {
+                files.insert(relative(root, &target.src_path).unwrap());
+            }
+        }
+        let selected = BTreeSet::from(["bff".into(), "shared".into()]);
+        let inputs = input_files(root, &metadata, &selected, &files).unwrap();
+        assert!(inputs.contains(Path::new("bff/src/handler.rs")));
+        assert!(inputs.contains(Path::new("bff/composition/Cargo.toml")));
+        assert!(inputs.contains(Path::new("bff/composition/src/main.rs")));
+        assert!(!inputs.contains(Path::new("bff/composition/src/handler.rs")));
+        metadata.packages[0].metadata = Some(PackageMetadata {
+            veoveo: VeoveoMetadata {
+                image_build_inputs: vec!["bff/composition/shared.txt".into()],
+                ..Default::default()
+            },
+        });
+        let inputs = input_files(root, &metadata, &selected, &files).unwrap();
+        assert!(inputs.contains(Path::new("bff/composition/shared.txt")));
+        assert!(!inputs.contains(Path::new("bff/composition/src/handler.rs")));
+        let selected = BTreeSet::from(["bff".into(), "shared".into(), "composition".into()]);
+        assert!(
+            input_files(root, &metadata, &selected, &files)
+                .unwrap()
+                .contains(Path::new("bff/composition/src/handler.rs"))
+        );
+    }
+
+    #[test]
     fn web_edits_reuse_rust_inputs_but_shared_embedded_assets_invalidate_them() {
         let root = tempfile::tempdir().unwrap();
-        let metadata = graph(root.path());
+        let metadata = fixture_metadata(root.path());
         let mut files = BTreeSet::new();
         for path in [
             "Cargo.toml",
@@ -529,7 +522,13 @@ mod tests {
             fs::create_dir_all(root.path().join(path).parent().unwrap()).unwrap();
             fs::write(root.path().join(path), b"initial").unwrap();
         }
-        let inputs = input_files(root.path(), &metadata, &["bff".to_owned()], &files).unwrap();
+        let inputs = input_files(
+            root.path(),
+            &metadata,
+            &BTreeSet::from(["bff".to_owned(), "shared".to_owned()]),
+            &files,
+        )
+        .unwrap();
         assert!(inputs.contains(Path::new("unrelated/Cargo.toml")));
         assert!(inputs.contains(Path::new("unrelated/src/lib.rs")));
         assert!(!inputs.contains(Path::new("unrelated/src/implementation.rs")));
@@ -549,15 +548,9 @@ mod tests {
     }
 
     #[test]
-    fn build_dependencies_and_declared_external_inputs_enter_the_closure() {
+    fn resolved_packages_and_declared_external_inputs_enter_the_context() {
         let root = Path::new("/source");
-        let mut metadata = graph(root);
-        metadata.resolve.nodes[1].deps.push(Dependency {
-            pkg: "unrelated".to_owned(),
-            dep_kinds: vec![DependencyKind {
-                kind: Some(Kind::Build),
-            }],
-        });
+        let mut metadata = fixture_metadata(root);
         metadata.packages[1].metadata = Some(PackageMetadata {
             veoveo: VeoveoMetadata {
                 image_build_inputs: vec![PathBuf::from("configs/shared.json")],
@@ -565,7 +558,15 @@ mod tests {
             },
         });
         assert_eq!(
-            source_packages(&metadata, &["bff".to_owned()]).unwrap(),
+            source_packages(
+                &metadata,
+                &BTreeSet::from([
+                    "bff".to_owned(),
+                    "shared".to_owned(),
+                    "unrelated".to_owned()
+                ])
+            )
+            .unwrap(),
             ["bff", "shared", "unrelated"]
         );
         let mut files = BTreeSet::from(
@@ -589,23 +590,33 @@ mod tests {
             );
         }
         assert!(
-            input_files(root, &metadata, &["bff".to_owned()], &files)
-                .unwrap_err()
-                .to_string()
-                .contains("configs/shared.json is missing")
+            input_files(
+                root,
+                &metadata,
+                &BTreeSet::from(["bff".to_owned(), "shared".to_owned()]),
+                &files
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("configs/shared.json is missing")
         );
         files.insert(PathBuf::from("configs/shared.json"));
         assert!(
-            input_files(root, &metadata, &["bff".to_owned()], &files)
-                .unwrap()
-                .contains(Path::new("configs/shared.json"))
+            input_files(
+                root,
+                &metadata,
+                &BTreeSet::from(["bff".to_owned(), "shared".to_owned()]),
+                &files
+            )
+            .unwrap()
+            .contains(Path::new("configs/shared.json"))
         );
     }
 
     #[test]
     fn packaged_app_edits_change_only_the_asset_context() {
         let root = tempfile::tempdir().unwrap();
-        let mut metadata = graph(root.path());
+        let mut metadata = fixture_metadata(root.path());
         metadata.packages[0].metadata = Some(PackageMetadata {
             veoveo: VeoveoMetadata {
                 image_asset_inputs: vec![PathBuf::from("bff/assets")],
@@ -637,7 +648,7 @@ mod tests {
             fs::create_dir_all(root.path().join(path).parent().unwrap()).unwrap();
             fs::write(root.path().join(path), "original").unwrap();
         }
-        let packages = ["bff".to_owned()];
+        let packages = BTreeSet::from(["bff".to_owned(), "shared".to_owned()]);
         let inputs = input_files(root.path(), &metadata, &packages, &files).unwrap();
         let assets = asset_files(root.path(), &metadata, &packages, &files).unwrap();
         let compiler_before = materialize(root.path(), inputs.clone(), vec![]).unwrap();
@@ -780,8 +791,9 @@ mod tests {
         let metadata = metadata(&repository).unwrap();
         let files = tracked_files(&repository).unwrap();
         for package in ["veoveo-stream-mcp", "veoveo-reason-mcp"] {
-            let inputs =
-                input_files(&repository, &metadata, &[package.to_owned()], &files).unwrap();
+            let selected =
+                selection::closure(&repository, &metadata, &[package.to_owned()]).unwrap();
+            let inputs = input_files(&repository, &metadata, &selected, &files).unwrap();
             assert!(inputs.contains(Path::new("platform/recordings/reader/src/read.rs")));
             assert!(inputs.contains(Path::new("platform/recordings/contract/src/scopes.rs")));
             assert!(inputs.contains(Path::new("platform/frames/contract/src/uris.rs")));
@@ -789,7 +801,7 @@ mod tests {
             // Cargo still receives all real workspace manifests and target entrypoints.
             assert!(inputs.contains(Path::new("servers/recording-mcp/Cargo.toml")));
             assert!(inputs.contains(Path::new("servers/recording-mcp/src/lib.rs")));
-            let source_packages = source_packages(&metadata, &[package.to_owned()]).unwrap();
+            let source_packages = source_packages(&metadata, &selected).unwrap();
             for contract in ["veoveo-recording-contract", "veoveo-frames-contract"] {
                 assert!(
                     source_packages.iter().any(|name| name == contract),
@@ -803,14 +815,13 @@ mod tests {
                     );
                     assert!(!inputs.contains(Path::new("servers/stream-mcp/assets/live.html")));
                     assert!(
-                        asset_files(&repository, &metadata, &[package.to_owned()], &files)
+                        asset_files(&repository, &metadata, &selected, &files)
                             .unwrap()
                             .contains(Path::new("servers/stream-mcp/assets/live.html"))
                     );
                 }
                 "veoveo-reason-mcp" => {
-                    let assets =
-                        asset_files(&repository, &metadata, &[package.to_owned()], &files).unwrap();
+                    let assets = asset_files(&repository, &metadata, &selected, &files).unwrap();
                     for runner in [
                         "servers/reason-mcp/runner/pyproject.toml",
                         "servers/reason-mcp/runner/uv.lock",
