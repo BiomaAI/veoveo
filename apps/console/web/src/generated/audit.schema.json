@@ -1817,6 +1817,10 @@
     },
     "OAuthClientId": {
       "description": "Registered OAuth client id allowed to request gateway-profile tokens.",
+      "minLength": 1,
+      "not": {
+        "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+      },
       "type": "string"
     },
     "PrincipalId": {

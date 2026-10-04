@@ -7,9 +7,10 @@ use rmcp::{
     },
     service::{RequestContext, RoleServer},
 };
+use veoveo_gateway_contract::{GatewayDiscoveryFailure, GatewayDiscoverySurface};
 use veoveo_mcp_contract::{
-    GATEWAY_TASK_RESOURCE_TEMPLATE, GatewayAction, GatewayDiscoveryDegradation,
-    GatewayDiscoveryFailure, GatewayDiscoverySurface, GatewayTaskStatus, GatewayTaskStatusDocument,
+    GATEWAY_TASK_RESOURCE_TEMPLATE, GatewayAction, GatewayDiscoveryDegradation, GatewayTaskStatus,
+    GatewayTaskStatusDocument,
 };
 
 use crate::mcp_support::{

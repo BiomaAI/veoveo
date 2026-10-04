@@ -1,3 +1,5 @@
+import type { AgentWakeReceipt as AgentWakeReceiptWire, AgentInputRequestView as AgentInputRequestWire, AgentConversationView as AgentConversationWire } from "./generated/agent-control";
+import type { ArtifactAccessRequest as ArtifactAccessRequestWire, ArtifactAccessRequestPage as ArtifactAccessRequestPageWire } from "./generated/artifact-transfer";
 import { demoSnapshot } from "./demo";
 import { agentInputRequestDecisionPath, agentInputRequestsApiPath } from "./agentControl";
 import type {
@@ -143,37 +145,6 @@ export async function cancelTask(task: Pick<TaskSummary, "server" | "id">): Prom
   });
 }
 
-interface AgentWakeReceiptWire {
-  request_id: string;
-  wake_id: string;
-  agent_id: string;
-  work_context: string;
-  accepted_at: string;
-}
-
-interface AgentInputRequestWire {
-  input_request_id: string;
-  message: string;
-  requested_schema?: unknown;
-  requested_at: string;
-}
-
-interface AgentConversationWire {
-  agent_id: string;
-  entries: Array<{
-    entry_id: string;
-    role: "operator" | "agent";
-    actor_id: string;
-    content: string;
-    state: "accepted" | "running" | "completed" | "budget_terminated" | "stopped" | "failed";
-    occurred_at: string;
-    request_id?: string;
-    wake_id?: string;
-    episode_id?: string;
-    in_reply_to_request_ids?: string[];
-  }>;
-}
-
 function agentWakeReceipt(wire: AgentWakeReceiptWire): AgentWakeReceipt {
   return {
     requestId: wire.request_id,
@@ -306,26 +277,6 @@ export async function revokeArtifactGrant(
     method: "DELETE",
     body: JSON.stringify(subject)
   });
-}
-
-interface ArtifactAccessRequestWire {
-  id: string;
-  artifact_id: string;
-  work_context: string;
-  requester: string;
-  requested_level: "read" | "write" | "admin";
-  justification: string;
-  state: ArtifactAccessRequestState;
-  decided_by?: string;
-  decision_note?: string;
-  created_at: string;
-  updated_at: string;
-  decided_at?: string;
-}
-
-interface ArtifactAccessRequestPageWire {
-  requests: ArtifactAccessRequestWire[];
-  next_cursor?: string;
 }
 
 function artifactAccessRequest(wire: ArtifactAccessRequestWire): ArtifactAccessRequest {

@@ -407,6 +407,14 @@ are optional, and binaries require the runtime features. Tests, CLI tools, and
 cross-server consumers use the owning library. A separate contract crate needs a
 concrete dependency or independent release requirement.
 
+Gateway App import declarations and discovery failure DTOs belong to
+`platform/gateway/contract`. The separate crate resolves a dependency cycle: MCP
+integration consumes these declarations, while the gateway runtime already depends
+on MCP integration. The browser contract also needs them without HTTP or async-runtime
+dependencies. Consumers import this owner directly; MCP metadata conversion stays in
+the protocol adapter. The extraction preserves public JSON shapes and authorization
+behavior and requires an isolated dependency-graph check.
+
 Media owns its prediction summaries and generation result DTOs. Protocol utilities
 consume Media's contract feature directly; extracting those DTOs preserves their
 published schema and gives MCP core no dependency on Media.

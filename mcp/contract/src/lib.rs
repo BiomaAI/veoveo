@@ -66,10 +66,7 @@ pub use bootstrap::{
     SERVER_BOOTSTRAP_VALIDATE_COMMAND, ServerBootstrapDocument, ServerBootstrapError,
     server_bootstrap_principal,
 };
-pub use catalog::{
-    GATEWAY_DISCOVERY_DEGRADATION_META_KEY, GatewayDiscoveryDegradation, GatewayDiscoveryFailure,
-    GatewayDiscoveryFailureCode, GatewayDiscoverySurface,
-};
+pub use catalog::GatewayDiscoveryDegradation;
 pub use deployment::{
     AnalyticalRuntimeDeployment, AnalyticalRuntimeEngine, AnalyticalRuntimePurpose,
     ChangefeedSourceOfTruth, ConnectivityMode, DataRetentionPolicy, DatabaseHighAvailability,
@@ -83,9 +80,7 @@ pub use deployment::{
     TelemetryDeployment, TelemetrySignal, TenantModel, TenantModelKind,
 };
 pub use gateway::{
-    APP_RESOURCE_DEPENDENCIES_META_KEY, APP_TOOL_DEPENDENCIES_META_KEY, AccessTokenSubject,
-    AppResourceDependency, AppResourceOperation, AppToolDependency, AppToolImport,
-    ArtifactAudience, AuthMethod, AuthMode, AuthOutcome, AuthReasonCode,
+    AccessTokenSubject, ArtifactAudience, AuthMethod, AuthMode, AuthOutcome, AuthReasonCode,
     AuthorizationServerEndpoint, AuthorizationServerId, CanonicalTaskId,
     CertificateAuthorityFilePath, CertificateAuthoritySource, CompatibilityHelperId,
     CompletionExposure, ConsoleBootstrap, ConsoleInstallation, ConsoleSession, ConsoleTenant,

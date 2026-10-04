@@ -246,7 +246,7 @@ export class UploadQueue {
       this.patch(key, { phase: "Needs attention", message: error instanceof Error ? error.message : "Upload interrupted. Retry to recover saved progress.", sent: entry.accepted, speed: undefined, eta: undefined });
       if (error instanceof UploadError && error.quotaExceeded) void this.refreshPolicy().then(() => {
         const available = this.state.policy?.available_bytes;
-        if (!this.disposed && this.state.policy?.allowed && available !== undefined) this.patch(key, { message: `This upload requires ${formatBytes(entry.descriptor.byte_len)}. ${formatBytes(available)} of storage is currently available. Free space before retrying.` });
+        if (!this.disposed && this.state.policy?.allowed && available != null) this.patch(key, { message: `This upload requires ${formatBytes(entry.descriptor.byte_len)}. ${formatBytes(available)} of storage is currently available. Free space before retrying.` });
       });
     }
   }

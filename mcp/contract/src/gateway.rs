@@ -1,4 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
+#[cfg(test)]
+use veoveo_gateway_contract::AppResourceOperation;
+use veoveo_gateway_contract::{AppResourceDependency, AppToolDependency};
 use veoveo_types::{
     DataLabelId, DelegationId, GroupId, IdentifierError, PolicyVersion, PrincipalId,
     ResourceScheme, ResourceUri, RoleId, ScopeName, TenantId, WorkContextId,

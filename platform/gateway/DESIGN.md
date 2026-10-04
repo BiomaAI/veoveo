@@ -301,3 +301,9 @@ subscription fails discovery because the gateway cannot safely cache those chang
 ## Cursor Admission
 
 Catalog continuation uses an owner codec over typed item keys and the existing version-string/surface JSON envelope. Surface binding and the 16 KiB input ceiling remain in the gateway. Shared cursor mechanics do not enumerate protocol catalog surfaces.
+
+## Transport-Free Gateway Values
+
+The transport-free [Gateway Contract](contract/DESIGN.md) owns App dependency DTOs
+and discovery failure values shared with MCP and browser schema consumers. Hosted
+gateway behavior uses these values without making their consumers enable runtime.

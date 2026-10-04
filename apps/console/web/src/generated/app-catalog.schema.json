@@ -1,0 +1,288 @@
+{
+  "$defs": {
+    "AppDescriptor": {
+      "properties": {
+        "agentMessageTargets": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "icons": {
+          "description": "Self-contained `data:` icon sources only — the console shell's CSP\ndoes not fetch remote images, and apps are self-contained by contract.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        },
+        "prefersBorder": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "resourceDependencies": {
+          "items": {
+            "$ref": "#/$defs/AppResourceDependency"
+          },
+          "type": "array"
+        },
+        "resourceUri": {
+          "type": "string"
+        },
+        "server": {
+          "type": "string"
+        },
+        "standalonePath": {
+          "type": "string"
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "toolDependencies": {
+          "items": {
+            "$ref": "#/$defs/AppToolDependency"
+          },
+          "type": "array"
+        },
+        "tools": {
+          "items": {
+            "$ref": "#/$defs/AppToolDescriptor"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "server",
+        "resourceUri",
+        "standalonePath",
+        "name",
+        "tools",
+        "resourceDependencies",
+        "toolDependencies",
+        "agentMessageTargets"
+      ],
+      "type": "object"
+    },
+    "AppResourceDependency": {
+      "description": "One exact cross-server resource family admitted to one owning MCP App.\n\nThe gateway filters these declarations by the active profile, scopes, and\ndata labels before projecting them to a host. The eventual resource read\nstill passes through ordinary gateway resource exposure and policy.",
+      "properties": {
+        "app_resource": {
+          "$ref": "#/$defs/ResourceUri"
+        },
+        "data_labels": {
+          "items": {
+            "$ref": "#/$defs/DataLabelId"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "operations": {
+          "items": {
+            "$ref": "#/$defs/AppResourceOperation"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "required_scope": {
+          "$ref": "#/$defs/ScopeName"
+        },
+        "scheme": {
+          "$ref": "#/$defs/ResourceScheme"
+        },
+        "server": {
+          "$ref": "#/$defs/ServerSlug"
+        },
+        "uri_prefix": {
+          "$ref": "#/$defs/ResourceUriPrefix"
+        }
+      },
+      "required": [
+        "app_resource",
+        "server",
+        "scheme",
+        "uri_prefix",
+        "required_scope",
+        "operations"
+      ],
+      "type": "object"
+    },
+    "AppResourceOperation": {
+      "enum": [
+        "read",
+        "subscribe"
+      ],
+      "type": "string"
+    },
+    "AppToolDependency": {
+      "description": "One exact cross-server tool set admitted to one owning MCP App.",
+      "properties": {
+        "app_resource": {
+          "$ref": "#/$defs/ResourceUri"
+        },
+        "data_labels": {
+          "items": {
+            "$ref": "#/$defs/DataLabelId"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "required_scope": {
+          "$ref": "#/$defs/ScopeName"
+        },
+        "server": {
+          "$ref": "#/$defs/ServerSlug"
+        },
+        "tools": {
+          "items": {
+            "$ref": "#/$defs/AppToolImport"
+          },
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "app_resource",
+        "server",
+        "required_scope",
+        "tools"
+      ],
+      "type": "object"
+    },
+    "AppToolDescriptor": {
+      "properties": {
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "inputSchema": true,
+        "name": {
+          "type": "string"
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "inputSchema"
+      ],
+      "type": "object"
+    },
+    "AppToolImport": {
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/LocalToolName",
+          "description": "Stable name exposed to the App frame."
+        },
+        "target_tool": {
+          "$ref": "#/$defs/LocalToolName"
+        }
+      },
+      "required": [
+        "name",
+        "target_tool"
+      ],
+      "type": "object"
+    },
+    "DataLabelId": {
+      "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
+      "type": "string"
+    },
+    "GatewayDiscoveryFailure": {
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/GatewayDiscoveryFailureCode"
+        },
+        "server": {
+          "$ref": "#/$defs/ServerSlug"
+        },
+        "surface": {
+          "$ref": "#/$defs/GatewayDiscoverySurface"
+        }
+      },
+      "required": [
+        "server",
+        "surface",
+        "code"
+      ],
+      "type": "object"
+    },
+    "GatewayDiscoveryFailureCode": {
+      "enum": [
+        "discovery_pending",
+        "upstream_unavailable"
+      ],
+      "type": "string"
+    },
+    "GatewayDiscoverySurface": {
+      "enum": [
+        "resources",
+        "resource_templates",
+        "tools",
+        "prompts"
+      ],
+      "type": "string"
+    },
+    "LocalToolName": {
+      "description": "Tool name as exposed by one direct MCP server.",
+      "type": "string"
+    },
+    "ResourceScheme": {
+      "description": "Server-owned resource URI scheme, for example `media`.",
+      "type": "string"
+    },
+    "ResourceUri": {
+      "type": "string"
+    },
+    "ResourceUriPrefix": {
+      "type": "string"
+    },
+    "ScopeName": {
+      "description": "OAuth/OIDC scope value. It must not contain whitespace or control characters.",
+      "type": "string"
+    },
+    "ServerSlug": {
+      "description": "Canonical hosted MCP server id used in manifests, profiles, and gateway routes.",
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "apps": {
+      "items": {
+        "$ref": "#/$defs/AppDescriptor"
+      },
+      "type": "array"
+    },
+    "degradations": {
+      "items": {
+        "$ref": "#/$defs/GatewayDiscoveryFailure"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "apps",
+    "degradations"
+  ],
+  "title": "AppCatalog",
+  "type": "object"
+}

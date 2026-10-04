@@ -1,11 +1,12 @@
 //! Authenticated operator control messages for continuously scheduled agents.
 
 use chrono::{DateTime, Utc};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AgentOperatorMessageRequest {
     /// Client-generated UUIDv7 used as the durable retry identity.
@@ -13,7 +14,7 @@ pub struct AgentOperatorMessageRequest {
     pub message: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
 pub enum AgentInputRequestDecision {
     Accept {
@@ -39,7 +40,7 @@ impl AgentInputRequestDecision {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AgentWakeReceipt {
     pub request_id: Uuid,
@@ -49,7 +50,7 @@ pub struct AgentWakeReceipt {
     pub accepted_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AgentInputRequestView {
     pub input_request_id: Uuid,
@@ -59,14 +60,14 @@ pub struct AgentInputRequestView {
     pub requested_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AgentConversationRole {
     Operator,
     Agent,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AgentConversationEntryState {
     Accepted,
@@ -81,7 +82,7 @@ pub enum AgentConversationEntryState {
 ///
 /// Conversation entries are not a second source of truth. Operator entries
 /// project durable wakes and agent entries project durable episodes.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AgentConversationEntry {
     pub entry_id: String,
@@ -100,11 +101,26 @@ pub struct AgentConversationEntry {
     pub in_reply_to_request_ids: Vec<Uuid>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AgentConversationView {
     pub agent_id: String,
     pub entries: Vec<AgentConversationEntry>,
+}
+
+/// Source-owner operator-control contracts consumed by browser clients.
+#[derive(JsonSchema)]
+#[expect(dead_code, reason = "schema-only bundle selects owner contracts")]
+struct AgentControlSchema {
+    message: AgentOperatorMessageRequest,
+    decision: AgentInputRequestDecision,
+    receipt: AgentWakeReceipt,
+    input_request: AgentInputRequestView,
+    conversation: AgentConversationView,
+}
+
+pub fn schema_bundle() -> schemars::Schema {
+    schemars::schema_for!(AgentControlSchema)
 }
 
 #[cfg(test)]

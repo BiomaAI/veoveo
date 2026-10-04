@@ -14,6 +14,7 @@ analytics = ["dep:duckdb"]
 testing = ["dep:tower"]
 
 [dependencies]
+veoveo-gateway-contract.workspace = true
 veoveo-knowledge-contract.workspace = true
 veoveo-mcp-knowledge-extension = { workspace = true, features = ["mcp"] }
 veoveo-macros.workspace = true

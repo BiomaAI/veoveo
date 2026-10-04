@@ -16426,6 +16426,7 @@ dependencies = [
  "reqwest 0.13.5",
  "rmcp",
  "rustls",
+ "schemars 1.2.2",
  "serde",
  "serde_json",
  "sha2 0.11.0",
@@ -16440,6 +16441,7 @@ dependencies = [
  "veoveo-artifact-contract",
  "veoveo-computers-contract",
  "veoveo-computers-transport",
+ "veoveo-gateway-contract",
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
  "veoveo-recording-mcp",
@@ -16674,6 +16676,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-gateway-contract"
+version = "0.1.0"
+dependencies = [
+ "jsonschema",
+ "schemars 1.2.2",
+ "serde",
+ "serde_json",
+ "veoveo-types",
+]
+
+[[package]]
 name = "veoveo-glossary-mcp"
 version = "0.1.0"
 dependencies = [
@@ -16746,6 +16759,7 @@ dependencies = [
  "veoveo-artifact-mcp",
  "veoveo-embedding-client",
  "veoveo-embedding-contract",
+ "veoveo-gateway-contract",
  "veoveo-knowledge-contract",
  "veoveo-map-mcp",
  "veoveo-mcp-conformance",
@@ -16830,6 +16844,7 @@ dependencies = [
  "rmcp",
  "serde",
  "serde_json",
+ "veoveo-gateway-contract",
  "veoveo-mcp-contract",
 ]
 
@@ -16905,6 +16920,7 @@ dependencies = [
  "uuid",
  "veoveo-artifact-contract",
  "veoveo-audit-contract",
+ "veoveo-gateway-contract",
  "veoveo-knowledge-contract",
  "veoveo-macros",
  "veoveo-mcp-knowledge-extension",
@@ -16960,6 +16976,7 @@ dependencies = [
  "veoveo-audit-contract",
  "veoveo-computers-contract",
  "veoveo-computers-transport",
+ "veoveo-gateway-contract",
  "veoveo-knowledge-contract",
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
@@ -17881,6 +17898,7 @@ dependencies = [
  "hex",
  "protoc-bin-vendored",
  "rcgen",
+ "schemars 1.2.2",
  "serde",
  "serde_json",
  "serde_yaml_ng",
@@ -17891,11 +17909,13 @@ dependencies = [
  "uuid",
  "veoveo-audit-contract",
  "veoveo-computers-contract",
+ "veoveo-console-bff",
  "veoveo-deploy-contract",
  "veoveo-deploy-runtime",
  "veoveo-image-build-control",
  "veoveo-mcp-conformance",
  "veoveo-mcp-contract",
+ "veoveo-recording-contract",
  "veoveo-simulation-contract",
  "veoveo-speech-contract",
 ]

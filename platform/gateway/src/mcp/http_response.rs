@@ -161,7 +161,7 @@ mod tests {
                             ));
                             let (prompts, _, errors) =
                                 super::super::discovery::isolate_discovery_failures(
-                                    veoveo_mcp_contract::GatewayDiscoverySurface::Prompts,
+                                    veoveo_gateway_contract::GatewayDiscoverySurface::Prompts,
                                     vec![
                                         ("healthy".parse().unwrap(), Ok(vec!["available-prompt"])),
                                         (

@@ -1,0 +1,285 @@
+{
+  "$defs": {
+    "ClusterIngress": {
+      "properties": {
+        "className": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hosts": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "hosts"
+      ],
+      "type": "object"
+    },
+    "ClusterOrchestrator": {
+      "enum": [
+        "Kubernetes"
+      ],
+      "type": "string"
+    },
+    "ClusterPod": {
+      "properties": {
+        "component": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "containers": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "images": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        },
+        "node": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "phase": {
+          "type": "string"
+        },
+        "ready": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "restarts": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "phase",
+        "ready",
+        "containers",
+        "restarts",
+        "images"
+      ],
+      "type": "object"
+    },
+    "ClusterService": {
+      "properties": {
+        "clusterIp": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "kind": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "ports": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "ports"
+      ],
+      "type": "object"
+    },
+    "ClusterStorage": {
+      "properties": {
+        "accessModes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "capacity": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "phase": {
+          "type": "string"
+        },
+        "requested": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "storageClass": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "phase",
+        "accessModes"
+      ],
+      "type": "object"
+    },
+    "ClusterWorkload": {
+      "properties": {
+        "available": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "createdAt": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "desired": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "images": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "kind": {
+          "$ref": "#/$defs/ClusterWorkloadKind"
+        },
+        "name": {
+          "type": "string"
+        },
+        "ready": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "desired",
+        "ready",
+        "available",
+        "images"
+      ],
+      "type": "object"
+    },
+    "ClusterWorkloadKind": {
+      "enum": [
+        "Deployment",
+        "StatefulSet",
+        "Job"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "configMaps": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "disruptionBudgets": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "generatedAt": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "ingresses": {
+      "items": {
+        "$ref": "#/$defs/ClusterIngress"
+      },
+      "type": "array"
+    },
+    "namespace": {
+      "type": "string"
+    },
+    "networkPolicies": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "orchestrator": {
+      "$ref": "#/$defs/ClusterOrchestrator"
+    },
+    "pods": {
+      "items": {
+        "$ref": "#/$defs/ClusterPod"
+      },
+      "type": "array"
+    },
+    "services": {
+      "items": {
+        "$ref": "#/$defs/ClusterService"
+      },
+      "type": "array"
+    },
+    "storage": {
+      "items": {
+        "$ref": "#/$defs/ClusterStorage"
+      },
+      "type": "array"
+    },
+    "workloads": {
+      "items": {
+        "$ref": "#/$defs/ClusterWorkload"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "orchestrator",
+    "namespace",
+    "generatedAt",
+    "workloads",
+    "pods",
+    "services",
+    "storage",
+    "ingresses",
+    "networkPolicies",
+    "disruptionBudgets",
+    "configMaps"
+  ],
+  "title": "ClusterSnapshot",
+  "type": "object"
+}

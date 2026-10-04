@@ -55,7 +55,7 @@ export function UploadPanel({ queue, state, onClose, onView, backgroundSelector 
             <p>Review your selection before starting. Each file creates a new artifact.</p>
           </div>
           <p className="subdued">Up to {formatBytes(state.policy.policy?.max_object_bytes ?? 0)} per file.
-            {state.policy.available_bytes !== undefined && ` ${formatBytes(state.policy.available_bytes)} available when last checked.`}</p>
+            {state.policy.available_bytes != null && ` ${formatBytes(state.policy.available_bytes)} available when last checked.`}</p>
         </>}
         {state.notice && <p role="status">{state.notice}</p>}
         {state.persistenceError && <p role="alert">{state.persistenceError}</p>}
@@ -63,7 +63,7 @@ export function UploadPanel({ queue, state, onClose, onView, backgroundSelector 
           <span>{selected.length} selected · {formatBytes(bytes)}</span>
           <button className="button button-primary" onClick={() => queue.start()} disabled={!state.policy?.allowed}>Upload {selected.length} {selected.length === 1 ? "file" : "files"}</button>
         </div>}
-        {state.policy?.available_bytes !== undefined && bytes > state.policy.available_bytes && <p role="status">The selected files exceed the last checked storage allowance. Some files may need to wait until space is available.</p>}
+        {state.policy?.available_bytes != null && bytes > state.policy.available_bytes && <p role="status">The selected files exceed the last checked storage allowance. Some files may need to wait until space is available.</p>}
         <div className="upload-queue-heading"><h3>Uploads</h3>
           {state.entries.some((entry) => ["Ready", "Cancelled"].includes(entry.phase)) && <button className="button button-secondary" onClick={() => queue.clearCompleted()}>Clear finished</button>}
         </div>

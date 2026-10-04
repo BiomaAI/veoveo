@@ -806,12 +806,23 @@ a count of `Value` fields is not proof that every one can share a closed schema.
 
 ## Phase 6: Generated Cross-Language Types
 
-The Console imports generated types for six bundles: agent management, audit,
-computers, console, speech and workspace. It mirrors other contracts by hand: 36
-exported types in `apps/console/web/src/types.ts` and 7 in
-`apps/console/web/src/uploads/model.ts`, covering the installation snapshot,
-artifacts and grants, agents, recordings and playback, policies, the cluster snapshot
-and the app catalog. Python peers parse raw dictionaries.
+The accepted browser baseline contains six generated bundles: agent management,
+audit, computers, console, speech and workspace. The current integration batch adds
+agent control, Artifact transfer, Recording playback, App catalog and cluster
+inventory from their Rust owners. The BFF exposes its App and cluster DTOs through
+a contract-only library feature. Gateway App import and discovery DTOs move to
+`platform/gateway/contract`, breaking the browser contract's inherited MCP runtime
+dependency without duplicating declarations. Both browser clients consume these
+owner types; browser presentation models and selected-file requirements stay local.
+
+Generation, browser tests and production builds pass for this batch. The isolated
+BFF contract excludes MCP, HTTP, async runtime and database dependencies; all eleven
+generated bundles match their owner schemas. Installation snapshot and upload SSE
+mirrors still require owner extraction: several fields use
+Store runtime vocabularies or gateway-private types. Phases 2–3 must establish their
+lightweight owners without copying enums or importing runtime dependencies into a
+browser contract. Broader Artifact/grant, Task, Agent and policy projections remain
+required. Python peers and MCP App assets also retain the work listed below.
 
 | Consumer | Change |
 |---|---|
@@ -824,7 +835,7 @@ and the app catalog. Python peers parse raw dictionaries.
 | Gate | Pass condition |
 |---|---|
 | Client types | `cargo xtask release client-types --check` |
-| Console and Workspace | `npm test`, `npm run build`, `npm run lint` |
+| Console and Workspace | Both clients run `npm test` and `npm run build`; Console also runs `npm run lint` (Workspace has no lint script) |
 | Python | Protocol schema comparison tests and each package's suite |
 
 ## Phase 7: Embedding Profiles And Identity

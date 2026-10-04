@@ -246,7 +246,8 @@ designs above.
 | [`platform/gateway/src/bin/gateway/console/`](../platform/gateway/src/bin/gateway/console/DESIGN.md) | authenticated session bootstrap that does not depend on administrator inventory, navigation permissions, and shared branding and identity display |
 | [`apps/console/bff/src/bootstrap/`](../apps/console/bff/src/bootstrap/DESIGN.md) | fixed-profile, cookie-authenticated Console session routes with typed responses and token refresh |
 | [`apps/console/bff/src/workspace/`](../apps/console/bff/src/workspace/DESIGN.md) | shared browser edge for Workspace: typed chat routes, cookie credentials, CSRF, event streams and static assets |
-| [`tools/xtask/src/commands/client_types/`](../tools/xtask/src/commands/client_types/DESIGN.md) | Rust schema export and pinned TypeScript conversion; `release client-types --check` detects generated-model drift |
+| `platform/gateway/contract/` | lightweight gateway-owned App import declarations and discovery failure DTOs; browser contracts and MCP metadata adapters import this owner directly |
+| [`tools/xtask/src/commands/client_types/`](../tools/xtask/src/commands/client_types/DESIGN.md) | owner-schema export and pinned TypeScript conversion, including agent control, Artifact transfer, Recording playback, App catalog and cluster inventory; `release client-types --check` detects generated-model drift |
 | `apps/console/web/tools/client-types.mjs`, `client-types.test.mjs` | TypeScript rendering of closed and boolean schemas with a generated-code compiler regression |
 | `apps/console/web/src/jsonSchema.ts`, `jsonSchema.test.ts` | shared Console/Workspace compiler for the generated JSON Schema profile, including equivalent boolean-definition handling |
 | [`tools/xtask/src/commands/computers_trust/`](../tools/xtask/src/commands/computers_trust/DESIGN.md) | fresh installation-owned Computers CA/client/server/JWT and command-key enrollment with separate host, worker and operator outputs |
@@ -1519,6 +1520,7 @@ dispatch preflights and budgeted execution.
 | File | Responsibility |
 |---|---|
 | [`DESIGN.md`](../apps/console/bff/DESIGN.md), `browser.rs`, `oauth.rs` | shared PKCE login, exchange and refresh with separate Console and Workspace OAuth clients, cookie encryption domains and return-path authority |
+| `src/contract/` | App catalog and cluster inventory DTOs exported by the library's isolated `contract` feature; handlers and the client-type generator consume the same declarations |
 | `session.rs` | XChaCha20-Poly1305 cookies, CSRF material, and bounded same-origin `BrowserReturnPath` authority |
 | `app_host.rs` | typed `/apps/{server}/{page...}` route authority, public no-store entry document, and caller-authorized App bootstrap |
 | `api.rs` | snapshot, SSE, mutation, artifact preview/download, and same-origin CSRF-protected agent-message/input-request BFF routes; browser credentials and database authority never enter an MCP App |
@@ -1550,6 +1552,7 @@ dispatch preflights and budgeted execution.
 | `components/` | reusable primitives, tables, toolbar, and the promise-based confirm dialog |
 | `queries.ts`, `queryClient.ts` | TanStack Query keys, snapshot/apps/cluster queries, mutation hooks with targeted cache patches |
 | `live.ts` | EventSource console stream feeding row upserts into the snapshot cache |
+| `types.ts`, `generated/` | generated owner transport types and browser presentation models; installation snapshot and SSE mirrors await their owning contract extraction |
 | `theme.ts`, `ThemeProvider.tsx` | persisted Console theme registry, semantic palette selection, and MCP App light/dark host context |
 | `apps/` | MCP Apps host: one exported opaque-origin sandbox policy, shared iframe component, stable postMessage bridge, closed internal navigation, declared agent messages, resource-read adapter, and fetch-backed multiplexed SSE wake decoder; `resourceTransport.ts` shares fixed-host resource subscriptions with Workspace |
 | `auth.ts` | one-way authentication transition shared by every 401 handler |

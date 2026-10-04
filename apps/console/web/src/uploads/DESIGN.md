@@ -25,7 +25,11 @@ which prevents competing keyboard focus traps.
 The application shell owns `UploadQueue`. Closing its panel or navigating to another
 Console page does not destroy the queue. A scope change disposes the old queue,
 aborts local work, and drops file handles. The new scope reads only its own saved
-descriptors. Restored metadata is validated before an authenticated status request;
+descriptors. Upload responses use the generated artifact-transfer schema bundle from the shared
+Rust contract. Browser validation also rejects counters that JavaScript cannot represent
+without losing precision. File-selection descriptors require a known byte length, and
+queue phases and persisted selection metadata use local browser models.
+Restored metadata is validated before an authenticated status request;
 only the server can establish a completed receipt.
 
 Selection and drag/drop share validation and require an explicit start. The queue

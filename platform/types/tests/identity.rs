@@ -12,7 +12,8 @@ use serde_json::{Value, json};
 use std::{fmt::Debug, str::FromStr};
 use veoveo_types::{
     AccessSubject, DataLabelId, DelegationId, GroupId, InvocationMode, InvocationProvenance,
-    PolicyVersion, PrincipalId, RoleId, TenantId, TokenIssuer, TokenSubject, WorkContextId,
+    OAuthClientId, PolicyVersion, PrincipalId, RoleId, TenantId, TokenIssuer, TokenSubject,
+    WorkContextId,
 };
 
 fn assert_wire_profile<T>(accepted: &[&str], rejected: &[&str])
@@ -56,6 +57,23 @@ fn claim_identities_preserve_external_spelling() {
     assert_wire_profile::<DelegationId>(&accepted, &rejected);
     assert_wire_profile::<GroupId>(&accepted, &rejected);
     assert_wire_profile::<RoleId>(&accepted, &rejected);
+}
+
+#[test]
+fn oauth_client_identity_and_schema_preserve_unbounded_claim_text_admission() {
+    assert_eq!(
+        <OAuthClientId as schemars::JsonSchema>::schema_id(),
+        "veoveo_types::platform_names::OAuthClientId"
+    );
+    let long = "client".repeat(200);
+    assert_wire_profile::<OAuthClientId>(
+        &["agent", " Ops ", " ", "操作者", &long],
+        &["", "client\n", "a\tb", "a\0b", "a\u{7f}b", "a\u{85}b"],
+    );
+    let schema = serde_json::to_value(schemars::schema_for!(OAuthClientId)).unwrap();
+    assert_eq!(schema["minLength"], 1);
+    assert_eq!(schema["not"]["pattern"], r"[\u0000-\u001f\u007f-\u009f]");
+    assert!(schema.get("maxLength").is_none());
 }
 
 #[test]

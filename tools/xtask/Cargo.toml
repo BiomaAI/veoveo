@@ -14,6 +14,9 @@ clap.workspace = true
 hex.workspace = true
 protoc-bin-vendored = "=3.2.0"
 rcgen.workspace = true
+veoveo-console-bff = { path = "../../apps/console/bff", default-features = false, features = ["contract"] }
+schemars.workspace = true
+veoveo-recording-contract.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml_ng.workspace = true

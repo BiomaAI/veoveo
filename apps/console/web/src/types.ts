@@ -1,3 +1,14 @@
+import type { AgentWakeReceipt as WakeReceiptWire, AgentInputRequestView, AgentConversationEntry as ConversationEntryWire, AgentConversationView } from "./generated/agent-control";
+import type { ArtifactAccessRequest as AccessRequestWire, ArtifactAccessRequestPage as AccessRequestPageWire } from "./generated/artifact-transfer";
+export type { ArtifactAccessRequestState, ArtifactShareLink as ShareLinkCreated } from "./generated/artifact-transfer";
+
+// Browser presentation uses camelCase while these owner HTTP contracts use snake_case.
+type CamelKey<Key extends string> = Key extends `${infer Head}_${infer Tail}`
+  ? `${Head}${Capitalize<CamelKey<Tail>>}` : Key;
+type Presentation<Model> = {
+  [Key in keyof Model as Key extends string ? CamelKey<Key> : Key]: Model[Key];
+};
+
 import type { ConsoleInstallation, ConsoleSession, InvocationMode, WorkContextMembershipLevel } from "./generated/console";
 export type { InvocationMode } from "./generated/console";
 export type HealthState = "healthy" | "degraded" | "offline";
@@ -108,27 +119,10 @@ export interface ArtifactSummary {
   };
 }
 
-export type ArtifactAccessRequestState = "pending" | "approved" | "denied" | "cancelled";
-
-export interface ArtifactAccessRequest {
-  id: string;
-  artifactId: string;
-  workContext: string;
-  requester: string;
-  requestedLevel: "read" | "write" | "admin";
-  justification: string;
-  state: ArtifactAccessRequestState;
-  decidedBy?: string;
-  decisionNote?: string;
-  createdAt: string;
-  updatedAt: string;
-  decidedAt?: string;
-}
-
-export interface ArtifactAccessRequestPage {
+export type ArtifactAccessRequest = Presentation<AccessRequestWire>;
+export type ArtifactAccessRequestPage = Omit<Presentation<AccessRequestPageWire>, "requests"> & {
   requests: ArtifactAccessRequest[];
-  nextCursor?: string;
-}
+};
 
 export interface ArtifactGrantSummary {
   subjectKind: "principal" | "group";
@@ -150,14 +144,6 @@ export interface ArtifactShareLinkSummary {
   active: boolean;
 }
 
-export interface ShareLinkCreated {
-  link_id: string;
-  artifact_id: string;
-  url: string;
-  expires_at: string;
-  max_downloads?: number;
-}
-
 export interface AgentSummary {
   id: string;
   name: string;
@@ -169,38 +155,14 @@ export interface AgentSummary {
   detail: string;
 }
 
-export interface AgentWakeReceipt {
-  requestId: string;
-  wakeId: string;
-  agentId: string;
-  workContext: string;
-  acceptedAt: string;
-}
-
-export interface AgentConversationEntry {
-  entryId: string;
-  role: "operator" | "agent";
-  actorId: string;
-  content: string;
-  state: "accepted" | "running" | "completed" | "budget_terminated" | "stopped" | "failed";
-  occurredAt: string;
-  requestId?: string;
-  wakeId?: string;
-  episodeId?: string;
-  inReplyToRequestIds: string[];
-}
-
-export interface AgentConversation {
-  agentId: string;
+export type AgentWakeReceipt = Presentation<WakeReceiptWire>;
+export type AgentConversationEntry = Omit<Presentation<ConversationEntryWire>, "inReplyToRequestIds"> & {
+  inReplyToRequestIds: NonNullable<ConversationEntryWire["in_reply_to_request_ids"]>;
+};
+export type AgentConversation = Omit<Presentation<AgentConversationView>, "entries"> & {
   entries: AgentConversationEntry[];
-}
-
-export interface AgentInputRequest {
-  inputRequestId: string;
-  message: string;
-  requestedSchema?: unknown;
-  requestedAt: string;
-}
+};
+export type AgentInputRequest = Presentation<AgentInputRequestView>;
 
 export interface RecordingSummary {
   id: string;
@@ -216,44 +178,7 @@ export interface RecordingSummary {
   sealedAt?: string;
 }
 
-export interface RecordingPlaybackManifest {
-  schema: "veoveo.ai/recording-playback/v10";
-  dataset_id: string;
-  recording_segment_id: string;
-  application_id: string;
-  recording_key: string;
-  state: RecordingSummary["state"];
-  started_at: string;
-  ended_at?: string;
-  catalog_revision: string;
-  access: {
-    grant_id: string;
-    redap_token: string;
-    expires_at: string;
-  };
-  archive?: {
-    uri: string;
-    dataset_id: string;
-    recording_segment_id: string;
-    catalog_revision: string;
-    rrd_version: string;
-    optimization_profile: string;
-    byte_len: number;
-    layer_count: number;
-  };
-  live?: {
-    history_seconds: number;
-    video_preroll_seconds: number;
-    transport: "rerun_rrd_channel_v2";
-  };
-  blueprint?: {
-    blueprint_id: string;
-    revision: number;
-    sha256: string;
-    byte_len: number;
-    map_provider: "none" | "openStreetMap" | "mapbox" | "mixed";
-  };
-}
+export type { PlaybackManifest as RecordingPlaybackManifest } from "./generated/recording-playback";
 
 export interface McpServerSummary {
   id: string;
@@ -284,56 +209,7 @@ export interface McpServerSummary {
   profiles: string[];
 }
 
-export interface ClusterSnapshot {
-  orchestrator: "Kubernetes";
-  namespace: string;
-  generatedAt: string;
-  workloads: ClusterWorkload[];
-  pods: ClusterPod[];
-  services: ClusterService[];
-  storage: ClusterStorage[];
-  ingresses: Array<{ name: string; className?: string; hosts: string[] }>;
-  networkPolicies: string[];
-  disruptionBudgets: string[];
-  configMaps: string[];
-}
-
-export interface ClusterWorkload {
-  name: string;
-  kind: "Deployment" | "StatefulSet" | "Job";
-  desired: number;
-  ready: number;
-  available: number;
-  images: string[];
-  createdAt?: string;
-}
-
-export interface ClusterPod {
-  name: string;
-  component?: string;
-  phase: string;
-  ready: number;
-  containers: number;
-  restarts: number;
-  node?: string;
-  images: string[];
-}
-
-export interface ClusterService {
-  name: string;
-  kind: string;
-  clusterIp?: string;
-  ports: string[];
-}
-
-export interface ClusterStorage {
-  name: string;
-  phase: string;
-  requested?: string;
-  capacity?: string;
-  storageClass?: string;
-  accessModes: string[];
-}
+export type { ClusterSnapshot, ClusterWorkload, ClusterPod, ClusterService, ClusterStorage } from "./generated/cluster";
 
 export interface PolicySummary {
   id: string;
@@ -346,53 +222,4 @@ export interface PolicySummary {
 
 
 
-export interface AppToolDescriptor {
-  name: string;
-  title?: string;
-  description?: string;
-  inputSchema: Record<string, unknown>;
-}
-
-export interface AppDescriptor {
-  server: string;
-  resourceUri: string;
-  standalonePath: string;
-  name: string;
-  title?: string;
-  description?: string;
-  icons?: string[];
-  prefersBorder?: boolean;
-  tools: AppToolDescriptor[];
-  resourceDependencies: AppResourceDependency[];
-  toolDependencies: AppToolDependency[];
-  agentMessageTargets: string[];
-}
-
-export interface AppResourceDependency {
-  app_resource: string;
-  server: string;
-  scheme: string;
-  uri_prefix: string;
-  required_scope: string;
-  operations: Array<"read" | "subscribe">;
-  data_labels?: string[];
-}
-
-export interface AppToolDependency {
-  app_resource: string;
-  server: string;
-  required_scope: string;
-  data_labels?: string[];
-  tools: Array<{ name: string; target_tool: string }>;
-}
-
-export interface AppCatalog {
-  apps: AppDescriptor[];
-  degradations: AppCatalogDegradation[];
-}
-
-export interface AppCatalogDegradation {
-  server: string;
-  surface: "resources" | "resource_templates" | "tools";
-  code: "discovery_pending" | "upstream_unavailable";
-}
+export type { AppToolDescriptor, AppDescriptor, AppResourceDependency, AppToolDependency, AppCatalog, GatewayDiscoveryFailure as AppCatalogDegradation } from "./generated/app-catalog";

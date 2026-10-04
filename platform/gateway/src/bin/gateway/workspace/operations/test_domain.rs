@@ -68,10 +68,10 @@ impl ServerHandler for Domain {
         ]);
         if let Some(server) = self.degraded_server.lock().unwrap().clone() {
             result.meta = veoveo_mcp_contract::GatewayDiscoveryDegradation::new([
-                veoveo_mcp_contract::GatewayDiscoveryFailure {
+                veoveo_gateway_contract::GatewayDiscoveryFailure {
                     server,
-                    surface: veoveo_mcp_contract::GatewayDiscoverySurface::Tools,
-                    code: veoveo_mcp_contract::GatewayDiscoveryFailureCode::UpstreamUnavailable,
+                    surface: veoveo_gateway_contract::GatewayDiscoverySurface::Tools,
+                    code: veoveo_gateway_contract::GatewayDiscoveryFailureCode::UpstreamUnavailable,
                 },
             ])
             .into_meta();

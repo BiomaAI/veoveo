@@ -743,3 +743,10 @@ Gateway, deployment and Workspace identity declarations use the foundational `Id
 ## Cursor Admission
 
 Pagination keeps its published optional String cursor fields and v1: numeric-offset spelling. Its owner codec retains usize parser aliases and existing error behavior without adding canonical equality, collection binding or a new input limit.
+
+## Transport-Free Gateway Values
+
+App dependency DTOs, discovery failure values and their metadata keys are owned by
+[Gateway Contract](../../platform/gateway/contract/DESIGN.md). This crate keeps the
+MCP MetaObject conversion and sorted/deduplicated degradation wrapper. Consumers
+import the transport-free values directly from their owner.

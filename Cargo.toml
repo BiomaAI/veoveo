@@ -31,6 +31,7 @@ members = [
     "platform/frames/contract",
     "platform/knowledge/contract",
     "platform/gateway",
+    "platform/gateway/contract",
     "platform/policy",
     "platform/recordings/contract",
     "platform/recordings/forwarder",
@@ -215,6 +216,7 @@ vaultrs = { version = "0.8.0", default-features = false, features = ["rustls"] }
 veoveo-mcp-contract = { path = "mcp/contract", default-features = false }
 veoveo-types = { path = "platform/types" }
 veoveo-modules = { path = "platform/modules", default-features = false }
+veoveo-gateway-contract = { path = "platform/gateway/contract" }
 veoveo-workspace = { path = "platform/workspace", default-features = false }
 veoveo-artifact-contract = { path = "platform/artifacts/contract" }
 veoveo-deploy-contract = { path = "deploy/contract" }

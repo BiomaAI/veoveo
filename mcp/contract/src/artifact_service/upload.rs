@@ -231,3 +231,21 @@ pub struct ArtifactUploadError {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub available_bytes: Option<u64>,
 }
+
+/// Source-owner Artifact transfer and access contracts consumed by browser clients.
+#[derive(JsonSchema)]
+#[expect(dead_code, reason = "schema-only bundle selects owner contracts")]
+struct ArtifactTransferSchema {
+    descriptor: CreateArtifactUpload,
+    receipt: ArtifactUploadReceipt,
+    session: ArtifactUploadSession,
+    part: UploadPartReceipt,
+    policy: EffectiveArtifactUploadPolicy,
+    access_request: ArtifactAccessRequest,
+    access_request_page: ArtifactAccessRequestPage,
+    share_link: veoveo_artifact_contract::ArtifactShareLink,
+}
+
+pub fn schema_bundle() -> schemars::Schema {
+    schemars::schema_for!(ArtifactTransferSchema)
+}

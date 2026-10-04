@@ -1,0 +1,13 @@
+[package]
+name = "veoveo-gateway-contract"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+veoveo-types.workspace = true
+serde.workspace = true
+schemars.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+jsonschema.workspace = true

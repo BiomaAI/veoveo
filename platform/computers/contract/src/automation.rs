@@ -5,6 +5,13 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use veoveo_types::{OAuthClientId, PrincipalId};
 
+// The identity schema owns lexical admission; Computers bounds the field's size.
+fn automation_oauth_client_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    let mut schema = OAuthClientId::json_schema(generator);
+    schema.insert("maxLength".into(), 256.into());
+    schema
+}
+
 #[derive(
     Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, JsonSchema,
 )]
@@ -41,7 +48,7 @@ pub struct IssueAutomationGrantInput {
     pub request_id: crate::RequestId,
     #[schemars(length(min = 1, max = 2048))]
     pub principal_id: PrincipalId,
-    #[schemars(length(min = 1, max = 256))]
+    #[schemars(schema_with = "automation_oauth_client_schema")]
     pub oauth_client_id: OAuthClientId,
     #[schemars(length(min = 1, max = 64))]
     pub name: String,

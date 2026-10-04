@@ -1,36 +1,10 @@
 use rmcp::model::MetaObject;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::ServerSlug;
+use veoveo_gateway_contract::{GATEWAY_DISCOVERY_DEGRADATION_META_KEY, GatewayDiscoveryFailure};
 
-/// MCP result metadata carrying failures isolated from a federated catalog.
-pub const GATEWAY_DISCOVERY_DEGRADATION_META_KEY: &str = "ai.veoveo/gateway-discovery-degradation";
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum GatewayDiscoverySurface {
-    Resources,
-    ResourceTemplates,
-    Tools,
-    Prompts,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum GatewayDiscoveryFailureCode {
-    DiscoveryPending,
-    UpstreamUnavailable,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GatewayDiscoveryFailure {
-    pub server: ServerSlug,
-    pub surface: GatewayDiscoverySurface,
-    pub code: GatewayDiscoveryFailureCode,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct GatewayDiscoveryDegradation {
     pub failures: Vec<GatewayDiscoveryFailure>,
@@ -79,6 +53,8 @@ impl GatewayDiscoveryDegradation {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ServerSlug;
+    use veoveo_gateway_contract::{GatewayDiscoveryFailureCode, GatewayDiscoverySurface};
 
     #[test]
     fn degradation_metadata_is_typed_sorted_and_deduplicated() {

@@ -12,14 +12,14 @@ use std::{
     time::Duration,
 };
 use tokio::sync::Notify;
+use veoveo_gateway_contract::{
+    GatewayDiscoveryFailure, GatewayDiscoveryFailureCode, GatewayDiscoverySurface,
+};
 use veoveo_knowledge_contract::{CollectionApproval, KnowledgeCollectionApproval};
 use veoveo_knowledge_mcp::source::{
     ApprovedCollection, DiscoveryScope, GatewaySource, ObservableSource, SourceListener,
 };
-use veoveo_mcp_contract::{
-    GatewayDiscoveryDegradation, GatewayDiscoveryFailure, GatewayDiscoveryFailureCode,
-    GatewayDiscoverySurface, SubscriptionHub,
-};
+use veoveo_mcp_contract::{GatewayDiscoveryDegradation, SubscriptionHub};
 use veoveo_mcp_knowledge_extension::{self as knowledge, *};
 use veoveo_types::*;
 

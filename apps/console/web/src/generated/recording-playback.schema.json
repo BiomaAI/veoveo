@@ -1,0 +1,239 @@
+{
+  "$defs": {
+    "PlaybackAccess": {
+      "additionalProperties": false,
+      "properties": {
+        "expires_at": {
+          "type": "string"
+        },
+        "grant_id": {
+          "type": "string"
+        },
+        "redap_token": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "grant_id",
+        "redap_token",
+        "expires_at"
+      ],
+      "type": "object"
+    },
+    "PlaybackArchive": {
+      "additionalProperties": false,
+      "properties": {
+        "byte_len": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "catalog_revision": {
+          "type": "string"
+        },
+        "dataset_id": {
+          "type": "string"
+        },
+        "layer_count": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "optimization_profile": {
+          "type": "string"
+        },
+        "recording_segment_id": {
+          "type": "string"
+        },
+        "rrd_version": {
+          "type": "string"
+        },
+        "uri": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "uri",
+        "dataset_id",
+        "recording_segment_id",
+        "catalog_revision",
+        "rrd_version",
+        "optimization_profile",
+        "byte_len",
+        "layer_count"
+      ],
+      "type": "object"
+    },
+    "PlaybackBlueprint": {
+      "additionalProperties": false,
+      "properties": {
+        "blueprint_id": {
+          "type": "string"
+        },
+        "byte_len": {
+          "format": "uint64",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "map_provider": {
+          "$ref": "#/$defs/PlaybackMapProvider"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "blueprint_id",
+        "revision",
+        "sha256",
+        "byte_len",
+        "map_provider"
+      ],
+      "type": "object"
+    },
+    "PlaybackLiveReceiver": {
+      "additionalProperties": false,
+      "description": "Recording-scoped channel, available throughout Live, including capture-layer gaps.",
+      "properties": {
+        "history_seconds": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "transport": {
+          "$ref": "#/$defs/PlaybackLiveTransport"
+        },
+        "video_preroll_seconds": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "history_seconds",
+        "video_preroll_seconds",
+        "transport"
+      ],
+      "type": "object"
+    },
+    "PlaybackLiveTransport": {
+      "enum": [
+        "rerun_rrd_channel_v2"
+      ],
+      "type": "string"
+    },
+    "PlaybackManifestSchema": {
+      "enum": [
+        "veoveo.ai/recording-playback/v10"
+      ],
+      "type": "string"
+    },
+    "PlaybackMapProvider": {
+      "enum": [
+        "none",
+        "openStreetMap",
+        "mapbox",
+        "mixed"
+      ],
+      "type": "string"
+    },
+    "RecordingState": {
+      "enum": [
+        "live",
+        "ready",
+        "sealing",
+        "sealed",
+        "interrupted",
+        "failed"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "An admitted, immutable manifest. Rust construction and JSON use the same checks.\n```compile_fail\nuse veoveo_recording_contract::PlaybackManifest;\nfn change_parent(manifest: &mut PlaybackManifest) {\n    manifest.recording_segment_id = Default::default();\n}\n```",
+  "properties": {
+    "access": {
+      "$ref": "#/$defs/PlaybackAccess"
+    },
+    "application_id": {
+      "type": "string"
+    },
+    "archive": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PlaybackArchive"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "blueprint": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PlaybackBlueprint"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "catalog_revision": {
+      "type": "string"
+    },
+    "dataset_id": {
+      "type": "string"
+    },
+    "ended_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "live": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PlaybackLiveReceiver"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "recording_key": {
+      "type": "string"
+    },
+    "recording_segment_id": {
+      "type": "string"
+    },
+    "schema": {
+      "$ref": "#/$defs/PlaybackManifestSchema"
+    },
+    "started_at": {
+      "type": "string"
+    },
+    "state": {
+      "$ref": "#/$defs/RecordingState"
+    }
+  },
+  "required": [
+    "schema",
+    "dataset_id",
+    "recording_segment_id",
+    "application_id",
+    "recording_key",
+    "state",
+    "started_at",
+    "catalog_revision",
+    "access"
+  ],
+  "title": "PlaybackManifest",
+  "type": "object"
+}

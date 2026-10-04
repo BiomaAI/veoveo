@@ -55,6 +55,9 @@ configuration and membership matching against authenticated principals; the gate
 resolves and signs authority, and existing policy owners enforce it. Possessing or
 deserializing these values establishes no grant.
 
+`OAuthClientId` admits nonempty claim text without control characters. Its JSON Schema
+expresses that same lexical profile. Domain inputs impose their own size limits.
+
 Identity syntax and attribution establish no authority. Authentication, policy
 evaluation, Work Context membership, and access decisions stay with their existing
 owners. Artifact metadata and coordinate vocabularies have domain owners; their use

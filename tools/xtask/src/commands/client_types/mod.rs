@@ -11,6 +11,33 @@ pub(crate) fn run(repository: &RepositoryContext, check: bool) -> Result<()> {
     let web = repository.root().join("apps/console/web");
     let schemas = [
         (
+            "app-catalog",
+            "apps/console/web/src/generated",
+            serde_json::to_value(veoveo_console_bff::contract::apps::schema_bundle())?,
+        ),
+        (
+            "cluster",
+            "apps/console/web/src/generated",
+            serde_json::to_value(veoveo_console_bff::contract::cluster::schema_bundle())?,
+        ),
+        (
+            "recording-playback",
+            "apps/console/web/src/generated",
+            serde_json::to_value(schemars::schema_for!(
+                veoveo_recording_contract::PlaybackManifest
+            ))?,
+        ),
+        (
+            "agent-control",
+            "apps/console/web/src/generated",
+            serde_json::to_value(veoveo_mcp_contract::agents::schema_bundle())?,
+        ),
+        (
+            "artifact-transfer",
+            "apps/console/web/src/generated",
+            serde_json::to_value(veoveo_mcp_contract::artifact_service::upload::schema_bundle())?,
+        ),
+        (
             "audit",
             "apps/console/web/src/generated",
             serde_json::to_value(veoveo_audit_contract::reader_schema())?,

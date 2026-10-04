@@ -7,9 +7,8 @@ use rmcp::{
     },
     service::{RequestContext, RoleServer},
 };
-use veoveo_mcp_contract::{
-    DiscoveryFailureMode, Exposure, GatewayAction, GatewayDiscoverySurface, PromptName, ServerSlug,
-};
+use veoveo_gateway_contract::GatewayDiscoverySurface;
+use veoveo_mcp_contract::{DiscoveryFailureMode, Exposure, GatewayAction, PromptName, ServerSlug};
 
 use crate::{
     AuthenticatedSubject,

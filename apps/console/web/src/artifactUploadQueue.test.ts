@@ -5,7 +5,7 @@ import test from "node:test";
 configureBrowserApplication("console");
 import { browserSession } from "./csrf.ts";
 import { UploadQueue } from "./uploads/queue.ts";
-import { describe, invalidSelection, requestId, type Policy, type Receipt, type Session } from "./uploads/model.ts";
+import { describe, invalidSelection, requestId, sessionSchema, partSchema, policySchema, type Policy, type Receipt, type Session } from "./uploads/model.ts";
 
 const origin = "https://uploads.example";
 const storageKey = `veoveo.uploads.v1:${JSON.stringify([origin, "tenant", "alice", "operations"])}`;
@@ -36,6 +36,29 @@ class TestHashWorker {
   terminate() { this.stopped = true; }
 }
 
+test("generated upload admission preserves positive counters and safe browser arithmetic", () => {
+  const part = { part_number: 1, byte_len: 0, sha256: "0".repeat(64) };
+  assert.deepEqual(partSchema.parse(part), part);
+  for (const altered of [
+    { ...part, part_number: 0 }, { ...part, part_number: 10001 },
+    { ...part, byte_len: Number.MAX_SAFE_INTEGER + 1 },
+  ]) assert.equal(partSchema.safeParse(altered).success, false);
+  const session = {
+    upload_id: requestId(), state: "open", descriptor: { filename: "sample.bin", mime_type: "application/octet-stream", byte_len: 0 },
+    layout: { part_bytes: 8, max_parts: 128, max_total_bytes: 1024, parallel_parts: 2 },
+    accepted_bytes: 0, accepted_part_count: 0, parts: [],
+    created_at: new Date().toISOString(), expires_at: new Date().toISOString(),
+  };
+  assert.equal(sessionSchema.safeParse(session).success, true);
+  for (const field of ["part_bytes", "max_parts", "max_total_bytes", "parallel_parts"])
+    assert.equal(sessionSchema.safeParse({ ...session, layout: { ...session.layout, [field]: 0 } }).success, false);
+  assert.equal(sessionSchema.safeParse({ ...session, accepted_bytes: Number.MAX_SAFE_INTEGER + 1 }).success, false);
+  assert.equal(policySchema.safeParse({ ...policy, available_bytes: Number.MAX_SAFE_INTEGER + 1 }).success, false);
+  assert.equal(policySchema.safeParse({ ...policy, available_bytes: null }).success, true);
+  assert.equal(invalidSelection(session.descriptor, { ...policy, available_bytes: null }), undefined);
+  assert.match(invalidSelection({ ...session.descriptor, byte_len: 1 }, { ...policy, available_bytes: 0 })!, /Only 0 B/);
+});
+
 async function fixture() {
   const memory = new Map<string, string>();
   Object.defineProperty(globalThis, "localStorage", { configurable: true, value: { getItem: (key: string) => memory.get(key) ?? null, setItem: (key: string, value: string) => memory.set(key, value) } });
@@ -55,15 +78,16 @@ async function fixture() {
   };
   memory.set(storageKey, JSON.stringify([{ key, descriptor: status.descriptor, lastModified: file.lastModified, uploadId, accepted: 8 }]));
   const calls: { method: string; path: string }[] = [];
+  let policyResponse = policy;
   let response: (method: string, path: string) => Response = () => Response.json(status);
   globalThis.fetch = async (input, init) => {
     const path = String(input), method = init?.method ?? "GET";
     calls.push({ method, path });
-    return path.endsWith("/policy") ? Response.json(policy) : response(method, path);
+    return path.endsWith("/policy") ? Response.json(policyResponse) : response(method, path);
   };
   const receipts: Receipt[] = [];
   const queue = new UploadQueue("alice", "operations", "tenant", (receipt) => receipts.push(receipt));
-  return { memory, file, key, uploadId, receipt, status, queue, calls, receipts, respond: (value: typeof response) => { response = value; } };
+  return { memory, file, key, uploadId, receipt, status, queue, calls, receipts, respond: (value: typeof response) => { response = value; }, respondPolicy: (value: Policy) => { policyResponse = value; } };
 }
 
 async function until(check: () => boolean) {
@@ -83,6 +107,24 @@ test("upload events reconcile only known sessions and require a server receipt",
   assert.equal(f.queue.snapshot().entries[0].file, undefined);
   assert.deepEqual(f.receipts, [f.receipt]);
   f.queue.dispose();
+});
+
+test("quota refresh distinguishes unknown allowance from an authoritative zero", async () => {
+  for (const available of [null, 0]) {
+    const f = await fixture();
+    try {
+      await f.queue.initialize();
+      f.respondPolicy({ ...policy, available_bytes: available });
+      f.respond(() => Response.json({ code: "quota_exceeded", message: "Quota blocked" }, { status: 429 }));
+      f.queue.reconcile(f.uploadId);
+      await until(() => f.calls.filter((call) => call.path.endsWith("/policy")).length === 2
+        && f.queue.snapshot().policy?.available_bytes === available);
+      const entry = f.queue.snapshot().entries[0];
+      assert.equal(entry.phase, "Needs attention");
+      if (available === null) assert.equal(entry.message, "Quota blocked");
+      else assert.match(entry.message!, /0 B of storage is currently available/);
+    } finally { f.queue.dispose(); }
+  }
 });
 
 test("expired uploads require a new admission identity after current policy discovery", async () => {

@@ -1,6 +1,7 @@
 //! Exact App tool admission over the gateway-projected, caller-visible catalog.
 use rmcp::model::{Resource, Tool};
-use veoveo_mcp_contract::{APP_TOOL_DEPENDENCIES_META_KEY, AppToolDependency, LocalToolName};
+use veoveo_gateway_contract::{APP_TOOL_DEPENDENCIES_META_KEY, AppToolDependency};
+use veoveo_mcp_contract::LocalToolName;
 
 use crate::{is_app_resource, tool_app_link};
 

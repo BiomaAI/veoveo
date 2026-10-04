@@ -7,9 +7,10 @@ publish = false
 [features]
 default = ["runtime"]
 contract = ["dep:veoveo-types", "dep:veoveo-knowledge-contract", "dep:veoveo-embedding-contract", "dep:veoveo-mcp-knowledge-extension", "dep:serde", "dep:schemars", "dep:chrono"]
-runtime = ["contract", "dep:rmcp", "veoveo-mcp-knowledge-extension/mcp", "dep:veoveo-platform-store", "dep:veoveo-mcp-contract", "dep:veoveo-policy", "dep:veoveo-embedding-client", "dep:serde_json", "dep:tokio", "dep:thiserror", "chrono/clock", "dep:anyhow", "dep:sha2", "dep:tokio-util", "dep:clap", "dep:rustls", "dep:secrecy", "dep:reqwest", "dep:jsonwebtoken", "dep:uuid", "dep:url", "dep:futures", "dep:tracing"]
+runtime = ["dep:veoveo-gateway-contract", "contract", "dep:rmcp", "veoveo-mcp-knowledge-extension/mcp", "dep:veoveo-platform-store", "dep:veoveo-mcp-contract", "dep:veoveo-policy", "dep:veoveo-embedding-client", "dep:serde_json", "dep:tokio", "dep:thiserror", "chrono/clock", "dep:anyhow", "dep:sha2", "dep:tokio-util", "dep:clap", "dep:rustls", "dep:secrecy", "dep:reqwest", "dep:jsonwebtoken", "dep:uuid", "dep:url", "dep:futures", "dep:tracing"]
 
 [dependencies]
+veoveo-gateway-contract = { workspace = true, optional = true }
 reqwest = { workspace = true, features = ["form", "json", "rustls-no-provider"], optional = true }
 jsonwebtoken = { workspace = true, optional = true }
 uuid = { workspace = true, optional = true }

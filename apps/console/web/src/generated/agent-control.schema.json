@@ -1,0 +1,264 @@
+{
+  "$defs": {
+    "AgentConversationEntry": {
+      "additionalProperties": false,
+      "description": "One actor-attributed projection of durable agent runtime state.\n\nConversation entries are not a second source of truth. Operator entries\nproject durable wakes and agent entries project durable episodes.",
+      "properties": {
+        "actor_id": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
+        "entry_id": {
+          "type": "string"
+        },
+        "episode_id": {
+          "format": "uuid",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "in_reply_to_request_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "occurred_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "request_id": {
+          "format": "uuid",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "role": {
+          "$ref": "#/$defs/AgentConversationRole"
+        },
+        "state": {
+          "$ref": "#/$defs/AgentConversationEntryState"
+        },
+        "wake_id": {
+          "format": "uuid",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "entry_id",
+        "role",
+        "actor_id",
+        "content",
+        "state",
+        "occurred_at"
+      ],
+      "type": "object"
+    },
+    "AgentConversationEntryState": {
+      "enum": [
+        "accepted",
+        "running",
+        "completed",
+        "budget_terminated",
+        "stopped",
+        "failed"
+      ],
+      "type": "string"
+    },
+    "AgentConversationRole": {
+      "enum": [
+        "operator",
+        "agent"
+      ],
+      "type": "string"
+    },
+    "AgentConversationView": {
+      "additionalProperties": false,
+      "properties": {
+        "agent_id": {
+          "type": "string"
+        },
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/AgentConversationEntry"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "agent_id",
+        "entries"
+      ],
+      "type": "object"
+    },
+    "AgentInputRequestDecision": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "accept",
+              "type": "string"
+            },
+            "content": {
+              "default": null
+            },
+            "request_id": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "request_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "decline",
+              "type": "string"
+            },
+            "request_id": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "request_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "cancel",
+              "type": "string"
+            },
+            "request_id": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "request_id"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "AgentInputRequestView": {
+      "additionalProperties": false,
+      "properties": {
+        "input_request_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "requested_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "requested_schema": true
+      },
+      "required": [
+        "input_request_id",
+        "message",
+        "requested_at"
+      ],
+      "type": "object"
+    },
+    "AgentOperatorMessageRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "message": {
+          "type": "string"
+        },
+        "request_id": {
+          "description": "Client-generated UUIDv7 used as the durable retry identity.",
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "request_id",
+        "message"
+      ],
+      "type": "object"
+    },
+    "AgentWakeReceipt": {
+      "additionalProperties": false,
+      "properties": {
+        "accepted_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "agent_id": {
+          "type": "string"
+        },
+        "request_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "wake_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "work_context": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "request_id",
+        "wake_id",
+        "agent_id",
+        "work_context",
+        "accepted_at"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Source-owner operator-control contracts consumed by browser clients.",
+  "properties": {
+    "conversation": {
+      "$ref": "#/$defs/AgentConversationView"
+    },
+    "decision": {
+      "$ref": "#/$defs/AgentInputRequestDecision"
+    },
+    "input_request": {
+      "$ref": "#/$defs/AgentInputRequestView"
+    },
+    "message": {
+      "$ref": "#/$defs/AgentOperatorMessageRequest"
+    },
+    "receipt": {
+      "$ref": "#/$defs/AgentWakeReceipt"
+    }
+  },
+  "required": [
+    "message",
+    "decision",
+    "receipt",
+    "input_request",
+    "conversation"
+  ],
+  "title": "AgentControlSchema",
+  "type": "object"
+}

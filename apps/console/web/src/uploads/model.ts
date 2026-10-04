@@ -1,40 +1,38 @@
 import { z } from "zod";
+import { compileGeneratedSchema } from "../jsonSchema.ts";
+import schema from "../generated/artifact-transfer.schema.json" with { type: "json" };
+import type { CreateArtifactUpload, ArtifactUploadReceipt, ArtifactUploadSession, UploadPartReceipt, EffectiveArtifactUploadPolicy } from "../generated/artifact-transfer";
+import type { ArtifactUploadReceipt as Receipt, EffectiveArtifactUploadPolicy as Policy } from "../generated/artifact-transfer";
 import { formatBytes } from "../format.ts";
 
 const bytes = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
-const positive = bytes.positive();
 const id = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
-const sha = z.string().regex(/^[0-9a-f]{64}$/);
+
+function ownerSchema<Model>(name: keyof typeof schema.$defs): z.ZodType<Model> {
+  const validator = compileGeneratedSchema({ $schema: schema.$schema, $defs: schema.$defs, $ref: `#/$defs/${name}` });
+  // Upload counters travel through JS numbers; unsafe integers cannot drive slices or progress.
+  const safeCounters = (value: unknown): boolean => typeof value === "number"
+    ? Number.isSafeInteger(value) && value >= 0
+    : value === null || typeof value !== "object" || Object.values(value).every(safeCounters);
+  return z.custom<Model>((value) => validator.safeParse(value).success && safeCounters(value));
+}
+
+// A selected browser File always supplies a known, safely representable length.
+export type Descriptor = Omit<CreateArtifactUpload, "byte_len"> & { byte_len: number };
+export type { ArtifactUploadReceipt as Receipt, ArtifactUploadSession as Session, UploadPartReceipt as Part, EffectiveArtifactUploadPolicy as Policy } from "../generated/artifact-transfer";
+export const descriptorSchema = ownerSchema<CreateArtifactUpload>("CreateArtifactUpload").refine(
+  (value): value is Descriptor => Number.isSafeInteger(value.byte_len) && (value.byte_len ?? -1) >= 0 && value.filename.length > 0 && value.filename.length <= 255,
+).transform((value) => value as Descriptor);
+export const receiptSchema = ownerSchema<ArtifactUploadReceipt>("ArtifactUploadReceipt");
+export const partSchema = ownerSchema<UploadPartReceipt>("UploadPartReceipt").refine((part) => part.part_number <= 10000);
+export const sessionSchema = ownerSchema<ArtifactUploadSession>("ArtifactUploadSession").refine((session) =>
+  session.layout.max_parts <= 10000 && session.parts.length <= 256
+  && session.parts.every((part) => part.part_number <= 10000)
+  && (session.next_part_cursor === undefined || session.next_part_cursor === null || session.next_part_cursor <= 10000));
+export const policySchema = ownerSchema<EffectiveArtifactUploadPolicy>("EffectiveArtifactUploadPolicy").refine((effective) =>
+  !effective.policy || (effective.policy.max_parts <= 10000 && effective.policy.part_timeout_seconds <= 3600));
+// The Console stream excludes open uploads; a notification wakes an authoritative status read.
 export const uploadNotificationSchema = z.object({ op: z.literal("changed"), upload_id: id, state: z.enum(["finalizing", "verifying", "completed", "cancelled", "expired", "failed"]) });
-export const descriptorSchema = z.object({ filename: z.string().min(1).max(255), mime_type: z.string(), byte_len: bytes, sha256: sha.optional() });
-export const receiptSchema = z.object({
-  upload_id: id, artifact_id: id, artifact_uri: z.string().startsWith("artifact://"),
-  sha256: sha, byte_len: bytes, mime_type: z.string(), filename: z.string(), created_at: z.string(),
-});
-export const partSchema = z.object({ part_number: positive.max(10000), byte_len: bytes, sha256: sha });
-export const sessionSchema = z.object({
-  upload_id: id, state: z.enum(["open", "finalizing", "verifying", "completed", "cancelled", "expired", "failed"]),
-  descriptor: descriptorSchema,
-  layout: z.object({ part_bytes: positive, max_parts: positive.max(10000), max_total_bytes: positive, parallel_parts: positive }),
-  accepted_bytes: bytes, accepted_part_count: bytes, parts: z.array(partSchema).max(256),
-  next_part_cursor: positive.max(10000).optional(), created_at: z.string(), expires_at: z.string(),
-  receipt: receiptSchema.optional(), failure: z.string().optional(),
-});
-export const policySchema = z.object({
-  allowed: z.boolean(), explanation: z.string(), actor: z.string(), work_context: z.string(),
-  destination_name: z.string(), access_description: z.string(), available_bytes: bytes.optional(),
-  policy: z.object({
-    max_object_bytes: positive, tenant_quota_bytes: positive, max_active_uploads_per_tenant: positive,
-    part_bytes: positive, max_part_bytes: positive, max_parts: positive.max(10000), parallel_parts: positive,
-    max_inflight_bytes: positive, inactivity_seconds: positive, lifetime_seconds: positive,
-    part_timeout_seconds: positive.max(3600), allowed_mime_types: z.array(z.string()),
-  }).optional(),
-});
-export type Descriptor = z.infer<typeof descriptorSchema>;
-export type Receipt = z.infer<typeof receiptSchema>;
-export type Session = z.infer<typeof sessionSchema>;
-export type Part = z.infer<typeof partSchema>;
-export type Policy = z.infer<typeof policySchema>;
 export type Phase = "Selected" | "Queued" | "Preparing" | "Uploading" | "Paused" | "Waiting for connection" | "Sign in to continue" | "Select file" | "Checking file" | "Finishing upload" | "Ready" | "Needs attention" | "Cancelling" | "Cancelled";
 
 export interface Entry {
@@ -88,7 +86,7 @@ export function invalidSelection(descriptor: Descriptor, policy?: Policy): strin
   if (!Number.isSafeInteger(descriptor.byte_len) || descriptor.byte_len < 0 || descriptor.byte_len > policy.policy.max_object_bytes) return "This file exceeds the upload size limit.";
   if (!descriptor.filename || [".", ".."].includes(descriptor.filename) || new TextEncoder().encode(descriptor.filename).length > 255 || descriptor.filename.trim() !== descriptor.filename || Array.from(descriptor.filename).some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127 || char === "/" || char === "\\")) return "Rename this file to remove unsupported characters or shorten its name.";
   if (!policy.policy.allowed_mime_types.includes(descriptor.mime_type)) return "This file type is not allowed here.";
-  if (policy.available_bytes !== undefined && descriptor.byte_len > policy.available_bytes) return `This file requires ${formatBytes(descriptor.byte_len)}. Only ${formatBytes(policy.available_bytes)} of storage is currently available.`;
+  if (policy.available_bytes != null && descriptor.byte_len > policy.available_bytes) return `This file requires ${formatBytes(descriptor.byte_len)}. Only ${formatBytes(policy.available_bytes)} of storage is currently available.`;
 }
 
 export function duplicate(left: Entry, file: File): boolean {

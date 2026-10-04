@@ -34,6 +34,21 @@ domains prevent credential substitution; they do not isolate a same-origin scrip
 compromise. Untrusted MCP Apps retain the separate opaque-origin sandbox specified
 by their host contract. Chat bodies render as text without executable HTML.
 
+## Browser Transport Contracts
+
+The library's `contract` feature exports the App catalog and Kubernetes inventory
+transport models under `src/contract`. The binary enables `runtime`, which supplies
+HTTP handlers, OAuth sessions and provider clients. Consumers can select `contract`
+with default features disabled without enabling those browser-edge runtime dependencies.
+
+App catalog models reuse gateway-owned resource and tool dependency declarations and
+discovery degradations. Tool input schemas are provider-owned JSON objects. Kubernetes
+workload kinds and the supported orchestrator use closed vocabularies; Kubernetes phase
+and service-type strings pass through the provider's own values. `cargo xtask release
+client-types` produces the schemas and browser types from these models.
+The contract enables schemars's `chrono04` adapter directly for its UTC timestamp
+fields, keeping their date-time schemas independent of runtime feature unification.
+
 ## Routing And Configuration
 
 The typed configuration validates absolute HTTP(S) URLs without embedded credentials,
@@ -94,3 +109,9 @@ The [shared agent authoring edge](src/agent_management/DESIGN.md) mounts typed
 management routes in both application routers. Each route keeps that application's
 fixed gateway profile and session authority. It preserves publication findings and
 streams bounded catalog invalidations without conveying model credentials.
+
+## Transport-Free Gateway Values
+
+The App contract imports transport-free dependency and discovery values from
+`veoveo-gateway-contract`. The MCP contract and Artifact runtime API dependency are
+optional under `runtime`; schema-only library builds do not enable those transports.

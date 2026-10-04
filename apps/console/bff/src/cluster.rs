@@ -1,4 +1,8 @@
 use std::{collections::BTreeMap, fs, time::Duration};
+use veoveo_console_bff::contract::{
+    ClusterIngress, ClusterOrchestrator, ClusterPod, ClusterService, ClusterSnapshot,
+    ClusterStorage, ClusterWorkload, ClusterWorkloadKind,
+};
 
 use anyhow::{Context, Result, bail};
 use axum::{
@@ -12,7 +16,7 @@ use reqwest::{
     Certificate, StatusCode, Url,
     header::{AUTHORIZATION, HeaderValue},
 };
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::{Deserialize, de::DeserializeOwned};
 
 use crate::{AppState, api::authorize_cluster_inventory, outbound_http::OutboundTrust};
 
@@ -133,7 +137,7 @@ impl KubernetesClient {
         workloads.sort_by(|left, right| left.name.cmp(&right.name));
 
         Ok(ClusterSnapshot {
-            orchestrator: "Kubernetes",
+            orchestrator: ClusterOrchestrator::Kubernetes,
             namespace: self.namespace.clone(),
             generated_at: Utc::now(),
             workloads,
@@ -394,39 +398,11 @@ struct IngressRule {
     host: Option<String>,
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ClusterSnapshot {
-    orchestrator: &'static str,
-    namespace: String,
-    generated_at: DateTime<Utc>,
-    workloads: Vec<ClusterWorkload>,
-    pods: Vec<ClusterPod>,
-    services: Vec<ClusterService>,
-    storage: Vec<ClusterStorage>,
-    ingresses: Vec<ClusterIngress>,
-    network_policies: Vec<String>,
-    disruption_budgets: Vec<String>,
-    config_maps: Vec<String>,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ClusterWorkload {
-    name: String,
-    kind: &'static str,
-    desired: u32,
-    ready: u32,
-    available: u32,
-    images: Vec<String>,
-    created_at: Option<DateTime<Utc>>,
-}
-
 impl From<Deployment> for ClusterWorkload {
     fn from(value: Deployment) -> Self {
         Self {
             name: value.metadata.name,
-            kind: "Deployment",
+            kind: ClusterWorkloadKind::Deployment,
             desired: value.spec.replicas,
             ready: value.status.ready_replicas,
             available: value.status.available_replicas,
@@ -447,7 +423,7 @@ impl From<StatefulSet> for ClusterWorkload {
     fn from(value: StatefulSet) -> Self {
         Self {
             name: value.metadata.name,
-            kind: "StatefulSet",
+            kind: ClusterWorkloadKind::StatefulSet,
             desired: value.spec.replicas,
             ready: value.status.ready_replicas,
             available: value.status.ready_replicas,
@@ -468,7 +444,7 @@ impl From<Job> for ClusterWorkload {
     fn from(value: Job) -> Self {
         Self {
             name: value.metadata.name,
-            kind: "Job",
+            kind: ClusterWorkloadKind::Job,
             desired: value.spec.completions,
             ready: value.status.succeeded,
             available: value.status.active + value.status.succeeded,
@@ -483,19 +459,6 @@ impl From<Job> for ClusterWorkload {
             created_at: value.metadata.creation_timestamp,
         }
     }
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ClusterPod {
-    name: String,
-    component: Option<String>,
-    phase: String,
-    ready: u32,
-    containers: u32,
-    restarts: u32,
-    node: Option<String>,
-    images: Vec<String>,
 }
 
 impl From<Pod> for ClusterPod {
@@ -523,15 +486,6 @@ impl From<Pod> for ClusterPod {
     }
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ClusterService {
-    name: String,
-    kind: String,
-    cluster_ip: Option<String>,
-    ports: Vec<String>,
-}
-
 impl From<Service> for ClusterService {
     fn from(value: Service) -> Self {
         Self {
@@ -554,17 +508,6 @@ impl From<Service> for ClusterService {
     }
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ClusterStorage {
-    name: String,
-    phase: String,
-    requested: Option<String>,
-    capacity: Option<String>,
-    storage_class: Option<String>,
-    access_modes: Vec<String>,
-}
-
 impl From<PersistentVolumeClaim> for ClusterStorage {
     fn from(value: PersistentVolumeClaim) -> Self {
         Self {
@@ -576,14 +519,6 @@ impl From<PersistentVolumeClaim> for ClusterStorage {
             access_modes: value.spec.access_modes,
         }
     }
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ClusterIngress {
-    name: String,
-    class_name: Option<String>,
-    hosts: Vec<String>,
 }
 
 impl From<Ingress> for ClusterIngress {

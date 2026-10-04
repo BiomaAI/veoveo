@@ -19,9 +19,8 @@ use rmcp::{
 use veoveo_audit_contract::{
     AuditDetail, AuditOutcome, AuditReadMethod, AuditReason, AuditTarget, KnowledgeReadStatus,
 };
-use veoveo_mcp_contract::{
-    GatewayDiscoverySurface, GatewayResourceProjection, parse_gateway_task_resource_uri,
-};
+use veoveo_gateway_contract::GatewayDiscoverySurface;
+use veoveo_mcp_contract::{GatewayResourceProjection, parse_gateway_task_resource_uri};
 use veoveo_mcp_knowledge_extension::{self as knowledge, Observation, Revision};
 
 impl GatewayMcp {

@@ -144,6 +144,10 @@ is invalid. This addition is coordinated within unreleased terminal v2.
 `automation.rs` defines named-principal grant input, inventory and revocation DTOs.
 `principalId` identifies the grantee; it never selects the Computer owner.
 `oauthClientId` binds the application through which that principal may use the grant.
+Automation issuance uses the foundational OAuth-client lexical schema and adds the
+Computer service's 256-byte input limit as a 256-character JSON Schema ceiling. The
+service checks UTF-8 bytes during admission because JSON Schema lengths count characters.
+
 Inputs, views and client choices carry foundational `PrincipalId` and `OAuthClientId`
 values through domain admission and authority checks. JSON decoding rejects malformed
 identities; the database adapter converts them to text when writing driver records.

@@ -224,7 +224,7 @@ export function useCreateShareLink() {
             id: created.link_id,
             permission: "read" as const,
             expiresAt: created.expires_at,
-            maxDownloads: created.max_downloads,
+            maxDownloads: created.max_downloads ?? undefined,
             downloadCount: 0,
             createdAt: new Date().toISOString(),
             active: true,

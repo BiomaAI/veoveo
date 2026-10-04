@@ -89,21 +89,30 @@ pub struct LocalToolName(String);
 pub struct PromptName(String);
 #[doc = "Registered OAuth client id allowed to request gateway-profile tokens."]
 #[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
+    veoveo_types::Id, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
 )]
 #[serde(try_from = "String", into = "String")]
 #[id(string, error = IdentifierError, validate = validate_claim_text)]
 pub struct OAuthClientId(String);
+impl JsonSchema for OAuthClientId {
+    fn schema_id() -> std::borrow::Cow<'static, str> {
+        concat!(module_path!(), "::OAuthClientId").into()
+    }
+
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "OAuthClientId".into()
+    }
+
+    fn json_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        schemars::json_schema!({
+            "type": "string",
+            "description": "Registered OAuth client id allowed to request gateway-profile tokens.",
+            "minLength": 1,
+            "not": { "pattern": r"[\u0000-\u001f\u007f-\u009f]" }
+        })
+    }
+}
+
 #[doc = "Canonical UUIDv7 identity for one rotating OAuth refresh-token family."]
 #[derive(
     veoveo_types::Id,

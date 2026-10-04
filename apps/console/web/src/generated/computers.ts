@@ -720,7 +720,10 @@ export interface IssueAutomationGrantInput {
   executionLimits?: AutomationExecutionLimits | null;
   expiresAt: string;
   name: string;
-  oauthClientId: OAuthClientId;
+  /**
+   * Registered OAuth client id allowed to request gateway-profile tokens.
+   */
+  oauthClientId: string;
   /**
    * @minItems 1
    * @maxItems 4

@@ -1,3 +1,7 @@
+#[cfg(test)]
+use veoveo_gateway_contract::{
+    GatewayDiscoveryFailure, GatewayDiscoveryFailureCode, GatewayDiscoverySurface,
+};
 mod resources;
 pub(crate) use resources::{ResourceCapacity, ResourceSubscriptionError};
 use resources::{ResourceListener, ResourceSubscriptions};
@@ -684,10 +688,7 @@ mod tests {
             self.reads.fetch_add(1, Ordering::SeqCst);
             Ok(rmcp::model::ListResourcesResult {
                 meta: if self.degraded {
-                    use veoveo_mcp_contract::{
-                        GatewayDiscoveryFailure, GatewayDiscoveryFailureCode,
-                        GatewayDiscoverySurface, ServerSlug,
-                    };
+                    use veoveo_mcp_contract::ServerSlug;
                     GatewayDiscoveryDegradation::new(vec![GatewayDiscoveryFailure {
                         server: ServerSlug::new("offline").unwrap(),
                         surface: GatewayDiscoverySurface::Resources,

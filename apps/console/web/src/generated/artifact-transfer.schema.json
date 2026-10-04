@@ -1,0 +1,592 @@
+{
+  "$defs": {
+    "AccessLevel": {
+      "description": "A capability level. Ordered `Read < Write < Admin`, so `min` yields the\nlesser privilege — exactly what capping a group role by a grant level needs.",
+      "enum": [
+        "read",
+        "write",
+        "admin"
+      ],
+      "type": "string"
+    },
+    "ArtifactAccessRequest": {
+      "properties": {
+        "artifact_id": {
+          "$ref": "#/$defs/ArtifactId"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "decided_at": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "decided_by": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PrincipalId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "decision_note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "$ref": "#/$defs/ArtifactAccessRequestId"
+        },
+        "justification": {
+          "type": "string"
+        },
+        "requested_level": {
+          "$ref": "#/$defs/AccessLevel"
+        },
+        "requester": {
+          "$ref": "#/$defs/PrincipalId"
+        },
+        "state": {
+          "$ref": "#/$defs/ArtifactAccessRequestState"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "work_context": {
+          "$ref": "#/$defs/WorkContextId"
+        }
+      },
+      "required": [
+        "id",
+        "artifact_id",
+        "work_context",
+        "requester",
+        "requested_level",
+        "justification",
+        "state",
+        "created_at",
+        "updated_at"
+      ],
+      "type": "object"
+    },
+    "ArtifactAccessRequestId": {
+      "type": "string"
+    },
+    "ArtifactAccessRequestPage": {
+      "properties": {
+        "next_cursor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactAccessRequestId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "requests": {
+          "items": {
+            "$ref": "#/$defs/ArtifactAccessRequest"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "requests"
+      ],
+      "type": "object"
+    },
+    "ArtifactAccessRequestState": {
+      "enum": [
+        "pending",
+        "approved",
+        "denied",
+        "cancelled"
+      ],
+      "type": "string"
+    },
+    "ArtifactId": {
+      "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
+      "type": "string"
+    },
+    "ArtifactShareLink": {
+      "properties": {
+        "artifact_id": {
+          "$ref": "#/$defs/ArtifactId"
+        },
+        "expires_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "link_id": {
+          "$ref": "#/$defs/ArtifactShareLinkId"
+        },
+        "max_downloads": {
+          "format": "uint64",
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "link_id",
+        "artifact_id",
+        "url",
+        "expires_at"
+      ],
+      "type": "object"
+    },
+    "ArtifactShareLinkId": {
+      "description": "Identity of an expiring Artifact share, distinct from an occurrence.\n```compile_fail\nuse veoveo_artifact_contract::{ArtifactId, ArtifactShareLinkId};\nfn revoke(_: ArtifactShareLinkId) {}\nrevoke(ArtifactId::new());\n```",
+      "type": "string"
+    },
+    "ArtifactUploadId": {
+      "type": "string"
+    },
+    "ArtifactUploadPolicy": {
+      "additionalProperties": false,
+      "description": "Absence of a configured policy disables public uploads. There is no Default.",
+      "properties": {
+        "allowed_mime_types": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "inactivity_seconds": {
+          "format": "uint64",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "lifetime_seconds": {
+          "format": "uint64",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_active_uploads_per_tenant": {
+          "format": "uint32",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_inflight_bytes": {
+          "format": "uint64",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_object_bytes": {
+          "format": "uint64",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_part_bytes": {
+          "format": "uint64",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_parts": {
+          "format": "uint32",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "parallel_parts": {
+          "format": "uint32",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "part_bytes": {
+          "format": "uint64",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "part_timeout_seconds": {
+          "format": "uint64",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "tenant_quota_bytes": {
+          "format": "uint64",
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "max_object_bytes",
+        "tenant_quota_bytes",
+        "max_active_uploads_per_tenant",
+        "part_bytes",
+        "max_part_bytes",
+        "max_parts",
+        "parallel_parts",
+        "max_inflight_bytes",
+        "inactivity_seconds",
+        "lifetime_seconds",
+        "part_timeout_seconds",
+        "allowed_mime_types"
+      ],
+      "type": "object"
+    },
+    "ArtifactUploadReceipt": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "$ref": "#/$defs/ArtifactId"
+        },
+        "artifact_uri": {
+          "$ref": "#/$defs/ArtifactUri"
+        },
+        "byte_len": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "filename": {
+          "type": "string"
+        },
+        "mime_type": {
+          "type": "string"
+        },
+        "sha256": {
+          "$ref": "#/$defs/UploadSha256"
+        },
+        "upload_id": {
+          "$ref": "#/$defs/ArtifactUploadId"
+        }
+      },
+      "required": [
+        "upload_id",
+        "artifact_id",
+        "artifact_uri",
+        "sha256",
+        "byte_len",
+        "mime_type",
+        "filename",
+        "created_at"
+      ],
+      "type": "object"
+    },
+    "ArtifactUploadSession": {
+      "additionalProperties": false,
+      "properties": {
+        "accepted_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "accepted_part_count": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "descriptor": {
+          "$ref": "#/$defs/CreateArtifactUpload"
+        },
+        "expires_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "failure": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UploadErrorCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "layout": {
+          "$ref": "#/$defs/UploadLayout"
+        },
+        "next_part_cursor": {
+          "format": "uint32",
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "parts": {
+          "items": {
+            "$ref": "#/$defs/UploadPartReceipt"
+          },
+          "type": "array"
+        },
+        "receipt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactUploadReceipt"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "$ref": "#/$defs/ArtifactUploadState"
+        },
+        "upload_id": {
+          "$ref": "#/$defs/ArtifactUploadId"
+        }
+      },
+      "required": [
+        "upload_id",
+        "state",
+        "descriptor",
+        "layout",
+        "accepted_bytes",
+        "accepted_part_count",
+        "parts",
+        "created_at",
+        "expires_at"
+      ],
+      "type": "object"
+    },
+    "ArtifactUploadState": {
+      "enum": [
+        "open",
+        "finalizing",
+        "verifying",
+        "completed",
+        "cancelled",
+        "expired",
+        "failed"
+      ],
+      "type": "string"
+    },
+    "ArtifactUri": {
+      "description": "Neutral or server-presented Artifact occurrence URI.",
+      "type": "string"
+    },
+    "CreateArtifactUpload": {
+      "additionalProperties": false,
+      "properties": {
+        "byte_len": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "filename": {
+          "type": "string"
+        },
+        "mime_type": {
+          "type": "string"
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UploadSha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "filename",
+        "mime_type"
+      ],
+      "type": "object"
+    },
+    "EffectiveArtifactUploadPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "access_description": {
+          "type": "string"
+        },
+        "actor": {
+          "$ref": "#/$defs/PrincipalId"
+        },
+        "allowed": {
+          "type": "boolean"
+        },
+        "available_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "destination_name": {
+          "type": "string"
+        },
+        "explanation": {
+          "type": "string"
+        },
+        "policy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactUploadPolicy"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "work_context": {
+          "$ref": "#/$defs/WorkContextId"
+        }
+      },
+      "required": [
+        "allowed",
+        "explanation",
+        "actor",
+        "work_context",
+        "destination_name",
+        "access_description"
+      ],
+      "type": "object"
+    },
+    "PrincipalId": {
+      "description": "Stable authenticated user or service-principal identity.",
+      "type": "string"
+    },
+    "UploadErrorCode": {
+      "enum": [
+        "malformed",
+        "unauthenticated",
+        "denied",
+        "not_found",
+        "conflict",
+        "expired",
+        "too_large",
+        "unsupported_type",
+        "integrity",
+        "quota_exceeded",
+        "busy",
+        "unavailable"
+      ],
+      "type": "string"
+    },
+    "UploadLayout": {
+      "additionalProperties": false,
+      "properties": {
+        "max_parts": {
+          "format": "uint32",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_total_bytes": {
+          "format": "uint64",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "parallel_parts": {
+          "format": "uint32",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "part_bytes": {
+          "format": "uint64",
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "part_bytes",
+        "max_parts",
+        "max_total_bytes",
+        "parallel_parts"
+      ],
+      "type": "object"
+    },
+    "UploadPartReceipt": {
+      "additionalProperties": false,
+      "properties": {
+        "byte_len": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "part_number": {
+          "format": "uint32",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "sha256": {
+          "$ref": "#/$defs/UploadSha256"
+        }
+      },
+      "required": [
+        "part_number",
+        "byte_len",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "UploadSha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "WorkContextId": {
+      "description": "Tenant-local boundary that governs related work and every output it produces.",
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Source-owner Artifact transfer and access contracts consumed by browser clients.",
+  "properties": {
+    "access_request": {
+      "$ref": "#/$defs/ArtifactAccessRequest"
+    },
+    "access_request_page": {
+      "$ref": "#/$defs/ArtifactAccessRequestPage"
+    },
+    "descriptor": {
+      "$ref": "#/$defs/CreateArtifactUpload"
+    },
+    "part": {
+      "$ref": "#/$defs/UploadPartReceipt"
+    },
+    "policy": {
+      "$ref": "#/$defs/EffectiveArtifactUploadPolicy"
+    },
+    "receipt": {
+      "$ref": "#/$defs/ArtifactUploadReceipt"
+    },
+    "session": {
+      "$ref": "#/$defs/ArtifactUploadSession"
+    },
+    "share_link": {
+      "$ref": "#/$defs/ArtifactShareLink"
+    }
+  },
+  "required": [
+    "descriptor",
+    "receipt",
+    "session",
+    "part",
+    "policy",
+    "access_request",
+    "access_request_page",
+    "share_link"
+  ],
+  "title": "ArtifactTransferSchema",
+  "type": "object"
+}

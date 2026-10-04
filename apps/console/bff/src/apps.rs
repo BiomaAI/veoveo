@@ -1,3 +1,7 @@
+use veoveo_gateway_contract::{
+    APP_RESOURCE_DEPENDENCIES_META_KEY, APP_TOOL_DEPENDENCIES_META_KEY, AppResourceDependency,
+    AppResourceOperation, AppToolDependency,
+};
 mod catalog_admission;
 mod catalog_events;
 pub(crate) use catalog_events::app_catalog_events;
@@ -22,10 +26,6 @@ use serde::{Deserialize, Serialize};
 use veoveo_mcp_apps_extension::{
     APP_MIME_TYPE, is_app_resource, resource_agent_message_targets, resource_ui_meta, tool_app_link,
 };
-use veoveo_mcp_contract::{
-    APP_RESOURCE_DEPENDENCIES_META_KEY, APP_TOOL_DEPENDENCIES_META_KEY, AppResourceDependency,
-    AppResourceOperation, AppToolDependency, GatewayDiscoveryFailure,
-};
 
 use crate::{
     AppState, api,
@@ -46,46 +46,7 @@ const FRAME_CSP_OFFLINE: &str = "default-src 'none'; script-src 'unsafe-inline';
      connect-src data:; worker-src blob:; frame-ancestors 'self'; \
      object-src 'none'; base-uri 'none'";
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct AppCatalog {
-    apps: Vec<AppDescriptor>,
-    degradations: Vec<GatewayDiscoveryFailure>,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct AppDescriptor {
-    server: String,
-    resource_uri: String,
-    standalone_path: String,
-    name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    title: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    description: Option<String>,
-    /// Self-contained `data:` icon sources only — the console shell's CSP
-    /// does not fetch remote images, and apps are self-contained by contract.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    icons: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    prefers_border: Option<bool>,
-    tools: Vec<AppToolDescriptor>,
-    resource_dependencies: Vec<AppResourceDependency>,
-    tool_dependencies: Vec<AppToolDependency>,
-    agent_message_targets: Vec<String>,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct AppToolDescriptor {
-    name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    title: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    description: Option<String>,
-    input_schema: serde_json::Value,
-}
+use veoveo_console_bff::contract::{AppCatalog, AppDescriptor, AppToolDescriptor};
 
 /// The server owning a projected app URI is its first path segment:
 /// `ui://{server}/{page}` (guaranteed by the gateway's ServerOwned
@@ -688,7 +649,7 @@ pub(crate) async fn read_app_resource(
                 return Ok(Err(catalog_admission::missing_status(
                     catalog.degradation(),
                     &server,
-                    veoveo_mcp_contract::GatewayDiscoverySurface::Resources,
+                    veoveo_gateway_contract::GatewayDiscoverySurface::Resources,
                 )));
             };
             if !app_resource_uri_allowed(&server, uri)
@@ -841,7 +802,7 @@ pub(crate) async fn app_resource_events(
                 catalog_admission::missing_status(
                     catalog.degradation(),
                     &request.server,
-                    veoveo_mcp_contract::GatewayDiscoverySurface::Resources,
+                    veoveo_gateway_contract::GatewayDiscoverySurface::Resources,
                 ),
                 "This App's resource isn't available. It may have been removed, or you may not have access.",
             ),
@@ -1151,7 +1112,7 @@ pub(crate) async fn call_app_tool(
                 catalog_admission::missing_status(
                     catalog.degradation(),
                     &request.server,
-                    veoveo_mcp_contract::GatewayDiscoverySurface::Resources,
+                    veoveo_gateway_contract::GatewayDiscoverySurface::Resources,
                 ),
                 "This App's resource isn't available. It may have been removed, or you may not have access.",
             ),
@@ -1169,7 +1130,7 @@ pub(crate) async fn call_app_tool(
                         .tool
                         .split_once("__")
                         .map_or(request.server.as_str(), |(server, _)| server),
-                    veoveo_mcp_contract::GatewayDiscoverySurface::Tools,
+                    veoveo_gateway_contract::GatewayDiscoverySurface::Tools,
                 ),
                 "tool is not app-visible for this view",
             ),

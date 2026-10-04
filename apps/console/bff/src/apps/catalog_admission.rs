@@ -1,7 +1,9 @@
 //! A failed catalog lookup is not a permission decision. Execution still requires
 //! an exact current resource and tool declaration before any upstream dispatch.
 use super::*;
-use veoveo_mcp_contract::GatewayDiscoverySurface;
+use veoveo_gateway_contract::GatewayDiscoverySurface;
+#[cfg(test)]
+use veoveo_gateway_contract::{GatewayDiscoveryFailure, GatewayDiscoveryFailureCode};
 
 pub(super) fn missing_status(
     degradation: &veoveo_mcp_contract::GatewayDiscoveryDegradation,
@@ -22,9 +24,7 @@ pub(super) fn missing_status(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use veoveo_mcp_contract::{
-        GatewayDiscoveryDegradation, GatewayDiscoveryFailure, GatewayDiscoveryFailureCode,
-    };
+    use veoveo_mcp_contract::GatewayDiscoveryDegradation;
 
     #[test]
     fn incomplete_discovery_is_retryable_and_does_not_change_other_permissions() {
