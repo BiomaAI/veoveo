@@ -46,8 +46,10 @@ HTTP bodies, registered installation configuration and private process inputs.
 Affected native suites, Python peers, generated browser consumers and Stream's C++
 build pass. Recording's sensor-stack loader now closes its flat variants and validates
 sensor IDs during decoding. UAV state, acknowledgements, completion results and events
-use typed Python output models. Per-server wire checks, exhaustive variant and
-schema-equivalence coverage, and installed process qualification remain open.
+use typed Python output models. Authenticated native wire checks now cover unknown
+arguments on all sixteen Rust servers. Map, cuOpt, Reason and Speech compare their
+complete private protocol schemas across Rust and Python. Exhaustive controlled-variant
+coverage, UAV's complete private schema graph and installed process qualification remain open.
 This is the single implementation plan for the former Foundations, Contract
 Consistency and Repository Hardening tracks; their required open conditions transfer
 without being declared complete.
@@ -652,14 +654,14 @@ The applied repair removes repeated ordinary-ID derives and conversions. The mea
 set covers 183 Rust and manifest paths, including the original declaration owners,
 moved Gateway ID implementations, shared URI and checked/cursor helpers, and every
 owner in the cursor serialization batch. It compares Git trees at `ba20a34d^` and
-`087eea538`. Complete owner, facade and manifest files remain counted. Qualification
+`ec29482df`. Complete owner, facade and manifest files remain counted. Qualification
 includes standalone tests, colocated test modules and Rustdoc fixtures.
 
-| Source category | Before migration | Current | Change |
+| Source category | Before migration | Measured repair | Change |
 |---|---:|---:|---:|
-| Implementation/API | 22,615 | 25,233 | +2,618 |
-| Qualification | 5,517 | 9,330 | +3,813 |
-| Total | 28,132 | 34,563 | +6,431 |
+| Implementation/API | 22,615 | 25,191 | +2,576 |
+| Qualification | 5,517 | 9,408 | +3,891 |
+| Total | 28,132 | 34,599 | +6,467 |
 
 This scope includes checked-value, cursor, numeric and optional-catalog changes as well
 as later strict input admission. Their contributions need paired accounting with code
@@ -674,8 +676,12 @@ removes 32 String conversion implementations across 16 owner types. Its complete
 adds 93 qualification lines. Explicit stateless admission preserves contextual parsing,
 retained wire aliases and owner schema identity. Shared and owner native suites,
 the independent contract consumer, workspace lint and repository checks pass.
-Remaining repetition includes Time's collection-bound cursor wrappers, selected-resource
-subscription wrappers, Redap wire adapters and Rust convenience API variants. The
+Time's five collection-bound cursors now share one codec with distinct typed collection
+profiles. Their complete family removes another 42 implementation/API lines and adds
+78 qualification lines, preserving envelope bytes, retained aliases and schema identity.
+The reviewed Reason and Stream subscription wrappers keep their owner implementations:
+the proposed shared form increased their size or changed malformed-address error precedence.
+Redap wire adapters and Rust convenience API variants still need cost review. The
 historical reduction requirement stays open alongside the independent Phase 5 and 6 batches.
 
 The correction uses attribute front ends for ID and resource declarations so they
@@ -1145,11 +1151,13 @@ variants. Map's recursive CQL2 schema now describes its typed expressions direct
 
 Shared conformance checks reachable controlled objects through local references and
 composition, with explicit traversal limits. The Rust template proves that an unknown
-argument produces a completed `isError` response through the hosted gateway. These
-checks do not establish that response for every production server, or cover every
-reachable object variant. Those cases and the remaining surfaces below still require
-qualification before Phase 5 can close. The coordinated installation cut carries the
-stricter decoders and matching callers together.
+argument produces a completed `isError` response through the hosted gateway.
+All sixteen production Rust servers now qualify that response for representative tools
+through authenticated native HTTP fixtures. Valid DTO controls and owner state checks
+separate malformed arguments from missing required values and side effects. Unavailable
+provider and GPU handles isolate admission; these fixtures do not qualify execution.
+Every reachable controlled variant still needs coverage before Phase 5 can close.
+The coordinated installation cut carries the stricter decoders and matching callers together.
 
 | Inbound surface | Change |
 |---|---|
@@ -1176,12 +1184,12 @@ The UAV overlay validates typed state, acknowledgements, completion results and 
 events before HTTP or NDJSON serialization. Shared fixtures cover Python emission and
 Rust decoding, including all seven camera rigs. Output errors expose validation kinds
 without payload values; unresolved Recording keys stay separate from physical completion.
-Protocol-wide Rust/Python schema equivalence and production per-server MCP wire rejection
-checks remain open. Stream's C++ decoder passes its native build; installed runner
-checks remain open.
-HTTP field-name diagnostics also remain incomplete for Serde's adjacent-tag enum
-decoder: an extra key inside `AccessSubject` is rejected with a generic 400. The
-shared extractor does not echo arbitrary validation values to infer a field name.
+The [Phase 6 schema comparisons](#phase-6-generated-cross-language-types) qualify four
+complete private protocol graphs. UAV's full private graph remains open. Stream's C++
+decoder passes its native build; installed runner checks remain open.
+`AccessSubject` now reports undeclared map keys through the shared HTTP extractor while
+preserving its adjacent-tag sequence profile. Native checks cover both subject kinds,
+binary tags and value redaction. Malformed tag and identity values keep a generic 400.
 
 Types that read upstream provider responses accept additions: WaveSpeed, OAuth and
 OIDC discovery, Kubernetes, Valhalla, ntpd-rs, cargo metadata and buildx. serde
@@ -1226,6 +1234,17 @@ with the maintained Rust schema snapshot. It checks field sets, required and nul
 values, enum spellings and numeric guarantees. Private Recording rows, lifecycle events
 and completion envelopes use shared decode fixtures and protocol tests; they do not yet
 have private Rust schema snapshots. These checks do not close protocol-wide equivalence.
+
+Map normalization, cuOpt execution, Reason inference and Speech worker messages now
+have complete private Rust schema snapshots. The shared Python checker follows their
+reachable graphs in each wire direction: Rust serialization to Python validation, and
+Python serialization to Rust deserialization. All four peer suites pass. The checker
+qualifies its supported structural subset, including finite enum-keyed maps, and rejects
+unsupported assertions or compositions. It does not establish general schema equivalence.
+Owner types supply actual numeric admission: cuOpt's nonnegative scalar exposes its
+existing lower bound, and Reason's private limits use fixed-width integers. Contextual
+filesystem, task, source-range and grounding checks remain with their owners. Installed
+process and hardware acceptance remain open.
 
 | Consumer | Change |
 |---|---|
