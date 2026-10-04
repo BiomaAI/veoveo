@@ -190,6 +190,7 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "BoundingBox2D",
     "type": "object",
+    "additionalProperties": false,
     "properties": {
       "x": {
         "type": "number",
@@ -219,6 +220,7 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Detection",
     "type": "object",
+    "additionalProperties": false,
     "properties": {
       "class_id": {
         "type": "integer",
@@ -264,6 +266,7 @@
     "$defs": {
       "BoundingBox2D": {
         "type": "object",
+        "additionalProperties": false,
         "properties": {
           "x": {
             "type": "number",
@@ -295,6 +298,7 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "FrameDetections",
     "type": "object",
+    "additionalProperties": false,
     "properties": {
       "index": {
         "type": "integer",
@@ -314,6 +318,7 @@
     "$defs": {
       "Detection": {
         "type": "object",
+        "additionalProperties": false,
         "properties": {
           "class_id": {
             "type": "integer",
@@ -359,6 +364,7 @@
       },
       "BoundingBox2D": {
         "type": "object",
+        "additionalProperties": false,
         "properties": {
           "x": {
             "type": "number",
@@ -566,6 +572,7 @@
       },
       "FrameDetections": {
         "type": "object",
+        "additionalProperties": false,
         "properties": {
           "index": {
             "type": "integer",
@@ -585,6 +592,7 @@
       },
       "Detection": {
         "type": "object",
+        "additionalProperties": false,
         "properties": {
           "class_id": {
             "type": "integer",
@@ -630,6 +638,7 @@
       },
       "BoundingBox2D": {
         "type": "object",
+        "additionalProperties": false,
         "properties": {
           "x": {
             "type": "number",
@@ -2316,6 +2325,7 @@
     "$defs": {
       "Detection": {
         "type": "object",
+        "additionalProperties": false,
         "properties": {
           "class_id": {
             "type": "integer",
@@ -2361,6 +2371,7 @@
       },
       "BoundingBox2D": {
         "type": "object",
+        "additionalProperties": false,
         "properties": {
           "x": {
             "type": "number",
@@ -2454,6 +2465,7 @@
       },
       "Detection": {
         "type": "object",
+        "additionalProperties": false,
         "properties": {
           "class_id": {
             "type": "integer",
@@ -2499,6 +2511,7 @@
       },
       "BoundingBox2D": {
         "type": "object",
+        "additionalProperties": false,
         "properties": {
           "x": {
             "type": "number",
@@ -2530,6 +2543,7 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "EncodedVideoChunk",
     "type": "object",
+    "additionalProperties": false,
     "properties": {
       "sequence": {
         "description": "Decode-order identity. This is the ordering contract for retained chunks.",
@@ -2638,6 +2652,7 @@
       },
       "EncodedVideoChunk": {
         "type": "object",
+        "additionalProperties": false,
         "properties": {
           "sequence": {
             "description": "Decode-order identity. This is the ordering contract for retained chunks.",

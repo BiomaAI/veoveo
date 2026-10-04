@@ -1385,6 +1385,7 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "oneOf": [
       {
+        "additionalProperties": false,
         "properties": {
           "input": {
             "$ref": "#/$defs/RunScenarioRequest"
@@ -1401,6 +1402,7 @@
         "type": "object"
       },
       {
+        "additionalProperties": false,
         "properties": {
           "input": {
             "$ref": "#/$defs/ExecuteMissionRequest"
@@ -1417,6 +1419,7 @@
         "type": "object"
       },
       {
+        "additionalProperties": false,
         "properties": {
           "input": {
             "$ref": "#/$defs/CaptureDatasetRequest"
@@ -1557,6 +1560,7 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "oneOf": [
       {
+        "additionalProperties": false,
         "properties": {
           "output": {
             "$ref": "#/$defs/ScenarioResult"
@@ -1573,6 +1577,7 @@
         "type": "object"
       },
       {
+        "additionalProperties": false,
         "properties": {
           "output": {
             "$ref": "#/$defs/MissionResult"
@@ -1589,6 +1594,7 @@
         "type": "object"
       },
       {
+        "additionalProperties": false,
         "properties": {
           "output": {
             "$ref": "#/$defs/CaptureDatasetResult"

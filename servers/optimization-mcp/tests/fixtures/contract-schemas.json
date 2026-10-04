@@ -856,6 +856,7 @@
         "type": "string"
       },
       "VerificationFinding": {
+        "additionalProperties": false,
         "properties": {
           "code": {
             "$ref": "#/$defs/VerificationCode"
@@ -4322,6 +4323,7 @@
         "type": "string"
       },
       "VerificationFinding": {
+        "additionalProperties": false,
         "properties": {
           "code": {
             "$ref": "#/$defs/VerificationCode"

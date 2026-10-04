@@ -139,6 +139,7 @@
       },
       "WorkContextGrant": {
         "description": "Initial discretionary policy stamped on every output in a Work Context.",
+        "additionalProperties": false,
         "properties": {
           "level": {
             "$ref": "#/$defs/AccessLevel"
@@ -169,6 +170,7 @@
       },
       "WorkContextOutputPolicy": {
         "description": "Immutable output defaults resolved with an invocation.",
+        "additionalProperties": false,
         "properties": {
           "classification": {
             "anyOf": [
@@ -297,6 +299,7 @@
     },
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "description": "Initial discretionary policy stamped on every output in a Work Context.",
+    "additionalProperties": false,
     "properties": {
       "level": {
         "$ref": "#/$defs/AccessLevel"
@@ -388,6 +391,7 @@
       },
       "WorkContextGrant": {
         "description": "Initial discretionary policy stamped on every output in a Work Context.",
+        "additionalProperties": false,
         "properties": {
           "level": {
             "$ref": "#/$defs/AccessLevel"
@@ -405,6 +409,7 @@
     },
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "description": "Immutable output defaults resolved with an invocation.",
+    "additionalProperties": false,
     "properties": {
       "classification": {
         "anyOf": [
