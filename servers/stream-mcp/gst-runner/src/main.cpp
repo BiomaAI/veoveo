@@ -403,15 +403,30 @@ void require_regular_file(const std::filesystem::path &path,
   }
 }
 
+void closed_object(json_object *object, std::initializer_list<std::string_view> fields) {
+  if (!json_object_is_type(object, json_type_object)) {
+    fail("expected a JSON object");
+  }
+  json_object_object_foreach(object, key, value) {
+    (void)value;
+    if (std::find(fields.begin(), fields.end(), std::string_view(key)) == fields.end()) {
+      fail(std::string("unknown JSON field `") + key + "`");
+    }
+  }
+}
+
 Sampling parse_sampling(json_object *object) {
   const auto mode = required_string(object, "mode");
   if (mode == "every_frame") {
+    closed_object(object, {"mode"});
     return {SamplingMode::EveryFrame, 1};
   }
   if (mode == "every_nth") {
+    closed_object(object, {"mode", "step"});
     return {SamplingMode::EveryNth, required_positive_u64(object, "step")};
   }
   if (mode == "maximum_frames") {
+    closed_object(object, {"mode", "count"});
     return {SamplingMode::MaximumFrames,
             required_positive_u64(object, "count")};
   }
@@ -420,8 +435,10 @@ Sampling parse_sampling(json_object *object) {
 
 void parse_pipeline_and_model(json_object *root, Request &request) {
   auto *pipeline = required_member(root, "pipeline", json_type_object);
+  closed_object(pipeline, {"pipeline_id", "graph", "profile"});
   (void)required_string(pipeline, "pipeline_id");
   auto *graph = required_member(pipeline, "graph", json_type_object);
+  closed_object(graph, {"launch", "source_element", "stream_muxer_element", "inference_element", "tracker_element", "results_element", "encoded_output_element"});
   request.launch = required_string(graph, "launch");
   if (request.launch.size() > 64U * 1024U ||
       request.launch.find('\0') != std::string::npos) {
@@ -439,6 +456,7 @@ void parse_pipeline_and_model(json_object *root, Request &request) {
   auto *profile = required_member(pipeline, "profile", json_type_object);
   const auto profile_kind = required_string(profile, "kind");
   if (profile_kind == "pass_through") {
+    closed_object(profile, {"kind"});
     request.operation = profile_kind;
     if (request.stream_muxer_element || request.inference_element ||
         request.tracker_element || request.results_element) {
@@ -454,6 +472,7 @@ void parse_pipeline_and_model(json_object *root, Request &request) {
   if (profile_kind != "perception") {
     fail("unsupported Stream pipeline profile `" + profile_kind + "`");
   }
+  closed_object(profile, {"kind", "operation", "inference_config_path", "tracker"});
   request.operation = required_string(profile, "operation");
   if (request.operation != "object_detection" &&
       request.operation != "object_detection_tracking") {
@@ -468,6 +487,7 @@ void parse_pipeline_and_model(json_object *root, Request &request) {
     if (!json_object_is_type(tracker, json_type_object)) {
       fail("JSON field `tracker` has the wrong type");
     }
+    closed_object(tracker, {"config_path", "width", "height"});
     TrackerRequest parsed;
     parsed.config_path = required_absolute_path(tracker, "config_path");
     parsed.width = required_positive_u32(tracker, "width");
@@ -490,6 +510,7 @@ void parse_pipeline_and_model(json_object *root, Request &request) {
   }
 
   auto *model = required_member(root, "model", json_type_object);
+  closed_object(model, {"model_id", "model_path", "format"});
   (void)required_string(model, "model_id");
   if (required_string(model, "format") != "tensor_rt_engine") {
     fail("the typed perception profile accepts TensorRT engine models only");
@@ -506,6 +527,7 @@ Request parse_request(const std::filesystem::path &request_path,
   if (required_string(root.get(), "schema") != kRequestSchema) {
     fail("unsupported Stream recording runner request schema");
   }
+  closed_object(root.get(), {"schema", "task_id", "input_mp4", "input_width", "input_height", "response_json", "pipeline", "model", "requested_range", "decode_start_index", "sampling", "max_output_frames", "max_detections_per_frame", "max_response_bytes"});
   (void)required_string(root.get(), "task_id");
 
   Request request;
@@ -524,6 +546,7 @@ Request parse_request(const std::filesystem::path &request_path,
 
   auto *range =
       required_member(root.get(), "requested_range", json_type_object);
+  closed_object(range, {"start", "end"});
   request.requested_range = {required_i64(range, "start"),
                              required_i64(range, "end")};
   if (request.requested_range.start > request.requested_range.end) {
@@ -568,6 +591,7 @@ Request parse_live_request(const std::filesystem::path &request_path) {
   if (required_string(root.get(), "schema") != kLiveRequestSchema) {
     fail("unsupported Stream live runner request schema");
   }
+  closed_object(root.get(), {"schema", "session_id", "input_width", "input_height", "pipeline", "model", "max_detections_per_frame", "max_event_bytes", "max_video_chunk_bytes"});
   (void)required_string(root.get(), "session_id");
 
   Request request;

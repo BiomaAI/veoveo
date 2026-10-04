@@ -263,7 +263,7 @@ struct RunnerPipeline {
 }
 
 #[derive(Clone, Debug, Serialize)]
-#[serde(tag = "kind", rename = "perception")]
+#[serde(tag = "kind", rename = "perception", deny_unknown_fields)]
 struct RunnerPerceptionProfile {
     operation: crate::contract::PerceptionOperation,
     inference_config_path: PathBuf,

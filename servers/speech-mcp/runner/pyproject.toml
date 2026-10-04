@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Private persistent NVIDIA speech inference for Veoveo"
 requires-python = "==3.13.*"
 dependencies = [
+    "pydantic==2.13.5",
     "moondream==2.4.1",
     "torch==2.14.0",
     "numpy==2.5.3",

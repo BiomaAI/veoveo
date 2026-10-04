@@ -5,6 +5,8 @@ import json
 import math
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Annotated, Literal
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 
 PROTOCOL = "veoveo.speech-worker/v1"
 MODEL = "moondream/parakeet-ultra"
@@ -32,6 +34,85 @@ def text(value: object) -> str:
     return value
 
 
+class _Wire(BaseModel):
+    model_config = ConfigDict(hide_input_in_errors=True, extra="forbid", strict=True)
+
+
+class ProbeRequest(_Wire):
+    operation: Literal["probe"]
+
+
+class FileRequest(_Wire):
+    operation: Literal["file"]
+    path: str
+    max_duration_seconds: int
+
+
+class LiveRequest(_Wire):
+    operation: Literal["live"]
+    sample_rate: int
+    max_duration_seconds: int
+
+
+RequestWire = Annotated[ProbeRequest | FileRequest | LiveRequest, Field(discriminator="operation")]
+REQUEST_ADAPTER = TypeAdapter(RequestWire, config=ConfigDict(hide_input_in_errors=True))
+
+
+class Word(_Wire):
+    word: str
+    start: float
+    end: float
+
+
+class Segment(_Wire):
+    text: str
+    start: float
+    end: float
+    words: list[Word]
+
+
+class Transcript(_Wire):
+    text: str
+    duration_seconds: float
+    segments: list[Segment]
+
+
+class AcceptedEvent(_Wire):
+    kind: Literal["accepted"]
+
+
+class ReadyEvent(_Wire):
+    kind: Literal["ready"]
+    protocol: str
+    device: str
+    model: str
+    revision: str
+
+
+class TranscriptEvent(_Wire):
+    kind: Literal["transcript"]
+    complete: bool
+    transcript: Transcript
+
+
+class ErrorEvent(_Wire):
+    kind: Literal["error"]
+    code: Literal["invalid_input", "capacity", "inference_failed", "timed_out"]
+
+
+EventWire = Annotated[AcceptedEvent | ReadyEvent | TranscriptEvent | ErrorEvent, Field(discriminator="kind")]
+EVENT_ADAPTER = TypeAdapter(EventWire, config=ConfigDict(hide_input_in_errors=True))
+
+
+def validate_wire(adapter: TypeAdapter, value: object, *, encoded: bool = False):
+    """Worker errors name validation kinds without reflecting audio or input values."""
+    try:
+        return adapter.validate_json(value) if encoded else adapter.validate_python(value)
+    except ValidationError as error:
+        kinds = sorted({item["type"] for item in error.errors(include_input=False, include_context=False, include_url=False)})
+        raise ValueError("invalid worker input: " + ", ".join(kinds)) from error
+
+
 @dataclass(frozen=True)
 class Request:
     operation: str
@@ -41,7 +122,7 @@ class Request:
 
     @classmethod
     def parse(cls, line: bytes, work: Path) -> Request:
-        value = json.loads(line)
+        value = validate_wire(REQUEST_ADAPTER, line, encoded=True).model_dump()
         if not isinstance(value, dict):
             raise ValueError("invalid request")
         operation = value.get("operation")
@@ -86,6 +167,7 @@ def transcript(value: dict[str, object], duration_limit: int) -> dict[str, objec
 
 
 def encode(value: dict[str, object]) -> bytes:
+    validate_wire(EVENT_ADAPTER, value)
     encoded = json.dumps(value, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode() + b"\n"
     if len(encoded) > MAX_RESPONSE_BYTES:
         raise ValueError("response exceeds limit")

@@ -1,0 +1,253 @@
+{
+  "request": {
+    "protocol": "veoveo.ai/cuopt-executor/v1",
+    "run_id": "run-018f0000-0000-7000-8000-000000000000",
+    "operation": {
+      "operation": "health"
+    }
+  },
+  "response": {
+    "protocol": "veoveo.ai/cuopt-executor/v1",
+    "run_id": "run-018f0000-0000-7000-8000-000000000000",
+    "result": {
+      "result": "error",
+      "error": {
+        "code": "invalid_request",
+        "message": "fixture",
+        "findings": []
+      }
+    }
+  },
+  "requests": [
+    {
+      "protocol": "veoveo.ai/cuopt-executor/v1",
+      "run_id": "run-018f0000-0000-7000-8000-000000000000",
+      "operation": {
+        "operation": "health"
+      }
+    },
+    {
+      "protocol": "veoveo.ai/cuopt-executor/v1",
+      "run_id": "run-018f0000-0000-7000-8000-000000000000",
+      "operation": {
+        "operation": "cancel",
+        "target_run_id": "run-018f0000-0000-7000-8000-000000000000"
+      }
+    },
+    {
+      "protocol": "veoveo.ai/cuopt-executor/v1",
+      "run_id": "run-018f0000-0000-7000-8000-000000000000",
+      "operation": {
+        "operation": "solve_routes",
+        "problem": {
+          "location_ids": [
+            "location-one"
+          ],
+          "nodes": [],
+          "vehicles": [],
+          "vehicle_type_ids": [],
+          "cost_matrices": [],
+          "objectives": [],
+          "minimum_vehicles": 0
+        }
+      }
+    },
+    {
+      "protocol": "veoveo.ai/cuopt-executor/v1",
+      "run_id": "run-018f0000-0000-7000-8000-000000000000",
+      "operation": {
+        "operation": "solve_route_scenarios",
+        "cases": [
+          {
+            "case_id": "case-one",
+            "problem": {
+              "location_ids": [
+                "location-one"
+              ],
+              "nodes": [],
+              "vehicles": [],
+              "vehicle_type_ids": [],
+              "cost_matrices": [],
+              "objectives": [],
+              "minimum_vehicles": 0
+            }
+          }
+        ]
+      }
+    },
+    {
+      "protocol": "veoveo.ai/cuopt-executor/v1",
+      "run_id": "run-018f0000-0000-7000-8000-000000000000",
+      "operation": {
+        "operation": "solve_model",
+        "family": "convex",
+        "model": {
+          "variable_ids": [],
+          "variable_kinds": [],
+          "variable_lower_bounds": [],
+          "variable_upper_bounds": [],
+          "objective_direction": "minimize",
+          "objective_offset": 0.0,
+          "objective_coefficients": [],
+          "constraint_ids": [],
+          "constraint_matrix": {
+            "rows": 0,
+            "columns": 0,
+            "offsets": [
+              0
+            ],
+            "indices": [],
+            "values": []
+          },
+          "constraint_lower_bounds": [],
+          "constraint_upper_bounds": []
+        }
+      }
+    },
+    {
+      "protocol": "veoveo.ai/cuopt-executor/v1",
+      "run_id": "run-018f0000-0000-7000-8000-000000000000",
+      "operation": {
+        "operation": "solve_model_file",
+        "family": "milp",
+        "staged_path": "/tmp/model.mps"
+      }
+    }
+  ],
+  "responses": [
+    {
+      "protocol": "veoveo.ai/cuopt-executor/v1",
+      "run_id": "run-018f0000-0000-7000-8000-000000000000",
+      "result": {
+        "result": "health",
+        "health": {
+          "ready": true,
+          "cuopt_version": "fixture",
+          "cuda_runtime_version": "fixture",
+          "gpu_name": "fixture",
+          "gpu_uuid": "fixture",
+          "compute_capability": "fixture"
+        }
+      }
+    },
+    {
+      "protocol": "veoveo.ai/cuopt-executor/v1",
+      "run_id": "run-018f0000-0000-7000-8000-000000000000",
+      "result": {
+        "result": "routes",
+        "solution": {
+          "status": "success",
+          "message": "fixture",
+          "objective": 1.0,
+          "objective_components": {
+            "cost": 1.0
+          },
+          "vehicles_used": 1,
+          "routes": [
+            {
+              "vehicle": 0,
+              "nodes": [
+                {
+                  "node": {
+                    "kind": "depot",
+                    "location": 0
+                  },
+                  "arrival": 0.0
+                },
+                {
+                  "node": {
+                    "kind": "order",
+                    "node": 0
+                  },
+                  "arrival": 1.0
+                },
+                {
+                  "node": {
+                    "kind": "break",
+                    "location": 0
+                  },
+                  "arrival": 2.0
+                }
+              ]
+            }
+          ],
+          "solve_seconds": 0.1
+        }
+      }
+    },
+    {
+      "protocol": "veoveo.ai/cuopt-executor/v1",
+      "run_id": "run-018f0000-0000-7000-8000-000000000000",
+      "result": {
+        "result": "route_scenarios",
+        "solutions": [
+          {
+            "case_id": "case-one",
+            "solution": {
+              "status": "success",
+              "message": "fixture",
+              "objective": 1.0,
+              "objective_components": {
+                "cost": 1.0
+              },
+              "vehicles_used": 1,
+              "routes": [
+                {
+                  "vehicle": 0,
+                  "nodes": [
+                    {
+                      "node": {
+                        "kind": "depot",
+                        "location": 0
+                      },
+                      "arrival": 0.0
+                    },
+                    {
+                      "node": {
+                        "kind": "order",
+                        "node": 0
+                      },
+                      "arrival": 1.0
+                    },
+                    {
+                      "node": {
+                        "kind": "break",
+                        "location": 0
+                      },
+                      "arrival": 2.0
+                    }
+                  ]
+                }
+              ],
+              "solve_seconds": 0.1
+            }
+          }
+        ]
+      }
+    },
+    {
+      "protocol": "veoveo.ai/cuopt-executor/v1",
+      "run_id": "run-018f0000-0000-7000-8000-000000000000",
+      "result": {
+        "result": "model",
+        "solution": {
+          "family": "convex",
+          "status": "optimal",
+          "solve_seconds": 0.1
+        }
+      }
+    },
+    {
+      "protocol": "veoveo.ai/cuopt-executor/v1",
+      "run_id": "run-018f0000-0000-7000-8000-000000000000",
+      "result": {
+        "result": "error",
+        "error": {
+          "code": "invalid_request",
+          "message": "fixture",
+          "findings": []
+        }
+      }
+    }
+  ]
+}

@@ -1317,6 +1317,40 @@ class Px4HilPlantContractTests(unittest.TestCase):
 
 
 class AdapterContractTests(unittest.TestCase):
+    def test_invalid_discriminators_are_redacted_in_adapter_errors(self):
+        for parser, value in [
+            (parse_command, {"command": "sentinel-private-value"}),
+            (parse_operation, {"operation": "sentinel-private-value", "input": {}}),
+        ]:
+            with self.assertRaises(ContractError) as raised:
+                parser(value)
+            self.assertNotIn("sentinel-private-value", str(raised.exception))
+            self.assertIn("union_tag_invalid", str(raised.exception))
+
+    def test_adapter_diagnostics_do_not_reflect_private_values(self):
+        with self.assertRaises(ContractError) as raised:
+            parse_command({"command": "pause", "session_id": "uav-showcase", "secret": "sentinel-private-value"})
+        self.assertNotIn("sentinel-private-value", str(raised.exception))
+        with self.assertRaises(ContractError) as raised:
+            parse_operation({"operation": "capture_dataset", "input": {
+                "session_id": "uav-showcase", "duration_seconds": 1.0,
+                "sensors": ["camera"], "secret": "sentinel-private-value",
+            }})
+        self.assertNotIn("sentinel-private-value", str(raised.exception))
+        from veoveo_uav_sim.world_config import WorldConfiguration, WorldConfigurationError
+        with self.assertRaises(WorldConfigurationError) as raised:
+            WorldConfiguration.from_request({"session_id": "uav-showcase", "world": {}, "secret": "sentinel-private-value"}, "uav-showcase")
+        self.assertNotIn("sentinel-private-value", str(raised.exception))
+
+    def test_private_wire_schemas_close_nested_fields(self):
+        from veoveo_uav_sim.contracts import COMMAND_ADAPTER, OPERATION_ADAPTER
+        from veoveo_uav_sim.world_config import ConfigureWorldWire
+        for schema in [COMMAND_ADAPTER.json_schema(), OPERATION_ADAPTER.json_schema(), ConfigureWorldWire.model_json_schema()]:
+            for definition in schema["$defs"].values():
+                if definition.get("type") == "object" and "properties" in definition:
+                    self.assertFalse(definition["additionalProperties"])
+
+
     def test_commands_reject_unknown_fields(self) -> None:
         with self.assertRaises(ContractError):
             parse_command(

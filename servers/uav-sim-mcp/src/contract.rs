@@ -541,7 +541,7 @@ pub struct CommandAcknowledgement {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "command", rename_all = "snake_case")]
+#[serde(tag = "command", rename_all = "snake_case", deny_unknown_fields)]
 pub enum SimulationCommand {
     Pause(SessionRequest),
     Resume(SessionRequest),
@@ -601,7 +601,12 @@ pub struct CaptureDatasetRequest {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "operation", content = "input", rename_all = "snake_case")]
+#[serde(
+    tag = "operation",
+    content = "input",
+    rename_all = "snake_case",
+    deny_unknown_fields
+)]
 pub enum DurableOperation {
     RunScenario(RunScenarioRequest),
     ExecuteMission(ExecuteMissionRequest),
@@ -648,7 +653,12 @@ pub struct CaptureDatasetResult {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "result", content = "output", rename_all = "snake_case")]
+#[serde(
+    tag = "result",
+    content = "output",
+    rename_all = "snake_case",
+    deny_unknown_fields
+)]
 pub enum DurableOperationResult {
     RunScenario(ScenarioResult),
     ExecuteMission(MissionResult),

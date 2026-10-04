@@ -6,6 +6,8 @@ import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from pydantic import BaseModel, ConfigDict, ValidationError
+from .contracts import validation_diagnostic
 
 
 class WorldConfigurationError(ValueError):
@@ -49,6 +51,27 @@ def _number(value: Any, field: str, minimum: float, maximum: float) -> float:
     return result
 
 
+class GeoreferenceOriginWire(BaseModel):
+    model_config = ConfigDict(hide_input_in_errors=True, extra="forbid", strict=True)
+    latitude_degrees: float
+    longitude_degrees: float
+    ellipsoid_height_m: float
+
+
+class SimulationWorldBindingWire(BaseModel):
+    model_config = ConfigDict(hide_input_in_errors=True, extra="forbid", strict=True)
+    revision_uri: str
+    spec_sha256: str
+    simulation_frame_uri: str
+    georeference_origin: GeoreferenceOriginWire
+
+
+class ConfigureWorldWire(BaseModel):
+    model_config = ConfigDict(hide_input_in_errors=True, extra="forbid", strict=True)
+    session_id: str
+    world: SimulationWorldBindingWire
+
+
 @dataclass(frozen=True, slots=True)
 class GeoreferenceOrigin:
     latitude_degrees: float
@@ -84,6 +107,10 @@ class WorldConfiguration:
     def from_request(
         cls, payload: Any, expected_session_id: str
     ) -> "WorldConfiguration":
+        try:
+            ConfigureWorldWire.model_validate(payload)
+        except ValidationError as error:
+            raise WorldConfigurationError(validation_diagnostic(error)) from error
         request = _object(payload, "world configuration")
         _exact_fields(request, {"session_id", "world"}, "world configuration")
         if request["session_id"] != expected_session_id:

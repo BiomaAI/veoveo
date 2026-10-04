@@ -99,7 +99,7 @@ impl Default for ObservationSampling {
 
 /// Decode parameters. Greedy decoding is the deterministic default; sampled
 /// decoding is opt-in and its parameters are recorded in the result.
-#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, JsonSchema, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Serialize, JsonSchema, PartialEq)]
 #[serde(tag = "mode", rename_all = "snake_case", deny_unknown_fields)]
 pub enum DecodePolicy {
     #[default]
@@ -109,6 +109,33 @@ pub enum DecodePolicy {
         top_p: f32,
         seed: u64,
     },
+}
+#[derive(Deserialize)]
+#[serde(tag = "mode", rename_all = "snake_case", deny_unknown_fields)]
+enum DecodePolicyWire {
+    Greedy {},
+    Sampled {
+        temperature: f32,
+        top_p: f32,
+        seed: u64,
+    },
+}
+
+impl<'de> Deserialize<'de> for DecodePolicy {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Ok(match DecodePolicyWire::deserialize(deserializer)? {
+            DecodePolicyWire::Greedy {} => Self::Greedy,
+            DecodePolicyWire::Sampled {
+                temperature,
+                top_p,
+                seed,
+            } => Self::Sampled {
+                temperature,
+                top_p,
+                seed,
+            },
+        })
+    }
 }
 
 /// The results artifact of a completed Stream perception run over the same
@@ -347,6 +374,22 @@ mod tests {
                 seed: 7,
             })
             .is_err()
+        );
+    }
+}
+
+#[cfg(test)]
+mod strict_decode_tests {
+    use super::*;
+
+    #[test]
+    fn greedy_decode_rejects_undeclared_fields() {
+        assert_eq!(
+            serde_json::from_str::<DecodePolicy>(r#"{"mode":"greedy"}"#).unwrap(),
+            DecodePolicy::Greedy
+        );
+        assert!(
+            serde_json::from_str::<DecodePolicy>(r#"{"mode":"greedy","temperature":1}"#).is_err()
         );
     }
 }

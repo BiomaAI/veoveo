@@ -247,6 +247,7 @@ pub struct ConstraintValue {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct VerificationFinding {
     pub code: VerificationCode,
     pub severity: VerificationSeverity,

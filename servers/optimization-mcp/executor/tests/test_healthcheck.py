@@ -1,4 +1,5 @@
 import asyncio
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -9,6 +10,8 @@ from veoveo_cuopt_executor.protocol import read_frame, response, write_frame
 
 class HealthcheckTests(unittest.IsolatedAsyncioTestCase):
     async def test_requires_a_ready_typed_health_response(self) -> None:
+        fixture = json.loads((Path(__file__).parents[2] / "testdata/executor-protocol.json").read_text())
+        health_result = fixture["responses"][0]["result"]
         with tempfile.TemporaryDirectory() as directory:
             socket_path = Path(directory) / "executor.sock"
 
@@ -21,10 +24,7 @@ class HealthcheckTests(unittest.IsolatedAsyncioTestCase):
                     writer,
                     response(
                         request["run_id"],
-                        {
-                            "result": "health",
-                            "health": {"ready": True},
-                        },
+                        health_result,
                     ),
                     4096,
                 )

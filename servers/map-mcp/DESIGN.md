@@ -937,6 +937,12 @@ native map utilities from pinned images or packages. The runtime user is uid
 
 ## Dependencies
 
+The acquisition helper uses Pydantic `2.13.5` for its private request and result
+objects. Controlled fields reject additions; existing path and acquisition-ID
+checks run before filesystem effects. `data/uv.lock` fixes the Python dependency
+graph. The image installs its hash-verified packages in `/opt/veoveo/map-python`,
+which the configured system Python reads through `PYTHONPATH`.
+
 The server uses existing workspace crates for MCP, tasks, the platform store,
 artifacts, gateway identity, and DuckDB hardening. Domain dependencies include:
 
@@ -958,83 +964,10 @@ clients.
 
 ## Module Layout
 
-```text
-servers/map-mcp/
-  src/
-    acquisition/
-      helper.rs
-      service.rs
-    admin/
-      error.rs
-      handlers.rs
-    contract/
-      admin.rs
-      compositions.rs
-      datasets.rs
-      features.rs
-      geometry.rs
-      ids.rs
-      mobility.rs
-      operations.rs
-      routes.rs
-      source_products.rs
-      spatial.rs
-      travel_models.rs
-      transfers.rs
-      units.rs
-    authoring/
-      presentations.rs
-      projection.rs
-      query.rs
-      service.rs
-      transfers.rs
-      validation.rs
-    routes/
-      graph.rs
-      service.rs
-      valhalla/
-        adapter.rs
-        client.rs
-        process.rs
-    spatial/
-      derive.rs
-      projection.rs
-      validation.rs
-    server/
-      auth.rs
-      config.rs
-      tasks.rs
-    analytics.rs
-    artifacts.rs
-    catalog.rs
-    geodesy.rs
-    geography.rs
-    mcp.rs
-    prompts.rs
-    raster.rs
-    release_products.rs
-    state.rs
-    uris.rs
-  assets/
-    workspace-app.html
-  app/
-    build.mjs
-    package.json
-    workspace.js
-    workspace.template.html
-  data/
-    src/map_data/
-      adapters/
-      contract.py
-      main.py
-      raster_ops.py
-      subprocesses.py
-      terrain.py
-    tests/
-    pyproject.toml
-    uv.lock
-  Dockerfile
-```
+Rust contracts live in `src/contract`; acquisition, authoring, routing and spatial
+services keep their own modules. `data/src/map_data` owns the Python helpers, and
+`app` builds the browser asset. The [code map](../../docs/CODEMAP.md) indexes these
+modules, their query owners and their qualification paths.
 
 ## Verification
 

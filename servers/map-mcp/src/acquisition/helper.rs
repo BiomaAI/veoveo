@@ -46,6 +46,7 @@ struct NormalizeCommand {
 }
 
 #[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct NormalizeResult {
     pub schema_version: u32,
     pub acquisition_id: AcquisitionId,
@@ -204,6 +205,23 @@ fn validate_result(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn normalize_result_rejects_unknown_fields() {
+        let result = serde_json::json!({
+            "schema_version": 1,
+            "acquisition_id": "acquisition-019f5cda-8c2d-7283-88c8-a72f4a138a5e",
+            "source_digest_sha256": "a".repeat(64),
+            "version_label": "fixture",
+            "normalized_paths": ["/tmp/product.parquet"],
+            "quality_report_path": "/tmp/quality.json",
+            "routing_build_path": null
+        });
+        assert!(serde_json::from_value::<NormalizeResult>(result.clone()).is_ok());
+        let mut changed = result;
+        changed["unexpected"] = true.into();
+        assert!(serde_json::from_value::<NormalizeResult>(changed).is_err());
+    }
 
     #[test]
     fn helper_configuration_requires_an_absolute_python_path() {

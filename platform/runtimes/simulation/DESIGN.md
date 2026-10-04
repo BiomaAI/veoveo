@@ -117,6 +117,8 @@ and fanout remain the domain overlay's responsibility.
 `simulation-runtime.lock.json` is the tuple authority. `requirements.lock` is a generated,
 hash-complete CPython 3.12 dependency lock for the supported Isaac Lab subset. The
 Dockerfile checks every independently downloaded archive and wheel before installation.
+The Python layer pins Pydantic `2.13.5` for typed overlay protocol admission.
+Overlay contracts own their models; GPU conformance qualifies the composed image.
 
 The Bake target publishes `veoveo/simulation-runtime`. A release records:
 

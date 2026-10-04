@@ -48,6 +48,11 @@ Artifact authority or durable Task store. Its socket is mode 0600. The parent ow
 audio cleanup, request admission and typed response validation. Provider exceptions
 become closed error codes; they cannot expose file paths or captured audio to users.
 
+Both peers reject undeclared fields in worker requests and transcript events,
+including empty tagged variants and nested words. The Python peer uses the
+`runner/uv.lock` pin of Pydantic `2.13.5`. Decode diagnostics omit submitted values;
+protocol-only tests import no GPU inference runtime.
+
 Results contain source-language text and timestamps. Parakeet does not report a
 language code. No speaker identity, translation or confidence value is fabricated.
 Provisional snapshots may revise previous text. Text and segment limits apply before

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any, Mapping, Annotated, Literal
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 
 
 class ContractError(ValueError):
@@ -75,7 +76,108 @@ class DurableOperation:
     vehicles: tuple[VehicleMission, ...] | None = None
 
 
+class _Wire(BaseModel):
+    model_config = ConfigDict(hide_input_in_errors=True, extra="forbid", strict=True)
+
+
+class SessionCommand(_Wire):
+    command: Literal["pause", "resume", "reset"]
+    session_id: str
+
+
+class StepCommand(_Wire):
+    command: Literal["step"]
+    session_id: str
+    steps: int
+
+
+class VehicleCommand(_Wire):
+    command: Literal["arm", "land"]
+    session_id: str
+    vehicle_id: str
+
+
+class TakeoffCommand(_Wire):
+    command: Literal["takeoff"]
+    session_id: str
+    vehicle_id: str
+    relative_altitude_m: float
+
+
+CommandWire = Annotated[SessionCommand | StepCommand | VehicleCommand | TakeoffCommand, Field(discriminator="command")]
+COMMAND_ADAPTER = TypeAdapter(CommandWire, config=ConfigDict(hide_input_in_errors=True))
+
+
+class PositionWire(_Wire):
+    latitude_degrees: float
+    longitude_degrees: float
+    ellipsoid_height_m: float
+
+
+class WaypointWire(_Wire):
+    position: PositionWire
+    speed_mps: float
+    hold_seconds: float
+
+
+class VehicleMissionWire(_Wire):
+    vehicle_id: str
+    waypoints: list[WaypointWire]
+
+
+class ScenarioInput(_Wire):
+    session_id: str
+    duration_seconds: float
+    parameters: dict[str, str]
+
+
+class CaptureInput(_Wire):
+    session_id: str
+    duration_seconds: float
+    sensors: list[str]
+
+
+class MissionInput(_Wire):
+    session_id: str
+    mission_id: str
+    expected_world_revision_uri: str
+    vehicles: list[VehicleMissionWire]
+
+
+class ScenarioOperation(_Wire):
+    operation: Literal["run_scenario"]
+    input: ScenarioInput
+
+
+class CaptureOperation(_Wire):
+    operation: Literal["capture_dataset"]
+    input: CaptureInput
+
+
+class MissionOperation(_Wire):
+    operation: Literal["execute_mission"]
+    input: MissionInput
+
+
+OperationWire = Annotated[ScenarioOperation | CaptureOperation | MissionOperation, Field(discriminator="operation")]
+OPERATION_ADAPTER = TypeAdapter(OperationWire, config=ConfigDict(hide_input_in_errors=True))
+
+
+def validation_diagnostic(error: ValidationError) -> str:
+    """HTTP diagnostics contain validation kinds, never submitted values."""
+    kinds = sorted({item["type"] for item in error.errors(include_input=False, include_context=False, include_url=False)})
+    return "invalid adapter input: " + ", ".join(kinds)
+
+
+def _admit(adapter: TypeAdapter, value: Any) -> None:
+    try:
+        adapter.validate_python(value)
+    except ValidationError as error:
+        raise ContractError(validation_diagnostic(error)) from error
+
+
 def parse_command(payload: Any) -> DirectCommand:
+    _admit(COMMAND_ADAPTER, payload)
     value = _object(payload, "command")
     command = value.get("command")
     if command in {"pause", "resume", "reset"}:
@@ -132,6 +234,7 @@ def _waypoint(value: Any) -> Waypoint:
 
 
 def parse_operation(payload: Any) -> DurableOperation:
+    _admit(OPERATION_ADAPTER, payload)
     envelope = _object(payload, "operation")
     _exact_fields(envelope, {"operation", "input"}, "operation")
     operation = envelope["operation"]

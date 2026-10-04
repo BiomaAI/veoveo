@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from pydantic import BaseModel, ConfigDict, ValidationError
 import json
 from pathlib import Path
 from typing import Any
@@ -12,8 +12,9 @@ class ContractError(ValueError):
     pass
 
 
-@dataclass(frozen=True)
-class NormalizeCommand:
+class NormalizeCommand(BaseModel):
+    model_config = ConfigDict(hide_input_in_errors=True, extra="forbid", frozen=True)
+    schema_version: int = SCHEMA_VERSION
     acquisition_id: str
     adapter_kind: str
     source_path: Path
@@ -25,6 +26,10 @@ class NormalizeCommand:
     def parse(cls, value: Any) -> "NormalizeCommand":
         if not isinstance(value, dict) or value.get("schema_version") != SCHEMA_VERSION:
             raise ContractError("unsupported helper command schema")
+        try:
+            cls.model_validate(value)
+        except ValidationError as error:
+            raise ContractError("invalid helper command: " + ", ".join(sorted({item["type"] for item in error.errors(include_input=False, include_context=False, include_url=False)}))) from error
         acquisition_id = controlled(value.get("acquisition_id"), "acquisition_id", 128)
         if not acquisition_id.startswith("acquisition-"):
             raise ContractError("acquisition_id uses the wrong prefix")
@@ -46,8 +51,9 @@ class NormalizeCommand:
         )
 
 
-@dataclass(frozen=True)
-class NormalizeResult:
+class NormalizeResult(BaseModel):
+    model_config = ConfigDict(hide_input_in_errors=True, extra="forbid", frozen=True)
+    schema_version: int = SCHEMA_VERSION
     acquisition_id: str
     source_digest_sha256: str
     version_label: str

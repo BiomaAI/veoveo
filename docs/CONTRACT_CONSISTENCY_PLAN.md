@@ -41,8 +41,11 @@ bundles pass generation, consumer tests and builds. Production schema ownership 
 in Phase 3.
 Phase 5's MCP input batch closes controlled request fields and nested owner shapes.
 The independent consumer checks all 114 production tool-input root schemas; affected
-native suites and browser/Python consumers pass. Per-server wire checks, exhaustive
-variant coverage, and the HTTP, process-protocol and configuration surfaces remain open.
+native suites and browser/Python consumers pass. The next batch closes controlled
+HTTP bodies, registered installation configuration and private process inputs.
+Affected native suites, Python peers, generated browser consumers and Stream's C++
+build pass. Per-server wire checks, exhaustive variant and schema-equivalence coverage,
+the remaining loaders and installed process qualification remain open.
 This is the single implementation plan for the former Foundations, Contract
 Consistency and Repository Hardening tracks; their required open conditions transfer
 without being declared complete.
@@ -1142,6 +1145,26 @@ stricter decoders and matching callers together.
 | HTTP request bodies: gateway admin, artifact service, Console BFF | `deny_unknown_fields`; unknown keys return 400 with the field name |
 | Protocols between Veoveo processes: Map helper, cuOpt executor, reason and speech runners, stream `gst-runner`, UAV runtime adapter | Strict on both sides; Python peers use pydantic `extra="forbid"` |
 | Configuration files and environment JSON | `deny_unknown_fields` on every loader type |
+
+The qualified native batch covers HTTP bodies, runtime configuration and the private
+Map, cuOpt, Reason, Speech, Stream and UAV process interfaces. HTTP consumers share
+`platform/http::RequestJson`; their contract-only features exclude it. Configuration
+admission keeps gateway module sections registry-driven and closes each registered
+owner's controlled values. Python peer models use the locked Pydantic 2.13.5 profile.
+Affected Rust suites, Python peer and SDK tests, browser tests and builds, generated
+types and workspace lint pass. The image recipes include the matching locked Python
+dependencies. Final image and installed process qualification remain open; the
+simulation Python-layer update needs composed hardware acceptance.
+
+The remaining inventory includes `recording-hub`'s `sensor_sim --stack` loader:
+its flattened `SensorSpec` and nested wave, track and coordinate values still need
+strict admission. Protocol-wide Rust/Python schema equivalence, UAV outbound
+state/event model adoption and production per-server MCP wire rejection checks
+also remain open. Stream's C++ decoder passes its native build; installed runner
+checks remain open.
+HTTP field-name diagnostics also remain incomplete for Serde's adjacent-tag enum
+decoder: an extra key inside `AccessSubject` is rejected with a generic 400. The
+shared extractor does not echo arbitrary validation values to infer a field name.
 
 Types that read upstream provider responses accept additions: WaveSpeed, OAuth and
 OIDC discovery, Kubernetes, Valhalla, ntpd-rs, cargo metadata and buildx. serde

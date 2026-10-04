@@ -19,6 +19,7 @@ RUN set -eux; \
     chmod 0444 /out/extensions/spatial.duckdb_extension
 
 FROM ghcr.io/valhalla/valhalla:3.8.3@sha256:70b45295d81035e3562e1bbf996a28d5fc55e1ccc5d7e3fff9f297d3b1a1359f AS valhalla-runtime
+FROM ghcr.io/astral-sh/uv:0.12.18-python3.13-trixie-slim@sha256:8891323e7ddaddc86d08c91f8af845ac5774a07d6f98e6765883030e1ad16fbc AS python-package-tools
 
 FROM ghcr.io/osgeo/gdal:ubuntu-full-3.13.3@sha256:a1d85cd27aeb14a7644cb78e9286cddebb7e1eb4c82caaa987fc9226941e71a2
 
@@ -32,6 +33,13 @@ RUN rm -f /etc/apt/sources.list.d/apache-arrow.sources \
       ca-certificates curl libczmq4 libluajit-5.1-2 libprotobuf-lite32t64 libstdc++6 \
       libzmq5 openjdk-21-jre-headless osmium-tool python3 \
     && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=bind,from=python-package-tools,source=/usr/local/bin/uv,target=/usr/local/bin/uv,readonly \
+    --mount=type=bind,source=servers/map-mcp/data/pyproject.toml,target=/tmp/map-package/pyproject.toml,readonly \
+    --mount=type=bind,source=servers/map-mcp/data/uv.lock,target=/tmp/map-package/uv.lock,readonly \
+    uv export --project /tmp/map-package --python /usr/bin/python3 --no-python-downloads --locked --no-dev --no-emit-project --output-file /tmp/map-requirements.txt \
+    && uv pip install --python /usr/bin/python3 --target /opt/veoveo/map-python \
+      --only-binary :all: --require-hashes --requirement /tmp/map-requirements.txt \
+    && rm /tmp/map-requirements.txt
 RUN curl -fsSL \
       "https://github.com/MobilityData/gtfs-validator/releases/download/v${GTFS_VALIDATOR_VERSION}/gtfs-validator-${GTFS_VALIDATOR_VERSION}-cli.jar" \
       -o /usr/local/lib/gtfs-validator.jar \
@@ -73,7 +81,7 @@ RUN ln -s libprime_server.so.0.0.0 /usr/local/lib/libprime_server.so.0 \
     && chmod 0555 /opt/veoveo/map-data \
     && chmod 0444 /etc/veoveo/map/valhalla.json
 
-ENV PYTHONPATH=/opt/veoveo/map-data \
+ENV PYTHONPATH=/opt/veoveo/map-data:/opt/veoveo/map-python \
     MAP_GTFS_VALIDATOR_JAR=/usr/local/lib/gtfs-validator.jar \
     MAP_VALHALLA_BUILD_CONFIG=/etc/veoveo/map/valhalla.json \
     PROJ_NETWORK=OFF

@@ -19,7 +19,7 @@ packaging==26.0
 psutil==7.2.2
 filelock
 typing-extensions>=4.15.0
-pydantic==2.11.10
+pydantic==2.13.5
 lazy-loader>=0.4
 rich
 jinja2

@@ -613,6 +613,13 @@ representations.
 
 ## GPU Executor
 
+Rust and Python reject undeclared fields throughout the private request and result
+graph. The Python adapter uses Pydantic `2.13.5`; validation diagnostics omit input
+values. `executor/uv.lock` owns these dependencies separately from the provider's
+CUDA packages. Image assembly installs hash-verified wheels in
+`/opt/veoveo-cuopt-deps` without replacing the provider environment. A shared fixture
+covers every operation, result and route-node variant in both languages.
+
 The executor initializes CUDA before opening its socket. Startup fails unless
 CuPy can select a hardware device, allocate device memory, and report the
 expected cuOpt version. It creates a one-GiB RMM pool by default. Health checks

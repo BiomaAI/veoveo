@@ -117,3 +117,16 @@ def test_answer_kind_mapping_matches_the_rust_contract() -> None:
     assert (
         protocol.answer_kind_for(protocol.AnswerQuestion(question="what happened?")) == "answer"
     )
+
+@pytest.mark.parametrize("path", [
+    (), ("model",), ("model", "engine"), ("pipeline", "observation"),
+    ("task",), ("decode",), ("grounding", "frames", 0, "detections", 0),
+])
+def test_owned_request_shapes_reject_nested_additions(path) -> None:
+    document = request_document()
+    target = document
+    for key in path:
+        target = target[key]
+    target["unexpected"] = True
+    with pytest.raises(ValueError):
+        protocol.parse_request(json.dumps(document).encode())

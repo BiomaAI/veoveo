@@ -70,6 +70,7 @@ impl<'de> Deserialize<'de> for SamplingPolicy {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct BoundingBox2D {
     pub x: f32,
     pub y: f32,
@@ -78,6 +79,7 @@ pub struct BoundingBox2D {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct Detection {
     pub class_id: u32,
     pub label: String,
@@ -94,6 +96,7 @@ pub struct Detection {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct FrameDetections {
     pub index: i64,
     pub detections: Vec<Detection>,
@@ -183,6 +186,7 @@ pub struct LiveResultsView {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct EncodedVideoChunk {
     /// Decode-order identity. This is the ordering contract for retained chunks.
     pub sequence: u64,
@@ -212,3 +216,24 @@ pub use run_view::{RunDetails, RunView};
 
 mod scopes;
 pub use scopes::StreamScope;
+
+#[cfg(test)]
+mod strict_runner_product_tests {
+    use super::*;
+
+    #[test]
+    fn runner_frame_rejects_nested_additions() {
+        let frame = serde_json::json!({"index": 0, "detections": [{"class_id": 1, "label": "person", "bounds": {"x": 0, "y": 0, "width": 1, "height": 1}}]});
+        assert!(serde_json::from_value::<FrameDetections>(frame.clone()).is_ok());
+        for pointer in ["", "/detections/0", "/detections/0/bounds"] {
+            let mut changed = frame.clone();
+            changed
+                .pointer_mut(pointer)
+                .unwrap()
+                .as_object_mut()
+                .unwrap()
+                .insert("unexpected".into(), true.into());
+            assert!(serde_json::from_value::<FrameDetections>(changed).is_err());
+        }
+    }
+}

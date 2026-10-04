@@ -26,6 +26,28 @@ class NormalizeCommandTests(unittest.TestCase):
             }
         )
 
+    def test_helper_error_does_not_reflect_unknown_field_value(self):
+        with self.assertRaises(ContractError) as raised:
+            NormalizeCommand.parse({
+                "schema_version": 1, "acquisition_id": "acquisition-test",
+                "adapter_kind": "gtfs_schedule", "source_path": "/tmp/source",
+                "output_dir": "/tmp/output", "maximum_elapsed_seconds": 1,
+                "maximum_output_bytes": 1, "secret": "sentinel-private-value",
+            })
+        self.assertNotIn("sentinel-private-value", str(raised.exception))
+
+    def test_helper_models_close_owned_wire_fields(self):
+        from pydantic import ValidationError
+        self.assertFalse(NormalizeCommand.model_json_schema()["additionalProperties"])
+        self.assertFalse(NormalizeResult.model_json_schema()["additionalProperties"])
+        with self.assertRaises(ValidationError):
+            NormalizeResult(
+                acquisition_id="acquisition-test", source_digest_sha256="a" * 64,
+                version_label="fixture", normalized_paths=(),
+                quality_report_path=Path("/tmp/quality.json"), routing_build_path=None,
+                unexpected=True,
+            )
+
     def test_rejects_relative_and_missing_source_paths(self):
         with self.assertRaises(ContractError):
             NormalizeCommand.parse(

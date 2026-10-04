@@ -18,7 +18,7 @@ pub const PROTOCOL: &str = "veoveo.speech-worker/v1";
 pub const MAX_FRAME_BYTES: usize = 192_000;
 pub const MAX_RESPONSE_BYTES: usize = 8 * 1024 * 1024;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub enum WorkerRequest {
     Probe,
@@ -31,8 +31,43 @@ pub enum WorkerRequest {
         max_duration_seconds: u32,
     },
 }
+#[derive(Deserialize)]
+#[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
+enum WorkerRequestWire {
+    Probe {},
+    File {
+        path: PathBuf,
+        max_duration_seconds: u32,
+    },
+    Live {
+        sample_rate: u32,
+        max_duration_seconds: u32,
+    },
+}
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+impl<'de> Deserialize<'de> for WorkerRequest {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Ok(match WorkerRequestWire::deserialize(deserializer)? {
+            WorkerRequestWire::Probe {} => Self::Probe,
+            WorkerRequestWire::File {
+                path,
+                max_duration_seconds,
+            } => Self::File {
+                path,
+                max_duration_seconds,
+            },
+            WorkerRequestWire::Live {
+                sample_rate,
+                max_duration_seconds,
+            } => Self::Live {
+                sample_rate,
+                max_duration_seconds,
+            },
+        })
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum WorkerEvent {
     Accepted,
@@ -49,6 +84,51 @@ pub enum WorkerEvent {
     Error {
         code: WorkerError,
     },
+}
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum WorkerEventWire {
+    Accepted {},
+    Ready {
+        protocol: String,
+        device: String,
+        model: String,
+        revision: String,
+    },
+    Transcript {
+        complete: bool,
+        transcript: Transcript,
+    },
+    Error {
+        code: WorkerError,
+    },
+}
+
+impl<'de> Deserialize<'de> for WorkerEvent {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Ok(match WorkerEventWire::deserialize(deserializer)? {
+            WorkerEventWire::Accepted {} => Self::Accepted,
+            WorkerEventWire::Ready {
+                protocol,
+                device,
+                model,
+                revision,
+            } => Self::Ready {
+                protocol,
+                device,
+                model,
+                revision,
+            },
+            WorkerEventWire::Transcript {
+                complete,
+                transcript,
+            } => Self::Transcript {
+                complete,
+                transcript,
+            },
+            WorkerEventWire::Error { code } => Self::Error { code },
+        })
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -130,5 +210,25 @@ impl WorkerEvents {
         );
         let bytes = std::mem::take(&mut self.pending);
         serde_json::from_slice(&bytes).context("invalid speech worker response")
+    }
+}
+
+#[cfg(test)]
+mod strict_protocol_tests {
+    use super::*;
+
+    #[test]
+    fn empty_tagged_variants_reject_unknown_fields() {
+        assert!(serde_json::from_str::<WorkerRequest>(r#"{"operation":"probe"}"#).is_ok());
+        assert!(
+            serde_json::from_str::<WorkerRequest>(r#"{"operation":"probe","unexpected":true}"#)
+                .is_err()
+        );
+        assert!(serde_json::from_str::<WorkerEvent>(r#"{"kind":"accepted"}"#).is_ok());
+        assert!(
+            serde_json::from_str::<WorkerEvent>(r#"{"kind":"accepted","unexpected":true}"#)
+                .is_err()
+        );
+        assert!(serde_json::from_str::<WorkerEvent>(r#"{"kind":"transcript","complete":true,"transcript":{"text":"","duration_seconds":0,"segments":[],"unexpected":true}}"#).is_err());
     }
 }

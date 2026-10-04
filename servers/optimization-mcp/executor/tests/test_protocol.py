@@ -1,16 +1,70 @@
 import asyncio
 import json
 import unittest
+import copy
+from pathlib import Path
+from pydantic import ValidationError
 
 from veoveo_cuopt_executor.protocol import (
     PROTOCOL_VERSION,
     ProtocolError,
     error_response,
     read_frame,
+    ExecutorRequest,
+    ExecutorResponse,
 )
 
 
 class ProtocolTests(unittest.IsolatedAsyncioTestCase):
+    def test_every_request_result_and_route_node_variant_round_trips(self) -> None:
+        fixture = json.loads((Path(__file__).parents[2] / "testdata/executor-protocol.json").read_text())
+        for model, key in [(ExecutorRequest, "requests"), (ExecutorResponse, "responses")]:
+            for value in fixture[key]:
+                decoded = model.model_validate(value)
+                self.assertEqual(model.model_validate_json(decoded.model_dump_json()), decoded)
+        successful = ExecutorResponse.model_validate(fixture["responses"][1])
+        self.assertEqual([visit.node.kind for visit in successful.result.solution.routes[0].nodes], ["depot", "order", "break"])
+
+    async def test_invalid_discriminator_is_redacted_in_protocol_error(self) -> None:
+        from veoveo_cuopt_executor.protocol import require_protocol, write_frame
+        request = {"protocol": PROTOCOL_VERSION, "run_id": "run-fixture", "operation": {"operation": "sentinel-private-value"}}
+        with self.assertRaises(ProtocolError) as raised:
+            require_protocol(request)
+        self.assertNotIn("sentinel-private-value", str(raised.exception))
+        response_value = {"protocol": PROTOCOL_VERSION, "run_id": "run-fixture", "result": {"result": "sentinel-private-value"}}
+        with self.assertRaises(ProtocolError) as raised:
+            await write_frame(None, response_value, 4096)
+        self.assertNotIn("sentinel-private-value", str(raised.exception))
+        self.assertIn("union_tag_invalid", str(raised.exception))
+
+    def test_decode_diagnostics_do_not_reflect_input(self) -> None:
+        from veoveo_cuopt_executor.protocol import require_protocol
+        value = {"protocol": PROTOCOL_VERSION, "run_id": "run-fixture", "operation": {"operation": "health", "secret": "sentinel-private-value"}}
+        with self.assertRaises(ProtocolError) as raised:
+            require_protocol(value)
+        self.assertNotIn("sentinel-private-value", str(raised.exception))
+
+    def test_shared_rust_peer_fixture_is_closed(self) -> None:
+        fixture = json.loads((Path(__file__).parents[2] / "testdata/executor-protocol.json").read_text())
+        for model, name, paths in [
+            (ExecutorRequest, "request", [(), ("operation",)]),
+            (ExecutorResponse, "response", [(), ("result",), ("result", "error")]),
+        ]:
+            model.model_validate(fixture[name])
+            for path in paths:
+                changed = copy.deepcopy(fixture[name])
+                target = changed
+                for key in path:
+                    target = target[key]
+                target["unexpected"] = True
+                with self.assertRaises(ValidationError):
+                    model.model_validate(changed)
+            schema = model.model_json_schema()
+            self.assertFalse(schema["additionalProperties"])
+            for definition in schema["$defs"].values():
+                if definition.get("type") == "object" and "properties" in definition:
+                    self.assertFalse(definition["additionalProperties"])
+
     async def test_reads_a_bounded_big_endian_frame(self) -> None:
         request = {
             "protocol": PROTOCOL_VERSION,
