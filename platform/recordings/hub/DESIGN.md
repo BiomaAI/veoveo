@@ -8,6 +8,16 @@ SurrealDB holds stream acceptance and materialization checkpoints. Local filesys
 journals use synchronized writes and atomic publication on the same filesystem.
 `veoveo.ai/recording-journal-quarantine/v1` is an internal JSON recovery receipt,
 owned by Hub; it is not a producer protocol or an accepted recording batch.
+The `sensor-sim --stack` manifest is Hub-owned JSON for deterministic ingest fixtures.
+
+## Sensor Manifests
+
+The stack loader rejects unknown fields in the root, each sensor variant, coordinates,
+track patterns and waves before it creates a runtime or generator. A private tagged
+wire enum admits each complete flat sensor object; serialization preserves that flat
+shape. Required fields must be present, while omitted or null `duration_s` selects
+an unbounded run. Sensor IDs pass the same nonempty ASCII path-component validation
+through both construction and decoding. Loader errors identify the manifest path.
 
 ## Recording Identity
 

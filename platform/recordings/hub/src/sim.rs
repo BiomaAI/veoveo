@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 /// A validated sensor id (path-safe, non-empty).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(try_from = "String")]
 pub struct SensorId(String);
 
 impl SensorId {
@@ -27,14 +28,23 @@ impl SensorId {
     }
 }
 
+impl TryFrom<String> for SensorId {
+    type Error = anyhow::Error;
+
+    fn try_from(raw: String) -> Result<Self, Self::Error> {
+        Self::new(raw)
+    }
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LatLon {
     pub lat: f64,
     pub lon: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "pattern", rename_all = "snake_case")]
+#[serde(tag = "pattern", rename_all = "snake_case", deny_unknown_fields)]
 pub enum TrackPattern {
     /// Circular orbit around the origin.
     Orbit { radius_m: f64, period_s: f64 },
@@ -43,7 +53,7 @@ pub enum TrackPattern {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "wave", rename_all = "snake_case")]
+#[serde(tag = "wave", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Wave {
     Sine { amplitude: f64, period_s: f64 },
     Step { low: f64, high: f64, period_s: f64 },
@@ -51,7 +61,7 @@ pub enum Wave {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum SensorKind {
     Imu {
         rate_hz: f64,
@@ -96,6 +106,7 @@ impl SensorKind {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(from = "SensorSpecWire")]
 pub struct SensorSpec {
     pub id: SensorId,
     /// The recording (session) this sensor writes into at the hub.
@@ -114,6 +125,143 @@ pub struct SensorSpec {
 #[serde(deny_unknown_fields)]
 pub struct SensorStack {
     pub sensors: Vec<SensorSpec>,
+}
+
+// The JSON manifest puts sensor-specific fields beside the common fields.
+// Decode that whole object as one closed variant; Serde cannot safely combine
+// flatten with deny_unknown_fields during deserialization.
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum SensorSpecWire {
+    Imu {
+        id: SensorId,
+        recording: String,
+        application_id: String,
+        seed: u64,
+        #[serde(default)]
+        duration_s: Option<f64>,
+        rate_hz: f64,
+        accel_bias: [f64; 3],
+        gyro_noise: f64,
+    },
+    Gnss {
+        id: SensorId,
+        recording: String,
+        application_id: String,
+        seed: u64,
+        #[serde(default)]
+        duration_s: Option<f64>,
+        rate_hz: f64,
+        origin: LatLon,
+        pattern: TrackPattern,
+    },
+    Camera {
+        id: SensorId,
+        recording: String,
+        application_id: String,
+        seed: u64,
+        #[serde(default)]
+        duration_s: Option<f64>,
+        fps: f64,
+        frame_bytes: usize,
+    },
+    Scalar {
+        id: SensorId,
+        recording: String,
+        application_id: String,
+        seed: u64,
+        #[serde(default)]
+        duration_s: Option<f64>,
+        rate_hz: f64,
+        name: String,
+        wave: Wave,
+    },
+}
+
+impl From<SensorSpecWire> for SensorSpec {
+    fn from(wire: SensorSpecWire) -> Self {
+        match wire {
+            SensorSpecWire::Imu {
+                id,
+                recording,
+                application_id,
+                seed,
+                duration_s,
+                rate_hz,
+                accel_bias,
+                gyro_noise,
+            } => Self {
+                id,
+                recording,
+                application_id,
+                seed,
+                duration_s,
+                kind: SensorKind::Imu {
+                    rate_hz,
+                    accel_bias,
+                    gyro_noise,
+                },
+            },
+            SensorSpecWire::Gnss {
+                id,
+                recording,
+                application_id,
+                seed,
+                duration_s,
+                rate_hz,
+                origin,
+                pattern,
+            } => Self {
+                id,
+                recording,
+                application_id,
+                seed,
+                duration_s,
+                kind: SensorKind::Gnss {
+                    rate_hz,
+                    origin,
+                    pattern,
+                },
+            },
+            SensorSpecWire::Camera {
+                id,
+                recording,
+                application_id,
+                seed,
+                duration_s,
+                fps,
+                frame_bytes,
+            } => Self {
+                id,
+                recording,
+                application_id,
+                seed,
+                duration_s,
+                kind: SensorKind::Camera { fps, frame_bytes },
+            },
+            SensorSpecWire::Scalar {
+                id,
+                recording,
+                application_id,
+                seed,
+                duration_s,
+                rate_hz,
+                name,
+                wave,
+            } => Self {
+                id,
+                recording,
+                application_id,
+                seed,
+                duration_s,
+                kind: SensorKind::Scalar {
+                    rate_hz,
+                    name,
+                    wave,
+                },
+            },
+        }
+    }
 }
 
 /// A deterministic sample for one tick: the timeline value and the numeric
@@ -297,6 +445,146 @@ impl StackReport {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn sensor_manifests() -> Vec<serde_json::Value> {
+        let kinds = [
+            serde_json::json!({"kind": "imu", "rate_hz": 200.0,
+                "accel_bias": [0.05, -0.02, 0.01], "gyro_noise": 0.01}),
+            serde_json::json!({"kind": "camera", "fps": 30.0, "frame_bytes": 1024}),
+            serde_json::json!({"kind": "gnss", "rate_hz": 10.0,
+                "origin": {"lat": 47.0, "lon": 8.0},
+                "pattern": {"pattern": "orbit", "radius_m": 120.0, "period_s": 40.0}}),
+            serde_json::json!({"kind": "gnss", "rate_hz": 10.0,
+                "origin": {"lat": 47.0, "lon": 8.0},
+                "pattern": {"pattern": "line", "heading_deg": 90.0, "speed_mps": 5.0}}),
+            serde_json::json!({"kind": "scalar", "rate_hz": 20.0, "name": "speed_mps",
+                "wave": {"wave": "sine", "amplitude": 12.0, "period_s": 15.0}}),
+            serde_json::json!({"kind": "scalar", "rate_hz": 20.0, "name": "speed_mps",
+                "wave": {"wave": "step", "low": 0.0, "high": 12.0, "period_s": 15.0}}),
+            serde_json::json!({"kind": "scalar", "rate_hz": 20.0, "name": "speed_mps",
+                "wave": {"wave": "random_walk", "step": 0.5}}),
+        ];
+        kinds
+            .into_iter()
+            .map(|mut sensor| {
+                let fields = sensor.as_object_mut().unwrap();
+                fields.insert("id".into(), "sensor-a".into());
+                fields.insert("recording".into(), "sim-sensor-a".into());
+                fields.insert("application_id".into(), "veoveo-sim-sensor-a".into());
+                fields.insert("seed".into(), 42.into());
+                fields.insert("duration_s".into(), 2.0.into());
+                sensor
+            })
+            .collect()
+    }
+
+    #[test]
+    fn manifest_variants_preserve_wire_and_duration_default() {
+        for sensor in sensor_manifests() {
+            let manifest = serde_json::json!({"sensors": [sensor]});
+            let stack: SensorStack = serde_json::from_value(manifest.clone()).unwrap();
+            assert_eq!(serde_json::to_value(&stack).unwrap(), manifest);
+
+            let mut unbounded = manifest;
+            unbounded["sensors"][0]
+                .as_object_mut()
+                .unwrap()
+                .remove("duration_s");
+            let stack: SensorStack = serde_json::from_value(unbounded.clone()).unwrap();
+            assert_eq!(stack.sensors[0].duration_s, None);
+            unbounded["sensors"][0]["duration_s"] = serde_json::Value::Null;
+            assert_eq!(serde_json::to_value(&stack).unwrap(), unbounded);
+            let stack: SensorStack = serde_json::from_value(unbounded).unwrap();
+            assert_eq!(stack.sensors[0].duration_s, None);
+        }
+    }
+
+    #[test]
+    fn manifest_rejects_unknown_fields_before_generator_admission() {
+        for sensor in sensor_manifests() {
+            let manifest = serde_json::json!({"sensors": [sensor]});
+            for path in [
+                "",
+                "/sensors/0",
+                "/sensors/0/origin",
+                "/sensors/0/pattern",
+                "/sensors/0/wave",
+            ] {
+                let mut invalid = manifest.clone();
+                let Some(object) = invalid.pointer_mut(path).and_then(|v| v.as_object_mut()) else {
+                    continue;
+                };
+                object.insert("unexpected".into(), true.into());
+                let error = serde_json::from_value::<SensorStack>(invalid).unwrap_err();
+                assert!(error.to_string().contains("unexpected"), "{path}: {error}");
+            }
+
+            // A field declared by another sensor kind is also unknown here.
+            let mut invalid = manifest;
+            let foreign_field = if invalid["sensors"][0]["kind"] == "camera" {
+                "rate_hz"
+            } else {
+                "frame_bytes"
+            };
+            invalid["sensors"][0][foreign_field] = 1.into();
+            let error = serde_json::from_value::<SensorStack>(invalid).unwrap_err();
+            assert!(error.to_string().contains(foreign_field), "{error}");
+        }
+    }
+
+    #[test]
+    fn sensor_ids_apply_constructor_admission_when_decoded() {
+        for raw in ["sensor-a", "sensor_A1", "0"] {
+            let id: SensorId = serde_json::from_value(raw.into()).unwrap();
+            assert_eq!(id, SensorId::new(raw).unwrap());
+            assert_eq!(serde_json::to_value(&id).unwrap(), raw);
+            let mut manifest = sensor_manifests().remove(0);
+            manifest["id"] = raw.into();
+            let stack: SensorStack =
+                serde_json::from_value(serde_json::json!({"sensors": [manifest]})).unwrap();
+            assert_eq!(stack.sensors[0].id, id);
+        }
+        for raw in ["", "sensor/a", "sensor a", "sensor.a", "sensor-é"] {
+            let diagnostic = SensorId::new(raw).unwrap_err().to_string();
+            let error = serde_json::from_value::<SensorId>(raw.into()).unwrap_err();
+            assert!(error.to_string().contains(&diagnostic), "{error}");
+            let mut manifest = sensor_manifests().remove(0);
+            manifest["id"] = raw.into();
+            let error =
+                serde_json::from_value::<SensorStack>(serde_json::json!({"sensors": [manifest]}))
+                    .unwrap_err();
+            assert!(error.to_string().contains(&diagnostic), "{error}");
+        }
+    }
+
+    #[test]
+    fn manifest_requires_common_and_selected_sensor_fields() {
+        for sensor in sensor_manifests() {
+            // Every supplied field except duration_s is required. Check nested
+            // payload fields as well as the common and sensor-specific fields.
+            for path in ["", "/origin", "/pattern", "/wave"] {
+                let Some(fields) = sensor.pointer(path).and_then(|v| v.as_object()) else {
+                    continue;
+                };
+                for field in fields.keys().filter(|field| *field != "duration_s") {
+                    let mut invalid = sensor.clone();
+                    invalid
+                        .pointer_mut(path)
+                        .unwrap()
+                        .as_object_mut()
+                        .unwrap()
+                        .remove(field);
+                    let error = serde_json::from_value::<SensorStack>(
+                        serde_json::json!({"sensors": [invalid]}),
+                    )
+                    .unwrap_err();
+                    assert!(error.to_string().contains(field), "{path}/{field}: {error}");
+                }
+            }
+        }
+        let error = serde_json::from_str::<SensorStack>("{}").unwrap_err();
+        assert!(error.to_string().contains("sensors"), "{error}");
+    }
 
     fn gnss(pattern: TrackPattern) -> Generator {
         Generator::new(SensorSpec {

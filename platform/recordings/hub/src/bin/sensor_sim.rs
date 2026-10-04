@@ -3,7 +3,7 @@
 //! harness's load. Every sensor is a seeded pure function of its tick, so
 //! `--report` is exact ground truth the smoke asserts against.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -92,6 +92,12 @@ fn builtin_stack(duration_s: f64) -> SensorStack {
     }
 }
 
+fn load_stack(path: &Path) -> Result<SensorStack> {
+    let raw = std::fs::read_to_string(path)
+        .with_context(|| format!("reading stack {}", path.display()))?;
+    serde_json::from_str(&raw).with_context(|| format!("parsing stack {}", path.display()))
+}
+
 fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -102,12 +108,7 @@ fn main() -> Result<()> {
 
     let args = Args::parse();
     let stack = match &args.stack {
-        Some(path) => {
-            let raw = std::fs::read_to_string(path)
-                .with_context(|| format!("reading stack {}", path.display()))?;
-            serde_json::from_str(&raw)
-                .with_context(|| format!("parsing stack {}", path.display()))?
-        }
+        Some(path) => load_stack(path)?,
         None => builtin_stack(args.duration_s),
     };
 
@@ -233,4 +234,33 @@ async fn run_sensor(
         final_scalars,
         final_geo,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn builtin_stack_loads_with_identical_wire_values() {
+        let expected = serde_json::to_value(builtin_stack(2.0)).unwrap();
+        let manifest = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(manifest.path(), serde_json::to_vec(&expected).unwrap()).unwrap();
+        let stack = load_stack(manifest.path()).unwrap();
+        assert_eq!(serde_json::to_value(stack).unwrap(), expected);
+    }
+
+    #[test]
+    fn stack_loader_rejects_unknown_fields_with_manifest_context() {
+        let manifest = tempfile::NamedTempFile::new().unwrap();
+        let mut invalid = serde_json::to_value(builtin_stack(2.0)).unwrap();
+        invalid["sensors"][1]["origin"]["latitude"] = 47.0.into();
+        std::fs::write(manifest.path(), serde_json::to_vec(&invalid).unwrap()).unwrap();
+        let error = load_stack(manifest.path()).unwrap_err();
+        let diagnostic = format!("{error:#}");
+        assert!(diagnostic.contains(&manifest.path().display().to_string()));
+        assert!(
+            diagnostic.contains("unknown field `latitude`"),
+            "{diagnostic}"
+        );
+    }
 }
