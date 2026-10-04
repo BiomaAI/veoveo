@@ -5,50 +5,46 @@ recovery and visual acceptance gates remain. The plan is not ready for retiremen
 
 ## Current Status
 
-The shared-host batch is published from `5d3fd6fe`, with the affected follow-up
-images from `0b50d664` selected through `c88bcca5`. All sixteen Rust servers reached
-Ready during their installed acceptance batches. Discovery, authenticated document
-reads, completion, Host admission and the requested Linux native suites passed.
-The follow-up closes six missing readiness routes, Recording admin document routing
-and Optimization's empty-constraint failure. Console's route-retention fix is deployed
-from `7583087e` through `f1282cf0`; both UAV App restart stages pass with the harness
-at `b63d85a2`. Gateway `e1969257`, selected through `a5db6d66`, also passes the
-Computers HTTP 413 check with normal OAuth. Map, Knowledge and Computers from
-`e1c5d3d7`, selected through `c9b590ac`, pass their affected installed checks. An
-expired-token admission correction from `ae638056`, selected through `5c6639fc`,
-passes installed normal-OAuth checks immediately before and after expiry. The UAV
-domain scenario passes mission execution, live Stream, Recording replay, return to
-launch, landing and Artifact isolation. The focused and composed browser harnesses
-now share a ten-second source sampler that brackets the observation without
-extrapolation. Its 127 native cases pass. Focused headed RTX 4090 WebGL playback at
-`04cf2ed2` passes the 120-second stability and reconnect checks with 0.170 seconds
-of source-to-viewer lag. The composed flight exposes a separate capture-layer
-rollover gap: a live manifest without a writing layer removes Console's viewer.
-Recording playback manifest v10 gives every live recording a recording-scoped
-channel, with capture-layer selection kept inside the service. This producer/Console
-batch passes 200 native cases, 108 browser unit cases and the receiver-ownership
-behavioral check.
-Recording and Console are now published and deployed through `59077ec0`; both reach
-Ready and GitOps converges. The next composed flight passes Map and live Stream
-prerequisites but fails to rearm after preflight landing, before playback capture.
-PX4 reports a disarmed vehicle on the ground in Land mode. The adapter correction
-selects Loiter from that reported state before requesting arming, including when
-the commander has no in-air history. All 127 unit cases and the isolated RTX 4090
-CUDA/PX4 two-flight regression pass. Simulator publication and composed playback
-and landing visual acceptance are still open.
-The cluster and BuildKit stay stopped during development; Reason runs only when
-a selected acceptance scenario requires it.
+All sixteen Rust servers passed the shared-host installed batches: discovery,
+authenticated documents, completion, Host admission and the requested Linux native
+suites. Follow-up readiness, document routing, empty-constraint, body-limit and token
+expiry checks pass on their deployed revisions. UAV App continuity passes both
+restart stages in headed hardware Chrome.
+
+The PX4 rearming correction is deployed through `cdcafcd6`. The latest composed
+flight successfully rearms, takes off, completes its mission and live Stream checks,
+and passes its headed RTX 4090 WebGL visual phase, including Rerun playback/timing
+and landing captures. The domain phase fails during Stream recording replay: Hub
+commits a live layer and removes an ingest part while the shared reader is copying
+it. The reader correction passes sixteen native reader cases and five Video cases,
+plus strict Clippy. Publication and installed replay qualification are next.
+The failed composed run records the visual pass and captures but does not retain
+its detailed successful visual report; no new numeric lag measurement is claimed.
+
+Knowledge and Embedding are core running services. The reference baseline at
+`91bcf2bf` keeps both Ready alongside the simulator and leaves Reason at zero replicas.
+Its indexing client selects sixteen collections from Artifact, Charts, Map and Time.
+Normal operator OAuth catalog, search and embedding checks pass. The installed
+Knowledge harness now follows that selection rather than all source approvals; its
+full installed run is pending.
+The first embedding cold-start attempt failed its GPU memory admission while other
+workloads started; a later attempt succeeded without reducing the model contract or
+GPU requests. Startup resource contention still needs qualification.
+
+Phase 3 has implementation gaps in the owner inventory below. The cluster and
+BuildKit stay stopped during development and compilation; installed acceptance
+starts the core services and its selected workloads. Reason runs in its own batch.
 
 | Phase | Qualified checkpoint | Remaining work |
 |---|---|---|
 | 0 — Retire finished plans | Accepted | Retire this plan only after full acceptance |
-| 1 — Identifier hard cut | Implemented and installed; composed domain flight and landing pass | Final composed headed flight, Rerun playback/timing and landing visual checks |
+| 1 — Identifier hard cut | Implemented and installed; latest composed visual phase and PX4 rearming pass | Publish and qualify shared-reader rollover correction; pass the complete composed flight |
 | 2 — Installation targets | Implemented and used by installed harnesses | Run the outstanding installed scenarios with the selected service targets |
 | 3 — Contract corrections and types | Foundational types, server libraries, scope declarations and SQL admission have qualified batches | Complete the [migration inventory](#migration-inventory-and-status), then publish and qualify its remaining consumers |
 | 4 — Unified audit | Native and installed audit checks pass | Preserve those guarantees through the pending composed release and final audit |
 | 5 — Store simplification | Outbox removal, native feeds, reference cleanup and payload separation are implemented; measurements and installed certification pass | Remaining domain/current-format recovery and composed acceptance |
 | 6–7 — Knowledge extension and adoption | All eighteen participating sources pass their declared installed checks; domain K09/K10 review is recorded | Preserve qualification for changes made by the remaining contract work |
-| 8 — Knowledge service | Nineteen-collection catalog, search, CUDA embedding, isolation and restart checks pass; controlled model comparison retains 0.6B | Remaining shared-contract consumers and final composed acceptance |
+| 8 — Knowledge service | Core sixteen-collection baseline, search and CUDA embedding pass; isolation and restart have qualified checkpoints; controlled model comparison retains 0.6B | Qualify selected-collection installed harness, cold startup and remaining shared-contract consumers |
 | 9 — Reason findings | Installed publication, result grants, revocation and separate restart checks pass | Broader result/reference types and their installed qualification |
 
 The [progress log](PLATFORM_FOUNDATIONS_PROGRESS.md) records revisions, commands,
@@ -71,8 +67,8 @@ and do not override this status or the requirements below.
    installed checks. Linux-only native qualification passed. Reuse unaffected
    checks from the composed acceptance batch; a source or dependency change
    invalidates only the qualification whose inputs it changes.
-5. Resolve [Deferred Work](#deferred-work): Rerun timeline/playback/timing and landing
-   visual acceptance. Keep the declared hardware, freshness and flight-health gates.
+5. Resolve [Deferred Work](#deferred-work): Recording snapshot rollover and the complete
+   composed flight. Preserve the accepted hardware, freshness and flight-health gates.
 6. Audit every phase's numbered requirements and acceptance conditions against the
    final source and deployed revisions. Update owning designs and standards registers.
    Delete this plan and its CODEMAP row only when all required work is accepted.
@@ -625,15 +621,15 @@ Other SDK consumers still need qualification when their images adopt these pins.
 Readiness absence, Recording admin routing, gateway body-limit conversion and the
 Optimization edge case predate this batch. The cause of UAV remounts relative to
 the pre-handover deployment is unclassified; the installed restart cases now pass.
-The successful Recording playback check does not close composed flight timing or
-landing visual acceptance.
+The latest composed visual phase passes playback timing and landing capture. Its
+separate domain phase still fails during live Recording snapshot materialization.
 
 Implementation work also remains:
 
 | Work | Owner |
 |---|---|
 | Close the acceptance gaps above and qualify affected consumers after implementation changes | Composed publication |
-| Deploy the qualified PX4 rearming correction, then verify the deployed Recording/Console rollover correction in composed visual acceptance without weakening the one-second lag limit | UAV simulator, Recording, Console and flight acceptance |
+| Fix live Recording snapshot materialization across Hub commit and cleanup, then rerun composed acceptance with the core Knowledge baseline enabled | Recording reader, Stream and flight acceptance |
 
 Knowledge and Computers bind tools directly to typed RMCP handlers. Input schemas
 come from those parameter types; the domain-specific policy recheck, Task capability
@@ -1217,4 +1213,4 @@ not complete while a row remains.
 
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
-| Phase 1 reference reset | UAV simulator PX4 adapter, Recording playback, Console, `testing/flight-smoke/src/domain.rs` | Deploy the rearming correction and qualify playback manifest v10; finish composed headed playback/timing and landing visual acceptance | Focused headed hardware playback passes stability and reconnect with 0.170 seconds of lag. The Recording/Console rollover correction is deployed through `59077ec0`, but the subsequent composed run fails to rearm after preflight landing before reaching playback. The adapter correction passes native and CUDA/PX4 regression checks. Preserve source bracketing, the one-second lag limit, spatial content and flight-health requirements; Reason stays in its separate acceptance batch |
+| Phase 1 reference reset | `platform/recordings/reader/src/read.rs`, Stream, `testing/flight-smoke/src/domain.rs` | Qualify the reader correction and pass the complete composed flight | At `cdcafcd6`, rearming, mission/live Stream and the headed hardware visual phase pass. Domain replay fails when Hub removes an acknowledged live part during snapshot copying. Preserve source bracketing, the one-second lag limit, spatial content and flight health. Knowledge and Embedding stay enabled; Reason keeps its separate batch |

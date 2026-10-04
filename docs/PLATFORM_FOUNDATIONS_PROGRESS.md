@@ -8,6 +8,47 @@ requirements, accepted risks and remaining work. This log does not establish com
 
 ## Implementation And Installation Checkpoints
 
+Composed visual acceptance and core Knowledge checkpoint (2026-10-03): simulator
+source `3f10a3c3` is published and selected through `cdcafcd6`. The full flight rearms
+a grounded vehicle in Land mode, takes off, completes mission and live Stream checks,
+and lands during cleanup. Its headed RTX 4090 WebGL visual phase passes, including
+Rerun playback/timing and landing capture. The phase outcomes file records that pass.
+The detailed successful visual report is lost when the domain phase returns its
+error, so this checkpoint supplies no new numeric lag measurement.
+
+The domain error comes from `stream__run_recording` with eight maximum frames and
+source clip enabled over simulation time 345633333333–370633333333. The recording
+is `01a1040c-c669-7c82-a336-a3203662eadf`, using the UAV down camera. The Task fails
+with `video materialization failed`: copying ingest part 709 returns OS error 2.
+Hub commits the layer and removes live parts between the reader's inspection and
+copy. Requests, phase outcomes, captures and Stream/Recording/Hub/Gateway/simulator
+logs are under `output/development/px4-rearm-installed-3f10a3c3/`.
+
+The reader correction opens each acknowledged part once, admits its length against
+the cumulative byte limit, and copies through that handle. It validates and hashes
+the copy before normalizing the disposable RRD. The reader rechecks live catalog
+states after copying, including empty directory reads. A confirmed publication
+causes a fresh authorized plan with Artifact-backed committed layers, up to three
+attempts. Other failures stay terminal. Sixteen reader and five Video native cases
+pass, including unlink, growth, truncation, producer identity, cache authority and
+codec/sample joining. Strict Clippy passes for the selected reader, Video and
+Knowledge targets. Publication and installed rollover acceptance are pending.
+Native logs are under `output/development/recording-reader-rollover/`.
+
+Reference commit `91bcf2bf` makes Knowledge and Embedding core running services and
+keeps Reason at zero replicas. Sixteen selected collections span Artifact, Charts,
+Map and Time. Normal operator OAuth source catalog, Map document search and one
+1024-dimensional embedding pass; Knowledge, Embedding and UAV are Ready together.
+The first embedding cold start rejects insufficient KV cache space while the other
+GPU workloads start. Its next start admits the unchanged 32768-token context and
+0.25 memory utilization; no CPU fallback or GPU request reduction is introduced.
+The existing installed Knowledge harness now expects indexing-client selections
+rather than all nineteen server approvals, and searches only selected documents.
+Its full installed run is pending. Baseline rollout and focused requests are under
+`output/development/knowledge-core-baseline/`. During editing and native checks the
+cluster and BuildKit are stopped; the saved running configuration keeps both core
+Knowledge services enabled.
+
 Recording rollout and PX4 rearming checkpoint (2026-10-03): Recording and Console
 from `f681a23d` are published and selected through `59077ec0`. Console was drained
 for the coordinated playback-manifest v10 upgrade. Both deployments reached Ready,
