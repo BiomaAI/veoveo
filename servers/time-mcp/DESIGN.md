@@ -214,7 +214,7 @@ Temporal IDs validate their domain prefix, length, and character set during JSON
 deserialization as well as construction. `TimeAccessContext` carries tenant and
 principal selection for database access; it is distinct from an authorization scope.
 Resource builder adoption is tracked in the
-[foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
+[consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md#modular-types-and-server-contracts).
 
 ### Hosted Process
 
@@ -356,7 +356,7 @@ no activation-fence table. Native qualification covers different-family contenti
 starting with absent pointers, existing pairs, concurrent pointer and release repairs,
 stale preflight metadata, tenant mismatch and failed file loads. Qualification results
 and pending installed acceptance are recorded in the
-[foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#phase-4-unified-audit-log).
+[consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md#unified-audit-log).
 
 ### Tenant Authority Contexts
 
@@ -385,7 +385,7 @@ The coordinated Time upgrade drains older replicas before admitting requests to 
 new image. This prevents replicas that only initialize bootstrap authority from serving
 alongside replicas that read the persisted pair. Retained-data preflight and snapshot
 rollback follow the procedure below. Installed restart and replica qualification remain
-pending in the foundations plan.
+pending in the [consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md).
 
 ## Accepted Time Expressions
 
@@ -725,7 +725,7 @@ references keep their public spelling and are not converted into database keys.
 The persistence admission check applies before stored reads and writes. It does not
 narrow public provenance deserialization or rewrite retained keys. Store's migrations
 define tables and record fields; the Time contract defines JSON bodies and cursor versions.
-Broader DTO field typing remains in the foundations plan.
+Broader DTO field typing remains in the [consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md).
 
 | Table | Responsibility |
 |---|---|

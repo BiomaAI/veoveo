@@ -77,7 +77,7 @@ Contract revision: 3
 
 Operation resources enforce tenant, owner, profile, labels, and current Task parent
 checks in SQL. Rust and Store require every operation's authority object and profile.
-Installed qualification remains in the foundations plan.
+Installed qualification remains in the [consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md).
 
 - C01: met
 - C02: met

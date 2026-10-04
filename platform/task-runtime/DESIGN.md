@@ -395,7 +395,7 @@ Their typed cursors carry native versionstamps. Resuming repeats the final trans
 including every Task in that transaction; consumers must tolerate repeated states.
 A cursor older than the six-day recovery safety window requests current state instead.
 This stream is internal and does not establish public read permission. Python Task
-observation and the remaining event writers are tracked in the foundations plan.
+observation and the remaining event writers are tracked in the [consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md).
 
 `tests/subscriptions.rs` owns a disposable real Store and separate connections. It
 qualifies concurrent listeners, cross-replica completion, reconnection, excluded

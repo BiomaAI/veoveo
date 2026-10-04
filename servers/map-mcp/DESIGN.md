@@ -149,7 +149,7 @@ stored modification times. Reads authorize before evaluating conditional validat
 
 Native tests cover source observations, paging, active-release selection and denied
 malformed records. Installed knowledge conformance and mutation/restart qualification
-are tracked in the foundations plan.
+are tracked in the [consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md).
 
 `tests/gateway_source_conformance.rs` supplies Map fixtures to the shared MCP checker.
 It changes layer and feature titles, publishes two disposable layers across a restart,

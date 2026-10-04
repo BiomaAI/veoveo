@@ -1,20 +1,24 @@
-# Contract Consistency Plan
+# Platform Foundations And Contract Consistency Plan
 
-Veoveo's contracts are typed in Rust but loosely held at their boundaries. SurrealDB
-stores authority snapshots in untyped objects, inbound JSON accepts keys nobody
-declared, and the Console and Python peers mirror Rust types by hand. The kernel
-also carries module code: about 11,000 lines of Map, Workspace, Agents and Recordings
-persistence live in `platform/store`, and every module's tables sit in one migration
-catalog. The JSON itself uses two naming styles, so an agent calling two servers
-meets two conventions.
+Status: consolidated for review from baseline `5ace38e0`. This is the single implementation
+plan for the former Foundations, Contract Consistency and Repository Hardening
+tracks. Retiring the other plan documents transfers their open requirements; it
+does not declare their implementation complete. This documentation change starts
+no migration and changes no runtime contract or contribution rule.
 
-This plan first replaces 85 local macros that re-implement the same contract shapes
-with five core macros and a few generic types. It then gives the platform a kernel built from
-ordered required modules and a module contract modelled on the MCP server contract. It then makes every boundary
-reject a wrong shape, qualifies the embedding runtime on NVIDIA and Apple silicon,
-and moves every JSON format Veoveo defines to the MCP naming convention. The phases
-run in dependency order: each one gives the next a place to put code or a test that
-fails loudly.
+Foundations' accepted requirements still apply. The module architecture, shared
+derives, naming cut and enforcement additions below are proposals for review.
+The [review decisions](#review-decisions) identify changes to the previous proposal.
+The [Foundations transfer register](#foundations-transfer-register) preserves every
+owner row's next step, and the [hardening transfer register](#hardening-transfer-register)
+assigns a disposition to that plan's remaining concerns.
+
+The intended result is one owner for each contract, typed construction and database
+admission, generated consumers, and a qualified installation. Work proceeds across
+each affected dependency chain in a batch. Shared machinery does not replace domain
+validation, authorization or recovery. Inventory counts below describe the review
+baseline and must be refreshed before implementation; they are not counts of proven
+defects or independent tasks.
 
 ## Standards And Protocols
 
@@ -32,48 +36,207 @@ fails loudly.
 | pydantic 2.13 (locked) | `extra="forbid"`, `alias_generator = to_camel`, `serialize_by_alias`, `validate_by_name = False`; the SDK floor rises from `>=2.8` to the locked minor |
 | Kubernetes Jobs and Helm hooks | Ordered kernel and module migration Jobs |
 | RFC 8785 JSON Canonicalization | Audit chain hashing; the audit record format is frozen |
+| RFC 3986 / RFC 6570 and the pinned iri-string implementation | Concrete resource addresses and URI templates, with owner-specific typed builders |
+| OCSF 1.9.0, W3C Trace Context, RFC 9162 and S3 Object Lock | Existing audit export, correlation, sealing and retention profile; qualification limits appear below |
+| Cargo metadata format version 1 and OCI / BuildKit | Dependency discovery and existing source-qualified image publication; no new build engine |
+
+Versions describe existing pins or candidates inherited from the proposal. Verify
+the authoritative stable release and compatibility before adding or upgrading a
+dependency. Metal is an unqualified proposed profile, not an implemented capability.
+
+## Current Status
+
+The sixteen Rust servers passed the shared-host installed batches, including
+discovery, authenticated documents, completion, Host admission and the requested
+Linux suites. The unified audit log, native changefeeds replacing the outbox,
+reference cleanup and separated Computer payloads have qualified checkpoints.
+Eighteen participating knowledge sources passed their declared checks.
+
+The composed flight passed at `6d4cd2c5`: mission, live Stream, Recording replay
+and reconnect, return, landing and Artifact isolation. Headed RTX 4090 WebGL supplied
+visual evidence; source-to-viewer lag was 0.198 seconds against the one-second gate.
+The installed sixteen-collection Knowledge selection and CUDA embeddings passed.
+Knowledge and Embedding are core services. Reason runs only in its separate batch.
+
+Map/UAV route handoffs and Computers grant typing passed native and isolated-contract
+checks. Their five images were published from `0843500c` and selected by `60fd2cf8`.
+Rollout and a Map route check completed. Installed handoff preparation and grant
+consumer acceptance remain open. A subsequent cold start reached Ready without a
+manual pod restart, but the full cold-start acceptance has not been recorded as a
+pass. Preserve that distinction when resuming qualification.
+
+The [progress log](PLATFORM_FOUNDATIONS_PROGRESS.md) retains dated checkpoints and
+failures. Its historical status statements do not override this plan. Accepted
+checks are reused while their source, dependencies and execution environment match;
+shared changes invalidate the affected checks, not unrelated acceptance.
+
+| Former Foundations phase | Disposition in this plan |
+|---|---|
+| 0 — Plan retirement | Completed retirements stay retired; this consolidation transfers the two remaining overlapping plans without claiming their work complete |
+| 1–2 — Identifier cut and installation targets | Accepted baseline; preserve current identifiers and use installation-owned inputs in phase 10 |
+| 3 — Contract corrections and types | All 68 owner rows transfer below; phases 0 and 3–6 implement them and phase 10 qualifies their consumers |
+| 4 — Unified audit | Accepted implementation; preserve the owning audit contract and changed-consumer acceptance, including ordinary export and the stated Object Lock limit |
+| 5 — Store simplification | Accepted outbox removal, changefeeds/LIVE recovery, reference cleanup and payload separation; preserve measurements and qualify changed readers, restart and transaction behavior |
+| 6–8 — Knowledge extension, adoption and service | Accepted selective-source baseline; phase 7 owns proposed identity changes, phase 10 closes cold startup and affected source/consumer acceptance |
+| 9 — Reason findings | Accepted publication/grant checkpoints; F61 preserves broader result typing and installed recovery, with Reason qualified separately |
+
+### Identifier Hard Cut
+
+The `veoveo.ai` identifier cut and installation-target inputs are implemented.
+Preserve their checks and current consumers. New naming changes belong to phase 8;
+they do not reopen the completed identifier migration.
+
+### Unified Audit Log
+
+Preserve one record per logical action, authorization before reads, committed audit
+writes, partition visibility, sealing, export and current-format restart behavior.
+The owning [audit design](AUDIT.md) and component designs define the contract.
+The bundled RustFS store does not qualify compliance-mode Object Lock. Ordinary
+export is required; retain the accepted limitation in
+[regulated readiness](REGULATED_READINESS.md), gap G9. No new historical-data reader
+or conversion is required by this plan.
+
+### Knowledge Service
+
+Preserve approved-source indexing, policy-filtered catalog and search, subscriptions,
+generation restart and GPU embedding. Knowledge-source adoption remains selective;
+this plan does not require every server to publish collections. The NVIDIA runtime
+and 0.6B model selection have qualified checkpoints. The existing accepted priority
+limitation uses the client's bulk-concurrency bound; preserve the owning runtime's
+declared behavior rather than claiming unqualified scheduler priority.
+
+### Modular Types And Server Contracts
+
+[CE-13](CONTRACT_EVOLUTION.md#ce-13-modular-types-and-server-owned-contracts)
+continues to govern domain ownership. `platform/types` owns protocol-independent
+mechanics and extension traits. Each server library owns its scope vocabulary, IDs,
+resource variants and DTOs through an isolated `contract` feature. MCP traits consume
+those types without enumerating domains. Contract-only consumers exclude MCP,
+database, provider, GPU and asynchronous-runtime dependencies. A separate contract
+crate needs a concrete dependency or release reason.
+
+Builders retain domain IDs and validate parent, provenance, authority and field
+relationships before exposing a usable value. Authorization is checked at use time.
+SQL applies tenant, owner, Work Context, labels and parent selection before decoding,
+ranking and limits. Domain runtime code owns those queries and driver conversion.
+The shared macro and module work must preserve these requirements.
+
+## Remaining Work And Completion Boundary
+
+1. Complete the required rows in the Foundations transfer register through phases
+   0, 3, 4, 5 and 6; phase 10 qualifies their remaining installed consumers.
+2. Review the proposed architecture, then implement phases 0–9 in dependency order.
+   Module lanes, the JSON naming cut and repository enforcement are added scope;
+   they are not evidence that Foundations was previously unimplemented.
+3. Run phase 10 against the final selected images, preserving the accepted audit,
+   Knowledge, recovery and hardware requirements.
+4. Audit each required phase, F-row and required H-row. Record the implementation
+   revision, affected checks and any unresolved failure in the current status.
+   A native pass alone never closes an installed or hardware requirement.
+
+Deferred proposals in the follow-up register do not block this completion boundary.
+They stay visible and require a scope decision before implementation. Required work
+cannot be reclassified as deferred merely to declare completion. Real Media
+generation remains explicitly unqualified under the existing user restriction.
+
+## Review Decisions
+
+| ID | Recommendation | Reason |
+|---|---|---|
+| R1 | One plan, with required transfer rows and explicitly deferred proposals | Avoid duplicate implementation passes and preserve unfinished obligations |
+| R2 | Finish typed IDs, owned Task payloads and fail-closed admission in the main phases | These are existing Foundations requirements, not post-phase-8 extras; classify genuinely opaque payloads separately |
+| R3 | Fresh reference state for storage cuts; no historical backfills | The installation has no data to preserve; current-format recovery and transaction rollback remain required |
+| R4 | Put generic cursor mechanics below MCP in `platform/types` | Domain contract features must remain independently consumable |
+| R5 | Phase 2 proves its ports; phase 3 closes the full dependency graph | Store's Computers dependency is removed in phase 3, so it cannot be a phase 2 exit gate |
+| R6 | Ship C33 enforcement with the phase 8 naming change | A new contract rule needs its conformance check in the same cut |
+| R7 | Keep Apple embedding qualification as a separate proposed profile | NVIDIA Foundations completion must not depend on unavailable Mac hardware; no CPU fallback is permitted |
+| R8 | Keep security-policy, offline-tooling and governance follow-ups visible without making them current-goal blockers | They were not part of Foundations; future CI gates still require the decision described in CONTINUOUS_INTEGRATION.md |
+
+Review also needs to resolve the breadth of mandatory derives (D14), kernel/module
+classification and migration-job cost (D8–D10), the naming scope (D1–D6), and embedding
+space reuse (D13). These decisions remain proposals until reviewed. Existing owning
+designs and AGENTS.md govern implementation until their qualified replacements land.
+
+## Working Rules
+
+- Implement one concern across its owners, consumers, fixtures and documents before
+  the validation batch. Keep one Cargo build graph, aggregate independent failures,
+  and reuse unaffected checks. A helper or individual server is not automatically a
+  new build, publication or deployment checkpoint.
+- Inspect branch and worktree ownership before editing. Use coherent commits after
+  affected native checks pass. A separate worktree needs a concrete coordination
+  reason; preserve shared build caches and avoid duplicate Cargo targets. Coordinate
+  the naming cut with other writers rather than assuming another agent is idle.
+- Run native framework commands. `cargo xtask smoke` dispatches existing harnesses;
+  it does not reimplement domain assertions. No CI or committed test-report system
+  is introduced by this plan. Documentation changes run `cargo xtask enforce docs`.
+- Stop the reference cluster during editing, compilation and image builds. Start
+  only the workloads needed for installed acceptance, with Knowledge and Embedding
+  enabled; qualify Reason separately. GPU workloads request their devices and fail
+  closed. Visual acceptance requires headed hardware WebGPU or WebGL.
+- Check disk before large builds. Clean owned experiments and superseded outputs;
+  preserve useful Cargo/BuildKit caches and all active, rollback and dependency OCI
+  references. This resource discipline applies to this plan, not a new repository rule.
+- The reference installation is disposable. Drain writers and reset incompatible
+  state together; add no aliases, historical conversions or dual readers. Current
+  transaction rollback, restart recovery and unresolved-operation fencing remain
+  required. Prepare selected images before application reconciliation after a reset.
+- Publish composed qualified batches through the
+  [reference runbook](../examples/bioma/README.md) and
+  [development iteration guide](DEVELOPMENT_ITERATION.md). Keep Docker fixtures
+  separate from image assembly and scanning. Match installed checks to actual digests.
+- Improve inexpressive contracts within accepted scope, explain material tradeoffs,
+  and update their designs and CE register. Preserve authorization and GPU guarantees.
+  Changes to shared host implementation require the existing user-directed review.
+- Record a required deferral at its exact code path and in Deferred Work; continue
+  independent work. A deferral is not a passing gate. Do not run a real Media
+  generation without a change to the existing user restriction.
 
 ## Phases
 
 | Phase | Change | Depends on | Deployment |
 |---|---|---|---|
 | 0 | [Core macros and shared building blocks](#phase-0-core-macros-and-shared-building-blocks) | — | Ordinary upgrade; no wire change |
-| 1 | [Module contract and lanes](#phase-1-module-contract-and-lanes) | 0 | Ordinary upgrade; module lanes start empty |
+| 1 | [Module contract and lanes](#phase-1-module-contract-and-lanes) | 0 | Native bootstrap qualification; module lanes start empty |
 | 2 | [Kernel extension points](#phase-2-kernel-extension-points) | 1 | Ordinary upgrade |
-| 3 | [Module ownership of persistence and queries](#phase-3-module-ownership-of-persistence-and-queries) | 1, 2 | Ordinary upgrade |
-| 4 | [Database field types](#phase-4-database-field-types) | 3 | Ordinary upgrade; migrations upgrade data in place |
-| 5 | [Inbound strictness](#phase-5-inbound-strictness) | — | Ordinary upgrade |
-| 6 | [Generated cross-language types](#phase-6-generated-cross-language-types) | — | Ordinary upgrade |
-| 7 | [Embedding profiles and identity](#phase-7-embedding-profiles-and-identity) | — | Ordinary upgrade; Knowledge builds one new generation |
-| 8 | [Installation cut](#phase-8-installation-cut): lane re-baseline, then the JSON naming cut | 0 to 7 | One fresh installation |
-| — | [Follow-ups](#follow-ups) | 8 | Per item |
+| 3 | [Module ownership of persistence and queries](#phase-3-module-ownership-of-persistence-and-queries) | 1, 2 | Fresh fixtures; storage cut deployed with phase 8 |
+| 4 | [Database field types](#phase-4-database-field-types) | 3 | Fresh fixtures; no historical-data upgrade |
+| 5 | [Inbound strictness](#phase-5-inbound-strictness) | 0 | Qualify all affected senders and receivers together |
+| 6 | [Generated cross-language types](#phase-6-generated-cross-language-types) | 0 | Generated clients accompany their contract changes |
+| 7 | [Embedding profiles and identity](#phase-7-embedding-profiles-and-identity) | Reviewed D13 | NVIDIA identity qualification; Metal deferred |
+| 8 | [Installation cut](#phase-8-installation-cut): lane baseline and JSON naming | 0–7, with Metal excluded | One coordinated fresh installation; C33 ships here |
+| 9 | [Conformance and repository enforcement](#phase-9-conformance-and-repository-enforcement) | 0; complete before phase 10 | Required hardening transfers; catalog groundwork may precede phase 8 |
+| 10 | [Installed acceptance and closeout](#phase-10-installed-acceptance-and-closeout) | 8, 9 | Required owner and composed acceptance |
+| — | [Follow-ups](#follow-ups) | Per item | Explicitly deferred proposals |
 
-Phase 0 comes first because every later phase adds, moves or renames the types it
-consolidates. Phases 5, 6 and 7 depend on nothing earlier and can proceed in parallel
-with phases 2 to 4. Each phase lands after its gates pass. The phase 8 re-baseline and naming cut
-land as two commits deployed in the same fresh installation, and the naming cut is a
-single commit.
+Phase 0 establishes mechanics before further owner adoption. Phases 5 and 6 can run
+alongside module work once those interfaces settle. Land coherent source changes
+after their native gates; do not deploy incompatible intermediate storage or wire
+formats. Phases 3–8 qualify against fresh current-format fixtures and compose into
+the installation cut. Deploy an earlier compatible batch only when its installed
+check resolves a concrete risk. The naming cut updates both sides together.
 
 ## Decisions
 
-Each decision has a recommendation, and the plan assumes the recommendations.
+These are implementation recommendations for review. They do not amend the accepted
+CE register or owning designs by appearing in this plan.
 
 | ID | Decision | Recommendation and consequence |
 |---|---|---|
 | D1 | JWT claim sets and the identity family they carry: `Principal`, `InvocationAuthority`, `WorkContextOutputPolicy`, `WorkContextGrant`, `InvocationProvenance`, `GatewayRequestContext`, `AccessTokenSubject`, `GatewayInternalIdentity` and the internal claim structs | Keep snake_case under the JWT convention. These types are the claim sets and also the snapshots stored in task owners, computers grants and refresh families, so authorization SQL and the Python SDK claim models stay unchanged |
 | D1a | Wire documents that embed identity types | Gateway work-context configuration gets a camelCase `OutputPolicyConfig` that converts into `WorkContextOutputPolicy`. `ArtifactProvenanceWire` replaces its embedded `InvocationProvenance` with its own camelCase fields and tag `invocationMode` |
 | D2 | Declared identifiers | Tool names, prompt names, prompt argument names, URI template variables and completion argument names stay snake_case. All 188 multi-word template variables and every tool name already comply |
-| D3 | Phase 8 transition | One fresh-installation cut: drain writers, then bootstrap an empty SurrealDB, an empty object store and a rebuilt Map DuckDB. Precedent: the [TECH_DESIGN.md](TECH_DESIGN.md) fresh-database cut, the migration `0098` reset guard, and the in-place migration cut in commit `82b47a82`. Checksum validation rejects an old database, so no reader supports two shapes |
+| D3 | Storage and phase 8 transition | Drain writers and bootstrap empty SurrealDB, object storage and Map DuckDB. Qualify phases 3–8 with fresh current-format fixtures and deploy them together. Reject old formats with an actionable diagnostic; add no backfills, dual readers or historical-data qualification |
 | D4 | Audit | Freeze the audit record, block, checkpoint and export formats. The audit contract owns copies of the knowledge enums it embeds. Archives exported before the cut verify with the same format |
 | D5 | Versioned formats | Every versioned format whose keys or values change bumps its tag, and legacy tags move to the `veoveo.ai/<name>/v<N>` form as they bump. The `ai.veoveo/knowledge-source` identifier stays, because the extension is unreleased and the cut is coordinated |
 | D6 | Upstream-shaped formats | Exempt: Flint chart tool arguments (`chart_spec`, `theme_spec`), the Rerun map-provider spelling at the Rerun boundary, WaveSpeed payloads, cuOpt API names, Valhalla, ntpd-rs and OGC 3D Tiles. Veoveo configuration values that select a Rerun provider become snake_case (`open_street_map`) and convert at the boundary |
-| D7 | Branch and commits | Work proceeds in a dedicated worktree. Each phase lands as its own commit or a short series per module. The phase 8 naming cut lands as one commit. `main` freezes for the other agent during phase 8 |
+| D7 | Branch and commits | Follow Working Rules: one composed implementation and validation batch per concern, coherent commits, and explicit coordination with other writers before the naming cut. A new worktree is not required for each module |
 | D8 | Kernel and modules | The kernel is a set of required modules with a dependency order: store base, identity, policy and gateway, artifacts, tasks, audit and Knowledge. Computers, Agents, Workspace and Recordings are platform modules. Map, Time, UAV, Frames and Media are server modules. See [Kernel And Modules](#kernel-and-modules) |
 | D9 | Extension pattern | Ports and adapters with injection at the composition root, for capabilities the kernel hosts but does not own, such as module HTTP surfaces in the gateway. The kernel library defines each extension point as a trait or a builder registration, plus a versioned SQL function when a check runs in the database. A module crate provides the adapter. Each binary's builder binds adapters for the modules the installation enables. An unbound port fails closed. No dependency-injection framework |
 | D10 | Migration execution | Every module, kernel or optional, holds its own migration lane. Kernel module Jobs run first in dependency order, then one Job per enabled optional module from that module's image, with a migration credential mounted only into Jobs. The runner enforces table ownership before applying a lane |
 | D11 | Knowledge | Knowledge is a kernel module. Its extension point is the `ai.veoveo/knowledge-source` protocol: a server becomes a knowledge source by declaring collections, with no Rust adapter, and Knowledge consumes sources through the gateway as an MCP client. Collection approvals are kernel policy. Future source capabilities extend the protocol contract |
-| D12 | Embedding device profiles | Two profiles. `nvidia` runs the pinned `vllm/vllm-openai` image in the cluster. `metal` runs pinned vllm-metal natively on an Apple silicon macOS host, for installations such as local development on a Mac, and the cluster reaches it as an external endpoint. No CPU profile. Each installation declares its profile, a runtime fails closed when its device is missing, and nothing falls back between profiles |
-| D13 | Embedding space identity | Model, checkpoint revision, dimension, pooling, normalization, numeric precision and maximum input tokens. The runtime image, vLLM version and device leave the identity. Every runtime and every upgrade must reproduce the committed reference vectors within the existing 0.999 cosine threshold to serve an existing space; a runtime that cannot serves a new space under a changed setting |
+| D12 | Embedding device profiles | Keep the qualified NVIDIA cluster profile required. Preserve Metal as deferred proposal X1 for separate Apple hardware qualification. No CPU profile or automatic fallback. Do not advertise Metal support or change GPU rules before it is qualified |
+| D13 | Embedding space identity | Model, checkpoint revision, dimension, pooling, normalization, numeric precision and maximum input tokens. The runtime image, vLLM version and device leave the identity. Keep runtime image, version and device in execution provenance. Space reuse requires reference-vector and retrieval qualification on the declared model/configuration; a failed qualification needs an explicitly distinct space or rejection, not a fabricated setting change |
 | D14 | Macros | Veoveo defines five macros: the `ResourceAddress`, `Id` and `Vocabulary` derives and `embedded_document!` in `platform/macros`, and `server_docs!` in `mcp/contract`. Their generated code calls ordinary traits in `platform/types`. Checked models and opaque cursors are generic types, and error types use `thiserror`. Any other macro is a declared exception. No new third-party crate: strum, nutype, parse-display and serde_with were evaluated in [phase 0](#evaluated-crates) |
 
 ## Kernel And Modules
@@ -104,11 +267,11 @@ nine optional modules.
 
 Kernel modules form a dependency order. Phase 1 derives it from the record links in
 the current schema and fails on a cycle; a cycle is resolved by moving the linking
-table to the later module. The expected order is the table's top-to-bottom order.
+table to the later module. The expected order is the table’s top-to-bottom order, subject to that qualification.
 Optional modules depend only on kernel modules and on modules they declare.
 
-The embedding runtime is a required kernel service, because Knowledge search needs
-it. D12 makes it available on NVIDIA and Apple silicon hosts.
+The embedding runtime is required because Knowledge search needs it. NVIDIA is the
+qualified profile; D12 records the separate Apple proposal.
 
 ### Current Leaks
 
@@ -133,7 +296,7 @@ catalog without pulling in a runtime.
 |---|---|
 | `name` | Module identity, for example `map` |
 | `layer` | `kernel` (required, ordered) or `optional` |
-| `prefix` | Table namespace; the module owns every table named `{prefix}_*` and SQL functions under `fn::{name}::*` |
+| `ownership` | Typed table and function claims: prefix families plus explicit names such as Frames `coordinate_operation` and Agents `wake`. The registry rejects overlapping claims. Kernel API functions have an explicit owning lane under `fn::kernel::*` |
 | `lane` | Ordered, checksummed migrations included with `include_str!` from the module's `migrations/` folder |
 | `requires` | Kernel modules and versions it requires; for an optional module, also the optional modules it declares |
 | `extensions` | Extension points the module binds |
@@ -160,11 +323,11 @@ generalizing the existing downstream lane into named lanes.
    looks up tasks by its own keys writes rows in its own table, linked to the task and
    written in the task's transaction.
 5. All modules share one database, because kernel and module rows commit in one
-   transaction and link by record. Ownership is logical: prefix plus lane.
+   transaction and link by record. Ownership is logical: declared object claims plus lane; it is not tenant isolation.
 
 The runner enforces rule 1. Before applying a lane it parses every statement and
-rejects any `DEFINE`, `ALTER` or `REMOVE` outside the module's prefix and function
-namespace. Phase 1 qualifies whether the SurrealDB 3.3 SDK exposes its statement
+rejects any `DEFINE`, `ALTER` or `REMOVE` outside the module's declared table and
+function claims. Phase 1 qualifies whether the SurrealDB 3.3 SDK exposes its statement
 parser; otherwise the runner accepts only an allow-listed statement grammar.
 
 ### Extension Pattern
@@ -175,6 +338,11 @@ Two extension mechanisms cover the platform.
 |---|---|---|
 | Protocol | Capabilities other servers contribute through MCP | Knowledge sources declare `ai.veoveo/knowledge-source` collections; Knowledge discovers and reads them through the gateway |
 | Port and adapter | Capabilities the kernel hosts in its own process but an optional module owns | The gateway mounts Computers, Speech, Recordings, Agents and Workspace HTTP surfaces through a route registration API on its builder, in the style of the hosting builder |
+
+The composition root may depend on optional modules; reusable kernel libraries may
+not. Cargo metadata gates operate on packages, so put composition dependencies in a
+separate package or an independently qualified feature graph. Do not claim that
+`cargo tree` distinguishes library and binary dependencies inside one package.
 
 A port is a trait or a builder registration in the kernel library, plus a versioned
 `fn::kernel::*` SQL function when a check runs in a query. The module's crate provides
@@ -206,115 +374,21 @@ the commit of the phase that makes it true.
 | 4 | Database First | Declared fields, opaque payloads, literal types, record binding |
 | 5 | Strong Types | Inbound strictness |
 | 6 | Strong Types | Generated cross-language types |
-| 7 | GPU Execution Is Mandatory | Embedding profiles and identity |
+| 7 | GPU Execution Is Mandatory | Qualified embedding identity; Metal rules only if X1 is separately accepted and qualified |
 | 8 | Naming | A JSON Naming section |
 | 8 | MCP Server Contract | C33 and C02 `resultUri` through [mcp/contract/DESIGN.md](../mcp/contract/DESIGN.md) |
 
-Phase 0, a Macros section after Strong Types:
+The implementing phase updates only rules it has made true. Keep protocol-independent
+mechanics below MCP, retain owner-defined validation, and name any exception with its
+reason. Strict inputs apply to controlled shapes; opaque provider maps and negotiated
+extension metadata retain their declared extensibility. External formats keep their
+own spelling. No proposed rule is installed merely by consolidating the plans.
 
-> Veoveo defines five macros. `platform/macros` holds the `ResourceAddress`,
-> `Id` and `Vocabulary` derives and `embedded_document!`, and `mcp/contract`
-> holds `server_docs!`. Before writing repetitive code, check this catalog and the
-> shared generic types, `Checked<T>` and `OpaqueCursor<T>`. Prefer functions,
-> generics, traits and builders. A new macro is an exception: it needs a repetition
-> those cannot express, lands in `platform/macros` with tests and a design entry, and
-> its commit names the reason. A macro outside that crate is allowed only when it must
-> expand in the calling crate or delegates a third-party trait, and the owning design
-> names it. Third-party derives and attributes are dependencies, not Veoveo macros.
-
-Phase 0, Strong Types:
-
-> Typed resource addresses derive `ResourceAddress`, identifiers derive
-> `Id`, closed string vocabularies derive `Vocabulary`, checked models use
-> `Checked<T>`, and opaque cursors use `OpaqueCursor<T>`. A crate declares a template,
-> a form, a spelling or a check; it does not hand-write serialization, parsing or
-> schema code for these shapes.
-
-Phase 1, Module Boundaries:
-
-> The kernel is a set of required modules: store base, identity, policy and gateway,
-> artifacts, tasks, audit and Knowledge. Every other capability is an optional module.
-> Each module declares a checked `ModuleSetup`, owns the tables under its prefix, and
-> keeps its migrations and queries in its own folders. A kernel module references only
-> earlier kernel modules. Optional modules reach kernel data through kernel APIs and
-> `fn::kernel::*` functions. The kernel reaches an optional module's capability
-> through a port bound at a binary's composition root, or through an MCP protocol
-> extension such as `ai.veoveo/knowledge-source`.
-
-Phase 3, Database First:
-
-> SurrealQL lives in `.surql` files in the owning module's `queries/` folder and is
-> loaded with `include_str!`. Queries bind values as parameters; a dynamic table name
-> uses `type::table($name)`.
-
-Phase 4, Database First:
-
-> Fields that hold authority, ownership, grants, bindings or identity are declared
-> field by field. `FLEXIBLE` objects hold only opaque payloads that the owning
-> component stores for replay. No SurrealQL reads a path inside a `FLEXIBLE` object or
-> decodes JSON text; a value a query needs is written to a declared column beside the
-> payload. Enumerated string fields use literal types. Values bound into SurrealQL are
-> store-owned record types with fixed snake_case names, never a wire type converted
-> through `serde_json::Value`.
-
-Phase 5, Strong Types:
-
-> Every type that reads input across a process boundary declares
-> `#[serde(deny_unknown_fields)]`: MCP tool inputs, HTTP request bodies, protocols
-> between Veoveo processes and configuration files. Its JSON Schema then states
-> `additionalProperties: false`. Types that read an upstream provider's responses
-> accept additions, so an upstream release cannot break Veoveo.
-
-Phase 6, Strong Types:
-
-> Clients in other languages use types generated from the Rust schemas. The Console
-> and Workspace import generated TypeScript, and Python peers validate against
-> models that tests compare with the Rust schema.
-
-Phase 7, GPU Execution Is Mandatory, as a new paragraph after the NVIDIA paragraph:
-
-> The embedding runtime supports two declared profiles. `nvidia` runs the pinned
-> `vllm/vllm-openai` image on an NVIDIA GPU in the cluster. `metal` runs pinned
-> vllm-metal natively on an Apple silicon macOS host, which the cluster reaches as an
-> external endpoint. Each installation declares its profile, the runtime fails closed
-> when that device is missing, and no profile falls back to another or to the CPU.
-> An embedding space is identified by model, checkpoint revision, dimension, pooling,
-> normalization, numeric precision and maximum input tokens. A runtime serves an
-> existing space only after it reproduces the committed reference vectors within the
-> qualified threshold.
-
-Phase 8, a JSON Naming section after Naming:
-
-> Veoveo wire JSON follows the MCP specification and rmcp. Object keys are camelCase.
-> Rust fields keep snake_case, and each wire type declares
-> `#[serde(rename_all = "camelCase")]`. An enum with struct variants also declares
-> `rename_all_fields = "camelCase"`, and an internal tag such as `resultType` uses a
-> camelCase name. String values, including enum variants, kinds and statuses, are
-> snake_case, and single words are lowercase. Declared identifiers are snake_case:
-> tool names, prompt names, prompt argument names, URI template variables and
-> completion argument names. `_meta` keys and extension identifiers use the
-> `ai.veoveo/<kebab-name>` form.
->
-> Wire JSON is any JSON one program produces for another program or person: MCP tool
-> inputs and outputs, resource bodies, HTTP APIs, events, protocols between Veoveo
-> processes, artifacts other components read, and configuration files. Python models
-> expose the same names through the SDK's camelCase base model.
->
-> Internal records keep snake_case: SurrealDB records, durable task envelopes, sealed
-> or hashed structures, cookies and local queues. A stored copy of a wire document
-> keeps the wire shape.
->
-> Formats owned by another protocol follow that protocol. JWT claim sets, including
-> Veoveo private claims and the identity and authority types they carry, use the JWT
-> and OIDC snake_case convention. OAuth, OIDC, JWKS, PKCE, GeoJSON, OGC, OCSF,
-> Kubernetes, Rerun, OpenShell, Keycloak, SUMO, vLLM and provider APIs keep their own
-> spelling. The audit record and export formats are frozen. Each exempt type declares
-> its casing explicitly and names the governing format in its doc comment.
-
-The server contract adds rule C33 and changes C02's key to `resultUri` in phase 8.
-C33 joins `CHECKLIST_IDS` in `mcp/contract/src/docs.rs` and
-`sdk/python/src/veoveo_mcp/contract/docs.py`, and the 21 Contract Compliance lists.
-A new [CONTRACT_EVOLUTION.md](CONTRACT_EVOLUTION.md) entry records D1 to D14.
+Phase 8 adds C33 with its conformance check, updates C02 to `resultUri`, and changes
+the Rust/Python declarations and server compliance projections together. Phase 9
+provides the typed catalog and generated projections; its catalog work may land
+before phase 8. Record reviewed architecture changes in
+[CONTRACT_EVOLUTION.md](CONTRACT_EVOLUTION.md) when their implementation is qualified.
 
 ## Phase 0: Core Macros And Shared Building Blocks
 
@@ -356,7 +430,7 @@ calling crate to embed that crate's documents. Generated code calls ordinary tra
 | Macro | Kind | Generates |
 |---|---|---|
 | `ResourceAddress` | Derive | From `#[resource(template = …)]` on a single address or on each variant of a resource enum: parsing and building through the shared URI layer, the serde string conversion, the `ResourceAddress` impl, accessors, a JSON Schema `pattern` from the template and each identifier's pattern, and the template declarations a server's checked setup publishes |
-| `Id` | Derive | For an identity-bearing newtype with a declared form, such as `uuid_v7`, `text(max, charset)`, `prefixed(prefix)` or `hex(len)`, plus a `secret` flag for redacted `Debug` and zeroizing drop: validation on every constructor, serde, `Display`, `FromStr` and a JSON Schema with pattern and length. A `surreal` option adds the `SurrealValue` mapping in crates that already depend on SurrealDB. Values that are not identities, such as bounded numbers and validated text, stay ordinary newtypes |
+| `Id` | Derive | For an identity-bearing newtype with a declared form, such as `uuid_v7`, `text(max, charset)`, `prefixed(prefix)` or `hex(len)`, plus a reviewed secret form: validation on every constructor, serde, `FromStr` and a JSON Schema with pattern and length. Non-secret forms may implement `Display`; secret forms preserve owner redaction, zeroization and explicit exposure rules without generating a leaking formatter. A `surreal` option adds the `SurrealValue` mapping in crates that already depend on SurrealDB. Values that are not identities, such as bounded numbers and validated text, stay ordinary newtypes |
 | `Vocabulary` | Derive | For an enum of unit variants: one spelling per variant (snake_case by default), `ALL`, `as_str`, `Display`, `FromStr`, serde and the JSON Schema enum from the same spelling, compile-time checks for empty or duplicate spellings, and opt-in hooks `scope` (OAuth token syntax and `ScopeDefinition`), `task_type` (`TaskTypeDefinition`) and `surreal` |
 | `embedded_document!` | Function-like | Embeds a document at compile time with its SHA-256; moves from `mcp/knowledge-extension/macros` |
 | `server_docs!` | `macro_rules!` in `mcp/contract` | Embeds a server's `AGENTS.md` and `DESIGN.md` through `embedded_document!` |
@@ -365,8 +439,8 @@ calling crate to embed that crate's documents. Generated code calls ordinary tra
 
 | Building block | Home | Replaces |
 |---|---|---|
-| `Checked<T: Check>` | `platform/types` | `*Wire` mirrors and `checked_model!`: the field struct deserializes once, `Check::check` validates, and `Serialize`, `JsonSchema` and `Deref` pass through |
-| `OpaqueCursor<T>` | `mcp/contract` | Cursor types and macros: version byte, base64url JSON, bounded length, `deny_unknown_fields` payload |
+| `Checked<T: Check>` | `platform/types` | Repeated checked-model plumbing: deserialize once, run the owner’s relationship checks, then expose immutable access. Serialization and schema describe the admitted shape. No unchecked constructor or mutable dereference bypasses validation |
+| `OpaqueCursor<T>` | `platform/types` | Cursor types and macros: version byte, base64url JSON, bounded length, `deny_unknown_fields` payload |
 | Error types | Each crate, with `thiserror` | Unit error structs with hand-written `Display`; helper macros become functions |
 
 ### Evaluated Crates
@@ -391,10 +465,11 @@ tracing are dependencies, not Veoveo macros.
 
 ### Rollout And Gates
 
-Phase 0 changes no serialized form. The core macros and generic types land first with
-their own tests, then each crate migrates in its own commit and deletes its local
-macros. A JSON Schema that gains a `pattern` or range it lacked lands in a separate
-commit, so every other snapshot stays byte-identical. A short check in
+Phase 0 preserves serialized forms. Establish and qualify the shared mechanics, then
+migrate each concern across all affected owners and consumers in one pass, deleting
+its local duplication. Commit coherent concerns after the aggregate checks; do not
+run a separate full validation cycle for each crate. An intentional schema tightening is a distinct reviewed change with affected
+consumer checks; mechanical migrations preserve existing schema snapshots. A short check in
 `cargo xtask enforce rust` fails on a `macro_rules!` definition outside
 `platform/macros` and the declared exceptions.
 
@@ -403,7 +478,7 @@ commit, so every other snapshot stays byte-identical. A short check in
 | Address tests | Round trips, reserved characters, duplicate or unsupported query parameters, malformed identifiers and wrong parents, as the Strong Types rule requires |
 | Id and vocabulary tests | Each form rejects invalid input on every constructor and deserializer; duplicate or empty spellings fail to compile |
 | Misuse tests | `compile_fail` cases for a template that names an unknown field, a field without a typed identifier, and an invalid scope spelling |
-| Wire stability | Every existing fixture, golden file and schema snapshot passes unchanged |
+| Wire stability | Mechanical conversions preserve wire fixtures and schemas; separately declared tightenings have explicit changed fixtures and consumer qualification |
 | Discovery agreement | Each server's published resource templates equal the templates its address types declare |
 | Macro check | `cargo xtask enforce rust` reports no `macro_rules!` outside `platform/macros` and the declared exceptions |
 
@@ -414,9 +489,9 @@ table, query or wire format.
 
 | Work | Detail |
 |---|---|
-| Module contract | `platform/modules` crate with `ModuleSetup`, `ModuleName`, layer, table prefix, `Migration` and lane types; a module design document beside it, the counterpart of `mcp/contract/DESIGN.md` |
+| Module contract | `platform/modules` crate with `ModuleSetup`, `ModuleName`, layer, typed ownership claims, `Migration` and lane types; a module design document beside it, the counterpart of `mcp/contract/DESIGN.md` |
 | Runner | The runner moves into `veoveo-modules` behind a `runner` feature. The downstream lane generalizes into named lanes with `requires`. History records name the lane |
-| Ownership validator | Statement-level check of every lane migration against the module's prefix and function namespace |
+| Ownership validator | Statement-level check of every lane migration against the module's declared table/function claims, including explicit non-prefix names |
 | Module declarations | One `ModuleSetup` per module in the classification table, each with an empty lane, naming the folder or crate that holds its migrations and queries and the image that runs its Job |
 | Kernel order | The kernel module order derived from current record links, failing on cycles |
 | Migrate commands | A `migrate` command in the platform migration image for kernel lanes and in each optional module image |
@@ -430,8 +505,9 @@ table, query or wire format.
 
 ## Phase 2: Kernel Extension Points
 
-Phase 2 removes every dependency from a kernel crate to an optional module crate.
-Each dependency becomes a port with a module adapter, or moves into the module.
+Phase 2 introduces and qualifies ports for optional-module capabilities. Remove the
+dependencies owned by those ports here. The Store persistence edge closes in phase 3;
+the full kernel graph gate belongs there.
 
 | Kernel dependency | Extension point |
 |---|---|
@@ -442,7 +518,7 @@ Each dependency becomes a port with a module adapter, or moves into the module.
 
 | Gate | Pass condition |
 |---|---|
-| Dependency check | `cargo tree` shows no edge from a kernel crate (`platform/types`, `mcp/contract`, `mcp/knowledge-extension`, `platform/store`, `platform/task-runtime`, `platform/policy`, `platform/audit`, `platform/artifacts/*`, `platform/knowledge/*`, `platform/runtimes/embedding/*`, the gateway library) to an optional module crate |
+| Dependency check | Isolated library metadata shows the port-owned optional dependencies removed. Record the Store→Computers persistence edge for phase 3; qualify the composition root separately |
 | Port tests | Each port has a test with the module adapter bound and one with it unbound, which refuses the capability |
 | Suites | Gateway, task-runtime and affected module suites |
 
@@ -455,28 +531,31 @@ Phase 3 moves module code to its owner and puts every SurrealQL statement in a f
 | Store split | Map, Workspace, Agent management and Recordings persistence moves out of `platform/store/src` into the crates their `ModuleSetup` names, with their query files. Knowledge persistence moves into its own kernel module folder and lane inside `platform/store`. `platform/store` keeps the connection and the kernel modules |
 | Query files | 374 inline `.query("…")` sites and about 115 query files mixed into `src/` move into owners' `queries/` folders. The 110 `format!`-built statements become bound parameters or `type::table($name)`; any remaining dynamic statement is listed in the owner's design with its reason |
 | Kernel access | Optional module SQL on kernel tables moves to kernel APIs or `fn::kernel::*` functions: Computers 27 statements, Reason 5, UAV 4, Map 3, Optimization 3, Frames, Stream and Artifact |
-| New tables | Any table a module adds from this phase on goes into the module's lane |
+| Schema ownership | Move current definitions into owner lanes and bootstrap fresh fixtures. Do not deploy these storage changes over the old installation; phase 8 publishes the composed cut |
 
 | Gate | Pass condition |
 |---|---|
 | Layout audit | No SurrealQL in Rust strings; every `.surql` file sits in a `queries/` or `migrations/` folder of its owner |
 | Ownership audit | Module query files reference only their own tables, declared dependencies, record links and `fn::kernel::*` |
+| Dependency closure | Isolated Cargo graphs show no optional-module dependency in reusable kernel libraries, including Store; composition packages may bind declared modules |
+| SQL admission | Tenant, owner, context, labels, parent and operation selection remain in SQL before decoding, ranking and limits; kernel functions preserve the same policy |
 | Suites | Store, task-runtime, gateway, computers and every moved module's suite against real SurrealDB |
 
 ## Phase 4: Database Field Types
 
-Every platform table is SCHEMAFULL, which checks top-level fields only. Inside them,
-88 fields are `TYPE object FLEXIBLE` and accept any keys silently. A missing nested
-path reads `NONE` without an error. About 50 admission predicates in the Computers
-queries evaluate true when a referenced key is missing, for example
+The inventory found 88 `TYPE object FLEXIBLE` fields inside SCHEMAFULL tables.
+Their nested shape is not closed by the table declaration. It also flagged about
+50 Computers predicates for missing-value review, including
 `(…output_policy.data_labels ?? []) ALLINSIDE $labels` and
-`…classification = NONE OR …`. UNIQUE indexes skip rows whose indexed path is `NONE`.
+`…classification = NONE OR …`. Distinguish missing required authority from a
+legitimately optional field before changing policy. Qualify missing indexed paths
+and uniqueness alongside the declarations.
 The repository already uses the strong form for `task.authority` (14 declared nested
 fields) and for artifact upload descriptors and manifests.
 
-Existing tables keep their definitions in the kernel catalog until the phase 8
-re-baseline, so phase 4 changes to existing tables go into a kernel migration,
-`0105_declared_fields.surql`. New tables go into their owner's lane.
+Phase 3 assigns each table to its owner lane. Phase 4 updates those current-format
+definitions and bootstraps empty fixtures. No migration copies historical payloads;
+the reference installation receives the composed fresh-state cut in phase 8.
 
 ### Declared Authority And Identity Fields
 
@@ -540,11 +619,19 @@ plans. Each owner lists every `.bind` and classifies the bound type.
 
 ### Migration And Gates
 
-`0105_declared_fields.surql` and the new lane migrations redefine fields with
-`OVERWRITE`, backfill declared columns and lookup tables from existing payloads, move
-`request.owner` into `owner`, and redefine the affected indexes. A migration test
-loads a store written by the pre-phase code, applies the migrations, and reads every
-affected table through the new code.
+Fresh bootstrap tests write through current producers and read every affected table
+through current consumers. Define `task.owner` and the lookup columns in owner lanes,
+then update every Rust and Python writer, query, index and typed driver record.
+Current-format restart and transactional rollback tests remain required.
+
+Review the Computers missing-value predicates with their policy owner in this phase.
+An absent required authority field denies; a legitimately optional label has its
+explicit policy semantics. Schema strictness alone does not prove admission safety.
+Exercise malformed and foreign rows, revocation, limits and competing transactions.
+
+Move remaining relationship candidates to `record<table>` with `REFERENCE … ON DELETE`
+where the database can enforce the intended behavior. Test each adopted cleanup rule;
+record why a rejected candidate needs owner-managed lifecycle instead.
 
 | Gate | Pass condition |
 |---|---|
@@ -552,13 +639,15 @@ affected table through the new code.
 | Negative write tests | Each declared field rejects an undeclared key and a missing required key |
 | UNIQUE tests | Managed-agent duplicates fail |
 | Path audit | No SurrealQL path reads inside a FLEXIBLE field or decodes JSON text |
-| Bind audit | Every `.bind` passes a record type or a scalar |
+| Bind audit | Every controlled `.bind` value uses an owner driver record or typed scalar/collection; opaque provider payloads remain explicitly classified |
+| Admission and cleanup | Missing required authority denies; filtering precedes limits; current-format recovery, rollback and each adopted reference cleanup rule pass |
 
 ## Phase 5: Inbound Strictness
 
-Of 1,553 schema-bearing `Deserialize` types, 834 lack `deny_unknown_fields`. Their
-tool schemas allow extra properties, so a misspelled or renamed key is ignored and
-the field's default applies. Phase 5 makes every inbound Veoveo type strict.
+Of 1,553 schema-bearing `Deserialize` types, 834 lack `deny_unknown_fields`. This
+inventory requires classification: it includes external and open-ended
+formats as well as controlled inputs. Phase 5 closes undeclared keys on controlled
+inbound shapes and checks schema/decoder agreement.
 
 | Inbound surface | Change |
 |---|---|
@@ -575,8 +664,15 @@ inbound type moves to explicit fields or a validated `try_from` wire struct.
 | Gate | Pass condition |
 |---|---|
 | Server suites | Each server has a test that an unknown tool argument returns `isError` |
-| Conformance | Every tool input schema states `additionalProperties: false` |
+| Conformance | Controlled tool-input objects state `additionalProperties: false`; explicitly opaque maps preserve their declared schema and are tested separately |
 | Consumer suites | Console, Workspace, Python and Node suites pass, proving in-repo clients send exact shapes |
+
+Known domain IDs stay typed through internal APIs, query inputs and consumers. Finish
+the F-row DTO relationships alongside strict decoding rather than adding wrappers
+without caller adoption. TaskRuntime exposes typed request/result parameters for
+owner-known payloads, while shared transport may retain honestly heterogeneous data.
+Domain adapters decode those payloads before use. Classify each raw JSON occurrence;
+a count of `Value` fields is not proof that every one can share a closed schema.
 
 ## Phase 6: Generated Cross-Language Types
 
@@ -591,7 +687,9 @@ and the app catalog. Python peers parse raw dictionaries.
 |---|---|
 | Console and Workspace | New schema bundles in `tools/xtask/src/commands/client_types/mod.rs` for every hand-mirrored contract; hand-written interfaces become imports from `src/generated`; `npm run build` then type-checks every field access |
 | Python peers of the Map helper, cuOpt executor, reason and speech runners and the UAV runtime | pydantic models with `extra="forbid"`; one test per protocol compares the model's JSON Schema with the Rust schema snapshot |
-| MCP App HTML assets (View, Stream, Timeseries, UAV, workbench) | No type system; phase 8's literal scanner covers them |
+| MCP App HTML assets (View, Stream, Timeseries, UAV, workbench) | Use available generated contracts and maintained browser checks; phase 8’s literal scanner supplements runtime behavior checks |
+| Agent kernel built-in tools | Derive controlled schemas from owner types and qualify the invoking clients |
+| SDKs, templates and cross-server clients | Complete the wider owner-local types and builders in the F-register, including catalog continuation and current-format result consumers |
 
 | Gate | Pass condition |
 |---|---|
@@ -601,65 +699,47 @@ and the app catalog. Python peers parse raw dictionaries.
 
 ## Phase 7: Embedding Profiles And Identity
 
-`EmbeddingSpace` in `platform/runtimes/embedding/contract/src/lib.rs` holds model,
-revision, dimension and `runtime_image`. The image digest makes every vLLM upgrade a
-new space, which discards the whole index for a change that need not move a vector.
-The runtime ships only as the pinned `vllm/vllm-openai` NVIDIA image.
+The current `EmbeddingSpace` includes `runtime_image`. D13 proposes model, checkpoint
+revision, dimension, pooling, normalization, numeric precision and maximum input
+tokens as its vector-space identity. Query instruction and chunker version stay in
+the Knowledge generation specification. Runtime image, vLLM version, GPU and driver
+remain recorded as execution provenance.
 
-### Identity
+Qualify this change on the existing NVIDIA profile. Reference vectors must meet the
+existing 0.999 cosine threshold, and the existing retrieval harness must demonstrate
+the declared retrieval behavior. A small reference set alone does not prove that
+arbitrary runtime upgrades preserve a space. Define the supported runtime/configuration
+matrix and negative cases in the owning design. A failed qualification rejects reuse
+or creates an explicitly distinct space; do not disguise drift by inventing a changed
+setting. Quantized and unquantized checkpoints remain different spaces.
 
-`EmbeddingSpace` becomes model, checkpoint revision, dimension, pooling,
-normalization, numeric precision and maximum input tokens. The knowledge generation
-specification keeps the query instruction and chunker version beside it. A runtime
-serves an existing space only after it reproduces the committed reference vectors
-within the 0.999 cosine threshold, so a vLLM upgrade that passes keeps the index and
-one that fails needs a changed setting and a new generation. Precision is a setting:
-a quantized checkpoint such as `mlx-community/Qwen3-Embedding-0.6B-8bit` is a
-different space from the unquantized checkpoint.
-
-### Profiles
-
-| Profile | Runtime | Placement |
-|---|---|---|
-| `nvidia` | Pinned `vllm/vllm-openai` with `--runner pooling` and priority scheduling | Cluster workload requesting `nvidia.com/gpu`, as today |
-| `metal` | Pinned vLLM core and vllm-metal 0.30.0 wheels on macOS 15 or later on Apple silicon, the experimental text pooling path with LAST pooling and L2 normalization | Native process on the Mac host, started by an xtask command with exact pins; the cluster reaches it as an external endpoint |
-
-Each installation declares its profile, and the runtime fails closed when its device
-is missing. Nothing falls back between profiles or to the CPU. The Helm chart renders
-the in-cluster runtime for `nvidia` and an external endpoint for `metal`.
-
-### Work And Gates
-
-| Work | Detail |
+| Work | Gate |
 |---|---|
-| Contract | Replace `runtime_image` with the setting fields; update the embedding runtime, Knowledge and Helm designs and the generated embedding-space document |
-| Metal qualification first | Before other Metal work, qualify that vllm-metal serves the pinned unquantized `Qwen/Qwen3-Embedding-0.6B` revision through `/v1/embeddings`, honours request priority, and reproduces the reference vectors. If the unquantized checkpoint or priority scheduling fails, record the gap in the embedding runtime design and decide before continuing |
-| Launcher | An xtask command that installs the pinned wheels into a uv-managed environment and starts the Metal server with the qualified settings |
-| Helm | Profile selection; external endpoint configuration for `metal` |
-| Measurement | The existing retrieval harness runs on both profiles and records throughput and search latency |
+| Contract and consumers | Update embedding, Knowledge, generated schemas and Helm; all consumers agree on the new identity and retained execution provenance |
+| Space reuse | Qualify supported upgrades with reference vectors and retrieval checks; unchanged qualified spaces preserve the active generation, incompatible ones cannot reuse it |
+| Current generation | Fresh-state cut activates one generation under the final identity; avoid an unnecessary intermediate production reindex before phase 8 |
+| GPU and capacity | Required NVIDIA resource, CUDA refusal, readiness, declared priority/bulk bound, throughput and search latency pass on hardware |
+| Network and Helm | Existing isolation checks and `veoveo-deployment-smoke` Knowledge/embedding Helm suites pass |
 
-| Gate | Pass condition |
-|---|---|
-| Reference vectors | Both profiles reproduce the committed vectors within 0.999 cosine |
-| Generation reuse | An upgraded runtime that passes the reference test keeps the active generation |
-| Fail closed | Each profile refuses to start without its device |
-| Helm | `cargo test -p veoveo-deployment-smoke --test knowledge_helm` and the embedding Helm checks |
+The Metal proposal is retained in X1. It requires separate review and Apple hardware;
+it does not block this phase or the current NVIDIA acceptance.
 
 ## Phase 8: Installation Cut
 
-Phase 8 needs a fresh installation (D3). Its two commits deploy together.
+Phase 8 composes the current owner lanes and naming change into a fresh installation
+(D3). All incompatible producer and consumer images deploy together, without rolling
+overlap. Native qualification precedes publication; phase 10 qualifies the installation.
 
 ### Lane Re-Baseline
 
-Every module table still has its definition in the kernel catalog, and moving a
-definition breaks checksum history on a kept database. On the fresh installation,
-each lane restarts at version zero with one baseline migration that defines the
-lane's current schema. The kernel lanes restart the same way, and the old migration
-files are removed.
+Phase 3 moved definitions into owner lanes; phase 4 qualified their declared fields.
+Freeze one current bootstrap baseline per lane for the installation cut and remove
+superseded catalog definitions. Compare two fresh bootstraps of the intended current
+schema; no old installation is converted or maintained.
 
 | Gate | Pass condition |
 |---|---|
-| Schema equivalence | A fresh bootstrap of every kernel and optional lane produces the same `INFO FOR DB` schema as the pre-cut catalog, apart from intended changes |
+| Schema equivalence | Fresh kernel and optional lanes reproduce the current schema qualified in phases 3–4, including declared fields, indexes, references and kernel API functions |
 | Ownership | The ownership validator accepts every baseline |
 
 ### JSON Naming Cut
@@ -700,8 +780,8 @@ checks.
 | Map analytics DuckDB | `SCHEMA_VERSION` 12, rebuilt |
 | Installation pins in `examples/bioma` | Regenerated: `controlPlaneRevision`, `knowledge.configurationRevision`, `computers.configurationRevision`, `host.configurationRevision`, the agent template `config_map` and `config_digest`, the UAV world `contentSha256` |
 
-The naming cut runs in four waves. Partitions within a wave touch disjoint
-directories and run in parallel. Sizes count types, literal sites and files from the
+The naming cut runs in four waves. Partitions identify ownership and may proceed
+independently when their dependencies permit; they do not require multiple agents. Sizes count types, literal sites and files from the
 inventory.
 
 Wave 1 covers shared contracts. The serial core runs in dependency order.
@@ -714,7 +794,7 @@ Wave 1 covers shared contracts. The serial core runs in dependency order.
 | `mcp/contract` | Control plane and every configuration type camelCase, including `OutputPolicyConfig` and the approval types; `bootstrap.rs`, `deployment.rs`, `usage.rs`, `docs.rs` `contract_revision`, agent templates and models; JWT claim structs unchanged; `product_result` reads `resultUri` | L |
 | `platform/computers/contract` | Remove the nine `result_uri` field renames | S |
 
-These run in parallel with the core.
+These have independent ownership after their shared interfaces settle.
 
 | Crate | Work | Size |
 |---|---|---|
@@ -776,7 +856,7 @@ report zero unexplained items before the naming commit.
 
 | Scope | Command |
 |---|---|
-| Rust | `cargo fmt --all -- --check`; strict Clippy and tests for the workspace excluding `veoveo-computer-execution`, `veoveo-computer-storage` and `veoveo-computer-host` |
+| Rust | `cargo fmt --all -- --check`; strict Clippy and affected tests with the qualified feature graph. Run computer execution, storage and host suites on Linux; cross-platform runs do not substitute |
 | Client types | `cargo xtask release client-types --check` |
 | Console and Workspace | `npm --prefix apps/console/web test`, `run build`, `run lint`, `run test:browser`; the same for `apps/workspace` |
 | Map app | `cd servers/map-mcp/app && npm test && npm run build` |
@@ -784,32 +864,81 @@ report zero unexplained items before the naming commit.
 | Node | `node --test servers/chart-mcp/*.test.mjs`; `mcp/apps-extension` pagination tests |
 | Helm and deployment | `cargo test -p veoveo-deployment-smoke`; `cargo xtask smoke helm-config`; `helm lint deploy/helm/veoveo -f examples/bioma/values.yaml` |
 | Repository | `cargo xtask enforce docs`; `cargo xtask enforce identifiers` |
+| C33 | Shared conformance checks discovery, schemas and extension metadata against the naming classes, including exemptions; Rust/Python declarations agree |
 
-## Handover
+## Phase 9: Conformance And Repository Enforcement
 
-Phases 1 to 7 deploy as ordinary upgrades. After each, the other agent publishes the
-affected images, rolls them out, and runs the Linux-only and GPU suites and the
-affected installed checks. Phase 7 also qualifies the `metal` profile on a Mac. After
-phase 8:
+This phase takes the required architecture and verification work from Hardening.
+It supplies reusable checks for phases 0–8; it does not wait until the naming cut to
+start the typed catalog. Keep domain assertions with their owner and use maintained
+Rust, browser and SDK frameworks. Source scanners supplement structural and runtime
+checks, rather than becoming the sole proof of compliance.
 
-1. Run the Linux-only suites: computers `native_*`, computer storage and host, the
-   Map DuckDB Spatial cases, Recording live playback, and the GPU suites.
-2. Publish every image: all server images, gateway, Console, Workspace, the agent
-   images, Datasheet, Chart, the runners, the simulation runtime, the UAV runtime and
-   the platform migration image.
-3. Drain edge forwarders and finish in-flight work, then stop the cluster.
-4. Rebuild the disposable installation with empty SurrealDB and object storage,
-   following [the reference runbook](../examples/bioma/README.md). Checksum
-   validation rejects the old database.
-5. Apply the GitOps change with the converted configuration and regenerated pins.
-   Kernel migration Jobs run, then optional module Jobs; gateway, servers, SDK servers
-   and runtimes start together with no rolling overlap.
-6. Re-provision managed agents. Knowledge builds a new generation; confirm it
-   activates. The audit chain starts at a new genesis.
-7. Run installed acceptance: hosted conformance on every server, Knowledge search and
-   isolation, Computers HTTP, terminal and CLI, Recording playback in a headed browser
-   with hardware graphics, the composed flight, and spot checks that tool outputs
-   carry `resultUri` and camelCase keys.
+| Work | Owner and gate |
+|---|---|
+| Typed requirement catalog and compliance profiles | `mcp/contract` owns stable IDs, statuses and justified overrides. Adding a requirement forces profile coverage; served declarations and document projections derive from the same catalog. Extend a reviewed phase 0 mechanism or declare a justified macro exception |
+| Generic conformance | `mcp/conformance` checks an arbitrary registered server without production dependencies on concrete domains. Move domain schemas and provider fakes to their owners. Independent fixture and current server suites pass |
+| Component discovery and dependency direction | Cargo metadata and path conventions discover components, documents, package roles and feature graphs. Enforce the reviewed kernel/module and contract-only boundaries without a hand-maintained server registry |
+| Owner-local smoke and dispatch | Discover component scenarios and their requirements. Move domain cases to their component, compositions to their example/showcase, and deployment checks to deployment owners. Adding a server requires no central smoke enum or conformance registry edit |
+| Shared harness mechanics | Reuse `hosting::testing` for applicable HTTP/signing fixtures. A shared smoke support library may own process cleanup, bounded readiness, redaction and declared GPU/browser prerequisites; it imports no domain implementation and does not replace maintained framework behavior |
+| Typed deployment relationships | Preserve route, mount, scheme, policy, source, image, artifact, recording and GPU validation across the selected installation. Support the qualified replica semantics; do not restore the retired blanket singleton assumption |
+| Onboarding and module responsibility | Required owner documents, standards sections, package naming and isolated contracts are checked. Split mixed responsibilities when needed; neither file length nor deletion of the top-level `testing/` directory is a completion criterion |
+
+The scenario descriptor/result contract identifies hardware, network, credentials,
+billed operations, timeouts and cleanup. Keep assertions in one harness. Reuse
+existing scenarios while moving their ownership; relocation does not require a second
+implementation or an installed replay of unchanged behavior. C33 itself lands in
+phase 8 with the naming rule. Future repository/security tooling follows X2–X5.
+
+## Phase 10: Installed Acceptance And Closeout
+
+Run the affected native suites before publication. Linux qualification includes
+Computers `--tests` and its execution/storage/host crates, Map `--lib`, Recording,
+TaskRuntime and deployment-smoke with Helm and GNU timeout. GPU suites use hardware.
+The known 10 ms lease flake `recovery_classes_and_leases_are_enforced` may be diagnosed
+alone after a parallel failure; report both results rather than concealing the failure.
+
+Publish the complete affected image closure for the final wire/storage cut: servers,
+gateway, Console/Workspace, agents, SDK servers, runners, simulation/UAV consumers and
+migration images. Use the image dependency graph to determine which images changed;
+reuse compatible qualified bases. Drain writers, stop incompatible workloads and
+bootstrap empty database, object storage and Map DuckDB through the reference runbook.
+Prepare images before reconciliation, apply generated locks and configuration, run
+owner migration Jobs, re-provision managed agents and activate the Knowledge
+generation. The audit chain begins at a new genesis. No old/new wire overlap is allowed.
+
+Use existing `cargo xtask smoke` scenarios and owning native/SDK/browser harnesses.
+All public MCP checks use the gateway as a normal OAuth client. Direct pod checks
+are limited to the transport/probe/webhook cases that require them. Select workloads
+in batches; keep Knowledge and Embedding enabled and run Reason separately.
+
+| ID | Required check and result |
+|---|---|
+| A01 | Every selected pod becomes Ready. Direct mounted `healthz` and `readyz` return 200 when healthy. Do not add anonymous per-server health passthroughs to the gateway |
+| A02 | Through the gateway, tools/resources/templates/prompts list successfully; unauthenticated discovery fails. Read `{scheme}://docs`, contract and an owner document, complete `doc_id=de` to `design`, and read authenticated admin docs |
+| A03 | Bad or unparseable resource addresses return -32602. Through a port-forward, missing Host is 400 and a disallowed Host is 421, including probes and Recording gRPC |
+| A04 | Admin server health returns every registered state and `checked_at`, denies non-admin callers and records ServerHealth. One failed upstream does not break federated prompt discovery. DuckDB and Timeseries completion work |
+| A05 | Exercise each owner's domain read/tool and declared durable Task lifecycle, including completion, cancellation and delivered subscriptions. DuckDB task updates and current Task admission survive the applicable replica/restart cases |
+| A06 | Frames `frames://worlds` listener receives the create-world invalidation; immutable revision subscription returns -32602. Complete the F-register paging, mutation and operation consumers |
+| A07 | Direct Media unsigned webhook POST returns 401 with `invalid signature`. Existing fake-provider lifecycle passes. Real generation stays unqualified under the user restriction |
+| A08 | Knowledge remains unready until indexing is ready; docs and lists obey current caller policy. Qualify unattended cold startup, approved-source search, isolation, subscriptions and current-generation recovery |
+| A09 | Computers CLI uses its own grants without a gateway token; oversized MCP input returns 413. Admin terminal, pairing, maintenance, grant consumers and current-format interruption/recovery pass |
+| A10 | Speech hosted conformance runs on the GPU host. Recording gRPC works through the playback host and headed hardware playback meets its freshness gate. View's required rendering and GPU JPEG path pass |
+| A11 | Map runs without `--admin-scope`; its consumers and Map/UAV handoff pass. UAV streams survive shutdown, drain cleanly and preserve unresolved outcomes for recovery/operator reconciliation |
+| A12 | Restart an affected hosted server; its old pod exits inside the termination grace period. Exercise owner-required cross-replica and current-format recovery rather than inferring them from Ready |
+| A13 | Composed flight and Artifact isolation preserve their accepted mission, live Stream, replay/reconnect, return and landing gates. Headed hardware visual evidence is mandatory; software rendering cannot substitute |
+| A14 | Final C33 discovery/schema checks and real consumers agree on `resultUri`, camelCase wire keys and declared exemptions. The F-register and required H-register entries have no unresolved required implementation or acceptance |
+
+Report server × check with pass, fail or explicitly unqualified, source/image identity,
+request, status and response excerpt. Each failure includes pod logs and whether it
+predates the change or is a regression; use unknown when not established. Keep dated
+runs in the progress log and current blockers here. Reuse accepted checks only when
+their actual inputs and environment are unchanged.
+
+A host-contract defect is reported for the existing user-directed review; do not
+silently change `mcp/contract/src/hosting` or `platform/task-runtime/src/hosting.rs`.
+A domain defect belongs to its server. Close required rows only after their conditions
+pass; record an explicit accepted limitation where acceptance cannot be claimed.
 
 ## Risks
 
@@ -821,28 +950,170 @@ phase 8:
 | The kernel module order has a cycle | Phase 1 derives the order from record links and resolves each cycle by moving the linking table |
 | A port's unbound refusal hides a configuration mistake | The gateway reports bound and unbound ports at startup and in server health |
 | The store split breaks a cross-module query | Phase 3 ownership audit; every moved module's suite against real SurrealDB |
-| A declared field misses a key the Rust type writes | Negative write tests and the migration test fail on the first write |
-| A phase 4 backfill misses rows | The migration test loads a store written by pre-phase code and reads every affected table |
-| Strict inputs reject a client the suites do not cover | Phase 5 runs every consumer suite; installed checks follow each phase |
-| vllm-metal's pooling path is experimental | Phase 7 qualifies Metal first; a failed reference test or missing priority support stops Metal work for a decision |
-| Removing the image from the space identity admits drifted vectors | Every runtime and upgrade must pass the reference vector test before it serves an existing space |
+| A declared field misses a key the Rust type writes | Negative writes and current producer/consumer tests reject the mismatch |
+| A phase 4 writer omits required fields | Fresh bootstrap, negative writes and current producer/consumer tests cover every changed table; restart and rollback use the current format |
+| Strict inputs reject a client the suites do not cover | Phase 5 qualifies the affected consumer closure; phase 10 covers installed clients on the final images |
+| The proposed Metal pooling path fails qualification | X1 stays deferred and unadvertised; NVIDIA remains the required profile |
+| Removing the image from the space identity admits drifted vectors | Every supported runtime/configuration passes the reference and retrieval matrix before reusing a space |
 | The re-baseline drops or changes a definition | Schema equivalence gate on a fresh bootstrap |
 | A hand-written consumer drifts during the naming cut | Phase 6 generated types, the literal scanner, rebuilt App bundles and every consumer suite |
 | Model-facing text teaches old names | Documents partition and the prompt and description audit; strict tool inputs fail loudly |
 | A Helm template references a renamed values key and renders empty | `helm-config` smoke, the CEL admission test, and a template reference audit |
-| `main` moves during phase 8 | Freeze `main` for the cut window; rebase once before the final verification |
+| `main` moves during phase 8 | Coordinate the cut window with other writers and repeat affected qualification if the source changes |
+
+## Hardening Transfer Register
+
+This accounts for the remaining hardening scope without inheriting its stale command
+menu or GitHub workflow assumptions. Completed mechanisms stay in their owning designs.
+A required row is part of this plan's completion boundary. Deferred rows are tracked
+below and are not silently approved by this consolidation.
+
+| ID | Former concern | Disposition and completion owner |
+|---|---|---|
+| H01 | P0 toolchain, language/configuration checks, unique binaries, xtask, Justfile retirement | Delivered baseline; preserve native qualification and fix current failures in the affected phase. Do not replay the 2026-07 audit as new work |
+| H02 | Typed MCP checklist, compliance profiles and generated projections | Required, phase 9 catalog and phase 8 C33; no copied per-server requirement list |
+| H03 | Dependency direction, component discovery and onboarding | Required, phases 1–3 and 9; isolated contract consumers and discovered Cargo graphs |
+| H04 | Contract types, generated configuration and controlled schemas | Required, phases 0, 4–6 and 8; include package/deployment identity at its owner |
+| H05 | Generic conformance, component smoke, discovered dispatch and shared support | Required, phase 9; preserve installed coverage through moves and remove obsolete dispatch paths |
+| H06 | Deployment/control-plane validation and module responsibilities | Required, phases 1–3, 8 and 9; preserve implemented typed validation and qualified replica behavior |
+| H07 | Image publication, builder graph, cache identity, SBOM/provenance and simulation base | Delivered mechanisms in image/deploy/runtime designs; preserve their invariants and affected qualification, do not introduce another build engine |
+| H08 | Rust policy, local fast hooks, dependency/license/vulnerability checks | Deferred X2; no new hook or broad policy gate before baselining and review |
+| H09 | Container, Kubernetes, secret, shell, TOML and documentation scanner policy | Deferred X3; existing native Helm, docs and release checks remain required |
+| H10 | Rust ownership of offline bundle build/load/verification | Deferred X4; phase 8 still updates the existing bundle format and consumers when its wire schema changes |
+| H11 | Vulnerability reporting, contribution routing, CODEOWNERS, license/notices | Deferred X5; selection of legal/license policy requires an explicit owner decision |
+| H12 | GitHub CI, protected main, required checks, scheduled scanning | Superseded as a current gate by CONTINUOUS_INTEGRATION.md; future worker/delivery decisions remain X5 |
+| H13 | Published facade dependency closure, external release products and Helm library | Fork/deploy designs govern implemented surfaces; independent publication qualification remains X6, without assuming a public registry or service |
+| H14 | Blanket deletion of `testing/` and relocation by directory name alone | Superseded by owner/responsibility checks in phase 9; remove only an emptied, obsolete owner |
+| H15 | Nextest, broad property tests, fuzzing, mutation tests, Miri, Loom, coverage and sanitizers | Preserve the original explicit deferral as X7; defect-specific testing may still be required |
+
+## Foundations Transfer Register
+
+These 68 rows preserve the former Phase 3 inventory's next owning change, with stable
+IDs for review. The old checkpoint column remains in Git history and the
+[progress log](PLATFORM_FOUNDATIONS_PROGRESS.md). Shared mechanics land once; rows
+with the same owner are implemented and tested together. They are not 68 sequential
+build or deployment batches.
+
+All rows are required unless their condition is already covered by reusable accepted
+qualification. Type/URI/DTO work belongs to phases 0 and 5; persistence and SQL work to
+3–4; cross-language adoption to 6; installed, recovery and hardware conditions to 10.
+Before implementing a batch, enumerate its concrete files and affected consumers.
+Record an explicitly opaque field or rejected reference candidate with its owner and
+reason rather than growing an unbounded generic typing task.
+
+| ID | Surface | Remaining condition |
+|---|---|---|
+| F01 | Foundational primitives | Complete the owner-specific builders and relationship admission listed below |
+| F02 | Independent extension traits | Preserve domain-owned authorization and complete the remaining owner-specific type gaps |
+| F03 | Scope declarations | Qualify installed producer admission with the next composed publication; wider field relationships remain in their owner rows |
+| F04 | Resolved invocation authority | Preserve complete authority when extracting domain contracts; qualify installed policy and composition consumers |
+| F05 | Concrete URI components | Adopt through domain constructors with specific ID types; qualify each family's spelling and parameters |
+| F06 | HTTPS network addresses | Adopt this profile where other domain contracts require HTTPS; qualify installed source consumers |
+| F07 | Resource templates | Extend checked declarations and domain-builder agreement across remaining servers |
+| F08 | Gateway completion and audit targets | Qualify installed authorization and current-format audit reads; tighten the opaque resource validator after remaining URI families are inventoried |
+| F09 | Platform identity and attribution | Preserve these contracts during domain extraction; qualify installed identity and policy behavior with the affected services |
+| F10 | Map | Complete DTO relationships and Store query IDs; qualify remaining product-specific consumers |
+| F11 | Coordinate vocabulary | Qualify installed consumers with the current absolute frame-ID profile |
+| F12 | Map identity admission | Apply the owner admission profile to remaining IDs and Store query APIs; qualify current-format installed consumption |
+| F13 | Time | Complete broader DTO types and qualify current-format installed behavior; completion now requires the advertised reserved-expansion zone template |
+| F14 | Time identity admission | Qualify installed admission; use the distinct current public and stored ID profiles when strengthening metadata construction |
+| F15 | Time scalar admission | Qualify installed numeric admission; finish remaining expression/projection scalar types and acquisition-state relationships |
+| F16 | Time intervals | Qualify current-format installed schedule Tasks and restart recovery |
+| F17 | Time active-pointer admission | Qualify installed parent admission and transactional conflict rollback |
+| F18 | Time authority contexts | Qualify installed restart/replica behavior and the declared coordinated upgrade |
+| F19 | Time authority metadata | Qualify current binding validation and installed startup |
+| F20 | Time resolution metadata | Qualify installed resolve/convert decoding and epoch behavior after authority activation; computed representations remain the engine's responsibility |
+| F21 | Time activation preflight | Qualify installed activation and concurrent conflict rollback |
+| F22 | Digest wire profiles | Qualify current digest admission in installed Time; migrate remaining owners and callers by hard cut |
+| F23 | Computers | Qualify the published grant typing batch; complete remaining grant/input and state-view DTO relationships; qualify installed maintenance, pairing and current-format recovery |
+| F24 | Speech | Qualify current-profile CUDA transcription/dictation and installed delivery; strengthen remaining transcript result relationships |
+| F25 | Artifact plane model | Separate the remaining access/service request contracts and qualify changed consumers. Reuse accepted full/HEAD/range reads, sharing and SQL owner-admission cases when their inputs match. |
+| F26 | Artifact identity and URI admission | Qualify installed consumption of the current identity and URI contract |
+| F27 | Remaining Artifact references | Migrate with each owning contract; distinguish Artifact identities from external fetch locations and declare persisted/profile changes |
+| F28 | Artifact attribution construction | Qualify installed metadata consumption; native construction, schema/decoder and independent-consumer checks already have a passing checkpoint. |
+| F29 | Media public contract and hosted setup | Complete remaining DTO relationships and model catalog paging; qualify registration, installed behavior and provider recovery budgets |
+| F30 | Frames hosted setup | Qualify current resource admission and subscriptions through installed clients |
+| F31 | Frames world reads | Qualify installed paging and completion with current catalog consumers |
+| F32 | Frames mutation inputs | Qualify installed publication and concurrent replay under current writer policy |
+| F33 | Frames world metadata construction | Qualify current world metadata with installed consumers |
+| F34 | Frames operation references | Qualify installed consumption and current provenance checks |
+| F35 | Frames stream references | Qualify installed behavior; complete each producer's typed builders |
+| F36 | Frames usage visibility and pages | Qualify installed reads and subscriptions with current catalog consumers |
+| F37 | Frames operation visibility | Qualify installed direct/Task operation reads and current-format recovery |
+| F38 | Timeseries resource admission | Qualify current Artifact handoffs and installed resource consumption |
+| F39 | Timeseries forecast admission | Qualify installed forecast admission and Artifact output; wider result relationships remain open |
+| F40 | Timeseries usage | Qualify the coordinated replica replacement and installed reads |
+| F41 | DuckDB usage and discovery | Qualify installed page consumers and headed hardware Workbench acceptance |
+| F42 | Optimization usage and contract | Qualify the coordinated control/executor replacement and installed reads |
+| F43 | Optimization catalogs | Qualify current catalog permissions and installed consumers |
+| F44 | Optimization resource admission | Qualify installed readiness and resource admission; finish DTO relationship checks |
+| F45 | Map travel-model reads and shared references | Qualify installed page traversal with current consumers; complete DTO relationship admission |
+| F46 | Map restriction reads | Qualify installed summary pages with current consumers; finish broader restriction DTO admission |
+| F47 | Map product addresses | Type the remaining product DTO references and parent relationships; qualify current installed consumption |
+| F48 | Map route handoffs | Qualify the published Map/UAV handoff and current installed mission admission; complete broader product DTO relationships |
+| F49 | Map routing authority | Qualify installed routing; finish other internal release selections |
+| F50 | Map source catalog | Qualify current source-ID and document admission and installed page traversal |
+| F51 | Map mobility catalogs | Qualify installed traversal with current consumers; UAV grants/handoff and the flight harness consume Map-owned addresses |
+| F52 | UAV Map admission | Qualify current adapter/Task restart recovery and installed grant/mission behavior |
+| F53 | UAV execution exclusion | Retain complete observations across process loss; qualify current-format installed recovery and operator reconciliation |
+| F54 | Media usage and prediction reads | Qualify current catalog consumers and installed subscription recovery |
+| F55 | Media generation result | Qualify current-format installed delivery, caller isolation and restart behavior |
+| F56 | Native Task identity | Qualify installed consumption; native APIs, changed admission adapters and isolated-contract consumers already have a passing checkpoint. |
+| F57 | Shared public Task reads and notifications | Qualify current-format installed delivery and audit domain-specific adapters for additional policy; preserve transactional owner/context/operation rechecks and the qualified rollback/race cases. |
+| F58 | DuckDB source contract | Qualify installed source consumption, catalog pages, the fresh owner-directory/metadata formats and Artifact publication/recovery |
+| F59 | UAV contract | Complete broader DTO relationships and cross-language construction; qualify current installed consumers, URI admission and recovery |
+| F60 | UAV scopes | Qualify current scope enforcement on every installed UAV replica |
+| F61 | Reason | Complete broader result/reference typing; qualify current-format installed delivery, restart recovery and GPU behavior |
+| F62 | Task-backed resource notifications | Adopt for other Task-backed domains while preserving their additional admission policy; qualify remaining domain consumers and coordinated replacement |
+| F63 | Stream | Strengthen remaining result relationships |
+| F64 | Shared recorded video | Finish selector construction and broader result relationships; qualify installed snapshot digests and consumers |
+| F65 | View | Qualify installed consumers, cross-context Task delivery and GPU behavior, including GPU JPEG encoding |
+| F66 | Recording | Complete remaining Recording/RRD identity and publication adapters; qualify installed behavior |
+| F67 | Shared consumers | Keep imports direct and preserve authorization, identity serialization, and schemas |
+| F68 | SDKs, clients, templates, and showcase servers | Qualify the remaining installed multi-page consumers and complete wider owner-local SDK types |
+
+## Deferred Work
+
+Required implementation deferrals remain blockers. Each new row names the F/H/phase
+requirement, owner, precise cause, next check and corresponding code TODO. Preserve
+existing `TODO(foundations)` entries until resolved; use this register rather than
+creating a second active plan. There are no separately registered code deferrals at
+consolidation; the open F-register and phase gates still prevent completion.
+
+The real Media generation check is explicitly unqualified under the user's restriction.
+It must appear as such in the final acceptance report; the fake-provider pass cannot
+be reported as a real provider pass. The accepted Object Lock and embedding-priority
+limits are recorded in Current Status and their owning designs.
 
 ## Follow-Ups
 
-These land as separate changes after phase 8.
+These proposals are outside the required finish criteria. They need their own scope
+and acceptance decision before implementation; none is silently removed by retirement
+of the old plans. Promote an item into a required phase explicitly when that decision
+is made.
 
-| Item | Evidence | Change |
+| ID | Proposal | Owner and qualification needed |
 |---|---|---|
-| Fail-open admission predicates | `?? []` and `= NONE OR` patterns in the Computers queries; phase 4 makes the keys mandatory, but the predicates still read as permissive | Rewrite each admission so a missing value denies |
-| Typed task payloads | 43 public `serde_json::Value` fields, including task-runtime `CreateTask.request` and `TaskSnapshot.request` and `result` | Typed request and result parameters on the task runtime API |
-| Typed IDs | 185 public `*_id: String` fields (computers 28, recordings 21, gateway 15, `mcp/contract` 14); store row fields at the driver boundary are allowed | Typed IDs for domain fields, as the Strong Types rule requires |
-| Record references | 284 ID and key columns typed as plain strings; 322 `record<>` links and 12 `REFERENCE` clauses exist | `record<table>` with `REFERENCE … ON DELETE` where a relation exists |
-| Hand-written tool schemas | Agent kernel built-in tools declare JSON Schema by hand | Derive from types |
-| C33 conformance check | Conformance checks no naming rule | Add a check over discovery, schemas and `_meta` keys |
-| Test harness duplication | 43 local `TcpListener::bind` HTTP harnesses and three local signing helpers in server tests | Move them onto the shared `hosting::testing` gateway and signing support |
-| Runtime module loading | Module lanes and adapters are compiled into images and enabled by installation configuration | Evaluate loading independently built modules without rebuilding platform images |
+| X1 | Apple silicon embedding profile | Embedding runtime: first verify the candidate pinned vllm-metal unquantized Qwen3-Embedding-0.6B endpoint, LAST pooling/L2, priority behavior, reference vectors and retrieval on Apple hardware. Only then add a uv-managed launcher, external endpoint Helm profile and provenance. No CPU/profile fallback; unqualified support is not advertised |
+| X2 | Rust/local feedback and dependency policy | Repository tooling: baseline workspace lints, unsafe exceptions, metadata/audience/publishing rules, reproducible lock use and a thin optional fast hook. Qualify pinned license/source/duplicate/advisory/unused-dependency tools; preserve published-facade closure checks where a release actually promises publication |
+| X3 | Repository and supply-chain scanning | Tooling/deploy owners: qualify discovered-input secret, container, Kubernetes, Dockerfile, shell, TOML and prose checks with exact tool pins and useful diagnostics. Scan workflow languages only when such workflows exist. Keep one dependency-update authority per ecosystem; do not duplicate existing SBOM/provenance machinery |
+| X4 | Offline tooling hard cut | `deploy/offline`: typed manifest/layout, builder, loader and integrity checks replacing shell orchestration in one change, with owned cleanup and private/offline artifact support |
+| X5 | Repository governance and future CI | Repository/operator owners: security reporting, ownership, contribution and license/notice decisions. Follow CONTINUOUS_INTEGRATION.md for GPU worker design; stable results and an explicit decision precede protected branches, merge gates or scheduled delivery. No GitHub runner dependency is implied |
+| X6 | Independently published SDK/conformance/deployment products | Fork/deploy owners: review actual distribution needs, supported versions and private-registry/offline use. Verify external dependency closures if publishing; do not revive the retired external-extension delivery program by copying its old checklist |
+| X7 | Advanced correctness program | Owning crates: nextest, broad property testing, fuzzing, mutation testing, Miri, Loom, coverage or sanitizer matrices only with a concrete selected scope |
+| X8 | Independently loaded runtime modules | Module owner: evaluate loading without rebuilding images only after static module composition and lanes are qualified |
+| X9 | Future typed SurrealQL construction | Store/module owners: watch stable upstream SDK support; adopt only when it preserves typed binds, SQL admission and query-plan behavior better than the qualified file-based queries |
+
+## Reviewer Checklist
+
+- Confirm the required finish criteria and X-register deferrals; no open Foundations
+  condition should disappear or become optional through consolidation.
+- Review R1–R8 and D1–D14, especially module ownership, composition dependency checks,
+  macro scope, JSON exceptions and embedding space qualification.
+- Check that phase dependencies are executable and fresh-state cuts need no historical
+  conversion. Verify producer and consumer changes land together.
+- Require concrete file/consumer selections per implementation batch and acceptance
+  reports tied to deployed images. Preserve unaffected passes without claiming coverage
+  for new shared contracts.
+- Confirm that the H-register covers every hardening concern, including deferred policy
+  and governance, and that no old CI or directory-removal mandate is reintroduced.

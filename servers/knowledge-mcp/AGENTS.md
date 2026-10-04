@@ -40,7 +40,7 @@ The fixtures need Docker and the pinned SurrealDB image; each owns its
 containers and has a 180-second timeout per case. Run
 `cargo check -p veoveo-knowledge-mcp --no-default-features --features contract` to
 qualify the public library dependency boundary. Hosted and GPU acceptance follow the
-[foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#phase-8-knowledge-service).
+[consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md#knowledge-service).
 Packaging checks use `cargo test -p veoveo-deployment-smoke --test knowledge_helm` and
 `cargo xtask image plan --target knowledge-mcp`. The chart's single indexing replica
 uses Recreate, distinct liveness/readiness probes and installation-owned credentials.

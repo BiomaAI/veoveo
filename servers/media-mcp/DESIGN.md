@@ -132,7 +132,7 @@ Ledger writes reject mismatched Task or provider identities before recording usa
 
 The signed webhook and existing pending-event/billing reconciliation mechanisms keep
 their current completion semantics. Native table feeds carry committed Task and
-provider-job changes. Finite recovery budgets remain work in the foundations plan. Cancellation cannot turn a late
+provider-job changes. Finite recovery budgets remain work in the [consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md). Cancellation cannot turn a late
 webhook into a successful Task result or permit Artifact capability redemption.
 
 ## Catalog And Result Contracts
@@ -182,7 +182,7 @@ Task get and subscription reconnect checks require the stored current completion
 the terminal handoff test requires one result link and identity-free status text.
 
 Installed current-format catalog and result acceptance are pending. Model-catalog paging,
-remaining provider DTO relationships and recovery budgets are tracked in the foundations plan
+remaining provider DTO relationships and recovery budgets are tracked in the [consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md)
 and the [server manual](AGENTS.md).
 
 ## HTTP Probes

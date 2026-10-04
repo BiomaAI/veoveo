@@ -136,7 +136,7 @@ values. An admitted URI grants no access. Service owners check current authoriza
 and operational bounds, while SQL selects visible records before limits and decoding.
 Store adapters require native RFC UUIDv7 record keys with the declared table. String
 record keys are not part of the current storage profile. Remaining address-field admission is
-tracked in the [foundations plan](../../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
+tracked in the [consolidated plan](../../../docs/CONTRACT_CONSISTENCY_PLAN.md#modular-types-and-server-contracts).
 
 ## Qualification
 

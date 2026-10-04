@@ -21,7 +21,7 @@ knowledge reads and the `knowledge-mcp` catalog and index built on this extensio
 The crate `veoveo-mcp-knowledge-extension` in this directory owns the typed
 models, the capability declaration, the read and search helpers, and the shared
 implementation of the well-known docs collection. The
-[implementation plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md) tracks its
+[implementation plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md) tracks its
 delivery.
 
 ## Status

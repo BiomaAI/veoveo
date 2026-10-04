@@ -119,7 +119,7 @@ appear in its public MCP identities.
 Contract revision: 3
 
 - C01: met
-- C02: met — v1 terminal products carry canonical `result_uri`; native current-format Task delivery passes, while [installed qualification](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#deferred-work) is pending
+- C02: met — v1 terminal products carry canonical `result_uri`; native current-format Task delivery passes, while [installed qualification](../../docs/CONTRACT_CONSISTENCY_PLAN.md#foundations-transfer-register) is pending
 - C03: met
 - C04: met — analyses use Store cursor pages; discovery lists roots and fixed catalog entries
 - C05: met

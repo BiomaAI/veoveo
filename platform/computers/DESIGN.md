@@ -710,7 +710,7 @@ or recovery, including unresolved provider outcomes. Payload tables have no chan
 so metadata transitions do not duplicate input ciphertext in database-wide replay.
 
 The storage profile requires matching readers and writers and a fresh schema catalog
-under the foundations plan's coordinated installation cut. Writers must be drained
+under the [consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md)'s coordinated installation cut. Writers must be drained
 before that reset. Tests qualify atomic failure, read-only envelopes, metadata-only
 feeds, missing-input fencing, rollback and parent-owned cleanup. The
 [cost measurements](../store/measurements/journal-separated-2026-10-01.md) record

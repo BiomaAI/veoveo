@@ -31,7 +31,7 @@ atomic catalog publication and reconnection run in the binary's tenant workers.
 The Helm component mounts tenant configuration and private machine keys separately and
 uses the shared GPU embedding runtime. Machine-client provisioning, image publication
 and installed qualification remain in the
-[implementation plan](PLATFORM_FOUNDATIONS_PLAN.md).
+[implementation plan](CONTRACT_CONSISTENCY_PLAN.md).
 
 ```text
 crate       veoveo-knowledge-mcp

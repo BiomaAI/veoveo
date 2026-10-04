@@ -164,4 +164,4 @@ key. Keep public keys for all blocks that remain in the verification range.
 
 The [export worker](src/export/DESIGN.md) owns S3/OTLP delivery and persisted receipts.
 Qualification, remaining producer/reader cuts and installed measurements are tracked in the
-[foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#phase-4-unified-audit-log).
+[consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md#unified-audit-log).

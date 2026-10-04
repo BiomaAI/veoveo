@@ -3,7 +3,7 @@
 This document preserves historical implementation and installation checkpoints.
 Entries describe the source, deployment and test state at the time they were written.
 Statements such as “current”, “next” and “remaining” can be superseded by later work.
-Read the [active plan](PLATFORM_FOUNDATIONS_PLAN.md#current-status) for current status,
+Read the [active plan](CONTRACT_CONSISTENCY_PLAN.md#current-status) for current status,
 requirements, accepted risks and remaining work. This log does not establish completion.
 
 ## Implementation And Installation Checkpoints

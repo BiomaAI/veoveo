@@ -111,7 +111,7 @@ The [flight harness](../../testing/flight-smoke/DESIGN.md) qualifies live-owner 
 through the public Gateway. It checks initial session, result and preview invalidations,
 advancing GPU inference and preview counters, reconnected baselines and cancellation.
 Discover/list readiness (C31) and knowledge-source publication (C32) require the work recorded in the
-[foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md). Checked setup verifies
+[consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md). Checked setup verifies
 API and declaration consistency; it does not establish these runtime guarantees.
 
 ## Ownership Boundary

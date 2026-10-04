@@ -87,7 +87,7 @@ Contract revision: 3
 Contract-only library consumption, source vocabulary and typed usage resources are implemented.
 Database catalogs use typed 100-item pages over the authenticated owner directory.
 Checked MCP setup owns startup, discovery, documents and the empty domain-scope vocabulary.
-Installed acceptance remains in the [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
+Installed acceptance remains in the [consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md#modular-types-and-server-contracts).
 
 - C01: met
 - C02: met

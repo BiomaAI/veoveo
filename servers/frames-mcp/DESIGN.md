@@ -306,7 +306,7 @@ Native qualification covers direct and Task caller isolation, current parent cha
 concurrent identical replay, conflicting replay, required-authority schema enforcement,
 and atomic event publication. Separate Store connections read the same current operation
 and an identical replay creates no second event. Installed qualification is a separate
-gate in the foundations plan.
+gate in the [consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md).
 
 ## Prompts
 
@@ -395,7 +395,7 @@ and artifacts are indistinguishable at their resource boundary.
 
 Operation reads use the owner policy and storage profiles specified below. Installed
 qualification is tracked in the
-[foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
+[consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md#modular-types-and-server-contracts).
 
 ## Module layout
 

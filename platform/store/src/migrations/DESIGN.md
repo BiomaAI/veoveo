@@ -43,7 +43,7 @@ with an older catalog to a newer database fails schema validation. Mixed-version
 migration jobs are unsupported: drain the previous migration owner before upgrading.
 Ordinary service rollout follows the data compatibility of the qualified release.
 
-The foundations plan authorizes a coordinated fresh-database cut for its schema
+The [consolidated plan](../../../../docs/CONTRACT_CONSISTENCY_PLAN.md) authorizes a coordinated fresh-database cut for its schema
 replacement. Drain every writer, bootstrap the current catalog into an empty store
 and start only the matching release. An existing database is not an upgrade target
 for that cut; checksum validation rejects its earlier catalog. Native qualification

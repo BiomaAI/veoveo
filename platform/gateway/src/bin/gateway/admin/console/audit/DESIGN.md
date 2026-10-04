@@ -42,5 +42,5 @@ the export. A deletion from the frozen interval aborts the body. Session expiry,
 catalog changes and a ten-minute deadline also abort it. The typed completion footer
 distinguishes a finished download from a partial body. Exports share the stream slots.
 
-The [foundations plan](../../../../../../../../docs/PLATFORM_FOUNDATIONS_PLAN.md#phase-4-unified-audit-log)
+The [consolidated plan](../../../../../../../../docs/CONTRACT_CONSISTENCY_PLAN.md#unified-audit-log)
 tracks qualification and startup of the sealer required by export.

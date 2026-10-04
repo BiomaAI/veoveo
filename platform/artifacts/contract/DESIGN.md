@@ -72,7 +72,7 @@ agrees with the URI. Internally there is one identity source. The HTTP client an
 service resolution interfaces require `ArtifactUri`; strings enter at HTTP and JSON
 decoding. `TryFrom<Uuid>` checks version and variant when a driver provides a UUID.
 Optional `download_url` typing and remaining access/service contracts are work in the
-[foundations plan](../../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
+[consolidated plan](../../../docs/CONTRACT_CONSISTENCY_PLAN.md#modular-types-and-server-contracts).
 
 ## Metadata Snapshots
 

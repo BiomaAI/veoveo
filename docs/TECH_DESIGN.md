@@ -420,7 +420,7 @@ inputs and decoded results do not make that text compile-checked. See the upstre
 [select](https://surrealdb.com/docs/reference/rust/methods/select) and
 [query](https://surrealdb.com/docs/reference/rust/methods/query) APIs. Review stronger
 query construction when upgrading the SDK. This watch item does not block the
-foundations plan or require a custom ORM. Until adoption, keep domain query inputs
+[consolidated plan](CONTRACT_CONSISTENCY_PLAN.md) or require a custom ORM. Until adoption, keep domain query inputs
 typed, bind values at the driver boundary, apply visibility and other filters in SQL
 before limits, and qualify statements against the pinned database.
 
@@ -641,7 +641,7 @@ lease, then retires whole blocks with their last signed head preserved. SQL admi
 only blocks acknowledged by every configured export destination. A maintenance pass
 has a two-second work budget and a 128-block limit. Authentication credential cleanup
 has separate ownership and never deletes audit records. Runtime and installed
-qualification remain in the [foundations plan](PLATFORM_FOUNDATIONS_PLAN.md#phase-4-unified-audit-log).
+qualification remain in the [consolidated plan](CONTRACT_CONSISTENCY_PLAN.md#unified-audit-log).
 
 The [gateway forwarding design](../platform/gateway/DESIGN.md) defines resource
 projection. The gateway gives each server's MCP resource addresses and Apps their own namespace.

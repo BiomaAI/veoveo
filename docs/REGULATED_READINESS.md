@@ -142,7 +142,7 @@ envelope-key layer that enables cryptographic erasure.
 **Pillar 4 — audit qualification.** The [unified audit design](AUDIT.md) uses typed
 records, signed Merkle blocks and installation-defined retention. Its source includes
 S3/OTLP exporters and requires delivery receipts before deleting archived blocks.
-The [foundations batch](PLATFORM_FOUNDATIONS_PLAN.md#phase-4-unified-audit-log) still
+The [audit qualification](CONTRACT_CONSISTENCY_PLAN.md#unified-audit-log) still
 owes runtime and installed qualification. No assessed AU-9 or write-once claim follows
 from source implementation; compliance-mode storage acceptance remains open.
 

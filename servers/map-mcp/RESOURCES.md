@@ -50,7 +50,7 @@ through the foundational URI library. Dataset release and source feature address
 retain their typed parent identities. Reads use those identities when calling the
 domain readers; SQL owns tenant, caller and parent selection. Derivation and route
 producers use the same builders as discovery. Their broader result DTO relationship
-checks remain tracked in the foundations plan.
+checks remain tracked in the [consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md).
 
 The server's public contract owns `MapScope`, its closed authorization vocabulary.
 Handlers and Tasks require that enum and share one grant check. Configurable
@@ -85,7 +85,7 @@ The runtime owns engines and persistence. The MCP adapter owns App HTML and host
 protocol wiring; the default `mcp` feature includes the runtime.
 
 Remaining DTO relationships and typed Store query keys are work in the
-[foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
+[consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md#modular-types-and-server-contracts).
 
 The MCP adapter separates resource reads in `src/mcp/resources.rs` from descriptors
 and templates in `src/mcp/discovery.rs`. `src/mcp/owned.rs` handles operational pages;

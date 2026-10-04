@@ -134,7 +134,7 @@ parser and gives template declarations a separate type. Its component parser and
 builder apply the stricter profile for domain-owned addresses. Network resource
 identities may include ports; constructing a generic reference does not admit a domain route.
 Wider URI builder and checked setup adoption are implementation work in the
-[foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
+[consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md#modular-types-and-server-contracts).
 `server_contract::McpServerContract` associates each server's scope and resource types
 with its MCP configuration, documents, descriptors, and templates. A server implements
 this open trait in its MCP feature; its public contract feature needs only the foundational

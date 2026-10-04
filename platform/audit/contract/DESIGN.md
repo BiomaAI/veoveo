@@ -68,7 +68,7 @@ that attribution for background expiry and terminal records. Dictation summaries
 an end reason, accepted chunk count and audio duration; they cannot carry transcript text.
 
 Implementation and qualification are in progress under the
-[foundations audit pass](../../../docs/PLATFORM_FOUNDATIONS_PLAN.md#phase-4-unified-audit-log).
+[audit acceptance](../../../docs/CONTRACT_CONSISTENCY_PLAN.md#unified-audit-log).
 
 Destination IDs wrap configuration hashes separately from content digests. Export
 intents bind both content and signed-block hashes. Closed rejection codes carry no

@@ -827,7 +827,7 @@ The foundations rollout uses a fresh disposable installation and supports no his
 data conversion or mixed-format service overlap. Recovery checks cover retained
 current-format requests and identities. Installed acceptance must qualify more than
 100 visible Tasks among denied rows, exact reads, current authority, root/template
-discovery and Workbench navigation. The [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts)
+discovery and Workbench navigation. The [consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md#modular-types-and-server-contracts)
 tracks this qualification and the coordinated reset.
 
 ## Shared Artifact Plane

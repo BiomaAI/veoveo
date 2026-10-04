@@ -8,7 +8,7 @@ type through one writer library. Sealed blocks make tampering detectable, and an
 installation can export the log to storage its own administrators cannot rewrite.
 
 This document is the target design. The
-[implementation plan](PLATFORM_FOUNDATIONS_PLAN.md#phase-4-unified-audit-log)
+[implementation plan](CONTRACT_CONSISTENCY_PLAN.md#unified-audit-log)
 replaces the current `audit_event` table with it by hard cut. Contract evolution
 [CE-12](CONTRACT_EVOLUTION.md#ce-12-one-audit-record-per-logical-action) records the
 decision.
@@ -222,7 +222,7 @@ remains part of qualification. OCSF events preserve the typed source under
 Store acknowledges each configured destination separately. Delivery is at least once,
 and record IDs make duplicates identifiable.
 
-Export and compliance-mode acceptance are tracked in the foundations plan. The bundled
+Export and compliance-mode acceptance are tracked in the [consolidated plan](CONTRACT_CONSISTENCY_PLAN.md). The bundled
 RustFS configuration proves no Object Lock guarantee; gap G9 stays open until a
 supporting provider passes its installed tests.
 

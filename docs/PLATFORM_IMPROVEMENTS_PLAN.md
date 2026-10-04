@@ -8,7 +8,7 @@ the extension-release proposal; this plan cannot reintroduce extension packages,
 compatibility manifests or gateway fragment composition.
 
 [Contract Evolution](CONTRACT_EVOLUTION.md) governs provider completion, verification,
-and dependency choices. The foundations plan independently owns identifier changes,
+and dependency choices. The [consolidated plan](CONTRACT_CONSISTENCY_PLAN.md) independently owns identifier changes,
 resource corrections, audit and knowledge delivery.
 
 ## Standards And Protocols

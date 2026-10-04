@@ -87,7 +87,7 @@ An initial index build or reconnection can remove readiness while HTTP liveness 
 healthy. Termination allows 45 seconds for the service's worker and HTTP drain.
 The [native chart suite](../../../testing/deployment-smoke/tests/knowledge_helm.rs)
 checks rendered objects and refused configurations. Image publication, machine-client
-provisioning and installed acceptance remain in the foundations plan.
+provisioning and installed acceptance remain in the [consolidated plan](../../../docs/CONTRACT_CONSISTENCY_PLAN.md).
 
 ## Audit Service
 

@@ -70,7 +70,7 @@ Contract revision: 3
 
 Typed resource contracts, contract-only consumption and checked MCP setup are
 implemented. Installed qualification remains in the
-[foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
+[consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md#modular-types-and-server-contracts).
 
 - C01: met
 - C02: met

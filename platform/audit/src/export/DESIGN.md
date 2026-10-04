@@ -140,6 +140,6 @@ schema validation, Store failure cases and installed delivery. The source fixtur
 cover uncertain S3 PUTs, mismatched bytes, missing Object Lock proof, destination
 changes, immutable intents, partial rejection and lease-fenced retention. The native
 HTTP protocol fixtures pass. Store and installed qualification are tracked in the
-[foundations plan](../../../../docs/PLATFORM_FOUNDATIONS_PLAN.md#phase-4-unified-audit-log).
+[consolidated plan](../../../../docs/CONTRACT_CONSISTENCY_PLAN.md#unified-audit-log).
 The reference configuration selects bundled S3 export.
 Compliance-mode provider acceptance is pending under regulated-readiness gap G9.

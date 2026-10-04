@@ -162,7 +162,7 @@ Indexing starts enumeration after these signals, preserving changes made during 
 
 Native tests qualify snapshot mapping, policy and deadline preservation, content/access
 revisions, metadata bounds and conditional responses. Installed K01–K10 qualification
-and source mutation/restart probes remain open in the foundations plan.
+and source mutation/restart probes remain open in the [consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md).
 
 `tests/gateway_source_conformance.rs` runs source conformance through the public gateway.
 It reads one selected disposable Artifact as the ordinary caller, checks that a

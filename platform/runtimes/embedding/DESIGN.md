@@ -17,7 +17,7 @@ scheduling and refusal checks pass. Installed namespace isolation and authentica
 model access pass on the reference cluster. The controlled domain-corpus comparison
 qualifies 0.6B, 4B and 8B through Knowledge retrieval and selects 0.6B. Composed
 GPU-memory qualification with the selected concurrent workloads remains open in the
-[implementation plan](../../../docs/PLATFORM_FOUNDATIONS_PLAN.md#phase-8-knowledge-service).
+[implementation plan](../../../docs/CONTRACT_CONSISTENCY_PLAN.md#knowledge-service).
 The reference installation runs Knowledge and Reason acceptance in separate batches;
 it keeps both services and embedding stopped during the composed flight check.
 

@@ -911,7 +911,7 @@ Installed readiness qualification is pending.
 Mission admission retains its exact Task identity before dispatch. Unknown outcomes
 preserve that plan, lease and Task pin. Retained completion details across process loss
 and installed recovery qualification remain work in the
-[foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md).
+[consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md).
 The synchronous adapter profile does not provide a remote abort or resumable observation
 that could settle such an outcome automatically.
 

@@ -152,7 +152,7 @@ discovery and scope membership consume its checked setup.
 The runtime owns typed persistence inputs, the stored UUID key profile and checked
 catalog body decoding, clock-policy admission and checked version updates. Broader
 DTO typing and installed qualification remain work in the
-[foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
+[consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md#modular-types-and-server-contracts).
 
 - C01: met
 - C02: met

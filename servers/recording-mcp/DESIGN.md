@@ -85,7 +85,7 @@ dataset, admits a sorted unique selection and exposes typed UTC expiry. Playback
 construction checks the archive URI's dataset and Recording identities against the
 manifest. Runtime qualification compares both address families with Rerun 0.38.1.
 Remaining address-field admission is adoption work
-in the [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
+in the [consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md#modular-types-and-server-contracts).
 
 `service/views.rs` converts SQL-admitted rows into checked catalog, layer and manifest
 models. Artifact record references require the expected table and native RFC UUIDv7

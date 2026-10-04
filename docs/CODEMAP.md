@@ -54,10 +54,8 @@ planned change lands:
 
 | Document | Delivery and remaining work |
 |---|---|
-| [`REPOSITORY_HARDENING_PLAN.md`](REPOSITORY_HARDENING_PLAN.md) | remaining contract enforcement, test and smoke ownership, architecture policy, supply-chain hardening and governance; implemented build mechanics live in their owning designs |
 | [`PLATFORM_IMPROVEMENTS_PLAN.md`](PLATFORM_IMPROVEMENTS_PLAN.md) | open `014`–`023` cycle: App authority and host uploads, tracing, live-view packaging, GPU memory, reasoning and component-scoped deployment; completed cycles and recording delivery retired |
-| [`PLATFORM_FOUNDATIONS_PLAN.md`](PLATFORM_FOUNDATIONS_PLAN.md) | implementation in progress: finished-plan retirement, the `veoveo.ai` identifier hard cut, installation targets for installed smoke, resource contract corrections, modular foundational types and server contract features, SurrealDB 3.3 and the unified audit log, outbox replacement by change feeds and other store simplification, optional knowledge adoption focused on Map, Artifact and Reason with implemented Time collections, and `knowledge-mcp` |
-| [`CONTRACT_CONSISTENCY_PLAN.md`](CONTRACT_CONSISTENCY_PLAN.md) | proposed, under review: core macros and shared contract building blocks, a kernel of required modules with per-module migration lanes, declared database field types, inbound strictness, generated cross-language types, embedding device profiles and identity, and the MCP JSON naming cut |
+| [`CONTRACT_CONSISTENCY_PLAN.md`](CONTRACT_CONSISTENCY_PLAN.md) | single consolidated plan under review: accepted Foundations baseline, required owner/acceptance transfer register, modular contracts and SQL, generated clients, naming cut, conformance/enforcement, and explicit hardening follow-ups |
 | [`PLATFORM_FOUNDATIONS_PROGRESS.md`](PLATFORM_FOUNDATIONS_PROGRESS.md) | historical foundations implementation, publication and acceptance checkpoints; current requirements and remaining work stay in the active plan |
 | [`CAPABILITY_ADOPTION_PLAN.md`](CAPABILITY_ADOPTION_PLAN.md) | unapproved proposals for weather, tabular prediction and the MCP skills extension |
 
@@ -401,7 +399,7 @@ Its public `ScopeDefinition`, `ResourceAddress` and `TaskResourceAddress` traits
 independent libraries supply domain vocabularies and Task-backed resource relationships. Dependencies provide serialization,
 schemas, URL parsing, and percent encoding. Consumers import its types directly. The
 [design](../platform/types/DESIGN.md) defines RFC 3986 concrete references and the stricter domain component profile;
-[the foundations plan](PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts)
+[the consolidated plan](CONTRACT_CONSISTENCY_PLAN.md#modular-types-and-server-contracts)
 tracks concrete/template reference separation, URI builder adoption, MCP integration traits,
 and server library features.
 `src/https_url.rs` owns canonical network URL parsing and redacted diagnostics; download
@@ -454,7 +452,7 @@ observations, server and client helpers, and the shared `{slug}.docs` collection
 `src/indexing.rs` owns typed indexing intent and checked enumeration URI expansion
 shared by the source reader and gateway admission.
 [`mcp/knowledge-extension/DESIGN.md`](../mcp/knowledge-extension/DESIGN.md) defines the
-contract, and [`PLATFORM_FOUNDATIONS_PLAN.md`](PLATFORM_FOUNDATIONS_PLAN.md)
+contract, and [`CONTRACT_CONSISTENCY_PLAN.md`](CONTRACT_CONSISTENCY_PLAN.md)
 sequences delivery.
 
 ### `mcp/bridges`

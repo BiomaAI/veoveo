@@ -176,7 +176,7 @@ on reconnect.
 
 Indexing reads currently commit ordinary per-read audit records. Five-minute collection
 aggregation and installation of the indexing client are pending with the hosted
-Knowledge coordinator in the [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#phase-8-knowledge-service).
+Knowledge coordinator in the [consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md#knowledge-service).
 
 ## Administrative HTTP Routes
 
@@ -249,7 +249,7 @@ are recorded before forwarding. Recording catalog grants audit the sorted select
 digest and count once at admission and once on completion.
 
 The unified audit implementation is being qualified under the
-[foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#phase-4-unified-audit-log).
+[consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md#unified-audit-log).
 
 Control-plane publication compares the new Work Context definitions with the active
 revision and builds typed create, update and delete records for changed definitions.

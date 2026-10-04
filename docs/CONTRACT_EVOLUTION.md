@@ -281,8 +281,9 @@ recording journals, and retained Computers state and reinstalls from the new loc
 Every other store, including local development stores, is recreated. Migrations `0031`
 and `0032` therefore change in place, and fork servers release with the new
 identifiers before they rejoin an installation. The
-[implementation plan](PLATFORM_FOUNDATIONS_PLAN.md#phase-1-identifier-hard-cut)
-lists every identifier and the derived identities that change with it.
+[implementation plan](CONTRACT_CONSISTENCY_PLAN.md#identifier-hard-cut)
+records the accepted identifier cut and tracks the remaining contract and installed
+qualification work.
 
 ## CE-11: Knowledge Reaches Agents Through Resources
 
@@ -464,7 +465,7 @@ and stored formats. Its reference data is disposable. Ship one current contract 
 remove historical readers, migration shims and compatibility-only tests introduced
 during that work. Current-format task restart, authorization and failure recovery
 still require qualification. Implementation and remaining qualification are tracked in the
-[foundations plan](PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
+[consolidated plan](CONTRACT_CONSISTENCY_PLAN.md#modular-types-and-server-contracts).
 
 ## Delivery And Decision Checkpoints
 
