@@ -1,6 +1,7 @@
 //! Code-owned Task operations, independent of the database and MCP runtime.
-veoveo_types::declare_task_types! {
-    pub enum TimeseriesTaskKind {
-        Forecast => "forecast",
-    }
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(task_type)]
+pub enum TimeseriesTaskKind {
+    #[vocabulary(rename = "forecast")]
+    Forecast,
 }

@@ -286,7 +286,11 @@ impl<C: McpServerContract> McpServerSetup<C> {
     /// ```compile_fail
     /// use veoveo_mcp_contract::server_contract::{McpServerContract, McpServerSetup};
     /// use std::collections::BTreeSet;
-    /// veoveo_types::scope_enum! { enum ForeignScope { Read => "foreign:read" } }
+    /// #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, veoveo_types::Vocabulary)]
+    /// #[vocabulary(scope)]
+    /// enum ForeignScope { #[vocabulary(rename = "foreign:read")]
+    /// Read
+    /// }
     /// fn check<C: McpServerContract>(setup: &McpServerSetup<C>) {
     ///     setup.has_scope(&BTreeSet::new(), ForeignScope::Read);
     /// }

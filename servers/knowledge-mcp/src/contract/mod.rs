@@ -8,11 +8,15 @@ pub use resource::KnowledgeResource;
 pub use search::{ResultFreshness, SearchRequest, SearchResponse, SearchResult};
 pub use veoveo_knowledge_contract::*;
 
-veoveo_types::scope_enum! {
-    pub enum KnowledgeScope {
-        Read => "knowledge:read",
-        Search => "knowledge:search",
-        Embed => "knowledge:embed",
-        Admin => "knowledge:admin",
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, veoveo_types::Vocabulary)]
+#[vocabulary(scope)]
+pub enum KnowledgeScope {
+    #[vocabulary(rename = "knowledge:read")]
+    Read,
+    #[vocabulary(rename = "knowledge:search")]
+    Search,
+    #[vocabulary(rename = "knowledge:embed")]
+    Embed,
+    #[vocabulary(rename = "knowledge:admin")]
+    Admin,
 }

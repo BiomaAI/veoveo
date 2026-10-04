@@ -20,6 +20,10 @@
 //! };
 //! ```
 
+extern crate self as veoveo_types;
+pub use veoveo_macros::{Vocabulary, embedded_document};
+pub use vocabulary::{Vocabulary, is_scope_token, scope_vocabulary_schema};
+
 mod access_grant;
 mod authority;
 mod digest;
@@ -34,10 +38,10 @@ mod resource;
 mod resource_components;
 mod resource_selector;
 mod resource_template;
-mod scopes;
 pub mod sha256_hex;
 mod task;
 mod task_type;
+mod vocabulary;
 
 pub use access_grant::AccessGrant;
 pub use authority::{
@@ -63,8 +67,6 @@ pub use identity::{
 };
 pub use provenance::{InvocationMode, InvocationProvenance};
 pub use task::TaskId;
-#[doc(hidden)]
-pub use task_type::assert_task_type_names as __assert_task_type_names;
 pub use task_type::{TaskTypeDefinition, TaskTypeName};
 
 pub use platform_names::{

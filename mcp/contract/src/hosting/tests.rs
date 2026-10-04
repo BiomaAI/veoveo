@@ -30,9 +30,9 @@ use crate::{
     },
 };
 
-veoveo_types::scope_enum! {
-    enum FixtureScope {}
-}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, veoveo_types::Vocabulary)]
+#[vocabulary(scope)]
+enum FixtureScope {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum FixtureResource {

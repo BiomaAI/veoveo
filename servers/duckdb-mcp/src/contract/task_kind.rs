@@ -1,9 +1,13 @@
 //! Code-owned Task operations, independent of the database and MCP runtime.
-veoveo_types::declare_task_types! {
-    pub enum DuckDbTaskKind {
-        Query => "query",
-        Execute => "execute",
-        Ingest => "ingest",
-        Export => "export",
-    }
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(task_type)]
+pub enum DuckDbTaskKind {
+    #[vocabulary(rename = "query")]
+    Query,
+    #[vocabulary(rename = "execute")]
+    Execute,
+    #[vocabulary(rename = "ingest")]
+    Ingest,
+    #[vocabulary(rename = "export")]
+    Export,
 }

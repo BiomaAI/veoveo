@@ -10,8 +10,13 @@ use veoveo_mcp_contract::{
 };
 use veoveo_types::{ResourceAddress, ResourceScheme, ResourceTemplateUri, ResourceUri, ScopeName};
 
-veoveo_types::scope_enum! {
-    enum Permission { Read => "independent:read", Write => "independent:write" }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, veoveo_types::Vocabulary)]
+#[vocabulary(scope)]
+enum Permission {
+    #[vocabulary(rename = "independent:read")]
+    Read,
+    #[vocabulary(rename = "independent:write")]
+    Write,
 }
 
 // The fixture deliberately includes a broken codec to exercise admission failures.

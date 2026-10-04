@@ -8,6 +8,7 @@ name = "veoveo_platform_store"
 path = "src/lib.rs"
 
 [dependencies]
+schemars.workspace = true
 veoveo-knowledge-contract.workspace = true
 veoveo-embedding-contract.workspace = true
 veoveo-mcp-knowledge-extension = { workspace = true, features = ["contract"] }

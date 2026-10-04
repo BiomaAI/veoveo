@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 
 mod knowledge;
 #[doc(hidden)]
-pub use veoveo_knowledge_macros::embedded_document;
+pub use veoveo_macros::embedded_document;
 pub use veoveo_mcp_knowledge_extension as knowledge_extension;
 
 /// The normative contract revision this crate implements.

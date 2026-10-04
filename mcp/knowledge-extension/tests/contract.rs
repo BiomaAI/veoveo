@@ -211,7 +211,7 @@ fn search_bounds_are_unicode_characters_and_scores_are_finite() {
 
 #[test]
 fn compiled_document_digest_matches_exact_embedded_bytes() {
-    const EMBEDDED: (&str, [u8; 32]) = veoveo_knowledge_macros::embedded_document!("DESIGN.md");
+    const EMBEDDED: (&str, [u8; 32]) = veoveo_macros::embedded_document!("DESIGN.md");
     assert_eq!(
         veoveo_types::Sha256Digest::from_bytes(EMBEDDED.1),
         content_digest(EMBEDDED.0)

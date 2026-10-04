@@ -2,7 +2,6 @@ use std::collections::BTreeMap;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use surrealdb::types as surrealdb_types;
 use surrealdb::types::{RecordId, SurrealValue};
 
 #[derive(Clone, Eq, PartialEq, Serialize, Deserialize, SurrealValue)]
@@ -37,21 +36,6 @@ mod secret_tests {
     }
 }
 
-macro_rules! string_enum {
-    ($(#[$meta:meta])* pub enum $name:ident { $($variant:ident => $value:literal),+ $(,)? }) => {
-        $(#[$meta])*
-        #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize, SurrealValue)]
-        #[surreal(untagged)]
-        pub enum $name {
-            $(
-                #[serde(rename = $value)]
-                #[surreal(value = $value)]
-                $variant,
-            )+
-        }
-    };
-}
-
 /// A genuinely open-ended JSON object used only at provider/configuration boundaries.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -77,179 +61,249 @@ impl From<BTreeMap<String, serde_json::Value>> for OpenObject {
     }
 }
 
-string_enum! {
-    pub enum PrincipalKind {
-        User => "user",
-        Service => "service",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum PrincipalKind {
+    #[vocabulary(rename = "user")]
+    User,
+    #[vocabulary(rename = "service")]
+    Service,
 }
 
-string_enum! {
-    pub enum OauthClientKind {
-        Public => "public",
-        Confidential => "confidential",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum OauthClientKind {
+    #[vocabulary(rename = "public")]
+    Public,
+    #[vocabulary(rename = "confidential")]
+    Confidential,
 }
 
-string_enum! {
-    pub enum ServerTransport {
-        StreamableHttp => "streamable_http",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum ServerTransport {
+    #[vocabulary(rename = "streamable_http")]
+    StreamableHttp,
 }
 
-string_enum! {
-    pub enum PolicyState {
-        Draft => "draft",
-        Active => "active",
-        Retired => "retired",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum PolicyState {
+    #[vocabulary(rename = "draft")]
+    Draft,
+    #[vocabulary(rename = "active")]
+    Active,
+    #[vocabulary(rename = "retired")]
+    Retired,
 }
 
-string_enum! {
-    pub enum GatewayControlRevisionSource {
-        AdminApi => "admin_api",
-        SeedFile => "seed_file",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum GatewayControlRevisionSource {
+    #[vocabulary(rename = "admin_api")]
+    AdminApi,
+    #[vocabulary(rename = "seed_file")]
+    SeedFile,
 }
 
-string_enum! {
-    pub enum TaskStatus {
-        Queued => "queued",
-        Running => "running",
-        Waiting => "waiting",
-        Succeeded => "succeeded",
-        Failed => "failed",
-        CancelRequested => "cancel_requested",
-        Cancelled => "cancelled",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum TaskStatus {
+    #[vocabulary(rename = "queued")]
+    Queued,
+    #[vocabulary(rename = "running")]
+    Running,
+    #[vocabulary(rename = "waiting")]
+    Waiting,
+    #[vocabulary(rename = "succeeded")]
+    Succeeded,
+    #[vocabulary(rename = "failed")]
+    Failed,
+    #[vocabulary(rename = "cancel_requested")]
+    CancelRequested,
+    #[vocabulary(rename = "cancelled")]
+    Cancelled,
 }
 
-string_enum! {
-    pub enum RecoveryClass {
-        Resume => "resume",
-        WebhookWait => "webhook_wait",
-        ProviderWait => "provider_wait",
-        InterruptedIndeterminate => "interrupted_indeterminate",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum RecoveryClass {
+    #[vocabulary(rename = "resume")]
+    Resume,
+    #[vocabulary(rename = "webhook_wait")]
+    WebhookWait,
+    #[vocabulary(rename = "provider_wait")]
+    ProviderWait,
+    #[vocabulary(rename = "interrupted_indeterminate")]
+    InterruptedIndeterminate,
 }
 
-string_enum! {
-    pub enum ProviderJobState {
-        Submitted => "submitted",
-        Waiting => "waiting",
-        Succeeded => "succeeded",
-        Failed => "failed",
-        CancelRequested => "cancel_requested",
-        Cancelled => "cancelled",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum ProviderJobState {
+    #[vocabulary(rename = "submitted")]
+    Submitted,
+    #[vocabulary(rename = "waiting")]
+    Waiting,
+    #[vocabulary(rename = "succeeded")]
+    Succeeded,
+    #[vocabulary(rename = "failed")]
+    Failed,
+    #[vocabulary(rename = "cancel_requested")]
+    CancelRequested,
+    #[vocabulary(rename = "cancelled")]
+    Cancelled,
 }
 
-string_enum! {
-    pub enum ArtifactWriteRedemptionState {
-        Reserved => "reserved",
-        Finalized => "finalized",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum ArtifactWriteRedemptionState {
+    #[vocabulary(rename = "reserved")]
+    Reserved,
+    #[vocabulary(rename = "finalized")]
+    Finalized,
 }
 
-string_enum! {
-    pub enum ArtifactAccessRequestState {
-        Pending => "pending",
-        Approved => "approved",
-        Denied => "denied",
-        Cancelled => "cancelled",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum ArtifactAccessRequestState {
+    #[vocabulary(rename = "pending")]
+    Pending,
+    #[vocabulary(rename = "approved")]
+    Approved,
+    #[vocabulary(rename = "denied")]
+    Denied,
+    #[vocabulary(rename = "cancelled")]
+    Cancelled,
 }
 
-string_enum! {
-    pub enum MediaUsageKind {
-        Estimate => "estimate",
-        Actual => "actual",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum MediaUsageKind {
+    #[vocabulary(rename = "estimate")]
+    Estimate,
+    #[vocabulary(rename = "actual")]
+    Actual,
 }
 
-string_enum! {
-    pub enum DomainUsageKind {
-        Estimate => "estimate",
-        Actual => "actual",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum DomainUsageKind {
+    #[vocabulary(rename = "estimate")]
+    Estimate,
+    #[vocabulary(rename = "actual")]
+    Actual,
 }
 
-string_enum! {
-    pub enum MapReleaseState {
-        Staged => "staged",
-        Active => "active",
-        Retired => "retired",
-        Quarantined => "quarantined",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum MapReleaseState {
+    #[vocabulary(rename = "staged")]
+    Staged,
+    #[vocabulary(rename = "active")]
+    Active,
+    #[vocabulary(rename = "retired")]
+    Retired,
+    #[vocabulary(rename = "quarantined")]
+    Quarantined,
 }
 
-string_enum! {
-    pub enum MapAcquisitionState {
-        Queued => "queued",
-        Running => "running",
-        Succeeded => "succeeded",
-        Failed => "failed",
-        CancelRequested => "cancel_requested",
-        Cancelled => "cancelled",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum MapAcquisitionState {
+    #[vocabulary(rename = "queued")]
+    Queued,
+    #[vocabulary(rename = "running")]
+    Running,
+    #[vocabulary(rename = "succeeded")]
+    Succeeded,
+    #[vocabulary(rename = "failed")]
+    Failed,
+    #[vocabulary(rename = "cancel_requested")]
+    CancelRequested,
+    #[vocabulary(rename = "cancelled")]
+    Cancelled,
 }
 
-string_enum! {
-    pub enum MapRouteState {
-        PlanningAdvisory => "planning_advisory",
-        Validated => "validated",
-        Stale => "stale",
-        Invalidated => "invalidated",
-        Unavailable => "unavailable",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum MapRouteState {
+    #[vocabulary(rename = "planning_advisory")]
+    PlanningAdvisory,
+    #[vocabulary(rename = "validated")]
+    Validated,
+    #[vocabulary(rename = "stale")]
+    Stale,
+    #[vocabulary(rename = "invalidated")]
+    Invalidated,
+    #[vocabulary(rename = "unavailable")]
+    Unavailable,
 }
 
-string_enum! {
-    pub enum MapDependencyKind {
-        Release => "release",
-        Restriction => "restriction",
-        Facility => "facility",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum MapDependencyKind {
+    #[vocabulary(rename = "release")]
+    Release,
+    #[vocabulary(rename = "restriction")]
+    Restriction,
+    #[vocabulary(rename = "facility")]
+    Facility,
 }
 
-string_enum! {
-    pub enum ArtifactReleaseState {
-        Private => "private",
-        Releasable => "releasable",
-        Released => "released",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum ArtifactReleaseState {
+    #[vocabulary(rename = "private")]
+    Private,
+    #[vocabulary(rename = "releasable")]
+    Releasable,
+    #[vocabulary(rename = "released")]
+    Released,
 }
 
-string_enum! {
-    pub enum GrantPermission {
-        Read => "read",
-        Write => "write",
-        Admin => "admin",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum GrantPermission {
+    #[vocabulary(rename = "read")]
+    Read,
+    #[vocabulary(rename = "write")]
+    Write,
+    #[vocabulary(rename = "admin")]
+    Admin,
 }
 
-string_enum! {
-    pub enum ArtifactGrantSubjectKind {
-        Principal => "principal",
-        Group => "group",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum ArtifactGrantSubjectKind {
+    #[vocabulary(rename = "principal")]
+    Principal,
+    #[vocabulary(rename = "group")]
+    Group,
 }
 
-string_enum! {
-    pub enum WorkContextMembershipLevel {
-        Viewer => "viewer",
-        Contributor => "contributor",
-        Custodian => "custodian",
-        Owner => "owner",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum WorkContextMembershipLevel {
+    #[vocabulary(rename = "viewer")]
+    Viewer,
+    #[vocabulary(rename = "contributor")]
+    Contributor,
+    #[vocabulary(rename = "custodian")]
+    Custodian,
+    #[vocabulary(rename = "owner")]
+    Owner,
 }
 
-string_enum! {
-    pub enum InvocationMode {
-        Direct => "direct",
-        Delegated => "delegated",
-        Automated => "automated",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum InvocationMode {
+    #[vocabulary(rename = "direct")]
+    Direct,
+    #[vocabulary(rename = "delegated")]
+    Delegated,
+    #[vocabulary(rename = "automated")]
+    Automated,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
@@ -292,140 +346,201 @@ pub struct InvocationAuthorityRecord {
     pub delegation_id: Option<String>,
 }
 
-string_enum! {
-    pub enum RecordingState {
-        Live => "live",
-        Ready => "ready",
-        Sealing => "sealing",
-        Sealed => "sealed",
-        Interrupted => "interrupted",
-        Failed => "failed",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum RecordingState {
+    #[vocabulary(rename = "live")]
+    Live,
+    #[vocabulary(rename = "ready")]
+    Ready,
+    #[vocabulary(rename = "sealing")]
+    Sealing,
+    #[vocabulary(rename = "sealed")]
+    Sealed,
+    #[vocabulary(rename = "interrupted")]
+    Interrupted,
+    #[vocabulary(rename = "failed")]
+    Failed,
 }
 
-string_enum! {
-    pub enum RecordingRetentionMode {
-        InstallationDefault => "installation_default",
-        RetainUntil => "retain_until",
-        RetainForever => "retain_forever",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum RecordingRetentionMode {
+    #[vocabulary(rename = "installation_default")]
+    InstallationDefault,
+    #[vocabulary(rename = "retain_until")]
+    RetainUntil,
+    #[vocabulary(rename = "retain_forever")]
+    RetainForever,
 }
 
-string_enum! {
-    pub enum RecordingLayerKind {
-        Capture => "capture",
-        Properties => "properties",
-        Derived => "derived",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum RecordingLayerKind {
+    #[vocabulary(rename = "capture")]
+    Capture,
+    #[vocabulary(rename = "properties")]
+    Properties,
+    #[vocabulary(rename = "derived")]
+    Derived,
 }
 
-string_enum! {
-    pub enum RecordingLayerState {
-        Writing => "writing",
-        Staged => "staged",
-        Committed => "committed",
-        Failed => "failed",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum RecordingLayerState {
+    #[vocabulary(rename = "writing")]
+    Writing,
+    #[vocabulary(rename = "staged")]
+    Staged,
+    #[vocabulary(rename = "committed")]
+    Committed,
+    #[vocabulary(rename = "failed")]
+    Failed,
 }
 
-string_enum! {
-    pub enum RecordingReadGrantClass {
-        ViewerSegment => "viewer_segment",
-        CatalogDataset => "catalog_dataset",
-        AppProjection => "app_projection",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum RecordingReadGrantClass {
+    #[vocabulary(rename = "viewer_segment")]
+    ViewerSegment,
+    #[vocabulary(rename = "catalog_dataset")]
+    CatalogDataset,
+    #[vocabulary(rename = "app_projection")]
+    AppProjection,
 }
 
-string_enum! {
-    pub enum RecordingProjectionState {
-        Reserved => "reserved",
-        Materializing => "materializing",
-        Ready => "ready",
-        Failed => "failed",
-        Cancelled => "cancelled",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum RecordingProjectionState {
+    #[vocabulary(rename = "reserved")]
+    Reserved,
+    #[vocabulary(rename = "materializing")]
+    Materializing,
+    #[vocabulary(rename = "ready")]
+    Ready,
+    #[vocabulary(rename = "failed")]
+    Failed,
+    #[vocabulary(rename = "cancelled")]
+    Cancelled,
 }
 
-string_enum! {
-    pub enum RecordingIngestStreamState {
-        Open => "open",
-        Finished => "finished",
-        Failed => "failed",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum RecordingIngestStreamState {
+    #[vocabulary(rename = "open")]
+    Open,
+    #[vocabulary(rename = "finished")]
+    Finished,
+    #[vocabulary(rename = "failed")]
+    Failed,
 }
 
-string_enum! {
-    pub enum RecordingIngestBatchState {
-        Durable => "durable",
-        Materialized => "materialized",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum RecordingIngestBatchState {
+    #[vocabulary(rename = "durable")]
+    Durable,
+    #[vocabulary(rename = "materialized")]
+    Materialized,
 }
 
-string_enum! {
-    pub enum AgentState {
-        Idle => "idle",
-        Running => "running",
-        Waiting => "waiting",
-        Disabled => "disabled",
-        Failed => "failed",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum AgentState {
+    #[vocabulary(rename = "idle")]
+    Idle,
+    #[vocabulary(rename = "running")]
+    Running,
+    #[vocabulary(rename = "waiting")]
+    Waiting,
+    #[vocabulary(rename = "disabled")]
+    Disabled,
+    #[vocabulary(rename = "failed")]
+    Failed,
 }
 
-string_enum! {
-    pub enum WakeKind {
-        TaskResult => "task_result",
-        ResourceChanged => "resource_changed",
-        Timer => "timer",
-        OperatorMessage => "operator_message",
-        InputRequest => "input_request",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum WakeKind {
+    #[vocabulary(rename = "task_result")]
+    TaskResult,
+    #[vocabulary(rename = "resource_changed")]
+    ResourceChanged,
+    #[vocabulary(rename = "timer")]
+    Timer,
+    #[vocabulary(rename = "operator_message")]
+    OperatorMessage,
+    #[vocabulary(rename = "input_request")]
+    InputRequest,
 }
 
-string_enum! {
-    pub enum WakeState {
-        Pending => "pending",
-        Claimed => "claimed",
-        Acked => "acked",
-        Coalesced => "coalesced",
-        Failed => "failed",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum WakeState {
+    #[vocabulary(rename = "pending")]
+    Pending,
+    #[vocabulary(rename = "claimed")]
+    Claimed,
+    #[vocabulary(rename = "acked")]
+    Acked,
+    #[vocabulary(rename = "coalesced")]
+    Coalesced,
+    #[vocabulary(rename = "failed")]
+    Failed,
 }
 
-string_enum! {
-    pub enum AgentEpisodeState {
-        Running => "running",
-        Completed => "completed",
-        BudgetTerminated => "budget_terminated",
-        Stopped => "stopped",
-        Failed => "failed",
-        Crashed => "crashed",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum AgentEpisodeState {
+    #[vocabulary(rename = "running")]
+    Running,
+    #[vocabulary(rename = "completed")]
+    Completed,
+    #[vocabulary(rename = "budget_terminated")]
+    BudgetTerminated,
+    #[vocabulary(rename = "stopped")]
+    Stopped,
+    #[vocabulary(rename = "failed")]
+    Failed,
+    #[vocabulary(rename = "crashed")]
+    Crashed,
 }
 
-string_enum! {
-    pub enum AgentTaskWatchState {
-        Pending => "pending",
-        Watching => "watching",
-        Resolved => "resolved",
-        Failed => "failed",
-        Cancelled => "cancelled",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum AgentTaskWatchState {
+    #[vocabulary(rename = "pending")]
+    Pending,
+    #[vocabulary(rename = "watching")]
+    Watching,
+    #[vocabulary(rename = "resolved")]
+    Resolved,
+    #[vocabulary(rename = "failed")]
+    Failed,
+    #[vocabulary(rename = "cancelled")]
+    Cancelled,
 }
 
-string_enum! {
-    pub enum AgentInputRequestState {
-        Pending => "pending",
-        Answered => "answered",
-        Declined => "declined",
-        Cancelled => "cancelled",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum AgentInputRequestState {
+    #[vocabulary(rename = "pending")]
+    Pending,
+    #[vocabulary(rename = "answered")]
+    Answered,
+    #[vocabulary(rename = "declined")]
+    Declined,
+    #[vocabulary(rename = "cancelled")]
+    Cancelled,
 }
 
-string_enum! {
-    pub enum GatewayReplayKind {
-        ClientAssertion => "client_assertion",
-        IdJag => "id_jag",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub enum GatewayReplayKind {
+    #[vocabulary(rename = "client_assertion")]
+    ClientAssertion,
+    #[vocabulary(rename = "id_jag")]
+    IdJag,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
@@ -1670,3 +1785,6 @@ mod tests {
         assert!(serde_json::from_str::<OpenObject>("[]").is_err());
     }
 }
+
+#[cfg(test)]
+mod vocabulary_baseline;

@@ -78,6 +78,7 @@ Component designs live beside the code whose contract they specify:
 | [`platform/audit/measurements/2026-09-30.md`](../platform/audit/measurements/2026-09-30.md) | paired native audit timings, batching selection, raw samples and limits of the development measurement |
 | [`platform/audit/src/export/DESIGN.md`](../platform/audit/src/export/DESIGN.md) | typed OCSF mapping, S3/OTLP completion and recovery, persisted delivery receipts and export-gated retention |
 | [`platform/audit/contract/DESIGN.md`](../platform/audit/contract/DESIGN.md) | protocol-independent checked audit records, closed details, typed identities and partition-scoped reads; `src/knowledge.rs` admits source observations without external navigation URLs |
+| [`platform/macros/DESIGN.md`](../platform/macros/DESIGN.md) | shared `Vocabulary` derive and compile-time UTF-8 document hashing; consumer-owned wire/schema profiles and database delegation |
 | [`platform/types/DESIGN.md`](../platform/types/DESIGN.md) | protocol-independent identity and attribution, installation and agent names, authentication vocabulary and issuer/subject identities, scope names, resource references, URI component parsing and builders, lexical selectors shared by policy and SQL admission, validation errors, and public extension traits |
 | [`platform/runtimes/duckdb/DESIGN.md`](../platform/runtimes/duckdb/DESIGN.md) | shared analytical sandbox, typed HTTPS materialization, network policy and query limits |
 | [`mcp/conformance/DESIGN.md`](../mcp/conformance/DESIGN.md) | typed domain-neutral hosted-server certification profiles, reports, standalone distribution, live knowledge checks and typed owner change/restart and search probes |
@@ -404,7 +405,8 @@ tracks concrete/template reference separation, URI builder adoption, MCP integra
 and server library features.
 `src/https_url.rs` owns canonical network URL parsing and redacted diagnostics; download
 policies own DNS and access checks.
-`src/scopes.rs` provides the `scope_enum!` declaration helper. `src/digest.rs` owns the
+`src/vocabulary.rs` owns the public closed-spelling trait and scope-token/schema helpers.
+The re-exported `Vocabulary` derive lives in `platform/macros`. `src/digest.rs` owns the
 prefixed SHA-256 representation shared by provenance contracts. `src/sha256_hex.rs`
 owns explicit required/optional field serialization for declared bare-hex profiles.
 `src/identity.rs` owns distinct principal, tenant, group, role, Work Context, delegation,
@@ -413,7 +415,7 @@ data-label, and policy-version types. `src/provenance.rs` owns invocation attrib
 invocation authority and output policies. MCP retains Work Context configuration,
 principal membership matching and access decisions.
 `src/task_type.rs` owns validated operation names, the open `TaskTypeDefinition` trait
-and the `declare_task_types!` checked vocabulary declaration. Server contract libraries
+and the `Vocabulary` derive's `task_type` hook. Server contract libraries
 own their enums in `contract/task_kind.rs`; Speech uses its separate contract crate,
 and Computers uses `platform/computers/contract/src/task_kind.rs`. SUMO owns its enum in
 `showcase/sumo/sumo-mcp/src/contract/task_kind.rs`. Task admission, Store records,

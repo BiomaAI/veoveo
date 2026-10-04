@@ -41,7 +41,7 @@ The `contract` feature builds with default features disabled and depends only on
 foundational Veoveo types, serialization, timestamps, and hashing. The `mcp`
 feature adds the pinned Rust MCP SDK. Neither feature depends on MCP core or any
 domain server. Audit and Store can therefore share observations without a runtime
-dependency on MCP. The macro package hashes embedded document bytes during Rust
+dependency on MCP. The [shared macro crate](../../platform/macros/DESIGN.md) hashes embedded document bytes during Rust
 compilation and emits `include_str!` to track the document as a build input.
 
 ## Standards And Protocols

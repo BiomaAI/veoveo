@@ -18,10 +18,10 @@ pub const TERMS_URI: &str = "glossary://terms";
 pub const TERM_ROOT: &str = "glossary://term";
 pub const TERM_TEMPLATE: &str = "glossary://term/{term_id}";
 
-veoveo_types::scope_enum! {
-    /// Glossary adds no scopes; gateway operation policy governs access.
-    pub enum GlossaryScope {}
-}
+/// Glossary adds no scopes; gateway operation policy governs access.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, veoveo_types::Vocabulary)]
+#[vocabulary(scope)]
+pub enum GlossaryScope {}
 
 /// An invalid identifier or resource address.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

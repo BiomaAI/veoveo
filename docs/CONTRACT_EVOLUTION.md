@@ -357,6 +357,13 @@ It has no dependency on RMCP, a server runtime, a database client, a GPU backend
 an individual server. MCP-specific traits and descriptor conversion stay in
 `mcp/contract` and consume the foundational types.
 
+Closed spelling mechanics use an ordinary public `Vocabulary` trait in the
+foundation. The [shared proc-macro crate](../platform/macros/DESIGN.md) implements
+owner declarations and is re-exported by `veoveo-types`. Scope and Task hooks reuse
+the existing public traits. Database delegation expands only in an owning consumer;
+it adds no database dependency to the foundation. Mechanical adoption preserves
+wire values, schema identities and Serde enum ordinals.
+
 Each server library owns its closed scope enum, domain IDs, resource variants, and
 public request and response types. A Rust server exposes these through a `contract`
 feature that builds with default features disabled. Runtime modules and their dependencies

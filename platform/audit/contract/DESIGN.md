@@ -73,3 +73,11 @@ Implementation and qualification are in progress under the
 Destination IDs wrap configuration hashes separately from content digests. Export
 intents bind both content and signed-block hashes. Closed rejection codes carry no
 provider response text and survive replica changes.
+
+## Activity Vocabularies
+
+Activity enums use the foundation's `Vocabulary` derive. Their snake_case spellings,
+variant order and Serde unit-enum profile form part of the frozen audit format.
+Owner-local tests compare every activity enum's JSON and schema with its previous
+declaration and check nonhuman unit-variant ordinals. The derive introduces no audit
+variants or authorization decisions.

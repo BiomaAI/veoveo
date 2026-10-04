@@ -14,7 +14,7 @@ members = [
     "mcp/conformance",
     "mcp/contract",
     "mcp/knowledge-extension",
-    "mcp/knowledge-extension/macros",
+    "platform/macros",
     "platform/audit",
     "platform/audit/contract",
     "platform/artifacts/client",
@@ -85,7 +85,7 @@ veoveo-embedding-contract = { path = "platform/runtimes/embedding/contract" }
 veoveo-embedding-client = { path = "platform/runtimes/embedding/client" }
 veoveo-knowledge-contract = { path = "platform/knowledge/contract" }
 veoveo-mcp-knowledge-extension = { path = "mcp/knowledge-extension", default-features = false }
-veoveo-knowledge-macros = { path = "mcp/knowledge-extension/macros" }
+veoveo-macros = { path = "platform/macros" }
 veoveo-audit-contract = { path = "platform/audit/contract" }
 veoveo-audit = { path = "platform/audit" }
 reqwest-websocket = { version = "=0.6.0", default-features = false }
@@ -138,9 +138,9 @@ notify = "8.2.0"
 parking_lot = "0.12.5"
 petgraph = { version = "0.8.3", default-features = false, features = ["std"] }
 polyline = "0.11.0"
-proc-macro2 = "1.0.107"
+proc-macro2 = "=1.0.107"
 proj = { version = "0.31.0", default-features = false, features = ["geo-types", "bundled_proj"] }
-quote = "1.0.47"
+quote = "=1.0.47"
 rayon = "1.12.0"
 rangemap = "1.8.0"
 reqwest = { version = "=0.13.5", default-features = false }
@@ -185,7 +185,7 @@ secrecy = "0.10.3"
 sha2 = "=0.11.0"
 subtle = "=2.6.1"
 sse-stream = "=0.2.5"
-syn = "3.0.3"
+syn = "=3.0.4"
 tokio = "1.53.1"
 tokio-rustls = { version = "=0.26.4", default-features = false, features = ["logging", "ring"] }
 tokio-tungstenite = { version = "=0.30.0", default-features = false, features = ["connect", "handshake"] }

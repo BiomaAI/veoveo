@@ -4,8 +4,7 @@ use proc_macro::TokenStream;
 use quote::quote;
 use sha2::{Digest, Sha256};
 
-#[proc_macro]
-pub fn embedded_document(input: TokenStream) -> TokenStream {
+pub fn expand(input: TokenStream) -> TokenStream {
     let relative = syn::parse_macro_input!(input as syn::LitStr);
     let result = (|| {
         let root =

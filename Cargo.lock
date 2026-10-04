@@ -16619,15 +16619,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "veoveo-knowledge-macros"
-version = "0.1.0"
-dependencies = [
- "quote",
- "sha2 0.11.0",
- "syn 3.0.4",
-]
-
-[[package]]
 name = "veoveo-knowledge-mcp"
 version = "0.1.0"
 dependencies = [
@@ -16667,6 +16658,16 @@ dependencies = [
  "veoveo-reason-mcp",
  "veoveo-time-mcp",
  "veoveo-types",
+]
+
+[[package]]
+name = "veoveo-macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "sha2 0.11.0",
+ "syn 3.0.4",
 ]
 
 [[package]]
@@ -16806,7 +16807,7 @@ dependencies = [
  "veoveo-artifact-contract",
  "veoveo-audit-contract",
  "veoveo-knowledge-contract",
- "veoveo-knowledge-macros",
+ "veoveo-macros",
  "veoveo-mcp-knowledge-extension",
  "veoveo-types",
 ]
@@ -16885,7 +16886,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.11.0",
- "veoveo-knowledge-macros",
+ "veoveo-macros",
  "veoveo-types",
 ]
 
@@ -17015,6 +17016,7 @@ dependencies = [
  "chrono",
  "futures",
  "hex",
+ "schemars 1.2.2",
  "secrecy",
  "serde",
  "serde_json",
@@ -17646,6 +17648,7 @@ dependencies = [
  "serde_json",
  "url",
  "uuid",
+ "veoveo-macros",
 ]
 
 [[package]]

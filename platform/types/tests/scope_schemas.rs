@@ -2,15 +2,33 @@ use schemars::JsonSchema;
 use serde::Serialize;
 
 mod first_server {
-    veoveo_types::scope_enum! { pub enum Scope { Read => "first:read" } }
+    #[derive(
+        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, veoveo_types::Vocabulary,
+    )]
+    #[vocabulary(scope)]
+    pub enum Scope {
+        #[vocabulary(rename = "first:read")]
+        Read,
+    }
 }
 
 mod second_server {
-    veoveo_types::scope_enum! { pub enum Scope { Read => "second:read" } }
+    #[derive(
+        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, veoveo_types::Vocabulary,
+    )]
+    #[vocabulary(scope)]
+    pub enum Scope {
+        #[vocabulary(rename = "second:read")]
+        Read,
+    }
 }
 
 mod empty_server {
-    veoveo_types::scope_enum! { pub enum Scope {} }
+    #[derive(
+        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, veoveo_types::Vocabulary,
+    )]
+    #[vocabulary(scope)]
+    pub enum Scope {}
 }
 
 #[test]

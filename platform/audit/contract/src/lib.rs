@@ -19,9 +19,12 @@ pub use reader::*;
 mod integrity;
 pub use integrity::*;
 
-veoveo_types::scope_enum! {
-    /// The audit domain owns this scope; protocol cores only carry its validated name.
-    pub enum AuditScope { Read => "audit:read" }
+/// The audit domain owns this scope; protocol cores only carry its validated name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, veoveo_types::Vocabulary)]
+#[vocabulary(scope)]
+pub enum AuditScope {
+    #[vocabulary(rename = "audit:read")]
+    Read,
 }
 
 #[derive(Debug, Clone, Copy)]

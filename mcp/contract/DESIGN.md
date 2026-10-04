@@ -104,7 +104,7 @@ syntax; it does not establish membership in a domain's supported scope vocabular
 
 Server libraries own their domain scope enums, IDs, resource address variants and
 Task operation enums. Operations implement `veoveo_types::TaskTypeDefinition`; the
-`declare_task_types!` helper checks complete, distinct names at compilation. Shared
+`Vocabulary` derive with the `task_type` hook checks complete, distinct names at compilation. Shared
 Task admission and snapshots carry `TaskTypeName`. MCP adapters can parse incoming
 operation names into their own enums for exhaustive Task dispatch.
 Shared infrastructure cannot require a vocabulary change when a server adds a scope
@@ -170,7 +170,7 @@ the selector language and checks action/target consistency. Native administratio
 uses `PolicyTarget::PlatformTask` with a foundational Task UUID; MCP routes use the
 opaque `PolicyTarget::Task` identity. Both apply the same server exposure and policy.
 The gateway converts these targets into the [unified audit contract](../../platform/audit/contract/DESIGN.md).
-Server contracts may use the foundation's `scope_enum!` declaration helper to generate
+Server contracts may use the foundation's `Vocabulary` derive with the `scope` hook to implement
 their scope conversions and schemas from one set of wire spellings.
 The helper also supports empty vocabularies. Generic control-plane validation checks
 scope syntax and configured grant relationships; transport adapters enforce their

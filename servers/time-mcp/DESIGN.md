@@ -171,7 +171,7 @@ Completed Task results keep their stored representation. Native checks cover int
 admission and clipped results; installed Task recovery and client refresh require qualification.
 
 `TimeScope` declares read, schedule, timeline, event-write, and administrative wire
-names once through `scope_enum!`. MCP handlers and Task admission use the enum when
+names once through `Vocabulary` with the `scope` hook. MCP handlers and Task admission use the enum when
 checking authenticated grants. Administrative configuration accepts a validated
 `ScopeName`, allowing installation-defined names, and defaults to `TimeScope::Admin`.
 Unrelated scope names in a caller's grant set remain valid.

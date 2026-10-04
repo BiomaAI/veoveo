@@ -3,28 +3,26 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use veoveo_types::{ResourceUri, Sha256Digest};
 
-macro_rules! vocabulary {
- ($name:ident {$($variant:ident),+ $(,)?})=>{
-  #[derive(Debug,Clone,Copy,PartialEq,Eq,PartialOrd,Ord,Serialize,Deserialize,JsonSchema)]
-  #[serde(rename_all="snake_case")]
-  pub enum $name {$($variant),+}
- };
-}
-vocabulary!(AuditClass {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, veoveo_types::Vocabulary)]
+pub enum AuditClass {
     ApiActivity,
     Authentication,
     AccountChange,
     ArtifactActivity,
     LiveViewAccess,
-    ComputerActivity
-});
-vocabulary!(AuditOutcome {
+    ComputerActivity,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, veoveo_types::Vocabulary)]
+pub enum AuditOutcome {
     Allowed,
     Denied,
     Succeeded,
-    Failed
-});
-vocabulary!(AuditReason {
+    Failed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, veoveo_types::Vocabulary)]
+pub enum AuditReason {
     Accepted,
     PolicyDenied,
     TenantMismatch,
@@ -64,9 +62,11 @@ vocabulary!(AuditReason {
     MissingDataLabel,
     MissingPrincipalAssurance,
     TokenAudienceMismatch,
-    TokenNotYetValid
-});
-vocabulary!(AuditReadMethod {
+    TokenNotYetValid,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, veoveo_types::Vocabulary)]
+pub enum AuditReadMethod {
     ResourceRead,
     PromptGet,
     Completion,
@@ -74,23 +74,29 @@ vocabulary!(AuditReadMethod {
     Status,
     Usage,
     AuditView,
-    AuditExport
-});
-vocabulary!(DiscoveryKind {
+    AuditExport,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, veoveo_types::Vocabulary)]
+pub enum DiscoveryKind {
     Tools,
     Resources,
     ResourceTemplates,
-    Prompts
-});
-vocabulary!(ToolResultKind {
+    Prompts,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, veoveo_types::Vocabulary)]
+pub enum ToolResultKind {
     Complete,
     ErrorResult,
     InputRequired,
     TaskCreated,
     OtherResponse,
-    ProtocolError
-});
-vocabulary!(AuthenticationActivity {
+    ProtocolError,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, veoveo_types::Vocabulary)]
+pub enum AuthenticationActivity {
     Issue,
     Refresh,
     DuplicateRefresh,
@@ -98,10 +104,11 @@ vocabulary!(AuthenticationActivity {
     Replay,
     CredentialDenial,
     Login,
-    Logout
-});
+    Logout,
+}
 
-vocabulary!(AdministrativeOperation {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, veoveo_types::Vocabulary)]
+pub enum AdministrativeOperation {
     ControlPlane,
     JwtRevoke,
     JwtPrune,
@@ -135,10 +142,17 @@ vocabulary!(AdministrativeOperation {
     ConsoleArtifact,
     ServerHealth,
     ServerProxy,
-    TaskCancel
-});
-vocabulary!(AdministrativeAccess { Read, Write });
-vocabulary!(AdminOperationFailure {
+    TaskCancel,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, veoveo_types::Vocabulary)]
+pub enum AdministrativeAccess {
+    Read,
+    Write,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, veoveo_types::Vocabulary)]
+pub enum AdminOperationFailure {
     AgentManagement,
     AgentConversation,
     AgentInputRequest,
@@ -162,17 +176,20 @@ vocabulary!(AdminOperationFailure {
     ServerAdminProxy,
     TaskOwnership,
     TaskRoute,
-});
+}
 
-vocabulary!(AccountActivity {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, veoveo_types::Vocabulary)]
+pub enum AccountActivity {
     Create,
     Update,
     Delete,
     MembershipChange,
     Grant,
-    Revoke
-});
-vocabulary!(ArtifactActivity {
+    Revoke,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, veoveo_types::Vocabulary)]
+pub enum ArtifactActivity {
     Publish,
     Download,
     Grant,
@@ -191,16 +208,20 @@ vocabulary!(ArtifactActivity {
     ReadCapabilityRevoke,
     WriteCapabilityIssue,
     WriteCapabilityRedeem,
-    ShareRedeem
-});
-vocabulary!(LiveViewActivity {
+    ShareRedeem,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, veoveo_types::Vocabulary)]
+pub enum LiveViewActivity {
     Issue,
     Renew,
     Close,
     Expire,
-    Revoke
-});
-vocabulary!(ComputerActivity {
+    Revoke,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, veoveo_types::Vocabulary)]
+pub enum ComputerActivity {
     Create,
     Start,
     Stop,
@@ -213,9 +234,11 @@ vocabulary!(ComputerActivity {
     FileTransfer,
     Maintain,
     Close,
-    ObserveRestart
-});
-vocabulary!(ComputerAuditStage {
+    ObserveRestart,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, veoveo_types::Vocabulary)]
+pub enum ComputerAuditStage {
     Reserved,
     Queued,
     Dispatched,
@@ -232,32 +255,43 @@ vocabulary!(ComputerAuditStage {
     StopDispatched,
     MaintenanceProgress,
     Resumed,
-    RecoveryRequired
-});
-vocabulary!(TaskActivity { Update, Cancel });
-vocabulary!(RecordingActivity {
+    RecoveryRequired,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, veoveo_types::Vocabulary)]
+pub enum TaskActivity {
+    Update,
+    Cancel,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, veoveo_types::Vocabulary)]
+pub enum RecordingActivity {
     StreamOpen,
     StreamStatus,
     AppendDenied,
     BlueprintPublish,
     Finish,
     LayerPublish,
-    PlaybackGrant
-});
-vocabulary!(DictationEnd {
+    PlaybackGrant,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, veoveo_types::Vocabulary)]
+pub enum DictationEnd {
     Completed,
     Cancelled,
     TimedOut,
     Disconnected,
-    Failed
-});
-vocabulary!(KnowledgeReadStatus {
+    Failed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, veoveo_types::Vocabulary)]
+pub enum KnowledgeReadStatus {
     Read,
     NotModified,
     Missing,
     Denied,
-    Failed
-});
+    Failed,
+}
 
 /// Closed payloads contain identifiers, measurements and reviewed enums only.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -455,3 +489,6 @@ impl AuditDetail {
         }
     }
 }
+
+#[cfg(test)]
+mod vocabulary_baseline;

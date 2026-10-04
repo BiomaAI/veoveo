@@ -61,64 +61,6 @@ pub trait TaskTypeDefinition: Copy + Eq + 'static {
     }
 }
 
-/// Declare a domain-owned Task vocabulary from one checked mapping.
-///
-/// Invalid names and duplicate wire spellings are compilation errors:
-/// ```compile_fail
-/// veoveo_types::declare_task_types! {
-///     pub enum InvalidKind { Invalid => "not a task name" }
-/// }
-/// ```
-/// ```compile_fail
-/// veoveo_types::declare_task_types! {
-///     pub enum AliasedKind { First => "same", Second => "same" }
-/// }
-/// ```
-#[macro_export]
-macro_rules! declare_task_types {
-    ($(#[$meta:meta])* $visibility:vis enum $name:ident {
-        $($variant:ident => $wire:literal),+ $(,)?
-    }) => {
-        $(#[$meta])*
-        #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-        $visibility enum $name { $($variant),+ }
-
-        const _: () = $crate::__assert_task_type_names(&[$($wire),+]);
-
-        impl $crate::TaskTypeDefinition for $name {
-            const ALL: &'static [Self] = &[$(Self::$variant),+];
-
-            fn name(self) -> $crate::TaskTypeName {
-                match self {
-                    $(Self::$variant => const { $crate::TaskTypeName::from_static($wire) }),+
-                }
-            }
-        }
-    };
-}
-
-#[doc(hidden)]
-pub const fn assert_task_type_names(names: &[&str]) {
-    let mut index = 0;
-    while index < names.len() {
-        assert!(valid(names[index]), "invalid Task operation name");
-        let mut other = 0;
-        while other < index {
-            let left = names[index].as_bytes();
-            let right = names[other].as_bytes();
-            let mut equal = left.len() == right.len();
-            let mut byte = 0;
-            while equal && byte < left.len() {
-                equal = left[byte] == right[byte];
-                byte += 1;
-            }
-            assert!(!equal, "Task operation names must be distinct");
-            other += 1;
-        }
-        index += 1;
-    }
-}
-
 const fn valid(value: &str) -> bool {
     let bytes = value.as_bytes();
     if bytes.is_empty() || bytes.len() > 128 || !bytes[0].is_ascii_lowercase() {
@@ -174,11 +116,13 @@ impl From<TaskTypeName> for String {
 mod tests {
     use super::*;
 
-    crate::declare_task_types! {
-        enum ExampleKind {
-            First => "example.first",
-            Second => "example_second",
-        }
+    #[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
+    #[vocabulary(task_type)]
+    enum ExampleKind {
+        #[vocabulary(rename = "example.first")]
+        First,
+        #[vocabulary(rename = "example_second")]
+        Second,
     }
 
     #[test]

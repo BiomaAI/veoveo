@@ -209,6 +209,20 @@ own types without edits to core. Compilation checks API structure; conformance a
 domain tests establish behavior. The accepted architecture and migration are recorded
 in [CE-13](docs/CONTRACT_EVOLUTION.md#ce-13-modular-types-and-server-owned-contracts).
 
+## Shared Declaration Macros
+
+Closed unit vocabularies use the public `Vocabulary` trait and the derive re-exported
+by `veoveo-types`. Scope declarations use its `scope` hook, and Task operation enums
+use `task_type`. Keep one spelling declaration per variant; the `surreal` hook emits
+consumer-only SDK delegation. Do not reintroduce local scope, Task or string-enum
+macros for these implemented shapes.
+
+The [shared macro design](platform/macros/DESIGN.md) owns `Vocabulary` and
+`embedded_document!`. `server_docs!` stays in the MCP contract to select the calling
+server's documents. Other macro shapes remain subject to the active Phase 0 plan;
+this rule does not claim their shared replacements are implemented. Preserve wire
+forms, schema metadata and enum ordinals during mechanical migration.
+
 ## Database First
 
 Before building a mechanism in Veoveo, check whether SurrealDB already provides it,

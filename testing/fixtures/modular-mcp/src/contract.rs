@@ -5,8 +5,11 @@ use veoveo_types::{
     ResourceAddress, ResourceUri, ResourceUriBuilder, ResourceUriParts, UriSegment,
 };
 
-veoveo_types::scope_enum! {
-    pub enum ObservatoryScope { Read => "observatory:read" }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, veoveo_types::Vocabulary)]
+#[vocabulary(scope)]
+pub enum ObservatoryScope {
+    #[vocabulary(rename = "observatory:read")]
+    Read,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

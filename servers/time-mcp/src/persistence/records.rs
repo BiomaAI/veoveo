@@ -1,64 +1,66 @@
 //! Private SurrealDB driver records; textual fields are decoded by the Time owner.
 
 use super::*;
-use surrealdb::types as surrealdb_types;
 
-macro_rules! string_enum {
-    ($(#[$meta:meta])* $vis:vis enum $name:ident { $($variant:ident => $value:literal),+ $(,)? }) => {
-        $(#[$meta])*
-        #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize, SurrealValue)]
-        #[surreal(untagged)]
-        $vis enum $name {
-            $(
-                #[serde(rename = $value)]
-                #[surreal(value = $value)]
-                $variant,
-            )+
-        }
-    };
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub(crate) enum TimeDatasetKind {
+    #[vocabulary(rename = "tzdb")]
+    Tzdb,
+    #[vocabulary(rename = "leap_seconds")]
+    LeapSeconds,
 }
 
-string_enum! {
-    pub(crate) enum TimeDatasetKind {
-        Tzdb => "tzdb",
-        LeapSeconds => "leap_seconds",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub(crate) enum TimeAuthorityReleaseState {
+    #[vocabulary(rename = "staged")]
+    Staged,
+    #[vocabulary(rename = "active")]
+    Active,
+    #[vocabulary(rename = "retired")]
+    Retired,
+    #[vocabulary(rename = "quarantined")]
+    Quarantined,
 }
 
-string_enum! {
-    pub(crate) enum TimeAuthorityReleaseState {
-        Staged => "staged",
-        Active => "active",
-        Retired => "retired",
-        Quarantined => "quarantined",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub(crate) enum TimeAcquisitionState {
+    #[vocabulary(rename = "queued")]
+    Queued,
+    #[vocabulary(rename = "running")]
+    Running,
+    #[vocabulary(rename = "succeeded")]
+    Succeeded,
+    #[vocabulary(rename = "failed")]
+    Failed,
+    #[vocabulary(rename = "cancel_requested")]
+    CancelRequested,
+    #[vocabulary(rename = "cancelled")]
+    Cancelled,
 }
 
-string_enum! {
-    pub(crate) enum TimeAcquisitionState {
-        Queued => "queued",
-        Running => "running",
-        Succeeded => "succeeded",
-        Failed => "failed",
-        CancelRequested => "cancel_requested",
-        Cancelled => "cancelled",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub(crate) enum TimeCalendarState {
+    #[vocabulary(rename = "staged")]
+    Staged,
+    #[vocabulary(rename = "active")]
+    Active,
+    #[vocabulary(rename = "retired")]
+    Retired,
 }
 
-string_enum! {
-    pub(crate) enum TimeCalendarState {
-        Staged => "staged",
-        Active => "active",
-        Retired => "retired",
-    }
-}
-
-string_enum! {
-    pub(crate) enum TimeTemporalEventState {
-        Scheduled => "scheduled",
-        Due => "due",
-        Cancelled => "cancelled",
-    }
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(surreal)]
+pub(crate) enum TimeTemporalEventState {
+    #[vocabulary(rename = "scheduled")]
+    Scheduled,
+    #[vocabulary(rename = "due")]
+    Due,
+    #[vocabulary(rename = "cancelled")]
+    Cancelled,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
@@ -307,3 +309,6 @@ pub(super) struct TimeClockPolicyContent {
     pub(super) created_at: DateTime<Utc>,
     pub(super) updated_at: DateTime<Utc>,
 }
+
+#[cfg(test)]
+mod vocabulary_baseline;

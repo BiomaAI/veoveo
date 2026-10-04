@@ -19,4 +19,4 @@ rmcp = { workspace = true, optional = true }
 
 [dev-dependencies]
 jsonschema.workspace = true
-veoveo-knowledge-macros.workspace = true
+veoveo-macros.workspace = true

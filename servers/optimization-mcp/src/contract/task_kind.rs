@@ -1,10 +1,15 @@
 //! Code-owned Task operations, independent of the database and MCP runtime.
-veoveo_types::declare_task_types! {
-    pub enum OptimizationTaskKind {
-        OptimizeRoutes => "optimize_routes",
-        OptimizeRouteScenarios => "optimize_route_scenarios",
-        SolveConvex => "solve_convex",
-        SolveMilp => "solve_milp",
-        VerifySolution => "verify_solution",
-    }
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(task_type)]
+pub enum OptimizationTaskKind {
+    #[vocabulary(rename = "optimize_routes")]
+    OptimizeRoutes,
+    #[vocabulary(rename = "optimize_route_scenarios")]
+    OptimizeRouteScenarios,
+    #[vocabulary(rename = "solve_convex")]
+    SolveConvex,
+    #[vocabulary(rename = "solve_milp")]
+    SolveMilp,
+    #[vocabulary(rename = "verify_solution")]
+    VerifySolution,
 }

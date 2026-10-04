@@ -6,7 +6,7 @@
 |---|---|
 | JSON | Identifiers and resource references serialize as strings; deserialization applies their constructors. Access subjects use `kind` and `id`; invocation provenance uses `mode` with the required attribution fields. |
 | JSON Schema 2020-12 | Schemars emits string schemas for identifiers and tagged unions for subjects and provenance; runtime validators apply the lexical rules below |
-| [OAuth 2.0 scope tokens, RFC 6749 section 3.3](https://www.rfc-editor.org/rfc/rfc6749#section-3.3) | `scope_enum!` declarations follow the scope-token grammar. Dynamic `ScopeName` preserves the broader repository profile of nonempty text without whitespace or controls. Neither type establishes a grant. |
+| [OAuth 2.0 scope tokens, RFC 6749 section 3.3](https://www.rfc-editor.org/rfc/rfc6749#section-3.3) | `Vocabulary` with the `scope` hook declarations follow the scope-token grammar. Dynamic `ScopeName` preserves the broader repository profile of nonempty text without whitespace or controls. Neither type establishes a grant. |
 | Resource reference syntax | Lowercase URI scheme followed by `://` and a nonempty suffix without whitespace or controls; an opaque reference can include a completion template, and this validator does not establish full URI or template conformance |
 | [WHATWG URL Standard](https://url.spec.whatwg.org/) | Concrete hierarchical address components use [`url` 2.5.8](https://docs.rs/url/2.5.8/url/). The profile rejects parser violations and normalization, requires an unescaped authority, and excludes credentials, ports, fragments, and unexpanded templates. This is a Veoveo resource profile, not support for every URI scheme. |
 | [RFC 3986 URI syntax](https://www.rfc-editor.org/rfc/rfc3986) | `ResourceUri` uses the existing `iri-string` 0.7.14 parser for concrete ASCII absolute references with a lowercase scheme and authority syntax. An authority or path must be nonempty. It preserves spelling, admits network ports and fragments, and rejects malformed escapes and unexpanded templates. Domain routes apply the stricter component profile separately. |
@@ -72,7 +72,7 @@ policy owner compares requested names with current authenticated grants and perf
 the other authorization checks.
 
 `TaskTypeDefinition` gives a domain-owned enum its complete operation list and maps
-validated names or incoming wire strings into that enum. `declare_task_types!` generates
+validated names or incoming wire strings into that enum. `Vocabulary` with the `task_type` hook generates
 the enum, list and names from one declaration. Invalid names and duplicate spellings
 fail constant evaluation. Handlers match the parsed enum exhaustively; adding a variant
 requires implementing its dispatch. Shared crates store `TaskTypeName` without knowing
@@ -125,7 +125,7 @@ The [upstream registry](https://crates.io/crates/uuid) reports 1.26.1 as stable 
 upgrade; dependency currency work must qualify newer admission and serialization
 behavior before changing that pin.
 
-`scope_enum!` generates a domain enum from its owner's variant-to-spelling declaration.
+`Vocabulary` with the `scope` hook implements a domain enum from its owner's variant-to-spelling declaration.
 Its parser, serializer, schema, display, and `ScopeDefinition` implementation use that
 same declaration. Duplicate spellings and values outside the OAuth scope-token grammar
 fail compilation. Consumers need Serde and Schemars. A domain may also
@@ -307,3 +307,12 @@ literal denotes a trailing variable. Adapters qualify parity with `matches_uri` 
 using this representation for admission. Prefixes preserve their literal spelling,
 including encoded delimiters. This selection language has separate semantics from
 RFC 6570 expansion through `ResourceTemplateUri`.
+
+## Closed Vocabulary Mechanics
+
+The public `Vocabulary` trait exposes a domain-owned variant slice and spelling
+lookup. An independent contract may implement it directly. The re-exported derive
+uses these ordinary mechanics and the existing scope and Task traits; the foundation
+owns no domain variants. The [macro design](../macros/DESIGN.md) defines declaration
+syntax, Serde profiles and consumer-only database delegation. Existing schemas and
+wire spellings are preserved during mechanical adoption.

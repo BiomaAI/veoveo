@@ -1,14 +1,23 @@
 //! Code-owned Task operations, independent of the database and MCP runtime.
-veoveo_types::declare_task_types! {
-    pub enum MapTaskKind {
-        Route => "route",
-        RouteMatrix => "route_matrix",
-        BuildTravelModel => "build_travel_model",
-        ReachableArea => "reachable_area",
-        InspectGeoPackage => "inspect_geopackage",
-        ImportFeatureLayer => "import_feature_layer",
-        ExportFeatureLayer => "export_feature_layer",
-        BuildVectorTiles => "build_vector_tiles",
-        DeriveRaster => "derive_raster",
-    }
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(task_type)]
+pub enum MapTaskKind {
+    #[vocabulary(rename = "route")]
+    Route,
+    #[vocabulary(rename = "route_matrix")]
+    RouteMatrix,
+    #[vocabulary(rename = "build_travel_model")]
+    BuildTravelModel,
+    #[vocabulary(rename = "reachable_area")]
+    ReachableArea,
+    #[vocabulary(rename = "inspect_geopackage")]
+    InspectGeoPackage,
+    #[vocabulary(rename = "import_feature_layer")]
+    ImportFeatureLayer,
+    #[vocabulary(rename = "export_feature_layer")]
+    ExportFeatureLayer,
+    #[vocabulary(rename = "build_vector_tiles")]
+    BuildVectorTiles,
+    #[vocabulary(rename = "derive_raster")]
+    DeriveRaster,
 }

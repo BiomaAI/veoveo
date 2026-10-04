@@ -1,8 +1,11 @@
 //! Code-owned Task operations, independent of the database and MCP runtime.
-veoveo_types::declare_task_types! {
-    pub enum UavTaskKind {
-        RunScenario => "run_scenario",
-        ExecuteMission => "execute_vehicle_mission_plan",
-        CaptureDataset => "capture_dataset",
-    }
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
+#[vocabulary(task_type)]
+pub enum UavTaskKind {
+    #[vocabulary(rename = "run_scenario")]
+    RunScenario,
+    #[vocabulary(rename = "execute_vehicle_mission_plan")]
+    ExecuteMission,
+    #[vocabulary(rename = "capture_dataset")]
+    CaptureDataset,
 }

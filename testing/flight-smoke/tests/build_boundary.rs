@@ -51,7 +51,7 @@ fn focused_clients_exclude_service_implementations() {
                             | "veoveo-mcp-conformance"
                             | "veoveo-mcp-apps-extension"
                             | "veoveo-mcp-knowledge-extension"
-                            | "veoveo-knowledge-macros"
+                            | "veoveo-macros"
                             | "veoveo-artifact-contract"
                             | "veoveo-audit-contract"
                             | "veoveo-computers-contract"
