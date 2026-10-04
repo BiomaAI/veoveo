@@ -26,7 +26,7 @@ fn registrations_declare_the_contract_and_preserve_cross_server_identities() {
         )
         .expect("decode typed gateway control plane");
         control_plane
-            .validate()
+            .validate(&veoveo_gateway_catalog::registry().unwrap())
             .expect("valid installation registration");
         let uav = control_plane
             .servers

@@ -16,6 +16,7 @@
 | thiserror 2.0.20 | Static owner errors preserve their messages and error traits through the workspace-qualified derive; contextual admission errors keep owner formatting and redaction |
 | Rust extension interfaces | Public `Identity`, `AccessGrant`, `ScopeDefinition`, `TaskTypeDefinition`, `ResourceAddress` and `TaskResourceAddress` traits permit implementations in independent libraries |
 | Task operation names | Veoveo names contain 1–128 ASCII bytes: a lowercase initial letter followed by lowercase letters, digits, dots, underscores or hyphens. Validation establishes syntax, not implementation or authority. |
+| Registered action names | `ActionName` admits 1–128 ASCII bytes with the same lexical rules as Task operation names. Action registration binds an owner's closed vocabulary to one registry; the name alone cannot establish that binding. |
 | SHA-256 provenance strings | `Sha256Digest` serializes as `sha256:` followed by 64 lowercase hexadecimal digits. Explicit `sha256_hex` Serde adapters serve fields whose owner declares bare lowercase hex. The type validates supplied digests and performs no hashing. |
 | Native Task UUIDs, RFC 9562 | `TaskId` generates UUIDv7 and preserves the UUID parser and Serde profile from `uuid` 1.25.0; parsing does not establish a version, Task existence, or authority |
 
@@ -422,6 +423,27 @@ uses these ordinary mechanics and the existing scope and Task traits; the founda
 owns no domain variants. The [macro design](../macros/DESIGN.md) defines declaration
 syntax, Serde profiles and consumer-only database delegation. Existing schemas and
 wire spellings are preserved during mechanical adoption.
+
+## Registered Actions
+
+`ActionRegistryBuilder` binds owner-defined `Vocabulary` implementations without
+enumerating their variants in the foundation. `register` declares and binds one
+complete vocabulary. `reserve` declares a name without an implementation; `bind`
+requires every vocabulary member to have a reserved, unbound name. Empty
+vocabularies, duplicate spellings and repeated bindings fail construction.
+
+`ActionKey<A>` accepts the owner's enum and produces an `ActionHandle`. Both carry
+private registry identity. Constructing a handle is fallible, including for a
+manually implemented vocabulary whose supplied value is absent from `ALL`. A key
+can recover its enum only from a handle bound to that same vocabulary and registry.
+Consumers check the binding before evaluating an action. Copying a wire name into
+another registry does not transfer a handle's admission.
+
+External configuration supplies a checked `ActionName`; `resolve` also requires
+that name to have a bound implementation. `names` exposes accepted names for
+composed schemas, while `declared_names` includes reserved names for diagnostics.
+Action names establish neither target compatibility nor permission. Protocol and
+policy adapters own those checks and receive the registry from their composition.
 
 ## Owner Contributions
 

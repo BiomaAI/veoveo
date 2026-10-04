@@ -6,10 +6,11 @@ publish = false
 
 [features]
 default = []
-gateway = ["dep:base64", "dep:veoveo-artifact-contract", "dep:jsonschema", "dep:anyhow", "dep:async-stream", "dep:axum", "dep:chrono", "dep:futures", "dep:hex", "dep:parking_lot", "dep:reqwest", "dep:rig", "dep:rmcp", "dep:secrecy", "dep:serde", "dep:serde_json", "dep:sha2", "dep:sse-stream", "dep:tokio", "dep:tokio-util", "dep:tower-http", "dep:tracing", "dep:url", "dep:uuid", "dep:veoveo-mcp-contract", "dep:veoveo-mcp-gateway", "dep:veoveo-platform-store", "dep:veoveo-types", "dep:veoveo-agent-runtime", "dep:veoveo-mcp-apps-extension"]
+gateway = ["dep:veoveo-gateway-contract", "dep:base64", "dep:veoveo-artifact-contract", "dep:jsonschema", "dep:anyhow", "dep:async-stream", "dep:axum", "dep:chrono", "dep:futures", "dep:hex", "dep:parking_lot", "dep:reqwest", "dep:rig", "dep:rmcp", "dep:secrecy", "dep:serde", "dep:serde_json", "dep:sha2", "dep:sse-stream", "dep:tokio", "dep:tokio-util", "dep:tower-http", "dep:tracing", "dep:url", "dep:uuid", "dep:veoveo-mcp-contract", "dep:veoveo-mcp-gateway", "dep:veoveo-platform-store", "dep:veoveo-types", "dep:veoveo-agent-runtime", "dep:veoveo-mcp-apps-extension"]
 schema = ["dep:veoveo-modules"]
 
 [dependencies]
+veoveo-gateway-contract = { workspace = true, optional = true }
 base64 = { workspace = true, optional = true }
 veoveo-artifact-contract = { workspace = true, optional = true }
 jsonschema = { workspace = true, optional = true }
@@ -43,6 +44,8 @@ veoveo-mcp-apps-extension = { path = "../../mcp/apps-extension", optional = true
 veoveo-modules = { workspace = true, default-features = false, optional = true }
 
 [dev-dependencies]
+veoveo-recording-contract.workspace = true
+veoveo-computers-contract.workspace = true
 veoveo-gateway-contract.workspace = true
 rustls.workspace = true
 tower.workspace = true

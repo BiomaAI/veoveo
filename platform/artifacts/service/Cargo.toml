@@ -40,6 +40,7 @@ veoveo-mcp-contract = { workspace = true, default-features = false }
 veoveo-platform-store = { path = "../../store" }
 
 [dev-dependencies]
+veoveo-gateway-contract.workspace = true
 reqwest = { workspace = true, features = ["rustls-no-provider", "json"] }
 tempfile = "3"
 veoveo-artifact-client = { path = "../client" }

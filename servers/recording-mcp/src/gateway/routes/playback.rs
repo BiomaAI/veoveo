@@ -1,4 +1,5 @@
 use sha2::{Digest, Sha256};
+use veoveo_gateway_contract::GatewayAction;
 use veoveo_mcp_contract::audit::{
     AuditDetail, AuditOutcome, AuditReadMethod, AuditReason, AuditTarget,
 };
@@ -13,9 +14,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use chrono::{TimeDelta, Utc};
-use veoveo_mcp_contract::{
-    GatewayAction, GatewayProfileId, PolicyEffect, PolicyTarget, ServerSlug, TraceId,
-};
+use veoveo_mcp_contract::{GatewayProfileId, PolicyEffect, PolicyTarget, ServerSlug, TraceId};
 use veoveo_mcp_gateway::{AuthenticatedSubject, PolicyRequest};
 
 use super::RecordingPlaybackState;
@@ -153,7 +152,7 @@ pub(crate) async fn catalog_grant(
         let decision = catalog.decide(PolicyRequest {
             principal: &subject.principal,
             profile: &profile,
-            action: GatewayAction::ResourcesRead,
+            action: GatewayAction::ResourcesRead.into(),
             target: &target,
             trace_id: &trace_id,
         });
@@ -337,7 +336,7 @@ async fn proxy_playback(
     let decision = catalog.decide(PolicyRequest {
         principal: &subject.principal,
         profile: &profile,
-        action: GatewayAction::ResourcesRead,
+        action: GatewayAction::ResourcesRead.into(),
         target: &target,
         trace_id: &trace_id,
     });

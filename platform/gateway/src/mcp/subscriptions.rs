@@ -1,4 +1,5 @@
 use std::{collections::BTreeMap, pin::Pin};
+use veoveo_gateway_contract::GatewayAction;
 use veoveo_gateway_contract::GatewayDiscoverySurface;
 
 use futures::{Stream, StreamExt, stream::SelectAll};
@@ -6,7 +7,7 @@ use rmcp::{
     model::{ErrorData as McpError, ServerNotification, SubscriptionFilter},
     service::{ServiceError, SubscriptionContext},
 };
-use veoveo_mcp_contract::{CanonicalTaskId, DiscoveryFailureMode, GatewayAction, ServerSlug};
+use veoveo_mcp_contract::{CanonicalTaskId, DiscoveryFailureMode, ServerSlug};
 
 use crate::mcp_support::{mcp_internal, upstream_error};
 

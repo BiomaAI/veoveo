@@ -127,10 +127,14 @@ impl<E: Embeddings + 'static> KnowledgeMcp<E> {
         tokio::time::timeout(std::time::Duration::from_secs(60), async {
             let request = context.request_context();
             let identity = &gateway_identity(request)?;
-            let admitted =
-                crate::authority::authenticate(&self.store, identity, KnowledgeScope::Read)
-                    .await
-                    .map_err(error)?;
+            let admitted = crate::authority::authenticate(
+                &self.store,
+                &self.catalog_registry,
+                identity,
+                KnowledgeScope::Read,
+            )
+            .await
+            .map_err(error)?;
             let mut snapshot = Snapshot {
                 resources: BTreeMap::new(),
                 discovery: None,
@@ -185,10 +189,14 @@ impl<E: Embeddings + 'static> KnowledgeMcp<E> {
                     .resources
                     .insert(uri.clone(), digest(value.body.as_bytes()));
             }
-            let current =
-                crate::authority::authenticate(&self.store, identity, KnowledgeScope::Read)
-                    .await
-                    .map_err(error)?;
+            let current = crate::authority::authenticate(
+                &self.store,
+                &self.catalog_registry,
+                identity,
+                KnowledgeScope::Read,
+            )
+            .await
+            .map_err(error)?;
             if current.control_digest != admitted.control_digest
                 || current.approvals != admitted.approvals
                 || snapshot.deadline <= Utc::now()

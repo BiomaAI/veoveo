@@ -398,9 +398,10 @@ async fn managed_execution_requires_signed_attribution_and_current_registration(
         ) -> bool {
             veoveo_knowledge_mcp::authority::authorize(
                 store,
+                &veoveo_gateway_catalog::registry().unwrap(),
                 identity,
                 KnowledgeScope::Search,
-                veoveo_mcp_contract::GatewayAction::ToolsCall,
+                veoveo_gateway_contract::GatewayAction::ToolsCall,
                 target,
             )
             .await

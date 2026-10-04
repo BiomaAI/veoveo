@@ -79,9 +79,7 @@ async fn prepare(store: &PlatformStore) -> Result<Vec<PilotAdoption>> {
     let catalog = GatewayCatalog::load_json(
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../gateway.json"),
         veoveo_mcp_gateway::GatewayCatalogAdmission::unbound()
-            .bind(std::sync::Arc::new(
-                veoveo_recording_mcp::gateway::RecordingCatalogAdmission,
-            ))
+            .bind(veoveo_gateway_catalog::registry().unwrap())
             .unwrap(),
     )?;
     let profile = catalog

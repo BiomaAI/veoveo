@@ -72,7 +72,7 @@ async fn proxy(
     let mut decision = catalog.decide(PolicyRequest {
         principal: &subject.principal,
         profile: &route.profile,
-        action: contract::GatewayAction::ArtifactUpload,
+        action: veoveo_gateway_contract::GatewayAction::ArtifactUpload.into(),
         target: &target,
         trace_id: &trace_id,
     });

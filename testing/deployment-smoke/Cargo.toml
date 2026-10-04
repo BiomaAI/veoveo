@@ -31,6 +31,7 @@ veoveo-image-build-control.workspace = true
 veoveo-mcp-contract.workspace = true
 
 [dev-dependencies]
+veoveo-gateway-catalog.workspace = true
 veoveo-agent-runtime = { path = "../../agents/runtime", default-features = false, features = ["gateway"] }
 veoveo-recording-mcp = { path = "../../servers/recording-mcp", default-features = false, features = ["gateway"] }
 veoveo-mcp-gateway = { path = "../../platform/gateway" }

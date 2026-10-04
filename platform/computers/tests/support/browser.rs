@@ -1,6 +1,8 @@
 //! A retained browser-family fixture; never installation credentials.
 use chrono::{TimeDelta, Utc};
 use uuid::Uuid;
+use veoveo_gateway_contract::OAuthClientId;
+use veoveo_gateway_contract::ProtectedResourceId;
 use veoveo_mcp_contract::*;
 use veoveo_platform_store::{GatewayRefreshFamilyRecord, gateway_refresh_family_record_id};
 pub async fn identity(db: &super::TestDb, name: &str) -> GatewayInternalIdentity {

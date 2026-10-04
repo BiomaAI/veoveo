@@ -4,16 +4,15 @@ use std::{
     path::Path,
     sync::Arc,
 };
+use veoveo_gateway_contract::{AuthorizationServerId, SecretReference, SecretReferenceId};
 
 use anyhow::{Context, Result};
 use parking_lot::RwLock;
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
-    AuthorizationServerId, DataLabelDefinition, GatewayControlPlane, GatewayProfile,
-    GatewayProfileId, IdentityProvider, IdentityProviderId, OAuthClientId, OAuthClientRegistration,
-    OidcClientRegistrationId, PolicySet, Principal, PrincipalKind, ProtectedResourceName,
-    RecordingIngestResource, RecordingProducerId, RecordingProducerRegistration,
-    ResourceAuthorizationServer, ResourceProjectionMode, SecretReference, SecretReferenceId,
+    DataLabelDefinition, GatewayControlPlane, GatewayProfile, GatewayProfileId, IdentityProvider,
+    IdentityProviderId, OAuthClientId, OAuthClientRegistration, OidcClientRegistrationId,
+    PolicySet, Principal, PrincipalKind, ResourceAuthorizationServer, ResourceProjectionMode,
     ServerManifest, ServerSlug, TenantDefinition, TokenSubject, WorkContextDefinition,
 };
 use veoveo_types::{
@@ -165,8 +164,7 @@ pub struct GatewayCatalog {
     authorization_servers: BTreeMap<AuthorizationServerId, usize>,
     servers: BTreeMap<ServerSlug, usize>,
     profiles: BTreeMap<GatewayProfileId, usize>,
-    recording_ingest_resources: BTreeMap<ProtectedResourceName, usize>,
-    recording_producers: BTreeMap<RecordingProducerId, (usize, usize)>,
+    sections: veoveo_gateway_contract::AdmittedCatalogSections,
     policies: BTreeMap<PolicyVersion, usize>,
     data_labels: BTreeMap<DataLabelId, usize>,
     tenants: BTreeMap<TenantId, usize>,
@@ -185,10 +183,12 @@ impl GatewayCatalog {
         // after storage. Dependencies may enable serde_json's preserve_order;
         // that must not change the digest checked by independent workers.
         // Reconstruct the typed document to preserve its established field order.
+        // Validate the typed model before flattened fields can overwrite core JSON keys.
+        admission.validate(&control_plane)?;
         let mut document = serde_json::to_value(control_plane)?;
         document.sort_all_objects();
         let control_plane: GatewayControlPlane = serde_json::from_value(document)?;
-        admission.validate(&control_plane)?;
+        let sections = admission.validate(&control_plane)?;
         let configuration_sha256 = Sha256::digest(serde_json::to_vec(&control_plane)?).into();
 
         let identity_providers = control_plane
@@ -214,26 +214,6 @@ impl GatewayCatalog {
             .iter()
             .enumerate()
             .map(|(index, profile)| (profile.id.clone(), index))
-            .collect();
-        let recording_ingest_resources = control_plane
-            .recording_ingest_resources
-            .iter()
-            .enumerate()
-            .map(|(index, resource)| (resource.id.clone(), index))
-            .collect();
-        let recording_producers = control_plane
-            .recording_ingest_resources
-            .iter()
-            .enumerate()
-            .flat_map(|(resource_index, resource)| {
-                resource
-                    .producers
-                    .iter()
-                    .enumerate()
-                    .map(move |(producer_index, producer)| {
-                        (producer.id.clone(), (resource_index, producer_index))
-                    })
-            })
             .collect();
         let policies = control_plane
             .policies
@@ -286,8 +266,7 @@ impl GatewayCatalog {
             authorization_servers,
             servers,
             profiles,
-            recording_ingest_resources,
-            recording_producers,
+            sections,
             policies,
             data_labels,
             tenants,
@@ -627,56 +606,22 @@ impl GatewayCatalog {
         })
     }
 
-    pub fn recording_ingest_resource(
+    pub fn registry(&self) -> &veoveo_gateway_contract::CatalogRegistry {
+        self.admission
+            .registry()
+            .expect("admitted catalog has a bound registry")
+    }
+    pub fn sections(&self) -> &veoveo_gateway_contract::AdmittedCatalogSections {
+        &self.sections
+    }
+    pub fn contributed_protected_resource(
         &self,
-        id: &ProtectedResourceName,
-    ) -> Option<&RecordingIngestResource> {
-        self.recording_ingest_resources
-            .get(id)
-            .map(|index| &self.control_plane.recording_ingest_resources[*index])
-    }
-
-    pub fn recording_ingest_resources(&self) -> impl Iterator<Item = &RecordingIngestResource> {
-        self.control_plane.recording_ingest_resources.iter()
-    }
-
-    pub fn single_recording_ingest_resource(&self) -> Option<&RecordingIngestResource> {
-        let mut resources = self.control_plane.recording_ingest_resources.iter();
-        let resource = resources.next()?;
-        resources.next().is_none().then_some(resource)
-    }
-
-    pub fn recording_ingest_resource_by_protected_resource(
-        &self,
-        resource: &str,
-    ) -> Option<&RecordingIngestResource> {
-        self.control_plane
-            .recording_ingest_resources
+        resource: &veoveo_gateway_contract::ProtectedResourceId,
+    ) -> Option<&veoveo_gateway_contract::ProtectedResourceDescriptor> {
+        self.sections
+            .protected_resources()
             .iter()
-            .find(|candidate| candidate.protected_resource.as_str() == resource)
-    }
-
-    pub fn recording_producer(
-        &self,
-        producer_id: &RecordingProducerId,
-    ) -> Option<(&RecordingIngestResource, &RecordingProducerRegistration)> {
-        self.recording_producers
-            .get(producer_id)
-            .map(|(resource_index, producer_index)| {
-                let resource = &self.control_plane.recording_ingest_resources[*resource_index];
-                (resource, &resource.producers[*producer_index])
-            })
-    }
-
-    pub fn recording_producer_for_client<'a>(
-        &self,
-        resource: &'a RecordingIngestResource,
-        client_id: &OAuthClientId,
-    ) -> Option<&'a RecordingProducerRegistration> {
-        resource
-            .producers
-            .iter()
-            .find(|producer| &producer.oauth_client == client_id)
+            .find(|candidate| &candidate.resource == resource)
     }
 
     pub fn authorization_server_profiles(

@@ -1,6 +1,7 @@
 use veoveo_computers::{
     CapacityPolicy, ComputerActor, ComputersStore, Reservation, session_grants::SessionGrantPolicy,
 };
+use veoveo_gateway_contract::GatewayAction;
 use veoveo_mcp_contract::*;
 use veoveo_platform_store::RecordId;
 
@@ -17,11 +18,19 @@ pub fn control() -> GatewayControlPlane {
     let mut control = super::policy::control();
     let mut read = control.policies[0].rules[0].clone();
     read.id = PolicyRuleId::new("computer-read").unwrap();
-    read.actions = [GatewayAction::ResourcesRead].into_iter().collect();
+    read.actions = [GatewayAction::ResourcesRead.into()].into_iter().collect();
     read.tools.clear();
     control.policies[0].rules.push(read.clone());
     read.id = PolicyRuleId::new("computer-attach").unwrap();
-    read.actions = [GatewayAction::ComputerAttach].into_iter().collect();
+    read.actions =
+        [
+            veoveo_types::ActionName::new(
+                veoveo_computers_contract::ComputerAction::Attach.as_str(),
+            )
+            .unwrap(),
+        ]
+        .into_iter()
+        .collect();
     control.policies[0].rules.push(read);
     control
 }
@@ -34,8 +43,18 @@ pub async fn ready(
     veoveo_computers_contract::ComputerId,
 ) {
     super::policy::install(&db.a, control()).await;
-    let a = ComputersStore::new(db.a.clone(), provider()).unwrap();
-    let b = ComputersStore::new(db.b.clone(), provider()).unwrap();
+    let a = ComputersStore::new(
+        db.a.clone(),
+        provider(),
+        veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
+    )
+    .unwrap();
+    let b = ComputersStore::new(
+        db.b.clone(),
+        provider(),
+        veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
+    )
+    .unwrap();
     a.install_capacity(
         None,
         CapacityPolicy {

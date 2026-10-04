@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, de::Visitor};
 use veoveo_mcp_contract::{
     CompatibilityHelperId, GatewayToolName, IdentityProviderId, OAuthRefreshToken,
-    PrincipalDisplayName, RecordingIngestStreamId,
+    PrincipalDisplayName,
     deployment::{DeploymentProfileId, DeploymentRequirementId},
     workspace::{ChatId, MessageId, PersonId},
 };
@@ -40,25 +40,6 @@ fn gateway_profiles_preserve_owner_admission_and_string_schemas() {
         IdentityProviderId::schema_id(),
         GatewayToolName::schema_id()
     );
-}
-
-#[test]
-fn ingest_ids_keep_v7_alias_spelling_and_unconstrained_string_schema() {
-    let uuid = uuid::Uuid::now_v7();
-    let alias = format!("urn:uuid:{}", uuid.hyphenated().to_string().to_uppercase());
-    let id = RecordingIngestStreamId::new(alias.clone()).unwrap();
-    assert_eq!(id.as_str(), alias);
-    assert_eq!(id.identity_text(), alias);
-    assert_eq!(serde_json::to_value(&id).unwrap(), alias);
-    assert_eq!(alias.parse::<RecordingIngestStreamId>().unwrap(), id);
-    let v4 = "550e8400-e29b-41d4-a716-446655440000";
-    assert!(RecordingIngestStreamId::new(v4).is_err());
-    assert!(v4.parse::<RecordingIngestStreamId>().is_err());
-    assert!(serde_json::from_value::<RecordingIngestStreamId>(serde_json::json!(v4)).is_err());
-    let schema = serde_json::to_value(schemars::schema_for!(RecordingIngestStreamId)).unwrap();
-    assert_eq!(schema["type"], "string");
-    assert!(schema.get("format").is_none());
-    assert!(schema.get("pattern").is_none());
 }
 
 #[test]

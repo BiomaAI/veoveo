@@ -51,6 +51,9 @@ url.workspace = true
 uuid = { workspace = true, features = ["v7"] }
 
 [dev-dependencies]
+veoveo-recording-contract.workspace = true
+veoveo-computers-contract.workspace = true
+veoveo-agent-runtime = { path = "../../agents/runtime", default-features = false, features = ["contract"] }
 jsonschema.workspace = true
 rmcp = { workspace = true, features = ["client", "transport-streamable-http-client-reqwest", "reqwest-tls-no-provider"] }
 rustls.workspace = true

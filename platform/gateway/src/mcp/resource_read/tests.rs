@@ -11,7 +11,7 @@ use std::{
     time::Duration,
 };
 use veoveo_audit_contract::{AuditPartition, AuditQuery, AuditReadScope};
-use veoveo_mcp_contract::GatewayAction;
+use veoveo_gateway_contract::GatewayAction;
 use veoveo_types::{ResourceScheme, ResourceUri, ServerSlug};
 
 fn projection() -> GatewayResourceProjection {
@@ -274,7 +274,7 @@ async fn indexing_gate_binds_approval_enumeration_members_and_revocation() {
     tokio::time::timeout(Duration::from_secs(180), async {
         let db = crate::test_store::TestDb::new().await;
         let plane = indexing_fixture::plane();
-        plane.validate().unwrap();
+        plane.validate(&crate::catalog_fixture::registry()).unwrap();
         let mut gateway = super::super::task_ownership_tests::gateway(
             crate::GatewayState::new(db.a.clone())
                 .bind_token_extensions(Default::default())

@@ -1,3 +1,4 @@
+use veoveo_gateway_contract::GatewayAction;
 mod presentation;
 
 use crate::runtime::SharedCatalog;
@@ -9,7 +10,7 @@ use axum::{
 };
 pub(crate) use presentation::{console_display_name, presentation};
 use veoveo_mcp_contract::{
-    ConsoleBootstrap, GatewayAction, GatewayProfileId, PolicyEffect, PolicyTarget, TraceId,
+    ConsoleBootstrap, GatewayProfileId, PolicyEffect, PolicyTarget, TraceId,
 };
 use veoveo_mcp_gateway::{AuthenticatedSubject, PolicyRequest};
 use veoveo_types::ScopeDefinition;
@@ -36,7 +37,7 @@ pub(crate) async fn bootstrap(
         .decide(PolicyRequest {
             principal: &subject.principal,
             profile: &profile,
-            action: GatewayAction::AdminRead,
+            action: GatewayAction::AdminRead.into(),
             target: &PolicyTarget::Gateway,
             trace_id: &trace_id,
         })

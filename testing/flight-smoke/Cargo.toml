@@ -8,6 +8,8 @@ name = "flight-smoke"
 path = "src/main.rs"
 
 [dependencies]
+veoveo-gateway-catalog.workspace = true
+veoveo-gateway-contract.workspace = true
 veoveo-deploy-contract.workspace = true
 veoveo-recording-contract.workspace = true
 veoveo-artifact-contract.workspace = true

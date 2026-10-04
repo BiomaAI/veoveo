@@ -1,4 +1,5 @@
 //! Resolve installed-smoke identity from the installation's own control plane.
+use veoveo_gateway_contract::ProtectedResourceId;
 
 use std::{fs, path::Path};
 
@@ -6,7 +7,7 @@ use anyhow::{Context, Result, ensure};
 use veoveo_deploy_contract::{InstallationClient, InstallationTarget};
 use veoveo_mcp_contract::{
     GatewayControlPlane, GatewayProfileId, JwtId, OAuthClientAuthMethod, OAuthClientId,
-    OAuthEndpointUrl, OAuthGrantType, ProtectedResourceId, WorkContextDefinition,
+    OAuthEndpointUrl, OAuthGrantType, WorkContextDefinition,
 };
 use veoveo_types::{InvocationMode, PrincipalId, ScopeName, TenantId, WorkContextId};
 
@@ -52,7 +53,7 @@ impl InstalledTarget {
     ) -> Result<Self> {
         target.validate()?;
         control
-            .validate()
+            .validate(&veoveo_gateway_catalog::registry()?)
             .context("validating installation control plane")?;
         let operator = InstalledIdentity::resolve(
             &target,

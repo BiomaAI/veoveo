@@ -1,5 +1,17 @@
 //! Recording domain contracts shared by producers, playback and analysis consumers.
 
+pub mod ingest;
+pub use ingest::{
+    RECORDING_INGEST_SECTION, RECORDING_TARGET_GROUP, RecordingApplicationId, RecordingCatalog,
+    RecordingCatalogError, RecordingCatalogSection, RecordingDatasetName, RecordingIngestResource,
+    RecordingIngestStreamId, RecordingIngestUri, RecordingProducerBlueprintPolicy,
+    RecordingProducerId, RecordingProducerQuotas, RecordingProducerRegistration,
+    RecordingRetentionPolicy, RecordingTarget, register_catalog, target_audit_resource,
+};
+
+mod actions;
+pub use actions::RecordingAction;
+
 pub mod uris;
 
 mod cursor;
@@ -52,3 +64,6 @@ pub use sealing::{
     RecordingManifestSchema, SealRecordingOutput, SealRecordingOutputBuilder, SealRecordingRequest,
 };
 pub use views::{RecordingCatalogPage, RecordingView, RecordingViewBuilder};
+
+#[cfg(feature = "policy")]
+pub mod policy;

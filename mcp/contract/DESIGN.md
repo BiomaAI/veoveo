@@ -30,7 +30,7 @@ complies with in its crate documents and in its contract resource.
 | Veoveo upload assertion | EdDSA JWT with `artifact-upload` audience and signed control-plane/context digests; restricted to the HTTP upload service |
 | Veoveo access-token `session_family` | Signed UUIDv7 refresh-family binding for browser tokens; current family revocation is enforced by the gateway, and absence supplies no renewable session authority |
 | Veoveo internal `request_context` | Signed source principal, verified access-token metadata and required audit request correlation; includes OAuth client, optional session family and managed-agent execution metadata; contains no bearer value and grants no independent renewal permission |
-| Veoveo `computer_attach` policy action | Interactive access to an exact `computer://computers/{id}` resource; a platform action evaluated alongside current resource-read permission, without an MCP method |
+| Computers `computer_attach` policy action | The Computers contract registers interactive access to an exact `computer://computers/{id}` resource; evaluation also requires current resource-read permission. |
 | `ai.veoveo/app-resource-dependencies` | deterministic gateway projection of exact cross-server App resource-read requirements admitted under active profile and actor authority |
 | `ai.veoveo/knowledge-source` | Veoveo extension that declares resource collections as knowledge, with typed read observations and conditional reads; specified in [the knowledge source extension](../knowledge-extension/DESIGN.md) |
 
@@ -171,6 +171,11 @@ the selector language and checks action/target consistency. Native administratio
 uses `PolicyTarget::PlatformTask` with a foundational Task UUID; MCP routes use the
 opaque `PolicyTarget::Task` identity. Both apply the same server exposure and policy.
 The gateway converts these targets into the [unified audit contract](../../platform/audit/contract/DESIGN.md).
+The [catalog recipe](../../platform/gateway/catalog/DESIGN.md) supplies owner actions,
+target codecs and configuration sections. Control-plane decoding leaves contributed
+targets unadmitted until an explicit registry checks them. Schema producers compose
+registered choices through type identities; unrelated schemas with the same display
+name keep their own admission profile.
 Server contracts may use the foundation's `Vocabulary` derive with the `scope` hook to implement
 their scope conversions and schemas from one set of wire spellings.
 The helper also supports empty vocabularies. Generic control-plane validation checks

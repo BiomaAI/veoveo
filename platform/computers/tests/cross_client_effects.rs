@@ -24,8 +24,10 @@ async fn install(db: &support::TestDb) {
         .unwrap()
         .allowed_resources
         .insert(
-            veoveo_mcp_contract::ProtectedResourceId::new("https://computers.test/mcp/workspace")
-                .unwrap(),
+            veoveo_gateway_contract::ProtectedResourceId::new(
+                "https://computers.test/mcp/workspace",
+            )
+            .unwrap(),
         );
     support::policy::install(&db.a, control).await;
 }
@@ -210,7 +212,7 @@ async fn automation_grant_parent_and_task_recovery_span_owner_clients() {
         .unwrap()
         .access_token
         .audience =
-        veoveo_mcp_contract::ProtectedResourceId::new("https://computers.test/mcp/workspace")
+        veoveo_gateway_contract::ProtectedResourceId::new("https://computers.test/mcp/workspace")
             .unwrap();
     let workspace_agent = veoveo_computers::ComputerActor::from_verified(&agent_identity).unwrap();
     let grant = store

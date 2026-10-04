@@ -204,7 +204,7 @@ fn empty_control_plane() -> GatewayControlPlane {
         authorization_servers: Vec::new(),
         servers: Vec::new(),
         profiles: Vec::new(),
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: Vec::new(),
         work_contexts: Vec::new(),
         policies: Vec::new(),

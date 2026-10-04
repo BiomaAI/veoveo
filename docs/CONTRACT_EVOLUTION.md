@@ -457,10 +457,25 @@ v2 markers require a coordinated gateway/server drain; old and new readers rejec
 the unsupported context shape. There is no silent conversion to static authority.
 The [token design](../platform/gateway/src/auth/DESIGN.md) owns this transport cut.
 
-Recording-specific gateway configuration and policy still require owner extraction.
-[Phase 2](CONTRACT_CONSISTENCY_PLAN.md#phase-2-kernel-extension-points) tracks it and
-qualification of the claim and HTTP extension points. Shared-host configuration
-changes follow the user-directed review recorded in that plan.
+Agents, Computers and Recording declare their policy actions through their own
+contracts. The gateway keeps its closed kernel vocabulary. Typed keys produce
+registry-bound handles; descriptors declare applicable selectors, targets and audit
+access. Shared policy code owns deny precedence and principal predicates. Recording
+owns its ingest configuration, indexes, target codecs and ingest evaluator.
+
+The pure [catalog composition](../platform/gateway/catalog/DESIGN.md) supplies one
+registration recipe to gateway publication, standalone catalog readers and schema
+producers. Runtime libraries receive the registry explicitly. Admission rejects
+unknown contributions, core-name collisions and handles from another binding.
+Contributed object identities match the database's `(kind, id)` publication key.
+Schema composition uses type identity and advertises only bound declarations.
+
+Recording's HTTP endpoint configuration excludes the MCP `transport` field. This
+configuration cut requires coordinated installation inputs and readers; it has no
+compatibility alias. The [active plan](CONTRACT_CONSISTENCY_PLAN.md#phase-2-kernel-extension-points)
+tracks remaining installation qualification, plus extraction of Agents' authoring
+models, installation validation and dependent Workspace models from MCP. Shared-host changes follow
+the user-directed review recorded in that plan.
 
 Media owns its prediction summaries and generation result DTOs. Protocol utilities
 consume Media's contract feature directly; extracting those DTOs preserves their

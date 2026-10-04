@@ -20,6 +20,7 @@ name = "hub-smoke"
 path = "src/bin/hub_smoke.rs"
 
 [dependencies]
+veoveo-gateway-contract.workspace = true
 veoveo-recording-contract.workspace = true
 veoveo-artifact-contract.workspace = true
 veoveo-types.workspace = true

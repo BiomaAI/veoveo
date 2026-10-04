@@ -1,7 +1,10 @@
 use std::collections::BTreeSet;
+use veoveo_gateway_contract::GatewayAction;
 use veoveo_gateway_contract::{APP_RESOURCE_DEPENDENCIES_META_KEY, APP_TOOL_DEPENDENCIES_META_KEY};
 #[cfg(test)]
 use veoveo_gateway_contract::{AppResourceDependency, AppResourceOperation};
+#[cfg(test)]
+use veoveo_gateway_contract::{UpstreamTransportSecurity, UpstreamUrl};
 
 use rmcp::model::{
     CallToolResult, ContentBlock, ErrorData as McpError, ReadResourceResult, Resource,
@@ -9,8 +12,8 @@ use rmcp::model::{
 };
 use serde_json::Value;
 use veoveo_mcp_contract::{
-    GatewayAction, GatewayResourceProjection, GatewayToolName, PolicyTarget,
-    ResourceProjectionMode, ServerManifest, ServerResourceUri, ServerSlug,
+    GatewayResourceProjection, GatewayToolName, PolicyTarget, ResourceProjectionMode,
+    ServerManifest, ServerResourceUri, ServerSlug,
 };
 use veoveo_types::{DataLabelId, ResourceTemplateUri, ResourceUri, ScopeName};
 
@@ -436,7 +439,7 @@ mod tests {
     use rmcp::model::Resource;
     use veoveo_mcp_contract::{
         LocalToolName, McpSurfaceCapabilities, MountPath, ResourceUriPrefix, UpstreamEndpoint,
-        UpstreamTransport, UpstreamTransportSecurity, UpstreamUrl,
+        UpstreamTransport,
     };
     use veoveo_types::{DataLabelId, ResourceScheme, ResourceUri, ScopeName};
 

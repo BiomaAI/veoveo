@@ -9,7 +9,8 @@ use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
 use surrealdb::types::SurrealValue;
 use uuid::Uuid;
-use veoveo_mcp_contract::{GatewayAction, PolicyDecision, PolicyEffect};
+use veoveo_gateway_contract::GatewayAction;
+use veoveo_mcp_contract::{PolicyDecision, PolicyEffect};
 use veoveo_task_runtime::{ClaimedTask, ProviderCommit};
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -44,7 +45,7 @@ impl FileDispatchDecision {
         }
         for decision in std::iter::once(&self.source).chain(self.owner.iter()) {
             if decision.effect != PolicyEffect::Allow
-                || decision.action != GatewayAction::ToolsCall
+                || decision.action != GatewayAction::ToolsCall.into()
                 || decision.profile != operation.authority.profile
                 || decision.tenant.as_ref() != Some(&operation.authority.invocation.tenant)
                 || decision.trace_id.as_str() != operation.transfer_id().to_string()

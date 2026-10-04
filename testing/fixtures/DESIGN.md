@@ -27,6 +27,20 @@ admin before creating runtime clients. Its ten-second deadline covers that setup
 This permits sequence and schema measurements while keeping test operations on the
 database-editor role used by services.
 
+## Catalog Registration
+
+`catalog_registry.rs` reuses the production registration source in
+[`platform/gateway/catalog`](../../platform/gateway/catalog/DESIGN.md). Tests therefore
+exercise the same kernel and owner declarations as installation binaries without
+maintaining another registration list. Source reuse lets an owner test use its own
+library types without a reverse package dependency on the installation recipe.
+
+`registry()` clones one binding within the test executable. `fresh_registry()` creates
+an independent binding for rejection tests: admitted handles and targets from one
+registry cannot authorize requests through another. `catalog_admission.rs` supplies
+the gateway admission wrapper over these declarations. Domain assertions stay in
+the owning suites; the fixtures provide no policy decisions or installation credentials.
+
 ## Lifecycle Bounds
 
 `store/container.rs` owns Docker creation, startup, port admission and removal. Each

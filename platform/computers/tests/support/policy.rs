@@ -8,12 +8,16 @@ use veoveo_platform_store::{
 
 pub fn control() -> GatewayControlPlane {
     let control: GatewayControlPlane = serde_json::from_str(include_str!("gateway.json")).unwrap();
-    control.validate().unwrap();
+    control
+        .validate(&veoveo_gateway_catalog::registry().unwrap())
+        .unwrap();
     control
 }
 
 pub async fn install(store: &PlatformStore, control: GatewayControlPlane) -> String {
-    control.validate().unwrap();
+    control
+        .validate(&veoveo_gateway_catalog::registry().unwrap())
+        .unwrap();
     let name = uuid::Uuid::now_v7().to_string();
     let content = GatewayControlRevisionContent {
         revision_id: name.clone(),

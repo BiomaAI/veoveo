@@ -1,3 +1,4 @@
+use crate::contract::AgentAction;
 use std::{
     sync::Arc,
     time::{Duration, Instant},
@@ -5,9 +6,7 @@ use std::{
 
 use axum::{http::StatusCode, response::IntoResponse};
 use chrono::Utc;
-use veoveo_mcp_contract::{
-    GatewayAction, GatewayProfile, GatewayProfileId, PolicyEffect, PolicyTarget, TraceId,
-};
+use veoveo_mcp_contract::{GatewayProfile, GatewayProfileId, PolicyEffect, PolicyTarget, TraceId};
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayCatalog, PolicyRequest};
 use veoveo_platform_store::{
     WorkContextMembershipLevel, agent_management::AgentCatalogAuthority,
@@ -24,15 +23,29 @@ pub(super) struct Admission {
     pub subject: AuthenticatedSubject,
     pub authority: AgentCatalogAuthority,
     pub started: Instant,
-    pub action: GatewayAction,
+    pub action: AgentAction,
+}
+
+pub(super) fn policy_action(
+    catalog: &GatewayCatalog,
+    action: AgentAction,
+) -> Result<veoveo_gateway_contract::PolicyAction, veoveo_types::ExtensionError> {
+    Ok(catalog
+        .registry()
+        .action_key::<AgentAction>()?
+        .action(action)?
+        .into())
 }
 
 pub(super) fn allowed(
     catalog: &GatewayCatalog,
     profile: &GatewayProfileId,
     subject: &AuthenticatedSubject,
-    action: GatewayAction,
+    action: AgentAction,
 ) -> bool {
+    let Ok(action) = policy_action(catalog, action) else {
+        return false;
+    };
     catalog
         .decide(PolicyRequest {
             principal: &subject.principal,
@@ -49,7 +62,7 @@ pub(super) async fn admit(
     state: &AgentManagementState,
     profile: String,
     subject: AuthenticatedSubject,
-    action: GatewayAction,
+    action: AgentAction,
 ) -> Result<Admission, Fault> {
     let profile =
         GatewayProfileId::new(profile).map_err(|_| Fault::status(StatusCode::NOT_FOUND))?;
@@ -58,14 +71,16 @@ pub(super) async fn admit(
         tenant: subject.authority.tenant.clone(),
         context: subject.authority.work_context.clone(),
     };
+    let current = state.catalog.current();
+    let policy_action = policy_action(&current, action).map_err(|_| Fault::unavailable())?;
     let (catalog, profile, subject) = authorize_gateway_action(
         &state.gateway,
-        state.catalog.current(),
+        current,
         &profile,
         subject,
         AdminAuthorizationRequest {
             audit_target: Some(audit_target),
-            action,
+            action: policy_action,
             target: PolicyTarget::Gateway,
             operation: crate::gateway::http::audit::agent_management_operation(action)
                 .map_err(|_| Fault::unavailable())?,

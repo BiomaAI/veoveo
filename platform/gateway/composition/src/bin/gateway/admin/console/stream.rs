@@ -20,7 +20,7 @@ use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore, watch};
 use tokio_util::sync::CancellationToken;
-use veoveo_mcp_contract::GatewayAction;
+use veoveo_gateway_contract::GatewayAction;
 use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_platform_store::{
     AgentRecord, ArtifactAccessRequestRecord, ArtifactBlobRecord, ArtifactGrantEdge,

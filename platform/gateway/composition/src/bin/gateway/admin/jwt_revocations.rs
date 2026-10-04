@@ -1,4 +1,5 @@
 use std::time::Instant;
+use veoveo_gateway_contract::GatewayAction;
 use veoveo_mcp_contract::audit::AdministrativeOperation;
 
 use axum::{
@@ -9,8 +10,8 @@ use axum::{
 };
 use chrono::Utc;
 use veoveo_mcp_contract::{
-    GatewayAction, GatewayJwtRevocation, GatewayJwtRevocationAdminStatus,
-    GatewayJwtRevocationApplyResult, GatewayJwtRevocationPruneResult, GatewayJwtRevocationRequest,
+    GatewayJwtRevocation, GatewayJwtRevocationAdminStatus, GatewayJwtRevocationApplyResult,
+    GatewayJwtRevocationPruneResult, GatewayJwtRevocationRequest,
 };
 use veoveo_mcp_gateway::AuthenticatedSubject;
 
@@ -42,7 +43,7 @@ pub(crate) async fn revoke_jwt(
         &profile_id,
         subject,
         crate::audit::AdminAuthorizationRequest {
-            action: GatewayAction::AdminWrite,
+            action: GatewayAction::AdminWrite.into(),
             target: veoveo_mcp_contract::PolicyTarget::Gateway,
             audit_target: Some(revocation_target.clone()),
             operation: AdministrativeOperation::JwtRevoke,
@@ -66,7 +67,7 @@ pub(crate) async fn revoke_jwt(
             &subject,
             AdminOperationAuditRecord {
                 audit_target: Some(revocation_target.clone()),
-                action: GatewayAction::AdminWrite,
+                action: GatewayAction::AdminWrite.into(),
                 operation: AdministrativeOperation::JwtRevoke,
                 started_at,
                 status: AdminOperationStatus::Rejected,
@@ -99,7 +100,7 @@ pub(crate) async fn revoke_jwt(
             &subject,
             AdminOperationAuditRecord {
                 audit_target: Some(revocation_target.clone()),
-                action: GatewayAction::AdminWrite,
+                action: GatewayAction::AdminWrite.into(),
                 operation: AdministrativeOperation::JwtRevoke,
                 started_at,
                 status: AdminOperationStatus::Failed,
@@ -118,7 +119,7 @@ pub(crate) async fn revoke_jwt(
         &subject,
         AdminOperationAuditRecord {
             audit_target: Some(revocation_target.clone()),
-            action: GatewayAction::AdminWrite,
+            action: GatewayAction::AdminWrite.into(),
             operation: AdministrativeOperation::JwtRevoke,
             started_at,
             status: AdminOperationStatus::Succeeded,
@@ -180,7 +181,7 @@ pub(crate) async fn prune_jwt_revocations(
                 &subject,
                 AdminOperationAuditRecord {
                     audit_target: None,
-                    action: GatewayAction::AdminWrite,
+                    action: GatewayAction::AdminWrite.into(),
                     operation: AdministrativeOperation::JwtPrune,
                     started_at,
                     status: AdminOperationStatus::Failed,
@@ -200,7 +201,7 @@ pub(crate) async fn prune_jwt_revocations(
         &subject,
         AdminOperationAuditRecord {
             audit_target: None,
-            action: GatewayAction::AdminWrite,
+            action: GatewayAction::AdminWrite.into(),
             operation: AdministrativeOperation::JwtPrune,
             started_at,
             status: AdminOperationStatus::Succeeded,

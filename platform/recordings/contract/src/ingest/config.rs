@@ -4,7 +4,11 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use super::*;
+use super::{RecordingApplicationId, RecordingDatasetName, RecordingProducerId};
+use veoveo_gateway_contract::{
+    AuthorizationServerId, HttpUpstreamEndpoint, ProtectedResourceId, ProtectedResourceName,
+};
+use veoveo_types::{DataLabelId, OAuthClientId, PolicyVersion, ScopeName, TenantId};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct RecordingIngestResource {
@@ -12,7 +16,7 @@ pub struct RecordingIngestResource {
     pub protected_resource: ProtectedResourceId,
     pub authorization_server: AuthorizationServerId,
     pub policy_version: PolicyVersion,
-    pub upstream: UpstreamEndpoint,
+    pub upstream: HttpUpstreamEndpoint,
     pub maximum_batch_bytes: u64,
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub required_scopes: BTreeSet<ScopeName>,

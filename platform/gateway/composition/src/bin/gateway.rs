@@ -1,3 +1,4 @@
+use veoveo_gateway_contract::{SecretPurpose, SecretReferenceId, SecretSource};
 #[path = "gateway/agent_catalog_import.rs"]
 mod agent_catalog_import;
 #[cfg(test)]
@@ -56,8 +57,8 @@ use secrecy::{ExposeSecret, SecretString};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
-    GatewayControlPlaneRevision, GatewayControlPlaneRevisionSource, SecretPurpose,
-    SecretReferenceId, SecretSource, TelemetryGuard, init_server_telemetry,
+    GatewayControlPlaneRevision, GatewayControlPlaneRevisionSource, TelemetryGuard,
+    init_server_telemetry,
 };
 use veoveo_mcp_gateway::{
     GatewayCatalog, GatewayControlStore, GatewayRefreshDeliveryWindow, GatewaySecretResolver,

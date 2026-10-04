@@ -8,6 +8,16 @@ generations are internal Veoveo contracts. Native MCP `2026-07-28` Tasks keep
 their canonical gateway identity and retention pin; this crate owns delivery to
 the agent, not the MCP transport or provider completion protocol.
 
+## Contract Policy Declaration
+
+The lightweight `contract` feature owns fourteen closed Agent actions and their
+catalog descriptors. Agent handlers resolve typed keys from the admitted registry
+before authorization or audit. Read access covers conversations, definitions and
+instruction content; all other Agent actions declare write access. The owner keeps
+the existing administrative-operation audit mapping. Authoring and managed-instance
+HTTP DTOs still live in the shared MCP contract pending their separate owner transfer.
+Contract-only builds enable no MCP, database, async runtime or GPU dependency.
+
 ## Gateway Integration
 
 The optional `gateway` feature owns current managed OAuth registration, installed

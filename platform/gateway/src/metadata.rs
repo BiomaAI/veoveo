@@ -2,11 +2,11 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,
 };
+use veoveo_gateway_contract::AuthorizationServerId;
 
 use serde::{Deserialize, Serialize};
 use veoveo_mcp_contract::{
-    AuthMode, AuthorizationServerId, GatewayProfile, GatewayProfileId, JwksSource,
-    OAuthClientAuthMethod, OAuthGrantType,
+    AuthMode, GatewayProfile, GatewayProfileId, JwksSource, OAuthClientAuthMethod, OAuthGrantType,
 };
 use veoveo_types::{ScopeDefinition, ScopeName};
 

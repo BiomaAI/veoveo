@@ -15,8 +15,9 @@ use rmcp::{
 };
 pub use setup::{KnowledgeContract, SETUP};
 use std::sync::Arc;
+use veoveo_gateway_contract::GatewayAction;
 use veoveo_mcp_contract::{
-    GatewayAction, GatewayInternalIdentity, PolicyTarget,
+    GatewayInternalIdentity, PolicyTarget,
     hosting::{
         DomainAddress, DomainRead, DomainServer, Listing, SubscriptionListener, gateway_identity,
     },
@@ -26,6 +27,7 @@ use veoveo_platform_store::PlatformStore;
 
 pub struct KnowledgeMcp<E> {
     pub(crate) store: PlatformStore,
+    pub(crate) catalog_registry: veoveo_gateway_contract::CatalogRegistry,
     pub(crate) embeddings: Arc<E>,
     changes: tokio::sync::watch::Sender<Option<veoveo_platform_store::ResourceInvalidation>>,
     tool_router: Arc<ToolRouter<Self>>,
@@ -34,6 +36,7 @@ impl<E> Clone for KnowledgeMcp<E> {
     fn clone(&self) -> Self {
         Self {
             store: self.store.clone(),
+            catalog_registry: self.catalog_registry.clone(),
             embeddings: self.embeddings.clone(),
             changes: self.changes.clone(),
             tool_router: self.tool_router.clone(),
@@ -41,9 +44,14 @@ impl<E> Clone for KnowledgeMcp<E> {
     }
 }
 impl<E: Embeddings + 'static> KnowledgeMcp<E> {
-    pub fn new(store: PlatformStore, embeddings: Arc<E>) -> Self {
+    pub fn new(
+        store: PlatformStore,
+        embeddings: Arc<E>,
+        catalog_registry: veoveo_gateway_contract::CatalogRegistry,
+    ) -> Self {
         Self {
             store,
+            catalog_registry,
             embeddings,
             changes: tokio::sync::watch::channel(None).0,
             tool_router: Arc::new(Self::declared_tool_router()),
@@ -57,9 +65,16 @@ impl<E: Embeddings + 'static> KnowledgeMcp<E> {
         target: &PolicyTarget,
     ) -> Result<(GatewayInternalIdentity, RequestAuthority), ErrorData> {
         let identity = gateway_identity(context)?;
-        let authority = authorize(&self.store, &identity, scope, action, target)
-            .await
-            .map_err(error)?;
+        let authority = authorize(
+            &self.store,
+            &self.catalog_registry,
+            &identity,
+            scope,
+            action,
+            target,
+        )
+        .await
+        .map_err(error)?;
         Ok((identity, authority))
     }
 }
@@ -87,9 +102,10 @@ impl<E: Embeddings + 'static> DomainServer for KnowledgeMcp<E> {
         } else {
             KnowledgeScope::Embed
         };
-        let authority = crate::authority::authenticate(&self.store, &identity, scope)
-            .await
-            .map_err(error)?;
+        let authority =
+            crate::authority::authenticate(&self.store, &self.catalog_registry, &identity, scope)
+                .await
+                .map_err(error)?;
         let tools = tools
             .into_iter()
             .filter(|tool| {
@@ -116,10 +132,14 @@ impl<E: Embeddings + 'static> DomainServer for KnowledgeMcp<E> {
         context: &RequestContext<RoleServer>,
     ) -> Result<Listing<Resource>, ErrorData> {
         let identity = gateway_identity(context)?;
-        let authority =
-            crate::authority::authenticate(&self.store, &identity, KnowledgeScope::Read)
-                .await
-                .map_err(error)?;
+        let authority = crate::authority::authenticate(
+            &self.store,
+            &self.catalog_registry,
+            &identity,
+            KnowledgeScope::Read,
+        )
+        .await
+        .map_err(error)?;
         let resources = declared
             .into_iter()
             .filter(|resource| {
@@ -145,10 +165,14 @@ impl<E: Embeddings + 'static> DomainServer for KnowledgeMcp<E> {
         context: &RequestContext<RoleServer>,
     ) -> Result<Listing<ResourceTemplate>, ErrorData> {
         let identity = gateway_identity(context)?;
-        let authority =
-            crate::authority::authenticate(&self.store, &identity, KnowledgeScope::Read)
-                .await
-                .map_err(error)?;
+        let authority = crate::authority::authenticate(
+            &self.store,
+            &self.catalog_registry,
+            &identity,
+            KnowledgeScope::Read,
+        )
+        .await
+        .map_err(error)?;
         let templates = declared
             .into_iter()
             .filter(|template| {
@@ -175,6 +199,7 @@ impl<E: Embeddings + 'static> DomainServer for KnowledgeMcp<E> {
     ) -> Result<(), ErrorData> {
         authorize(
             &self.store,
+            &self.catalog_registry,
             identity,
             KnowledgeScope::Read,
             GatewayAction::ResourcesRead,

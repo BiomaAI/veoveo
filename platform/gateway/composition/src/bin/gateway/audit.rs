@@ -1,4 +1,5 @@
 use std::{sync::Arc, time::Instant};
+use veoveo_gateway_contract::GatewayAction;
 pub(super) use veoveo_mcp_contract::audit::{AdminOperationFailure, AdministrativeOperation};
 use veoveo_mcp_contract::audit::{
     AuditActor, AuditAuthority, AuditDetail, AuditDraft, AuditOutcome, AuditPrincipalKind,
@@ -16,8 +17,8 @@ use veoveo_mcp_gateway::http::auth_support::{audit_request, authentication_reaso
 use axum::response::Response;
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
-    AuthMethod, AuthOutcome, AuthReasonCode, GatewayAction, GatewayControlPlane, GatewayProfile,
-    GatewayProfileId, OAuthClientId, PolicyTarget, Principal, ResourceAuthorizationServer,
+    AuthMethod, AuthOutcome, AuthReasonCode, GatewayControlPlane, GatewayProfile, GatewayProfileId,
+    OAuthClientId, PolicyTarget, Principal, ResourceAuthorizationServer,
 };
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayCatalog, GatewayState};
 use veoveo_types::PrincipalId;
@@ -39,7 +40,7 @@ pub(super) async fn authorize_admin_request(
         subject,
         AdminAuthorizationRequest {
             audit_target: None,
-            action,
+            action: action.into(),
             target: PolicyTarget::Gateway,
             operation,
             started_at,
@@ -85,7 +86,16 @@ pub(super) async fn record_admin_target_operation_audit(
     target: PolicyTarget,
     record: AdminOperationAuditRecord,
 ) -> anyhow::Result<()> {
-    record_gateway_operation_audit(&state.gateway_state, profile, subject, target, record).await
+    let catalog = current_catalog(&state.catalog);
+    record_gateway_operation_audit(
+        &state.gateway_state,
+        profile,
+        subject,
+        &catalog,
+        target,
+        record,
+    )
+    .await
 }
 
 pub(super) struct AuthAuditRecord<'a> {
@@ -236,7 +246,7 @@ fn authentication_draft(
 mod tests {
     use super::*;
     use veoveo_audit_contract::AuditReason;
-    use veoveo_mcp_contract::ProtectedResourceId;
+    use veoveo_gateway_contract::ProtectedResourceId;
 
     #[test]
     fn authentication_records_distinguish_revocation_from_revoked_credential_denial() {

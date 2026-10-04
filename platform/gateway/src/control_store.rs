@@ -1,3 +1,5 @@
+#[cfg(test)]
+use veoveo_gateway_contract::GatewayAction;
 mod audit;
 use crate::GatewayCatalogAdmission;
 
@@ -41,7 +43,7 @@ pub struct GatewayControlStore {
 #[derive(Debug)]
 struct ControlPlaneObjectRow {
     tenant: Option<String>,
-    kind: &'static str,
+    kind: String,
     id: String,
     document: OpenObject,
 }
@@ -198,7 +200,10 @@ impl GatewayControlStore {
             control_plane: serialize_object(&revision.control_plane)
                 .context("failed to serialize gateway control plane")?,
         };
-        let object_rows = control_plane_object_rows(&revision.control_plane)?;
+        let object_rows = control_plane_object_rows(
+            &revision.control_plane,
+            &self.admission.validate(&revision.control_plane)?,
+        )?;
         let work_contexts = revision
             .control_plane
             .work_contexts
@@ -370,6 +375,7 @@ fn revision_source_from_store(
 
 fn control_plane_object_rows(
     control_plane: &GatewayControlPlane,
+    sections: &veoveo_gateway_contract::AdmittedCatalogSections,
 ) -> Result<Vec<ControlPlaneObjectRow>> {
     let mut rows = Vec::new();
     for identity_provider in &control_plane.identity_providers {
@@ -394,21 +400,13 @@ fn control_plane_object_rows(
     for profile in &control_plane.profiles {
         rows.push(object_row(None, "profile", profile.id.as_str(), profile)?);
     }
-    for resource in &control_plane.recording_ingest_resources {
+    for object in sections.objects() {
         rows.push(object_row(
-            None,
-            "recording_ingest_resource",
-            resource.id.as_str(),
-            resource,
+            object.tenant.as_ref().map(ToString::to_string),
+            object.kind.as_str(),
+            &object.id,
+            &object.value,
         )?);
-        for producer in &resource.producers {
-            rows.push(object_row(
-                Some(producer.tenant.as_str().to_owned()),
-                "recording_producer",
-                producer.id.as_str(),
-                producer,
-            )?);
-        }
     }
     for tenant in &control_plane.tenants {
         rows.push(object_row(
@@ -556,13 +554,13 @@ fn store_permission(level: AccessLevel) -> GrantPermission {
 
 fn object_row(
     tenant: Option<String>,
-    kind: &'static str,
+    kind: impl Into<String>,
     id: impl Into<String>,
     value: impl Serialize,
 ) -> Result<ControlPlaneObjectRow> {
     Ok(ControlPlaneObjectRow {
         tenant,
-        kind,
+        kind: kind.into(),
         id: id.into(),
         document: serialize_object(value)?,
     })
@@ -591,8 +589,8 @@ mod tests {
 
     use super::*;
     use veoveo_mcp_contract::{
-        GatewayAction, OAuthClientId, PolicyEffect, PolicyRule, PolicyRuleId, PolicySet,
-        TenantDefinition, WorkContextMembershipRule,
+        OAuthClientId, PolicyEffect, PolicyRule, PolicyRuleId, PolicySet, TenantDefinition,
+        WorkContextMembershipRule,
     };
     use veoveo_types::{GroupId, PolicyVersion, WorkContextId};
     use veoveo_types::{WorkContextGrant, WorkContextOutputPolicy};
@@ -617,13 +615,15 @@ mod tests {
     #[test]
     fn control_plane_object_rows_include_queryable_top_level_objects() {
         let tenant_id = TenantId::new("tenant-fixture").unwrap();
+        let server_fixture: GatewayControlPlane =
+            serde_json::from_str(include_str!("../../../configs/gateway.smoke.json")).unwrap();
         let control_plane = GatewayControlPlane {
             branding: None,
             identity_providers: Vec::new(),
             authorization_servers: Vec::new(),
-            servers: Vec::new(),
+            servers: server_fixture.servers,
             profiles: Vec::new(),
-            recording_ingest_resources: Vec::new(),
+            extensions: Default::default(),
             tenants: vec![TenantDefinition {
                 id: tenant_id.clone(),
                 title: None,
@@ -657,7 +657,7 @@ mod tests {
                 rules: vec![PolicyRule {
                     id: PolicyRuleId::new("allow-fixture").unwrap(),
                     effect: PolicyEffect::Allow,
-                    actions: BTreeSet::from([GatewayAction::ToolsCall]),
+                    actions: BTreeSet::from([GatewayAction::ToolsCall.into()]),
                     profiles: BTreeSet::new(),
                     protected_resources: BTreeSet::new(),
                     servers: BTreeSet::new(),
@@ -681,7 +681,13 @@ mod tests {
             secrets: Vec::new(),
             metadata: serde_json::json!({}),
         };
-        let rows = control_plane_object_rows(&control_plane).unwrap();
+        let rows = control_plane_object_rows(
+            &control_plane,
+            &crate::catalog_fixture::binding()
+                .validate(&control_plane)
+                .unwrap(),
+        )
+        .unwrap();
 
         assert!(
             rows.iter()

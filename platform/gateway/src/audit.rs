@@ -96,14 +96,25 @@ pub fn mcp_audit_target(target: &PolicyTarget) -> Result<AuditTarget> {
             server: server.clone(),
             uri: usage_uri.clone(),
         },
-        PolicyTarget::RecordingProducer { producer } => {
-            recording_ingest_audit_target(producer, None)?
+        PolicyTarget::Owner(_) => anyhow::bail!("owner target audit requires its catalog registry"),
+        PolicyTarget::Unadmitted(_) => {
+            anyhow::bail!("unadmitted owner policy target cannot produce audit authority")
         }
-        PolicyTarget::RecordingStream {
-            producer,
-            stream_id,
-        } => recording_ingest_audit_target(producer, Some(stream_id))?,
     })
+}
+/// Owner targets expose an audit resource only through their admitted catalog binding.
+pub fn policy_audit_target(
+    registry: &veoveo_gateway_contract::CatalogRegistry,
+    target: &PolicyTarget,
+) -> Result<AuditTarget> {
+    if let PolicyTarget::Owner(target) = target {
+        registry.check_target(target)?;
+        return Ok(AuditTarget::Resource {
+            server: target.audit().server.clone(),
+            uri: target.audit().uri.clone(),
+        });
+    }
+    mcp_audit_target(target)
 }
 impl GatewayState {
     pub fn set_audit_health(&self, health: veoveo_audit::AuditHealth) -> Result<()> {
@@ -200,23 +211,4 @@ impl GatewayState {
         )?;
         self.record_audit(draft).await
     }
-}
-
-/// Private resource identity for the gateway-owned producer protocol, not an MCP read route.
-pub fn recording_ingest_audit_target(
-    producer: &veoveo_mcp_contract::RecordingProducerId,
-    stream: Option<&veoveo_mcp_contract::RecordingIngestStreamId>,
-) -> Result<AuditTarget> {
-    use veoveo_types::{ResourceUriBuilder, ServerSlug, UriSegment};
-    let mut uri = ResourceUriBuilder::new("recording-ingest://producers")?
-        .segment(UriSegment::new(producer.as_str())?);
-    if let Some(stream) = stream {
-        uri = uri
-            .segment(UriSegment::new("streams")?)
-            .segment(UriSegment::new(stream.as_str())?);
-    }
-    Ok(AuditTarget::Resource {
-        server: ServerSlug::new("recording-hub")?,
-        uri: uri.build()?,
-    })
 }

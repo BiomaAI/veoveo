@@ -1,8 +1,12 @@
+#[path = "../../../testing/fixtures/catalog_registry.rs"]
+mod catalog_fixture;
+
 use std::collections::BTreeSet;
+use veoveo_gateway_contract::GatewayAction;
 use veoveo_mcp_contract::{
-    Exposure, GatewayAction, GatewayControlPlane, PolicyEffect, PolicyReasonCode, PolicyRuleId,
-    PolicyTarget, Principal, PrincipalKind, ResourceProjectionMode, ResourceSelector,
-    ResourceUriPrefix, ResourceUriTemplate, ServerSlug, TokenIssuer, TokenSubject, TraceId,
+    Exposure, GatewayControlPlane, PolicyEffect, PolicyReasonCode, PolicyRuleId, PolicyTarget,
+    Principal, PrincipalKind, ResourceProjectionMode, ResourceSelector, ResourceUriPrefix,
+    ResourceUriTemplate, ServerSlug, TokenIssuer, TokenSubject, TraceId,
 };
 use veoveo_policy::{PolicyCatalog, PolicyRequest, decide};
 use veoveo_types::{
@@ -37,13 +41,13 @@ fn check(
     target: &PolicyTarget,
 ) -> PolicyReasonCode {
     let profile = plane.profiles[0].id.clone();
-    let catalog = PolicyCatalog::new(plane).unwrap();
+    let catalog = PolicyCatalog::new(plane, catalog_fixture::registry()).unwrap();
     decide(
         &catalog,
         PolicyRequest {
             principal: actor,
             profile: &profile,
-            action,
+            action: action.into(),
             target,
             trace_id: &TraceId::new("template-policy").unwrap(),
         },
@@ -359,7 +363,7 @@ fn resource_read_selection_matches_concrete_policy_for_each_rule_requirement() {
             }
             let profile = plane.profiles[0].id.clone();
             let server = plane.servers[0].slug.clone();
-            let catalog = PolicyCatalog::new(plane).unwrap();
+            let catalog = PolicyCatalog::new(plane, catalog_fixture::registry()).unwrap();
             let admitted = admit_resource_reads(&catalog, &actor, &profile, &server);
             for text in uris {
                 let uri = ResourceUri::new(text).unwrap();
@@ -368,7 +372,7 @@ fn resource_read_selection_matches_concrete_policy_for_each_rule_requirement() {
                     PolicyRequest {
                         principal: &actor,
                         profile: &profile,
-                        action: GatewayAction::ResourcesRead,
+                        action: GatewayAction::ResourcesRead.into(),
                         target: &PolicyTarget::Resource {
                             server: server.clone(),
                             uri: uri.clone(),

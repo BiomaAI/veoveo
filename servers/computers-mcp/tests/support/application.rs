@@ -3,13 +3,14 @@ use std::time::Instant;
 use tokio::sync::watch;
 use veoveo_computers::{CapacityPolicy, ComputersStore, api::*};
 use veoveo_computers_mcp::{Application, CapacityHealth, NamedTemplate, Templates};
-use veoveo_mcp_contract::{GatewayAction, PolicyRuleId};
+use veoveo_gateway_contract::GatewayAction;
+use veoveo_mcp_contract::PolicyRuleId;
 use veoveo_task_runtime::TaskRuntime;
 pub fn control() -> veoveo_mcp_contract::GatewayControlPlane {
     let mut control = support::policy::control();
     let mut read = control.policies[0].rules[0].clone();
     read.id = PolicyRuleId::new("computer-read").unwrap();
-    read.actions = [GatewayAction::ResourcesRead].into_iter().collect();
+    read.actions = [GatewayAction::ResourcesRead.into()].into_iter().collect();
     read.tools.clear();
     control.policies[0].rules.push(read);
     control
@@ -67,6 +68,7 @@ pub async fn application_on(
         "00000000-0000-7000-8000-000000000064"
             .parse::<veoveo_computers::api::ProviderInstanceId>()
             .unwrap(),
+        veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
     )
     .unwrap();
     store

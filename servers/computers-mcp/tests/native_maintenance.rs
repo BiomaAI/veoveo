@@ -190,6 +190,7 @@ async fn installation_templates_upgrade_recover_and_rollback_retained_home() {
         "00000000-0000-7000-8000-000000000064"
             .parse::<veoveo_computers::api::ProviderInstanceId>()
             .unwrap(),
+        veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
     )
     .unwrap();
     let b = ComputersStore::new(
@@ -197,6 +198,7 @@ async fn installation_templates_upgrade_recover_and_rollback_retained_home() {
         "00000000-0000-7000-8000-000000000064"
             .parse::<veoveo_computers::api::ProviderInstanceId>()
             .unwrap(),
+        veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
     )
     .unwrap();
     a.install_capacity(

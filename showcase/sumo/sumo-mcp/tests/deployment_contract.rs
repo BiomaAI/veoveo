@@ -18,7 +18,7 @@ fn sumo_control_plane_satisfies_the_gateway_contract() {
     let text = fs::read_to_string(&path).expect("read SUMO control plane");
     serde_json::from_str::<GatewayControlPlane>(&text)
         .expect("decode SUMO control plane")
-        .validate()
+        .validate(&veoveo_gateway_catalog::registry().unwrap())
         .expect("validate SUMO control plane");
 
     assert!(

@@ -1,4 +1,5 @@
 //! Real machine JWT/HTTP and Store lifetimes. Embeddings are synthetic protocol fixtures.
+use veoveo_gateway_contract::ProtectedResourceId;
 #[path = "../../../testing/fixtures/knowledge_control.rs"]
 mod control_fixture;
 #[path = "support/indexing.rs"]
@@ -39,9 +40,7 @@ use veoveo_knowledge_mcp::{
     indexing::{IndexingConfig, IndexingReadiness, IndexingService, SigningAlgorithm},
     source::{MemberLink, SourcePage},
 };
-use veoveo_mcp_contract::{
-    GatewayControlPlane, OAuthEndpointUrl, ProtectedResourceId, SubscriptionHub,
-};
+use veoveo_mcp_contract::{GatewayControlPlane, OAuthEndpointUrl, SubscriptionHub};
 use veoveo_mcp_knowledge_extension::{self as knowledge, *};
 use veoveo_types::{ResourceTemplateUri, ResourceUri};
 
@@ -311,7 +310,9 @@ async fn machine_connection_rotates_reconciles_current_catalog_and_releases_its_
             .unwrap()
             .allowed_resources = [profile.protected_resource.clone()].into();
         plane.authorization_servers[0].token_endpoint = OAuthEndpointUrl::new(audience).unwrap();
-        plane.validate().unwrap();
+        plane
+            .validate(&veoveo_gateway_catalog::registry().unwrap())
+            .unwrap();
         hosted::install(&db.a, &plane).await;
         let stop = CancellationToken::new();
         let _stop_guard = stop.clone().drop_guard();
@@ -369,6 +370,7 @@ async fn machine_connection_rotates_reconciles_current_catalog_and_releases_its_
         let worker_config = config.clone();
         let worker = AbortOnDropHandle::new(tokio::spawn(async move {
             IndexingService {
+                catalog_registry: &veoveo_gateway_catalog::registry().expect("catalog recipe"),
                 store: &worker_store,
                 embeddings: worker_embeddings.as_ref(),
                 config: &worker_config,
@@ -482,6 +484,7 @@ async fn machine_connection_rotates_reconciles_current_catalog_and_releases_its_
             let worker_stop = stop.clone();
             let worker = AbortOnDropHandle::new(tokio::spawn(async move {
                 IndexingService {
+                    catalog_registry: &veoveo_gateway_catalog::registry().expect("catalog recipe"),
                     store: &store,
                     embeddings: embeddings.as_ref(),
                     config: &config,

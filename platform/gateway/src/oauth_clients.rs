@@ -4,9 +4,8 @@ use anyhow::{Context, Result, ensure};
 use futures::future::BoxFuture;
 use jsonwebtoken::jwk::JwkSet;
 use std::{fmt::Debug, sync::Arc};
-use veoveo_mcp_contract::{
-    GatewayAction, OAuthClientId, OAuthClientRegistration, PolicyTarget, Principal,
-};
+use veoveo_gateway_contract::PolicyAction;
+use veoveo_mcp_contract::{OAuthClientId, OAuthClientRegistration, PolicyTarget, Principal};
 use veoveo_types::{WorkContextId, WorkContextMembershipLevel};
 
 pub trait OAuthClientResolver: Debug + Send + Sync {
@@ -36,7 +35,7 @@ pub trait OAuthClientAuthority: Debug + Send + Sync {
         &self,
         catalog: &GatewayCatalog,
         subject: &AuthenticatedSubject,
-        action: GatewayAction,
+        action: PolicyAction,
         target: &PolicyTarget,
     ) -> Result<bool>;
 }
@@ -162,7 +161,7 @@ impl GatewayState {
         &self,
         catalog: &GatewayCatalog,
         subject: &AuthenticatedSubject,
-        action: GatewayAction,
+        action: impl Into<PolicyAction>,
         target: &PolicyTarget,
     ) -> Result<bool> {
         let Some(client) = self
@@ -172,7 +171,7 @@ impl GatewayState {
             return Ok(false);
         };
         match &client.authority {
-            Some(authority) => authority.action_admitted(catalog, subject, action, target),
+            Some(authority) => authority.action_admitted(catalog, subject, action.into(), target),
             None => {
                 Ok(subject.extensions.is_empty()
                     && subject.access_token.managed_execution.is_none())

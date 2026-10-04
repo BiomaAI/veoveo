@@ -26,6 +26,9 @@ pub use pairing::*;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+mod actions;
+pub use actions::{ComputerAction, register_catalog};
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
 #[error("Computer result identities or limits do not agree")]
 pub struct ComputerResultError;

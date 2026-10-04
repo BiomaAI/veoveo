@@ -3,6 +3,9 @@ name = "veoveo-recording-contract"
 version.workspace = true
 edition.workspace = true
 
+[features]
+policy = ["dep:veoveo-policy", "dep:veoveo-mcp-contract"]
+
 [dependencies]
 # Match the qualified workspace pin; cursor positions need date/time values only.
 chrono = { version = "=0.4.45", default-features = false, features = ["serde", "std"] }
@@ -17,3 +20,6 @@ uuid = { workspace = true, features = ["serde", "v7"] }
 veoveo-types.workspace = true
 veoveo-artifact-contract.workspace = true
 veoveo-frames-contract.workspace = true
+veoveo-gateway-contract.workspace = true
+veoveo-mcp-contract = { workspace = true, default-features = false, optional = true }
+veoveo-policy = { path = "../../policy", optional = true }

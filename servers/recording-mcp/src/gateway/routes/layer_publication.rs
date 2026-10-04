@@ -1,3 +1,4 @@
+use crate::contract::RecordingAction;
 use veoveo_mcp_contract::audit::{AuditDetail, RecordingActivity};
 
 use axum::{
@@ -7,9 +8,7 @@ use axum::{
     response::{IntoResponse as _, Response},
 };
 use chrono::{TimeDelta, Utc};
-use veoveo_mcp_contract::{
-    GatewayAction, GatewayProfileId, PolicyEffect, PolicyTarget, ServerSlug, TraceId,
-};
+use veoveo_mcp_contract::{GatewayProfileId, PolicyEffect, PolicyTarget, ServerSlug, TraceId};
 use veoveo_mcp_gateway::{AuthenticatedSubject, PolicyRequest};
 
 use super::RecordingLayerPublicationState;
@@ -45,10 +44,17 @@ pub(crate) async fn publish_recording_layer(
     let target = PolicyTarget::Server {
         server: recording_server,
     };
+    let Ok(action) = catalog
+        .registry()
+        .action_key::<RecordingAction>()
+        .and_then(|key| key.action(RecordingAction::LayerPublish))
+    else {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    };
     let decision = catalog.decide(PolicyRequest {
         principal: &subject.principal,
         profile: &profile,
-        action: GatewayAction::RecordingLayerPublish,
+        action: action.into(),
         target: &target,
         trace_id: &trace_id,
     });

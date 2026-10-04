@@ -2,9 +2,28 @@ use super::Fault;
 use axum::http::Method;
 use serde::Deserialize;
 use veoveo_computers_contract::{AutomationGrantId, ComputerId, ComputerResource, FileTransferId};
-use veoveo_mcp_contract::{
-    GatewayAction, GatewayProfileId, LocalToolName, PolicyTarget, ServerSlug,
-};
+use veoveo_gateway_contract::GatewayAction;
+use veoveo_mcp_contract::{GatewayProfileId, LocalToolName, PolicyTarget, ServerSlug};
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum RouteAction {
+    Kernel(GatewayAction),
+    Owner(veoveo_computers_contract::ComputerAction),
+}
+impl RouteAction {
+    pub fn resolve(
+        self,
+        registry: &veoveo_gateway_contract::CatalogRegistry,
+    ) -> Result<veoveo_gateway_contract::PolicyAction, veoveo_types::ExtensionError> {
+        match self {
+            Self::Kernel(action) => Ok(action.into()),
+            Self::Owner(action) => Ok(registry
+                .action_key::<veoveo_computers_contract::ComputerAction>()?
+                .action(action)?
+                .into()),
+        }
+    }
+}
 
 #[derive(Deserialize)]
 pub(super) struct Route {
@@ -259,7 +278,7 @@ impl Operation {
             Self::Terminal(id) => format!("computers/{id}/terminal"),
         }
     }
-    pub fn authorization(self) -> (PolicyTarget, &'static [GatewayAction]) {
+    pub fn authorization(self) -> (PolicyTarget, &'static [RouteAction]) {
         let server = ServerSlug::new("computers").expect("static server");
         let tool = match self {
             Self::Create => Some("create"),
@@ -278,7 +297,7 @@ impl Operation {
                     server,
                     tool: LocalToolName::new(tool).expect("static tool"),
                 },
-                &[GatewayAction::ToolsCall],
+                &[RouteAction::Kernel(GatewayAction::ToolsCall)],
             );
         }
         let uri = match self {
@@ -301,9 +320,12 @@ impl Operation {
             _ => ComputerResource::Collection(None).to_uri(),
         };
         let actions: &'static [_] = if self.is_attachment() {
-            &[GatewayAction::ComputerAttach, GatewayAction::ResourcesRead]
+            &[
+                RouteAction::Owner(veoveo_computers_contract::ComputerAction::Attach),
+                RouteAction::Kernel(GatewayAction::ResourcesRead),
+            ]
         } else {
-            &[GatewayAction::ResourcesRead]
+            &[RouteAction::Kernel(GatewayAction::ResourcesRead)]
         };
         (PolicyTarget::Resource { server, uri }, actions)
     }

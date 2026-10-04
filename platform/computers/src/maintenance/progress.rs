@@ -237,7 +237,7 @@ impl MaintenanceOperation {
                 || a.valid_until <= a.checked_at
                 || a.valid_until - a.checked_at > chrono::TimeDelta::seconds(5)
                 || a.decision.effect != veoveo_mcp_contract::PolicyEffect::Allow
-                || a.decision.action != veoveo_mcp_contract::GatewayAction::ToolsCall
+                || a.decision.action != veoveo_gateway_contract::GatewayAction::ToolsCall.into()
                 || a.decision.target != super::authority::target()
                 || a.decision.profile != accepted.profile
                 || a.decision.principal.as_ref() != Some(&accepted.request_context.principal.id)

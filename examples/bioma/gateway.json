@@ -3202,7 +3202,6 @@
       "authorization_server": "veoveo",
       "policy_version": "2026-10-02-knowledge-docs",
       "upstream": {
-        "transport": "streamable_http",
         "url": "http://recording-hub:9878",
         "health_url": "http://recording-hub:9878/healthz",
         "security": "cluster_internal_http"

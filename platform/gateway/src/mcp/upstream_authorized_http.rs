@@ -356,7 +356,8 @@ mod tests {
                         )
                         .unwrap(),
                     ),
-                    audience: veoveo_mcp_contract::ProtectedResourceId::new("operator").unwrap(),
+                    audience: veoveo_gateway_contract::ProtectedResourceId::new("operator")
+                        .unwrap(),
                     work_context: authority.work_context.clone(),
                     invocation_mode: veoveo_types::InvocationMode::Direct,
                     initiator: Some(actor.id.clone()),

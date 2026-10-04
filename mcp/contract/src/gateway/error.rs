@@ -5,6 +5,7 @@ use super::*;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GatewayControlPlaneError {
+    CatalogAdmission(veoveo_types::ExtensionError),
     InvalidKnowledgeApproval {
         server: ServerSlug,
         reason: &'static str,
@@ -34,9 +35,7 @@ pub enum GatewayControlPlaneError {
     },
     DuplicateProfile(GatewayProfileId),
     InvalidArtifactUploadPolicy(GatewayProfileId),
-    DuplicateRecordingIngestResource(ProtectedResourceName),
     DuplicateProtectedResource(ProtectedResourceId),
-    DuplicateRecordingProducer(RecordingProducerId),
     DuplicatePolicy(PolicyVersion),
     DuplicateDataLabel(DataLabelId),
     DuplicateTenant(TenantId),
@@ -66,10 +65,6 @@ pub enum GatewayControlPlaneError {
     DuplicateSecret(SecretReferenceId),
     DuplicateOAuthClient(OAuthClientId),
     DuplicateOidcClient(OidcClientRegistrationId),
-    InvalidRecordingIngestResource {
-        resource: ProtectedResourceName,
-        reason: String,
-    },
     DuplicateProfileServer {
         profile: GatewayProfileId,
         server: ServerSlug,
@@ -126,7 +121,7 @@ pub enum GatewayControlPlaneError {
     PolicyRuleActionUnsupportedByServerScope {
         policy: PolicyVersion,
         rule: PolicyRuleId,
-        action: GatewayAction,
+        action: veoveo_types::ActionName,
     },
     ServerUpstreamSecurityMismatch {
         server: ServerSlug,
@@ -406,6 +401,7 @@ impl AuthorizationServerEndpoint {
 impl fmt::Display for GatewayControlPlaneError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::CatalogAdmission(error) => fmt::Display::fmt(error, f),
             Self::InvalidKnowledgeApproval { server, reason } => {
                 write!(f, "invalid knowledge approval for {server}: {reason}")
             }
@@ -453,14 +449,8 @@ impl fmt::Display for GatewayControlPlaneError {
             Self::InvalidArtifactUploadPolicy(profile) => {
                 write!(f, "invalid artifact upload policy for profile `{profile}`")
             }
-            Self::DuplicateRecordingIngestResource(resource) => {
-                write!(f, "duplicate recording ingest resource `{resource}`")
-            }
             Self::DuplicateProtectedResource(resource) => {
                 write!(f, "duplicate protected resource `{resource}`")
-            }
-            Self::DuplicateRecordingProducer(producer) => {
-                write!(f, "duplicate recording producer `{producer}`")
             }
             Self::DuplicatePolicy(policy) => write!(f, "duplicate policy version `{policy}`"),
             Self::DuplicateDataLabel(label) => write!(f, "duplicate data label `{label}`"),
@@ -504,10 +494,6 @@ impl fmt::Display for GatewayControlPlaneError {
             Self::DuplicateOidcClient(client) => {
                 write!(f, "duplicate OIDC client registration `{client}`")
             }
-            Self::InvalidRecordingIngestResource { resource, reason } => write!(
-                f,
-                "invalid recording ingest resource `{resource}`: {reason}"
-            ),
             Self::DuplicateProfileServer { profile, server } => write!(
                 f,
                 "gateway profile `{profile}` exposes server `{server}` more than once"

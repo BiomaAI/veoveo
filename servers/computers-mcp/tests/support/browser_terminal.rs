@@ -16,7 +16,8 @@ use uuid::Uuid;
 use veoveo_computers::{ComputerActor, ComputersStore, api::*, session_grants::SessionGrantPolicy};
 use veoveo_computers_mcp::{Application, CapacityHealth, NamedTemplate, RuntimeAccess, Templates};
 use veoveo_computers_runtime::{DevelopmentTemplate, OpenShellRuntime};
-use veoveo_mcp_contract::{GatewayAction, GatewayInternalIdentity, PolicyRuleId};
+use veoveo_gateway_contract::GatewayAction;
+use veoveo_mcp_contract::{GatewayInternalIdentity, PolicyRuleId};
 use veoveo_task_runtime::TaskRuntime;
 
 type Socket = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
@@ -51,7 +52,12 @@ impl Server {
         let (publisher, access) = RuntimeAccess::channel();
         runtime.ready().await.unwrap();
         publisher.available(runtime.clone());
-        let store = ComputersStore::new(platform.clone(), runtime.provider_instance_id()).unwrap();
+        let store = ComputersStore::new(
+            platform.clone(),
+            runtime.provider_instance_id(),
+            veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
+        )
+        .unwrap();
         let app = Application::new(
             store,
             TaskRuntime::new(platform, "computers", "browser-native"),
@@ -280,13 +286,22 @@ pub async fn qualify(
     let mut control = support::policy::control();
     let mut read = control.policies[0].rules[0].clone();
     read.id = PolicyRuleId::new("computer-browser").unwrap();
-    read.actions = [GatewayAction::ResourcesRead, GatewayAction::ComputerAttach]
-        .into_iter()
-        .collect();
+    read.actions = [
+        GatewayAction::ResourcesRead.into(),
+        veoveo_types::ActionName::new(veoveo_computers_contract::ComputerAction::Attach.as_str())
+            .unwrap(),
+    ]
+    .into_iter()
+    .collect();
     read.tools.clear();
     control.policies[0].rules.push(read);
     support::policy::install(&db.a, control.clone()).await;
-    let store = ComputersStore::new(db.a.clone(), runtime.provider_instance_id()).unwrap();
+    let store = ComputersStore::new(
+        db.a.clone(),
+        runtime.provider_instance_id(),
+        veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
+    )
+    .unwrap();
     store
         .install_session_grant_policy(
             None,
@@ -361,12 +376,10 @@ pub async fn qualify(
         .unwrap();
     command(&mut socket, "after-resize").await;
     let mut denied = control.clone();
-    denied.policies[0]
-        .rules
-        .last_mut()
-        .unwrap()
-        .actions
-        .remove(&GatewayAction::ComputerAttach);
+    denied.policies[0].rules.last_mut().unwrap().actions.remove(
+        &veoveo_types::ActionName::new(veoveo_computers_contract::ComputerAction::Attach.as_str())
+            .unwrap(),
+    );
     support::policy::install(&db.b, denied).await;
     closed(&mut socket).await;
     support::policy::install(&db.b, control).await;

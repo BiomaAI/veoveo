@@ -1,9 +1,10 @@
 use crate::test_catalog_admission as catalog_admission;
+use veoveo_gateway_contract::UpstreamUrl;
 use veoveo_mcp_gateway::GatewayCatalog;
 
 use rcgen::generate_simple_self_signed;
 use serde_json::json;
-use veoveo_mcp_contract::{GatewayControlPlane, ServerSlug, UpstreamUrl};
+use veoveo_mcp_contract::{GatewayControlPlane, ServerSlug};
 
 use super::*;
 

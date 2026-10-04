@@ -1,4 +1,6 @@
 use std::collections::BTreeSet;
+use veoveo_gateway_contract::GatewayAction;
+use veoveo_gateway_contract::OAuthClientId;
 
 use anyhow::{Context, Result, ensure};
 use jsonwebtoken::jwk::{
@@ -6,8 +8,8 @@ use jsonwebtoken::jwk::{
     RSAKeyParameters, RSAKeyType,
 };
 use veoveo_mcp_contract::{
-    GatewayAction, OAuthClientAuthMethod, OAuthClientId, OAuthClientRegistration,
-    OAuthClientSurface, OAuthGrantType, PolicyTarget, Principal, agent_management as wire,
+    OAuthClientAuthMethod, OAuthClientRegistration, OAuthClientSurface, OAuthGrantType,
+    PolicyTarget, Principal, agent_management as wire,
 };
 use veoveo_platform_store::{
     agent_management::{AgentExecution, instances::ManagedAgentRegistration},
@@ -326,7 +328,7 @@ impl OAuthClientAuthority for ManagedAuthority {
         &self,
         catalog: &GatewayCatalog,
         subject: &AuthenticatedSubject,
-        action: GatewayAction,
+        action: veoveo_gateway_contract::PolicyAction,
         target: &PolicyTarget,
     ) -> Result<bool> {
         let Some(binding) = subject.extensions.get(&self.key)? else {
@@ -338,11 +340,15 @@ impl OAuthClientAuthority for ManagedAuthority {
         {
             return Ok(false);
         }
-        if action == GatewayAction::ToolsCall && binding.epoch != managed.instance.dispatch_epoch {
+        if action.kernel() == Some(GatewayAction::ToolsCall)
+            && binding.epoch != managed.instance.dispatch_epoch
+        {
             return Ok(false);
         }
-        if matches!(action, GatewayAction::ToolsCall | GatewayAction::ToolsList)
-            && let PolicyTarget::Tool { server, tool } = target
+        if matches!(
+            action.kernel(),
+            Some(GatewayAction::ToolsCall | GatewayAction::ToolsList)
+        ) && let PolicyTarget::Tool { server, tool } = target
         {
             let name = catalog.project_tool_name(server, tool)?;
             return Ok(managed

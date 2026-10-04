@@ -3,7 +3,8 @@ use rmcp::{
     model::{CompleteRequestParams, CompleteResult, Reference},
     service::{RequestContext, RoleServer},
 };
-use veoveo_mcp_contract::{CompletionExposure, GatewayAction, PolicyTarget, PromptName};
+use veoveo_gateway_contract::GatewayAction;
+use veoveo_mcp_contract::{CompletionExposure, PolicyTarget, PromptName};
 
 use crate::mcp_support::{
     mcp_invalid_params, mcp_invalid_request, resource_template_policy_target,

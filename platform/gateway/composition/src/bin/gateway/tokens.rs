@@ -1,12 +1,13 @@
 use std::collections::BTreeSet;
+use veoveo_gateway_contract::{ProtectedResourceId, SecretPurpose};
 
 use anyhow::anyhow;
 use chrono::{TimeDelta, Utc};
 use jsonwebtoken::{Algorithm, Header, encode};
 use serde::Serialize;
 use veoveo_mcp_contract::{
-    JwtId, OAuthClientId, Principal, PrincipalDisplayName, PrincipalKind, ProtectedResourceId,
-    ResourceAuthorizationServer, SecretPurpose, TokenSubject,
+    JwtId, OAuthClientId, Principal, PrincipalDisplayName, PrincipalKind,
+    ResourceAuthorizationServer, TokenSubject,
 };
 use veoveo_mcp_gateway::GatewayCatalog;
 use veoveo_types::{InvocationProvenance, PrincipalId, ScopeName, TenantId, WorkContextId};

@@ -1,6 +1,7 @@
 use chrono::{TimeDelta, Utc};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
+use veoveo_gateway_contract::{AuthorizationServerId, ProtectedResourceId};
 use veoveo_mcp_contract::*;
 use veoveo_policy::session::{SessionFamilyAuthority, SessionRequest};
 use veoveo_types::{InvocationMode, PrincipalId, ScopeName, TenantId, WorkContextId};

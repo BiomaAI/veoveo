@@ -1,3 +1,4 @@
+use veoveo_gateway_contract::GatewayAction;
 use veoveo_mcp_contract::audit::{ArtifactActivity, AuditDetail, AuditOutcome, AuditTarget};
 
 use axum::{
@@ -8,7 +9,7 @@ use axum::{
 };
 use chrono::{TimeDelta, Utc};
 use veoveo_artifact_contract::ArtifactId;
-use veoveo_mcp_contract::{GatewayAction, GatewayProfileId, PolicyEffect, PolicyTarget, TraceId};
+use veoveo_mcp_contract::{GatewayProfileId, PolicyEffect, PolicyTarget, TraceId};
 use veoveo_mcp_gateway::{AuthenticatedSubject, PolicyRequest, audit::policy_reason};
 use veoveo_types::ResourceUri;
 
@@ -50,7 +51,7 @@ pub(super) async fn download_artifact(
     let mut decision = catalog.decide(PolicyRequest {
         principal: &subject.principal,
         profile: &profile,
-        action: GatewayAction::ArtifactRead,
+        action: GatewayAction::ArtifactRead.into(),
         target: &target,
         trace_id: &trace_id,
     });

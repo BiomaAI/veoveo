@@ -40,7 +40,7 @@ async fn admitted(
         let mut decision = catalog.decide(PolicyRequest {
             principal: &subject.principal,
             profile: &route.profile,
-            action,
+            action: action.into(),
             target: &target,
             trace_id: &trace,
         });

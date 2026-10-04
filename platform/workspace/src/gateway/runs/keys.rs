@@ -1,5 +1,7 @@
 use secrecy::SecretString;
-use veoveo_mcp_contract::{SecretPurpose, SecretReferenceId};
+use veoveo_gateway_contract::SecretPurpose;
+use veoveo_gateway_contract::SecretReferenceId;
+
 use veoveo_mcp_gateway::{GatewayCatalog, GatewaySecretResolver};
 use veoveo_platform_store::workspace::WorkspaceRunFailure;
 

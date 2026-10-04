@@ -279,7 +279,7 @@ fn write_keycloak_control_plane(
 
     let parsed: veoveo_mcp_contract::GatewayControlPlane =
         serde_json::from_value(control_plane.clone())?;
-    parsed.validate()?;
+    parsed.validate(&veoveo_gateway_catalog::registry()?)?;
     fs::write(output, serde_json::to_vec_pretty(&control_plane)?)?;
     Ok(())
 }

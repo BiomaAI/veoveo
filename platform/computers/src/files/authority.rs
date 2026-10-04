@@ -12,7 +12,8 @@ use std::{
 };
 use surrealdb::types::{RecordId, SurrealValue, Value};
 use uuid::Uuid;
-use veoveo_mcp_contract::{GatewayAction, PolicyEffect, TraceId};
+use veoveo_gateway_contract::GatewayAction;
+use veoveo_mcp_contract::{PolicyEffect, TraceId};
 use veoveo_types::DataLabelId;
 use veoveo_types::WorkContextMembershipLevel;
 

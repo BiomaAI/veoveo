@@ -99,4 +99,5 @@ veoveo-recording-video = { path = "../../platform/recordings/video", default-fea
 veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
 
 [dev-dependencies]
+veoveo-gateway-catalog.workspace = true
 rmcp = { workspace = true, features = ["client"] }

@@ -390,7 +390,7 @@ fn model_admission_requires_exact_context_registered_provider_secret_and_bounded
     definition.tenant = context.tenant.clone();
     definition.work_contexts = vec![context.id.clone()];
     definition.api_key =
-        veoveo_mcp_contract::SecretReferenceId::new("media_provider_api_key").unwrap();
+        veoveo_gateway_contract::SecretReferenceId::new("media_provider_api_key").unwrap();
     veoveo_agent_runtime::gateway::http::models::validate(&[definition.clone()], &catalog).unwrap();
     for destination in [
         "https://credential@model.example/v1",
@@ -410,7 +410,7 @@ fn model_admission_requires_exact_context_registered_provider_secret_and_bounded
     invalid.tenant = veoveo_types::TenantId::new("foreign").unwrap();
     assert!(veoveo_agent_runtime::gateway::http::models::validate(&[invalid], &catalog).is_err());
     let mut invalid = definition.clone();
-    invalid.api_key = veoveo_mcp_contract::SecretReferenceId::new("unregistered").unwrap();
+    invalid.api_key = veoveo_gateway_contract::SecretReferenceId::new("unregistered").unwrap();
     assert!(veoveo_agent_runtime::gateway::http::models::validate(&[invalid], &catalog).is_err());
     assert!(
         veoveo_agent_runtime::gateway::http::models::validate(

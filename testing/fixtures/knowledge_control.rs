@@ -1,5 +1,6 @@
 //! Isolated typed indexing registration; contains no installation credentials.
 use std::collections::BTreeSet;
+use veoveo_gateway_contract::{GatewayAction, ProtectedResourceId};
 use veoveo_knowledge_contract::{
     CollectionApproval, KnowledgeCollectionApproval, KnowledgeIndexingRegistration,
 };
@@ -26,6 +27,7 @@ pub fn plane() -> GatewayControlPlane {
         GatewayAction::ResourcesRead,
         GatewayAction::SubscriptionsListen,
     ]
+    .map(Into::into)
     .into();
     policy.rules[0].tools.clear();
     policy.rules[0].prompts.clear();

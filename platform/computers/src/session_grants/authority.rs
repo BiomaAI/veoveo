@@ -3,7 +3,8 @@ use crate::{
 };
 use surrealdb::types::{SurrealValue, Value};
 use uuid::Uuid;
-use veoveo_mcp_contract::{GatewayAction, PolicyEffect, PolicyTarget, ServerSlug, TraceId};
+use veoveo_gateway_contract::GatewayAction;
+use veoveo_mcp_contract::{PolicyEffect, PolicyTarget, ServerSlug, TraceId};
 use veoveo_platform_store::deterministic_enterprise_id;
 use veoveo_types::ResourceUri;
 use veoveo_types::WorkContextMembershipLevel;
@@ -25,7 +26,16 @@ pub(crate) fn require_attach(
         server,
         uri: ResourceUri::new(crate::api::computer_uri(computer)).expect("Computer URI"),
     };
-    for action in [GatewayAction::ComputerAttach, GatewayAction::ResourcesRead] {
+    let attach = snapshot
+        .catalog
+        .registry()
+        .action_key::<veoveo_computers_contract::ComputerAction>()
+        .and_then(|key| key.action(veoveo_computers_contract::ComputerAction::Attach))
+        .map_err(|_| ComputerError::Unavailable)?;
+    for action in [
+        veoveo_gateway_contract::PolicyAction::from(attach),
+        veoveo_gateway_contract::PolicyAction::from(GatewayAction::ResourcesRead),
+    ] {
         if snapshot.decision(action, &target, &trace).effect != PolicyEffect::Allow {
             return Err(ComputerError::Forbidden);
         }

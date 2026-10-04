@@ -1,9 +1,12 @@
 use std::{collections::BTreeMap, sync::Arc};
+#[cfg(test)]
+use veoveo_gateway_contract::UpstreamUrl;
+use veoveo_gateway_contract::{CertificateAuthoritySource, SecretPurpose};
 
 use rmcp::model::ErrorData as McpError;
 use sha2::{Digest, Sha256};
 use tokio::sync::{OnceCell, RwLock};
-use veoveo_mcp_contract::{CertificateAuthoritySource, SecretPurpose, ServerManifest};
+use veoveo_mcp_contract::ServerManifest;
 
 use crate::{GatewayCatalog, GatewaySecretResolver, mcp_support::mcp_internal};
 
@@ -171,7 +174,7 @@ pub async fn upstream_client_builder(
 mod tests {
     use rcgen::generate_simple_self_signed;
     use serde_json::json;
-    use veoveo_mcp_contract::{GatewayControlPlane, ServerSlug, UpstreamUrl};
+    use veoveo_mcp_contract::{GatewayControlPlane, ServerSlug};
 
     use super::*;
 

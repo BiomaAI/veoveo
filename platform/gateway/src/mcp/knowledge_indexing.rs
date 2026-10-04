@@ -6,10 +6,11 @@ use crate::{
     mcp_support::{mcp_internal, mcp_invalid_request},
 };
 use rmcp::model::{ErrorData, RequestMetaObject};
+use veoveo_gateway_contract::GatewayAction;
 use veoveo_knowledge_contract::{
     CollectionApproval, CollectionRegistration, KnowledgeCollectionApproval,
 };
-use veoveo_mcp_contract::{GatewayAction, GatewayResourceProjection, PolicyTarget, PrincipalKind};
+use veoveo_mcp_contract::{GatewayResourceProjection, PolicyTarget, PrincipalKind};
 use veoveo_mcp_knowledge_extension::{
     INDEXING_READ_KEY, IndexingReadIntent, IndexingReadKind, Observation, is_enumeration_uri,
 };

@@ -4,6 +4,9 @@ use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use veoveo_types::{AgentManagedInstanceId, ExtensionError};
 
+mod actions;
+pub use actions::{AgentAction, register_catalog};
+
 pub const MANAGED_AGENT_CLAIM: &str = "managed_agent";
 
 /// Signed repository-owned OAuth claim. Current registration still overrides it.

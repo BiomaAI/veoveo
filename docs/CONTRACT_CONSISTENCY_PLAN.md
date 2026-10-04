@@ -17,8 +17,12 @@ and catalog, OAuth and TLS adapters pass native checks. Computers, Speech, Recor
 Agents and Workspace own their HTTP handlers; contributed route authentication and
 worker cleanup pass native checks. Agents owns its public token claim; generic
 claim admission and internal execution attribution pass Rust and Python checks.
-Recording catalog extraction, optional-module policy actions and installed catalog
-startup admission remain open. Five additional browser contract
+Recording owns its catalog and ingest policy; optional modules own their policy
+actions through a shared registry. Native owner, admission and schema tests pass,
+including exported-schema validation of all five installation catalogs. Affected
+consumer checks and independent contract/runtime builds pass. Installed catalog
+startup admission remains open. Agents' authoring and dependent Workspace contracts
+still require extraction before Phase 3. Five additional browser contract
 bundles pass generation, consumer tests and builds. Production schema ownership moves
 in Phase 3.
 This is the single implementation plan for the former Foundations, Contract
@@ -302,7 +306,7 @@ qualified profile; D12 records the separate Apple proposal.
 | Leak | Evidence |
 |---|---|
 | Module persistence in the kernel store | `platform/store/src`: Workspace 1,885 lines and 27 query files; Agent management 1,634 and 7; Map 3,800 across `map`, `map_authoring`, `map_presentations`, `map_derivations`, `map_projection`; Recordings 3,861 across `recording_catalog`, `recording_ingest`, `recordings`, `recording_blueprints` |
-| Kernel crates depending on optional modules | The reusable gateway's normal/build graph excludes optional owner runtimes, Computers transport, Recording protocol and Speech contract. Domain owners supply HTTP handlers and public token claims through shared ports. Native admission and shutdown checks pass. Shared wire models still include Recording configuration and optional-module policy actions. `platform/store` depends on `veoveo-computers-contract`, which Phase 3 must remove |
+| Kernel crates depending on optional modules | The reusable gateway's normal/build graph excludes optional owner runtimes, Computers transport, Recording protocol and Speech contract. Domain owners supply HTTP handlers, public token claims, Recording configuration and optional policy actions through shared ports. Native checks, isolated builds and affected consumers pass. Agents' authoring and dependent Workspace models still require extraction. Store/Audit's existing Computers contract edges remain for Phase 3 |
 | Module schema in the kernel catalog | Every table is defined in `platform/store/migrations`; Optimization and UAV add indexes to `task` (migrations `0042`, `0093`) |
 | Module SQL on kernel tables | Statements reading or writing `task`, `artifact_occurrence` and identity tables directly: Computers 27, Reason 5, UAV 4, Map 3, Optimization 3, Frames, Stream, Artifact |
 
@@ -710,7 +714,12 @@ The managed-claim ownership cut passes its native Rust and Python checks. Agents
 exposes `ManagedAgentToken` through its contract feature; the OAuth port carries
 typed admitted contributions. Independent review accepts the registration profile,
 immutable storage, current owner authority and receiver format checks. Recording
-configuration and policy extraction remain required before the extension
+configuration and optional policy actions have moved to their owners and pass native
+admission, policy and schema checks. The real conformance export validates the five
+installation catalogs. Affected consumers and seven independent contract/runtime
+builds pass; the existing Store/Audit Computers contract edges belong to Phase 3.
+Installed catalog startup admission remains open. Agents' authoring contract and its
+dependent Workspace models still require extraction before the extension
 architecture is complete.
 The route registration builder supplies a typed shared context and validates required
 bindings before starting factories. Each domain supplies its own handlers. Independent
@@ -771,7 +780,10 @@ actions, `ComputerAttach` and six Recording actions. Kernel actions keep a close
 enum. Each owner declares its closed vocabulary, supported targets and rule-selector
 constraints; composition registers it once. External action names resolve through
 that registry, and runtime callers use private handles obtained from typed owner
-keys. Reject duplicate, unknown, unbound and cross-registry actions. Preserve Agents'
+keys. Reject duplicate, unknown, unbound and cross-registry actions and targets before
+policy evaluation. Generated schemas advertise only bound actions and target kinds;
+qualify schema and runtime agreement with an independently declared owner vocabulary.
+Preserve Agents'
 selector restrictions and audit-operation mapping, Computers' resource-capability
 checks and simultaneous attachment/read authorization, and Recording's distinct
 ingest and layer rules. Agents and Computers keep their existing shared target
@@ -779,6 +791,41 @@ shapes; only Recording contributes new owner target types. Shared deny precedenc
 and principal predicates stay in the policy engine, and owner adapters cannot
 override a denial. This is one action-registry concern across all affected consumers,
 not a Recording-only port followed by separate mechanical passes.
+
+Knowledge authorization and indexing and Computers authority snapshots also read
+the full catalog. The pure [catalog composition](../platform/gateway/catalog/DESIGN.md)
+supplies the same owner codecs and policy declarations to these readers, gateway publication and schema
+generation. Runtime libraries receive the registry explicitly; generic policy and
+gateway libraries must not import that recipe or the optional owner implementations.
+Readers cannot ignore configured sections merely because they do not use those
+domains. Qualify a real full catalog and the same unknown/unbound failures through
+both gateway and standalone readers. Check package cycles before placing the recipe;
+feature flags do not remove Cargo package cycles.
+
+The remaining `mcp/contract/src/agent_management` authoring DTOs, managed-instance
+operations, template validation, model connections and configuration digests also
+belong to Agents' contract. Move them and their browser/schema consumers before the
+Phase 3 ownership audit. Their separate installation inputs do not require additional
+gateway catalog sections. A dependency graph without owner crates does not prove
+modularity while core still defines an optional owner's domain model.
+The pure contract admits models and templates against typed facts from one catalog
+revision: context-to-tenant relationships, installed profiles and approved secret
+purposes. Callers project authenticated tenant and scope facts for visibility checks.
+Move the projected `GatewayToolName` below MCP with its parser and schema identity.
+Qualify the existing model, template and ConfigMap digest profiles with fixed expected
+values, preserve public-field redaction and regenerate the browser contract. An
+external contract-only consumer must exclude MCP, Store and runtime policy dependencies.
+Workspace's revision view and preview embed these authoring models. Move the complete
+Workspace DTO module and its schema producer into the existing Workspace library in
+the same cut; leaving them in MCP would create a reverse dependency on Agents.
+Store uses independent persistence IDs and introduces no package cycle here, so
+this extraction needs no new contract crate. Workspace's `contract` feature enables
+only Agents' contract. Its separate `app-contract` feature owns the native MCP App
+envelopes and complete browser schema bundle, because the pinned SDK brings async
+dependencies even with defaults disabled. Preserve those typed SDK results. Gateway
+and transport feature activation belongs in Workspace's `gateway` feature. Qualify
+both lightweight contracts independently and preserve the Workspace-to-Agents
+dependency direction, existing browser filenames and wire schemas.
 
 Internal assertions need the checked execution attribution, rather than the public
 owner claim. Agents' admitted authority supplies the existing audit contract's

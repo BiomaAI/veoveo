@@ -1,4 +1,5 @@
 //! Contentless native invalidation with revisions of current authorized views.
+use crate::contract::AgentAction as Action;
 use std::{convert::Infallible, sync::Arc, time::Duration};
 
 use axum::{
@@ -13,7 +14,7 @@ use axum::{
 };
 use futures::StreamExt;
 use tokio::sync::watch;
-use veoveo_mcp_contract::{GatewayAction as Action, agent_management::CatalogWake};
+use veoveo_mcp_contract::agent_management::CatalogWake;
 use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_platform_store::{ChangefeedConsumerId, ChangefeedDelivery, PlatformTable};
 use veoveo_types::Sha256Digest;

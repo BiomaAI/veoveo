@@ -1,4 +1,5 @@
 use std::time::Instant;
+use veoveo_gateway_contract::GatewayAction;
 use veoveo_mcp_contract::audit::AdministrativeOperation;
 
 use axum::{
@@ -6,7 +7,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use veoveo_mcp_contract::{GatewayAction, GatewayProfile, PolicyTarget, ServerSlug, TaskExposure};
+use veoveo_mcp_contract::{GatewayProfile, PolicyTarget, ServerSlug, TaskExposure};
 use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_task_runtime::{TaskError, TaskOwner, TaskRuntime};
 use veoveo_types::TaskId;
@@ -49,7 +50,7 @@ pub(crate) async fn cancel_task(
         subject,
         AdminAuthorizationRequest {
             audit_target: None,
-            action: GatewayAction::TasksCancel,
+            action: GatewayAction::TasksCancel.into(),
             target: target.clone(),
             operation: AdministrativeOperation::TaskCancel,
             started_at,
@@ -176,7 +177,7 @@ async fn record_task_result(
         target,
         AdminOperationAuditRecord {
             audit_target: None,
-            action: GatewayAction::TasksCancel,
+            action: GatewayAction::TasksCancel.into(),
             operation: AdministrativeOperation::TaskCancel,
             started_at,
             status,

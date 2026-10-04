@@ -13,6 +13,7 @@ async fn installed(db: veoveo_platform_store::PlatformStore) -> ComputersStore {
         "00000000-0000-7000-8000-000000000001"
             .parse::<veoveo_computers::api::ProviderInstanceId>()
             .unwrap(),
+        veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
     )
     .unwrap();
     store

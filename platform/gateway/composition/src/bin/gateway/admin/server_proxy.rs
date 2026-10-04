@@ -1,4 +1,5 @@
 use std::time::{Duration, Instant};
+use veoveo_gateway_contract::GatewayAction;
 use veoveo_mcp_contract::audit::AdministrativeOperation;
 
 use axum::{
@@ -8,7 +9,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use chrono::{TimeDelta, Utc};
-use veoveo_mcp_contract::{GatewayAction, PolicyTarget, ServerSlug};
+use veoveo_mcp_contract::{PolicyTarget, ServerSlug};
 use veoveo_mcp_gateway::AuthenticatedSubject;
 
 use crate::{
@@ -56,7 +57,7 @@ pub(crate) async fn proxy_server_admin(
         subject,
         AdminAuthorizationRequest {
             audit_target: None,
-            action,
+            action: action.into(),
             target: target.clone(),
             operation: AdministrativeOperation::ServerProxy,
             started_at,
@@ -258,7 +259,7 @@ async fn record_result(
         target,
         AdminOperationAuditRecord {
             audit_target: None,
-            action,
+            action: action.into(),
             operation: AdministrativeOperation::ServerProxy,
             started_at,
             status,

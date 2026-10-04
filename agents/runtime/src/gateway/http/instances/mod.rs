@@ -1,4 +1,5 @@
 //! Governed intent admission. Kubernetes writes belong to the lifecycle manager.
+use crate::contract::AgentAction as Action;
 mod admission;
 mod projection;
 
@@ -9,7 +10,7 @@ use axum::{
     routing::get,
 };
 use uuid::Uuid;
-use veoveo_mcp_contract::{GatewayAction as Action, PolicyTarget, agent_management as wire};
+use veoveo_mcp_contract::{PolicyTarget, agent_management as wire};
 use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_platform_store::{RecordId, agent_management::instances::*};
 
@@ -105,13 +106,15 @@ async fn finish(
         &state.gateway,
         &actor.profile,
         &actor.subject,
+        &actor.catalog,
         PolicyTarget::Gateway,
         AdminOperationAuditRecord {
             audit_target: Some(crate::gateway::http::audit::managed_instance_audit_target(
                 &actor.subject.authority.tenant,
                 &wire::AgentManagedInstanceId::new(key).map_err(|_| Fault::unavailable())?,
             )),
-            action: actor.action,
+            action: super::authority::policy_action(&actor.catalog, actor.action)
+                .map_err(|_| Fault::unavailable())?,
             operation: crate::gateway::http::audit::agent_management_operation(actor.action)
                 .map_err(|_| Fault::unavailable())?,
             started_at: actor.started,

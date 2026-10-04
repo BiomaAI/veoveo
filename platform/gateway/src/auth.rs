@@ -1,3 +1,5 @@
+#[cfg(test)]
+use veoveo_gateway_contract::ProtectedResourceId;
 mod access_token;
 mod claims;
 mod client_assertion;
@@ -33,8 +35,7 @@ mod tests {
     };
     use serde::Serialize;
     use veoveo_mcp_contract::{
-        OAuthClientId, OidcClientId, OidcNonce, PrincipalAssurance, ProtectedResourceId,
-        TokenIssuer,
+        OAuthClientId, OidcClientId, OidcNonce, PrincipalAssurance, TokenIssuer,
     };
     use veoveo_types::{DataLabelId, InvocationMode, ScopeName};
 

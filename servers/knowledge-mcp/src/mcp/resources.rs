@@ -31,6 +31,7 @@ impl<E: Embeddings + 'static> KnowledgeMcp<E> {
         let snapshot = self.catalog(&identity, &admitted, &uri, address).await?;
         let current = authorize(
             &self.store,
+            &self.catalog_registry,
             &identity,
             KnowledgeScope::Read,
             GatewayAction::ResourcesRead,

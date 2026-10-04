@@ -9,9 +9,8 @@ use chrono::{DateTime, TimeDelta, Utc};
 use std::time::{Duration, Instant};
 use surrealdb::types::{RecordId, SurrealValue, Value};
 use uuid::Uuid;
-use veoveo_mcp_contract::{
-    GatewayAction, LocalToolName, PolicyEffect, PolicyTarget, ServerSlug, TraceId,
-};
+use veoveo_gateway_contract::GatewayAction;
+use veoveo_mcp_contract::{LocalToolName, PolicyEffect, PolicyTarget, ServerSlug, TraceId};
 use veoveo_platform_store::{PrincipalKind, gateway_refresh_family_record_id};
 use veoveo_types::ResourceUri;
 use veoveo_types::WorkContextMembershipLevel;

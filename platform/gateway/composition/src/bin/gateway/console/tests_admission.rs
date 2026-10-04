@@ -3,6 +3,7 @@ use axum::extract::{Extension, State};
 use axum::http::{StatusCode, header};
 use chrono::{TimeDelta, Utc};
 use std::sync::Arc;
+use veoveo_gateway_contract::{GatewayAction, ProtectedResourceId};
 use veoveo_mcp_contract::*;
 use veoveo_mcp_gateway::GatewayCatalogHandle;
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayCatalog};
@@ -17,7 +18,15 @@ fn control() -> GatewayControlPlane {
     .unwrap();
     let mut rule = control.policies[0].rules[0].clone();
     rule.id = PolicyRuleId::new("computer-access").unwrap();
-    rule.actions = [GatewayAction::ResourcesRead, GatewayAction::ComputerAttach]
+    let registry = crate::bindings::catalog_admission().unwrap();
+    let attach = registry
+        .registry()
+        .unwrap()
+        .action_key::<veoveo_computers_contract::ComputerAction>()
+        .unwrap()
+        .action(veoveo_computers_contract::ComputerAction::Attach)
+        .unwrap();
+    rule.actions = [GatewayAction::ResourcesRead.into(), attach.name().clone()]
         .into_iter()
         .collect();
     rule.tools.clear();
@@ -90,7 +99,7 @@ async fn session_bootstrap_is_available_without_inventory_authority_and_tracks_c
         let mut next = control();
         if admin {
             let rule = &mut next.policies[0].rules[0];
-            rule.actions = [GatewayAction::AdminRead].into_iter().collect();
+            rule.actions = [GatewayAction::AdminRead.into()].into_iter().collect();
             rule.servers.clear();
             rule.tools.clear();
         }

@@ -69,11 +69,13 @@ Component designs live beside the code whose contract they specify:
 | [`apps/console/bff/src/agent_management/DESIGN.md`](../apps/console/bff/src/agent_management/DESIGN.md) | fixed-profile authoring HTTP and SSE routes with a separate browser session |
 | [`agents/runtime/src/gateway/http/DESIGN.md`](../agents/runtime/src/gateway/http/DESIGN.md) | agent definition API, approved-model admission, policy checks and catalog events |
 | [`agents/runtime/src/gateway/DESIGN.md`](../agents/runtime/src/gateway/DESIGN.md) | managed template ceilings, current service registration and request/action authority through the gateway resolver port |
-| [`agents/runtime/src/contract/DESIGN.md`](../agents/runtime/src/contract/DESIGN.md) | lightweight public managed-agent claim, schema identity and the distinction between syntax admission and current authority |
+| [`agents/runtime/src/contract/DESIGN.md`](../agents/runtime/src/contract/DESIGN.md) | lightweight managed-agent claim, owner policy actions, schema identity and the distinction between syntax admission and current authority; selector fixtures in `src/gateway/tests/policy_actions.rs` |
 | [`mcp/contract/src/agent_management/DESIGN.md`](../mcp/contract/src/agent_management/DESIGN.md) | authoring DTOs, installation model/template validation and generated browser schema |
 | [`apps/workspace/DESIGN.md`](../apps/workspace/DESIGN.md) | daily productivity client: shared-chat presentation, private Activity, live updates and client acceptance |
 | [`platform/computers/DESIGN.md`](../platform/computers/DESIGN.md) | Computers domain: lifecycle, access checks, named grants, files and maintenance |
 | [`platform/gateway/DESIGN.md`](../platform/gateway/DESIGN.md) | MCP forwarding, protocol resource projection, App links and preservation of server-owned payloads and extension metadata |
+| [`platform/gateway/contract/DESIGN.md`](../platform/gateway/contract/DESIGN.md) | transport-independent gateway declarations, kernel actions, catalog registration, shared HTTP/TLS configuration and authorization-resource identities |
+| [`platform/gateway/catalog/DESIGN.md`](../platform/gateway/catalog/DESIGN.md) | shared installation registration of kernel and owner catalog contracts for gateway composition, standalone readers and schema producers |
 | [`platform/gateway/composition/DESIGN.md`](../platform/gateway/composition/DESIGN.md) | gateway executable, module bindings, installation commands, image assembly and process qualification |
 | [`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md) | the normative MCP `2026-07-28` server contract: Discover, stateless Streamable HTTP, official Tasks and multi-round input, request-scoped subscriptions, replica-safe state, schema bounds, packaging, well-known resources, and compliance |
 | [`platform/audit/DESIGN.md`](../platform/audit/DESIGN.md) | unified audit writer implementation, group acknowledgements, persisted indexing windows and retry receipts, transaction append and integrity services; foundations qualification in progress |
@@ -248,7 +250,8 @@ designs above.
 | [`platform/gateway/composition/src/bin/gateway/console/`](../platform/gateway/composition/src/bin/gateway/console/DESIGN.md) | authenticated session bootstrap that does not depend on administrator inventory, navigation permissions, and shared branding and identity display |
 | [`apps/console/bff/src/bootstrap/`](../apps/console/bff/src/bootstrap/DESIGN.md) | fixed-profile, cookie-authenticated Console session routes with typed responses and token refresh |
 | [`apps/console/bff/src/workspace/`](../apps/console/bff/src/workspace/DESIGN.md) | shared browser edge for Workspace: typed chat routes, cookie credentials, CSRF, event streams and static assets |
-| `platform/gateway/contract/` | lightweight gateway-owned App import declarations and discovery failure DTOs; browser contracts and MCP metadata adapters import this owner directly |
+| `platform/gateway/contract/` | lightweight App declarations, discovery failures, kernel action vocabulary, catalog action/target/section registration, authorization-resource identities and HTTP/TLS configuration; owner contracts, browser contracts and MCP adapters import this owner directly |
+| `platform/gateway/catalog/` | installation catalog registration recipe using owner contract features; runtime libraries receive the resulting registry explicitly |
 | [`tools/xtask/src/commands/client_types/`](../tools/xtask/src/commands/client_types/DESIGN.md) | owner-schema export and pinned TypeScript conversion, including agent control, Artifact transfer, Recording playback, App catalog and cluster inventory; `release client-types --check` detects generated-model drift |
 | `apps/console/web/tools/client-types.mjs`, `client-types.test.mjs` | TypeScript rendering of closed and boolean schemas with a generated-code compiler regression |
 | `apps/console/web/src/jsonSchema.ts`, `jsonSchema.test.ts` | shared Console/Workspace compiler for the generated JSON Schema profile, including equivalent boolean-definition handling |
@@ -364,6 +367,7 @@ designs above.
 | `testing/fixtures/fork-workload/` | in-repository Python simulation protocol fixture with typed camera and render-product declarations; it is not visual GPU evidence |
 | `testing/fixtures/fork-installation/` | local fork workload selection, complete gateway configuration and protocol-only deployment closure |
 | `testing/fixtures/catalog-installation/` | disposable Recording catalog installation with a separate HTTPS origin, tenant and machine-client keys for native SDK acceptance |
+| `testing/fixtures/catalog_registry.rs` and `catalog_admission.rs` | shared production catalog registration source for native owner tests, with stable registry identity and explicit fresh bindings for isolation checks |
 | `deploy/contract/tests/fork_installation.rs` | downstream workload, reviewed upstream merge, retained image revision and separate installation configuration |
 | `deploy/contract/tests/component_ownership.rs` | pure component selection, unchanged dependencies, mixed-release rejection, previous Helm inventory checks, and immutable input ownership tests |
 | `deploy/contract/tests/component_reuse.rs` and `tests/support/components.rs` | independent Git-history input reuse, content-based upgrade decisions, and shared atomic component fixtures; these tests do not execute Kubernetes mutations |
@@ -439,6 +443,9 @@ context binding and text profiles stay in each owner.
 `extensions.rs` owns registry-bound typed keys and immutable admitted contributions.
 Protocol adapters declare reserved fields; owners supply codecs. Duplicate JSON field
 admission happens before object collection can discard a value.
+`actions.rs` admits owner vocabularies into registry-bound action handles. A checked
+external name establishes syntax; a registered owner vocabulary establishes which
+actions the consuming protocol may resolve.
 
 The `veoveo-types` crate owns `ScopeName`, `ResourceScheme`, `ResourceUri`, validation
 errors, `Sha256Digest`, platform identity, access subjects, resolved invocation authority
@@ -702,7 +709,7 @@ Task state lives in this runtime. RMCP defines the Tasks wire types.
 | Path | Responsibility |
 |---|---|
 | `catalog.rs` | validated active catalog and profile/server lookup |
-| `catalog_admission.rs` | required owner admission before catalog construction, publication and stored revision decoding; reload preserves the bound adapter |
+| `catalog_admission.rs` | required registry admission before catalog construction, publication and stored revision decoding; reload preserves the bound registry |
 | `oauth_clients.rs` | contributed OAuth registration and current-authority policy; owner resolvers supply registration, issuance and request/action admission |
 | `http/context.rs`, `authentication.rs`, `auth_support.rs` | typed shared HTTP context, route-owned profile selection, token admission and authentication audit |
 | `http/registration.rs`, `lifecycle.rs` | module route factories, required bindings, request and worker admission, cancellation and drain ownership |
@@ -1306,6 +1313,15 @@ live-channel availability through capture-layer gaps. Hub and Video import this 
 The MCP library exposes the same types through its isolated contract feature. Console's
 browser edge imports its playback DTOs and distinct Recording/dataset/layer/grant/projection
 identities; catalog request construction owns bounded, sorted Recording selections.
+
+`actions.rs` owns Recording's six policy actions. `ingest/ids.rs` and
+`ingest/config.rs` own producer identities and HTTP ingest configuration;
+`ingest/catalog.rs` builds the resource and producer indexes. `ingest/registration.rs`
+contributes the catalog section and its protected-resource and stored-object
+descriptors. `ingest/target.rs` and `ingest/audit.rs` own policy targets and typed
+audit addresses. The optional `policy` feature exposes `policy.rs`, which applies
+producer constraints through the shared policy evaluator. Default contract consumers
+exclude that feature and its MCP dependencies.
 
 ### `platform/recordings/protocol`
 

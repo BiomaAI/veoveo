@@ -1,12 +1,13 @@
 //! Durable-route authorization against an isolated store and the current policy catalog.
 use std::collections::BTreeSet;
+use veoveo_gateway_contract::{GatewayAction, ProtectedResourceId};
 use veoveo_platform_store::task_record_id;
 
 use base64::Engine as _;
 use chrono::{TimeDelta, Utc};
 use veoveo_mcp_contract::{
-    AccessTokenSubject, GatewayAction, GatewayControlPlane, GatewayInternalSigningKey,
-    OAuthClientId, ProtectedResourceId, TaskExposure, TokenIssuer,
+    AccessTokenSubject, GatewayControlPlane, GatewayInternalSigningKey, OAuthClientId,
+    TaskExposure, TokenIssuer,
 };
 use veoveo_platform_store::PrincipalKind;
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRuntime};

@@ -1,5 +1,6 @@
 use chrono::{TimeDelta, Utc};
 use serde_json::json;
+use veoveo_gateway_contract::ProtectedResourceId;
 use veoveo_mcp_contract::*;
 use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_platform_store::{

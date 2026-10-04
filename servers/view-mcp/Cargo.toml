@@ -110,6 +110,7 @@ veoveo-task-runtime = { optional = true, path = "../../platform/task-runtime" }
 veoveo-platform-store = { optional = true, path = "../../platform/store" }
 
 [dev-dependencies]
+veoveo-gateway-catalog.workspace = true
 approx = "0.5.1"
 jsonschema.workspace = true
 tempfile = "3"

@@ -109,7 +109,12 @@ async fn run(
         "openshell 0.0.116"
     );
     support::policy::install(&db.a, support::interactive::control()).await;
-    let store = ComputersStore::new(db.a.clone(), runtime.provider_instance_id()).unwrap();
+    let store = ComputersStore::new(
+        db.a.clone(),
+        runtime.provider_instance_id(),
+        veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
+    )
+    .unwrap();
     store
         .install_session_grant_policy(
             None,
@@ -121,7 +126,12 @@ async fn run(
         )
         .await
         .unwrap();
-    let other = ComputersStore::new(db.b.clone(), runtime.provider_instance_id()).unwrap();
+    let other = ComputersStore::new(
+        db.b.clone(),
+        runtime.provider_instance_id(),
+        veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
+    )
+    .unwrap();
     let signing = Signing::new();
     let a = Server::start(db.a.clone(), runtime.clone(), template.clone(), &signing).await;
     let b = Server::start(db.b.clone(), runtime.clone(), template.clone(), &signing).await;

@@ -16,6 +16,7 @@ async fn store(db: veoveo_platform_store::PlatformStore, limit: u32) -> Computer
         "00000000-0000-7000-8000-000000000001"
             .parse::<veoveo_computers::api::ProviderInstanceId>()
             .unwrap(),
+        veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
     )
     .unwrap();
     store
@@ -56,6 +57,7 @@ async fn racing_same_request_reserves_once_and_changed_input_is_rejected() {
         "00000000-0000-7000-8000-000000000001"
             .parse::<veoveo_computers::api::ProviderInstanceId>()
             .unwrap(),
+        veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
     )
     .unwrap();
     let prior = reduced.capacity().await.unwrap();
@@ -209,6 +211,7 @@ async fn concurrent_distinct_admissions_enforce_each_shared_capacity_boundary() 
         "00000000-0000-7000-8000-000000000001"
             .parse::<veoveo_computers::api::ProviderInstanceId>()
             .unwrap(),
+        veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
     )
     .unwrap();
     let b = ComputersStore::new(
@@ -216,6 +219,7 @@ async fn concurrent_distinct_admissions_enforce_each_shared_capacity_boundary() 
         "00000000-0000-7000-8000-000000000001"
             .parse::<veoveo_computers::api::ProviderInstanceId>()
             .unwrap(),
+        veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
     )
     .unwrap();
     a.install_capacity(None, capacity).await.unwrap();

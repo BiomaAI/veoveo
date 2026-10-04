@@ -12,16 +12,15 @@ use jsonwebtoken::{
     jwk::{Jwk, JwkSet},
 };
 use std::time::Instant;
+use veoveo_gateway_contract::{ProtectedResourceId, SecretPurpose, SecretReferenceId};
 use veoveo_mcp_contract::{
-    AuthMethod, AuthOutcome, AuthReasonCode, GatewayProfile, GatewayProfileId, ProtectedResourceId,
+    AuthMethod, AuthOutcome, AuthReasonCode, GatewayProfile, GatewayProfileId,
     audit::{
         AuditDetail, AuditDraft, AuditOutcome, AuditReason, AuditRequest, AuditTarget,
         AuthenticationActivity,
     },
 };
-use veoveo_mcp_contract::{
-    JwksSource, ResourceAuthorizationServer, SecretPurpose, SecretReferenceId,
-};
+use veoveo_mcp_contract::{JwksSource, ResourceAuthorizationServer};
 pub async fn record_auth_audit(
     state: &ProfileAuthState,
     profile: &GatewayProfile,

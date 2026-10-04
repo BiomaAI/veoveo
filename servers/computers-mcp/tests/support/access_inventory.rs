@@ -4,7 +4,7 @@ use rmcp::model::{ServerNotification, SubscriptionFilter};
 use veoveo_computers::{
     ComputerActor, ComputersStore, Reservation, session_grants::SessionGrantPolicy,
 };
-use veoveo_mcp_contract::{GatewayAction, PolicyRuleId};
+use veoveo_mcp_contract::PolicyRuleId;
 
 #[tokio::test]
 async fn access_inventory_and_revocation_share_owned_state_and_resource_invalidations() {
@@ -22,7 +22,15 @@ async fn access_inventory_and_revocation_share_owned_state_and_resource_invalida
     let mut policy = app_support::control();
     let mut attach = policy.policies[0].rules[1].clone();
     attach.id = PolicyRuleId::new("attach").unwrap();
-    attach.actions = [GatewayAction::ComputerAttach].into_iter().collect();
+    attach.actions =
+        [
+            veoveo_types::ActionName::new(
+                veoveo_computers_contract::ComputerAction::Attach.as_str(),
+            )
+            .unwrap(),
+        ]
+        .into_iter()
+        .collect();
     policy.policies[0].rules.push(attach);
     support::policy::install(&db.a, policy).await;
     let store = ComputersStore::new(
@@ -30,6 +38,7 @@ async fn access_inventory_and_revocation_share_owned_state_and_resource_invalida
         "00000000-0000-7000-8000-000000000064"
             .parse::<veoveo_computers::api::ProviderInstanceId>()
             .unwrap(),
+        veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
     )
     .unwrap();
     store

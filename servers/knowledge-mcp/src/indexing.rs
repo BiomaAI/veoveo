@@ -1,4 +1,5 @@
 //! Installation-owned machine connection, discovery and coordinator lifetimes.
+use veoveo_gateway_contract::OAuthClientId;
 mod connection;
 mod control;
 
@@ -17,7 +18,7 @@ use veoveo_embedding_contract::EmbeddingTask;
 use veoveo_knowledge_contract::{
     ChunkSettings, CollectionApproval, CollectionRegistration, GenerationSpec,
 };
-use veoveo_mcp_contract::{JwtId, OAuthClientId};
+use veoveo_mcp_contract::JwtId;
 use veoveo_platform_store::{PlatformStore, PlatformTable, ResourceInvalidation};
 use veoveo_types::TenantId;
 
@@ -45,6 +46,7 @@ pub struct IndexingConfig {
 
 pub struct IndexingService<'a, E> {
     pub store: &'a PlatformStore,
+    pub catalog_registry: &'a veoveo_gateway_contract::CatalogRegistry,
     pub embeddings: &'a E,
     pub config: &'a IndexingConfig,
 }
@@ -141,7 +143,7 @@ impl<E: Embeddings> IndexingService<'_, E> {
     }
 
     async fn prepare(&self) -> Result<Prepared, ServiceError> {
-        let selected = control::select(self.store, self.config).await?;
+        let selected = control::select(self.store, self.config, self.catalog_registry).await?;
         let ticket = self
             .store
             .begin_knowledge_catalog(&self.config.tenant, &selected.discovery.control_revision)

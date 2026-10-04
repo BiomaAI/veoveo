@@ -35,6 +35,7 @@ async fn command_tasks_keep_source_client_authority_and_owner_control_separate()
     let other_provider = ComputersStore::new(
         db.a.clone(),
         veoveo_computers::api::ProviderInstanceId::new(),
+        veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
     )
     .unwrap();
     assert!(
@@ -56,7 +57,7 @@ async fn command_tasks_keep_source_client_authority_and_owner_control_separate()
                     .unwrap()
                     .access_token
                     .oauth_client_id =
-                    veoveo_mcp_contract::OAuthClientId::new("different-client").unwrap()
+                    veoveo_gateway_contract::OAuthClientId::new("different-client").unwrap()
             }
             "profile" => {
                 identity.profile =
@@ -166,7 +167,8 @@ async fn a_current_human_token_from_another_client_cannot_read_a_command_task() 
         .as_mut()
         .unwrap()
         .access_token
-        .oauth_client_id = veoveo_mcp_contract::OAuthClientId::new("another-human-client").unwrap();
+        .oauth_client_id =
+        veoveo_gateway_contract::OAuthClientId::new("another-human-client").unwrap();
     let another_client = ComputerActor::from_verified(&identity).unwrap();
     assert!(
         b.authorize_command_task(&another_client, execution, CommandTaskAction::Observe)

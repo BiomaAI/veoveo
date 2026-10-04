@@ -58,7 +58,9 @@ fn registrations_and_admin_clients_require_the_recording_seal_permission() {
     ] {
         let configuration: veoveo_mcp_contract::GatewayControlPlane =
             serde_json::from_str(source).unwrap();
-        configuration.validate().unwrap();
+        configuration
+            .validate(&veoveo_gateway_catalog::registry().unwrap())
+            .unwrap();
         let server = configuration
             .servers
             .iter()

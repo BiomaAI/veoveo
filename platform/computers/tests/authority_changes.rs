@@ -133,6 +133,7 @@ async fn dropping_the_last_store_closes_its_native_source() {
     let store = ComputersStore::new(
         db.a.clone(),
         veoveo_computers::api::ProviderInstanceId::new(),
+        veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
     )
     .unwrap();
     let clone = store.clone();

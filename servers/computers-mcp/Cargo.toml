@@ -5,11 +5,12 @@ edition.workspace = true
 publish = false
 
 [features]
-default = ["mcp"]
+default = ["server"]
 contract = [
     "dep:veoveo-computers-contract",
 ]
 runtime = [
+    "dep:veoveo-gateway-contract",
     "contract",
     "dep:veoveo-artifact-contract",
     "dep:sha2",
@@ -46,8 +47,11 @@ mcp = [
     "dep:axum",
     "dep:rustls",
 ]
+server = ["mcp", "dep:veoveo-gateway-catalog"]
 
 [dependencies]
+veoveo-gateway-catalog = { workspace = true, optional = true }
+veoveo-gateway-contract = { workspace = true, optional = true }
 veoveo-artifact-contract = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
 hex = { workspace = true, optional = true }
@@ -83,6 +87,7 @@ veoveo-types = { workspace = true, optional = true }
 veoveo-computers-contract = { path = "../../platform/computers/contract", optional = true }
 
 [dev-dependencies]
+veoveo-gateway-catalog.workspace = true
 veoveo-artifact-service = { path = "../../platform/artifacts/service" }
 tokio-tungstenite.workspace = true
 veoveo-mcp-conformance = { path = "../../mcp/conformance" }
@@ -97,7 +102,7 @@ surrealdb = { version = "=3.3.0", default-features = false, features = ["protoco
 [[bin]]
 name = "computers-mcp"
 path = "src/bin/computers-mcp.rs"
-required-features = ["mcp"]
+required-features = ["server"]
 
 [[test]]
 name = "application"
@@ -125,4 +130,4 @@ required-features = ["mcp"]
 
 [[test]]
 name = "service"
-required-features = ["mcp"]
+required-features = ["server"]

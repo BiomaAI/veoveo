@@ -3,6 +3,7 @@ mod fixture;
 
 use chrono::{TimeDelta, Utc};
 use std::{collections::BTreeSet, num::NonZeroU32};
+use veoveo_gateway_contract::{AuthorizationServerId, ProtectedResourceId};
 use veoveo_mcp_contract::*;
 use veoveo_mcp_gateway::{
     GatewayRefreshDeliveryWindow, GatewayRefreshExchange, GatewayRefreshIssueRequest,

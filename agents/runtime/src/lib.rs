@@ -4,6 +4,9 @@
 //! LIVE streams are latency hints only; every recovery path starts from the
 //! persisted pending rows.
 
+#[cfg(test)]
+extern crate self as veoveo_agent_runtime;
+
 #[cfg(feature = "contract")]
 pub mod contract;
 

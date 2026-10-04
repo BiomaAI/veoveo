@@ -1,4 +1,5 @@
 //! Governed native microphone transport. Domain state remains in Speech.
+use veoveo_gateway_contract::GatewayAction;
 mod authority;
 
 use axum::{
@@ -12,8 +13,7 @@ use axum::{
 use serde::Deserialize;
 use std::{sync::Arc, time::Duration};
 use veoveo_mcp_contract::{
-    GatewayAction, GatewayInternalTokenIssuer, GatewayProfileId, LocalToolName, PolicyTarget,
-    ServerSlug,
+    GatewayInternalTokenIssuer, GatewayProfileId, LocalToolName, PolicyTarget, ServerSlug,
 };
 use veoveo_mcp_gateway::{
     AuthenticatedSubject, GatewayCatalogHandle, GatewayState, GatewayUpstreamHttpClientPool,

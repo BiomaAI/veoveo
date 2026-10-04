@@ -6,7 +6,7 @@ use axum::{
 };
 use serde_json::{Value, json};
 use tower::ServiceExt;
-use veoveo_mcp_contract::GatewayAction;
+use veoveo_agent_runtime::contract::AgentAction;
 use veoveo_platform_store::agent_management::{AgentDefinitionMutation, AgentPublicationContext};
 
 async fn get(app: &Router, path: &str) -> (StatusCode, Value) {
@@ -37,8 +37,9 @@ async fn owner_reviews_and_adopts_an_exact_revision_without_reading_private_inst
     let mut plane = tests::catalog().control_plane().clone();
     for policy in &mut plane.policies {
         for rule in &mut policy.rules {
-            rule.actions
-                .retain(|action| *action != GatewayAction::AgentDefinitionsReadContent);
+            rule.actions.retain(|action| {
+                action.as_str() != AgentAction::AgentDefinitionsReadContent.as_str()
+            });
         }
     }
     let catalog = GatewayCatalogHandle::new(Arc::new(

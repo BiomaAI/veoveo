@@ -194,7 +194,8 @@ fn authenticated_policy_resolves_source_selection_and_current_context_membership
         IndexingMode::Content,
     )
     .unwrap();
-    let catalog = PolicyCatalog::new(plane.clone()).unwrap();
+    let catalog =
+        PolicyCatalog::new(plane.clone(), veoveo_gateway_catalog::registry().unwrap()).unwrap();
     let profile = plane.profiles[0].id.clone();
     let client = "operator-service".parse().unwrap();
     let resolve = |catalog: &PolicyCatalog| {
@@ -219,10 +220,13 @@ fn authenticated_policy_resolves_source_selection_and_current_context_membership
     assert!(!selected.matches_uri(&ResourceUri::new("media://model/private/a").unwrap()));
     plane.profiles[0].servers[0].resources = Exposure::None;
     assert!(
-        resolve(&PolicyCatalog::new(plane.clone()).unwrap())
-            .unwrap()
-            .collections
-            .is_empty()
+        resolve(
+            &PolicyCatalog::new(plane.clone(), veoveo_gateway_catalog::registry().unwrap())
+                .unwrap()
+        )
+        .unwrap()
+        .collections
+        .is_empty()
     );
     plane.work_contexts[0].memberships = vec![WorkContextMembershipRule {
         level: WorkContextMembershipLevel::Viewer,
@@ -232,7 +236,8 @@ fn authenticated_policy_resolves_source_selection_and_current_context_membership
         oauth_clients: BTreeSet::new(),
     }];
     assert!(
-        resolve(&PolicyCatalog::new(plane).unwrap()).is_err(),
+        resolve(&PolicyCatalog::new(plane, veoveo_gateway_catalog::registry().unwrap()).unwrap())
+            .is_err(),
         "revoked active-context membership fails closed"
     );
 }

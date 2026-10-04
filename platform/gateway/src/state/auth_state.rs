@@ -1,10 +1,10 @@
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
+use veoveo_gateway_contract::AuthorizationServerId;
 use veoveo_mcp_contract::{
-    AuthorizationServerId, GatewayAuthorizationCodeRecord, GatewayAuthorizationRequest,
-    GatewayJwtRevocation, GatewayProfileId, JwtId, OAuthAuthorizationCode, OAuthClientId,
-    OAuthStateValue, TokenIssuer,
+    GatewayAuthorizationCodeRecord, GatewayAuthorizationRequest, GatewayJwtRevocation,
+    GatewayProfileId, JwtId, OAuthAuthorizationCode, OAuthClientId, OAuthStateValue, TokenIssuer,
 };
 use veoveo_platform_store::{
     GatewayAuthorizationCodeStateRecord, GatewayAuthorizationRequestRecord,

@@ -16,11 +16,16 @@ pub async fn serve(
     tasks: TaskRuntime,
     trust: GatewayInternalTrustBundle,
     shutdown: CancellationToken,
+    catalog_registry: veoveo_gateway_contract::CatalogRegistry,
 ) -> anyhow::Result<()> {
     crate::protocol::validate_contract();
     let _cancel_on_drop = shutdown.clone().drop_guard();
     let listen = config.listen;
-    let store = ComputersStore::new(tasks.platform_store().clone(), config.provider_instance_id)?;
+    let store = ComputersStore::new(
+        tasks.platform_store().clone(),
+        config.provider_instance_id,
+        catalog_registry,
+    )?;
     tokio::time::timeout(
         Duration::from_secs(5),
         store.install_session_grant_policy(None, config.access),

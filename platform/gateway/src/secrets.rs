@@ -1,4 +1,7 @@
 use std::{collections::BTreeMap, env, error::Error, fmt, num::NonZeroU64, time::Duration};
+#[cfg(test)]
+use veoveo_gateway_contract::{SecretLocator, SecretOwner};
+use veoveo_gateway_contract::{SecretPurpose, SecretReference, SecretReferenceId, SecretSource};
 
 use secrecy::{ExposeSecret, SecretString};
 use serde_json::Value;
@@ -7,7 +10,6 @@ use vaultrs::{
     client::{VaultClient, VaultClientSettingsBuilder},
     kv2,
 };
-use veoveo_mcp_contract::{SecretPurpose, SecretReference, SecretReferenceId, SecretSource};
 
 use crate::GatewayCatalog;
 
@@ -416,7 +418,7 @@ async fn read_vault_kv2_data(
 mod tests {
     use axum::{Json, Router, routing::get};
     use serde_json::Value;
-    use veoveo_mcp_contract::{SecretLocator, SecretOwner, ServerSlug};
+    use veoveo_mcp_contract::ServerSlug;
 
     use super::*;
 

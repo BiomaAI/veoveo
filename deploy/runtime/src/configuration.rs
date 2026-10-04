@@ -256,7 +256,7 @@ pub(crate) fn prepare_gateway_activation(
             )
         })?;
     control_plane
-        .validate()
+        .validate(&veoveo_gateway_catalog::registry()?)
         .context("validating gateway activation control plane")?;
 
     let jwks_keys = control_plane

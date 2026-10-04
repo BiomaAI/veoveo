@@ -218,7 +218,7 @@ readback through the public gateway before configuring a simulator.
 
 ## Audit And Catalog Cache
 
-`CatalogAdmission` supplies installation-owned validation after the generic control
+The immutable catalog registry supplies owner admission alongside the core control
 plane checks. Catalog constructors and `GatewayControlStore` require an explicit
 `GatewayCatalogAdmission`; unbound loads and publication refuse the capability.
 The store repeats admission when decoding a persisted revision. A catalog carries
@@ -226,12 +226,13 @@ its binding through clones, and `GatewayCatalogHandle::replace` rejects a differ
 binding before changing the generation or notifying readers. Reloads reuse the
 current binding rather than constructing another validator.
 
-Recording's `gateway` feature implements producer-scope admission in its owning
-library. It requires `RecordingProducerScope::Ingest` and preserves additional
-installation scopes for normal policy evaluation. The shared control-plane DTO still
-contains `recording_ingest_resources` and related producer fields. Their owner-wire
-extraction is required before this configuration supports independent catalog
-sections; the current port does not change those wire fields.
+The transport-free catalog composition recipe binds kernel and owner declarations.
+Gateway publication, persisted reload, standalone readers and composed schema
+producers reuse it. Recording's contract owns the `recording_ingest_resources` section,
+its producer and resource indexes, and the required `RecordingProducerScope::Ingest`
+checks. Its policy adapter delegates principal matching and deny precedence to the
+shared evaluator while selecting owner targets and producer labels. Plain HTTP ingest
+upstreams have no MCP transport field.
 
 `OAuthClientResolver` returns a generic effective registration and optional
 `OAuthClientAuthority`. The reusable library handles token scope/resource checks
@@ -278,7 +279,7 @@ documented result format. Only `serve` initializes the hosted OTLP exporters;
 running an audit command inside a configured gateway Pod keeps its JSON or JSON Lines
 output parseable.
 
-Recording ingress uses the gateway-owned private resource addresses
+Recording ingress uses the owner-declared private resource addresses
 `recording-ingest://producers/{producer}` and
 `recording-ingest://producers/{producer}/streams/{stream}` in audit targets. Typed
 producer and stream IDs pass through the shared URI builder. These addresses identify

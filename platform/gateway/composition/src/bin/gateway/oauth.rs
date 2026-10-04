@@ -1,11 +1,12 @@
 use std::time::Instant;
+use veoveo_gateway_contract::ProtectedResourceDescriptor;
+use veoveo_gateway_contract::{AuthorizationServerId, ProtectedResourceId};
 
 use axum::{Form, extract::State, http::StatusCode};
 use std::collections::BTreeSet;
 
 use veoveo_mcp_contract::{
-    AuthOutcome, AuthReasonCode, AuthorizationServerId, GatewayProfile, OAuthClientId,
-    OAuthClientRegistration, ProtectedResourceId, RecordingIngestResource,
+    AuthOutcome, AuthReasonCode, GatewayProfile, OAuthClientId, OAuthClientRegistration,
 };
 use veoveo_mcp_gateway::GatewayCatalog;
 use veoveo_types::ScopeName;
@@ -152,35 +153,35 @@ pub(super) async fn token_endpoint(
 #[derive(Clone, Copy)]
 pub(super) enum ResolvedOAuthResource<'a> {
     Profile(&'a GatewayProfile),
-    RecordingIngest(&'a RecordingIngestResource),
+    Contributed(&'a ProtectedResourceDescriptor),
 }
 
 impl<'a> ResolvedOAuthResource<'a> {
     pub(super) fn profile(self) -> Option<&'a GatewayProfile> {
         match self {
             Self::Profile(profile) => Some(profile),
-            Self::RecordingIngest(_) => None,
+            Self::Contributed(_) => None,
         }
     }
 
     pub(super) fn protected_resource(self) -> &'a ProtectedResourceId {
         match self {
             Self::Profile(profile) => &profile.protected_resource,
-            Self::RecordingIngest(resource) => &resource.protected_resource,
+            Self::Contributed(resource) => &resource.resource,
         }
     }
 
     pub(super) fn authorization_server(self) -> &'a AuthorizationServerId {
         match self {
             Self::Profile(profile) => &profile.authorization_server,
-            Self::RecordingIngest(resource) => &resource.authorization_server,
+            Self::Contributed(resource) => &resource.authorization_server,
         }
     }
 
     pub(super) fn supported_scopes(self, catalog: &GatewayCatalog) -> BTreeSet<ScopeName> {
         match self {
             Self::Profile(profile) => catalog.profile_supported_scopes(profile),
-            Self::RecordingIngest(resource) => resource.required_scopes.clone(),
+            Self::Contributed(resource) => resource.required_scopes.clone(),
         }
     }
 
@@ -189,16 +190,16 @@ impl<'a> ResolvedOAuthResource<'a> {
             Self::Profile(profile) => profile
                 .auth_modes
                 .contains(&veoveo_mcp_contract::AuthMode::OAuthClientCredentials),
-            Self::RecordingIngest(_) => true,
+            Self::Contributed(_) => true,
         }
     }
 
     pub(super) fn audit_target(self) -> AuthAuditTarget<'a> {
         match self {
             Self::Profile(profile) => AuthAuditTarget::from(profile),
-            Self::RecordingIngest(resource) => AuthAuditTarget {
+            Self::Contributed(resource) => AuthAuditTarget {
                 profile: None,
-                protected_resource: &resource.protected_resource,
+                protected_resource: &resource.resource,
             },
         }
     }
@@ -302,8 +303,8 @@ fn resolve_registered_resource<'a>(
         .map(ResolvedOAuthResource::Profile)
         .or_else(|| {
             catalog
-                .recording_ingest_resource_by_protected_resource(resource)
-                .map(ResolvedOAuthResource::RecordingIngest)
+                .contributed_protected_resource(&ProtectedResourceId::new(resource).ok()?)
+                .map(ResolvedOAuthResource::Contributed)
         })
 }
 
@@ -322,7 +323,7 @@ pub(super) fn resolve_oauth_profile<'a>(
 ) -> Result<&'a GatewayProfile, Box<axum::response::Response>> {
     match resolve_oauth_resource(catalog, raw_client_id, raw_resource)? {
         ResolvedOAuthResource::Profile(profile) => Ok(profile),
-        ResolvedOAuthResource::RecordingIngest(_) => Err(Box::new(oauth_error_response(
+        ResolvedOAuthResource::Contributed(_) => Err(Box::new(oauth_error_response(
             StatusCode::BAD_REQUEST,
             "invalid_target",
             "requested resource does not support interactive OAuth grants",

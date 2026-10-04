@@ -1,3 +1,5 @@
+#[path = "../../../testing/fixtures/catalog_registry.rs"]
+mod catalog_registry;
 use std::{fs, path::Path};
 
 use serde_json::Value;
@@ -95,7 +97,7 @@ fn core_control_planes_satisfy_the_gateway_contract() {
         let bytes = fs::read(path).expect("read core control plane");
         serde_json::from_slice::<GatewayControlPlane>(&bytes)
             .expect("decode core control plane")
-            .validate()
+            .validate(&catalog_registry::registry())
             .unwrap_or_else(|error| panic!("{path}: {error}"));
     }
 }

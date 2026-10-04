@@ -577,15 +577,29 @@ pub(super) fn resource_selector_description(selector: &ResourceSelector) -> Stri
     }
 }
 
+pub(super) struct PolicyValidation<'a> {
+    pub profiles: &'a BTreeSet<GatewayProfileId>,
+    pub protected_resources: &'a BTreeSet<ProtectedResourceId>,
+    pub servers: &'a BTreeMap<ServerSlug, &'a ServerManifest>,
+    pub resource_schemes: &'a BTreeSet<ResourceScheme>,
+    pub data_labels: &'a BTreeSet<DataLabelId>,
+    pub tenants: &'a BTreeSet<TenantId>,
+    pub registry: &'a veoveo_gateway_contract::CatalogRegistry,
+}
+
 pub(super) fn validate_policy_set(
     policy: &PolicySet,
-    profiles: &BTreeSet<GatewayProfileId>,
-    protected_resources: &BTreeSet<ProtectedResourceId>,
-    servers: &BTreeMap<ServerSlug, &ServerManifest>,
-    resource_schemes: &BTreeSet<ResourceScheme>,
-    data_labels: &BTreeSet<DataLabelId>,
-    tenants: &BTreeSet<TenantId>,
+    context: PolicyValidation<'_>,
 ) -> Result<(), GatewayControlPlaneError> {
+    let PolicyValidation {
+        profiles,
+        protected_resources,
+        servers,
+        resource_schemes,
+        data_labels,
+        tenants,
+        registry,
+    } = context;
     let mut rules = BTreeSet::new();
     for rule in &policy.rules {
         if !rules.insert(rule.id.clone()) {
@@ -624,7 +638,7 @@ pub(super) fn validate_policy_set(
             }
         }
         let server_scope = policy_rule_server_scope(rule, servers);
-        validate_policy_rule_actions(policy, rule, &server_scope)?;
+        validate_policy_rule_actions(policy, rule, &server_scope, registry)?;
         for scheme in &rule.resource_schemes {
             if !resource_schemes.contains(scheme) {
                 return Err(GatewayControlPlaneError::UnknownPolicyRuleResourceScheme {
@@ -695,59 +709,67 @@ fn validate_policy_rule_actions(
     policy: &PolicySet,
     rule: &PolicyRule,
     server_scope: &[&ServerManifest],
+    registry: &veoveo_gateway_contract::CatalogRegistry,
 ) -> Result<(), GatewayControlPlaneError> {
+    use veoveo_gateway_contract::{RuleSelector, SelectorRequirement};
+    use veoveo_types::Vocabulary;
     for action in &rule.actions {
-        if action.is_agent_action() {
-            if !rule.protected_resources.is_empty()
-                || !rule.servers.is_empty()
-                || !rule.tools.is_empty()
-                || !rule.resource_schemes.is_empty()
-                || !rule.prompts.is_empty()
-            {
-                return Err(
-                    GatewayControlPlaneError::PolicyRuleActionUnsupportedByServerScope {
-                        policy: policy.version.clone(),
-                        rule: rule.id.clone(),
-                        action: *action,
-                    },
-                );
-            }
-            continue;
-        }
-        if action.is_recording_ingest() {
-            if rule.protected_resources.is_empty()
-                || !rule.servers.is_empty()
-                || !rule.tools.is_empty()
-                || !rule.resource_schemes.is_empty()
-                || !rule.prompts.is_empty()
-            {
-                return Err(
-                    GatewayControlPlaneError::PolicyRuleActionUnsupportedByServerScope {
-                        policy: policy.version.clone(),
-                        rule: rule.id.clone(),
-                        action: *action,
-                    },
-                );
-            }
-            continue;
-        }
+        registry
+            .actions()
+            .resolve(action)
+            .map_err(GatewayControlPlaneError::CatalogAdmission)?;
+        let unsupported = || GatewayControlPlaneError::PolicyRuleActionUnsupportedByServerScope {
+            policy: policy.version.clone(),
+            rule: rule.id.clone(),
+            action: action.clone(),
+        };
+        let supports_server: Box<dyn Fn(&ServerManifest) -> bool + '_> =
+            if let Some(kernel) = GatewayAction::from_wire(action.as_str()) {
+                Box::new(move |server| server_supports_gateway_action(server, kernel))
+            } else {
+                let descriptor = registry.descriptor(action).ok_or_else(|| {
+                    GatewayControlPlaneError::CatalogAdmission(veoveo_types::ExtensionError::new(
+                        "owner action descriptor is unbound",
+                    ))
+                })?;
+                for (selector, empty) in [
+                    (RuleSelector::Profiles, rule.profiles.is_empty()),
+                    (
+                        RuleSelector::ProtectedResources,
+                        rule.protected_resources.is_empty(),
+                    ),
+                    (RuleSelector::Servers, rule.servers.is_empty()),
+                    (RuleSelector::Tools, rule.tools.is_empty()),
+                    (
+                        RuleSelector::ResourceSchemes,
+                        rule.resource_schemes.is_empty(),
+                    ),
+                    (RuleSelector::Prompts, rule.prompts.is_empty()),
+                ] {
+                    match descriptor.selectors[&selector] {
+                        SelectorRequirement::Required if empty => return Err(unsupported()),
+                        SelectorRequirement::Forbidden if !empty => return Err(unsupported()),
+                        _ => {}
+                    }
+                }
+                let Some(requirement) = &descriptor.server else {
+                    continue;
+                };
+                Box::new(move |server| {
+                    requirement
+                        .slug
+                        .as_ref()
+                        .is_none_or(|slug| slug == &server.slug)
+                        && (!requirement.resources || server.capabilities.resources)
+                })
+            };
         let supported = if rule.servers.is_empty() {
-            server_scope
-                .iter()
-                .any(|server| server_supports_gateway_action(server, *action))
+            server_scope.iter().any(|server| supports_server(server))
         } else {
-            server_scope
-                .iter()
-                .all(|server| server_supports_gateway_action(server, *action))
+            server_scope.iter().all(|server| supports_server(server))
         };
         if !supported {
-            return Err(
-                GatewayControlPlaneError::PolicyRuleActionUnsupportedByServerScope {
-                    policy: policy.version.clone(),
-                    rule: rule.id.clone(),
-                    action: *action,
-                },
-            );
+            return Err(unsupported());
         }
     }
     Ok(())
@@ -774,30 +796,7 @@ fn server_supports_gateway_action(server: &ServerManifest, action: GatewayAction
         }
         GatewayAction::ArtifactRead | GatewayAction::UsageRead => server.capabilities.resources,
         GatewayAction::ArtifactUpload => true,
-        GatewayAction::ComputerAttach => {
-            server.slug.as_str() == "computers" && server.capabilities.resources
-        }
-        GatewayAction::AgentsRead
-        | GatewayAction::AgentsMessage
-        | GatewayAction::AgentsInputRequestAnswer
-        | GatewayAction::AgentDefinitionsRead
-        | GatewayAction::AgentDefinitionsReadContent
-        | GatewayAction::AgentDefinitionsCreate
-        | GatewayAction::AgentDefinitionsEdit
-        | GatewayAction::AgentDefinitionsPublish
-        | GatewayAction::AgentDefinitionsUse
-        | GatewayAction::AgentDefinitionsControl
-        | GatewayAction::AgentDefinitionsArchive
-        | GatewayAction::AgentDefinitionsTransfer
-        | GatewayAction::AgentInstancesDeploy
-        | GatewayAction::AgentInstancesControl => false,
         GatewayAction::AdminRead | GatewayAction::AdminWrite => true,
-        GatewayAction::RecordingStreamOpen
-        | GatewayAction::RecordingStreamStatus
-        | GatewayAction::RecordingBatchAppend
-        | GatewayAction::RecordingBlueprintPublish
-        | GatewayAction::RecordingStreamFinish => false,
-        GatewayAction::RecordingLayerPublish => server.slug.as_str() == "recording",
     }
 }
 
@@ -897,7 +896,10 @@ pub(super) fn validate_oauth_client_registration(
     client: &OAuthClientRegistration,
     authorization_servers: &BTreeMap<AuthorizationServerId, &ResourceAuthorizationServer>,
     profiles: &BTreeMap<GatewayProfileId, &GatewayProfile>,
-    recording_ingest_resources: &BTreeMap<ProtectedResourceName, &RecordingIngestResource>,
+    contributed_resources: &BTreeMap<
+        ProtectedResourceName,
+        &veoveo_gateway_contract::ProtectedResourceDescriptor,
+    >,
     policies: &BTreeMap<PolicyVersion, &PolicySet>,
     servers: &BTreeMap<ServerSlug, &ServerManifest>,
     secrets: &BTreeMap<SecretReferenceId, &SecretReference>,
@@ -932,10 +934,10 @@ pub(super) fn validate_oauth_client_registration(
             .values()
             .copied()
             .find(|profile| &profile.protected_resource == resource_id);
-        let recording_ingest = recording_ingest_resources
+        let contributed = contributed_resources
             .values()
             .copied()
-            .find(|resource| &resource.protected_resource == resource_id);
+            .find(|resource| &resource.resource == resource_id);
         let (resource_authorization_server, required_scopes) = if let Some(profile) = profile {
             let mut required_scopes = profile
                 .required_scopes
@@ -955,14 +957,11 @@ pub(super) fn validate_oauth_client_registration(
                 }
             }
             (&profile.authorization_server, required_scopes)
-        } else if let Some(resource) = recording_ingest {
+        } else if let Some(resource) = contributed {
             let mut required_scopes = resource.required_scopes.clone();
             if let Some(policy) = policies.get(&resource.policy_version) {
                 for rule in &policy.rules {
-                    if rule
-                        .protected_resources
-                        .contains(&resource.protected_resource)
-                    {
+                    if rule.protected_resources.contains(&resource.resource) {
                         required_scopes.extend(rule.required_scopes.iter().cloned());
                     }
                 }

@@ -1,4 +1,5 @@
 //! Authenticated batch journal and materializer for external recording streams.
+use veoveo_gateway_contract::ProtectedResourceId;
 
 mod recovery;
 
@@ -14,8 +15,7 @@ use re_log_encoding::Decoder;
 use re_log_types::{LogMsg, StoreKind};
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
-    GatewayInternalResourceIdentity, PrincipalKind as ContractPrincipalKind, ProtectedResourceId,
-    PutArtifactRequest,
+    GatewayInternalResourceIdentity, PrincipalKind as ContractPrincipalKind, PutArtifactRequest,
 };
 use veoveo_platform_store::{
     PlatformIdentity, PlatformStore, PrincipalId, PrincipalKind, RecordId, RecordIdKey,

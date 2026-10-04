@@ -1,3 +1,4 @@
+use veoveo_gateway_contract::ProtectedResourceId;
 use veoveo_task_runtime::TaskOwner;
 pub fn owner(subject: &str) -> TaskOwner {
     let principal = format!("https://speech.test#{subject}");

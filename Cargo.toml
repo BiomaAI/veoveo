@@ -33,6 +33,7 @@ members = [
     "platform/gateway",
     "platform/gateway/composition",
     "platform/gateway/contract",
+    "platform/gateway/catalog",
     "platform/policy",
     "platform/recordings/contract",
     "platform/recordings/forwarder",
@@ -218,6 +219,8 @@ veoveo-mcp-contract = { path = "mcp/contract", default-features = false }
 veoveo-types = { path = "platform/types" }
 veoveo-modules = { path = "platform/modules", default-features = false }
 veoveo-gateway-contract = { path = "platform/gateway/contract" }
+veoveo-computers-contract = { path = "platform/computers/contract" }
+veoveo-gateway-catalog = { path = "platform/gateway/catalog" }
 veoveo-workspace = { path = "platform/workspace", default-features = false }
 veoveo-artifact-contract = { path = "platform/artifacts/contract" }
 veoveo-deploy-contract = { path = "deploy/contract" }

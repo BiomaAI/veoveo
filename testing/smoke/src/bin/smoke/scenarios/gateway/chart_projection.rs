@@ -233,7 +233,7 @@ fn write_chart_control_plane(base: &Path, output: &Path, upstream_url: &str) -> 
 
     let parsed: veoveo_mcp_contract::GatewayControlPlane =
         serde_json::from_value(control_plane.clone())?;
-    parsed.validate()?;
+    parsed.validate(&veoveo_gateway_catalog::registry()?)?;
     if let Some(parent) = output.parent()
         && !parent.as_os_str().is_empty()
     {

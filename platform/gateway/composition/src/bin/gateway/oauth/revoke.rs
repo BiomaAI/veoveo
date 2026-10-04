@@ -1,4 +1,5 @@
 use std::time::Instant;
+use veoveo_gateway_contract::ProtectedResourceId;
 
 use axum::{
     Form,
@@ -11,7 +12,7 @@ use serde::Deserialize;
 use veoveo_mcp_contract::{
     AuthOutcome, AuthReasonCode, GatewayProfile, GatewayRefreshRevocationRequest,
     OAuthClientAuthMethod, OAuthClientId, OAuthGrantType, OAuthRefreshToken, OAuthTokenTypeHint,
-    ProtectedResourceId, ResourceAuthorizationServer,
+    ResourceAuthorizationServer,
 };
 
 use crate::{

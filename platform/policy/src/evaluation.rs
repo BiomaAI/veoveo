@@ -1,10 +1,10 @@
 use std::collections::BTreeSet;
+use veoveo_gateway_contract::{GatewayAction, PolicyAction};
 
 use anyhow::Result;
 use veoveo_mcp_contract::{
-    GatewayAction, GatewayProfile, GatewayProfileId, McpMethodName, PolicyDecision, PolicyEffect,
-    PolicyReasonCode, PolicyRule, PolicyRuleId, PolicyTarget, Principal, RecordingIngestResource,
-    RecordingProducerRegistration, TraceId,
+    GatewayProfile, GatewayProfileId, McpMethodName, PolicyDecision, PolicyEffect,
+    PolicyReasonCode, PolicyRule, PolicyRuleId, PolicyTarget, Principal, TraceId,
 };
 use veoveo_types::{PolicyVersion, ResourceScheme, ScopeName};
 
@@ -17,27 +17,9 @@ use crate::{
 pub struct PolicyRequest<'a> {
     pub principal: &'a Principal,
     pub profile: &'a GatewayProfileId,
-    pub action: GatewayAction,
+    pub action: PolicyAction,
     pub target: &'a PolicyTarget,
     pub trace_id: &'a TraceId,
-}
-
-#[derive(Debug, Clone)]
-pub struct RecordingIngestPolicyRequest<'a> {
-    pub principal: &'a Principal,
-    pub resource: &'a RecordingIngestResource,
-    pub producer: &'a RecordingProducerRegistration,
-    pub action: GatewayAction,
-    pub trace_id: &'a TraceId,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RecordingIngestPolicyDecision {
-    pub effect: PolicyEffect,
-    pub reason: PolicyReasonCode,
-    pub policy_version: Option<PolicyVersion>,
-    pub rule_id: Option<PolicyRuleId>,
-    pub trace_id: TraceId,
 }
 
 pub fn mcp_method_name(action: GatewayAction) -> Result<McpMethodName> {
@@ -67,115 +49,15 @@ pub fn exposure_contains<T: PartialEq>(
     }
 }
 
-pub fn decide_recording_ingest(
-    catalog: &impl PolicyCatalogView,
-    request: RecordingIngestPolicyRequest<'_>,
-) -> RecordingIngestPolicyDecision {
-    let deny = |reason, policy_version, rule_id| RecordingIngestPolicyDecision {
-        effect: PolicyEffect::Deny,
-        reason,
-        policy_version,
-        rule_id,
-        trace_id: request.trace_id.clone(),
-    };
-    let Some(policy) = catalog.policy(&request.resource.policy_version) else {
-        return deny(PolicyReasonCode::PolicyDeny, None, None);
-    };
-    if !request.producer.enabled
-        || request.principal.tenant.as_ref() != Some(&request.producer.tenant)
-    {
-        return deny(
-            PolicyReasonCode::UnknownTenant,
-            Some(policy.version.clone()),
-            None,
-        );
-    }
-    if !request
-        .resource
-        .required_scopes
-        .is_subset(&request.principal.scopes)
-    {
-        return deny(
-            PolicyReasonCode::MissingScope,
-            Some(policy.version.clone()),
-            None,
-        );
-    }
-    if let Some(rule) = policy.rules.iter().find(|rule| {
-        rule.effect == PolicyEffect::Deny
-            && recording_rule_match(rule, &request) == RuleMatchDetail::Match
-    }) {
-        return deny(
-            PolicyReasonCode::PolicyDeny,
-            Some(policy.version.clone()),
-            Some(rule.id.clone()),
-        );
-    }
-    let mut strongest_missing: Option<(PolicyReasonCode, PolicyRuleId)> = None;
-    for rule in policy
-        .rules
-        .iter()
-        .filter(|rule| rule.effect == PolicyEffect::Allow)
-    {
-        match recording_rule_match(rule, &request) {
-            RuleMatchDetail::Match => {
-                return RecordingIngestPolicyDecision {
-                    effect: PolicyEffect::Allow,
-                    reason: PolicyReasonCode::PolicyAllow,
-                    policy_version: Some(policy.version.clone()),
-                    rule_id: Some(rule.id.clone()),
-                    trace_id: request.trace_id.clone(),
-                };
-            }
-            RuleMatchDetail::MissingDataLabel => remember_strongest_missing_requirement(
-                &mut strongest_missing,
-                PolicyReasonCode::MissingDataLabel,
-                rule.id.clone(),
-            ),
-            RuleMatchDetail::MissingPrincipalAssurance => remember_strongest_missing_requirement(
-                &mut strongest_missing,
-                PolicyReasonCode::MissingPrincipalAssurance,
-                rule.id.clone(),
-            ),
-            RuleMatchDetail::MissingRole => remember_strongest_missing_requirement(
-                &mut strongest_missing,
-                PolicyReasonCode::MissingRole,
-                rule.id.clone(),
-            ),
-            RuleMatchDetail::MissingGroup => remember_strongest_missing_requirement(
-                &mut strongest_missing,
-                PolicyReasonCode::MissingGroup,
-                rule.id.clone(),
-            ),
-            RuleMatchDetail::MissingTenant => remember_strongest_missing_requirement(
-                &mut strongest_missing,
-                PolicyReasonCode::MissingTenant,
-                rule.id.clone(),
-            ),
-            RuleMatchDetail::MissingPrincipal => remember_strongest_missing_requirement(
-                &mut strongest_missing,
-                PolicyReasonCode::MissingPrincipal,
-                rule.id.clone(),
-            ),
-            RuleMatchDetail::MissingScope => remember_strongest_missing_requirement(
-                &mut strongest_missing,
-                PolicyReasonCode::MissingScope,
-                rule.id.clone(),
-            ),
-            RuleMatchDetail::NoMatch => {}
-        }
-    }
-    match strongest_missing {
-        Some((reason, rule_id)) => deny(reason, Some(policy.version.clone()), Some(rule_id)),
-        None => deny(
-            PolicyReasonCode::PolicyDeny,
-            Some(policy.version.clone()),
-            None,
-        ),
-    }
-}
-
 pub fn decide(catalog: &impl PolicyCatalogView, request: PolicyRequest<'_>) -> PolicyDecision {
+    if validate_runtime_action(catalog, &request.action, request.target).is_err() {
+        return deny(
+            &request,
+            PolicyReasonCode::PolicyDeny,
+            request.target.clone(),
+            None,
+        );
+    }
     let Some(profile) = catalog.profile(request.profile) else {
         return deny(
             &request,
@@ -203,7 +85,7 @@ pub fn decide(catalog: &impl PolicyCatalogView, request: PolicyRequest<'_>) -> P
         );
     }
 
-    if let Err(reason) = profile_allows_target(catalog, profile, request.action, request.target) {
+    if let Err(reason) = profile_allows_target(catalog, profile, &request.action, request.target) {
         return deny(
             &request,
             reason,
@@ -221,9 +103,13 @@ pub fn decide(catalog: &impl PolicyCatalogView, request: PolicyRequest<'_>) -> P
         );
     }
 
-    let outcome = evaluate_rules(profile, policy, request.principal, request.action, |rule| {
-        matches_target_filters(rule, request.target)
-    });
+    let outcome = evaluate_rules(
+        profile,
+        policy,
+        request.principal,
+        &request.action.name(),
+        |rule| matches_target_filters(rule, request.target),
+    );
     decision(
         &request,
         outcome.effect,
@@ -255,7 +141,7 @@ pub(crate) fn validate_principal(
     Ok(())
 }
 
-pub(crate) struct RuleOutcome {
+pub struct RuleOutcome {
     pub effect: PolicyEffect,
     pub reason: PolicyReasonCode,
     pub rule_id: Option<PolicyRuleId>,
@@ -267,12 +153,20 @@ pub(crate) fn evaluate_rules(
     profile: &GatewayProfile,
     policy: &veoveo_mcp_contract::PolicySet,
     principal: &Principal,
-    action: GatewayAction,
+    action: &veoveo_types::ActionName,
     target_matches: impl Fn(&PolicyRule) -> bool,
 ) -> RuleOutcome {
     let detail = |rule: &PolicyRule| {
         rule_match_detail(rule, profile, principal, action, target_matches(rule))
     };
+    assemble_rule_outcome(policy, detail)
+}
+
+/// Deny precedence and missing-condition diagnostics shared by every owner adapter.
+pub fn assemble_rule_outcome(
+    policy: &veoveo_mcp_contract::PolicySet,
+    detail: impl Fn(&PolicyRule) -> RuleMatchDetail,
+) -> RuleOutcome {
     if let Some(rule) = policy
         .rules
         .iter()
@@ -324,7 +218,7 @@ pub(crate) fn evaluate_rules(
 fn profile_allows_target(
     catalog: &impl PolicyCatalogView,
     profile: &GatewayProfile,
-    action: GatewayAction,
+    action: &PolicyAction,
     target: &PolicyTarget,
 ) -> Result<(), PolicyReasonCode> {
     match target {
@@ -368,8 +262,8 @@ fn profile_allows_target(
             usage_uri: uri,
         } => {
             if matches!(
-                action,
-                GatewayAction::CompletionComplete | GatewayAction::ResourcesTemplatesList
+                action.kernel(),
+                Some(GatewayAction::CompletionComplete | GatewayAction::ResourcesTemplatesList)
             ) {
                 return Err(PolicyReasonCode::PolicyDeny);
             }
@@ -382,8 +276,8 @@ fn profile_allows_target(
         }
         PolicyTarget::ResourceTemplate { server, uri } => {
             if !matches!(
-                action,
-                GatewayAction::CompletionComplete | GatewayAction::ResourcesTemplatesList
+                action.kernel(),
+                Some(GatewayAction::CompletionComplete | GatewayAction::ResourcesTemplatesList)
             ) {
                 return Err(PolicyReasonCode::PolicyDeny);
             }
@@ -423,8 +317,8 @@ fn profile_allows_target(
                 .ok_or(PolicyReasonCode::PolicyDeny)?;
             if exposure.tasks == veoveo_mcp_contract::TaskExposure::Enabled
                 || matches!(
-                    action,
-                    GatewayAction::ResourcesList | GatewayAction::ResourcesTemplatesList
+                    action.kernel(),
+                    Some(GatewayAction::ResourcesList | GatewayAction::ResourcesTemplatesList)
                 )
             {
                 Ok(())
@@ -432,69 +326,12 @@ fn profile_allows_target(
                 Err(PolicyReasonCode::PolicyDeny)
             }
         }
-        PolicyTarget::RecordingProducer { .. } | PolicyTarget::RecordingStream { .. } => {
-            Err(PolicyReasonCode::PolicyDeny)
-        }
+        PolicyTarget::Owner(_) | PolicyTarget::Unadmitted(_) => Err(PolicyReasonCode::PolicyDeny),
     }
-}
-
-fn recording_rule_match(
-    rule: &PolicyRule,
-    request: &RecordingIngestPolicyRequest<'_>,
-) -> RuleMatchDetail {
-    if !rule.actions.contains(&request.action)
-        || (!rule.protected_resources.is_empty()
-            && !rule
-                .protected_resources
-                .contains(&request.resource.protected_resource))
-        || !rule.profiles.is_empty()
-        || !rule.servers.is_empty()
-        || !rule.tools.is_empty()
-        || !rule.resource_schemes.is_empty()
-        || !rule.prompts.is_empty()
-    {
-        return RuleMatchDetail::NoMatch;
-    }
-    let mut strongest = RuleMatchDetail::Match;
-    if !rule.principal_ids.is_empty() && !rule.principal_ids.contains(&request.principal.id) {
-        strongest = strongest_missing_rule_detail(strongest, RuleMatchDetail::MissingPrincipal);
-    }
-    if !rule.tenant_ids.is_empty()
-        && request
-            .principal
-            .tenant
-            .as_ref()
-            .is_none_or(|tenant| !rule.tenant_ids.contains(tenant))
-    {
-        strongest = strongest_missing_rule_detail(strongest, RuleMatchDetail::MissingTenant);
-    }
-    if !rule.groups.is_empty() && !intersects(&rule.groups, &request.principal.groups) {
-        strongest = strongest_missing_rule_detail(strongest, RuleMatchDetail::MissingGroup);
-    }
-    if !rule.roles.is_empty() && !intersects(&rule.roles, &request.principal.roles) {
-        strongest = strongest_missing_rule_detail(strongest, RuleMatchDetail::MissingRole);
-    }
-    if !rule.required_scopes.is_subset(&request.principal.scopes) {
-        strongest = strongest_missing_rule_detail(strongest, RuleMatchDetail::MissingScope);
-    }
-    if !rule
-        .required_data_labels
-        .is_subset(&request.producer.labels)
-    {
-        strongest = strongest_missing_rule_detail(strongest, RuleMatchDetail::MissingDataLabel);
-    }
-    if !rule
-        .required_assurances
-        .is_subset(&request.principal.assurances)
-    {
-        strongest =
-            strongest_missing_rule_detail(strongest, RuleMatchDetail::MissingPrincipalAssurance);
-    }
-    strongest
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum RuleMatchDetail {
+pub enum RuleMatchDetail {
     Match,
     MissingPrincipal,
     MissingTenant,
@@ -535,7 +372,7 @@ fn decision(
         reason,
         evaluated_at: chrono::Utc::now(),
         profile: request.profile.clone(),
-        action: request.action,
+        action: request.action.name(),
         target,
         principal: Some(request.principal.id.clone()),
         tenant: request.principal.tenant.clone(),
@@ -549,10 +386,10 @@ fn rule_match_detail(
     rule: &PolicyRule,
     profile: &GatewayProfile,
     principal: &Principal,
-    action: GatewayAction,
+    action: &veoveo_types::ActionName,
     target_matches: bool,
 ) -> RuleMatchDetail {
-    if !rule.actions.contains(&action) {
+    if !rule.actions.contains(action) {
         return RuleMatchDetail::NoMatch;
     }
     if !rule.profiles.is_empty() && !rule.profiles.contains(&profile.id) {
@@ -561,6 +398,15 @@ fn rule_match_detail(
     if !target_matches {
         return RuleMatchDetail::NoMatch;
     }
+    principal_rule_conditions(rule, principal, &principal.data_labels)
+}
+
+/// Labels are supplied by the owning authority (principal labels or producer labels).
+pub fn principal_rule_conditions(
+    rule: &PolicyRule,
+    principal: &Principal,
+    labels: &BTreeSet<veoveo_types::DataLabelId>,
+) -> RuleMatchDetail {
     let mut strongest_missing_requirement = RuleMatchDetail::Match;
     if !rule.principal_ids.is_empty() && !rule.principal_ids.contains(&principal.id) {
         strongest_missing_requirement = strongest_missing_rule_detail(
@@ -597,9 +443,7 @@ fn rule_match_detail(
             RuleMatchDetail::MissingScope,
         );
     }
-    if !rule.required_data_labels.is_empty()
-        && !rule.required_data_labels.is_subset(&principal.data_labels)
-    {
+    if !rule.required_data_labels.is_empty() && !rule.required_data_labels.is_subset(labels) {
         strongest_missing_requirement = strongest_missing_rule_detail(
             strongest_missing_requirement,
             RuleMatchDetail::MissingDataLabel,
@@ -616,7 +460,10 @@ fn rule_match_detail(
     strongest_missing_requirement
 }
 
-fn strongest_missing_rule_detail(left: RuleMatchDetail, right: RuleMatchDetail) -> RuleMatchDetail {
+pub fn strongest_missing_rule_detail(
+    left: RuleMatchDetail,
+    right: RuleMatchDetail,
+) -> RuleMatchDetail {
     if rule_detail_rank(right) > rule_detail_rank(left) {
         right
     } else {
@@ -637,7 +484,7 @@ fn rule_detail_rank(detail: RuleMatchDetail) -> u8 {
     }
 }
 
-fn remember_strongest_missing_requirement(
+pub fn remember_strongest_missing_requirement(
     current: &mut Option<(PolicyReasonCode, PolicyRuleId)>,
     reason: PolicyReasonCode,
     rule_id: PolicyRuleId,
@@ -709,7 +556,7 @@ fn matches_target_filters(rule: &PolicyRule, target: &PolicyTarget) -> bool {
         PolicyTarget::Task { server, .. } | PolicyTarget::PlatformTask { server, .. } => {
             filter_matches(&rule.servers, server)
         }
-        PolicyTarget::RecordingProducer { .. } | PolicyTarget::RecordingStream { .. } => false,
+        PolicyTarget::Owner(_) | PolicyTarget::Unadmitted(_) => false,
     }
 }
 
@@ -726,159 +573,64 @@ pub(crate) fn filter_matches<T: Ord>(filter: &BTreeSet<T>, value: &T) -> bool {
     filter.is_empty() || filter.contains(value)
 }
 
-fn intersects<T: Ord>(left: &BTreeSet<T>, right: &BTreeSet<T>) -> bool {
+pub fn intersects<T: Ord>(left: &BTreeSet<T>, right: &BTreeSet<T>) -> bool {
     left.iter().any(|value| right.contains(value))
 }
 
-#[cfg(test)]
-mod recording_ingest_tests {
-    use serde_json::Value;
-    use veoveo_mcp_contract::{
-        AuthorizationServerId, OAuthClientId, PolicyEffect, ProtectedResourceId,
-        ProtectedResourceName, RecordingApplicationId, RecordingDatasetName,
-        RecordingProducerBlueprintPolicy, RecordingProducerId, RecordingProducerQuotas,
-        RecordingRetentionPolicy, UpstreamEndpoint, UpstreamTransport, UpstreamTransportSecurity,
-        UpstreamUrl,
-    };
-    use veoveo_types::DataLabelId;
-
-    use super::*;
-
-    fn fixture() -> (
-        Principal,
-        RecordingIngestResource,
-        RecordingProducerRegistration,
-        PolicyRule,
-        TraceId,
-    ) {
-        let protected_resource =
-            ProtectedResourceId::new("https://veoveo.example/ingest/recordings").unwrap();
-        let tenant = veoveo_types::TenantId::new("tenant-a").unwrap();
-        let scope = ScopeName::new("recording:ingest").unwrap();
-        let label = DataLabelId::new("cui").unwrap();
-        let principal = Principal {
-            id: veoveo_types::PrincipalId::new("https://veoveo.example/oauth#sensor-a").unwrap(),
-            kind: veoveo_mcp_contract::PrincipalKind::Service,
-            issuer: veoveo_mcp_contract::TokenIssuer::new("https://veoveo.example/oauth").unwrap(),
-            subject: veoveo_mcp_contract::TokenSubject::new("sensor-a").unwrap(),
-            tenant: Some(tenant.clone()),
-            groups: BTreeSet::new(),
-            group_roles: BTreeSet::new(),
-            roles: BTreeSet::new(),
-            scopes: BTreeSet::from([scope.clone()]),
-            data_labels: BTreeSet::new(),
-            assurances: BTreeSet::new(),
-            authenticated_at: None,
-        };
-        let producer = RecordingProducerRegistration {
-            id: RecordingProducerId::new("sensor-a").unwrap(),
-            oauth_client: OAuthClientId::new("sensor-a").unwrap(),
-            tenant: tenant.clone(),
-            dataset: RecordingDatasetName::new("factory-floor").unwrap(),
-            allowed_application_ids: BTreeSet::from([RecordingApplicationId::new(
-                "inspection-camera",
-            )
-            .unwrap()]),
-            single_recording_application_ids: BTreeSet::new(),
-            classification: "internal".to_owned(),
-            labels: BTreeSet::from([label.clone()]),
-            quotas: RecordingProducerQuotas {
-                maximum_concurrent_streams: 4,
-                maximum_batches_per_minute: 60,
-                maximum_bytes_per_day: 1_000_000,
-                maximum_stream_bytes: 500_000,
-            },
-            blueprints: RecordingProducerBlueprintPolicy {
-                enabled: true,
-                maximum_bytes: 2 * 1024 * 1024,
-                maximum_messages: 10_000,
-                maximum_revisions: 32,
-            },
-            retention: RecordingRetentionPolicy {
-                open_stream_days: 7,
-            },
-            enabled: true,
-            metadata: Value::Null,
-        };
-        let resource = RecordingIngestResource {
-            id: ProtectedResourceName::new("recording-ingest").unwrap(),
-            protected_resource: protected_resource.clone(),
-            authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
-            policy_version: PolicyVersion::new("2026-07-16").unwrap(),
-            upstream: UpstreamEndpoint {
-                transport: UpstreamTransport::StreamableHttp,
-                url: UpstreamUrl::new("http://recording-hub:9878").unwrap(),
-                health_url: UpstreamUrl::new("http://recording-hub:9878/healthz").unwrap(),
-                security: UpstreamTransportSecurity::ClusterInternalHttp,
-                trusted_certificate_authorities: Vec::new(),
-                client_certificate: None,
-                client_private_key: None,
-            },
-            maximum_batch_bytes: 8_388_608,
-            required_scopes: BTreeSet::from([scope.clone()]),
-            producers: vec![producer.clone()],
-            metadata: Value::Null,
-        };
-        let rule = PolicyRule {
-            id: PolicyRuleId::new("allow-sensor-recording-ingest").unwrap(),
-            effect: PolicyEffect::Allow,
-            actions: BTreeSet::from([GatewayAction::RecordingBatchAppend]),
-            profiles: BTreeSet::new(),
-            protected_resources: BTreeSet::from([protected_resource]),
-            servers: BTreeSet::new(),
-            tools: BTreeSet::new(),
-            resource_schemes: BTreeSet::new(),
-            prompts: BTreeSet::new(),
-            principal_ids: BTreeSet::from([principal.id.clone()]),
-            tenant_ids: BTreeSet::from([tenant]),
-            groups: BTreeSet::new(),
-            roles: BTreeSet::new(),
-            required_scopes: BTreeSet::from([scope]),
-            required_data_labels: BTreeSet::from([label]),
-            required_assurances: BTreeSet::new(),
-            metadata: Value::Null,
-        };
-        (
-            principal,
-            resource,
-            producer,
-            rule,
-            TraceId::new("trace-recording-ingest").unwrap(),
-        )
+fn validate_runtime_action(
+    catalog: &impl PolicyCatalogView,
+    action: &PolicyAction,
+    target: &PolicyTarget,
+) -> Result<(), veoveo_types::ExtensionError> {
+    match action {
+        PolicyAction::Kernel(action) => {
+            catalog
+                .registry()
+                .action_key::<GatewayAction>()?
+                .action(*action)?;
+        }
+        PolicyAction::Registered(handle) => {
+            catalog.registry().check_action(handle)?;
+            let descriptor = catalog
+                .registry()
+                .descriptor(handle.name())
+                .ok_or_else(|| {
+                    veoveo_types::ExtensionError::new("owner action descriptor is unbound")
+                })?;
+            if !descriptor
+                .target_kinds
+                .iter()
+                .any(|kind| kind.as_str() == target.kind())
+            {
+                return Err(veoveo_types::ExtensionError::new(
+                    "action does not support this target",
+                ));
+            }
+            if let Some(requirement) = &descriptor.server {
+                let server = target
+                    .server()
+                    .and_then(|server| catalog.server(server))
+                    .ok_or_else(|| {
+                        veoveo_types::ExtensionError::new("action requires a known server target")
+                    })?;
+                if requirement
+                    .slug
+                    .as_ref()
+                    .is_some_and(|slug| slug != &server.slug)
+                    || (requirement.resources && !server.capabilities.resources)
+                {
+                    return Err(veoveo_types::ExtensionError::new(
+                        "action target does not meet server requirements",
+                    ));
+                }
+            }
+        }
     }
-
-    #[test]
-    fn recording_policy_matches_resource_producer_and_scope() {
-        let (principal, resource, producer, rule, trace_id) = fixture();
-        let request = RecordingIngestPolicyRequest {
-            principal: &principal,
-            resource: &resource,
-            producer: &producer,
-            action: GatewayAction::RecordingBatchAppend,
-            trace_id: &trace_id,
-        };
-
-        assert_eq!(
-            recording_rule_match(&rule, &request),
-            RuleMatchDetail::Match
-        );
-    }
-
-    #[test]
-    fn recording_policy_reports_missing_producer_label() {
-        let (principal, resource, mut producer, rule, trace_id) = fixture();
-        producer.labels.clear();
-        let request = RecordingIngestPolicyRequest {
-            principal: &principal,
-            resource: &resource,
-            producer: &producer,
-            action: GatewayAction::RecordingBatchAppend,
-            trace_id: &trace_id,
-        };
-
-        assert_eq!(
-            recording_rule_match(&rule, &request),
-            RuleMatchDetail::MissingDataLabel
-        );
+    match target {
+        PolicyTarget::Owner(target) => catalog.registry().check_target(target),
+        PolicyTarget::Unadmitted(_) => Err(veoveo_types::ExtensionError::new(
+            "owner target is unadmitted",
+        )),
+        _ => Ok(()),
     }
 }

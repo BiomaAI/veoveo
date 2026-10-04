@@ -17,6 +17,8 @@ name = "certify"
 path = "src/bin/certify.rs"
 
 [dependencies]
+veoveo-gateway-catalog.workspace = true
+veoveo-gateway-contract.workspace = true
 veoveo-media-mcp = { path = "../../servers/media-mcp", default-features = false, features = ["contract"] }
 veoveo-frames-mcp = { path = "../../servers/frames-mcp", default-features = false, features = ["contract"] }
 veoveo-artifact-contract.workspace = true

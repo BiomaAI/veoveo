@@ -5,10 +5,11 @@ edition.workspace = true
 publish = false
 
 [features]
-gateway = ["dep:veoveo-mcp-gateway", "dep:veoveo-computers-transport", "dep:veoveo-mcp-contract", "dep:rmcp", "dep:tokio", "dep:axum", "dep:anyhow", "dep:serde", "dep:serde_json", "dep:chrono", "dep:secrecy", "dep:url", "dep:tokio-util", "dep:futures", "dep:veoveo-computers-contract", "dep:veoveo-types"]
+gateway = ["dep:veoveo-gateway-contract", "dep:veoveo-mcp-gateway", "dep:veoveo-computers-transport", "dep:veoveo-mcp-contract", "dep:rmcp", "dep:tokio", "dep:axum", "dep:anyhow", "dep:serde", "dep:serde_json", "dep:chrono", "dep:secrecy", "dep:url", "dep:tokio-util", "dep:futures", "dep:veoveo-computers-contract", "dep:veoveo-types"]
 default = ["runtime"]
 schema = ["dep:veoveo-modules"]
 runtime = [
+    "dep:veoveo-gateway-contract",
     "dep:futures",
     "dep:veoveo-types",
     "dep:veoveo-audit-contract",
@@ -35,6 +36,7 @@ runtime = [
 ]
 
 [dependencies]
+veoveo-gateway-contract = { workspace = true, optional = true }
 axum = { workspace = true, features = ["ws"], optional = true }
 anyhow = { workspace = true, optional = true }
 secrecy = { workspace = true, optional = true }
@@ -69,6 +71,9 @@ veoveo-policy = { path = "../policy", optional = true }
 veoveo-task-runtime = { path = "../task-runtime", optional = true }
 
 [dev-dependencies]
+veoveo-agent-runtime = { path = "../../agents/runtime", default-features = false, features = ["contract"] }
+veoveo-recording-contract.workspace = true
+veoveo-gateway-catalog.workspace = true
 veoveo-platform-store.workspace = true
 base64.workspace = true
 anyhow.workspace = true

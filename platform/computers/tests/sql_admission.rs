@@ -177,7 +177,7 @@ async fn current_owner_policy_is_resolved_before_decoding_granted_computer_state
             .iter()
             .find(|rule| {
                 rule.actions
-                    .contains(&veoveo_mcp_contract::GatewayAction::ResourcesRead)
+                    .contains(&veoveo_gateway_contract::GatewayAction::ResourcesRead.into())
             })
             .unwrap()
             .clone();

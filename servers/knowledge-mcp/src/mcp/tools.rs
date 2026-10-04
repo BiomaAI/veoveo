@@ -116,6 +116,7 @@ impl<E: Embeddings + 'static> KnowledgeMcp<E> {
     async fn recheck_tool(&self, authority: &ToolAuthority) -> Result<(), ErrorData> {
         let current = authorize(
             &self.store,
+            &self.catalog_registry,
             &authority.identity,
             authority.required,
             GatewayAction::ToolsCall,

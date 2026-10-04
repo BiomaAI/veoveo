@@ -83,7 +83,8 @@ pub fn plane(registrations: &[CollectionRegistration]) -> GatewayControlPlane {
         }
     }
     let plane: GatewayControlPlane = serde_json::from_value(value).unwrap();
-    veoveo_policy::PolicyCatalog::new(plane.clone()).unwrap();
+    veoveo_policy::PolicyCatalog::new(plane.clone(), veoveo_gateway_catalog::registry().unwrap())
+        .unwrap();
     plane
 }
 
@@ -263,7 +264,11 @@ impl Server {
             veoveo_knowledge_mcp::coordinator::CoordinatorState::CatalogReady,
         );
         let router = veoveo_knowledge_mcp::host::server(
-            KnowledgeMcp::new(store, embeddings),
+            KnowledgeMcp::new(
+                store,
+                embeddings,
+                veoveo_gateway_catalog::registry().expect("catalog recipe"),
+            ),
             &veoveo_mcp_contract::PublicDeployment::new(format!("http://{address}")).unwrap(),
             true,
             vec![address.to_string()],

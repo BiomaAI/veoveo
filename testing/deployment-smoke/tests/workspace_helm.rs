@@ -103,9 +103,7 @@ fn workspace_agent_configuration_has_exact_secret_references_and_separate_browse
     let catalog = veoveo_mcp_gateway::GatewayCatalog::from_control_plane(
         serde_json::from_value(registered.clone())?,
         veoveo_mcp_gateway::GatewayCatalogAdmission::unbound()
-            .bind(std::sync::Arc::new(
-                veoveo_recording_mcp::gateway::RecordingCatalogAdmission,
-            ))
+            .bind(veoveo_gateway_catalog::registry().unwrap())
             .unwrap(),
     )?;
     veoveo_agent_runtime::gateway::ManagedTemplateCatalog::from_json(

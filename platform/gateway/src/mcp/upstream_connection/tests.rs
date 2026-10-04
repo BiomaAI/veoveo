@@ -209,9 +209,10 @@ async fn gateway_preserves_body_rejection_without_replaying_or_poisoning_other_r
             .find(|server| server.slug.as_str() == "media")
             .unwrap();
         manifest.upstream.url =
-            veoveo_mcp_contract::UpstreamUrl::new(source.endpoint.clone()).unwrap();
+            veoveo_gateway_contract::UpstreamUrl::new(source.endpoint.clone()).unwrap();
         manifest.upstream.health_url = manifest.upstream.url.clone();
-        manifest.upstream.security = veoveo_mcp_contract::UpstreamTransportSecurity::LoopbackHttp;
+        manifest.upstream.security =
+            veoveo_gateway_contract::UpstreamTransportSecurity::LoopbackHttp;
         let gateway = super::super::task_ownership_tests::gateway(state.clone(), plane);
         let service = StreamableHttpService::new(
             move || Ok(gateway.clone()),

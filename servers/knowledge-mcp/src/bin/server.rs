@@ -89,6 +89,7 @@ async fn main() -> anyhow::Result<()> {
         (1..=128).contains(&configurations.len()),
         "configure 1..128 indexing tenants"
     );
+    let catalog_registry = veoveo_gateway_catalog::registry()?;
     let mut workers = tokio::task::JoinSet::new();
     let mut states = Vec::new();
     for config in configurations {
@@ -97,8 +98,10 @@ async fn main() -> anyhow::Result<()> {
         let store = store.clone();
         let embeddings = embeddings.clone();
         let stop = cancel.child_token();
+        let catalog_registry = catalog_registry.clone();
         workers.spawn(async move {
             IndexingService {
+                catalog_registry: &catalog_registry,
                 store: &store,
                 embeddings: embeddings.as_ref(),
                 config: &config,
@@ -109,7 +112,7 @@ async fn main() -> anyhow::Result<()> {
     }
     let readiness = IndexingReadiness::new(states)?;
     let server = veoveo_knowledge_mcp::host::server(
-        veoveo_knowledge_mcp::mcp::KnowledgeMcp::new(store, embeddings),
+        veoveo_knowledge_mcp::mcp::KnowledgeMcp::new(store, embeddings, catalog_registry),
         &deployment,
         args.allow_loopback_hosts,
         args.allowed_hosts,

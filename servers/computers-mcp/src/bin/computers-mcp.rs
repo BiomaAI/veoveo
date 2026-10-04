@@ -43,5 +43,12 @@ async fn main() -> anyhow::Result<()> {
         let _ = tokio::signal::ctrl_c().await;
         signal.cancel();
     });
-    veoveo_computers_mcp::server::serve(config, tasks, trust, shutdown).await
+    veoveo_computers_mcp::server::serve(
+        config,
+        tasks,
+        trust,
+        shutdown,
+        veoveo_gateway_catalog::registry()?,
+    )
+    .await
 }

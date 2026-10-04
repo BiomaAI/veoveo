@@ -84,7 +84,9 @@ fn gateway_registrations_match_the_checked_discovery_profile() {
     ] {
         let configuration: veoveo_mcp_contract::GatewayControlPlane =
             serde_json::from_str(source).unwrap();
-        configuration.validate().unwrap();
+        configuration
+            .validate(&veoveo_gateway_catalog::registry().unwrap())
+            .unwrap();
         let server = configuration
             .servers
             .iter()

@@ -1,5 +1,6 @@
 use chrono::{TimeDelta, Utc};
 use std::collections::BTreeSet;
+use veoveo_gateway_contract::ProtectedResourceId;
 use veoveo_mcp_contract::{
     GatewayInternalIdentity, GatewayProfileId, JwtId, Principal, PrincipalKind, ServerSlug,
     TokenIssuer, TokenSubject,
@@ -132,9 +133,7 @@ pub(super) fn context(
 }
 
 fn bind_request_context(identity: &mut GatewayInternalIdentity) {
-    use veoveo_mcp_contract::{
-        AccessTokenSubject, GatewayRequestContext, OAuthClientId, ProtectedResourceId,
-    };
+    use veoveo_mcp_contract::{AccessTokenSubject, GatewayRequestContext, OAuthClientId};
     identity.request_context = Some(GatewayRequestContext {
         format: veoveo_mcp_contract::GatewayRequestContextFormat::V2,
         audit: veoveo_mcp_contract::audit::AuditRequest::background(),

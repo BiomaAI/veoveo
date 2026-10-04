@@ -1,7 +1,5 @@
-use veoveo_mcp_contract::{
-    GatewayAction,
-    audit::{AdministrativeOperation, AuditTarget},
-};
+use crate::contract::AgentAction;
+use veoveo_mcp_contract::audit::{AdministrativeOperation, AuditTarget};
 pub(super) fn managed_instance_audit_target(
     tenant: &veoveo_types::TenantId,
     instance: &veoveo_types::AgentManagedInstanceId,
@@ -35,24 +33,22 @@ pub(super) fn agent_definition_audit_target(
 }
 
 pub(super) fn agent_management_operation(
-    action: GatewayAction,
+    action: AgentAction,
 ) -> anyhow::Result<AdministrativeOperation> {
     Ok(match action {
-        GatewayAction::AgentDefinitionsRead => AdministrativeOperation::AgentDefinitionsRead,
-        GatewayAction::AgentDefinitionsReadContent => {
+        AgentAction::AgentDefinitionsRead => AdministrativeOperation::AgentDefinitionsRead,
+        AgentAction::AgentDefinitionsReadContent => {
             AdministrativeOperation::AgentDefinitionsReadContent
         }
-        GatewayAction::AgentDefinitionsCreate => AdministrativeOperation::AgentDefinitionsCreate,
-        GatewayAction::AgentDefinitionsEdit => AdministrativeOperation::AgentDefinitionsEdit,
-        GatewayAction::AgentDefinitionsPublish => AdministrativeOperation::AgentDefinitionsPublish,
-        GatewayAction::AgentDefinitionsUse => AdministrativeOperation::AgentDefinitionsUse,
-        GatewayAction::AgentDefinitionsControl => AdministrativeOperation::AgentDefinitionsControl,
-        GatewayAction::AgentDefinitionsArchive => AdministrativeOperation::AgentDefinitionsArchive,
-        GatewayAction::AgentDefinitionsTransfer => {
-            AdministrativeOperation::AgentDefinitionsTransfer
-        }
-        GatewayAction::AgentInstancesDeploy => AdministrativeOperation::AgentInstancesDeploy,
-        GatewayAction::AgentInstancesControl => AdministrativeOperation::AgentInstancesControl,
+        AgentAction::AgentDefinitionsCreate => AdministrativeOperation::AgentDefinitionsCreate,
+        AgentAction::AgentDefinitionsEdit => AdministrativeOperation::AgentDefinitionsEdit,
+        AgentAction::AgentDefinitionsPublish => AdministrativeOperation::AgentDefinitionsPublish,
+        AgentAction::AgentDefinitionsUse => AdministrativeOperation::AgentDefinitionsUse,
+        AgentAction::AgentDefinitionsControl => AdministrativeOperation::AgentDefinitionsControl,
+        AgentAction::AgentDefinitionsArchive => AdministrativeOperation::AgentDefinitionsArchive,
+        AgentAction::AgentDefinitionsTransfer => AdministrativeOperation::AgentDefinitionsTransfer,
+        AgentAction::AgentInstancesDeploy => AdministrativeOperation::AgentInstancesDeploy,
+        AgentAction::AgentInstancesControl => AdministrativeOperation::AgentInstancesControl,
         _ => anyhow::bail!("action does not belong to agent management"),
     })
 }

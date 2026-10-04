@@ -1,3 +1,4 @@
+use veoveo_gateway_contract::ProtectedResourceId;
 mod request;
 mod upload;
 pub use request::{GatewayRequestContext, GatewayRequestContextFormat};
@@ -20,7 +21,7 @@ use jsonwebtoken::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::{GatewayProfileId, JwtId, Principal, ProtectedResourceId, ServerSlug, TokenIssuer};
+use crate::{GatewayProfileId, JwtId, Principal, ServerSlug, TokenIssuer};
 use veoveo_types::InvocationAuthority;
 use veoveo_types::{IdentifierError, PrincipalId};
 
@@ -739,8 +740,10 @@ pub(crate) mod tests {
                 subject: actor.subject.clone(),
                 oauth_client_id: crate::OAuthClientId::new("upload-test").unwrap(),
                 session_family: None,
-                audience: crate::ProtectedResourceId::new("https://gateway.test/mcp/default")
-                    .unwrap(),
+                audience: veoveo_gateway_contract::ProtectedResourceId::new(
+                    "https://gateway.test/mcp/default",
+                )
+                .unwrap(),
                 work_context: invocation.work_context.clone(),
                 invocation_mode: invocation.provenance.mode(),
                 initiator: invocation.provenance.initiator().cloned(),

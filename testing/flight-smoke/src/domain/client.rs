@@ -83,7 +83,7 @@ impl OperatorClient<'_> {
 }
 pub(super) async fn gateway_conformance(
     conformance: &Path,
-    resource: &veoveo_mcp_contract::ProtectedResourceId,
+    resource: &veoveo_gateway_contract::ProtectedResourceId,
     token: &str,
     operation: &[&str],
     timeout: Duration,

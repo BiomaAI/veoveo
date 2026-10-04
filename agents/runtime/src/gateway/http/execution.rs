@@ -1,8 +1,7 @@
 //! Resolve immutable publications under current use, model and context authority.
+use crate::contract::AgentAction;
 use axum::http::StatusCode;
-use veoveo_mcp_contract::{
-    GatewayAction, GatewayProfileId, GatewayToolName, agent_management as wire,
-};
+use veoveo_mcp_contract::{GatewayProfileId, GatewayToolName, agent_management as wire};
 use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_platform_store::agent_management as domain;
 
@@ -57,7 +56,7 @@ impl AgentManagementState {
             &catalog,
             &profile.id,
             subject,
-            GatewayAction::AgentDefinitionsUse,
+            AgentAction::AgentDefinitionsUse,
         ) {
             return Err(StatusCode::FORBIDDEN);
         }
@@ -130,7 +129,7 @@ impl AgentManagementState {
             &self.catalog.current(),
             profile,
             subject,
-            GatewayAction::AgentDefinitionsReadContent,
+            AgentAction::AgentDefinitionsReadContent,
         ) && self
             .store()
             .agent_authored_revision(&actor, key, revision)

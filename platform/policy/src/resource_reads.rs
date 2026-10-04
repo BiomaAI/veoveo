@@ -3,7 +3,8 @@ use crate::{
     PolicyCatalogView,
     evaluation::{evaluate_rules, filter_matches, has_required_scopes, validate_principal},
 };
-use veoveo_mcp_contract::{Exposure, GatewayAction, PolicyEffect, PolicyReasonCode, Principal};
+use veoveo_gateway_contract::GatewayAction;
+use veoveo_mcp_contract::{Exposure, PolicyEffect, PolicyReasonCode, Principal};
 use veoveo_types::{GatewayProfileId, ResourceSelection, ResourceSelector, ServerSlug};
 
 /// Admit reads in the registered server's own URI scheme. Lexical profile selectors
@@ -46,7 +47,7 @@ pub fn admit_resource_reads(
         profile,
         policy,
         principal,
-        GatewayAction::ResourcesRead,
+        &GatewayAction::ResourcesRead.into(),
         |rule| {
             filter_matches(&rule.servers, server)
                 && filter_matches(&rule.resource_schemes, &manifest.uri_scheme)

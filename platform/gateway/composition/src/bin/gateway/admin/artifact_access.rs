@@ -1,4 +1,5 @@
 use std::time::Instant;
+use veoveo_gateway_contract::GatewayAction;
 use veoveo_mcp_contract::audit::{AdministrativeOperation, AuditTarget};
 
 use axum::{
@@ -13,8 +14,7 @@ use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_artifact_contract::{ArtifactId, ArtifactLedgerAddress};
 use veoveo_mcp_contract::{
     ArtifactAccessRequestId, ArtifactPlane, ArtifactPlaneError, CreateArtifactAccessRequest,
-    DecideArtifactAccessRequest, GatewayAction, ListArtifactAccessRequests, PlaneCaller,
-    PolicyTarget,
+    DecideArtifactAccessRequest, ListArtifactAccessRequests, PlaneCaller, PolicyTarget,
 };
 use veoveo_mcp_gateway::AuthenticatedSubject;
 
@@ -164,7 +164,7 @@ async fn authorized_plane(
         &profile_id,
         subject,
         AdminAuthorizationRequest {
-            action,
+            action: action.into(),
             target: PolicyTarget::Gateway,
             operation,
             audit_target: Some(audit_target),

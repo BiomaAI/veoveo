@@ -62,7 +62,7 @@ async fn catalog_search_and_source_revisions_agree_through_the_installed_gateway
         let control: GatewayControlPlane = serde_json::from_slice(&fs::read(env_path(
             "VEOVEO_KNOWLEDGE_ACCEPTANCE_CONTROL_PLANE",
         )?)?)?;
-        control.validate()?;
+        control.validate(&veoveo_gateway_catalog::registry().unwrap())?;
         let profile: GatewayProfileId =
             std::env::var("VEOVEO_KNOWLEDGE_ACCEPTANCE_PROFILE")?.parse()?;
         let selected = control

@@ -1,3 +1,5 @@
+use veoveo_gateway_contract::GatewayAction;
+use veoveo_gateway_contract::OAuthClientId;
 use veoveo_types::WorkContextMembershipLevel;
 mod support;
 use std::time::Duration;
@@ -22,6 +24,7 @@ async fn queued(
         "00000000-0000-7000-8000-000000000001"
             .parse::<veoveo_computers::api::ProviderInstanceId>()
             .unwrap(),
+        veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
     )
     .unwrap();
     store
@@ -140,7 +143,7 @@ async fn queued_work_obeys_current_policy_and_preserves_the_actual_dispatch_deci
             }
             _ => {
                 current.policies[0].rules[0].actions =
-                    [GatewayAction::ResourcesRead].into_iter().collect();
+                    [GatewayAction::ResourcesRead.into()].into_iter().collect();
             }
         }
         policy::install(&db.b, current).await;

@@ -4,6 +4,9 @@ use crate::test_store as store;
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::{TimeDelta, Utc};
 use parameters::{Operation, Route};
+use veoveo_gateway_contract::GatewayAction;
+use veoveo_gateway_contract::OAuthClientId;
+use veoveo_gateway_contract::ProtectedResourceId;
 use veoveo_mcp_contract::*;
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayCatalog};
 use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel};
@@ -17,9 +20,13 @@ fn control() -> GatewayControlPlane {
     .unwrap();
     let mut rule = control.policies[0].rules[0].clone();
     rule.id = PolicyRuleId::new("computer-access").unwrap();
-    rule.actions = [GatewayAction::ResourcesRead, GatewayAction::ComputerAttach]
-        .into_iter()
-        .collect();
+    rule.actions = [
+        GatewayAction::ResourcesRead.into(),
+        veoveo_types::ActionName::new(veoveo_computers_contract::ComputerAction::Attach.as_str())
+            .unwrap(),
+    ]
+    .into_iter()
+    .collect();
     rule.tools.clear();
     control.policies[0].rules.push(rule);
     control

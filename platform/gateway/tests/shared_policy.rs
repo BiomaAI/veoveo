@@ -1,10 +1,11 @@
 //! The lightweight worker catalog and gateway index must make the same decisions.
+use veoveo_gateway_contract::GatewayAction;
 #[path = "../../../testing/fixtures/catalog_admission.rs"]
 mod catalog_admission;
 use std::collections::BTreeSet;
 use veoveo_mcp_contract::{
-    GatewayAction, GatewayControlPlane, LocalToolName, PolicyTarget, Principal, PrincipalKind,
-    TokenIssuer, TokenSubject, TraceId,
+    GatewayControlPlane, LocalToolName, PolicyTarget, Principal, PrincipalKind, TokenIssuer,
+    TokenSubject, TraceId,
 };
 use veoveo_mcp_gateway::{GatewayCatalog, PolicyRequest};
 use veoveo_policy::PolicyCatalog;
@@ -16,7 +17,7 @@ fn gateway_and_background_catalogs_preserve_policy_semantics() {
         serde_json::from_str(include_str!("../../../configs/gateway.local.json")).unwrap();
     let gateway =
         GatewayCatalog::from_control_plane(plane.clone(), catalog_admission::binding()).unwrap();
-    let background = PolicyCatalog::new(plane.clone()).unwrap();
+    let background = PolicyCatalog::new(plane.clone(), catalog_admission::registry()).unwrap();
     for kind in [PrincipalKind::User, PrincipalKind::Service] {
         for profile in &plane.profiles {
             for with_scopes in [false, true] {
@@ -56,7 +57,7 @@ fn gateway_and_background_catalogs_preserve_policy_semantics() {
                         let request = PolicyRequest {
                             principal: &principal,
                             profile: &profile.id,
-                            action: GatewayAction::ToolsCall,
+                            action: GatewayAction::ToolsCall.into(),
                             target: &target,
                             trace_id: &trace,
                         };

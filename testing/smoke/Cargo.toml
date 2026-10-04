@@ -9,6 +9,8 @@ name = "smoke"
 path = "src/bin/smoke.rs"
 
 [dependencies]
+veoveo-gateway-catalog.workspace = true
+veoveo-gateway-contract.workspace = true
 veoveo-modules = { workspace = true, default-features = false, features = ["serialization"] }
 veoveo-map-mcp = { path = "../../servers/map-mcp", default-features = false, features = ["contract"] }
 veoveo-recording-contract.workspace = true
@@ -28,6 +30,7 @@ glam.workspace = true
 hex.workspace = true
 image.workspace = true
 jsonwebtoken.workspace = true
+jsonschema.workspace = true
 rcgen.workspace = true
 reqwest = { workspace = true, features = ["cookies", "json", "rustls-no-provider", "stream"] }
 re_grpc_server.workspace = true

@@ -81,20 +81,19 @@ pub use deployment::{
 };
 pub use gateway::{
     AccessTokenSubject, ArtifactAudience, AuthMethod, AuthMode, AuthOutcome, AuthReasonCode,
-    AuthorizationServerEndpoint, AuthorizationServerId, CanonicalTaskId,
-    CertificateAuthorityFilePath, CertificateAuthoritySource, CompatibilityHelperId,
-    CompletionExposure, ConsoleBootstrap, ConsoleInstallation, ConsoleSession, ConsoleTenant,
-    DataLabelDefinition, DiscoveryFailureMode, Exposure, GatewayAction,
-    GatewayAuthorizationCodeRecord, GatewayAuthorizationRequest, GatewayControlPlane,
-    GatewayControlPlaneError, GatewayControlPlaneRevision, GatewayControlPlaneRevisionId,
-    GatewayControlPlaneRevisionSource, GatewayJwtRevocation, GatewayJwtRevocationAdminStatus,
-    GatewayJwtRevocationApplyResult, GatewayJwtRevocationPruneResult, GatewayJwtRevocationRequest,
-    GatewayProfile, GatewayProfileId, GatewayRefreshFamilyId, GatewayRefreshGrant,
-    GatewayRefreshRevocationRequest, GatewayResourceProjection, GatewayResourceSubscription,
-    GatewayToolName, HttpsUrl, IdentityProvider, IdentityProviderClaimMapping,
-    IdentityProviderEndpoint, IdentityProviderId, IdentityProviderOidcClientRegistration,
-    IdentityProviderSubjectClaim, IdentityProviderTenantClaim, IdentityProviderTenantClaimMapping,
-    JwksFilePath, JwksSource, JwtId, LocalToolName, MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION,
+    AuthorizationServerEndpoint, CanonicalTaskId, CompatibilityHelperId, CompletionExposure,
+    ConsoleBootstrap, ConsoleInstallation, ConsoleSession, ConsoleTenant, DataLabelDefinition,
+    DiscoveryFailureMode, Exposure, GatewayAuthorizationCodeRecord, GatewayAuthorizationRequest,
+    GatewayControlPlane, GatewayControlPlaneError, GatewayControlPlaneRevision,
+    GatewayControlPlaneRevisionId, GatewayControlPlaneRevisionSource, GatewayJwtRevocation,
+    GatewayJwtRevocationAdminStatus, GatewayJwtRevocationApplyResult,
+    GatewayJwtRevocationPruneResult, GatewayJwtRevocationRequest, GatewayProfile, GatewayProfileId,
+    GatewayRefreshFamilyId, GatewayRefreshGrant, GatewayRefreshRevocationRequest,
+    GatewayResourceProjection, GatewayResourceSubscription, GatewayToolName, HttpsUrl,
+    IdentityProvider, IdentityProviderClaimMapping, IdentityProviderEndpoint, IdentityProviderId,
+    IdentityProviderOidcClientRegistration, IdentityProviderSubjectClaim,
+    IdentityProviderTenantClaim, IdentityProviderTenantClaimMapping, JwksFilePath, JwksSource,
+    JwtId, LocalToolName, MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION,
     MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION, McpMethodName, McpSurfaceCapabilities,
     McpSurfaceCapability, MountPath, OAuthAuthorizationCode, OAuthClientAuthMethod, OAuthClientId,
     OAuthClientRegistration, OAuthClientSurface, OAuthEndpointUrl, OAuthGrantType,
@@ -103,15 +102,10 @@ pub use gateway::{
     PkceCodeChallenge, PkceCodeChallengeMethod, PkceCodeVerifier, PlatformCapabilityId,
     PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyRule, PolicyRuleId, PolicySet,
     PolicyTarget, Principal, PrincipalAssurance, PrincipalAuditAttributes, PrincipalDisplayName,
-    PrincipalKind, ProfileServerExposure, PromptName, ProtectedResourceId, ProtectedResourceName,
-    RecordingApplicationId, RecordingDatasetName, RecordingIngestResource, RecordingIngestStreamId,
-    RecordingProducerBlueprintPolicy, RecordingProducerId, RecordingProducerQuotas,
-    RecordingProducerRegistration, RecordingRetentionPolicy, ResourceAuthorizationServer,
+    PrincipalKind, ProfileServerExposure, PromptName, ResourceAuthorizationServer,
     ResourceProjectionMode, ResourceSelector, ResourceUriPrefix, ResourceUriTemplate,
-    SecretLocator, SecretOwner, SecretPurpose, SecretReference, SecretReferenceId, SecretSource,
     ServerManifest, ServerSlug, TaskExposure, TenantDefinition, TokenIssuer, TokenSubject, TraceId,
-    UpstreamEndpoint, UpstreamTransport, UpstreamTransportSecurity, UpstreamUrl,
-    console_bootstrap_schema,
+    UpstreamEndpoint, UpstreamTransport, composed_gateway_schema, console_bootstrap_schema,
 };
 pub use host::{
     HostAuthority, host_authority_is_allowed, parse_allowed_host_authority,
@@ -159,3 +153,7 @@ pub use work_context::{WorkContextDefinition, WorkContextMembershipRule};
 pub mod audit {
     pub use veoveo_audit_contract::*;
 }
+
+#[cfg(test)]
+#[path = "../../../testing/fixtures/catalog_registry.rs"]
+mod catalog_fixture;

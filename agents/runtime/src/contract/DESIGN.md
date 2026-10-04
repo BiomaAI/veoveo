@@ -1,4 +1,4 @@
-# Agents Public Claim Contract
+# Agents Contract
 
 ## Standards And Protocols
 
@@ -7,6 +7,11 @@ The OAuth JWT extension `managed_agent` is a public JSON object with `instance`,
 `ManagedAgentToken` schema name and module-qualified schema identity. The feature
 uses Serde admission and depends on foundational types without MCP, async, Store
 or GPU runtime dependencies.
+
+Gateway policy JSON uses the fourteen spellings declared by `AgentAction`. The
+gateway catalog registry binds that closed vocabulary through the lower gateway
+contract. Registration preserves the public action names and declares each action's
+selector requirements, supported target and audit access.
 
 ## Admission And Authority
 
@@ -21,3 +26,15 @@ Composition reserves the owner claim name even when the adapter is disabled. A
 bound typed key belongs to one immutable registry and cannot read or contribute
 values through another registry. Internal assertions carry checked audit attribution
 under their separately versioned protocol. Public claim wire behavior is unchanged.
+
+## Policy Actions
+
+Agent control, definition management and instance lifecycle actions target the
+gateway. Policy rules may select gateway profiles; MCP server, tool, resource scheme,
+prompt and protected-resource selectors are forbidden for these actions. Rust
+callers obtain an action handle from the registry's typed `AgentAction` key before
+requesting authorization. Shared policy code evaluates the rule and principal.
+
+`src/gateway/tests/policy_actions.rs` qualifies the selector restrictions through the
+full catalog validator. The vocabulary's own tests check its wire spellings. These
+tests do not establish installed instance lifecycle behavior.

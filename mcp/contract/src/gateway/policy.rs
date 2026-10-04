@@ -20,7 +20,8 @@ pub struct PolicySet {
 pub struct PolicyRule {
     pub id: PolicyRuleId,
     pub effect: PolicyEffect,
-    pub actions: BTreeSet<GatewayAction>,
+    #[schemars(with = "BTreeSet<super::catalog_schema::RegisteredActionSchema>")]
+    pub actions: BTreeSet<veoveo_types::ActionName>,
     #[serde(default)]
     pub profiles: BTreeSet<GatewayProfileId>,
     #[serde(default)]
@@ -58,128 +59,6 @@ pub struct PolicyRule {
 pub enum PolicyEffect {
     Allow,
     Deny,
-}
-
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
-)]
-#[serde(rename_all = "snake_case")]
-pub enum GatewayAction {
-    ToolsList,
-    ToolsCall,
-    ResourcesList,
-    ResourcesTemplatesList,
-    ResourcesRead,
-    SubscriptionsListen,
-    PromptsList,
-    PromptsGet,
-    CompletionComplete,
-    TasksGet,
-    TasksUpdate,
-    TasksCancel,
-    ArtifactRead,
-    ArtifactUpload,
-    /// Governed interactive access to an exact Computer resource. No MCP method.
-    ComputerAttach,
-    UsageRead,
-    AgentsRead,
-    AgentsMessage,
-    AgentsInputRequestAnswer,
-    AgentDefinitionsRead,
-    AgentDefinitionsReadContent,
-    AgentDefinitionsCreate,
-    AgentDefinitionsEdit,
-    AgentDefinitionsPublish,
-    AgentDefinitionsUse,
-    AgentDefinitionsControl,
-    AgentDefinitionsArchive,
-    AgentDefinitionsTransfer,
-    AgentInstancesDeploy,
-    AgentInstancesControl,
-    AdminRead,
-    AdminWrite,
-    RecordingStreamOpen,
-    RecordingStreamStatus,
-    RecordingBatchAppend,
-    RecordingBlueprintPublish,
-    RecordingStreamFinish,
-    RecordingLayerPublish,
-}
-
-impl GatewayAction {
-    pub fn mcp_method(self) -> Option<&'static str> {
-        match self {
-            Self::ToolsList => Some("tools/list"),
-            Self::ToolsCall => Some("tools/call"),
-            Self::ResourcesList => Some("resources/list"),
-            Self::ResourcesTemplatesList => Some("resources/templates/list"),
-            Self::ResourcesRead => Some("resources/read"),
-            Self::SubscriptionsListen => Some("subscriptions/listen"),
-            Self::PromptsList => Some("prompts/list"),
-            Self::PromptsGet => Some("prompts/get"),
-            Self::CompletionComplete => Some("completion/complete"),
-            Self::TasksGet => Some("tasks/get"),
-            Self::TasksUpdate => Some("tasks/update"),
-            Self::TasksCancel => Some("tasks/cancel"),
-            Self::ArtifactRead
-            | Self::ArtifactUpload
-            | Self::ComputerAttach
-            | Self::UsageRead
-            | Self::AgentsRead
-            | Self::AgentsMessage
-            | Self::AgentsInputRequestAnswer
-            | Self::AgentDefinitionsRead
-            | Self::AgentDefinitionsReadContent
-            | Self::AgentDefinitionsCreate
-            | Self::AgentDefinitionsEdit
-            | Self::AgentDefinitionsPublish
-            | Self::AgentDefinitionsUse
-            | Self::AgentDefinitionsControl
-            | Self::AgentDefinitionsArchive
-            | Self::AgentDefinitionsTransfer
-            | Self::AgentInstancesDeploy
-            | Self::AgentInstancesControl
-            | Self::AdminRead
-            | Self::AdminWrite
-            | Self::RecordingStreamOpen
-            | Self::RecordingStreamStatus
-            | Self::RecordingBatchAppend
-            | Self::RecordingBlueprintPublish
-            | Self::RecordingStreamFinish
-            | Self::RecordingLayerPublish => None,
-        }
-    }
-
-    pub fn is_recording_ingest(self) -> bool {
-        matches!(
-            self,
-            Self::RecordingStreamOpen
-                | Self::RecordingStreamStatus
-                | Self::RecordingBatchAppend
-                | Self::RecordingBlueprintPublish
-                | Self::RecordingStreamFinish
-        )
-    }
-
-    pub fn is_agent_action(self) -> bool {
-        matches!(
-            self,
-            Self::AgentsRead
-                | Self::AgentsMessage
-                | Self::AgentsInputRequestAnswer
-                | Self::AgentDefinitionsRead
-                | Self::AgentDefinitionsReadContent
-                | Self::AgentDefinitionsCreate
-                | Self::AgentDefinitionsEdit
-                | Self::AgentDefinitionsPublish
-                | Self::AgentDefinitionsUse
-                | Self::AgentDefinitionsControl
-                | Self::AgentDefinitionsArchive
-                | Self::AgentDefinitionsTransfer
-                | Self::AgentInstancesDeploy
-                | Self::AgentInstancesControl
-        )
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -314,7 +193,8 @@ pub struct PolicyDecision {
     pub reason: PolicyReasonCode,
     pub evaluated_at: DateTime<Utc>,
     pub profile: GatewayProfileId,
-    pub action: GatewayAction,
+    #[schemars(with = "super::catalog_schema::RegisteredActionSchema")]
+    pub action: veoveo_types::ActionName,
     pub target: PolicyTarget,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub principal: Option<PrincipalId>,
@@ -330,7 +210,7 @@ pub struct PolicyDecision {
 impl PolicyDecision {
     pub fn deny(
         profile: GatewayProfileId,
-        action: GatewayAction,
+        action: impl Into<veoveo_types::ActionName>,
         target: PolicyTarget,
         reason: PolicyReasonCode,
         trace_id: TraceId,
@@ -340,7 +220,7 @@ impl PolicyDecision {
             reason,
             evaluated_at: Utc::now(),
             profile,
-            action,
+            action: action.into(),
             target,
             principal: None,
             tenant: None,
@@ -433,13 +313,12 @@ pub enum PolicyTarget {
         server: ServerSlug,
         usage_uri: ResourceUri,
     },
-    RecordingProducer {
-        producer: RecordingProducerId,
-    },
-    RecordingStream {
-        producer: RecordingProducerId,
-        stream_id: RecordingIngestStreamId,
-    },
+    #[serde(untagged, skip_deserializing)]
+    #[schemars(skip)]
+    Owner(veoveo_gateway_contract::AdmittedPolicyTarget),
+    #[serde(untagged)]
+    #[schemars(skip)]
+    Unadmitted(DecodedPolicyTarget),
 }
 
 pub use veoveo_types::{AuthMethod, AuthOutcome, AuthReasonCode};
@@ -503,5 +382,83 @@ mod group_membership_tests {
         let m = p.group_memberships();
         assert_eq!(m.len(), 1);
         assert_eq!(m.iter().next().unwrap().group, GroupId::new("eng").unwrap());
+    }
+}
+
+/// A decoded owner target cannot authorize execution before registry admission.
+#[derive(Clone, PartialEq, Eq)]
+pub struct DecodedPolicyTarget(serde_json::Value);
+impl std::fmt::Debug for DecodedPolicyTarget {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("DecodedPolicyTarget([REDACTED])")
+    }
+}
+impl Serialize for DecodedPolicyTarget {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.0.serialize(serializer)
+    }
+}
+impl<'de> Deserialize<'de> for DecodedPolicyTarget {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = veoveo_types::UniqueJsonValue::deserialize(deserializer)?.0;
+        if !value.is_object()
+            || value
+                .get("kind")
+                .and_then(serde_json::Value::as_str)
+                .is_none()
+        {
+            return Err(serde::de::Error::custom(
+                "policy target requires an object with a kind",
+            ));
+        }
+        Ok(Self(value))
+    }
+}
+impl PolicyTarget {
+    pub fn admit(
+        self,
+        registry: &veoveo_gateway_contract::CatalogRegistry,
+    ) -> Result<Self, veoveo_types::ExtensionError> {
+        match self {
+            Self::Unadmitted(target) => registry.admit_target(target.0).map(Self::Owner),
+            Self::Owner(target) => {
+                registry.check_target(&target)?;
+                Ok(Self::Owner(target))
+            }
+            kernel => Ok(kernel),
+        }
+    }
+}
+
+impl PolicyTarget {
+    pub fn kind(&self) -> &str {
+        match self {
+            Self::Gateway => "gateway",
+            Self::Server { .. } => "server",
+            Self::Tool { .. } => "tool",
+            Self::Resource { .. } => "resource",
+            Self::ResourceTemplate { .. } => "resource_template",
+            Self::Prompt { .. } => "prompt",
+            Self::Task { .. } => "task",
+            Self::PlatformTask { .. } => "platform_task",
+            Self::Artifact { .. } => "artifact",
+            Self::Usage { .. } => "usage",
+            Self::Owner(target) => target.kind().as_str(),
+            Self::Unadmitted(_) => "unadmitted",
+        }
+    }
+    pub fn server(&self) -> Option<&ServerSlug> {
+        match self {
+            Self::Server { server }
+            | Self::Tool { server, .. }
+            | Self::Resource { server, .. }
+            | Self::ResourceTemplate { server, .. }
+            | Self::Prompt { server, .. }
+            | Self::Task { server, .. }
+            | Self::PlatformTask { server, .. }
+            | Self::Artifact { server, .. }
+            | Self::Usage { server, .. } => Some(server),
+            _ => None,
+        }
     }
 }

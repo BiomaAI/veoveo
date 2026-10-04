@@ -1,10 +1,11 @@
+use veoveo_gateway_contract::GatewayAction;
 #[path = "../../../testing/fixtures/catalog_admission.rs"]
 mod catalog_admission;
 use std::{collections::BTreeSet, path::Path};
 
 use veoveo_mcp_contract::{
-    GatewayAction, GatewayProfileId, LocalToolName, PolicyEffect, PolicyTarget, Principal,
-    PrincipalKind, PromptName, ServerSlug, TokenIssuer, TokenSubject, TraceId,
+    GatewayProfileId, LocalToolName, PolicyEffect, PolicyTarget, Principal, PrincipalKind,
+    PromptName, ServerSlug, TokenIssuer, TokenSubject, TraceId,
 };
 use veoveo_mcp_gateway::{GatewayCatalog, PolicyRequest, www_authenticate_challenge};
 use veoveo_recording_contract::RecordingScope;
@@ -86,7 +87,7 @@ fn local_console_profiles_authorize_every_release_target_app_resource() {
             let decision = catalog.decide(PolicyRequest {
                 principal: &principal,
                 profile: &profile_id,
-                action: GatewayAction::ResourcesList,
+                action: GatewayAction::ResourcesList.into(),
                 target: &PolicyTarget::Resource {
                     server: ServerSlug::new(server).unwrap(),
                     uri: ResourceUri::new(uri).unwrap(),
@@ -236,7 +237,7 @@ fn assert_recording_permissions(
         let decision = catalog.decide(PolicyRequest {
             principal,
             profile,
-            action,
+            action: action.into(),
             target,
             trace_id: &TraceId::new("recording-permission-acceptance").unwrap(),
         });

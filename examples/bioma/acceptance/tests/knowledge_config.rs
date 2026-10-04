@@ -1,7 +1,7 @@
 //! Read-only composition checks; no services, credentials or network required.
+use veoveo_gateway_contract::GatewayAction;
 use veoveo_mcp_contract::{
-    GatewayAction, GatewayControlPlane, PolicyEffect, PolicyTarget, Principal, PrincipalKind,
-    ServerResourceUris,
+    GatewayControlPlane, PolicyEffect, PolicyTarget, Principal, PrincipalKind, ServerResourceUris,
 };
 use veoveo_mcp_gateway::{GatewayCatalog, PolicyRequest};
 use veoveo_types::WorkContextMembershipLevel;
@@ -13,7 +13,9 @@ fn plane() -> GatewayControlPlane {
 #[test]
 fn indexer_discovers_approved_sources_without_write_or_cross_context_authority() {
     let plane = plane();
-    plane.validate().unwrap();
+    plane
+        .validate(&veoveo_gateway_catalog::registry().unwrap())
+        .unwrap();
     let client = plane
         .oauth_clients
         .iter()
@@ -46,9 +48,7 @@ fn indexer_discovers_approved_sources_without_write_or_cross_context_authority()
     let catalog = GatewayCatalog::from_control_plane(
         plane.clone(),
         veoveo_mcp_gateway::GatewayCatalogAdmission::unbound()
-            .bind(std::sync::Arc::new(
-                veoveo_recording_mcp::gateway::RecordingCatalogAdmission,
-            ))
+            .bind(veoveo_gateway_catalog::registry().unwrap())
             .unwrap(),
     )
     .unwrap();
@@ -58,7 +58,7 @@ fn indexer_discovers_approved_sources_without_write_or_cross_context_authority()
             .decide(PolicyRequest {
                 principal: &principal,
                 profile: &profile.id,
-                action,
+                action: action.into(),
                 target,
                 trace_id: &trace,
             })
@@ -128,11 +128,28 @@ fn indexer_discovers_approved_sources_without_write_or_cross_context_authority()
         GatewayAction::ToolsList,
         GatewayAction::ArtifactUpload,
         GatewayAction::AdminWrite,
-        GatewayAction::AgentInstancesDeploy,
         GatewayAction::TasksCancel,
     ] {
         assert_eq!(decide(action, &PolicyTarget::Gateway), PolicyEffect::Deny);
     }
+    let deploy = catalog
+        .registry()
+        .action_key::<veoveo_agent_runtime::contract::AgentAction>()
+        .unwrap()
+        .action(veoveo_agent_runtime::contract::AgentAction::AgentInstancesDeploy)
+        .unwrap();
+    assert_eq!(
+        catalog
+            .decide(PolicyRequest {
+                principal: &principal,
+                profile: &profile.id,
+                action: deploy.into(),
+                target: &PolicyTarget::Gateway,
+                trace_id: &trace,
+            })
+            .effect,
+        PolicyEffect::Deny
+    );
     for context in &plane.work_contexts {
         assert_eq!(
             context.membership_for(&principal, &client.id),
@@ -147,9 +164,7 @@ fn user_profiles_can_find_knowledge_without_exposing_the_indexing_profile() {
     let catalog = GatewayCatalog::from_control_plane(
         plane(),
         veoveo_mcp_gateway::GatewayCatalogAdmission::unbound()
-            .bind(std::sync::Arc::new(
-                veoveo_recording_mcp::gateway::RecordingCatalogAdmission,
-            ))
+            .bind(veoveo_gateway_catalog::registry().unwrap())
             .unwrap(),
     )
     .unwrap();

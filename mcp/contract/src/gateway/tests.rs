@@ -1,4 +1,7 @@
 use super::*;
+use veoveo_gateway_contract::{
+    CertificateAuthorityFilePath, GatewayAction, SecretLocator, SecretSource,
+};
 
 fn identity_provider() -> IdentityProvider {
     IdentityProvider {
@@ -148,7 +151,7 @@ fn control_plane_with_server_and_secrets(
         authorization_servers: vec![authorization_server()],
         servers: vec![server],
         profiles: vec![default_profile()],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![default_policy()],
@@ -199,7 +202,7 @@ fn default_policy() -> PolicySet {
         rules: vec![PolicyRule {
             id: PolicyRuleId::new("allow_media_use").unwrap(),
             effect: PolicyEffect::Allow,
-            actions: BTreeSet::from([GatewayAction::ToolsCall]),
+            actions: BTreeSet::from([GatewayAction::ToolsCall.into()]),
             profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),
             protected_resources: BTreeSet::new(),
             servers: BTreeSet::from([ServerSlug::new("media").unwrap()]),
@@ -504,7 +507,7 @@ fn control_plane_validates_upstream_transport_security() {
         authorization_servers: vec![authorization_server()],
         servers: vec![loopback_manifest],
         profiles: vec![default_profile()],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![default_policy()],
@@ -515,7 +518,9 @@ fn control_plane_validates_upstream_transport_security() {
         metadata: Value::Null,
     };
 
-    config.validate().expect("loopback HTTP upstream is valid");
+    config
+        .validate(&crate::catalog_fixture::registry())
+        .expect("loopback HTTP upstream is valid");
 
     let mut mesh_manifest = media_manifest();
     mesh_manifest.upstream.url =
@@ -529,7 +534,7 @@ fn control_plane_validates_upstream_transport_security() {
         authorization_servers: vec![authorization_server()],
         servers: vec![mesh_manifest],
         profiles: vec![default_profile()],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![default_policy()],
@@ -541,7 +546,7 @@ fn control_plane_validates_upstream_transport_security() {
     };
 
     config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect("service-mesh internal HTTP upstream is valid");
 
     let mut public_plaintext_manifest = media_manifest();
@@ -554,7 +559,7 @@ fn control_plane_validates_upstream_transport_security() {
         authorization_servers: vec![authorization_server()],
         servers: vec![public_plaintext_manifest],
         profiles: vec![default_profile()],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![default_policy()],
@@ -566,7 +571,7 @@ fn control_plane_validates_upstream_transport_security() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("public plaintext upstream must fail");
 
     assert!(matches!(
@@ -584,7 +589,7 @@ fn mutual_tls_upstream_requires_typed_client_material() {
     manifest.upstream.security = UpstreamTransportSecurity::MutualTls;
 
     let err = control_plane_with_server_and_secrets(manifest.clone(), default_secrets())
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("mutual TLS requires client certificate and private key references");
     assert!(matches!(
         err,
@@ -597,7 +602,7 @@ fn mutual_tls_upstream_requires_typed_client_material() {
     manifest.upstream.client_certificate =
         Some(SecretReferenceId::new("media_upstream_tls_client_certificate").unwrap());
     let err = control_plane_with_server_and_secrets(manifest.clone(), default_secrets())
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("mutual TLS also requires a client private key reference");
     assert!(matches!(
         err,
@@ -610,7 +615,7 @@ fn mutual_tls_upstream_requires_typed_client_material() {
     manifest.upstream.client_private_key =
         Some(SecretReferenceId::new("media_upstream_tls_client_private_key").unwrap());
     let err = control_plane_with_server_and_secrets(manifest.clone(), default_secrets())
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("mutual TLS references must exist in the secret catalog");
     assert!(matches!(
         err,
@@ -628,7 +633,7 @@ fn mutual_tls_upstream_requires_typed_client_material() {
             wrong_purpose,
         ],
     )
-    .validate()
+    .validate(&crate::catalog_fixture::registry())
     .expect_err("mutual TLS secrets must have TLS-specific purposes");
     assert!(matches!(
         err,
@@ -647,7 +652,7 @@ fn mutual_tls_upstream_requires_typed_client_material() {
             tls_client_private_key_secret(),
         ],
     )
-    .validate()
+    .validate(&crate::catalog_fixture::registry())
     .expect("mutual TLS validates with typed certificate and private key secrets");
 }
 
@@ -668,7 +673,7 @@ fn non_mutual_tls_upstream_rejects_client_material() {
             tls_client_private_key_secret(),
         ],
     )
-    .validate()
+    .validate(&crate::catalog_fixture::registry())
     .expect_err("client TLS material is only meaningful for mutual TLS upstreams");
     assert!(matches!(
         err,
@@ -713,7 +718,7 @@ fn control_plane_validates_cross_references() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![default_policy()],
@@ -738,7 +743,9 @@ fn control_plane_validates_cross_references() {
         metadata: Value::Null,
     };
 
-    config.validate().expect("valid gateway control plane");
+    config
+        .validate(&crate::catalog_fixture::registry())
+        .expect("valid gateway control plane");
 }
 
 #[test]
@@ -751,7 +758,7 @@ fn control_plane_rejects_unknown_server_reference() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![profile],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![default_policy()],
@@ -762,7 +769,9 @@ fn control_plane_rejects_unknown_server_reference() {
         metadata: Value::Null,
     };
 
-    let err = config.validate().expect_err("unknown server must fail");
+    let err = config
+        .validate(&crate::catalog_fixture::registry())
+        .expect_err("unknown server must fail");
 
     assert!(matches!(
         err,
@@ -780,7 +789,7 @@ fn control_plane_rejects_duplicate_profile_server_reference() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![profile],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![default_policy()],
@@ -792,7 +801,7 @@ fn control_plane_rejects_duplicate_profile_server_reference() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("duplicate profile server exposure must fail");
 
     assert!(matches!(
@@ -811,7 +820,7 @@ fn control_plane_rejects_unknown_profile_tool() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![profile],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![default_policy()],
@@ -823,7 +832,7 @@ fn control_plane_rejects_unknown_profile_tool() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("unknown profile tool must fail");
 
     assert!(matches!(
@@ -842,7 +851,7 @@ fn control_plane_rejects_unknown_profile_prompt() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![profile],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![default_policy()],
@@ -854,7 +863,7 @@ fn control_plane_rejects_unknown_profile_prompt() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("unknown profile prompt must fail");
 
     assert!(matches!(
@@ -875,7 +884,7 @@ fn control_plane_rejects_profile_resource_scheme_mismatch() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![profile],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![default_policy()],
@@ -887,7 +896,7 @@ fn control_plane_rejects_profile_resource_scheme_mismatch() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("profile resource selector must stay server-scoped");
 
     assert!(matches!(
@@ -911,7 +920,7 @@ fn control_plane_accepts_server_owned_projected_ui_resources() {
     }]);
 
     let mut policy = default_policy();
-    policy.rules[0].actions = BTreeSet::from([GatewayAction::ResourcesRead]);
+    policy.rules[0].actions = BTreeSet::from([GatewayAction::ResourcesRead.into()]);
     policy.rules[0].servers = BTreeSet::from([ServerSlug::new("charts").unwrap()]);
     policy.rules[0].tools.clear();
     policy.rules[0].resource_schemes = BTreeSet::from([ResourceScheme::new("ui").unwrap()]);
@@ -922,7 +931,7 @@ fn control_plane_accepts_server_owned_projected_ui_resources() {
         authorization_servers: vec![authorization_server()],
         servers: vec![chart_server],
         profiles: vec![profile],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![policy],
@@ -934,7 +943,7 @@ fn control_plane_accepts_server_owned_projected_ui_resources() {
     };
 
     config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect("server-owned projected UI resources must validate");
 }
 
@@ -947,7 +956,7 @@ fn control_plane_rejects_unregistered_cross_server_resource_scheme() {
     let config = control_plane_with_server_and_secrets(server, default_secrets());
 
     let error = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("cross-server resource schemes must name a registered server");
 
     assert!(matches!(
@@ -981,7 +990,7 @@ fn control_plane_rejects_projected_ui_resources_for_other_server_slug() {
         authorization_servers: vec![authorization_server()],
         servers: vec![chart_server],
         profiles: vec![profile],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![policy],
@@ -993,7 +1002,7 @@ fn control_plane_rejects_projected_ui_resources_for_other_server_slug() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("projected UI resource prefix must belong to the server slug");
 
     assert!(matches!(
@@ -1012,7 +1021,7 @@ fn control_plane_rejects_disabled_profile_capability() {
         authorization_servers: vec![authorization_server()],
         servers: vec![manifest],
         profiles: vec![default_profile()],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![default_policy()],
@@ -1024,7 +1033,7 @@ fn control_plane_rejects_disabled_profile_capability() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("profile cannot expose disabled task capability");
 
     assert!(matches!(
@@ -1046,7 +1055,7 @@ fn control_plane_rejects_unknown_identity_provider_reference() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![profile],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![default_policy()],
@@ -1058,7 +1067,7 @@ fn control_plane_rejects_unknown_identity_provider_reference() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("unknown identity provider must fail");
 
     assert!(matches!(
@@ -1077,7 +1086,7 @@ fn control_plane_rejects_unknown_authorization_server_reference() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![profile],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![default_policy()],
@@ -1089,7 +1098,7 @@ fn control_plane_rejects_unknown_authorization_server_reference() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("unknown authorization server must fail");
 
     assert!(matches!(
@@ -1108,7 +1117,7 @@ fn control_plane_rejects_authorization_server_unknown_identity_provider() {
         authorization_servers: vec![authorization_server],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![default_policy()],
@@ -1120,7 +1129,7 @@ fn control_plane_rejects_authorization_server_unknown_identity_provider() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("authorization server IdP reference must be known");
 
     assert!(matches!(
@@ -1139,7 +1148,7 @@ fn control_plane_rejects_profile_without_auth_modes() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![profile],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![default_policy()],
@@ -1150,7 +1159,9 @@ fn control_plane_rejects_profile_without_auth_modes() {
         metadata: Value::Null,
     };
 
-    let err = config.validate().expect_err("empty auth modes must fail");
+    let err = config
+        .validate(&crate::catalog_fixture::registry())
+        .expect_err("empty auth modes must fail");
 
     assert!(matches!(
         err,
@@ -1170,7 +1181,7 @@ fn control_plane_rejects_oidc_profile_without_browser_endpoints() {
         authorization_servers: vec![auth_server],
         servers: vec![media_manifest()],
         profiles: vec![profile],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![default_policy()],
@@ -1182,7 +1193,7 @@ fn control_plane_rejects_oidc_profile_without_browser_endpoints() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("OIDC browser auth requires authorization endpoint");
 
     assert!(matches!(
@@ -1203,7 +1214,7 @@ fn control_plane_rejects_oidc_profile_without_browser_endpoints() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![profile],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![default_policy()],
@@ -1215,7 +1226,7 @@ fn control_plane_rejects_oidc_profile_without_browser_endpoints() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("OIDC browser auth requires token endpoint");
 
     assert!(matches!(
@@ -1239,7 +1250,7 @@ fn control_plane_rejects_extension_auth_modes_without_matching_endpoints() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![profile],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![default_policy()],
@@ -1251,7 +1262,7 @@ fn control_plane_rejects_extension_auth_modes_without_matching_endpoints() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("enterprise-managed auth requires endpoint");
 
     assert!(matches!(
@@ -1271,7 +1282,7 @@ fn control_plane_rejects_unknown_secret_owner_references() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![default_policy()],
@@ -1296,7 +1307,7 @@ fn control_plane_rejects_unknown_secret_owner_references() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("unknown profile secret owner must fail");
 
     assert!(matches!(
@@ -1310,7 +1321,7 @@ fn control_plane_rejects_unknown_secret_owner_references() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![default_policy()],
@@ -1335,7 +1346,7 @@ fn control_plane_rejects_unknown_secret_owner_references() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("unknown server secret owner must fail");
 
     assert!(matches!(
@@ -1349,7 +1360,7 @@ fn control_plane_rejects_unknown_secret_owner_references() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![default_policy()],
@@ -1374,7 +1385,7 @@ fn control_plane_rejects_unknown_secret_owner_references() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("unknown tenant secret owner must fail");
 
     assert!(matches!(
@@ -1391,7 +1402,7 @@ fn control_plane_rejects_missing_oauth_client_for_auth_mode() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![default_policy()],
@@ -1403,7 +1414,7 @@ fn control_plane_rejects_missing_oauth_client_for_auth_mode() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("profile auth modes require OAuth clients");
 
     assert!(matches!(
@@ -1428,7 +1439,7 @@ fn control_plane_allows_service_profile_before_durable_client_admission() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![profile],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: contexts,
         policies: vec![default_policy()],
@@ -1439,7 +1450,7 @@ fn control_plane_allows_service_profile_before_durable_client_admission() {
         metadata: Value::Null,
     };
     config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect("durable service registration follows installation");
 }
 
@@ -1453,7 +1464,7 @@ fn control_plane_rejects_missing_oidc_client_for_browser_auth() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![profile],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![default_policy()],
@@ -1465,7 +1476,7 @@ fn control_plane_rejects_missing_oidc_client_for_browser_auth() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("browser OIDC auth requires an OIDC client registration");
 
     assert!(matches!(
@@ -1484,7 +1495,7 @@ fn control_plane_rejects_oidc_client_without_openid_scope() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![default_policy()],
@@ -1496,7 +1507,7 @@ fn control_plane_rejects_oidc_client_without_openid_scope() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("OIDC clients must request the openid scope");
 
     assert!(matches!(
@@ -1515,7 +1526,7 @@ fn control_plane_rejects_public_client_credentials() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![default_policy()],
@@ -1527,7 +1538,7 @@ fn control_plane_rejects_public_client_credentials() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("client credentials must not be public");
 
     assert!(matches!(
@@ -1546,7 +1557,7 @@ fn control_plane_rejects_private_key_jwt_without_jwks() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![default_policy()],
@@ -1558,7 +1569,7 @@ fn control_plane_rejects_private_key_jwt_without_jwks() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("private-key JWT clients require a JWKS source");
 
     assert!(matches!(
@@ -1583,7 +1594,7 @@ fn control_plane_rejects_unsupported_oauth_client_auth_combinations() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![default_policy()],
@@ -1595,7 +1606,7 @@ fn control_plane_rejects_unsupported_oauth_client_auth_combinations() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("browser OAuth client must remain public none-auth");
 
     assert!(matches!(
@@ -1611,7 +1622,7 @@ fn control_plane_rejects_unsupported_oauth_client_auth_combinations() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![default_policy()],
@@ -1623,7 +1634,7 @@ fn control_plane_rejects_unsupported_oauth_client_auth_combinations() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("refresh tokens require an authorization-code grant on the same client");
     assert!(matches!(
         err,
@@ -1640,7 +1651,7 @@ fn control_plane_rejects_unsupported_oauth_client_auth_combinations() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![default_policy()],
@@ -1652,7 +1663,7 @@ fn control_plane_rejects_unsupported_oauth_client_auth_combinations() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("client credentials must use private-key JWT");
 
     assert!(matches!(
@@ -1673,7 +1684,7 @@ fn control_plane_rejects_unsupported_oauth_client_auth_combinations() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![default_policy()],
@@ -1685,7 +1696,7 @@ fn control_plane_rejects_unsupported_oauth_client_auth_combinations() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("one OAuth client must not mix browser and client credentials grants");
 
     assert!(matches!(
@@ -1706,7 +1717,7 @@ fn control_plane_rejects_oauth_client_missing_required_scope() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![default_policy()],
@@ -1718,7 +1729,7 @@ fn control_plane_rejects_oauth_client_missing_required_scope() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("client allowed scopes must cover profile and policy scopes");
 
     assert!(matches!(
@@ -1737,7 +1748,7 @@ fn control_plane_rejects_duplicate_resource_schemes() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest(), second_server],
         profiles: vec![default_profile()],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![default_policy()],
@@ -1749,7 +1760,7 @@ fn control_plane_rejects_duplicate_resource_schemes() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("duplicate resource schemes must fail");
 
     assert!(matches!(
@@ -1766,7 +1777,7 @@ fn control_plane_rejects_duplicate_tenants() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: vec![
             TenantDefinition {
                 id: TenantId::new("tenant-a").unwrap(),
@@ -1790,7 +1801,9 @@ fn control_plane_rejects_duplicate_tenants() {
         metadata: Value::Null,
     };
 
-    let err = config.validate().expect_err("duplicate tenants must fail");
+    let err = config
+        .validate(&crate::catalog_fixture::registry())
+        .expect_err("duplicate tenants must fail");
 
     assert!(matches!(err, GatewayControlPlaneError::DuplicateTenant(_)));
 }
@@ -1805,7 +1818,7 @@ fn control_plane_rejects_duplicate_policy_rule_ids() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![policy],
@@ -1817,7 +1830,7 @@ fn control_plane_rejects_duplicate_policy_rule_ids() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("duplicate policy rule ids must fail");
 
     assert!(matches!(
@@ -1836,7 +1849,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![policy],
@@ -1848,7 +1861,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("unknown policy profile must fail");
 
     assert!(matches!(
@@ -1864,7 +1877,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![policy],
@@ -1876,7 +1889,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("unknown policy server must fail");
 
     assert!(matches!(
@@ -1892,7 +1905,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![policy],
@@ -1904,7 +1917,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("unknown policy resource scheme must fail");
 
     assert!(matches!(
@@ -1920,7 +1933,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![policy],
@@ -1932,7 +1945,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("unknown policy tool must fail");
 
     assert!(matches!(
@@ -1948,7 +1961,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![policy],
@@ -1960,7 +1973,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("unknown policy prompt must fail");
 
     assert!(matches!(
@@ -1977,7 +1990,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![policy],
@@ -1989,7 +2002,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("unknown policy data label must fail");
 
     assert!(matches!(
@@ -2005,7 +2018,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![policy],
@@ -2017,7 +2030,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("unknown policy tenant must fail");
 
     assert!(matches!(
@@ -2039,7 +2052,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest(), simulation_server],
         profiles: vec![default_profile()],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![policy],
@@ -2051,7 +2064,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("policy resource scheme outside server scope must fail");
 
     assert!(matches!(
@@ -2067,7 +2080,7 @@ fn control_plane_rejects_policy_action_outside_server_capabilities() {
     manifest.capabilities.tasks = false;
     manifest.capabilities.resources_list_changed = false;
     let mut policy = default_policy();
-    policy.rules[0].actions = BTreeSet::from([GatewayAction::SubscriptionsListen]);
+    policy.rules[0].actions = BTreeSet::from([GatewayAction::SubscriptionsListen.into()]);
     policy.rules[0].tools.clear();
     policy.rules[0].resource_schemes = BTreeSet::from([ResourceScheme::new("media").unwrap()]);
     let mut profile = default_profile();
@@ -2078,7 +2091,7 @@ fn control_plane_rejects_policy_action_outside_server_capabilities() {
         authorization_servers: vec![authorization_server()],
         servers: vec![manifest],
         profiles: vec![profile],
-        recording_ingest_resources: Vec::new(),
+        extensions: Default::default(),
         tenants: default_tenants(),
         work_contexts: default_work_contexts(),
         policies: vec![policy],
@@ -2090,45 +2103,15 @@ fn control_plane_rejects_policy_action_outside_server_capabilities() {
     };
 
     let err = config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect_err("policy action outside server capabilities must fail");
 
     assert!(matches!(
         err,
         GatewayControlPlaneError::PolicyRuleActionUnsupportedByServerScope {
-            action: GatewayAction::SubscriptionsListen,
+            action,
             ..
-        }
-    ));
-}
-
-#[test]
-fn agent_control_actions_are_gateway_scoped() {
-    let mut config = control_plane_with_server_and_secrets(media_manifest(), default_secrets());
-    let rule = &mut config.policies[0].rules[0];
-    rule.actions = BTreeSet::from([
-        GatewayAction::AgentsRead,
-        GatewayAction::AgentsMessage,
-        GatewayAction::AgentsInputRequestAnswer,
-    ]);
-    rule.servers.clear();
-    rule.tools.clear();
-    config
-        .validate()
-        .expect("agent control is an explicit gateway policy surface");
-
-    config.policies[0].rules[0].servers = BTreeSet::from([ServerSlug::new("media").unwrap()]);
-    let error = config
-        .validate()
-        .expect_err("agent control cannot inherit an MCP server filter");
-    assert!(matches!(
-        error,
-        GatewayControlPlaneError::PolicyRuleActionUnsupportedByServerScope {
-            action: GatewayAction::AgentsRead
-                | GatewayAction::AgentsMessage
-                | GatewayAction::AgentsInputRequestAnswer,
-            ..
-        }
+        } if action == GatewayAction::SubscriptionsListen.into()
     ));
 }
 
@@ -2157,7 +2140,7 @@ fn tools_compat_client_accepts_task_projection_without_a_helper_tool() {
         .push(hosted_compat_oauth_client(BTreeSet::new(), true));
 
     config
-        .validate()
+        .validate(&crate::catalog_fixture::registry())
         .expect("internal task projection should not require a public helper tool");
 }
 
@@ -2209,33 +2192,4 @@ fn app_resource_dependencies_bind_exact_apps_to_registered_resource_families() {
         error,
         GatewayControlPlaneError::InvalidAppResourceDependency { .. }
     ));
-}
-
-#[test]
-fn agent_management_actions_are_explicit_gateway_permissions() {
-    for action in [
-        GatewayAction::AgentDefinitionsRead,
-        GatewayAction::AgentDefinitionsReadContent,
-        GatewayAction::AgentDefinitionsCreate,
-        GatewayAction::AgentDefinitionsEdit,
-        GatewayAction::AgentDefinitionsPublish,
-        GatewayAction::AgentDefinitionsUse,
-        GatewayAction::AgentDefinitionsControl,
-        GatewayAction::AgentDefinitionsArchive,
-        GatewayAction::AgentDefinitionsTransfer,
-        GatewayAction::AgentInstancesDeploy,
-        GatewayAction::AgentInstancesControl,
-    ] {
-        let mut config = control_plane_with_server_and_secrets(media_manifest(), default_secrets());
-        let rule = &mut config.policies[0].rules[0];
-        rule.actions = BTreeSet::from([action]);
-        rule.servers.clear();
-        rule.tools.clear();
-        config.validate().unwrap();
-        config.policies[0].rules[0].servers = BTreeSet::from([ServerSlug::new("media").unwrap()]);
-        assert!(
-            config.validate().is_err(),
-            "{action:?} cannot inherit server-scoped authority"
-        );
-    }
 }

@@ -1,5 +1,6 @@
 //! Consistent signed request attribution for Artifact domain and HTTP fixtures.
 use super::*;
+use veoveo_gateway_contract::ProtectedResourceId;
 
 pub(super) fn caller(principal: &str, tenant: &str, labels: &[&str]) -> PlaneCaller {
     let now = Utc::now();
@@ -62,9 +63,7 @@ pub(crate) fn request_context(
     actor: &Principal,
     authority: &InvocationAuthority,
 ) -> veoveo_mcp_contract::GatewayRequestContext {
-    use veoveo_mcp_contract::{
-        AccessTokenSubject, GatewayRequestContext, OAuthClientId, ProtectedResourceId,
-    };
+    use veoveo_mcp_contract::{AccessTokenSubject, GatewayRequestContext, OAuthClientId};
     let now = Utc::now();
     let mut principal = actor.clone();
     if let InvocationProvenance::Delegated { initiator, .. } = &authority.provenance {

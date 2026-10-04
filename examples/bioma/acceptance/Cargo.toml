@@ -5,6 +5,9 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+veoveo-gateway-catalog.workspace = true
+veoveo-recording-contract.workspace = true
+veoveo-gateway-contract.workspace = true
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true

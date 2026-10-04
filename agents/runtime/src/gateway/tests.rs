@@ -1,12 +1,15 @@
+mod policy_actions;
+
 use std::collections::{BTreeMap, BTreeSet};
+use veoveo_gateway_contract::GatewayAction;
+use veoveo_types::OAuthClientId;
 
 use chrono::{TimeDelta, Utc};
 use jsonwebtoken::jwk::{AlgorithmParameters, JwkSet};
 use uuid::Uuid;
 use veoveo_mcp_contract::{
-    AccessTokenSubject, GatewayAction, GatewayControlPlane, LocalToolName, OAuthClientId,
-    PolicyTarget, Principal, PrincipalKind, ServerSlug, TokenIssuer, TokenSubject,
-    agent_management as wire,
+    AccessTokenSubject, GatewayControlPlane, LocalToolName, PolicyTarget, Principal, PrincipalKind,
+    ServerSlug, TokenIssuer, TokenSubject, agent_management as wire,
 };
 use veoveo_platform_store::{
     PlatformStore, WorkContextMembershipLevel, agent_management::instances::*, agent_management::*,
@@ -286,7 +289,7 @@ fn token(extensions: veoveo_types::AdmittedExtensions) -> VerifiedAccessToken {
             subject: principal.subject.clone(),
             oauth_client_id: OAuthClientId::new("managed-one").unwrap(),
             session_family: None,
-            audience: veoveo_mcp_contract::ProtectedResourceId::new(
+            audience: veoveo_gateway_contract::ProtectedResourceId::new(
                 "https://veoveo.example/mcp/operator",
             )
             .unwrap(),

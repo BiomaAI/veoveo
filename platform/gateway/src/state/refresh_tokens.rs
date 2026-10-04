@@ -1,4 +1,5 @@
 use std::{collections::BTreeSet, num::NonZeroU32, sync::Arc};
+use veoveo_gateway_contract::AuthorizationServerId;
 
 use anyhow::{Context, Result, anyhow};
 use base64::{
@@ -14,8 +15,8 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 use veoveo_mcp_contract::{
-    AuthorizationServerId, GatewayProfileId, GatewayRefreshFamilyId, GatewayRefreshGrant,
-    OAuthClientId, OAuthRefreshToken, Principal, PrincipalDisplayName,
+    GatewayProfileId, GatewayRefreshFamilyId, GatewayRefreshGrant, OAuthClientId,
+    OAuthRefreshToken, Principal, PrincipalDisplayName,
 };
 use veoveo_platform_store::{
     GatewayRefreshFamilyRecord, GatewayRefreshRotationOutcome, GatewayRefreshTokenRecord,

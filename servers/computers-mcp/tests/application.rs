@@ -160,6 +160,7 @@ async fn unconfigured_and_stale_capacity_are_visible_without_claiming_admission(
         "00000000-0000-7000-8000-000000000064"
             .parse::<veoveo_computers::api::ProviderInstanceId>()
             .unwrap(),
+        veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
     )
     .unwrap();
     let (_, receiver) = watch::channel(CapacityHealth {
@@ -232,6 +233,7 @@ async fn an_interrupted_reservation_can_be_provisioned_from_the_visible_collecti
         "00000000-0000-7000-8000-000000000064"
             .parse::<veoveo_computers::api::ProviderInstanceId>()
             .unwrap(),
+        veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
     )
     .unwrap();
     let (_initial, _health) = application(&db, false).await;

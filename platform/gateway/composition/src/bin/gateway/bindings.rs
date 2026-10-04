@@ -5,9 +5,7 @@ use veoveo_mcp_gateway::{GatewayCatalogAdmission, GatewayState};
 use veoveo_platform_store::PlatformStore;
 
 pub(super) fn catalog_admission() -> anyhow::Result<GatewayCatalogAdmission> {
-    GatewayCatalogAdmission::unbound().bind(Arc::new(
-        veoveo_recording_mcp::gateway::RecordingCatalogAdmission,
-    ))
+    GatewayCatalogAdmission::unbound().bind(veoveo_gateway_catalog::registry()?)
 }
 
 pub(super) fn gateway_state(

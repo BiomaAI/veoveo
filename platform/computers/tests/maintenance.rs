@@ -192,6 +192,7 @@ async fn failed_initial_create_is_fenced_without_reclassifying_its_unknown_effec
         "00000000-0000-7000-8000-000000000001"
             .parse::<veoveo_computers::api::ProviderInstanceId>()
             .unwrap(),
+        veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
     )
     .unwrap();
     let b = ComputersStore::new(
@@ -199,6 +200,7 @@ async fn failed_initial_create_is_fenced_without_reclassifying_its_unknown_effec
         "00000000-0000-7000-8000-000000000001"
             .parse::<veoveo_computers::api::ProviderInstanceId>()
             .unwrap(),
+        veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
     )
     .unwrap();
     a.install_capacity(

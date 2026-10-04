@@ -3,9 +3,8 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
-use veoveo_mcp_contract::{
-    AccessTokenSubject, AuthorizationServerId, GatewayProfileId, OAuthClientId, Principal,
-};
+use veoveo_gateway_contract::AuthorizationServerId;
+use veoveo_mcp_contract::{AccessTokenSubject, GatewayProfileId, OAuthClientId, Principal};
 use veoveo_types::{PrincipalId, ScopeName, TenantId, WorkContextId};
 
 /// Read-only projection of the existing gateway refresh-family record. Display

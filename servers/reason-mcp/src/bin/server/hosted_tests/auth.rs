@@ -1,5 +1,6 @@
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::{TimeDelta, Utc};
+use veoveo_gateway_contract::ProtectedResourceId;
 use veoveo_mcp_contract::*;
 use veoveo_types::{
     InvocationMode, InvocationProvenance, WorkContextMembershipLevel, WorkContextOutputPolicy,

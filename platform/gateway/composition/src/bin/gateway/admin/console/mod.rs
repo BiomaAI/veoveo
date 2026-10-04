@@ -1,3 +1,4 @@
+use veoveo_gateway_contract::GatewayAction;
 use veoveo_mcp_contract::audit::AdministrativeOperation;
 mod artifact;
 pub(crate) mod audit;
@@ -15,9 +16,7 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use serde::Serialize;
-use veoveo_mcp_contract::{
-    ConsoleInstallation, ConsoleSession, GatewayAction, GatewayControlPlane, ServerSlug,
-};
+use veoveo_mcp_contract::{ConsoleInstallation, ConsoleSession, GatewayControlPlane, ServerSlug};
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayServerHealth};
 use veoveo_platform_store::{ChangefeedCursor, RecordingLayerState, deterministic_tenant_id};
 

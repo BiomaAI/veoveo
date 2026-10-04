@@ -3,6 +3,7 @@
 //! The gateway's background prober checks each registered server's internal
 //! health URL. This endpoint returns its latest result to an authorized
 //! administrator, the same cache the Console snapshot reads.
+use veoveo_gateway_contract::GatewayAction;
 
 use std::time::Instant;
 
@@ -14,7 +15,7 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use serde::Serialize;
-use veoveo_mcp_contract::{GatewayAction, ServerSlug, audit::AdministrativeOperation};
+use veoveo_mcp_contract::{ServerSlug, audit::AdministrativeOperation};
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayServerHealth, GatewayServerHealthState};
 
 use super::admin_profile_id;

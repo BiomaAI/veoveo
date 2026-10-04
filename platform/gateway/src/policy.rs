@@ -6,12 +6,17 @@ use veoveo_mcp_contract::{
 };
 pub(crate) use veoveo_policy::resource_scheme_from_uri as resource_scheme;
 pub use veoveo_policy::{
-    PolicyRequest, RecordingIngestPolicyDecision, RecordingIngestPolicyRequest, exposure_contains,
-    mcp_method_name, resource_scheme_from_uri,
+    PolicyRequest, exposure_contains, mcp_method_name, resource_scheme_from_uri,
 };
 use veoveo_types::{DataLabelId, PolicyVersion, TenantId};
 
 impl veoveo_policy::PolicyCatalogView for GatewayCatalog {
+    fn registry(&self) -> &veoveo_gateway_contract::CatalogRegistry {
+        self.registry()
+    }
+    fn sections(&self) -> &veoveo_gateway_contract::AdmittedCatalogSections {
+        self.sections()
+    }
     fn profile(&self, id: &GatewayProfileId) -> Option<&GatewayProfile> {
         self.profile(id)
     }
@@ -34,11 +39,5 @@ impl GatewayCatalog {
             crate::request_observation::RequestStage::Policy,
         );
         veoveo_policy::decide(self, request)
-    }
-    pub fn decide_recording_ingest(
-        &self,
-        request: RecordingIngestPolicyRequest<'_>,
-    ) -> RecordingIngestPolicyDecision {
-        veoveo_policy::decide_recording_ingest(self, request)
     }
 }

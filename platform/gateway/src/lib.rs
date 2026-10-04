@@ -2,7 +2,7 @@ pub mod auth;
 mod catalog;
 mod catalog_admission;
 pub mod http;
-pub use catalog_admission::{CatalogAdmission, GatewayCatalogAdmission};
+pub use catalog_admission::GatewayCatalogAdmission;
 mod control_store;
 pub mod mcp;
 mod mcp_support;
@@ -37,10 +37,7 @@ pub use metadata::{
     AuthorizationExtensionMetadata, AuthorizationServerMetadata, GatewayMetadataError,
     ProtectedResourceMetadata, www_authenticate_challenge,
 };
-pub use policy::{
-    PolicyRequest, RecordingIngestPolicyDecision, RecordingIngestPolicyRequest, mcp_method_name,
-    resource_scheme_from_uri,
-};
+pub use policy::{PolicyRequest, mcp_method_name, resource_scheme_from_uri};
 pub use principal_audit::{merge_principal_audit_metadata, principal_audit_metadata};
 pub use secrets::{GatewaySecretResolver, ResolvedSecretString, SecretResolverError};
 pub use state::{
@@ -57,3 +54,6 @@ extern crate self as veoveo_mcp_gateway;
 #[cfg(test)]
 #[path = "../../../testing/fixtures/catalog_admission.rs"]
 mod test_catalog_admission;
+
+#[cfg(test)]
+use test_catalog_admission as catalog_fixture;

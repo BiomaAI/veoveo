@@ -1,7 +1,7 @@
 //! Two independently authorized browser profiles for the same retained owner.
-use veoveo_mcp_contract::{
-    GatewayControlPlane, GatewayProfileId, OAuthClientId, ProtectedResourceId,
-};
+use veoveo_gateway_contract::OAuthClientId;
+use veoveo_gateway_contract::ProtectedResourceId;
+use veoveo_mcp_contract::{GatewayControlPlane, GatewayProfileId};
 
 pub fn control(mut control: GatewayControlPlane) -> GatewayControlPlane {
     let profile_id = GatewayProfileId::new("workspace").unwrap();
@@ -40,7 +40,9 @@ pub fn control(mut control: GatewayControlPlane) -> GatewayControlPlane {
             }
         }
     }
-    control.validate().unwrap();
+    control
+        .validate(&veoveo_gateway_catalog::registry().unwrap())
+        .unwrap();
     control
 }
 

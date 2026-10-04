@@ -1,8 +1,11 @@
+#[path = "../../../testing/fixtures/catalog_registry.rs"]
+mod catalog_fixture;
+
 use std::collections::BTreeSet;
+use veoveo_gateway_contract::GatewayAction;
 use veoveo_mcp_contract::{
-    CanonicalTaskId, GatewayAction, GatewayControlPlane, PolicyEffect, PolicyReasonCode,
-    PolicyTarget, Principal, PrincipalKind, ServerSlug, TaskExposure, TokenIssuer, TokenSubject,
-    TraceId,
+    CanonicalTaskId, GatewayControlPlane, PolicyEffect, PolicyReasonCode, PolicyTarget, Principal,
+    PrincipalKind, ServerSlug, TaskExposure, TokenIssuer, TokenSubject, TraceId,
 };
 use veoveo_policy::{PolicyCatalog, PolicyRequest, decide};
 use veoveo_types::{PrincipalId, RoleId, ScopeName, TaskId, TenantId};
@@ -26,13 +29,13 @@ fn actor() -> Principal {
 
 fn check(plane: GatewayControlPlane, actor: &Principal, target: &PolicyTarget) -> PolicyReasonCode {
     let profile = plane.profiles[0].id.clone();
-    let catalog = PolicyCatalog::new(plane).unwrap();
+    let catalog = PolicyCatalog::new(plane, catalog_fixture::registry()).unwrap();
     decide(
         &catalog,
         PolicyRequest {
             principal: actor,
             profile: &profile,
-            action: GatewayAction::TasksCancel,
+            action: GatewayAction::TasksCancel.into(),
             target,
             trace_id: &TraceId::new("task-policy").unwrap(),
         },

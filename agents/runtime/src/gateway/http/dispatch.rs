@@ -4,7 +4,8 @@ use axum::{
     extract::{Extension, Path, State},
     http::StatusCode,
 };
-use veoveo_mcp_contract::{GatewayProfileId, SecretPurpose, agent_management as wire};
+use veoveo_gateway_contract::SecretPurpose;
+use veoveo_mcp_contract::{GatewayProfileId, agent_management as wire};
 use veoveo_mcp_gateway::AuthenticatedSubject;
 
 use super::{AgentManagementState, Fault, authority, projection};

@@ -48,15 +48,11 @@ async fn attachment_requires_its_own_resource_policy_and_current_contributor_mem
     for rule in &mut invalid.policies[0].rules {
         rule.servers = [ServerSlug::new("foreign").unwrap()].into_iter().collect();
     }
-    assert!(matches!(
-        invalid.validate(),
-        Err(
-            GatewayControlPlaneError::PolicyRuleActionUnsupportedByServerScope {
-                action: GatewayAction::ComputerAttach,
-                ..
-            }
-        )
-    ));
+    assert!(
+        veoveo_policy::PolicyCatalog::new(invalid, veoveo_gateway_catalog::registry().unwrap())
+            .is_err(),
+        "attachment rules for foreign server must fail catalog admission"
+    );
 }
 
 #[tokio::test]

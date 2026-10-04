@@ -5,11 +5,13 @@ edition.workspace = true
 publish = false
 
 [features]
-default = ["runtime"]
+default = ["server"]
 contract = ["dep:veoveo-types", "dep:veoveo-knowledge-contract", "dep:veoveo-embedding-contract", "dep:veoveo-mcp-knowledge-extension", "dep:serde", "dep:schemars", "dep:chrono"]
 runtime = ["dep:veoveo-gateway-contract", "contract", "dep:rmcp", "veoveo-mcp-knowledge-extension/mcp", "dep:veoveo-platform-store", "dep:veoveo-mcp-contract", "dep:veoveo-policy", "dep:veoveo-embedding-client", "dep:serde_json", "dep:tokio", "dep:thiserror", "chrono/clock", "dep:anyhow", "dep:sha2", "dep:tokio-util", "dep:clap", "dep:rustls", "dep:secrecy", "dep:reqwest", "dep:jsonwebtoken", "dep:uuid", "dep:url", "dep:futures", "dep:tracing"]
+server = ["runtime", "dep:veoveo-gateway-catalog"]
 
 [dependencies]
+veoveo-gateway-catalog = { workspace = true, optional = true }
 veoveo-gateway-contract = { workspace = true, optional = true }
 reqwest = { workspace = true, features = ["form", "json", "rustls-no-provider"], optional = true }
 jsonwebtoken = { workspace = true, optional = true }
@@ -40,6 +42,7 @@ tokio = { workspace = true, features = ["time"], optional = true }
 thiserror = { workspace = true, optional = true }
 
 [dev-dependencies]
+veoveo-gateway-catalog.workspace = true
 axum.workspace = true
 veoveo-map-mcp = { path = "../map-mcp", default-features = false, features = ["knowledge"] }
 veoveo-time-mcp = { path = "../time-mcp", default-features = false, features = ["contract"] }
@@ -95,7 +98,7 @@ required-features = ["runtime"]
 [[bin]]
 name = "knowledge-mcp"
 path = "src/bin/server.rs"
-required-features = ["runtime"]
+required-features = ["server"]
 
 [[test]]
 name = "http"

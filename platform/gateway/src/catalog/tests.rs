@@ -1,22 +1,25 @@
 use std::{collections::BTreeSet, sync::Arc};
+use veoveo_gateway_contract::{
+    AuthorizationServerId, GatewayAction, ProtectedResourceId, SecretLocator, SecretOwner,
+    SecretPurpose, SecretReference, SecretReferenceId, SecretSource, UpstreamTransportSecurity,
+    UpstreamUrl,
+};
 
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 use veoveo_mcp_contract::{
-    AuthMode, AuthorizationServerId, CanonicalTaskId, CompletionExposure, DataLabelDefinition,
-    DiscoveryFailureMode, Exposure, GatewayAction, GatewayControlPlaneError, HttpsUrl,
-    IdentityProvider, IdentityProviderId, IdentityProviderOidcClientRegistration, JwksSource,
-    JwtId, LocalToolName, MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION,
-    MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION, MountPath, OAuthClientAuthMethod, OAuthClientId,
-    OAuthClientRegistration, OAuthClientSurface, OAuthEndpointUrl, OAuthGrantType,
-    OAuthRedirectUri, OidcClientAuthMethod, OidcClientId, OidcClientRegistrationId, OwnedRoute,
-    OwnedRoutePurpose, PolicyEffect, PolicyReasonCode, PolicyRule, PolicyRuleId, PolicyTarget,
-    Principal, PrincipalAssurance, PrincipalKind, ProfileServerExposure, ProtectedResourceId,
-    ResourceAuthorizationServer, ResourceProjectionMode, ResourceSelector, ResourceUriPrefix,
-    ResourceUriTemplate, SecretLocator, SecretOwner, SecretPurpose, SecretReference,
-    SecretReferenceId, SecretSource, TaskExposure, TenantDefinition, TokenIssuer, TokenSubject,
-    TraceId, UpstreamEndpoint, UpstreamTransport, UpstreamTransportSecurity, UpstreamUrl,
-    WorkContextDefinition, WorkContextMembershipRule,
+    AuthMode, CanonicalTaskId, CompletionExposure, DataLabelDefinition, DiscoveryFailureMode,
+    Exposure, GatewayControlPlaneError, HttpsUrl, IdentityProvider, IdentityProviderId,
+    IdentityProviderOidcClientRegistration, JwksSource, JwtId, LocalToolName,
+    MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION, MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION,
+    MountPath, OAuthClientAuthMethod, OAuthClientId, OAuthClientRegistration, OAuthClientSurface,
+    OAuthEndpointUrl, OAuthGrantType, OAuthRedirectUri, OidcClientAuthMethod, OidcClientId,
+    OidcClientRegistrationId, OwnedRoute, OwnedRoutePurpose, PolicyEffect, PolicyReasonCode,
+    PolicyRule, PolicyRuleId, PolicyTarget, Principal, PrincipalAssurance, PrincipalKind,
+    ProfileServerExposure, ResourceAuthorizationServer, ResourceProjectionMode, ResourceSelector,
+    ResourceUriPrefix, ResourceUriTemplate, TaskExposure, TenantDefinition, TokenIssuer,
+    TokenSubject, TraceId, UpstreamEndpoint, UpstreamTransport, WorkContextDefinition,
+    WorkContextMembershipRule,
 };
 use veoveo_types::{
     AccessSubject, DataLabelId, GroupId, InvocationMode, PrincipalId, ResourceScheme, ResourceUri,
@@ -143,7 +146,7 @@ fn policy() -> PolicySet {
         rules: vec![PolicyRule {
             id: veoveo_mcp_contract::PolicyRuleId::new("allow_media_run").unwrap(),
             effect: PolicyEffect::Allow,
-            actions: BTreeSet::from([GatewayAction::ToolsCall]),
+            actions: BTreeSet::from([GatewayAction::ToolsCall.into()]),
             profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),
             protected_resources: BTreeSet::new(),
             servers: BTreeSet::from([ServerSlug::new("media").unwrap()]),
@@ -395,7 +398,7 @@ fn catalog_with_profile_and_policy(profile: GatewayProfile, policy: PolicySet) -
             authorization_servers: vec![authorization_server()],
             servers: vec![media_manifest()],
             profiles: vec![profile],
-            recording_ingest_resources: Vec::new(),
+            extensions: Default::default(),
             tenants: tenants(),
             work_contexts: work_contexts(),
             policies: vec![policy],
@@ -469,7 +472,7 @@ fn policy_allows_exposed_tool_with_required_scope() {
     let decision = catalog.decide(PolicyRequest {
         principal: &principal,
         profile: &GatewayProfileId::new("default").unwrap(),
-        action: GatewayAction::ToolsCall,
+        action: GatewayAction::ToolsCall.into(),
         target: &PolicyTarget::Tool {
             server: ServerSlug::new("media").unwrap(),
             tool: LocalToolName::new("run").unwrap(),
@@ -488,7 +491,7 @@ fn policy_allows_template_exposed_resource_uri() {
         uri_template: ResourceUriTemplate::new("media://usage/task/{task_id}").unwrap(),
     }]);
     let mut policy = policy();
-    policy.rules[0].actions = BTreeSet::from([GatewayAction::UsageRead]);
+    policy.rules[0].actions = BTreeSet::from([GatewayAction::UsageRead.into()]);
     policy.rules[0].tools.clear();
     policy.rules[0].resource_schemes = BTreeSet::from([ResourceScheme::new("media").unwrap()]);
     let catalog = catalog_with_profile_and_policy(profile, policy);
@@ -497,7 +500,7 @@ fn policy_allows_template_exposed_resource_uri() {
     let decision = catalog.decide(PolicyRequest {
         principal: &principal,
         profile: &GatewayProfileId::new("default").unwrap(),
-        action: GatewayAction::UsageRead,
+        action: GatewayAction::UsageRead.into(),
         target: &PolicyTarget::Usage {
             server: ServerSlug::new("media").unwrap(),
             usage_uri: ResourceUri::new("media://usage/task/task-1").unwrap(),
@@ -510,7 +513,7 @@ fn policy_allows_template_exposed_resource_uri() {
     let decision = catalog.decide(PolicyRequest {
         principal: &principal,
         profile: &GatewayProfileId::new("default").unwrap(),
-        action: GatewayAction::UsageRead,
+        action: GatewayAction::UsageRead.into(),
         target: &PolicyTarget::Usage {
             server: ServerSlug::new("media").unwrap(),
             usage_uri: ResourceUri::new("media://usage").unwrap(),
@@ -528,7 +531,7 @@ fn policy_denies_missing_required_scope() {
     let decision = catalog.decide(PolicyRequest {
         principal: &principal,
         profile: &GatewayProfileId::new("default").unwrap(),
-        action: GatewayAction::ToolsCall,
+        action: GatewayAction::ToolsCall.into(),
         target: &PolicyTarget::Tool {
             server: ServerSlug::new("media").unwrap(),
             tool: LocalToolName::new("run").unwrap(),
@@ -549,7 +552,7 @@ fn policy_denies_missing_rule_required_scope_with_specific_reason() {
     let decision = catalog.decide(PolicyRequest {
         principal: &principal,
         profile: &GatewayProfileId::new("default").unwrap(),
-        action: GatewayAction::ToolsCall,
+        action: GatewayAction::ToolsCall.into(),
         target: &PolicyTarget::Tool {
             server: ServerSlug::new("media").unwrap(),
             tool: LocalToolName::new("run").unwrap(),
@@ -578,7 +581,7 @@ fn policy_denies_missing_required_data_label_with_specific_reason() {
     let decision = catalog.decide(PolicyRequest {
         principal: &principal,
         profile: &GatewayProfileId::new("default").unwrap(),
-        action: GatewayAction::ToolsCall,
+        action: GatewayAction::ToolsCall.into(),
         target: &target,
         trace_id: &TraceId::new("trace-label-deny").unwrap(),
     });
@@ -594,7 +597,7 @@ fn policy_denies_missing_required_data_label_with_specific_reason() {
     let decision = catalog.decide(PolicyRequest {
         principal: &principal,
         profile: &GatewayProfileId::new("default").unwrap(),
-        action: GatewayAction::ToolsCall,
+        action: GatewayAction::ToolsCall.into(),
         target: &target,
         trace_id: &TraceId::new("trace-label-allow").unwrap(),
     });
@@ -611,7 +614,7 @@ fn policy_denies_principal_with_unknown_data_label() {
     let decision = catalog.decide(PolicyRequest {
         principal: &principal,
         profile: &GatewayProfileId::new("default").unwrap(),
-        action: GatewayAction::ToolsCall,
+        action: GatewayAction::ToolsCall.into(),
         target: &PolicyTarget::Tool {
             server: ServerSlug::new("media").unwrap(),
             tool: LocalToolName::new("run").unwrap(),
@@ -636,7 +639,7 @@ fn policy_denies_missing_required_assurance_with_specific_reason() {
     let denied = catalog.decide(PolicyRequest {
         principal: &principal(&["operator:use"]),
         profile: &GatewayProfileId::new("default").unwrap(),
-        action: GatewayAction::ToolsCall,
+        action: GatewayAction::ToolsCall.into(),
         target: &target,
         trace_id: &TraceId::new("trace-assurance-deny").unwrap(),
     });
@@ -653,7 +656,7 @@ fn policy_denies_missing_required_assurance_with_specific_reason() {
     let allowed = catalog.decide(PolicyRequest {
         principal: &allowed_principal,
         profile: &GatewayProfileId::new("default").unwrap(),
-        action: GatewayAction::ToolsCall,
+        action: GatewayAction::ToolsCall.into(),
         target: &target,
         trace_id: &TraceId::new("trace-assurance-allow").unwrap(),
     });
@@ -670,7 +673,7 @@ fn policy_denies_missing_tenant_with_specific_reason() {
     let decision = catalog.decide(PolicyRequest {
         principal: &principal,
         profile: &GatewayProfileId::new("default").unwrap(),
-        action: GatewayAction::ToolsCall,
+        action: GatewayAction::ToolsCall.into(),
         target: &PolicyTarget::Tool {
             server: ServerSlug::new("media").unwrap(),
             tool: LocalToolName::new("run").unwrap(),
@@ -700,7 +703,7 @@ fn policy_denies_missing_group_and_role_with_specific_reasons() {
     let decision = group_catalog.decide(PolicyRequest {
         principal: &principal,
         profile: &GatewayProfileId::new("default").unwrap(),
-        action: GatewayAction::ToolsCall,
+        action: GatewayAction::ToolsCall.into(),
         target: &target,
         trace_id: &TraceId::new("trace-group-deny").unwrap(),
     });
@@ -711,7 +714,7 @@ fn policy_denies_missing_group_and_role_with_specific_reasons() {
     let decision = group_catalog.decide(PolicyRequest {
         principal: &principal,
         profile: &GatewayProfileId::new("default").unwrap(),
-        action: GatewayAction::ToolsCall,
+        action: GatewayAction::ToolsCall.into(),
         target: &target,
         trace_id: &TraceId::new("trace-group-allow").unwrap(),
     });
@@ -723,7 +726,7 @@ fn policy_denies_missing_group_and_role_with_specific_reasons() {
     let decision = role_catalog.decide(PolicyRequest {
         principal: &principal,
         profile: &GatewayProfileId::new("default").unwrap(),
-        action: GatewayAction::ToolsCall,
+        action: GatewayAction::ToolsCall.into(),
         target: &target,
         trace_id: &TraceId::new("trace-role-deny").unwrap(),
     });
@@ -734,7 +737,7 @@ fn policy_denies_missing_group_and_role_with_specific_reasons() {
     let decision = role_catalog.decide(PolicyRequest {
         principal: &principal,
         profile: &GatewayProfileId::new("default").unwrap(),
-        action: GatewayAction::ToolsCall,
+        action: GatewayAction::ToolsCall.into(),
         target: &target,
         trace_id: &TraceId::new("trace-role-allow").unwrap(),
     });
@@ -751,7 +754,7 @@ fn policy_denies_missing_principal_allowlist_with_specific_reason() {
     let decision = catalog.decide(PolicyRequest {
         principal: &principal,
         profile: &GatewayProfileId::new("default").unwrap(),
-        action: GatewayAction::ToolsCall,
+        action: GatewayAction::ToolsCall.into(),
         target: &PolicyTarget::Tool {
             server: ServerSlug::new("media").unwrap(),
             tool: LocalToolName::new("run").unwrap(),
@@ -775,7 +778,7 @@ fn policy_denies_principal_with_unknown_tenant() {
     let decision = catalog.decide(PolicyRequest {
         principal: &principal,
         profile: &GatewayProfileId::new("default").unwrap(),
-        action: GatewayAction::ToolsCall,
+        action: GatewayAction::ToolsCall.into(),
         target: &PolicyTarget::Tool {
             server: ServerSlug::new("media").unwrap(),
             tool: LocalToolName::new("run").unwrap(),
@@ -794,7 +797,7 @@ fn policy_denies_unknown_profile() {
     let decision = catalog.decide(PolicyRequest {
         principal: &principal,
         profile: &GatewayProfileId::new("unknown").unwrap(),
-        action: GatewayAction::ToolsCall,
+        action: GatewayAction::ToolsCall.into(),
         target: &PolicyTarget::Tool {
             server: ServerSlug::new("media").unwrap(),
             tool: LocalToolName::new("run").unwrap(),
@@ -853,7 +856,7 @@ fn catalog_routes_server_owned_projected_ui_resources() {
             authorization_servers: vec![authorization_server()],
             servers: vec![media_manifest(), chart_server],
             profiles: vec![profile],
-            recording_ingest_resources: Vec::new(),
+            extensions: Default::default(),
             tenants: tenants(),
             work_contexts: work_contexts(),
             policies: vec![policy()],
@@ -905,7 +908,7 @@ fn catalog_handle_reads_replaced_catalog_with_new_generation() {
     let first_decision = first.catalog().decide(PolicyRequest {
         principal: &principal,
         profile: &GatewayProfileId::new("default").unwrap(),
-        action: GatewayAction::ToolsCall,
+        action: GatewayAction::ToolsCall.into(),
         target: &target,
         trace_id: &TraceId::new("trace-live-before").unwrap(),
     });
@@ -922,7 +925,7 @@ fn catalog_handle_reads_replaced_catalog_with_new_generation() {
     let second_decision = second.catalog().decide(PolicyRequest {
         principal: &principal,
         profile: &GatewayProfileId::new("default").unwrap(),
-        action: GatewayAction::ToolsCall,
+        action: GatewayAction::ToolsCall.into(),
         target: &target,
         trace_id: &TraceId::new("trace-live-after").unwrap(),
     });
@@ -1047,7 +1050,7 @@ fn protected_resource_metadata_includes_policy_required_scopes() {
     policy.rules.push(PolicyRule {
         id: PolicyRuleId::new("allow_admin_write").unwrap(),
         effect: PolicyEffect::Allow,
-        actions: BTreeSet::from([GatewayAction::AdminWrite]),
+        actions: BTreeSet::from([GatewayAction::AdminWrite.into()]),
         profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),
         protected_resources: BTreeSet::new(),
         servers: BTreeSet::new(),
@@ -1085,13 +1088,13 @@ fn protected_resource_metadata_includes_policy_required_scopes() {
 #[test]
 fn gateway_policy_target_ignores_filtered_admin_rules() {
     let mut policy = policy();
-    policy.rules[0].actions = BTreeSet::from([GatewayAction::AdminWrite]);
+    policy.rules[0].actions = BTreeSet::from([GatewayAction::AdminWrite.into()]);
     let catalog = catalog_with_policy(policy);
     let principal = principal(&["operator:use"]);
     let decision = catalog.decide(PolicyRequest {
         principal: &principal,
         profile: &GatewayProfileId::new("default").unwrap(),
-        action: GatewayAction::AdminWrite,
+        action: GatewayAction::AdminWrite.into(),
         target: &PolicyTarget::Gateway,
         trace_id: &TraceId::new("trace-admin-filtered").unwrap(),
     });
@@ -1126,7 +1129,7 @@ fn keeps_contract_validation_errors_visible() {
                 profile.servers[0].server = ServerSlug::new("simulation").unwrap();
                 profile
             }],
-            recording_ingest_resources: Vec::new(),
+            extensions: Default::default(),
             tenants: tenants(),
             work_contexts: work_contexts(),
             policies: vec![policy()],

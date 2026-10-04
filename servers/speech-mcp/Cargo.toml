@@ -7,7 +7,7 @@ edition.workspace = true
 image-asset-inputs = ["servers/speech-mcp/runner", "servers/speech-mcp/Dockerfile", "servers/speech-mcp/Dockerfile.dependencies"]
 
 [features]
-gateway = ["contract", "dep:veoveo-mcp-gateway", "dep:veoveo-mcp-contract", "dep:axum", "dep:anyhow", "dep:serde", "dep:serde_json", "dep:chrono", "dep:secrecy", "dep:reqwest", "dep:futures", "dep:tokio", "dep:url", "dep:tracing", "dep:veoveo-types"]
+gateway = ["dep:veoveo-gateway-contract", "contract", "dep:veoveo-mcp-gateway", "dep:veoveo-mcp-contract", "dep:axum", "dep:anyhow", "dep:serde", "dep:serde_json", "dep:chrono", "dep:secrecy", "dep:reqwest", "dep:futures", "dep:tokio", "dep:url", "dep:tracing", "dep:veoveo-types"]
 default = ["mcp"]
 contract = [
     "dep:veoveo-speech-contract",
@@ -45,6 +45,7 @@ mcp = [
 ]
 
 [dependencies]
+veoveo-gateway-contract = { workspace = true, optional = true }
 veoveo-mcp-gateway = { path = "../../platform/gateway", optional = true }
 reqwest = { workspace = true, features = ["json", "rustls-no-provider", "stream"], optional = true }
 url = { workspace = true, optional = true }

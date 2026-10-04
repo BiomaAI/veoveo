@@ -4,19 +4,47 @@
 
 | Boundary | Supported profile |
 |---|---|
-| JSON and JSON Schema draft 2020-12 | Existing gateway App dependency DTOs and discovery failures; explicit Serde spelling and schemars type names |
+| JSON and JSON Schema draft 2020-12 | Gateway identities, secret references, HTTP/TLS endpoints, catalog declarations, App dependency DTOs and discovery failures; explicit Serde spelling and schemars type names |
+| WHATWG URL and HTTP/TLS configuration | The qualified URL library checks HTTP(S) hosts, credentials, query and fragments. Plain HTTP endpoints carry TLS, CA and secret references without an MCP transport selector. |
 | `ai.veoveo/app-resource-dependencies` and `ai.veoveo/app-tool-dependencies` | Gateway-projected metadata for caller-visible App dependencies |
 | `ai.veoveo/gateway-discovery-degradation` | Typed discovery failures consumed by the MCP adapter |
 
 ## Ownership And Dependencies
 
-This crate owns transport-independent App dependency values, discovery failure
-vocabularies and their metadata keys. Typed fields reuse `veoveo-types` admission.
+This crate owns transport-independent authorization-server and protected-resource identities, secret-reference configuration, HTTP/TLS endpoint declarations, catalog registration mechanics, App dependency values, discovery failure vocabularies and their metadata keys. Typed fields reuse `veoveo-types` admission.
 Gateway runtime, MCP adapters and the Console browser contract import these values
 directly. MCP owns the MetaObject adapter and sorted/deduplicated degradation wrapper.
 
 A separate crate prevents a dependency cycle: MCP contract already feeds gateway
 runtime, while browser schema generation must not enable MCP transports. This library
-depends only on foundational types, Serde and schemars. The extraction preserves the
+depends only on foundational types, Serde, JSON Schema support and the qualified URL library. The extraction preserves the
 published spellings and schema names. Derived schema collision IDs follow the current
 owning Rust module; they do not change serialized JSON or schema definition names.
+
+
+## Catalog Declarations
+
+A publisher binds one immutable registry before admitting a control-plane revision.
+Action keys carry registry identity and a closed owner vocabulary. Descriptors declare
+all six selector requirements, supported target kinds, server capabilities and audit
+access. Owner sections validate against neutral facts from that revision and return
+protected-resource and persisted-object descriptors. Target codecs admit an owner
+value and compute its checked server/resource audit address before the core uses it.
+The installation recipe composes these declarations through owner contract features.
+Neither declarations nor the recipe import MCP, a database driver or async runtime.
+
+Contributed objects cannot use core catalog object kinds. Their `(kind, id)` pair
+must be unique within a revision, matching the database's publication key; tenant
+metadata does not create another identity namespace. Admission rejects these
+conflicts before a publisher constructs the database transaction.
+
+The protocol schema adapter composes registered actions, targets and sections through
+the schema generator's type identities. Display names cannot identify an extension
+codec because independent owners can use the same name. Fields typed as kernel
+actions keep their closed kernel vocabulary when a schema also includes registered
+policy actions.
+
+`HttpUpstreamEndpoint` describes plain HTTP and rejects unknown fields, including
+`transport`. MCP owns its separate endpoint with the required MCP transport selector.
+Both profiles reuse the same URL, TLS, CA and secret-reference types. Decoding and
+schema generation preserve existing URL and certificate-path admission.

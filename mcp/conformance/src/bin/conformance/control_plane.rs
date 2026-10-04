@@ -86,7 +86,7 @@ pub(super) fn cmd_gateway_two_server_smoke_control_plane(
     drop_media_compatibility_helpers(&mut control_plane)?;
 
     let parsed: GatewayControlPlane = serde_json::from_value(control_plane.clone())?;
-    parsed.validate()?;
+    parsed.validate(&veoveo_gateway_catalog::registry()?)?;
     if let Some(parent) = output.parent()
         && !parent.as_os_str().is_empty()
     {
@@ -111,7 +111,7 @@ pub(super) fn cmd_gateway_agent_smoke_control_plane(
     drop_media_compatibility_helpers(&mut control_plane)?;
 
     let parsed: GatewayControlPlane = serde_json::from_value(control_plane.clone())?;
-    parsed.validate()?;
+    parsed.validate(&veoveo_gateway_catalog::registry()?)?;
     if let Some(parent) = output.parent()
         && !parent.as_os_str().is_empty()
     {
@@ -322,7 +322,7 @@ pub(super) fn cmd_gateway_pilot_smoke_control_plane(
     drop_media_compatibility_helpers(&mut control_plane)?;
 
     let parsed: GatewayControlPlane = serde_json::from_value(control_plane.clone())?;
-    parsed.validate()?;
+    parsed.validate(&veoveo_gateway_catalog::registry()?)?;
     if let Some(parent) = output.parent()
         && !parent.as_os_str().is_empty()
     {

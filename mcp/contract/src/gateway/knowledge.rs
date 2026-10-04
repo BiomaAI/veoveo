@@ -1,5 +1,6 @@
 //! Installation validation for generic source approval and indexing registrations.
 use super::*;
+use veoveo_types::Vocabulary;
 
 pub(super) fn validate_knowledge_approvals(
     server: &ServerManifest,
@@ -92,12 +93,14 @@ pub(super) fn validate_indexing_client(
             && (rule.profiles.is_empty() || rule.profiles.contains(&profile.id))
             && rule.actions.iter().any(|action| {
                 !matches!(
-                    action,
-                    GatewayAction::ResourcesList
-                        | GatewayAction::ResourcesTemplatesList
-                        | GatewayAction::ResourcesRead
-                        | GatewayAction::ArtifactRead
-                        | GatewayAction::SubscriptionsListen
+                    GatewayAction::parse(action.as_str()).ok(),
+                    Some(
+                        GatewayAction::ResourcesList
+                            | GatewayAction::ResourcesTemplatesList
+                            | GatewayAction::ResourcesRead
+                            | GatewayAction::ArtifactRead
+                            | GatewayAction::SubscriptionsListen
+                    )
                 )
             })
     }) {

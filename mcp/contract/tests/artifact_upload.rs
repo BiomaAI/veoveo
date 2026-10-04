@@ -2,10 +2,10 @@ use std::{
     collections::BTreeSet,
     num::{NonZeroU32, NonZeroU64},
 };
+use veoveo_gateway_contract::GatewayAction;
 use veoveo_mcp_contract::{
     ArtifactUploadId, ArtifactUploadPolicy, ArtifactUploadRequestId, CompleteArtifactUpload,
-    CreateArtifactUpload, GatewayAction, MAX_UPLOAD_BYTES, UploadErrorCode, UploadPartReceipt,
-    UploadSha256,
+    CreateArtifactUpload, MAX_UPLOAD_BYTES, UploadErrorCode, UploadPartReceipt, UploadSha256,
 };
 
 const MIB: u64 = 1024 * 1024;

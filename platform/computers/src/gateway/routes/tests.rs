@@ -1,5 +1,7 @@
 use super::parameters::Route;
+use super::parameters::RouteAction;
 use super::*;
+use veoveo_gateway_contract::GatewayAction;
 
 #[test]
 fn grant_and_pairing_paths_decode_their_owner_types() {
@@ -28,7 +30,7 @@ fn grant_and_pairing_paths_decode_their_owner_types() {
 }
 use axum::http::{HeaderMap, Method};
 use parameters::Operation;
-use veoveo_mcp_contract::{GatewayAction, PolicyTarget};
+use veoveo_mcp_contract::PolicyTarget;
 
 #[test]
 fn maintenance_reads_keep_parent_authority_and_cannot_become_updates() {
@@ -46,7 +48,7 @@ fn maintenance_reads_keep_parent_authority_and_cannot_become_updates() {
     .unwrap();
     let (target, actions) = resume.authorization();
     assert!(matches!(target, PolicyTarget::Tool { tool, .. } if tool.as_str() == "resume_update"));
-    assert_eq!(actions, &[GatewayAction::ToolsCall]);
+    assert_eq!(actions, &[RouteAction::Kernel(GatewayAction::ToolsCall)]);
     assert!(resume.requires_json());
     assert!(resume.requires_contributor());
     assert_eq!(
@@ -137,7 +139,7 @@ fn automation_mutations_require_named_tools_and_reads_keep_exact_resource_identi
         .unwrap();
         let (target, actions) = op.authorization();
         assert!(matches!(target, PolicyTarget::Tool { tool: name, .. } if name.as_str() == tool));
-        assert_eq!(actions, &[GatewayAction::ToolsCall]);
+        assert_eq!(actions, &[RouteAction::Kernel(GatewayAction::ToolsCall)]);
         assert!(op.requires_contributor());
         assert!(op.requires_json());
         assert!(
@@ -167,7 +169,10 @@ fn automation_mutations_require_named_tools_and_reads_keep_exact_resource_identi
     assert!(
         matches!(target, PolicyTarget::Resource { uri, .. } if uri == veoveo_computers_contract::automation_grant_uri(computer, grant))
     );
-    assert_eq!(actions, &[GatewayAction::ResourcesRead]);
+    assert_eq!(
+        actions,
+        &[RouteAction::Kernel(GatewayAction::ResourcesRead)]
+    );
     assert!(!op.requires_contributor());
 }
 
@@ -254,7 +259,10 @@ fn native_routes_use_domain_actions_and_exact_resources() {
     let (target, actions) = Operation::Terminal(id).authorization();
     assert_eq!(
         actions,
-        &[GatewayAction::ComputerAttach, GatewayAction::ResourcesRead]
+        &[
+            RouteAction::Owner(veoveo_computers_contract::ComputerAction::Attach),
+            RouteAction::Kernel(GatewayAction::ResourcesRead)
+        ]
     );
     let PolicyTarget::Resource { server, uri } = target else {
         panic!("resource target")
@@ -271,7 +279,7 @@ fn native_routes_use_domain_actions_and_exact_resources() {
         (Operation::UpdateTemplate(id), "update_template"),
     ] {
         let (target, actions) = operation.authorization();
-        assert_eq!(actions, &[GatewayAction::ToolsCall]);
+        assert_eq!(actions, &[RouteAction::Kernel(GatewayAction::ToolsCall)]);
         let PolicyTarget::Tool { tool, .. } = target else {
             panic!("tool target")
         };
@@ -281,7 +289,7 @@ fn native_routes_use_domain_actions_and_exact_resources() {
     assert!(!Operation::List.requires_contributor());
     assert_eq!(
         Operation::List.authorization().1,
-        &[GatewayAction::ResourcesRead]
+        &[RouteAction::Kernel(GatewayAction::ResourcesRead)]
     );
 }
 
@@ -346,7 +354,10 @@ fn receipt_route_uses_the_parent_computers_read_authority() {
     );
     assert!(!operation.requires_contributor());
     let (target, actions) = operation.authorization();
-    assert_eq!(actions, &[GatewayAction::ResourcesRead]);
+    assert_eq!(
+        actions,
+        &[RouteAction::Kernel(GatewayAction::ResourcesRead)]
+    );
     let PolicyTarget::Resource { uri, .. } = target else {
         panic!("Computer resource required")
     };
@@ -402,7 +413,10 @@ fn self_revocation_is_a_json_mutation_bound_to_the_parents_read_authority() {
         format!("computers/{computer}/access/{grant}/revoke")
     );
     let (target, actions) = operation.authorization();
-    assert_eq!(actions, &[GatewayAction::ResourcesRead]);
+    assert_eq!(
+        actions,
+        &[RouteAction::Kernel(GatewayAction::ResourcesRead)]
+    );
     let PolicyTarget::Resource { uri, .. } = target else {
         panic!("parent read target required")
     };

@@ -8,6 +8,8 @@ use veoveo_types::{DataLabelId, PolicyVersion, TenantId};
 /// Implementations expose one validated, immutable control-plane revision. Lookups
 /// must never combine policy or exposure fields from different revisions.
 pub trait PolicyCatalogView {
+    fn registry(&self) -> &veoveo_gateway_contract::CatalogRegistry;
+    fn sections(&self) -> &veoveo_gateway_contract::AdmittedCatalogSections;
     fn profile(&self, id: &GatewayProfileId) -> Option<&GatewayProfile>;
     fn policy(&self, id: &PolicyVersion) -> Option<&PolicySet>;
     fn data_label(&self, id: &DataLabelId) -> Option<&DataLabelDefinition>;
@@ -19,6 +21,8 @@ pub trait PolicyCatalogView {
 #[derive(Clone)]
 pub struct PolicyCatalog {
     control_plane: Arc<GatewayControlPlane>,
+    registry: veoveo_gateway_contract::CatalogRegistry,
+    sections: veoveo_gateway_contract::AdmittedCatalogSections,
     profiles: BTreeMap<GatewayProfileId, usize>,
     policies: BTreeMap<PolicyVersion, usize>,
     labels: BTreeMap<DataLabelId, usize>,
@@ -26,9 +30,14 @@ pub struct PolicyCatalog {
     servers: BTreeMap<ServerSlug, usize>,
 }
 impl PolicyCatalog {
-    pub fn new(control_plane: GatewayControlPlane) -> Result<Self, GatewayControlPlaneError> {
-        control_plane.validate()?;
+    pub fn new(
+        control_plane: GatewayControlPlane,
+        registry: veoveo_gateway_contract::CatalogRegistry,
+    ) -> Result<Self, GatewayControlPlaneError> {
+        let sections = control_plane.validate(&registry)?;
         Ok(Self {
+            registry,
+            sections,
             profiles: control_plane
                 .profiles
                 .iter()
@@ -62,11 +71,23 @@ impl PolicyCatalog {
             control_plane: Arc::new(control_plane),
         })
     }
+    pub fn registry(&self) -> &veoveo_gateway_contract::CatalogRegistry {
+        &self.registry
+    }
+    pub fn sections(&self) -> &veoveo_gateway_contract::AdmittedCatalogSections {
+        &self.sections
+    }
     pub fn control_plane(&self) -> &GatewayControlPlane {
         &self.control_plane
     }
 }
 impl PolicyCatalogView for PolicyCatalog {
+    fn registry(&self) -> &veoveo_gateway_contract::CatalogRegistry {
+        &self.registry
+    }
+    fn sections(&self) -> &veoveo_gateway_contract::AdmittedCatalogSections {
+        &self.sections
+    }
     fn profile(&self, id: &GatewayProfileId) -> Option<&GatewayProfile> {
         self.profiles
             .get(id)

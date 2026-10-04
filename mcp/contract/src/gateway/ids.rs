@@ -16,15 +16,6 @@ use super::wire::{
     validate_oauth_state_value, validate_pkce_code_token, validate_principal_display_name,
 };
 
-fn validate_uuid_v7(value: &str) -> Result<(), IdentifierError> {
-    let uuid = uuid::Uuid::parse_str(value)
-        .map_err(|_| IdentifierError::new(value, "must be a UUIDv7"))?;
-    if uuid.get_version_num() != 7 {
-        return Err(IdentifierError::new(value, "must be a UUIDv7"));
-    }
-    Ok(())
-}
-
 /// Configured identity provider id used by gateway profiles.
 #[derive(
     Debug,
@@ -42,24 +33,6 @@ fn validate_uuid_v7(value: &str) -> Result<(), IdentifierError> {
 #[serde(try_from = "String", into = "String")]
 #[id(string, validate = validate_path_id, error = IdentifierError)]
 pub struct IdentityProviderId(String);
-
-/// Resource authorization server id that issues profile-scoped MCP access tokens.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    veoveo_types::Id,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, validate = validate_path_id, error = IdentifierError)]
-pub struct AuthorizationServerId(String);
 
 /// Gateway-scoped tool name after server namespace projection.
 #[derive(
@@ -191,132 +164,6 @@ impl From<PrincipalDisplayName> for String {
 #[serde(try_from = "String", into = "String")]
 #[id(string, validate = validate_token_text, error = IdentifierError)]
 pub struct PolicyRuleId(String);
-
-/// Reference to a secret managed outside control data.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    veoveo_types::Id,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, validate = validate_token_text, error = IdentifierError)]
-pub struct SecretReferenceId(String);
-
-/// OAuth protected-resource URI for an MCP profile or platform data plane.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    veoveo_types::Id,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, validate = validate_claim_text, error = IdentifierError)]
-pub struct ProtectedResourceId(String);
-
-/// Installation-local name for an OAuth protected resource.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    veoveo_types::Id,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, validate = validate_path_id, error = IdentifierError)]
-pub struct ProtectedResourceName(String);
-
-/// Configured identity of one governed recording producer.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    veoveo_types::Id,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, validate = validate_path_id, error = IdentifierError)]
-pub struct RecordingProducerId(String);
-
-/// Installation-owned dataset name assigned to a recording producer.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    veoveo_types::Id,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, validate = validate_gateway_name, error = IdentifierError)]
-pub struct RecordingDatasetName(String);
-
-/// Rerun application id admitted for a recording producer.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    veoveo_types::Id,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, validate = validate_claim_text, error = IdentifierError)]
-pub struct RecordingApplicationId(String);
-
-/// Canonical UUIDv7 identity of one authenticated recording ingest stream.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    veoveo_types::Id,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, validate = validate_uuid_v7, error = IdentifierError)]
-pub struct RecordingIngestStreamId(String);
 
 /// Explicit compatibility helper id exposed to limited MCP clients, for example `media.models`.
 #[derive(
@@ -590,21 +437,3 @@ pub struct GatewayControlPlaneRevisionId(String);
 #[serde(try_from = "String", into = "String")]
 #[id(string, validate = validate_token_text, error = IdentifierError)]
 pub struct McpMethodName(String);
-
-/// External secret locator. This is a reference path, not a secret value.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    veoveo_types::Id,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, validate = validate_claim_text, error = IdentifierError)]
-pub struct SecretLocator(String);

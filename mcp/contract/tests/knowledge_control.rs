@@ -1,3 +1,6 @@
+#[path = "../../../testing/fixtures/catalog_registry.rs"]
+mod catalog_registry;
+use veoveo_gateway_contract::GatewayAction;
 use veoveo_knowledge_contract::{CollectionApproval, KnowledgeSubject};
 use veoveo_mcp_contract::*;
 #[path = "../../../testing/fixtures/knowledge_control.rs"]
@@ -6,7 +9,7 @@ mod fixture;
 #[test]
 fn indexing_requires_explicit_collection_approval_and_a_read_only_machine_profile() {
     let base = fixture::plane();
-    base.validate().unwrap();
+    base.validate(&catalog_registry::registry()).unwrap();
     let wire = serde_json::to_string(&base).unwrap();
     assert_eq!(
         serde_json::from_str::<GatewayControlPlane>(&wire).unwrap(),
@@ -47,11 +50,14 @@ fn indexing_requires_explicit_collection_approval_and_a_read_only_machine_profil
             9 => {
                 plane.policies.last_mut().unwrap().rules[0]
                     .actions
-                    .insert(GatewayAction::ToolsCall);
+                    .insert(GatewayAction::ToolsCall.into());
             }
             _ => unreachable!(),
         }
-        assert!(plane.validate().is_err(), "case {case}");
+        assert!(
+            plane.validate(&catalog_registry::registry()).is_err(),
+            "case {case}"
+        );
     }
     assert!(KnowledgeSubject::new("Facility inspections").is_ok());
     for invalid in ["", " padded ", "line\nbreak"] {
@@ -63,5 +69,5 @@ fn indexing_requires_explicit_collection_approval_and_a_read_only_machine_profil
 fn catalog_only_approval_allows_registration_for_source_discovery() {
     let mut plane = fixture::plane();
     plane.servers[0].knowledge[0].mode = CollectionApproval::CatalogOnly;
-    plane.validate().unwrap();
+    plane.validate(&catalog_registry::registry()).unwrap();
 }

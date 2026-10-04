@@ -4,6 +4,7 @@
 //! the writer live in one process, the durable write is the first-class path —
 //! there is no reconnect window in which the ring buffer could drop data a
 //! subscribing spooler never saw.
+use veoveo_gateway_contract::ProtectedResourceId;
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -18,7 +19,7 @@ use secrecy::{ExposeSecret, SecretString};
 use url::Url;
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalResourceTokenVerifier,
-    GatewayInternalTrustBundle, ProtectedResourceId, ServerSlug, TokenIssuer,
+    GatewayInternalTrustBundle, ServerSlug, TokenIssuer,
 };
 use veoveo_platform_store::{PlatformStore, StoreConfig, StoreCredentials};
 use veoveo_recording_forwarder::config::ClientAssertionAlgorithm;

@@ -5,9 +5,15 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+veoveo-gateway-contract.workspace = true
 veoveo-types.workspace = true
 anyhow.workspace = true
 chrono.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 veoveo-mcp-contract.workspace = true
+
+[dev-dependencies]
+veoveo-recording-contract.workspace = true
+veoveo-computers-contract.workspace = true
+veoveo-agent-runtime = { path = "../../agents/runtime", default-features = false, features = ["contract"] }

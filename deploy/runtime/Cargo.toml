@@ -5,6 +5,7 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+veoveo-gateway-catalog.workspace = true
 anyhow.workspace = true
 hex.workspace = true
 jsonwebtoken.workspace = true

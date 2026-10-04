@@ -131,10 +131,24 @@ pub(crate) fn contract_schemas(conformance: &Path) -> Result<()> {
         [],
     )?;
 
-    assert_schema_title(
+    let control_plane_schema = assert_schema_title(
         &schemas.join("gateway-control-plane.schema.json"),
         "GatewayControlPlane",
     )?;
+    let validator = jsonschema::validator_for(&control_plane_schema)?;
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    for relative in [
+        "configs/gateway.local.json",
+        "configs/gateway.smoke.json",
+        "examples/bioma/gateway.json",
+        "showcase/sumo/deploy/gateway.json",
+        "testing/fixtures/catalog-installation/gateway.json",
+    ] {
+        let catalog: Value = serde_json::from_slice(&std::fs::read(repository.join(relative))?)?;
+        validator
+            .validate(&catalog)
+            .map_err(|error| anyhow!("exported gateway schema rejects {relative}: {error}"))?;
+    }
     let control_plane_revision = assert_schema_title(
         &schemas.join("gateway-control-plane-revision.schema.json"),
         "GatewayControlPlaneRevision",

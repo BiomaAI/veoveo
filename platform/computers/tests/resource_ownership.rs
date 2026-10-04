@@ -1,7 +1,7 @@
 //! Resource identity survives client changes; current policy and grant sessions do not merge.
 mod support;
 use veoveo_computers::{ComputerActor, ComputerError, api::*};
-use veoveo_mcp_contract::GatewayAction;
+use veoveo_gateway_contract::GatewayAction;
 use veoveo_types::{DataLabelId, WorkContextId};
 
 #[tokio::test]
@@ -94,7 +94,7 @@ async fn retained_collection_uses_current_profile_policy_and_indexed_owner_ident
     let mut denied = control;
     for policy in &mut denied.policies {
         for rule in &mut policy.rules {
-            if rule.actions.contains(&GatewayAction::ResourcesRead) {
+            if rule.actions.contains(&GatewayAction::ResourcesRead.into()) {
                 rule.profiles
                     .retain(|profile| profile.as_str() != "workspace");
             }

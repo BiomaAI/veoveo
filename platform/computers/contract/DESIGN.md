@@ -243,3 +243,12 @@ constants, and checked constructors retain each concrete ID. Owner result schema
 preserve their family-specific UUID constraints and metadata. Domain accessors retain
 their borrowed or copied signatures. Route selection precedes ID admission; malformed
 fields on a matching route do not fall through to another resource.
+
+
+## Attachment Policy Declaration
+
+`ComputerAction::Attach` owns the `computer_attach` spelling. Its pure catalog
+descriptor requires Computer server resource support. Browser and CLI grant admission
+resolves that registered action and independently requires kernel resource-read
+permission against the same Computer resource. Registry binding grants no current
+session, membership or provider authority; the service still checks those conditions.

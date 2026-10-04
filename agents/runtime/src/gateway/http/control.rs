@@ -1,3 +1,4 @@
+use crate::contract::AgentAction;
 use crate::{
     AgentControlReceipt, AgentControlTarget, AgentRuntimeError, GovernedInputRequest,
     InputRequestAnswer, InputRequestDecisionDraft, OperatorMessageDraft, json_object,
@@ -6,7 +7,7 @@ use std::{str::FromStr, time::Instant};
 use veoveo_mcp_contract::audit::AdministrativeOperation;
 use veoveo_mcp_contract::{
     AgentInputRequestDecision, AgentInputRequestView, AgentOperatorMessageRequest,
-    AgentWakeReceipt, GatewayAction, GatewayProfile, PolicyTarget,
+    AgentWakeReceipt, GatewayProfile, PolicyTarget,
 };
 use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_mcp_gateway::http::auth_support::internal_error_response;
@@ -33,11 +34,11 @@ enum AgentOperation {
 }
 
 impl AgentOperation {
-    const fn action(self) -> GatewayAction {
+    const fn action(self) -> AgentAction {
         match self {
-            Self::ReadConversation | Self::ReadInputRequests => GatewayAction::AgentsRead,
-            Self::SendMessage => GatewayAction::AgentsMessage,
-            Self::DecideInputRequest => GatewayAction::AgentsInputRequestAnswer,
+            Self::ReadConversation | Self::ReadInputRequests => AgentAction::AgentsRead,
+            Self::SendMessage => AgentAction::AgentsMessage,
+            Self::DecideInputRequest => AgentAction::AgentsInputRequestAnswer,
         }
     }
 
@@ -265,7 +266,8 @@ async fn authorize_agent_operation(
         subject,
         AdminAuthorizationRequest {
             audit_target: Some(audit_target),
-            action: operation.action(),
+            action: super::authority::policy_action(&state.catalog.current(), operation.action())
+                .map_err(|error| Box::new(internal_error_response(error)))?,
             target: PolicyTarget::Gateway,
             operation: operation.audit_operation(),
             started_at,
@@ -401,13 +403,14 @@ async fn record_agent_result(
         &state.gateway,
         &context.profile,
         &context.subject,
+        &state.catalog.current(),
         PolicyTarget::Gateway,
         AdminOperationAuditRecord {
             audit_target: Some(agent_audit_target(
                 &context.subject,
                 &context.target.agent_key,
             )?),
-            action: operation.action(),
+            action: super::authority::policy_action(&state.catalog.current(), operation.action())?,
             operation: operation.audit_operation(),
             started_at,
             status,

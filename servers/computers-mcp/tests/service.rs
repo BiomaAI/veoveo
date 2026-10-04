@@ -154,6 +154,7 @@ async fn service_reports_setup_or_outage_and_stops_without_waiting_for_compute()
             TaskRuntime::new(db.a.clone(), "computers", "service-fixture"),
             signing.trust.clone(),
             shutdown.clone(),
+            veoveo_gateway_catalog::registry().unwrap(),
         ));
         let guard = task.abort_handle();
         struct Cleanup(tokio::task::AbortHandle);
@@ -222,6 +223,7 @@ async fn service_reports_setup_or_outage_and_stops_without_waiting_for_compute()
             TaskRuntime::new(db.b.clone(), "computers", "stale-quota"),
             signing.trust.clone(),
             CancellationToken::new(),
+            veoveo_gateway_catalog::registry().unwrap(),
         ),
     )
     .await
@@ -235,7 +237,8 @@ async fn service_reports_setup_or_outage_and_stops_without_waiting_for_compute()
             db.a.clone(),
             "00000000-0000-7000-8000-000000000064"
                 .parse::<veoveo_computers::api::ProviderInstanceId>()
-                .unwrap()
+                .unwrap(),
+            veoveo_gateway_catalog::registry().expect("installed owner catalog recipe")
         )
         .unwrap()
         .capacity()

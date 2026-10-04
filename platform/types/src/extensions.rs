@@ -154,6 +154,20 @@ impl fmt::Debug for ExtensionRegistry {
     }
 }
 impl ExtensionRegistry {
+    pub fn check(&self, values: &AdmittedExtensions) -> Result<(), ExtensionError> {
+        if values
+            .identity
+            .as_ref()
+            .is_some_and(|identity| Arc::ptr_eq(identity, &self.identity))
+        {
+            Ok(())
+        } else {
+            Err(ExtensionError::new(
+                "contribution belongs to another registry or is unadmitted",
+            ))
+        }
+    }
+
     pub fn reserved_names(&self) -> impl Iterator<Item = &ExtensionName> {
         self.codecs.keys()
     }

@@ -8,9 +8,9 @@ use crate::{
 use chrono::Utc;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
+use veoveo_gateway_contract::GatewayAction;
 use veoveo_mcp_contract::{
-    GatewayAction, GatewayControlPlane, GatewayInternalIdentity, PolicyEffect, PolicyTarget,
-    TraceId,
+    GatewayControlPlane, GatewayInternalIdentity, PolicyEffect, PolicyTarget, TraceId,
 };
 use veoveo_platform_store::{
     GatewayRefreshFamilyRecord, PlatformStore, gateway_jwt_revocation_record_id,
@@ -33,12 +33,13 @@ pub struct RequestAuthority {
 
 pub async fn authorize(
     store: &PlatformStore,
+    registry: &veoveo_gateway_contract::CatalogRegistry,
     identity: &GatewayInternalIdentity,
     scope: KnowledgeScope,
     action: GatewayAction,
     target: &PolicyTarget,
 ) -> Result<RequestAuthority, ServiceError> {
-    let authority = authenticate(store, identity, scope).await?;
+    let authority = authenticate(store, registry, identity, scope).await?;
     if !authority.allows(identity, action, target) {
         return Err(ServiceError::AccessChanged);
     }
@@ -92,7 +93,7 @@ impl RequestAuthority {
             PolicyRequest {
                 principal: &request.principal,
                 profile: &identity.profile,
-                action,
+                action: action.into(),
                 target,
                 trace_id: &trace,
             },
@@ -103,18 +104,20 @@ impl RequestAuthority {
 }
 pub(crate) async fn authenticate(
     store: &PlatformStore,
+    registry: &veoveo_gateway_contract::CatalogRegistry,
     identity: &GatewayInternalIdentity,
     scope: KnowledgeScope,
 ) -> Result<RequestAuthority, ServiceError> {
     tokio::time::timeout(
         std::time::Duration::from_secs(10),
-        resolve(store, identity, scope),
+        resolve(store, registry, identity, scope),
     )
     .await
     .map_err(|_| ServiceError::Deadline)?
 }
 async fn resolve(
     store: &PlatformStore,
+    registry: &veoveo_gateway_contract::CatalogRegistry,
     identity: &GatewayInternalIdentity,
     scope: KnowledgeScope,
 ) -> Result<RequestAuthority, ServiceError> {
@@ -166,7 +169,8 @@ async fn resolve(
     if digest != revision.sha256 {
         return Err(ServiceError::AccessChanged);
     }
-    let catalog = PolicyCatalog::new(plane).map_err(|_| ServiceError::AccessChanged)?;
+    let catalog =
+        PolicyCatalog::new(plane, registry.clone()).map_err(|_| ServiceError::AccessChanged)?;
     let profile = catalog
         .profile(&identity.profile)
         .ok_or(ServiceError::AccessChanged)?;

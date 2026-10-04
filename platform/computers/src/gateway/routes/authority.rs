@@ -44,6 +44,9 @@ async fn admitted(
     let manifest = manifest.clone();
     let (target, actions) = operation.authorization();
     for &action in actions {
+        let action = action
+            .resolve(catalog.registry())
+            .map_err(|_| Fault::unavailable())?;
         let trace = contract::TraceId::new(subject.audit.trace_id.to_string()).expect("UUID trace");
         let mut decision = catalog.decide(PolicyRequest {
             principal: &subject.principal,

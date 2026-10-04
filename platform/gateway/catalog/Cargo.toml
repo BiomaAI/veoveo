@@ -1,0 +1,12 @@
+[package]
+name = "veoveo-gateway-catalog"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+veoveo-gateway-contract.workspace = true
+veoveo-types.workspace = true
+veoveo-agent-runtime = { path = "../../../agents/runtime", default-features = false, features = ["contract"] }
+veoveo-computers-contract.workspace = true
+veoveo-recording-contract.workspace = true

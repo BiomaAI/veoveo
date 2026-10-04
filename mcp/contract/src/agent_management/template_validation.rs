@@ -80,7 +80,9 @@ impl wire::RuntimeTemplate {
                         .secrets
                         .iter()
                         .find(|s| s.id == binding.reference)
-                        .is_some_and(|s| s.purpose == crate::SecretPurpose::ProviderApiKey),
+                        .is_some_and(
+                            |s| s.purpose == veoveo_gateway_contract::SecretPurpose::ProviderApiKey
+                        ),
                 "template requires unique approved model credentials"
             );
             kubernetes_name(&binding.secret)?;

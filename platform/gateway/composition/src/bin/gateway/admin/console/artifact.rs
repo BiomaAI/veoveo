@@ -17,7 +17,7 @@ pub(crate) async fn read_console_artifact(
         &profile_id,
         subject,
         crate::audit::AdminAuthorizationRequest {
-            action: GatewayAction::AdminRead,
+            action: GatewayAction::AdminRead.into(),
             target: veoveo_mcp_contract::PolicyTarget::Gateway,
             audit_target: Some(veoveo_mcp_contract::audit::AuditTarget::Artifact {
                 artifact: artifact_id,

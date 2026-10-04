@@ -3,9 +3,7 @@ use crate::current_authority::AUTHORITY_LIFETIME;
 use crate::{AcceptedAuthority, ComputerError, ComputersStore, Result};
 use chrono::{DateTime, Utc};
 use std::time::Instant;
-use veoveo_mcp_contract::{
-    GatewayAction, GatewayControlPlane, PolicyDecision, PolicyTarget, Principal, TraceId,
-};
+use veoveo_mcp_contract::{GatewayControlPlane, PolicyDecision, PolicyTarget, Principal, TraceId};
 use veoveo_platform_store::{
     EnterpriseRecord, PrincipalKind, PrincipalRecord, RecordId, TenantRecord,
     deterministic_enterprise_id, deterministic_principal_id, deterministic_tenant_id,
@@ -29,7 +27,7 @@ pub(crate) struct AuthoritySnapshot {
 impl AuthoritySnapshot {
     pub fn decision(
         &self,
-        action: GatewayAction,
+        action: impl Into<veoveo_gateway_contract::PolicyAction>,
         target: &PolicyTarget,
         trace: &TraceId,
     ) -> PolicyDecision {
@@ -38,7 +36,7 @@ impl AuthoritySnapshot {
             PolicyRequest {
                 principal: &self.accepted.request_context.principal,
                 profile: &self.accepted.profile,
-                action,
+                action: action.into(),
                 target,
                 trace_id: trace,
             },
@@ -75,7 +73,8 @@ impl ComputersStore {
         if crate::identity::digest(&control)? != revision.sha256 {
             return Err(ComputerError::Unavailable);
         }
-        let catalog = PolicyCatalog::new(control).map_err(|_| ComputerError::Unavailable)?;
+        let catalog = PolicyCatalog::new(control, self.catalog_registry.clone())
+            .map_err(|_| ComputerError::Unavailable)?;
         let control = catalog.control_plane();
         let profile = catalog
             .profile(&accepted.profile)

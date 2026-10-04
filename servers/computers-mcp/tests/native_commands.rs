@@ -187,6 +187,7 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         "00000000-0000-7000-8000-000000000064"
             .parse::<veoveo_computers::api::ProviderInstanceId>()
             .unwrap(),
+        veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
     )
     .unwrap();
     let b = ComputersStore::new(
@@ -194,6 +195,7 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         "00000000-0000-7000-8000-000000000064"
             .parse::<veoveo_computers::api::ProviderInstanceId>()
             .unwrap(),
+        veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
     )
     .unwrap();
     a.install_capacity(

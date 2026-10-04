@@ -1,4 +1,9 @@
 //! Authenticated public recording ingest and discovery routes.
+use crate::contract::policy::{RecordingIngestPolicyRequest, decide_recording_ingest};
+use crate::contract::{RecordingAction, RecordingCatalog};
+use veoveo_recording_contract::RecordingIngestResource;
+use veoveo_recording_contract::RecordingIngestStreamId;
+use veoveo_recording_contract::RecordingProducerRegistration;
 
 #[path = "ingest/audit.rs"]
 mod audit;
@@ -17,13 +22,9 @@ use axum::{
 use chrono::{TimeDelta, Utc};
 use prost::Message;
 use veoveo_mcp_contract::{
-    AuthOutcome, AuthReasonCode, GatewayAction, PolicyEffect, PrincipalKind,
-    RecordingIngestResource, RecordingIngestStreamId, RecordingProducerRegistration, ServerSlug,
-    TraceId,
+    AuthOutcome, AuthReasonCode, PolicyEffect, PrincipalKind, ServerSlug, TraceId,
 };
-use veoveo_mcp_gateway::{
-    AuthenticatedSubject, BearerToken, JwtAuthConfig, JwtVerifier, RecordingIngestPolicyRequest,
-};
+use veoveo_mcp_gateway::{AuthenticatedSubject, BearerToken, JwtAuthConfig, JwtVerifier};
 use veoveo_recording_protocol::{
     DISCOVERY_PATH, MEDIA_TYPE, PROTOCOL_VERSION, STREAMS_PATH,
     v1::{
@@ -89,7 +90,11 @@ pub(crate) fn recording_ingest_router(state: RecordingIngestGatewayState) -> Rou
 
 async fn discovery(State(state): State<RecordingIngestGatewayState>) -> Response {
     let catalog = current_catalog(&state.catalog);
-    let Some(resource) = catalog.single_recording_ingest_resource() else {
+    let Ok(recordings) = RecordingCatalog::from_admitted(catalog.registry(), catalog.sections())
+    else {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    };
+    let Some(resource) = recordings.single_resource() else {
         return StatusCode::NOT_FOUND.into_response();
     };
     let Some(authorization_server) = catalog.authorization_server(&resource.authorization_server)
@@ -140,7 +145,7 @@ async fn open_stream(
     proxy_authorized(
         &state,
         &headers,
-        GatewayAction::RecordingStreamOpen,
+        RecordingAction::StreamOpen,
         None,
         INTERNAL_STREAMS_PATH.to_owned(),
         AuthorizedOpenRecordingStreamRequest {
@@ -163,7 +168,7 @@ async fn stream_status(
     proxy_authorized(
         &state,
         &headers,
-        GatewayAction::RecordingStreamStatus,
+        RecordingAction::StreamStatus,
         Some(&stream_id),
         format!("{INTERNAL_STREAMS_PATH}/{stream_id}/status"),
         AuthorizedRecordingProducer::default(),
@@ -195,7 +200,7 @@ async fn append_batch(
     proxy_authorized(
         &state,
         &headers,
-        GatewayAction::RecordingBatchAppend,
+        RecordingAction::BatchAppend,
         Some(&stream_id),
         format!("{INTERNAL_STREAMS_PATH}/{stream_id}/batches/{sequence}"),
         AuthorizedRecordingBatchRequest {
@@ -230,7 +235,7 @@ async fn publish_blueprint(
     proxy_authorized(
         &state,
         &headers,
-        GatewayAction::RecordingBlueprintPublish,
+        RecordingAction::BlueprintPublish,
         Some(&stream_id),
         format!("{INTERNAL_STREAMS_PATH}/{stream_id}/blueprints/{revision}"),
         AuthorizedRecordingBlueprintRequest {
@@ -258,7 +263,7 @@ async fn finish_stream(
     proxy_authorized(
         &state,
         &headers,
-        GatewayAction::RecordingStreamFinish,
+        RecordingAction::StreamFinish,
         Some(&stream_id),
         format!("{INTERNAL_STREAMS_PATH}/{stream_id}/finish"),
         AuthorizedFinishRecordingStreamRequest {
@@ -306,14 +311,18 @@ impl AuthorizedEnvelope for AuthorizedRecordingProducer {
 async fn proxy_authorized(
     state: &RecordingIngestGatewayState,
     headers: &HeaderMap,
-    action: GatewayAction,
+    action: RecordingAction,
     stream_id: Option<&RecordingIngestStreamId>,
     internal_path: String,
     mut envelope: impl AuthorizedEnvelope,
 ) -> Response {
     let started_at = Instant::now();
     let catalog = current_catalog(&state.catalog);
-    let Some(resource) = catalog.single_recording_ingest_resource() else {
+    let Ok(recordings) = RecordingCatalog::from_admitted(catalog.registry(), catalog.sections())
+    else {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    };
+    let Some(resource) = recordings.single_resource() else {
         return StatusCode::NOT_FOUND.into_response();
     };
     let (subject, producer) = match authenticate(state, resource, headers, started_at).await {
@@ -324,13 +333,16 @@ async fn proxy_authorized(
         Ok(trace_id) => trace_id,
         Err(error) => return auth_audit_error_response(error.into()),
     };
-    let decision = catalog.decide_recording_ingest(RecordingIngestPolicyRequest {
-        principal: &subject.principal,
-        resource,
-        producer: &producer,
-        action,
-        trace_id: &trace_id,
-    });
+    let decision = decide_recording_ingest(
+        catalog.as_ref(),
+        RecordingIngestPolicyRequest {
+            principal: &subject.principal,
+            resource,
+            producer: &producer,
+            action,
+            trace_id: &trace_id,
+        },
+    );
     let allowed = decision.effect == PolicyEffect::Allow;
     if should_record_authorization_audit(action, &decision.effect) {
         let draft = match audit::draft(
@@ -388,7 +400,7 @@ async fn proxy_authorized(
             .request(
                 if matches!(
                     action,
-                    GatewayAction::RecordingBatchAppend | GatewayAction::RecordingBlueprintPublish
+                    RecordingAction::BatchAppend | RecordingAction::BlueprintPublish
                 ) {
                     reqwest::Method::PUT
                 } else {
@@ -466,11 +478,11 @@ async fn proxy_authorized(
     response
 }
 
-fn should_record_authorization_audit(action: GatewayAction, effect: &PolicyEffect) -> bool {
+fn should_record_authorization_audit(action: RecordingAction, effect: &PolicyEffect) -> bool {
     *effect == PolicyEffect::Deny
         || !matches!(
             action,
-            GatewayAction::RecordingBatchAppend | GatewayAction::RecordingStreamStatus
+            RecordingAction::BatchAppend | RecordingAction::StreamStatus
         )
 }
 
@@ -598,9 +610,10 @@ async fn authenticate(
         .await
         .into());
     }
-    let catalog = current_catalog(&state.catalog);
-    let Some(producer) =
-        catalog.recording_producer_for_client(resource, &verified.access_token.oauth_client_id)
+    let Some(producer) = resource
+        .producers
+        .iter()
+        .find(|producer| producer.oauth_client == verified.access_token.oauth_client_id)
     else {
         return Err(record_denial(
             state,
@@ -741,30 +754,27 @@ fn stream_not_found() -> Response {
 
 #[cfg(test)]
 mod tests {
-    use super::should_record_authorization_audit;
-    use veoveo_mcp_contract::{GatewayAction, PolicyEffect};
+    use super::{RecordingAction, should_record_authorization_audit};
+    use veoveo_mcp_contract::PolicyEffect;
 
     #[test]
     fn successful_batch_append_uses_the_durable_ingest_ledger() {
         assert!(!should_record_authorization_audit(
-            GatewayAction::RecordingBatchAppend,
+            RecordingAction::BatchAppend,
             &PolicyEffect::Allow,
         ));
     }
 
     #[test]
     fn recording_lifecycle_and_every_denial_remain_audited() {
-        for action in [
-            GatewayAction::RecordingStreamOpen,
-            GatewayAction::RecordingStreamFinish,
-        ] {
+        for action in [RecordingAction::StreamOpen, RecordingAction::StreamFinish] {
             assert!(should_record_authorization_audit(
                 action,
                 &PolicyEffect::Allow,
             ));
         }
         assert!(should_record_authorization_audit(
-            GatewayAction::RecordingBatchAppend,
+            RecordingAction::BatchAppend,
             &PolicyEffect::Deny,
         ));
     }

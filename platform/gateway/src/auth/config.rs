@@ -1,9 +1,9 @@
 use std::collections::BTreeSet;
+use veoveo_gateway_contract::ProtectedResourceId;
 
 use jsonwebtoken::Algorithm;
 use veoveo_mcp_contract::{
-    IdentityProviderClaimMapping, OAuthClientId, OidcClientId, OidcNonce, ProtectedResourceId,
-    TokenIssuer,
+    IdentityProviderClaimMapping, OAuthClientId, OidcClientId, OidcNonce, TokenIssuer,
 };
 use veoveo_types::ScopeName;
 

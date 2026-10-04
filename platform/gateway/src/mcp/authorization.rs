@@ -5,10 +5,11 @@ use rmcp::{
 use veoveo_audit_contract::{
     AuditDetail, AuditOutcome, AuditReadMethod, AuditReason, TaskActivity,
 };
+use veoveo_gateway_contract::GatewayAction;
 use veoveo_mcp_contract::{
-    CanonicalTaskId, CompatibilityHelperId, GatewayAction, GatewayResourceProjection,
-    LocalToolName, OAuthClientRegistration, OAuthClientSurface, PolicyDecision, PolicyEffect,
-    PolicyReasonCode, PolicyTarget, PromptName, ServerSlug, TraceId,
+    CanonicalTaskId, CompatibilityHelperId, GatewayResourceProjection, LocalToolName,
+    OAuthClientRegistration, OAuthClientSurface, PolicyDecision, PolicyEffect, PolicyReasonCode,
+    PolicyTarget, PromptName, ServerSlug, TraceId,
 };
 use veoveo_platform_store::{
     RecordIdKey, deterministic_principal_id, deterministic_tenant_id, deterministic_work_context_id,
@@ -419,7 +420,7 @@ impl GatewayMcp {
         let mut decision = catalog.decide(PolicyRequest {
             principal: &subject.principal,
             profile: &self.profile_id,
-            action,
+            action: action.into(),
             target,
             trace_id: &trace_id,
         });
@@ -682,9 +683,9 @@ fn policy_denial_message(decision: &PolicyDecision) -> String {
         PolicyTarget::Artifact { artifact_uri, .. } => format!("access `{artifact_uri}`"),
         PolicyTarget::Usage { usage_uri, .. } => format!("read `{usage_uri}`"),
         PolicyTarget::Server { server } => format!("use the `{server}` server"),
-        PolicyTarget::Gateway
-        | PolicyTarget::RecordingProducer { .. }
-        | PolicyTarget::RecordingStream { .. } => "make this request".to_owned(),
+        PolicyTarget::Gateway | PolicyTarget::Owner(_) | PolicyTarget::Unadmitted(_) => {
+            "make this request".to_owned()
+        }
     };
     let detail = match decision.reason {
         PolicyReasonCode::MissingScope | PolicyReasonCode::UnknownScope => {
@@ -728,9 +729,10 @@ fn policy_denial_message(decision: &PolicyDecision) -> String {
 
 #[cfg(test)]
 mod tests {
+    use veoveo_gateway_contract::GatewayAction;
     use veoveo_mcp_contract::{
-        GatewayAction, GatewayProfileId, LocalToolName, OAuthClientSurface, PolicyDecision,
-        PolicyReasonCode, PolicyTarget, ServerSlug, TraceId,
+        GatewayProfileId, LocalToolName, OAuthClientSurface, PolicyDecision, PolicyReasonCode,
+        PolicyTarget, ServerSlug, TraceId,
     };
 
     use super::{client_surface_allows_task_projection, policy_denial_message};

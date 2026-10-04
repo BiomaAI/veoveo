@@ -1,4 +1,5 @@
 use std::{sync::Arc, time::Instant};
+use veoveo_gateway_contract::GatewayAction;
 use veoveo_mcp_contract::audit::AdministrativeOperation;
 
 use axum::{
@@ -10,7 +11,7 @@ use axum::{
 use chrono::Utc;
 use serde::Serialize;
 use veoveo_mcp_contract::{
-    GatewayAction, GatewayControlPlane, GatewayControlPlaneRevision, GatewayControlPlaneRevisionId,
+    GatewayControlPlane, GatewayControlPlaneRevision, GatewayControlPlaneRevisionId,
     GatewayControlPlaneRevisionSource,
 };
 use veoveo_mcp_gateway::{
@@ -78,7 +79,7 @@ pub(crate) async fn read_control_plane(
                 &subject,
                 AdminOperationAuditRecord {
                     audit_target: None,
-                    action: GatewayAction::AdminRead,
+                    action: GatewayAction::AdminRead.into(),
                     operation: AdministrativeOperation::ControlPlane,
                     started_at,
                     status: AdminOperationStatus::Failed,
@@ -102,7 +103,7 @@ pub(crate) async fn read_control_plane(
                 &subject,
                 AdminOperationAuditRecord {
                     audit_target: None,
-                    action: GatewayAction::AdminRead,
+                    action: GatewayAction::AdminRead.into(),
                     operation: AdministrativeOperation::ControlPlane,
                     started_at,
                     status: AdminOperationStatus::Failed,
@@ -122,7 +123,7 @@ pub(crate) async fn read_control_plane(
         &subject,
         AdminOperationAuditRecord {
             audit_target: None,
-            action: GatewayAction::AdminRead,
+            action: GatewayAction::AdminRead.into(),
             operation: AdministrativeOperation::ControlPlane,
             started_at,
             status: AdminOperationStatus::Succeeded,
@@ -182,7 +183,7 @@ pub(crate) async fn update_control_plane(
                 &subject,
                 AdminOperationAuditRecord {
                     audit_target: None,
-                    action: GatewayAction::AdminWrite,
+                    action: GatewayAction::AdminWrite.into(),
                     operation: AdministrativeOperation::ControlPlane,
                     started_at,
                     status: AdminOperationStatus::Rejected,
@@ -206,7 +207,7 @@ pub(crate) async fn update_control_plane(
                 &subject,
                 AdminOperationAuditRecord {
                     audit_target: None,
-                    action: GatewayAction::AdminWrite,
+                    action: GatewayAction::AdminWrite.into(),
                     operation: AdministrativeOperation::ControlPlane,
                     started_at,
                     status: AdminOperationStatus::Failed,
@@ -234,7 +235,7 @@ pub(crate) async fn update_control_plane(
                 &subject,
                 AdminOperationAuditRecord {
                     audit_target: None,
-                    action: GatewayAction::AdminWrite,
+                    action: GatewayAction::AdminWrite.into(),
                     operation: AdministrativeOperation::ControlPlane,
                     started_at,
                     status: AdminOperationStatus::Failed,
@@ -257,7 +258,7 @@ pub(crate) async fn update_control_plane(
                 &subject,
                 AdminOperationAuditRecord {
                     audit_target: None,
-                    action: GatewayAction::AdminWrite,
+                    action: GatewayAction::AdminWrite.into(),
                     operation: AdministrativeOperation::ControlPlane,
                     started_at,
                     status: AdminOperationStatus::Failed,
@@ -296,7 +297,7 @@ pub(crate) async fn update_control_plane(
             &subject,
             AdminOperationAuditRecord {
                 audit_target: None,
-                action: GatewayAction::AdminWrite,
+                action: GatewayAction::AdminWrite.into(),
                 operation: AdministrativeOperation::ControlPlane,
                 started_at,
                 status: AdminOperationStatus::Failed,
@@ -318,7 +319,7 @@ pub(crate) async fn update_control_plane(
         &subject,
         AdminOperationAuditRecord {
             audit_target: None,
-            action: GatewayAction::AdminWrite,
+            action: GatewayAction::AdminWrite.into(),
             operation: AdministrativeOperation::ControlPlane,
             started_at,
             status: AdminOperationStatus::Succeeded,

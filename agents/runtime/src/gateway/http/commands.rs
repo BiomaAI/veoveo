@@ -1,9 +1,10 @@
+use crate::contract::AgentAction as Action;
 use axum::{
     Json,
     extract::{Extension, Path, State},
     http::{HeaderMap, StatusCode},
 };
-use veoveo_mcp_contract::{GatewayAction as Action, PolicyTarget, agent_management as wire};
+use veoveo_mcp_contract::{PolicyTarget, agent_management as wire};
 use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_platform_store::{PrincipalId, agent_management as domain};
 
@@ -37,6 +38,7 @@ async fn finish(
         &state.gateway,
         &actor.profile,
         &actor.subject,
+        &actor.catalog,
         PolicyTarget::Gateway,
         AdminOperationAuditRecord {
             audit_target: result.as_ref().ok().map(|definition| {
@@ -45,7 +47,8 @@ async fn finish(
                     &definition.id,
                 )
             }),
-            action: actor.action,
+            action: authority::policy_action(&actor.catalog, actor.action)
+                .map_err(|_| Fault::unavailable())?,
             operation: crate::gateway::http::audit::agent_management_operation(actor.action)
                 .map_err(|_| Fault::unavailable())?,
             started_at: actor.started,

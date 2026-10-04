@@ -3,9 +3,8 @@ use crate::{
 };
 use std::time::Duration;
 use uuid::Uuid;
-use veoveo_mcp_contract::{
-    GatewayAction, LocalToolName, PolicyEffect, PolicyTarget, ServerSlug, TraceId,
-};
+use veoveo_gateway_contract::GatewayAction;
+use veoveo_mcp_contract::{LocalToolName, PolicyEffect, PolicyTarget, ServerSlug, TraceId};
 use veoveo_types::WorkContextMembershipLevel;
 
 pub(crate) fn target() -> PolicyTarget {

@@ -12,7 +12,7 @@ use veoveo_computers::ComputerError;
 async fn reservation_receipts_admit_owner_clearance_before_decoding_and_never_reserve_again() {
     tokio::time::timeout(Duration::from_secs(90), async {
         let db = support::TestDb::new().await;
-        let store = veoveo_computers::ComputersStore::new(db.a.clone(), "00000000-0000-7000-8000-000000000001".parse::<veoveo_computers::api::ProviderInstanceId>().unwrap()).unwrap();
+        let store = veoveo_computers::ComputersStore::new(db.a.clone(), "00000000-0000-7000-8000-000000000001".parse::<veoveo_computers::api::ProviderInstanceId>().unwrap(), veoveo_gateway_catalog::registry().expect("installed owner catalog recipe")).unwrap();
         store.install_capacity(None, veoveo_computers::CapacityPolicy { per_owner: 2, per_tenant: 2, provider: 2 }).await.unwrap();
         let actor = support::authenticated(&support::owner("alice"));
         let input = veoveo_computers::Reservation {

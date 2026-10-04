@@ -1,3 +1,4 @@
+use veoveo_gateway_contract::ProtectedResourceId;
 #[allow(dead_code)]
 pub mod automation;
 use veoveo_task_runtime::TaskOwner;

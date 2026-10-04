@@ -11,14 +11,15 @@
 | RFC 3339 and SHA-256 | Catalog, layer, seal and playback timestamps decode to UTC values; layer, Blueprint and projection digests use the foundational digest type and lowercase 64-character hex on the wire. |
 | JSON and JSON Schema Draft 2020-12 | Public Recording views, seal requests/results, playback manifest v10, catalog grants and Arrow projection models. |
 | Recording catalog cursor version 1 | Collection-bound JSON encoded as lowercase hexadecimal, at most 2048 input bytes, with a timestamp and Recording ID. |
+| Veoveo producer HTTP ingest v1 | Producer, dataset, application and ingest-stream identities, quotas, Blueprint limits, retention and closed plain HTTP upstream configuration. The upstream rejects an MCP `transport` selector. |
+| Veoveo Recording policy | Six closed actions, producer/stream targets and the `recording_ingest_resources` JSON-array catalog section. Registration requires no MCP transport. |
 | Veoveo Recording resources | `recording://recordings/{UUIDv7}`, its `layers` child, the catalog, well-known documents and the Recording Explorer address. These are domain declarations; the crate implements no MCP transport. |
 
 ## Ownership And Dependencies
 
 This crate owns Recording's public IDs, resource addresses, cursors, permissions and data models.
 It depends on foundational types, the lightweight Artifact and Frames owner contracts, URL component handling, Serde, JSON Schema support,
-UUIDs and clock-free date/time values. It imports no server, Store, async runtime,
-Rerun or GPU library. Its URL dependency uses the workspace's qualified pin.
+UUIDs and clock-free date/time values. The default feature imports no server, MCP, Store, async runtime, Rerun or GPU library. The separately enabled `policy` feature consumes the shared policy evaluator and MCP policy models. That MCP-model dependency currently pulls Tokio, Axum and RMCP even with default features disabled; only the default contract graph is isolated from those runtime and transport libraries. Its URL dependency uses the workspace's qualified pin.
 
 Hub produces the same Recording identity that playback, analysis, UAV and acceptance
 clients consume.
@@ -177,3 +178,26 @@ Layer, manifest, seal, catalog-grant and recording-view builders implement owner
 ## Cursor Admission
 
 RecordingCatalogCursor uses an owner codec with private OpaqueCursor storage. Its hexadecimal JSON retains exact re-encoding equality, collection binding and the inline unconstrained String schema.
+
+
+## Producer Catalog And Policy
+
+`ingest` owns producer configuration and its resource/producer indexes. Admission
+checks uniqueness, positive limits, application membership, required ingest scope,
+authorization-server, policy, tenant and label references, and OAuth client agreement.
+Additional installation scopes remain admitted. Its pure catalog section publishes
+resource and producer rows through neutral descriptors; gateway core never enumerates
+Recording row kinds. Producer and stream audit addresses use the owner resource
+builder and preserve the `recording-hub` server identity.
+
+The optional pure policy adapter supplies producer labels and ingest selector checks
+to the shared principal matcher and rule-outcome assembler. The shared evaluator owns
+deny precedence and missing-condition diagnostics. The adapter requires its action
+key from the admitted registry and refuses layer publication on producer ingest.
+Layer publication uses the Recording server/resource descriptor instead.
+
+The coordinated installation cut removes `upstream.transport` from every producer
+HTTP endpoint before loading this profile. An old field fails decoding with an
+unknown-field diagnostic; there is no compatibility adapter. Normal MCP upstreams
+keep their required transport selector. Deployments require the installation's
+coordinated drain because mixed old/new configuration readers are unsupported.

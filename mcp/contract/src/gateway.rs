@@ -2,6 +2,11 @@ use std::collections::{BTreeMap, BTreeSet};
 #[cfg(test)]
 use veoveo_gateway_contract::AppResourceOperation;
 use veoveo_gateway_contract::{AppResourceDependency, AppToolDependency};
+use veoveo_gateway_contract::{
+    AuthorizationServerId, CertificateAuthoritySource, ProtectedResourceId, ProtectedResourceName,
+    SecretOwner, SecretPurpose, SecretReference, SecretReferenceId, UpstreamTransportSecurity,
+    UpstreamUrl,
+};
 use veoveo_types::{
     DataLabelId, DelegationId, GroupId, IdentifierError, PolicyVersion, PrincipalId,
     ResourceScheme, ResourceUri, RoleId, ScopeName, TenantId, WorkContextId,
@@ -22,7 +27,7 @@ use validation::{
 };
 use wire::{
     validate_https_url, validate_local_file_path, validate_mount_path, validate_oauth_endpoint_url,
-    validate_oauth_redirect_uri, validate_upstream_url,
+    validate_oauth_redirect_uri,
 };
 
 pub const MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION: &str =
@@ -31,6 +36,7 @@ pub const MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION: &str =
     "io.modelcontextprotocol/oauth-client-credentials";
 mod knowledge;
 mod policy;
+use veoveo_gateway_contract::GatewayAction;
 mod validation;
 mod wire;
 pub use policy::*;
@@ -50,10 +56,26 @@ mod branding;
 pub use branding::*;
 mod console;
 pub use console::*;
-mod recording_ingest;
-pub use recording_ingest::*;
+mod catalog_schema;
+mod catalog_wire;
+pub use catalog_schema::composed_gateway_schema;
+pub const GATEWAY_CORE_FIELDS: &[&str] = &[
+    "branding",
+    "identity_providers",
+    "authorization_servers",
+    "servers",
+    "profiles",
+    "tenants",
+    "work_contexts",
+    "policies",
+    "data_labels",
+    "oauth_clients",
+    "oidc_clients",
+    "secrets",
+    "metadata",
+];
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 pub struct GatewayControlPlane {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub branding: Option<InstallationBranding>,
@@ -61,8 +83,8 @@ pub struct GatewayControlPlane {
     pub authorization_servers: Vec<ResourceAuthorizationServer>,
     pub servers: Vec<ServerManifest>,
     pub profiles: Vec<GatewayProfile>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub recording_ingest_resources: Vec<RecordingIngestResource>,
+    #[serde(flatten)]
+    pub extensions: BTreeMap<String, Value>,
     pub tenants: Vec<TenantDefinition>,
     pub work_contexts: Vec<crate::WorkContextDefinition>,
     pub policies: Vec<PolicySet>,
@@ -132,7 +154,43 @@ impl GatewayControlPlane {
             .collect()
     }
 
-    pub fn validate(&self) -> Result<(), GatewayControlPlaneError> {
+    pub fn validate(
+        &self,
+        registry: &veoveo_gateway_contract::CatalogRegistry,
+    ) -> Result<veoveo_gateway_contract::AdmittedCatalogSections, GatewayControlPlaneError> {
+        registry
+            .check_reserved(
+                GATEWAY_CORE_FIELDS,
+                &[
+                    "gateway",
+                    "server",
+                    "tool",
+                    "resource",
+                    "resource_template",
+                    "prompt",
+                    "task",
+                    "platform_task",
+                    "artifact",
+                    "usage",
+                ],
+            )
+            .map_err(GatewayControlPlaneError::CatalogAdmission)?;
+        if self
+            .extensions
+            .keys()
+            .any(|key| GATEWAY_CORE_FIELDS.contains(&key.as_str()))
+        {
+            return Err(GatewayControlPlaneError::CatalogAdmission(
+                veoveo_types::ExtensionError::new("catalog section collides with a core field"),
+            ));
+        }
+        registry
+            .action_key::<GatewayAction>()
+            .map_err(GatewayControlPlaneError::CatalogAdmission)?;
+        let facts = self.catalog_facts();
+        let sections = registry
+            .admit_sections(&self.extensions, &facts)
+            .map_err(GatewayControlPlaneError::CatalogAdmission)?;
         if let Some(branding) = &self.branding {
             branding.validate()?;
         }
@@ -401,141 +459,40 @@ impl GatewayControlPlane {
             validate_profile_auth_modes(profile, identity_provider, authorization_server)?;
         }
 
-        let mut recording_ingest_resources = BTreeMap::new();
-        let mut recording_producers = BTreeSet::new();
-        for resource in &self.recording_ingest_resources {
-            if recording_ingest_resources
-                .insert(resource.id.clone(), resource)
+        let mut contributed_resources = BTreeMap::new();
+        for resource in sections.protected_resources() {
+            if contributed_resources
+                .insert(resource.name.clone(), resource)
                 .is_some()
+                || !protected_resources.insert(resource.resource.clone())
             {
-                return Err(GatewayControlPlaneError::DuplicateRecordingIngestResource(
-                    resource.id.clone(),
-                ));
-            }
-            if !protected_resources.insert(resource.protected_resource.clone()) {
                 return Err(GatewayControlPlaneError::DuplicateProtectedResource(
-                    resource.protected_resource.clone(),
+                    resource.resource.clone(),
                 ));
             }
-            if !authorization_servers.contains_key(&resource.authorization_server) {
-                return Err(GatewayControlPlaneError::InvalidRecordingIngestResource {
-                    resource: resource.id.clone(),
-                    reason: format!(
-                        "unknown authorization server `{}`",
-                        resource.authorization_server
-                    ),
-                });
-            }
-            if !policies.contains(&resource.policy_version) {
-                return Err(GatewayControlPlaneError::InvalidRecordingIngestResource {
-                    resource: resource.id.clone(),
-                    reason: format!("unknown policy version `{}`", resource.policy_version),
-                });
-            }
-            if resource.maximum_batch_bytes == 0 {
-                return Err(GatewayControlPlaneError::InvalidRecordingIngestResource {
-                    resource: resource.id.clone(),
-                    reason: "maximum_batch_bytes must be positive".to_owned(),
-                });
-            }
-            if resource.required_scopes.is_empty() {
-                return Err(GatewayControlPlaneError::InvalidRecordingIngestResource {
-                    resource: resource.id.clone(),
-                    reason: "required_scopes must not be empty".to_owned(),
-                });
-            }
-            if resource.upstream.security != UpstreamTransportSecurity::ClusterInternalHttp
-                || resource
-                    .upstream
-                    .url
-                    .parsed()
-                    .ok()
-                    .is_none_or(|url| url.scheme() != "http")
+            if !authorization_servers.contains_key(&resource.authorization_server)
+                || !policies.contains(&resource.policy_version)
             {
-                return Err(GatewayControlPlaneError::InvalidRecordingIngestResource {
-                    resource: resource.id.clone(),
-                    reason: "upstream must use cluster_internal_http over HTTP".to_owned(),
-                });
-            }
-            if resource.producers.is_empty() {
-                return Err(GatewayControlPlaneError::InvalidRecordingIngestResource {
-                    resource: resource.id.clone(),
-                    reason: "at least one recording producer is required".to_owned(),
-                });
-            }
-            for producer in &resource.producers {
-                if !recording_producers.insert(producer.id.clone()) {
-                    return Err(GatewayControlPlaneError::DuplicateRecordingProducer(
-                        producer.id.clone(),
-                    ));
-                }
-                if !tenants.contains(&producer.tenant) {
-                    return Err(GatewayControlPlaneError::InvalidRecordingIngestResource {
-                        resource: resource.id.clone(),
-                        reason: format!(
-                            "producer `{}` references unknown tenant `{}`",
-                            producer.id, producer.tenant
-                        ),
-                    });
-                }
-                if !producer
-                    .single_recording_application_ids
-                    .is_subset(&producer.allowed_application_ids)
-                {
-                    return Err(GatewayControlPlaneError::InvalidRecordingIngestResource {
-                        resource: resource.id.clone(),
-                        reason: format!(
-                            "producer `{}` names a single-recording application outside its allowlist",
-                            producer.id
-                        ),
-                    });
-                }
-                if producer.allowed_application_ids.is_empty()
-                    || producer.classification.trim().is_empty()
-                    || producer.quotas.maximum_concurrent_streams == 0
-                    || producer.quotas.maximum_batches_per_minute == 0
-                    || producer.quotas.maximum_bytes_per_day == 0
-                    || producer.quotas.maximum_stream_bytes == 0
-                    || (producer.blueprints.enabled
-                        && (producer.blueprints.maximum_bytes == 0
-                            || producer.blueprints.maximum_bytes > resource.maximum_batch_bytes
-                            || producer.blueprints.maximum_messages == 0
-                            || producer.blueprints.maximum_revisions == 0))
-                    || producer.retention.open_stream_days == 0
-                {
-                    return Err(GatewayControlPlaneError::InvalidRecordingIngestResource {
-                        resource: resource.id.clone(),
-                        reason: format!(
-                            "producer `{}` has an empty allowlist or non-positive policy limit",
-                            producer.id
-                        ),
-                    });
-                }
-                if let Some(label) = producer
-                    .labels
-                    .iter()
-                    .find(|label| !data_labels.contains(*label))
-                {
-                    return Err(GatewayControlPlaneError::InvalidRecordingIngestResource {
-                        resource: resource.id.clone(),
-                        reason: format!(
-                            "producer `{}` references unknown data label `{label}`",
-                            producer.id
-                        ),
-                    });
-                }
+                return Err(GatewayControlPlaneError::CatalogAdmission(
+                    veoveo_types::ExtensionError::new(
+                        "contributed protected resource references unknown authorization server or policy",
+                    ),
+                ));
             }
         }
 
         for policy in &self.policies {
             validate_policy_set(
                 policy,
-                &profiles,
-                &protected_resources,
-                &servers,
-                &resource_schemes,
-                &data_labels,
-                &tenants,
+                validation::PolicyValidation {
+                    profiles: &profiles,
+                    protected_resources: &protected_resources,
+                    servers: &servers,
+                    resource_schemes: &resource_schemes,
+                    data_labels: &data_labels,
+                    tenants: &tenants,
+                    registry,
+                },
             )?;
         }
 
@@ -626,7 +583,7 @@ impl GatewayControlPlane {
                 client,
                 &authorization_servers,
                 &profile_by_id,
-                &recording_ingest_resources,
+                &contributed_resources,
                 &policy_by_id,
                 &servers,
                 &secret_refs,
@@ -666,43 +623,6 @@ impl GatewayControlPlane {
                         mode: client.invocation_mode,
                     },
                 );
-            }
-        }
-        for resource in &self.recording_ingest_resources {
-            for producer in &resource.producers {
-                let Some(client) = self
-                    .oauth_clients
-                    .iter()
-                    .find(|client| client.id == producer.oauth_client)
-                else {
-                    return Err(GatewayControlPlaneError::InvalidRecordingIngestResource {
-                        resource: resource.id.clone(),
-                        reason: format!(
-                            "producer `{}` references unknown OAuth client `{}`",
-                            producer.id, producer.oauth_client
-                        ),
-                    });
-                };
-                if client.authorization_server != resource.authorization_server
-                    || !client
-                        .allowed_resources
-                        .contains(&resource.protected_resource)
-                    || client.tenant.as_ref() != Some(&producer.tenant)
-                    || !client
-                        .grant_types
-                        .contains(&OAuthGrantType::ClientCredentials)
-                    || !client
-                        .auth_methods
-                        .contains(&OAuthClientAuthMethod::PrivateKeyJwt)
-                {
-                    return Err(GatewayControlPlaneError::InvalidRecordingIngestResource {
-                        resource: resource.id.clone(),
-                        reason: format!(
-                            "producer `{}` OAuth client is not bound to the resource, tenant, and private_key_jwt client-credentials grant",
-                            producer.id
-                        ),
-                    });
-                }
             }
         }
         for profile in &self.profiles {
@@ -749,7 +669,7 @@ impl GatewayControlPlane {
             }
         }
 
-        Ok(())
+        Ok(sections)
     }
 }
 

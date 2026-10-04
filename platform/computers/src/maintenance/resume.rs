@@ -179,7 +179,7 @@ impl ComputersStore {
             }
             after.validate_progress()?;
             let decision = authority.decision(
-                veoveo_mcp_contract::GatewayAction::ToolsCall,
+                veoveo_gateway_contract::GatewayAction::ToolsCall,
                 &resume_target(),
                 &veoveo_mcp_contract::TraceId::new(input.request_id.to_string())
                     .expect("UUID trace"),

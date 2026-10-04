@@ -78,7 +78,7 @@ async fn operation_policy_and_participant_checks_precede_private_state_decoding(
         for denied in mismatched_claims(&claim) {
             assert!(matches!(store.operation_for_claim(&denied).await, Err(ComputerError::StateConflict)));
         }
-        let wrong_provider = veoveo_computers::ComputersStore::new(db.b.clone(), "00000000-0000-7000-8000-000000000063".parse::<veoveo_computers::api::ProviderInstanceId>().unwrap()).unwrap();
+        let wrong_provider = veoveo_computers::ComputersStore::new(db.b.clone(), "00000000-0000-7000-8000-000000000063".parse::<veoveo_computers::api::ProviderInstanceId>().unwrap(), veoveo_gateway_catalog::registry().expect("installed owner catalog recipe")).unwrap();
         assert!(matches!(wrong_provider.operation_for_claim(&claim).await, Err(ComputerError::StateConflict)));
         assert!(matches!(store.operation_for_claim(&claim).await, Err(ComputerError::Unavailable)));
         let other = support::authenticated(&support::owner("bob"));
@@ -120,6 +120,7 @@ async fn command_metadata_requires_current_execute_or_owner_read_before_decoding
             "00000000-0000-7000-8000-000000000063"
                 .parse::<veoveo_computers::api::ProviderInstanceId>()
                 .unwrap(),
+            veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
         )
         .unwrap();
         assert!(matches!(
@@ -206,6 +207,7 @@ async fn file_metadata_requires_current_execute_or_owner_read_before_decoding() 
             "00000000-0000-7000-8000-000000000063"
                 .parse::<veoveo_computers::api::ProviderInstanceId>()
                 .unwrap(),
+            veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
         )
         .unwrap();
         assert!(matches!(

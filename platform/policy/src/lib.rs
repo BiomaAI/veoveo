@@ -7,6 +7,7 @@ pub use resource_reads::admit_resource_reads;
 pub mod session;
 pub use catalog::{PolicyCatalog, PolicyCatalogView};
 pub use evaluation::{
-    PolicyRequest, RecordingIngestPolicyDecision, RecordingIngestPolicyRequest, decide,
-    decide_recording_ingest, exposure_contains, mcp_method_name, resource_scheme_from_uri,
+    PolicyRequest, RuleMatchDetail, RuleOutcome, assemble_rule_outcome, decide, exposure_contains,
+    intersects, mcp_method_name, principal_rule_conditions, remember_strongest_missing_requirement,
+    resource_scheme_from_uri, strongest_missing_rule_detail,
 };

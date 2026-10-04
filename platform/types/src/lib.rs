@@ -25,6 +25,8 @@ pub use id::Identity;
 pub use veoveo_macros::{Id, ResourceAddress, Vocabulary, embedded_document};
 pub use vocabulary::{Vocabulary, is_scope_token, scope_vocabulary_schema};
 
+mod actions;
+pub use actions::{ActionHandle, ActionKey, ActionName, ActionRegistry, ActionRegistryBuilder};
 mod access_grant;
 mod checked;
 mod extensions;

@@ -99,12 +99,6 @@ pub enum JwksSource {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case", tag = "source")]
-pub enum CertificateAuthoritySource {
-    File { path: CertificateAuthorityFilePath },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct OAuthClientRegistration {
     /// Explicit collection grant for the installation's indexing machine client.
     #[serde(default, skip_serializing_if = "Option::is_none")]

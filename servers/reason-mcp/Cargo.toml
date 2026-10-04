@@ -116,6 +116,8 @@ veoveo-artifact-mcp = { path = "../artifact-mcp", default-features = false, feat
 veoveo-mcp-knowledge-extension = { workspace = true, features = ["contract"], optional = true }
 
 [dev-dependencies]
+veoveo-gateway-contract.workspace = true
+veoveo-gateway-catalog.workspace = true
 axum.workspace = true
 veoveo-deploy-contract.workspace = true
 veoveo-embedding-contract.workspace = true

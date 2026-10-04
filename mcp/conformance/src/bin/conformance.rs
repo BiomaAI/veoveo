@@ -3,6 +3,7 @@
 //! Exercises every surface the server exposes: authorization discovery, resources (+templates),
 //! completions, final-extension tasks, subscriptions, and notifications
 //! (progress, tasks/status, resources/updated, resources/list_changed).
+use veoveo_gateway_contract::SecretReference;
 
 use std::{
     collections::BTreeMap,
@@ -68,10 +69,10 @@ use veoveo_mcp_contract::{
     McpSurfaceCapabilities, OAuthClientRegistration, ObjectStoreDeployment,
     PlatformStoreDeployment, PolicyDecision, PolicyRule, PolicySet, Principal,
     PrincipalAuditAttributes, PrincipalKind, ProfileServerExposure, ResourceAuthorizationServer,
-    SecretManagerDeployment, SecretReference, SelfHostedDeploymentPlan,
-    SelfHostedDeploymentProfile, ServerManifest, ServerResourceUris, ServerSlug,
-    ServiceToServiceSecurity, TelemetryDeployment, TenantDefinition, TenantModel, TokenIssuer,
-    TokenSubject, UpstreamEndpoint, UsageRecord, UsageReport,
+    SecretManagerDeployment, SelfHostedDeploymentPlan, SelfHostedDeploymentProfile, ServerManifest,
+    ServerResourceUris, ServerSlug, ServiceToServiceSecurity, TelemetryDeployment,
+    TenantDefinition, TenantModel, TokenIssuer, TokenSubject, UpstreamEndpoint, UsageRecord,
+    UsageReport,
 };
 use veoveo_types::{
     AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, ScopeName, TenantId,

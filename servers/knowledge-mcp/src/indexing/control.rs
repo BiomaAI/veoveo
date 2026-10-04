@@ -5,7 +5,8 @@ use crate::{
 };
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
-use veoveo_mcp_contract::{GatewayControlPlane, OAuthEndpointUrl, ProtectedResourceId};
+use veoveo_gateway_contract::ProtectedResourceId;
+use veoveo_mcp_contract::{GatewayControlPlane, OAuthEndpointUrl};
 use veoveo_platform_store::PlatformStore;
 use veoveo_policy::PolicyCatalog;
 use veoveo_types::{ScopeName, Sha256Digest, WorkContextId};
@@ -21,6 +22,7 @@ pub(super) struct Selection {
 pub(super) async fn select(
     store: &PlatformStore,
     config: &IndexingConfig,
+    registry: &veoveo_gateway_contract::CatalogRegistry,
 ) -> Result<Selection, ServiceError> {
     let revision = store
         .active_gateway_control_revision()
@@ -38,7 +40,8 @@ pub(super) async fn select(
     if digest.hex() != revision.sha256 {
         return Err(ServiceError::MachineConfiguration);
     }
-    let catalog = PolicyCatalog::new(plane).map_err(|_| ServiceError::MachineConfiguration)?;
+    let catalog = PolicyCatalog::new(plane, registry.clone())
+        .map_err(|_| ServiceError::MachineConfiguration)?;
     let plane = catalog.control_plane();
     // One tenant has one active index generation and one approved source set.
     let clients = plane

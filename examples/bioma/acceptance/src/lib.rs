@@ -43,7 +43,7 @@ mod tests {
         let mut bioma = load("examples/bioma/gateway.json");
         serde_json::from_value::<GatewayControlPlane>(bioma.clone())
             .expect("Bioma control plane contract")
-            .validate()
+            .validate(&veoveo_gateway_catalog::registry().expect("catalog declarations"))
             .expect("valid Bioma control plane");
 
         let identity = &bioma["identity_providers"][0];
@@ -76,7 +76,7 @@ mod tests {
         };
         assert_eq!(server_surface(&bioma), server_surface(&local));
         let ingest_surface = |value: &Value| {
-            let mut resources: Vec<veoveo_mcp_contract::RecordingIngestResource> =
+            let mut resources: Vec<veoveo_recording_contract::RecordingIngestResource> =
                 serde_json::from_value(value["recording_ingest_resources"].clone()).unwrap();
             // The installation selects policy. Typed validation above checks that
             // its reference exists; protocol and producer limits still agree.
@@ -168,9 +168,7 @@ mod tests {
         let catalog = GatewayCatalog::load_json(
             repository_root().join("examples/bioma/gateway.json"),
             veoveo_mcp_gateway::GatewayCatalogAdmission::unbound()
-                .bind(std::sync::Arc::new(
-                    veoveo_recording_mcp::gateway::RecordingCatalogAdmission,
-                ))
+                .bind(veoveo_gateway_catalog::registry().unwrap())
                 .unwrap(),
         )
         .expect("Computers installation catalog");
@@ -215,9 +213,7 @@ mod tests {
         let catalog = GatewayCatalog::load_json(
             &path,
             veoveo_mcp_gateway::GatewayCatalogAdmission::unbound()
-                .bind(std::sync::Arc::new(
-                    veoveo_recording_mcp::gateway::RecordingCatalogAdmission,
-                ))
+                .bind(veoveo_gateway_catalog::registry().unwrap())
                 .unwrap(),
         )
         .expect("load Bioma control plane");

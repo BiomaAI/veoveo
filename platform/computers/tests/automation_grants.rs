@@ -1,3 +1,5 @@
+use veoveo_gateway_contract::OAuthClientId;
+use veoveo_gateway_contract::ProtectedResourceId;
 mod support;
 use chrono::{TimeDelta, Utc};
 use veoveo_computers::{
@@ -171,6 +173,7 @@ async fn automation_uses_its_own_principal_and_survives_the_grantors_browser_log
     let foreign = ComputersStore::new(
         db.b.clone(),
         veoveo_computers::api::ProviderInstanceId::new(),
+        veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
     )
     .unwrap();
     assert!(matches!(
@@ -244,7 +247,7 @@ async fn a_user_principal_can_receive_a_grant_but_cannot_change_its_oauth_client
         .find(|client| client.id.as_str() == "console")
         .unwrap()
         .clone();
-    client.id = veoveo_mcp_contract::OAuthClientId::new("console-secondary").unwrap();
+    client.id = veoveo_gateway_contract::OAuthClientId::new("console-secondary").unwrap();
     current.work_contexts[0].memberships[0]
         .oauth_clients
         .insert(client.id.clone());
@@ -456,9 +459,7 @@ async fn invalid_bounds_unknown_principals_and_foreign_owners_create_no_grants()
 
 #[tokio::test]
 async fn owner_grant_choices_follow_current_permissions_and_registration_scope() {
-    use veoveo_mcp_contract::{
-        AuthMode, GatewayProfileId, LocalToolName, OAuthClientId, ProtectedResourceId,
-    };
+    use veoveo_mcp_contract::{AuthMode, GatewayProfileId, LocalToolName};
     let db = support::TestDb::new().await;
     let (a, _, owner, _, computer) = setup(&db).await;
     let inventory = a.list_automation_grants(&owner, computer).await.unwrap();
@@ -540,7 +541,7 @@ async fn owner_grant_choices_follow_current_permissions_and_registration_scope()
 
 #[tokio::test]
 async fn owner_grant_choices_are_bounded_and_do_not_limit_exact_client_issuance() {
-    use veoveo_mcp_contract::OAuthClientId;
+    use veoveo_gateway_contract::OAuthClientId;
     let db = support::TestDb::new().await;
     let (a, _, owner, _, computer) = setup(&db).await;
     let mut current = control();

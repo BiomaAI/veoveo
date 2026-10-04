@@ -1,4 +1,5 @@
 //! Authoring and publication compose existing policy, store and native discovery.
+use crate::contract::AgentAction as Action;
 mod audit;
 pub(crate) mod authority;
 mod commands;
@@ -28,7 +29,7 @@ use axum::{
 use serde::Deserialize;
 use tokio_util::sync::CancellationToken;
 use tower_http::set_header::SetResponseHeaderLayer;
-use veoveo_mcp_contract::{GatewayAction as Action, agent_management as wire};
+use veoveo_mcp_contract::agent_management as wire;
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayCatalogHandle, GatewayState};
 use veoveo_platform_store::{PlatformStore, agent_management as domain};
 

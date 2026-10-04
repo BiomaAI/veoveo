@@ -417,6 +417,7 @@ async fn canonical_http_and_mcp_share_one_private_idempotent_task_across_replica
         "00000000-0000-7000-8000-000000000064"
             .parse::<veoveo_computers::api::ProviderInstanceId>()
             .unwrap(),
+        veoveo_gateway_catalog::registry().expect("installed owner catalog recipe"),
     )
     .unwrap()
     .abort_undispatched(

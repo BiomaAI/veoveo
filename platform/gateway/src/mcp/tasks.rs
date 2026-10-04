@@ -3,7 +3,7 @@ use rmcp::{
     model::{CancelTaskParams, GetTaskParams, GetTaskResult, UpdateTaskParams},
     service::{RequestContext, RoleServer},
 };
-use veoveo_mcp_contract::GatewayAction;
+use veoveo_gateway_contract::GatewayAction;
 
 use crate::mcp_support::{mcp_internal, mcp_invalid_params};
 

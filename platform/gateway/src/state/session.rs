@@ -1,7 +1,8 @@
 //! Current browser-family binding for signed access tokens. Never cache positive results.
 use anyhow::{Context, Result};
 use chrono::Utc;
-use veoveo_mcp_contract::{AccessTokenSubject, AuthorizationServerId, GatewayProfileId, Principal};
+use veoveo_gateway_contract::AuthorizationServerId;
+use veoveo_mcp_contract::{AccessTokenSubject, GatewayProfileId, Principal};
 use veoveo_platform_store::{GatewayRefreshFamilyRecord, gateway_refresh_family_record_id};
 
 use super::GatewayState;

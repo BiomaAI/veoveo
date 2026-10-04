@@ -1,5 +1,6 @@
 use super::*;
-use veoveo_mcp_contract::{GatewayRequestContext, OAuthClientId, ProtectedResourceId};
+use veoveo_gateway_contract::ProtectedResourceId;
+use veoveo_mcp_contract::{GatewayRequestContext, OAuthClientId};
 
 /// Client handler that surfaces every server-initiated notification.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

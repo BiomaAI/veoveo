@@ -1,17 +1,18 @@
 use std::{collections::BTreeSet, num::NonZeroU32};
 use veoveo_audit_contract::*;
+use veoveo_gateway_contract::AuthorizationServerId;
 
 use chrono::{TimeDelta, Utc};
 use futures::future::join_all;
 use secrecy::SecretString;
 use uuid::Uuid;
 use veoveo_mcp_contract::{
-    AuthMethod, AuthReasonCode, AuthorizationServerId, GatewayAuthorizationCodeRecord,
-    GatewayAuthorizationRequest, GatewayJwtRevocation, GatewayProfileId,
-    GatewayResourceSubscription, JwtId, OAuthAuthorizationCode, OAuthClientId, OAuthRedirectUri,
-    OAuthStateValue, OidcClientRegistrationId, OidcNonce, PkceCodeChallenge,
-    PkceCodeChallengeMethod, PkceCodeVerifier, Principal, PrincipalDisplayName, PrincipalKind,
-    ServerSlug, TokenIssuer, TokenSubject,
+    AuthMethod, AuthReasonCode, GatewayAuthorizationCodeRecord, GatewayAuthorizationRequest,
+    GatewayJwtRevocation, GatewayProfileId, GatewayResourceSubscription, JwtId,
+    OAuthAuthorizationCode, OAuthClientId, OAuthRedirectUri, OAuthStateValue,
+    OidcClientRegistrationId, OidcNonce, PkceCodeChallenge, PkceCodeChallengeMethod,
+    PkceCodeVerifier, Principal, PrincipalDisplayName, PrincipalKind, ServerSlug, TokenIssuer,
+    TokenSubject,
 };
 use veoveo_mcp_gateway::{
     GatewayRefreshDeliveryWindow, GatewayRefreshExchange, GatewayRefreshIssueRequest,

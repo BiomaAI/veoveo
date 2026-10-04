@@ -12,7 +12,18 @@ fn contract_schema<T: schemars::JsonSchema>(filename: &'static str) -> Result<Co
     })
 }
 
+fn gateway_contract_schema<T: schemars::JsonSchema>(
+    filename: &'static str,
+    registry: &veoveo_gateway_contract::CatalogRegistry,
+) -> Result<ContractSchema> {
+    Ok(ContractSchema {
+        filename,
+        schema: serde_json::to_value(veoveo_mcp_contract::composed_gateway_schema::<T>(registry))?,
+    })
+}
+
 fn contract_schemas() -> Result<Vec<ContractSchema>> {
+    let registry = veoveo_gateway_catalog::registry()?;
     Ok(vec![
         contract_schema::<veoveo_mcp_conformance::HostedServerConformanceProfile>(
             "mcp-conformance-profile.schema.json",
@@ -20,9 +31,13 @@ fn contract_schemas() -> Result<Vec<ContractSchema>> {
         contract_schema::<veoveo_mcp_conformance::ConformanceReport>(
             "mcp-conformance-report.schema.json",
         )?,
-        contract_schema::<GatewayControlPlane>("gateway-control-plane.schema.json")?,
-        contract_schema::<GatewayControlPlaneRevision>(
+        gateway_contract_schema::<GatewayControlPlane>(
+            "gateway-control-plane.schema.json",
+            &registry,
+        )?,
+        gateway_contract_schema::<GatewayControlPlaneRevision>(
             "gateway-control-plane-revision.schema.json",
+            &registry,
         )?,
         contract_schema::<ServerManifest>("server-manifest.schema.json")?,
         contract_schema::<GatewayProfile>("gateway-profile.schema.json")?,
@@ -38,14 +53,14 @@ fn contract_schemas() -> Result<Vec<ContractSchema>> {
         contract_schema::<IdentityProviderOidcClientRegistration>(
             "identity-provider-oidc-client-registration.schema.json",
         )?,
-        contract_schema::<PolicySet>("policy-set.schema.json")?,
-        contract_schema::<PolicyRule>("policy-rule.schema.json")?,
+        gateway_contract_schema::<PolicySet>("policy-set.schema.json", &registry)?,
+        gateway_contract_schema::<PolicyRule>("policy-rule.schema.json", &registry)?,
         contract_schema::<DataLabelDefinition>("data-label-definition.schema.json")?,
         contract_schema::<TenantDefinition>("tenant-definition.schema.json")?,
         contract_schema::<Principal>("principal.schema.json")?,
         contract_schema::<PrincipalAuditAttributes>("principal-audit-attributes.schema.json")?,
         contract_schema::<AccessTokenSubject>("access-token-subject.schema.json")?,
-        contract_schema::<PolicyDecision>("policy-decision.schema.json")?,
+        gateway_contract_schema::<PolicyDecision>("policy-decision.schema.json", &registry)?,
         contract_schema::<veoveo_mcp_contract::audit::AuditRecord>("audit-record.schema.json")?,
         contract_schema::<veoveo_mcp_contract::audit::AuditBlock>("audit-block.schema.json")?,
         contract_schema::<GatewayJwtRevocationRequest>(

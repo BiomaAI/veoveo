@@ -4,8 +4,9 @@ use crate::{ComputerError, ComputersStore, Operation, Result, api::Action};
 use chrono::{DateTime, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
+use veoveo_gateway_contract::GatewayAction;
 use veoveo_mcp_contract::{
-    GatewayAction, LocalToolName, PolicyDecision, PolicyEffect, PolicyTarget, ServerSlug, TraceId,
+    LocalToolName, PolicyDecision, PolicyEffect, PolicyTarget, ServerSlug, TraceId,
 };
 use veoveo_platform_store::RecordId;
 use veoveo_types::WorkContextMembershipLevel;
@@ -43,7 +44,7 @@ impl ExecutionDecision {
             || self.decision.profile != accepted.profile
             || self.decision.principal.as_ref() != Some(&accepted.request_context.principal.id)
             || self.decision.tenant.as_ref() != Some(&accepted.invocation.tenant)
-            || self.decision.action != GatewayAction::ToolsCall
+            || self.decision.action != GatewayAction::ToolsCall.into()
             || self.decision.target != execution_target(operation.action)
             || self.decision.trace_id.as_str() != operation.operation_id.to_string()
         {
@@ -59,7 +60,7 @@ impl ExecutionDecision {
                         == Some(operation.owner.principal_key.as_str())
                     && grant.owner.tenant.as_ref().map(|t| t.as_str())
                         == Some(operation.owner.tenant_key())
-                    && grant.owner.action == GatewayAction::ToolsCall
+                    && grant.owner.action == GatewayAction::ToolsCall.into()
                     && grant.owner.target == execution_target(operation.action)
                     && grant.owner.trace_id == self.decision.trace_id => {}
             _ => return Err(ComputerError::Unavailable),

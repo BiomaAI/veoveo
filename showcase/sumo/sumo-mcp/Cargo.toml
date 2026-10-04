@@ -39,5 +39,6 @@ veoveo-artifact-client = { path = "../../../platform/artifacts/client" }
 veoveo-task-runtime = { path = "../../../platform/task-runtime" }
 
 [dev-dependencies]
+veoveo-gateway-catalog.workspace = true
 tempfile = "3"
 tower = { workspace = true, features = ["util"] }
