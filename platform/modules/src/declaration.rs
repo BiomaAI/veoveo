@@ -233,15 +233,49 @@ impl MigrationLane {
     }
 }
 
+/// Checked owner identity and claims, independent of a deployment execution host.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ModuleSetup {
+pub struct ModuleOwnership {
     name: ModuleName,
     layer: ModuleLayer,
     ownership: Vec<OwnershipClaim>,
+}
+impl ModuleOwnership {
+    pub fn new(
+        name: ModuleName,
+        layer: ModuleLayer,
+        ownership: Vec<OwnershipClaim>,
+    ) -> Result<Self, DeclarationError> {
+        for (index, claim) in ownership.iter().enumerate() {
+            if ownership[..index].iter().any(|other| other.overlaps(claim)) {
+                return Err(DeclarationError::new("overlapping ownership claims"));
+            }
+        }
+        Ok(Self {
+            name,
+            layer,
+            ownership,
+        })
+    }
+    pub fn name(&self) -> &ModuleName {
+        &self.name
+    }
+    pub fn layer(&self) -> ModuleLayer {
+        self.layer
+    }
+    pub fn ownership(&self) -> &[OwnershipClaim] {
+        &self.ownership
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ModuleSetup {
+    ownership: ModuleOwnership,
     lane: MigrationLane,
     execution: LaneExecution,
     requires: Vec<LaneRequirement>,
     extensions: Vec<ExtensionBinding>,
+    sql_apis: Vec<KernelSqlApi>,
 }
 impl ModuleSetup {
     pub fn builder(name: ModuleName, layer: ModuleLayer) -> ModuleSetupBuilder {
@@ -253,16 +287,25 @@ impl ModuleSetup {
             execution: None,
             requires: Vec::new(),
             extensions: Vec::new(),
+            sql_apis: Vec::new(),
         }
     }
+    pub fn from_ownership(ownership: ModuleOwnership) -> ModuleSetupBuilder {
+        let mut builder = Self::builder(ownership.name.clone(), ownership.layer);
+        builder.ownership = ownership.ownership;
+        builder
+    }
+    pub fn ownership_declaration(&self) -> &ModuleOwnership {
+        &self.ownership
+    }
     pub fn name(&self) -> &ModuleName {
-        &self.name
+        self.ownership.name()
     }
     pub fn layer(&self) -> ModuleLayer {
-        self.layer
+        self.ownership.layer()
     }
     pub fn ownership(&self) -> &[OwnershipClaim] {
-        &self.ownership
+        self.ownership.ownership()
     }
     pub fn lane(&self) -> &MigrationLane {
         &self.lane
@@ -272,6 +315,9 @@ impl ModuleSetup {
     }
     pub fn requires(&self) -> &[LaneRequirement] {
         &self.requires
+    }
+    pub fn sql_apis(&self) -> &[KernelSqlApi] {
+        &self.sql_apis
     }
     pub fn extensions(&self) -> &[ExtensionBinding] {
         &self.extensions
@@ -286,6 +332,7 @@ pub struct ModuleSetupBuilder {
     execution: Option<LaneExecution>,
     requires: Vec<LaneRequirement>,
     extensions: Vec<ExtensionBinding>,
+    sql_apis: Vec<KernelSqlApi>,
 }
 impl ModuleSetupBuilder {
     pub fn ownership(mut self, value: Vec<OwnershipClaim>) -> Self {
@@ -308,8 +355,41 @@ impl ModuleSetupBuilder {
         self.extensions = value;
         self
     }
+    pub fn sql_apis(mut self, value: Vec<KernelSqlApi>) -> Self {
+        self.sql_apis = value;
+        self
+    }
     pub fn build(self) -> Result<ModuleSetup, DeclarationError> {
         check_requirements(&self.requires)?;
+        let mut exports = std::collections::BTreeSet::new();
+        for api in &self.sql_apis {
+            if self.layer != ModuleLayer::Kernel
+                || !api
+                    .name()
+                    .as_str()
+                    .starts_with(&format!("fn::kernel::{}::", self.name))
+                || !exports.insert(api.name())
+                || !self
+                    .ownership
+                    .iter()
+                    .any(|c| c.matches(ObjectKind::Function, api.name().as_str()))
+                || !self
+                    .lane
+                    .migrations()
+                    .iter()
+                    .any(|m| m.version() == api.introduced())
+                || api.reads().tables().iter().any(|t| {
+                    !self
+                        .ownership
+                        .iter()
+                        .any(|c| c.matches(ObjectKind::Table, t.as_str()))
+                })
+            {
+                return Err(DeclarationError::new(
+                    "SQL API must be a unique kernel-owned export introduced in its lane with owned reads",
+                ));
+            }
+        }
         if self.requires.iter().any(|r| r.module() == &self.name) {
             return Err(DeclarationError::new("module cannot require itself"));
         }
@@ -328,15 +408,14 @@ impl ModuleSetupBuilder {
             }
         }
         Ok(ModuleSetup {
-            name: self.name,
-            layer: self.layer,
-            ownership: self.ownership,
+            ownership: ModuleOwnership::new(self.name, self.layer, self.ownership)?,
             lane: self.lane,
             execution: self
                 .execution
                 .ok_or_else(|| DeclarationError::new("module lane execution must be declared"))?,
             requires: self.requires,
             extensions: self.extensions,
+            sql_apis: self.sql_apis,
         })
     }
 }

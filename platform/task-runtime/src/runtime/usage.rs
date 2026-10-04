@@ -9,13 +9,7 @@ use surrealdb::{Connection, method::Query};
 use veoveo_platform_store::{DomainUsageRecord, RecordId, task_record_id};
 use veoveo_types::TaskId;
 
-const VISIBLE_USAGE: &str = "server = $server AND tenant = $tenant
-    AND task.server = $server AND task.tenant = $tenant
-    AND task.owner = $owner AND task.profile = $profile
-    AND task.request.owner.principal_key = $principal_key
-    AND task.request.owner.profile = $profile_key
-    AND (task.request.owner.tenant_key ?? NONE) = $tenant_key
-    AND task.request.owner.data_labels ALLINSIDE $labels";
+const VISIBLE_USAGE: &str = include_str!("../../queries/usage_visible.surql");
 
 /// The domain selects its policy explicitly for every usage or Task admission read.
 /// Both variants enforce `TaskOwner::allows`. `WorkContext` additionally requires

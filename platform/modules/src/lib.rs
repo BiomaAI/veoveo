@@ -18,9 +18,11 @@
 mod declaration;
 mod names;
 mod registry;
+mod sql_api;
 pub use declaration::*;
 pub use names::*;
 pub use registry::*;
+pub use sql_api::*;
 
 #[cfg(feature = "runner")]
 pub mod runner;

@@ -111,6 +111,7 @@ struct Worker {
 
 #[derive(Clone)]
 pub struct TaskRuntime {
+    pub(crate) contributions: crate::contributions::ContributionRegistry,
     store: PlatformStore,
     server: String,
     worker_id: String,
@@ -142,6 +143,7 @@ impl TaskRuntime {
         worker_id: impl Into<String>,
     ) -> Self {
         Self {
+            contributions: Default::default(),
             store,
             server: server.into(),
             worker_id: worker_id.into(),
@@ -165,6 +167,7 @@ impl TaskRuntime {
 
     pub async fn create(&self, draft: CreateTask) -> Result<CreateTaskResult, TaskError> {
         validate_task_id(draft.task_id)?;
+        self.check_contribution(&draft.task_type)?;
         if draft.server != self.server {
             return Err(TaskError::WrongServer(draft.server));
         }
@@ -195,6 +198,8 @@ impl TaskRuntime {
         let task_id = draft.task_id;
         let record = task_record_id(task_id);
         let now = Utc::now();
+        let contribution = self.creation_contribution(&draft, now)?;
+        let contribution_sql = contribution.sql(true)?;
         let retention = draft
             .ttl_ms
             .and_then(|ttl| TimeDelta::try_milliseconds(ttl as i64))
@@ -261,16 +266,19 @@ impl TaskRuntime {
                 created_at: now,
             };
             for attempt in 0..MAX_TRANSACTION_ATTEMPTS {
-                let result = self
+                let query = self
                     .store
                     .client()
                     .query(
-                        "BEGIN TRANSACTION; CREATE ONLY $idempotency CONTENT $link RETURN NONE; CREATE ONLY $task CONTENT $content RETURN NONE; COMMIT TRANSACTION;",
+                        include_str!("../queries/create_idempotent.surql")
+                            .replace("/* creation contribution */", contribution_sql),
                     )
                     .bind(("idempotency", idempotency.clone()))
                     .bind(("link", link.clone()))
                     .bind(("task", task_record_id(task_id)))
-                    .bind(("content", content.clone()))
+                    .bind(("content", content.clone()));
+                let result = contribution
+                    .bind(query, task_id, &draft.task_type, now)
                     .await
                     .and_then(|response| response.check());
                 match result {
@@ -293,13 +301,17 @@ impl TaskRuntime {
                 }
             }
         } else {
-            self.store
+            let query = self
+                .store
                 .client()
                 .query(
-                    "BEGIN TRANSACTION; CREATE ONLY $task CONTENT $content RETURN NONE; COMMIT TRANSACTION;",
+                    include_str!("../queries/create.surql")
+                        .replace("/* creation contribution */", contribution_sql),
                 )
                 .bind(("task", record))
-                .bind(("content", content))
+                .bind(("content", content));
+            contribution
+                .bind(query, task_id, &draft.task_type, now)
                 .await?
                 .check()?;
         }
@@ -333,11 +345,15 @@ impl TaskRuntime {
             .await?
             .check()?;
         let records: Vec<TaskRecord> = response.take(0)?;
-        records
+        let snapshot = records
             .into_iter()
             .next()
             .map(record_to_snapshot)
-            .transpose()
+            .transpose()?;
+        if let Some(snapshot) = &snapshot {
+            self.check_contribution(&snapshot.task_type)?;
+        }
+        Ok(snapshot)
     }
 
     pub async fn list(&self) -> Result<Vec<TaskSnapshot>, TaskError> {
@@ -552,7 +568,9 @@ impl TaskRuntime {
             Some(query) => query.get(task).await?,
             None => self.get(task).await?,
         };
-        snapshot.ok_or_else(|| TaskError::NotFound(task.to_string()))
+        let snapshot = snapshot.ok_or_else(|| TaskError::NotFound(task.to_string()))?;
+        self.check_contribution(&snapshot.task_type)?;
+        Ok(snapshot)
     }
 
     async fn transition_selected(
@@ -607,6 +625,23 @@ impl TaskRuntime {
             next,
             StoreTaskStatus::Succeeded | StoreTaskStatus::Failed | StoreTaskStatus::Cancelled
         );
+        let contribution = match &transition {
+            TaskTransition::Succeeded { result, .. } => self.settlement_contribution(
+                current,
+                crate::TaskSettlement::Succeeded { result },
+                now,
+            )?,
+            TaskTransition::Failed(failure) => self.settlement_contribution(
+                current,
+                crate::TaskSettlement::Failed { failure },
+                now,
+            )?,
+            TaskTransition::Cancelled => {
+                self.settlement_contribution(current, crate::TaskSettlement::Cancelled, now)?
+            }
+            _ => crate::TaskContribution::none(),
+        };
+        let contribution_sql = contribution.sql(false)?;
         let message = transition.message();
         let mut envelope = RequestEnvelope {
             input: current.request.clone(),
@@ -630,8 +665,9 @@ impl TaskRuntime {
             .store
             .client()
             .query(
-                include_str!("runtime/transition.surql")
-                    .replace("/* caller selection */", &admission),
+                include_str!("../queries/transition.surql")
+                    .replace("/* caller selection */", &admission)
+                    .replace("/* settlement contribution */", contribution_sql),
             )
             .bind(("task", task_record_id(current.task_id)))
             .bind(("next", next))
@@ -670,8 +706,16 @@ impl TaskRuntime {
             Some(selection) => selection.bind(query)?,
             None => query,
         };
-        let mut response = query.await?.check()?;
-        let updated: Option<TaskRecord> = response.take(2)?;
+        let mut response = contribution
+            .bind(
+                query,
+                current.task_id,
+                &current.task_type,
+                current.created_at,
+            )
+            .await?
+            .check()?;
+        let updated: Option<TaskRecord> = response.take(3)?;
         let snapshot = updated
             .map(record_to_snapshot)
             .transpose()?

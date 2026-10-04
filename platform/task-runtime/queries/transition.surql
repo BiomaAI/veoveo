@@ -21,5 +21,8 @@ LET $updated = (
         )
     RETURN AFTER
 );
+IF $updated != NONE AND $terminal {
+    /* settlement contribution */
+};
 RETURN $updated;
 COMMIT TRANSACTION;

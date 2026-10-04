@@ -12,15 +12,9 @@ pub(super) struct ContextScope {
 }
 
 impl ContextScope {
-    pub(super) const TASK_PREDICATE: &str = "AND work_context = $work_context
-        AND authority.context_key = $work_context_key
-        AND request.owner.authority.work_context = $work_context_key
-        AND request.owner.authority.tenant = $authority_tenant";
+    pub(super) const TASK_PREDICATE: &str = include_str!("../../queries/context_task.surql");
 
-    pub(super) const USAGE_PREDICATE: &str = "AND task.work_context = $work_context
-        AND task.authority.context_key = $work_context_key
-        AND task.request.owner.authority.work_context = $work_context_key
-        AND task.request.owner.authority.tenant = $authority_tenant";
+    pub(super) const USAGE_PREDICATE: &str = include_str!("../../queries/context_usage.surql");
 
     pub(super) fn new(owner: &TaskOwner) -> Result<Self, TaskError> {
         if owner.authority.tenant.as_str() != owner.tenant_key() {

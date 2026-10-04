@@ -394,18 +394,50 @@ authorization. Usage reads return the same not-found response for absent and ina
 
 ### Catalog Selection And Recovery
 
-`OptimizationReads` owns problem, run and solution queries in the runtime library.
-Its caller passes a `TaskOwner`, typed domain identities and a collection address.
-SQL compares indexed owner, profile and tenant with their owner-envelope values,
-preserves absent versus explicit installation tenants, and checks the indexed Work
-Context against both retained authority representations. Labels and domain Task kinds
-are selected before limits and completion grouping. Solution queries additionally
-require a successful Task and a non-error structured result.
+`optimization_task` owns indexed problem, run and solution identities. Its declared
+module lane creates typed immutable identity fields and optional terminal settlement.
+A UUID-keyed `record<task>` link uses `REFERENCE ON DELETE CASCADE`. The catalog's
+own row key is the native Task identity rendered as text. Four solve operations
+contribute rows; `verify_solution` validates its retained request and explicitly
+contributes no catalog row.
 
-Selected rows must decode as the declared solve family. A completed result must agree
-with its problem and run parents. Invalid visible records fail the read; adapters do
-not silently remove them from a page. Completion returns typed domain IDs and reports
-malformed selected identities. Missing and denied exact identities both return no row.
+`OptimizationTaskContributions` binds all five operations before recovery. Task
+creation and terminal settlement compose the catalog mutation in the same kernel
+transaction. Successful results must decode as `OptimizationToolOutput` and agree
+with their family, problem and run parents before settlement publishes a solution
+address. A missing, mismatched or already-settled catalog row rolls back settlement.
+Worker lifecycle errors propagate; resource notifications follow committed success.
+Intermediate Task status belongs to the Task runtime.
+
+`OptimizationReads` queries catalog keys under the current caller's `TaskOwner`.
+`fn::kernel::tasks::selection_v1` loads the persisted Task by its record link and
+checks owner, tenant, profile, clearance, operation and Work Context. Its return
+profile contains typed Task identity, operation, status and creation metadata plus
+opaque server-owned input and result payloads. A denied or absent Task returns
+`NONE`. Catalog SQL guards object-shaped payloads before inspecting domain fields;
+it requires agreement between retained request kind and Task operation. Solution
+queries also require a currently successful Task, a non-error result and a present
+solution address. These predicates precede page limits and completion grouping.
+
+Catalog lookup and completion use the catalog's identity fields. Selected rows
+then undergo batched, typed Task reads under the same policy and native database
+transaction. Existing solve decoding checks family and result parents; catalog
+checks additionally compare row identity, Task link, operation, creation time,
+immutable parents and terminal result. A malformed selected identity or mismatched
+Task/catalog pair fails the read. Duplicate exact identities fail after selecting
+at most two rows. Missing and denied identities both return no row.
+
+Each page, exact read and completion holds one snapshot across catalog selection
+and Task hydration. Authorization changes after that snapshot apply to the next
+request. An owned worker keeps transaction cleanup alive when its caller disappears;
+reads allow 30 seconds and cancellation allows 10 seconds. Unknown begin or
+cancellation outcomes report that database session cleanup may be required.
+The worker performs no mutation and never retries a failed read transaction.
+
+Query files live in `queries/`. Their fixed selection, completion and cursor
+fragments are included owner SQL; runtime values remain bound. Template replacement
+is an explicit composition exception for these finite query shapes. Adapters cannot
+supply SQL or untrusted predicates.
 
 `OptimizationIndexCursor` preserves the version 1 fields `version`, `collection`,
 `created_at` and `task_id`, including emitted Base64 bytes. It requires a native RFC
@@ -413,14 +445,14 @@ UUIDv7 identity. `OptimizationCollectionUri` binds that cursor to its collection
 uses the shared component builder and rejects aliases, fragments and extra query
 parameters. A saved position grants no access; each continuation rechecks SQL policy.
 
-Replace all control replicas together after active solves settle. Before the upgrade,
-inspect retained Tasks for disagreements among indexed ownership, envelope ownership,
-Work Context fields, Task kind, family and output parents. Preserve rejected records
-for operator review; the reader performs no conversion or deletion. The wire profiles
-and solver protocol are unchanged. A rollback restores the prior control/executor
-pair against the same Store and its earlier read policy; require operator acceptance
-of that policy difference before reopening traffic. Installation acceptance must
-exercise retained records, permission changes and reverse/forward replacement.
+Installation activation requires the composed fresh-state storage cut. It must apply
+and verify the Tasks selection lane and Optimization catalog lane before Task recovery
+or catalog traffic. Adapter binding checks declarations only. Current startup checks
+recovery and GPU readiness without an installed-lane readiness gate; implementing
+that gate is required before activation. Source and native fixture qualification
+do not establish that the reference installation has these lanes. Existing Store
+Task indexes stay until the coordinated storage cut. The public URI, cursor, solver
+and Task wire profiles are unchanged; the internal identity owner is the catalog.
 
 `tests/reads.rs` uses separate Store connections and disposable fixtures for catalog
 continuations, exact lookup, completion, optional tenants, changed clearance and

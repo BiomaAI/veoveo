@@ -95,6 +95,9 @@ async fn main() -> anyhow::Result<()> {
         format!("{SERVER_SLUG}-{}", uuid::Uuid::now_v7()),
     )
     .await?;
+    // TODO(installation): verify the Tasks selection and Optimization catalog lanes
+    // before recovery/readiness when activating the composed fresh-state storage cut.
+    let tasks = veoveo_optimization_mcp::task_catalog::OptimizationTaskContributions::bind(tasks)?;
     let recovery = tasks.recover().await?;
     let state = Arc::new(AppState {
         tasks,

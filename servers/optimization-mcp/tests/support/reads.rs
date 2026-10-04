@@ -2,7 +2,7 @@ use serde_json::json;
 use std::collections::BTreeSet;
 use veoveo_optimization_mcp::{contract::*, task_records::OptimizationTaskRequest};
 use veoveo_platform_store::task_record_id;
-use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRuntime};
+use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRuntime, TaskTransition};
 use veoveo_types::TaskId;
 
 pub fn owner(tenant: Option<&str>, principal: &str, context: &str, labels: &[&str]) -> TaskOwner {
@@ -14,6 +14,15 @@ pub fn owner(tenant: Option<&str>, principal: &str, context: &str, labels: &[&st
             "output_policy":{"owner":{"kind":"principal","id":principal}},
             "provenance":{"mode":"automated"}}
     }))
+    .unwrap()
+}
+
+pub fn runtime(store: veoveo_platform_store::PlatformStore, worker: &str) -> TaskRuntime {
+    veoveo_optimization_mcp::task_catalog::OptimizationTaskContributions::bind(TaskRuntime::new(
+        store,
+        "optimization",
+        worker,
+    ))
     .unwrap()
 }
 
@@ -80,11 +89,20 @@ pub async fn create(runtime: &TaskRuntime, owner: &TaskOwner, number: u64) -> Ro
         "problem_artifact":artifact,"solution_artifact":artifact
     })).unwrap();
     let result = json!({"structuredContent":output,"isError":false});
-    runtime.platform_store().client().query("UPDATE ONLY $task SET status = 'succeeded', created_at = $created_at, result = $result RETURN NONE;")
-        .bind(("task",task_record_id(task)))
-        .bind(("created_at","2026-09-28T00:00:00Z".parse::<chrono::DateTime<chrono::Utc>>().unwrap()))
-        .bind(("result",veoveo_platform_store::TaskResultRecord::new(result)))
-        .await.unwrap().check().unwrap();
+    runtime
+        .claim(task, std::time::Duration::from_secs(60))
+        .await
+        .unwrap();
+    runtime
+        .transition(
+            task,
+            TaskTransition::Succeeded {
+                message: "fixture result".into(),
+                result,
+            },
+        )
+        .await
+        .unwrap();
     Row {
         task,
         problem,

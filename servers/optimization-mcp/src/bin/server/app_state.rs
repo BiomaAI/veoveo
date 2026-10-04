@@ -6,7 +6,7 @@ use veoveo_optimization_mcp::{
     problem_store::ProblemStore,
 };
 use veoveo_platform_store::PlatformTable;
-use veoveo_task_runtime::{TaskRuntime, TaskTransition};
+use veoveo_task_runtime::{TaskError, TaskRuntime, TaskSnapshot, TaskTransition};
 use veoveo_types::TaskId;
 
 pub(super) struct AppState {
@@ -43,18 +43,15 @@ pub(super) fn spawn_resource_observer(
     })
 }
 
-pub(super) async fn update_task(state: &AppState, task_id: TaskId, transition: TaskTransition) {
-    let transition = if state
-        .tasks
-        .is_cancel_requested(task_id)
-        .await
-        .unwrap_or(false)
-    {
+pub(super) async fn update_task(
+    state: &AppState,
+    task_id: TaskId,
+    transition: TaskTransition,
+) -> Result<TaskSnapshot, TaskError> {
+    let transition = if state.tasks.is_cancel_requested(task_id).await? {
         TaskTransition::Cancelled
     } else {
         transition
     };
-    if let Err(err) = state.tasks.transition(task_id, transition).await {
-        tracing::warn!(%task_id, "failed to transition durable task: {err}");
-    }
+    state.tasks.transition(task_id, transition).await
 }

@@ -1,12 +1,18 @@
 //! Exact SurrealDB 3.3.0 AST adapter. Unsupported syntax always fails admission.
 use super::RunnerError;
+mod api;
+mod index;
 use crate::*;
+use std::collections::{BTreeMap, BTreeSet};
 use surrealdb_sql::ast::TopLevelExpr;
 use surrealdb_sql::statements::DefineStatement;
 use surrealdb_sql::{Expr, Kind, Literal, Part, Permission, Permissions};
 
 pub(super) fn admit(selection: &ModuleSelection<'_>) -> Result<(), RunnerError> {
     for module in selection.ordered() {
+        api::check_exports(module)?;
+        let mut object_fields = BTreeSet::new();
+        let mut index_fields = BTreeMap::new();
         for migration in module.lane().migrations() {
             let settings = surrealdb_syn::parser::ParserSettings {
                 object_recursion_limit: 32,
@@ -34,6 +40,14 @@ pub(super) fn admit(selection: &ModuleSelection<'_>) -> Result<(), RunnerError> 
                 registry: selection.registry(),
                 module,
                 nodes: 0,
+                migration,
+                api: None,
+                parameters: BTreeMap::new(),
+                objects: BTreeSet::new(),
+                argument_readonly: false,
+                row_scope: false,
+                object_fields: std::mem::take(&mut object_fields),
+                index_fields: std::mem::take(&mut index_fields),
             };
             for statement in &ast.expressions {
                 let TopLevelExpr::Expr(expr) = statement else {
@@ -53,6 +67,8 @@ pub(super) fn admit(selection: &ModuleSelection<'_>) -> Result<(), RunnerError> 
                     ))
                 })?;
             }
+            object_fields = visitor.object_fields;
+            index_fields = visitor.index_fields;
         }
     }
     Ok(())
@@ -88,9 +104,30 @@ struct Visitor<'a> {
     registry: &'a ModuleRegistry,
     module: &'a ModuleSetup,
     nodes: usize,
+    migration: &'a Migration,
+    api: Option<&'a KernelSqlApi>,
+    parameters: BTreeMap<String, Option<SqlType>>,
+    objects: BTreeSet<String>,
+    argument_readonly: bool,
+    row_scope: bool,
+    object_fields: BTreeSet<(String, Vec<String>)>,
+    index_fields: BTreeMap<(String, String), Vec<Vec<String>>>,
 }
 impl Visitor<'_> {
     fn object(&self, kind: ObjectKind, name: &str, mode: AccessMode) -> Result<(), RunnerError> {
+        if let Some(api) = self.api {
+            if mode == AccessMode::DataRead
+                && (kind != ObjectKind::Table
+                    || !api.reads().tables().iter().any(|t| t.as_str() == name))
+            {
+                return Err(RunnerError::new(
+                    "SQL API read is outside its owned read profile",
+                ));
+            }
+            if matches!(mode, AccessMode::SchemaMutation | AccessMode::DataWrite) {
+                return Err(RunnerError::new("SQL API is read-only"));
+            }
+        }
         let valid = match kind {
             ObjectKind::Table => TableName::new(name).is_ok(),
             ObjectKind::Function => FunctionName::new(name).is_ok(),
@@ -168,14 +205,15 @@ impl Visitor<'_> {
         }
     }
     fn idiom(&mut self, idiom: &surrealdb_sql::Idiom, depth: usize) -> Result<(), RunnerError> {
-        // Without field-type provenance, traversing a second field may read a
-        // referenced foreign record. Admit only a single static row field.
-        if idiom.0.len() != 1 || !matches!(idiom.0[0], Part::Field(_) | Part::All) {
-            return Err(unsupported());
+        match idiom.0.as_slice() {
+            [Part::Field(_) | Part::All] if self.api.is_none() || self.row_scope => Ok(()),
+            [Part::Start(Expr::Param(p)), Part::Field(_)] if self.objects.contains(p.as_str()) => {
+                self.expr(&Expr::Param(p.clone()), depth + 1)
+            }
+            _ => Err(unsupported()),
         }
-        let _ = depth;
-        Ok(())
     }
+
     fn permissions(&mut self, p: &Permissions, depth: usize) -> Result<(), RunnerError> {
         for permission in [&p.select, &p.create, &p.update, &p.delete] {
             self.permission(permission, depth)?;
@@ -197,8 +235,24 @@ impl Visitor<'_> {
         if depth > 64 || self.nodes > 100_000 {
             return Err(RunnerError::new("SQL admission complexity budget exceeded"));
         }
+        if (self.api.is_some() || self.argument_readonly)
+            && matches!(
+                expr,
+                Expr::Create(_)
+                    | Expr::Update(_)
+                    | Expr::Delete(_)
+                    | Expr::Define(_)
+                    | Expr::Alter(_)
+                    | Expr::Remove(_)
+            )
+        {
+            return Err(RunnerError::new("SQL API is read-only"));
+        }
         match expr {
             Expr::Literal(literal) => self.literal(literal, depth),
+            Expr::Param(p) if self.api.is_some() && !self.parameters.contains_key(p.as_str()) => {
+                Err(RunnerError::new("undeclared SQL API parameter"))
+            }
             Expr::Param(_) | Expr::Constant(_) => Ok(()),
             Expr::Idiom(i) => self.idiom(i, depth),
             Expr::Table(name) => {
@@ -216,11 +270,16 @@ impl Visitor<'_> {
                 self.expr(right, depth + 1)
             }
             Expr::Block(block) => {
+                let parameters = self.parameters.clone();
+                let objects = self.objects.clone();
                 for expr in &block.0 {
                     self.expr(expr, depth + 1)?;
                 }
+                self.parameters = parameters;
+                self.objects = objects;
                 Ok(())
             }
+            Expr::IfElse(statement) => self.guarded_if(statement, depth + 1),
             Expr::Throw(expr) => self.expr(expr, depth + 1),
             Expr::Return(output) => {
                 if output.fetch.is_some() {
@@ -232,14 +291,37 @@ impl Visitor<'_> {
                 if let Some(kind) = &set.kind {
                     self.kind(kind, depth + 1)?;
                 }
-                self.expr(&set.what, depth + 1)
+                self.expr(&set.what, depth + 1)?;
+                let name = set.name.as_str().to_owned();
+                if self.api.is_some() && self.parameters.contains_key(&name) {
+                    return Err(RunnerError::new(
+                        "SQL API LET cannot redefine a parameter or local",
+                    ));
+                }
+                let kind = set.kind.as_ref().and_then(api::sql_type);
+                self.parameters.insert(name.clone(), kind);
+                self.objects.remove(&name);
+                Ok(())
             }
             Expr::FunctionCall(call) => {
-                // Custom calls require body/call-graph qualification before admission.
+                // Inspect every argument even when the receiver is rejected; custom arguments cannot mutate.
+                let readonly = self.argument_readonly;
+                self.argument_readonly |=
+                    matches!(call.receiver, surrealdb_sql::Function::Custom(_));
+                for arg in &call.arguments {
+                    self.expr(arg, depth + 1)?;
+                }
+                self.argument_readonly = readonly;
                 match &call.receiver {
+                    surrealdb_sql::Function::Custom(name) => {
+                        return self.api_call(name, &call.arguments, depth + 1);
+                    }
                     surrealdb_sql::Function::Normal(name)
                         if [
                             "array::len",
+                            "array::first",
+                            "type::is_object",
+                            "type::is_array",
                             "string::len",
                             "string::lowercase",
                             "string::uppercase",
@@ -250,13 +332,15 @@ impl Visitor<'_> {
                         .contains(&name.as_str()) => {}
                     _ => return Err(unsupported()),
                 }
-                for arg in &call.arguments {
-                    self.expr(arg, depth + 1)?;
+                if self.api.is_some()
+                    && matches!(&call.receiver, surrealdb_sql::Function::Normal(name) if ["time::now", "rand::uuid::v7"].contains(&name.as_str()))
+                {
+                    return Err(unsupported());
                 }
                 Ok(())
             }
             Expr::Define(statement) => self.define(statement, depth + 1),
-            Expr::Remove(statement) => self.remove(statement),
+            Expr::Remove(statement) => self.remove(statement, depth + 1),
             Expr::Alter(statement) => self.alter(statement, depth + 1),
             Expr::Create(statement) => {
                 for target in &statement.what {
@@ -302,8 +386,20 @@ impl Visitor<'_> {
         }
     }
     fn define(&mut self, statement: &DefineStatement, depth: usize) -> Result<(), RunnerError> {
+        if depth != 1
+            && matches!(
+                statement,
+                DefineStatement::Table(_) | DefineStatement::Field(_) | DefineStatement::Index(_)
+            )
+        {
+            return Err(RunnerError::new(
+                "schema-shape declarations must be migration top-level statements",
+            ));
+        }
         match statement {
             DefineStatement::Table(s) => {
+                let table = self.name(&s.name)?.to_owned();
+                self.clear_table_proof(&table, false)?;
                 self.object(
                     ObjectKind::Table,
                     self.name(&s.name)?,
@@ -325,6 +421,7 @@ impl Visitor<'_> {
                 self.expr(&s.comment, depth)
             }
             DefineStatement::Field(s) => {
+                self.field_proof(s, depth)?;
                 self.object(
                     ObjectKind::Table,
                     self.name(&s.what)?,
@@ -376,9 +473,7 @@ impl Visitor<'_> {
                 if s.concurrently {
                     return Err(unsupported());
                 }
-                for expr in &s.cols {
-                    self.expr(expr, depth + 1)?;
-                }
+                self.index_proof(s, depth + 1)?;
                 match &s.index {
                     surrealdb_sql::Index::Idx
                     | surrealdb_sql::Index::Uniq
@@ -444,6 +539,14 @@ impl Visitor<'_> {
                 self.expr(&s.comment, depth)
             }
             DefineStatement::Function(s) => {
+                if let Some(api) = self
+                    .module
+                    .sql_apis()
+                    .iter()
+                    .find(|a| a.name().as_str() == format!("fn::{}", s.name))
+                {
+                    return self.api_definition(api, s, depth + 1);
+                }
                 self.object(
                     ObjectKind::Function,
                     &format!("fn::{}", s.name),
@@ -486,10 +589,23 @@ impl Visitor<'_> {
     fn remove(
         &mut self,
         s: &surrealdb_sql::statements::RemoveStatement,
+        depth: usize,
     ) -> Result<(), RunnerError> {
         use surrealdb_sql::statements::RemoveStatement;
+        if depth != 1
+            && matches!(
+                s,
+                RemoveStatement::Table(_) | RemoveStatement::Field(_) | RemoveStatement::Index(_)
+            )
+        {
+            return Err(RunnerError::new(
+                "schema-shape removals must be migration top-level statements",
+            ));
+        }
         match s {
             RemoveStatement::Table(s) => {
+                let table = self.name(&s.name)?.to_owned();
+                self.clear_table_proof(&table, true)?;
                 if s.expunge {
                     return Err(unsupported());
                 }
@@ -500,6 +616,9 @@ impl Visitor<'_> {
                 )
             }
             RemoveStatement::Field(s) => {
+                let table = self.name(&s.what)?.to_owned();
+                let path = index::path(&s.name).ok_or_else(unsupported)?;
+                self.invalidate_field(&table, &path, false)?;
                 self.static_field(&s.name)?;
                 self.object(
                     ObjectKind::Table,
@@ -508,6 +627,8 @@ impl Visitor<'_> {
                 )
             }
             RemoveStatement::Index(s) => {
+                self.index_fields
+                    .remove(&(self.name(&s.what)?.into(), self.name(&s.name)?.into()));
                 self.name(&s.name)?;
                 self.object(
                     ObjectKind::Table,
@@ -548,6 +669,11 @@ impl Visitor<'_> {
         depth: usize,
     ) -> Result<(), RunnerError> {
         use surrealdb_sql::statements::AlterStatement;
+        if depth != 1 {
+            return Err(RunnerError::new(
+                "schema-shape alterations must be migration top-level statements",
+            ));
+        }
         match s {
             AlterStatement::Table(s) => {
                 self.object(
@@ -745,6 +871,8 @@ impl Visitor<'_> {
         for target in &s.what {
             self.target(target, false, depth + 1)?;
         }
+        let row_scope = self.row_scope;
+        self.row_scope = true;
         self.fields(&s.fields, depth + 1)?;
         for expr in &s.omit {
             self.expr(expr, depth + 1)?;
@@ -759,7 +887,9 @@ impl Visitor<'_> {
             self.expr(&start.0, depth + 1)?;
         }
         self.expr(&s.version, depth + 1)?;
-        self.expr(&s.timeout, depth + 1)
+        self.expr(&s.timeout, depth + 1)?;
+        self.row_scope = row_scope;
+        Ok(())
     }
 }
 

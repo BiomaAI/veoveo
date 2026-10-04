@@ -220,6 +220,7 @@ dependencies = [
  "veoveo-map-mcp",
  "veoveo-media-mcp",
  "veoveo-modules",
+ "veoveo-optimization-mcp",
  "veoveo-platform-store",
  "veoveo-recording-mcp",
  "veoveo-time-mcp",
@@ -233,6 +234,13 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "sha2",
+]
+
+[[package]]
+name = "veoveo-optimization-mcp"
+version = "0.1.0"
+dependencies = [
+ "veoveo-modules",
 ]
 
 [[package]]

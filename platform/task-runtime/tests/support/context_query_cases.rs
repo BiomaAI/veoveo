@@ -39,6 +39,13 @@ async fn context_agreement_precedes_decode_limits_and_subscription_admission() {
                 .unwrap()
                 .is_some()
         );
+        db.b.client()
+            .query("CREATE ONLY task_policy_probe:authority CONTENT $authority RETURN NONE;")
+            .bind(("authority", serde_json::to_value(authority()).unwrap()))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
         let mut excluded = vec![foreign.task_id];
         // Each row disagrees at a different stored authority location. Its
         // malformed payload proves rejection happens in SQL, before decoding.
@@ -48,6 +55,10 @@ async fn context_agreement_precedes_decode_limits_and_subscription_admission() {
             "request.owner.profile = 'another-profile'",
             "request.owner.principal_key = 'another-principal'",
             "request.owner.data_labels = ['secret']",
+            "request.owner.data_labels = NONE",
+            "request.owner.data_labels = 'internal'",
+            "request.owner.data_labels = ['internal', NONE]",
+            "request.owner.authority = task_policy_probe:authority",
             "authority.context_key = 'another-context'",
             "request.owner.authority.work_context = 'another-context'",
             "request.owner.authority.tenant = 'another-tenant'",

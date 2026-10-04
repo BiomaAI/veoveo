@@ -42,7 +42,11 @@ domain workers keep the trusted runtime API for their own lifecycle transitions.
 updates use `OwnerTaskQuery::submit_input_responses`, which repeats the same
 selection inside each answer's transaction.
 `runtime/context_scope` owns the Work Context predicates and typed scalar bindings
-shared by Task observation and linked usage reads.
+shared by Task observation and linked usage reads. The included policy fragments
+in `queries/` guard stored request and authority objects before accessing their
+fields and require an array of stored data labels before clearance comparison.
+Nested `IF` branches prevent record-valued policy fields from dereferencing foreign
+rows; Boolean conjunction evaluation order does not establish shape admission.
 `runtime/owner_reads` owns SQL Task-owner selection and bindings;
 `runtime/owner_subscriptions` delivers the selected current state to public listeners.
 `resource_subscriptions` maps that authorized Task stream to requested Task status
@@ -61,6 +65,52 @@ state. One projected LIVE source per runtime wakes readers and persists its curs
 under the server and worker identity. Separate replicas require distinct worker IDs.
 Store completes transaction tails before advancing a cursor. The checkpoint table
 has no changefeed, so acknowledgements cannot wake their own consumer.
+
+## Module Task Contributions
+
+Optional modules declare a table through `ModuleOwnership` and bind a pure
+`TaskContributions` adapter to validated operation names. `OwnedTaskTable` checks
+that declaration's optional layer and table claims and excludes the kernel Task
+table. Composition checks global ownership conflicts. A declaration and a bound
+adapter establish neither installed schema nor lane readiness.
+
+`TaskContribution` admits only typed object values. Creation supplies an immutable
+`identity`; settlement supplies the same identity and a terminal `settlement`.
+The runtime constructs the row key from `TaskId` and supplies its protected `task`,
+`task_type` and `created_at` columns. An adapter cannot supply SQL, transaction
+control, field names or bindings. One adapter owns a table and its declared
+operation set; duplicate table or operation bindings fail. A module may explicitly
+contribute no row for an operation that needs no index.
+
+Creation writes the Task, optional idempotency claim and contributed row in one
+transaction. Existing idempotency winners return without replaying the contribution.
+The existing bounded transaction retry preserves the prepared row and native Task
+identity. Ordinary terminal transitions and interrupted-indeterminate recovery
+write settlement after their respective revision and lease guards succeed.
+Settlement requires the matching linked row, creation time, operation and immutable
+identity, with no previous settlement. A guard miss executes no contribution.
+A missing row or contribution error rolls back the Task mutation. Provider dispatch,
+observation, cancellation and recovery permissions keep their existing guards.
+Required unbound adapters reject capability use before mutation, including recovery
+with an empty Task collection.
+
+Modules link their rows by `record<task>` with `REFERENCE ON DELETE CASCADE`.
+Intermediate Task status stays in the kernel; catalog rows do not duplicate it.
+This keeps claims, input waits and provider resume independent of catalog refresh.
+
+The creation, transition, recovery and contribution statements live in `queries/`.
+The runtime composes included SQL using fixed lifecycle placeholders; owner selection
+adds the shared policy fragments. This is an explicit query-composition exception:
+all inserted statements and predicates are compile-time owner literals, and all
+runtime values remain bound. Callback-supplied statements are not part of this API.
+`tests/contributions.rs` uses actual declared lanes in isolated native fixtures for
+idempotency, rollback, recovery, stale leases and reference cleanup.
+
+`OwnerTaskQuery::get_many` and `get_many_in` select up to 1000 typed Task identities
+with the same owner, context and operation policy as exact reads. The latter accepts
+the native SurrealDB transaction, allowing an optional module's catalog selection
+and typed Task hydration to share one read view. Authorization applies to that view;
+a policy change after the snapshot affects the next read.
 
 ## Retention
 

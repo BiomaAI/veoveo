@@ -11,8 +11,11 @@ module declarations, native runner, execution commands and rendered installation
 pass their native checks. The staged gateway image passes isolated installed checks
 for fresh preparation, lane completion, publication, credential rotation, stale Job
 rejection and later module enablement. Managed-agent credential recovery and product
-activation remain open. Five additional browser contract bundles pass generation,
-consumer tests and builds. Production schema ownership moves in Phase 3.
+activation remain open. Phase 2 Task contributions, versioned kernel SQL admission and
+Optimization's catalog reads pass their native checks. Gateway extension ports and
+installed catalog startup admission remain open. Five additional browser contract
+bundles pass generation, consumer tests and builds. Production schema ownership moves
+in Phase 3.
 This is the single implementation plan for the former Foundations, Contract
 Consistency and Repository Hardening tracks; their required open conditions transfer
 without being declared complete.
@@ -208,7 +211,7 @@ designs and AGENTS.md govern implementation until their qualified replacements l
 |---|---|---|---|
 | 0 | [Core macros and shared building blocks](#phase-0-core-macros-and-shared-building-blocks) | — | Ordinary upgrade; no wire change |
 | 1 | [Module contract and lanes](#phase-1-module-contract-and-lanes) | 0 | Native bootstrap qualification; module lanes start empty |
-| 2 | [Kernel extension points](#phase-2-kernel-extension-points) | 1 | Ordinary upgrade |
+| 2 | [Kernel extension points](#phase-2-kernel-extension-points) | 1 | Ports qualify natively; catalog ownership activates with the fresh installation in phase 8 |
 | 3 | [Module ownership of persistence and queries](#phase-3-module-ownership-of-persistence-and-queries) | 1, 2 | Fresh fixtures; storage cut deployed with phase 8 |
 | 4 | [Database field types](#phase-4-database-field-types) | 3 | Fresh fixtures; no historical-data upgrade |
 | 5 | [Inbound strictness](#phase-5-inbound-strictness) | 0 | Qualify all affected senders and receivers together |
@@ -664,8 +667,8 @@ the full kernel graph gate belongs there.
 | Kernel dependency | Extension point |
 |---|---|
 | Gateway binary hosts Computers, Speech, Recordings, Agents and Workspace HTTP surfaces | Route registration on the gateway builder; each module crate supplies its routes and the gateway library depends on none of them |
-| Server indexes on `task` (migrations `0042`, `0093`) and `task_used_frame` | Task-runtime transaction hooks: a module contributes rows to its own tables at task creation and settlement, linked by `record<task>` with `REFERENCE ON DELETE CASCADE` |
-| Module SQL reading kernel tables | Versioned `fn::kernel::*` functions in kernel lanes, starting with task visibility for a caller and artifact readability |
+| Server indexes on `task` (migrations `0042`, `0093`) and `task_used_frame` | Task-runtime transaction hooks: registered adapters supply typed rows for their declared tables at creation and settlement. The runtime owns transaction statements, Task links and settlement guards. Links use `record<task>` with `REFERENCE ON DELETE CASCADE` |
+| Module SQL reading kernel tables | Versioned `fn::kernel::*` functions in kernel lanes, starting with task visibility for a caller and artifact readability. Visibility resolves the persisted record inside its owner function and filters module queries before limits or grouping |
 | `platform/store` depends on `veoveo-computers-contract` and hosts optional module persistence | Resolved in phase 3, when that persistence moves into its modules |
 
 | Gate | Pass condition |
@@ -673,6 +676,29 @@ the full kernel graph gate belongs there.
 | Dependency check | Isolated library metadata shows the port-owned optional dependencies removed. Record the Store→Computers persistence edge for phase 3; qualify the composition root separately |
 | Port tests | Each port has a test with the module adapter bound and one with it unbound, which refuses the capability |
 | Suites | Gateway, task-runtime and affected module suites |
+
+The first adoption batch uses Optimization's existing Task catalog consumers. Required
+adapters must be bound before creation or recovery. Creation includes the module row
+and idempotency claim in one transaction; terminal transitions and recovery failures
+settle that row under the Task's current-state guard. Adapters cannot supply transaction
+SQL. Reusable ownership declarations exclude composition image and command settings.
+Optimization reads qualify catalog-to-Task relationships after caller filtering, and
+selected corrupt rows remain errors. Catalog selection and Task decoding share one
+native read transaction, including completion queries, so concurrent settlement or
+deletion cannot mix committed views. Validation rejects inconsistent selected rows;
+it does not remove them from a page after SQL selection. Shared Task owner, context and
+usage predicates use the same object and label-shape guards as the kernel function.
+Native fixtures install the actual owner lanes
+after mixed-schema preparation. Existing Task indexes stay until the coordinated
+storage cut; this additive batch does not activate the reference installation.
+
+The gateway route batch separates the executable into a composition package while
+keeping its executable name and image. The reusable gateway library sheds optional
+module dependencies, including Computers transport pooling, Recording catalog admission
+and managed-agent authorization. Owner adapters register routes and validation through
+kernel ports. Catalog reload, TLS cache invalidation and rejection of configured but
+unbound capabilities remain required behavior; moving route handlers alone does not
+close the dependency gate.
 
 ## Phase 3: Module Ownership Of Persistence And Queries
 
@@ -1240,8 +1266,12 @@ reason rather than growing an unbounded generic typing task.
 Required implementation deferrals remain blockers. Each new row names the F/H/phase
 requirement, owner, precise cause, next check and corresponding code TODO. Preserve
 existing `TODO(foundations)` entries until resolved; use this register rather than
-creating a second active plan. There are no separately registered code deferrals at
-consolidation; the open F-register and phase gates still prevent completion.
+creating a second active plan. The open F-register and phase gates still prevent
+completion.
+
+| Requirement | Owner and code TODO | Cause and next check |
+|---|---|---|
+| Phase 2 / Phase 8 / F44: catalog startup admission | Optimization, `TODO(installation)` before recovery in [`server.rs`](../servers/optimization-mcp/src/bin/server.rs) | Binding the catalog adapter proves its declaration but not installed schema. Before activation, require the Tasks selection and Optimization catalog lanes to be installed and verified before recovery or traffic; qualify refusal with either lane missing and readiness after both pass. GPU readiness remains required. |
 
 The real Media generation check is explicitly unqualified under the user's restriction.
 It must appear as such in the final acceptance report; the fake-provider pass cannot

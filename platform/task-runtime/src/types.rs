@@ -402,6 +402,8 @@ pub struct RecoveryReport {
 
 #[derive(Debug, thiserror::Error)]
 pub enum TaskError {
+    #[error("Task operation `{0}` requires an unbound module contribution adapter")]
+    ContributionUnbound(veoveo_types::TaskTypeName),
     #[error("task `{0}` was not found")]
     NotFound(String),
     #[error("task `{0}` is not owned by this server")]

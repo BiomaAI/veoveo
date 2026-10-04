@@ -12,9 +12,11 @@ use veoveo_platform_store::task_record_id;
 use veoveo_platform_store::{TaskRecord, TaskStatus as StoreTaskStatus};
 impl TaskRuntime {
     pub async fn recover(&self) -> Result<RecoveryReport, TaskError> {
+        self.check_required_contributions()?;
         let mut report = RecoveryReport::default();
         let tasks = self.list().await?;
         for task in tasks {
+            self.check_contribution(&task.task_type)?;
             if task
                 .lease_expires_at
                 .is_some_and(|expiry| expiry > Utc::now())
@@ -123,13 +125,21 @@ impl TaskRuntime {
             ttl_ms: task.ttl_ms,
             poll_interval_ms: task.poll_interval_ms,
         };
+        self.check_contribution(&task.task_type)?;
         let terminal = status == StoreTaskStatus::Failed;
-
-        let mut response = self
+        let contribution = match failure.as_ref() {
+            Some(failure) if terminal => {
+                self.settlement_contribution(task, crate::TaskSettlement::Failed { failure }, now)?
+            }
+            _ => crate::TaskContribution::none(),
+        };
+        let contribution_sql = contribution.sql(false)?;
+        let query = self
             .platform_store()
             .client()
             .query(
-                "BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $task SET status = $status, request = $request, error = $error, lease_owner = NONE, lease_expires_at = NONE, completed_at = $completed_at, updated_at = $now WHERE status = $expected AND updated_at = $expected_updated_at AND (lease_expires_at = NONE OR lease_expires_at <= $now) RETURN AFTER); RETURN $updated; COMMIT TRANSACTION;",
+                include_str!("../queries/recovery_transition.surql")
+                    .replace("/* settlement contribution */", contribution_sql),
             )
             .bind(("task", task_record_id(task.task_id)))
             .bind(("status", status))
@@ -138,10 +148,12 @@ impl TaskRuntime {
             .bind(("completed_at", terminal.then_some(now)))
             .bind(("now", now))
             .bind(("expected", task.status))
-            .bind(("expected_updated_at", task.updated_at))
+            .bind(("expected_updated_at", task.updated_at));
+        let mut response = contribution
+            .bind(query, task.task_id, &task.task_type, task.created_at)
             .await?
             .check()?;
-        let updated: Option<TaskRecord> = response.take(2)?;
+        let updated: Option<TaskRecord> = response.take(3)?;
         let snapshot = updated
             .map(record_to_snapshot)
             .transpose()?

@@ -21,6 +21,7 @@ impl TaskRuntime {
     /// Release only this exact observer receipt after its local provider future
     /// has ended. Another replica can continue the persisted observation schedule.
     pub async fn release_observation(&self, claimed: &ClaimedTask) -> Result<(), TaskError> {
+        self.check_contribution(&claimed.snapshot.task_type)?;
         if claimed.snapshot.server != self.server()
             || claimed.snapshot.recovery_class != RecoveryClass::ProviderWait
             || claimed.lease_owner != self.worker_id()

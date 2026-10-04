@@ -78,6 +78,7 @@ veoveo-time-mcp = { path = "../../servers/time-mcp", default-features = false, f
 veoveo-uav-sim-mcp = { path = "../../servers/uav-sim-mcp", default-features = false, features = ["schema"] }
 veoveo-frames-mcp = { path = "../../servers/frames-mcp", default-features = false, features = ["schema"] }
 veoveo-media-mcp = { path = "../../servers/media-mcp", default-features = false, features = ["schema"] }
+veoveo-optimization-mcp = { path = "../../servers/optimization-mcp", default-features = false, features = ["schema"] }
 
 [dev-dependencies]
 base64.workspace = true

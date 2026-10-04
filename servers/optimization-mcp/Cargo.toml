@@ -46,6 +46,7 @@ required-features = ["contract"]
 
 [features]
 default = ["mcp"]
+schema = ["dep:veoveo-modules"]
 contract = [
     "dep:veoveo-map-mcp",
     "dep:base64",
@@ -59,6 +60,8 @@ contract = [
     "dep:veoveo-artifact-contract",
 ]
 runtime = [
+    "dep:tracing",
+    "schema",
     "dep:surrealdb",
     "contract",
     "dep:anyhow",
@@ -85,6 +88,7 @@ mcp = [
 ]
 
 [dependencies]
+veoveo-modules = { workspace = true, optional = true }
 veoveo-map-mcp = { path = "../map-mcp", default-features = false, features = ["contract"], optional = true }
 # Matches the qualified Store driver; upstream stable verified at https://github.com/surrealdb/surrealdb/releases/tag/v3.3.0.
 surrealdb = { version = "=3.3.0", default-features = false, optional = true }
@@ -117,6 +121,8 @@ veoveo-platform-store = { path = "../../platform/store", optional = true }
 veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
 
 [dev-dependencies]
+veoveo-platform-store = { path = "../../platform/store", features = ["schema"] }
+veoveo-modules = { workspace = true, features = ["runner"] }
 # Qualified RFC 6570 expansion, matching the foundation's exact 0.7.14 pin.
 iri-string.workspace = true
 tempfile = "3"

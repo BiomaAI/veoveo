@@ -305,7 +305,7 @@ Catalog continuation uses an owner codec over typed item keys and the existing v
 
 ## Installation Command Composition
 
-The gateway binary registers all 16 schema-only owner exports. `module-plan` produces
+The gateway binary registers all 17 schema-only owner exports. `module-plan` produces
 the generic checked plan offline. Commands compare the supplied plan with those exports
 and the expected image binding, generation and credential revision before connecting.
 The plan producer adds no owner vocabulary to the foundational module crate.

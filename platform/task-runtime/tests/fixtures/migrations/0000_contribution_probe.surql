@@ -1,0 +1,12 @@
+DEFINE TABLE contribution_probe SCHEMAFULL;
+DEFINE FIELD id ON contribution_probe TYPE string;
+DEFINE FIELD task ON contribution_probe TYPE record<task> REFERENCE ON DELETE CASCADE;
+DEFINE FIELD task_type ON contribution_probe TYPE string;
+DEFINE FIELD created_at ON contribution_probe TYPE datetime;
+DEFINE FIELD identity ON contribution_probe TYPE object;
+DEFINE FIELD identity.revision ON contribution_probe TYPE int ASSERT $value >= 0;
+DEFINE FIELD settlement ON contribution_probe TYPE option<object>;
+DEFINE FIELD settlement.status ON contribution_probe TYPE option<string>;
+DEFINE FIELD settlement.completed_at ON contribution_probe TYPE option<datetime>;
+DEFINE FIELD settlement.marker ON contribution_probe TYPE option<string> ASSERT $value != 'reject';
+DEFINE INDEX contribution_probe_link ON contribution_probe FIELDS task UNIQUE;

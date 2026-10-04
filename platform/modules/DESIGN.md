@@ -150,3 +150,48 @@ Installation lane execution compares the completed preparation key inside every
 header and migration transaction. A current lane also verifies its key before returning.
 Absent or unfinished preparation may wait within the caller's deadline; malformed
 markers, conflicting identities and superseding generations fail admission.
+
+## Read-Only Kernel SQL APIs
+
+`ModuleOwnership` checks owner identity, layer and object claims without an execution
+host. A runtime contribution binds its table against this declaration; that check
+neither installs the table nor proves registry agreement. `ModuleSetup` uses the same
+value and adds composition-supplied execution, dependencies and lane history.
+
+A kernel owner exports an exact versioned `KernelSqlApi`. The declaration names the
+introducing migration, parameter and return types, owned read tables and complete
+function definition. Supported signatures use strings, booleans, objects, specific
+record tables, arrays and optional values. The private parser requires the definition
+once in its introducing entry and compares its full AST and signature. Declaring an
+export does not waive inspection of its body. Its read-only leaf profile rejects writes,
+DDL, custom calls, scripts, foreign reads and nondeterministic built-ins.
+
+The visitor permits a single field on a local object only in a positive branch of
+`IF type::is_object($local)`. It inspects the guard argument and every branch. Proofs
+do not cross an ELSE or sibling branch, and exported functions cannot redefine a
+parameter or local. Only declared parameters and previously bound locals are available;
+ambient session parameters cannot supply object proofs. Nested fields require another
+local and another guard. Bare row
+fields are available only inside an owned SELECT. This profile prevents record-link
+traversal through flexible payloads without treating an owner declaration as a proof
+of stored object shape.
+
+A migration calling an API must declare its owner's dependency and an explicit
+per-migration minimum covering introduction. Admission checks the exact API name,
+argument count and proven types, including specific record tables. It inspects every
+argument and rejects argument-side mutation. Private functions and undeclared versions
+cannot become callable through a namespace prefix. Runtime services bind admitted
+caller scope through their owner contracts; the SQL API does not authenticate an
+arbitrary supplied scope.
+
+Index columns have a separate schema proof. Every intermediate in a multipart column
+must have a preceding `object` or `option<object>` field declaration on that table.
+The visitor remembers these declarations across the owner's lane entries. Executable
+queries still use the guarded local-object profile above. Table, field and index
+shape definitions, removals and alterations must be migration top-level statements;
+conditional blocks and deferred function/event bodies cannot grant or erase proof.
+`IF NOT EXISTS` field definitions do not certify a preexisting shape. Such index
+definitions retain earlier dependencies rather than replacing them. Field/table
+removals, redefinitions and wildcard declarations invalidate the relevant proof;
+existing dependent indexes must be removed before a shape change. Redefining a parent
+object cannot silently certify its previously declared descendants.

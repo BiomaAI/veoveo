@@ -21,9 +21,9 @@ fn execution(name: &str) -> Result<LaneExecution, DeclarationError> {
 }
 
 #[test]
-fn every_owner_exports_an_empty_independent_lane_and_keeps_supplied_execution() {
+fn every_owner_exports_an_independent_lane_and_keeps_supplied_execution() {
     let owners = declarations(execution).unwrap();
-    assert_eq!(owners.len(), 16);
+    assert_eq!(owners.len(), 17);
     assert_eq!(
         owners
             .iter()
@@ -32,7 +32,11 @@ fn every_owner_exports_an_empty_independent_lane_and_keeps_supplied_execution() 
         7
     );
     for owner in &owners {
-        assert!(owner.lane().is_empty());
+        if ["tasks", "optimization"].contains(&owner.name().as_str()) {
+            assert_eq!(owner.lane().latest().unwrap().get(), 0);
+        } else {
+            assert!(owner.lane().is_empty());
+        }
         assert_eq!(
             owner.execution(),
             &execution(owner.name().as_str()).unwrap()
@@ -48,6 +52,22 @@ fn reviewed_catalog_objects_resolve_to_their_declaring_owners() {
     assert_eq!(expected::TABLES.len(), 166);
     assert_eq!(expected::FUNCTIONS.len(), 14);
     assert_eq!(expected::ANALYZERS.len(), 2);
+    assert_eq!(
+        registry
+            .owner_of_table(&TableName::new("optimization_task").unwrap())
+            .unwrap()
+            .name()
+            .as_str(),
+        "optimization"
+    );
+    assert_eq!(
+        registry
+            .owner_of_function(&FunctionName::new("fn::kernel::tasks::selection_v1").unwrap())
+            .unwrap()
+            .name()
+            .as_str(),
+        "tasks"
+    );
     for &(name, owner) in expected::TABLES {
         assert_eq!(
             registry
@@ -81,7 +101,11 @@ fn reviewed_catalog_objects_resolve_to_their_declaring_owners() {
             "analyzer {name}"
         );
     }
-    for table in [veoveo_modules::LANE_TABLE, veoveo_modules::MIGRATION_TABLE, veoveo_modules::PREPARATION_TABLE] {
+    for table in [
+        veoveo_modules::LANE_TABLE,
+        veoveo_modules::MIGRATION_TABLE,
+        veoveo_modules::PREPARATION_TABLE,
+    ] {
         assert_eq!(
             registry
                 .owner_of_table(&TableName::new(table).unwrap())
@@ -114,7 +138,7 @@ fn target_dependencies_order_regardless_of_declaration_order() {
     owners.reverse();
     let registry = ModuleRegistry::new(owners).unwrap();
     let ordered = registry.ordered();
-    assert_eq!(ordered.len(), 16);
+    assert_eq!(ordered.len(), 17);
     for (position, owner) in ordered.iter().enumerate() {
         for requirement in owner.requires() {
             let prerequisite = ordered
@@ -180,10 +204,28 @@ fn optional_selection_adds_only_declared_optional_prerequisites() {
 #[test]
 fn generated_plan_matches_real_owner_catalog_without_runner_dependencies() {
     use veoveo_modules::{ModulePlanDocument, ModuleSelectionDocument};
-    let plan: ModulePlanDocument = serde_json::from_str(include_str!("../module-plan.json")).unwrap();
-    let execution = |name: &str| LaneExecution::new(ExecutionImage::new("gateway")?, ExecutionCommand::new(vec!["/usr/local/bin/gateway".into(),"module-migrate".into(),"--module".into(),name.into()])?);
+    let plan: ModulePlanDocument =
+        serde_json::from_str(include_str!("../module-plan.json")).unwrap();
+    let execution = |name: &str| {
+        LaneExecution::new(
+            ExecutionImage::new("gateway")?,
+            ExecutionCommand::new(vec![
+                "/usr/local/bin/gateway".into(),
+                "module-migrate".into(),
+                "--module".into(),
+                name.into(),
+            ])?,
+        )
+    };
     let registry = ModuleRegistry::new(declarations(execution).unwrap()).unwrap();
-    let selection: ModuleSelectionDocument = serde_json::from_str(include_str!("../selection.json")).unwrap();
-    let regenerated = ModulePlanDocument::generate(&registry, &selection, plan.composition().clone(), plan.runtime_bindings().to_vec()).unwrap();
+    let selection: ModuleSelectionDocument =
+        serde_json::from_str(include_str!("../selection.json")).unwrap();
+    let regenerated = ModulePlanDocument::generate(
+        &registry,
+        &selection,
+        plan.composition().clone(),
+        plan.runtime_bindings().to_vec(),
+    )
+    .unwrap();
     assert_eq!(plan, regenerated);
 }

@@ -39,6 +39,7 @@ impl TaskRuntime {
         bindings: Vec<(&'static str, Value)>,
     ) -> Result<(), TaskError> {
         let snapshot = &claimed.snapshot;
+        self.check_contribution(&snapshot.task_type)?;
         if snapshot.server != self.server() {
             return Err(TaskError::WrongServer(snapshot.task_id.to_string()));
         }

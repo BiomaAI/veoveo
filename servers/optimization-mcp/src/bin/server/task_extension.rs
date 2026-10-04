@@ -450,7 +450,12 @@ async fn run_task(
     heartbeat.tick().await;
     loop {
         tokio::select! {
-            () = &mut work => break,
+            result = &mut work => {
+                if let Err(error) = result {
+                    tracing::warn!(%task_id, "Optimization Task lifecycle commit failed: {error}");
+                }
+                break;
+            },
             _ = heartbeat.tick() => {
                 if let Err(error) = state.tasks.renew_lease(task_id, TASK_LEASE_DURATION).await {
                     tracing::warn!(%task_id, "Optimization task lease heartbeat failed: {error}");
@@ -468,8 +473,8 @@ async fn run_task_inner(
     runtime_owner: TaskOwner,
     request: OptimizationTaskRequest,
     cancellation: tokio_util::sync::CancellationToken,
-) {
-    update_task(
+) -> anyhow::Result<()> {
+    let snapshot = update_task(
         &state,
         task_id,
         TaskTransition::Running {
@@ -477,7 +482,10 @@ async fn run_task_inner(
             progress: 0.05,
         },
     )
-    .await;
+    .await?;
+    if snapshot.status != veoveo_task_runtime::TaskStatus::Running {
+        return Ok(());
+    }
     let result = execute_task(
         state.as_ref(),
         task_id,
@@ -487,13 +495,13 @@ async fn run_task_inner(
     )
     .await;
     if cancellation.is_cancelled() {
-        update_task(&state, task_id, TaskTransition::Cancelled).await;
-        return;
+        update_task(&state, task_id, TaskTransition::Cancelled).await?;
+        return Ok(());
     }
     match result {
         Ok(tool_result) => match serde_json::to_value(tool_result) {
             Ok(result) => {
-                update_task(
+                let snapshot = update_task(
                     &state,
                     task_id,
                     TaskTransition::Succeeded {
@@ -501,7 +509,10 @@ async fn run_task_inner(
                         result,
                     },
                 )
-                .await;
+                .await?;
+                if snapshot.status != veoveo_task_runtime::TaskStatus::Succeeded {
+                    return Ok(());
+                }
                 for uri in [
                     veoveo_optimization_mcp::contract::uris::PROBLEMS_URI,
                     veoveo_optimization_mcp::contract::uris::RUNS_URI,
@@ -511,10 +522,11 @@ async fn run_task_inner(
                 }
                 state.resource_observers.notify_changed().await;
             }
-            Err(error) => fail_task(&state, task_id, "result_serialization_failed", error).await,
+            Err(error) => fail_task(&state, task_id, "result_serialization_failed", error).await?,
         },
-        Err(error) => fail_task(&state, task_id, "optimization_failed", error).await,
+        Err(error) => fail_task(&state, task_id, "optimization_failed", error).await?,
     }
+    Ok(())
 }
 
 async fn execute_task(
@@ -536,7 +548,7 @@ async fn execute_task(
             };
             let executor_permit = acquire_executor_slot(state, task_id, &cancellation).await?;
             let queue_seconds = executor_permit.queue_seconds;
-            update_solving(state, task_id, &common).await;
+            update_solving(state, task_id, &common).await?;
             let profile = executor_profile(&input.policy, ProblemFamily::Routing, false)?;
             let executor_started_at = Utc::now();
             let response = state
@@ -568,7 +580,7 @@ async fn execute_task(
                     queue_seconds,
                 ),
             )?;
-            update_publishing(state, task_id).await;
+            update_publishing(state, task_id).await?;
             solution_result(
                 state,
                 &common.artifact_write_capability,
@@ -587,7 +599,7 @@ async fn execute_task(
             };
             let executor_permit = acquire_executor_slot(state, task_id, &cancellation).await?;
             let queue_seconds = executor_permit.queue_seconds;
-            update_solving(state, task_id, &common).await;
+            update_solving(state, task_id, &common).await?;
             let profile = executor_profile(&input.policy, ProblemFamily::RouteScenarios, false)?;
             let executor_started_at = Utc::now();
             let response = state
@@ -631,7 +643,7 @@ async fn execute_task(
                     queue_seconds,
                 ),
             )?;
-            update_publishing(state, task_id).await;
+            update_publishing(state, task_id).await?;
             solution_result(
                 state,
                 &common.artifact_write_capability,
@@ -655,7 +667,7 @@ async fn execute_task(
             };
             let executor_permit = acquire_executor_slot(state, task_id, &cancellation).await?;
             let queue_seconds = executor_permit.queue_seconds;
-            update_solving(state, task_id, &common).await;
+            update_solving(state, task_id, &common).await?;
             let profile = convex_executor_profile(&input.policy, problem.kind)?;
             let executor_started_at = Utc::now();
             let response = state
@@ -688,7 +700,7 @@ async fn execute_task(
                     queue_seconds,
                 ),
             )?;
-            update_publishing(state, task_id).await;
+            update_publishing(state, task_id).await?;
             solution_result(
                 state,
                 &common.artifact_write_capability,
@@ -712,7 +724,7 @@ async fn execute_task(
             };
             let executor_permit = acquire_executor_slot(state, task_id, &cancellation).await?;
             let queue_seconds = executor_permit.queue_seconds;
-            update_solving(state, task_id, &common).await;
+            update_solving(state, task_id, &common).await?;
             let profile = executor_profile(
                 &input.policy,
                 ProblemFamily::Milp,
@@ -749,7 +761,7 @@ async fn execute_task(
                     queue_seconds,
                 ),
             )?;
-            update_publishing(state, task_id).await;
+            update_publishing(state, task_id).await?;
             solution_result(
                 state,
                 &common.artifact_write_capability,
@@ -841,7 +853,7 @@ async fn acquire_executor_slot(
     task_id: TaskId,
     cancellation: &tokio_util::sync::CancellationToken,
 ) -> anyhow::Result<ExecutorPermit> {
-    update_task(
+    let snapshot = update_task(
         state,
         task_id,
         TaskTransition::Running {
@@ -849,7 +861,11 @@ async fn acquire_executor_slot(
             progress: 0.20,
         },
     )
-    .await;
+    .await?;
+    anyhow::ensure!(
+        snapshot.status == veoveo_task_runtime::TaskStatus::Running,
+        "Optimization Task was cancelled before executor admission"
+    );
     let queued_at = Instant::now();
     let permit = tokio::select! {
         permit = state.executor_slot.clone().acquire_owned() => {
@@ -1046,8 +1062,12 @@ fn maximum(left: Option<NonNegativeF64>, right: Option<NonNegativeF64>) -> Optio
     }
 }
 
-async fn update_solving(state: &AppState, task_id: TaskId, common: &SolveTaskCommon) {
-    update_task(
+async fn update_solving(
+    state: &AppState,
+    task_id: TaskId,
+    common: &SolveTaskCommon,
+) -> anyhow::Result<()> {
+    let snapshot = update_task(
         state,
         task_id,
         TaskTransition::Running {
@@ -1055,11 +1075,16 @@ async fn update_solving(state: &AppState, task_id: TaskId, common: &SolveTaskCom
             progress: 0.25,
         },
     )
-    .await;
+    .await?;
+    anyhow::ensure!(
+        snapshot.status == veoveo_task_runtime::TaskStatus::Running,
+        "Optimization Task was cancelled before execution progress"
+    );
+    Ok(())
 }
 
-async fn update_publishing(state: &AppState, task_id: TaskId) {
-    update_task(
+async fn update_publishing(state: &AppState, task_id: TaskId) -> anyhow::Result<()> {
+    let snapshot = update_task(
         state,
         task_id,
         TaskTransition::Running {
@@ -1067,7 +1092,12 @@ async fn update_publishing(state: &AppState, task_id: TaskId) {
             progress: 0.85,
         },
     )
-    .await;
+    .await?;
+    anyhow::ensure!(
+        snapshot.status == veoveo_task_runtime::TaskStatus::Running,
+        "Optimization Task was cancelled before execution progress"
+    );
+    Ok(())
 }
 
 fn executor_result_error<T>(result: ExecutorResult) -> anyhow::Result<T> {
@@ -1138,14 +1168,20 @@ async fn find_prepared_ref(
         .clone())
 }
 
-async fn fail_task(state: &AppState, task_id: TaskId, code: &str, error: impl std::fmt::Display) {
+async fn fail_task(
+    state: &AppState,
+    task_id: TaskId,
+    code: &str,
+    error: impl std::fmt::Display,
+) -> anyhow::Result<()> {
     tracing::warn!(%task_id, "Optimization task failed: {error}");
     update_task(
         state,
         task_id,
         TaskTransition::Failed(TaskFailure::new(code, error.to_string())),
     )
-    .await;
+    .await?;
+    Ok(())
 }
 
 fn decode<T: serde::de::DeserializeOwned>(value: serde_json::Value) -> Result<T, rmcp::ErrorData> {

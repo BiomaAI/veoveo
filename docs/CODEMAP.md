@@ -400,13 +400,18 @@ tasks, subscriptions, notifications, and structured content in addition to tools
 
 `src/names.rs`, `declaration.rs` and `registry.rs` own checked names, ownership claims,
 append-only lane declarations, dependency ordering and enabled-module selection without
-normal or build dependencies. The optional `src/plan.rs` serialization surface describes
+normal or build dependencies. `ModuleOwnership` shares checked owner claims with runtime
+adapters without requiring an installation execution host. `src/sql_api.rs` describes
+versioned kernel SQL exports; `src/runner/policy/api.rs` admits their read-only bodies
+and guarded object access. `src/runner/policy/index.rs` checks schema-proven object
+paths in indexes and rejects field changes that invalidate their parent shapes.
+The optional `src/plan.rs` serialization surface describes
 the selected composition, execution commands and runtime bindings without enumerating
 owners. `src/runner/` contains the optional parser adapter, prepared SQL admission,
 native transaction executor and installation preparation fence. Kernel declarations
 live under `platform/store/src/schema/`; optional owners expose `schema::module_setup`. The
 [independent schema consumer](../testing/fixtures/module-schema-consumer/README.md)
-composes all 16 real exports without contract/runtime dependency graphs.
+composes the real owner exports without contract/runtime dependency graphs.
 
 `platform/gateway/src/bin/gateway/module_installation/` composes those exports and
 owns offline plan generation, mixed-schema preparation, lane execution and readiness
@@ -414,6 +419,10 @@ commands. `deploy/runtime/src/compile/module_plan.rs` runs the selected composit
 image to generate the locked plan. Its process adapter owns execution deadlines and
 container cleanup. `deploy/helm/veoveo/templates/_module-jobs.tpl` renders preparation,
 per-lane migration and control-plane publication Jobs from that plan.
+
+`platform/store/src/schema/tasks/migrations/` owns the versioned Task SQL selection
+API. It reads persisted caller policy and returns an admitted Task projection for
+module queries, with guarded access to open request and result objects.
 
 ### `platform/workspace`
 
@@ -666,7 +675,8 @@ observation lease and cancellation epoch in one transaction.
 | `admission.rs`, `tests/admission.rs` | shared queued-Task transaction guard and native qualification; domains supply their own admission SQL and retain ownership of resource policy |
 | `runtime/task_pages.rs` | caller-owned collection pages with Store authorization filters, creation-time and Task-ID cursors |
 | `runtime/owner_query.rs`, `runtime/owner_reads.rs` and `runtime/owner_subscriptions.rs` | typed owner/context/operation query builder and shared SQL selection for exact reads, cancellation, collection pages and public Task delivery; current-state projection from native Task identities |
-| `runtime/transition.surql` | Task compare-and-set transitions with owner-query selection repeated inside caller cancellations |
+| `src/contributions.rs` and `queries/` | typed module row contributions in Task creation, idempotency and terminal settlement transactions; fixed SQL protects Task links and immutable catalog identity |
+| `queries/transition.surql` and `queries/recovery_transition.surql` | Task compare-and-set transitions with owner-query selection repeated inside caller cancellations and contribution settlement under the ordinary or recovery guard |
 | `runtime/input_responses.rs`, `runtime/input_responses.surql`, `tests/input_responses.rs` | input answer transactions with current caller selection, matching input identities and per-key deduplication; public API rollback and contention qualification |
 | `runtime/context_scope.rs` | checked Work Context predicates and bindings shared by Task observation and linked usage reads |
 | `runtime/usage.rs` | caller-owned usage reads and Task-ID pages; SQL checks both usage and linked Task metadata before grouping and limits under an explicit owner or Work Context policy; Task existence admission before the first usage row |
@@ -1110,6 +1120,9 @@ domain vocabulary.
 | `servers/optimization-mcp/src/bin/server/` | MCP tasks, GPU queue, problem/run/solution resources, artifact publication, prompts, and identity |
 | `servers/optimization-mcp/src/bin/server/setup.rs` | checked MCP startup and discovery, typed descriptors, App metadata and RFC 6570 templates |
 | `servers/optimization-mcp/src/reads.rs` | domain-owned SQL selection under matching owner envelopes and Work Context metadata, typed exact lookup, stable pagination and completion search |
+| `servers/optimization-mcp/src/reads/transaction.rs` | one native read transaction for catalog selection and Task hydration, with owned cancellation after caller drop |
+| `servers/optimization-mcp/src/schema.rs`, `migrations/` and `src/task_catalog.rs` | Optimization-owned Task catalog declaration, typed transactional contributions, immutable solve identity and terminal result agreement |
+| `servers/optimization-mcp/queries/` | catalog pages, exact reads and completion with kernel-authorized Task projection and domain filters before limits or grouping |
 | `servers/optimization-mcp/tests/reads.rs` | native SQL qualification of page and completion limits, denied malformed rows, current ownership, Work Context and clearance |
 | `servers/optimization-mcp/src/task_records.rs` | runtime-only retained solve and verification requests shared by readers and MCP Task execution |
 | `servers/optimization-mcp/src/usage.rs` | usage pages and exact reads through TaskRuntime SQL with current owner and Work Context checks |

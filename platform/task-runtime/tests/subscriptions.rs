@@ -319,8 +319,19 @@ async fn owner_reads_and_subscription_baselines_filter_before_decoding() {
         let db = fixture::TestDb::new().await;
         let reader = TaskRuntime::new(db.a.clone(), "integration-server", "reader");
         let writer = TaskRuntime::new(db.b.clone(), "integration-server", "writer");
+        db.b.client()
+            .query("CREATE ONLY task_policy_probe:owner CONTENT $owner RETURN NONE;")
+            .bind(("owner", serde_json::to_value(owner()).unwrap()))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
         let mut ids = Vec::new();
         for mutation in [
+            "request.owner = task_policy_probe:owner",
+            "request.owner.data_labels = NONE",
+            "request.owner.data_labels = 'internal'",
+            "request.owner.data_labels = ['internal', NONE]",
             "request.owner.data_labels = ['restricted']",
             "request.owner.principal_key = 'inconsistent'",
             "request.owner.profile = 'inconsistent'",

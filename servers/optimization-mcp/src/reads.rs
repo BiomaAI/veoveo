@@ -1,8 +1,12 @@
 //! Current owner and Work Context selection before limits, grouping or decoding.
-use crate::contract::OptimizationTaskKind;
-use surrealdb::{Connection, method::Query};
+mod transaction;
+use crate::task_catalog::{CatalogRow, SOLVE_KINDS};
+use surrealdb::{
+    Connection,
+    method::{Query, Transaction},
+};
 use veoveo_platform_store::{
-    RecordId, TaskRecord, TaskStatus, deterministic_principal_id, deterministic_tenant_id,
+    RecordId, TaskStatus, deterministic_principal_id, deterministic_tenant_id,
     deterministic_work_context_id, task_record_id,
 };
 use veoveo_task_runtime::{TaskOwner, TaskRuntime, TaskSnapshot};
@@ -17,24 +21,20 @@ use crate::{
     task_records::OptimizationTaskRequest,
 };
 
-const VISIBLE: &str = "server = $server AND tenant = $tenant AND owner = $owner
-    AND profile = $profile AND work_context = $work_context
-    AND request.owner.principal_key = $principal_key
-    AND request.owner.profile = $profile_key
-    AND (request.owner.tenant_key ?? NONE) = $tenant_key
-    AND request.owner.data_labels ALLINSIDE $labels
-    AND authority.context_key = $work_context_key
-    AND request.owner.authority.work_context = $work_context_key
-    AND request.owner.authority.tenant = $authority_tenant";
-const SOLVE: &str = "task_type IN $task_types AND request.input.kind = task_type";
-const COMPLETED: &str = "status = 'succeeded' AND (result.payload.isError ?? false) = false
-    AND result.payload.structuredContent.result_uri != NONE";
-const SOLVE_TASK_TYPES: [OptimizationTaskKind; 4] = [
-    OptimizationTaskKind::OptimizeRoutes,
-    OptimizationTaskKind::OptimizeRouteScenarios,
-    OptimizationTaskKind::SolveConvex,
-    OptimizationTaskKind::SolveMilp,
-];
+const VISIBLE: &str = include_str!("../queries/catalog_visible.surql");
+const COMPLETED: &str = include_str!("../queries/catalog_completed.surql");
+
+fn catalog_query(template: &str, predicate: &str, completed: bool) -> String {
+    let selection = include_str!("../queries/catalog_selection.surql")
+        .replace("/* catalog predicate */", predicate);
+    template
+        .replace("/* selection */", &selection)
+        .replace("/* visible */", VISIBLE)
+        .replace(
+            "/* completed */",
+            if completed { COMPLETED } else { "true" },
+        )
+}
 
 pub struct OptimizationReads<'a> {
     tasks: &'a TaskRuntime,
@@ -60,6 +60,9 @@ impl<'a> OptimizationReads<'a> {
             tasks.server() == "optimization",
             "expected Optimization Task runtime"
         );
+        for kind in SOLVE_KINDS {
+            tasks.require_contribution(&kind.name())?;
+        }
         Ok(Self { tasks })
     }
 
@@ -68,20 +71,34 @@ impl<'a> OptimizationReads<'a> {
         owner: &TaskOwner,
         request: &OptimizationCollectionUri,
     ) -> anyhow::Result<VisibleOptimizationTaskPage> {
-        let terminal = if request.collection() == OptimizationCollection::Solutions {
-            COMPLETED
-        } else {
-            "true"
-        };
+        let tasks = self.tasks.clone();
+        let owner = owner.clone();
+        let request = request.clone();
+        transaction::read(self.tasks.platform_store().client(), move |transaction| {
+            Box::pin(async move {
+                OptimizationReads::new(&tasks)?
+                    .page_in(transaction, &owner, &request)
+                    .await
+            })
+        })
+        .await
+    }
+
+    async fn page_in<C: Connection>(
+        &self,
+        transaction: &Transaction<C>,
+        owner: &TaskOwner,
+        request: &OptimizationCollectionUri,
+    ) -> anyhow::Result<VisibleOptimizationTaskPage> {
+        let completed = request.collection() == OptimizationCollection::Solutions;
         let after = if request.cursor().is_some() {
-            "AND (created_at > $after_created_at OR (created_at = $after_created_at AND id > $after_task))"
+            "AND (created_at > $after_created_at OR (created_at = $after_created_at AND task > $after_task))"
         } else {
             ""
         };
-        let query = self.tasks.platform_store().client().query(format!(
-            "SELECT * FROM task WHERE {VISIBLE} AND {SOLVE} AND {terminal} {after}
-             ORDER BY created_at ASC, id ASC LIMIT $limit;"
-        ));
+        let sql = catalog_query(include_str!("../queries/catalog_page.surql"), "", completed)
+            .replace("/* after cursor */", after);
+        let query = transaction.query(sql);
         let mut query =
             bind_owner(query, owner)?.bind(("limit", (OPTIMIZATION_INDEX_PAGE_SIZE + 1) as i64));
         if let Some(cursor) = request.cursor() {
@@ -90,15 +107,22 @@ impl<'a> OptimizationReads<'a> {
                 .bind(("after_task", task_record_id(cursor.task_id())));
         }
         let mut response = query.await?.check()?;
-        let records: Vec<TaskRecord> = response.take(0)?;
+        let records: Vec<CatalogRow> = response.take(0)?;
         let has_more = records.len() > OPTIMIZATION_INDEX_PAGE_SIZE;
-        let items = records
-            .into_iter()
-            .take(OPTIMIZATION_INDEX_PAGE_SIZE)
-            .map(decode)
-            .collect::<anyhow::Result<Vec<_>>>()?;
+        let items = self
+            .decode_catalog(
+                transaction,
+                owner,
+                records
+                    .into_iter()
+                    .take(OPTIMIZATION_INDEX_PAGE_SIZE)
+                    .collect(),
+            )
+            .await?;
         let next_cursor = if has_more {
-            let last = items.last().expect("overfull page has a returned item");
+            let last = items.last().ok_or_else(|| {
+                anyhow::anyhow!("overfull Optimization catalog page has no validated Task")
+            })?;
             Some(OptimizationIndexCursor::new(
                 request.collection(),
                 last.snapshot.created_at,
@@ -122,41 +146,57 @@ impl<'a> OptimizationReads<'a> {
         owner: &TaskOwner,
         id: &ProblemId,
     ) -> anyhow::Result<Option<VisibleOptimizationTask>> {
-        self.find(owner, Selection::Problem(id)).await
+        self.find(owner, Selection::Problem(id.clone())).await
     }
     pub async fn run(
         &self,
         owner: &TaskOwner,
         id: &RunId,
     ) -> anyhow::Result<Option<VisibleOptimizationTask>> {
-        self.find(owner, Selection::Run(id)).await
+        self.find(owner, Selection::Run(id.clone())).await
     }
     pub async fn solution(
         &self,
         owner: &TaskOwner,
         uri: &OptimizationSolutionUri,
     ) -> anyhow::Result<Option<VisibleOptimizationTask>> {
-        self.find(owner, Selection::Solution(uri)).await
+        self.find(owner, Selection::Solution(uri.clone())).await
     }
 
     async fn find(
         &self,
         owner: &TaskOwner,
-        selection: Selection<'_>,
+        selection: Selection,
     ) -> anyhow::Result<Option<VisibleOptimizationTask>> {
-        let predicate = match selection {
-            Selection::Problem(_) => "request.input.common.problem_id = $identity",
-            Selection::Run(_) => "request.input.common.run_id = $identity",
-            Selection::Solution(_) => "result.payload.structuredContent.result_uri = $identity",
+        let tasks = self.tasks.clone();
+        let owner = owner.clone();
+        transaction::read(self.tasks.platform_store().client(), move |transaction| {
+            Box::pin(async move {
+                OptimizationReads::new(&tasks)?
+                    .find_in(transaction, &owner, selection)
+                    .await
+            })
+        })
+        .await
+    }
+
+    async fn find_in<C: Connection>(
+        &self,
+        transaction: &Transaction<C>,
+        owner: &TaskOwner,
+        selection: Selection,
+    ) -> anyhow::Result<Option<VisibleOptimizationTask>> {
+        let predicate = match &selection {
+            Selection::Problem(_) => "WHERE identity.problem_id = $identity",
+            Selection::Run(_) => "WHERE identity.run_id = $identity",
+            Selection::Solution(_) => "WHERE settlement.result_uri = $identity",
         };
-        let terminal = if matches!(selection, Selection::Solution(_)) {
-            COMPLETED
-        } else {
-            "true"
-        };
-        let query = bind_owner(self.tasks.platform_store().client().query(format!(
-            "SELECT * FROM task WHERE {VISIBLE} AND {SOLVE} AND {terminal} AND {predicate} LIMIT 2;"
-        )), owner)?;
+        let sql = catalog_query(
+            include_str!("../queries/catalog_exact.surql"),
+            predicate,
+            matches!(&selection, Selection::Solution(_)),
+        );
+        let query = bind_owner(transaction.query(sql), owner)?;
         // Domain identities stay typed until this driver binding.
         let query = match selection {
             Selection::Problem(id) => query.bind(("identity", id.to_string())),
@@ -164,12 +204,16 @@ impl<'a> OptimizationReads<'a> {
             Selection::Solution(uri) => query.bind(("identity", uri.to_string())),
         };
         let mut response = query.await?.check()?;
-        let records: Vec<TaskRecord> = response.take(0)?;
+        let records: Vec<CatalogRow> = response.take(0)?;
         anyhow::ensure!(
             records.len() <= 1,
             "duplicate canonical Optimization identity"
         );
-        records.into_iter().next().map(decode).transpose()
+        Ok(self
+            .decode_catalog(transaction, owner, records)
+            .await?
+            .into_iter()
+            .next())
     }
 
     pub async fn complete_problems(
@@ -218,8 +262,30 @@ impl<'a> OptimizationReads<'a> {
         .await
     }
 
-    async fn complete<T>(
+    async fn complete<T: Send + 'static>(
         &self,
+        owner: &TaskOwner,
+        collection: OptimizationCollection,
+        needle: &str,
+        limit: usize,
+        parse: impl Fn(String) -> anyhow::Result<T> + Send + 'static,
+    ) -> anyhow::Result<OptimizationCompletionPage<T>> {
+        let tasks = self.tasks.clone();
+        let owner = owner.clone();
+        let needle = needle.to_owned();
+        transaction::read(self.tasks.platform_store().client(), move |transaction| {
+            Box::pin(async move {
+                OptimizationReads::new(&tasks)?
+                    .complete_in(transaction, &owner, collection, &needle, limit, parse)
+                    .await
+            })
+        })
+        .await
+    }
+
+    async fn complete_in<T, C: Connection>(
+        &self,
+        transaction: &Transaction<C>,
         owner: &TaskOwner,
         collection: OptimizationCollection,
         needle: &str,
@@ -231,41 +297,114 @@ impl<'a> OptimizationReads<'a> {
             "Optimization completion limit must be between 1 and 100"
         );
         let field = match collection {
-            OptimizationCollection::Problems => "request.input.common.problem_id",
-            OptimizationCollection::Runs => "request.input.common.run_id",
-            OptimizationCollection::Solutions => "result.payload.structuredContent.result_uri",
+            OptimizationCollection::Problems => "identity.problem_id",
+            OptimizationCollection::Runs => "identity.run_id",
+            OptimizationCollection::Solutions => "settlement.result_uri",
         };
-        let terminal = if collection == OptimizationCollection::Solutions {
-            COMPLETED
-        } else {
-            "true"
-        };
-        let mut response = bind_owner(
-            self.tasks.platform_store().client().query(format!(
-                "SELECT VALUE {field} FROM task WHERE {VISIBLE} AND {SOLVE} AND {terminal}
-             AND {field} CONTAINS $needle GROUP BY {field} ORDER BY {field} ASC LIMIT $limit;"
-            )),
-            owner,
-        )?
-        .bind(("needle", needle.to_ascii_lowercase()))
-        .bind(("limit", (limit + 1) as i64))
-        .await?
-        .check()?;
+        let completed = collection == OptimizationCollection::Solutions;
+        let sql = catalog_query(
+            include_str!("../queries/catalog_completion.surql"),
+            "",
+            completed,
+        )
+        .replace("/* completion field */", field);
+        let mut response = bind_owner(transaction.query(sql), owner)?
+            .bind(("needle", needle.to_ascii_lowercase()))
+            .bind(("limit", (limit + 1) as i64))
+            .await?
+            .check()?;
         let values: Vec<String> = response.take(0)?;
         let has_more = values.len() > limit;
-        let values = values
-            .into_iter()
-            .take(limit)
-            .map(parse)
+        let values = values.into_iter().take(limit).collect::<Vec<_>>();
+        if !values.is_empty() {
+            let predicate = match collection {
+                OptimizationCollection::Problems => "WHERE identity.problem_id IN $values",
+                OptimizationCollection::Runs => "WHERE identity.run_id IN $values",
+                OptimizationCollection::Solutions => "WHERE settlement.result_uri IN $values",
+            };
+            let sql = catalog_query(
+                include_str!("../queries/catalog_completion_rows.surql"),
+                predicate,
+                completed,
+            );
+            let mut response = bind_owner(transaction.query(sql), owner)?
+                .bind(("values", values.clone()))
+                .await?
+                .check()?;
+            let rows: Vec<CatalogRow> = response.take(0)?;
+            anyhow::ensure!(
+                rows.len() <= 1000,
+                "Optimization completion has too many duplicate catalog rows"
+            );
+            let visible = self.decode_catalog(transaction, owner, rows).await?;
+            let admitted = visible
+                .iter()
+                .filter_map(|row| match collection {
+                    OptimizationCollection::Problems => row
+                        .request
+                        .common()
+                        .map(|common| common.problem_id.to_string()),
+                    OptimizationCollection::Runs => {
+                        row.request.common().map(|common| common.run_id.to_string())
+                    }
+                    OptimizationCollection::Solutions => row
+                        .output
+                        .as_ref()
+                        .map(|output| output.result_uri.to_string()),
+                })
+                .collect::<std::collections::BTreeSet<_>>();
+            anyhow::ensure!(
+                values.iter().all(|value| admitted.contains(value)),
+                "SQL-selected Optimization completion identity has no validated catalog/Task match"
+            );
+            let values = values
+                .into_iter()
+                .map(parse)
+                .collect::<anyhow::Result<Vec<_>>>()?;
+            return Ok(OptimizationCompletionPage { values, has_more });
+        }
+        Ok(OptimizationCompletionPage {
+            values: Vec::new(),
+            has_more,
+        })
+    }
+
+    async fn decode_catalog<C: Connection>(
+        &self,
+        transaction: &Transaction<C>,
+        owner: &TaskOwner,
+        rows: Vec<CatalogRow>,
+    ) -> anyhow::Result<Vec<VisibleOptimizationTask>> {
+        let ids = rows
+            .iter()
+            .map(CatalogRow::task_id)
             .collect::<anyhow::Result<Vec<_>>>()?;
-        Ok(OptimizationCompletionPage { values, has_more })
+        let snapshots = self
+            .tasks
+            .for_owner(owner)
+            .in_work_context()?
+            .of_types(SOLVE_KINDS.map(|kind| kind.name()))?
+            .get_many_in(transaction, &ids)
+            .await?;
+        let mut snapshots = snapshots
+            .into_iter()
+            .map(|snapshot| (snapshot.task_id, snapshot))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        let mut visible = Vec::with_capacity(rows.len());
+        for row in rows {
+            let snapshot = snapshots.remove(&row.task_id()?).ok_or_else(|| anyhow::anyhow!("selected Optimization catalog Task is absent from the same owner-scoped read transaction"))?;
+            let decoded = decode(snapshot)?;
+            row.check(&decoded.snapshot, decoded.output.as_ref())?;
+            visible.push(decoded);
+        }
+        Ok(visible)
     }
 }
 
-enum Selection<'a> {
-    Problem(&'a ProblemId),
-    Run(&'a RunId),
-    Solution(&'a OptimizationSolutionUri),
+enum Selection {
+    Problem(ProblemId),
+    Run(RunId),
+    Solution(OptimizationSolutionUri),
 }
 
 fn bind_owner<'q, C: Connection>(
@@ -303,14 +442,11 @@ fn bind_owner<'q, C: Connection>(
         .bind(("authority_tenant", owner.authority.tenant.to_string()))
         .bind((
             "task_types",
-            SOLVE_TASK_TYPES
-                .map(|kind| kind.name().to_string())
-                .to_vec(),
+            SOLVE_KINDS.map(|kind| kind.name().to_string()).to_vec(),
         )))
 }
 
-fn decode(record: TaskRecord) -> anyhow::Result<VisibleOptimizationTask> {
-    let snapshot = TaskSnapshot::try_from(record)?;
+fn decode(snapshot: TaskSnapshot) -> anyhow::Result<VisibleOptimizationTask> {
     let request: OptimizationTaskRequest = serde_json::from_value(snapshot.request.clone())?;
     let family = match &request {
         OptimizationTaskRequest::OptimizeRoutes { .. } => ProblemFamily::Routing,

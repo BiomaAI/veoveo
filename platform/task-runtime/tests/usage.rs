@@ -293,7 +293,30 @@ async fn usage_reads_reject_orphans_wrong_parent_metadata_and_tenant_aliases() {
                 .unwrap()
         );
 
+        db.a.client()
+            .query("CREATE ONLY usage_policy_probe:owner CONTENT $owner RETURN NONE;")
+            .bind(("owner", serde_json::to_value(&named_tenant).unwrap()))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
         for (number, query) in [
+            (
+                20,
+                "UPDATE ONLY $task SET request.owner = usage_policy_probe:owner RETURN NONE;",
+            ),
+            (
+                21,
+                "UPDATE ONLY $task SET request.owner.data_labels = NONE RETURN NONE;",
+            ),
+            (
+                22,
+                "UPDATE ONLY $task SET request.owner.data_labels = 'mission' RETURN NONE;",
+            ),
+            (
+                23,
+                "UPDATE ONLY $task SET request.owner.data_labels = [NONE] RETURN NONE;",
+            ),
             (10, "DELETE $task RETURN NONE;"),
             (
                 11,
@@ -395,7 +418,15 @@ async fn context_policy_filters_before_limits_and_requires_all_stored_contexts_t
         assert!(matches!(reader.usage(WorkContext(&invalid), pending).await, Err(TaskError::InvalidAuthority(_))));
         assert!(matches!(reader.task_visible(WorkContext(&invalid), pending).await, Err(TaskError::InvalidAuthority(_))));
 
+        db.a.client()
+            .query("CREATE ONLY usage_policy_probe:authority CONTENT $authority RETURN NONE;")
+            .bind(("authority", serde_json::to_value(&caller.authority).unwrap()))
+            .await.unwrap().check().unwrap();
         for (number, query) in [
+            (505, "UPDATE ONLY $task SET request.owner.authority = usage_policy_probe:authority RETURN NONE;"),
+            (506, "UPDATE ONLY $task SET request.owner.data_labels = NONE RETURN NONE;"),
+            (507, "UPDATE ONLY $task SET request.owner.data_labels = 'mission' RETURN NONE;"),
+            (508, "UPDATE ONLY $task SET request.owner.data_labels = ['mission', NONE] RETURN NONE;"),
             (500, "UPDATE ONLY $task SET work_context = work_context:wrong RETURN NONE;"),
             (501, "UPDATE ONLY $task SET authority.context_key = 'wrong' RETURN NONE;"),
             (502, "UPDATE ONLY $task SET request.owner.authority.work_context = 'wrong' RETURN NONE;"),

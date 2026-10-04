@@ -22,6 +22,7 @@ pub fn declarations(
         veoveo_uav_sim_mcp::schema::module_setup(execution("uav")?)?,
         veoveo_frames_mcp::schema::module_setup(execution("frames")?)?,
         veoveo_media_mcp::schema::module_setup(execution("media")?)?,
+        veoveo_optimization_mcp::schema::module_setup(execution("optimization")?)?,
     ])
 }
 

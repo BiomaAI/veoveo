@@ -227,3 +227,39 @@ fn valid_nested_policy_failures_identify_the_offending_owner_object() {
         assert!(error.contains("foreign"), "{error}");
     }
 }
+
+#[test]
+fn object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies() {
+    for sql in [
+        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE object; DEFINE FIELD identity.key ON own TYPE string; DEFINE INDEX by_key ON own FIELDS identity.key;",
+        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE option<object>; DEFINE INDEX by_key ON own FIELDS identity.key;",
+        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE object; DEFINE FIELD identity.child ON own TYPE object; DEFINE INDEX by_key ON own FIELDS identity.child.key;",
+        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE object; DEFINE INDEX by_key ON own FIELDS identity.key; REMOVE INDEX by_key ON own; DEFINE FIELD OVERWRITE identity ON own TYPE record<own>;",
+    ] {
+        assert!(admitted(sql), "{sql}");
+    }
+    for sql in [
+        "DEFINE TABLE own; DEFINE INDEX by_key ON own FIELDS identity.key;",
+        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE record<own>; DEFINE INDEX by_key ON own FIELDS identity.key;",
+        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE option<record<own>>; DEFINE INDEX by_key ON own FIELDS identity.key;",
+        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE any; DEFINE INDEX by_key ON own FIELDS identity.key;",
+        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE object; DEFINE INDEX by_key ON own FIELDS identity.child.key;",
+        "DEFINE TABLE own; DEFINE FIELD IF NOT EXISTS identity ON own TYPE object; DEFINE INDEX by_key ON own FIELDS identity.key;",
+        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE object; DEFINE FIELD OVERWRITE identity ON own TYPE record<own>; DEFINE INDEX by_key ON own FIELDS identity.key;",
+        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE object; REMOVE FIELD identity ON own; DEFINE INDEX by_key ON own FIELDS identity.key;",
+        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE object; REMOVE TABLE own; DEFINE TABLE own; DEFINE INDEX by_key ON own FIELDS identity.key;",
+        "DEFINE TABLE own; IF false THEN { DEFINE FIELD identity ON own TYPE object; } END; DEFINE INDEX by_key ON own FIELDS identity.key;",
+        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE object; DEFINE INDEX by_key ON own FIELDS identity.key; IF false THEN { REMOVE INDEX by_key ON own; } END; DEFINE FIELD OVERWRITE identity ON own TYPE record<own>;",
+        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE object; DEFINE INDEX by_key ON own FIELDS identity.key; IF false THEN { REMOVE TABLE own; } END; DEFINE FIELD OVERWRITE identity ON own TYPE record<own>;",
+        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE object; DEFINE INDEX by_key ON own FIELDS identity.key; DEFINE FIELD OVERWRITE identity ON own TYPE any;",
+        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE object; DEFINE FIELD other ON own TYPE object; DEFINE INDEX by_key ON own FIELDS identity.key; DEFINE INDEX IF NOT EXISTS by_key ON own FIELDS other.key; DEFINE FIELD OVERWRITE identity ON own TYPE record<own>;",
+        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE object; DEFINE FIELD identity.child ON own TYPE object; DEFINE INDEX by_key ON own FIELDS identity.child.key; DEFINE FIELD OVERWRITE identity ON own TYPE object;",
+        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE object; DEFINE INDEX by_key ON own FIELDS identity.key; DEFINE FIELD identity.* ON own TYPE record<own>;",
+        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE object; DEFINE FIELD identity.* ON own TYPE record<own>; DEFINE INDEX by_key ON own FIELDS identity.key;",
+        "DEFINE TABLE own; DEFINE INDEX by_key ON own FIELDS string::lowercase((SELECT * FROM foreign));",
+        "DEFINE TABLE own; DEFINE INDEX by_key ON own FIELDS string::lowercase(<string>(DELETE own));",
+        "DEFINE TABLE own; DEFINE FUNCTION fn::own() { DEFINE FIELD identity ON own TYPE object; }; DEFINE INDEX by_key ON own FIELDS identity.key;",
+    ] {
+        assert!(!admitted(sql), "{sql}");
+    }
+}

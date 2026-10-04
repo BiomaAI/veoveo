@@ -9,6 +9,7 @@ path = "src/lib.rs"
 
 [dependencies]
 veoveo-types.workspace = true
+veoveo-modules.workspace = true
 anyhow.workspace = true
 async-stream = "0.3.6"
 chrono.workspace = true
@@ -28,5 +29,7 @@ veoveo-mcp-contract.workspace = true
 veoveo-platform-store = { path = "../store" }
 
 [dev-dependencies]
+veoveo-modules = { workspace = true, features = ["runner"] }
+veoveo-platform-store = { path = "../store", features = ["schema"] }
 tokio = { workspace = true, features = ["process", "io-util"] }
 rmcp = { workspace = true, features = ["client"] }

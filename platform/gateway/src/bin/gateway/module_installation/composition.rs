@@ -29,6 +29,7 @@ pub(super) fn registry() -> anyhow::Result<ModuleRegistry> {
         veoveo_uav_sim_mcp::schema::module_setup(execution("uav")?)?,
         veoveo_frames_mcp::schema::module_setup(execution("frames")?)?,
         veoveo_media_mcp::schema::module_setup(execution("media")?)?,
+        veoveo_optimization_mcp::schema::module_setup(execution("optimization")?)?,
     ])?)
 }
 pub(super) fn bindings() -> anyhow::Result<Vec<ModuleRuntimeBinding>> {
@@ -41,6 +42,7 @@ pub(super) fn bindings() -> anyhow::Result<Vec<ModuleRuntimeBinding>> {
         ("time", None, Some("time")),
         ("frames", None, Some("frames")),
         ("media", None, Some("media")),
+        ("optimization", None, Some("optimization")),
     ]
     .into_iter()
     .map(|(module, component, mcp_server)| {

@@ -2,16 +2,14 @@
 use super::{OwnerTaskQuery, TaskRuntime, owner_record, tenant_record};
 use crate::types::{TaskError, TaskOwner, TaskSnapshot, record_to_snapshot, validate_task_id};
 use std::collections::BTreeSet;
-use surrealdb::{Connection, method::Query};
+use surrealdb::{
+    Connection,
+    method::{Query, Transaction},
+};
 use veoveo_platform_store::{PlatformTable, RecordId, TaskRecord, task_record_id};
 use veoveo_types::TaskId;
 
-pub(super) const VISIBLE_TASK: &str = "server = $server AND tenant = $tenant
-    AND owner = $owner AND profile = $profile
-    AND request.owner.principal_key = $principal_key
-    AND request.owner.profile = $profile_key
-    AND (request.owner.tenant_key ?? NONE) = $tenant_key
-    AND request.owner.data_labels ALLINSIDE $labels";
+pub(super) const VISIBLE_TASK: &str = include_str!("../../queries/owner_visible.surql");
 
 pub(super) struct OwnerScope {
     server: RecordId,
@@ -52,6 +50,56 @@ impl OwnerScope {
 }
 
 impl OwnerTaskQuery {
+    /// Read at most 1000 typed identities under the current owner/context/operation policy.
+    pub async fn get_many(
+        &self,
+        tasks: &[veoveo_types::TaskId],
+    ) -> Result<Vec<TaskSnapshot>, TaskError> {
+        self.read_batch(self.runtime.store.client().query(self.batch_sql()), tasks)
+            .await
+    }
+
+    /// Read the same typed selection within the caller's native database transaction.
+    /// Module catalog and Task hydration can therefore share one committed read view.
+    pub async fn get_many_in<C: Connection>(
+        &self,
+        transaction: &Transaction<C>,
+        tasks: &[veoveo_types::TaskId],
+    ) -> Result<Vec<TaskSnapshot>, TaskError> {
+        self.read_batch(transaction.query(self.batch_sql()), tasks)
+            .await
+    }
+
+    fn batch_sql(&self) -> String {
+        include_str!("../../queries/owner_batch.surql")
+            .replace("/* owner selection */", &format!("AND {VISIBLE_TASK}"))
+            .replace("/* caller selection */", &self.selection_predicate())
+    }
+
+    async fn read_batch<C: Connection>(
+        &self,
+        query: Query<'_, C>,
+        tasks: &[veoveo_types::TaskId],
+    ) -> Result<Vec<TaskSnapshot>, TaskError> {
+        if tasks.is_empty() {
+            return Ok(Vec::new());
+        }
+        if tasks.len() > 1000 {
+            return Err(TaskError::InvalidPageQuery);
+        }
+        let records = tasks
+            .iter()
+            .copied()
+            .map(validate_task_id)
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .map(task_record_id)
+            .collect::<Vec<_>>();
+        let mut response = self.bind(query)?.bind(("tasks", records)).await?.check()?;
+        let records: Vec<TaskRecord> = response.take(0)?;
+        records.into_iter().map(record_to_snapshot).collect()
+    }
+
     /// Select a current caller-owned Task before decoding its request or result.
     /// Missing and denied Tasks both return `None`.
     /// ```compile_fail

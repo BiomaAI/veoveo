@@ -22,3 +22,8 @@ pub mod task_records;
 pub mod usage;
 #[cfg(feature = "runtime")]
 pub mod verification;
+
+#[cfg(feature = "schema")]
+pub mod schema;
+#[cfg(feature = "runtime")]
+pub mod task_catalog;

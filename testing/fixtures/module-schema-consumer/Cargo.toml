@@ -20,6 +20,8 @@ veoveo-uav-sim-mcp = { path = "../../../servers/uav-sim-mcp", default-features =
 veoveo-frames-mcp = { path = "../../../servers/frames-mcp", default-features = false, features = ["schema"] }
 veoveo-media-mcp = { path = "../../../servers/media-mcp", default-features = false, features = ["schema"] }
 
+veoveo-optimization-mcp = { path = "../../../servers/optimization-mcp", default-features = false, features = ["schema"] }
+
 [dev-dependencies]
 # Reuse qualified workspace JSON wire implementation; no runner/driver dependency.
 serde_json = "=1.0.151"
