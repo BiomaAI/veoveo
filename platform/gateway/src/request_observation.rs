@@ -53,7 +53,7 @@ impl RequestObservation {
             RequestStage::Upstream => &self.timings.upstream,
         };
         counter
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |old| {
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |old| {
                 Some(old.saturating_add(nanos))
             })
             .ok();
