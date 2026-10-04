@@ -13,13 +13,9 @@ pub struct PersistenceIds;
 impl veoveo_types::IdProfile for PersistenceIds {
     type Error = uuid::Error;
     const PROFILE: veoveo_types::IdProfileSpec<Self::Error> = veoveo_types::IdProfileSpec {
-        generation: veoveo_types::IdGeneration {
-            fresh: veoveo_types::FreshId::UuidV7,
-            stable_v5_namespace: None,
-        },
         wire: veoveo_types::IdWire::InnerUuid,
         schema: veoveo_types::IdSchema::DerivedUuid,
-        ..veoveo_types::IdProfileSpec::uuid(
+        ..veoveo_types::IdProfileSpec::generated_uuid(
             veoveo_types::UuidGrammar {
                 versions: &[],
                 variant: veoveo_types::UuidVariant::Any,

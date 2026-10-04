@@ -125,49 +125,41 @@ pub(super) fn wire_pattern(
 // The URL builder has already encoded delimiters and UTF-8. Give each encoded
 // octet its hexadecimal-case aliases; unescaped ASCII may also be percent encoded.
 fn encoded_aliases(encoded: &str) -> String {
+    fn octet(hex: &str) -> String {
+        let mut result = String::from("%");
+        for character in hex.chars() {
+            if character.is_ascii_alphabetic() {
+                result.push_str(&format!(
+                    "[{}{}]",
+                    character.to_ascii_uppercase(),
+                    character.to_ascii_lowercase()
+                ));
+            } else {
+                result.push(character);
+            }
+        }
+        result
+    }
     let bytes = encoded.as_bytes();
     let mut result = String::new();
     let mut index = 0;
     while index < bytes.len() {
         if bytes[index] == b'%' && index + 2 < bytes.len() {
-            result.push('%');
-            for byte in &bytes[index + 1..index + 3] {
-                let character = char::from(*byte);
-                if character.is_ascii_alphabetic() {
-                    result.push_str(&format!(
-                        "[{}{}]",
-                        character.to_ascii_uppercase(),
-                        character.to_ascii_lowercase()
-                    ));
-                } else {
-                    result.push(character);
-                }
-            }
+            result.push_str(&octet(&encoded[index + 1..index + 3]));
             index += 3;
         } else {
             let byte = bytes[index];
-            let hex = format!("{byte:02X}");
-            let mut octet = String::from("%");
-            for character in hex.chars() {
-                if character.is_ascii_alphabetic() {
-                    octet.push_str(&format!(
-                        "[{}{}]",
-                        character,
-                        character.to_ascii_lowercase()
-                    ));
-                } else {
-                    octet.push(character);
-                }
-            }
             result.push_str(&format!(
-                "(?:{}|{octet})",
-                escape(&char::from(byte).to_string())
+                "(?:{}|{})",
+                escape(&char::from(byte).to_string()),
+                octet(&format!("{byte:02X}"))
             ));
             index += 1;
         }
     }
     result
 }
+
 fn escape(value: &str) -> String {
     let mut output = String::new();
     for character in value.chars() {

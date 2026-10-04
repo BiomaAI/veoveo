@@ -208,36 +208,19 @@ pub(super) fn expand(arguments: TokenStream, item: TokenStream) -> syn::Result<T
             return Err(syn::Error::new_spanned(attribute, "profile owns Serde"));
         }
         if attribute.path().is_ident("derive") {
-            let syn::Meta::List(list) = &attribute.meta else {
+            if !matches!(attribute.meta, syn::Meta::List(_)) {
                 continue;
+            }
+            let owner_derives: &[&str] = if declaration.surreal.is_some() {
+                &["Id", "SurrealValue"]
+            } else {
+                &["Id"]
             };
-            let derives = list.parse_args_with(
-                syn::punctuated::Punctuated::<Path, Token![,]>::parse_terminated,
-            )?;
-            for derive in derives {
-                let last = derive.segments.last().unwrap().ident.to_string();
-                if [
-                    "Clone",
-                    "Copy",
-                    "Debug",
-                    "PartialEq",
-                    "Eq",
-                    "PartialOrd",
-                    "Ord",
-                    "Hash",
-                    "Serialize",
-                    "Deserialize",
-                    "JsonSchema",
-                    "Id",
-                ]
-                .contains(&last.as_str())
-                    || declaration.surreal.is_some() && last == "SurrealValue"
-                {
-                    return Err(syn::Error::new_spanned(
-                        derive,
-                        "identity owns standard derives",
-                    ));
-                }
+            if let Some(derive) = super::derive_policy::conflict(attribute, owner_derives)? {
+                return Err(syn::Error::new_spanned(
+                    derive,
+                    "identity owns standard derives",
+                ));
             }
         }
     }
@@ -497,6 +480,18 @@ mod tests {
                     struct Name(String);
                 ),
                 "capability does not match",
+            ),
+            (
+                quote!(custom(
+                    error = Error,
+                    validate = validate,
+                    string,
+                    wire_string
+                )),
+                quote!(
+                    struct Name(String);
+                ),
+                "mutually exclusive",
             ),
             (
                 quote!(text(Names), const_uuid),

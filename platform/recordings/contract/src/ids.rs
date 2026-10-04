@@ -67,31 +67,15 @@ pub struct RecordingLayerId(uuid::Uuid);
 pub struct RecordingReadGrantId(uuid::Uuid);
 #[veoveo_types::id(uuid(RecordingIds), fresh)]
 pub struct RecordingProjectionId(uuid::Uuid);
-use veoveo_types::{
-    FreshId, IdGeneration, IdProfile, IdProfileSpec, IdSchema, UuidGrammar, UuidSpelling,
-    UuidVariant,
-};
+use veoveo_types::{IdProfile, IdProfileSpec, UuidGrammar};
 
 #[doc(hidden)]
 pub struct RecordingIds;
 impl IdProfile for RecordingIds {
     type Error = RecordingContractError;
-    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
-        generation: IdGeneration {
-            fresh: FreshId::UuidV7,
-            stable_v5_namespace: None,
-        },
-        schema: IdSchema::Owner {
-            schema: |generator, _| string_schema(generator),
-            inline: true,
-        },
-        ..IdProfileSpec::uuid(
-            UuidGrammar {
-                versions: &[7],
-                variant: UuidVariant::Rfc4122,
-                spelling: UuidSpelling::CanonicalLowerHyphenated,
-            },
-            |_, _, _| RecordingContractError::Identity,
-        )
-    };
+    const PROFILE: IdProfileSpec<Self::Error> =
+        IdProfileSpec::generated_uuid(UuidGrammar::canonical(&[7]), |_, _, _| {
+            RecordingContractError::Identity
+        })
+        .owner_schema(|generator, _| string_schema(generator), true);
 }

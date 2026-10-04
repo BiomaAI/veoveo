@@ -240,6 +240,9 @@ pub(crate) fn read_field(
             "tail requires an explicit owner codec",
         ));
     }
+    if !options.cache && options.codec.is_none() {
+        options.codec = Some(syn::parse_quote!(::veoveo_types::IdentityResourceCodec));
+    }
     Ok(options)
 }
 

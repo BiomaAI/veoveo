@@ -317,3 +317,47 @@ fn ordered_query_patterns_support_many_fields_without_subset_enumeration() {
     assert!(large.len() > medium.len());
     assert!(large.len() < medium.len() * 5);
 }
+
+#[test]
+fn binding_admission_precedes_component_encoding() {
+    let scalar = |variable, value: &'static str| RouteBinding::Scalar {
+        variable,
+        value: value.into(),
+    };
+    for path in [
+        vec![scalar("release_id", "")],
+        vec![scalar("release_id", ""), scalar("unknown", "feature")],
+        vec![scalar("release_id", ""), scalar("release_id", "again")],
+        vec![
+            RouteBinding::Tail {
+                variable: "release_id",
+                segments: vec![],
+            },
+            scalar("source_feature_id", "feature"),
+        ],
+    ] {
+        assert!(matches!(
+            FEATURE.build(&path, &[]),
+            Err(ResourceRouteError::Bindings)
+        ));
+    }
+    for query in [
+        vec![("unknown", "value".into())],
+        vec![("cursor", "one".into()), ("cursor", "two".into())],
+    ] {
+        assert!(matches!(
+            PAGE.build(&[], &query),
+            Err(ResourceRouteError::Bindings)
+        ));
+    }
+    let uri = FEATURE
+        .build(
+            &[
+                scalar("source_feature_id", "feature"),
+                scalar("release_id", "release"),
+            ],
+            &[],
+        )
+        .unwrap();
+    assert_eq!(uri.as_str(), "map://source-feature/release/feature");
+}

@@ -27,18 +27,9 @@ pub struct TaskIds;
 impl crate::IdProfile for TaskIds {
     type Error = uuid::Error;
     const PROFILE: crate::IdProfileSpec<Self::Error> = crate::IdProfileSpec {
-        generation: crate::IdGeneration {
-            fresh: crate::FreshId::UuidV7,
-            stable_v5_namespace: None,
-        },
         wire: crate::IdWire::InnerUuid,
         schema_id: Some(|_| concat!(module_path!(), "::TaskId").into()),
-        schema: crate::IdSchema::Owner {
-            schema: task_schema,
-
-            inline: false,
-        },
-        ..crate::IdProfileSpec::uuid(
+        ..crate::IdProfileSpec::generated_uuid(
             crate::UuidGrammar {
                 versions: &[],
                 variant: crate::UuidVariant::Any,
@@ -46,7 +37,8 @@ impl crate::IdProfile for TaskIds {
             },
             task_id_error,
         )
-    };
+    }
+    .owner_schema(task_schema, false);
 }
 fn task_id_error(value: &str, _: crate::IdMetadata, _: crate::IdFailure) -> uuid::Error {
     Uuid::parse_str(value)

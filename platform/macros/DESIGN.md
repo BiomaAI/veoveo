@@ -49,6 +49,8 @@ Generated schema helpers preserve declaration metadata; a schema identity overri
 changes only identity. An owner callback supplies genuinely different schema bodies.
 Standard derives come from the attribute. Unrelated derives remain available, while
 duplicate generated derives and incompatible capabilities fail compilation.
+Identity and address frontends share the standard-derive conflict checker in
+`src/derive_policy.rs`; each frontend supplies its additional reserved derives.
 
 Secret declarations keep deliberate text exposure and owner-redacted formatting.
 Their validators sanitize returned errors; these mechanics provide no zeroization.

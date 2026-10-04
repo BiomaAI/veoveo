@@ -1,5 +1,6 @@
 //! Thin compile-time declarations; runtime vocabulary semantics belong to veoveo-types.
 use proc_macro::TokenStream;
+mod derive_policy;
 mod embedded_document;
 mod id;
 mod id_frontend;

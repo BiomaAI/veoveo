@@ -69,35 +69,22 @@ pub struct SessionId(uuid::Uuid);
 pub struct SessionIds;
 impl IdProfile for SessionIds {
     type Error = StreamContractError;
-    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
-        schema: IdSchema::Owner {
-            schema: |generator, _| string_schema(generator),
-            inline: true,
-        },
-        ..IdProfileSpec::uuid(
-            UuidGrammar {
-                versions: &[7],
-                variant: UuidVariant::Rfc4122,
-                spelling: UuidSpelling::CanonicalLowerHyphenated,
-            },
-            |_, _, _| StreamContractError::InvalidId("session"),
-        )
-    };
+    const PROFILE: IdProfileSpec<Self::Error> =
+        IdProfileSpec::uuid(UuidGrammar::canonical(&[7]), |_, _, _| {
+            StreamContractError::InvalidId("session")
+        })
+        .owner_schema(|generator, _| string_schema(generator), true);
 }
 
-use veoveo_types::{IdProfile, IdProfileSpec, IdSchema, UuidGrammar, UuidSpelling, UuidVariant};
+use veoveo_types::{IdProfile, IdProfileSpec, UuidGrammar};
 
 #[doc(hidden)]
 pub struct PipelineIdProfile;
 impl IdProfile for PipelineIdProfile {
     type Error = StreamContractError;
-    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
-        schema: IdSchema::Owner {
-            schema: |generator, _| string_schema(generator),
-            inline: true,
-        },
-        ..IdProfileSpec::text(|value, metadata| validate_catalog_id(value, metadata.error_context))
-    };
+    const PROFILE: IdProfileSpec<Self::Error> =
+        IdProfileSpec::text(|value, metadata| validate_catalog_id(value, metadata.error_context))
+            .owner_schema(|generator, _| string_schema(generator), true);
 }
 
 fn string_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {

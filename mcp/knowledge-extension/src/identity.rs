@@ -90,62 +90,51 @@ fn knowledge_name_schema(pattern: &str, max: usize) -> schemars::Schema {
     schemars::json_schema!({"type":"string","pattern":pattern,"maxLength":max,"minLength":1})
 }
 
-use veoveo_types::{IdProfile, IdProfileSpec, IdSchema};
+use veoveo_types::{IdProfile, IdProfileSpec};
 
 #[doc(hidden)]
 pub struct CollectionNameProfile;
 impl IdProfile for CollectionNameProfile {
     type Error = KnowledgeError;
-    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
-        schema: IdSchema::Owner {
-            schema: |_, _| knowledge_name_schema("^[a-z][a-z0-9-]*$", 128),
-            inline: false,
-        },
-        ..IdProfileSpec::text(|value, metadata| {
-            validate_knowledge_name(value, slug, metadata.error_context)
-        })
-    };
+    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec::text(|value, metadata| {
+        validate_knowledge_name(value, slug, metadata.error_context)
+    })
+    .owner_schema(
+        |_, _| knowledge_name_schema("^[a-z][a-z0-9-]*$", 128),
+        false,
+    );
 }
 
 #[doc(hidden)]
 pub struct ExternalRecordIdProfile;
 impl IdProfile for ExternalRecordIdProfile {
     type Error = KnowledgeError;
-    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
-        schema: IdSchema::Owner {
-            schema: |_, _| knowledge_name_schema("^[^\\x00-\\x1f\\x7f]+$", 1024),
-            inline: false,
-        },
-        ..IdProfileSpec::text(|value, _| {
-            validate_knowledge_name(
-                value,
-                |v: &str| {
-                    !v.trim().is_empty() && v.len() <= 1024 && !v.chars().any(char::is_control)
-                },
-                "external record id must contain 1 to 1024 bytes without controls",
-            )
-        })
-    };
+    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec::text(|value, _| {
+        validate_knowledge_name(
+            value,
+            |v: &str| !v.trim().is_empty() && v.len() <= 1024 && !v.chars().any(char::is_control),
+            "external record id must contain 1 to 1024 bytes without controls",
+        )
+    })
+    .owner_schema(
+        |_, _| knowledge_name_schema("^[^\\x00-\\x1f\\x7f]+$", 1024),
+        false,
+    );
 }
 #[doc(hidden)]
 pub struct RevisionProfile;
 impl IdProfile for RevisionProfile {
     type Error = KnowledgeError;
-    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
-        schema: IdSchema::Owner {
-            schema: |_, _| knowledge_name_schema("^[!-~]+$", 256),
-            inline: false,
-        },
-        ..IdProfileSpec::text(|value, _| {
-            validate_knowledge_name(
-                value,
-                |v: &str| {
-                    !v.is_empty() && v.len() <= 256 && v.bytes().all(|b| (0x21..=0x7e).contains(&b))
-                },
-                "revision must contain 1 to 256 visible ASCII bytes",
-            )
-        })
-    };
+    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec::text(|value, _| {
+        validate_knowledge_name(
+            value,
+            |v: &str| {
+                !v.is_empty() && v.len() <= 256 && v.bytes().all(|b| (0x21..=0x7e).contains(&b))
+            },
+            "revision must contain 1 to 256 visible ASCII bytes",
+        )
+    })
+    .owner_schema(|_, _| knowledge_name_schema("^[!-~]+$", 256), false);
 }
 
 fn validate_knowledge_name(

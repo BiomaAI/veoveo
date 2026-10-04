@@ -40,20 +40,15 @@ pub struct Sha256DigestError;
 pub struct DigestIds;
 impl crate::IdProfile for DigestIds {
     type Error = Sha256DigestError;
-    const PROFILE: crate::IdProfileSpec<Self::Error> = crate::IdProfileSpec {
-        schema: crate::IdSchema::Owner {
-            schema: digest_schema,
-            inline: true,
+    const PROFILE: crate::IdProfileSpec<Self::Error> = crate::IdProfileSpec::hex(
+        crate::HexGrammar {
+            length: SHA256_HEX_LENGTH,
+            case: crate::HexCase::Lower,
+            nonzero: false,
         },
-        ..crate::IdProfileSpec::hex(
-            crate::HexGrammar {
-                length: SHA256_HEX_LENGTH,
-                case: crate::HexCase::Lower,
-                nonzero: false,
-            },
-            |_, _, _| Sha256DigestError,
-        )
-    };
+        |_, _, _| Sha256DigestError,
+    )
+    .owner_schema(digest_schema, true);
 }
 fn digest_schema(_: &mut SchemaGenerator, _: crate::IdMetadata) -> Schema {
     schemars::json_schema!({

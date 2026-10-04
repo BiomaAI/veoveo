@@ -40,6 +40,24 @@ impl<E> IdProfileSpec<E> {
     pub const fn uuid(grammar: UuidGrammar, error: fn(&str, IdMetadata, IdFailure) -> E) -> Self {
         Self::base(IdGrammar::Uuid(grammar, error))
     }
+    /// UUID grammar with fresh UUIDv7 generation; owners select admission separately.
+    pub const fn generated_uuid(
+        grammar: UuidGrammar,
+        error: fn(&str, IdMetadata, IdFailure) -> E,
+    ) -> Self {
+        let mut profile = Self::uuid(grammar, error);
+        profile.generation.fresh = FreshId::UuidV7;
+        profile
+    }
+    /// An owner supplies the complete schema without changing admission or wire policy.
+    pub const fn owner_schema(
+        mut self,
+        schema: fn(&mut schemars::SchemaGenerator, IdMetadata) -> schemars::Schema,
+        inline: bool,
+    ) -> Self {
+        self.schema = IdSchema::Owner { schema, inline };
+        self
+    }
     /// Hex grammar; String wire/schema until explicitly changed by the owner.
     pub const fn hex(grammar: HexGrammar, error: fn(&str, IdMetadata, IdFailure) -> E) -> Self {
         Self::base(IdGrammar::Hex(grammar, error))
@@ -80,6 +98,24 @@ pub struct UuidGrammar {
     pub versions: &'static [usize],
     pub variant: UuidVariant,
     pub spelling: UuidSpelling,
+}
+impl UuidGrammar {
+    /// RFC UUID admission with canonical lowercase hyphenated spelling.
+    pub const fn canonical(versions: &'static [usize]) -> Self {
+        Self {
+            versions,
+            variant: UuidVariant::Rfc4122,
+            spelling: UuidSpelling::CanonicalLowerHyphenated,
+        }
+    }
+    /// RFC UUID admission with every spelling accepted by the UUID parser.
+    pub const fn aliases(versions: &'static [usize]) -> Self {
+        Self {
+            versions,
+            variant: UuidVariant::Rfc4122,
+            spelling: UuidSpelling::ParserAliases,
+        }
+    }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UuidVariant {

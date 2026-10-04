@@ -481,6 +481,8 @@ policies own DNS and access checks.
 `platform/macros/src/id_frontend.rs` parses the re-exported `id` attribute and selects
 standard derives; `id.rs` emits identity trait delegation. The foundation contains no
 domain registry or database adapter.
+`platform/macros/src/derive_policy.rs` checks generated-derive conflicts for both
+identity and address declarations.
 `src/resource_route.rs` owns component route descriptors, checked discovery and the
 open scalar/tail codec traits. `src/resource_route/pattern.rs` supplies encoding-aware
 structural patterns. `src/resource_profile.rs` supplies owner error/schema profiles.

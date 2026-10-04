@@ -17,7 +17,7 @@ pub(super) fn generate(declaration: &Declaration<'_>) -> syn::Result<proc_macro2
     let mut template_constants = Vec::new();
     let mut parse_cases = Vec::new();
     let mut build_cases = Vec::new();
-    let mut wire_cases = Vec::new();
+    let mut cached_wire = None;
     let mut constructors = None;
     for (index, parsed) in declaration.routes.iter().enumerate() {
         let route = &parsed.route;
@@ -42,7 +42,7 @@ pub(super) fn generate(declaration: &Declaration<'_>) -> syn::Result<proc_macro2
             implementations(route, fields, settings, target, index, &parsed.options)?;
         parse_cases.push(parse);
         build_cases.push(build);
-        wire_cases.push(wire);
+        cached_wire = cached_wire.or(wire);
     }
     let validate_self = options
         .validate
@@ -64,6 +64,7 @@ pub(super) fn generate(declaration: &Declaration<'_>) -> syn::Result<proc_macro2
             }
         }
     });
+    let wire_body = cached_wire.unwrap_or_else(|| quote!(self.resource_components_uri()));
     let schema_inline = options.schema_inline;
     let schema = options.schema.as_ref().map(|function| quote! {
         impl ::schemars::JsonSchema for #name {
@@ -97,7 +98,7 @@ pub(super) fn generate(declaration: &Declaration<'_>) -> syn::Result<proc_macro2
                 Err((#route_error)(::veoveo_types::ResourceRouteError::Shape))
             }
             fn to_uri(&self) -> Result<::veoveo_types::ResourceUri, Self::Error> {
-                match self { #(#wire_cases),* }
+                #wire_body
             }
         }
         #conversions
@@ -117,10 +118,7 @@ fn pattern_case(
             continue;
         }
         let variable = &settings.variable;
-        let codec = settings
-            .codec
-            .clone()
-            .unwrap_or_else(|| syn::parse_quote!(::veoveo_types::IdentityResourceCodec));
+        let codec = settings.codec.as_ref().expect("admitted component codec");
         let ty = &field.ty;
         let fragment = if settings.tail {
             quote!(<#codec as ::veoveo_types::ResourceTailCodec<#ty>>::encoded_pattern(context))
@@ -153,7 +151,7 @@ fn implementations(
 ) -> syn::Result<(
     proc_macro2::TokenStream,
     proc_macro2::TokenStream,
-    proc_macro2::TokenStream,
+    Option<proc_macro2::TokenStream>,
 )> {
     let route_error = options.route_error.as_ref().unwrap();
     let validate_cached = options
@@ -189,8 +187,8 @@ fn implementations(
         let variable = &field_options.variable;
         let codec = field_options
             .codec
-            .clone()
-            .unwrap_or_else(|| syn::parse_quote!(::veoveo_types::IdentityResourceCodec));
+            .as_ref()
+            .expect("admitted component codec");
         let map_error = field_options.error.as_ref().map(|function| quote! { (#function)(error) })
             .unwrap_or_else(|| quote! { let _ = error; (#route_error)(::veoveo_types::ResourceRouteError::Field) });
         if route.queries.iter().any(|name| name == variable) {
@@ -214,39 +212,18 @@ fn implementations(
             });
         }
     }
-    let construction = match fields {
-        Fields::Named(fields) => {
-            let members = fields
-                .named
-                .iter()
-                .map(|field| field.ident.as_ref().unwrap());
-            quote! { #target { #(#members: #names),* } }
-        }
-        Fields::Unnamed(_) => quote! { #target(#(#names),*) },
-        Fields::Unit => quote! { #target },
-    };
-    let build_names = names.iter().enumerate().map(|(position, name)| {
-        let member = fields.iter().nth(position).unwrap().ident.as_ref();
-        if cache
-            .as_ref()
-            .is_some_and(|(cache_position, _, _)| position == *cache_position)
-        {
-            if matches!(fields, Fields::Named(_)) {
-                quote!(#member: _)
-            } else {
+    let construction = field_shape(fields, &target, names.iter().map(|name| quote!(#name)));
+    let pattern = field_shape(
+        fields,
+        &target,
+        names.iter().zip(settings).map(|(name, settings)| {
+            if settings.cache {
                 quote!(_)
+            } else {
+                quote!(#name)
             }
-        } else if matches!(fields, Fields::Named(_)) {
-            quote!(#member: #name)
-        } else {
-            quote!(#name)
-        }
-    });
-    let pattern = match fields {
-        Fields::Named(_) => quote! { #target { #(#build_names),* } },
-        Fields::Unnamed(_) => quote! { #target(#(#build_names),*) },
-        Fields::Unit => quote! { #target },
-    };
+        }),
+    );
     let capture = if uses_capture {
         quote!(let captured = Self::RESOURCE_ROUTES[#index].capture(&parts).map_err(|error| (#route_error)(error))?;)
     } else {
@@ -278,41 +255,39 @@ fn implementations(
         .collect::<Vec<_>>();
     let build_body = build_components(route, fields, settings, &values, index, route_error)?;
     let build = quote!(#pattern => { #build_body });
-    let wire = if let Some((position, name, string)) = cache {
-        let names = names.iter().enumerate().map(|(index, field)| {
-            if matches!(fields, Fields::Named(_)) {
-                let member = fields.iter().nth(index).unwrap().ident.as_ref();
-                if index == position {
-                    quote!(#member: #field)
-                } else {
-                    quote!(#member: _)
-                }
-            } else if index == position {
-                quote!(#field)
-            } else {
-                quote!(_)
-            }
-        });
-        let pattern = match fields {
-            Fields::Named(_) => quote!(#target { #(#names),* }),
-            Fields::Unnamed(_) => quote!(#target(#(#names),*)),
-            Fields::Unit => unreachable!(),
-        };
+    // Only a struct can own a private cache; component fields stay unbound here.
+    let wire = cache.map(|(position, _, string)| {
+        let member = fields.iter().nth(position).unwrap().ident.clone()
+            .map(syn::Member::Named)
+            .unwrap_or_else(|| syn::Member::Unnamed(syn::Index::from(position)));
         let value = if string {
-            quote!(::veoveo_types::ResourceUri::new(#name.clone()).map_err(|error| (#route_error)(::veoveo_types::ResourceRouteError::Uri(error))))
+            quote!(::veoveo_types::ResourceUri::new(self.#member.clone()).map_err(|error| (#route_error)(::veoveo_types::ResourceRouteError::Uri(error))))
         } else {
-            quote!(Ok(#name.clone()))
+            quote!(Ok(self.#member.clone()))
         };
-        quote!(#pattern => { #validate_cached #value })
-    } else {
-        let pattern = match fields {
-            Fields::Named(_) => quote!(#target { .. }),
-            Fields::Unnamed(_) => quote!(#target(..)),
-            Fields::Unit => quote!(#target),
-        };
-        quote!(#pattern => self.resource_components_uri())
-    };
+        quote!({ #validate_cached #value })
+    });
     Ok((parse, build, wire))
+}
+
+/// Emit the owner's field shape for either values or pattern bindings.
+pub(super) fn field_shape(
+    fields: &Fields,
+    target: &proc_macro2::TokenStream,
+    values: impl IntoIterator<Item = proc_macro2::TokenStream>,
+) -> proc_macro2::TokenStream {
+    let values = values.into_iter();
+    match fields {
+        Fields::Named(named) => {
+            let members = named
+                .named
+                .iter()
+                .map(|field| field.ident.as_ref().unwrap());
+            quote!(#target { #(#members: #values),* })
+        }
+        Fields::Unnamed(_) => quote!(#target(#(#values),*)),
+        Fields::Unit => quote!(#target),
+    }
 }
 
 fn build_components(
@@ -330,10 +305,7 @@ fn build_components(
             continue;
         }
         let variable = &settings.variable;
-        let codec = settings
-            .codec
-            .clone()
-            .unwrap_or_else(|| syn::parse_quote!(::veoveo_types::IdentityResourceCodec));
+        let codec = settings.codec.as_ref().expect("admitted component codec");
         let ty = &field.ty;
         if route.queries.contains(variable) {
             let inner = option_inner(ty)

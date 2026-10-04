@@ -32,56 +32,25 @@ fn speech_id_schema(versions: &str) -> schemars::Schema {
     schemars::json_schema!({"type":"string","format":"uuid","maxLength":36,"pattern":format!("^[0-9a-f]{{8}}-[0-9a-f]{{4}}-{}[0-9a-f]{{3}}-[89ab][0-9a-f]{{3}}-[0-9a-f]{{12}}$",versions)})
 }
 
-use veoveo_types::{
-    FreshId, IdGeneration, IdProfile, IdProfileSpec, IdSchema, UuidGrammar, UuidSpelling,
-    UuidVariant,
-};
+use veoveo_types::{IdProfile, IdProfileSpec, UuidGrammar};
 
 #[doc(hidden)]
 pub struct TranscriptionIdProfile;
 impl IdProfile for TranscriptionIdProfile {
     type Error = SpeechIdentityError;
-    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
-        generation: IdGeneration {
-            fresh: FreshId::UuidV7,
-            stable_v5_namespace: None,
-        },
-        schema: IdSchema::Owner {
-            schema: |_, _| speech_id_schema("7"),
-            inline: false,
-        },
-        ..IdProfileSpec::uuid(
-            UuidGrammar {
-                versions: &[7],
-                variant: UuidVariant::Rfc4122,
-                spelling: UuidSpelling::CanonicalLowerHyphenated,
-            },
-            |_, _, _| SpeechIdentityError,
-        )
-    };
+    const PROFILE: IdProfileSpec<Self::Error> =
+        IdProfileSpec::generated_uuid(UuidGrammar::canonical(&[7]), |_, _, _| SpeechIdentityError)
+            .owner_schema(|_, _| speech_id_schema("7"), false);
 }
 #[doc(hidden)]
 pub struct DictationSessionIdProfile;
 impl IdProfile for DictationSessionIdProfile {
     type Error = SpeechIdentityError;
-    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
-        generation: IdGeneration {
-            fresh: FreshId::UuidV7,
-            stable_v5_namespace: None,
-        },
-        schema: IdSchema::Owner {
-            schema: |_, _| speech_id_schema("[47]"),
-            inline: false,
-        },
-        ..IdProfileSpec::uuid(
-            UuidGrammar {
-                versions: &[4, 7],
-                variant: UuidVariant::Rfc4122,
-                spelling: UuidSpelling::CanonicalLowerHyphenated,
-            },
-            |_, _, _| SpeechIdentityError,
-        )
-    };
+    const PROFILE: IdProfileSpec<Self::Error> =
+        IdProfileSpec::generated_uuid(UuidGrammar::canonical(&[4, 7]), |_, _, _| {
+            SpeechIdentityError
+        })
+        .owner_schema(|_, _| speech_id_schema("[47]"), false);
 }
 
 #[cfg(test)]

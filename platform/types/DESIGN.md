@@ -113,6 +113,11 @@ derives and conversions; owner declarations carry prefixes and differing error
 context. `parse` admits input, while `new` generates a fresh ID only when that
 capability is declared. The [macro design](../macros/DESIGN.md#id) defines these forms.
 
+Const profile constructors share fresh UUIDv7 generation and owner schema selection.
+UUID grammar constructors select canonical RFC spellings or RFC parser aliases for
+the owner's version set. Unrestricted variants stay explicit. These constructors
+leave admission and generation as separate choices.
+
 An owner profile preserves String versus inner-UUID binary serialization, schema
 metadata and schema identity. Generated metadata and identity overrides avoid
 copying descriptions into schema callbacks. Independent libraries can add their

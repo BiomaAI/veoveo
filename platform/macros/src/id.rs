@@ -43,29 +43,27 @@ impl Expansion {
             if !seen.insert(meta.path.to_token_stream().to_string()) {
                 return Err(meta.error("duplicate custom identity hook"));
             }
-            if meta.path.is_ident("error") {
-                config.error = meta.value()?.parse()?;
-                has_error = true;
-            } else if meta.path.is_ident("admit") {
-                config.admit = Some(meta.value()?.parse()?);
-            } else if meta.path.is_ident("validate") {
-                config.validate = Some(meta.value()?.parse()?);
-            } else if meta.path.is_ident("text") {
-                config.text = Some(meta.value()?.parse()?);
-            } else if meta.path.is_ident("generate") {
-                config.generate = Some(meta.value()?.parse()?);
-            } else if meta.path.is_ident("schema") {
-                config.schema = Some(meta.value()?.parse()?);
-            } else if meta.path.is_ident("string") {
-                config.string = true;
-            } else if meta.path.is_ident("wire_string") {
-                config.wire_string = true;
-            } else if meta.path.is_ident("schema_inline") {
-                config.schema_inline = true;
-            } else if meta.path.is_ident("no_display") {
-                config.display = false;
-            } else {
-                return Err(meta.error("unknown custom identity hook"));
+            let hook = meta.path.get_ident().map(ToString::to_string);
+            match hook.as_deref() {
+                Some("error") => {
+                    config.error = meta.value()?.parse()?;
+                    has_error = true;
+                }
+                Some("admit" | "validate" | "text" | "generate" | "schema") => {
+                    let slot = match hook.as_deref() {
+                        Some("admit") => &mut config.admit,
+                        Some("validate") => &mut config.validate,
+                        Some("text") => &mut config.text,
+                        Some("generate") => &mut config.generate,
+                        _ => &mut config.schema,
+                    };
+                    *slot = Some(meta.value()?.parse()?);
+                }
+                Some("string") => config.string = true,
+                Some("wire_string") => config.wire_string = true,
+                Some("schema_inline") => config.schema_inline = true,
+                Some("no_display") => config.display = false,
+                _ => return Err(meta.error("unknown custom identity hook")),
             }
             Ok(())
         })
@@ -74,6 +72,12 @@ impl Expansion {
             return Err(syn::Error::new(
                 proc_macro2::Span::call_site(),
                 "custom identity requires error and exactly one admission hook",
+            ));
+        }
+        if config.string && config.wire_string {
+            return Err(syn::Error::new(
+                proc_macro2::Span::call_site(),
+                "string and wire_string are mutually exclusive",
             ));
         }
         if config.validate.is_some() && !config.string {
@@ -137,27 +141,19 @@ pub(super) fn emit(input: &DeriveInput, config: Expansion) -> proc_macro2::Token
             }
         }
     });
-    let string_impl = string.then(|| quote! {
-        impl ::std::convert::TryFrom<::std::string::String> for #name {
-            type Error = #error;
-            fn try_from(value: ::std::string::String) -> Result<Self, Self::Error> { #owned_admission }
-        }
-        impl ::std::convert::From<#name> for ::std::string::String {
-            fn from(value: #name) -> Self { value.0 }
-        }
-    });
-    let wire_impl = wire_string.then(|| {
+    let string_impl = (string || wire_string).then(|| {
+        let into_string = if string {
+            quote! { value.0 }
+        } else {
+            quote! { <#name as ::veoveo_types::Identity>::identity_text(&value).into_owned() }
+        };
         quote! {
             impl ::std::convert::TryFrom<::std::string::String> for #name {
                 type Error = #error;
-                fn try_from(value: ::std::string::String) -> Result<Self, Self::Error> {
-                    <Self as ::veoveo_types::Identity>::parse_identity(&value)
-                }
+                fn try_from(value: ::std::string::String) -> Result<Self, Self::Error> { #owned_admission }
             }
             impl ::std::convert::From<#name> for ::std::string::String {
-                fn from(value: #name) -> Self {
-                    <#name as ::veoveo_types::Identity>::identity_text(&value).into_owned()
-                }
+                fn from(value: #name) -> Self { #into_string }
             }
         }
     });
@@ -168,12 +164,6 @@ pub(super) fn emit(input: &DeriveInput, config: Expansion) -> proc_macro2::Token
             let text = (#text_hook)(&inner);
             <Self as ::veoveo_types::Identity>::parse_identity(text.as_ref())
                 .unwrap_or_else(|_| panic!("owner generator must produce an admitted identity"))
-        }
-    } else if let Some(validate) = &validate {
-        quote! {
-            (#validate)(&inner)
-                .unwrap_or_else(|_| panic!("owner generator must produce an admitted identity"));
-            Self(inner)
         }
     } else {
         quote! {
@@ -241,7 +231,6 @@ pub(super) fn emit(input: &DeriveInput, config: Expansion) -> proc_macro2::Token
                 <Self as ::veoveo_types::Identity>::parse_identity(value.as_ref())
             }
         }
-        #wire_impl
         #generate_impl
         #schema_impl
         #display_impl

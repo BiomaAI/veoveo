@@ -61,19 +61,15 @@ impl TryFrom<TaskId> for AnalysisId {
         Ok(Self(value))
     }
 }
-use veoveo_types::{IdProfile, IdProfileSpec, IdSchema};
+use veoveo_types::{IdProfile, IdProfileSpec};
 
 #[doc(hidden)]
 pub struct PipelineIdProfile;
 impl IdProfile for PipelineIdProfile {
     type Error = ReasonContractError;
-    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
-        schema: IdSchema::Owner {
-            schema: |generator, _| string_schema(generator),
-            inline: true,
-        },
-        ..IdProfileSpec::text(|value, metadata| validate_catalog_id(value, metadata.error_context))
-    };
+    const PROFILE: IdProfileSpec<Self::Error> =
+        IdProfileSpec::text(|value, metadata| validate_catalog_id(value, metadata.error_context))
+            .owner_schema(|generator, _| string_schema(generator), true);
 }
 
 fn string_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {

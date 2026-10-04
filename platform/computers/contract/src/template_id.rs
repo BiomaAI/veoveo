@@ -1,17 +1,13 @@
 use schemars::{Schema, SchemaGenerator};
-use veoveo_types::{IdMetadata, IdProfile, IdProfileSpec, IdSchema};
+use veoveo_types::{IdMetadata, IdProfile, IdProfileSpec};
 
 #[doc(hidden)]
 pub struct TemplateNames;
 impl IdProfile for TemplateNames {
     type Error = TemplateIdError;
-    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
-        schema: IdSchema::Owner {
-            schema: template_schema,
-            inline: false,
-        },
-        ..IdProfileSpec::text(|value, _| validate_template_name(value))
-    };
+    const PROFILE: IdProfileSpec<Self::Error> =
+        IdProfileSpec::text(|value, _| validate_template_name(value))
+            .owner_schema(template_schema, false);
 }
 fn template_schema(_: &mut SchemaGenerator, _: IdMetadata) -> Schema {
     schemars::json_schema!({

@@ -65,30 +65,16 @@ impl ArtifactLedgerAddress {
     }
 }
 
-use veoveo_types::{
-    FreshId, IdGeneration, IdProfile, IdProfileSpec, IdSchema, UuidGrammar, UuidSpelling,
-    UuidVariant,
-};
+use veoveo_types::{IdProfile, IdProfileSpec, UuidGrammar};
 
 #[doc(hidden)]
 pub struct ArtifactWriteCapabilityIdProfile;
 impl IdProfile for ArtifactWriteCapabilityIdProfile {
     type Error = ArtifactLedgerIdError;
-    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
-        generation: IdGeneration {
-            fresh: FreshId::UuidV7,
-            stable_v5_namespace: None,
-        },
-        schema: IdSchema::DerivedString,
-        ..IdProfileSpec::uuid(
-            UuidGrammar {
-                versions: &[7],
-                variant: UuidVariant::Rfc4122,
-                spelling: UuidSpelling::ParserAliases,
-            },
-            |_, metadata, _| ArtifactLedgerIdError(metadata.error_context),
-        )
-    };
+    const PROFILE: IdProfileSpec<Self::Error> =
+        IdProfileSpec::generated_uuid(UuidGrammar::aliases(&[7]), |_, metadata, _| {
+            ArtifactLedgerIdError(metadata.error_context)
+        });
 }
 
 #[cfg(test)]

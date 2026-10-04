@@ -12,8 +12,7 @@
 use std::fmt;
 use uuid::Uuid;
 use veoveo_types::{
-    FreshId, IdFailure, IdGeneration, IdGrammar, IdMetadata, IdProfile, IdProfileSpec, IdSchema,
-    IdWire, UuidGrammar, UuidSpelling, UuidVariant,
+    IdFailure, IdGrammar, IdMetadata, IdProfile, IdProfileSpec, IdSchema, IdWire, UuidGrammar,
 };
 
 const UUID_V7: &str = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$";
@@ -35,20 +34,9 @@ pub struct ComputerIds;
 impl IdProfile for ComputerIds {
     type Error = ComputerIdentityError;
     const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
-        generation: IdGeneration {
-            fresh: FreshId::UuidV7,
-            stable_v5_namespace: None,
-        },
         wire: IdWire::UuidOutStringIn,
         schema: IdSchema::UuidPattern { pattern: UUID_V7 },
-        ..IdProfileSpec::uuid(
-            UuidGrammar {
-                versions: &[7],
-                variant: UuidVariant::Rfc4122,
-                spelling: UuidSpelling::CanonicalLowerHyphenated,
-            },
-            computer_id_error,
-        )
+        ..IdProfileSpec::generated_uuid(UuidGrammar::canonical(&[7]), computer_id_error)
     };
 }
 #[doc(hidden)]
@@ -56,14 +44,7 @@ pub struct RequestIds;
 impl IdProfile for RequestIds {
     type Error = ComputerIdentityError;
     const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
-        grammar: IdGrammar::Uuid(
-            UuidGrammar {
-                versions: &[4, 7],
-                variant: UuidVariant::Rfc4122,
-                spelling: UuidSpelling::CanonicalLowerHyphenated,
-            },
-            computer_id_error,
-        ),
+        grammar: IdGrammar::Uuid(UuidGrammar::canonical(&[4, 7]), computer_id_error),
         schema: IdSchema::UuidPattern {
             pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[47][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
         },
@@ -75,14 +56,7 @@ pub struct ProviderIds;
 impl IdProfile for ProviderIds {
     type Error = ComputerIdentityError;
     const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
-        grammar: IdGrammar::Uuid(
-            UuidGrammar {
-                versions: &[4, 7, 8],
-                variant: UuidVariant::Rfc4122,
-                spelling: UuidSpelling::CanonicalLowerHyphenated,
-            },
-            computer_id_error,
-        ),
+        grammar: IdGrammar::Uuid(UuidGrammar::canonical(&[4, 7, 8]), computer_id_error),
         schema: IdSchema::UuidPattern {
             pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[478][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
         },

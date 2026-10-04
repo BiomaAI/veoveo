@@ -318,9 +318,7 @@ fn check_number(
     Ok(())
 }
 
-use veoveo_types::{
-    FreshId, IdGeneration, IdProfile, IdProfileSpec, UuidGrammar, UuidSpelling, UuidVariant,
-};
+use veoveo_types::{IdProfile, IdProfileSpec, UuidGrammar};
 
 #[doc(hidden)]
 pub struct LocationIdProfile;
@@ -345,20 +343,10 @@ impl IdProfile for SolverProfileIdProfile {
 pub struct ProblemIdProfile;
 impl IdProfile for ProblemIdProfile {
     type Error = OptimizationContractError;
-    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
-        generation: IdGeneration {
-            fresh: FreshId::UuidV7,
-            stable_v5_namespace: None,
-        },
-        ..IdProfileSpec::uuid(
-            UuidGrammar {
-                versions: &[7],
-                variant: UuidVariant::Rfc4122,
-                spelling: UuidSpelling::CanonicalLowerHyphenated,
-            },
-            |_, metadata, _| OptimizationContractError::InvalidIdentifier(metadata.error_context),
-        )
-    };
+    const PROFILE: IdProfileSpec<Self::Error> =
+        IdProfileSpec::generated_uuid(UuidGrammar::canonical(&[7]), |_, metadata, _| {
+            OptimizationContractError::InvalidIdentifier(metadata.error_context)
+        });
 }
 
 fn validate_controlled_id(

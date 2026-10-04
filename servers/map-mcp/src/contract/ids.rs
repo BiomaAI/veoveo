@@ -42,14 +42,7 @@ impl IdProfile for MapIds {
             fresh: FreshId::UuidV7,
             stable_v5_namespace: Some(MAP_STABLE_ID_NAMESPACE),
         },
-        ..IdProfileSpec::uuid(
-            UuidGrammar {
-                versions: &[5, 7],
-                variant: UuidVariant::Rfc4122,
-                spelling: UuidSpelling::CanonicalLowerHyphenated,
-            },
-            map_id_error,
-        )
+        ..IdProfileSpec::uuid(UuidGrammar::canonical(&[5, 7]), map_id_error)
     };
 }
 #[doc(hidden)]

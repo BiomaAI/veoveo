@@ -23,72 +23,46 @@ fn hex_schema(length: usize) -> schemars::Schema {
     schemars::json_schema!({"type":"string","pattern":format!("^[0-9a-f]{{{}}}$",length),"not":{"const":"0".repeat(length)}})
 }
 
-use veoveo_types::{
-    FreshId, HexCase, HexGrammar, IdGeneration, IdProfile, IdProfileSpec, IdSchema, UuidGrammar,
-    UuidSpelling, UuidVariant,
-};
+use veoveo_types::{HexCase, HexGrammar, IdProfile, IdProfileSpec, UuidGrammar};
 
 #[doc(hidden)]
 pub struct AuditRecordIdProfile;
 impl IdProfile for AuditRecordIdProfile {
     type Error = AuditIdentityError;
-    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
-        generation: IdGeneration {
-            fresh: FreshId::UuidV7,
-            stable_v5_namespace: None,
-        },
-        schema: IdSchema::Owner {
-            schema: |generator, _| uuid_schema(generator),
-            inline: false,
-        },
-        ..IdProfileSpec::uuid(
-            UuidGrammar {
-                versions: &[7],
-                variant: UuidVariant::Rfc4122,
-                spelling: UuidSpelling::CanonicalLowerHyphenated,
-            },
-            |_, metadata, _| AuditIdentityError(metadata.error_context),
-        )
-    };
+    const PROFILE: IdProfileSpec<Self::Error> =
+        IdProfileSpec::generated_uuid(UuidGrammar::canonical(&[7]), |_, metadata, _| {
+            AuditIdentityError(metadata.error_context)
+        })
+        .owner_schema(|generator, _| uuid_schema(generator), false);
 }
 
 #[doc(hidden)]
 pub struct AuditTraceIdProfile;
 impl IdProfile for AuditTraceIdProfile {
     type Error = AuditIdentityError;
-    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
-        schema: IdSchema::Owner {
-            schema: |_, _| hex_schema(32),
-            inline: false,
+    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec::hex(
+        HexGrammar {
+            length: 32,
+            case: HexCase::Lower,
+            nonzero: true,
         },
-        ..IdProfileSpec::hex(
-            HexGrammar {
-                length: 32,
-                case: HexCase::Lower,
-                nonzero: true,
-            },
-            |_, metadata, _| AuditIdentityError(metadata.error_context),
-        )
-    };
+        |_, metadata, _| AuditIdentityError(metadata.error_context),
+    )
+    .owner_schema(|_, _| hex_schema(32), false);
 }
 #[doc(hidden)]
 pub struct AuditSpanIdProfile;
 impl IdProfile for AuditSpanIdProfile {
     type Error = AuditIdentityError;
-    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
-        schema: IdSchema::Owner {
-            schema: |_, _| hex_schema(16),
-            inline: false,
+    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec::hex(
+        HexGrammar {
+            length: 16,
+            case: HexCase::Lower,
+            nonzero: true,
         },
-        ..IdProfileSpec::hex(
-            HexGrammar {
-                length: 16,
-                case: HexCase::Lower,
-                nonzero: true,
-            },
-            |_, metadata, _| AuditIdentityError(metadata.error_context),
-        )
-    };
+        |_, metadata, _| AuditIdentityError(metadata.error_context),
+    )
+    .owner_schema(|_, _| hex_schema(16), false);
 }
 
 #[cfg(test)]

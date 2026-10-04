@@ -5,7 +5,7 @@ use super::resource_address::declaration::{
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
-    Data, DeriveInput, Expr, Fields, Ident, LitStr, Path, Token,
+    Data, DeriveInput, Expr, Ident, LitStr, Path, Token,
     parse::{Parse, ParseStream},
 };
 
@@ -135,28 +135,7 @@ pub fn expand(arguments: TokenStream, item: TokenStream) -> syn::Result<TokenStr
     }
     for attribute in &input.attrs {
         let conflict = if attribute.path().is_ident("derive") {
-            attribute
-                .parse_args_with(syn::punctuated::Punctuated::<Path, Token![,]>::parse_terminated)?
-                .iter()
-                .any(|path| {
-                    path.segments.last().is_some_and(|segment| {
-                        matches!(
-                            segment.ident.to_string().as_str(),
-                            "ResourceAddress"
-                                | "Clone"
-                                | "Copy"
-                                | "Debug"
-                                | "PartialEq"
-                                | "Eq"
-                                | "PartialOrd"
-                                | "Ord"
-                                | "Hash"
-                                | "Serialize"
-                                | "Deserialize"
-                                | "JsonSchema"
-                        )
-                    })
-                })
+            super::derive_policy::conflict(attribute, &["ResourceAddress"])?.is_some()
         } else {
             attribute.path().is_ident("serde") || attribute.path().is_ident("resource")
         };
@@ -467,15 +446,10 @@ pub fn expand(arguments: TokenStream, item: TokenStream) -> syn::Result<TokenStr
             "resource_uri requires a ResourceUri cache",
         ));
     }
-    let wrapped = match &input.data {
-        Data::Struct(data) if matches!(data.fields, Fields::Named(_)) => {
-            let members = data
-                .fields
-                .iter()
-                .map(|field| field.ident.as_ref().unwrap());
-            quote!(Self { #(#members: #values),* })
-        }
-        _ => quote!(Self(#(#values),*)),
+    let wrapped = if let Data::Struct(data) = &input.data {
+        super::resource_address::field_shape(&data.fields, &quote!(Self), values.iter().cloned())
+    } else {
+        quote!()
     };
     let backend = super::resource_address::generate(&address)?;
     remove_resource(&mut input);

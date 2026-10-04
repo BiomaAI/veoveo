@@ -24,30 +24,14 @@ pub fn parse_artifact_plane_uri(uri: &str) -> Option<ArtifactId> {
         .map(|uri| uri.artifact_id())
 }
 
-use veoveo_types::{
-    FreshId, IdGeneration, IdProfile, IdProfileSpec, IdSchema, UuidGrammar, UuidSpelling,
-    UuidVariant,
-};
+use veoveo_types::{IdProfile, IdProfileSpec, UuidGrammar};
 
 #[doc(hidden)]
 pub struct ArtifactIds;
 impl IdProfile for ArtifactIds {
     type Error = ArtifactIdError;
-    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
-        generation: IdGeneration {
-            fresh: FreshId::UuidV7,
-            stable_v5_namespace: None,
-        },
-        schema: IdSchema::DerivedString,
-        ..IdProfileSpec::uuid(
-            UuidGrammar {
-                versions: &[7],
-                variant: UuidVariant::Rfc4122,
-                spelling: UuidSpelling::ParserAliases,
-            },
-            |_, _, _| ArtifactIdError,
-        )
-    };
+    const PROFILE: IdProfileSpec<Self::Error> =
+        IdProfileSpec::generated_uuid(UuidGrammar::aliases(&[7]), |_, _, _| ArtifactIdError);
 }
 
 #[cfg(test)]
