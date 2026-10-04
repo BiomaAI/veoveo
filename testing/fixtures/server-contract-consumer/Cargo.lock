@@ -1789,6 +1789,8 @@ name = "veoveo-server-contract-consumer"
 version = "0.1.0"
 dependencies = [
  "jsonschema",
+ "schemars",
+ "serde",
  "serde_json",
  "thiserror",
  "veoveo-artifact-mcp",

@@ -229,3 +229,16 @@ fn identity_schemas_match_the_pre_extraction_contract() {
     capture_schema::<InvocationProvenance>(&mut schemas, stringify!(InvocationProvenance));
     assert_eq!(Value::Object(schemas), expected);
 }
+
+#[test]
+fn access_subject_variants_reject_undeclared_fields() {
+    for input in [
+        json!({"kind":"principal","id":"issuer#user"}),
+        json!({"kind":"group","id":"engineering"}),
+    ] {
+        assert!(serde_json::from_value::<AccessSubject>(input.clone()).is_ok());
+        let mut extra = input;
+        extra["undeclared"] = json!(true);
+        assert!(serde_json::from_value::<AccessSubject>(extra).is_err());
+    }
+}

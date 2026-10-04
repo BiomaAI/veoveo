@@ -120,3 +120,31 @@ fn source_features_require_their_release_and_presented_map_artifacts_keep_releas
     .validate()
     .unwrap();
 }
+
+#[test]
+fn camera_variants_and_scene_coordinates_reject_undeclared_fields() {
+    use veoveo_view_mcp::contract::CameraDefinition;
+    let position =
+        json!({"latitude_degrees":1,"longitude_degrees":2,"ellipsoidal_height_meters":3});
+    let cameras = [
+        json!({"kind":"pose","position":position,"orientation":{"heading_degrees":0,"pitch_degrees":0,"roll_degrees":0},"vertical_fov_degrees":60}),
+        json!({"kind":"look_at","eye":position,"target":position,"vertical_fov_degrees":60}),
+        json!({"kind":"orbit_target","target":position,"distance_meters":10,"azimuth_degrees":0,"elevation_degrees":0,"vertical_fov_degrees":60}),
+    ];
+    for input in cameras {
+        assert!(serde_json::from_value::<CameraDefinition>(input.clone()).is_ok());
+        let mut extra = input.clone();
+        extra["undeclared"] = json!(true);
+        assert!(serde_json::from_value::<CameraDefinition>(extra).is_err());
+        let key = if input["kind"] == "pose" {
+            "position"
+        } else if input["kind"] == "look_at" {
+            "eye"
+        } else {
+            "target"
+        };
+        let mut extra = input;
+        extra[key]["undeclared"] = json!(true);
+        assert!(serde_json::from_value::<CameraDefinition>(extra).is_err());
+    }
+}

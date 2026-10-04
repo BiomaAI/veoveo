@@ -45,3 +45,10 @@ no network, service, identity or GPU operations. Cargo owns compilation and proc
 cleanup. Test execution is finite and creates no installation fixtures. Service and
 GPU acceptance belong to the owning harnesses. Recheck each runtime configuration
 separately when changing a server feature gate.
+
+`tests/tool_inputs.rs` consumes the production tool request types from all sixteen
+server libraries. Their generated root schemas must reject undeclared properties.
+Selected valid requests qualify schema and decoder agreement for nested coordinate
+and time objects, tagged Map variants and opaque Media provider input. These tests
+exercise owner contracts without importing RMCP. They do not establish the response
+envelope of a running server; hosted owner tests qualify that behavior.

@@ -301,3 +301,77 @@ fn operation_addresses_and_references_keep_their_identity_in_agreement() {
         assert!(FrameOperationUri::parse(wrong).is_err(), "{wrong}");
     }
 }
+
+#[test]
+fn controlled_coordinate_and_frame_variants_reject_extra_keys() {
+    use serde_json::json;
+    use veoveo_frames_contract::{
+        CoordinatePoint, CoordinateSpace, EcefPosition, FrameAxes, FrameBasis, FrameEntityPath,
+        FrameId, FrameParentTransform, FrameStreamUri, FrameWorldId, FrameWorldRevisionId,
+        FrameWorldRevisionUri, Wgs84Position, WorldFramePosition,
+    };
+    fn reject<T: serde::de::DeserializeOwned + serde::Serialize>(value: T) {
+        let mut input = serde_json::to_value(value).unwrap();
+        if let Err(error) = serde_json::from_value::<T>(input.clone()) {
+            panic!("{} baseline {input}: {error}", std::any::type_name::<T>());
+        }
+        input["undeclared"] = json!(true);
+        assert!(
+            serde_json::from_value::<T>(input).is_err(),
+            "{} accepted an undeclared field",
+            std::any::type_name::<T>()
+        );
+    }
+    let revision = FrameWorldRevisionUri::new(
+        &FrameWorldId::parse("survey").unwrap(),
+        &FrameWorldRevisionId::parse("revision-1").unwrap(),
+    );
+    let frame_uri = revision.frame(&FrameId::parse("body").unwrap());
+    let origin = Wgs84Position {
+        longitude_degrees: 1.0,
+        latitude_degrees: 2.0,
+        ellipsoid_height_m: 3.0,
+    };
+    reject(CoordinateSpace::Wgs84);
+    reject(CoordinateSpace::EcefWgs84);
+    reject(CoordinateSpace::WorldFrame {
+        frame_uri: frame_uri.clone(),
+    });
+    reject(CoordinatePoint::WorldFrame(WorldFramePosition {
+        frame_uri,
+        x_m: 1.0,
+        y_m: 2.0,
+        z_m: 3.0,
+    }));
+    reject(CoordinatePoint::Wgs84(origin.clone()));
+    reject(CoordinatePoint::EcefWgs84(EcefPosition {
+        x_m: 1.0,
+        y_m: 2.0,
+        z_m: 3.0,
+    }));
+    for basis in [
+        FrameBasis::EcefWgs84,
+        FrameBasis::Enu,
+        FrameBasis::Ned,
+        FrameBasis::Frd,
+        FrameBasis::OpticalRdf,
+        FrameBasis::Cartesian {
+            axes: FrameAxes::east_north_up(),
+        },
+    ] {
+        reject(basis);
+    }
+    let tangent = FrameParentTransform::GeodeticTangent { origin };
+    let mut nested = serde_json::to_value(&tangent).unwrap();
+    nested["origin"]["undeclared"] = json!(true);
+    assert!(serde_json::from_value::<FrameParentTransform>(nested).is_err());
+    reject(tangent);
+    reject(FrameParentTransform::StaticRigid {
+        translation_m: [0.0; 3],
+        rotation_xyzw: [0.0, 0.0, 0.0, 1.0],
+    });
+    reject(FrameParentTransform::DynamicStream {
+        stream_uri: FrameStreamUri::parse("producer://session/run").unwrap(),
+        entity_path: FrameEntityPath::new("vehicle/body").unwrap(),
+    });
+}

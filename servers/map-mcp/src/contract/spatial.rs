@@ -20,6 +20,7 @@ pub const MAX_SPATIAL_COMPONENT_INPUTS: usize = 512;
 pub const MAX_PARALLEL_LANES: u32 = 128;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct SpatialPointInput {
     pub id: String,
     pub position: Wgs84Position,
@@ -35,6 +36,7 @@ impl SpatialPointInput {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct SpatialGeometryInput {
     pub id: String,
     pub geometry: FeatureGeometry,
@@ -72,6 +74,7 @@ pub enum StationKind {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum SpatialDerivationOperation {
     ResampleLine {
         line: Wgs84LineString,
@@ -292,6 +295,7 @@ impl SpatialDerivationOperation {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct DeriveSpatialGeometryRequest {
     pub mobility_profile_id: MobilityProfileId,
     pub mobility_profile_version: crate::contract::MobilityProfileVersion,

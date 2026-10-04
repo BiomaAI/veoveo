@@ -79,6 +79,11 @@ interval, geometry type, opaque keyset cursor, and a bounded Basic CQL2-JSON sub
 Property paths and literal values remain parameters. A dateline-crossing box is
 split into two query polygons.
 
+CQL2 operations and property references reject undeclared fields. Their generated
+schemas use same-document references for recursive expressions and express the same
+closed objects as the decoders. Authored feature properties and supplied property
+schemas remain user-defined payloads inside closed request envelopes.
+
 Map eagerly binds and inspects every persisted R-tree during startup before accepting
 projection writes. Projection writes then use ordinary `INSERT` statements after
 deterministic replay checks. They do not use DuckDB conflict-merge insertion against

@@ -115,3 +115,26 @@ fn total_coordinates_round_trip_negative_fractions_and_both_signed_endpoints() {
         );
     }
 }
+
+#[test]
+fn checked_authority_wire_and_instant_reject_unknown_fields() {
+    let binding = serde_json::to_value(authority()).unwrap();
+    let mut extra = binding.clone();
+    extra["undeclared"] = json!(true);
+    assert!(serde_json::from_value::<AuthorityBinding>(extra).is_err());
+    let input = json!({"tai_seconds_since_1970":0,"nanosecond":0,"uncertainty_nanoseconds":0,"authority":binding});
+    assert!(serde_json::from_value::<TimeInstant>(input.clone()).is_ok());
+    for path in ["", "/authority"] {
+        let mut extra = input.clone();
+        extra
+            .pointer_mut(path)
+            .unwrap()
+            .as_object_mut()
+            .unwrap()
+            .insert("undeclared".to_owned(), json!(true));
+        assert!(
+            serde_json::from_value::<TimeInstant>(extra).is_err(),
+            "{path}"
+        );
+    }
+}

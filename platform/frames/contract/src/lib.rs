@@ -43,6 +43,7 @@ pub struct WorldFramePosition {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum CoordinatePoint {
     Wgs84(Wgs84Position),
     EcefWgs84(EcefPosition),

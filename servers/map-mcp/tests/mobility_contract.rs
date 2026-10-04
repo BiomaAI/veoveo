@@ -193,3 +193,29 @@ fn pages_preserve_complete_profiles_and_require_numeric_order_and_consistent_con
             .is_none()
     );
 }
+
+#[test]
+fn profile_creation_closes_request_tagged_profile_and_nested_components() {
+    let profile: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/mobility.json")).unwrap();
+    let wire = serde_json::json!({"profile": profile, "idempotency_key": "fixture"});
+    let schema = serde_json::to_value(schemars::schema_for!(CreateMobilityProfileRequest)).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    assert!(validator.is_valid(&wire));
+    assert!(serde_json::from_value::<CreateMobilityProfileRequest>(wire.clone()).is_ok());
+    for pointer in [
+        "",
+        "/profile",
+        "/profile/profile",
+        "/profile/profile/metadata",
+        "/profile/profile/planning",
+    ] {
+        let mut invalid = wire.clone();
+        invalid.pointer_mut(pointer).unwrap()["unexpected"] = serde_json::json!(true);
+        assert!(
+            serde_json::from_value::<CreateMobilityProfileRequest>(invalid.clone()).is_err(),
+            "{pointer}"
+        );
+        assert!(!validator.is_valid(&invalid), "{pointer}");
+    }
+}

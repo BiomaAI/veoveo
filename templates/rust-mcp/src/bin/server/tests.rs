@@ -140,3 +140,21 @@ async fn prompts_render_with_typed_arguments() {
         .await;
     assert_eq!(body["error"]["code"], -32602);
 }
+
+#[tokio::test]
+async fn unknown_tool_arguments_return_a_completed_tool_error() {
+    let body = gateway()
+        .rpc(
+            "tools/call",
+            json!({"name":"define","arguments":{"term":"hosted-server","undeclared":true}}),
+        )
+        .await;
+    assert!(body.get("error").is_none(), "{body}");
+    assert_eq!(body["result"]["isError"], true);
+    assert!(
+        body["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap()
+            .contains("undeclared")
+    );
+}

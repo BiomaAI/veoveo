@@ -31,6 +31,7 @@ pub struct FrameId(String);
 pub struct LayerId(String);
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct Wgs84Position3d {
     pub latitude_degrees: f64,
     pub longitude_degrees: f64,
@@ -57,6 +58,7 @@ impl Wgs84Position3d {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct HeadingPitchRoll {
     pub heading_degrees: f64,
     pub pitch_degrees: f64,
@@ -77,6 +79,7 @@ impl HeadingPitchRoll {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct GeodeticCameraPose {
     pub position: Wgs84Position3d,
     pub orientation: HeadingPitchRoll,
@@ -93,6 +96,7 @@ impl GeodeticCameraPose {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct LookAtCamera {
     pub eye: Wgs84Position3d,
     pub target: Wgs84Position3d,
@@ -100,6 +104,7 @@ pub struct LookAtCamera {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct OrbitTargetCamera {
     pub target: Wgs84Position3d,
     pub distance_meters: f64,
@@ -110,6 +115,7 @@ pub struct OrbitTargetCamera {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum CameraDefinition {
     Pose(GeodeticCameraPose),
     LookAt(LookAtCamera),
@@ -170,6 +176,7 @@ pub enum FrameEncoding {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CapturePolicy {
     pub width_px: u32,
     pub height_px: u32,
@@ -280,12 +287,14 @@ pub struct AttributionSet {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CreateViewRequest {
     pub composition_id: SceneCompositionId,
     pub camera: CameraDefinition,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct SetCameraRequest {
     pub view_id: ViewId,
     pub expected_revision: u64,
@@ -293,6 +302,7 @@ pub struct SetCameraRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CaptureFrameRequest {
     pub view_id: ViewId,
     pub expected_revision: u64,
@@ -301,6 +311,7 @@ pub struct CaptureFrameRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CloseViewRequest {
     pub view_id: ViewId,
     pub expected_revision: u64,

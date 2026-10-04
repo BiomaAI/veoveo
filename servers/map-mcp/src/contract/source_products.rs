@@ -142,6 +142,7 @@ pub fn representation_for_geometry(geometry: &FeatureGeometry) -> SourceFeatureR
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct SourceTagEquality {
     pub key: String,
     pub value: String,
@@ -149,6 +150,7 @@ pub struct SourceTagEquality {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum SourceSpatialQuery {
     BoundingBox {
         bounds: Wgs84BoundingBox,
@@ -174,6 +176,7 @@ pub enum SourceSpatialQuery {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct QuerySourceFeaturesRequest {
     /// Source feature queries always select one immutable release.
     pub release_id: DatasetReleaseId,
@@ -362,6 +365,7 @@ impl RasterProduct {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum RasterDerivationOperation {
     Sample {
         band: u32,
@@ -403,6 +407,7 @@ pub enum RasterDerivationOperation {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct DeriveRasterRequest {
     pub raster_id: RasterProductId,
     pub operation: RasterDerivationOperation,

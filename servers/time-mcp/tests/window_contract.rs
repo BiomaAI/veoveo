@@ -105,3 +105,11 @@ fn windows_span_the_full_coordinate_range_without_narrowing() {
     assert_eq!(whole.start().total_nanoseconds(), minimum);
     assert_eq!(whole.end().total_nanoseconds(), maximum);
 }
+
+#[test]
+fn checked_window_wire_is_closed_before_relationship_admission() {
+    let window = TimeWindow::new(instant(0, 0), instant(1, 0)).unwrap();
+    let mut wire = serde_json::to_value(window).unwrap();
+    wire["undeclared"] = json!(true);
+    assert!(serde_json::from_value::<TimeWindow>(wire).is_err());
+}

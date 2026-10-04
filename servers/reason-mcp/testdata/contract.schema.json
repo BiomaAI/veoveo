@@ -1344,7 +1344,8 @@
             "required": [
               "kind",
               "id"
-            ]
+            ],
+            "additionalProperties": false
           },
           {
             "type": "object",
@@ -1360,7 +1361,8 @@
             "required": [
               "kind",
               "id"
-            ]
+            ],
+            "additionalProperties": false
           }
         ]
       },
@@ -2323,7 +2325,8 @@
             "required": [
               "kind",
               "id"
-            ]
+            ],
+            "additionalProperties": false
           },
           {
             "type": "object",
@@ -2339,7 +2342,8 @@
             "required": [
               "kind",
               "id"
-            ]
+            ],
+            "additionalProperties": false
           }
         ]
       },

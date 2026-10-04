@@ -84,7 +84,8 @@
             },
             "required": [
               "mode"
-            ]
+            ],
+            "additionalProperties": false
           },
           {
             "type": "object",
@@ -102,7 +103,8 @@
             "required": [
               "mode",
               "step"
-            ]
+            ],
+            "additionalProperties": false
           },
           {
             "type": "object",
@@ -120,7 +122,8 @@
             "required": [
               "mode",
               "count"
-            ]
+            ],
+            "additionalProperties": false
           }
         ]
       }
@@ -140,7 +143,8 @@
         },
         "required": [
           "mode"
-        ]
+        ],
+        "additionalProperties": false
       },
       {
         "type": "object",
@@ -158,7 +162,8 @@
         "required": [
           "mode",
           "step"
-        ]
+        ],
+        "additionalProperties": false
       },
       {
         "type": "object",
@@ -176,7 +181,8 @@
         "required": [
           "mode",
           "count"
-        ]
+        ],
+        "additionalProperties": false
       }
     ]
   },
@@ -913,7 +919,8 @@
             "required": [
               "kind",
               "id"
-            ]
+            ],
+            "additionalProperties": false
           },
           {
             "type": "object",
@@ -929,7 +936,8 @@
             "required": [
               "kind",
               "id"
-            ]
+            ],
+            "additionalProperties": false
           }
         ]
       },
@@ -1624,7 +1632,8 @@
             "required": [
               "kind",
               "id"
-            ]
+            ],
+            "additionalProperties": false
           },
           {
             "type": "object",
@@ -1640,7 +1649,8 @@
             "required": [
               "kind",
               "id"
-            ]
+            ],
+            "additionalProperties": false
           }
         ]
       },
@@ -2126,7 +2136,8 @@
             "required": [
               "kind",
               "id"
-            ]
+            ],
+            "additionalProperties": false
           },
           {
             "type": "object",
@@ -2142,7 +2153,8 @@
             "required": [
               "kind",
               "id"
-            ]
+            ],
+            "additionalProperties": false
           }
         ]
       },

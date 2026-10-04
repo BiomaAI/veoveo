@@ -143,3 +143,32 @@ fn artifact_tool_admits_only_the_media_occurrence_address() {
         assert!(serde_json::from_value::<ArtifactArgs>(json!({"artifact_uri": uri})).is_err());
     }
 }
+
+#[test]
+fn tool_envelopes_are_closed_while_model_inputs_stay_provider_owned() {
+    let input = json!({"model":"openai/gpt-image-2/edit","input":{"prompt":"scene","provider_option":{"future":true}}});
+    let request: RunArgs = serde_json::from_value(input.clone()).unwrap();
+    assert_eq!(request.input["provider_option"]["future"], true);
+    let mut extra = input;
+    extra["undeclared"] = json!(true);
+    assert!(
+        serde_json::from_value::<RunArgs>(extra)
+            .unwrap_err()
+            .to_string()
+            .contains("undeclared")
+    );
+    let schema = serde_json::to_value(schemars::schema_for!(RunArgs)).unwrap();
+    assert_eq!(schema["additionalProperties"], false);
+    assert_ne!(schema["properties"]["input"]["additionalProperties"], false);
+    let query = json!({"query":"image","type":"text-to-image","limit":10});
+    assert!(serde_json::from_value::<ModelsArgs>(query.clone()).is_ok());
+    let mut extra = query;
+    extra["undeclared"] = json!(true);
+    assert!(serde_json::from_value::<ModelsArgs>(extra).is_err());
+    assert!(
+        serde_json::from_value::<ModelSchemaArgs>(
+            json!({"model":"openai/gpt-image-2/edit","undeclared":true})
+        )
+        .is_err()
+    );
+}

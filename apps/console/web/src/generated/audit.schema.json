@@ -58,6 +58,7 @@
       "description": "A principal or group that can own governed data or receive access.",
       "oneOf": [
         {
+          "additionalProperties": false,
           "properties": {
             "id": {
               "$ref": "#/$defs/PrincipalId"
@@ -74,6 +75,7 @@
           "type": "object"
         },
         {
+          "additionalProperties": false,
           "properties": {
             "id": {
               "$ref": "#/$defs/GroupId"

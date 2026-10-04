@@ -38,3 +38,22 @@ fn geodetic_names_preserve_the_existing_admission_profile() {
         assert!(serde_json::from_value::<CrsId>(serde_json::json!(invalid)).is_err());
     }
 }
+
+#[test]
+fn transform_inputs_reject_unknown_keys_at_request_and_position() {
+    use veoveo_map_mcp::contract::TransformCrsRequest;
+    let wire = serde_json::json!({
+        "source_crs": "EPSG:4326", "target_crs": "EPSG:3857",
+        "positions": [{"crs": "EPSG:4326", "x": -89.2, "y": 13.7}]
+    });
+    let schema = serde_json::to_value(schemars::schema_for!(TransformCrsRequest)).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    assert!(validator.is_valid(&wire));
+    assert!(serde_json::from_value::<TransformCrsRequest>(wire.clone()).is_ok());
+    for pointer in ["", "/positions/0"] {
+        let mut invalid = wire.clone();
+        invalid.pointer_mut(pointer).unwrap()["unexpected"] = serde_json::json!(true);
+        assert!(serde_json::from_value::<TransformCrsRequest>(invalid.clone()).is_err());
+        assert!(!validator.is_valid(&invalid));
+    }
+}

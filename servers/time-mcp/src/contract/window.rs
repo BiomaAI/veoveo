@@ -34,6 +34,7 @@ impl Error for TimeWindowError {}
 pub struct TimeWindow(veoveo_types::Checked<WindowWire>);
 
 #[derive(Serialize, Deserialize, JsonSchema, Clone, Debug, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 struct WindowWire {
     /// Inclusive lower bound.
     start: TimeInstant,

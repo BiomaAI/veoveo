@@ -9,6 +9,7 @@ use super::{
 };
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct TransformCrsRequest {
     pub source_crs: CrsId,
     pub target_crs: CrsId,
@@ -27,6 +28,7 @@ pub struct TransformCrsOutput {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct GeodesicInverseRequest {
     pub start: Wgs84Position,
     pub end: Wgs84Position,
@@ -41,6 +43,7 @@ pub struct GeodesicInverseOutput {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct GeodesicDirectRequest {
     pub start: Wgs84Position,
     pub initial_azimuth: Degrees,
@@ -63,6 +66,7 @@ pub enum GeofenceRule {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ValidateGeofenceRequest {
     pub geofence: Wgs84Polygon,
     pub path: Wgs84LineString,
@@ -84,6 +88,7 @@ pub struct ValidateGeofenceOutput {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct SearchLocationsRequest {
     pub query: String,
     pub coverage: Wgs84BoundingBox,
@@ -93,6 +98,7 @@ pub struct SearchLocationsRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct InspectLocationRequest {
     pub location_id: LocationId,
     pub nearby_radius: Meters,
@@ -111,6 +117,7 @@ pub struct InspectLocationOutput {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct InspectPositionRequest {
     pub position: Wgs84Position,
     #[serde(default = "default_position_inspection_radius")]
@@ -157,6 +164,7 @@ pub struct InspectPositionOutput {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CorridorInspectionRequest {
     pub corridor: Wgs84LineString,
     pub width: Meters,
@@ -174,6 +182,7 @@ pub struct CorridorInspectionOutput {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ValidateRouteRequest {
     pub route: RoutePlan,
 }
@@ -194,11 +203,13 @@ pub struct PrepareRouteHandoffRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct PublishRestrictionRequest {
     pub restriction: Restriction,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct WithdrawRestrictionRequest {
     pub restriction_id: RestrictionId,
     pub expected_record_version: u64,

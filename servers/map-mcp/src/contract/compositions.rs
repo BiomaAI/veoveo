@@ -39,6 +39,7 @@ pub struct LayerProduct {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CompositionView {
     pub center: Wgs84Position,
     pub zoom: f64,
@@ -65,6 +66,7 @@ impl CompositionView {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CompositionLayer {
     pub layer_id: FeatureLayerId,
     pub publication_id: LayerPublicationId,
@@ -114,6 +116,7 @@ pub struct MapComposition {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CreateMapCompositionRequest {
     pub title: String,
     pub layers: Vec<CompositionLayer>,
@@ -121,6 +124,7 @@ pub struct CreateMapCompositionRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct UpdateMapCompositionRequest {
     pub composition_id: MapCompositionId,
     pub expected_revision: u64,
@@ -131,6 +135,7 @@ pub struct UpdateMapCompositionRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ArchiveMapCompositionRequest {
     pub composition_id: MapCompositionId,
     pub expected_revision: u64,

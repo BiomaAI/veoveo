@@ -114,3 +114,16 @@ fn schemas_preserve_the_published_contract() {
     check_schema::<LiveSessionView>(&baseline, stringify!(LiveSessionView));
     check_schema::<LiveSessionsPage>(&baseline, stringify!(LiveSessionsPage));
 }
+
+#[test]
+fn sampling_variants_reject_extra_fields() {
+    for mut input in [
+        serde_json::json!({"mode":"every_frame"}),
+        serde_json::json!({"mode":"every_nth","step":2}),
+        serde_json::json!({"mode":"maximum_frames","count":3}),
+    ] {
+        assert!(serde_json::from_value::<SamplingPolicy>(input.clone()).is_ok());
+        input["undeclared"] = serde_json::json!(true);
+        assert!(serde_json::from_value::<SamplingPolicy>(input).is_err());
+    }
+}

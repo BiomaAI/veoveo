@@ -151,6 +151,7 @@ impl ResourceAddress for GlossaryResource {
 
 /// Input of the `define` tool.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct DefineRequest {
     /// The term to define.
     pub term: TermId,

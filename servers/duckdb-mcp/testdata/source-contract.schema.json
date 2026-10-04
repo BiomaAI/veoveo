@@ -127,7 +127,8 @@
               "kind",
               "id"
             ],
-            "type": "object"
+            "type": "object",
+            "additionalProperties": false
           },
           {
             "properties": {
@@ -143,7 +144,8 @@
               "kind",
               "id"
             ],
-            "type": "object"
+            "type": "object",
+            "additionalProperties": false
           }
         ]
       },
@@ -990,7 +992,8 @@
               "kind",
               "id"
             ],
-            "type": "object"
+            "type": "object",
+            "additionalProperties": false
           },
           {
             "properties": {
@@ -1006,7 +1009,8 @@
               "kind",
               "id"
             ],
-            "type": "object"
+            "type": "object",
+            "additionalProperties": false
           }
         ]
       },

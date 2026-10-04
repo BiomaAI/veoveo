@@ -44,6 +44,7 @@ impl Error for TimeAuthorityError {}
 pub struct AuthorityBinding(veoveo_types::Checked<BindingWire>);
 
 #[derive(Serialize, Deserialize, JsonSchema, Clone, Debug, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 struct BindingWire {
     tzdb_release_id: AuthorityReleaseId,
     leap_seconds_release_id: AuthorityReleaseId,

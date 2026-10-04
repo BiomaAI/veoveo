@@ -871,7 +871,8 @@
             "required": [
               "kind"
             ],
-            "type": "object"
+            "type": "object",
+            "additionalProperties": false
           },
           {
             "properties": {
@@ -883,7 +884,8 @@
             "required": [
               "kind"
             ],
-            "type": "object"
+            "type": "object",
+            "additionalProperties": false
           },
           {
             "properties": {
@@ -895,7 +897,8 @@
             "required": [
               "kind"
             ],
-            "type": "object"
+            "type": "object",
+            "additionalProperties": false
           },
           {
             "properties": {
@@ -907,7 +910,8 @@
             "required": [
               "kind"
             ],
-            "type": "object"
+            "type": "object",
+            "additionalProperties": false
           },
           {
             "properties": {
@@ -919,7 +923,8 @@
             "required": [
               "kind"
             ],
-            "type": "object"
+            "type": "object",
+            "additionalProperties": false
           },
           {
             "properties": {
@@ -935,7 +940,8 @@
               "kind",
               "axes"
             ],
-            "type": "object"
+            "type": "object",
+            "additionalProperties": false
           }
         ]
       },
@@ -1001,7 +1007,8 @@
               "kind",
               "origin"
             ],
-            "type": "object"
+            "type": "object",
+            "additionalProperties": false
           },
           {
             "properties": {
@@ -1033,7 +1040,8 @@
               "translation_m",
               "rotation_xyzw"
             ],
-            "type": "object"
+            "type": "object",
+            "additionalProperties": false
           },
           {
             "properties": {
@@ -1053,7 +1061,8 @@
               "stream_uri",
               "entity_path"
             ],
-            "type": "object"
+            "type": "object",
+            "additionalProperties": false
           }
         ]
       },
@@ -3134,7 +3143,8 @@
               "kind",
               "id"
             ],
-            "type": "object"
+            "type": "object",
+            "additionalProperties": false
           },
           {
             "properties": {
@@ -3150,7 +3160,8 @@
               "kind",
               "id"
             ],
-            "type": "object"
+            "type": "object",
+            "additionalProperties": false
           }
         ]
       },
@@ -3604,7 +3615,8 @@
               "kind",
               "id"
             ],
-            "type": "object"
+            "type": "object",
+            "additionalProperties": false
           },
           {
             "properties": {
@@ -3620,7 +3632,8 @@
               "kind",
               "id"
             ],
-            "type": "object"
+            "type": "object",
+            "additionalProperties": false
           }
         ]
       },
@@ -3700,7 +3713,8 @@
               "kind",
               "id"
             ],
-            "type": "object"
+            "type": "object",
+            "additionalProperties": false
           },
           {
             "properties": {
@@ -3716,7 +3730,8 @@
               "kind",
               "id"
             ],
-            "type": "object"
+            "type": "object",
+            "additionalProperties": false
           }
         ]
       },

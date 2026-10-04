@@ -25,6 +25,7 @@ pub enum TimeScale {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CivilTime {
     pub local_datetime: String,
     pub zone_id: String,
@@ -35,6 +36,7 @@ pub struct CivilTime {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "format", rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum TimeExpression {
     Rfc3339 {
         value: String,
@@ -74,6 +76,7 @@ pub enum TimeExpression {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ResolveTimeRequest {
     pub expression: TimeExpression,
     #[serde(default)]
@@ -81,6 +84,7 @@ pub struct ResolveTimeRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ConvertTimeRequest {
     pub instant: TimeInstant,
     #[serde(default)]
@@ -130,6 +134,7 @@ pub struct ClockAssessment {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct AssessClockRequest {
     pub policy: Option<ClockQualityPolicy>,
 }

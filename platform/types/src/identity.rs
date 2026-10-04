@@ -38,6 +38,7 @@ pub struct PolicyVersion(String);
     Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
 )]
 #[serde(rename_all = "snake_case", tag = "kind", content = "id")]
+#[serde(deny_unknown_fields)]
 pub enum AccessSubject {
     Principal(PrincipalId),
     Group(GroupId),

@@ -39,6 +39,10 @@ lanes still need to move.
 Five additional browser contract
 bundles pass generation, consumer tests and builds. Production schema ownership moves
 in Phase 3.
+Phase 5's MCP input batch closes controlled request fields and nested owner shapes.
+The independent consumer checks all 114 production tool-input root schemas; affected
+native suites and browser/Python consumers pass. Per-server wire checks, exhaustive
+variant coverage, and the HTTP, process-protocol and configuration surfaces remain open.
 This is the single implementation plan for the former Foundations, Contract
 Consistency and Repository Hardening tracks; their required open conditions transfer
 without being declared complete.
@@ -1115,6 +1119,22 @@ Of 1,553 schema-bearing `Deserialize` types, 834 lack `deny_unknown_fields`. Thi
 inventory requires classification: it includes external and open-ended
 formats as well as controlled inputs. Phase 5 closes undeclared keys on controlled
 inbound shapes and checks schema/decoder agreement.
+
+The MCP source batch covers the sixteen Rust server contracts and Rust template.
+The source inventory found 121 distinct input roots across those owners and SUMO:
+70 needed closure, while 51 already used strict decoders. The independent consumer
+checks the 114 production root schemas. Existing owner tests pair rejection with
+valid inputs and preserve provider payloads, authored properties and typed dictionaries.
+Strict wire adapters preserve Artifact's flat sharing request and public tagged unit
+variants. Map's recursive CQL2 schema now describes its typed expressions directly.
+
+Shared conformance checks reachable controlled objects through local references and
+composition, with explicit traversal limits. The Rust template proves that an unknown
+argument produces a completed `isError` response through the hosted gateway. These
+checks do not establish that response for every production server, or cover every
+reachable object variant. Those cases and the remaining surfaces below still require
+qualification before Phase 5 can close. The coordinated installation cut carries the
+stricter decoders and matching callers together.
 
 | Inbound surface | Change |
 |---|---|

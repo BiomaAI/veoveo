@@ -64,6 +64,7 @@ impl Wgs84Position {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ProjectedPosition {
     pub crs: CrsId,
     pub x: f64,
@@ -98,6 +99,7 @@ impl MapPosition {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct Wgs84LineString {
     pub coordinates: Vec<Wgs84Position>,
 }
@@ -126,6 +128,7 @@ impl Wgs84LineString {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct Wgs84Polygon {
     pub exterior: Vec<Wgs84Position>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -172,6 +175,7 @@ fn ring_to_geo(ring: &[Wgs84Position]) -> LineString<f64> {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct Wgs84BoundingBox {
     pub west: f64,
     pub south: f64,

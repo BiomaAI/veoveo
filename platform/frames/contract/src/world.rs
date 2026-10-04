@@ -103,8 +103,9 @@ impl FrameAxes {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum FrameBasis {
     EcefWgs84,
     Enu,
@@ -112,6 +113,31 @@ pub enum FrameBasis {
     Frd,
     OpticalRdf,
     Cartesian { axes: FrameAxes },
+}
+
+// Empty wire variants reject undeclared keys while public unit variants stay unchanged.
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum FrameBasisWire {
+    EcefWgs84 {},
+    Enu {},
+    Ned {},
+    Frd {},
+    OpticalRdf {},
+    Cartesian { axes: FrameAxes },
+}
+
+impl<'de> Deserialize<'de> for FrameBasis {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Ok(match FrameBasisWire::deserialize(deserializer)? {
+            FrameBasisWire::EcefWgs84 {} => Self::EcefWgs84,
+            FrameBasisWire::Enu {} => Self::Enu,
+            FrameBasisWire::Ned {} => Self::Ned,
+            FrameBasisWire::Frd {} => Self::Frd,
+            FrameBasisWire::OpticalRdf {} => Self::OpticalRdf,
+            FrameBasisWire::Cartesian { axes } => Self::Cartesian { axes },
+        })
+    }
 }
 
 impl FrameBasis {
@@ -132,6 +158,7 @@ impl FrameBasis {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum FrameParentTransform {
     GeodeticTangent {
         origin: Wgs84Position,

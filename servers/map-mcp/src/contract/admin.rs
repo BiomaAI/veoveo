@@ -8,24 +8,28 @@ use super::{
 };
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CreateSourceRequest {
     pub source: RegisteredSource,
     pub idempotency_key: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ReplaceSourceRequest {
     pub source: RegisteredSource,
     pub expected_record_version: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct DisableSourceRequest {
     pub source_id: MapSourceId,
     pub expected_record_version: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CreateAcquisitionRequest {
     pub source_id: MapSourceId,
     pub requested_coverage: Wgs84BoundingBox,
@@ -35,11 +39,13 @@ pub struct CreateAcquisitionRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CancelAcquisitionRequest {
     pub acquisition_id: AcquisitionId,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CreateMobilityProfileRequest {
     pub profile: MobilityProfile,
     pub idempotency_key: String,
@@ -111,6 +117,7 @@ pub struct ActiveReleasePointer {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ListActiveDatasetReleasesRequest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_id: Option<MapSourceId>,
@@ -132,6 +139,7 @@ pub struct ListActiveDatasetReleasesOutput {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ReleaseMutationRequest {
     pub release_id: DatasetReleaseId,
     pub expected_record_version: u64,

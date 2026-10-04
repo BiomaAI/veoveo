@@ -47,9 +47,20 @@ Python server template. Each manual declares C01–C32; a pending item states it
 qualification gap. C18–C21 must be met for every hosted server.
 
 Tool input schemas retain the ordinary SDK representation. Conformance permits
-same-document references and composition, rejects external references without fetching
-them, and applies per-document limits of 1 MiB, depth 64, 50,000 nodes, 4,096 references,
-and 4,096 composition branches before meta-schema validation.
+same-document `$ref` references and composition, and rejects external and dynamic
+references without fetching them. Nested `$id` resources are outside this profile;
+local references resolve within the root document. Document limits are 1 MiB, depth 64, 50,000 nodes,
+4,096 references and 4,096 composition branches. Reference inspection follows schema
+keywords; keys inside examples, defaults and other instance values have no reference
+semantics. The byte, depth and node limits still cover that instance data.
+
+The checker requires closure on reachable controlled object shapes, including union
+branches and referenced definitions. A closed enclosing composition may supply that
+closure. Typed dictionaries and opaque payload leaves keep their declared value
+schemas. Predicates such as `if`, `not` and `propertyNames` constrain an instance rather
+than declare another decoded object. Closure inspection permits at most 50,000 visits
+and 64 nested references; cycle handling tracks whether closure came from the enclosing
+instance. This prevents an outer closed object from masking an open recursive child.
 
 ## Profile
 

@@ -51,7 +51,8 @@
       "y"
     ],
     "title": "ProjectedPosition",
-    "type": "object"
+    "type": "object",
+    "additionalProperties": false
   },
   "TransformCrsOutput": {
     "$defs": {
@@ -85,7 +86,8 @@
           "x",
           "y"
         ],
-        "type": "object"
+        "type": "object",
+        "additionalProperties": false
       }
     },
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -150,7 +152,8 @@
           "x",
           "y"
         ],
-        "type": "object"
+        "type": "object",
+        "additionalProperties": false
       }
     },
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -178,6 +181,7 @@
       "positions"
     ],
     "title": "TransformCrsRequest",
-    "type": "object"
+    "type": "object",
+    "additionalProperties": false
   }
 }

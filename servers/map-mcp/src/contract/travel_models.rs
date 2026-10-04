@@ -31,8 +31,9 @@ pub enum TravelCostMetric {
     Distance,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema, Default)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum TravelTimeModel {
     #[default]
     Static,
@@ -41,13 +42,34 @@ pub enum TravelTimeModel {
     },
 }
 
+// Struct variants enforce closure even for the public unit variant.
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum TravelTimeModelWire {
+    Static {},
+    InvariantLocalDeparture { local_time: NaiveDateTime },
+}
+
+impl<'de> Deserialize<'de> for TravelTimeModel {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Ok(match TravelTimeModelWire::deserialize(deserializer)? {
+            TravelTimeModelWire::Static {} => Self::Static,
+            TravelTimeModelWire::InvariantLocalDeparture { local_time } => {
+                Self::InvariantLocalDeparture { local_time }
+            }
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct TravelModelLocation {
     pub location_id: TravelLocationId,
     pub endpoint: RouteEndpoint,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct TravelModelVehicleType {
     pub vehicle_type_id: TravelVehicleTypeId,
     pub mobility_profile_id: MobilityProfileId,
@@ -55,6 +77,7 @@ pub struct TravelModelVehicleType {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct BuildTravelModelRequest {
     pub locations: Vec<TravelModelLocation>,
     pub vehicle_types: Vec<TravelModelVehicleType>,
@@ -231,6 +254,24 @@ impl veoveo_types::IdProfile for TravelKeys {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn time_model_unit_and_data_variants_reject_unknown_keys() {
+        let schema = serde_json::to_value(schemars::schema_for!(TravelTimeModel)).unwrap();
+        let validator = jsonschema::validator_for(&schema).unwrap();
+        for wire in [
+            serde_json::json!({"kind": "static"}),
+            serde_json::json!({"kind": "invariant_local_departure", "local_time": "2026-01-01T12:00:00"}),
+        ] {
+            let value: TravelTimeModel = serde_json::from_value(wire.clone()).unwrap();
+            assert_eq!(serde_json::to_value(value).unwrap(), wire);
+            assert!(validator.is_valid(&wire));
+            let mut invalid = wire;
+            invalid["unexpected"] = serde_json::json!(true);
+            assert!(serde_json::from_value::<TravelTimeModel>(invalid.clone()).is_err());
+            assert!(!validator.is_valid(&invalid));
+        }
+    }
 
     #[test]
     fn controlled_keys_reject_path_segments() {

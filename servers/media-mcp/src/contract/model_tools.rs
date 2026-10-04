@@ -2,6 +2,7 @@ use super::{MediaModelId, MediaModelUri};
 use serde_json::Value;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ModelsArgs {
     /// Case-insensitive search over model id, name, type, and description.
     #[serde(default)]
@@ -15,6 +16,7 @@ pub struct ModelsArgs {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ModelSchemaArgs {
     /// Exact model id, e.g. wavespeed-ai/flux-schnell.
     pub model: MediaModelId,

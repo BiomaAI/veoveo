@@ -84,6 +84,7 @@ impl IdProfile for SceneDigests {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct GovernedSceneInput {
     pub input_id: SceneInputId,
     pub resource_uri: GovernedResourceUri,
@@ -95,6 +96,7 @@ pub struct GovernedSceneInput {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct LocalFrameBinding {
     pub world_revision: FrameWorldRevisionUri,
     pub frame_uri: WorldFrameUri,
@@ -104,12 +106,14 @@ pub struct LocalFrameBinding {
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum ScenePosition {
     Wgs84 { position: Wgs84Position3d },
     LocalMeters { xyz_meters: [f64; 3] },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct OverlayColor {
     pub red: f32,
     pub green: f32,
@@ -149,6 +153,7 @@ impl OverlayColor {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct SceneOverlayStyle {
     #[serde(default = "default_stroke_color")]
     pub stroke_color: OverlayColor,
@@ -191,6 +196,7 @@ fn default_label_height() -> f64 {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct SceneOverlayVisibility {
     #[serde(default = "default_true")]
     pub visible: bool,
@@ -215,6 +221,7 @@ fn default_true() -> bool {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct SceneValidity {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timestamp: Option<DateTime<Utc>>,
@@ -236,6 +243,7 @@ impl SceneValidity {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum SceneOverlayGeometry {
     Marker {
         position: ScenePosition,
@@ -283,12 +291,14 @@ impl SceneOverlayGeometry {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum SceneOverlayGeometrySource {
     Inline { geometry: SceneOverlayGeometry },
     Artifact { input_id: SceneInputId },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct SceneOverlay {
     pub overlay_id: SceneOverlayId,
     pub governed_input_ids: BTreeSet<SceneInputId>,
@@ -302,6 +312,7 @@ pub struct SceneOverlay {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CreateSceneCompositionRequest {
     pub schema_version: u64,
     /// Exact server-configured layer identifier. This is not the display label or source kind.

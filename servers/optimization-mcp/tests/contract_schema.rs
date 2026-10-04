@@ -47,3 +47,19 @@ fn exact_address_routes_select_the_parent_before_identifier_admission() {
         OptimizationProblemUri::RESOURCE_TEMPLATE
     );
 }
+
+#[test]
+fn solver_source_variants_and_nested_artifact_models_are_closed() {
+    let resource = serde_json::json!({"source":"resource","uri":OptimizationProblemUri::new(ProblemId::new()).unwrap()});
+    let artifact = serde_json::json!({"source":"artifact","model":{"uri":veoveo_artifact_contract::ArtifactId::new().plane_uri(),"format":"optimization_json_v1"}});
+    for input in [resource, artifact] {
+        assert!(serde_json::from_value::<ConvexProblemSource>(input.clone()).is_ok());
+        assert!(serde_json::from_value::<MilpProblemSource>(input.clone()).is_ok());
+        let mut extra = input;
+        extra["undeclared"] = serde_json::json!(true);
+        assert!(serde_json::from_value::<ConvexProblemSource>(extra.clone()).is_err());
+        assert!(serde_json::from_value::<MilpProblemSource>(extra).is_err());
+    }
+    let extra = serde_json::json!({"source":"artifact","model":{"uri":veoveo_artifact_contract::ArtifactId::new().plane_uri(),"format":"optimization_json_v1","undeclared":true}});
+    assert!(serde_json::from_value::<ConvexProblemSource>(extra).is_err());
+}

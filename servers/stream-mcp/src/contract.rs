@@ -36,8 +36,9 @@ pub struct RunRecordingRequest {
     pub include_source_clip: bool,
 }
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, JsonSchema)]
+#[derive(Clone, Copy, Debug, Default, Serialize, JsonSchema)]
 #[serde(tag = "mode", rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum SamplingPolicy {
     #[default]
     EveryFrame,
@@ -47,6 +48,25 @@ pub enum SamplingPolicy {
     MaximumFrames {
         count: u32,
     },
+}
+
+// Empty wire variants reject undeclared keys while public unit variants stay unchanged.
+#[derive(Deserialize)]
+#[serde(tag = "mode", rename_all = "snake_case", deny_unknown_fields)]
+enum SamplingPolicyWire {
+    EveryFrame {},
+    EveryNth { step: u32 },
+    MaximumFrames { count: u32 },
+}
+
+impl<'de> Deserialize<'de> for SamplingPolicy {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Ok(match SamplingPolicyWire::deserialize(deserializer)? {
+            SamplingPolicyWire::EveryFrame {} => Self::EveryFrame,
+            SamplingPolicyWire::EveryNth { step } => Self::EveryNth { step },
+            SamplingPolicyWire::MaximumFrames { count } => Self::MaximumFrames { count },
+        })
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]

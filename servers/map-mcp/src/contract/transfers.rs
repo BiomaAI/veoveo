@@ -46,6 +46,7 @@ impl<'de> Deserialize<'de> for GeoPackageIdentifier {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "format", rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum FeatureImportSource {
     GeoJsonFeatureCollection {
         /// Used when an input feature omits JSON-FG `featureType`.
@@ -72,6 +73,7 @@ pub enum FeatureImportSource {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ImportFeatureLayerRequest {
     pub layer_id: FeatureLayerId,
     pub expected_layer_revision: u64,
@@ -87,15 +89,38 @@ pub struct ImportFeatureLayerOutput {
     pub projection_state: ProjectionState,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 #[serde(tag = "format", rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum FeatureExportFormat {
     GeoJsonSeq,
     GeoParquet,
     GeoPackage { table: GeoPackageIdentifier },
 }
 
+// Empty struct variants reject extra keys without changing public unit construction.
+#[derive(Deserialize)]
+#[serde(tag = "format", rename_all = "snake_case", deny_unknown_fields)]
+// Wire variants mirror the established public geospatial format names.
+#[allow(clippy::enum_variant_names)]
+enum FeatureExportFormatWire {
+    GeoJsonSeq {},
+    GeoParquet {},
+    GeoPackage { table: GeoPackageIdentifier },
+}
+
+impl<'de> Deserialize<'de> for FeatureExportFormat {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Ok(match FeatureExportFormatWire::deserialize(deserializer)? {
+            FeatureExportFormatWire::GeoJsonSeq {} => Self::GeoJsonSeq,
+            FeatureExportFormatWire::GeoParquet {} => Self::GeoParquet,
+            FeatureExportFormatWire::GeoPackage { table } => Self::GeoPackage { table },
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ExportFeatureLayerRequest {
     pub layer_id: FeatureLayerId,
     pub publication_id: LayerPublicationId,
@@ -108,6 +133,7 @@ pub struct ExportFeatureLayerOutput {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct InspectGeoPackageRequest {
     pub source_artifact_id: ArtifactId,
 }
@@ -195,6 +221,7 @@ pub struct InspectGeoPackageOutput {
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
 )]
+#[serde(deny_unknown_fields)]
 pub struct TileCoordinate {
     pub z: u8,
     pub x: u32,
@@ -217,6 +244,7 @@ impl TileCoordinate {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct BuildVectorTilesRequest {
     pub layer_id: FeatureLayerId,
     pub publication_id: LayerPublicationId,
@@ -232,6 +260,25 @@ pub struct BuildVectorTilesOutput {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn export_formats_reject_unknown_keys_in_unit_and_data_variants() {
+        let schema = serde_json::to_value(schemars::schema_for!(FeatureExportFormat)).unwrap();
+        let validator = jsonschema::validator_for(&schema).unwrap();
+        for wire in [
+            serde_json::json!({"format": "geo_json_seq"}),
+            serde_json::json!({"format": "geo_parquet"}),
+            serde_json::json!({"format": "geo_package", "table": "named places"}),
+        ] {
+            let value: FeatureExportFormat = serde_json::from_value(wire.clone()).unwrap();
+            assert_eq!(serde_json::to_value(value).unwrap(), wire);
+            assert!(validator.is_valid(&wire));
+            let mut invalid = wire;
+            invalid["unexpected"] = serde_json::json!(true);
+            assert!(serde_json::from_value::<FeatureExportFormat>(invalid.clone()).is_err());
+            assert!(!validator.is_valid(&invalid));
+        }
+    }
 
     #[test]
     fn geopackage_identifier_is_bounded_but_not_sql_shaped() {

@@ -22,6 +22,10 @@ template, so its domain stays small and its structure is the part to copy.
 | Prompt | `explain_term` | Asks the model to read one term resource and explain it. |
 | Well-known | `glossary://docs`, `glossary://docs/{doc_id}`, `glossary://contract` | Served by the shared host from the embedded crate documents. |
 
+`DefineRequest` rejects undeclared fields. The generated input schema closes the
+object, and the hosted gateway test checks that an extra argument produces a completed
+tool result with `isError: true` before the domain handler runs.
+
 ## Module Layout
 
 The library exposes the public contract to clients, tests and tools. Its features

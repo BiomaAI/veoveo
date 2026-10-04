@@ -11,6 +11,7 @@ use super::{
 };
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct VariableBounds {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lower: Option<FiniteF64>,
@@ -40,6 +41,7 @@ pub enum VariableKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ModelVariable {
     pub variable_id: VariableId,
     pub kind: VariableKind,
@@ -47,12 +49,14 @@ pub struct ModelVariable {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct LinearTerm {
     pub variable_id: VariableId,
     pub coefficient: FiniteF64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct QuadraticTerm {
     pub left_variable_id: VariableId,
     pub right_variable_id: VariableId,
@@ -60,6 +64,7 @@ pub struct QuadraticTerm {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ModelObjective {
     pub direction: ObjectiveDirection,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -78,6 +83,7 @@ pub enum ObjectiveDirection {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct LinearConstraint {
     pub constraint_id: ConstraintId,
     pub terms: Vec<LinearTerm>,
@@ -85,6 +91,7 @@ pub struct LinearConstraint {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct QuadraticConstraint {
     pub constraint_id: ConstraintId,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -103,6 +110,7 @@ pub enum ConvexProblemKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ConvexProblem {
     pub version: String,
     pub kind: ConvexProblemKind,
@@ -183,6 +191,7 @@ impl ConvexProblem {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct MilpProblem {
     pub version: String,
     pub variables: Vec<ModelVariable>,
@@ -369,6 +378,7 @@ pub enum ArtifactModelFormat {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ArtifactModelSource {
     pub uri: ArtifactUri,
     pub format: ArtifactModelFormat,
@@ -376,6 +386,7 @@ pub struct ArtifactModelSource {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "source", rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum ConvexProblemSource {
     Inline { problem: ConvexProblem },
     Resource { uri: OptimizationProblemUri },
@@ -384,6 +395,7 @@ pub enum ConvexProblemSource {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "source", rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum MilpProblemSource {
     Inline { problem: MilpProblem },
     Resource { uri: OptimizationProblemUri },
@@ -391,12 +403,14 @@ pub enum MilpProblemSource {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
+#[serde(deny_unknown_fields)]
 pub struct ConvexOutputPolicy {
     #[serde(default)]
     pub retain_warm_start: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
+#[serde(deny_unknown_fields)]
 pub struct MilpOutputPolicy {
     #[serde(default)]
     pub retain_warm_start: bool,
@@ -405,6 +419,7 @@ pub struct MilpOutputPolicy {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct SolveConvexRequest {
     pub problem: ConvexProblemSource,
     pub policy: SolverPolicyRef,
@@ -413,6 +428,7 @@ pub struct SolveConvexRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct SolveMilpRequest {
     pub problem: MilpProblemSource,
     pub policy: SolverPolicyRef,
@@ -423,6 +439,7 @@ pub struct SolveMilpRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct VerifySolutionRequest {
     pub solution_uri: OptimizationSolutionUri,
     #[serde(default, skip_serializing_if = "Option::is_none")]

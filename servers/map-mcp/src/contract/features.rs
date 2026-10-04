@@ -112,6 +112,7 @@ impl GeoJsonPosition {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", content = "coordinates")]
+#[serde(deny_unknown_fields)]
 pub enum FeatureGeometry {
     Point(GeoJsonPosition),
     MultiPoint(Vec<GeoJsonPosition>),
@@ -314,6 +315,7 @@ impl From<JsonFgTimeBoundary> for String {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct FeatureTime {
     /// Inclusive JSON-FG valid-time interval. The `..` string is an open bound.
     pub interval: [JsonFgTimeBoundary; 2],
@@ -388,12 +390,14 @@ pub struct FeatureSchemaRevision {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct LayerStyle {
     #[serde(default)]
     pub rules: Vec<StyleRule>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct StyleRule {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub geometry_type: Option<FeatureGeometryType>,
@@ -451,6 +455,7 @@ pub struct FeatureLayer {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CreateFeatureLayerRequest {
     pub title: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -465,6 +470,7 @@ pub struct CreateFeatureLayerRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct UpdateFeatureLayerRequest {
     pub layer_id: FeatureLayerId,
     pub expected_layer_revision: u64,
@@ -482,6 +488,7 @@ pub struct UpdateFeatureLayerRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct FeatureInput {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub feature_id: Option<MapFeatureId>,
@@ -501,6 +508,7 @@ pub struct FeatureInput {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "action", rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum FeatureMutation {
     Create {
         feature: FeatureInput,
@@ -521,6 +529,7 @@ pub enum FeatureMutation {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ValidateFeatureChangesRequest {
     pub layer_id: FeatureLayerId,
     pub expected_layer_revision: u64,
@@ -528,6 +537,7 @@ pub struct ValidateFeatureChangesRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CommitFeatureChangesRequest {
     pub layer_id: FeatureLayerId,
     pub expected_layer_revision: u64,
@@ -580,6 +590,7 @@ pub struct CommitFeatureChangesOutput {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct RestoreFeatureRequest {
     pub layer_id: FeatureLayerId,
     pub feature_id: MapFeatureId,
@@ -612,46 +623,11 @@ pub enum Cql2Operator {
     IsNull,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct Cql2Filter {
     pub op: Cql2Operator,
     pub args: Vec<Cql2Expression>,
-}
-
-/// `Cql2Filter` is recursive, which a canonical-profile input schema cannot
-/// express: the profile forbids references and requires immediate types. The
-/// advertised contract therefore describes one operation level and leaves
-/// nested arguments as typed open values; the query compiler fully validates
-/// structure, depth, and node count at the boundary.
-impl JsonSchema for Cql2Filter {
-    fn schema_name() -> std::borrow::Cow<'static, str> {
-        std::borrow::Cow::Borrowed("Cql2Filter")
-    }
-
-    fn inline_schema() -> bool {
-        true
-    }
-
-    fn json_schema(_generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
-        schemars::json_schema!({
-            "type": "object",
-            "description": "Bounded Basic CQL2-JSON predicate: `op` with `args` of nested operations, `{\"property\": name}` references, or literals.",
-            "properties": {
-                "op": {
-                    "type": "string",
-                    "enum": ["and", "or", "not", "=", "<>", "<", "<=", ">", ">=", "isNull"]
-                },
-                "args": {
-                    "type": "array",
-                    "items": {
-                        "type": ["object", "string", "number", "boolean", "null"]
-                    }
-                }
-            },
-            "required": ["op", "args"],
-            "additionalProperties": false
-        })
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -663,6 +639,7 @@ pub enum Cql2Expression {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct Cql2PropertyReference {
     pub property: String,
 }
@@ -677,6 +654,7 @@ pub enum Cql2Literal {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct QueryFeaturesRequest {
     pub layer_id: FeatureLayerId,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -711,6 +689,7 @@ pub struct QueryFeaturesOutput {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct PublishFeatureLayerRequest {
     pub layer_id: FeatureLayerId,
     pub expected_layer_revision: u64,
@@ -736,6 +715,7 @@ pub struct LayerPublication {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ArchiveFeatureLayerRequest {
     pub layer_id: FeatureLayerId,
     pub expected_layer_revision: u64,
@@ -830,6 +810,84 @@ mod tests {
 
     fn position(longitude: f64, latitude: f64) -> GeoJsonPosition {
         GeoJsonPosition::new(longitude, latitude, None)
+    }
+
+    #[test]
+    fn feature_changes_close_envelopes_and_preserve_authored_properties() {
+        let wire = serde_json::json!({
+            "layer_id": FeatureLayerId::new(), "expected_layer_revision": 1,
+            "mutations": [{"action": "create", "feature": {
+                "geometry": {"type": "Point", "coordinates": [-89.2, 13.7]},
+                "semantic_type": "NamedPlace",
+                "time": {"interval": ["..", ".."]},
+                "properties": {"installation_key": {"nested": [1, {"custom": true}]}}
+            }}]
+        });
+        let schema =
+            serde_json::to_value(schemars::schema_for!(ValidateFeatureChangesRequest)).unwrap();
+        let validator = jsonschema::validator_for(&schema).unwrap();
+        let request: ValidateFeatureChangesRequest = serde_json::from_value(wire.clone()).unwrap();
+        let FeatureMutation::Create { feature } = &request.mutations[0] else {
+            panic!("create fixture");
+        };
+        assert_eq!(
+            feature.properties["installation_key"],
+            wire["mutations"][0]["feature"]["properties"]["installation_key"]
+        );
+        assert!(validator.is_valid(&wire));
+        for pointer in [
+            "",
+            "/mutations/0",
+            "/mutations/0/feature",
+            "/mutations/0/feature/geometry",
+            "/mutations/0/feature/time",
+        ] {
+            let mut invalid = wire.clone();
+            invalid.pointer_mut(pointer).unwrap()["unexpected"] = serde_json::json!(true);
+            assert!(
+                serde_json::from_value::<ValidateFeatureChangesRequest>(invalid.clone()).is_err(),
+                "{pointer}"
+            );
+            assert!(!validator.is_valid(&invalid), "{pointer}");
+        }
+    }
+
+    #[test]
+    fn layer_creation_preserves_supplied_schema_and_closes_style() {
+        let wire = serde_json::json!({
+            "title": "Places", "content_class": "named_locations",
+            "property_schema": {"type": "object", "properties": {"owner_key": {"type": "object", "additionalProperties": true}}, "x-owner-key": {"custom": true}},
+            "style": {"rules": [{"fill_color": "#112233"}]}
+        });
+        let schema =
+            serde_json::to_value(schemars::schema_for!(CreateFeatureLayerRequest)).unwrap();
+        let validator = jsonschema::validator_for(&schema).unwrap();
+        let request: CreateFeatureLayerRequest = serde_json::from_value(wire.clone()).unwrap();
+        assert_eq!(request.property_schema, wire["property_schema"]);
+        assert!(validator.is_valid(&wire));
+        for pointer in ["", "/style", "/style/rules/0"] {
+            let mut invalid = wire.clone();
+            invalid.pointer_mut(pointer).unwrap()["unexpected"] = serde_json::json!(true);
+            assert!(serde_json::from_value::<CreateFeatureLayerRequest>(invalid.clone()).is_err());
+            assert!(!validator.is_valid(&invalid));
+        }
+    }
+
+    #[test]
+    fn recursive_cql2_decoding_closes_operations_and_property_references() {
+        let wire = serde_json::json!({"op": "and", "args": [
+            {"op": "=", "args": [{"property": "owner_key"}, "value"]}
+        ]});
+        let schema = serde_json::to_value(schemars::schema_for!(Cql2Filter)).unwrap();
+        let validator = jsonschema::validator_for(&schema).unwrap();
+        assert!(validator.is_valid(&wire));
+        assert!(serde_json::from_value::<Cql2Filter>(wire.clone()).is_ok());
+        for pointer in ["", "/args/0", "/args/0/args/0"] {
+            let mut invalid = wire.clone();
+            invalid.pointer_mut(pointer).unwrap()["unexpected"] = serde_json::json!(true);
+            assert!(serde_json::from_value::<Cql2Filter>(invalid.clone()).is_err());
+            assert!(!validator.is_valid(&invalid));
+        }
     }
 
     #[test]

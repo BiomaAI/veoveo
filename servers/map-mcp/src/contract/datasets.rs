@@ -88,6 +88,7 @@ impl From<SecretReference> for String {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum SourceCredential {
     Bearer {
         secret_ref: SecretReference,
@@ -313,6 +314,7 @@ impl From<SourceMountId> for String {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum SourceLocation {
     Https {
         endpoint: HttpsEndpoint,
@@ -360,6 +362,7 @@ impl SourceLocation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct DatasetLicense {
     pub license_id: String,
     pub source_terms_uri: HttpsEndpoint,
@@ -385,6 +388,7 @@ impl DatasetLicense {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct RegisteredSource {
     pub source_id: MapSourceId,
     pub dataset_id: MapDatasetId,

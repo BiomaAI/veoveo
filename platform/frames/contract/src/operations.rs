@@ -4,12 +4,32 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use veoveo_map_mcp::contract::CrsId;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum CoordinateSpace {
     Wgs84,
     EcefWgs84,
     WorldFrame { frame_uri: WorldFrameUri },
+}
+
+// Empty wire variants reject undeclared keys while public unit variants stay unchanged.
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum CoordinateSpaceWire {
+    Wgs84 {},
+    EcefWgs84 {},
+    WorldFrame { frame_uri: WorldFrameUri },
+}
+
+impl<'de> Deserialize<'de> for CoordinateSpace {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Ok(match CoordinateSpaceWire::deserialize(deserializer)? {
+            CoordinateSpaceWire::Wgs84 {} => Self::Wgs84,
+            CoordinateSpaceWire::EcefWgs84 {} => Self::EcefWgs84,
+            CoordinateSpaceWire::WorldFrame { frame_uri } => Self::WorldFrame { frame_uri },
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

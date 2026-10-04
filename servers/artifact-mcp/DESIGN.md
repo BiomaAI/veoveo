@@ -41,6 +41,11 @@ domain-owned [`veoveo-artifact-contract`](../../platform/artifacts/contract/DESI
 contract. Authentication, policy evaluation and service request interfaces stay in
 `veoveo_mcp_contract`.
 
+Tool requests reject undeclared fields, including nested access subjects. Share
+creation keeps `artifact_id`, `expires_at` and `max_downloads` in one flat wire object.
+Its strict wire decoder constructs the public request and `ShareLinkOptions`; the
+generated input schema describes that same flat object.
+
 ## Boundaries
 
 - Artifact identities are opaque `artifact://{uuidv7}` occurrences; hashes

@@ -1,7 +1,7 @@
 use serde::{Serialize, de::DeserializeOwned};
 use veoveo_time_mcp::contract::{
-    AuthorityReleaseId, CalendarId, MissionEpochId, TemporalEventId, TimeAcquisitionId,
-    TimeAuthorityReleaseUri, TimeExpression, TimeScope, TimeSourceId,
+    AuthorityReleaseId, CalendarId, MissionEpochId, ResolveTimeRequest, TemporalEventId,
+    TimeAcquisitionId, TimeAuthorityReleaseUri, TimeExpression, TimeScope, TimeSourceId,
 };
 use veoveo_types::{ResourceAddress, ResourceUri, ScopeDefinition, ScopeName};
 
@@ -124,4 +124,31 @@ fn release_uri_preserves_every_supported_id_character() {
         assert_eq!(decoded.release_id(), &id);
         assert_eq!(decoded, uri);
     }
+}
+
+#[test]
+fn time_expression_variants_and_resolution_requests_are_closed() {
+    use serde_json::json;
+    let expressions = [
+        json!({"format":"rfc3339","value":"2026-01-01T00:00:00Z"}),
+        json!({"format":"rfc9557","value":"2026-01-01T00:00:00Z"}),
+        json!({"format":"civil","value":{"local_datetime":"2026-01-01T00:00:00","zone_id":"UTC","tzdb_release_id":"time-release-tzdb"}}),
+        json!({"format":"unix","seconds":0}),
+        json!({"format":"tai","seconds_since_1970":0}),
+        json!({"format":"gps","week":1,"seconds_of_week":2}),
+        json!({"format":"julian_tai","day":2440587.5}),
+        json!({"format":"military_dtg","value":"010000ZJAN26"}),
+        json!({"format":"epoch_relative","epoch_id":"epoch-launch","offset_nanoseconds":0}),
+    ];
+    for input in expressions {
+        assert!(serde_json::from_value::<TimeExpression>(input.clone()).is_ok());
+        let mut extra = input.clone();
+        extra["undeclared"] = json!(true);
+        assert!(serde_json::from_value::<TimeExpression>(extra).is_err());
+        let mut request = json!({"expression":input});
+        assert!(serde_json::from_value::<ResolveTimeRequest>(request.clone()).is_ok());
+        request["undeclared"] = json!(true);
+        assert!(serde_json::from_value::<ResolveTimeRequest>(request).is_err());
+    }
+    assert!(serde_json::from_value::<TimeExpression>(json!({"format":"civil","value":{"local_datetime":"2026-01-01T00:00:00","zone_id":"UTC","tzdb_release_id":"time-release-tzdb","undeclared":true}})).is_err());
 }

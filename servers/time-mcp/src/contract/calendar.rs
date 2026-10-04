@@ -23,6 +23,7 @@ pub enum RecurrenceFrequency {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct RecurrenceRule {
     pub frequency: RecurrenceFrequency,
     #[serde(default = "one")]
@@ -38,6 +39,7 @@ const fn one() -> u32 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CalendarWindow {
     pub start_local: String,
     pub end_local: String,
@@ -47,6 +49,7 @@ pub struct CalendarWindow {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct OperationalCalendar {
     pub calendar_id: CalendarId,
     pub version: super::TimeVersion,
@@ -66,6 +69,7 @@ pub struct MissionEpoch {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ExpandScheduleRequest {
     pub calendar: OperationalCalendar,
     pub horizon: TimeWindow,
@@ -99,6 +103,7 @@ pub enum WindowOperation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct EvaluateWindowsRequest {
     pub operation: WindowOperation,
     pub left: Vec<TimeWindow>,
@@ -112,12 +117,14 @@ pub struct EvaluateWindowsOutput {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct TimelinePoint {
     pub name: String,
     pub at: TimeExpression,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct TimelineConstraint {
     pub predecessor: String,
     pub successor: String,
@@ -127,6 +134,7 @@ pub struct TimelineConstraint {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ValidateTimelineRequest {
     pub points: Vec<TimelinePoint>,
     pub constraints: Vec<TimelineConstraint>,
@@ -162,6 +170,7 @@ pub enum TemporalEventState {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CreateTemporalEventRequest {
     pub name: String,
     pub due: TimeInstant,
@@ -177,6 +186,7 @@ pub struct CreateTemporalEventRequest {
 /// };
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CancelTemporalEventRequest {
     pub event_id: TemporalEventId,
     pub expected_record_version: super::TimeVersion,

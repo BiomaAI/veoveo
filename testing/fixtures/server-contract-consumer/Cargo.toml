@@ -34,3 +34,5 @@ veoveo-types = { path = "../../../platform/types" }
 thiserror = "=2.0.21"
 jsonschema = { version = "=0.51.0", default-features = false }
 serde_json = "=1.0.151"
+serde = "=1.0.229"
+schemars = "=1.2.2"
