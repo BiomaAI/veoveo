@@ -28,8 +28,10 @@ consumer cases. Separate contract-only profiles pass eleven and twelve cases, an
 31 browser unit tests and generated-client consistency pass. The native provider command
 suite compiles; its separately provisioned execution is not repeated in this batch.
 Logs, exact command selections and result manifests are under
-`output/development/map-uav-computers-types/`. The cluster and BuildKit stay stopped;
-publication and installed checks for this source batch remain pending.
+`output/development/map-uav-computers-types/`. The five affected images publish from
+`0843500c` in 279 seconds; `image-release.json` records runnable and publication digests.
+The reference locks select Map, UAV, Computers, gateway and Console together. Helm
+configuration passes. BuildKit stops after publication; installed acceptance is pending.
 
 Composed flight and core Knowledge acceptance (2026-10-04): reference revision
 `6d4cd2c5` selects Stream `sha256:8ca9f9cb4a307a530c98cd77238cbafa05465aa5f55496d077d6ca83e3e80ea2`
