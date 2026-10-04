@@ -1,6 +1,8 @@
 # Platform Foundations And Contract Consistency Plan
 
-Status: Phase 0 shared mechanics and complete-owner implementation are qualified.
+Status: Phase 0 shared mechanics pass behavioral qualification, but declaration
+repetition remains an unmet requirement. The current Id hooks expanded concise owner
+declarations; compact declarative forms and address convenience generation remain open.
 Vocabulary, embedded documents, Id, ResourceAddress, Checked models and opaque cursors
 preserve their owner admission and wire/schema profiles. Production helper and static
 unit-error adoption is complete; the tracked-source macro catalog is enforced.
@@ -24,7 +26,9 @@ consumer checks and independent contract/runtime builds pass. Installed catalog
 startup admission remains open. Agents' authoring and operator-control models and the
 dependent Workspace contracts have moved to their owners. Native tests, affected
 consumer checks and isolated contract/adapter builds pass; generated browser schemas
-are unchanged. Production persistence ownership is the next implementation concern.
+are unchanged. Phase 3 is active: owner observation declarations and the Computers
+change decoder are moving out of shared Store code. This batch awaits native and
+consumer qualification; production repositories and schema lanes still need to move.
 Five additional browser contract
 bundles pass generation, consumer tests and builds. Production schema ownership moves
 in Phase 3.
@@ -595,10 +599,44 @@ Combined native checks qualify frozen Audit formats, owner contracts and schema
 profiles, task error settlement and the affected runtime entrypoints. Independent
 contract graphs exclude hosted MCP, database, GPU and server-runtime dependencies.
 Scoped strict lint, parser misuse tests and the full tracked-source catalog pass.
-The Phase 0 acceptance audit covers typed address and identity admission, independent
+The Phase 0 behavioral audit covers typed address and identity admission, independent
 extensions, wire stability, discovery agreement and every declared macro. Explicit
-model and cursor exclusions are the owner representations described above. Later
-phase and installed acceptance gates remain open.
+model and cursor exclusions are the owner representations described above. These
+checks do not establish that owner declarations reduce repetition. Phase 0 remains
+open on that requirement, alongside the later phase and installed acceptance gates.
+
+### Declaration Repetition
+
+The accepted Id proposal called for declarative `uuid_v7`, `prefixed`, `text` and
+`hex` forms. The implemented admission hooks preserve owner behavior but leave
+repeated derive lists, Serde attributes, closures and convenience implementations.
+Across the Phase 0 commits, Map's ID file grew from 188 to 1,086 lines, Computers'
+from 133 to 515, and Optimization's address file from 122 to 203. These complete-file
+comparisons include colocated tests; they identify concrete owner declaration growth
+without claiming that every added line is duplication.
+
+Complete the declaration API with shared forms and owner-selected profiles, keeping
+custom admission hooks for contracts that need them. Shared UUID and stable-key
+capabilities must preserve generation, namespaces, accepted spellings and error
+mapping. Serialization profiles must preserve binary representation, schema identity
+and secret redaction. Resource declarations also need shared standard constructors,
+accessors and formatting where owners currently repeat them. Qualify the chosen
+surface before updating the implementation rules in AGENTS.md.
+
+Measure complete owner files and the shared implementation together. A smaller macro
+catalog alone does not satisfy this requirement. Existing value, wire, schema and
+independent-consumer tests continue to protect behavior during the correction.
+
+The correction uses attribute front ends for ID and resource declarations so they
+can generate standard derives as well as implementations. Ordinary public traits
+continue to own behavior. A few domain-independent declaration forms select method
+signatures and trait sets; ordinary owner profile types supply shared admission,
+generation, error mapping, serialization and schema policy. Prefixes and typed route
+fields stay in each concrete declaration. Profiles need no runtime registry, and
+custom hooks remain available for contracts outside the standard forms. Replace the
+old public derives in the same owner adoption pass. Complete this correction before
+starting another persistence extraction batch; finish the observation batch already
+under qualification first.
 
 ### Rollout And Gates
 
@@ -613,6 +651,7 @@ use scoped native checks and independently resolved contract consumers.
 
 | Gate | Pass condition |
 |---|---|
+| Declaration repetition | Ordinary IDs and addresses declare their form and owner policy without repeating standard derives, serialization glue or convenience implementations; complete-owner and shared-code comparisons demonstrate the reduction |
 | Address tests | Round trips, reserved characters, duplicate or unsupported query parameters, malformed identifiers and wrong parents, as the Strong Types rule requires |
 | Id and vocabulary tests | Each form rejects invalid input on every constructor and deserializer; duplicate or empty spellings fail to compile |
 | Misuse tests | `compile_fail` cases for a template that names an unknown field, a field without a typed identifier, and an invalid scope spelling |
