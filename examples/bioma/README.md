@@ -863,7 +863,9 @@ VEOVEO_KNOWLEDGE_ACCEPTANCE_OUTPUT=output/development/knowledge-installed.json \
     -- --ignored --exact
 ~~~
 
-This read-only test checks every approved collection and its caller-visible statistics.
+This read-only test checks the collections selected by the installation’s indexing
+client and their caller-visible statistics. The supplied control plane must contain
+one indexing client. Server approvals outside that selection do not enter the catalog.
 It compares completion values with the catalog and waits for initial collection and
 resource-list notifications. It then searches each source's indexed documentation,
 follows the returned links and compares their observed revisions.

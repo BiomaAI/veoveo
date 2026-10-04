@@ -126,14 +126,20 @@ async fn verify(
     control: &GatewayControlPlane,
     profile: GatewayProfileId,
 ) -> Result<InstalledReport> {
-    let expected: BTreeSet<_> = control
-        .servers
+    let indexers = control
+        .oauth_clients
         .iter()
-        .flat_map(|s| s.knowledge.iter().map(|a| a.collection.clone()))
-        .collect();
+        .filter_map(|client| client.knowledge_indexing.as_ref())
+        .collect::<Vec<_>>();
+    let [indexer] = indexers.as_slice() else {
+        anyhow::bail!(
+            "installed acceptance requires one indexing client in the supplied control plane"
+        );
+    };
+    let expected = &indexer.collections;
     ensure!(
         !expected.is_empty(),
-        "installation approves no Knowledge collections"
+        "installation selects no Knowledge collections"
     );
     let mut collections = BTreeSet::new();
     let mut sources = BTreeSet::new();
@@ -180,10 +186,10 @@ async fn verify(
         }
     }
     ensure!(
-        collections == expected,
-        "caller catalog differs from installation approvals: missing {:?}, unexpected {:?}",
+        &collections == expected,
+        "caller catalog differs from indexing-client selections: missing {:?}, unexpected {:?}",
         expected.difference(&collections).collect::<Vec<_>>(),
-        collections.difference(&expected).collect::<Vec<_>>()
+        collections.difference(expected).collect::<Vec<_>>()
     );
     let mut generation = None;
     let mut statistics = BTreeMap::new();
@@ -254,10 +260,11 @@ async fn verify(
     let mut verified_links = BTreeSet::new();
     for source in &control.servers {
         let docs = docs::collection(&source.slug, &source.uri_scheme);
-        if !source
-            .knowledge
-            .iter()
-            .any(|a| a.collection == *docs.collection() && a.mode == CollectionApproval::Index)
+        if !expected.contains(docs.collection())
+            || !source
+                .knowledge
+                .iter()
+                .any(|a| a.collection == *docs.collection() && a.mode == CollectionApproval::Index)
         {
             continue;
         }
