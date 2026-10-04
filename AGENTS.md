@@ -70,16 +70,24 @@ changes. Preserve existing guarantees until the replacement passes qualification
 
 ## Dependency Currency
 
-Use exact, qualified dependency, toolchain, image, and deployment pins. For a new
-dependency or a planned upgrade, verify the latest stable release from its authoritative
-upstream source and prefer it. Record a concrete compatibility or qualification reason
-when selecting an older supported release. Do not copy versions from examples or guides.
+Keep Veoveo current with the latest stable core dependencies, compiler toolchains,
+development tools, provider builds, images and deployment tooling. Proactively review
+authoritative upstream releases for new features, fixes and support changes. Verify the
+latest release when adding or upgrading a dependency, and use exact qualified pins for
+reproducible builds. Do not copy versions from examples or guides.
 
-Editing a consumer does not require an unrelated dependency upgrade. Review upstream
-security and support status regularly, prioritize applicable security fixes, and qualify
-upgrades independently of feature work when possible. Unsupported or vulnerable pins
-require a documented mitigation, owner, and replacement deadline; a pin is not a reason
-to ignore a security defect. Update affected tests and documentation with a pin change.
+A repository-wide upgrade includes provider and vendor builds, separately configured
+compiler profiles, downstream toolchain overrides and deployment inputs. Qualify the
+complete affected build path and resolve compatibility failures as part of the upgrade.
+An older release requires a demonstrated compatibility constraint, an owner and a
+concrete upgrade path with a review deadline. Report any unresolved exception explicitly;
+an existing pin or separate build profile does not establish one.
+
+Qualify upgrades in coherent batches, independently of feature work when possible.
+Editing a consumer does not require an unrelated upgrade in the same change. Prioritize
+applicable security fixes; unsupported or vulnerable pins also require a documented
+mitigation and replacement deadline. Update affected tests and current documentation
+with a pin change.
 
 Pre-release dependencies and maintained provider patches require an explicit product
 reason, exact provenance, a supported qualification matrix, and an upstream/removal
