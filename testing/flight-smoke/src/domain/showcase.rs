@@ -36,13 +36,15 @@ impl PhaseOutcome {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct PhaseOutcomes<'a> {
+struct PhaseOutcomes<'a, T> {
     schema: &'static str,
     completed_at: chrono::DateTime<Utc>,
     source_revision: &'a str,
     run_id: &'a str,
     domain: PhaseOutcome,
     visual: PhaseOutcome,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    visual_evidence: Option<&'a T>,
     reason: PhaseOutcome,
 }
 
@@ -94,6 +96,8 @@ struct RecordingSourceLatencyEvidence {
     source_to_viewer_seconds: f64,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct FlightEvidence {
     recording_id: RecordingId,
     checkpoints: Vec<FlightCheckpointEvidence>,
@@ -655,7 +659,7 @@ fn assert_showcase_gpu_workloads(context: &str, namespace: &str) -> Result<()> {
     Ok(())
 }
 
-fn finish_phases<T>(
+fn finish_phases<T: Serialize>(
     domain_result: Result<()>,
     visual_result: Result<T>,
     evidence_directory: &Path,
@@ -663,12 +667,13 @@ fn finish_phases<T>(
     run_id: &str,
 ) -> Result<T> {
     let outcomes = PhaseOutcomes {
-        schema: "veoveo.ai/uav-showcase-phase-outcomes/v2",
+        schema: "veoveo.ai/uav-showcase-phase-outcomes/v3",
         completed_at: Utc::now(),
         source_revision,
         run_id,
         domain: PhaseOutcome::from_result(&domain_result),
         visual: PhaseOutcome::from_result(&visual_result),
+        visual_evidence: visual_result.as_ref().ok(),
         reason: PhaseOutcome::NotRun,
     };
     let outcomes_path = evidence_directory.join("phase-outcomes.json");
@@ -689,18 +694,26 @@ fn finish_phases<T>(
 mod outcome_tests {
     use super::*;
 
+    struct Directory(std::path::PathBuf);
+    impl Directory {
+        fn new() -> Self {
+            let directory = Self(
+                std::env::temp_dir()
+                    .join(format!("veoveo-flight-outcomes-{}", uuid::Uuid::now_v7())),
+            );
+            fs::create_dir(&directory.0).unwrap();
+            directory
+        }
+    }
+    impl Drop for Directory {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
     #[test]
     fn domain_failure_preserves_visual_failure_and_refuses_overwrite() {
-        struct Directory(std::path::PathBuf);
-        impl Drop for Directory {
-            fn drop(&mut self) {
-                let _ = fs::remove_dir_all(&self.0);
-            }
-        }
-        let directory = Directory(
-            std::env::temp_dir().join(format!("veoveo-flight-outcomes-{}", uuid::Uuid::now_v7())),
-        );
-        fs::create_dir(&directory.0).unwrap();
+        let directory = Directory::new();
         let result = finish_phases::<()>(
             Err(anyhow::anyhow!("domain fixture failure")),
             Err(anyhow::anyhow!("visual fixture failure")),
@@ -717,5 +730,36 @@ mod outcome_tests {
         assert_eq!(report["reason"], "not_run");
         assert!(finish_phases(Ok(()), Ok(()), &directory.0, "other", "other").is_err());
         assert_eq!(fs::read(path).unwrap(), before);
+    }
+
+    #[test]
+    fn domain_failure_preserves_successful_visual_measurements() {
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Measurement {
+            source_to_viewer_seconds: f64,
+            renderer: &'static str,
+        }
+        let directory = Directory::new();
+        let result = finish_phases(
+            Err(anyhow::anyhow!("replay fixture failure")),
+            Ok(Measurement {
+                source_to_viewer_seconds: 0.25,
+                renderer: "fixture-hardware",
+            }),
+            &directory.0,
+            "source-fixture",
+            "run-fixture",
+        );
+        assert!(result.is_err());
+        let report: Value =
+            serde_json::from_slice(&fs::read(directory.0.join("phase-outcomes.json")).unwrap())
+                .unwrap();
+        assert_eq!(report["schema"], "veoveo.ai/uav-showcase-phase-outcomes/v3");
+        assert_eq!(report["domain"], "failed");
+        assert_eq!(report["visual"], "passed");
+        assert_eq!(report["visualEvidence"]["sourceToViewerSeconds"], 0.25);
+        assert_eq!(report["visualEvidence"]["renderer"], "fixture-hardware");
+        assert_eq!(report["sourceRevision"], "source-fixture");
     }
 }
