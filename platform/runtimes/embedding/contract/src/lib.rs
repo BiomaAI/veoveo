@@ -62,7 +62,7 @@ pub struct EmbeddingSpace {
 /// A vector is admitted with the space that produced it, never as an unlabelled array.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "VectorWire", into = "VectorWire")]
-pub struct EmbeddingVector(VectorWire);
+pub struct EmbeddingVector(veoveo_types::Checked<VectorWire>);
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct VectorWire {
@@ -80,9 +80,10 @@ impl EmbeddingVector {
         &self.0.values
     }
 }
-impl TryFrom<VectorWire> for EmbeddingVector {
+impl veoveo_types::Check for VectorWire {
     type Error = EmbeddingError;
-    fn try_from(wire: VectorWire) -> Result<Self, Self::Error> {
+    fn check(&self) -> Result<(), Self::Error> {
+        let wire = self;
         if wire.values.len() != usize::from(wire.space.dimension.get())
             || wire.values.iter().any(|v| !v.is_finite())
         {
@@ -94,12 +95,18 @@ impl TryFrom<VectorWire> for EmbeddingVector {
         if (norm - 1.0).abs() > 0.002 {
             return Err(EmbeddingError("embedding vector must be L2 normalized"));
         }
-        Ok(Self(wire))
+        Ok(())
+    }
+}
+impl TryFrom<VectorWire> for EmbeddingVector {
+    type Error = EmbeddingError;
+    fn try_from(value: VectorWire) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
     }
 }
 impl From<EmbeddingVector> for VectorWire {
     fn from(value: EmbeddingVector) -> Self {
-        value.0
+        value.0.into_inner()
     }
 }
 

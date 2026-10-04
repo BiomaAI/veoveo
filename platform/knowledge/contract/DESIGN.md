@@ -90,3 +90,7 @@ Evaluation cannot authorize index activation or promise quality after source cha
 fencing, activation and SQL candidate admission. The service owns source discovery,
 enumeration, change recovery, chunk selection and the final canonical access decision.
 The [service design](../../../servers/knowledge-mcp/DESIGN.md) specifies that service work.
+
+## Value Admission
+
+Chunk settings, generation specifications, collection statistics and retrieval cases use immutable `Checked` storage with owner relationship checks. Dataset and evaluation constructors keep their explicit sorting and correlation adapters.

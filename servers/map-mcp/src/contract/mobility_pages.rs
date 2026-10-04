@@ -20,51 +20,77 @@ struct CursorWire {
 #[serde(try_from = "String", into = "String")]
 #[schemars(with = "String")]
 pub struct MapMobilityProfileCursor {
-    wire: String,
+    cursor: veoveo_types::OpaqueCursor<MapMobilityProfileCursorCodec>,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct MapMobilityProfileCursorPosition {
     after_id: MobilityProfileId,
     after_version: MobilityProfileVersion,
 }
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct MapMobilityProfileCursorCodec;
+impl veoveo_types::CursorCodec for MapMobilityProfileCursorCodec {
+    type Position = MapMobilityProfileCursorPosition;
+    type Error = MapMobilityError;
+    fn check(&self, _position: &Self::Position) -> Result<(), Self::Error> {
+        Ok(())
+    }
+    fn encode(&self, position: &Self::Position) -> Result<String, Self::Error> {
+        let bytes = serde_json::to_vec(&CursorWire {
+            version: 1,
+            collection: (MapMobilityProfilesUri::ROOT).to_owned(),
+            after_id: position.after_id.clone(),
+            after_version: position.after_version,
+        })
+        .expect("closed owner cursor fields serialize");
+        Ok(hex::encode(bytes))
+    }
+    fn decode(&self, wire: &str) -> Result<Self::Position, Self::Error> {
+        if wire.is_empty() || wire.len() > 1024 {
+            return Err(MapMobilityError::Cursor);
+        }
+        let bytes = hex::decode(wire).map_err(|_| MapMobilityError::Cursor)?;
+        let decoded: CursorWire =
+            serde_json::from_slice(&bytes).map_err(|_| MapMobilityError::Cursor)?;
+        if decoded.version != 1 || decoded.collection != MapMobilityProfilesUri::ROOT {
+            return Err(MapMobilityError::Cursor);
+        }
+        let position = MapMobilityProfileCursorPosition {
+            after_id: decoded.after_id,
+            after_version: decoded.after_version,
+        };
+        self.check(&position)?;
+        if self.encode(&position)? != wire {
+            return Err(MapMobilityError::Cursor);
+        }
+        Ok(position)
+    }
+}
 impl MapMobilityProfileCursor {
     pub fn new(after_id: MobilityProfileId, after_version: MobilityProfileVersion) -> Self {
-        Self {
-            wire: hex::encode(
-                serde_json::to_vec(&CursorWire {
-                    version: 1,
-                    collection: MapMobilityProfilesUri::ROOT.to_owned(),
-                    after_id: after_id.clone(),
-                    after_version,
-                })
-                .expect("closed mobility profile cursor"),
-            ),
-            after_id,
-            after_version,
-        }
+        let cursor = veoveo_types::OpaqueCursor::try_new(
+            MapMobilityProfileCursorCodec,
+            MapMobilityProfileCursorPosition {
+                after_id,
+                after_version,
+            },
+        )
+        .expect("typed cursor position");
+        Self { cursor }
     }
     pub fn parse(wire: impl Into<String>) -> Result<Self, MapMobilityError> {
-        let wire = wire.into();
-        if wire.len() > 1024 {
-            return Err(MapMobilityError::Cursor);
-        }
-        let cursor: CursorWire =
-            serde_json::from_slice(&hex::decode(&wire).map_err(|_| MapMobilityError::Cursor)?)
-                .map_err(|_| MapMobilityError::Cursor)?;
-        if cursor.version != 1 || cursor.collection != MapMobilityProfilesUri::ROOT {
-            return Err(MapMobilityError::Cursor);
-        }
-        let admitted = Self::new(cursor.after_id, cursor.after_version);
-        if admitted.wire != wire {
-            return Err(MapMobilityError::Cursor);
-        }
-        Ok(admitted)
+        veoveo_types::OpaqueCursor::parse(MapMobilityProfileCursorCodec, wire)
+            .map(|cursor| Self { cursor })
     }
     pub fn after_id(&self) -> &MobilityProfileId {
-        &self.after_id
+        &self.cursor.position().after_id
     }
     pub fn after_version(&self) -> MobilityProfileVersion {
-        self.after_version
+        self.cursor.position().after_version
     }
     pub fn as_str(&self) -> &str {
-        &self.wire
+        self.cursor.as_str()
     }
 }
 impl TryFrom<String> for MapMobilityProfileCursor {
@@ -75,7 +101,7 @@ impl TryFrom<String> for MapMobilityProfileCursor {
 }
 impl From<MapMobilityProfileCursor> for String {
     fn from(value: MapMobilityProfileCursor) -> Self {
-        value.wire
+        value.cursor.into_wire()
     }
 }
 
@@ -129,14 +155,14 @@ fn check_order(items: &[MobilityProfile]) -> Result<(), MapMobilityError> {
     }
     Ok(())
 }
-impl TryFrom<PageWire> for MapMobilityProfilePage {
+impl veoveo_types::Check for PageWire {
     type Error = MapMobilityError;
-    fn try_from(wire: PageWire) -> Result<Self, Self::Error> {
-        if wire.limit != MOBILITY_PROFILE_PAGE_SIZE
-            || wire.items.len() > MOBILITY_PROFILE_PAGE_SIZE
-            || wire.next_cursor.as_ref().is_some_and(|cursor| {
-                wire.items.len() != MOBILITY_PROFILE_PAGE_SIZE
-                    || wire
+    fn check(&self) -> Result<(), Self::Error> {
+        if self.limit != MOBILITY_PROFILE_PAGE_SIZE
+            || self.items.len() > MOBILITY_PROFILE_PAGE_SIZE
+            || self.next_cursor.as_ref().is_some_and(|cursor| {
+                self.items.len() != MOBILITY_PROFILE_PAGE_SIZE
+                    || self
                         .items
                         .last()
                         .is_none_or(|item| key(item) != (cursor.after_id(), cursor.after_version()))
@@ -144,7 +170,15 @@ impl TryFrom<PageWire> for MapMobilityProfilePage {
         {
             return Err(MapMobilityError::Page);
         }
-        check_order(&wire.items)?;
+        check_order(&self.items)?;
+
+        Ok(())
+    }
+}
+impl TryFrom<PageWire> for MapMobilityProfilePage {
+    type Error = MapMobilityError;
+    fn try_from(wire: PageWire) -> Result<Self, Self::Error> {
+        let wire = veoveo_types::Checked::new(wire)?.into_inner();
         Ok(Self {
             items: wire.items,
             next_cursor: wire.next_cursor,

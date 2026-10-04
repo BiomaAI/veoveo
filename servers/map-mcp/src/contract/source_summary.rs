@@ -10,7 +10,7 @@ use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "SummaryWire", into = "SummaryWire")]
-pub struct SourceSummary(SummaryWire);
+pub struct SourceSummary(veoveo_types::Checked<SummaryWire>);
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -90,9 +90,10 @@ impl SourceSummary {
         self.0.updated_at
     }
 }
-impl TryFrom<SummaryWire> for SourceSummary {
+impl veoveo_types::Check for SummaryWire {
     type Error = MapSourceError;
-    fn try_from(wire: SummaryWire) -> Result<Self, Self::Error> {
+    fn check(&self) -> Result<(), Self::Error> {
+        let wire = self;
         super::datasets::validate_controlled(&wire.name, 256)
             .map_err(|_| MapSourceError::Metadata)?;
         wire.license
@@ -104,11 +105,17 @@ impl TryFrom<SummaryWire> for SourceSummary {
         {
             return Err(MapSourceError::Metadata);
         }
-        Ok(Self(wire))
+        Ok(())
+    }
+}
+impl TryFrom<SummaryWire> for SourceSummary {
+    type Error = MapSourceError;
+    fn try_from(value: SummaryWire) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
     }
 }
 impl From<SourceSummary> for SummaryWire {
     fn from(summary: SourceSummary) -> Self {
-        summary.0
+        summary.0.into_inner()
     }
 }

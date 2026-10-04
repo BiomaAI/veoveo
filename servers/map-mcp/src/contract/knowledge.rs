@@ -193,6 +193,42 @@ pub struct MapKnowledgeAddressError;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "String", into = "String")]
 pub struct MapKnowledgeCursor(MapKnowledgeMember);
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CursorWire {
+    version: u8,
+    after: MapKnowledgeMember,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct MapKnowledgeCursorCodec;
+impl veoveo_types::CursorCodec for MapKnowledgeCursorCodec {
+    type Position = MapKnowledgeMember;
+    type Error = MapKnowledgeAddressError;
+    fn check(&self, _member: &MapKnowledgeMember) -> Result<(), Self::Error> {
+        Ok(())
+    }
+    fn encode(&self, member: &MapKnowledgeMember) -> Result<String, Self::Error> {
+        Ok(hex::encode(
+            serde_json::to_vec(&CursorWire {
+                version: 1,
+                after: member.clone(),
+            })
+            .expect("typed cursor"),
+        ))
+    }
+    fn decode(&self, wire: &str) -> Result<MapKnowledgeMember, Self::Error> {
+        if wire.is_empty() || wire.len() > 2048 {
+            return Err(MapKnowledgeAddressError);
+        }
+        let bytes = hex::decode(wire).map_err(|_| MapKnowledgeAddressError)?;
+        let decoded: CursorWire =
+            serde_json::from_slice(&bytes).map_err(|_| MapKnowledgeAddressError)?;
+        if decoded.version != 1 || self.encode(&decoded.after)? != wire {
+            return Err(MapKnowledgeAddressError);
+        }
+        Ok(decoded.after)
+    }
+}
 impl MapKnowledgeCursor {
     pub fn after(member: MapKnowledgeMember) -> Self {
         Self(member)
@@ -201,40 +237,21 @@ impl MapKnowledgeCursor {
         &self.0
     }
 }
-#[derive(Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct CursorWire {
-    version: u8,
-    after: MapKnowledgeMember,
-}
 impl From<MapKnowledgeCursor> for String {
     fn from(value: MapKnowledgeCursor) -> Self {
-        hex::encode(
-            serde_json::to_vec(&CursorWire {
-                version: 1,
-                after: value.0,
-            })
-            .expect("typed cursor"),
-        )
+        use veoveo_types::CursorCodec;
+        MapKnowledgeCursorCodec
+            .encode(&value.0)
+            .expect("typed cursor")
     }
 }
 impl TryFrom<String> for MapKnowledgeCursor {
     type Error = MapKnowledgeAddressError;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        if value.is_empty() || value.len() > 2048 {
-            return Err(MapKnowledgeAddressError);
-        }
-        let bytes = hex::decode(&value).map_err(|_| MapKnowledgeAddressError)?;
-        let wire: CursorWire =
-            serde_json::from_slice(&bytes).map_err(|_| MapKnowledgeAddressError)?;
-        if wire.version != 1 {
-            return Err(MapKnowledgeAddressError);
-        }
-        let cursor = Self(wire.after);
-        if String::from(cursor.clone()) != value {
-            return Err(MapKnowledgeAddressError);
-        }
-        Ok(cursor)
+    fn try_from(wire: String) -> Result<Self, Self::Error> {
+        use veoveo_types::CursorCodec;
+        let position = MapKnowledgeCursorCodec.decode(&wire)?;
+        MapKnowledgeCursorCodec.check(&position)?;
+        Ok(Self(position))
     }
 }
 

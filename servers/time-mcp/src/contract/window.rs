@@ -31,12 +31,9 @@ impl Error for TimeWindowError {}
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "WindowWire", into = "WindowWire")]
-pub struct TimeWindow {
-    start: TimeInstant,
-    end: TimeInstant,
-}
+pub struct TimeWindow(veoveo_types::Checked<WindowWire>);
 
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema, Clone, Debug, PartialEq, Eq)]
 struct WindowWire {
     /// Inclusive lower bound.
     start: TimeInstant,
@@ -46,23 +43,17 @@ struct WindowWire {
 
 impl TimeWindow {
     pub fn new(start: TimeInstant, end: TimeInstant) -> Result<Self, TimeWindowError> {
-        if start.authority != end.authority {
-            return Err(TimeWindowError::AuthorityMismatch);
-        }
-        if start.total_nanoseconds() >= end.total_nanoseconds() {
-            return Err(TimeWindowError::UnorderedBounds);
-        }
-        Ok(Self { start, end })
+        veoveo_types::Checked::new(WindowWire { start, end }).map(Self)
     }
 
     pub fn start(&self) -> &TimeInstant {
-        &self.start
+        &self.0.start
     }
     pub fn end(&self) -> &TimeInstant {
-        &self.end
+        &self.0.end
     }
     pub fn authority(&self) -> &AuthorityBinding {
-        &self.start.authority
+        &self.0.start.authority
     }
 
     /// Clip to the overlap. Touching intervals have no overlap. At equal coordinates,
@@ -71,10 +62,10 @@ impl TimeWindow {
         if self.authority() != other.authority() {
             return Err(TimeWindowError::AuthorityMismatch);
         }
-        let start = std::cmp::max_by_key(&self.start, &other.start, |instant| {
+        let start = std::cmp::max_by_key(&self.0.start, &other.0.start, |instant| {
             (instant.total_nanoseconds(), instant.uncertainty_nanoseconds)
         });
-        let end = std::cmp::min_by_key(&self.end, &other.end, |instant| {
+        let end = std::cmp::min_by_key(&self.0.end, &other.0.end, |instant| {
             (
                 instant.total_nanoseconds(),
                 Reverse(instant.uncertainty_nanoseconds),
@@ -87,18 +78,28 @@ impl TimeWindow {
     }
 }
 
+impl veoveo_types::Check for WindowWire {
+    type Error = TimeWindowError;
+    fn check(&self) -> Result<(), Self::Error> {
+        if self.start.authority != self.end.authority {
+            return Err(TimeWindowError::AuthorityMismatch);
+        }
+        if self.start.total_nanoseconds() >= self.end.total_nanoseconds() {
+            return Err(TimeWindowError::UnorderedBounds);
+        }
+
+        Ok(())
+    }
+}
 impl TryFrom<WindowWire> for TimeWindow {
     type Error = TimeWindowError;
-    fn try_from(wire: WindowWire) -> Result<Self, Self::Error> {
-        Self::new(wire.start, wire.end)
+    fn try_from(value: WindowWire) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
     }
 }
 
 impl From<TimeWindow> for WindowWire {
     fn from(value: TimeWindow) -> Self {
-        Self {
-            start: value.start,
-            end: value.end,
-        }
+        value.0.into_inner()
     }
 }

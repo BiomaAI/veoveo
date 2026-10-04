@@ -36,10 +36,41 @@ struct CursorWire {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "String", into = "String")]
 pub struct OptimizationUsageCursor {
-    wire: String,
-    after: TaskId,
+    cursor: veoveo_types::OpaqueCursor<OptimizationUsageCursorCodec>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct OptimizationUsageCursorCodec;
+impl veoveo_types::CursorCodec for OptimizationUsageCursorCodec {
+    type Position = TaskId;
+    type Error = OptimizationUsageError;
+    fn check(&self, position: &Self::Position) -> Result<(), Self::Error> {
+        task_identity(*position).map(|_| ())
+    }
+    fn encode(&self, position: &Self::Position) -> Result<String, Self::Error> {
+        let bytes = serde_json::to_vec(&CursorWire {
+            version: 1,
+            task_id: *position,
+        })
+        .expect("closed owner cursor fields serialize");
+        Ok(URL_SAFE_NO_PAD.encode(bytes))
+    }
+    fn decode(&self, wire: &str) -> Result<Self::Position, Self::Error> {
+        if wire.is_empty() || wire.len() > 1024 {
+            return Err(OptimizationUsageError);
+        }
+        let bytes = URL_SAFE_NO_PAD
+            .decode(wire)
+            .map_err(|_| OptimizationUsageError)?;
+        let decoded: CursorWire =
+            serde_json::from_slice(&bytes).map_err(|_| OptimizationUsageError)?;
+        if decoded.version != 1 {
+            return Err(OptimizationUsageError);
+        }
+        let position = decoded.task_id;
+        Ok(position)
+    }
+}
 impl OptimizationUsageCursor {
     /// Positions require native Task identities.
     /// ```compile_fail
@@ -47,44 +78,20 @@ impl OptimizationUsageCursor {
     /// OptimizationUsageCursor::new("raw-task-id");
     /// ```
     pub fn new(after: TaskId) -> Result<Self, OptimizationUsageError> {
-        let after = task_identity(after)?;
-        let wire = URL_SAFE_NO_PAD.encode(
-            serde_json::to_vec(&CursorWire {
-                version: 1,
-                task_id: after,
-            })
-            .expect("closed usage cursor fields serialize"),
-        );
-        Ok(Self { wire, after })
+        let cursor = veoveo_types::OpaqueCursor::try_new(OptimizationUsageCursorCodec, after)?;
+        Ok(Self { cursor })
     }
-
     pub fn parse(wire: impl Into<String>) -> Result<Self, OptimizationUsageError> {
-        let wire = wire.into();
-        if wire.is_empty() || wire.len() > 1024 {
-            return Err(OptimizationUsageError);
-        }
-        let bytes = URL_SAFE_NO_PAD
-            .decode(&wire)
-            .map_err(|_| OptimizationUsageError)?;
-        let cursor: CursorWire =
-            serde_json::from_slice(&bytes).map_err(|_| OptimizationUsageError)?;
-        if cursor.version != 1 {
-            return Err(OptimizationUsageError);
-        }
-        Ok(Self {
-            wire,
-            after: task_identity(cursor.task_id)?,
-        })
+        veoveo_types::OpaqueCursor::parse(OptimizationUsageCursorCodec, wire)
+            .map(|cursor| Self { cursor })
     }
-
     pub fn after(&self) -> TaskId {
-        self.after
+        *self.cursor.position()
     }
     pub fn as_str(&self) -> &str {
-        &self.wire
+        self.cursor.as_str()
     }
 }
-
 impl TryFrom<String> for OptimizationUsageCursor {
     type Error = OptimizationUsageError;
     fn try_from(value: String) -> Result<Self, Self::Error> {
@@ -93,7 +100,7 @@ impl TryFrom<String> for OptimizationUsageCursor {
 }
 impl From<OptimizationUsageCursor> for String {
     fn from(value: OptimizationUsageCursor) -> Self {
-        value.wire
+        value.cursor.into_wire()
     }
 }
 
@@ -219,12 +226,20 @@ impl OptimizationUsageEntry {
         &self.usage_uri
     }
 }
+impl veoveo_types::Check for EntryWire {
+    type Error = OptimizationUsageError;
+    fn check(&self) -> Result<(), Self::Error> {
+        if self.task_id != self.usage_uri.task_id() {
+            return Err(OptimizationUsageError);
+        }
+
+        Ok(())
+    }
+}
 impl TryFrom<EntryWire> for OptimizationUsageEntry {
     type Error = OptimizationUsageError;
     fn try_from(value: EntryWire) -> Result<Self, Self::Error> {
-        if value.task_id != value.usage_uri.task_id() {
-            return Err(OptimizationUsageError);
-        }
+        let value = veoveo_types::Checked::new(value)?.into_inner();
         Ok(Self {
             usage_uri: value.usage_uri,
         })
@@ -279,23 +294,31 @@ impl OptimizationUsagePage {
         self.next_cursor.as_ref()
     }
 }
-impl TryFrom<PageWire> for OptimizationUsagePage {
+impl veoveo_types::Check for PageWire {
     type Error = OptimizationUsageError;
-    fn try_from(value: PageWire) -> Result<Self, Self::Error> {
-        if value.limit != OPTIMIZATION_USAGE_PAGE_SIZE
-            || value.usage.len() > OPTIMIZATION_USAGE_PAGE_SIZE
-            || value
+    fn check(&self) -> Result<(), Self::Error> {
+        if self.limit != OPTIMIZATION_USAGE_PAGE_SIZE
+            || self.usage.len() > OPTIMIZATION_USAGE_PAGE_SIZE
+            || self
                 .usage
                 .windows(2)
                 .any(|pair| pair[0].task_id() >= pair[1].task_id())
-            || value.next_cursor.as_ref().is_some_and(|cursor| {
-                value.usage.len() != OPTIMIZATION_USAGE_PAGE_SIZE
-                    || value.usage.last().map(OptimizationUsageEntry::task_id)
+            || self.next_cursor.as_ref().is_some_and(|cursor| {
+                self.usage.len() != OPTIMIZATION_USAGE_PAGE_SIZE
+                    || self.usage.last().map(OptimizationUsageEntry::task_id)
                         != Some(cursor.after())
             })
         {
             return Err(OptimizationUsageError);
         }
+
+        Ok(())
+    }
+}
+impl TryFrom<PageWire> for OptimizationUsagePage {
+    type Error = OptimizationUsageError;
+    fn try_from(value: PageWire) -> Result<Self, Self::Error> {
+        let value = veoveo_types::Checked::new(value)?.into_inner();
         Ok(Self {
             usage: value.usage,
             next_cursor: value.next_cursor,

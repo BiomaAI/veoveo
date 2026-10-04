@@ -10,7 +10,7 @@ use glam::DMat4;
 /// ```
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
 #[serde(try_from = "SceneTileRecordWire")]
-pub struct SceneTileRecord(SceneTileRecordWire);
+pub struct SceneTileRecord(veoveo_types::Checked<SceneTileRecordWire>);
 
 impl SceneTileRecord {
     pub fn new(
@@ -26,9 +26,10 @@ impl SceneTileRecord {
         })
     }
 }
-impl TryFrom<SceneTileRecordWire> for SceneTileRecord {
+impl veoveo_types::Check for SceneTileRecordWire {
     type Error = PreviewSceneError;
-    fn try_from(value: SceneTileRecordWire) -> Result<Self, Self::Error> {
+    fn check(&self) -> Result<(), Self::Error> {
+        let value = self;
         let matrix = DMat4::from_cols_array(&value.ecef_from_content);
         let determinant = matrix.determinant();
         if !matrix.is_finite()
@@ -50,7 +51,13 @@ impl TryFrom<SceneTileRecordWire> for SceneTileRecord {
         {
             return Err(PreviewSceneError::TileSize);
         }
-        Ok(Self(value))
+        Ok(())
+    }
+}
+impl TryFrom<SceneTileRecordWire> for SceneTileRecord {
+    type Error = PreviewSceneError;
+    fn try_from(value: SceneTileRecordWire) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
     }
 }
 impl Serialize for SceneTileRecord {
@@ -67,7 +74,7 @@ impl Serialize for SceneTileRecord {
 /// ```
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
 #[serde(try_from = "PreviewSceneRecordWire")]
-pub struct PreviewSceneRecord(PreviewSceneRecordWire);
+pub struct PreviewSceneRecord(veoveo_types::Checked<PreviewSceneRecordWire>);
 impl PreviewSceneRecord {
     pub fn new(
         view: &ViewRecord,
@@ -100,9 +107,10 @@ impl PreviewSceneRecord {
         })
     }
 }
-impl TryFrom<PreviewSceneRecordWire> for PreviewSceneRecord {
+impl veoveo_types::Check for PreviewSceneRecordWire {
     type Error = PreviewSceneError;
-    fn try_from(value: PreviewSceneRecordWire) -> Result<Self, Self::Error> {
+    fn check(&self) -> Result<(), Self::Error> {
+        let value = self;
         if value.view_revision == 0 {
             return Err(PreviewSceneError::Revision);
         }
@@ -142,7 +150,13 @@ impl TryFrom<PreviewSceneRecordWire> for PreviewSceneRecord {
         {
             return Err(PreviewSceneError::Detail);
         }
-        Ok(Self(value))
+        Ok(())
+    }
+}
+impl TryFrom<PreviewSceneRecordWire> for PreviewSceneRecord {
+    type Error = PreviewSceneError;
+    fn try_from(value: PreviewSceneRecordWire) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
     }
 }
 impl Serialize for PreviewSceneRecord {

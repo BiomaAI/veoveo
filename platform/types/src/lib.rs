@@ -26,6 +26,10 @@ pub use veoveo_macros::{Id, ResourceAddress, Vocabulary, embedded_document};
 pub use vocabulary::{Vocabulary, is_scope_token, scope_vocabulary_schema};
 
 mod access_grant;
+mod checked;
+mod cursor;
+pub use checked::{Check, Checked};
+pub use cursor::{CursorCodec, OpaqueCursor};
 mod authority;
 mod digest;
 mod error;

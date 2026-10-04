@@ -41,10 +41,35 @@ struct CursorWire {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "String", into = "String")]
 pub struct OptimizationIndexCursor {
-    wire: String,
-    position: CursorWire,
+    cursor: veoveo_types::OpaqueCursor<OptimizationIndexCursorCodec>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct OptimizationIndexCursorCodec;
+impl veoveo_types::CursorCodec for OptimizationIndexCursorCodec {
+    type Position = CursorWire;
+    type Error = OptimizationIndexError;
+    fn check(&self, position: &CursorWire) -> Result<(), Self::Error> {
+        OptimizationIndexCursor::validate(position.task_id)
+    }
+    fn encode(&self, position: &CursorWire) -> Result<String, Self::Error> {
+        Ok(URL_SAFE_NO_PAD.encode(serde_json::to_vec(position).expect("closed cursor serializes")))
+    }
+    fn decode(&self, wire: &str) -> Result<CursorWire, Self::Error> {
+        if wire.is_empty() || wire.len() > 1024 {
+            return Err(OptimizationIndexError);
+        }
+        let bytes = URL_SAFE_NO_PAD
+            .decode(wire)
+            .map_err(|_| OptimizationIndexError)?;
+        let position: CursorWire =
+            serde_json::from_slice(&bytes).map_err(|_| OptimizationIndexError)?;
+        if position.version != 1 {
+            return Err(OptimizationIndexError);
+        }
+        Ok(position)
+    }
+}
 impl OptimizationIndexCursor {
     /// ```compile_fail
     /// use veoveo_optimization_mcp::contract::{OptimizationCollection, OptimizationIndexCursor};
@@ -55,33 +80,21 @@ impl OptimizationIndexCursor {
         created_at: DateTime<Utc>,
         task_id: TaskId,
     ) -> Result<Self, OptimizationIndexError> {
-        Self::validate(task_id)?;
-        let position = CursorWire {
-            version: 1,
-            collection,
-            created_at,
-            task_id,
-        };
-        let wire = URL_SAFE_NO_PAD
-            .encode(serde_json::to_vec(&position).expect("closed cursor serializes"));
-        Ok(Self { wire, position })
+        veoveo_types::OpaqueCursor::try_new(
+            OptimizationIndexCursorCodec,
+            CursorWire {
+                version: 1,
+                collection,
+                created_at,
+                task_id,
+            },
+        )
+        .map(|cursor| Self { cursor })
     }
 
-    pub fn parse(value: impl Into<String>) -> Result<Self, OptimizationIndexError> {
-        let wire = value.into();
-        if wire.is_empty() || wire.len() > 1024 {
-            return Err(OptimizationIndexError);
-        }
-        let bytes = URL_SAFE_NO_PAD
-            .decode(&wire)
-            .map_err(|_| OptimizationIndexError)?;
-        let position: CursorWire =
-            serde_json::from_slice(&bytes).map_err(|_| OptimizationIndexError)?;
-        if position.version != 1 {
-            return Err(OptimizationIndexError);
-        }
-        Self::validate(position.task_id)?;
-        Ok(Self { wire, position })
+    pub fn parse(wire: impl Into<String>) -> Result<Self, OptimizationIndexError> {
+        veoveo_types::OpaqueCursor::parse(OptimizationIndexCursorCodec, wire)
+            .map(|cursor| Self { cursor })
     }
 
     fn validate(task: TaskId) -> Result<(), OptimizationIndexError> {
@@ -93,16 +106,16 @@ impl OptimizationIndexCursor {
         Ok(())
     }
     pub fn collection(&self) -> OptimizationCollection {
-        self.position.collection
+        self.cursor.position().collection
     }
     pub fn created_at(&self) -> DateTime<Utc> {
-        self.position.created_at
+        self.cursor.position().created_at
     }
     pub fn task_id(&self) -> TaskId {
-        self.position.task_id
+        self.cursor.position().task_id
     }
     pub fn as_str(&self) -> &str {
-        &self.wire
+        self.cursor.as_str()
     }
 }
 impl TryFrom<String> for OptimizationIndexCursor {
@@ -113,7 +126,7 @@ impl TryFrom<String> for OptimizationIndexCursor {
 }
 impl From<OptimizationIndexCursor> for String {
     fn from(cursor: OptimizationIndexCursor) -> Self {
-        cursor.wire
+        cursor.cursor.into_wire()
     }
 }
 

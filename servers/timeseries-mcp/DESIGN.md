@@ -201,3 +201,11 @@ derive. Explicit owner codecs admit collection-bound cursors and UUID-v7 Task id
 Checked constructors initialize private wire caches, and discovery templates alias the
 generated declaration. Serde and schema declarations preserve the public string profile;
 cursor payload encoding remains a separate checked owner contract.
+
+## Value Admission
+
+TimeseriesRowFilter stores its published predicate and combination fields through `Checked`. The owner check rejects empty predicates without changing scalar filter or forecast-horizon admission.
+
+## Cursor Admission
+
+Usage continuation uses its owner base64url JSON codec with version and Task ID, without an added collection field. Parsing retains admitted aliases and the existing Task UUID profile. Published page fields are checked before the fixed-limit projection.

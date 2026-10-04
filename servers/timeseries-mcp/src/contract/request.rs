@@ -202,7 +202,7 @@ pub enum TimeseriesFilterCombination {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "FilterWire", into = "FilterWire")]
-pub struct TimeseriesRowFilter(FilterWire);
+pub struct TimeseriesRowFilter(veoveo_types::Checked<FilterWire>);
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -218,10 +218,15 @@ impl TimeseriesRowFilter {
         first: TimeseriesFilterPredicate,
         rest: impl IntoIterator<Item = TimeseriesFilterPredicate>,
     ) -> Self {
-        Self(FilterWire {
-            combination,
-            predicates: std::iter::once(first).chain(rest).collect(),
-        })
+        Self(
+            veoveo_types::Checked::new(FilterWire {
+                combination,
+                predicates: std::iter::once(first).chain(rest).collect(),
+            })
+            .unwrap_or_else(|_| {
+                unreachable!("typed filter construction supplies the first predicate")
+            }),
+        )
     }
     pub fn combination(&self) -> TimeseriesFilterCombination {
         self.0.combination
@@ -230,19 +235,26 @@ impl TimeseriesRowFilter {
         &self.0.predicates
     }
 }
-impl TryFrom<FilterWire> for TimeseriesRowFilter {
+impl veoveo_types::Check for FilterWire {
     type Error = TimeseriesRequestError;
-    fn try_from(value: FilterWire) -> Result<Self, Self::Error> {
+    fn check(&self) -> Result<(), Self::Error> {
+        let value = self;
         if value.predicates.is_empty() {
             Err(TimeseriesRequestError::EmptyPredicates)
         } else {
-            Ok(Self(value))
+            Ok(())
         }
+    }
+}
+impl TryFrom<FilterWire> for TimeseriesRowFilter {
+    type Error = TimeseriesRequestError;
+    fn try_from(value: FilterWire) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
     }
 }
 impl From<TimeseriesRowFilter> for FilterWire {
     fn from(value: TimeseriesRowFilter) -> Self {
-        value.0
+        value.0.into_inner()
     }
 }
 

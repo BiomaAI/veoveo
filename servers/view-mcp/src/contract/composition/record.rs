@@ -8,14 +8,21 @@ use super::*;
 /// ```
 #[derive(Debug, Clone, PartialEq, Deserialize, JsonSchema)]
 #[serde(try_from = "SceneCompositionWire")]
-pub struct SceneComposition(SceneCompositionWire);
+pub struct SceneComposition(veoveo_types::Checked<SceneCompositionWire>);
 
 impl SceneComposition {
     pub fn new(
-        mut request: CreateSceneCompositionRequest,
+        request: CreateSceneCompositionRequest,
         authority: SceneCompositionAuthority,
         created_at: DateTime<Utc>,
     ) -> Result<Self, SceneCompositionError> {
+        veoveo_types::Checked::new(Self::build_record(request, authority, created_at)?).map(Self)
+    }
+    fn build_record(
+        mut request: CreateSceneCompositionRequest,
+        authority: SceneCompositionAuthority,
+        created_at: DateTime<Utc>,
+    ) -> Result<SceneCompositionWire, SceneCompositionError> {
         request.validate()?;
         request
             .governed_inputs
@@ -52,7 +59,7 @@ impl SceneComposition {
         fields.remove("composition_digest_sha256");
         fields.remove("created_at");
         record.composition_digest_sha256 = digest_json(&content)?;
-        Ok(Self(record))
+        Ok(record)
     }
     pub fn schema_version(&self) -> u64 {
         self.0.schema_version
@@ -101,10 +108,11 @@ impl SceneComposition {
     }
 }
 
-impl TryFrom<SceneCompositionWire> for SceneComposition {
+impl veoveo_types::Check for SceneCompositionWire {
     type Error = SceneCompositionError;
 
-    fn try_from(value: SceneCompositionWire) -> Result<Self, Self::Error> {
+    fn check(&self) -> Result<(), Self::Error> {
+        let value = self;
         let request = CreateSceneCompositionRequest {
             schema_version: value.schema_version,
             base_layer: value.base_layer.clone(),
@@ -114,11 +122,19 @@ impl TryFrom<SceneCompositionWire> for SceneComposition {
             governed_inputs: value.governed_inputs.clone(),
             overlays: value.overlays.clone(),
         };
-        let expected = Self::new(request, value.authority.clone(), value.created_at)?;
-        if expected.0 != value {
+        let expected =
+            SceneComposition::build_record(request, value.authority.clone(), value.created_at)?;
+        if &expected != value {
             return Err(SceneCompositionError::RecordMismatch);
         }
-        Ok(expected)
+        Ok(())
+    }
+}
+
+impl TryFrom<SceneCompositionWire> for SceneComposition {
+    type Error = SceneCompositionError;
+    fn try_from(value: SceneCompositionWire) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
     }
 }
 

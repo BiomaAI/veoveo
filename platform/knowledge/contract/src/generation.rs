@@ -51,7 +51,7 @@ impl From<GenerationId> for String {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "ChunkWire", into = "ChunkWire")]
-pub struct ChunkSettings(ChunkWire);
+pub struct ChunkSettings(veoveo_types::Checked<ChunkWire>);
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ChunkWire {
@@ -82,9 +82,10 @@ impl ChunkSettings {
         &self.0.version
     }
 }
-impl TryFrom<ChunkWire> for ChunkSettings {
+impl veoveo_types::Check for ChunkWire {
     type Error = KnowledgeError;
-    fn try_from(w: ChunkWire) -> Result<Self, Self::Error> {
+    fn check(&self) -> Result<(), Self::Error> {
+        let w = self;
         if w.version.is_empty()
             || w.version.len() > 128
             || w.version.chars().any(char::is_control)
@@ -95,18 +96,24 @@ impl TryFrom<ChunkWire> for ChunkSettings {
                 "invalid chunk version, character cap or overlap",
             ));
         }
-        Ok(Self(w))
+        Ok(())
+    }
+}
+impl TryFrom<ChunkWire> for ChunkSettings {
+    type Error = KnowledgeError;
+    fn try_from(value: ChunkWire) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
     }
 }
 impl From<ChunkSettings> for ChunkWire {
     fn from(v: ChunkSettings) -> Self {
-        v.0
+        v.0.into_inner()
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "GenerationWire", into = "GenerationWire")]
-pub struct GenerationSpec(GenerationWire);
+pub struct GenerationSpec(veoveo_types::Checked<GenerationWire>);
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct GenerationWire {
@@ -146,9 +153,10 @@ impl GenerationSpec {
         crate::digest(self)
     }
 }
-impl TryFrom<GenerationWire> for GenerationSpec {
+impl veoveo_types::Check for GenerationWire {
     type Error = KnowledgeError;
-    fn try_from(w: GenerationWire) -> Result<Self, Self::Error> {
+    fn check(&self) -> Result<(), Self::Error> {
+        let w = self;
         if w.query_task.trim().is_empty()
             || veoveo_embedding_contract::EmbeddingTask::new(w.query_task.clone()).is_err()
             || w.query_task.chars().any(char::is_control)
@@ -159,11 +167,17 @@ impl TryFrom<GenerationWire> for GenerationSpec {
                 "generation requires a bounded query task and 1..=1024 approved collections",
             ));
         }
-        Ok(Self(w))
+        Ok(())
+    }
+}
+impl TryFrom<GenerationWire> for GenerationSpec {
+    type Error = KnowledgeError;
+    fn try_from(value: GenerationWire) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
     }
 }
 impl From<GenerationSpec> for GenerationWire {
     fn from(v: GenerationSpec) -> Self {
-        v.0
+        v.0.into_inner()
     }
 }

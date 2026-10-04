@@ -538,3 +538,7 @@ hardware.
 ## Identity Declaration Mechanics
 
 Pipeline and model identities use `Id` with Stream-owned catalog-name admission. Serde decodes validated Strings and schemas retain the inline unconstrained String profile. Run/live-session Task identity and typed resource admission remain separate owner implementations.
+
+## Cursor Admission
+
+Run and session cursors retain owner base64url collection envelopes through private OpaqueCursor storage. Parsing preserves admitted wire aliases, typed positions and existing inline String schemas.

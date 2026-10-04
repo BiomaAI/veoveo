@@ -122,45 +122,47 @@ impl SimulationWorldBinding {
     try_from = "InstallationWorldBindingWire",
     into = "InstallationWorldBindingWire"
 )]
-pub struct InstallationWorldBinding {
-    session_id: SessionId,
-    world: SimulationWorldBinding,
-}
+pub struct InstallationWorldBinding(veoveo_types::Checked<InstallationWorldBindingWire>);
 
 impl InstallationWorldBinding {
     pub fn new(
         session_id: SessionId,
         world: SimulationWorldBinding,
     ) -> Result<Self, WorldBindingError> {
-        world.validate()?;
-        Ok(Self { session_id, world })
+        veoveo_types::Checked::new(InstallationWorldBindingWire { session_id, world }).map(Self)
     }
     pub fn session_id(&self) -> &SessionId {
-        &self.session_id
+        &self.0.session_id
     }
     pub fn world(&self) -> &SimulationWorldBinding {
-        &self.world
+        &self.0.world
     }
 }
 
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema, Clone, Debug, PartialEq)]
 #[serde(deny_unknown_fields)]
 struct InstallationWorldBindingWire {
     session_id: SessionId,
     world: SimulationWorldBinding,
 }
+
+impl veoveo_types::Check for InstallationWorldBindingWire {
+    type Error = WorldBindingError;
+    fn check(&self) -> Result<(), Self::Error> {
+        self.world.validate()?;
+
+        Ok(())
+    }
+}
 impl TryFrom<InstallationWorldBindingWire> for InstallationWorldBinding {
     type Error = WorldBindingError;
-    fn try_from(wire: InstallationWorldBindingWire) -> Result<Self, Self::Error> {
-        Self::new(wire.session_id, wire.world)
+    fn try_from(value: InstallationWorldBindingWire) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
     }
 }
 impl From<InstallationWorldBinding> for InstallationWorldBindingWire {
-    fn from(binding: InstallationWorldBinding) -> Self {
-        Self {
-            session_id: binding.session_id,
-            world: binding.world,
-        }
+    fn from(value: InstallationWorldBinding) -> Self {
+        value.0.into_inner()
     }
 }
 

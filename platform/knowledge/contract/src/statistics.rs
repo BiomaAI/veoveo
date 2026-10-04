@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 /// Aggregates of the indexed members visible to one caller at query time.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "StatisticsWire", into = "StatisticsWire")]
-pub struct CollectionStatistics(StatisticsWire);
+pub struct CollectionStatistics(veoveo_types::Checked<StatisticsWire>);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -48,9 +48,10 @@ impl CollectionStatistics {
         self.0.last_modified_at
     }
 }
-impl TryFrom<StatisticsWire> for CollectionStatistics {
+impl veoveo_types::Check for StatisticsWire {
     type Error = KnowledgeError;
-    fn try_from(value: StatisticsWire) -> Result<Self, Self::Error> {
+    fn check(&self) -> Result<(), Self::Error> {
+        let value = self;
         if value.indexed_chunks < value.indexed_members
             || value.indexed_chunks > value.indexed_members.saturating_mul(256)
             || (value.indexed_members == 0) != value.last_observed_at.is_none()
@@ -58,11 +59,17 @@ impl TryFrom<StatisticsWire> for CollectionStatistics {
         {
             return Err(KnowledgeError("inconsistent collection statistics"));
         }
-        Ok(Self(value))
+        Ok(())
+    }
+}
+impl TryFrom<StatisticsWire> for CollectionStatistics {
+    type Error = KnowledgeError;
+    fn try_from(value: StatisticsWire) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
     }
 }
 impl From<CollectionStatistics> for StatisticsWire {
     fn from(value: CollectionStatistics) -> Self {
-        value.0
+        value.0.into_inner()
     }
 }

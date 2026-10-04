@@ -14,7 +14,7 @@ use std::{collections::BTreeSet, fmt, num::NonZeroU64};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "QueryWire", into = "QueryWire")]
 #[schemars(transform = query_relationships)]
-pub struct DuckDbQueryRequest(QueryWire);
+pub struct DuckDbQueryRequest(veoveo_types::Checked<QueryWire>);
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -85,9 +85,10 @@ impl DuckDbQueryRequestBuilder {
         self.0.try_into()
     }
 }
-impl TryFrom<QueryWire> for DuckDbQueryRequest {
+impl veoveo_types::Check for QueryWire {
     type Error = DuckDbQueryRequestError;
-    fn try_from(wire: QueryWire) -> Result<Self, Self::Error> {
+    fn check(&self) -> Result<(), Self::Error> {
+        let wire = self;
         let mut seen = BTreeSet::new();
         for db in &wire.attach {
             if db == &wire.db {
@@ -101,12 +102,18 @@ impl TryFrom<QueryWire> for DuckDbQueryRequest {
         {
             return Err(DuckDbQueryRequestError::ArtifactRowLimit);
         }
-        Ok(Self(wire))
+        Ok(())
+    }
+}
+impl TryFrom<QueryWire> for DuckDbQueryRequest {
+    type Error = DuckDbQueryRequestError;
+    fn try_from(value: QueryWire) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
     }
 }
 impl From<DuckDbQueryRequest> for QueryWire {
     fn from(value: DuckDbQueryRequest) -> Self {
-        value.0
+        value.0.into_inner()
     }
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

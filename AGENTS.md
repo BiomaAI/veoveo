@@ -239,6 +239,22 @@ server's documents. Other macro shapes remain subject to the active Phase 0 plan
 this rule does not claim their shared replacements are implemented. Preserve wire
 forms, schema metadata and enum ordinals during mechanical migration.
 
+## Shared Admission Mechanics
+
+Field-preserving immutable models use owner `Check` implementations and nominal
+`Checked` storage for implemented shapes. Builders and decoding share value checks;
+current authorization and liveness stay with services. Keep normalization and
+redundant-field projection in explicit owner adapters. Mutable progress models and
+context-dependent relationships retain their documented representation exceptions.
+
+Opaque continuations use owner `CursorCodec` implementations with typed positions
+and immutable context. Use `OpaqueCursor` for existing cached representations;
+preserve documented Copy and on-demand representations through ordinary codecs.
+Keep each envelope, limit, alias policy and schema with its owner. Contextual parsing
+requires the caller's typed context. Structured keysets and versionstamps remain their
+owner's structured types. Do not reintroduce local checked-model or cursor declaration
+macros for these implemented shapes; the remaining Phase 0 helper and macro gate is open.
+
 ## Database First
 
 Before building a mechanism in Veoveo, check whether SurrealDB already provides it,

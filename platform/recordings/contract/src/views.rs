@@ -1,8 +1,7 @@
 //! Public catalog views admitted after the service selects current visible records.
 use crate::{
     RecordingCatalogCursor, RecordingContractError, RecordingDatasetId, RecordingId,
-    RecordingState,
-    checked::{checked_model, text},
+    RecordingState, checked::text,
 };
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
@@ -35,6 +34,12 @@ pub struct RecordingViewBuilder {
 }
 impl RecordingViewBuilder {
     pub fn build(self) -> Result<RecordingView, RecordingContractError> {
+        veoveo_types::Checked::new(self).map(RecordingView)
+    }
+}
+impl veoveo_types::Check for RecordingViewBuilder {
+    type Error = RecordingContractError;
+    fn check(&self) -> Result<(), Self::Error> {
         if !text(&self.dataset_key, 128)
             || !text(&self.application_id, 512)
             || !text(&self.recording_key, 512)
@@ -59,10 +64,19 @@ impl RecordingViewBuilder {
         {
             return Err(RecordingContractError::CatalogView);
         }
-        Ok(RecordingView(self))
+        Ok(())
     }
 }
-checked_model!(RecordingView, RecordingViewBuilder);
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(transparent)]
+#[schemars(transparent)]
+pub struct RecordingView(veoveo_types::Checked<RecordingViewBuilder>);
+impl std::ops::Deref for RecordingView {
+    type Target = RecordingViewBuilder;
+    fn deref(&self) -> &Self::Target {
+        self.0.get()
+    }
+}
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 pub struct RecordingCatalogPage {

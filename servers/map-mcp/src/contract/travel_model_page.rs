@@ -16,49 +16,63 @@ struct CursorWire {
 #[serde(try_from = "String", into = "String")]
 #[schemars(with = "String")]
 pub struct MapTravelModelCursor {
-    wire: String,
-    task_id: TaskId,
+    cursor: veoveo_types::OpaqueCursor<MapTravelModelCursorCodec>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct MapTravelModelCursorCodec;
+impl veoveo_types::CursorCodec for MapTravelModelCursorCodec {
+    type Position = TaskId;
+    type Error = TravelModelUriError;
+    fn check(&self, position: &Self::Position) -> Result<(), Self::Error> {
+        if position.as_uuid().get_version_num() != 7
+            || position.as_uuid().get_variant() != uuid::Variant::RFC4122
+        {
+            Err(TravelModelUriError)
+        } else {
+            Ok(())
+        }
+    }
+    fn encode(&self, position: &Self::Position) -> Result<String, Self::Error> {
+        let bytes = serde_json::to_vec(&CursorWire {
+            version: 1,
+            task_id: *position,
+        })
+        .expect("closed owner cursor fields serialize");
+        Ok(hex::encode(bytes))
+    }
+    fn decode(&self, wire: &str) -> Result<Self::Position, Self::Error> {
+        if wire.is_empty() || wire.len() > 1024 {
+            return Err(TravelModelUriError);
+        }
+        let bytes = hex::decode(wire).map_err(|_| TravelModelUriError)?;
+        let decoded: CursorWire =
+            serde_json::from_slice(&bytes).map_err(|_| TravelModelUriError)?;
+        if decoded.version != 1 {
+            return Err(TravelModelUriError);
+        }
+        let position = decoded.task_id;
+        self.check(&position)?;
+        if self.encode(&position)? != wire {
+            return Err(TravelModelUriError);
+        }
+        Ok(position)
+    }
 }
 impl MapTravelModelCursor {
     pub fn new(task_id: TaskId) -> Result<Self, TravelModelUriError> {
-        if task_id.as_uuid().get_version_num() != 7
-            || task_id.as_uuid().get_variant() != uuid::Variant::RFC4122
-        {
-            return Err(TravelModelUriError);
-        }
-        Ok(Self {
-            wire: hex::encode(
-                serde_json::to_vec(&CursorWire {
-                    version: 1,
-                    task_id,
-                })
-                .expect("closed cursor"),
-            ),
-            task_id,
-        })
+        let cursor = veoveo_types::OpaqueCursor::try_new(MapTravelModelCursorCodec, task_id)?;
+        Ok(Self { cursor })
     }
-    pub fn parse(value: impl Into<String>) -> Result<Self, TravelModelUriError> {
-        let wire = value.into();
-        if wire.len() > 1024 {
-            return Err(TravelModelUriError);
-        }
-        let cursor: CursorWire =
-            serde_json::from_slice(&hex::decode(&wire).map_err(|_| TravelModelUriError)?)
-                .map_err(|_| TravelModelUriError)?;
-        if cursor.version != 1 {
-            return Err(TravelModelUriError);
-        }
-        let admitted = Self::new(cursor.task_id)?;
-        if admitted.wire != wire {
-            return Err(TravelModelUriError);
-        }
-        Ok(admitted)
+    pub fn parse(wire: impl Into<String>) -> Result<Self, TravelModelUriError> {
+        veoveo_types::OpaqueCursor::parse(MapTravelModelCursorCodec, wire)
+            .map(|cursor| Self { cursor })
     }
     pub fn task_id(&self) -> TaskId {
-        self.task_id
+        *self.cursor.position()
     }
     pub fn as_str(&self) -> &str {
-        &self.wire
+        self.cursor.as_str()
     }
 }
 impl TryFrom<String> for MapTravelModelCursor {
@@ -69,7 +83,7 @@ impl TryFrom<String> for MapTravelModelCursor {
 }
 impl From<MapTravelModelCursor> for String {
     fn from(value: MapTravelModelCursor) -> Self {
-        value.wire
+        value.cursor.into_wire()
     }
 }
 

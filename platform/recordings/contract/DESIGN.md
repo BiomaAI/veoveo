@@ -169,3 +169,11 @@ format. The hosted addresses select their existing inline string schemas. Cursor
 are ordinary owner JsonSchema implementations, independent of Identity and address
 admission. Redap's network URLs use their own URL setters and validation, with ordinary
 wire delegation; they do not adopt the hosted route profile.
+
+## Value Admission
+
+Layer, manifest, seal, catalog-grant and recording-view builders implement owner `Check` relationships. Their nominal models retain immutable `Checked` storage and delegate field/schema profiles to the same builders. Service authorization and token verification remain separate checks.
+
+## Cursor Admission
+
+RecordingCatalogCursor uses an owner codec with private OpaqueCursor storage. Its hexadecimal JSON retains exact re-encoding equality, collection binding and the inline unconstrained String schema.

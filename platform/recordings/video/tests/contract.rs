@@ -141,3 +141,19 @@ fn source_admission_checks_ids_digests_parts_and_layer_relationships() {
     parts["sources"][2]["layer_name"] = json!("changed-layer");
     assert!(serde_json::from_value::<RecordingSourceSnapshot>(parts).is_err());
 }
+
+#[test]
+fn admitted_source_models_delegate_builder_schema_identity() {
+    use schemars::JsonSchema;
+    use veoveo_recording_video::contract::{
+        RecordingSourceIdentity, RecordingSourceIdentityBuilder, RecordingSourceSnapshotBuilder,
+    };
+    fn same<Model: JsonSchema, Builder: JsonSchema>() {
+        assert_eq!(Model::schema_name(), Builder::schema_name());
+        assert_eq!(Model::schema_id(), Builder::schema_id());
+        assert_eq!(Model::inline_schema(), Builder::inline_schema());
+        assert_eq!(schemars::schema_for!(Model), schemars::schema_for!(Builder));
+    }
+    same::<RecordingSourceSnapshot, RecordingSourceSnapshotBuilder>();
+    same::<RecordingSourceIdentity, RecordingSourceIdentityBuilder>();
+}

@@ -35,10 +35,39 @@ struct CursorWire {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "String", into = "String")]
 pub struct DuckDbUsageCursor {
-    wire: String,
-    after: TaskId,
+    cursor: veoveo_types::OpaqueCursor<DuckDbUsageCursorCodec>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct DuckDbUsageCursorCodec;
+impl veoveo_types::CursorCodec for DuckDbUsageCursorCodec {
+    type Position = TaskId;
+    type Error = DuckDbUsageError;
+    fn check(&self, position: &Self::Position) -> Result<(), Self::Error> {
+        task_identity(*position).map(|_| ())
+    }
+    fn encode(&self, position: &Self::Position) -> Result<String, Self::Error> {
+        let bytes = serde_json::to_vec(&CursorWire {
+            version: 1,
+            collection: (DuckDbUsageIndexUri::ROOT).to_owned(),
+            after: *position,
+        })
+        .expect("closed owner cursor fields serialize");
+        Ok(URL_SAFE_NO_PAD.encode(bytes))
+    }
+    fn decode(&self, wire: &str) -> Result<Self::Position, Self::Error> {
+        if wire.is_empty() || wire.len() > 1024 {
+            return Err(DuckDbUsageError);
+        }
+        let bytes = URL_SAFE_NO_PAD.decode(wire).map_err(|_| DuckDbUsageError)?;
+        let decoded: CursorWire = serde_json::from_slice(&bytes).map_err(|_| DuckDbUsageError)?;
+        if decoded.version != 1 || decoded.collection != DuckDbUsageIndexUri::ROOT {
+            return Err(DuckDbUsageError);
+        }
+        let position = decoded.after;
+        Ok(position)
+    }
+}
 impl DuckDbUsageCursor {
     /// Positions require native Task identities.
     /// ```compile_fail
@@ -46,44 +75,20 @@ impl DuckDbUsageCursor {
     /// DuckDbUsageCursor::new("raw-task-id");
     /// ```
     pub fn new(after: TaskId) -> Result<Self, DuckDbUsageError> {
-        let after = task_identity(after)?;
-        let wire = URL_SAFE_NO_PAD.encode(
-            serde_json::to_vec(&CursorWire {
-                version: 1,
-                collection: DuckDbUsageIndexUri::ROOT.to_owned(),
-                after,
-            })
-            .expect("closed usage cursor fields serialize"),
-        );
-        Ok(Self { wire, after })
+        let cursor = veoveo_types::OpaqueCursor::try_new(DuckDbUsageCursorCodec, after)?;
+        Ok(Self { cursor })
     }
-
     pub fn parse(wire: impl Into<String>) -> Result<Self, DuckDbUsageError> {
-        let wire = wire.into();
-        if wire.is_empty() || wire.len() > 1024 {
-            return Err(DuckDbUsageError);
-        }
-        let bytes = URL_SAFE_NO_PAD
-            .decode(&wire)
-            .map_err(|_| DuckDbUsageError)?;
-        let cursor: CursorWire = serde_json::from_slice(&bytes).map_err(|_| DuckDbUsageError)?;
-        if cursor.version != 1 || cursor.collection != DuckDbUsageIndexUri::ROOT {
-            return Err(DuckDbUsageError);
-        }
-        Ok(Self {
-            wire,
-            after: task_identity(cursor.after)?,
-        })
+        veoveo_types::OpaqueCursor::parse(DuckDbUsageCursorCodec, wire)
+            .map(|cursor| Self { cursor })
     }
-
     pub fn after(&self) -> TaskId {
-        self.after
+        *self.cursor.position()
     }
     pub fn as_str(&self) -> &str {
-        &self.wire
+        self.cursor.as_str()
     }
 }
-
 impl TryFrom<String> for DuckDbUsageCursor {
     type Error = DuckDbUsageError;
     fn try_from(value: String) -> Result<Self, Self::Error> {
@@ -92,7 +97,7 @@ impl TryFrom<String> for DuckDbUsageCursor {
 }
 impl From<DuckDbUsageCursor> for String {
     fn from(value: DuckDbUsageCursor) -> Self {
-        value.wire
+        value.cursor.into_wire()
     }
 }
 
@@ -223,12 +228,20 @@ impl DuckDbUsageEntry {
         &self.usage_uri
     }
 }
+impl veoveo_types::Check for EntryWire {
+    type Error = DuckDbUsageError;
+    fn check(&self) -> Result<(), Self::Error> {
+        if self.task_id != self.usage_uri.task_id() {
+            return Err(DuckDbUsageError);
+        }
+
+        Ok(())
+    }
+}
 impl TryFrom<EntryWire> for DuckDbUsageEntry {
     type Error = DuckDbUsageError;
     fn try_from(value: EntryWire) -> Result<Self, Self::Error> {
-        if value.task_id != value.usage_uri.task_id() {
-            return Err(DuckDbUsageError);
-        }
+        let value = veoveo_types::Checked::new(value)?.into_inner();
         Ok(Self {
             usage_uri: value.usage_uri,
         })
@@ -279,22 +292,30 @@ impl DuckDbUsagePage {
         self.next_cursor.as_ref()
     }
 }
-impl TryFrom<PageWire> for DuckDbUsagePage {
+impl veoveo_types::Check for PageWire {
     type Error = DuckDbUsageError;
-    fn try_from(value: PageWire) -> Result<Self, Self::Error> {
-        if value.limit != DUCKDB_USAGE_PAGE_SIZE
-            || value.items.len() > DUCKDB_USAGE_PAGE_SIZE
-            || value
+    fn check(&self) -> Result<(), Self::Error> {
+        if self.limit != DUCKDB_USAGE_PAGE_SIZE
+            || self.items.len() > DUCKDB_USAGE_PAGE_SIZE
+            || self
                 .items
                 .windows(2)
                 .any(|pair| pair[0].task_id() >= pair[1].task_id())
-            || value.next_cursor.as_ref().is_some_and(|cursor| {
-                value.items.len() != DUCKDB_USAGE_PAGE_SIZE
-                    || value.items.last().map(DuckDbUsageEntry::task_id) != Some(cursor.after())
+            || self.next_cursor.as_ref().is_some_and(|cursor| {
+                self.items.len() != DUCKDB_USAGE_PAGE_SIZE
+                    || self.items.last().map(DuckDbUsageEntry::task_id) != Some(cursor.after())
             })
         {
             return Err(DuckDbUsageError);
         }
+
+        Ok(())
+    }
+}
+impl TryFrom<PageWire> for DuckDbUsagePage {
+    type Error = DuckDbUsageError;
+    fn try_from(value: PageWire) -> Result<Self, Self::Error> {
+        let value = veoveo_types::Checked::new(value)?.into_inner();
         Ok(Self {
             items: value.items,
             next_cursor: value.next_cursor,

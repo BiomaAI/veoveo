@@ -8,8 +8,7 @@ pub const RECORDING_PAGE_SIZE: usize = 100;
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
 pub struct RecordingCatalogCursor {
-    wire: String,
-    position: Position,
+    cursor: veoveo_types::OpaqueCursor<RecordingCatalogCursorCodec>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -27,47 +26,64 @@ struct Envelope {
     position: Position,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct RecordingCatalogCursorCodec;
+impl veoveo_types::CursorCodec for RecordingCatalogCursorCodec {
+    type Position = Position;
+    type Error = RecordingContractError;
+    fn check(&self, _position: &Position) -> Result<(), RecordingContractError> {
+        Ok(())
+    }
+    fn encode(&self, position: &Position) -> Result<String, RecordingContractError> {
+        let bytes = serde_json::to_vec(&Envelope {
+            version: 1,
+            collection: crate::uris::CATALOG_URI.to_owned(),
+            position: position.clone(),
+        })
+        .expect("closed cursor fields serialize");
+        Ok(hex::encode(bytes))
+    }
+    fn decode(&self, wire: &str) -> Result<Position, RecordingContractError> {
+        if wire.is_empty() || wire.len() > 2048 {
+            return Err(RecordingContractError::Cursor);
+        }
+        let bytes = hex::decode(wire).map_err(|_| RecordingContractError::Cursor)?;
+        let value: Envelope =
+            serde_json::from_slice(&bytes).map_err(|_| RecordingContractError::Cursor)?;
+        if value.version != 1 || value.collection != crate::uris::CATALOG_URI {
+            return Err(RecordingContractError::Cursor);
+        }
+        if self.encode(&value.position)? != wire {
+            return Err(RecordingContractError::Cursor);
+        }
+        Ok(value.position)
+    }
+}
 impl RecordingCatalogCursor {
     pub fn new(started_at: DateTime<Utc>, recording_id: RecordingId) -> Self {
-        let position = Position {
-            started_at,
-            recording_id,
-        };
-        let wire = hex::encode(
-            serde_json::to_vec(&Envelope {
-                version: 1,
-                collection: crate::uris::CATALOG_URI.into(),
-                position: position.clone(),
-            })
-            .expect("catalog position serialization"),
-        );
-        Self { wire, position }
+        Self {
+            cursor: veoveo_types::OpaqueCursor::try_new(
+                RecordingCatalogCursorCodec,
+                Position {
+                    started_at,
+                    recording_id,
+                },
+            )
+            .expect("typed cursor position"),
+        }
     }
-    pub fn parse(value: impl Into<String>) -> Result<Self, RecordingContractError> {
-        let value = value.into();
-        let invalid = || RecordingContractError::Cursor;
-        if value.is_empty() || value.len() > 2048 {
-            return Err(invalid());
-        }
-        let bytes = hex::decode(&value).map_err(|_| invalid())?;
-        let envelope: Envelope = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
-        if envelope.version != 1 || envelope.collection != crate::uris::CATALOG_URI {
-            return Err(invalid());
-        }
-        let result = Self::new(envelope.position.started_at, envelope.position.recording_id);
-        if result.wire != value {
-            return Err(invalid());
-        }
-        Ok(result)
+    pub fn parse(wire: impl Into<String>) -> Result<Self, RecordingContractError> {
+        veoveo_types::OpaqueCursor::parse(RecordingCatalogCursorCodec, wire)
+            .map(|cursor| Self { cursor })
     }
     pub fn as_str(&self) -> &str {
-        &self.wire
+        self.cursor.as_str()
     }
     pub fn started_at(&self) -> DateTime<Utc> {
-        self.position.started_at
+        self.cursor.position().started_at
     }
     pub fn recording_id(&self) -> RecordingId {
-        self.position.recording_id
+        self.cursor.position().recording_id
     }
 }
 impl TryFrom<String> for RecordingCatalogCursor {
@@ -78,12 +94,12 @@ impl TryFrom<String> for RecordingCatalogCursor {
 }
 impl From<RecordingCatalogCursor> for String {
     fn from(value: RecordingCatalogCursor) -> Self {
-        value.wire
+        value.cursor.into_wire()
     }
 }
 impl std::fmt::Display for RecordingCatalogCursor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.wire.fmt(f)
+        self.cursor.as_str().fmt(f)
     }
 }
 impl schemars::JsonSchema for RecordingCatalogCursor {

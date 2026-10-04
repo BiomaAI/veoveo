@@ -38,10 +38,39 @@ struct WireCursor {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "String", into = "String")]
 pub struct FrameWorldCursor {
-    wire: String,
-    after: FrameWorldId,
+    cursor: veoveo_types::OpaqueCursor<FrameWorldCursorCodec>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct FrameWorldCursorCodec;
+impl veoveo_types::CursorCodec for FrameWorldCursorCodec {
+    type Position = FrameWorldId;
+    type Error = FrameCatalogError;
+    fn check(&self, _position: &Self::Position) -> Result<(), Self::Error> {
+        Ok(())
+    }
+    fn encode(&self, position: &Self::Position) -> Result<String, Self::Error> {
+        let bytes = serde_json::to_vec(&WireCursor {
+            version: 1,
+            collection: (FrameWorldsUri::ROOT).to_owned(),
+            after: position.clone(),
+        })
+        .expect("closed owner cursor fields serialize");
+        Ok(hex::encode(bytes))
+    }
+    fn decode(&self, wire: &str) -> Result<Self::Position, Self::Error> {
+        if wire.is_empty() || wire.len() > 1024 {
+            return Err(FrameCatalogError);
+        }
+        let bytes = hex::decode(wire).map_err(|_| FrameCatalogError)?;
+        let decoded: WireCursor = serde_json::from_slice(&bytes).map_err(|_| FrameCatalogError)?;
+        if decoded.version != 1 || decoded.collection != FrameWorldsUri::ROOT {
+            return Err(FrameCatalogError);
+        }
+        let position = decoded.after;
+        Ok(position)
+    }
+}
 impl FrameWorldCursor {
     /// A cursor is a position; every page rechecks current caller authority.
     /// ```compile_fail
@@ -49,44 +78,20 @@ impl FrameWorldCursor {
     /// FrameWorldCursor::new(&FrameId::new("camera").unwrap());
     /// ```
     pub fn new(after: &FrameWorldId) -> Self {
-        let wire = hex::encode(
-            serde_json::to_vec(&WireCursor {
-                version: 1,
-                collection: FrameWorldsUri::ROOT.to_owned(),
-                after: after.clone(),
-            })
-            .expect("closed cursor fields serialize"),
-        );
-        Self {
-            wire,
-            after: after.clone(),
-        }
+        let cursor = veoveo_types::OpaqueCursor::try_new(FrameWorldCursorCodec, after.clone())
+            .expect("typed cursor position");
+        Self { cursor }
     }
-
     pub fn parse(wire: impl Into<String>) -> Result<Self, FrameCatalogError> {
-        let wire = wire.into();
-        if wire.is_empty() || wire.len() > 1024 {
-            return Err(FrameCatalogError);
-        }
-        let bytes = hex::decode(&wire).map_err(|_| FrameCatalogError)?;
-        let cursor: WireCursor = serde_json::from_slice(&bytes).map_err(|_| FrameCatalogError)?;
-        if cursor.version != 1 || cursor.collection != FrameWorldsUri::ROOT {
-            return Err(FrameCatalogError);
-        }
-        Ok(Self {
-            wire,
-            after: cursor.after,
-        })
+        veoveo_types::OpaqueCursor::parse(FrameWorldCursorCodec, wire).map(|cursor| Self { cursor })
     }
-
     pub fn after(&self) -> &FrameWorldId {
-        &self.after
+        self.cursor.position()
     }
     pub fn as_str(&self) -> &str {
-        &self.wire
+        self.cursor.as_str()
     }
 }
-
 impl TryFrom<String> for FrameWorldCursor {
     type Error = FrameCatalogError;
     fn try_from(value: String) -> Result<Self, Self::Error> {
@@ -95,7 +100,7 @@ impl TryFrom<String> for FrameWorldCursor {
 }
 impl From<FrameWorldCursor> for String {
     fn from(value: FrameWorldCursor) -> Self {
-        value.wire
+        value.cursor.into_wire()
     }
 }
 

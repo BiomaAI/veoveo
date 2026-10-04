@@ -297,3 +297,7 @@ Installation capability flags must match each server's advertised catalog change
 A static resource catalog can offer resource-specific updates without announcing list
 changes. Map and Time use that profile. A server that narrows a requested catalog
 subscription fails discovery because the gateway cannot safely cache those changes.
+
+## Cursor Admission
+
+Catalog continuation uses an owner codec over typed item keys and the existing version-string/surface JSON envelope. Surface binding and the 16 KiB input ceiling remain in the gateway. Shared cursor mechanics do not enumerate protocol catalog surfaces.

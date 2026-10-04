@@ -201,7 +201,7 @@ impl AuthoringService {
                 "tiles": request.tiles,
             }))?;
             append_tar(&mut archive, "manifest.json", &manifest)?;
-            let style_json = maplibre_style(&request.layer_id.to_string(), style.as_ref());
+            let style_json = maplibre_style(request.layer_id.as_str(), style.as_ref());
             append_tar(
                 &mut archive,
                 "style.json",

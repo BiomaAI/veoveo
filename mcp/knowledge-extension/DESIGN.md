@@ -359,3 +359,7 @@ running server. Review enforces K09 and K10.
 ## Identity Declaration Mechanics
 
 Knowledge names and record/revision identities use `Id` with Knowledge-owned admission and schema functions. Slug, Unicode external-record and visible-ASCII revision profiles retain their individual lengths and accepted spelling. Composite collection addresses keep their separate owner implementation.
+
+## Value Admission
+
+Collection descriptors and search declarations, hits and results use owner `Check` implementations on their retained wire facts. Observation keeps its direct Wire adapter because meaningful relationship validation requires a collection supplied to its explicit validator. ImmutableTrue keeps its scalar profile.

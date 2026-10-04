@@ -44,13 +44,9 @@ pub struct TimeProjection {
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "ResolutionWire", into = "ResolutionWire")]
-pub struct ResolveTimeOutput {
-    instant: TimeInstant,
-    effective_authority: EffectiveTimeAuthority,
-    projection: TimeProjection,
-}
+pub struct ResolveTimeOutput(veoveo_types::Checked<ResolutionWire>);
 
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema, Clone, Debug, PartialEq)]
 struct ResolutionWire {
     instant: TimeInstant,
     effective_authority: EffectiveTimeAuthority,
@@ -64,46 +60,50 @@ impl ResolveTimeOutput {
         effective_authority: EffectiveTimeAuthority,
         projection: TimeProjection,
     ) -> Result<Self, ResolutionAuthorityMismatch> {
-        if instant.authority != effective_authority.binding() {
-            return Err(ResolutionAuthorityMismatch);
-        }
-        Ok(Self {
+        veoveo_types::Checked::new(ResolutionWire {
             instant,
             effective_authority,
             projection,
         })
+        .map(Self)
     }
 
     pub fn instant(&self) -> &TimeInstant {
-        &self.instant
+        &self.0.instant
     }
 
     pub fn into_instant(self) -> TimeInstant {
-        self.instant
+        self.0.into_inner().instant
     }
 
     pub fn effective_authority(&self) -> &EffectiveTimeAuthority {
-        &self.effective_authority
+        &self.0.effective_authority
     }
 
     pub fn projection(&self) -> &TimeProjection {
-        &self.projection
+        &self.0.projection
     }
 }
 
+impl veoveo_types::Check for ResolutionWire {
+    type Error = ResolutionAuthorityMismatch;
+    fn check(&self) -> Result<(), Self::Error> {
+        if self.instant.authority != self.effective_authority.binding() {
+            return Err(ResolutionAuthorityMismatch);
+        }
+
+        Ok(())
+    }
+}
 impl TryFrom<ResolutionWire> for ResolveTimeOutput {
     type Error = ResolutionAuthorityMismatch;
     fn try_from(value: ResolutionWire) -> Result<Self, Self::Error> {
-        Self::new(value.instant, value.effective_authority, value.projection)
+        veoveo_types::Checked::new(value).map(Self)
     }
 }
 
 impl From<ResolveTimeOutput> for ResolutionWire {
     fn from(value: ResolveTimeOutput) -> Self {
-        Self {
-            instant: value.instant,
-            effective_authority: value.effective_authority,
-            projection: value.projection,
-        }
+        value.0.into_inner()
     }
 }

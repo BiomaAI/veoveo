@@ -59,7 +59,7 @@ pub struct EvaluationMember {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "CaseWire", into = "CaseWire")]
-pub struct RetrievalCase(CaseWire);
+pub struct RetrievalCase(veoveo_types::Checked<CaseWire>);
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct CaseWire {
@@ -98,9 +98,10 @@ impl RetrievalCase {
         &self.0.relevant
     }
 }
-impl TryFrom<CaseWire> for RetrievalCase {
+impl veoveo_types::Check for CaseWire {
     type Error = KnowledgeError;
-    fn try_from(value: CaseWire) -> Result<Self, Self::Error> {
+    fn check(&self) -> Result<(), Self::Error> {
+        let value = self;
         if value.query.as_str().len() > 4096
             || value.collections.len() > 1024
             || value.relevant.is_empty()
@@ -113,12 +114,18 @@ impl TryFrom<CaseWire> for RetrievalCase {
                 "retrieval case requires a bounded query and relevant members within its collection selection",
             ));
         }
-        Ok(Self(value))
+        Ok(())
+    }
+}
+impl TryFrom<CaseWire> for RetrievalCase {
+    type Error = KnowledgeError;
+    fn try_from(value: CaseWire) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
     }
 }
 impl From<RetrievalCase> for CaseWire {
     fn from(value: RetrievalCase) -> Self {
-        value.0
+        value.0.into_inner()
     }
 }
 

@@ -102,18 +102,8 @@ pub(super) fn page<T: CatalogItem>(
         .collect::<Vec<_>>();
     let next_cursor = if remaining.next().is_some() {
         let (last, _) = selected.last().expect("positive gateway page size");
-        let bytes = serde_json::to_vec(&Cursor {
-            version: Version::V1,
-            surface: T::SURFACE,
-            after: last,
-        })
-        .map_err(|_| mcp_internal("catalog cursor serialization failed"))?;
-        let encoded = URL_SAFE_NO_PAD.encode(bytes);
-        if encoded.len() > MAX_CURSOR_BYTES {
-            return Err(mcp_internal(
-                "catalog position exceeds the 16 KiB cursor limit",
-            ));
-        }
+        use veoveo_types::CursorCodec;
+        let encoded = CatalogCursorCodec::<T::Key>::new(T::SURFACE).encode(last)?;
         Some(encoded)
     } else {
         None
@@ -124,18 +114,59 @@ pub(super) fn page<T: CatalogItem>(
     })
 }
 
+struct CatalogCursorCodec<K> {
+    surface: Surface,
+    marker: std::marker::PhantomData<K>,
+}
+impl<K> CatalogCursorCodec<K> {
+    fn new(surface: Surface) -> Self {
+        Self {
+            surface,
+            marker: std::marker::PhantomData,
+        }
+    }
+}
+impl<K: Serialize + DeserializeOwned> veoveo_types::CursorCodec for CatalogCursorCodec<K> {
+    type Position = K;
+    type Error = McpError;
+    fn check(&self, _position: &K) -> Result<(), McpError> {
+        Ok(())
+    }
+    fn encode(&self, position: &K) -> Result<String, McpError> {
+        let bytes = serde_json::to_vec(&Cursor {
+            version: Version::V1,
+            surface: self.surface,
+            after: position,
+        })
+        .map_err(|_| mcp_internal("catalog cursor serialization failed"))?;
+        let encoded = URL_SAFE_NO_PAD.encode(bytes);
+        if encoded.len() > MAX_CURSOR_BYTES {
+            return Err(mcp_internal(
+                "catalog position exceeds the 16 KiB cursor limit",
+            ));
+        }
+        Ok(encoded)
+    }
+    fn decode(&self, encoded: &str) -> Result<K, McpError> {
+        let invalid =
+            || mcp_invalid_params("invalid catalog cursor; restart enumeration without a cursor");
+        if encoded.len() > MAX_CURSOR_BYTES {
+            return Err(invalid());
+        }
+        let bytes = URL_SAFE_NO_PAD.decode(encoded).map_err(|_| invalid())?;
+        let cursor: Cursor<K> = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
+        if cursor.surface != self.surface {
+            return Err(invalid());
+        }
+        Ok(cursor.after)
+    }
+}
 fn decode<T: CatalogItem>(encoded: &str) -> Result<T::Key, McpError> {
-    let invalid =
-        || mcp_invalid_params("invalid catalog cursor; restart enumeration without a cursor");
-    if encoded.len() > MAX_CURSOR_BYTES {
-        return Err(invalid());
-    }
-    let bytes = URL_SAFE_NO_PAD.decode(encoded).map_err(|_| invalid())?;
-    let cursor: Cursor<T::Key> = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
-    if cursor.surface != T::SURFACE {
-        return Err(invalid());
-    }
-    Ok(cursor.after)
+    use veoveo_types::CursorCodec;
+    let codec = CatalogCursorCodec::<T::Key>::new(T::SURFACE);
+    let position = codec.decode(encoded)?;
+    codec.check(&position)?;
+    Ok(position)
 }
 
 #[cfg(test)]

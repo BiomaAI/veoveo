@@ -13,7 +13,7 @@ use std::collections::BTreeSet;
 /// ```
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
 #[serde(try_from = "FrameRecordWire")]
-pub struct FrameRecord(FrameRecordWire);
+pub struct FrameRecord(veoveo_types::Checked<FrameRecordWire>);
 
 impl Serialize for FrameRecord {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
@@ -249,9 +249,10 @@ impl FrameCaptureBuilder<'_> {
     }
 }
 
-impl TryFrom<FrameRecordWire> for FrameRecord {
+impl veoveo_types::Check for FrameRecordWire {
     type Error = FrameRecordError;
-    fn try_from(value: FrameRecordWire) -> Result<Self, Self::Error> {
+    fn check(&self) -> Result<(), Self::Error> {
+        let value = self;
         if value.frame_uri != FrameUri::new(value.frame_id.clone())
             || value.composition_uri != CompositionUri::new(value.composition_id.clone())
         {
@@ -296,7 +297,13 @@ impl TryFrom<FrameRecordWire> for FrameRecord {
         {
             return Err(FrameRecordError::Attribution);
         }
-        Ok(Self(value))
+        Ok(())
+    }
+}
+impl TryFrom<FrameRecordWire> for FrameRecord {
+    type Error = FrameRecordError;
+    fn try_from(value: FrameRecordWire) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
     }
 }
 

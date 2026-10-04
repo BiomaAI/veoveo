@@ -1,7 +1,6 @@
 //! Published seal results and manifests with checked immutable occurrence references.
 use crate::{
-    ManifestLayer, RecordingContractError, RecordingDatasetId, RecordingId,
-    checked::{checked_model, text},
+    ManifestLayer, RecordingContractError, RecordingDatasetId, RecordingId, checked::text,
 };
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
@@ -35,6 +34,12 @@ pub struct SealRecordingOutputBuilder {
 }
 impl SealRecordingOutputBuilder {
     pub fn build(self) -> Result<SealRecordingOutput, RecordingContractError> {
+        veoveo_types::Checked::new(self).map(SealRecordingOutput)
+    }
+}
+impl veoveo_types::Check for SealRecordingOutputBuilder {
+    type Error = RecordingContractError;
+    fn check(&self) -> Result<(), Self::Error> {
         let mut occurrences = BTreeSet::new();
         if self.layer_artifact_uris.is_empty()
             || !std::iter::once(&self.manifest_artifact_uri)
@@ -44,10 +49,19 @@ impl SealRecordingOutputBuilder {
         {
             return Err(RecordingContractError::Seal);
         }
-        Ok(SealRecordingOutput(self))
+        Ok(())
     }
 }
-checked_model!(SealRecordingOutput, SealRecordingOutputBuilder);
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(transparent)]
+#[schemars(transparent)]
+pub struct SealRecordingOutput(veoveo_types::Checked<SealRecordingOutputBuilder>);
+impl std::ops::Deref for SealRecordingOutput {
+    type Target = SealRecordingOutputBuilder;
+    fn deref(&self) -> &Self::Target {
+        self.0.get()
+    }
+}
 
 pub const RECORDING_MANIFEST_SCHEMA: &str = "veoveo.ai/recording-manifest/v9";
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
@@ -71,6 +85,12 @@ pub struct RecordingManifestBuilder {
 }
 impl RecordingManifestBuilder {
     pub fn build(self) -> Result<RecordingManifest, RecordingContractError> {
+        veoveo_types::Checked::new(self).map(RecordingManifest)
+    }
+}
+impl veoveo_types::Check for RecordingManifestBuilder {
+    type Error = RecordingContractError;
+    fn check(&self) -> Result<(), Self::Error> {
         let mut layer_ids = BTreeSet::new();
         let mut layer_names = BTreeSet::new();
         let mut occurrences = BTreeSet::new();
@@ -90,10 +110,19 @@ impl RecordingManifestBuilder {
         {
             return Err(RecordingContractError::Seal);
         }
-        Ok(RecordingManifest(self))
+        Ok(())
     }
 }
-checked_model!(RecordingManifest, RecordingManifestBuilder);
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(transparent)]
+#[schemars(transparent)]
+pub struct RecordingManifest(veoveo_types::Checked<RecordingManifestBuilder>);
+impl std::ops::Deref for RecordingManifest {
+    type Target = RecordingManifestBuilder;
+    fn deref(&self) -> &Self::Target {
+        self.0.get()
+    }
+}
 
 /// Blueprint facts checked with their enclosing manifest.
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]

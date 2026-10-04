@@ -37,3 +37,7 @@ The client owns model-specific formatting and checks the formatted request's bud
 ## Identity Declaration Mechanics
 
 Embedding model and revision identities use `Id` with owner validation for printable text of 1–256 bytes. Serde applies this admission through checked String conversion. Embedding dimensions and vectors retain their separate numeric and relationship validators.
+
+## Value Admission
+
+EmbeddingVector stores `Checked` VectorWire facts. Its owner check enforces dimension, finite values and the existing L2 tolerance; the foundation adds no inference or embedding policy.

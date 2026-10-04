@@ -1,12 +1,13 @@
 # Platform Foundations And Contract Consistency Plan
 
-Status: Phase 0 Vocabulary, embedded-document, Id and ResourceAddress concerns
-completed. Owner declarations preserve admission and wire/schema profiles. Scoped
-native checks, contract-only isolation, formatting, document validation and independent
-compiler expansion review qualify these concerns. Shared routes, typed codecs and
-the complete address/schema macro-owner migration are qualified together, including
-owner-supplied encoded patterns checked by a JSON Schema validator. Checked-model
-and cursor mechanics remain open.
+Status: Phase 0 Vocabulary, embedded-document, Id, ResourceAddress, Checked-model
+and opaque-cursor concerns completed. Owner admission and wire/schema profiles are
+qualified through shared mechanics, complete-owner native checks and contract-only
+consumers. Checked models preserve immutable admitted values; explicit adapters retain
+normalization, redundant-field projection and documented mutable representations.
+Cursor owners preserve envelopes, aliases, limits and typed context. Remaining helper,
+error and macro-enforcement work keeps Phase 0 active; later phases and installed
+acceptance requirements remain open.
 This is the single implementation plan for the former Foundations, Contract
 Consistency and Repository Hardening tracks; their required open conditions transfer
 without being declared complete.
@@ -454,7 +455,7 @@ calling crate to embed that crate's documents. Generated code calls ordinary tra
 | Building block | Home | Replaces |
 |---|---|---|
 | `Checked<T: Check>` | `platform/types` | Repeated checked-model plumbing: deserialize once, run the owner’s relationship checks, then expose immutable access. Serialization and schema describe the admitted shape. No unchecked constructor or mutable dereference bypasses validation |
-| `OpaqueCursor<T>` | `platform/types` | Cursor types and macros with owner-selected codec, envelope, version and length limits; preserve the existing payload admission and wire profile |
+| `OpaqueCursor<C: CursorCodec>` | `platform/types` | Typed positions and immutable owner codec instances preserve existing envelope, version, length, alias and context profiles. Parse retains admitted wire; stateless owner adapters supply String Serde explicitly |
 | Error types | Each crate, with `thiserror` | Unit error structs with hand-written `Display`; helper macros become functions |
 
 ### Owner Qualification Constraints
@@ -509,8 +510,33 @@ intentional diagnostic ordering change. Shared route, complete-owner native and
 isolated-contract gates pass. Independent codec fixtures qualify canonical and
 admitted encoded patterns, nonempty query and tail constraints, reserved characters
 and absolute-end rejection with a JSON Schema validator. Compiler expansion review
-qualifies the Map and Time pilots. Checked-model and cursor concerns, the complete
-Phase 0 macro gate and installed acceptance requirements remain open.
+qualifies the Map and Time pilots. The remaining Phase 0 helper/error work, complete
+macro gate and installed acceptance requirements remain open.
+
+### Checked And Cursor Concern Qualification
+
+Owner field-preserving models use `Check` and nominal `Checked` storage. Builders
+and decoding share value relationship checks; schema identity, inline policy, defaults
+and field profiles stay with the owner. Explicit transformations continue to own
+redundant-ID and fixed-limit projections, catalog-grant sorting and retrieval dataset
+or evaluation normalization. Scene composition builders normalize declared inputs
+before admission; decoding still rejects noncanonical retained records.
+
+Observation keeps its direct Wire adapter because collection agreement requires an
+explicit collection. Dictation snapshots retain public mutable progress fields and
+share only their private ID/address Check across construction and decoding. Time
+release references, Frames and Artifact metadata, domain views and frozen Audit
+records keep their intentional Wire/domain separation.
+
+Opaque cursor owners preserve codec-specific envelopes, limits, canonicality and
+context. Artifact's Copy prefix representation and Map Knowledge and Finding's
+on-demand encodings use ordinary codecs without a new String cache. Session-bound
+UAV codecs retain caller context; structured Audit, Task and Store positions do not
+become opaque String tokens. The owner pass covers 31 nominal opaque cursors and four
+anonymous text boundaries without imposing a common encoding. Shared and complete-owner
+native, schema/admission, contextual misuse, immutable-access, contract-only isolation
+and filtered runtime-boundary checks pass. Strict scoped lint and document gates qualify
+this concern; helper/error work and the full Phase 0 macro gate remain open.
 
 ### Rollout And Gates
 

@@ -84,6 +84,12 @@ pub struct RecordingCatalogGrantBuilder {
 
 impl RecordingCatalogGrantBuilder {
     pub fn build(self) -> Result<RecordingCatalogGrant, RecordingContractError> {
+        veoveo_types::Checked::new(self).map(RecordingCatalogGrant)
+    }
+}
+impl veoveo_types::Check for RecordingCatalogGrantBuilder {
+    type Error = RecordingContractError;
+    fn check(&self) -> Result<(), Self::Error> {
         let text = |value: &str| !value.trim().is_empty() && !value.chars().any(char::is_control);
         if self.entry_uri.dataset_id() != self.dataset_id
             || !(1..=500).contains(&self.recording_segment_ids.len())
@@ -97,7 +103,7 @@ impl RecordingCatalogGrantBuilder {
         {
             return Err(RecordingContractError::CatalogGrant);
         }
-        Ok(RecordingCatalogGrant(self))
+        Ok(())
     }
 }
 
@@ -111,19 +117,17 @@ impl RecordingCatalogGrantBuilder {
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 #[serde(transparent)]
 #[schemars(with = "RecordingCatalogGrantBuilder")]
-pub struct RecordingCatalogGrant(RecordingCatalogGrantBuilder);
+pub struct RecordingCatalogGrant(veoveo_types::Checked<RecordingCatalogGrantBuilder>);
 
 impl Deref for RecordingCatalogGrant {
     type Target = RecordingCatalogGrantBuilder;
     fn deref(&self) -> &Self::Target {
-        &self.0
+        self.0.get()
     }
 }
 
 impl<'de> Deserialize<'de> for RecordingCatalogGrant {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        RecordingCatalogGrantBuilder::deserialize(deserializer)?
-            .build()
-            .map_err(serde::de::Error::custom)
+        veoveo_types::Checked::deserialize(deserializer).map(Self)
     }
 }

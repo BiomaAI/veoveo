@@ -573,3 +573,11 @@ This candidate check does not qualify a different runtime image.
 ## Identity Declaration Mechanics
 
 Pipeline and model identities use `Id` with Reason-owned catalog-name admission. Serde decodes validated Strings and schemas retain the inline unconstrained String profile. Analysis Task identity and typed resource admission remain separate owner implementations.
+
+## Value Admission
+
+Finding data and summaries retain their Wire fields through `Checked`. Owner checks enforce recorded task, answer, address, provenance and size relationships; reduced task views keep their explicit domain projections.
+
+## Cursor Admission
+
+Analysis continuation uses a private OpaqueCursor with its owner base64url collection envelope and admitted aliases. Finding continuation keeps its on-demand tuple encoding and canonical equality through an ordinary owner codec; the nominal collection and analysis position stay typed.

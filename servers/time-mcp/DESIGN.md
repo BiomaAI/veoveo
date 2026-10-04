@@ -952,3 +952,11 @@ current authority. Idle sources emit no periodic resource-change notifications. 
 ## Identity Declaration Mechanics
 
 Public Time ID declarations use `Id` with Time-owned prefix and lexical admission. String conversion preserves the supplied spelling and the existing schema profile. Temporal numbers, instants, release relationships and cursors keep their own validation contracts.
+
+## Value Admission
+
+Time windows, authority bindings, effective authority pairs and resolution outputs retain their Wire fields through immutable `Checked` storage. Owner checks enforce ordered coordinates and release/dataset agreement. TimeAuthorityReference keeps the explicit redundant release-ID adapter; the temporal engine owns projection calculations.
+
+## Cursor Admission
+
+The five temporal cursors use owner codecs for their hexadecimal JSON collection envelopes. OpaqueCursor retains admitted original text, including hexadecimal-case and JSON spelling aliases. Constructors keep their existing infallible signatures and parser size policy; copied and borrowed position accessors preserve the owner API.

@@ -841,29 +841,46 @@ fn source_query_digest(request: &QuerySourceFeaturesRequest) -> Result<String> {
     Ok(hex::encode(digest.finalize()))
 }
 
-fn encode_source_cursor(cursor: &SourceFeatureCursor) -> Result<String> {
-    Ok(URL_SAFE_NO_PAD.encode(serde_json::to_vec(cursor)?))
-}
-
-fn decode_source_cursor(value: &str) -> Result<SourceFeatureCursor> {
-    let bytes = URL_SAFE_NO_PAD
-        .decode(value)
-        .context("source-feature cursor is not canonical base64url")?;
-    let cursor: SourceFeatureCursor =
-        serde_json::from_slice(&bytes).context("source-feature cursor is invalid")?;
-    if cursor.query_domain != SOURCE_FEATURE_QUERY_DOMAIN
-        || cursor.query_digest_sha256.len() != 64
-        || !cursor
-            .query_digest_sha256
-            .bytes()
-            .all(|byte| byte.is_ascii_hexdigit())
-        || SourceFeatureId::parse(cursor.feature_id.clone()).is_err()
-        || cursor
-            .distance_m
-            .is_some_and(|value| !value.is_finite() || value < 0.0)
-    {
-        bail!("source-feature cursor fields are invalid");
+struct SourceFeatureCursorCodec;
+impl veoveo_types::CursorCodec for SourceFeatureCursorCodec {
+    type Position = SourceFeatureCursor;
+    type Error = anyhow::Error;
+    fn check(&self, cursor: &SourceFeatureCursor) -> Result<()> {
+        if cursor.query_domain != SOURCE_FEATURE_QUERY_DOMAIN
+            || cursor.query_digest_sha256.len() != 64
+            || !cursor
+                .query_digest_sha256
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit())
+            || SourceFeatureId::parse(cursor.feature_id.clone()).is_err()
+            || cursor
+                .distance_m
+                .is_some_and(|value| !value.is_finite() || value < 0.0)
+        {
+            bail!("source-feature cursor fields are invalid");
+        }
+        Ok(())
     }
+    fn encode(&self, cursor: &SourceFeatureCursor) -> Result<String> {
+        Ok(URL_SAFE_NO_PAD.encode(serde_json::to_vec(cursor)?))
+    }
+    fn decode(&self, value: &str) -> Result<SourceFeatureCursor> {
+        let bytes = URL_SAFE_NO_PAD
+            .decode(value)
+            .context("source-feature cursor is not canonical base64url")?;
+        let cursor: SourceFeatureCursor =
+            serde_json::from_slice(&bytes).context("source-feature cursor is invalid")?;
+        Ok(cursor)
+    }
+}
+fn encode_source_cursor(cursor: &SourceFeatureCursor) -> Result<String> {
+    use veoveo_types::CursorCodec;
+    SourceFeatureCursorCodec.encode(cursor)
+}
+fn decode_source_cursor(wire: &str) -> Result<SourceFeatureCursor> {
+    use veoveo_types::CursorCodec;
+    let cursor = SourceFeatureCursorCodec.decode(wire)?;
+    SourceFeatureCursorCodec.check(&cursor)?;
     Ok(cursor)
 }
 

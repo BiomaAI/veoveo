@@ -35,7 +35,7 @@ impl FindingAnswer {
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(try_from = "FindingDataWire", into = "FindingDataWire")]
-pub struct FindingData(pub(super) FindingDataWire);
+pub struct FindingData(pub(super) veoveo_types::Checked<FindingDataWire>);
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -165,9 +165,10 @@ impl FindingData {
         &self.0.source_snapshot_sha256
     }
 }
-impl TryFrom<FindingDataWire> for FindingData {
+impl veoveo_types::Check for FindingDataWire {
     type Error = anyhow::Error;
-    fn try_from(value: FindingDataWire) -> Result<Self> {
+    fn check(&self) -> Result<(), Self::Error> {
+        let value = self;
         validate_reasoning_task(&value.task)?;
         validate_decode(value.decode)?;
         ensure!(
@@ -184,11 +185,17 @@ impl TryFrom<FindingDataWire> for FindingData {
             serde_json::to_vec(&value)?.len() <= FINDING_DATA_BYTES,
             "retained finding exceeds 60 KiB"
         );
-        Ok(Self(value))
+        Ok(())
+    }
+}
+impl TryFrom<FindingDataWire> for FindingData {
+    type Error = anyhow::Error;
+    fn try_from(value: FindingDataWire) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
     }
 }
 impl From<FindingData> for FindingDataWire {
     fn from(value: FindingData) -> Self {
-        value.0
+        value.0.into_inner()
     }
 }

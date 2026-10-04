@@ -64,7 +64,7 @@ pub struct FindingEvent {
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(try_from = "FindingSummaryWire", into = "FindingSummaryWire")]
-pub struct FindingSummary(FindingSummaryWire);
+pub struct FindingSummary(veoveo_types::Checked<FindingSummaryWire>);
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -184,18 +184,19 @@ impl FindingSummary {
     }
 }
 
-impl TryFrom<FindingSummaryWire> for FindingSummary {
+impl veoveo_types::Check for FindingSummaryWire {
     type Error = anyhow::Error;
-    fn try_from(value: FindingSummaryWire) -> Result<Self> {
+    fn check(&self) -> Result<(), Self::Error> {
+        let value = self;
         let FindingResource::Member {
             collection,
             analysis,
-        } = value.uri
+        } = &value.uri
         else {
             anyhow::bail!("finding summary requires a member address");
         };
         ensure!(
-            analysis == value.analysis_id,
+            *analysis == value.analysis_id,
             "finding URI and analysis disagree"
         );
         ensure!(
@@ -211,17 +212,23 @@ impl TryFrom<FindingSummaryWire> for FindingSummary {
             "finding range is reversed"
         );
         validate_decode(value.decode)?;
-        value.content.validate(collection, value.requested_range)?;
+        value.content.validate(*collection, value.requested_range)?;
         ensure!(
             serde_json::to_vec(&value)?.len() <= FINDING_SUMMARY_BYTES,
             "finding member exceeds 64 KiB"
         );
-        Ok(Self(value))
+        Ok(())
+    }
+}
+impl TryFrom<FindingSummaryWire> for FindingSummary {
+    type Error = anyhow::Error;
+    fn try_from(value: FindingSummaryWire) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
     }
 }
 impl From<FindingSummary> for FindingSummaryWire {
     fn from(value: FindingSummary) -> Self {
-        value.0
+        value.0.into_inner()
     }
 }
 

@@ -1112,3 +1112,11 @@ turning a recoverable connection outage into a liveness-driven restart.
 ## Identity Declaration Mechanics
 
 Map ID declarations use `Id` with Map-owned prefixes, UUID admission and stable-key namespace. Owners that accept UUID aliases preserve their input spelling; canonical owners require RFC spelling. UUIDv5 stable-key generation and UUIDv7 fresh generation share the owner admission path. Coordinate names and travel keys keep their separate lexical validators and schema profiles.
+
+## Value Admission
+
+SourceSummary stores unchanged summary fields through `Checked` with Map-owned parent and metadata relationships. Restriction summaries keep their explicit URI-derived identity adapter.
+
+## Cursor Admission
+
+Source, restriction, mobility and travel cursors retain canonical hexadecimal JSON under owner codecs. Metadata continuation preserves admitted text and keeps selection agreement in its explicit resume adapter. Knowledge cursors retain on-demand member encoding. Anonymous feature and source-query cursors keep their existing base64url payloads; query digest and ordering checks remain in their query owners. Page wire checks precede fixed-limit domain projections.

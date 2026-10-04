@@ -9,8 +9,7 @@ use crate::uris;
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
 pub struct RunCursor {
-    wire: String,
-    position: Position,
+    cursor: veoveo_types::OpaqueCursor<RunCursorCodec>,
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -25,48 +24,62 @@ struct Wire {
     collection: String,
     position: Position,
 }
-impl RunCursor {
-    pub fn new(created_at: DateTime<Utc>, run_id: RunId) -> Self {
-        let position = Position {
-            created_at,
-            task_id: run_id,
-        };
-        let wire = URL_SAFE_NO_PAD.encode(
-            serde_json::to_vec(&Wire {
-                version: 1,
-                collection: uris::RUNS_URI.into(),
-                position: position.clone(),
-            })
-            .expect("fixed cursor fields serialize"),
-        );
-        Self { wire, position }
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct RunCursorCodec;
+impl veoveo_types::CursorCodec for RunCursorCodec {
+    type Position = Position;
+    type Error = StreamContractError;
+    fn check(&self, _position: &Position) -> Result<(), StreamContractError> {
+        Ok(())
     }
-    pub fn parse(value: impl Into<String>) -> Result<Self, StreamContractError> {
-        let wire = value.into();
+    fn encode(&self, position: &Position) -> Result<String, StreamContractError> {
+        let bytes = serde_json::to_vec(&Wire {
+            version: 1,
+            collection: uris::RUNS_URI.to_owned(),
+            position: position.clone(),
+        })
+        .expect("closed cursor fields serialize");
+        Ok(URL_SAFE_NO_PAD.encode(bytes))
+    }
+    fn decode(&self, wire: &str) -> Result<Position, StreamContractError> {
         if wire.is_empty() || wire.len() > 1024 {
             return Err(StreamContractError::InvalidCursor);
         }
         let bytes = URL_SAFE_NO_PAD
-            .decode(&wire)
+            .decode(wire)
             .map_err(|_| StreamContractError::InvalidCursor)?;
         let value: Wire =
             serde_json::from_slice(&bytes).map_err(|_| StreamContractError::InvalidCursor)?;
         if value.version != 1 || value.collection != uris::RUNS_URI {
             return Err(StreamContractError::InvalidCursor);
         }
-        Ok(Self {
-            wire,
-            position: value.position,
-        })
+        Ok(value.position)
+    }
+}
+impl RunCursor {
+    pub fn new(created_at: DateTime<Utc>, run_id: RunId) -> Self {
+        Self {
+            cursor: veoveo_types::OpaqueCursor::try_new(
+                RunCursorCodec,
+                Position {
+                    created_at,
+                    task_id: run_id,
+                },
+            )
+            .expect("typed cursor position"),
+        }
+    }
+    pub fn parse(wire: impl Into<String>) -> Result<Self, StreamContractError> {
+        veoveo_types::OpaqueCursor::parse(RunCursorCodec, wire).map(|cursor| Self { cursor })
     }
     pub fn as_str(&self) -> &str {
-        &self.wire
+        self.cursor.as_str()
     }
     pub fn created_at(&self) -> DateTime<Utc> {
-        self.position.created_at
+        self.cursor.position().created_at
     }
     pub fn run_id(&self) -> RunId {
-        self.position.task_id
+        self.cursor.position().task_id
     }
 }
 impl TryFrom<String> for RunCursor {
@@ -77,7 +90,7 @@ impl TryFrom<String> for RunCursor {
 }
 impl From<RunCursor> for String {
     fn from(value: RunCursor) -> Self {
-        value.wire
+        value.cursor.into_wire()
     }
 }
 impl schemars::JsonSchema for RunCursor {
@@ -96,8 +109,7 @@ impl schemars::JsonSchema for RunCursor {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
 pub struct SessionCursor {
-    wire: String,
-    position: SessionId,
+    cursor: veoveo_types::OpaqueCursor<SessionCursorCodec>,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -106,41 +118,53 @@ struct SessionWire {
     collection: String,
     position: SessionId,
 }
-impl SessionCursor {
-    pub fn new(position: SessionId) -> Self {
-        let wire = URL_SAFE_NO_PAD.encode(
-            serde_json::to_vec(&SessionWire {
-                version: 1,
-                collection: uris::SESSIONS_URI.into(),
-                position,
-            })
-            .expect("fixed cursor fields serialize"),
-        );
-        Self { wire, position }
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct SessionCursorCodec;
+impl veoveo_types::CursorCodec for SessionCursorCodec {
+    type Position = SessionId;
+    type Error = StreamContractError;
+    fn check(&self, _position: &SessionId) -> Result<(), StreamContractError> {
+        Ok(())
     }
-    pub fn parse(value: impl Into<String>) -> Result<Self, StreamContractError> {
-        let wire = value.into();
+    fn encode(&self, position: &SessionId) -> Result<String, StreamContractError> {
+        let bytes = serde_json::to_vec(&SessionWire {
+            version: 1,
+            collection: uris::SESSIONS_URI.to_owned(),
+            position: position.clone(),
+        })
+        .expect("closed cursor fields serialize");
+        Ok(URL_SAFE_NO_PAD.encode(bytes))
+    }
+    fn decode(&self, wire: &str) -> Result<SessionId, StreamContractError> {
         if wire.is_empty() || wire.len() > 1024 {
             return Err(StreamContractError::InvalidCursor);
         }
         let bytes = URL_SAFE_NO_PAD
-            .decode(&wire)
+            .decode(wire)
             .map_err(|_| StreamContractError::InvalidCursor)?;
         let value: SessionWire =
             serde_json::from_slice(&bytes).map_err(|_| StreamContractError::InvalidCursor)?;
         if value.version != 1 || value.collection != uris::SESSIONS_URI {
             return Err(StreamContractError::InvalidCursor);
         }
-        Ok(Self {
-            wire,
-            position: value.position,
-        })
+        Ok(value.position)
+    }
+}
+impl SessionCursor {
+    pub fn new(position: SessionId) -> Self {
+        Self {
+            cursor: veoveo_types::OpaqueCursor::try_new(SessionCursorCodec, position)
+                .expect("typed cursor position"),
+        }
+    }
+    pub fn parse(wire: impl Into<String>) -> Result<Self, StreamContractError> {
+        veoveo_types::OpaqueCursor::parse(SessionCursorCodec, wire).map(|cursor| Self { cursor })
     }
     pub fn as_str(&self) -> &str {
-        &self.wire
+        self.cursor.as_str()
     }
     pub fn session_id(&self) -> SessionId {
-        self.position
+        *self.cursor.position()
     }
 }
 impl TryFrom<String> for SessionCursor {
@@ -151,7 +175,7 @@ impl TryFrom<String> for SessionCursor {
 }
 impl From<SessionCursor> for String {
     fn from(value: SessionCursor) -> Self {
-        value.wire
+        value.cursor.into_wire()
     }
 }
 impl schemars::JsonSchema for SessionCursor {

@@ -55,3 +55,7 @@ materialization. The library defines neither server's resource vocabulary. Selec
 validation checks ranges, entity paths and timeline names. The runtime converts the
 admitted Recording ID to a Store ID and checks current access when resolving the source.
 Successful contract decoding establishes address validity, not source authorization.
+
+## Value Admission
+
+Recording source identities and ordered snapshots store owner-checked builder facts through `Checked`. Admission verifies layer identity, source distinctness and byte accumulation without reordering the digest inputs.

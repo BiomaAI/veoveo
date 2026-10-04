@@ -201,3 +201,7 @@ Checked constructors initialize private wire caches, and discovery templates ali
 generated declaration. Serde and schema declarations preserve the public string profile;
 cursor payload encoding remains a separate checked owner contract. Prediction page addresses use the same route mechanism with their own prediction
 cursor codec and unchanged query spelling.
+
+## Cursor Admission
+
+Usage and prediction cursors retain their distinct typed Task and prediction positions through owner base64url JSON codecs. Parsing preserves admitted wire aliases and existing collection and size checks. Entry/page admission precedes explicit redundant-ID and fixed-limit projection.

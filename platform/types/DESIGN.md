@@ -391,6 +391,25 @@ using this representation for admission. Prefixes preserve their literal spellin
 including encoded delimiters. This selection language has separate semantics from
 RFC 6570 expansion through `ResourceTemplateUri`.
 
+## Checked Values And Opaque Cursors
+
+`Check` admits field-preserving values through owner-defined relationship checks.
+`Checked<T>` stores an admitted value privately and exposes borrowed access or consuming
+extraction. Construction and deserialization run the same check once. Serialization and
+JSON Schema delegate the owner's shape, name, identity and inline policy. Checks describe
+value relationships; services own current authorization and external liveness. Owners
+prevent mutation through interior mutability. Normalization and redundant-identity
+projection use explicit owner adapters before admission.
+
+`CursorCodec` owns a typed position, validation, encoding and decoding. `OpaqueCursor<C>`
+stores the immutable owner codec, admitted position and original wire. Construction checks
+then encodes; parsing decodes then checks without automatically re-encoding aliases.
+Owners choose envelope fields, versions, size limits and canonicality. Contextual codecs
+retain their session or query binding and have no generic deserializer that invents context.
+Protocol adapters own String Serde where their current profile supplies a stateless codec.
+Owner codecs and positions prevent interior mutation that could invalidate admission;
+borrowed getters alone cannot prove arbitrary externally implemented types immutable.
+
 ## Closed Vocabulary Mechanics
 
 The public `Vocabulary` trait exposes a domain-owned variant slice and spelling

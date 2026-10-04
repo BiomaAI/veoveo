@@ -9,7 +9,7 @@ use veoveo_types::ResourceUri;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "SearchWire", into = "SearchWire")]
-pub struct SearchRequest(SearchWire);
+pub struct SearchRequest(veoveo_types::Checked<SearchWire>);
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct SearchWire {
@@ -53,9 +53,10 @@ impl SearchRequest {
         self.0.limit
     }
 }
-impl TryFrom<SearchWire> for SearchRequest {
+impl veoveo_types::Check for SearchWire {
     type Error = KnowledgeError;
-    fn try_from(value: SearchWire) -> Result<Self, Self::Error> {
+    fn check(&self) -> Result<(), Self::Error> {
+        let value = self;
         if !(1..=20).contains(&value.limit)
             || value.collections.len() > 1024
             || value.entity_kinds.len() > 32
@@ -64,12 +65,18 @@ impl TryFrom<SearchWire> for SearchRequest {
                 "search requires 1..=20 results, at most 1024 collections and 32 kinds",
             ));
         }
-        Ok(Self(value))
+        Ok(())
+    }
+}
+impl TryFrom<SearchWire> for SearchRequest {
+    type Error = KnowledgeError;
+    fn try_from(value: SearchWire) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
     }
 }
 impl From<SearchRequest> for SearchWire {
     fn from(value: SearchRequest) -> Self {
-        value.0
+        value.0.into_inner()
     }
 }
 

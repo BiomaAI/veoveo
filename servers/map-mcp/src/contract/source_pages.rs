@@ -16,45 +16,58 @@ struct CursorWire {
 #[serde(try_from = "String", into = "String")]
 #[schemars(with = "String")]
 pub struct MapSourceCursor {
-    wire: String,
-    after: MapSourceId,
+    cursor: veoveo_types::OpaqueCursor<MapSourceCursorCodec>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct MapSourceCursorCodec;
+impl veoveo_types::CursorCodec for MapSourceCursorCodec {
+    type Position = MapSourceId;
+    type Error = MapSourceError;
+    fn check(&self, _position: &Self::Position) -> Result<(), Self::Error> {
+        Ok(())
+    }
+    fn encode(&self, position: &Self::Position) -> Result<String, Self::Error> {
+        let bytes = serde_json::to_vec(&CursorWire {
+            version: 1,
+            collection: (MapSourcesUri::ROOT).to_owned(),
+            after: position.clone(),
+        })
+        .expect("closed owner cursor fields serialize");
+        Ok(hex::encode(bytes))
+    }
+    fn decode(&self, wire: &str) -> Result<Self::Position, Self::Error> {
+        if wire.is_empty() || wire.len() > 1024 {
+            return Err(MapSourceError::Cursor);
+        }
+        let bytes = hex::decode(wire).map_err(|_| MapSourceError::Cursor)?;
+        let decoded: CursorWire =
+            serde_json::from_slice(&bytes).map_err(|_| MapSourceError::Cursor)?;
+        if decoded.version != 1 || decoded.collection != MapSourcesUri::ROOT {
+            return Err(MapSourceError::Cursor);
+        }
+        let position = decoded.after;
+        self.check(&position)?;
+        if self.encode(&position)? != wire {
+            return Err(MapSourceError::Cursor);
+        }
+        Ok(position)
+    }
 }
 impl MapSourceCursor {
     pub fn new(after: MapSourceId) -> Self {
-        Self {
-            wire: hex::encode(
-                serde_json::to_vec(&CursorWire {
-                    version: 1,
-                    collection: MapSourcesUri::ROOT.to_owned(),
-                    after: after.clone(),
-                })
-                .expect("closed source cursor"),
-            ),
-            after,
-        }
+        let cursor = veoveo_types::OpaqueCursor::try_new(MapSourceCursorCodec, after)
+            .expect("typed cursor position");
+        Self { cursor }
     }
     pub fn parse(wire: impl Into<String>) -> Result<Self, MapSourceError> {
-        let wire = wire.into();
-        if wire.len() > 1024 {
-            return Err(MapSourceError::Cursor);
-        }
-        let cursor: CursorWire =
-            serde_json::from_slice(&hex::decode(&wire).map_err(|_| MapSourceError::Cursor)?)
-                .map_err(|_| MapSourceError::Cursor)?;
-        if cursor.version != 1 || cursor.collection != MapSourcesUri::ROOT {
-            return Err(MapSourceError::Cursor);
-        }
-        let admitted = Self::new(cursor.after);
-        if admitted.wire != wire {
-            return Err(MapSourceError::Cursor);
-        }
-        Ok(admitted)
+        veoveo_types::OpaqueCursor::parse(MapSourceCursorCodec, wire).map(|cursor| Self { cursor })
     }
     pub fn after(&self) -> &MapSourceId {
-        &self.after
+        self.cursor.position()
     }
     pub fn as_str(&self) -> &str {
-        &self.wire
+        self.cursor.as_str()
     }
 }
 impl TryFrom<String> for MapSourceCursor {
@@ -65,7 +78,7 @@ impl TryFrom<String> for MapSourceCursor {
 }
 impl From<MapSourceCursor> for String {
     fn from(value: MapSourceCursor) -> Self {
-        value.wire
+        value.cursor.into_wire()
     }
 }
 
@@ -117,14 +130,14 @@ fn check_order(items: &[SourceSummary]) -> Result<(), MapSourceError> {
     }
     Ok(())
 }
-impl TryFrom<PageWire> for MapSourcePage {
+impl veoveo_types::Check for PageWire {
     type Error = MapSourceError;
-    fn try_from(wire: PageWire) -> Result<Self, Self::Error> {
-        if wire.limit != SOURCE_PAGE_SIZE
-            || wire.items.len() > SOURCE_PAGE_SIZE
-            || wire.next_cursor.as_ref().is_some_and(|cursor| {
-                wire.items.len() != SOURCE_PAGE_SIZE
-                    || wire
+    fn check(&self) -> Result<(), Self::Error> {
+        if self.limit != SOURCE_PAGE_SIZE
+            || self.items.len() > SOURCE_PAGE_SIZE
+            || self.next_cursor.as_ref().is_some_and(|cursor| {
+                self.items.len() != SOURCE_PAGE_SIZE
+                    || self
                         .items
                         .last()
                         .is_none_or(|item| item.source_id() != cursor.after())
@@ -132,7 +145,15 @@ impl TryFrom<PageWire> for MapSourcePage {
         {
             return Err(MapSourceError::Page);
         }
-        check_order(&wire.items)?;
+        check_order(&self.items)?;
+
+        Ok(())
+    }
+}
+impl TryFrom<PageWire> for MapSourcePage {
+    type Error = MapSourceError;
+    fn try_from(wire: PageWire) -> Result<Self, Self::Error> {
+        let wire = veoveo_types::Checked::new(wire)?.into_inner();
         Ok(Self {
             items: wire.items,
             next_cursor: wire.next_cursor,

@@ -52,22 +52,41 @@ pub fn paginate<T>(
     })
 }
 
-fn encode_cursor(offset: usize) -> String {
-    format!("{CURSOR_PREFIX}{offset}")
+struct OffsetCursorCodec;
+impl veoveo_types::CursorCodec for OffsetCursorCodec {
+    type Position = usize;
+    type Error = PaginationError;
+    fn check(&self, _position: &usize) -> Result<(), Self::Error> {
+        Ok(())
+    }
+    fn encode(&self, position: &usize) -> Result<String, Self::Error> {
+        Ok(format!("{CURSOR_PREFIX}{position}"))
+    }
+    fn decode(&self, wire: &str) -> Result<usize, Self::Error> {
+        wire.strip_prefix(CURSOR_PREFIX)
+            .and_then(|offset| offset.parse().ok())
+            .ok_or_else(|| PaginationError::InvalidCursor(wire.to_owned()))
+    }
 }
-
-fn decode_cursor(cursor: &str) -> Result<usize, PaginationError> {
-    let Some(offset) = cursor.strip_prefix(CURSOR_PREFIX) else {
-        return Err(PaginationError::InvalidCursor(cursor.to_string()));
-    };
-    offset
-        .parse::<usize>()
-        .map_err(|_| PaginationError::InvalidCursor(cursor.to_string()))
+fn encode_cursor(offset: usize) -> String {
+    veoveo_types::OpaqueCursor::try_new(OffsetCursorCodec, offset)
+        .expect("integer offset serialization")
+        .into_wire()
+}
+fn decode_cursor(wire: &str) -> Result<usize, PaginationError> {
+    veoveo_types::OpaqueCursor::parse(OffsetCursorCodec, wire).map(|cursor| *cursor.position())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn offset_cursor_preserves_admitted_numeric_aliases() {
+        assert_eq!(decode_cursor("v1:0002").unwrap(), 2);
+        assert_eq!(encode_cursor(2), "v1:2");
+        assert!(decode_cursor("v2:2").is_err());
+    }
 
     #[test]
     fn paginate_returns_next_cursor() {

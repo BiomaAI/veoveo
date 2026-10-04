@@ -44,6 +44,38 @@ pub struct FindingCursor {
     created_at: DateTime<Utc>,
     analysis: AnalysisId,
 }
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct FindingCursorCodec;
+impl veoveo_types::CursorCodec for FindingCursorCodec {
+    type Position = (FindingCollection, DateTime<Utc>, AnalysisId);
+    type Error = ReasonContractError;
+    fn check(&self, _position: &Self::Position) -> Result<(), Self::Error> {
+        Ok(())
+    }
+    fn encode(&self, position: &Self::Position) -> Result<String, Self::Error> {
+        Ok(URL_SAFE_NO_PAD.encode(
+            serde_json::to_vec(&(1_u8, position.0, position.1, position.2)).expect("fixed cursor"),
+        ))
+    }
+    fn decode(&self, wire: &str) -> Result<Self::Position, Self::Error> {
+        let bad = || ReasonContractError::InvalidCursor;
+        if wire.is_empty() || wire.len() > 1024 {
+            return Err(bad());
+        }
+        let bytes = URL_SAFE_NO_PAD.decode(wire).map_err(|_| bad())?;
+        let (version, collection, created_at, analysis): (
+            u8,
+            FindingCollection,
+            DateTime<Utc>,
+            AnalysisId,
+        ) = serde_json::from_slice(&bytes).map_err(|_| bad())?;
+        let position = (collection, created_at, analysis);
+        if version != 1 || self.encode(&position)? != wire {
+            return Err(bad());
+        }
+        Ok(position)
+    }
+}
 impl FindingCursor {
     pub fn new(
         collection: FindingCollection,
@@ -66,34 +98,22 @@ impl FindingCursor {
         self.analysis
     }
     pub fn encode(&self) -> String {
-        URL_SAFE_NO_PAD.encode(
-            serde_json::to_vec(&(1_u8, self.collection, self.created_at, self.analysis))
-                .expect("fixed cursor"),
-        )
+        use veoveo_types::CursorCodec;
+        FindingCursorCodec
+            .encode(&(self.collection, self.created_at, self.analysis))
+            .expect("fixed cursor")
     }
-    pub fn parse(value: &str) -> Result<Self, ReasonContractError> {
-        let bad = || ReasonContractError::InvalidCursor;
-        if value.is_empty() || value.len() > 1024 {
-            return Err(bad());
-        }
-        let bytes = URL_SAFE_NO_PAD.decode(value).map_err(|_| bad())?;
-        let (version, collection, created_at, analysis): (
-            u8,
-            FindingCollection,
-            DateTime<Utc>,
-            AnalysisId,
-        ) = serde_json::from_slice(&bytes).map_err(|_| bad())?;
-        let cursor = Self::new(collection, created_at, analysis);
-        if version != 1 || cursor.encode() != value {
-            return Err(bad());
-        }
-        Ok(cursor)
+    pub fn parse(wire: &str) -> Result<Self, ReasonContractError> {
+        use veoveo_types::CursorCodec;
+        let position = FindingCursorCodec.decode(wire)?;
+        FindingCursorCodec.check(&position)?;
+        Ok(Self::new(position.0, position.1, position.2))
     }
 }
 impl TryFrom<String> for FindingCursor {
     type Error = ReasonContractError;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::parse(&value)
+    fn try_from(wire: String) -> Result<Self, Self::Error> {
+        Self::parse(&wire)
     }
 }
 impl From<FindingCursor> for String {

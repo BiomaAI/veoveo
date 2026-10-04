@@ -36,10 +36,41 @@ struct CursorWire {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "String", into = "String")]
 pub struct TimeseriesUsageCursor {
-    wire: String,
-    after: TaskId,
+    cursor: veoveo_types::OpaqueCursor<TimeseriesUsageCursorCodec>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct TimeseriesUsageCursorCodec;
+impl veoveo_types::CursorCodec for TimeseriesUsageCursorCodec {
+    type Position = TaskId;
+    type Error = TimeseriesUsageError;
+    fn check(&self, position: &Self::Position) -> Result<(), Self::Error> {
+        task_identity(*position).map(|_| ())
+    }
+    fn encode(&self, position: &Self::Position) -> Result<String, Self::Error> {
+        let bytes = serde_json::to_vec(&CursorWire {
+            version: 1,
+            task_id: *position,
+        })
+        .expect("closed owner cursor fields serialize");
+        Ok(URL_SAFE_NO_PAD.encode(bytes))
+    }
+    fn decode(&self, wire: &str) -> Result<Self::Position, Self::Error> {
+        if wire.is_empty() || wire.len() > 1024 {
+            return Err(TimeseriesUsageError);
+        }
+        let bytes = URL_SAFE_NO_PAD
+            .decode(wire)
+            .map_err(|_| TimeseriesUsageError)?;
+        let decoded: CursorWire =
+            serde_json::from_slice(&bytes).map_err(|_| TimeseriesUsageError)?;
+        if decoded.version != 1 {
+            return Err(TimeseriesUsageError);
+        }
+        let position = decoded.task_id;
+        Ok(position)
+    }
+}
 impl TimeseriesUsageCursor {
     /// Positions require native Task identities.
     /// ```compile_fail
@@ -47,44 +78,20 @@ impl TimeseriesUsageCursor {
     /// TimeseriesUsageCursor::new("raw-task-id");
     /// ```
     pub fn new(after: TaskId) -> Result<Self, TimeseriesUsageError> {
-        let after = task_identity(after)?;
-        let wire = URL_SAFE_NO_PAD.encode(
-            serde_json::to_vec(&CursorWire {
-                version: 1,
-                task_id: after,
-            })
-            .expect("closed usage cursor fields serialize"),
-        );
-        Ok(Self { wire, after })
+        let cursor = veoveo_types::OpaqueCursor::try_new(TimeseriesUsageCursorCodec, after)?;
+        Ok(Self { cursor })
     }
-
     pub fn parse(wire: impl Into<String>) -> Result<Self, TimeseriesUsageError> {
-        let wire = wire.into();
-        if wire.is_empty() || wire.len() > 1024 {
-            return Err(TimeseriesUsageError);
-        }
-        let bytes = URL_SAFE_NO_PAD
-            .decode(&wire)
-            .map_err(|_| TimeseriesUsageError)?;
-        let cursor: CursorWire =
-            serde_json::from_slice(&bytes).map_err(|_| TimeseriesUsageError)?;
-        if cursor.version != 1 {
-            return Err(TimeseriesUsageError);
-        }
-        Ok(Self {
-            wire,
-            after: task_identity(cursor.task_id)?,
-        })
+        veoveo_types::OpaqueCursor::parse(TimeseriesUsageCursorCodec, wire)
+            .map(|cursor| Self { cursor })
     }
-
     pub fn after(&self) -> TaskId {
-        self.after
+        *self.cursor.position()
     }
     pub fn as_str(&self) -> &str {
-        &self.wire
+        self.cursor.as_str()
     }
 }
-
 impl TryFrom<String> for TimeseriesUsageCursor {
     type Error = TimeseriesUsageError;
     fn try_from(value: String) -> Result<Self, Self::Error> {
@@ -93,7 +100,7 @@ impl TryFrom<String> for TimeseriesUsageCursor {
 }
 impl From<TimeseriesUsageCursor> for String {
     fn from(value: TimeseriesUsageCursor) -> Self {
-        value.wire
+        value.cursor.into_wire()
     }
 }
 
@@ -219,12 +226,20 @@ impl TimeseriesUsageEntry {
         &self.usage_uri
     }
 }
+impl veoveo_types::Check for EntryWire {
+    type Error = TimeseriesUsageError;
+    fn check(&self) -> Result<(), Self::Error> {
+        if self.task_id != self.usage_uri.task_id() {
+            return Err(TimeseriesUsageError);
+        }
+
+        Ok(())
+    }
+}
 impl TryFrom<EntryWire> for TimeseriesUsageEntry {
     type Error = TimeseriesUsageError;
     fn try_from(value: EntryWire) -> Result<Self, Self::Error> {
-        if value.task_id != value.usage_uri.task_id() {
-            return Err(TimeseriesUsageError);
-        }
+        let value = veoveo_types::Checked::new(value)?.into_inner();
         Ok(Self {
             usage_uri: value.usage_uri,
         })
@@ -279,22 +294,30 @@ impl TimeseriesUsagePage {
         self.next_cursor.as_ref()
     }
 }
-impl TryFrom<PageWire> for TimeseriesUsagePage {
+impl veoveo_types::Check for PageWire {
     type Error = TimeseriesUsageError;
-    fn try_from(value: PageWire) -> Result<Self, Self::Error> {
-        if value.limit != TIMESERIES_USAGE_PAGE_SIZE
-            || value.usage.len() > TIMESERIES_USAGE_PAGE_SIZE
-            || value
+    fn check(&self) -> Result<(), Self::Error> {
+        if self.limit != TIMESERIES_USAGE_PAGE_SIZE
+            || self.usage.len() > TIMESERIES_USAGE_PAGE_SIZE
+            || self
                 .usage
                 .windows(2)
                 .any(|pair| pair[0].task_id() >= pair[1].task_id())
-            || value.next_cursor.as_ref().is_some_and(|cursor| {
-                value.usage.len() != TIMESERIES_USAGE_PAGE_SIZE
-                    || value.usage.last().map(TimeseriesUsageEntry::task_id) != Some(cursor.after())
+            || self.next_cursor.as_ref().is_some_and(|cursor| {
+                self.usage.len() != TIMESERIES_USAGE_PAGE_SIZE
+                    || self.usage.last().map(TimeseriesUsageEntry::task_id) != Some(cursor.after())
             })
         {
             return Err(TimeseriesUsageError);
         }
+
+        Ok(())
+    }
+}
+impl TryFrom<PageWire> for TimeseriesUsagePage {
+    type Error = TimeseriesUsageError;
+    fn try_from(value: PageWire) -> Result<Self, Self::Error> {
+        let value = veoveo_types::Checked::new(value)?.into_inner();
         Ok(Self {
             usage: value.usage,
             next_cursor: value.next_cursor,

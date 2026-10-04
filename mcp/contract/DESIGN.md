@@ -736,3 +736,7 @@ event history without forwarding denied Task payloads or emitting idle timer cha
 ## Identity Declaration Mechanics
 
 Gateway, deployment and Workspace identity declarations use the foundational `Identity` interface through `Id`; each owner selects admission and Serde/schema behavior. `PrincipalDisplayName` is checked display metadata and does not implement `Identity`. `OAuthRefreshToken` exposes its value through explicit accessors and String serialization, and redacts Debug, Display and rejected-input errors. It does not zeroize its storage. Workspace UUIDs retain transparent UUID Serde and unrestricted UUID parser admission.
+
+## Cursor Admission
+
+Pagination keeps its published optional String cursor fields and v1: numeric-offset spelling. Its owner codec retains usize parser aliases and existing error behavior without adding canonical equality, collection binding or a new input limit.

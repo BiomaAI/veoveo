@@ -212,3 +212,7 @@ normal Host validation. Liveness reports that the HTTP process is running. Readi
 platform database to accept a query and the internal Artifact service to report
 ready, within one five-second deadline. Dependency loss returns 503 from readiness
 while liveness stays 200; recovering a dependency requires no MCP process restart.
+
+## Cursor Admission
+
+ArtifactIndexCursor retains its Copy identity representation and literal artifact-index-v1_ prefix through an ordinary owner codec. It computes wire text at the existing conversion boundary instead of storing an allocated cache.

@@ -7,7 +7,6 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,
     num::NonZeroU64,
-    ops::Deref,
 };
 use veoveo_recording_contract::{RecordingDatasetId, RecordingId, RecordingLayerId};
 use veoveo_types::{Sha256Digest, sha256_hex};
@@ -20,28 +19,6 @@ impl fmt::Display for RecordingSourceError {
     }
 }
 impl std::error::Error for RecordingSourceError {}
-
-macro_rules! checked {
-    ($model:ident, $builder:ident) => {
-        #[derive(Clone, Debug, Serialize, JsonSchema, Eq, PartialEq)]
-        #[serde(transparent)]
-        #[schemars(transparent)]
-        pub struct $model($builder);
-        impl Deref for $model {
-            type Target = $builder;
-            fn deref(&self) -> &Self::Target {
-                &self.0
-            }
-        }
-        impl<'de> Deserialize<'de> for $model {
-            fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-                <$builder>::deserialize(d)?
-                    .build()
-                    .map_err(serde::de::Error::custom)
-            }
-        }
-    };
-}
 
 /// Construction facts for ordered inputs. Builders preserve order for digest identity.
 /// ```compile_fail
@@ -63,6 +40,12 @@ pub struct RecordingSourceSnapshotBuilder {
 }
 impl RecordingSourceSnapshotBuilder {
     pub fn build(self) -> Result<RecordingSourceSnapshot, RecordingSourceError> {
+        veoveo_types::Checked::new(self).map(RecordingSourceSnapshot)
+    }
+}
+impl veoveo_types::Check for RecordingSourceSnapshotBuilder {
+    type Error = RecordingSourceError;
+    fn check(&self) -> Result<(), Self::Error> {
         let mut layers = BTreeMap::new();
         let mut names = BTreeMap::new();
         let mut identities = BTreeSet::new();
@@ -86,10 +69,21 @@ impl RecordingSourceSnapshotBuilder {
                 .checked_add(source.byte_len.get())
                 .ok_or(RecordingSourceError)?;
         }
-        Ok(RecordingSourceSnapshot(self))
+        Ok(())
     }
 }
-checked!(RecordingSourceSnapshot, RecordingSourceSnapshotBuilder);
+#[derive(
+    Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema, Eq, PartialEq,
+)]
+#[serde(transparent)]
+#[schemars(transparent)]
+pub struct RecordingSourceSnapshot(veoveo_types::Checked<RecordingSourceSnapshotBuilder>);
+impl std::ops::Deref for RecordingSourceSnapshot {
+    type Target = RecordingSourceSnapshotBuilder;
+    fn deref(&self) -> &Self::Target {
+        self.0.get()
+    }
+}
 impl RecordingSourceSnapshot {
     /// Hashes the declared wire fields in their established order, excluding local paths.
     pub fn digest_sha256(&self) -> Result<Sha256Digest, serde_json::Error> {
@@ -125,6 +119,12 @@ pub struct RecordingSourceIdentityBuilder {
 }
 impl RecordingSourceIdentityBuilder {
     pub fn build(self) -> Result<RecordingSourceIdentity, RecordingSourceError> {
+        veoveo_types::Checked::new(self).map(RecordingSourceIdentity)
+    }
+}
+impl veoveo_types::Check for RecordingSourceIdentityBuilder {
+    type Error = RecordingSourceError;
+    fn check(&self) -> Result<(), Self::Error> {
         if self.layer_name.is_empty()
             || self.layer_name.len() > 256
             || self.layer_name.trim() != self.layer_name
@@ -135,10 +135,21 @@ impl RecordingSourceIdentityBuilder {
         {
             return Err(RecordingSourceError);
         }
-        Ok(RecordingSourceIdentity(self))
+        Ok(())
     }
 }
-checked!(RecordingSourceIdentity, RecordingSourceIdentityBuilder);
+#[derive(
+    Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema, Eq, PartialEq,
+)]
+#[serde(transparent)]
+#[schemars(transparent)]
+pub struct RecordingSourceIdentity(veoveo_types::Checked<RecordingSourceIdentityBuilder>);
+impl std::ops::Deref for RecordingSourceIdentity {
+    type Target = RecordingSourceIdentityBuilder;
+    fn deref(&self) -> &Self::Target {
+        self.0.get()
+    }
+}
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
 #[serde(rename_all = "snake_case")]

@@ -185,51 +185,68 @@ struct CursorEnvelope {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "String", into = "String")]
 pub struct MapMetadataCursor {
-    wire: String,
-    request: MapMetadataRequest,
+    cursor: veoveo_types::OpaqueCursor<MapMetadataCursorCodec>,
 }
 
-impl MapMetadataCursor {
-    fn from_request(request: MapMetadataRequest) -> Self {
-        let wire = hex::encode(
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct MapMetadataCursorCodec;
+impl veoveo_types::CursorCodec for MapMetadataCursorCodec {
+    type Position = MapMetadataRequest;
+    type Error = MapMetadataError;
+    fn check(&self, request: &MapMetadataRequest) -> Result<(), Self::Error> {
+        if request.has_position() {
+            Ok(())
+        } else {
+            Err(MapMetadataError::InvalidCursor)
+        }
+    }
+    fn encode(&self, request: &MapMetadataRequest) -> Result<String, Self::Error> {
+        Ok(hex::encode(
             serde_json::to_vec(&CursorEnvelope {
                 version: 1,
                 request: request.clone(),
             })
             .expect("closed Map cursor fields serialize"),
-        );
-        Self { wire, request }
+        ))
     }
-
-    pub fn parse(value: impl Into<String>) -> Result<Self, MapMetadataError> {
-        let wire = value.into();
+    fn decode(&self, wire: &str) -> Result<MapMetadataRequest, Self::Error> {
         if wire.is_empty() || wire.len() > 2048 {
             return Err(MapMetadataError::InvalidCursor);
         }
-        let bytes = hex::decode(&wire).map_err(|_| MapMetadataError::InvalidCursor)?;
+        let bytes = hex::decode(wire).map_err(|_| MapMetadataError::InvalidCursor)?;
         let envelope: CursorEnvelope =
             serde_json::from_slice(&bytes).map_err(|_| MapMetadataError::InvalidCursor)?;
-        if envelope.version != 1 || !envelope.request.has_position() {
+        if envelope.version != 1 {
             return Err(MapMetadataError::InvalidCursor);
         }
-        Ok(Self {
-            wire,
-            request: envelope.request,
-        })
+        Ok(envelope.request)
+    }
+}
+impl MapMetadataCursor {
+    fn from_request(request: MapMetadataRequest) -> Self {
+        Self {
+            cursor: veoveo_types::OpaqueCursor::try_new(MapMetadataCursorCodec, request)
+                .expect("positioned Map request"),
+        }
+    }
+
+    pub fn parse(wire: impl Into<String>) -> Result<Self, MapMetadataError> {
+        veoveo_types::OpaqueCursor::parse(MapMetadataCursorCodec, wire)
+            .map(|cursor| Self { cursor })
     }
 
     pub fn as_str(&self) -> &str {
-        &self.wire
+        self.cursor.as_str()
     }
 
     pub fn resume(
         &self,
         selection: &MapMetadataRequest,
     ) -> Result<MapMetadataRequest, MapMetadataError> {
-        if !self.request.same_selection(selection) {
+        if !self.cursor.position().same_selection(selection) {
             return Err(MapMetadataError::InvalidCursor);
         }
-        Ok(self.request.clone())
+        Ok(self.cursor.position().clone())
     }
 }
 
@@ -241,7 +258,7 @@ impl TryFrom<String> for MapMetadataCursor {
 }
 impl From<MapMetadataCursor> for String {
     fn from(cursor: MapMetadataCursor) -> Self {
-        cursor.wire
+        cursor.cursor.into_wire()
     }
 }
 

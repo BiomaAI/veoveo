@@ -393,6 +393,10 @@ tasks, subscriptions, notifications, and structured content in addition to tools
 
 ### `platform/types`
 
+`checked.rs` owns immutable field-preserving admission through `Check` and `Checked`.
+`cursor.rs` owns typed owner-codec cursor admission and immutable storage; envelopes,
+context binding and text profiles stay in each owner.
+
 The `veoveo-types` crate owns `ScopeName`, `ResourceScheme`, `ResourceUri`, validation
 errors, `Sha256Digest`, platform identity, access subjects, resolved invocation authority
 and output defaults.

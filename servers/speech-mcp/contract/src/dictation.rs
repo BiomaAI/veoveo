@@ -46,14 +46,16 @@ pub struct DictationSnapshot {
 
 impl DictationSnapshot {
     pub fn new(id: DictationSessionId) -> Self {
-        Self {
+        veoveo_types::Checked::new(Self {
             id,
             result_uri: DictationUri::new(id),
             status: DictationStatus::Listening,
             next_sequence: 0,
             max_duration_seconds: super::transcript::MAX_DICTATION_SECONDS,
             transcript: None,
-        }
+        })
+        .unwrap_or_else(|_| unreachable!("dictation constructor binds the same identity"))
+        .into_inner()
     }
     pub fn id(&self) -> DictationSessionId {
         self.id
@@ -76,10 +78,7 @@ struct DictationSnapshotWire {
 impl TryFrom<DictationSnapshotWire> for DictationSnapshot {
     type Error = super::SpeechIdentityError;
     fn try_from(value: DictationSnapshotWire) -> Result<Self, Self::Error> {
-        if value.id != value.result_uri.id() {
-            return Err(super::SpeechIdentityError);
-        }
-        Ok(Self {
+        veoveo_types::Checked::new(Self {
             id: value.id,
             result_uri: value.result_uri,
             status: value.status,
@@ -87,6 +86,16 @@ impl TryFrom<DictationSnapshotWire> for DictationSnapshot {
             max_duration_seconds: value.max_duration_seconds,
             transcript: value.transcript,
         })
+        .map(veoveo_types::Checked::into_inner)
+    }
+}
+impl veoveo_types::Check for DictationSnapshot {
+    type Error = super::SpeechIdentityError;
+    fn check(&self) -> Result<(), Self::Error> {
+        if self.id != self.result_uri.id() {
+            return Err(super::SpeechIdentityError);
+        }
+        Ok(())
     }
 }
 

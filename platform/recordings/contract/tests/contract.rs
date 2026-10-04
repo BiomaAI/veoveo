@@ -179,3 +179,24 @@ fn contract_schemas_are_available_without_protocol_or_runtime_types() {
         assert_eq!(schema["properties"]["dataset_id"]["type"], "string");
     }
 }
+
+#[test]
+fn checked_builder_schema_profiles_are_preserved() {
+    use schemars::JsonSchema;
+    use veoveo_recording_contract::{
+        LayerView, LayerViewBuilder, ManifestLayer, ManifestLayerBuilder, RecordingManifest,
+        RecordingManifestBuilder, RecordingView, RecordingViewBuilder, SealRecordingOutput,
+        SealRecordingOutputBuilder,
+    };
+    fn same<Model: JsonSchema, Builder: JsonSchema>() {
+        assert_eq!(Model::schema_name(), Builder::schema_name());
+        assert_eq!(Model::schema_id(), Builder::schema_id());
+        assert_eq!(Model::inline_schema(), Builder::inline_schema());
+        assert_eq!(schemars::schema_for!(Model), schemars::schema_for!(Builder));
+    }
+    same::<LayerView, LayerViewBuilder>();
+    same::<ManifestLayer, ManifestLayerBuilder>();
+    same::<RecordingView, RecordingViewBuilder>();
+    same::<SealRecordingOutput, SealRecordingOutputBuilder>();
+    same::<RecordingManifest, RecordingManifestBuilder>();
+}

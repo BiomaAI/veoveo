@@ -68,3 +68,7 @@ escaped wire components before identifier admission, preserving their Route erro
 profile. A wrong route shape is rejected before typed fields are parsed. Usage routes use
 explicit Task and cursor codecs. Cursor payload bytes and existing address schemas stay
 owner declarations.
+
+## Cursor Admission
+
+World and usage cursors retain their owner hexadecimal JSON envelopes through private OpaqueCursor storage. Codecs preserve collection binding, existing input limits and admitted aliases. Entry and page checks validate published fields before explicit redundant-identity and fixed-limit projections.

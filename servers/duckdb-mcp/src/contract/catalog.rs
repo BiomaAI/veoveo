@@ -27,45 +27,60 @@ struct CursorWire {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "String", into = "String")]
 pub struct DuckDbDatabaseCursor {
-    wire: String,
-    after: DuckDbDatabaseId,
+    cursor: veoveo_types::OpaqueCursor<DuckDbDatabaseCursorCodec>,
 }
-impl DuckDbDatabaseCursor {
-    pub fn new(after: DuckDbDatabaseId) -> Self {
-        let wire = URL_SAFE_NO_PAD.encode(
-            serde_json::to_vec(&CursorWire {
-                version: 1,
-                collection: crate::uris::DBS_ROOT_URI.into(),
-                after: after.clone(),
-            })
-            .expect("closed database cursor fields serialize"),
-        );
-        Self { wire, after }
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct DuckDbDatabaseCursorCodec;
+impl veoveo_types::CursorCodec for DuckDbDatabaseCursorCodec {
+    type Position = DuckDbDatabaseId;
+    type Error = DuckDbCatalogError;
+    fn check(&self, _position: &Self::Position) -> Result<(), Self::Error> {
+        Ok(())
     }
-    pub fn parse(wire: impl Into<String>) -> Result<Self, DuckDbCatalogError> {
-        let wire = wire.into();
+    fn encode(&self, position: &Self::Position) -> Result<String, Self::Error> {
+        let bytes = serde_json::to_vec(&CursorWire {
+            version: 1,
+            collection: (crate::uris::DBS_ROOT_URI).to_owned(),
+            after: position.clone(),
+        })
+        .expect("closed owner cursor fields serialize");
+        Ok(URL_SAFE_NO_PAD.encode(bytes))
+    }
+    fn decode(&self, wire: &str) -> Result<Self::Position, Self::Error> {
         if wire.is_empty() || wire.len() > 1024 {
             return Err(DuckDbCatalogError);
         }
-        let decoded = URL_SAFE_NO_PAD
-            .decode(&wire)
+        let bytes = URL_SAFE_NO_PAD
+            .decode(wire)
             .map_err(|_| DuckDbCatalogError)?;
-        let fields: CursorWire =
-            serde_json::from_slice(&decoded).map_err(|_| DuckDbCatalogError)?;
-        if fields.version != 1 || fields.collection != crate::uris::DBS_ROOT_URI {
+        let decoded: CursorWire = serde_json::from_slice(&bytes).map_err(|_| DuckDbCatalogError)?;
+        if decoded.version != 1 || decoded.collection != crate::uris::DBS_ROOT_URI {
             return Err(DuckDbCatalogError);
         }
-        let cursor = Self::new(fields.after);
-        if cursor.wire != wire {
+        let position = decoded.after;
+        self.check(&position)?;
+        if self.encode(&position)? != wire {
             return Err(DuckDbCatalogError);
         }
-        Ok(cursor)
+        Ok(position)
+    }
+}
+impl DuckDbDatabaseCursor {
+    pub fn new(after: DuckDbDatabaseId) -> Self {
+        let cursor = veoveo_types::OpaqueCursor::try_new(DuckDbDatabaseCursorCodec, after)
+            .expect("typed cursor position");
+        Self { cursor }
+    }
+    pub fn parse(wire: impl Into<String>) -> Result<Self, DuckDbCatalogError> {
+        veoveo_types::OpaqueCursor::parse(DuckDbDatabaseCursorCodec, wire)
+            .map(|cursor| Self { cursor })
     }
     pub fn after(&self) -> &DuckDbDatabaseId {
-        &self.after
+        self.cursor.position()
     }
     pub fn as_str(&self) -> &str {
-        &self.wire
+        self.cursor.as_str()
     }
 }
 impl TryFrom<String> for DuckDbDatabaseCursor {
@@ -76,7 +91,7 @@ impl TryFrom<String> for DuckDbDatabaseCursor {
 }
 impl From<DuckDbDatabaseCursor> for String {
     fn from(value: DuckDbDatabaseCursor) -> Self {
-        value.wire
+        value.cursor.into_wire()
     }
 }
 
@@ -104,12 +119,20 @@ impl DuckDbDatabaseEntry {
         &self.uri
     }
 }
+impl veoveo_types::Check for EntryWire {
+    type Error = DuckDbCatalogError;
+    fn check(&self) -> Result<(), Self::Error> {
+        if &self.db_id != self.db_uri.id() {
+            return Err(DuckDbCatalogError);
+        }
+
+        Ok(())
+    }
+}
 impl TryFrom<EntryWire> for DuckDbDatabaseEntry {
     type Error = DuckDbCatalogError;
     fn try_from(value: EntryWire) -> Result<Self, Self::Error> {
-        if &value.db_id != value.db_uri.id() {
-            return Err(DuckDbCatalogError);
-        }
+        let value = veoveo_types::Checked::new(value)?.into_inner();
         Ok(Self { uri: value.db_uri })
     }
 }
@@ -170,18 +193,18 @@ impl DuckDbDatabasePage {
         self.next_cursor.as_ref()
     }
 }
-impl TryFrom<PageWire> for DuckDbDatabasePage {
+impl veoveo_types::Check for PageWire {
     type Error = DuckDbCatalogError;
-    fn try_from(wire: PageWire) -> Result<Self, Self::Error> {
-        if wire.limit != DUCKDB_DATABASE_PAGE_SIZE
-            || wire.items.len() > DUCKDB_DATABASE_PAGE_SIZE
-            || wire
+    fn check(&self) -> Result<(), Self::Error> {
+        if self.limit != DUCKDB_DATABASE_PAGE_SIZE
+            || self.items.len() > DUCKDB_DATABASE_PAGE_SIZE
+            || self
                 .items
                 .windows(2)
                 .any(|pair| pair[0].id() >= pair[1].id())
-            || wire.next_cursor.as_ref().is_some_and(|cursor| {
-                wire.items.len() != DUCKDB_DATABASE_PAGE_SIZE
-                    || wire
+            || self.next_cursor.as_ref().is_some_and(|cursor| {
+                self.items.len() != DUCKDB_DATABASE_PAGE_SIZE
+                    || self
                         .items
                         .last()
                         .is_none_or(|entry| entry.id() != cursor.after())
@@ -189,6 +212,14 @@ impl TryFrom<PageWire> for DuckDbDatabasePage {
         {
             return Err(DuckDbCatalogError);
         }
+
+        Ok(())
+    }
+}
+impl TryFrom<PageWire> for DuckDbDatabasePage {
+    type Error = DuckDbCatalogError;
+    fn try_from(wire: PageWire) -> Result<Self, Self::Error> {
+        let wire = veoveo_types::Checked::new(wire)?.into_inner();
         Ok(Self {
             items: wire.items,
             next_cursor: wire.next_cursor,

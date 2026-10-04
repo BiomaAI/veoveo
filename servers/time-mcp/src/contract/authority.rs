@@ -41,12 +41,9 @@ impl Error for TimeAuthorityError {}
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "BindingWire", into = "BindingWire")]
-pub struct AuthorityBinding {
-    tzdb_release_id: AuthorityReleaseId,
-    leap_seconds_release_id: AuthorityReleaseId,
-}
+pub struct AuthorityBinding(veoveo_types::Checked<BindingWire>);
 
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema, Clone, Debug, PartialEq, Eq)]
 struct BindingWire {
     tzdb_release_id: AuthorityReleaseId,
     leap_seconds_release_id: AuthorityReleaseId,
@@ -57,34 +54,39 @@ impl AuthorityBinding {
         tzdb_release_id: AuthorityReleaseId,
         leap_seconds_release_id: AuthorityReleaseId,
     ) -> Result<Self, TimeAuthorityError> {
-        if tzdb_release_id == leap_seconds_release_id {
-            return Err(TimeAuthorityError::DuplicateRelease);
-        }
-        Ok(Self {
+        veoveo_types::Checked::new(BindingWire {
             tzdb_release_id,
             leap_seconds_release_id,
         })
+        .map(Self)
     }
     pub fn tzdb_release_id(&self) -> &AuthorityReleaseId {
-        &self.tzdb_release_id
+        &self.0.tzdb_release_id
     }
     pub fn leap_seconds_release_id(&self) -> &AuthorityReleaseId {
-        &self.leap_seconds_release_id
+        &self.0.leap_seconds_release_id
     }
 }
 
+impl veoveo_types::Check for BindingWire {
+    type Error = TimeAuthorityError;
+    fn check(&self) -> Result<(), Self::Error> {
+        if self.tzdb_release_id == self.leap_seconds_release_id {
+            return Err(TimeAuthorityError::DuplicateRelease);
+        }
+
+        Ok(())
+    }
+}
 impl TryFrom<BindingWire> for AuthorityBinding {
     type Error = TimeAuthorityError;
-    fn try_from(wire: BindingWire) -> Result<Self, Self::Error> {
-        Self::new(wire.tzdb_release_id, wire.leap_seconds_release_id)
+    fn try_from(value: BindingWire) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
     }
 }
 impl From<AuthorityBinding> for BindingWire {
     fn from(value: AuthorityBinding) -> Self {
-        Self {
-            tzdb_release_id: value.tzdb_release_id,
-            leap_seconds_release_id: value.leap_seconds_release_id,
-        }
+        value.0.into_inner()
     }
 }
 
@@ -207,12 +209,9 @@ impl From<TimeAuthorityReference> for ReferenceWire {
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "EffectiveWire", into = "EffectiveWire")]
-pub struct EffectiveTimeAuthority {
-    tzdb: TimeAuthorityReference,
-    leap_seconds: TimeAuthorityReference,
-}
+pub struct EffectiveTimeAuthority(veoveo_types::Checked<EffectiveWire>);
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 struct EffectiveWire {
     tzdb: TimeAuthorityReference,
@@ -224,42 +223,47 @@ impl EffectiveTimeAuthority {
         tzdb: TimeAuthorityReference,
         leap_seconds: TimeAuthorityReference,
     ) -> Result<Self, TimeAuthorityError> {
-        if tzdb.dataset_kind() != AuthorityDatasetKind::Tzdb
-            || leap_seconds.dataset_kind() != AuthorityDatasetKind::LeapSeconds
-        {
-            return Err(TimeAuthorityError::DatasetKind);
-        }
-        if tzdb.release_id() == leap_seconds.release_id() {
-            return Err(TimeAuthorityError::DuplicateRelease);
-        }
-        Ok(Self { tzdb, leap_seconds })
+        veoveo_types::Checked::new(EffectiveWire { tzdb, leap_seconds }).map(Self)
     }
     pub fn tzdb(&self) -> &TimeAuthorityReference {
-        &self.tzdb
+        &self.0.tzdb
     }
     pub fn leap_seconds(&self) -> &TimeAuthorityReference {
-        &self.leap_seconds
+        &self.0.leap_seconds
     }
     pub fn binding(&self) -> AuthorityBinding {
-        AuthorityBinding {
-            tzdb_release_id: self.tzdb.release_id().clone(),
-            leap_seconds_release_id: self.leap_seconds.release_id().clone(),
-        }
+        AuthorityBinding::new(
+            self.0.tzdb.release_id().clone(),
+            self.0.leap_seconds.release_id().clone(),
+        )
+        .unwrap_or_else(|_| unreachable!("admitted authority releases are distinct"))
     }
 }
 
+impl veoveo_types::Check for EffectiveWire {
+    type Error = TimeAuthorityError;
+    fn check(&self) -> Result<(), Self::Error> {
+        if self.tzdb.dataset_kind() != AuthorityDatasetKind::Tzdb
+            || self.leap_seconds.dataset_kind() != AuthorityDatasetKind::LeapSeconds
+        {
+            return Err(TimeAuthorityError::DatasetKind);
+        }
+        if self.tzdb.release_id() == self.leap_seconds.release_id() {
+            return Err(TimeAuthorityError::DuplicateRelease);
+        }
+
+        Ok(())
+    }
+}
 impl TryFrom<EffectiveWire> for EffectiveTimeAuthority {
     type Error = TimeAuthorityError;
-    fn try_from(wire: EffectiveWire) -> Result<Self, Self::Error> {
-        Self::new(wire.tzdb, wire.leap_seconds)
+    fn try_from(value: EffectiveWire) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
     }
 }
 impl From<EffectiveTimeAuthority> for EffectiveWire {
     fn from(value: EffectiveTimeAuthority) -> Self {
-        Self {
-            tzdb: value.tzdb,
-            leap_seconds: value.leap_seconds,
-        }
+        value.0.into_inner()
     }
 }
 

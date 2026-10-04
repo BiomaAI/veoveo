@@ -21,7 +21,7 @@ pub struct MemberLink {
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(try_from = "PageWire", into = "PageWire")]
-pub struct SourcePage(PageWire);
+pub struct SourcePage(veoveo_types::Checked<PageWire>);
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct PageWire {
@@ -42,9 +42,10 @@ impl SourcePage {
         self.0.next_cursor.as_deref()
     }
 }
-impl TryFrom<PageWire> for SourcePage {
+impl veoveo_types::Check for PageWire {
     type Error = KnowledgeError;
-    fn try_from(page: PageWire) -> Result<Self, Self::Error> {
+    fn check(&self) -> Result<(), Self::Error> {
+        let page = self;
         if page.items.len() > 100
             || page
                 .items
@@ -65,12 +66,18 @@ impl TryFrom<PageWire> for SourcePage {
             ResourceUriParts::parse(item.uri.as_str())
                 .map_err(|_| KnowledgeError("enumeration requires concrete member URIs"))?;
         }
-        Ok(Self(page))
+        Ok(())
+    }
+}
+impl TryFrom<PageWire> for SourcePage {
+    type Error = KnowledgeError;
+    fn try_from(value: PageWire) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
     }
 }
 impl From<SourcePage> for PageWire {
     fn from(page: SourcePage) -> Self {
-        page.0
+        page.0.into_inner()
     }
 }
 

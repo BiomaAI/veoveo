@@ -16,45 +16,59 @@ struct CursorWire {
 #[serde(try_from = "String", into = "String")]
 #[schemars(with = "String")]
 pub struct MapRestrictionCursor {
-    wire: String,
-    after: RestrictionId,
+    cursor: veoveo_types::OpaqueCursor<MapRestrictionCursorCodec>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct MapRestrictionCursorCodec;
+impl veoveo_types::CursorCodec for MapRestrictionCursorCodec {
+    type Position = RestrictionId;
+    type Error = MapRestrictionError;
+    fn check(&self, _position: &Self::Position) -> Result<(), Self::Error> {
+        Ok(())
+    }
+    fn encode(&self, position: &Self::Position) -> Result<String, Self::Error> {
+        let bytes = serde_json::to_vec(&CursorWire {
+            version: 1,
+            collection: (MapRestrictionsUri::ROOT).to_owned(),
+            after: position.clone(),
+        })
+        .expect("closed owner cursor fields serialize");
+        Ok(hex::encode(bytes))
+    }
+    fn decode(&self, wire: &str) -> Result<Self::Position, Self::Error> {
+        if wire.is_empty() || wire.len() > 1024 {
+            return Err(MapRestrictionError::Cursor);
+        }
+        let bytes = hex::decode(wire).map_err(|_| MapRestrictionError::Cursor)?;
+        let decoded: CursorWire =
+            serde_json::from_slice(&bytes).map_err(|_| MapRestrictionError::Cursor)?;
+        if decoded.version != 1 || decoded.collection != MapRestrictionsUri::ROOT {
+            return Err(MapRestrictionError::Cursor);
+        }
+        let position = decoded.after;
+        self.check(&position)?;
+        if self.encode(&position)? != wire {
+            return Err(MapRestrictionError::Cursor);
+        }
+        Ok(position)
+    }
 }
 impl MapRestrictionCursor {
     pub fn new(after: RestrictionId) -> Self {
-        Self {
-            wire: hex::encode(
-                serde_json::to_vec(&CursorWire {
-                    version: 1,
-                    collection: MapRestrictionsUri::ROOT.to_owned(),
-                    after: after.clone(),
-                })
-                .expect("closed restriction cursor"),
-            ),
-            after,
-        }
+        let cursor = veoveo_types::OpaqueCursor::try_new(MapRestrictionCursorCodec, after)
+            .expect("typed cursor position");
+        Self { cursor }
     }
     pub fn parse(wire: impl Into<String>) -> Result<Self, MapRestrictionError> {
-        let wire = wire.into();
-        if wire.len() > 1024 {
-            return Err(MapRestrictionError::Cursor);
-        }
-        let cursor: CursorWire =
-            serde_json::from_slice(&hex::decode(&wire).map_err(|_| MapRestrictionError::Cursor)?)
-                .map_err(|_| MapRestrictionError::Cursor)?;
-        if cursor.version != 1 || cursor.collection != MapRestrictionsUri::ROOT {
-            return Err(MapRestrictionError::Cursor);
-        }
-        let admitted = Self::new(cursor.after);
-        if admitted.wire != wire {
-            return Err(MapRestrictionError::Cursor);
-        }
-        Ok(admitted)
+        veoveo_types::OpaqueCursor::parse(MapRestrictionCursorCodec, wire)
+            .map(|cursor| Self { cursor })
     }
     pub fn after(&self) -> &RestrictionId {
-        &self.after
+        self.cursor.position()
     }
     pub fn as_str(&self) -> &str {
-        &self.wire
+        self.cursor.as_str()
     }
 }
 impl TryFrom<String> for MapRestrictionCursor {
@@ -65,7 +79,7 @@ impl TryFrom<String> for MapRestrictionCursor {
 }
 impl From<MapRestrictionCursor> for String {
     fn from(value: MapRestrictionCursor) -> Self {
-        value.wire
+        value.cursor.into_wire()
     }
 }
 
@@ -118,14 +132,14 @@ fn check_order(items: &[RestrictionSummary]) -> Result<(), MapRestrictionError> 
     }
     Ok(())
 }
-impl TryFrom<PageWire> for MapRestrictionPage {
+impl veoveo_types::Check for PageWire {
     type Error = MapRestrictionError;
-    fn try_from(wire: PageWire) -> Result<Self, Self::Error> {
-        if wire.limit != RESTRICTION_PAGE_SIZE
-            || wire.items.len() > RESTRICTION_PAGE_SIZE
-            || wire.next_cursor.as_ref().is_some_and(|cursor| {
-                wire.items.len() != RESTRICTION_PAGE_SIZE
-                    || wire
+    fn check(&self) -> Result<(), Self::Error> {
+        if self.limit != RESTRICTION_PAGE_SIZE
+            || self.items.len() > RESTRICTION_PAGE_SIZE
+            || self.next_cursor.as_ref().is_some_and(|cursor| {
+                self.items.len() != RESTRICTION_PAGE_SIZE
+                    || self
                         .items
                         .last()
                         .is_none_or(|item| item.restriction_id() != cursor.after())
@@ -133,7 +147,15 @@ impl TryFrom<PageWire> for MapRestrictionPage {
         {
             return Err(MapRestrictionError::Page);
         }
-        check_order(&wire.items)?;
+        check_order(&self.items)?;
+
+        Ok(())
+    }
+}
+impl TryFrom<PageWire> for MapRestrictionPage {
+    type Error = MapRestrictionError;
+    fn try_from(wire: PageWire) -> Result<Self, Self::Error> {
+        let wire = veoveo_types::Checked::new(wire)?.into_inner();
         Ok(Self {
             items: wire.items,
             next_cursor: wire.next_cursor,

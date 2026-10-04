@@ -93,7 +93,7 @@ struct CollectionWire {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "CollectionWire", into = "CollectionWire")]
-pub struct CollectionDescriptor(CollectionWire);
+pub struct CollectionDescriptor(veoveo_types::Checked<CollectionWire>);
 impl CollectionDescriptor {
     pub fn new(
         collection: CollectionId,
@@ -116,9 +116,11 @@ impl CollectionDescriptor {
         }
         .try_into()
     }
-    pub fn with_required_scopes(mut self, scopes: impl IntoIterator<Item = ScopeName>) -> Self {
-        self.0.required_scopes = scopes.into_iter().collect();
-        self
+    pub fn with_required_scopes(self, scopes: impl IntoIterator<Item = ScopeName>) -> Self {
+        let mut wire = self.0.into_inner();
+        wire.required_scopes = scopes.into_iter().collect();
+        Self::try_from(wire)
+            .unwrap_or_else(|_| unreachable!("scope selection preserves collection relationships"))
     }
     pub fn required_scopes(&self) -> &std::collections::BTreeSet<ScopeName> {
         &self.0.required_scopes
@@ -145,9 +147,10 @@ impl CollectionDescriptor {
         self.0.indexing
     }
 }
-impl TryFrom<CollectionWire> for CollectionDescriptor {
+impl veoveo_types::Check for CollectionWire {
     type Error = KnowledgeError;
-    fn try_from(w: CollectionWire) -> Result<Self, Self::Error> {
+    fn check(&self) -> Result<(), Self::Error> {
+        let w = self;
         if matches!(w.freshness, Freshness::Immutable { .. })
             != (w.change_signal == ChangeSignal::Immutable)
         {
@@ -155,12 +158,18 @@ impl TryFrom<CollectionWire> for CollectionDescriptor {
                 "immutable freshness and change signal must agree",
             ));
         }
-        Ok(Self(w))
+        Ok(())
+    }
+}
+impl TryFrom<CollectionWire> for CollectionDescriptor {
+    type Error = KnowledgeError;
+    fn try_from(value: CollectionWire) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
     }
 }
 impl From<CollectionDescriptor> for CollectionWire {
     fn from(v: CollectionDescriptor) -> Self {
-        v.0
+        v.0.into_inner()
     }
 }
 
@@ -390,6 +399,7 @@ impl Observation {
         Ok(())
     }
 }
+
 impl TryFrom<ObservationWire> for Observation {
     type Error = KnowledgeError;
     fn try_from(w: ObservationWire) -> Result<Self, Self::Error> {
@@ -445,7 +455,7 @@ pub enum SearchRole {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "SearchWire", into = "SearchWire")]
-pub struct SearchDeclaration(SearchWire);
+pub struct SearchDeclaration(veoveo_types::Checked<SearchWire>);
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct SearchWire {
@@ -464,27 +474,34 @@ impl SearchDeclaration {
         &self.0.collections
     }
 }
-impl TryFrom<SearchWire> for SearchDeclaration {
+impl veoveo_types::Check for SearchWire {
     type Error = KnowledgeError;
-    fn try_from(w: SearchWire) -> Result<Self, Self::Error> {
+    fn check(&self) -> Result<(), Self::Error> {
+        let w = self;
         let unique: std::collections::BTreeSet<_> = w.collections.iter().collect();
         if unique.is_empty() || unique.len() != w.collections.len() {
             return Err(KnowledgeError(
                 "search collections must be nonempty and unique",
             ));
         }
-        Ok(Self(w))
+        Ok(())
+    }
+}
+impl TryFrom<SearchWire> for SearchDeclaration {
+    type Error = KnowledgeError;
+    fn try_from(value: SearchWire) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
     }
 }
 impl From<SearchDeclaration> for SearchWire {
     fn from(v: SearchDeclaration) -> Self {
-        v.0
+        v.0.into_inner()
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "SearchHitWire", into = "SearchHitWire")]
-pub struct SearchHit(SearchHitWire);
+pub struct SearchHit(veoveo_types::Checked<SearchHitWire>);
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct SearchHitWire {
@@ -522,27 +539,34 @@ impl SearchHit {
         self.0.snippet.as_deref()
     }
 }
-impl TryFrom<SearchHitWire> for SearchHit {
+impl veoveo_types::Check for SearchHitWire {
     type Error = KnowledgeError;
-    fn try_from(w: SearchHitWire) -> Result<Self, Self::Error> {
+    fn check(&self) -> Result<(), Self::Error> {
+        let w = self;
         if w.snippet.as_ref().is_some_and(|s| s.chars().count() > 320)
             || w.score.is_some_and(|v| !v.is_finite())
         {
             return Err(KnowledgeError("invalid search snippet or score"));
         }
-        Ok(Self(w))
+        Ok(())
+    }
+}
+impl TryFrom<SearchHitWire> for SearchHit {
+    type Error = KnowledgeError;
+    fn try_from(value: SearchHitWire) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
     }
 }
 impl From<SearchHit> for SearchHitWire {
     fn from(v: SearchHit) -> Self {
-        v.0
+        v.0.into_inner()
     }
 }
 
 /// A bounded search response shared by domain servers and consumers.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "SearchResultsWire", into = "SearchResultsWire")]
-pub struct SearchResults(SearchResultsWire);
+pub struct SearchResults(veoveo_types::Checked<SearchResultsWire>);
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -559,19 +583,26 @@ impl SearchResults {
         &self.0.results
     }
 }
-impl TryFrom<SearchResultsWire> for SearchResults {
+impl veoveo_types::Check for SearchResultsWire {
     type Error = KnowledgeError;
-    fn try_from(value: SearchResultsWire) -> Result<Self, Self::Error> {
+    fn check(&self) -> Result<(), Self::Error> {
+        let value = self;
         let unique: std::collections::BTreeSet<_> =
             value.results.iter().map(SearchHit::uri).collect();
         if value.results.len() > 100 || unique.len() != value.results.len() {
             return Err(KnowledgeError("search requires at most 100 unique results"));
         }
-        Ok(Self(value))
+        Ok(())
+    }
+}
+impl TryFrom<SearchResultsWire> for SearchResults {
+    type Error = KnowledgeError;
+    fn try_from(value: SearchResultsWire) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
     }
 }
 impl From<SearchResults> for SearchResultsWire {
     fn from(value: SearchResults) -> Self {
-        value.0
+        value.0.into_inner()
     }
 }

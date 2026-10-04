@@ -16,15 +16,10 @@ impl ArtifactIndexCursor {
         self.0
     }
     pub fn parse(value: &str) -> Result<Self, ResourceUriError> {
-        let id = value
-            .strip_prefix("artifact-index-v1_")
-            .ok_or(ResourceUriError::DisallowedComponent)?;
-        let cursor =
-            Self(ArtifactId::parse(id).map_err(|_| ResourceUriError::DisallowedComponent)?);
-        if String::from(cursor) != value {
-            return Err(ResourceUriError::DisallowedComponent);
-        }
-        Ok(cursor)
+        use veoveo_types::CursorCodec;
+        let id = ArtifactIndexCodec.decode(value)?;
+        ArtifactIndexCodec.check(&id)?;
+        Ok(Self(id))
     }
 }
 impl TryFrom<String> for ArtifactIndexCursor {
@@ -35,7 +30,32 @@ impl TryFrom<String> for ArtifactIndexCursor {
 }
 impl From<ArtifactIndexCursor> for String {
     fn from(cursor: ArtifactIndexCursor) -> Self {
-        format!("artifact-index-v1_{}", cursor.0)
+        use veoveo_types::CursorCodec;
+        ArtifactIndexCodec
+            .encode(&cursor.0)
+            .expect("typed Artifact index position")
+    }
+}
+// The published Copy representation owns only its ID; wire is computed at conversion.
+struct ArtifactIndexCodec;
+impl veoveo_types::CursorCodec for ArtifactIndexCodec {
+    type Position = ArtifactId;
+    type Error = ResourceUriError;
+    fn check(&self, _id: &ArtifactId) -> Result<(), Self::Error> {
+        Ok(())
+    }
+    fn encode(&self, id: &ArtifactId) -> Result<String, Self::Error> {
+        Ok(format!("artifact-index-v1_{id}"))
+    }
+    fn decode(&self, wire: &str) -> Result<ArtifactId, Self::Error> {
+        let id = wire
+            .strip_prefix("artifact-index-v1_")
+            .ok_or(ResourceUriError::DisallowedComponent)?;
+        let id = ArtifactId::parse(id).map_err(|_| ResourceUriError::DisallowedComponent)?;
+        if self.encode(&id)? != wire {
+            return Err(ResourceUriError::DisallowedComponent);
+        }
+        Ok(id)
     }
 }
 

@@ -664,3 +664,7 @@ derive. Explicit owner codecs admit collection-bound cursors and UUID-v7 Task id
 Checked constructors initialize private wire caches, and discovery templates alias the
 generated declaration. Serde and schema declarations preserve the public string profile;
 cursor payload encoding remains a separate checked owner contract.
+
+## Cursor Admission
+
+Usage and index continuation codecs retain their existing base64url JSON profiles: usage has version and Task ID, while index binds its owner collection enum. Private OpaqueCursor storage preserves admitted aliases and typed position access. Wire relationship checks precede existing page field projections.

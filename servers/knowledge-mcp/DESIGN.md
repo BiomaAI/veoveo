@@ -538,3 +538,7 @@ Installed acceptance also requires the following cases:
   for a full rebuild, with searches running concurrently.
 - The evaluation set measures recall at 10 for the qualified chunk settings, and
   each index generation records its result.
+
+## Value Admission
+
+Search requests and source pages use `Checked` over unchanged Wire fields. Their owner checks retain request bounds, concrete unique members and the existing continuation policy; collection relationships remain in the knowledge owner.

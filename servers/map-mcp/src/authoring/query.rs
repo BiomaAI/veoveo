@@ -327,21 +327,40 @@ fn property_path(property: &str) -> Result<String> {
     ))
 }
 
-fn encode_cursor(feature_id: &MapFeatureId) -> String {
-    URL_SAFE_NO_PAD.encode(feature_id.as_str())
-}
-
-fn decode_cursor(cursor: &str) -> Result<MapFeatureId> {
-    if cursor.len() > 256 {
-        bail!("feature query cursor exceeds its byte limit");
+struct FeatureQueryCursorCodec;
+impl veoveo_types::CursorCodec for FeatureQueryCursorCodec {
+    type Position = MapFeatureId;
+    type Error = anyhow::Error;
+    fn check(&self, _position: &MapFeatureId) -> Result<()> {
+        Ok(())
     }
-    let decoded = URL_SAFE_NO_PAD
-        .decode(cursor)
-        .context("feature query cursor is not valid base64url")?;
-    let decoded = String::from_utf8(decoded).context("feature query cursor is not UTF-8")?;
-    decoded
-        .parse()
-        .context("feature query cursor has an invalid feature id")
+    fn encode(&self, position: &MapFeatureId) -> Result<String> {
+        Ok(URL_SAFE_NO_PAD.encode(position.as_str()))
+    }
+    fn decode(&self, cursor: &str) -> Result<MapFeatureId> {
+        if cursor.len() > 256 {
+            bail!("feature query cursor exceeds its byte limit");
+        }
+        let decoded = URL_SAFE_NO_PAD
+            .decode(cursor)
+            .context("feature query cursor is not valid base64url")?;
+        let decoded = String::from_utf8(decoded).context("feature query cursor is not UTF-8")?;
+        decoded
+            .parse()
+            .context("feature query cursor has an invalid feature id")
+    }
+}
+fn encode_cursor(feature_id: &MapFeatureId) -> String {
+    use veoveo_types::CursorCodec;
+    FeatureQueryCursorCodec
+        .encode(feature_id)
+        .expect("typed feature position")
+}
+fn decode_cursor(wire: &str) -> Result<MapFeatureId> {
+    use veoveo_types::CursorCodec;
+    let position = FeatureQueryCursorCodec.decode(wire)?;
+    FeatureQueryCursorCodec.check(&position)?;
+    Ok(position)
 }
 
 #[cfg(test)]

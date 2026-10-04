@@ -34,10 +34,39 @@ struct CursorWire {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "String", into = "String")]
 pub struct FrameUsageCursor {
-    wire: String,
-    after: TaskId,
+    cursor: veoveo_types::OpaqueCursor<FrameUsageCursorCodec>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct FrameUsageCursorCodec;
+impl veoveo_types::CursorCodec for FrameUsageCursorCodec {
+    type Position = TaskId;
+    type Error = FrameUsageError;
+    fn check(&self, position: &Self::Position) -> Result<(), Self::Error> {
+        task_identity(*position).map(|_| ())
+    }
+    fn encode(&self, position: &Self::Position) -> Result<String, Self::Error> {
+        let bytes = serde_json::to_vec(&CursorWire {
+            version: 1,
+            collection: (FrameUsageIndexUri::ROOT).to_owned(),
+            after: *position,
+        })
+        .expect("closed owner cursor fields serialize");
+        Ok(hex::encode(bytes))
+    }
+    fn decode(&self, wire: &str) -> Result<Self::Position, Self::Error> {
+        if wire.is_empty() || wire.len() > 1024 {
+            return Err(FrameUsageError);
+        }
+        let bytes = hex::decode(wire).map_err(|_| FrameUsageError)?;
+        let decoded: CursorWire = serde_json::from_slice(&bytes).map_err(|_| FrameUsageError)?;
+        if decoded.version != 1 || decoded.collection != FrameUsageIndexUri::ROOT {
+            return Err(FrameUsageError);
+        }
+        let position = decoded.after;
+        Ok(position)
+    }
+}
 impl FrameUsageCursor {
     /// Positions require native Tasks, never frame-world or operation IDs.
     /// ```compile_fail
@@ -45,42 +74,19 @@ impl FrameUsageCursor {
     /// FrameUsageCursor::new(FrameWorldId::new("world").unwrap());
     /// ```
     pub fn new(after: TaskId) -> Result<Self, FrameUsageError> {
-        let after = task_identity(after)?;
-        let wire = hex::encode(
-            serde_json::to_vec(&CursorWire {
-                version: 1,
-                collection: FrameUsageIndexUri::ROOT.to_owned(),
-                after,
-            })
-            .expect("closed usage cursor fields serialize"),
-        );
-        Ok(Self { wire, after })
+        let cursor = veoveo_types::OpaqueCursor::try_new(FrameUsageCursorCodec, after)?;
+        Ok(Self { cursor })
     }
-
     pub fn parse(wire: impl Into<String>) -> Result<Self, FrameUsageError> {
-        let wire = wire.into();
-        if wire.is_empty() || wire.len() > 1024 {
-            return Err(FrameUsageError);
-        }
-        let bytes = hex::decode(&wire).map_err(|_| FrameUsageError)?;
-        let cursor: CursorWire = serde_json::from_slice(&bytes).map_err(|_| FrameUsageError)?;
-        if cursor.version != 1 || cursor.collection != FrameUsageIndexUri::ROOT {
-            return Err(FrameUsageError);
-        }
-        Ok(Self {
-            wire,
-            after: task_identity(cursor.after)?,
-        })
+        veoveo_types::OpaqueCursor::parse(FrameUsageCursorCodec, wire).map(|cursor| Self { cursor })
     }
-
     pub fn after(&self) -> TaskId {
-        self.after
+        *self.cursor.position()
     }
     pub fn as_str(&self) -> &str {
-        &self.wire
+        self.cursor.as_str()
     }
 }
-
 impl TryFrom<String> for FrameUsageCursor {
     type Error = FrameUsageError;
     fn try_from(value: String) -> Result<Self, Self::Error> {
@@ -89,7 +95,7 @@ impl TryFrom<String> for FrameUsageCursor {
 }
 impl From<FrameUsageCursor> for String {
     fn from(value: FrameUsageCursor) -> Self {
-        value.wire
+        value.cursor.into_wire()
     }
 }
 
@@ -215,12 +221,20 @@ impl FrameUsageEntry {
         &self.usage_uri
     }
 }
+impl veoveo_types::Check for EntryWire {
+    type Error = FrameUsageError;
+    fn check(&self) -> Result<(), Self::Error> {
+        if self.task_id != self.usage_uri.task_id() {
+            return Err(FrameUsageError);
+        }
+
+        Ok(())
+    }
+}
 impl TryFrom<EntryWire> for FrameUsageEntry {
     type Error = FrameUsageError;
     fn try_from(value: EntryWire) -> Result<Self, Self::Error> {
-        if value.task_id != value.usage_uri.task_id() {
-            return Err(FrameUsageError);
-        }
+        let value = veoveo_types::Checked::new(value)?.into_inner();
         Ok(Self {
             usage_uri: value.usage_uri,
         })
@@ -271,22 +285,30 @@ impl FrameUsagePage {
         self.next_cursor.as_ref()
     }
 }
-impl TryFrom<PageWire> for FrameUsagePage {
+impl veoveo_types::Check for PageWire {
     type Error = FrameUsageError;
-    fn try_from(value: PageWire) -> Result<Self, Self::Error> {
-        if value.limit != FRAME_USAGE_PAGE_SIZE
-            || value.items.len() > FRAME_USAGE_PAGE_SIZE
-            || value
+    fn check(&self) -> Result<(), Self::Error> {
+        if self.limit != FRAME_USAGE_PAGE_SIZE
+            || self.items.len() > FRAME_USAGE_PAGE_SIZE
+            || self
                 .items
                 .windows(2)
                 .any(|pair| pair[0].task_id() >= pair[1].task_id())
-            || value.next_cursor.as_ref().is_some_and(|cursor| {
-                value.items.len() != FRAME_USAGE_PAGE_SIZE
-                    || value.items.last().map(FrameUsageEntry::task_id) != Some(cursor.after())
+            || self.next_cursor.as_ref().is_some_and(|cursor| {
+                self.items.len() != FRAME_USAGE_PAGE_SIZE
+                    || self.items.last().map(FrameUsageEntry::task_id) != Some(cursor.after())
             })
         {
             return Err(FrameUsageError);
         }
+
+        Ok(())
+    }
+}
+impl TryFrom<PageWire> for FrameUsagePage {
+    type Error = FrameUsageError;
+    fn try_from(value: PageWire) -> Result<Self, Self::Error> {
+        let value = veoveo_types::Checked::new(value)?.into_inner();
         Ok(Self {
             items: value.items,
             next_cursor: value.next_cursor,

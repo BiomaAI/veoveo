@@ -35,10 +35,39 @@ struct CursorWire {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "String", into = "String")]
 pub struct MediaUsageCursor {
-    wire: String,
-    after: TaskId,
+    cursor: veoveo_types::OpaqueCursor<MediaUsageCursorCodec>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct MediaUsageCursorCodec;
+impl veoveo_types::CursorCodec for MediaUsageCursorCodec {
+    type Position = TaskId;
+    type Error = MediaUsageError;
+    fn check(&self, position: &Self::Position) -> Result<(), Self::Error> {
+        task_identity(*position).map(|_| ())
+    }
+    fn encode(&self, position: &Self::Position) -> Result<String, Self::Error> {
+        let bytes = serde_json::to_vec(&CursorWire {
+            version: 1,
+            collection: (MediaUsageIndexUri::ROOT).to_owned(),
+            after: *position,
+        })
+        .expect("closed owner cursor fields serialize");
+        Ok(URL_SAFE_NO_PAD.encode(bytes))
+    }
+    fn decode(&self, wire: &str) -> Result<Self::Position, Self::Error> {
+        if wire.is_empty() || wire.len() > 1024 {
+            return Err(MediaUsageError);
+        }
+        let bytes = URL_SAFE_NO_PAD.decode(wire).map_err(|_| MediaUsageError)?;
+        let decoded: CursorWire = serde_json::from_slice(&bytes).map_err(|_| MediaUsageError)?;
+        if decoded.version != 1 || decoded.collection != MediaUsageIndexUri::ROOT {
+            return Err(MediaUsageError);
+        }
+        let position = decoded.after;
+        Ok(position)
+    }
+}
 impl MediaUsageCursor {
     /// Positions require native Task identities.
     /// ```compile_fail
@@ -46,42 +75,19 @@ impl MediaUsageCursor {
     /// MediaUsageCursor::new("raw-task-id");
     /// ```
     pub fn new(after: TaskId) -> Result<Self, MediaUsageError> {
-        let after = task_identity(after)?;
-        let wire = URL_SAFE_NO_PAD.encode(
-            serde_json::to_vec(&CursorWire {
-                version: 1,
-                collection: MediaUsageIndexUri::ROOT.to_owned(),
-                after,
-            })
-            .expect("closed usage cursor fields serialize"),
-        );
-        Ok(Self { wire, after })
+        let cursor = veoveo_types::OpaqueCursor::try_new(MediaUsageCursorCodec, after)?;
+        Ok(Self { cursor })
     }
-
     pub fn parse(wire: impl Into<String>) -> Result<Self, MediaUsageError> {
-        let wire = wire.into();
-        if wire.is_empty() || wire.len() > 1024 {
-            return Err(MediaUsageError);
-        }
-        let bytes = URL_SAFE_NO_PAD.decode(&wire).map_err(|_| MediaUsageError)?;
-        let cursor: CursorWire = serde_json::from_slice(&bytes).map_err(|_| MediaUsageError)?;
-        if cursor.version != 1 || cursor.collection != MediaUsageIndexUri::ROOT {
-            return Err(MediaUsageError);
-        }
-        Ok(Self {
-            wire,
-            after: task_identity(cursor.after)?,
-        })
+        veoveo_types::OpaqueCursor::parse(MediaUsageCursorCodec, wire).map(|cursor| Self { cursor })
     }
-
     pub fn after(&self) -> TaskId {
-        self.after
+        *self.cursor.position()
     }
     pub fn as_str(&self) -> &str {
-        &self.wire
+        self.cursor.as_str()
     }
 }
-
 impl TryFrom<String> for MediaUsageCursor {
     type Error = MediaUsageError;
     fn try_from(value: String) -> Result<Self, Self::Error> {
@@ -90,7 +96,7 @@ impl TryFrom<String> for MediaUsageCursor {
 }
 impl From<MediaUsageCursor> for String {
     fn from(value: MediaUsageCursor) -> Self {
-        value.wire
+        value.cursor.into_wire()
     }
 }
 
@@ -221,12 +227,20 @@ impl MediaUsageEntry {
         &self.usage_uri
     }
 }
+impl veoveo_types::Check for EntryWire {
+    type Error = MediaUsageError;
+    fn check(&self) -> Result<(), Self::Error> {
+        if self.task_id != self.usage_uri.task_id() {
+            return Err(MediaUsageError);
+        }
+
+        Ok(())
+    }
+}
 impl TryFrom<EntryWire> for MediaUsageEntry {
     type Error = MediaUsageError;
     fn try_from(value: EntryWire) -> Result<Self, Self::Error> {
-        if value.task_id != value.usage_uri.task_id() {
-            return Err(MediaUsageError);
-        }
+        let value = veoveo_types::Checked::new(value)?.into_inner();
         Ok(Self {
             usage_uri: value.usage_uri,
         })
@@ -277,22 +291,30 @@ impl MediaUsagePage {
         self.next_cursor.as_ref()
     }
 }
-impl TryFrom<PageWire> for MediaUsagePage {
+impl veoveo_types::Check for PageWire {
     type Error = MediaUsageError;
-    fn try_from(value: PageWire) -> Result<Self, Self::Error> {
-        if value.limit != MEDIA_USAGE_PAGE_SIZE
-            || value.items.len() > MEDIA_USAGE_PAGE_SIZE
-            || value
+    fn check(&self) -> Result<(), Self::Error> {
+        if self.limit != MEDIA_USAGE_PAGE_SIZE
+            || self.items.len() > MEDIA_USAGE_PAGE_SIZE
+            || self
                 .items
                 .windows(2)
                 .any(|pair| pair[0].task_id() >= pair[1].task_id())
-            || value.next_cursor.as_ref().is_some_and(|cursor| {
-                value.items.len() != MEDIA_USAGE_PAGE_SIZE
-                    || value.items.last().map(MediaUsageEntry::task_id) != Some(cursor.after())
+            || self.next_cursor.as_ref().is_some_and(|cursor| {
+                self.items.len() != MEDIA_USAGE_PAGE_SIZE
+                    || self.items.last().map(MediaUsageEntry::task_id) != Some(cursor.after())
             })
         {
             return Err(MediaUsageError);
         }
+
+        Ok(())
+    }
+}
+impl TryFrom<PageWire> for MediaUsagePage {
+    type Error = MediaUsageError;
+    fn try_from(value: PageWire) -> Result<Self, Self::Error> {
+        let value = veoveo_types::Checked::new(value)?.into_inner();
         Ok(Self {
             items: value.items,
             next_cursor: value.next_cursor,

@@ -1159,3 +1159,11 @@ derive. Explicit owner codecs admit collection-bound cursors and UUID-v7 Task id
 Checked constructors initialize private wire caches, and discovery templates alias the
 generated declaration. Serde and schema declarations preserve the public string profile;
 cursor payload encoding remains a separate checked owner contract.
+
+## Value Admission
+
+DuckDbQueryRequest retains its Wire defaults and schema relationship transforms around immutable `Checked` storage. Its owner check enforces attachment distinctness and the output/row-limit relationship before service admission.
+
+## Cursor Admission
+
+Database and usage cursors use owner base64url JSON codecs with private OpaqueCursor storage. Database catalog parsing requires exact re-encoding; usage parsing preserves admitted aliases. Entry and page relationship checks run once before existing redundant-ID and fixed-limit projections.

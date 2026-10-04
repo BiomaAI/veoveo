@@ -43,3 +43,7 @@ parse the same resource variants. Dictation state, native HTTP, gateway policy t
 and the browser edge carry `DictationSessionId`. A snapshot constructor derives its
 URI from its private identity, and decoding rejects mismatched session/URI pairs.
 Generated Workspace schemas and types consume this contract.
+
+## Value Admission
+
+DictationSnapshot implements `Check` for its private session-ID/result-address agreement. Construction and decoding reuse that admission. Its public progress fields retain their existing runtime mutation API, so this model uses an explicit representation exception instead of immutable whole-model Checked storage. Progress updates cannot mutate either identity field.

@@ -932,3 +932,11 @@ paths against a disposable pinned Store; it performs no simulation or GPU work.
 ## Identity Declaration Mechanics
 
 Simulation and live-view identities use `Id` with their existing owner lexical validators and String schema declarations. Recording keys remain nominal identities. Resource references and flight/control relationships keep their separate parsers and admission checks.
+
+## Value Admission
+
+InstallationWorldBinding stores the admitted session and simulation-world fields through `Checked`; its owner validator checks the retained world facts before construction and decoding.
+
+## Cursor Admission
+
+UAV cursors retain hexadecimal JSON envelopes and their existing constructor/parser limits through owner codecs. Grant and live-view codecs store the typed session binding privately, and both encode and decode enforce collection agreement. Contextual cursors require explicit caller context and provide no generic String deserializer that invents a session.

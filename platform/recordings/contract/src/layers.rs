@@ -1,8 +1,5 @@
 //! Public layer facts and their lifecycle-dependent integrity requirements.
-use crate::{
-    RecordingContractError, RecordingLayerId,
-    checked::{checked_model, text},
-};
+use crate::{RecordingContractError, RecordingLayerId, checked::text};
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -65,6 +62,12 @@ pub struct LayerViewBuilder {
 }
 impl LayerViewBuilder {
     pub fn build(self) -> Result<LayerView, RecordingContractError> {
+        veoveo_types::Checked::new(self).map(LayerView)
+    }
+}
+impl veoveo_types::Check for LayerViewBuilder {
+    type Error = RecordingContractError;
+    fn check(&self) -> Result<(), Self::Error> {
         let finalized = matches!(
             self.state,
             RecordingLayerState::Staged | RecordingLayerState::Committed
@@ -85,10 +88,19 @@ impl LayerViewBuilder {
         {
             return Err(RecordingContractError::Layer);
         }
-        Ok(LayerView(self))
+        Ok(())
     }
 }
-checked_model!(LayerView, LayerViewBuilder);
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(transparent)]
+#[schemars(transparent)]
+pub struct LayerView(veoveo_types::Checked<LayerViewBuilder>);
+impl std::ops::Deref for LayerView {
+    type Target = LayerViewBuilder;
+    fn deref(&self) -> &Self::Target {
+        self.0.get()
+    }
+}
 
 /// Committed layer facts for a sealed manifest.
 /// ```compile_fail
@@ -115,12 +127,27 @@ pub struct ManifestLayerBuilder {
 }
 impl ManifestLayerBuilder {
     pub fn build(self) -> Result<ManifestLayer, RecordingContractError> {
+        veoveo_types::Checked::new(self).map(ManifestLayer)
+    }
+}
+impl veoveo_types::Check for ManifestLayerBuilder {
+    type Error = RecordingContractError;
+    fn check(&self) -> Result<(), Self::Error> {
         if !valid_identity(self.kind, &self.layer_name, self.ordinal)
             || !text(&self.rrd_version, 64)
         {
             return Err(RecordingContractError::Layer);
         }
-        Ok(ManifestLayer(self))
+        Ok(())
     }
 }
-checked_model!(ManifestLayer, ManifestLayerBuilder);
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(transparent)]
+#[schemars(transparent)]
+pub struct ManifestLayer(veoveo_types::Checked<ManifestLayerBuilder>);
+impl std::ops::Deref for ManifestLayer {
+    type Target = ManifestLayerBuilder;
+    fn deref(&self) -> &Self::Target {
+        self.0.get()
+    }
+}
