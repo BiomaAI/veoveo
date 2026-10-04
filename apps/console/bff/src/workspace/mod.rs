@@ -1,5 +1,6 @@
 //! Shared browser edge for the independent Workspace client. The upstream origin
 //! and profile are installation configuration; credentials come only from cookies.
+use veoveo_http::RequestJson;
 mod apps;
 mod events;
 mod operations;
@@ -182,7 +183,7 @@ async fn chats(State(state): State<AppState>, headers: HeaderMap) -> Response {
 async fn create(
     State(state): State<AppState>,
     headers: HeaderMap,
-    Json(request): Json<wire::CreateChat>,
+    RequestJson(request): RequestJson<wire::CreateChat>,
 ) -> Response {
     forward::<_, wire::Chat>(
         &state,
@@ -223,7 +224,7 @@ async fn send(
     State(state): State<AppState>,
     Path(chat): Path<Uuid>,
     headers: HeaderMap,
-    Json(request): Json<wire::SendMessage>,
+    RequestJson(request): RequestJson<wire::SendMessage>,
 ) -> Response {
     forward::<_, wire::Message>(
         &state,
@@ -240,7 +241,7 @@ async fn invite(
     State(state): State<AppState>,
     Path(chat): Path<Uuid>,
     headers: HeaderMap,
-    Json(request): Json<wire::InvitePerson>,
+    RequestJson(request): RequestJson<wire::InvitePerson>,
 ) -> Response {
     forward::<_, wire::Invitation>(
         &state,
@@ -269,7 +270,7 @@ async fn decide(
     State(state): State<AppState>,
     Path(invitation): Path<Uuid>,
     headers: HeaderMap,
-    Json(request): Json<wire::DecideInvitation>,
+    RequestJson(request): RequestJson<wire::DecideInvitation>,
 ) -> Response {
     forward::<_, wire::Invitation>(
         &state,
@@ -302,7 +303,7 @@ async fn settings(
     State(state): State<AppState>,
     Path(chat): Path<Uuid>,
     headers: HeaderMap,
-    Json(request): Json<wire::ChatSettings>,
+    RequestJson(request): RequestJson<wire::ChatSettings>,
 ) -> Response {
     forward::<_, wire::Chat>(
         &state,

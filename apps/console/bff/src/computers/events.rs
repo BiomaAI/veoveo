@@ -5,7 +5,6 @@ use crate::{
     mcp_client::{ResourceSubscriptionError, SharedMcpClient},
 };
 use axum::{
-    Json,
     extract::State,
     http::{HeaderMap, StatusCode},
     response::{
@@ -19,6 +18,7 @@ use tokio::sync::{broadcast, mpsc};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 use veoveo_computers_contract::{COMPUTERS_URI, ComputerEvent, ComputerEventKind};
+use veoveo_http::RequestJson;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -27,7 +27,7 @@ pub(super) struct EventsInput {}
 pub(super) async fn events(
     State(state): State<AppState>,
     headers: HeaderMap,
-    Json(_): Json<EventsInput>,
+    RequestJson(_): RequestJson<EventsInput>,
 ) -> Response {
     let session = match api::upstream_session(&state, &headers).await {
         Ok(session) => session,

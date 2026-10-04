@@ -8,6 +8,7 @@ name = "gateway"
 path = "src/bin/gateway.rs"
 
 [dependencies]
+veoveo-http.workspace = true
 veoveo-recording-contract.workspace = true
 veoveo-mcp-gateway = { path = ".." }
 veoveo-gateway-contract.workspace = true

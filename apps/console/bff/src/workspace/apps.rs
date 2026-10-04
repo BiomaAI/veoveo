@@ -2,13 +2,14 @@
 use super::{Parameters, forward};
 use crate::{AppState, apps};
 use axum::{
-    Json, Router,
+    Router,
     extract::{Path, State},
     http::{HeaderMap, Method},
     response::Response,
     routing::{get, post},
 };
 use uuid::Uuid;
+use veoveo_http::RequestJson;
 use veoveo_workspace::contract as wire;
 
 pub(super) fn router() -> Router<AppState> {
@@ -36,7 +37,7 @@ async fn start(
     State(state): State<AppState>,
     Path(chat): Path<Uuid>,
     headers: HeaderMap,
-    Json(request): Json<wire::StartAppOperation>,
+    RequestJson(request): RequestJson<wire::StartAppOperation>,
 ) -> Response {
     forward::<_, wire::OperationSummary>(
         &state,
@@ -52,7 +53,7 @@ async fn detail(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
     headers: HeaderMap,
-    Json(request): Json<wire::AppOrigin>,
+    RequestJson(request): RequestJson<wire::AppOrigin>,
 ) -> Response {
     forward::<_, wire::AppOperationView>(
         &state,
@@ -67,7 +68,7 @@ async fn detail(
 async fn get_task(
     State(state): State<AppState>,
     headers: HeaderMap,
-    Json(request): Json<wire::AppTaskRequest>,
+    RequestJson(request): RequestJson<wire::AppTaskRequest>,
 ) -> Response {
     forward::<_, rmcp::model::GetTaskResult>(
         &state,
@@ -82,7 +83,7 @@ async fn get_task(
 async fn update_task(
     State(state): State<AppState>,
     headers: HeaderMap,
-    Json(request): Json<wire::UpdateAppTask>,
+    RequestJson(request): RequestJson<wire::UpdateAppTask>,
 ) -> Response {
     forward::<_, rmcp::model::TaskAckResult>(
         &state,
@@ -97,7 +98,7 @@ async fn update_task(
 async fn cancel_task(
     State(state): State<AppState>,
     headers: HeaderMap,
-    Json(request): Json<wire::AppTaskRequest>,
+    RequestJson(request): RequestJson<wire::AppTaskRequest>,
 ) -> Response {
     forward::<_, rmcp::model::TaskAckResult>(
         &state,

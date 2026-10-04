@@ -1,7 +1,7 @@
 use super::{Parameters, forward};
 use crate::AppState;
 use axum::{
-    Json, Router,
+    Router,
     extract::{Path, Query, State},
     http::{HeaderMap, Method, StatusCode},
     response::{IntoResponse, Response},
@@ -9,6 +9,7 @@ use axum::{
 };
 use serde::Deserialize;
 use uuid::Uuid;
+use veoveo_http::RequestJson;
 use veoveo_workspace::contract as wire;
 
 pub(super) fn router() -> Router<AppState> {
@@ -78,7 +79,7 @@ async fn start(
     State(state): State<AppState>,
     Path(chat): Path<Uuid>,
     headers: HeaderMap,
-    Json(request): Json<wire::StartOperation>,
+    RequestJson(request): RequestJson<wire::StartOperation>,
 ) -> Response {
     forward::<_, wire::OperationSummary>(
         &state,
@@ -109,7 +110,7 @@ async fn answer(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
     headers: HeaderMap,
-    Json(request): Json<wire::AnswerOperation>,
+    RequestJson(request): RequestJson<wire::AnswerOperation>,
 ) -> Response {
     forward::<_, ()>(
         &state,

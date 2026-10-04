@@ -139,7 +139,7 @@ async fn ordinary_humans_collaborate_and_cannot_forge_authors_or_read_another_ch
         )
         .await
         .0,
-        StatusCode::UNPROCESSABLE_ENTITY
+        StatusCode::BAD_REQUEST
     );
     let message: workspace::Message = ok(
         &bob,

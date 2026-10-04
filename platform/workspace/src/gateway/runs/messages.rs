@@ -1,5 +1,6 @@
 //! Message admission owns response intent; browser lifetime never splits it.
 use super::*;
+use veoveo_http::RequestJson;
 use veoveo_platform_store::workspace::{
     WorkspaceReplyTarget, WorkspaceRunFailure, WorkspaceTurnRequest,
 };
@@ -9,7 +10,7 @@ pub(super) async fn send(
     Path((profile, chat)): Path<(String, Uuid)>,
     Extension(subject): Extension<AuthenticatedSubject>,
     headers: HeaderMap,
-    Json(request): Json<wire::SendMessage>,
+    RequestJson(request): RequestJson<wire::SendMessage>,
 ) -> Api<wire::Message> {
     let actor = authority::admit(&state.workspace, &subject).await?;
     let profile = GatewayProfileId::parse(profile).map_err(|_| StatusCode::NOT_FOUND)?;

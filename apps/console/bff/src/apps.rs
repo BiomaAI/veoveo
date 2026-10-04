@@ -2,6 +2,7 @@ use veoveo_gateway_contract::{
     APP_RESOURCE_DEPENDENCIES_META_KEY, APP_TOOL_DEPENDENCIES_META_KEY, AppResourceDependency,
     AppResourceOperation, AppToolDependency,
 };
+use veoveo_http::RequestJson;
 mod catalog_admission;
 mod catalog_events;
 pub(crate) use catalog_events::app_catalog_events;
@@ -608,7 +609,7 @@ fn csp_sources(values: &[String], allowed_schemes: &[&str]) -> Result<Vec<String
 }
 
 #[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct ReadAppResourceRequest {
     server: String,
     app_uri: String,
@@ -621,7 +622,7 @@ pub(crate) struct ReadAppResourceRequest {
 pub(crate) async fn read_app_resource(
     State(state): State<AppState>,
     request_headers: HeaderMap,
-    Json(request): Json<ReadAppResourceRequest>,
+    RequestJson(request): RequestJson<ReadAppResourceRequest>,
 ) -> Response {
     if app_uri_server(&request.app_uri) != Some(request.server.as_str()) {
         return call_error(
@@ -715,7 +716,7 @@ pub(crate) async fn read_app_resource(
 }
 
 #[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct AppResourceEventsRequest {
     server: String,
     app_uri: String,
@@ -723,7 +724,7 @@ pub(crate) struct AppResourceEventsRequest {
 }
 
 #[derive(Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct AppResourceEventSubscription {
     uri: String,
     subscription_id: uuid::Uuid,
@@ -760,7 +761,7 @@ fn app_resource_event_uris(
 pub(crate) async fn app_resource_events(
     State(state): State<AppState>,
     request_headers: HeaderMap,
-    Json(request): Json<AppResourceEventsRequest>,
+    RequestJson(request): RequestJson<AppResourceEventsRequest>,
 ) -> Response {
     if app_uri_server(&request.app_uri) != Some(request.server.as_str()) {
         return call_error(
@@ -944,7 +945,7 @@ pub(crate) async fn app_resource_events(
 }
 
 #[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct UnsubscribeAppResourceRequest {
     subscription_id: uuid::Uuid,
 }
@@ -952,7 +953,7 @@ pub(crate) struct UnsubscribeAppResourceRequest {
 pub(crate) async fn unsubscribe_app_resource(
     State(state): State<AppState>,
     request_headers: HeaderMap,
-    Json(request): Json<UnsubscribeAppResourceRequest>,
+    RequestJson(request): RequestJson<UnsubscribeAppResourceRequest>,
 ) -> Response {
     // The registration belongs to this authenticated client's UUID namespace.
     // Releasing it needs no new catalog authority or upstream discovery.
@@ -983,7 +984,7 @@ pub(crate) async fn unsubscribe_app_resource(
 }
 
 #[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct CallAppToolRequest {
     server: String,
     app_uri: String,
@@ -1064,7 +1065,7 @@ fn capped_json_response<T: Serialize>(result: &T, cap_message: &str) -> Response
 pub(crate) async fn call_app_tool(
     State(state): State<AppState>,
     request_headers: HeaderMap,
-    Json(request): Json<CallAppToolRequest>,
+    RequestJson(request): RequestJson<CallAppToolRequest>,
 ) -> Response {
     if app_uri_server(&request.app_uri) != Some(request.server.as_str()) {
         return call_error(
@@ -1199,7 +1200,7 @@ pub(crate) async fn call_app_tool(
 }
 
 #[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct AppTaskRequest {
     server: String,
     app_uri: String,
@@ -1207,7 +1208,7 @@ pub(crate) struct AppTaskRequest {
 }
 
 #[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct UpdateAppTaskRequest {
     server: String,
     app_uri: String,
@@ -1240,7 +1241,7 @@ fn app_task_access_denied(state: &AppState, request: &AppTaskRequest) -> Option<
 pub(crate) async fn get_app_task(
     State(state): State<AppState>,
     request_headers: HeaderMap,
-    Json(request): Json<AppTaskRequest>,
+    RequestJson(request): RequestJson<AppTaskRequest>,
 ) -> Response {
     if let Some(response) = app_task_access_denied(&state, &request) {
         return response;
@@ -1280,7 +1281,7 @@ pub(crate) async fn get_app_task(
 pub(crate) async fn cancel_app_task(
     State(state): State<AppState>,
     request_headers: HeaderMap,
-    Json(request): Json<AppTaskRequest>,
+    RequestJson(request): RequestJson<AppTaskRequest>,
 ) -> Response {
     if let Some(response) = app_task_access_denied(&state, &request) {
         return response;
@@ -1317,7 +1318,7 @@ pub(crate) async fn cancel_app_task(
 pub(crate) async fn update_app_task(
     State(state): State<AppState>,
     request_headers: HeaderMap,
-    Json(request): Json<UpdateAppTaskRequest>,
+    RequestJson(request): RequestJson<UpdateAppTaskRequest>,
 ) -> Response {
     let access = AppTaskRequest {
         server: request.server,
@@ -1363,6 +1364,30 @@ mod tests {
     use axum::body::to_bytes;
 
     use super::*;
+
+    #[test]
+    fn app_tool_envelope_is_closed_and_arguments_remain_open() {
+        let valid = serde_json::json!({"server":"fixture", "appUri":"ui://fixture/app.html", "tool":"fixture_run", "arguments":{"providerExtension":{"arbitrary":true}}});
+        let decoded: CallAppToolRequest = serde_json::from_value(valid.clone()).unwrap();
+        assert_eq!(decoded.arguments["providerExtension"]["arbitrary"], true);
+        let mut invalid = valid;
+        invalid["extraField"] = serde_json::json!(true);
+        assert!(
+            serde_json::from_value::<CallAppToolRequest>(invalid)
+                .err()
+                .unwrap()
+                .to_string()
+                .contains("extraField")
+        );
+        let invalid = serde_json::json!({"server":"fixture", "appUri":"ui://fixture/app.html", "subscriptions":[{"uri":"fixture://resource", "subscriptionId":uuid::Uuid::now_v7(), "nestedExtra":true}]});
+        assert!(
+            serde_json::from_value::<AppResourceEventsRequest>(invalid)
+                .err()
+                .unwrap()
+                .to_string()
+                .contains("nestedExtra")
+        );
+    }
 
     #[test]
     fn only_transport_failures_are_safe_to_retry() {

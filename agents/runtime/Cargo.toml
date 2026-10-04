@@ -10,7 +10,7 @@ path = "src/lib.rs"
 [features]
 contract = ["dep:veoveo-gateway-contract", "dep:veoveo-types", "dep:serde", "dep:serde_json", "dep:schemars", "dep:chrono", "dep:uuid", "dep:sha2", "dep:hex", "dep:url", "dep:anyhow"]
 catalog = ["contract", "dep:veoveo-mcp-contract"]
-gateway = ["runtime", "catalog", "dep:veoveo-mcp-gateway", "dep:anyhow", "dep:jsonwebtoken", "dep:veoveo-types", "dep:axum", "dep:parking_lot", "dep:reqwest", "dep:rmcp", "dep:secrecy", "dep:sha2", "dep:hex", "dep:tokio-util", "dep:tower-http", "dep:tracing", "dep:url"]
+gateway = ["dep:veoveo-http", "runtime", "catalog", "dep:veoveo-mcp-gateway", "dep:anyhow", "dep:jsonwebtoken", "dep:veoveo-types", "dep:axum", "dep:parking_lot", "dep:reqwest", "dep:rmcp", "dep:secrecy", "dep:sha2", "dep:hex", "dep:tokio-util", "dep:tower-http", "dep:tracing", "dep:url"]
 default = ["runtime"]
 schema = ["dep:veoveo-modules", "dep:veoveo-types", "dep:serde", "dep:schemars"]
 runtime = [
@@ -32,6 +32,7 @@ runtime = [
 ]
 
 [dependencies]
+veoveo-http = { workspace = true, optional = true }
 veoveo-gateway-contract = { workspace = true, optional = true }
 schemars = { workspace = true, features = ["chrono04", "uuid1"], optional = true }
 axum = { workspace = true, optional = true }

@@ -1,3 +1,4 @@
+use veoveo_http::RequestJson;
 mod authority;
 pub(crate) mod events;
 pub(crate) mod operations;
@@ -157,7 +158,7 @@ async fn list(
 async fn create(
     State(state): State<WorkspaceState>,
     Extension(subject): Extension<AuthenticatedSubject>,
-    Json(request): Json<wire::CreateChat>,
+    RequestJson(request): RequestJson<wire::CreateChat>,
 ) -> Api<wire::Chat> {
     let actor = authority::admit(&state, &subject).await?;
     let chat = state
@@ -239,7 +240,7 @@ async fn invite(
     State(state): State<WorkspaceState>,
     Path((_profile, chat)): Path<(String, Uuid)>,
     Extension(subject): Extension<AuthenticatedSubject>,
-    Json(request): Json<wire::InvitePerson>,
+    RequestJson(request): RequestJson<wire::InvitePerson>,
 ) -> Api<wire::Invitation> {
     let actor = authority::admit(&state, &subject).await?;
     let invitation = state
@@ -283,7 +284,7 @@ async fn decide(
     State(state): State<WorkspaceState>,
     Path((_profile, invitation)): Path<(String, Uuid)>,
     Extension(subject): Extension<AuthenticatedSubject>,
-    Json(request): Json<wire::DecideInvitation>,
+    RequestJson(request): RequestJson<wire::DecideInvitation>,
 ) -> Api<wire::Invitation> {
     let actor = authority::admit(&state, &subject).await?;
     let decision = match request.state {
@@ -327,7 +328,7 @@ async fn settings(
     State(state): State<WorkspaceState>,
     Path((_profile, chat)): Path<(String, Uuid)>,
     Extension(subject): Extension<AuthenticatedSubject>,
-    Json(request): Json<wire::ChatSettings>,
+    RequestJson(request): RequestJson<wire::ChatSettings>,
 ) -> Api<wire::Chat> {
     let actor = authority::admit(&state, &subject).await?;
     let result = state

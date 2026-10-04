@@ -5,6 +5,7 @@ use axum::{
     extract::{Extension, Path, State},
     http::{HeaderMap, StatusCode},
 };
+use veoveo_http::RequestJson;
 use veoveo_mcp_contract::PolicyTarget;
 use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_platform_store::{PrincipalId, agent_management as domain};
@@ -69,7 +70,7 @@ pub(super) async fn create(
     State(state): State<AgentManagementState>,
     Path(profile): Path<String>,
     Extension(subject): Extension<AuthenticatedSubject>,
-    Json(request): Json<wire::CreateDefinition>,
+    RequestJson(request): RequestJson<wire::CreateDefinition>,
 ) -> Api<wire::Definition> {
     let actor = authority::admit(&state, profile, subject, Action::AgentDefinitionsCreate).await?;
     let result = async {
@@ -114,7 +115,7 @@ pub(super) async fn draft(
     State(state): State<AgentManagementState>,
     Path((profile, id)): Path<(String, String)>,
     Extension(subject): Extension<AuthenticatedSubject>,
-    Json(request): Json<wire::SaveDraft>,
+    RequestJson(request): RequestJson<wire::SaveDraft>,
 ) -> Api<wire::Definition> {
     let actor = authority::admit(&state, profile, subject, Action::AgentDefinitionsEdit).await?;
     let result = state
@@ -137,7 +138,7 @@ pub(super) async fn metadata(
     State(state): State<AgentManagementState>,
     Path((profile, id)): Path<(String, String)>,
     Extension(subject): Extension<AuthenticatedSubject>,
-    Json(request): Json<wire::UpdateMetadata>,
+    RequestJson(request): RequestJson<wire::UpdateMetadata>,
 ) -> Api<wire::Definition> {
     let (action, mutation) = match request.change {
         wire::MetadataChange::Presentation { name, description } => (
@@ -171,7 +172,7 @@ pub(super) async fn publish(
     Path((profile, id)): Path<(String, String)>,
     Extension(subject): Extension<AuthenticatedSubject>,
     headers: HeaderMap,
-    Json(request): Json<wire::PublishDefinition>,
+    RequestJson(request): RequestJson<wire::PublishDefinition>,
 ) -> Api<wire::Definition> {
     let actor = authority::admit(&state, profile, subject, Action::AgentDefinitionsPublish).await?;
     let result = async {
@@ -314,7 +315,7 @@ pub(super) async fn disable(
     Path((profile, id)): Path<(String, String)>,
     Extension(subject): Extension<AuthenticatedSubject>,
     headers: HeaderMap,
-    Json(request): Json<wire::RevisionRequest>,
+    RequestJson(request): RequestJson<wire::RevisionRequest>,
 ) -> Api<wire::Definition> {
     status(
         state,
@@ -332,7 +333,7 @@ pub(super) async fn enable(
     Path((profile, id)): Path<(String, String)>,
     Extension(subject): Extension<AuthenticatedSubject>,
     headers: HeaderMap,
-    Json(request): Json<wire::RevisionRequest>,
+    RequestJson(request): RequestJson<wire::RevisionRequest>,
 ) -> Api<wire::Definition> {
     status(
         state,
@@ -350,7 +351,7 @@ pub(super) async fn archive(
     Path((profile, id)): Path<(String, String)>,
     Extension(subject): Extension<AuthenticatedSubject>,
     headers: HeaderMap,
-    Json(request): Json<wire::RevisionRequest>,
+    RequestJson(request): RequestJson<wire::RevisionRequest>,
 ) -> Api<wire::Definition> {
     status(
         state,

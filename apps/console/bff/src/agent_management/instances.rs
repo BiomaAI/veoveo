@@ -1,4 +1,5 @@
 use super::*;
+use veoveo_http::RequestJson;
 
 pub(super) fn router() -> Router<AppState> {
     Router::new()
@@ -51,7 +52,7 @@ async fn operation(
 async fn provision(
     State(state): State<AppState>,
     headers: HeaderMap,
-    Json(request): Json<wire::ProvisionInstance>,
+    RequestJson(request): RequestJson<wire::ProvisionInstance>,
 ) -> Response {
     forward::<_, wire::LifecycleOperation>(
         &state,
@@ -68,7 +69,7 @@ async fn update(
     State(state): State<AppState>,
     Path(id): Path<wire::AgentManagedInstanceId>,
     headers: HeaderMap,
-    Json(request): Json<wire::UpdateInstance>,
+    RequestJson(request): RequestJson<wire::UpdateInstance>,
 ) -> Response {
     forward::<_, wire::LifecycleOperation>(
         &state,

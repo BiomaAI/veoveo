@@ -1,4 +1,5 @@
 //! Audit-specific reads never enter the installation snapshot or its global feed.
+use veoveo_http::RequestJson;
 mod export;
 mod model;
 mod stream;
@@ -25,7 +26,7 @@ pub(crate) async fn open_view(
     State(state): State<AdminState>,
     Path(profile): Path<GatewayProfileId>,
     Extension(subject): Extension<AuthenticatedSubject>,
-    Json(partition): Json<AuditPartition>,
+    RequestJson(partition): RequestJson<AuditPartition>,
 ) -> Response {
     if let Err(response) = admit(&state, &profile, &subject, &partition).await {
         return *response;

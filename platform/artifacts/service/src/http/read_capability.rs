@@ -1,4 +1,5 @@
 use super::*;
+use veoveo_http::RequestJson;
 use veoveo_mcp_contract::{
     ArtifactReadCapabilityId, ArtifactReadCapabilityScope, ArtifactTaskId,
     IssueArtifactReadCapabilityRequest, IssuedArtifactReadCapability,
@@ -35,7 +36,7 @@ fn capability_id(value: &str) -> Result<ArtifactReadCapabilityId, ApiError> {
 async fn issue<R: ArtifactRepository, S: BlobStore>(
     State(state): State<AppState<R, S>>,
     headers: HeaderMap,
-    Json(request): Json<IssueArtifactReadCapabilityRequest>,
+    RequestJson(request): RequestJson<IssueArtifactReadCapabilityRequest>,
 ) -> Result<Json<IssuedArtifactReadCapability>, ApiError> {
     let caller = caller(&state, &headers)?;
     Ok(Json(

@@ -1,5 +1,6 @@
 use std::time::Instant;
 use veoveo_gateway_contract::GatewayAction;
+use veoveo_http::RequestJson;
 use veoveo_mcp_contract::audit::{AdministrativeOperation, AuditTarget};
 
 use axum::{
@@ -85,7 +86,7 @@ pub(crate) async fn set_artifact_release_state(
     State(state): State<AdminState>,
     AxumPath((profile, artifact_id)): AxumPath<(String, String)>,
     Extension(subject): Extension<AuthenticatedSubject>,
-    Json(request): Json<SetArtifactReleaseStateRequest>,
+    RequestJson(request): RequestJson<SetArtifactReleaseStateRequest>,
 ) -> Response {
     let started_at = Instant::now();
     let context = match authorize_artifact_operation(
@@ -128,7 +129,7 @@ pub(crate) async fn grant_artifact(
     State(state): State<AdminState>,
     AxumPath((profile, artifact_id)): AxumPath<(String, String)>,
     Extension(subject): Extension<AuthenticatedSubject>,
-    Json(request): Json<PutGrantRequest>,
+    RequestJson(request): RequestJson<PutGrantRequest>,
 ) -> Response {
     let started_at = Instant::now();
     let context = match authorize_artifact_operation(
@@ -160,7 +161,7 @@ pub(crate) async fn revoke_artifact_grant(
     State(state): State<AdminState>,
     AxumPath((profile, artifact_id)): AxumPath<(String, String)>,
     Extension(subject): Extension<AuthenticatedSubject>,
-    Json(grant_subject): Json<AccessSubject>,
+    RequestJson(grant_subject): RequestJson<AccessSubject>,
 ) -> Response {
     let started_at = Instant::now();
     let context = match authorize_artifact_operation(
@@ -187,7 +188,7 @@ pub(crate) async fn create_artifact_share_link(
     State(state): State<AdminState>,
     AxumPath((profile, artifact_id)): AxumPath<(String, String)>,
     Extension(subject): Extension<AuthenticatedSubject>,
-    Json(request): Json<CreateArtifactShareLinkRequest>,
+    RequestJson(request): RequestJson<CreateArtifactShareLinkRequest>,
 ) -> Response {
     let started_at = Instant::now();
     let context = match authorize_artifact_operation(

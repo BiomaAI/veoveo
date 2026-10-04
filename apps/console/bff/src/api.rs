@@ -20,6 +20,7 @@ use veoveo_agent_runtime::contract::control::{
     AgentInputRequestDecision, AgentOperatorMessageRequest,
 };
 use veoveo_artifact_contract::{ArtifactId, ArtifactShareLinkId};
+use veoveo_http::RequestJson;
 use veoveo_mcp_contract::{
     ArtifactAccessRequestId, ArtifactAccessRequestScope, ArtifactAccessRequestState,
     CreateArtifactAccessRequest, CreateArtifactShareLinkRequest, DecideArtifactAccessRequest,
@@ -225,7 +226,7 @@ pub(crate) async fn send_agent_message(
     State(state): State<AppState>,
     Path(agent_id): Path<String>,
     request_headers: HeaderMap,
-    axum::Json(request): axum::Json<AgentOperatorMessageRequest>,
+    RequestJson(request): RequestJson<AgentOperatorMessageRequest>,
 ) -> Response {
     if !valid_agent_id(&agent_id) {
         return StatusCode::NOT_FOUND.into_response();
@@ -280,7 +281,7 @@ pub(crate) async fn decide_agent_input_request(
     State(state): State<AppState>,
     Path((agent_id, input_request_id)): Path<(String, String)>,
     request_headers: HeaderMap,
-    axum::Json(request): axum::Json<AgentInputRequestDecision>,
+    RequestJson(request): RequestJson<AgentInputRequestDecision>,
 ) -> Response {
     let Ok(input_request_id) = uuid::Uuid::parse_str(&input_request_id) else {
         return StatusCode::NOT_FOUND.into_response();
@@ -306,7 +307,7 @@ pub(crate) async fn set_artifact_release_state(
     State(state): State<AppState>,
     Path(artifact_id): Path<String>,
     request_headers: HeaderMap,
-    axum::Json(request): axum::Json<SetArtifactReleaseStateRequest>,
+    RequestJson(request): RequestJson<SetArtifactReleaseStateRequest>,
 ) -> Response {
     proxy_artifact_json(
         &state,
@@ -323,7 +324,7 @@ pub(crate) async fn grant_artifact(
     State(state): State<AppState>,
     Path(artifact_id): Path<String>,
     request_headers: HeaderMap,
-    axum::Json(request): axum::Json<PutGrantRequest>,
+    RequestJson(request): RequestJson<PutGrantRequest>,
 ) -> Response {
     proxy_artifact_json(
         &state,
@@ -340,7 +341,7 @@ pub(crate) async fn revoke_artifact_grant(
     State(state): State<AppState>,
     Path(artifact_id): Path<String>,
     request_headers: HeaderMap,
-    axum::Json(request): axum::Json<AccessSubject>,
+    RequestJson(request): RequestJson<AccessSubject>,
 ) -> Response {
     proxy_artifact_json(
         &state,
@@ -357,7 +358,7 @@ pub(crate) async fn create_artifact_share_link(
     State(state): State<AppState>,
     Path(artifact_id): Path<String>,
     request_headers: HeaderMap,
-    axum::Json(request): axum::Json<CreateArtifactShareLinkRequest>,
+    RequestJson(request): RequestJson<CreateArtifactShareLinkRequest>,
 ) -> Response {
     proxy_artifact_json(
         &state,
@@ -395,7 +396,7 @@ pub(crate) async fn create_artifact_access_request(
     State(state): State<AppState>,
     Path(artifact_id): Path<String>,
     request_headers: HeaderMap,
-    axum::Json(request): axum::Json<CreateArtifactAccessRequest>,
+    RequestJson(request): RequestJson<CreateArtifactAccessRequest>,
 ) -> Response {
     proxy_artifact_json(
         &state,
@@ -426,7 +427,7 @@ pub(crate) async fn decide_artifact_access_request(
     State(state): State<AppState>,
     Path(request_id): Path<String>,
     request_headers: HeaderMap,
-    axum::Json(decision): axum::Json<DecideArtifactAccessRequest>,
+    RequestJson(decision): RequestJson<DecideArtifactAccessRequest>,
 ) -> Response {
     let Ok(request_id) = ArtifactAccessRequestId::parse(request_id) else {
         return StatusCode::NOT_FOUND.into_response();

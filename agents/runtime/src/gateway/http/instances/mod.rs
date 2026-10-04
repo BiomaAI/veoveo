@@ -1,5 +1,6 @@
 //! Governed intent admission. Kubernetes writes belong to the lifecycle manager.
 use crate::contract::AgentAction as Action;
+use veoveo_http::RequestJson;
 mod admission;
 mod projection;
 
@@ -139,7 +140,7 @@ async fn provision(
     State(state): State<AgentManagementState>,
     Path(profile): Path<String>,
     Extension(subject): Extension<AuthenticatedSubject>,
-    Json(request): Json<wire::ProvisionInstance>,
+    RequestJson(request): RequestJson<wire::ProvisionInstance>,
 ) -> Result<(StatusCode, Json<wire::LifecycleOperation>), Fault> {
     let actor = authority::admit(&state, profile, subject, Action::AgentInstancesDeploy).await?;
     let result = admission::provision(&state, &actor, &request).await;
@@ -150,7 +151,7 @@ async fn update(
     State(state): State<AgentManagementState>,
     Path((profile, id)): Path<(String, String)>,
     Extension(subject): Extension<AuthenticatedSubject>,
-    Json(request): Json<wire::UpdateInstance>,
+    RequestJson(request): RequestJson<wire::UpdateInstance>,
 ) -> Result<(StatusCode, Json<wire::LifecycleOperation>), Fault> {
     let actor = authority::admit(&state, profile, subject, Action::AgentInstancesControl).await?;
     let result = async {

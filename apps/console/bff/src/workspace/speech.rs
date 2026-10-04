@@ -66,8 +66,16 @@ async fn proxy(
         let expected = if let Some(id) = route.id {
             id
         } else {
-            let input: StartDictation =
-                serde_json::from_slice(&body).map_err(|_| StatusCode::BAD_REQUEST)?;
+            let input: StartDictation = match serde_json::from_slice(&body) {
+                Ok(input) => input,
+                Err(error) => {
+                    return Ok((
+                        StatusCode::BAD_REQUEST,
+                        veoveo_http::json_request_diagnostic(&error.to_string()),
+                    )
+                        .into_response());
+                }
+            };
             input.id
         };
         let response = state

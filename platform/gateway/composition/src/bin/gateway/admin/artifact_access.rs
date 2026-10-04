@@ -1,5 +1,6 @@
 use std::time::Instant;
 use veoveo_gateway_contract::GatewayAction;
+use veoveo_http::RequestJson;
 use veoveo_mcp_contract::audit::{AdministrativeOperation, AuditTarget};
 
 use axum::{
@@ -30,7 +31,7 @@ pub(crate) async fn create_artifact_access_request(
     State(state): State<AdminState>,
     AxumPath((profile, artifact_id)): AxumPath<(String, String)>,
     Extension(subject): Extension<AuthenticatedSubject>,
-    Json(request): Json<CreateArtifactAccessRequest>,
+    RequestJson(request): RequestJson<CreateArtifactAccessRequest>,
 ) -> Response {
     let Ok(artifact_id) = ArtifactId::parse(artifact_id) else {
         return StatusCode::NOT_FOUND.into_response();
@@ -90,7 +91,7 @@ pub(crate) async fn decide_artifact_access_request(
     State(state): State<AdminState>,
     AxumPath((profile, request_id)): AxumPath<(String, String)>,
     Extension(subject): Extension<AuthenticatedSubject>,
-    Json(decision): Json<DecideArtifactAccessRequest>,
+    RequestJson(decision): RequestJson<DecideArtifactAccessRequest>,
 ) -> Response {
     let Ok(request_id) = ArtifactAccessRequestId::parse(request_id) else {
         return StatusCode::NOT_FOUND.into_response();

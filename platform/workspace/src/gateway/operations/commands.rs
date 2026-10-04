@@ -4,6 +4,7 @@ use rmcp::model::{
     UpdateTaskParams,
 };
 use tokio::sync::OwnedSemaphorePermit;
+use veoveo_http::RequestJson;
 use veoveo_platform_store::workspace::{
     WorkspaceOperationIntent, WorkspaceOperationOutcome as Outcome,
 };
@@ -13,7 +14,7 @@ pub(super) async fn start(
     Path((raw_profile, chat)): Path<(String, Uuid)>,
     Extension(subject): Extension<AuthenticatedSubject>,
     headers: HeaderMap,
-    Json(request): Json<wire::StartOperation>,
+    RequestJson(request): RequestJson<wire::StartOperation>,
 ) -> Api<wire::OperationSummary> {
     let profile = profile(raw_profile)?;
     let caller = Caller::new(profile.clone(), subject, &headers)?;
@@ -115,7 +116,7 @@ pub(super) async fn answer(
     Path((raw_profile, id)): Path<(String, Uuid)>,
     Extension(subject): Extension<AuthenticatedSubject>,
     headers: HeaderMap,
-    Json(request): Json<wire::AnswerOperation>,
+    RequestJson(request): RequestJson<wire::AnswerOperation>,
 ) -> Result<StatusCode, StatusCode> {
     let profile = profile(raw_profile)?;
     let authority = state.authority(&subject, &profile).await?;

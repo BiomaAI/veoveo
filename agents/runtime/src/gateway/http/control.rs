@@ -7,6 +7,7 @@ use crate::{
     InputRequestAnswer, InputRequestDecisionDraft, OperatorMessageDraft, json_object,
 };
 use std::{str::FromStr, time::Instant};
+use veoveo_http::RequestJson;
 use veoveo_mcp_contract::audit::AdministrativeOperation;
 use veoveo_mcp_contract::{GatewayProfile, PolicyTarget};
 use veoveo_mcp_gateway::AuthenticatedSubject;
@@ -115,7 +116,7 @@ pub(super) async fn send_agent_message(
     State(state): State<AgentManagementState>,
     AxumPath((profile, agent_id)): AxumPath<(String, String)>,
     Extension(subject): Extension<AuthenticatedSubject>,
-    Json(request): Json<AgentOperatorMessageRequest>,
+    RequestJson(request): RequestJson<AgentOperatorMessageRequest>,
 ) -> Response {
     let started_at = Instant::now();
     let operation = AgentOperation::SendMessage;
@@ -192,7 +193,7 @@ pub(super) async fn decide_agent_input_request(
     State(state): State<AgentManagementState>,
     AxumPath((profile, agent_id, input_request_id)): AxumPath<(String, String, String)>,
     Extension(subject): Extension<AuthenticatedSubject>,
-    Json(request): Json<AgentInputRequestDecision>,
+    RequestJson(request): RequestJson<AgentInputRequestDecision>,
 ) -> Response {
     let started_at = Instant::now();
     let operation = AgentOperation::DecideInputRequest;

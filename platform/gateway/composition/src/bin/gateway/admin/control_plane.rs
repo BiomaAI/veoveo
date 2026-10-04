@@ -1,5 +1,6 @@
 use std::{sync::Arc, time::Instant};
 use veoveo_gateway_contract::GatewayAction;
+use veoveo_http::RequestJson;
 use veoveo_mcp_contract::audit::AdministrativeOperation;
 
 use axum::{
@@ -150,7 +151,7 @@ pub(crate) async fn update_control_plane(
     State(state): State<AdminState>,
     AxumPath(profile): AxumPath<String>,
     Extension(subject): Extension<AuthenticatedSubject>,
-    Json(control_plane): Json<GatewayControlPlane>,
+    RequestJson(control_plane): RequestJson<GatewayControlPlane>,
 ) -> Response {
     let started_at = Instant::now();
     let Some(profile_id) = admin_profile_id(profile) else {

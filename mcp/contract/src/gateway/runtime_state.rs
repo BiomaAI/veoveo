@@ -18,6 +18,7 @@ pub struct GatewayJwtRevocation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct GatewayJwtRevocationRequest {
     pub profile: GatewayProfileId,
     pub issuer: TokenIssuer,

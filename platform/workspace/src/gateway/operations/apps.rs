@@ -4,6 +4,7 @@ use rmcp::model::{
     CancelTaskParams, CreateTaskResult, GetTaskResult, InputRequiredResult, PaginatedRequestParams,
     Resource, TaskAckResult, TaskPayload, UpdateTaskParams,
 };
+use veoveo_http::RequestJson;
 use veoveo_mcp_apps_extension::{app_allows_tool, is_app_resource, resolve_app_tool};
 use veoveo_platform_store::workspace::WorkspaceOperationIntent;
 
@@ -78,7 +79,7 @@ async fn start(
     Path((raw_profile, chat)): Path<(String, Uuid)>,
     Extension(subject): Extension<AuthenticatedSubject>,
     headers: HeaderMap,
-    Json(request): Json<wire::StartAppOperation>,
+    RequestJson(request): RequestJson<wire::StartAppOperation>,
 ) -> Api<wire::OperationSummary> {
     let profile = profile(raw_profile)?;
     let caller = Caller::new(profile.clone(), subject.clone(), &headers)?;
@@ -120,7 +121,7 @@ async fn start(
             Path((profile.to_string(), id)),
             Extension(subject.clone()),
             headers,
-            Json(wire::AnswerOperation { revision, answers }),
+            RequestJson(wire::AnswerOperation { revision, answers }),
         )
         .await?;
         return Ok(Json(projection::summary(
@@ -166,7 +167,7 @@ async fn detail(
     Path((raw_profile, id)): Path<(String, Uuid)>,
     Extension(subject): Extension<AuthenticatedSubject>,
     headers: HeaderMap,
-    Json(origin): Json<wire::AppOrigin>,
+    RequestJson(origin): RequestJson<wire::AppOrigin>,
 ) -> Api<wire::AppOperationView> {
     let profile = profile(raw_profile)?;
     let operation = state.operation(&subject, &profile, id).await?;
@@ -236,7 +237,7 @@ async fn get_task(
     Path(raw_profile): Path<String>,
     Extension(subject): Extension<AuthenticatedSubject>,
     headers: HeaderMap,
-    Json(request): Json<wire::AppTaskRequest>,
+    RequestJson(request): RequestJson<wire::AppTaskRequest>,
 ) -> Api<GetTaskResult> {
     let caller = Caller::new(profile(raw_profile)?, subject, &headers)?;
     let operation = task_authority(&state, &caller, &request.app_uri, &request.task_id).await?;
@@ -265,7 +266,7 @@ async fn cancel_task(
     Path(raw_profile): Path<String>,
     Extension(subject): Extension<AuthenticatedSubject>,
     headers: HeaderMap,
-    Json(request): Json<wire::AppTaskRequest>,
+    RequestJson(request): RequestJson<wire::AppTaskRequest>,
 ) -> Api<TaskAckResult> {
     let caller = Caller::new(profile(raw_profile)?, subject, &headers)?;
     let operation = task_authority(&state, &caller, &request.app_uri, &request.task_id).await?;
@@ -296,7 +297,7 @@ async fn update_task(
     Path(raw_profile): Path<String>,
     Extension(subject): Extension<AuthenticatedSubject>,
     headers: HeaderMap,
-    Json(request): Json<wire::UpdateAppTask>,
+    RequestJson(request): RequestJson<wire::UpdateAppTask>,
 ) -> Api<TaskAckResult> {
     let caller = Caller::new(profile(raw_profile)?, subject, &headers)?;
     let operation = task_authority(&state, &caller, &request.app_uri, &request.task_id).await?;

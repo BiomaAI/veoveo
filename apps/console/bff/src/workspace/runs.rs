@@ -2,13 +2,14 @@
 use super::{Parameters, forward};
 use crate::AppState;
 use axum::{
-    Json, Router,
+    Router,
     extract::{Path, Query, State},
     http::{HeaderMap, Method},
     response::Response,
     routing::{delete, get, post},
 };
 use uuid::Uuid;
+use veoveo_http::RequestJson;
 use veoveo_workspace::contract as wire;
 
 pub(super) fn router() -> Router<AppState> {
@@ -66,7 +67,7 @@ async fn add(
     State(state): State<AppState>,
     Path(chat): Path<Uuid>,
     headers: HeaderMap,
-    Json(request): Json<wire::AddAgent>,
+    RequestJson(request): RequestJson<wire::AddAgent>,
 ) -> Response {
     forward::<_, wire::ChatAgent>(
         &state,
@@ -97,7 +98,7 @@ async fn start(
     State(state): State<AppState>,
     Path(chat): Path<Uuid>,
     headers: HeaderMap,
-    Json(request): Json<wire::StartRun>,
+    RequestJson(request): RequestJson<wire::StartRun>,
 ) -> Response {
     forward::<_, wire::Run>(
         &state,
@@ -150,7 +151,7 @@ async fn adopt_revision(
     State(state): State<AppState>,
     Path((chat, agent)): Path<(Uuid, Uuid)>,
     headers: HeaderMap,
-    Json(request): Json<wire::UpdateChatAgent>,
+    RequestJson(request): RequestJson<wire::UpdateChatAgent>,
 ) -> Response {
     forward::<_, wire::ChatAgent>(
         &state,

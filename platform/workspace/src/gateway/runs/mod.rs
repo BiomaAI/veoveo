@@ -1,3 +1,4 @@
+use veoveo_http::RequestJson;
 mod agent_projection;
 mod feedback;
 mod keys;
@@ -137,7 +138,7 @@ async fn add(
     State(state): State<RunState>,
     Path((profile, chat)): Path<(String, Uuid)>,
     Extension(subject): Extension<AuthenticatedSubject>,
-    Json(request): Json<wire::AddAgent>,
+    RequestJson(request): RequestJson<wire::AddAgent>,
 ) -> Api<wire::ChatAgent> {
     let authority = authority::admit(&state.workspace, &subject).await?;
     let profile = GatewayProfileId::parse(profile).map_err(|_| StatusCode::NOT_FOUND)?;
@@ -216,7 +217,7 @@ async fn start(
     Path((profile, chat)): Path<(String, Uuid)>,
     Extension(subject): Extension<AuthenticatedSubject>,
     headers: HeaderMap,
-    Json(request): Json<wire::StartRun>,
+    RequestJson(request): RequestJson<wire::StartRun>,
 ) -> Api<wire::Run> {
     let profile = GatewayProfileId::parse(profile).map_err(|_| StatusCode::NOT_FOUND)?;
     let caller = Caller::new(profile.clone(), subject.clone(), &headers)?;

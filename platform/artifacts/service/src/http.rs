@@ -1,5 +1,6 @@
 //! HTTP transport for the artifact plane.
 
+use veoveo_http::RequestJson;
 mod disposition;
 mod read_capability;
 pub mod uploads;
@@ -534,7 +535,7 @@ async fn add_grant<R: ArtifactRepository, S: BlobStore>(
     State(state): State<AppState<R, S>>,
     Path(artifact_id): Path<String>,
     headers: HeaderMap,
-    Json(request): Json<PutGrantRequest>,
+    RequestJson(request): RequestJson<PutGrantRequest>,
 ) -> Result<StatusCode, ApiError> {
     let caller = caller(&state, &headers)?;
     state
@@ -553,7 +554,7 @@ async fn remove_grant<R: ArtifactRepository, S: BlobStore>(
     State(state): State<AppState<R, S>>,
     Path(artifact_id): Path<String>,
     headers: HeaderMap,
-    Json(subject): Json<AccessSubject>,
+    RequestJson(subject): RequestJson<AccessSubject>,
 ) -> Result<StatusCode, ApiError> {
     let caller = caller(&state, &headers)?;
     state
@@ -581,7 +582,7 @@ async fn set_release_state<R: ArtifactRepository, S: BlobStore>(
     State(state): State<AppState<R, S>>,
     Path(artifact_id): Path<String>,
     headers: HeaderMap,
-    Json(request): Json<SetArtifactReleaseStateRequest>,
+    RequestJson(request): RequestJson<SetArtifactReleaseStateRequest>,
 ) -> Result<Json<ArtifactMetadata>, ApiError> {
     let caller = caller(&state, &headers)?;
     Ok(Json(
@@ -600,7 +601,7 @@ async fn create_share_link<R: ArtifactRepository, S: BlobStore>(
     State(state): State<AppState<R, S>>,
     Path(artifact_id): Path<String>,
     headers: HeaderMap,
-    Json(request): Json<CreateArtifactShareLinkRequest>,
+    RequestJson(request): RequestJson<CreateArtifactShareLinkRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     let caller = caller(&state, &headers)?;
     let link = state
@@ -629,7 +630,7 @@ async fn create_access_request<R: ArtifactRepository, S: BlobStore>(
     State(state): State<AppState<R, S>>,
     Path(artifact_id): Path<String>,
     headers: HeaderMap,
-    Json(request): Json<CreateArtifactAccessRequest>,
+    RequestJson(request): RequestJson<CreateArtifactAccessRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     let caller = caller(&state, &headers)?;
     let access_request = state
@@ -654,7 +655,7 @@ async fn decide_access_request<R: ArtifactRepository, S: BlobStore>(
     State(state): State<AppState<R, S>>,
     Path(request_id): Path<String>,
     headers: HeaderMap,
-    Json(decision): Json<DecideArtifactAccessRequest>,
+    RequestJson(decision): RequestJson<DecideArtifactAccessRequest>,
 ) -> Result<Json<ArtifactAccessRequest>, ApiError> {
     let caller = caller(&state, &headers)?;
     Ok(Json(
@@ -682,7 +683,7 @@ async fn cancel_access_request<R: ArtifactRepository, S: BlobStore>(
 async fn issue_write_capability<R: ArtifactRepository, S: BlobStore>(
     State(state): State<AppState<R, S>>,
     headers: HeaderMap,
-    Json(request): Json<IssueArtifactWriteCapabilityRequest>,
+    RequestJson(request): RequestJson<IssueArtifactWriteCapabilityRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     let caller = caller(&state, &headers)?;
     let issued = state

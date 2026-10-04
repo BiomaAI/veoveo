@@ -442,6 +442,15 @@ services through separate features. Its lightweight contract depends on Agents'
 contract. Schema declarations own Workspace tables and their target dependency on
 Agents; production persistence stays in Store pending Phase 3.
 
+### `platform/http`
+
+The [HTTP admission design](../platform/http/DESIGN.md) defines the shared
+`RequestJson<T>` extractor for owner-controlled JSON requests. It maps data-decode
+failures to 400 with redacted diagnostics while preserving Axum body limits and
+media-type checks. Gateway composition, Artifact, BFF, Agents and Workspace use it
+through their HTTP runtime features; owner DTOs decide which objects reject extra
+fields. The library has no MCP or domain dependency.
+
 ### `platform/types`
 
 `checked.rs` owns immutable field-preserving admission through `Check` and `Checked`.

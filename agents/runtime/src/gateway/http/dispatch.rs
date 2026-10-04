@@ -1,11 +1,11 @@
 //! Current managed model authority; this preflight never invokes a model.
 use crate::contract::authoring as wire;
 use axum::{
-    Json,
     extract::{Extension, Path, State},
     http::StatusCode,
 };
 use veoveo_gateway_contract::SecretPurpose;
+use veoveo_http::RequestJson;
 use veoveo_mcp_contract::GatewayProfileId;
 use veoveo_mcp_gateway::AuthenticatedSubject;
 
@@ -15,7 +15,7 @@ pub(super) async fn check(
     State(state): State<AgentManagementState>,
     Path(profile): Path<String>,
     Extension(subject): Extension<AuthenticatedSubject>,
-    Json(request): Json<wire::ManagedDispatch>,
+    RequestJson(request): RequestJson<wire::ManagedDispatch>,
 ) -> Result<StatusCode, Fault> {
     let forbidden = || Fault::status(StatusCode::FORBIDDEN);
     let catalog = state.catalog.current();

@@ -195,6 +195,7 @@ impl fmt::Debug for IssuedArtifactWriteCapability {
 /// Authorization header and is intentionally absent from this serializable
 /// request body/header shape.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct RedeemArtifactWriteCapabilityRequest {
     pub capability_id: ArtifactWriteCapabilityId,
     pub task_id: String,
@@ -203,11 +204,13 @@ pub struct RedeemArtifactWriteCapabilityRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct SetArtifactReleaseStateRequest {
     pub release_state: ArtifactReleaseState,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CreateArtifactShareLinkRequest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<DateTime<Utc>>,
@@ -256,6 +259,7 @@ impl PlaneCaller {
 /// Deliberately has no `tenant_id` or `owner_id`: those are stamped by the
 /// service from the verified identity and can never be asserted by the client.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct PutArtifactRequest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mime_type: Option<String>,
@@ -301,6 +305,7 @@ pub struct StreamArtifactRequest {
 
 /// A grant mutation request. The occurrence id travels in the request path.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct PutGrantRequest {
     pub subject: AccessSubject,
     pub level: AccessLevel,
@@ -338,12 +343,14 @@ pub enum ArtifactAccessRequestScope {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CreateArtifactAccessRequest {
     pub requested_level: AccessLevel,
     pub justification: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct DecideArtifactAccessRequest {
     pub decision: ArtifactAccessRequestDecision,
     #[serde(default, skip_serializing_if = "Option::is_none")]

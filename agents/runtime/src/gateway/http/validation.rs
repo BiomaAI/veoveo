@@ -5,6 +5,7 @@ use axum::{
     extract::{Extension, Path, State},
     http::{HeaderMap, StatusCode},
 };
+use veoveo_http::RequestJson;
 use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_platform_store::agent_management::{AgentDefinition, AgentPublicationContext};
 use veoveo_types::WorkContextId;
@@ -225,7 +226,7 @@ pub(super) async fn validate(
     Path((profile, id)): Path<(String, String)>,
     Extension(subject): Extension<AuthenticatedSubject>,
     headers: HeaderMap,
-    Json(request): Json<wire::ValidateDefinition>,
+    RequestJson(request): RequestJson<wire::ValidateDefinition>,
 ) -> Api<wire::Validation> {
     let actor = authority::admit(&state, profile, subject, Action::AgentDefinitionsPublish).await?;
     let definition = state

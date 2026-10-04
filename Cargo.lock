@@ -16063,6 +16063,7 @@ dependencies = [
  "uuid",
  "veoveo-computers-contract",
  "veoveo-gateway-contract",
+ "veoveo-http",
  "veoveo-mcp-contract",
  "veoveo-mcp-gateway",
  "veoveo-modules",
@@ -16167,6 +16168,7 @@ dependencies = [
  "veoveo-artifact-contract",
  "veoveo-audit",
  "veoveo-gateway-contract",
+ "veoveo-http",
  "veoveo-mcp-contract",
  "veoveo-platform-store",
  "veoveo-types",
@@ -16518,6 +16520,7 @@ dependencies = [
  "veoveo-computers-contract",
  "veoveo-computers-transport",
  "veoveo-gateway-contract",
+ "veoveo-http",
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
  "veoveo-recording-mcp",
@@ -16823,6 +16826,7 @@ dependencies = [
  "veoveo-frames-mcp",
  "veoveo-gateway-catalog",
  "veoveo-gateway-contract",
+ "veoveo-http",
  "veoveo-knowledge-contract",
  "veoveo-map-mcp",
  "veoveo-mcp-contract",
@@ -16872,6 +16876,18 @@ dependencies = [
  "tracing",
  "veoveo-mcp-contract",
  "veoveo-types",
+]
+
+[[package]]
+name = "veoveo-http"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "serde",
+ "serde_json",
+ "serde_path_to_error",
+ "tokio",
+ "tower",
 ]
 
 [[package]]
@@ -18120,6 +18136,7 @@ dependencies = [
  "veoveo-artifact-contract",
  "veoveo-computers-contract",
  "veoveo-gateway-contract",
+ "veoveo-http",
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
  "veoveo-mcp-gateway",

@@ -618,7 +618,7 @@ async fn agent_run_admission_keeps_cookie_identity_and_rejects_browser_model_con
         edge.request("POST", &path, true, true, &forged)
             .await
             .status(),
-        StatusCode::UNPROCESSABLE_ENTITY
+        StatusCode::BAD_REQUEST
     );
     assert_eq!(calls.load(Ordering::SeqCst), 0);
     let response = edge.request("POST", &path, true, true, &body).await;
@@ -662,7 +662,7 @@ async fn task_answers_and_cancellation_use_cookie_authority_and_closed_request_s
         edge.request("POST", &path, true, true, &forged.to_string())
             .await
             .status(),
-        StatusCode::UNPROCESSABLE_ENTITY
+        StatusCode::BAD_REQUEST
     );
     assert_eq!(calls.load(Ordering::SeqCst), 0);
     assert_eq!(
@@ -734,7 +734,7 @@ async fn app_tasks_use_workspace_cookie_profile_and_csrf_without_forwarding_brow
         edge.request("POST", path, true, true, forged)
             .await
             .status(),
-        StatusCode::UNPROCESSABLE_ENTITY
+        StatusCode::BAD_REQUEST
     );
 }
 
@@ -802,7 +802,7 @@ async fn agent_authoring_keeps_cookie_csrf_profile_and_typed_validation() {
         edge.request("POST", path, true, true, &forged.to_string())
             .await
             .status(),
-        StatusCode::UNPROCESSABLE_ENTITY
+        StatusCode::BAD_REQUEST
     );
     assert_eq!(calls.load(Ordering::SeqCst), 1);
 }
@@ -864,7 +864,32 @@ async fn managed_provisioning_preserves_accepted_operation_and_rejects_browser_a
         edge.request("POST", path, true, true, &forged.to_string())
             .await
             .status(),
-        StatusCode::UNPROCESSABLE_ENTITY
+        StatusCode::BAD_REQUEST
     );
     assert_eq!(calls.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn controlled_requests_reject_unknown_fields_before_forwarding() {
+    tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let observed = calls.clone();
+        let upstream = Router::new().fallback(move || {
+            observed.fetch_add(1, Ordering::SeqCst);
+            async { StatusCode::NO_CONTENT }
+        });
+        let edge = Edge::new(upstream).await;
+        let id = uuid::Uuid::now_v7();
+        for (path, body, field) in [
+            ("/workspace/api/chats".to_owned(), json!({"id":id,"title":"Valid","rootExtra":true}), "rootExtra"),
+            ("/workspace/api/speech/dictation".to_owned(), json!({"id":id,"sample_rate":16000,"speechExtra":true}), "speechExtra"),
+            (format!("/workspace/api/chats/{id}/messages"), json!({"id":id,"text":"Valid","attachments":[],"addressedAgents":[],"replyTo":{"kind":"message","id":id,"nestedExtra":true}}), "nestedExtra"),
+        ] {
+            let response = edge.request("POST", &path, true, true, &body.to_string()).await;
+            assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+            let bytes = to_bytes(response.into_body(), 4096).await.unwrap();
+            assert!(String::from_utf8_lossy(&bytes).contains(field));
+            assert_eq!(calls.load(Ordering::SeqCst), 0);
+        }
+    }).await.expect("strict browser-edge request test exceeded ten seconds");
 }

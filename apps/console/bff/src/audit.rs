@@ -10,6 +10,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use futures::StreamExt;
+use veoveo_http::RequestJson;
 use veoveo_mcp_contract::audit::AuditPartition;
 
 const MAX_PAGE_BYTES: usize = 8 * 1024 * 1024;
@@ -80,7 +81,7 @@ pub(crate) async fn export(
 pub(crate) async fn open_view(
     State(state): State<AppState>,
     headers: HeaderMap,
-    axum::Json(partition): axum::Json<AuditPartition>,
+    RequestJson(partition): RequestJson<AuditPartition>,
 ) -> Response {
     forward(state, headers, None, Endpoint::View(partition)).await
 }

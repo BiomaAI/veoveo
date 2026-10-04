@@ -425,6 +425,13 @@ dependencies. Consumers import this owner directly; MCP metadata conversion stay
 the protocol adapter. The extraction preserves public JSON shapes and authorization
 behavior and requires an isolated dependency-graph check.
 
+Shared HTTP JSON admission belongs to [`platform/http`](../platform/http/DESIGN.md).
+The gateway composition, Artifact service and browser and module HTTP adapters reuse
+it without depending on MCP transport. Owner DTOs define controlled fields and open
+payloads. The extractor maps data-decode failures to 400 with redacted diagnostics;
+authentication and domain validation stay with each route. Contract-only features
+exclude this HTTP dependency.
+
 The reusable gateway library and its executable have separate Cargo packages.
 [`platform/gateway/composition`](../platform/gateway/composition/DESIGN.md) binds
 owner adapters and supplies installation commands and image assembly. It keeps the

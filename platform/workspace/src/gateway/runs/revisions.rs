@@ -1,6 +1,7 @@
 //! Only a chat owner can inspect and adopt a participant's executable revision.
 use super::*;
 use axum::extract::Query;
+use veoveo_http::RequestJson;
 use veoveo_types::Sha256Digest;
 
 #[derive(serde::Deserialize)]
@@ -64,7 +65,7 @@ pub(super) async fn adopt(
     State(state): State<RunState>,
     Path((profile, chat, agent)): Path<(String, Uuid, Uuid)>,
     Extension(subject): Extension<AuthenticatedSubject>,
-    Json(request): Json<wire::UpdateChatAgent>,
+    RequestJson(request): RequestJson<wire::UpdateChatAgent>,
 ) -> Api<wire::ChatAgent> {
     let actor = authority::admit(&state.workspace, &subject).await?;
     let profile = GatewayProfileId::parse(profile).map_err(|_| StatusCode::NOT_FOUND)?;

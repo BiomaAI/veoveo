@@ -14,6 +14,7 @@ name = "artifact-service"
 path = "src/bin/server.rs"
 
 [dependencies]
+veoveo-http.workspace = true
 veoveo-audit.workspace = true
 veoveo-artifact-contract.workspace = true
 veoveo-types.workspace = true

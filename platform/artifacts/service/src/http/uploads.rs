@@ -59,7 +59,51 @@ impl UploadState {
     }
 }
 
-async fn json<T: DeserializeOwned>(headers: &HeaderMap, body: Body) -> Result<T, UploadFault> {
+#[derive(Debug)]
+enum UploadRequestError {
+    Fault(UploadFault),
+    Json(serde_json::Error),
+}
+
+impl From<UploadFault> for UploadRequestError {
+    fn from(error: UploadFault) -> Self {
+        Self::Fault(error)
+    }
+}
+
+impl From<Code> for UploadRequestError {
+    fn from(code: Code) -> Self {
+        Self::Fault(code.into())
+    }
+}
+
+impl IntoResponse for UploadRequestError {
+    fn into_response(self) -> Response {
+        match self {
+            Self::Fault(error) => error.into_response(),
+            Self::Json(error) => {
+                let message = veoveo_http::json_request_diagnostic(&error.to_string());
+                (
+                    StatusCode::BAD_REQUEST,
+                    [(header::CACHE_CONTROL, "no-store")],
+                    Json(contract::ArtifactUploadError {
+                        code: Code::Malformed,
+                        message,
+                        request_id: contract::ArtifactUploadRequestId::new(),
+                        required_bytes: None,
+                        available_bytes: None,
+                    }),
+                )
+                    .into_response()
+            }
+        }
+    }
+}
+
+async fn json<T: DeserializeOwned>(
+    headers: &HeaderMap,
+    body: Body,
+) -> Result<T, UploadRequestError> {
     if headers
         .get(header::CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
@@ -71,7 +115,7 @@ async fn json<T: DeserializeOwned>(headers: &HeaderMap, body: Body) -> Result<T,
     let bytes = to_bytes(body, 16 * 1024)
         .await
         .map_err(|_| Code::TooLarge)?;
-    serde_json::from_slice(&bytes).map_err(|_| Code::Malformed.into())
+    serde_json::from_slice(&bytes).map_err(UploadRequestError::Json)
 }
 
 fn id(value: String) -> Result<contract::ArtifactUploadId, UploadFault> {
@@ -100,7 +144,7 @@ async fn create(
     State(state): State<UploadState>,
     headers: HeaderMap,
     body: Body,
-) -> Result<Response, UploadFault> {
+) -> Result<Response, UploadRequestError> {
     let caller = state.caller(&headers)?;
     let request_id =
         contract::ArtifactUploadRequestId::parse(required(&headers, "idempotency-key")?)
@@ -187,7 +231,7 @@ async fn complete(
     Path(upload): Path<String>,
     headers: HeaderMap,
     body: Body,
-) -> Result<Response, UploadFault> {
+) -> Result<Response, UploadRequestError> {
     let caller = state.caller(&headers)?;
     let manifest = json(&headers, body).await?;
     let session = state
@@ -210,4 +254,38 @@ async fn cancel(
     let caller = state.caller(&headers)?;
     state.service.cancel(&caller, id(upload)?).await?;
     Ok(StatusCode::NO_CONTENT.into_response())
+}
+
+#[cfg(test)]
+mod request_tests {
+    use super::*;
+    use axum::body::to_bytes;
+
+    #[tokio::test]
+    async fn strict_upload_body_names_unknown_field_and_preserves_upload_error_contract() {
+        let headers = HeaderMap::from_iter([(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/json"),
+        )]);
+        let error = json::<contract::PutArtifactRequest>(
+            &headers,
+            Body::from(r#"{"metadata":{},"extraField":true}"#),
+        )
+        .await
+        .unwrap_err();
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+        let bytes = to_bytes(response.into_body(), 4096).await.unwrap();
+        let body: contract::ArtifactUploadError = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(body.code, Code::Malformed);
+        assert!(body.message.contains("extraField"));
+        let descriptor = json::<contract::PutArtifactRequest>(
+            &headers,
+            Body::from(r#"{"metadata":{"providerExtension":{"arbitrary":true}}}"#),
+        )
+        .await
+        .unwrap();
+        assert_eq!(descriptor.metadata["providerExtension"]["arbitrary"], true);
+    }
 }

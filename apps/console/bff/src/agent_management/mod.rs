@@ -1,4 +1,5 @@
 //! Both clients use fixed-profile agent routes and their own cookie/CSRF authority.
+use veoveo_http::RequestJson;
 mod instances;
 
 use std::time::Duration;
@@ -236,7 +237,7 @@ async fn draft(
 async fn create(
     State(state): State<AppState>,
     headers: HeaderMap,
-    Json(request): Json<wire::CreateDefinition>,
+    RequestJson(request): RequestJson<wire::CreateDefinition>,
 ) -> Response {
     forward::<_, wire::Definition>(
         &state,
@@ -252,7 +253,7 @@ async fn metadata(
     State(state): State<AppState>,
     Path(id): Path<wire::AgentDefinitionId>,
     headers: HeaderMap,
-    Json(request): Json<wire::UpdateMetadata>,
+    RequestJson(request): RequestJson<wire::UpdateMetadata>,
 ) -> Response {
     forward::<_, wire::Definition>(
         &state,
@@ -269,7 +270,7 @@ async fn save(
     State(state): State<AppState>,
     Path(id): Path<wire::AgentDefinitionId>,
     headers: HeaderMap,
-    Json(request): Json<wire::SaveDraft>,
+    RequestJson(request): RequestJson<wire::SaveDraft>,
 ) -> Response {
     forward::<_, wire::Definition>(
         &state,
@@ -286,7 +287,7 @@ async fn validate(
     State(state): State<AppState>,
     Path(id): Path<wire::AgentDefinitionId>,
     headers: HeaderMap,
-    Json(request): Json<wire::ValidateDefinition>,
+    RequestJson(request): RequestJson<wire::ValidateDefinition>,
 ) -> Response {
     forward::<_, wire::Validation>(
         &state,
@@ -303,7 +304,7 @@ async fn publish(
     State(state): State<AppState>,
     Path(id): Path<wire::AgentDefinitionId>,
     headers: HeaderMap,
-    Json(request): Json<wire::PublishDefinition>,
+    RequestJson(request): RequestJson<wire::PublishDefinition>,
 ) -> Response {
     forward::<_, wire::Definition>(
         &state,
@@ -320,7 +321,7 @@ async fn disable(
     State(state): State<AppState>,
     Path(id): Path<wire::AgentDefinitionId>,
     headers: HeaderMap,
-    Json(request): Json<wire::RevisionRequest>,
+    RequestJson(request): RequestJson<wire::RevisionRequest>,
 ) -> Response {
     forward::<_, wire::Definition>(
         &state,
@@ -337,7 +338,7 @@ async fn enable(
     State(state): State<AppState>,
     Path(id): Path<wire::AgentDefinitionId>,
     headers: HeaderMap,
-    Json(request): Json<wire::RevisionRequest>,
+    RequestJson(request): RequestJson<wire::RevisionRequest>,
 ) -> Response {
     forward::<_, wire::Definition>(
         &state,
@@ -354,7 +355,7 @@ async fn archive(
     State(state): State<AppState>,
     Path(id): Path<wire::AgentDefinitionId>,
     headers: HeaderMap,
-    Json(request): Json<wire::RevisionRequest>,
+    RequestJson(request): RequestJson<wire::RevisionRequest>,
 ) -> Response {
     forward::<_, wire::Definition>(
         &state,
