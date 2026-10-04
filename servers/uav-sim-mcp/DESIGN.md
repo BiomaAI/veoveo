@@ -22,6 +22,7 @@ for visualization.
 | RFC 6570 URI Templates | iri-string `0.7.14` through foundational template admission and scalar expansion; every advertised UAV template is checked against the owning address builder. |
 | Concrete resource URIs | URL `2.5.8` and percent-encoding `2.3.2` through foundational components; typed UAV routes and collection-bound hexadecimal JSON cursors, version 1. |
 | JSON Schema | Draft 2020-12 strict request, result, camera, tiled-product, region, and health schemas. |
+| Pydantic `2.13.5` | Private Python adapter models reject undeclared fields and validate controlled JSON and NDJSON before emission. Rust owns the receiving types. |
 | `veoveo.ai/live-view/v4` | Repository-owned provider-neutral profile for authoritative cameras, typed regions in shared encoded products, viewer authorizations, WebSocket H.264 endpoints, and redacted state. |
 | `veoveo.ai/uav-runtime-event/v2` | Private authenticated HTTP/1.1 NDJSON stream carrying an `adapter_ready` edge before world admission and a final `ready` edge after authoritative visual admission. It is an internal adapter event, not a public MCP resource or a simulation control protocol. |
 | WebSocket and H.264 | RFC 6455 binary messages under subprotocol `veoveo.h264.annexb.v1`; each message carries one decoder-reentrant or predicted Annex B H.264 access unit. The encoded atlas is H.264 Main Profile Level 5.2, advertised to WebCodecs with the exact RFC 6381 codec string `avc1.4d4034`. One tiled NVIDIA NVENC atlas fans out unchanged to authenticated viewers. This WebSocket is a media adapter, not a public simulator-control protocol. |
@@ -194,6 +195,16 @@ The cluster-private adapter is the only boundary between those responsibilities.
 typed configuration, command, state, and live-stream operations. It does
 not carry a visualization pose stream. No MCP request participates in the physics or
 render loop.
+
+The Python overlay's `outbound.py` models state, configuration and command
+acknowledgements, operation results and lifecycle events. HTTP handlers and event
+encoding validate snapshots immediately before serialization; the physics loop keeps
+its existing state representation. Models preserve omitted optional fields and explicit
+nulls, reject nonfinite numeric output, and report validation kinds without payload
+values. Completion output keeps unresolved Recording producer keys as strings until
+the Rust worker settles physical completion and resolves the catalog references.
+Shared fixtures exercise both decoders; protocol-wide schema equivalence and composed
+GPU acceptance have separate gates in the active plan.
 
 ```text
 gateway actor

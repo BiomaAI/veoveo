@@ -1,0 +1,444 @@
+{
+  "state": {
+    "session_id": "session-alpha",
+    "lifecycle": "running",
+    "simulation_time_s": 1.0,
+    "physics_step": 60,
+    "timing": {
+      "physics_hz": 60,
+      "native_rendering_hz": 30,
+      "render_cycles": 0,
+      "physics_steps": 0,
+      "refresh_states_wall_seconds": 0.0,
+      "vehicle_update_wall_seconds": 0.0,
+      "state_update_wall_seconds": 0.0,
+      "dynamics_update_wall_seconds": 0.0,
+      "sensor_update_wall_seconds": 0.0,
+      "backend_state_wall_seconds": 0.0,
+      "flush_forces_wall_seconds": 0.0,
+      "after_step_wall_seconds": 0.0,
+      "native_update_wall_seconds": 0.0,
+      "render_cycle_wall_seconds": 0.0,
+      "maximum_physics_step_ms": 0.0,
+      "maximum_native_update_ms": 0.0,
+      "maximum_render_cycle_ms": 0.0
+    },
+    "world": {
+      "revision_uri": "frames://world/test-world/revision/revision-1",
+      "spec_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "simulation_frame_uri": "frames://world/test-world/revision/revision-1/frame/isaac-world",
+      "georeference_origin": {
+        "latitude_degrees": 13.6929,
+        "longitude_degrees": -89.2182,
+        "ellipsoid_height_m": 700.0
+      }
+    },
+    "tiles": {
+      "lifecycle": "ready",
+      "source": "google_photorealistic_3d_tiles",
+      "ion_asset_id": 2275207,
+      "resident_tiles": 20,
+      "visible_tiles": 12,
+      "loading_tiles": 0,
+      "geometries_loaded": 20,
+      "geometries_rendered": 12,
+      "materials_loaded": 20,
+      "provider_generation": 1,
+      "event_sequence": 1,
+      "refresh_count": 0,
+      "last_failure": {
+        "code": "request_failed",
+        "load_type": "tile_content",
+        "http_status": 503,
+        "generation": 1
+      },
+      "diagnostic": null
+    },
+    "cameras": [
+      {
+        "vehicle_id": "uav-1",
+        "entity_path": "/world/uav-sim/session-alpha/vehicle/uav-1/camera/down",
+        "lifecycle": "ready",
+        "width": 640,
+        "height": 480,
+        "frame_rate_hz": 2,
+        "codec": "h264",
+        "encoder": "nvidia_nvenc",
+        "transport": "rtsp_rtp",
+        "frames_observed": 10,
+        "last_access_unit_bytes": 32768,
+        "last_frame_keyframe": false,
+        "render_pose": {
+          "position_error_m": 0.02,
+          "forward_error_degrees": 0.01,
+          "rendered_position_enu_m": {
+            "east_m": 10.0,
+            "north_m": 20.0,
+            "up_m": 30.0
+          },
+          "rendered_forward_enu": {
+            "east": 0.0,
+            "north": 0.0,
+            "up": -1.0
+          }
+        }
+      }
+    ],
+    "live_cameras": [
+      {
+        "cameraId": "camera-0",
+        "sessionId": "session-alpha",
+        "revision": 1,
+        "rig": {
+          "kind": "fixed",
+          "pose": {
+            "positionM": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "orientationXyzw": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0,
+              "w": 1.0
+            }
+          }
+        },
+        "widthPx": 1280,
+        "heightPx": 720,
+        "frameRateMillihertz": 30000,
+        "verticalFovDegrees": 60.0,
+        "nearClipM": 0.1,
+        "farClipM": 100000.0,
+        "streamPolicy": "continuous",
+        "health": "healthy"
+      },
+      {
+        "cameraId": "camera-1",
+        "sessionId": "session-alpha",
+        "revision": 1,
+        "rig": {
+          "kind": "look_at",
+          "eyeM": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 10.0
+          },
+          "targetM": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "smoothing": {
+            "translationHalfLifeMs": 120,
+            "rotationHalfLifeMs": 160,
+            "teleportDistanceMillimetres": 250000,
+            "resetAfterGapMs": 750
+          }
+        },
+        "widthPx": 1280,
+        "heightPx": 720,
+        "frameRateMillihertz": 30000,
+        "verticalFovDegrees": 60.0,
+        "nearClipM": 0.1,
+        "farClipM": 100000.0,
+        "streamPolicy": "continuous",
+        "health": "healthy"
+      },
+      {
+        "cameraId": "camera-2",
+        "sessionId": "session-alpha",
+        "revision": 1,
+        "rig": {
+          "kind": "orbit",
+          "targetEntityId": "uav-1",
+          "radiusM": 10.0,
+          "azimuthDegrees": 0.0,
+          "elevationDegrees": 45.0,
+          "smoothing": {
+            "translationHalfLifeMs": 120,
+            "rotationHalfLifeMs": 160,
+            "teleportDistanceMillimetres": 250000,
+            "resetAfterGapMs": 750
+          }
+        },
+        "widthPx": 1280,
+        "heightPx": 720,
+        "frameRateMillihertz": 30000,
+        "verticalFovDegrees": 60.0,
+        "nearClipM": 0.1,
+        "farClipM": 100000.0,
+        "streamPolicy": "continuous",
+        "health": "healthy"
+      },
+      {
+        "cameraId": "camera-3",
+        "sessionId": "session-alpha",
+        "revision": 1,
+        "rig": {
+          "kind": "follow_entity",
+          "targetEntityId": "uav-1",
+          "eyeOffsetFluM": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "targetOffsetFluM": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "smoothing": {
+            "translationHalfLifeMs": 120,
+            "rotationHalfLifeMs": 160,
+            "teleportDistanceMillimetres": 250000,
+            "resetAfterGapMs": 750
+          }
+        },
+        "widthPx": 1280,
+        "heightPx": 720,
+        "frameRateMillihertz": 30000,
+        "verticalFovDegrees": 60.0,
+        "nearClipM": 0.1,
+        "farClipM": 100000.0,
+        "streamPolicy": "continuous",
+        "health": "healthy"
+      },
+      {
+        "cameraId": "camera-4",
+        "sessionId": "session-alpha",
+        "revision": 1,
+        "rig": {
+          "kind": "chase_entity",
+          "targetEntityId": "uav-1",
+          "distanceM": 10.0,
+          "heightM": 5.0,
+          "smoothing": {
+            "translationHalfLifeMs": 120,
+            "rotationHalfLifeMs": 160,
+            "teleportDistanceMillimetres": 250000,
+            "resetAfterGapMs": 750
+          }
+        },
+        "widthPx": 1280,
+        "heightPx": 720,
+        "frameRateMillihertz": 30000,
+        "verticalFovDegrees": 60.0,
+        "nearClipM": 0.1,
+        "farClipM": 100000.0,
+        "streamPolicy": "continuous",
+        "health": "healthy"
+      },
+      {
+        "cameraId": "camera-5",
+        "sessionId": "session-alpha",
+        "revision": 1,
+        "rig": {
+          "kind": "stabilized_mounted_entity",
+          "targetEntityId": "uav-1",
+          "mount": {
+            "positionM": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "orientationXyzw": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0,
+              "w": 1.0
+            }
+          },
+          "smoothing": {
+            "translationHalfLifeMs": 120,
+            "rotationHalfLifeMs": 160,
+            "teleportDistanceMillimetres": 250000,
+            "resetAfterGapMs": 750
+          }
+        },
+        "widthPx": 1280,
+        "heightPx": 720,
+        "frameRateMillihertz": 30000,
+        "verticalFovDegrees": 60.0,
+        "nearClipM": 0.1,
+        "farClipM": 100000.0,
+        "streamPolicy": "continuous",
+        "health": "healthy"
+      },
+      {
+        "cameraId": "camera-6",
+        "sessionId": "session-alpha",
+        "revision": 1,
+        "rig": {
+          "kind": "formation_overview",
+          "targetEntityIds": [
+            "uav-1",
+            "uav-2"
+          ],
+          "paddingM": 10.0,
+          "smoothing": {
+            "translationHalfLifeMs": 120,
+            "rotationHalfLifeMs": 160,
+            "teleportDistanceMillimetres": 250000,
+            "resetAfterGapMs": 750
+          }
+        },
+        "widthPx": 1280,
+        "heightPx": 720,
+        "frameRateMillihertz": 30000,
+        "verticalFovDegrees": 60.0,
+        "nearClipM": 0.1,
+        "farClipM": 100000.0,
+        "streamPolicy": "continuous",
+        "health": "healthy"
+      }
+    ],
+    "stream_products": [
+      {
+        "streamProductId": "camera-atlas",
+        "cameraRegions": [
+          {
+            "cameraId": "camera-0",
+            "xPx": 0,
+            "yPx": 0,
+            "widthPx": 1280,
+            "heightPx": 720
+          }
+        ],
+        "codedWidthPx": 1280,
+        "codedHeightPx": 720,
+        "lifecycle": "ready",
+        "activeViewers": 1,
+        "connectedViewers": 0,
+        "nvencSessions": 1,
+        "encodedFrames": 12,
+        "sourceToRenderP95Microseconds": 18000,
+        "sourceToRenderSamples": 120,
+        "lastFrameAt": "2026-08-07T18:00:00Z",
+        "visible": true
+      }
+    ],
+    "vehicles": [
+      {
+        "vehicle_id": "uav-1",
+        "flight_state": "standby",
+        "wgs84": {
+          "latitude_degrees": 13.6929,
+          "longitude_degrees": -89.2182,
+          "ellipsoid_height_m": 700.0
+        },
+        "enu": {
+          "east_m": 0.0,
+          "north_m": 0.0,
+          "up_m": 0.0
+        },
+        "ned": {
+          "north_m": 0.0,
+          "east_m": 0.0,
+          "down_m": 0.0
+        },
+        "attitude_xyzw": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
+        "linear_velocity_enu_mps": {
+          "east_m": 0.0,
+          "north_m": 0.0,
+          "up_m": 0.0
+        },
+        "battery_percent": 100.0,
+        "collision_count": 0,
+        "px4_connected": true
+      }
+    ],
+    "recordings": [
+      {
+        "application_id": "veoveo-uav-sim",
+        "recording_key": "019f7122-3d89-7d21-8312-8940d1e0f510",
+        "active": true,
+        "publisher_lifecycle": "ready",
+        "queue_capacity": 256,
+        "queued_events": 0,
+        "dropped_events": 0,
+        "camera_streams": [
+          "/world/uav-sim/session-alpha/vehicle/uav-1/camera/down"
+        ],
+        "started_at": "2026-08-07T18:00:00Z"
+      }
+    ],
+    "updated_at": "2026-08-07T18:00:00Z"
+  },
+  "results": [
+    {
+      "result": "run_scenario",
+      "output": {
+        "session_id": "session-alpha",
+        "elapsed_seconds": 1.0,
+        "final_simulation_time_s": 2.0,
+        "collision_count": 0,
+        "recording_keys": [
+          "019f7122-3d89-7d21-8312-8940d1e0f510"
+        ]
+      }
+    },
+    {
+      "result": "capture_dataset",
+      "output": {
+        "session_id": "session-alpha",
+        "elapsed_seconds": 1.0,
+        "recording_keys": [
+          "019f7122-3d89-7d21-8312-8940d1e0f510"
+        ]
+      }
+    },
+    {
+      "result": "execute_mission",
+      "output": {
+        "mission_id": "mission-1",
+        "lifecycle": "completed",
+        "started_at": "2026-08-07T18:00:00Z",
+        "finished_at": "2026-08-07T18:00:00Z",
+        "completed_waypoints": 1,
+        "recording_keys": [
+          "019f7122-3d89-7d21-8312-8940d1e0f510"
+        ]
+      }
+    }
+  ],
+  "events": [
+    {
+      "schema": "veoveo.ai/uav-runtime-event/v2",
+      "event": "adapter_ready",
+      "sessionId": "session-alpha",
+      "generation": 1
+    },
+    {
+      "schema": "veoveo.ai/uav-runtime-event/v2",
+      "event": "ready",
+      "sessionId": "session-alpha",
+      "generation": 1
+    }
+  ],
+  "command": {
+    "accepted": true,
+    "detail": "simulation paused",
+    "resource_uri": "uav-sim://session/session-alpha"
+  },
+  "world": {
+    "accepted": true,
+    "world": {
+      "revision_uri": "frames://world/test-world/revision/revision-1",
+      "spec_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "simulation_frame_uri": "frames://world/test-world/revision/revision-1/frame/isaac-world",
+      "georeference_origin": {
+        "latitude_degrees": 13.6929,
+        "longitude_degrees": -89.2182,
+        "ellipsoid_height_m": 700.0
+      }
+    },
+    "resource_uri": "uav-sim://session/session-alpha/world"
+  }
+}

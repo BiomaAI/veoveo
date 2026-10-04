@@ -844,6 +844,57 @@ mod tests {
     }
 
     #[test]
+    fn python_outbound_fixture_matches_private_rust_decoders() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../showcase/uav-sim/runtime/tests/fixtures/adapter_outputs.json"
+        ))
+        .unwrap();
+        let state: AdapterSimulationState =
+            serde_json::from_value(fixture["state"].clone()).unwrap();
+        assert_eq!(state.live_cameras.len(), 7);
+        for camera in &state.live_cameras {
+            camera.validate().unwrap();
+        }
+        for product in &state.stream_products {
+            assert!(product.validate());
+        }
+        serde_json::from_value::<CommandAcknowledgement>(fixture["command"].clone()).unwrap();
+        serde_json::from_value::<ConfigureWorldOutput>(fixture["world"].clone()).unwrap();
+        for result in fixture["results"].as_array().unwrap() {
+            serde_json::from_value::<AdapterDurableOperationResult>(result.clone()).unwrap();
+            let mut invalid = result.clone();
+            invalid["unknown"] = serde_json::json!(true);
+            assert!(serde_json::from_value::<AdapterDurableOperationResult>(invalid).is_err());
+        }
+        let mut missing_world = fixture["state"].clone();
+        missing_world.as_object_mut().unwrap().remove("world");
+        assert!(
+            serde_json::from_value::<AdapterSimulationState>(missing_world)
+                .unwrap()
+                .world
+                .is_none()
+        );
+        let mut null_world = fixture["state"].clone();
+        null_world["world"] = serde_json::Value::Null;
+        assert!(
+            serde_json::from_value::<AdapterSimulationState>(null_world)
+                .unwrap()
+                .world
+                .is_none()
+        );
+        for timestamp in ["20261004T120000+0000", "2026-W40-7T12:00:00+00:00"] {
+            let mut invalid = fixture["state"].clone();
+            invalid["updated_at"] = serde_json::json!(timestamp);
+            assert!(serde_json::from_value::<AdapterSimulationState>(invalid).is_err());
+        }
+        for timestamp in ["2026-10-04t12:00:00z", "2026-10-04T12:00:00+03:30"] {
+            let mut valid = fixture["state"].clone();
+            valid["updated_at"] = serde_json::json!(timestamp);
+            assert!(serde_json::from_value::<AdapterSimulationState>(valid).is_ok());
+        }
+    }
+
+    #[test]
     fn fake_adapter_serializes_lifecycle_and_steps() {
         let mut adapter = FakeAdapter::new(fake_state());
         let session_id = SessionId::parse("session-alpha").unwrap();

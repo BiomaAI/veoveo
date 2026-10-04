@@ -8,6 +8,8 @@ from dataclasses import dataclass
 
 from aiohttp import web
 
+from .outbound import RuntimeEventWire, admit_output
+
 
 LOGGER = logging.getLogger(__name__)
 RUNTIME_EVENT_SCHEMA = "veoveo.ai/uav-runtime-event/v2"
@@ -21,12 +23,12 @@ class RuntimeEvent:
 
     def encode(self) -> bytes:
         return json.dumps(
-            {
+            admit_output(RuntimeEventWire, {
                 "schema": RUNTIME_EVENT_SCHEMA,
                 "event": self.event,
                 "sessionId": self.session_id,
                 "generation": self.generation,
-            },
+            }),
             separators=(",", ":"),
             sort_keys=True,
         ).encode("utf-8")

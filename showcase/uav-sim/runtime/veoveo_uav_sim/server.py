@@ -20,6 +20,10 @@ from .contracts import (
 from .fleet_loop import FleetLoopController
 from .operator_camera_config import live_camera_descriptor
 from .operator_products import OperatorProductCollection, initial_operator_atlas_state
+from .outbound import (
+    CommandAcknowledgement, OPERATION_RESULT_ADAPTER, SimulationState,
+    WorldAcknowledgement, admit_output,
+)
 from .px4 import CommandDeadline, Px4Commander
 from .runtime_events import RuntimeEventPublisher
 from .state import RuntimeState, initial_runtime_timing
@@ -61,11 +65,11 @@ class TimelineControls:
 def _world_configuration_response(
     session_id: str, world: WorldConfiguration
 ) -> dict[str, object]:
-    return {
+    return admit_output(WorldAcknowledgement, {
         "accepted": True,
         "world": world.as_dict(),
         "resource_uri": f"uav-sim://session/{session_id}/world",
-    }
+    })
 
 
 class PreconfigurationApplication:
@@ -113,7 +117,7 @@ class PreconfigurationApplication:
     async def _get_state(self, _request: web.Request) -> web.Response:
         now = _timestamp()
         world = self._world_slot.get()
-        return web.json_response(
+        return web.json_response(admit_output(SimulationState,
             {
                 "session_id": self._config.session_id,
                 "lifecycle": "starting" if world is not None else "unconfigured",
@@ -149,7 +153,7 @@ class PreconfigurationApplication:
                 "recordings": [],
                 "updated_at": now,
             }
-        )
+        ))
 
     async def _configure_world(self, request: web.Request) -> web.Response:
         try:
@@ -245,7 +249,7 @@ class AdapterApplication:
         )
 
     async def _get_state(self, _request: web.Request) -> web.Response:
-        return web.json_response(self._state.snapshot())
+        return web.json_response(admit_output(SimulationState, self._state.snapshot()))
 
     async def _configure_world(self, request: web.Request) -> web.Response:
         try:
@@ -266,7 +270,7 @@ class AdapterApplication:
         try:
             command = parse_command(await request.json())
             result = await asyncio.to_thread(self._execute_command, command)
-            return web.json_response(result)
+            return web.json_response(admit_output(CommandAcknowledgement, result))
         except (ContractError, ValueError) as error:
             return web.json_response({"error": str(error)}, status=400)
         except (RuntimeError, TimeoutError) as error:
@@ -276,7 +280,7 @@ class AdapterApplication:
         try:
             operation = parse_operation(await request.json())
             result = await asyncio.to_thread(self._execute_operation, operation)
-            return web.json_response(result)
+            return web.json_response(admit_output(OPERATION_RESULT_ADAPTER, result))
         except (ContractError, ValueError) as error:
             return web.json_response({"error": str(error)}, status=400)
         except (RuntimeError, TimeoutError) as error:
