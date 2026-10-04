@@ -183,13 +183,15 @@ struct CursorEnvelope {
 
 /// The cursor binds a typed position to its collection and optional parent.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(try_from = "String", into = "String")]
+#[serde(transparent)]
 pub struct MapMetadataCursor {
+    #[schemars(with = "String")]
     cursor: veoveo_types::OpaqueCursor<MapMetadataCursorCodec>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct MapMetadataCursorCodec;
+impl veoveo_types::StatelessCursorCodec for MapMetadataCursorCodec {}
 impl veoveo_types::CursorCodec for MapMetadataCursorCodec {
     type Position = MapMetadataRequest;
     type Error = MapMetadataError;
@@ -247,18 +249,6 @@ impl MapMetadataCursor {
             return Err(MapMetadataError::InvalidCursor);
         }
         Ok(self.cursor.position().clone())
-    }
-}
-
-impl TryFrom<String> for MapMetadataCursor {
-    type Error = MapMetadataError;
-    fn try_from(wire: String) -> Result<Self, Self::Error> {
-        Self::parse(wire)
-    }
-}
-impl From<MapMetadataCursor> for String {
-    fn from(cursor: MapMetadataCursor) -> Self {
-        cursor.cursor.into_wire()
     }
 }
 

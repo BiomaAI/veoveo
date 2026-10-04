@@ -40,7 +40,7 @@ pub use extensions::{
 };
 mod cursor;
 pub use checked::{Check, Checked};
-pub use cursor::{CursorCodec, OpaqueCursor};
+pub use cursor::{CursorCodec, OpaqueCursor, StatelessCursorCodec};
 mod authority;
 mod digest;
 mod error;

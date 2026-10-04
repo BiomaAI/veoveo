@@ -17,7 +17,7 @@ struct CursorWire {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(try_from = "String", into = "String")]
+#[serde(transparent)]
 #[schemars(with = "String")]
 pub struct MapMobilityProfileCursor {
     cursor: veoveo_types::OpaqueCursor<MapMobilityProfileCursorCodec>,
@@ -28,8 +28,9 @@ struct MapMobilityProfileCursorPosition {
     after_version: MobilityProfileVersion,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct MapMobilityProfileCursorCodec;
+impl veoveo_types::StatelessCursorCodec for MapMobilityProfileCursorCodec {}
 impl veoveo_types::CursorCodec for MapMobilityProfileCursorCodec {
     type Position = MapMobilityProfileCursorPosition;
     type Error = MapMobilityError;
@@ -93,18 +94,6 @@ impl MapMobilityProfileCursor {
         self.cursor.as_str()
     }
 }
-impl TryFrom<String> for MapMobilityProfileCursor {
-    type Error = MapMobilityError;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::parse(value)
-    }
-}
-impl From<MapMobilityProfileCursor> for String {
-    fn from(value: MapMobilityProfileCursor) -> Self {
-        value.cursor.into_wire()
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "PageWire", into = "PageWire")]
 pub struct MapMobilityProfilePage {

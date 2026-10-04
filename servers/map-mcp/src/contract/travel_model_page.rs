@@ -13,14 +13,15 @@ struct CursorWire {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(try_from = "String", into = "String")]
+#[serde(transparent)]
 #[schemars(with = "String")]
 pub struct MapTravelModelCursor {
     cursor: veoveo_types::OpaqueCursor<MapTravelModelCursorCodec>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct MapTravelModelCursorCodec;
+impl veoveo_types::StatelessCursorCodec for MapTravelModelCursorCodec {}
 impl veoveo_types::CursorCodec for MapTravelModelCursorCodec {
     type Position = TaskId;
     type Error = TravelModelUriError;
@@ -75,18 +76,6 @@ impl MapTravelModelCursor {
         self.cursor.as_str()
     }
 }
-impl TryFrom<String> for MapTravelModelCursor {
-    type Error = TravelModelUriError;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::parse(value)
-    }
-}
-impl From<MapTravelModelCursor> for String {
-    fn from(value: MapTravelModelCursor) -> Self {
-        value.cursor.into_wire()
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "String", into = "String")]
 #[schemars(with = "String")]

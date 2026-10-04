@@ -25,13 +25,15 @@ struct CursorWire {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(try_from = "String", into = "String")]
+#[serde(transparent)]
 pub struct OptimizationUsageCursor {
+    #[schemars(with = "String")]
     cursor: veoveo_types::OpaqueCursor<OptimizationUsageCursorCodec>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct OptimizationUsageCursorCodec;
+impl veoveo_types::StatelessCursorCodec for OptimizationUsageCursorCodec {}
 impl veoveo_types::CursorCodec for OptimizationUsageCursorCodec {
     type Position = TaskId;
     type Error = OptimizationUsageError;
@@ -83,18 +85,6 @@ impl OptimizationUsageCursor {
         self.cursor.as_str()
     }
 }
-impl TryFrom<String> for OptimizationUsageCursor {
-    type Error = OptimizationUsageError;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::parse(value)
-    }
-}
-impl From<OptimizationUsageCursor> for String {
-    fn from(value: OptimizationUsageCursor) -> Self {
-        value.cursor.into_wire()
-    }
-}
-
 #[veoveo_types::resource_address(
     cached(OptimizationUsageErrorAddresses),
     template = "optimization://usage{?cursor}"

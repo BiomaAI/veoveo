@@ -13,14 +13,15 @@ struct CursorWire {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(try_from = "String", into = "String")]
+#[serde(transparent)]
 #[schemars(with = "String")]
 pub struct MapRestrictionCursor {
     cursor: veoveo_types::OpaqueCursor<MapRestrictionCursorCodec>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct MapRestrictionCursorCodec;
+impl veoveo_types::StatelessCursorCodec for MapRestrictionCursorCodec {}
 impl veoveo_types::CursorCodec for MapRestrictionCursorCodec {
     type Position = RestrictionId;
     type Error = MapRestrictionError;
@@ -71,18 +72,6 @@ impl MapRestrictionCursor {
         self.cursor.as_str()
     }
 }
-impl TryFrom<String> for MapRestrictionCursor {
-    type Error = MapRestrictionError;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::parse(value)
-    }
-}
-impl From<MapRestrictionCursor> for String {
-    fn from(value: MapRestrictionCursor) -> Self {
-        value.cursor.into_wire()
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "PageWire", into = "PageWire")]
 pub struct MapRestrictionPage {

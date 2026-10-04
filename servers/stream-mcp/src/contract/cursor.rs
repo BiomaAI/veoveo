@@ -7,7 +7,7 @@ use super::{RunId, SessionId, StreamContractError};
 use crate::uris;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(try_from = "String", into = "String")]
+#[serde(transparent)]
 pub struct RunCursor {
     cursor: veoveo_types::OpaqueCursor<RunCursorCodec>,
 }
@@ -24,8 +24,9 @@ struct Wire {
     collection: String,
     position: Position,
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct RunCursorCodec;
+impl veoveo_types::StatelessCursorCodec for RunCursorCodec {}
 impl veoveo_types::CursorCodec for RunCursorCodec {
     type Position = Position;
     type Error = StreamContractError;
@@ -82,17 +83,6 @@ impl RunCursor {
         self.cursor.position().task_id
     }
 }
-impl TryFrom<String> for RunCursor {
-    type Error = StreamContractError;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::parse(value)
-    }
-}
-impl From<RunCursor> for String {
-    fn from(value: RunCursor) -> Self {
-        value.cursor.into_wire()
-    }
-}
 impl schemars::JsonSchema for RunCursor {
     fn inline_schema() -> bool {
         true
@@ -107,7 +97,7 @@ impl schemars::JsonSchema for RunCursor {
 
 /// Continuation in the process-local session collection, newest IDs first.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(try_from = "String", into = "String")]
+#[serde(transparent)]
 pub struct SessionCursor {
     cursor: veoveo_types::OpaqueCursor<SessionCursorCodec>,
 }
@@ -118,8 +108,9 @@ struct SessionWire {
     collection: String,
     position: SessionId,
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct SessionCursorCodec;
+impl veoveo_types::StatelessCursorCodec for SessionCursorCodec {}
 impl veoveo_types::CursorCodec for SessionCursorCodec {
     type Position = SessionId;
     type Error = StreamContractError;
@@ -165,17 +156,6 @@ impl SessionCursor {
     }
     pub fn session_id(&self) -> SessionId {
         *self.cursor.position()
-    }
-}
-impl TryFrom<String> for SessionCursor {
-    type Error = StreamContractError;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::parse(value)
-    }
-}
-impl From<SessionCursor> for String {
-    fn from(value: SessionCursor) -> Self {
-        value.cursor.into_wire()
     }
 }
 impl schemars::JsonSchema for SessionCursor {

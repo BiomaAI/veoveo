@@ -39,13 +39,15 @@ struct CursorWire {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(try_from = "String", into = "String")]
+#[serde(transparent)]
 pub struct OptimizationIndexCursor {
+    #[schemars(with = "String")]
     cursor: veoveo_types::OpaqueCursor<OptimizationIndexCursorCodec>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct OptimizationIndexCursorCodec;
+impl veoveo_types::StatelessCursorCodec for OptimizationIndexCursorCodec {}
 impl veoveo_types::CursorCodec for OptimizationIndexCursorCodec {
     type Position = CursorWire;
     type Error = OptimizationIndexError;
@@ -118,18 +120,6 @@ impl OptimizationIndexCursor {
         self.cursor.as_str()
     }
 }
-impl TryFrom<String> for OptimizationIndexCursor {
-    type Error = OptimizationIndexError;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::parse(value)
-    }
-}
-impl From<OptimizationIndexCursor> for String {
-    fn from(cursor: OptimizationIndexCursor) -> Self {
-        cursor.cursor.into_wire()
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "String", into = "String")]
 pub struct OptimizationCollectionUri {

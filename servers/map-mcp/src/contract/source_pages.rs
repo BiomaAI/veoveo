@@ -13,14 +13,15 @@ struct CursorWire {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(try_from = "String", into = "String")]
+#[serde(transparent)]
 #[schemars(with = "String")]
 pub struct MapSourceCursor {
     cursor: veoveo_types::OpaqueCursor<MapSourceCursorCodec>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct MapSourceCursorCodec;
+impl veoveo_types::StatelessCursorCodec for MapSourceCursorCodec {}
 impl veoveo_types::CursorCodec for MapSourceCursorCodec {
     type Position = MapSourceId;
     type Error = MapSourceError;
@@ -70,18 +71,6 @@ impl MapSourceCursor {
         self.cursor.as_str()
     }
 }
-impl TryFrom<String> for MapSourceCursor {
-    type Error = MapSourceError;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::parse(value)
-    }
-}
-impl From<MapSourceCursor> for String {
-    fn from(value: MapSourceCursor) -> Self {
-        value.cursor.into_wire()
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "PageWire", into = "PageWire")]
 pub struct MapSourcePage {

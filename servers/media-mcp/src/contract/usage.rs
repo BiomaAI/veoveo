@@ -26,13 +26,15 @@ struct CursorWire {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(try_from = "String", into = "String")]
+#[serde(transparent)]
 pub struct MediaUsageCursor {
+    #[schemars(with = "String")]
     cursor: veoveo_types::OpaqueCursor<MediaUsageCursorCodec>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct MediaUsageCursorCodec;
+impl veoveo_types::StatelessCursorCodec for MediaUsageCursorCodec {}
 impl veoveo_types::CursorCodec for MediaUsageCursorCodec {
     type Position = TaskId;
     type Error = MediaUsageError;
@@ -81,18 +83,6 @@ impl MediaUsageCursor {
         self.cursor.as_str()
     }
 }
-impl TryFrom<String> for MediaUsageCursor {
-    type Error = MediaUsageError;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::parse(value)
-    }
-}
-impl From<MediaUsageCursor> for String {
-    fn from(value: MediaUsageCursor) -> Self {
-        value.cursor.into_wire()
-    }
-}
-
 #[veoveo_types::resource_address(
     cached(MediaUsageErrorAddresses),
     template = "media://usage{?cursor}"

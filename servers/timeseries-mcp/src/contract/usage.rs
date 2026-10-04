@@ -25,13 +25,15 @@ struct CursorWire {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(try_from = "String", into = "String")]
+#[serde(transparent)]
 pub struct TimeseriesUsageCursor {
+    #[schemars(with = "String")]
     cursor: veoveo_types::OpaqueCursor<TimeseriesUsageCursorCodec>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct TimeseriesUsageCursorCodec;
+impl veoveo_types::StatelessCursorCodec for TimeseriesUsageCursorCodec {}
 impl veoveo_types::CursorCodec for TimeseriesUsageCursorCodec {
     type Position = TaskId;
     type Error = TimeseriesUsageError;
@@ -83,18 +85,6 @@ impl TimeseriesUsageCursor {
         self.cursor.as_str()
     }
 }
-impl TryFrom<String> for TimeseriesUsageCursor {
-    type Error = TimeseriesUsageError;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::parse(value)
-    }
-}
-impl From<TimeseriesUsageCursor> for String {
-    fn from(value: TimeseriesUsageCursor) -> Self {
-        value.cursor.into_wire()
-    }
-}
-
 #[veoveo_types::resource_address(
     cached(TimeseriesUsageErrorAddresses),
     template = "timeseries://usage{?cursor}"

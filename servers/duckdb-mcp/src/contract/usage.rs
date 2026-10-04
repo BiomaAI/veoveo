@@ -26,13 +26,15 @@ struct CursorWire {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(try_from = "String", into = "String")]
+#[serde(transparent)]
 pub struct DuckDbUsageCursor {
+    #[schemars(with = "String")]
     cursor: veoveo_types::OpaqueCursor<DuckDbUsageCursorCodec>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct DuckDbUsageCursorCodec;
+impl veoveo_types::StatelessCursorCodec for DuckDbUsageCursorCodec {}
 impl veoveo_types::CursorCodec for DuckDbUsageCursorCodec {
     type Position = TaskId;
     type Error = DuckDbUsageError;
@@ -82,18 +84,6 @@ impl DuckDbUsageCursor {
         self.cursor.as_str()
     }
 }
-impl TryFrom<String> for DuckDbUsageCursor {
-    type Error = DuckDbUsageError;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::parse(value)
-    }
-}
-impl From<DuckDbUsageCursor> for String {
-    fn from(value: DuckDbUsageCursor) -> Self {
-        value.cursor.into_wire()
-    }
-}
-
 #[veoveo_types::resource_address(
     cached(DuckDbUsageErrorAddresses),
     template = "duckdb://usage{?cursor}"

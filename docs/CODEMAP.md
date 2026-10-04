@@ -454,8 +454,9 @@ fields. The library has no MCP or domain dependency.
 ### `platform/types`
 
 `checked.rs` owns immutable field-preserving admission through `Check` and `Checked`.
-`cursor.rs` owns typed owner-codec cursor admission and immutable storage; envelopes,
-context binding and text profiles stay in each owner.
+`cursor.rs` owns typed owner-codec cursor admission, immutable storage and String Serde;
+deserialization requires explicit `StatelessCursorCodec` admission. Envelopes, context
+binding and text profiles stay in each owner.
 `extensions.rs` owns registry-bound typed keys and immutable admitted contributions.
 Protocol adapters declare reserved fields; owners supply codecs. Duplicate JSON field
 admission happens before object collection can discard a value.

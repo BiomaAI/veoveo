@@ -7,7 +7,7 @@ use super::{AnalysisId, ReasonContractError};
 use crate::uris;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(try_from = "String", into = "String")]
+#[serde(transparent)]
 pub struct AnalysisCursor {
     cursor: veoveo_types::OpaqueCursor<AnalysisCursorCodec>,
 }
@@ -24,8 +24,9 @@ struct Wire {
     collection: String,
     position: Position,
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct AnalysisCursorCodec;
+impl veoveo_types::StatelessCursorCodec for AnalysisCursorCodec {}
 impl veoveo_types::CursorCodec for AnalysisCursorCodec {
     type Position = Position;
     type Error = ReasonContractError;
@@ -80,17 +81,6 @@ impl AnalysisCursor {
     }
     pub fn analysis_id(&self) -> AnalysisId {
         self.cursor.position().task_id
-    }
-}
-impl TryFrom<String> for AnalysisCursor {
-    type Error = ReasonContractError;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::parse(value)
-    }
-}
-impl From<AnalysisCursor> for String {
-    fn from(value: AnalysisCursor) -> Self {
-        value.cursor.into_wire()
     }
 }
 impl schemars::JsonSchema for AnalysisCursor {

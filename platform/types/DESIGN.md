@@ -415,8 +415,11 @@ projection use explicit owner adapters before admission.
 stores the immutable owner codec, admitted position and original wire. Construction checks
 then encodes; parsing decodes then checks without automatically re-encoding aliases.
 Owners choose envelope fields, versions, size limits and canonicality. Contextual codecs
-retain their session or query binding and have no generic deserializer that invents context.
-Protocol adapters own String Serde where their current profile supplies a stateless codec.
+retain their session or query binding and require the caller's codec instance when parsing.
+`OpaqueCursor` serializes its retained String. Deserialization requires the owner's
+explicit `StatelessCursorCodec` implementation, which declares that its default codec
+fully determines admission. `Default` alone grants no deserializer. Nominal owner
+wrappers use transparent Serde and keep their own schema identity and metadata.
 Owner codecs and positions prevent interior mutation that could invalidate admission;
 borrowed getters alone cannot prove arbitrary externally implemented types immutable.
 

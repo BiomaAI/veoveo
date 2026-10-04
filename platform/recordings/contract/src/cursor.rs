@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 pub const RECORDING_PAGE_SIZE: usize = 100;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(try_from = "String", into = "String")]
+#[serde(transparent)]
 pub struct RecordingCatalogCursor {
     cursor: veoveo_types::OpaqueCursor<RecordingCatalogCursorCodec>,
 }
@@ -26,8 +26,9 @@ struct Envelope {
     position: Position,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct RecordingCatalogCursorCodec;
+impl veoveo_types::StatelessCursorCodec for RecordingCatalogCursorCodec {}
 impl veoveo_types::CursorCodec for RecordingCatalogCursorCodec {
     type Position = Position;
     type Error = RecordingContractError;
@@ -84,17 +85,6 @@ impl RecordingCatalogCursor {
     }
     pub fn recording_id(&self) -> RecordingId {
         self.cursor.position().recording_id
-    }
-}
-impl TryFrom<String> for RecordingCatalogCursor {
-    type Error = RecordingContractError;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::parse(value)
-    }
-}
-impl From<RecordingCatalogCursor> for String {
-    fn from(value: RecordingCatalogCursor) -> Self {
-        value.cursor.into_wire()
     }
 }
 impl std::fmt::Display for RecordingCatalogCursor {

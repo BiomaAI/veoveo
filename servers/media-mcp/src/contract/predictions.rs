@@ -18,13 +18,15 @@ struct CursorWire {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(try_from = "String", into = "String")]
+#[serde(transparent)]
 pub struct MediaPredictionCursor {
+    #[schemars(with = "String")]
     cursor: veoveo_types::OpaqueCursor<MediaPredictionCursorCodec>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct MediaPredictionCursorCodec;
+impl veoveo_types::StatelessCursorCodec for MediaPredictionCursorCodec {}
 impl veoveo_types::CursorCodec for MediaPredictionCursorCodec {
     type Position = MediaPredictionId;
     type Error = MediaPredictionError;
@@ -77,18 +79,6 @@ impl MediaPredictionCursor {
         self.cursor.as_str()
     }
 }
-impl TryFrom<String> for MediaPredictionCursor {
-    type Error = MediaPredictionError;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::parse(value)
-    }
-}
-impl From<MediaPredictionCursor> for String {
-    fn from(value: MediaPredictionCursor) -> Self {
-        value.cursor.into_wire()
-    }
-}
-
 #[veoveo_types::resource_address(
     cached(MediaPredictionErrorAddresses),
     template = "media://predictions{?cursor}"

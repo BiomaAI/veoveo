@@ -19,13 +19,15 @@ struct CursorWire {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(try_from = "String", into = "String")]
+#[serde(transparent)]
 pub struct DuckDbDatabaseCursor {
+    #[schemars(with = "String")]
     cursor: veoveo_types::OpaqueCursor<DuckDbDatabaseCursorCodec>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct DuckDbDatabaseCursorCodec;
+impl veoveo_types::StatelessCursorCodec for DuckDbDatabaseCursorCodec {}
 impl veoveo_types::CursorCodec for DuckDbDatabaseCursorCodec {
     type Position = DuckDbDatabaseId;
     type Error = DuckDbCatalogError;
@@ -77,18 +79,6 @@ impl DuckDbDatabaseCursor {
         self.cursor.as_str()
     }
 }
-impl TryFrom<String> for DuckDbDatabaseCursor {
-    type Error = DuckDbCatalogError;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::parse(value)
-    }
-}
-impl From<DuckDbDatabaseCursor> for String {
-    fn from(value: DuckDbDatabaseCursor) -> Self {
-        value.cursor.into_wire()
-    }
-}
-
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "EntryWire", into = "EntryWire")]
 pub struct DuckDbDatabaseEntry {
