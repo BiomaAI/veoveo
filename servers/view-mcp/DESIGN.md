@@ -73,7 +73,9 @@ and supply no View permission. Discovery uses the same check when exposing the p
 
 `ViewResource` owns the `view://` routes and the preview App address. Individual
 `ViewUri`, `CompositionUri`, `FrameUri`, `LayerUri` and `TileUri` values require their
-domain IDs. Public records carry these types and serialize them as URI strings.
+domain IDs. Their `ResourceAddress` declarations drive component parsing and building
+with the existing inline string schemas. Tile keys use an owner codec. Public records
+carry these types and serialize them as URI strings.
 `TileKey` stays typed through the in-process registry and byte lookup. Documents use
 the closed `ViewDocument` vocabulary. An address establishes neither ownership nor a grant.
 

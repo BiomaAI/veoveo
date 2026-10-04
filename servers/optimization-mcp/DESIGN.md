@@ -125,8 +125,10 @@ compilation, execution clients, verification, Artifact access and the domain rea
 The default `mcp` feature adds the hosted binary and transport integration.
 
 The contract owns typed addresses for every hosted resource family. Constructors retain
-domain IDs, and parsing rejects aliases, wrong parents, fragments and unsupported query
-parameters. `OptimizationResource` provides the exhaustive dispatch vocabulary.
+domain IDs. Their `ResourceAddress` declarations drive cached construction and parsing,
+and parsing selects the declared parent before admitting its ID. Wrong parents are
+address errors; malformed IDs under the matching parent keep their identifier error.
+Aliases, fragments and unsupported query parameters are rejected. `OptimizationResource` provides the exhaustive dispatch vocabulary.
 `OptimizationScope` is empty because this server declares no additional domain OAuth
 scopes. Gateway operation policy and current owner, Work Context and label checks
 authorize requests. The public Map travel-model reference comes from Map's library with
@@ -654,3 +656,11 @@ canonical administrative mount.
 ## Identity Declaration Mechanics
 
 Optimization identifiers use `Id` with owner-controlled key admission and canonical prefixed RFC UUIDv7 output admission. The solver-profile name retains its extra dot/colon restrictions. Serde applies these validators through String conversion while schemas keep their existing unconstrained String profile.
+
+## Resource Address Declarations
+
+Usage index and Task addresses declare typed routes with the shared `ResourceAddress`
+derive. Explicit owner codecs admit collection-bound cursors and UUID-v7 Task identities.
+Checked constructors initialize private wire caches, and discovery templates alias the
+generated declaration. Serde and schema declarations preserve the public string profile;
+cursor payload encoding remains a separate checked owner contract.

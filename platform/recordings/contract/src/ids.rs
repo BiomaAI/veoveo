@@ -53,22 +53,9 @@ impl fmt::Display for RecordingContractError {
 }
 impl std::error::Error for RecordingContractError {}
 
-macro_rules! string_schema {
-    ($name:ident) => {
-        impl schemars::JsonSchema for $name {
-            fn inline_schema() -> bool {
-                true
-            }
-            fn schema_name() -> std::borrow::Cow<'static, str> {
-                stringify!($name).into()
-            }
-            fn json_schema(g: &mut schemars::SchemaGenerator) -> schemars::Schema {
-                <String as schemars::JsonSchema>::json_schema(g)
-            }
-        }
-    };
+pub(super) fn string_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    <String as schemars::JsonSchema>::json_schema(generator)
 }
-pub(super) use string_schema;
 
 #[derive(
     veoveo_types::Id,

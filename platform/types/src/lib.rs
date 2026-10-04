@@ -22,7 +22,7 @@
 
 extern crate self as veoveo_types;
 pub use id::Identity;
-pub use veoveo_macros::{Id, Vocabulary, embedded_document};
+pub use veoveo_macros::{Id, ResourceAddress, Vocabulary, embedded_document};
 pub use vocabulary::{Vocabulary, is_scope_token, scope_vocabulary_schema};
 
 mod access_grant;
@@ -38,6 +38,7 @@ mod platform_names;
 mod provenance;
 mod resource;
 mod resource_components;
+mod resource_route;
 mod resource_selector;
 mod resource_template;
 pub mod sha256_hex;
@@ -57,6 +58,12 @@ pub use names::{ResourceScheme, ScopeDefinition, ScopeName};
 pub use resource::{ResourceAddress, ResourceUri, TaskResourceAddress};
 pub use resource_components::{
     ResourceUriBuilder, ResourceUriError, ResourceUriParts, UriAuthority, UriSegment,
+};
+pub use resource_route::{
+    IdentityResourceCodec, ResourceComponentEncoding, ResourceEncodedPattern, ResourceFieldCodec,
+    ResourcePatternContext, ResourcePatternSpelling, ResourceRoute, ResourceRouteError,
+    ResourceRouteMatch, ResourceRoutePolicy, ResourceTailCodec, RouteBinding, RoutePath,
+    RouteQuery,
 };
 pub use resource_selector::{
     ResourceSelection, ResourceSelector, ResourceUriPrefix, ResourceUriTemplate,

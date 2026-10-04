@@ -17567,6 +17567,7 @@ dependencies = [
  "hifitime",
  "iri-string",
  "jiff",
+ "jsonschema",
  "rangemap",
  "reqwest 0.13.5",
  "rmcp",

@@ -129,3 +129,60 @@ fn ids_reject_foreign_prefixes_noncanonical_spelling_and_non_rfc_uuids() {
     assert!(MapRouteUri::parse(uri.as_str().replace("/route-", "/raster-")).is_err());
     assert!(MapSourceFeatureUri::parse("map://source-feature/arbitrary/secret").is_err());
 }
+
+#[test]
+fn shared_product_routes_preserve_public_templates_and_complex_field_mapping() {
+    for (routes, template) in [
+        (MapReleaseUri::RESOURCE_ROUTES, MapReleaseUri::TEMPLATE),
+        (
+            MapSourceFeatureUri::RESOURCE_ROUTES,
+            MapSourceFeatureUri::TEMPLATE,
+        ),
+        (MapRouteUri::RESOURCE_ROUTES, MapRouteUri::TEMPLATE),
+        (MapRasterUri::RESOURCE_ROUTES, MapRasterUri::TEMPLATE),
+        (
+            MapRasterDerivationUri::RESOURCE_ROUTES,
+            MapRasterDerivationUri::TEMPLATE,
+        ),
+        (
+            MapSpatialDerivationUri::RESOURCE_ROUTES,
+            MapSpatialDerivationUri::TEMPLATE,
+        ),
+    ] {
+        assert_eq!(routes.len(), 1);
+        assert_eq!(routes[0].discovery_template().unwrap(), template);
+    }
+    let release = DatasetReleaseId::new();
+    let feature = SourceFeatureId::new();
+    let address = MapSourceFeatureUri::new(release.clone(), feature.clone());
+    assert_eq!(address.release_id(), &release);
+    assert_eq!(address.feature_id(), &feature);
+    assert_eq!(
+        address.resource_components_uri().unwrap(),
+        address.to_uri().unwrap()
+    );
+    assert_eq!(
+        MapSourceFeatureUri::parse(address.as_str()).unwrap(),
+        address
+    );
+}
+
+#[test]
+fn product_route_patterns_validate_builders_and_reject_wrong_structure() {
+    let address = MapSourceFeatureUri::new(DatasetReleaseId::new(), SourceFeatureId::new());
+    let schema = serde_json::json!({"type": "string", "pattern": MapSourceFeatureUri::RESOURCE_ROUTES[0].wire_pattern().unwrap()});
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    assert!(validator.is_valid(&serde_json::json!(address.as_str())));
+    for wire in [
+        address.as_str().replace("map://", "other://"),
+        format!("{address}/extra"),
+        "map://source-feature/one".into(),
+    ] {
+        assert!(!validator.is_valid(&serde_json::json!(wire)), "{wire}");
+    }
+    // Structural schemas deliberately leave identity versions and parents to admission.
+    assert!(validator.is_valid(&serde_json::json!(
+        "map://source-feature/not-an-id/not-an-id"
+    )));
+    assert!(MapSourceFeatureUri::parse("map://source-feature/not-an-id/not-an-id").is_err());
+}

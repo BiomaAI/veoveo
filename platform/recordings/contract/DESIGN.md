@@ -159,3 +159,13 @@ and GPU acceptance belong to the owning services.
 ## Identity Declaration Mechanics
 
 Recording identities use `Id` with Recording-owned canonical RFC UUIDv7 admission. Serde continues to require validated String input. Each identity keeps its inline unconstrained string schema; UUID alias admission remains broader only in native Task identities.
+
+## Resource Address Declarations
+
+Hosted Recording resources declare typed component routes with `ResourceAddress`.
+Discovery templates alias generated constants. Explicit wrapper codecs preserve nominal
+Recording and layer addresses, while catalog cursors keep their checked JSON/hex payload
+format. The hosted addresses select their existing inline string schemas. Cursor schemas
+are ordinary owner JsonSchema implementations, independent of Identity and address
+admission. Redap's network URLs use their own URL setters and validation, with ordinary
+wire delegation; they do not adopt the hosted route profile.

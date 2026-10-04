@@ -2,9 +2,7 @@
 use serde::{Deserialize, Serialize};
 use veoveo_types::{ResourceAddress, ResourceUri, TaskId, TaskResourceAddress};
 
-use super::{
-    RunId, RunResultsUri, RunUri, StreamContractError, StreamResource, ids::string_schema,
-};
+use super::{RunId, RunResultsUri, RunUri, StreamContractError, StreamResource};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
@@ -59,4 +57,14 @@ impl From<RunResource> for String {
         value.to_uri().expect("admitted run route").to_string()
     }
 }
-string_schema!(RunResource);
+impl schemars::JsonSchema for RunResource {
+    fn inline_schema() -> bool {
+        true
+    }
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "RunResource".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        <String as schemars::JsonSchema>::json_schema(generator)
+    }
+}

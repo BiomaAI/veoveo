@@ -114,6 +114,11 @@ Discover/list readiness (C31) and knowledge-source publication (C32) require the
 [consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md). Checked setup verifies
 API and declaration consistency; it does not establish these runtime guarantees.
 
+Individual Stream address wrappers derive `ResourceAddress` from owner route
+declarations. Their typed constructors, accessors and inline string schemas preserve
+the existing public profile. The composed resource enum delegates exact building to
+these wrappers and keeps collection cursors and optional-domain dispatch local.
+
 ## Ownership Boundary
 
 The public contract is provider-neutral:

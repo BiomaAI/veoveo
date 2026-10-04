@@ -4,9 +4,7 @@ use std::fmt;
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_types::{
-    ResourceAddress, ResourceUri, ResourceUriBuilder, ResourceUriParts, TaskId, UriSegment,
-};
+use veoveo_types::{ResourceAddress, ResourceFieldCodec, ResourceUri, TaskId};
 
 pub const MEDIA_USAGE_PAGE_SIZE: usize = 100;
 
@@ -96,55 +94,29 @@ impl From<MediaUsageCursor> for String {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::ResourceAddress,
+)]
 #[serde(try_from = "String", into = "String")]
+#[resource(template="media://usage{?cursor}", error=MediaUsageError, route_error=|_| MediaUsageError, wire)]
 pub struct MediaUsageIndexUri {
+    #[resource(cache)]
     wire: ResourceUri,
+    #[resource(codec=UsageCursorCodec, error=|_| MediaUsageError)]
     cursor: Option<MediaUsageCursor>,
 }
 
 impl MediaUsageIndexUri {
-    pub const ROOT: &str = "media://usage";
-    pub const TEMPLATE: &str = "media://usage{?cursor}";
+    pub const ROOT: &str = Self::RESOURCE_ROOT;
+    pub const TEMPLATE: &str = Self::RESOURCE_TEMPLATE;
 
     pub fn new(cursor: Option<&MediaUsageCursor>) -> Self {
-        let mut builder = ResourceUriBuilder::new(Self::ROOT).expect("declared usage root");
-        if let Some(cursor) = cursor {
-            builder = builder
-                .query_pair("cursor", cursor.as_str())
-                .expect("typed usage cursor");
-        }
-        Self {
-            wire: builder.build().expect("typed usage index URI"),
-            cursor: cursor.cloned(),
-        }
+        Self::resource_from_parts(cursor.cloned()).expect("typed usage index address")
     }
 
     pub fn parse(value: impl AsRef<str>) -> Result<Self, MediaUsageError> {
-        let value = value.as_ref();
-        let parts = ResourceUriParts::parse(value).map_err(|_| MediaUsageError)?;
-        if parts.scheme() != "media"
-            || parts.authority() != "usage"
-            || parts.path_segments().next().is_some()
-        {
-            return Err(MediaUsageError);
-        }
-        let cursor = if parts.has_query() {
-            let query = parts.query_parameters();
-            if query.len() != 1 {
-                return Err(MediaUsageError);
-            }
-            Some(MediaUsageCursor::parse(
-                query.get("cursor").ok_or(MediaUsageError)?.clone(),
-            )?)
-        } else {
-            None
-        };
-        let uri = Self::new(cursor.as_ref());
-        if uri.as_str() != value {
-            return Err(MediaUsageError);
-        }
-        Ok(uri)
+        let uri = ResourceUri::new(value.as_ref()).map_err(|_| MediaUsageError)?;
+        <Self as ResourceAddress>::parse(&uri)
     }
 
     pub fn cursor(&self) -> Option<&MediaUsageCursor> {
@@ -155,15 +127,20 @@ impl MediaUsageIndexUri {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::ResourceAddress,
+)]
 #[serde(try_from = "String", into = "String")]
+#[resource(template="media://usage/task/{task_id}", error=MediaUsageError, route_error=|_| MediaUsageError, wire)]
 pub struct MediaTaskUsageUri {
+    #[resource(cache)]
     wire: ResourceUri,
+    #[resource(codec=UsageTaskCodec, error=|_| MediaUsageError)]
     task_id: TaskId,
 }
 
 impl MediaTaskUsageUri {
-    pub const TEMPLATE: &str = "media://usage/task/{task_id}";
+    pub const TEMPLATE: &str = Self::RESOURCE_TEMPLATE;
 
     /// Database identities cannot be used as Task addresses.
     /// ```compile_fail
@@ -171,33 +148,12 @@ impl MediaTaskUsageUri {
     /// MediaTaskUsageUri::new(MediaDatabaseId::new("metrics").unwrap());
     /// ```
     pub fn new(task_id: TaskId) -> Result<Self, MediaUsageError> {
-        let task_id = task_identity(task_id)?;
-        let wire = ResourceUriBuilder::new(MediaUsageIndexUri::ROOT)
-            .expect("declared usage root")
-            .segment(UriSegment::new("task").expect("declared task segment"))
-            .segment(UriSegment::new(task_id.to_string()).expect("canonical native Task UUID"))
-            .build()
-            .expect("typed Task usage URI");
-        Ok(Self { wire, task_id })
+        Self::resource_from_parts(task_identity(task_id)?)
     }
 
     pub fn parse(value: impl AsRef<str>) -> Result<Self, MediaUsageError> {
-        let value = value.as_ref();
-        let parts = ResourceUriParts::parse(value).map_err(|_| MediaUsageError)?;
-        let path = parts.path_segments().collect::<Vec<_>>();
-        if parts.scheme() != "media"
-            || parts.authority() != "usage"
-            || parts.has_query()
-            || path.len() != 2
-            || path[0] != "task"
-        {
-            return Err(MediaUsageError);
-        }
-        let uri = Self::new(path[1].parse().map_err(|_| MediaUsageError)?)?;
-        if uri.as_str() != value {
-            return Err(MediaUsageError);
-        }
-        Ok(uri)
+        let uri = ResourceUri::new(value.as_ref()).map_err(|_| MediaUsageError)?;
+        <Self as ResourceAddress>::parse(&uri)
     }
 
     pub fn task_id(&self) -> TaskId {
@@ -208,37 +164,36 @@ impl MediaTaskUsageUri {
     }
 }
 
-macro_rules! address_traits {
-    ($name:ident) => {
-        impl ResourceAddress for $name {
-            type Error = MediaUsageError;
-            fn parse(uri: &ResourceUri) -> Result<Self, Self::Error> {
-                Self::parse(uri.as_str())
-            }
-            fn to_uri(&self) -> Result<ResourceUri, Self::Error> {
-                Ok(self.wire.clone())
-            }
-        }
-        impl TryFrom<String> for $name {
-            type Error = MediaUsageError;
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::parse(value)
-            }
-        }
-        impl From<$name> for String {
-            fn from(value: $name) -> Self {
-                value.wire.into()
-            }
-        }
-        impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str(self.as_str())
-            }
-        }
-    };
+struct UsageCursorCodec;
+impl ResourceFieldCodec<MediaUsageCursor> for UsageCursorCodec {
+    type Error = MediaUsageError;
+    fn parse(value: &str) -> Result<MediaUsageCursor, Self::Error> {
+        MediaUsageCursor::parse(value)
+    }
+    fn text(value: &MediaUsageCursor) -> std::borrow::Cow<'_, str> {
+        value.as_str().into()
+    }
 }
-address_traits!(MediaUsageIndexUri);
-address_traits!(MediaTaskUsageUri);
+struct UsageTaskCodec;
+impl ResourceFieldCodec<TaskId> for UsageTaskCodec {
+    type Error = MediaUsageError;
+    fn parse(value: &str) -> Result<TaskId, Self::Error> {
+        task_identity(value.parse().map_err(|_| MediaUsageError)?)
+    }
+    fn text(value: &TaskId) -> std::borrow::Cow<'_, str> {
+        value.to_string().into()
+    }
+}
+impl fmt::Display for MediaUsageIndexUri {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl fmt::Display for MediaTaskUsageUri {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "EntryWire", into = "EntryWire")]

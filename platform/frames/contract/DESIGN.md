@@ -57,3 +57,14 @@ Installed publication, Task delivery and conversion acceptance belong to the ser
 ## Identity Declaration Mechanics
 
 Frame identities use `Id` with the coordinate owner’s lexical validator. The owner retains its relative-component rejection, accepted colon spelling and String schema profile. URI admission and frame-world relationships are separate checks.
+
+## Resource Address Declarations
+
+Frame world, revision and operation addresses declare typed routes with the shared
+`ResourceAddress` derive. World-frame addresses preserve their composed revision getter
+through an ordinary adapter to a private typed route. Cached fields are private; checked
+constructors rebuild and admit the same route. World and revision input hooks reject
+escaped wire components before identifier admission, preserving their Route error
+profile. A wrong route shape is rejected before typed fields are parsed. Usage routes use
+explicit Task and cursor codecs. Cursor payload bytes and existing address schemas stay
+owner declarations.

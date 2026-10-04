@@ -230,3 +230,12 @@ Lifecycle, execution, file transfer and maintenance consumers share these names 
 ## Identity Declaration Mechanics
 
 Computers identities implement the foundational `Identity` admission interface through `Id`. Owner functions choose accepted UUID versions and canonical RFC spelling. Serde serializes the inner UUID and decodes through validated String admission, including in nonhuman formats; schema generation preserves the owner UUID pattern and length fields.
+
+## Resource Address Declarations
+
+`ComputerResource` and the small result addresses declare their typed component routes
+with the shared `ResourceAddress` derive. Discovery templates alias generated named
+constants, and checked constructors retain each concrete ID. Owner result schema hooks
+preserve their family-specific UUID constraints and metadata. Domain accessors retain
+their borrowed or copied signatures. Route selection precedes ID admission; malformed
+fields on a matching route do not fall through to another resource.

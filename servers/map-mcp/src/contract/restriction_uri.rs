@@ -2,9 +2,7 @@
 use super::{MapRestrictionCursor, RestrictionId};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_types::{
-    ResourceAddress, ResourceUri, ResourceUriBuilder, ResourceUriParts, UriSegment,
-};
+use veoveo_types::{ResourceAddress, ResourceFieldCodec, ResourceUri};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum MapRestrictionError {
@@ -18,16 +16,21 @@ pub enum MapRestrictionError {
     Metadata,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::ResourceAddress,
+)]
 #[serde(try_from = "String", into = "String")]
 #[schemars(with = "String")]
+#[resource(template = "map://restriction/{restriction_id}", error = MapRestrictionError, route_error = |_| MapRestrictionError::Address, wire)]
 pub struct MapRestrictionUri {
+    #[resource(cache)]
     wire: ResourceUri,
+    #[resource(variable = "restriction_id", error = |_| MapRestrictionError::Address)]
     id: RestrictionId,
 }
 
 impl MapRestrictionUri {
-    pub const TEMPLATE: &str = "map://restriction/{restriction_id}";
+    pub const TEMPLATE: &str = Self::RESOURCE_TEMPLATE;
 
     /// ```compile_fail
     /// use veoveo_map_mcp::contract::{MapRestrictionUri, RouteId};
@@ -38,32 +41,11 @@ impl MapRestrictionUri {
     /// MapRestrictionUri::new("restriction-id");
     /// ```
     pub fn new(id: RestrictionId) -> Self {
-        let wire = ResourceUriBuilder::new("map://restriction")
-            .expect("declared Map root")
-            .segment(UriSegment::new(id.to_string()).expect("typed restriction ID"))
-            .build()
-            .expect("typed restriction address");
-        Self { wire, id }
+        Self::resource_from_parts(id).expect("typed Map restriction address")
     }
-
     pub fn parse(value: impl AsRef<str>) -> Result<Self, MapRestrictionError> {
-        let value = value.as_ref();
-        let parts = ResourceUriParts::parse(value).map_err(|_| MapRestrictionError::Address)?;
-        let path: Vec<_> = parts.path_segments().collect();
-        if parts.scheme() != "map"
-            || parts.authority() != "restriction"
-            || parts.has_query()
-            || path.len() != 1
-        {
-            return Err(MapRestrictionError::Address);
-        }
-        let address = Self::new(
-            RestrictionId::parse(path[0].as_ref()).map_err(|_| MapRestrictionError::Address)?,
-        );
-        if address.as_str() != value {
-            return Err(MapRestrictionError::Address);
-        }
-        Ok(address)
+        let uri = ResourceUri::new(value.as_ref()).map_err(|_| MapRestrictionError::Address)?;
+        <Self as ResourceAddress>::parse(&uri)
     }
     pub fn id(&self) -> &RestrictionId {
         &self.id
@@ -73,57 +55,28 @@ impl MapRestrictionUri {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::ResourceAddress,
+)]
 #[serde(try_from = "String", into = "String")]
 #[schemars(with = "String")]
+#[resource(template = "map://restrictions{?cursor}", error = MapRestrictionError, route_error = |_| MapRestrictionError::Address, wire)]
 pub struct MapRestrictionsUri {
+    #[resource(cache)]
     wire: ResourceUri,
+    #[resource(codec = MapRestrictionCursorCodec, error = |error| error)]
     cursor: Option<MapRestrictionCursor>,
 }
 impl MapRestrictionsUri {
     pub const ROOT: &str = "map://restrictions";
-    pub const TEMPLATE: &str = "map://restrictions{?cursor}";
+    pub const TEMPLATE: &str = Self::RESOURCE_TEMPLATE;
 
     pub fn new(cursor: Option<MapRestrictionCursor>) -> Self {
-        let mut builder = ResourceUriBuilder::new(Self::ROOT).expect("declared Map root");
-        if let Some(cursor) = &cursor {
-            builder = builder
-                .query_pair("cursor", cursor.as_str())
-                .expect("typed cursor");
-        }
-        Self {
-            wire: builder.build().expect("typed restriction collection"),
-            cursor,
-        }
+        Self::resource_from_parts(cursor).expect("typed Map restriction address")
     }
     pub fn parse(value: impl AsRef<str>) -> Result<Self, MapRestrictionError> {
-        let value = value.as_ref();
-        let parts = ResourceUriParts::parse(value).map_err(|_| MapRestrictionError::Address)?;
-        if parts.scheme() != "map"
-            || parts.authority() != "restrictions"
-            || parts.path_segments().next().is_some()
-        {
-            return Err(MapRestrictionError::Address);
-        }
-        let cursor = if parts.has_query() {
-            let query = parts.query_parameters();
-            if query.len() != 1 {
-                return Err(MapRestrictionError::Address);
-            }
-            Some(MapRestrictionCursor::parse(
-                query
-                    .get("cursor")
-                    .ok_or(MapRestrictionError::Address)?
-                    .clone(),
-            )?)
-        } else {
-            None
-        };
-        let address = Self::new(cursor);
-        if address.as_str() != value {
-            return Err(MapRestrictionError::Address);
-        }
-        Ok(address)
+        let uri = ResourceUri::new(value.as_ref()).map_err(|_| MapRestrictionError::Address)?;
+        <Self as ResourceAddress>::parse(&uri)
     }
     pub fn cursor(&self) -> Option<&MapRestrictionCursor> {
         self.cursor.as_ref()
@@ -133,29 +86,13 @@ impl MapRestrictionsUri {
     }
 }
 
-macro_rules! address_wire {
-    ($ty:ty) => {
-        impl TryFrom<String> for $ty {
-            type Error = MapRestrictionError;
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::parse(value)
-            }
-        }
-        impl From<$ty> for String {
-            fn from(value: $ty) -> Self {
-                value.wire.to_string()
-            }
-        }
-        impl ResourceAddress for $ty {
-            type Error = MapRestrictionError;
-            fn parse(value: &ResourceUri) -> Result<Self, Self::Error> {
-                Self::parse(value.as_str())
-            }
-            fn to_uri(&self) -> Result<ResourceUri, Self::Error> {
-                Ok(self.wire.clone())
-            }
-        }
-    };
+struct MapRestrictionCursorCodec;
+impl ResourceFieldCodec<MapRestrictionCursor> for MapRestrictionCursorCodec {
+    type Error = MapRestrictionError;
+    fn parse(value: &str) -> Result<MapRestrictionCursor, Self::Error> {
+        MapRestrictionCursor::parse(value)
+    }
+    fn text(value: &MapRestrictionCursor) -> std::borrow::Cow<'_, str> {
+        value.as_str().into()
+    }
 }
-address_wire!(MapRestrictionUri);
-address_wire!(MapRestrictionsUri);

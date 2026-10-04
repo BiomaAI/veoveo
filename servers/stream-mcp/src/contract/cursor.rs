@@ -3,7 +3,7 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use super::{RunId, SessionId, StreamContractError, ids::string_schema};
+use super::{RunId, SessionId, StreamContractError};
 use crate::uris;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -80,7 +80,17 @@ impl From<RunCursor> for String {
         value.wire
     }
 }
-string_schema!(RunCursor);
+impl schemars::JsonSchema for RunCursor {
+    fn inline_schema() -> bool {
+        true
+    }
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "RunCursor".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        <String as schemars::JsonSchema>::json_schema(generator)
+    }
+}
 
 /// Continuation in the process-local session collection, newest IDs first.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -144,4 +154,14 @@ impl From<SessionCursor> for String {
         value.wire
     }
 }
-string_schema!(SessionCursor);
+impl schemars::JsonSchema for SessionCursor {
+    fn inline_schema() -> bool {
+        true
+    }
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "SessionCursor".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        <String as schemars::JsonSchema>::json_schema(generator)
+    }
+}

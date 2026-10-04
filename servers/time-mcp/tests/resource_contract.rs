@@ -400,3 +400,110 @@ fn authority_cursors_cannot_cross_collection_roots() {
     assert!(AuthorityCursor::parse(bootstrap.as_str()).is_err());
     assert!(BootstrapAuthorityCursor::parse(acquired.as_str()).is_err());
 }
+
+#[test]
+fn shared_routes_agree_with_discovery_and_preserve_matched_error_profiles() {
+    use veoveo_time_mcp::{contract::TimeResourceError, uris};
+    let declarations = TimeResource::RESOURCE_ROUTES
+        .iter()
+        .map(|route| route.discovery_template().unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        declarations,
+        vec![
+            uris::DOCS_URI,
+            uris::DOC_TEMPLATE,
+            uris::CONTRACT_URI,
+            uris::TIMELINE_APP_URI,
+            uris::CLOCK_CURRENT_URI,
+            uris::CLOCK_QUALITY_URI,
+            uris::AUTHORITIES_CURRENT_URI,
+            uris::AUTHORITY_RELEASE_TEMPLATE,
+            uris::AUTHORITY_RELEASES_TEMPLATE,
+            uris::BOOTSTRAP_AUTHORITY_TEMPLATE,
+            uris::BOOTSTRAP_AUTHORITIES_TEMPLATE,
+            uris::ZONE_TEMPLATE,
+            uris::CALENDARS_TEMPLATE,
+            uris::CALENDAR_TEMPLATE,
+            uris::EPOCHS_TEMPLATE,
+            uris::EPOCH_TEMPLATE,
+            uris::EPOCH_VERSION_TEMPLATE,
+            uris::EVENTS_TEMPLATE,
+            uris::EVENT_TEMPLATE,
+        ]
+    );
+    for wire in [
+        "time://events?extra=1",
+        "time://events?",
+        "time://events?cursor=bad",
+    ] {
+        assert_eq!(
+            TimeResource::parse(wire),
+            Err(TimeResourceError::InvalidCursor)
+        );
+    }
+    assert_eq!(
+        TimeResource::parse("time://events/bad"),
+        Err(TimeResourceError::InvalidId)
+    );
+    assert_eq!(
+        TimeResource::parse("time://events/event-one?cursor=bad"),
+        Err(TimeResourceError::UnknownResource)
+    );
+    assert_eq!(
+        TimeResource::parse("time://zones/America%2FNew_York"),
+        Err(TimeResourceError::UnknownResource)
+    );
+    let zone = TimeResource::Zone(TimeZoneId::new("America/New_York").unwrap());
+    assert_eq!(
+        zone.resource_components_uri().unwrap().as_str(),
+        "time://zones/America/New_York"
+    );
+}
+
+#[test]
+fn route_patterns_validate_encoded_builder_output_without_claiming_domain_admission() {
+    let zone_route = &TimeResource::RESOURCE_ROUTES[11];
+    let schema =
+        serde_json::json!({"type": "string", "pattern": zone_route.wire_pattern().unwrap()});
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    for name in ["UTC", "America/New_York", "Etc/GMT+5"] {
+        let wire = TimeResource::Zone(TimeZoneId::new(name).unwrap())
+            .to_uri()
+            .unwrap();
+        assert!(
+            validator.is_valid(&serde_json::json!(wire.as_str())),
+            "{wire}"
+        );
+    }
+    for wire in ["other://zones/UTC", "time://events/event-one"] {
+        assert!(!validator.is_valid(&serde_json::json!(wire)), "{wire}");
+    }
+    // The structural tail permits empty captures; the owner requires a zone name.
+    assert!(validator.is_valid(&serde_json::json!("time://zones")));
+    assert!(TimeResource::parse("time://zones").is_err());
+    // The structural route pattern does not decide TZDB name admission or aliases.
+    let alias = "time://zones/America%2FNew_York";
+    assert!(validator.is_valid(&serde_json::json!(alias)));
+    assert!(TimeResource::parse(alias).is_err());
+}
+
+#[test]
+fn route_query_schema_and_admission_preserve_opaque_cursor_hex_aliases() {
+    let event = TemporalEventId::new("event-one").unwrap();
+    let canonical = EventCursor::new(&event, -42, SubsecondNanoseconds::MAX);
+    let uppercase = canonical.as_str().to_ascii_uppercase();
+    let cursor = EventCursor::parse(uppercase.clone()).unwrap();
+    let address = TimeResource::Events {
+        cursor: Some(cursor),
+    };
+    let wire = address.to_uri().unwrap();
+    assert!(wire.as_str().ends_with(&uppercase));
+    assert_eq!(TimeResource::parse(wire.as_str()).unwrap(), address);
+    let schema = serde_json::json!({"type": "string", "pattern": TimeResource::RESOURCE_ROUTES[17].wire_pattern().unwrap()});
+    assert!(
+        jsonschema::validator_for(&schema)
+            .unwrap()
+            .is_valid(&serde_json::json!(wire.as_str()))
+    );
+}

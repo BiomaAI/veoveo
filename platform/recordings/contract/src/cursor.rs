@@ -86,4 +86,14 @@ impl std::fmt::Display for RecordingCatalogCursor {
         self.wire.fmt(f)
     }
 }
-string_schema!(RecordingCatalogCursor);
+impl schemars::JsonSchema for RecordingCatalogCursor {
+    fn inline_schema() -> bool {
+        true
+    }
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "RecordingCatalogCursor".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        string_schema(generator)
+    }
+}

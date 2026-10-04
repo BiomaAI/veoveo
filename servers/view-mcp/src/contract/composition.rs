@@ -113,6 +113,15 @@ impl SceneCompositionId {
     }
 }
 
+impl veoveo_types::Identity for SceneCompositionId {
+    type Error = SceneCompositionError;
+    fn parse_identity(value: &str) -> Result<Self, Self::Error> {
+        Self::parse(value)
+    }
+    fn identity_text(&self) -> std::borrow::Cow<'_, str> {
+        self.0.as_str().into()
+    }
+}
 impl fmt::Display for SceneCompositionId {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(&self.0)

@@ -654,7 +654,13 @@ hex-encoded cursor binds the release collection and optional dataset ID; it does
 not confer access. Each page applies the current tenant again. These reads observe
 current committed rows, without a snapshot across page requests. An empty first
 page for a dataset returns not-found; an exhausted continuation returns an empty
-page. An exact release URI binds both dataset and release IDs in the database.
+page. Exact release and geographic product addresses declare their routes beside their
+owner IDs in `contract/product_uri.rs`. The shared `ResourceAddress` derive uses
+those declarations for parsing and typed constructors, while the owner keeps its
+cached wire, accessors, string schemas and invalid-address errors. Source and source
+collection addresses use the same mechanics with the existing opaque source cursor
+codec. Discovery templates are checked against these route declarations. An exact
+release URI binds both dataset and release IDs in the database.
 A layer-product URI likewise binds its layer, publication, and product IDs in SQL
 alongside current layer visibility.
 

@@ -2,9 +2,7 @@
 use serde::{Deserialize, Serialize};
 use veoveo_types::{ResourceAddress, ResourceUri, TaskId, TaskResourceAddress};
 
-use super::{
-    AnalysisId, AnalysisUri, ReasonContractError, ReasonResource, ResultsUri, ids::string_schema,
-};
+use super::{AnalysisId, AnalysisUri, ReasonContractError, ReasonResource, ResultsUri};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
@@ -61,4 +59,14 @@ impl From<AnalysisResource> for String {
         value.to_uri().expect("admitted analysis route").to_string()
     }
 }
-string_schema!(AnalysisResource);
+impl schemars::JsonSchema for AnalysisResource {
+    fn inline_schema() -> bool {
+        true
+    }
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "AnalysisResource".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        <String as schemars::JsonSchema>::json_schema(generator)
+    }
+}

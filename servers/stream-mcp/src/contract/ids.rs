@@ -23,24 +23,6 @@ impl fmt::Display for StreamContractError {
 }
 impl std::error::Error for StreamContractError {}
 
-// Preserve the published scalar schema while domain admission checks its profile.
-macro_rules! string_schema {
-    ($name:ident) => {
-        impl schemars::JsonSchema for $name {
-            fn inline_schema() -> bool {
-                true
-            }
-            fn schema_name() -> std::borrow::Cow<'static, str> {
-                stringify!($name).into()
-            }
-            fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
-                <String as schemars::JsonSchema>::json_schema(generator)
-            }
-        }
-    };
-}
-pub(super) use string_schema;
-
 #[derive(
     veoveo_types::Id, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
 )]
@@ -103,12 +85,31 @@ impl From<RunId> for String {
         value.to_string()
     }
 }
+impl veoveo_types::Identity for RunId {
+    type Error = StreamContractError;
+    fn parse_identity(value: &str) -> Result<Self, Self::Error> {
+        Self::parse(value)
+    }
+    fn identity_text(&self) -> std::borrow::Cow<'_, str> {
+        self.0.to_string().into()
+    }
+}
 impl fmt::Display for RunId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }
 }
-string_schema!(RunId);
+impl schemars::JsonSchema for RunId {
+    fn inline_schema() -> bool {
+        true
+    }
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "RunId".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        <String as schemars::JsonSchema>::json_schema(generator)
+    }
+}
 
 /// Process-local live-session identity, distinct from a recording run's Task.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
@@ -155,12 +156,31 @@ impl From<SessionId> for String {
         value.to_string()
     }
 }
+impl veoveo_types::Identity for SessionId {
+    type Error = StreamContractError;
+    fn parse_identity(value: &str) -> Result<Self, Self::Error> {
+        Self::parse(value)
+    }
+    fn identity_text(&self) -> std::borrow::Cow<'_, str> {
+        self.0.to_string().into()
+    }
+}
 impl fmt::Display for SessionId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }
 }
-string_schema!(SessionId);
+impl schemars::JsonSchema for SessionId {
+    fn inline_schema() -> bool {
+        true
+    }
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "SessionId".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        <String as schemars::JsonSchema>::json_schema(generator)
+    }
+}
 
 fn validate_catalog_id(value: &str, kind: &'static str) -> Result<(), StreamContractError> {
     if value.is_empty()

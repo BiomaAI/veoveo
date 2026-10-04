@@ -21,3 +21,29 @@ fn public_solver_schemas_preserve_the_published_contract() {
             .unwrap()
     );
 }
+
+#[test]
+fn exact_address_routes_select_the_parent_before_identifier_admission() {
+    // A wrong parent is an address error even when its apparent ID is malformed.
+    assert!(matches!(
+        OptimizationProblemUri::parse("optimization://run/not-an-id"),
+        Err(OptimizationContractError::InvalidUri(
+            "OptimizationProblemUri"
+        ))
+    ));
+    assert!(matches!(
+        OptimizationProblemUri::parse("optimization://problem/not-an-id"),
+        Err(OptimizationContractError::InvalidIdentifier(_))
+    ));
+    let address = OptimizationProblemUri::new(ProblemId::new()).unwrap();
+    assert_eq!(
+        address.resource_components_uri().unwrap().as_str(),
+        address.as_str()
+    );
+    assert_eq!(
+        OptimizationProblemUri::RESOURCE_ROUTES[0]
+            .discovery_template()
+            .unwrap(),
+        OptimizationProblemUri::RESOURCE_TEMPLATE
+    );
+}

@@ -2,9 +2,7 @@
 use super::{MapSourceCursor, MapSourceId};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_types::{
-    ResourceAddress, ResourceUri, ResourceUriBuilder, ResourceUriParts, UriSegment,
-};
+use veoveo_types::{ResourceAddress, ResourceFieldCodec, ResourceUri};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum MapSourceError {
@@ -18,16 +16,21 @@ pub enum MapSourceError {
     Metadata,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::ResourceAddress,
+)]
 #[serde(try_from = "String", into = "String")]
 #[schemars(with = "String")]
+#[resource(template = "map://source/{source_id}", error = MapSourceError, route_error = |_| MapSourceError::Address, wire)]
 pub struct MapSourceUri {
+    #[resource(cache)]
     wire: ResourceUri,
+    #[resource(variable = "source_id", error = |_| MapSourceError::Address)]
     id: MapSourceId,
 }
 
 impl MapSourceUri {
-    pub const TEMPLATE: &str = "map://source/{source_id}";
+    pub const TEMPLATE: &str = Self::RESOURCE_TEMPLATE;
 
     /// ```compile_fail
     /// use veoveo_map_mcp::contract::{MapSourceUri, RouteId};
@@ -38,31 +41,11 @@ impl MapSourceUri {
     /// MapSourceUri::new("source-id");
     /// ```
     pub fn new(id: MapSourceId) -> Self {
-        let wire = ResourceUriBuilder::new("map://source")
-            .expect("declared Map root")
-            .segment(UriSegment::new(id.to_string()).expect("typed source ID"))
-            .build()
-            .expect("typed source address");
-        Self { wire, id }
+        Self::resource_from_parts(id).expect("typed Map source address")
     }
-
     pub fn parse(value: impl AsRef<str>) -> Result<Self, MapSourceError> {
-        let value = value.as_ref();
-        let parts = ResourceUriParts::parse(value).map_err(|_| MapSourceError::Address)?;
-        let path: Vec<_> = parts.path_segments().collect();
-        if parts.scheme() != "map"
-            || parts.authority() != "source"
-            || parts.has_query()
-            || path.len() != 1
-        {
-            return Err(MapSourceError::Address);
-        }
-        let address =
-            Self::new(MapSourceId::parse(path[0].as_ref()).map_err(|_| MapSourceError::Address)?);
-        if address.as_str() != value {
-            return Err(MapSourceError::Address);
-        }
-        Ok(address)
+        let uri = ResourceUri::new(value.as_ref()).map_err(|_| MapSourceError::Address)?;
+        <Self as ResourceAddress>::parse(&uri)
     }
     pub fn id(&self) -> &MapSourceId {
         &self.id
@@ -72,54 +55,28 @@ impl MapSourceUri {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::ResourceAddress,
+)]
 #[serde(try_from = "String", into = "String")]
 #[schemars(with = "String")]
+#[resource(template = "map://sources{?cursor}", error = MapSourceError, route_error = |_| MapSourceError::Address, wire)]
 pub struct MapSourcesUri {
+    #[resource(cache)]
     wire: ResourceUri,
+    #[resource(codec = MapSourceCursorCodec, error = |error| error)]
     cursor: Option<MapSourceCursor>,
 }
 impl MapSourcesUri {
     pub const ROOT: &str = "map://sources";
-    pub const TEMPLATE: &str = "map://sources{?cursor}";
+    pub const TEMPLATE: &str = Self::RESOURCE_TEMPLATE;
 
     pub fn new(cursor: Option<MapSourceCursor>) -> Self {
-        let mut builder = ResourceUriBuilder::new(Self::ROOT).expect("declared Map root");
-        if let Some(cursor) = &cursor {
-            builder = builder
-                .query_pair("cursor", cursor.as_str())
-                .expect("typed cursor");
-        }
-        Self {
-            wire: builder.build().expect("typed source collection"),
-            cursor,
-        }
+        Self::resource_from_parts(cursor).expect("typed Map source address")
     }
     pub fn parse(value: impl AsRef<str>) -> Result<Self, MapSourceError> {
-        let value = value.as_ref();
-        let parts = ResourceUriParts::parse(value).map_err(|_| MapSourceError::Address)?;
-        if parts.scheme() != "map"
-            || parts.authority() != "sources"
-            || parts.path_segments().next().is_some()
-        {
-            return Err(MapSourceError::Address);
-        }
-        let cursor = if parts.has_query() {
-            let query = parts.query_parameters();
-            if query.len() != 1 {
-                return Err(MapSourceError::Address);
-            }
-            Some(MapSourceCursor::parse(
-                query.get("cursor").ok_or(MapSourceError::Address)?.clone(),
-            )?)
-        } else {
-            None
-        };
-        let address = Self::new(cursor);
-        if address.as_str() != value {
-            return Err(MapSourceError::Address);
-        }
-        Ok(address)
+        let uri = ResourceUri::new(value.as_ref()).map_err(|_| MapSourceError::Address)?;
+        <Self as ResourceAddress>::parse(&uri)
     }
     pub fn cursor(&self) -> Option<&MapSourceCursor> {
         self.cursor.as_ref()
@@ -129,29 +86,13 @@ impl MapSourcesUri {
     }
 }
 
-macro_rules! address_wire {
-    ($ty:ty) => {
-        impl TryFrom<String> for $ty {
-            type Error = MapSourceError;
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::parse(value)
-            }
-        }
-        impl From<$ty> for String {
-            fn from(value: $ty) -> Self {
-                value.wire.to_string()
-            }
-        }
-        impl ResourceAddress for $ty {
-            type Error = MapSourceError;
-            fn parse(value: &ResourceUri) -> Result<Self, Self::Error> {
-                Self::parse(value.as_str())
-            }
-            fn to_uri(&self) -> Result<ResourceUri, Self::Error> {
-                Ok(self.wire.clone())
-            }
-        }
-    };
+struct MapSourceCursorCodec;
+impl ResourceFieldCodec<MapSourceCursor> for MapSourceCursorCodec {
+    type Error = MapSourceError;
+    fn parse(value: &str) -> Result<MapSourceCursor, Self::Error> {
+        MapSourceCursor::parse(value)
+    }
+    fn text(value: &MapSourceCursor) -> std::borrow::Cow<'_, str> {
+        value.as_str().into()
+    }
 }
-address_wire!(MapSourceUri);
-address_wire!(MapSourcesUri);

@@ -23,24 +23,6 @@ impl fmt::Display for ReasonContractError {
 }
 impl std::error::Error for ReasonContractError {}
 
-// Preserve the published scalar schema while domain admission checks its profile.
-macro_rules! string_schema {
-    ($name:ident) => {
-        impl schemars::JsonSchema for $name {
-            fn inline_schema() -> bool {
-                true
-            }
-            fn schema_name() -> std::borrow::Cow<'static, str> {
-                stringify!($name).into()
-            }
-            fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
-                <String as schemars::JsonSchema>::json_schema(generator)
-            }
-        }
-    };
-}
-pub(super) use string_schema;
-
 #[derive(
     veoveo_types::Id, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
 )]
@@ -103,12 +85,31 @@ impl From<AnalysisId> for String {
         value.to_string()
     }
 }
+impl veoveo_types::Identity for AnalysisId {
+    type Error = ReasonContractError;
+    fn parse_identity(value: &str) -> Result<Self, Self::Error> {
+        Self::parse(value)
+    }
+    fn identity_text(&self) -> std::borrow::Cow<'_, str> {
+        self.0.to_string().into()
+    }
+}
 impl fmt::Display for AnalysisId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }
 }
-string_schema!(AnalysisId);
+impl schemars::JsonSchema for AnalysisId {
+    fn inline_schema() -> bool {
+        true
+    }
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "AnalysisId".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        <String as schemars::JsonSchema>::json_schema(generator)
+    }
+}
 
 fn validate_catalog_id(value: &str, kind: &'static str) -> Result<(), ReasonContractError> {
     if value.is_empty()

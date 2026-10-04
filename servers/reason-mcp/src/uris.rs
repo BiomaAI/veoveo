@@ -17,13 +17,13 @@ pub const DOC_TEMPLATE: &str = "reason://docs/{doc_id}";
 
 pub const PIPELINES_URI: &str = "reason://pipelines";
 pub const ANALYSES_APP_URI: &str = "ui://reason/analyses.html";
-pub const PIPELINE_TEMPLATE: &str = "reason://pipeline/{pipeline_id}";
+pub const PIPELINE_TEMPLATE: &str = crate::contract::PipelineUri::RESOURCE_TEMPLATE;
 pub const MODELS_URI: &str = "reason://models";
-pub const MODEL_TEMPLATE: &str = "reason://model/{model_id}";
+pub const MODEL_TEMPLATE: &str = crate::contract::ModelUri::RESOURCE_TEMPLATE;
 pub const ANALYSES_URI: &str = "reason://analyses";
 pub const ANALYSES_PAGE_TEMPLATE: &str = "reason://analyses{?cursor}";
-pub const ANALYSIS_TEMPLATE: &str = "reason://analysis/{analysis_id}";
-pub const RESULTS_TEMPLATE: &str = "reason://analysis/{analysis_id}/results";
+pub const ANALYSIS_TEMPLATE: &str = crate::contract::AnalysisUri::RESOURCE_TEMPLATE;
+pub const RESULTS_TEMPLATE: &str = crate::contract::ResultsUri::RESOURCE_TEMPLATE;
 pub const ARTIFACT_TEMPLATE: &str = "reason://artifact/{artifact_id}";
 
 pub fn doc_uri(id: ReasonDocument) -> ResourceUri {

@@ -242,3 +242,34 @@ fn pages_admit_only_sorted_unique_summaries_and_a_matching_full_page_cursor() {
     bad["items"].as_array_mut().unwrap().remove(0);
     assert!(serde_json::from_value::<MapSourcePage>(bad).is_err());
 }
+
+#[test]
+fn source_descriptors_own_building_and_discovery_without_reencoding_cursor_payloads() {
+    assert_eq!(
+        MapSourceUri::RESOURCE_ROUTES[0]
+            .discovery_template()
+            .unwrap(),
+        MapSourceUri::TEMPLATE
+    );
+    assert_eq!(
+        MapSourcesUri::RESOURCE_ROUTES[0]
+            .discovery_template()
+            .unwrap(),
+        MapSourcesUri::TEMPLATE
+    );
+    let address = MapSourceUri::new(MapSourceId::new());
+    assert_eq!(
+        address.resource_components_uri().unwrap(),
+        address.to_uri().unwrap()
+    );
+    let cursor = MapSourceCursor::new(address.id().clone());
+    let page = MapSourcesUri::new(Some(cursor.clone()));
+    assert_eq!(
+        page.resource_components_uri().unwrap(),
+        page.to_uri().unwrap()
+    );
+    assert_eq!(
+        MapSourcesUri::parse(page.as_str()).unwrap().cursor(),
+        Some(&cursor)
+    );
+}

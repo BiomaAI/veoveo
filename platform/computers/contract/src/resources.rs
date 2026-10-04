@@ -11,18 +11,16 @@ use crate::{AutomationGrantId, ComputerId, ExecutionId, FileTransferId};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use veoveo_types::{
-    ResourceAddress, ResourceUri, ResourceUriBuilder, ResourceUriParts, UriSegment,
-};
+use veoveo_types::{ResourceAddress, ResourceFieldCodec, ResourceUri};
 
 pub const COMPUTERS_URI: &str = "computer://computers";
-pub const COMPUTER_TEMPLATE: &str = "computer://computers/{computer_id}";
-pub const ACCESS_TEMPLATE: &str = "computer://computers/{computer_id}/access";
-pub const MAINTENANCE_TEMPLATE: &str = "computer://computers/{computer_id}/maintenance";
-pub const AUTOMATION_TEMPLATE: &str = "computer://computers/{computer_id}/automation";
-pub const GRANT_TEMPLATE: &str = "computer://computers/{computer_id}/automation/{grant_id}";
-pub const PAGE_TEMPLATE: &str = "computer://computers{?after}";
-pub const DOC_TEMPLATE: &str = "computer://docs/{doc_id}";
+pub const COMPUTER_TEMPLATE: &str = ComputerResource::RESOURCE_TEMPLATE_COMPUTER;
+pub const ACCESS_TEMPLATE: &str = ComputerResource::RESOURCE_TEMPLATE_ACCESS;
+pub const MAINTENANCE_TEMPLATE: &str = ComputerResource::RESOURCE_TEMPLATE_MAINTENANCE;
+pub const AUTOMATION_TEMPLATE: &str = ComputerResource::RESOURCE_TEMPLATE_AUTOMATION;
+pub const GRANT_TEMPLATE: &str = ComputerResource::RESOURCE_TEMPLATE_GRANT;
+pub const PAGE_TEMPLATE: &str = ComputerResource::RESOURCE_TEMPLATE_COLLECTION;
+pub const DOC_TEMPLATE: &str = ComputerResource::RESOURCE_TEMPLATE_DOCUMENT;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -47,23 +45,50 @@ impl ComputerDocument {
 }
 
 /// URI values convey identity. Current actor and resource policy still admit each read.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    veoveo_types::ResourceAddress,
+)]
 #[serde(try_from = "String", into = "String")]
 #[schemars(with = "String")]
+#[resource(error=ComputerResourceError, route_error=|_| ComputerResourceError, wire)]
 pub enum ComputerResource {
-    Collection(Option<ComputerId>),
-    Computer(ComputerId),
-    Access(ComputerId),
-    Maintenance(ComputerId),
-    Execution(ExecutionId),
-    Transfer(FileTransferId),
-    Automation(ComputerId),
+    #[resource(template = "computer://computers{?after}")]
+    Collection(#[resource(variable="after", error=|_| ComputerResourceError)] Option<ComputerId>),
+    #[resource(template = "computer://computers/{computer_id}")]
+    Computer(#[resource(variable="computer_id", error=|_| ComputerResourceError)] ComputerId),
+    #[resource(template = "computer://computers/{computer_id}/access")]
+    Access(#[resource(variable="computer_id", error=|_| ComputerResourceError)] ComputerId),
+    #[resource(template = "computer://computers/{computer_id}/maintenance")]
+    Maintenance(#[resource(variable="computer_id", error=|_| ComputerResourceError)] ComputerId),
+    #[resource(template = "computer://executions/{execution_id}")]
+    Execution(#[resource(variable="execution_id", error=|_| ComputerResourceError)] ExecutionId),
+    #[resource(template = "computer://transfers/{transfer_id}")]
+    Transfer(#[resource(variable="transfer_id", error=|_| ComputerResourceError)] FileTransferId),
+    #[resource(template = "computer://computers/{computer_id}/automation")]
+    Automation(#[resource(variable="computer_id", error=|_| ComputerResourceError)] ComputerId),
+    #[resource(template = "computer://computers/{computer_id}/automation/{grant_id}")]
     Grant {
+        #[resource(variable="computer_id", error=|_| ComputerResourceError)]
         computer: ComputerId,
+        #[resource(variable="grant_id", error=|_| ComputerResourceError)]
         grant: AutomationGrantId,
     },
+    #[resource(template = "computer://docs")]
     Docs,
-    Document(ComputerDocument),
+    #[resource(template = "computer://docs/{doc_id}")]
+    Document(
+        #[resource(variable="doc_id", codec=DocumentCodec, error=|_| ComputerResourceError)]
+        ComputerDocument,
+    ),
+    #[resource(template = "computer://contract")]
     Contract,
 }
 
@@ -78,106 +103,21 @@ impl std::error::Error for ComputerResourceError {}
 
 impl ComputerResource {
     pub fn parse(value: impl AsRef<str>) -> Result<Self, ComputerResourceError> {
-        let value = value.as_ref();
-        let parts = ResourceUriParts::parse(value).map_err(|_| ComputerResourceError)?;
-        if parts.scheme() != "computer" {
-            return Err(ComputerResourceError);
-        }
-        let path = parts.path_segments().collect::<Vec<_>>();
-        let path = path.iter().map(|part| part.as_ref()).collect::<Vec<_>>();
-        let resource = match (parts.authority(), path.as_slice()) {
-            ("computers", []) => {
-                if parts.query_parameters().keys().any(|key| key != "after") {
-                    return Err(ComputerResourceError);
-                }
-                Self::Collection(
-                    parts
-                        .query_parameters()
-                        .get("after")
-                        .map(|value| value.parse())
-                        .transpose()
-                        .map_err(|_| ComputerResourceError)?,
-                )
-            }
-            _ if parts.has_query() => return Err(ComputerResourceError),
-            ("computers", [id]) => Self::Computer(id.parse().map_err(|_| ComputerResourceError)?),
-            ("computers", [id, "access"]) => {
-                Self::Access(id.parse().map_err(|_| ComputerResourceError)?)
-            }
-            ("computers", [id, "maintenance"]) => {
-                Self::Maintenance(id.parse().map_err(|_| ComputerResourceError)?)
-            }
-            ("computers", [id, "automation"]) => {
-                Self::Automation(id.parse().map_err(|_| ComputerResourceError)?)
-            }
-            ("computers", [id, "automation", grant]) => Self::Grant {
-                computer: id.parse().map_err(|_| ComputerResourceError)?,
-                grant: grant.parse().map_err(|_| ComputerResourceError)?,
-            },
-            ("executions", [id]) => Self::Execution(id.parse().map_err(|_| ComputerResourceError)?),
-            ("transfers", [id]) => Self::Transfer(id.parse().map_err(|_| ComputerResourceError)?),
-            ("docs", []) => Self::Docs,
-            ("docs", [doc]) => Self::Document(ComputerDocument::parse(doc)?),
-            ("contract", []) => Self::Contract,
-            _ => return Err(ComputerResourceError),
-        };
-        if resource.to_uri().as_str() != value {
-            return Err(ComputerResourceError);
-        }
-        Ok(resource)
+        let uri = ResourceUri::new(value.as_ref()).map_err(|_| ComputerResourceError)?;
+        <Self as ResourceAddress>::parse(&uri)
     }
     pub fn to_uri(self) -> ResourceUri {
-        let (root, segments) = match self {
-            Self::Collection(after) => {
-                let mut builder =
-                    ResourceUriBuilder::new(COMPUTERS_URI).expect("declared collection");
-                if let Some(after) = after {
-                    builder = builder
-                        .query_pair("after", &after.to_string())
-                        .expect("typed Computer position");
-                }
-                return builder.build().expect("typed Computer collection URI");
-            }
-            Self::Computer(id) => (COMPUTERS_URI, vec![id.to_string()]),
-            Self::Access(id) => (COMPUTERS_URI, vec![id.to_string(), "access".into()]),
-            Self::Maintenance(id) => (COMPUTERS_URI, vec![id.to_string(), "maintenance".into()]),
-            Self::Automation(id) => (COMPUTERS_URI, vec![id.to_string(), "automation".into()]),
-            Self::Grant { computer, grant } => (
-                COMPUTERS_URI,
-                vec![computer.to_string(), "automation".into(), grant.to_string()],
-            ),
-            Self::Execution(id) => ("computer://executions", vec![id.to_string()]),
-            Self::Transfer(id) => ("computer://transfers", vec![id.to_string()]),
-            Self::Docs => ("computer://docs", vec![]),
-            Self::Document(doc) => ("computer://docs", vec![doc.as_str().into()]),
-            Self::Contract => ("computer://contract", vec![]),
-        };
-        let mut builder = ResourceUriBuilder::new(root).expect("declared Computer resource root");
-        for segment in segments {
-            builder =
-                builder.segment(UriSegment::new(segment).expect("typed Computer resource segment"));
-        }
-        builder.build().expect("typed Computer resource URI")
+        <Self as ResourceAddress>::to_uri(&self).expect("typed Computer resource address")
     }
 }
-impl ResourceAddress for ComputerResource {
+struct DocumentCodec;
+impl ResourceFieldCodec<ComputerDocument> for DocumentCodec {
     type Error = ComputerResourceError;
-    fn parse(value: &ResourceUri) -> Result<Self, Self::Error> {
-        Self::parse(value.as_str())
+    fn parse(value: &str) -> Result<ComputerDocument, Self::Error> {
+        ComputerDocument::parse(value)
     }
-    fn to_uri(&self) -> Result<ResourceUri, Self::Error> {
-        Ok((*self).to_uri())
-    }
-}
-impl TryFrom<String> for ComputerResource {
-    type Error = ComputerResourceError;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::parse(value)
-    }
-}
-impl From<ComputerResource> for String {
-    fn from(value: ComputerResource) -> Self {
-        value.to_uri().to_string()
+    fn text(value: &ComputerDocument) -> std::borrow::Cow<'_, str> {
+        value.as_str().into()
     }
 }
 
@@ -201,10 +141,15 @@ pub fn automation_grant_uri(computer: ComputerId, grant: AutomationGrantId) -> R
 /// use veoveo_computers_contract::{AutomationGrantUri, ComputerId, ExecutionId};
 /// AutomationGrantUri::new(ComputerId::new(), ExecutionId::new());
 /// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, veoveo_types::ResourceAddress,
+)]
 #[serde(try_from = "String", into = "String")]
+#[resource(template="computer://computers/{computer_id}/automation/{grant_id}", error=ComputerResourceError, route_error=|_| ComputerResourceError, wire)]
 pub struct AutomationGrantUri {
+    #[resource(variable="computer_id", error=|_| ComputerResourceError)]
     computer: ComputerId,
+    #[resource(variable="grant_id", error=|_| ComputerResourceError)]
     grant: AutomationGrantId,
 }
 impl JsonSchema for AutomationGrantUri {
@@ -220,7 +165,7 @@ impl JsonSchema for AutomationGrantUri {
 }
 impl AutomationGrantUri {
     pub fn new(computer: ComputerId, grant: AutomationGrantId) -> Self {
-        Self { computer, grant }
+        Self::resource_from_parts(computer, grant).expect("typed Automation grant address")
     }
     pub fn computer_id(self) -> ComputerId {
         self.computer
@@ -232,102 +177,81 @@ impl AutomationGrantUri {
         automation_grant_uri(self.computer, self.grant)
     }
 }
-impl From<AutomationGrantUri> for String {
-    fn from(value: AutomationGrantUri) -> Self {
-        value.to_uri().to_string()
-    }
-}
-impl TryFrom<String> for AutomationGrantUri {
-    type Error = ComputerResourceError;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        match ComputerResource::parse(value)? {
-            ComputerResource::Grant { computer, grant } => Ok(Self::new(computer, grant)),
-            _ => Err(ComputerResourceError),
-        }
-    }
-}
-impl ResourceAddress for AutomationGrantUri {
-    type Error = ComputerResourceError;
-    fn parse(value: &ResourceUri) -> Result<Self, Self::Error> {
-        Self::try_from(value.to_string())
-    }
-    fn to_uri(&self) -> Result<ResourceUri, Self::Error> {
-        Ok((*self).to_uri())
-    }
-}
-
-macro_rules! result_uri {
-    ($uri:ident, $id:ident, $variant:ident, $getter:ident, $template:literal, $route:literal) => {
-        #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-        #[serde(try_from = "String", into = "String")]
-        pub struct $uri($id);
-        impl $uri {
-            pub const TEMPLATE: &'static str = $template;
-            pub fn new(id: $id) -> Self {
-                Self(id)
-            }
-            pub fn $getter(self) -> $id {
-                self.0
-            }
-            pub fn to_uri(self) -> ResourceUri {
-                ComputerResource::$variant(self.0).to_uri()
-            }
-        }
-        impl JsonSchema for $uri {
-            fn schema_name() -> std::borrow::Cow<'static, str> { stringify!($uri).into() }
-            fn json_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
-                schemars::json_schema!({
-                    "type": "string",
-                    "pattern": concat!("^computer://", $route, "/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
-                })
-            }
-        }
-        impl From<$uri> for String {
-            fn from(uri: $uri) -> Self {
-                uri.to_uri().to_string()
-            }
-        }
-        impl TryFrom<String> for $uri {
-            type Error = ComputerResourceError;
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                match ComputerResource::parse(value)? {
-                    ComputerResource::$variant(id) => Ok(Self(id)),
-                    _ => Err(ComputerResourceError),
-                }
-            }
-        }
-        impl ResourceAddress for $uri {
-            type Error = ComputerResourceError;
-            fn parse(value: &ResourceUri) -> Result<Self, Self::Error> {
-                Self::try_from(value.to_string())
-            }
-            fn to_uri(&self) -> Result<ResourceUri, Self::Error> {
-                Ok((*self).to_uri())
-            }
-        }
-    };
-}
-result_uri!(
-    ComputerResultUri,
-    ComputerId,
-    Computer,
-    computer_id,
-    "computer://computers/{computer_id}",
-    "computers"
+#[derive(
+    Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, veoveo_types::ResourceAddress,
+)]
+#[serde(try_from = "String", into = "String")]
+#[resource(template="computer://computers/{computer_id}", error=ComputerResourceError, route_error=|_| ComputerResourceError, wire, schema=schema_computer_id)]
+pub struct ComputerResultUri(
+    #[resource(variable="computer_id", error=|_| ComputerResourceError)] ComputerId,
 );
-result_uri!(
-    ExecutionResultUri,
-    ExecutionId,
-    Execution,
-    execution_id,
-    "computer://executions/{execution_id}",
-    "executions"
+impl ComputerResultUri {
+    pub const TEMPLATE: &'static str = Self::RESOURCE_TEMPLATE;
+    pub fn new(id: ComputerId) -> Self {
+        Self::resource_from_parts(id).expect("typed Computer result address")
+    }
+    pub fn computer_id(self) -> ComputerId {
+        self.0
+    }
+    pub fn to_uri(self) -> ResourceUri {
+        <Self as ResourceAddress>::to_uri(&self).expect("typed Computer result address")
+    }
+}
+fn schema_computer_id(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    schemars::json_schema!({
+        "type":"string",
+        "pattern":concat!("^computer://computers", "/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
+    })
+}
+#[derive(
+    Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, veoveo_types::ResourceAddress,
+)]
+#[serde(try_from = "String", into = "String")]
+#[resource(template="computer://executions/{execution_id}", error=ComputerResourceError, route_error=|_| ComputerResourceError, wire, schema=schema_execution_id)]
+pub struct ExecutionResultUri(
+    #[resource(variable="execution_id", error=|_| ComputerResourceError)] ExecutionId,
 );
-result_uri!(
-    FileTransferResultUri,
-    FileTransferId,
-    Transfer,
-    transfer_id,
-    "computer://transfers/{transfer_id}",
-    "transfers"
+impl ExecutionResultUri {
+    pub const TEMPLATE: &'static str = Self::RESOURCE_TEMPLATE;
+    pub fn new(id: ExecutionId) -> Self {
+        Self::resource_from_parts(id).expect("typed Computer result address")
+    }
+    pub fn execution_id(self) -> ExecutionId {
+        self.0
+    }
+    pub fn to_uri(self) -> ResourceUri {
+        <Self as ResourceAddress>::to_uri(&self).expect("typed Computer result address")
+    }
+}
+fn schema_execution_id(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    schemars::json_schema!({
+        "type":"string",
+        "pattern":concat!("^computer://executions", "/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
+    })
+}
+#[derive(
+    Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, veoveo_types::ResourceAddress,
+)]
+#[serde(try_from = "String", into = "String")]
+#[resource(template="computer://transfers/{transfer_id}", error=ComputerResourceError, route_error=|_| ComputerResourceError, wire, schema=schema_transfer_id)]
+pub struct FileTransferResultUri(
+    #[resource(variable="transfer_id", error=|_| ComputerResourceError)] FileTransferId,
 );
+impl FileTransferResultUri {
+    pub const TEMPLATE: &'static str = Self::RESOURCE_TEMPLATE;
+    pub fn new(id: FileTransferId) -> Self {
+        Self::resource_from_parts(id).expect("typed Computer result address")
+    }
+    pub fn transfer_id(self) -> FileTransferId {
+        self.0
+    }
+    pub fn to_uri(self) -> ResourceUri {
+        <Self as ResourceAddress>::to_uri(&self).expect("typed Computer result address")
+    }
+}
+fn schema_transfer_id(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    schemars::json_schema!({
+        "type":"string",
+        "pattern":concat!("^computer://transfers", "/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
+    })
+}

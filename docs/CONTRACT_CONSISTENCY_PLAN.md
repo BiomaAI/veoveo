@@ -1,11 +1,12 @@
 # Platform Foundations And Contract Consistency Plan
 
-Status: Phase 0 Vocabulary, embedded-document and Id concerns completed. Closed
-scopes, Task operations, Audit/persistence vocabularies and identifiers use shared
-declarations with owner admission and preserved wire/schema profiles. Scoped native
-checks, contract-only isolation, formatting, document validation and independent
-compiler expansion review pass. ResourceAddress is next and unqualified;
-checked-model and cursor mechanics remain open.
+Status: Phase 0 Vocabulary, embedded-document, Id and ResourceAddress concerns
+completed. Owner declarations preserve admission and wire/schema profiles. Scoped
+native checks, contract-only isolation, formatting, document validation and independent
+compiler expansion review qualify these concerns. Shared routes, typed codecs and
+the complete address/schema macro-owner migration are qualified together, including
+owner-supplied encoded patterns checked by a JSON Schema validator. Checked-model
+and cursor mechanics remain open.
 This is the single implementation plan for the former Foundations, Contract
 Consistency and Repository Hardening tracks; their required open conditions transfer
 without being declared complete.
@@ -442,7 +443,7 @@ calling crate to embed that crate's documents. Generated code calls ordinary tra
 
 | Macro | Kind | Generates |
 |---|---|---|
-| `ResourceAddress` | Derive | From `#[resource(template = …)]` on a single address or on each variant of a resource enum: parsing and building through the shared URI layer, the serde string conversion, the `ResourceAddress` impl, accessors, a JSON Schema `pattern` from the template and each identifier's pattern, and the template declarations a server's checked setup publishes |
+| `ResourceAddress` | Derive | Owner-declared struct/enum routes delegate parsing and typed construction to ordinary `ResourceRoute` descriptors. Public field/tail codecs preserve owner admission; optional string conversions, checked constructors, accessors and template constants share the declaration. Standard Serde/schemars or an owner schema hook preserve wire, metadata, IDs and inline profiles. Encoding-aware structural `wire_pattern()` is available explicitly; it does not enforce domain IDs, relationships or query uniqueness. Optional owner-supplied encoded component fragments support identifier-precise patterns and are qualified against typed builders and admitted aliases with a JSON Schema validator; codecs may omit fragments for broader structural schemas |
 | `Id` | Derive | Shared `Identity` parsing/text projection, `FromStr`, optional validating String constructors/conversions, owner generation and owner schema delegation. Standard Serde and schemars derives or owner implementations retain each wire, binary and schema profile; Id alone does not establish Serde admission. Validators, domain errors, namespaces, exposure and redaction belong to each owner. No generic unchecked construction hook or database dependency is introduced. Checked display metadata, numbers and resource addresses remain separate |
 | `Vocabulary` | Derive | For an enum of unit variants: one spelling per variant (snake_case by default), `ALL`, `as_str`, `Display`, `FromStr`, serde and the JSON Schema enum from the same spelling, compile-time checks for empty or duplicate spellings, and opt-in hooks `scope` (OAuth token syntax and `ScopeDefinition`), `task_type` (`TaskTypeDefinition`) and `surreal` |
 | `embedded_document!` | Function-like | Embeds a document at compile time with its SHA-256; implemented in `platform/macros` |
@@ -495,6 +496,21 @@ crate, like `server_docs!`, or when it delegates a third-party trait, like
 `impl_scoped_redap_service`; the owning design names it. Third-party derives and
 attributes such as serde, schemars, thiserror, rmcp, `SurrealValue`, clap, tokio and
 tracing are dependencies, not Veoveo macros.
+
+### ResourceAddress Concern Qualification
+
+The route derive and complete owner macro migration preserve constructor signatures,
+wire acceptance, Serde forms and owner schema profiles. Descriptor selection precedes
+field admission. Optimization wrong-root plus malformed-ID inputs therefore report
+`InvalidUri` instead of the legacy identifier error; Stream and Reason wrong-sibling
+plus malformed-ID inputs report `InvalidResource` instead of `InvalidId`. Matching-route
+identifier errors and RPC rejection are unchanged. Focused owner tests qualify this
+intentional diagnostic ordering change. Shared route, complete-owner native and
+isolated-contract gates pass. Independent codec fixtures qualify canonical and
+admitted encoded patterns, nonempty query and tail constraints, reserved characters
+and absolute-end rejection with a JSON Schema validator. Compiler expansion review
+qualifies the Map and Time pilots. Checked-model and cursor concerns, the complete
+Phase 0 macro gate and installed acceptance requirements remain open.
 
 ### Rollout And Gates
 

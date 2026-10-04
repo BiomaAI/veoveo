@@ -4,7 +4,7 @@ use std::fmt;
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_types::{ResourceAddress, ResourceUri, ResourceUriBuilder, ResourceUriParts};
+use veoveo_types::{ResourceAddress, ResourceFieldCodec, ResourceUri};
 
 pub const MEDIA_PREDICTION_PAGE_SIZE: usize = 100;
 
@@ -82,56 +82,29 @@ impl From<MediaPredictionCursor> for String {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::ResourceAddress,
+)]
 #[serde(try_from = "String", into = "String")]
+#[resource(template="media://predictions{?cursor}", error=MediaPredictionError, route_error=|_| MediaPredictionError, wire)]
 pub struct MediaPredictionIndexUri {
+    #[resource(cache)]
     wire: ResourceUri,
+    #[resource(codec=PredictionCursorCodec, error=|_| MediaPredictionError)]
     cursor: Option<MediaPredictionCursor>,
 }
 
 impl MediaPredictionIndexUri {
-    pub const ROOT: &str = "media://predictions";
-    pub const TEMPLATE: &str = "media://predictions{?cursor}";
+    pub const ROOT: &str = Self::RESOURCE_ROOT;
+    pub const TEMPLATE: &str = Self::RESOURCE_TEMPLATE;
 
     pub fn new(cursor: Option<&MediaPredictionCursor>) -> Self {
-        let mut builder =
-            ResourceUriBuilder::new(Self::ROOT).expect("declared prediction catalog root");
-        if let Some(cursor) = cursor {
-            builder = builder
-                .query_pair("cursor", cursor.as_str())
-                .expect("typed prediction cursor");
-        }
-        Self {
-            wire: builder.build().expect("typed prediction index URI"),
-            cursor: cursor.cloned(),
-        }
+        Self::resource_from_parts(cursor.cloned()).expect("typed prediction index address")
     }
 
     pub fn parse(value: impl AsRef<str>) -> Result<Self, MediaPredictionError> {
-        let value = value.as_ref();
-        let parts = ResourceUriParts::parse(value).map_err(|_| MediaPredictionError)?;
-        if parts.scheme() != "media"
-            || parts.authority() != "predictions"
-            || parts.path_segments().next().is_some()
-        {
-            return Err(MediaPredictionError);
-        }
-        let cursor = if parts.has_query() {
-            let query = parts.query_parameters();
-            if query.len() != 1 {
-                return Err(MediaPredictionError);
-            }
-            Some(MediaPredictionCursor::parse(
-                query.get("cursor").ok_or(MediaPredictionError)?.clone(),
-            )?)
-        } else {
-            None
-        };
-        let uri = Self::new(cursor.as_ref());
-        if uri.as_str() != value {
-            return Err(MediaPredictionError);
-        }
-        Ok(uri)
+        let uri = ResourceUri::new(value.as_ref()).map_err(|_| MediaPredictionError)?;
+        <Self as ResourceAddress>::parse(&uri)
     }
 
     pub fn cursor(&self) -> Option<&MediaPredictionCursor> {
@@ -142,36 +115,21 @@ impl MediaPredictionIndexUri {
     }
 }
 
-macro_rules! address_traits {
-    ($name:ident) => {
-        impl ResourceAddress for $name {
-            type Error = MediaPredictionError;
-            fn parse(uri: &ResourceUri) -> Result<Self, Self::Error> {
-                Self::parse(uri.as_str())
-            }
-            fn to_uri(&self) -> Result<ResourceUri, Self::Error> {
-                Ok(self.wire.clone())
-            }
-        }
-        impl TryFrom<String> for $name {
-            type Error = MediaPredictionError;
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::parse(value)
-            }
-        }
-        impl From<$name> for String {
-            fn from(value: $name) -> Self {
-                value.wire.into()
-            }
-        }
-        impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str(self.as_str())
-            }
-        }
-    };
+struct PredictionCursorCodec;
+impl ResourceFieldCodec<MediaPredictionCursor> for PredictionCursorCodec {
+    type Error = MediaPredictionError;
+    fn parse(value: &str) -> Result<MediaPredictionCursor, Self::Error> {
+        MediaPredictionCursor::parse(value)
+    }
+    fn text(value: &MediaPredictionCursor) -> std::borrow::Cow<'_, str> {
+        value.as_str().into()
+    }
 }
-address_traits!(MediaPredictionIndexUri);
+impl fmt::Display for MediaPredictionIndexUri {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "EntryWire", into = "EntryWire")]

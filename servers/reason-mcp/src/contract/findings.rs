@@ -7,7 +7,7 @@ use veoveo_types::{
     ResourceAddress, ResourceUri, ResourceUriBuilder, ResourceUriParts, UriSegment,
 };
 
-use super::{AnalysisId, ReasonContractError, ids::string_schema};
+use super::{AnalysisId, ReasonContractError};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -101,7 +101,17 @@ impl From<FindingCursor> for String {
         value.encode()
     }
 }
-string_schema!(FindingCursor);
+impl schemars::JsonSchema for FindingCursor {
+    fn inline_schema() -> bool {
+        true
+    }
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "FindingCursor".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        <String as schemars::JsonSchema>::json_schema(generator)
+    }
+}
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
@@ -209,7 +219,17 @@ impl From<FindingResource> for String {
             .to_string()
     }
 }
-string_schema!(FindingResource);
+impl schemars::JsonSchema for FindingResource {
+    fn inline_schema() -> bool {
+        true
+    }
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "FindingResource".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        <String as schemars::JsonSchema>::json_schema(generator)
+    }
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]

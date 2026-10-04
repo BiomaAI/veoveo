@@ -262,3 +262,15 @@ fn only_run_resources_implement_the_shared_task_address_contract() {
         assert!(RunResource::parse(&uri).is_err(), "{uri}");
     }
 }
+
+#[test]
+fn nominal_address_route_selection_precedes_sibling_identifier_admission() {
+    assert!(matches!(
+        ModelUri::parse("stream://pipeline/INVALID"),
+        Err(StreamContractError::InvalidResource)
+    ));
+    assert!(matches!(
+        ModelUri::parse("stream://model/INVALID"),
+        Err(StreamContractError::InvalidId(_))
+    ));
+}

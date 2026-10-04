@@ -7,7 +7,7 @@
 | JSON | Identifiers and resource references serialize as strings; deserialization applies their constructors. Access subjects use `kind` and `id`; invocation provenance uses `mode` with the required attribution fields. |
 | JSON Schema 2020-12 | Schemars emits string schemas for identifiers and tagged unions for subjects and provenance; runtime validators apply the lexical rules below |
 | [OAuth 2.0 scope tokens, RFC 6749 section 3.3](https://www.rfc-editor.org/rfc/rfc6749#section-3.3) | `Vocabulary` with the `scope` hook declarations follow the scope-token grammar. Dynamic `ScopeName` preserves the broader repository profile of nonempty text without whitespace or controls. Neither type establishes a grant. |
-| Resource reference syntax | Lowercase URI scheme followed by `://` and a nonempty suffix without whitespace or controls; an opaque reference can include a completion template, and this validator does not establish full URI or template conformance |
+| Resource scheme syntax | A lowercase ASCII initial letter followed by lowercase ASCII letters, digits, `+`, `-` or `.`; concrete references use the RFC 3986 profile below, and templates use `ResourceTemplateUri` |
 | [WHATWG URL Standard](https://url.spec.whatwg.org/) | Concrete hierarchical address components use [`url` 2.5.8](https://docs.rs/url/2.5.8/url/). The profile rejects parser violations and normalization, requires an unescaped authority, and excludes credentials, ports, fragments, and unexpanded templates. This is a Veoveo resource profile, not support for every URI scheme. |
 | [RFC 3986 URI syntax](https://www.rfc-editor.org/rfc/rfc3986) | `ResourceUri` uses the existing `iri-string` 0.7.14 parser for concrete ASCII absolute references with a lowercase scheme and authority syntax. An authority or path must be nonempty. It preserves spelling, admits network ports and fragments, and rejects malformed escapes and unexpanded templates. Domain routes apply the stricter component profile separately. |
 | HTTPS URL profile | `HttpsUrl` uses the same URL parser for canonical ASCII HTTPS addresses without credentials or fragments. Ports and repeated query names are admitted, and input query bytes are preserved. Runtime network policy owns host and address authorization. |
@@ -183,6 +183,59 @@ server-owned address profile and returns `ResourceUriParts`; callers may also pa
 external text directly into those parts. Domain parsers validate route meaning,
 supported query names, IDs and parent relationships. A valid generic reference does
 not establish a domain address or permission to read it.
+
+## Typed Resource Routes
+
+`ResourceRoute` declares literal scheme and authority, path literals, typed scalar
+positions, an optional final multi-segment tail, and ordered optional queries. One
+descriptor serves shape matching, encoding and checked discovery. Its private fields
+prevent independent callers from publishing an unchecked template. Static owners use
+`declare`; capture, build, pattern and discovery operations validate that the declared
+template agrees with every component. The re-exported
+[ResourceAddress derive](../macros/DESIGN.md#resourceaddress) compiles these declarations
+for struct and enum owners while retaining the ordinary trait's independent extension
+interface.
+
+Shape selection compares literals and path arity before domain admission. A matched
+route's query or field error ends parsing. The derive rejects intersecting sibling
+shapes rather than resolving meanings by declaration order. Scalar and tail codecs
+belong to owners through `ResourceFieldCodec<T>` and `ResourceTailCodec<T>`.
+`IdentityResourceCodec` delegates to an admitted identity; raw String has no blanket
+codec. A timezone tail receives decoded segments, including an escaped slash inside
+one segment, and its owner determines the valid domain interpretation. Cursor codecs
+continue to own their existing payload formats.
+
+Builders use ResourceUriBuilder for path and query encoding. Query pairs follow the
+declared order; owner policies determine admitted query ordering and empty queries.
+Canonical address parsing compares rebuilt typed components with supplied spelling.
+Owners with alias admission can preserve their private cached wire instead. Checked
+construction reuses that descriptor and parser; manual constructors must preserve the
+relationship between cached wire and typed fields. Cached structs require private
+components, and enum variants cannot carry caches. Owner relationship hooks, error
+mappings, Serde declarations and schema metadata keep their existing meanings.
+Cached owners also ensure that component types and accessors cannot mutate admitted
+values through interior mutability and invalidate their wire agreement. Field privacy
+prevents direct external assignment; it does not prove arbitrary codec types immutable.
+
+Typed accessors are an explicit derive choice. Borrowed Option getters expose
+`Option<&T>`, and copied getters are opt-in; enum convenience APIs stay with their owner.
+
+`wire_pattern` describes the encoded route shape without importing domain-ID regular
+expressions. Percent-encoded separators stay inside a component. Ordered query patterns
+grow quadratically in declared fields. `wire_pattern_with` accepts owner fragments through
+`ResourceEncodedPattern`, which contains an encoded regex and an explicit `allows_empty`
+flag. The context distinguishes path segments, entire tails and query values, and selects
+canonical builder spelling or admitted aliases. A nonempty fragment requires text even
+for bare query names and absent tails. An empty tail omits the slash preceding that tail.
+Patterns use an absolute end assertion to reject trailing line breaks.
+
+Codecs may return no fragment when they cannot describe a requested profile honestly;
+that component then uses the broader structural grammar. Owners qualify supplied
+fragments with their builders and JSON Schema validators. The library groups fragments
+without transforming decoded identifier regexes. Regex syntax, owner relationships and
+duplicate query rejection remain separate checks. Existing published schemas select their
+own hooks and need not adopt these patterns. Network addresses such as Redap use owner
+adapters implementing the ordinary ResourceAddress interface.
 
 ## Task Operation Names
 

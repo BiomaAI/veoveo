@@ -78,7 +78,7 @@ Component designs live beside the code whose contract they specify:
 | [`platform/audit/measurements/2026-09-30.md`](../platform/audit/measurements/2026-09-30.md) | paired native audit timings, batching selection, raw samples and limits of the development measurement |
 | [`platform/audit/src/export/DESIGN.md`](../platform/audit/src/export/DESIGN.md) | typed OCSF mapping, S3/OTLP completion and recovery, persisted delivery receipts and export-gated retention |
 | [`platform/audit/contract/DESIGN.md`](../platform/audit/contract/DESIGN.md) | protocol-independent checked audit records, closed details, typed identities and partition-scoped reads; `src/knowledge.rs` admits source observations without external navigation URLs |
-| [`platform/macros/DESIGN.md`](../platform/macros/DESIGN.md) | shared `Id` and `Vocabulary` derives and compile-time UTF-8 document hashing; owner admission, wire/schema profiles and consumer-only database delegation |
+| [`platform/macros/DESIGN.md`](../platform/macros/DESIGN.md) | shared `Id`, `ResourceAddress` and `Vocabulary` derives and compile-time UTF-8 document hashing; owner admission, wire/schema profiles and consumer-only database delegation |
 | [`platform/types/DESIGN.md`](../platform/types/DESIGN.md) | protocol-independent identity and attribution, installation and agent names, authentication vocabulary and issuer/subject identities, scope names, resource references, URI component parsing and builders, lexical selectors shared by policy and SQL admission, validation errors, and public extension traits |
 | [`platform/runtimes/duckdb/DESIGN.md`](../platform/runtimes/duckdb/DESIGN.md) | shared analytical sandbox, typed HTTPS materialization, network policy and query limits |
 | [`mcp/conformance/DESIGN.md`](../mcp/conformance/DESIGN.md) | typed domain-neutral hosted-server certification profiles, reports, standalone distribution, live knowledge checks and typed owner change/restart and search probes |
@@ -410,6 +410,12 @@ policies own DNS and access checks.
 `platform/macros/src/id.rs` implements the re-exported `Id` derive with owner
 admission, String mechanics, generation and optional schema hooks. The foundation
 contains no domain-form registry or database adapter.
+`src/resource_route.rs` owns component route descriptors, checked discovery and the
+open scalar/tail codec traits. `src/resource_route/pattern.rs` supplies encoding-aware
+structural patterns. `platform/macros/src/resource_address.rs` and
+`resource_address/declaration.rs` compile struct/enum route declarations, concrete
+constructor helpers, accessors and owner hooks; independent address implementations
+keep the ordinary trait. Public template constants come from those same declarations.
 The re-exported `Vocabulary` derive lives in `platform/macros`. `src/digest.rs` owns the
 prefixed SHA-256 representation shared by provenance contracts. `src/sha256_hex.rs`
 owns explicit required/optional field serialization for declared bare-hex profiles.

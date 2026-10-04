@@ -3,7 +3,7 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use super::{AnalysisId, ReasonContractError, ids::string_schema};
+use super::{AnalysisId, ReasonContractError};
 use crate::uris;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -80,4 +80,14 @@ impl From<AnalysisCursor> for String {
         value.wire
     }
 }
-string_schema!(AnalysisCursor);
+impl schemars::JsonSchema for AnalysisCursor {
+    fn inline_schema() -> bool {
+        true
+    }
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "AnalysisCursor".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        <String as schemars::JsonSchema>::json_schema(generator)
+    }
+}

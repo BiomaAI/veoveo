@@ -225,8 +225,16 @@ owner redaction. Do not reintroduce local identifier/name/key/digest declaration
 macros for implemented shapes. Checked display metadata, quantities and resource
 addresses do not become identities merely to use this derive.
 
-The [shared macro design](platform/macros/DESIGN.md) owns `Id`, `Vocabulary` and
-`embedded_document!`. `server_docs!` stays in the MCP contract to select the calling
+Resource address declarations use `ResourceAddress` and owner field or tail codecs
+for implemented route shapes. Parsing, checked construction and discovery templates
+share the route declaration. Preserve owner admission, cached wire and explicit
+Serde/schema profiles; qualify supplied encoded schema fragments against builders
+and admitted aliases. Ordinary address implementations may compose concrete domain
+shapes or network adapters that do not fit the derive. Do not reintroduce local
+address declaration or address-schema macros for these implemented shapes.
+
+The [shared macro design](platform/macros/DESIGN.md) owns `Id`, `Vocabulary`,
+`ResourceAddress` and `embedded_document!`. `server_docs!` stays in the MCP contract to select the calling
 server's documents. Other macro shapes remain subject to the active Phase 0 plan;
 this rule does not claim their shared replacements are implemented. Preserve wire
 forms, schema metadata and enum ordinals during mechanical migration.

@@ -21,6 +21,11 @@ independently upgradable. It is also not part of `media-mcp`, because reasoning 
 installation. It uses no provider API, no webhook completion, no resident
 inference service, and no agent framework.
 
+Individual Reason address wrappers derive `ResourceAddress` from owner route
+declarations. Their typed constructors, accessors and inline string schemas preserve
+the existing public profile. The composed resource enum delegates exact building to
+these wrappers and keeps collection cursors and optional-domain dispatch local.
+
 ## Standards And Protocols
 
 | Standard or protocol | Implemented profile |

@@ -242,42 +242,89 @@ impl PlaybackArchiveUri {
     }
 }
 
-macro_rules! wire_address {
-    ($name:ident) => {
-        impl $name {
-            pub fn as_str(&self) -> &str {
-                self.wire.as_str()
-            }
-        }
-        impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str(self.as_str())
-            }
-        }
-        impl AsRef<str> for $name {
-            fn as_ref(&self) -> &str {
-                self.as_str()
-            }
-        }
-        impl FromStr for $name {
-            type Err = RecordingContractError;
-            fn from_str(value: &str) -> Result<Self, Self::Err> {
-                Self::parse(value)
-            }
-        }
-        impl TryFrom<String> for $name {
-            type Error = RecordingContractError;
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::parse(&value)
-            }
-        }
-        impl From<$name> for String {
-            fn from(value: $name) -> Self {
-                value.wire.into()
-            }
-        }
-        string_schema!($name);
-    };
+impl RecordingCatalogUri {
+    pub fn as_str(&self) -> &str {
+        self.wire.as_str()
+    }
 }
-wire_address!(RecordingCatalogUri);
-wire_address!(PlaybackArchiveUri);
+impl fmt::Display for RecordingCatalogUri {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl AsRef<str> for RecordingCatalogUri {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+impl FromStr for RecordingCatalogUri {
+    type Err = RecordingContractError;
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        Self::parse(value)
+    }
+}
+impl TryFrom<String> for RecordingCatalogUri {
+    type Error = RecordingContractError;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::parse(&value)
+    }
+}
+impl From<RecordingCatalogUri> for String {
+    fn from(value: RecordingCatalogUri) -> Self {
+        value.wire.into()
+    }
+}
+impl schemars::JsonSchema for RecordingCatalogUri {
+    fn inline_schema() -> bool {
+        true
+    }
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "RecordingCatalogUri".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        string_schema(generator)
+    }
+}
+impl PlaybackArchiveUri {
+    pub fn as_str(&self) -> &str {
+        self.wire.as_str()
+    }
+}
+impl fmt::Display for PlaybackArchiveUri {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl AsRef<str> for PlaybackArchiveUri {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+impl FromStr for PlaybackArchiveUri {
+    type Err = RecordingContractError;
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        Self::parse(value)
+    }
+}
+impl TryFrom<String> for PlaybackArchiveUri {
+    type Error = RecordingContractError;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::parse(&value)
+    }
+}
+impl From<PlaybackArchiveUri> for String {
+    fn from(value: PlaybackArchiveUri) -> Self {
+        value.wire.into()
+    }
+}
+impl schemars::JsonSchema for PlaybackArchiveUri {
+    fn inline_schema() -> bool {
+        true
+    }
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "PlaybackArchiveUri".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        string_schema(generator)
+    }
+}

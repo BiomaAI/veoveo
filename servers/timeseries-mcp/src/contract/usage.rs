@@ -4,9 +4,7 @@ use std::fmt;
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_types::{
-    ResourceAddress, ResourceUri, ResourceUriBuilder, ResourceUriParts, TaskId, UriSegment,
-};
+use veoveo_types::{ResourceAddress, ResourceFieldCodec, ResourceUri, TaskId};
 
 pub const TIMESERIES_USAGE_PAGE_SIZE: usize = 100;
 
@@ -99,55 +97,29 @@ impl From<TimeseriesUsageCursor> for String {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::ResourceAddress,
+)]
 #[serde(try_from = "String", into = "String")]
+#[resource(template="timeseries://usage{?cursor}", error=TimeseriesUsageError, route_error=|_| TimeseriesUsageError, wire)]
 pub struct TimeseriesUsageIndexUri {
+    #[resource(cache)]
     wire: ResourceUri,
+    #[resource(codec=UsageCursorCodec, error=|_| TimeseriesUsageError)]
     cursor: Option<TimeseriesUsageCursor>,
 }
 
 impl TimeseriesUsageIndexUri {
-    pub const ROOT: &str = "timeseries://usage";
-    pub const TEMPLATE: &str = "timeseries://usage{?cursor}";
+    pub const ROOT: &str = Self::RESOURCE_ROOT;
+    pub const TEMPLATE: &str = Self::RESOURCE_TEMPLATE;
 
     pub fn new(cursor: Option<&TimeseriesUsageCursor>) -> Self {
-        let mut builder = ResourceUriBuilder::new(Self::ROOT).expect("declared usage root");
-        if let Some(cursor) = cursor {
-            builder = builder
-                .query_pair("cursor", cursor.as_str())
-                .expect("typed usage cursor");
-        }
-        Self {
-            wire: builder.build().expect("typed usage index URI"),
-            cursor: cursor.cloned(),
-        }
+        Self::resource_from_parts(cursor.cloned()).expect("typed usage index address")
     }
 
     pub fn parse(value: impl AsRef<str>) -> Result<Self, TimeseriesUsageError> {
-        let value = value.as_ref();
-        let parts = ResourceUriParts::parse(value).map_err(|_| TimeseriesUsageError)?;
-        if parts.scheme() != "timeseries"
-            || parts.authority() != "usage"
-            || parts.path_segments().next().is_some()
-        {
-            return Err(TimeseriesUsageError);
-        }
-        let cursor = if parts.has_query() {
-            let query = parts.query_parameters();
-            if query.len() != 1 {
-                return Err(TimeseriesUsageError);
-            }
-            Some(TimeseriesUsageCursor::parse(
-                query.get("cursor").ok_or(TimeseriesUsageError)?.clone(),
-            )?)
-        } else {
-            None
-        };
-        let uri = Self::new(cursor.as_ref());
-        if uri.as_str() != value {
-            return Err(TimeseriesUsageError);
-        }
-        Ok(uri)
+        let uri = ResourceUri::new(value.as_ref()).map_err(|_| TimeseriesUsageError)?;
+        <Self as ResourceAddress>::parse(&uri)
     }
 
     pub fn cursor(&self) -> Option<&TimeseriesUsageCursor> {
@@ -158,44 +130,28 @@ impl TimeseriesUsageIndexUri {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::ResourceAddress,
+)]
 #[serde(try_from = "String", into = "String")]
+#[resource(template="timeseries://usage/task/{task_id}", error=TimeseriesUsageError, route_error=|_| TimeseriesUsageError, wire)]
 pub struct TimeseriesTaskUsageUri {
+    #[resource(cache)]
     wire: ResourceUri,
+    #[resource(codec=UsageTaskCodec, error=|_| TimeseriesUsageError)]
     task_id: TaskId,
 }
 
 impl TimeseriesTaskUsageUri {
-    pub const TEMPLATE: &str = "timeseries://usage/task/{task_id}";
+    pub const TEMPLATE: &str = Self::RESOURCE_TEMPLATE;
 
     pub fn new(task_id: TaskId) -> Result<Self, TimeseriesUsageError> {
-        let task_id = task_identity(task_id)?;
-        let wire = ResourceUriBuilder::new(TimeseriesUsageIndexUri::ROOT)
-            .expect("declared usage root")
-            .segment(UriSegment::new("task").expect("declared task segment"))
-            .segment(UriSegment::new(task_id.to_string()).expect("canonical native Task UUID"))
-            .build()
-            .expect("typed Task usage URI");
-        Ok(Self { wire, task_id })
+        Self::resource_from_parts(task_identity(task_id)?)
     }
 
     pub fn parse(value: impl AsRef<str>) -> Result<Self, TimeseriesUsageError> {
-        let value = value.as_ref();
-        let parts = ResourceUriParts::parse(value).map_err(|_| TimeseriesUsageError)?;
-        let path = parts.path_segments().collect::<Vec<_>>();
-        if parts.scheme() != "timeseries"
-            || parts.authority() != "usage"
-            || parts.has_query()
-            || path.len() != 2
-            || path[0] != "task"
-        {
-            return Err(TimeseriesUsageError);
-        }
-        let uri = Self::new(path[1].parse().map_err(|_| TimeseriesUsageError)?)?;
-        if uri.as_str() != value {
-            return Err(TimeseriesUsageError);
-        }
-        Ok(uri)
+        let uri = ResourceUri::new(value.as_ref()).map_err(|_| TimeseriesUsageError)?;
+        <Self as ResourceAddress>::parse(&uri)
     }
 
     pub fn task_id(&self) -> TaskId {
@@ -206,37 +162,36 @@ impl TimeseriesTaskUsageUri {
     }
 }
 
-macro_rules! address_traits {
-    ($name:ident) => {
-        impl ResourceAddress for $name {
-            type Error = TimeseriesUsageError;
-            fn parse(uri: &ResourceUri) -> Result<Self, Self::Error> {
-                Self::parse(uri.as_str())
-            }
-            fn to_uri(&self) -> Result<ResourceUri, Self::Error> {
-                Ok(self.wire.clone())
-            }
-        }
-        impl TryFrom<String> for $name {
-            type Error = TimeseriesUsageError;
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::parse(value)
-            }
-        }
-        impl From<$name> for String {
-            fn from(value: $name) -> Self {
-                value.wire.into()
-            }
-        }
-        impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str(self.as_str())
-            }
-        }
-    };
+struct UsageCursorCodec;
+impl ResourceFieldCodec<TimeseriesUsageCursor> for UsageCursorCodec {
+    type Error = TimeseriesUsageError;
+    fn parse(value: &str) -> Result<TimeseriesUsageCursor, Self::Error> {
+        TimeseriesUsageCursor::parse(value)
+    }
+    fn text(value: &TimeseriesUsageCursor) -> std::borrow::Cow<'_, str> {
+        value.as_str().into()
+    }
 }
-address_traits!(TimeseriesUsageIndexUri);
-address_traits!(TimeseriesTaskUsageUri);
+struct UsageTaskCodec;
+impl ResourceFieldCodec<TaskId> for UsageTaskCodec {
+    type Error = TimeseriesUsageError;
+    fn parse(value: &str) -> Result<TaskId, Self::Error> {
+        task_identity(value.parse().map_err(|_| TimeseriesUsageError)?)
+    }
+    fn text(value: &TaskId) -> std::borrow::Cow<'_, str> {
+        value.to_string().into()
+    }
+}
+impl fmt::Display for TimeseriesUsageIndexUri {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl fmt::Display for TimeseriesTaskUsageUri {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "EntryWire", into = "EntryWire")]

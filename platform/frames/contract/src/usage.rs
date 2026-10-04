@@ -3,9 +3,7 @@ use std::fmt;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_types::{
-    ResourceAddress, ResourceUri, ResourceUriBuilder, ResourceUriParts, TaskId, UriSegment,
-};
+use veoveo_types::{ResourceAddress, ResourceFieldCodec, ResourceUri, TaskId};
 
 pub const FRAME_USAGE_PAGE_SIZE: usize = 100;
 
@@ -95,55 +93,29 @@ impl From<FrameUsageCursor> for String {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::ResourceAddress,
+)]
 #[serde(try_from = "String", into = "String")]
+#[resource(template="frames://usage{?cursor}", error=FrameUsageError, route_error=|_| FrameUsageError, wire)]
 pub struct FrameUsageIndexUri {
+    #[resource(cache)]
     wire: ResourceUri,
+    #[resource(codec=UsageCursorCodec, error=|_| FrameUsageError)]
     cursor: Option<FrameUsageCursor>,
 }
 
 impl FrameUsageIndexUri {
-    pub const ROOT: &str = "frames://usage";
-    pub const TEMPLATE: &str = "frames://usage{?cursor}";
+    pub const ROOT: &str = Self::RESOURCE_ROOT;
+    pub const TEMPLATE: &str = Self::RESOURCE_TEMPLATE;
 
     pub fn new(cursor: Option<&FrameUsageCursor>) -> Self {
-        let mut builder = ResourceUriBuilder::new(Self::ROOT).expect("declared usage root");
-        if let Some(cursor) = cursor {
-            builder = builder
-                .query_pair("cursor", cursor.as_str())
-                .expect("typed usage cursor");
-        }
-        Self {
-            wire: builder.build().expect("typed usage index URI"),
-            cursor: cursor.cloned(),
-        }
+        Self::resource_from_parts(cursor.cloned()).expect("typed usage index address")
     }
 
     pub fn parse(value: impl AsRef<str>) -> Result<Self, FrameUsageError> {
-        let value = value.as_ref();
-        let parts = ResourceUriParts::parse(value).map_err(|_| FrameUsageError)?;
-        if parts.scheme() != "frames"
-            || parts.authority() != "usage"
-            || parts.path_segments().next().is_some()
-        {
-            return Err(FrameUsageError);
-        }
-        let cursor = if parts.has_query() {
-            let query = parts.query_parameters();
-            if query.len() != 1 {
-                return Err(FrameUsageError);
-            }
-            Some(FrameUsageCursor::parse(
-                query.get("cursor").ok_or(FrameUsageError)?.clone(),
-            )?)
-        } else {
-            None
-        };
-        let uri = Self::new(cursor.as_ref());
-        if uri.as_str() != value {
-            return Err(FrameUsageError);
-        }
-        Ok(uri)
+        let uri = ResourceUri::new(value.as_ref()).map_err(|_| FrameUsageError)?;
+        <Self as ResourceAddress>::parse(&uri)
     }
 
     pub fn cursor(&self) -> Option<&FrameUsageCursor> {
@@ -154,44 +126,28 @@ impl FrameUsageIndexUri {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::ResourceAddress,
+)]
 #[serde(try_from = "String", into = "String")]
+#[resource(template="frames://usage/task/{task_id}", error=FrameUsageError, route_error=|_| FrameUsageError, wire)]
 pub struct FrameTaskUsageUri {
+    #[resource(cache)]
     wire: ResourceUri,
+    #[resource(codec=UsageTaskCodec, error=|_| FrameUsageError)]
     task_id: TaskId,
 }
 
 impl FrameTaskUsageUri {
-    pub const TEMPLATE: &str = "frames://usage/task/{task_id}";
+    pub const TEMPLATE: &str = Self::RESOURCE_TEMPLATE;
 
     pub fn new(task_id: TaskId) -> Result<Self, FrameUsageError> {
-        let task_id = task_identity(task_id)?;
-        let wire = ResourceUriBuilder::new(FrameUsageIndexUri::ROOT)
-            .expect("declared usage root")
-            .segment(UriSegment::new("task").expect("declared task segment"))
-            .segment(UriSegment::new(task_id.to_string()).expect("canonical native Task UUID"))
-            .build()
-            .expect("typed Task usage URI");
-        Ok(Self { wire, task_id })
+        Self::resource_from_parts(task_identity(task_id)?)
     }
 
     pub fn parse(value: impl AsRef<str>) -> Result<Self, FrameUsageError> {
-        let value = value.as_ref();
-        let parts = ResourceUriParts::parse(value).map_err(|_| FrameUsageError)?;
-        let path = parts.path_segments().collect::<Vec<_>>();
-        if parts.scheme() != "frames"
-            || parts.authority() != "usage"
-            || parts.has_query()
-            || path.len() != 2
-            || path[0] != "task"
-        {
-            return Err(FrameUsageError);
-        }
-        let uri = Self::new(path[1].parse().map_err(|_| FrameUsageError)?)?;
-        if uri.as_str() != value {
-            return Err(FrameUsageError);
-        }
-        Ok(uri)
+        let uri = ResourceUri::new(value.as_ref()).map_err(|_| FrameUsageError)?;
+        <Self as ResourceAddress>::parse(&uri)
     }
 
     pub fn task_id(&self) -> TaskId {
@@ -202,37 +158,36 @@ impl FrameTaskUsageUri {
     }
 }
 
-macro_rules! address_traits {
-    ($name:ident) => {
-        impl ResourceAddress for $name {
-            type Error = FrameUsageError;
-            fn parse(uri: &ResourceUri) -> Result<Self, Self::Error> {
-                Self::parse(uri.as_str())
-            }
-            fn to_uri(&self) -> Result<ResourceUri, Self::Error> {
-                Ok(self.wire.clone())
-            }
-        }
-        impl TryFrom<String> for $name {
-            type Error = FrameUsageError;
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::parse(value)
-            }
-        }
-        impl From<$name> for String {
-            fn from(value: $name) -> Self {
-                value.wire.into()
-            }
-        }
-        impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str(self.as_str())
-            }
-        }
-    };
+struct UsageCursorCodec;
+impl ResourceFieldCodec<FrameUsageCursor> for UsageCursorCodec {
+    type Error = FrameUsageError;
+    fn parse(value: &str) -> Result<FrameUsageCursor, Self::Error> {
+        FrameUsageCursor::parse(value)
+    }
+    fn text(value: &FrameUsageCursor) -> std::borrow::Cow<'_, str> {
+        value.as_str().into()
+    }
 }
-address_traits!(FrameUsageIndexUri);
-address_traits!(FrameTaskUsageUri);
+struct UsageTaskCodec;
+impl ResourceFieldCodec<TaskId> for UsageTaskCodec {
+    type Error = FrameUsageError;
+    fn parse(value: &str) -> Result<TaskId, Self::Error> {
+        task_identity(value.parse().map_err(|_| FrameUsageError)?)
+    }
+    fn text(value: &TaskId) -> std::borrow::Cow<'_, str> {
+        value.to_string().into()
+    }
+}
+impl fmt::Display for FrameUsageIndexUri {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl fmt::Display for FrameTaskUsageUri {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "EntryWire", into = "EntryWire")]

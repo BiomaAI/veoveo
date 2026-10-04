@@ -226,3 +226,15 @@ fn analyses_cursor_preserves_version_one_bytes_and_exact_collection_identity() {
         Some(id)
     );
 }
+
+#[test]
+fn nominal_address_route_selection_precedes_sibling_identifier_admission() {
+    assert!(matches!(
+        ModelUri::parse("reason://pipeline/INVALID"),
+        Err(ReasonContractError::InvalidResource)
+    ));
+    assert!(matches!(
+        ModelUri::parse("reason://model/INVALID"),
+        Err(ReasonContractError::InvalidId(_))
+    ));
+}

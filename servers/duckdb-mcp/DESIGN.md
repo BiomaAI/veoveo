@@ -1151,3 +1151,11 @@ A future `map-mcp` should consume immutable analytical products or explicitly
 governed live layers. It should not read another principal's DuckDB file, use a
 filesystem path as a layer identity, or turn DuckDB into a second unaudited HTTP
 data plane.
+
+## Resource Address Declarations
+
+Usage index and Task addresses declare typed routes with the shared `ResourceAddress`
+derive. Explicit owner codecs admit collection-bound cursors and UUID-v7 Task identities.
+Checked constructors initialize private wire caches, and discovery templates alias the
+generated declaration. Serde and schema declarations preserve the public string profile;
+cursor payload encoding remains a separate checked owner contract.

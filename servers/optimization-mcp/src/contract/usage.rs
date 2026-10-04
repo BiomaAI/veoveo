@@ -4,9 +4,7 @@ use std::fmt;
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_types::{
-    ResourceAddress, ResourceUri, ResourceUriBuilder, ResourceUriParts, TaskId, UriSegment,
-};
+use veoveo_types::{ResourceAddress, ResourceFieldCodec, ResourceUri, TaskId};
 
 pub const OPTIMIZATION_USAGE_PAGE_SIZE: usize = 100;
 
@@ -99,55 +97,29 @@ impl From<OptimizationUsageCursor> for String {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::ResourceAddress,
+)]
 #[serde(try_from = "String", into = "String")]
+#[resource(template="optimization://usage{?cursor}", error=OptimizationUsageError, route_error=|_| OptimizationUsageError, wire)]
 pub struct OptimizationUsageIndexUri {
+    #[resource(cache)]
     wire: ResourceUri,
+    #[resource(codec=UsageCursorCodec, error=|_| OptimizationUsageError)]
     cursor: Option<OptimizationUsageCursor>,
 }
 
 impl OptimizationUsageIndexUri {
-    pub const ROOT: &str = "optimization://usage";
-    pub const TEMPLATE: &str = "optimization://usage{?cursor}";
+    pub const ROOT: &str = Self::RESOURCE_ROOT;
+    pub const TEMPLATE: &str = Self::RESOURCE_TEMPLATE;
 
     pub fn new(cursor: Option<&OptimizationUsageCursor>) -> Self {
-        let mut builder = ResourceUriBuilder::new(Self::ROOT).expect("declared usage root");
-        if let Some(cursor) = cursor {
-            builder = builder
-                .query_pair("cursor", cursor.as_str())
-                .expect("typed usage cursor");
-        }
-        Self {
-            wire: builder.build().expect("typed usage index URI"),
-            cursor: cursor.cloned(),
-        }
+        Self::resource_from_parts(cursor.cloned()).expect("typed usage index address")
     }
 
     pub fn parse(value: impl AsRef<str>) -> Result<Self, OptimizationUsageError> {
-        let value = value.as_ref();
-        let parts = ResourceUriParts::parse(value).map_err(|_| OptimizationUsageError)?;
-        if parts.scheme() != "optimization"
-            || parts.authority() != "usage"
-            || parts.path_segments().next().is_some()
-        {
-            return Err(OptimizationUsageError);
-        }
-        let cursor = if parts.has_query() {
-            let query = parts.query_parameters();
-            if query.len() != 1 {
-                return Err(OptimizationUsageError);
-            }
-            Some(OptimizationUsageCursor::parse(
-                query.get("cursor").ok_or(OptimizationUsageError)?.clone(),
-            )?)
-        } else {
-            None
-        };
-        let uri = Self::new(cursor.as_ref());
-        if uri.as_str() != value {
-            return Err(OptimizationUsageError);
-        }
-        Ok(uri)
+        let uri = ResourceUri::new(value.as_ref()).map_err(|_| OptimizationUsageError)?;
+        <Self as ResourceAddress>::parse(&uri)
     }
 
     pub fn cursor(&self) -> Option<&OptimizationUsageCursor> {
@@ -158,44 +130,28 @@ impl OptimizationUsageIndexUri {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::ResourceAddress,
+)]
 #[serde(try_from = "String", into = "String")]
+#[resource(template="optimization://usage/task/{task_id}", error=OptimizationUsageError, route_error=|_| OptimizationUsageError, wire)]
 pub struct OptimizationTaskUsageUri {
+    #[resource(cache)]
     wire: ResourceUri,
+    #[resource(codec=UsageTaskCodec, error=|_| OptimizationUsageError)]
     task_id: TaskId,
 }
 
 impl OptimizationTaskUsageUri {
-    pub const TEMPLATE: &str = "optimization://usage/task/{task_id}";
+    pub const TEMPLATE: &str = Self::RESOURCE_TEMPLATE;
 
     pub fn new(task_id: TaskId) -> Result<Self, OptimizationUsageError> {
-        let task_id = task_identity(task_id)?;
-        let wire = ResourceUriBuilder::new(OptimizationUsageIndexUri::ROOT)
-            .expect("declared usage root")
-            .segment(UriSegment::new("task").expect("declared task segment"))
-            .segment(UriSegment::new(task_id.to_string()).expect("canonical native Task UUID"))
-            .build()
-            .expect("typed Task usage URI");
-        Ok(Self { wire, task_id })
+        Self::resource_from_parts(task_identity(task_id)?)
     }
 
     pub fn parse(value: impl AsRef<str>) -> Result<Self, OptimizationUsageError> {
-        let value = value.as_ref();
-        let parts = ResourceUriParts::parse(value).map_err(|_| OptimizationUsageError)?;
-        let path = parts.path_segments().collect::<Vec<_>>();
-        if parts.scheme() != "optimization"
-            || parts.authority() != "usage"
-            || parts.has_query()
-            || path.len() != 2
-            || path[0] != "task"
-        {
-            return Err(OptimizationUsageError);
-        }
-        let uri = Self::new(path[1].parse().map_err(|_| OptimizationUsageError)?)?;
-        if uri.as_str() != value {
-            return Err(OptimizationUsageError);
-        }
-        Ok(uri)
+        let uri = ResourceUri::new(value.as_ref()).map_err(|_| OptimizationUsageError)?;
+        <Self as ResourceAddress>::parse(&uri)
     }
 
     pub fn task_id(&self) -> TaskId {
@@ -206,37 +162,36 @@ impl OptimizationTaskUsageUri {
     }
 }
 
-macro_rules! address_traits {
-    ($name:ident) => {
-        impl ResourceAddress for $name {
-            type Error = OptimizationUsageError;
-            fn parse(uri: &ResourceUri) -> Result<Self, Self::Error> {
-                Self::parse(uri.as_str())
-            }
-            fn to_uri(&self) -> Result<ResourceUri, Self::Error> {
-                Ok(self.wire.clone())
-            }
-        }
-        impl TryFrom<String> for $name {
-            type Error = OptimizationUsageError;
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::parse(value)
-            }
-        }
-        impl From<$name> for String {
-            fn from(value: $name) -> Self {
-                value.wire.into()
-            }
-        }
-        impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str(self.as_str())
-            }
-        }
-    };
+struct UsageCursorCodec;
+impl ResourceFieldCodec<OptimizationUsageCursor> for UsageCursorCodec {
+    type Error = OptimizationUsageError;
+    fn parse(value: &str) -> Result<OptimizationUsageCursor, Self::Error> {
+        OptimizationUsageCursor::parse(value)
+    }
+    fn text(value: &OptimizationUsageCursor) -> std::borrow::Cow<'_, str> {
+        value.as_str().into()
+    }
 }
-address_traits!(OptimizationUsageIndexUri);
-address_traits!(OptimizationTaskUsageUri);
+struct UsageTaskCodec;
+impl ResourceFieldCodec<TaskId> for UsageTaskCodec {
+    type Error = OptimizationUsageError;
+    fn parse(value: &str) -> Result<TaskId, Self::Error> {
+        task_identity(value.parse().map_err(|_| OptimizationUsageError)?)
+    }
+    fn text(value: &TaskId) -> std::borrow::Cow<'_, str> {
+        value.to_string().into()
+    }
+}
+impl fmt::Display for OptimizationUsageIndexUri {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl fmt::Display for OptimizationTaskUsageUri {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "EntryWire", into = "EntryWire")]

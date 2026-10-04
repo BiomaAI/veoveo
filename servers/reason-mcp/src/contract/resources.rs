@@ -7,9 +7,7 @@ use veoveo_types::{
     ResourceAddress, ResourceUri, ResourceUriBuilder, ResourceUriParts, UriSegment,
 };
 
-use super::{
-    AnalysisCursor, AnalysisId, ModelId, PipelineId, ReasonContractError, ids::string_schema,
-};
+use super::{AnalysisCursor, AnalysisId, ModelId, PipelineId, ReasonContractError};
 use crate::uris;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -33,76 +31,113 @@ impl ReasonDocument {
     }
 }
 
-macro_rules! address {
-    ($name:ident, $id:ty, $variant:ident, $root:literal, $tail:expr) => {
-        #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-        #[serde(try_from = "String", into = "String")]
-        pub struct $name($id);
-        impl $name {
-            pub fn new(id: $id) -> Self {
-                Self(id)
-            }
-            pub fn id(&self) -> &$id {
-                &self.0
-            }
-            pub fn parse(value: impl AsRef<str>) -> Result<Self, ReasonContractError> {
-                match ReasonResource::parse(value)? {
-                    ReasonResource::$variant(uri) => Ok(uri),
-                    _ => Err(ReasonContractError::InvalidResource),
-                }
-            }
-            pub fn to_uri(&self) -> ResourceUri {
-                let mut builder = ResourceUriBuilder::new($root)
-                    .expect("declared Reason root")
-                    .segment(UriSegment::new(self.0.to_string()).expect("admitted Reason ID"));
-                if let Some(tail) = $tail {
-                    builder =
-                        builder.segment(UriSegment::new(tail).expect("declared Reason child"));
-                }
-                builder.build().expect("admitted Reason resource")
-            }
-        }
-        impl TryFrom<String> for $name {
-            type Error = ReasonContractError;
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::parse(value)
-            }
-        }
-        impl From<$name> for String {
-            fn from(value: $name) -> Self {
-                value.to_uri().to_string()
-            }
-        }
-        impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                self.to_uri().fmt(f)
-            }
-        }
-        string_schema!($name);
-    };
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, veoveo_types::ResourceAddress)]
+#[serde(try_from = "String", into = "String")]
+#[resource(template = "reason://pipeline/{pipeline_id}", error = ReasonContractError, route_error = |_| ReasonContractError::InvalidResource, wire, schema = resource_string_schema, schema_inline)]
+pub struct PipelineUri(#[resource(variable = "pipeline_id", error = |error| error)] PipelineId);
+impl PipelineUri {
+    pub fn new(id: PipelineId) -> Self {
+        Self(id)
+    }
+    pub fn id(&self) -> &PipelineId {
+        &self.0
+    }
+    pub fn parse(value: impl AsRef<str>) -> Result<Self, ReasonContractError> {
+        let uri =
+            ResourceUri::new(value.as_ref()).map_err(|_| ReasonContractError::InvalidResource)?;
+        <Self as ResourceAddress>::parse(&uri)
+    }
+    pub fn to_uri(&self) -> ResourceUri {
+        self.resource_components_uri()
+            .expect("admitted Reason resource")
+    }
 }
-address!(
-    PipelineUri,
-    PipelineId,
-    Pipeline,
-    "reason://pipeline",
-    None::<&str>
-);
-address!(ModelUri, ModelId, Model, "reason://model", None::<&str>);
-address!(
-    AnalysisUri,
-    AnalysisId,
-    Analysis,
-    "reason://analysis",
-    None::<&str>
-);
-address!(
-    ResultsUri,
-    AnalysisId,
-    Results,
-    "reason://analysis",
-    Some("results")
-);
+impl fmt::Display for PipelineUri {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.to_uri().fmt(f)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, veoveo_types::ResourceAddress)]
+#[serde(try_from = "String", into = "String")]
+#[resource(template = "reason://model/{model_id}", error = ReasonContractError, route_error = |_| ReasonContractError::InvalidResource, wire, schema = resource_string_schema, schema_inline)]
+pub struct ModelUri(#[resource(variable = "model_id", error = |error| error)] ModelId);
+impl ModelUri {
+    pub fn new(id: ModelId) -> Self {
+        Self(id)
+    }
+    pub fn id(&self) -> &ModelId {
+        &self.0
+    }
+    pub fn parse(value: impl AsRef<str>) -> Result<Self, ReasonContractError> {
+        let uri =
+            ResourceUri::new(value.as_ref()).map_err(|_| ReasonContractError::InvalidResource)?;
+        <Self as ResourceAddress>::parse(&uri)
+    }
+    pub fn to_uri(&self) -> ResourceUri {
+        self.resource_components_uri()
+            .expect("admitted Reason resource")
+    }
+}
+impl fmt::Display for ModelUri {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.to_uri().fmt(f)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, veoveo_types::ResourceAddress)]
+#[serde(try_from = "String", into = "String")]
+#[resource(template = "reason://analysis/{analysis_id}", error = ReasonContractError, route_error = |_| ReasonContractError::InvalidResource, wire, schema = resource_string_schema, schema_inline)]
+pub struct AnalysisUri(#[resource(variable = "analysis_id", error = |error| error)] AnalysisId);
+impl AnalysisUri {
+    pub fn new(id: AnalysisId) -> Self {
+        Self(id)
+    }
+    pub fn id(&self) -> &AnalysisId {
+        &self.0
+    }
+    pub fn parse(value: impl AsRef<str>) -> Result<Self, ReasonContractError> {
+        let uri =
+            ResourceUri::new(value.as_ref()).map_err(|_| ReasonContractError::InvalidResource)?;
+        <Self as ResourceAddress>::parse(&uri)
+    }
+    pub fn to_uri(&self) -> ResourceUri {
+        self.resource_components_uri()
+            .expect("admitted Reason resource")
+    }
+}
+impl fmt::Display for AnalysisUri {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.to_uri().fmt(f)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, veoveo_types::ResourceAddress)]
+#[serde(try_from = "String", into = "String")]
+#[resource(template = "reason://analysis/{analysis_id}/results", error = ReasonContractError, route_error = |_| ReasonContractError::InvalidResource, wire, schema = resource_string_schema, schema_inline)]
+pub struct ResultsUri(#[resource(variable = "analysis_id", error = |error| error)] AnalysisId);
+impl ResultsUri {
+    pub fn new(id: AnalysisId) -> Self {
+        Self(id)
+    }
+    pub fn id(&self) -> &AnalysisId {
+        &self.0
+    }
+    pub fn parse(value: impl AsRef<str>) -> Result<Self, ReasonContractError> {
+        let uri =
+            ResourceUri::new(value.as_ref()).map_err(|_| ReasonContractError::InvalidResource)?;
+        <Self as ResourceAddress>::parse(&uri)
+    }
+    pub fn to_uri(&self) -> ResourceUri {
+        self.resource_components_uri()
+            .expect("admitted Reason resource")
+    }
+}
+impl fmt::Display for ResultsUri {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.to_uri().fmt(f)
+    }
+}
 
 /// Each variant admits only its owning identifier and route parameters.
 ///
@@ -251,4 +286,18 @@ impl From<ReasonResource> for String {
             .to_string()
     }
 }
-string_schema!(ReasonResource);
+impl schemars::JsonSchema for ReasonResource {
+    fn inline_schema() -> bool {
+        true
+    }
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "ReasonResource".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        resource_string_schema(generator)
+    }
+}
+
+fn resource_string_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    <String as schemars::JsonSchema>::json_schema(generator)
+}

@@ -2,9 +2,7 @@
 use super::{MapMobilityProfileCursor, MobilityProfileId, MobilityProfileVersion};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_types::{
-    ResourceAddress, ResourceUri, ResourceUriBuilder, ResourceUriParts, UriSegment,
-};
+use veoveo_types::{ResourceAddress, ResourceFieldCodec, ResourceUri};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum MapMobilityError {
@@ -18,17 +16,23 @@ pub enum MapMobilityError {
     Metadata,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::ResourceAddress,
+)]
 #[serde(try_from = "String", into = "String")]
 #[schemars(with = "String")]
+#[resource(template = "map://mobility-profile/{profile_id}/{profile_version}", error = MapMobilityError, route_error = |_| MapMobilityError::Address, wire)]
 pub struct MapMobilityProfileUri {
+    #[resource(cache)]
     wire: ResourceUri,
+    #[resource(variable = "profile_id", error = |_| MapMobilityError::Address)]
     id: MobilityProfileId,
+    #[resource(variable = "profile_version", codec = MobilityVersionCodec, error = |_| MapMobilityError::Address)]
     version: MobilityProfileVersion,
 }
 
 impl MapMobilityProfileUri {
-    pub const TEMPLATE: &str = "map://mobility-profile/{profile_id}/{profile_version}";
+    pub const TEMPLATE: &str = Self::RESOURCE_TEMPLATE;
 
     /// ```compile_fail
     /// use veoveo_map_mcp::contract::{MapMobilityProfileUri, RouteId};
@@ -39,34 +43,11 @@ impl MapMobilityProfileUri {
     /// MapMobilityProfileUri::new(veoveo_map_mcp::contract::MobilityProfileId::new(), 1);
     /// ```
     pub fn new(id: MobilityProfileId, version: MobilityProfileVersion) -> Self {
-        let wire = ResourceUriBuilder::new("map://mobility-profile")
-            .expect("declared Map root")
-            .segment(UriSegment::new(id.to_string()).expect("typed mobility-profile ID"))
-            .segment(UriSegment::new(version.to_string()).expect("typed profile version"))
-            .build()
-            .expect("typed mobility-profile address");
-        Self { wire, id, version }
+        Self::resource_from_parts(id, version).expect("typed Map mobility address")
     }
-
     pub fn parse(value: impl AsRef<str>) -> Result<Self, MapMobilityError> {
-        let value = value.as_ref();
-        let parts = ResourceUriParts::parse(value).map_err(|_| MapMobilityError::Address)?;
-        let path: Vec<_> = parts.path_segments().collect();
-        if parts.scheme() != "map"
-            || parts.authority() != "mobility-profile"
-            || parts.has_query()
-            || path.len() != 2
-        {
-            return Err(MapMobilityError::Address);
-        }
-        let address = Self::new(
-            MobilityProfileId::parse(path[0].as_ref()).map_err(|_| MapMobilityError::Address)?,
-            path[1].parse().map_err(|_| MapMobilityError::Address)?,
-        );
-        if address.as_str() != value {
-            return Err(MapMobilityError::Address);
-        }
-        Ok(address)
+        let uri = ResourceUri::new(value.as_ref()).map_err(|_| MapMobilityError::Address)?;
+        <Self as ResourceAddress>::parse(&uri)
     }
     pub fn version(&self) -> MobilityProfileVersion {
         self.version
@@ -79,57 +60,28 @@ impl MapMobilityProfileUri {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::ResourceAddress,
+)]
 #[serde(try_from = "String", into = "String")]
 #[schemars(with = "String")]
+#[resource(template = "map://mobility-profiles{?cursor}", error = MapMobilityError, route_error = |_| MapMobilityError::Address, wire)]
 pub struct MapMobilityProfilesUri {
+    #[resource(cache)]
     wire: ResourceUri,
+    #[resource(codec = MapMobilityProfileCursorCodec, error = |error| error)]
     cursor: Option<MapMobilityProfileCursor>,
 }
 impl MapMobilityProfilesUri {
     pub const ROOT: &str = "map://mobility-profiles";
-    pub const TEMPLATE: &str = "map://mobility-profiles{?cursor}";
+    pub const TEMPLATE: &str = Self::RESOURCE_TEMPLATE;
 
     pub fn new(cursor: Option<MapMobilityProfileCursor>) -> Self {
-        let mut builder = ResourceUriBuilder::new(Self::ROOT).expect("declared Map root");
-        if let Some(cursor) = &cursor {
-            builder = builder
-                .query_pair("cursor", cursor.as_str())
-                .expect("typed cursor");
-        }
-        Self {
-            wire: builder.build().expect("typed mobility-profile collection"),
-            cursor,
-        }
+        Self::resource_from_parts(cursor).expect("typed Map mobility address")
     }
     pub fn parse(value: impl AsRef<str>) -> Result<Self, MapMobilityError> {
-        let value = value.as_ref();
-        let parts = ResourceUriParts::parse(value).map_err(|_| MapMobilityError::Address)?;
-        if parts.scheme() != "map"
-            || parts.authority() != "mobility-profiles"
-            || parts.path_segments().next().is_some()
-        {
-            return Err(MapMobilityError::Address);
-        }
-        let cursor = if parts.has_query() {
-            let query = parts.query_parameters();
-            if query.len() != 1 {
-                return Err(MapMobilityError::Address);
-            }
-            Some(MapMobilityProfileCursor::parse(
-                query
-                    .get("cursor")
-                    .ok_or(MapMobilityError::Address)?
-                    .clone(),
-            )?)
-        } else {
-            None
-        };
-        let address = Self::new(cursor);
-        if address.as_str() != value {
-            return Err(MapMobilityError::Address);
-        }
-        Ok(address)
+        let uri = ResourceUri::new(value.as_ref()).map_err(|_| MapMobilityError::Address)?;
+        <Self as ResourceAddress>::parse(&uri)
     }
     pub fn cursor(&self) -> Option<&MapMobilityProfileCursor> {
         self.cursor.as_ref()
@@ -139,29 +91,24 @@ impl MapMobilityProfilesUri {
     }
 }
 
-macro_rules! address_wire {
-    ($ty:ty) => {
-        impl TryFrom<String> for $ty {
-            type Error = MapMobilityError;
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::parse(value)
-            }
-        }
-        impl From<$ty> for String {
-            fn from(value: $ty) -> Self {
-                value.wire.to_string()
-            }
-        }
-        impl ResourceAddress for $ty {
-            type Error = MapMobilityError;
-            fn parse(value: &ResourceUri) -> Result<Self, Self::Error> {
-                Self::parse(value.as_str())
-            }
-            fn to_uri(&self) -> Result<ResourceUri, Self::Error> {
-                Ok(self.wire.clone())
-            }
-        }
-    };
+struct MapMobilityProfileCursorCodec;
+impl ResourceFieldCodec<MapMobilityProfileCursor> for MapMobilityProfileCursorCodec {
+    type Error = MapMobilityError;
+    fn parse(value: &str) -> Result<MapMobilityProfileCursor, Self::Error> {
+        MapMobilityProfileCursor::parse(value)
+    }
+    fn text(value: &MapMobilityProfileCursor) -> std::borrow::Cow<'_, str> {
+        value.as_str().into()
+    }
 }
-address_wire!(MapMobilityProfileUri);
-address_wire!(MapMobilityProfilesUri);
+
+struct MobilityVersionCodec;
+impl ResourceFieldCodec<MobilityProfileVersion> for MobilityVersionCodec {
+    type Error = MapMobilityError;
+    fn parse(value: &str) -> Result<MobilityProfileVersion, Self::Error> {
+        value.parse().map_err(|_| MapMobilityError::Address)
+    }
+    fn text(value: &MobilityProfileVersion) -> std::borrow::Cow<'_, str> {
+        value.to_string().into()
+    }
+}

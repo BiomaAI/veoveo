@@ -2,6 +2,7 @@
 use proc_macro::TokenStream;
 mod embedded_document;
 mod id;
+mod resource_address;
 mod vocabulary;
 
 #[proc_macro]
@@ -17,4 +18,9 @@ pub fn vocabulary(input: TokenStream) -> TokenStream {
 #[proc_macro_derive(Id, attributes(id))]
 pub fn id(input: TokenStream) -> TokenStream {
     id::expand(input)
+}
+
+#[proc_macro_derive(ResourceAddress, attributes(resource))]
+pub fn resource_address(input: TokenStream) -> TokenStream {
+    resource_address::expand(input)
 }

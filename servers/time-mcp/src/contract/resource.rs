@@ -1,15 +1,14 @@
 //! Domain-owned resource routes, independent of hosted MCP and persistence.
-use std::{error::Error, fmt};
+use std::{borrow::Cow, error::Error, fmt};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use veoveo_types::{
-    ResourceAddress, ResourceUri, ResourceUriBuilder, ResourceUriError, ResourceUriParts,
-    UriSegment,
+    ResourceAddress, ResourceFieldCodec, ResourceRouteError, ResourceTailCodec, ResourceUri,
+    ResourceUriError,
 };
 
 use super::{AuthorityReleaseId, CalendarId, MissionEpochId, TemporalEventId, TimeVersion};
-use crate::uris;
 
 mod cursor;
 mod identifiers;
@@ -67,123 +66,98 @@ impl From<ResourceUriError> for TimeResourceError {
 /// use veoveo_time_mcp::contract::{CalendarCursor, TimeResource};
 /// fn wrong_page(cursor: CalendarCursor) { let _ = TimeResource::Events { cursor: Some(cursor) }; }
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::ResourceAddress,
+)]
 #[serde(try_from = "String", into = "String")]
+#[resource(error = TimeResourceError, route_error = time_route_error, wire)]
 pub enum TimeResource {
+    #[resource(template = "time://docs")]
     Docs,
-    Document(TimeDocument),
+    #[resource(template = "time://docs/{doc_id}")]
+    Document(
+        #[resource(variable = "doc_id", codec = TimeDocumentCodec, error = |error| error)]
+        TimeDocument,
+    ),
+    #[resource(template = "time://contract")]
     Contract,
+    #[resource(template = "ui://time/timeline.html")]
     TimelineApp,
+    #[resource(template = "time://clock/current")]
     ClockCurrent,
+    #[resource(template = "time://clock/quality")]
     ClockQuality,
+    #[resource(template = "time://authorities/current")]
     AuthoritiesCurrent,
-    AuthorityRelease(AuthorityReleaseId),
+    #[resource(template = "time://authorities/releases/{release_id}")]
+    AuthorityRelease(
+        #[resource(variable = "release_id", error = |_| TimeResourceError::InvalidId)]
+        AuthorityReleaseId,
+    ),
+    #[resource(template = "time://authorities/releases{?cursor}", route_error = page_route_error)]
     AuthorityReleases {
+        #[resource(codec = TimeCursorCodec, error = |error| error)]
         cursor: Option<AuthorityCursor>,
     },
-    BootstrapAuthority(AuthorityReleaseId),
+    #[resource(template = "time://authorities/bootstrap/{release_id}")]
+    BootstrapAuthority(
+        #[resource(variable = "release_id", error = |_| TimeResourceError::InvalidId)]
+        AuthorityReleaseId,
+    ),
+    #[resource(template = "time://authorities/bootstrap{?cursor}", route_error = page_route_error)]
     BootstrapAuthorities {
+        #[resource(codec = TimeCursorCodec, error = |error| error)]
         cursor: Option<BootstrapAuthorityCursor>,
     },
-    Zone(TimeZoneId),
+    #[resource(template = "time://zones/{+zone_id}")]
+    Zone(
+        #[resource(variable = "zone_id", tail, codec = TimeZoneCodec, error = |error| error)]
+        TimeZoneId,
+    ),
+    #[resource(template = "time://calendars{?cursor}", route_error = page_route_error)]
     Calendars {
+        #[resource(codec = TimeCursorCodec, error = |error| error)]
         cursor: Option<CalendarCursor>,
     },
+    #[resource(template = "time://calendars/{calendar_id}/versions/{version}")]
     Calendar {
+        #[resource(variable = "calendar_id", error = |_| TimeResourceError::InvalidId)]
         id: CalendarId,
+        #[resource(codec = TimeVersionCodec, error = |error| error)]
         version: TimeVersion,
     },
+    #[resource(template = "time://epochs{?cursor}", route_error = page_route_error)]
     Epochs {
+        #[resource(codec = TimeCursorCodec, error = |error| error)]
         cursor: Option<EpochCursor>,
     },
-    Epoch(MissionEpochId),
+    #[resource(template = "time://epochs/{epoch_id}")]
+    Epoch(
+        #[resource(variable = "epoch_id", error = |_| TimeResourceError::InvalidId)] MissionEpochId,
+    ),
+    #[resource(template = "time://epochs/{epoch_id}/versions/{version}")]
     EpochVersion {
+        #[resource(variable = "epoch_id", error = |_| TimeResourceError::InvalidId)]
         id: MissionEpochId,
+        #[resource(codec = TimeVersionCodec, error = |error| error)]
         version: TimeVersion,
     },
+    #[resource(template = "time://events{?cursor}", route_error = page_route_error)]
     Events {
+        #[resource(codec = TimeCursorCodec, error = |error| error)]
         cursor: Option<EventCursor>,
     },
-    Event(TemporalEventId),
+    #[resource(template = "time://events/{event_id}")]
+    Event(
+        #[resource(variable = "event_id", error = |_| TimeResourceError::InvalidId)]
+        TemporalEventId,
+    ),
 }
 
 impl TimeResource {
     pub fn parse(value: &str) -> Result<Self, TimeResourceError> {
-        let parts = ResourceUriParts::parse(value)?;
-        let decoded: Vec<_> = parts.path_segments().collect();
-        let path: Vec<_> = decoded.iter().map(|part| part.as_ref()).collect();
-        let page = match (parts.scheme(), parts.authority(), path.as_slice()) {
-            ("time", "calendars", []) => Some(Self::Calendars {
-                cursor: page_cursor(&parts, CalendarCursor::parse)?,
-            }),
-            ("time", "epochs", []) => Some(Self::Epochs {
-                cursor: page_cursor(&parts, EpochCursor::parse)?,
-            }),
-            ("time", "authorities", ["releases"]) => Some(Self::AuthorityReleases {
-                cursor: page_cursor(&parts, AuthorityCursor::parse)?,
-            }),
-            ("time", "authorities", ["bootstrap"]) => Some(Self::BootstrapAuthorities {
-                cursor: page_cursor(&parts, BootstrapAuthorityCursor::parse)?,
-            }),
-            ("time", "events", []) => Some(Self::Events {
-                cursor: page_cursor(&parts, EventCursor::parse)?,
-            }),
-            _ => None,
-        };
-        let resource = if let Some(page) = page {
-            page
-        } else {
-            if parts.has_query() {
-                return Err(TimeResourceError::UnknownResource);
-            }
-            match (parts.scheme(), parts.authority(), path.as_slice()) {
-                ("time", "docs", []) => Self::Docs,
-                ("time", "docs", [doc]) => Self::Document(TimeDocument::parse(doc)?),
-                ("time", "contract", []) => Self::Contract,
-                ("ui", "time", ["timeline.html"]) => Self::TimelineApp,
-                ("time", "clock", ["current"]) => Self::ClockCurrent,
-                ("time", "clock", ["quality"]) => Self::ClockQuality,
-                ("time", "authorities", ["current"]) => Self::AuthoritiesCurrent,
-                ("time", "authorities", ["releases", id]) => Self::AuthorityRelease(
-                    AuthorityReleaseId::new(*id).map_err(|_| TimeResourceError::InvalidId)?,
-                ),
-                ("time", "authorities", ["bootstrap", id]) => Self::BootstrapAuthority(
-                    AuthorityReleaseId::new(*id).map_err(|_| TimeResourceError::InvalidId)?,
-                ),
-                ("time", "epochs", [id, "versions", version]) => Self::EpochVersion {
-                    id: MissionEpochId::new(*id).map_err(|_| TimeResourceError::InvalidId)?,
-                    version: TimeVersion::new(
-                        version
-                            .parse()
-                            .map_err(|_| TimeResourceError::InvalidVersion)?,
-                    )?,
-                },
-                ("time", "zones", components) => {
-                    // A TZDB key is itself a slash-separated domain name. URI
-                    // splitting/decoding has already happened in the shared parser.
-                    Self::Zone(TimeZoneId::new(components.join("/"))?)
-                }
-                ("time", "calendars", [id, "versions", version]) => Self::Calendar {
-                    id: CalendarId::new(*id).map_err(|_| TimeResourceError::InvalidId)?,
-                    version: TimeVersion::new(
-                        version
-                            .parse()
-                            .map_err(|_| TimeResourceError::InvalidVersion)?,
-                    )?,
-                },
-                ("time", "epochs", [id]) => {
-                    Self::Epoch(MissionEpochId::new(*id).map_err(|_| TimeResourceError::InvalidId)?)
-                }
-                ("time", "events", [id]) => Self::Event(
-                    TemporalEventId::new(*id).map_err(|_| TimeResourceError::InvalidId)?,
-                ),
-                _ => return Err(TimeResourceError::UnknownResource),
-            }
-        };
-        if resource.to_uri()?.as_str() != value {
-            return Err(TimeResourceError::UnknownResource);
-        }
-        Ok(resource)
+        let uri = ResourceUri::new(value)?;
+        <Self as ResourceAddress>::parse(&uri)
     }
 
     /// Cursor pages are invalidated through their collection root.
@@ -203,115 +177,6 @@ impl TimeResource {
     }
 }
 
-fn page_cursor<C>(
-    parts: &ResourceUriParts,
-    parse: impl FnOnce(String) -> Result<C, TimeResourceError>,
-) -> Result<Option<C>, TimeResourceError> {
-    if !parts.has_query() {
-        return Ok(None);
-    }
-    let query = parts.query_parameters();
-    if query.len() != 1 {
-        return Err(TimeResourceError::InvalidCursor);
-    }
-    let cursor = query
-        .get("cursor")
-        .ok_or(TimeResourceError::InvalidCursor)?;
-    parse(cursor.clone()).map(Some)
-}
-
-impl ResourceAddress for TimeResource {
-    type Error = TimeResourceError;
-
-    fn parse(uri: &ResourceUri) -> Result<Self, Self::Error> {
-        Self::parse(uri.as_str())
-    }
-
-    fn to_uri(&self) -> Result<ResourceUri, Self::Error> {
-        let (base, segments, cursor): (&str, Vec<String>, Option<&str>) = match self {
-            Self::Docs => (uris::DOCS_URI, vec![], None),
-            Self::Document(doc) => (uris::DOCS_URI, vec![doc.as_str().into()], None),
-            Self::Contract => (uris::CONTRACT_URI, vec![], None),
-            Self::TimelineApp => (uris::TIMELINE_APP_URI, vec![], None),
-            Self::ClockCurrent => (uris::CLOCK_CURRENT_URI, vec![], None),
-            Self::ClockQuality => (uris::CLOCK_QUALITY_URI, vec![], None),
-            Self::AuthoritiesCurrent => (uris::AUTHORITIES_CURRENT_URI, vec![], None),
-            Self::AuthorityRelease(id) => {
-                ("time://authorities/releases", vec![id.to_string()], None)
-            }
-            Self::AuthorityReleases { cursor } => (
-                uris::AUTHORITY_RELEASES_URI,
-                vec![],
-                cursor.as_ref().map(AuthorityCursor::as_str),
-            ),
-            Self::BootstrapAuthorities { cursor } => (
-                uris::BOOTSTRAP_AUTHORITIES_URI,
-                vec![],
-                cursor.as_ref().map(BootstrapAuthorityCursor::as_str),
-            ),
-            Self::BootstrapAuthority(id) => {
-                (uris::BOOTSTRAP_AUTHORITIES_URI, vec![id.to_string()], None)
-            }
-            Self::EpochVersion { id, version } => (
-                uris::EPOCHS_URI,
-                vec![id.to_string(), "versions".into(), version.get().to_string()],
-                None,
-            ),
-            Self::Zone(id) => (
-                "time://zones",
-                id.components().map(str::to_owned).collect(),
-                None,
-            ),
-            Self::Calendars { cursor } => (
-                uris::CALENDARS_URI,
-                vec![],
-                cursor.as_ref().map(CalendarCursor::as_str),
-            ),
-            Self::Calendar { id, version } => (
-                uris::CALENDARS_URI,
-                vec![id.to_string(), "versions".into(), version.get().to_string()],
-                None,
-            ),
-            Self::Epochs { cursor } => (
-                uris::EPOCHS_URI,
-                vec![],
-                cursor.as_ref().map(EpochCursor::as_str),
-            ),
-            Self::Epoch(id) => (uris::EPOCHS_URI, vec![id.to_string()], None),
-            Self::Events { cursor } => (
-                uris::EVENTS_URI,
-                vec![],
-                cursor.as_ref().map(EventCursor::as_str),
-            ),
-            Self::Event(id) => (uris::EVENTS_URI, vec![id.to_string()], None),
-        };
-        let mut builder = ResourceUriBuilder::new(base)?;
-        for segment in segments {
-            builder = builder.segment(UriSegment::new(segment)?);
-        }
-        if let Some(cursor) = cursor {
-            builder = builder.query_pair("cursor", cursor)?;
-        }
-        Ok(builder.build()?)
-    }
-}
-
-impl TryFrom<String> for TimeResource {
-    type Error = TimeResourceError;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::parse(&value)
-    }
-}
-
-impl From<TimeResource> for String {
-    fn from(value: TimeResource) -> Self {
-        value
-            .to_uri()
-            .expect("validated Time resource components")
-            .into()
-    }
-}
-
 impl fmt::Display for TimeResource {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.to_uri()
@@ -323,5 +188,110 @@ impl fmt::Display for TimeResource {
 impl From<super::TimeVersionError> for TimeResourceError {
     fn from(_: super::TimeVersionError) -> Self {
         Self::InvalidVersion
+    }
+}
+
+fn time_route_error(error: ResourceRouteError) -> TimeResourceError {
+    match error {
+        ResourceRouteError::Uri(error) => TimeResourceError::Uri(error),
+        _ => TimeResourceError::UnknownResource,
+    }
+}
+
+fn page_route_error(error: ResourceRouteError) -> TimeResourceError {
+    match error {
+        ResourceRouteError::Query => TimeResourceError::InvalidCursor,
+        _ => time_route_error(error),
+    }
+}
+
+struct TimeDocumentCodec;
+impl ResourceFieldCodec<TimeDocument> for TimeDocumentCodec {
+    type Error = TimeResourceError;
+    fn parse(value: &str) -> Result<TimeDocument, Self::Error> {
+        TimeDocument::parse(value)
+    }
+    fn text(value: &TimeDocument) -> Cow<'_, str> {
+        value.as_str().into()
+    }
+}
+
+struct TimeVersionCodec;
+impl ResourceFieldCodec<TimeVersion> for TimeVersionCodec {
+    type Error = TimeResourceError;
+    fn parse(value: &str) -> Result<TimeVersion, Self::Error> {
+        TimeVersion::new(
+            value
+                .parse()
+                .map_err(|_| TimeResourceError::InvalidVersion)?,
+        )
+        .map_err(Into::into)
+    }
+    fn text(value: &TimeVersion) -> Cow<'_, str> {
+        value.get().to_string().into()
+    }
+}
+
+struct TimeZoneCodec;
+impl ResourceTailCodec<TimeZoneId> for TimeZoneCodec {
+    type Error = TimeResourceError;
+    fn parse(segments: &[Cow<'_, str>]) -> Result<TimeZoneId, Self::Error> {
+        TimeZoneId::new(
+            segments
+                .iter()
+                .map(|part| part.as_ref())
+                .collect::<Vec<_>>()
+                .join("/"),
+        )
+    }
+    fn segments(value: &TimeZoneId) -> Vec<Cow<'_, str>> {
+        value.components().map(Cow::Borrowed).collect()
+    }
+}
+
+struct TimeCursorCodec;
+impl ResourceFieldCodec<AuthorityCursor> for TimeCursorCodec {
+    type Error = TimeResourceError;
+    fn parse(value: &str) -> Result<AuthorityCursor, Self::Error> {
+        AuthorityCursor::parse(value)
+    }
+    fn text(value: &AuthorityCursor) -> Cow<'_, str> {
+        value.as_str().into()
+    }
+}
+impl ResourceFieldCodec<BootstrapAuthorityCursor> for TimeCursorCodec {
+    type Error = TimeResourceError;
+    fn parse(value: &str) -> Result<BootstrapAuthorityCursor, Self::Error> {
+        BootstrapAuthorityCursor::parse(value)
+    }
+    fn text(value: &BootstrapAuthorityCursor) -> Cow<'_, str> {
+        value.as_str().into()
+    }
+}
+impl ResourceFieldCodec<CalendarCursor> for TimeCursorCodec {
+    type Error = TimeResourceError;
+    fn parse(value: &str) -> Result<CalendarCursor, Self::Error> {
+        CalendarCursor::parse(value)
+    }
+    fn text(value: &CalendarCursor) -> Cow<'_, str> {
+        value.as_str().into()
+    }
+}
+impl ResourceFieldCodec<EpochCursor> for TimeCursorCodec {
+    type Error = TimeResourceError;
+    fn parse(value: &str) -> Result<EpochCursor, Self::Error> {
+        EpochCursor::parse(value)
+    }
+    fn text(value: &EpochCursor) -> Cow<'_, str> {
+        value.as_str().into()
+    }
+}
+impl ResourceFieldCodec<EventCursor> for TimeCursorCodec {
+    type Error = TimeResourceError;
+    fn parse(value: &str) -> Result<EventCursor, Self::Error> {
+        EventCursor::parse(value)
+    }
+    fn text(value: &EventCursor) -> Cow<'_, str> {
+        value.as_str().into()
     }
 }

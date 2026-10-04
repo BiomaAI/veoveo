@@ -443,7 +443,8 @@ mod tests {
                         "veoveo-recording-video",
                         "veoveo-mcp-knowledge-extension",
                         "veoveo-mcp-knowledge-macros",
-                        "veoveo-types"
+                        "veoveo-types",
+                        "veoveo-macros"
                     ]
                     .contains(&name),
                 "implementation dependency: {line}"

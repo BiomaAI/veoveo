@@ -3,112 +3,193 @@ use std::fmt;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_types::{
-    ResourceAddress, ResourceUri, ResourceUriBuilder, ResourceUriParts, UriSegment,
-};
+use veoveo_types::{ResourceAddress, ResourceUri};
 
 use super::{OptimizationContractError, ProblemId, RunId, SolutionId, SolverProfileId};
 
-macro_rules! address {
-    ($name:ident, $id:ty, $root:literal, $parse:path) => {
-        #[derive(
-            Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-        )]
-        #[serde(try_from = "String", into = "String")]
-        #[schemars(with = "String")]
-        pub struct $name {
-            wire: String,
-            id: $id,
-        }
-
-        impl $name {
-            pub fn new(id: $id) -> Result<Self, OptimizationContractError> {
-                let wire = ResourceUriBuilder::new($root)
-                    .expect("declared Optimization root")
-                    .segment(UriSegment::new(id.to_string()).map_err(|_| Self::error())?)
-                    .build()
-                    .map_err(|_| Self::error())?
-                    .to_string();
-                Ok(Self { wire, id })
-            }
-
-            pub fn parse(value: impl AsRef<str>) -> Result<Self, OptimizationContractError> {
-                let value = value.as_ref();
-                let parts = ResourceUriParts::parse(value).map_err(|_| Self::error())?;
-                let path = parts.path_segments().collect::<Vec<_>>();
-                if parts.has_query() || path.len() != 1 {
-                    return Err(Self::error());
-                }
-                let address = Self::new($parse(path[0].as_ref())?)?;
-                if address.as_str() != value {
-                    return Err(Self::error());
-                }
-                Ok(address)
-            }
-
-            pub fn id(&self) -> &$id {
-                &self.id
-            }
-            pub fn as_str(&self) -> &str {
-                &self.wire
-            }
-            fn error() -> OptimizationContractError {
-                OptimizationContractError::InvalidUri(stringify!($name))
-            }
-        }
-
-        impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str(&self.wire)
-            }
-        }
-        impl TryFrom<String> for $name {
-            type Error = OptimizationContractError;
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::parse(value)
-            }
-        }
-        impl From<$name> for String {
-            fn from(value: $name) -> Self {
-                value.wire
-            }
-        }
-        impl ResourceAddress for $name {
-            type Error = OptimizationContractError;
-            fn to_uri(&self) -> Result<ResourceUri, Self::Error> {
-                ResourceUri::new(&self.wire).map_err(|_| Self::error())
-            }
-            fn parse(value: &ResourceUri) -> Result<Self, Self::Error> {
-                Self::parse(value.as_str())
-            }
-        }
-    };
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    veoveo_types::ResourceAddress,
+)]
+#[serde(try_from = "String", into = "String")]
+#[schemars(with = "String")]
+#[resource(template = "optimization://problem/{problem_id}", error = OptimizationContractError, route_error = |_| Self::error(), wire)]
+pub struct OptimizationProblemUri {
+    #[resource(cache)]
+    wire: String,
+    #[resource(variable = "problem_id", error = |error| error)]
+    id: ProblemId,
+}
+impl OptimizationProblemUri {
+    pub fn new(id: ProblemId) -> Result<Self, OptimizationContractError> {
+        Self::resource_from_parts(id)
+    }
+    pub fn parse(value: impl AsRef<str>) -> Result<Self, OptimizationContractError> {
+        let uri = ResourceUri::new(value.as_ref()).map_err(|_| Self::error())?;
+        <Self as ResourceAddress>::parse(&uri)
+    }
+    pub fn id(&self) -> &ProblemId {
+        &self.id
+    }
+    pub fn as_str(&self) -> &str {
+        &self.wire
+    }
+    fn error() -> OptimizationContractError {
+        OptimizationContractError::InvalidUri("OptimizationProblemUri")
+    }
+}
+impl fmt::Display for OptimizationProblemUri {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.wire)
+    }
 }
 
-address!(
-    OptimizationProblemUri,
-    ProblemId,
-    "optimization://problem",
-    ProblemId::parse
-);
-address!(
-    OptimizationRunUri,
-    RunId,
-    "optimization://run",
-    RunId::parse
-);
-address!(
-    OptimizationSolutionUri,
-    SolutionId,
-    "optimization://solution",
-    SolutionId::parse
-);
-address!(
-    OptimizationProfileUri,
-    SolverProfileId,
-    "optimization://profile",
-    SolverProfileId::new
-);
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    veoveo_types::ResourceAddress,
+)]
+#[serde(try_from = "String", into = "String")]
+#[schemars(with = "String")]
+#[resource(template = "optimization://run/{run_id}", error = OptimizationContractError, route_error = |_| Self::error(), wire)]
+pub struct OptimizationRunUri {
+    #[resource(cache)]
+    wire: String,
+    #[resource(variable = "run_id", error = |error| error)]
+    id: RunId,
+}
+impl OptimizationRunUri {
+    pub fn new(id: RunId) -> Result<Self, OptimizationContractError> {
+        Self::resource_from_parts(id)
+    }
+    pub fn parse(value: impl AsRef<str>) -> Result<Self, OptimizationContractError> {
+        let uri = ResourceUri::new(value.as_ref()).map_err(|_| Self::error())?;
+        <Self as ResourceAddress>::parse(&uri)
+    }
+    pub fn id(&self) -> &RunId {
+        &self.id
+    }
+    pub fn as_str(&self) -> &str {
+        &self.wire
+    }
+    fn error() -> OptimizationContractError {
+        OptimizationContractError::InvalidUri("OptimizationRunUri")
+    }
+}
+impl fmt::Display for OptimizationRunUri {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.wire)
+    }
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    veoveo_types::ResourceAddress,
+)]
+#[serde(try_from = "String", into = "String")]
+#[schemars(with = "String")]
+#[resource(template = "optimization://solution/{solution_id}", error = OptimizationContractError, route_error = |_| Self::error(), wire)]
+pub struct OptimizationSolutionUri {
+    #[resource(cache)]
+    wire: String,
+    #[resource(variable = "solution_id", error = |error| error)]
+    id: SolutionId,
+}
+impl OptimizationSolutionUri {
+    pub fn new(id: SolutionId) -> Result<Self, OptimizationContractError> {
+        Self::resource_from_parts(id)
+    }
+    pub fn parse(value: impl AsRef<str>) -> Result<Self, OptimizationContractError> {
+        let uri = ResourceUri::new(value.as_ref()).map_err(|_| Self::error())?;
+        <Self as ResourceAddress>::parse(&uri)
+    }
+    pub fn id(&self) -> &SolutionId {
+        &self.id
+    }
+    pub fn as_str(&self) -> &str {
+        &self.wire
+    }
+    fn error() -> OptimizationContractError {
+        OptimizationContractError::InvalidUri("OptimizationSolutionUri")
+    }
+}
+impl fmt::Display for OptimizationSolutionUri {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.wire)
+    }
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    veoveo_types::ResourceAddress,
+)]
+#[serde(try_from = "String", into = "String")]
+#[schemars(with = "String")]
+#[resource(template = "optimization://profile/{profile_id}", error = OptimizationContractError, route_error = |_| Self::error(), wire)]
+pub struct OptimizationProfileUri {
+    #[resource(cache)]
+    wire: String,
+    #[resource(variable = "profile_id", error = |error| error)]
+    id: SolverProfileId,
+}
+impl OptimizationProfileUri {
+    pub fn new(id: SolverProfileId) -> Result<Self, OptimizationContractError> {
+        Self::resource_from_parts(id)
+    }
+    pub fn parse(value: impl AsRef<str>) -> Result<Self, OptimizationContractError> {
+        let uri = ResourceUri::new(value.as_ref()).map_err(|_| Self::error())?;
+        <Self as ResourceAddress>::parse(&uri)
+    }
+    pub fn id(&self) -> &SolverProfileId {
+        &self.id
+    }
+    pub fn as_str(&self) -> &str {
+        &self.wire
+    }
+    fn error() -> OptimizationContractError {
+        OptimizationContractError::InvalidUri("OptimizationProfileUri")
+    }
+}
+impl fmt::Display for OptimizationProfileUri {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.wire)
+    }
+}
 
 /// Builders accept the corresponding parent identity.
 /// ```compile_fail

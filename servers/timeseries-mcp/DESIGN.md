@@ -193,3 +193,11 @@ normal Host validation. Liveness reports that the HTTP process is running. Readi
 platform database to accept a query within five seconds. A database outage returns
 503 from readiness while liveness stays 200; forecast Tasks retain their existing
 recovery semantics.
+
+## Resource Address Declarations
+
+Usage index and Task addresses declare typed routes with the shared `ResourceAddress`
+derive. Explicit owner codecs admit collection-bound cursors and UUID-v7 Task identities.
+Checked constructors initialize private wire caches, and discovery templates alias the
+generated declaration. Serde and schema declarations preserve the public string profile;
+cursor payload encoding remains a separate checked owner contract.

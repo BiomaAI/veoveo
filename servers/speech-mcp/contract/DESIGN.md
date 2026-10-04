@@ -10,7 +10,9 @@ byte-download route.
 
 RFC 9562 identities use lowercase hyphenated UUIDs: transcription Tasks require
 version 7, and private dictation accepts browser version 4 and native version 7.
-Concrete resource construction uses the foundational URL component builder. Public
+Speech declares its resource routes with `ResourceAddress`; parsing and typed
+construction use the same foundational component descriptors. URI schemas preserve
+the transcription v7 and dictation v4/v7 patterns. Public
 addresses accept no query, fragment, encoded alias or additional path segment.
 
 ## Ownership

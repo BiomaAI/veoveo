@@ -133,6 +133,7 @@ veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
 surrealdb = { version = "=3.3.0", default-features = false, optional = true }
 
 [dev-dependencies]
+jsonschema.workspace = true
 veoveo-deploy-contract.workspace = true
 veoveo-mcp-conformance = { path = "../../mcp/conformance" }
 rmcp = { workspace = true, features = ["client", "transport-streamable-http-client-reqwest"] }

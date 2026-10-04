@@ -427,3 +427,32 @@ fn existing_uav_dynamic_world_keeps_its_wire_tree() {
         );
     }
 }
+
+#[test]
+fn frame_world_input_policy_preserves_route_and_identity_errors() {
+    use veoveo_frames_contract::{FrameUriError, FrameWorldUri};
+    assert!(matches!(
+        FrameWorldUri::parse("frames://world/%21invalid"),
+        Err(FrameUriError::Route)
+    ));
+    assert!(matches!(
+        FrameWorldUri::parse("frames://world/!invalid"),
+        Err(FrameUriError::Identity(_))
+    ));
+    assert!(matches!(
+        FrameWorldUri::parse("frames://other/!invalid"),
+        Err(FrameUriError::Route)
+    ));
+    assert!(matches!(
+        FrameWorldUri::parse("frames://world/%2E%2E"),
+        Err(FrameUriError::Components(_))
+    ));
+    let world = FrameWorldUri::new(&FrameWorldId::new("survey").unwrap());
+    assert_eq!(
+        FrameWorldUri::RESOURCE_ROUTES[0]
+            .discovery_template()
+            .unwrap(),
+        "frames://world/{world_id}"
+    );
+    assert_eq!(world.as_str(), "frames://world/survey");
+}

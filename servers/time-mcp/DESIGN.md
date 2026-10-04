@@ -191,8 +191,10 @@ and plus signs; collection templates cover both an absent cursor and each typed
 cursor envelope. Concrete resource reads continue through the same owning parser.
 
 `TimeResource` owns every resource route and implements `ResourceAddress`. Its variants
-carry the corresponding ID, version, zone key, or collection cursor. The parser uses
-the shared URI components and the builder emits one spelling for each address. Reads
+carry the corresponding ID, version, zone key, or collection cursor. Its derived
+route declarations drive parsing, typed component building and checked discovery
+templates. Time owns codecs for documents, versions, slash-separated zone keys and
+opaque cursors; cursor codecs preserve the existing hex-encoded JSON envelope. Reads
 and subscriptions use this same contract. Unsupported parameters, fragments, encoded
 ID aliases, relative paths, and incorrect ID families are rejected before dispatch.
 `TimeAuthorityReleaseUri` restricts provenance fields to acquired or packaged authority
