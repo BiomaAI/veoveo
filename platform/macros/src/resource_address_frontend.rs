@@ -1,4 +1,7 @@
 //! Compact owner-selected address forms reuse the route admission backend.
+use super::resource_address::declaration::{
+    Declaration as AddressDeclaration, Options, read_custom_options,
+};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
@@ -52,26 +55,27 @@ impl Parse for Declaration {
         })
     }
 }
-fn remove_resource(input: &mut DeriveInput) {
-    input.attrs.retain(|attr| !attr.path().is_ident("resource"));
+fn retain_attributes(input: &mut DeriveInput, keep: impl Fn(&syn::Attribute) -> bool) {
+    input.attrs.retain(&keep);
     match &mut input.data {
         Data::Struct(data) => {
             for field in &mut data.fields {
-                field.attrs.retain(|attr| !attr.path().is_ident("resource"));
+                field.attrs.retain(&keep);
             }
         }
         Data::Enum(data) => {
             for variant in &mut data.variants {
-                variant
-                    .attrs
-                    .retain(|attr| !attr.path().is_ident("resource"));
+                variant.attrs.retain(&keep);
                 for field in &mut variant.fields {
-                    field.attrs.retain(|attr| !attr.path().is_ident("resource"));
+                    field.attrs.retain(&keep);
                 }
             }
         }
         Data::Union(_) => {}
     }
+}
+fn remove_resource(input: &mut DeriveInput) {
+    retain_attributes(input, |attr| !attr.path().is_ident("resource"));
 }
 fn key(meta: &syn::Meta) -> syn::Result<String> {
     meta.path()
@@ -108,58 +112,24 @@ fn bare(meta: &syn::Meta) -> syn::Result<()> {
     Ok(())
 }
 fn remove_schema_attributes(input: &mut DeriveInput) {
-    input.attrs.retain(|attr| !attr.path().is_ident("schemars"));
-    match &mut input.data {
-        Data::Struct(data) => {
-            for field in &mut data.fields {
-                field.attrs.retain(|attr| !attr.path().is_ident("schemars"));
-            }
-        }
-        Data::Enum(data) => {
-            for variant in &mut data.variants {
-                variant
-                    .attrs
-                    .retain(|attr| !attr.path().is_ident("schemars"));
-                for field in &mut variant.fields {
-                    field.attrs.retain(|attr| !attr.path().is_ident("schemars"));
-                }
-            }
-        }
-        Data::Union(_) => {}
-    }
+    retain_attributes(input, |attr| !attr.path().is_ident("schemars"));
 }
 
 fn retain_schema_attributes(input: &mut DeriveInput) {
-    let relevant = |attribute: &syn::Attribute| {
+    retain_attributes(input, |attribute| {
         ["doc", "schemars", "serde", "cfg", "cfg_attr"]
             .iter()
             .any(|name| attribute.path().is_ident(name))
-    };
-    input.attrs.retain(relevant);
-    match &mut input.data {
-        Data::Struct(data) => {
-            for field in &mut data.fields {
-                field.attrs.retain(relevant);
-            }
-        }
-        Data::Enum(data) => {
-            for variant in &mut data.variants {
-                variant.attrs.retain(relevant);
-                for field in &mut variant.fields {
-                    field.attrs.retain(relevant);
-                }
-            }
-        }
-        Data::Union(_) => {}
-    }
+    });
 }
 
 pub fn expand(arguments: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
     let declaration = syn::parse2::<Declaration>(arguments)?;
     let mut input = syn::parse2::<DeriveInput>(item)?;
     if let Some(custom) = declaration.custom {
-        input.attrs.push(syn::parse_quote!(#[resource(#custom)]));
-        let backend = super::resource_address::generate(&input)?;
+        let options = read_custom_options(&input.attrs, custom)?;
+        let address = AddressDeclaration::new(&input, options, false)?;
+        let backend = super::resource_address::generate(&address)?;
         remove_resource(&mut input);
         return Ok(quote!(#input #backend));
     }
@@ -235,7 +205,7 @@ pub fn expand(arguments: TokenStream, item: TokenStream) -> syn::Result<TokenStr
     let mut from_str = false;
     let mut resource_uri = false;
     let mut wire = shape != "routes";
-    let mut route_options = Vec::new();
+    let mut route_options = Options::default();
     let mut seen = std::collections::BTreeSet::new();
     for meta in &declaration.options {
         let k = key(meta)?;
@@ -278,9 +248,20 @@ pub fn expand(arguments: TokenStream, item: TokenStream) -> syn::Result<TokenStr
             "resource_uri" => resource_uri = true,
             "no_wire" => wire = false,
             "wire" => wire = true,
-            "template" | "input" | "validate" | "canonical" | "allow_empty_query" => {
-                route_options.push(meta.clone())
+            "template" => {
+                route_options.template = {
+                    let expression = value(meta)?;
+                    Some(syn::parse2(quote!(#expression))?)
+                }
             }
+            "input" => route_options.input = Some(value(meta)?),
+            "validate" => route_options.validate = Some(value(meta)?),
+            "canonical" => {
+                let expression = value(meta)?;
+                route_options.canonical = syn::parse2::<syn::LitBool>(quote!(#expression))?.value;
+                route_options.canonical_set = true;
+            }
+            "allow_empty_query" => route_options.allow_empty_query = true,
             _ => return Err(syn::Error::new_spanned(meta, "unknown address option")),
         }
     }
@@ -315,14 +296,21 @@ pub fn expand(arguments: TokenStream, item: TokenStream) -> syn::Result<TokenStr
         ));
     }
     let error: syn::Type = syn::parse_quote!(<#profile as ::veoveo_types::ResourceProfile>::Error);
-    let wire_option = wire.then(|| quote!(,wire));
-    input.attrs.push(syn::parse_quote!(#[resource(error=#error,route_error=Self::__address_route_error #wire_option #(,#route_options)*)]));
+    route_options.error = Some(error.clone());
+    route_options.route_error = Some(syn::parse_quote!(Self::__address_route_error));
+    route_options.wire = wire;
+    let mut address = AddressDeclaration::new(&input, route_options, true)?;
     let mut cache = None;
     let mut parameters = Vec::new();
     let mut values = Vec::new();
     let mut accessors = Vec::new();
-    if let Data::Struct(data) = &mut input.data {
-        for (index, field) in data.fields.iter_mut().enumerate() {
+    if let Data::Struct(data) = &input.data {
+        for (index, (field, opts)) in data
+            .fields
+            .iter()
+            .zip(&mut address.routes[0].settings)
+            .enumerate()
+        {
             let member = field
                 .ident
                 .as_ref()
@@ -335,90 +323,42 @@ pub fn expand(arguments: TokenStream, item: TokenStream) -> syn::Result<TokenStr
                 .ident
                 .clone()
                 .unwrap_or_else(|| format_ident!("component_{index}"));
-            let mut argument_mode = None;
-            let mut admit = None;
-            let mut clone_accessor = None;
-            let mut owned_accessor = false;
-            let mut retained = Vec::new();
-            let mut convenience_seen = std::collections::BTreeSet::new();
-            for attr in &field.attrs {
-                if !attr.path().is_ident("resource") {
-                    retained.push(attr.clone());
-                    continue;
-                }
-                let options = attr.parse_args_with(
-                    syn::punctuated::Punctuated::<syn::Meta, Token![,]>::parse_terminated,
-                )?;
-                let mut keep = Vec::new();
-                for meta in options {
-                    let field_key = key(&meta)?;
-                    if [
-                        "cache",
-                        "tail",
-                        "copy_accessor",
-                        "clone_accessor",
-                        "owned_accessor",
-                    ]
-                    .contains(&field_key.as_str())
-                    {
-                        bare(&meta)?;
-                    }
-                    if ["argument", "admit", "clone_accessor", "owned_accessor"]
-                        .contains(&field_key.as_str())
-                        && !convenience_seen.insert(field_key.clone())
-                    {
-                        return Err(syn::Error::new_spanned(
-                            &meta,
-                            "duplicate address field convenience",
-                        ));
-                    }
-                    match field_key.as_str() {
-                        "argument" => argument_mode = Some(preset(&meta)?),
-                        "admit" => admit = Some(value(&meta)?),
-                        "clone_accessor" => clone_accessor = Some(()),
-                        "owned_accessor" => owned_accessor = true,
-                        _ => keep.push(meta),
-                    }
-                }
-                if !keep.is_empty() {
-                    retained.push(syn::parse_quote!(#[resource(#(#keep),*)]));
-                }
-            }
-            field.attrs = retained;
-            let opts = super::resource_address::declaration::read_field(field, index)?;
-            if clone_accessor.is_some() && owned_accessor
-                || opts.copy_accessor && (clone_accessor.is_some() || owned_accessor)
+            let admit = opts.admit.as_ref();
+            let clone_accessor = opts.clone_accessor;
+            let owned_accessor = opts.owned_accessor;
+            if clone_accessor && owned_accessor
+                || opts.copy_accessor && (clone_accessor || owned_accessor)
             {
                 return Err(syn::Error::new_spanned(
-                    &*field,
+                    field,
                     "clone accessor conflicts with copied or owned accessor",
                 ));
             }
-            if (clone_accessor.is_some() || owned_accessor) && opts.accessor.is_none() {
+            if (clone_accessor || owned_accessor) && opts.accessor.is_none() {
                 return Err(syn::Error::new_spanned(
-                    &*field,
+                    field,
                     "accessor convenience requires accessor = name",
                 ));
             }
-            if opts.cache && (!convenience_seen.is_empty() || opts.accessor.is_some()) {
+            if opts.cache
+                && ((opts.argument.is_some()
+                    || opts.admit.is_some()
+                    || opts.clone_accessor
+                    || opts.owned_accessor)
+                    || opts.accessor.is_some())
+            {
                 return Err(syn::Error::new_spanned(
-                    &*field,
+                    field,
                     "cache cannot declare component conveniences",
                 ));
             }
             if admit.is_some() && constructor != "checked" {
                 return Err(syn::Error::new_spanned(
-                    &*field,
+                    field,
                     "component admission requires a checked constructor",
                 ));
             }
             if opts.cache {
-                if cache.is_some() {
-                    return Err(syn::Error::new_spanned(
-                        field,
-                        "cached form requires one cache",
-                    ));
-                }
                 let is_uri = matches!(&field.ty,syn::Type::Path(path) if path.path.segments.last().is_some_and(|segment|segment.ident=="ResourceUri"));
                 let is_string =
                     matches!(&field.ty,syn::Type::Path(path) if path.path.is_ident("String"));
@@ -432,45 +372,24 @@ pub fn expand(arguments: TokenStream, item: TokenStream) -> syn::Result<TokenStr
                 continue;
             }
             let ty = field.ty.clone();
-            let mode = argument_mode.unwrap_or_else(|| {
-                if constructor == "borrowed" {
+            let mode = opts
+                .argument
+                .as_deref()
+                .unwrap_or(if constructor == "borrowed" {
                     "borrowed"
                 } else {
                     "owned"
-                }
-                .into()
-            });
-            let (argument_type, mut argument_value) = match mode.as_str() {
+                });
+            let (argument_type, mut argument_value) = match mode {
                 "owned" => (quote!(#ty), quote!(#argument)),
                 "borrowed" => (quote!(&#ty), quote!(#argument.clone())),
                 "optional_borrowed" => {
-                    let syn::Type::Path(path) = &ty else {
-                        return Err(syn::Error::new_spanned(
+                    let inner = super::resource_address::option_inner(&ty).ok_or_else(|| {
+                        syn::Error::new_spanned(
                             &ty,
                             "optional borrowed argument requires Option<T>",
-                        ));
-                    };
-                    let Some(segment) = path.path.segments.last() else {
-                        unreachable!()
-                    };
-                    let syn::PathArguments::AngleBracketed(args) = &segment.arguments else {
-                        return Err(syn::Error::new_spanned(
-                            &ty,
-                            "optional borrowed argument requires Option<T>",
-                        ));
-                    };
-                    let Some(syn::GenericArgument::Type(inner)) = args.args.first() else {
-                        return Err(syn::Error::new_spanned(
-                            &ty,
-                            "optional borrowed argument requires Option<T>",
-                        ));
-                    };
-                    if segment.ident != "Option" {
-                        return Err(syn::Error::new_spanned(
-                            &ty,
-                            "optional borrowed argument requires Option<T>",
-                        ));
-                    }
+                        )
+                    })?;
                     (quote!(Option<&#inner>), quote!(#argument.cloned()))
                 }
                 _ => {
@@ -485,8 +404,8 @@ pub fn expand(arguments: TokenStream, item: TokenStream) -> syn::Result<TokenStr
             }
             parameters.push(quote!(#argument:#argument_type));
             values.push(argument_value);
-            if clone_accessor.is_some() || owned_accessor {
-                let accessor = opts.accessor.ok_or_else(|| {
+            if clone_accessor || owned_accessor {
+                let accessor = opts.accessor.take().ok_or_else(|| {
                     syn::Error::new_spanned(&*field, "clone_accessor requires accessor")
                 })?;
                 let getter = if owned_accessor {
@@ -495,51 +414,27 @@ pub fn expand(arguments: TokenStream, item: TokenStream) -> syn::Result<TokenStr
                     quote!(pub fn #accessor(&self)->#ty { self.#member.clone() })
                 };
                 accessors.push(getter);
-                for attr in &mut field.attrs {
-                    if !attr.path().is_ident("resource") {
-                        continue;
-                    }
-                    let options = attr.parse_args_with(
-                        syn::punctuated::Punctuated::<syn::Meta, Token![,]>::parse_terminated,
-                    )?;
-                    let keep: Vec<_> = options
-                        .into_iter()
-                        .filter(|meta| {
-                            !meta.path().is_ident("accessor")
-                                && !meta.path().is_ident("copy_accessor")
-                        })
-                        .collect();
-                    *attr = syn::parse_quote!(#[resource(#(#keep),*)]);
-                }
             }
             if opts.error.is_none() {
-                field
-                    .attrs
-                    .push(syn::parse_quote!(#[resource(error=Self::__address_component_error)]));
+                opts.error = Some(syn::parse_quote!(Self::__address_component_error));
             }
         }
     }
-    if let Data::Enum(data) = &mut input.data {
-        for variant in &mut data.variants {
-            for (index, field) in variant.fields.iter_mut().enumerate() {
-                for attr in field
-                    .attrs
-                    .iter()
-                    .filter(|attr| attr.path().is_ident("resource"))
+    if let Data::Enum(_) = &input.data {
+        for route in &mut address.routes {
+            for options in &mut route.settings {
+                if options.argument.is_some()
+                    || options.admit.is_some()
+                    || options.clone_accessor
+                    || options.owned_accessor
                 {
-                    for meta in attr.parse_args_with(
-                        syn::punctuated::Punctuated::<syn::Meta, Token![,]>::parse_terminated,
-                    )? {
-                        if ["cache", "tail", "copy_accessor"].contains(&key(&meta)?.as_str()) {
-                            bare(&meta)?;
-                        }
-                    }
+                    return Err(syn::Error::new_spanned(
+                        &input,
+                        "enum component conveniences stay owner-defined",
+                    ));
                 }
-                let options = super::resource_address::declaration::read_field(field, index)?;
                 if options.error.is_none() {
-                    field.attrs.push(
-                        syn::parse_quote!(#[resource(error = Self::__address_component_error)]),
-                    );
+                    options.error = Some(syn::parse_quote!(Self::__address_component_error));
                 }
             }
         }
@@ -552,9 +447,8 @@ pub fn expand(arguments: TokenStream, item: TokenStream) -> syn::Result<TokenStr
     }
     if constructor == "wrapped"
         && (shape != "components"
-            || route_options.iter().any(|option| {
-                option.path().is_ident("validate") || option.path().is_ident("input")
-            }))
+            || address.options.validate.is_some()
+            || address.options.input.is_some())
     {
         return Err(syn::Error::new_spanned(
             &input,
@@ -583,7 +477,7 @@ pub fn expand(arguments: TokenStream, item: TokenStream) -> syn::Result<TokenStr
         }
         _ => quote!(Self(#(#values),*)),
     };
-    let backend = super::resource_address::generate(&input)?;
+    let backend = super::resource_address::generate(&address)?;
     remove_resource(&mut input);
     let mut schema_input = input.clone();
     retain_schema_attributes(&mut schema_input);
@@ -676,6 +570,56 @@ pub fn expand(arguments: TokenStream, item: TokenStream) -> syn::Result<TokenStr
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn custom_uses_shared_owner_and_field_admission() {
+        let arguments = quote!(custom(
+            template = "example://item/{id}",
+            error = OwnerError,
+            route_error = map_error
+        ));
+        let item = quote!(
+            struct Item(#[resource(variable = "id")] ItemId);
+        );
+        syn::parse2::<syn::File>(expand(arguments.clone(), item).unwrap()).unwrap();
+        for item in [
+            quote!(
+                #[resource(template = "example://other/{id}")]
+                struct Item(#[resource(variable = "id")] ItemId);
+            ),
+            quote!(
+                struct Item(#[resource(variable = "id", variable = "id")] ItemId);
+            ),
+            quote!(
+                struct Item(#[resource(variable = "id", unknown)] ItemId);
+            ),
+            quote!(
+                struct Item(#[resource(variable = "id", clone_accessor)] ItemId);
+            ),
+        ] {
+            assert!(expand(arguments.clone(), item).is_err());
+        }
+    }
+
+    #[test]
+    fn split_field_hooks_emit_one_convenience_accessor() {
+        let output = expand(
+            quote!(cached_checked(Uris), template = "example://item/{id}"),
+            quote!(
+                struct Item {
+                    #[resource(cache)]
+                    wire: String,
+                    #[resource(accessor = id)]
+                    #[resource(clone_accessor, admit = admit_id)]
+                    id: ItemId,
+                }
+            ),
+        )
+        .unwrap();
+        syn::parse2::<syn::File>(output.clone()).unwrap();
+        assert_eq!(output.to_string().matches("pub fn id (").count(), 1);
+        assert!(output.to_string().contains("admit_id"));
+    }
 
     #[test]
     fn forms_preserve_component_presets_and_admit_foreign_derives() {

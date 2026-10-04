@@ -74,6 +74,11 @@ trait for nongeneric structs and enums. Each declaration selects an ordinary own
 | `routes(Profile)` | Enum with a template on each variant; owner-defined variant construction |
 | `custom(...)` | Explicit mechanics for representations outside these forms |
 
+The parser admits owner, variant and field options once into a shared declaration.
+Both compact forms and custom declarations use that model. The emitter uses its
+checked routes for parsing, constructors, accessors and discovery, with one component
+builder for scalar fields, tails and optional queries.
+
 A struct declares `template = "…"` on the attribute. The profile maps route errors;
 URI errors use that mapping unless the owner overrides it. Every dynamic component maps
 to one concrete field. Named fields use their Rust spelling unless

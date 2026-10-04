@@ -648,9 +648,16 @@ The cursor codec migration in `bf914bfcf` accounts for 214 added implementation 
 Optimization's numeric wrapper replacement in `fae271c3e` accounts for 87. About 1,900
 lines still require attribution or reduction, with all shared ID/address machinery
 charged to the replacement. The repair's reduction against the expanded current
-implementation does not prove a net reduction from the historical baseline. The next
-simplification to evaluate is a single typed address declaration passed from frontend
-to backend instead of synthesized attributes and reparsing; its savings are unproven.
+implementation does not prove a net reduction from the historical baseline.
+
+The address compiler now parses owner, variant and field options once. Compact and
+custom forms share a checked declaration, and constructors and resource output share
+one component builder. This removes attribute synthesis, reparsing and duplicated
+builder emission. The parsed model offsets those deletions: this change adds five
+implementation lines and leaves the historical cost requirement unmet. Shared and
+owner native tests and the independent contract consumer pass. Shared interfaces are
+stable enough for the independent Phase 5 and 6 work allowed by the phase ordering;
+the cost requirement stays open alongside those batches.
 
 The correction uses attribute front ends for ID and resource declarations so they
 can generate standard derives as well as implementations. Ordinary public traits

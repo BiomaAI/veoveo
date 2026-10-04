@@ -1,4 +1,10 @@
 use super::*;
+use syn::DeriveInput;
+
+fn generate(input: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
+    let declaration = Declaration::new(input, declaration::read_options(&input.attrs)?, false)?;
+    super::generate(&declaration)
+}
 
 #[test]
 fn declaration_maps_fields_to_variables_and_requires_tail_codecs() {

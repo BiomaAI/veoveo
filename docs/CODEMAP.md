@@ -475,9 +475,10 @@ domain registry or database adapter.
 `src/resource_route.rs` owns component route descriptors, checked discovery and the
 open scalar/tail codec traits. `src/resource_route/pattern.rs` supplies encoding-aware
 structural patterns. `src/resource_profile.rs` supplies owner error/schema profiles.
-`platform/macros/src/resource_address_frontend.rs` parses compact address forms;
-`resource_address.rs` and `resource_address/declaration.rs` compile routes,
-constructor helpers, accessors and owner hooks. Independent address implementations
+`platform/macros/src/resource_address_frontend.rs` selects compact address forms;
+`resource_address/declaration.rs` parses owner options, fields and routes once into
+a checked declaration. `resource_address.rs` emits traits and shared component builders
+from that declaration. Independent address implementations
 keep the ordinary trait. Public template constants come from those same declarations.
 The re-exported `Vocabulary` derive lives in `platform/macros`. `src/digest.rs` owns the
 prefixed SHA-256 representation shared by provenance contracts. `src/sha256_hex.rs`

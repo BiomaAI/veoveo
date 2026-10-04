@@ -1,6 +1,7 @@
 use quote::quote;
 use syn::ext::IdentExt;
-use syn::{Attribute, Expr, Field, Fields, LitBool, LitStr, Type};
+use syn::parse::Parser;
+use syn::{Attribute, Data, DeriveInput, Expr, Field, Fields, LitBool, LitStr, Type};
 
 #[derive(Clone)]
 pub(crate) struct Options {
@@ -34,40 +35,49 @@ impl Default for Options {
     }
 }
 pub(crate) fn read_options(attrs: &[Attribute]) -> syn::Result<Options> {
+    read_custom_options(attrs, proc_macro2::TokenStream::new())
+}
+
+pub(crate) fn read_custom_options(
+    attrs: &[Attribute],
+    tokens: proc_macro2::TokenStream,
+) -> syn::Result<Options> {
     let mut options = Options::default();
     let mut seen = std::collections::BTreeSet::new();
+    let mut parse = |meta: syn::meta::ParseNestedMeta<'_>| {
+        if !seen.insert(meta.path.get_ident().map(ToString::to_string)) {
+            return Err(meta.error("duplicate resource owner hook"));
+        }
+        if meta.path.is_ident("template") {
+            options.template = Some(meta.value()?.parse()?);
+        } else if meta.path.is_ident("error") {
+            options.error = Some(meta.value()?.parse()?);
+        } else if meta.path.is_ident("route_error") {
+            options.route_error = Some(meta.value()?.parse()?);
+        } else if meta.path.is_ident("validate") {
+            options.validate = Some(meta.value()?.parse()?);
+        } else if meta.path.is_ident("input") {
+            options.input = Some(meta.value()?.parse()?);
+        } else if meta.path.is_ident("schema") {
+            options.schema = Some(meta.value()?.parse()?);
+        } else if meta.path.is_ident("schema_inline") {
+            options.schema_inline = true;
+        } else if meta.path.is_ident("canonical") {
+            options.canonical = meta.value()?.parse::<LitBool>()?.value;
+            options.canonical_set = true;
+        } else if meta.path.is_ident("allow_empty_query") {
+            options.allow_empty_query = true;
+        } else if meta.path.is_ident("wire") {
+            options.wire = true;
+        } else {
+            return Err(meta.error("unknown resource owner hook"));
+        }
+        Ok(())
+    };
     for attr in attrs.iter().filter(|attr| attr.path().is_ident("resource")) {
-        attr.parse_nested_meta(|meta| {
-            if !seen.insert(meta.path.get_ident().map(ToString::to_string)) {
-                return Err(meta.error("duplicate resource owner hook"));
-            }
-            if meta.path.is_ident("template") {
-                options.template = Some(meta.value()?.parse()?);
-            } else if meta.path.is_ident("error") {
-                options.error = Some(meta.value()?.parse()?);
-            } else if meta.path.is_ident("route_error") {
-                options.route_error = Some(meta.value()?.parse()?);
-            } else if meta.path.is_ident("validate") {
-                options.validate = Some(meta.value()?.parse()?);
-            } else if meta.path.is_ident("input") {
-                options.input = Some(meta.value()?.parse()?);
-            } else if meta.path.is_ident("schema") {
-                options.schema = Some(meta.value()?.parse()?);
-            } else if meta.path.is_ident("schema_inline") {
-                options.schema_inline = true;
-            } else if meta.path.is_ident("canonical") {
-                options.canonical = meta.value()?.parse::<LitBool>()?.value;
-                options.canonical_set = true;
-            } else if meta.path.is_ident("allow_empty_query") {
-                options.allow_empty_query = true;
-            } else if meta.path.is_ident("wire") {
-                options.wire = true;
-            } else {
-                return Err(meta.error("unknown resource owner hook"));
-            }
-            Ok(())
-        })?;
+        attr.parse_nested_meta(&mut parse)?;
     }
+    syn::meta::parser(parse).parse2(tokens)?;
     if options.schema_inline && options.schema.is_none() {
         return Err(syn::Error::new(
             proc_macro2::Span::call_site(),
@@ -103,6 +113,7 @@ pub(crate) fn read_variant_options(attrs: &[Attribute], parent: &Options) -> syn
     Ok(options)
 }
 
+#[derive(Clone, Default)]
 pub(crate) struct FieldOptions {
     pub variable: String,
     pub codec: Option<Type>,
@@ -111,20 +122,23 @@ pub(crate) struct FieldOptions {
     pub cache: bool,
     pub accessor: Option<syn::Ident>,
     pub copy_accessor: bool,
+    pub argument: Option<String>,
+    pub admit: Option<Expr>,
+    pub clone_accessor: bool,
+    pub owned_accessor: bool,
 }
-pub(crate) fn read_field(field: &Field, position: usize) -> syn::Result<FieldOptions> {
+pub(crate) fn read_field(
+    field: &Field,
+    position: usize,
+    conveniences: bool,
+) -> syn::Result<FieldOptions> {
     let mut options = FieldOptions {
         variable: field
             .ident
             .as_ref()
             .map(|name| name.unraw().to_string())
             .unwrap_or_default(),
-        codec: None,
-        error: None,
-        tail: false,
-        cache: false,
-        accessor: None,
-        copy_accessor: false,
+        ..FieldOptions::default()
     };
     let mut seen = std::collections::BTreeSet::new();
     for attr in field
@@ -133,8 +147,29 @@ pub(crate) fn read_field(field: &Field, position: usize) -> syn::Result<FieldOpt
         .filter(|attr| attr.path().is_ident("resource"))
     {
         attr.parse_nested_meta(|meta| {
+            let convenience = ["argument", "admit", "clone_accessor", "owned_accessor"]
+                .iter()
+                .any(|name| meta.path.is_ident(name));
             if !seen.insert(meta.path.get_ident().map(ToString::to_string)) {
-                return Err(meta.error("duplicate resource field hook"));
+                return Err(meta.error(if convenience && conveniences {
+                    "duplicate address field convenience"
+                } else {
+                    "duplicate resource field hook"
+                }));
+            }
+            if conveniences
+                && [
+                    "cache",
+                    "tail",
+                    "copy_accessor",
+                    "clone_accessor",
+                    "owned_accessor",
+                ]
+                .iter()
+                .any(|name| meta.path.is_ident(name))
+                && (meta.input.peek(syn::Token![=]) || meta.input.peek(syn::token::Paren))
+            {
+                return Err(meta.error("address flag must be bare"));
             }
             if meta.path.is_ident("variable") {
                 options.variable = meta.value()?.parse::<LitStr>()?.value();
@@ -150,6 +185,19 @@ pub(crate) fn read_field(field: &Field, position: usize) -> syn::Result<FieldOpt
                 options.accessor = Some(meta.value()?.parse()?);
             } else if meta.path.is_ident("copy_accessor") {
                 options.copy_accessor = true;
+            } else if conveniences && meta.path.is_ident("argument") {
+                let name: syn::Path = meta.value()?.parse()?;
+                options.argument = Some(
+                    name.get_ident()
+                        .ok_or_else(|| meta.error("address preset requires one name"))?
+                        .to_string(),
+                );
+            } else if conveniences && meta.path.is_ident("admit") {
+                options.admit = Some(meta.value()?.parse()?);
+            } else if conveniences && meta.path.is_ident("clone_accessor") {
+                options.clone_accessor = true;
+            } else if conveniences && meta.path.is_ident("owned_accessor") {
+                options.owned_accessor = true;
             } else {
                 return Err(meta.error("unknown resource field hook"));
             }
@@ -195,6 +243,127 @@ pub(crate) fn read_field(field: &Field, position: usize) -> syn::Result<FieldOpt
     Ok(options)
 }
 
+pub(crate) struct Declaration<'a> {
+    pub name: &'a syn::Ident,
+    pub options: Options,
+    pub routes: Vec<RouteDeclaration<'a>>,
+}
+pub(crate) struct RouteDeclaration<'a> {
+    pub fields: &'a Fields,
+    pub variant: Option<&'a syn::Ident>,
+    pub options: Options,
+    pub settings: Vec<FieldOptions>,
+    pub route: Route,
+}
+impl<'a> Declaration<'a> {
+    pub fn new(input: &'a DeriveInput, options: Options, conveniences: bool) -> syn::Result<Self> {
+        if !input.generics.params.is_empty() || input.generics.where_clause.is_some() {
+            return Err(syn::Error::new_spanned(
+                input,
+                "ResourceAddress requires a nongeneric owner",
+            ));
+        }
+        if options.error.is_none() {
+            return Err(syn::Error::new_spanned(
+                input,
+                "resource requires error = OwnerError",
+            ));
+        }
+        if options.route_error.is_none() {
+            return Err(syn::Error::new_spanned(
+                input,
+                "resource requires route_error = owner_mapping",
+            ));
+        }
+        let mut routes: Vec<RouteDeclaration<'a>> = Vec::new();
+        let mut add = |fields: &'a Fields,
+                       variant: Option<&'a syn::Variant>,
+                       options: Options|
+         -> syn::Result<()> {
+            let settings = fields
+                .iter()
+                .enumerate()
+                .map(|(index, field)| read_field(field, index, conveniences))
+                .collect::<syn::Result<Vec<_>>>()?;
+            if let Some(variant) = variant {
+                if settings.iter().any(|options| options.cache) {
+                    return Err(syn::Error::new_spanned(
+                        variant,
+                        "enum variants cannot hold externally private resource caches",
+                    ));
+                }
+                if settings.iter().any(|options| options.accessor.is_some()) {
+                    return Err(syn::Error::new_spanned(
+                        variant,
+                        "enum accessors stay owner-defined",
+                    ));
+                }
+            } else if settings.iter().any(|options| options.cache)
+                && fields
+                    .iter()
+                    .any(|field| !matches!(field.vis, syn::Visibility::Inherited))
+            {
+                return Err(syn::Error::new_spanned(
+                    fields,
+                    "every field of a cached resource must be private to its owner module",
+                ));
+            }
+            let route = Route::new(&options, fields, &settings)?;
+            if let Some(variant) = variant
+                && routes.iter().any(|other| route.overlaps(&other.route))
+            {
+                return Err(syn::Error::new_spanned(
+                    variant,
+                    "resource route overlaps another variant's component shape",
+                ));
+            }
+            routes.push(RouteDeclaration {
+                options,
+                fields,
+                variant: variant.map(|variant| &variant.ident),
+                settings,
+                route,
+            });
+            Ok(())
+        };
+        match &input.data {
+            Data::Struct(data) => add(&data.fields, None, options.clone())?,
+            Data::Enum(data) => {
+                if options.template.is_some() {
+                    return Err(syn::Error::new_spanned(
+                        input,
+                        "enum routes declare templates on each variant",
+                    ));
+                }
+                for variant in &data.variants {
+                    if variant.discriminant.is_some() {
+                        return Err(syn::Error::new_spanned(
+                            variant,
+                            "resource variants cannot have numeric discriminants",
+                        ));
+                    }
+                    add(
+                        &variant.fields,
+                        Some(variant),
+                        read_variant_options(&variant.attrs, &options)?,
+                    )?;
+                }
+            }
+            _ => {
+                return Err(syn::Error::new_spanned(
+                    input,
+                    "ResourceAddress requires a struct or enum",
+                ));
+            }
+        }
+        Ok(Self {
+            name: &input.ident,
+            options,
+            routes,
+        })
+    }
+}
+
 pub(crate) enum Part {
     Literal(String),
     Scalar(String),
@@ -212,7 +381,7 @@ pub(crate) struct Route {
     canonical_query_order: bool,
 }
 impl Route {
-    pub fn new(options: &Options, fields: &Fields) -> syn::Result<Self> {
+    pub fn new(options: &Options, fields: &Fields, settings: &[FieldOptions]) -> syn::Result<Self> {
         let template = options.template.clone().ok_or_else(|| {
             syn::Error::new_spanned(fields, "resource route requires template = literal")
         })?;
@@ -304,8 +473,7 @@ impl Route {
         }
         let mut mapped = std::collections::BTreeSet::new();
         let mut cache_count = 0;
-        for (position, field) in fields.iter().enumerate() {
-            let options = read_field(field, position)?;
+        for (field, options) in fields.iter().zip(settings) {
             if options.cache {
                 cache_count += 1;
                 continue;

@@ -1,27 +1,16 @@
 //! Thin address derive. Component matching and encoding live in veoveo-types.
 use quote::{format_ident, quote};
 use syn::ext::IdentExt;
-use syn::{Data, DeriveInput, Fields, Type};
+use syn::{Fields, Type};
 
 pub(crate) mod declaration;
-use declaration::{Options, Route, read_options};
+use declaration::{Declaration, FieldOptions, Options, Route};
 
-pub(super) fn generate(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
-    if !input.generics.params.is_empty() || input.generics.where_clause.is_some() {
-        return Err(syn::Error::new_spanned(
-            input,
-            "ResourceAddress requires a nongeneric owner",
-        ));
-    }
-    let options = read_options(&input.attrs)?;
-    let error = options
-        .error
-        .as_ref()
-        .ok_or_else(|| syn::Error::new_spanned(input, "resource requires error = OwnerError"))?;
-    let route_error = options.route_error.as_ref().ok_or_else(|| {
-        syn::Error::new_spanned(input, "resource requires route_error = owner_mapping")
-    })?;
-    let name = &input.ident;
+pub(super) fn generate(declaration: &Declaration<'_>) -> syn::Result<proc_macro2::TokenStream> {
+    let options = &declaration.options;
+    let error = options.error.as_ref().unwrap();
+    let route_error = options.route_error.as_ref().unwrap();
+    let name = declaration.name;
     let mut descriptors = Vec::new();
     let mut pattern_cases = Vec::new();
     let mut templates = Vec::new();
@@ -30,103 +19,30 @@ pub(super) fn generate(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStr
     let mut build_cases = Vec::new();
     let mut wire_cases = Vec::new();
     let mut constructors = None;
-    let mut routes: Vec<Route> = Vec::new();
-    match &input.data {
-        Data::Struct(data) => {
-            let cached = data.fields.iter().enumerate().any(|(index, field)| {
-                declaration::read_field(field, index).is_ok_and(|options| options.cache)
-            });
-            if cached
-                && data
-                    .fields
-                    .iter()
-                    .any(|field| !matches!(field.vis, syn::Visibility::Inherited))
-            {
-                return Err(syn::Error::new_spanned(
-                    &data.fields,
-                    "every field of a cached resource must be private to its owner module",
-                ));
-            }
-            let route = Route::new(&options, &data.fields)?;
-            pattern_cases.push(pattern_case(&route, &data.fields, 0)?);
-            descriptors.push(route.descriptor());
-            let template = route.template();
+    for (index, parsed) in declaration.routes.iter().enumerate() {
+        let route = &parsed.route;
+        let settings = &parsed.settings;
+        let template = route.template();
+        let fields = parsed.fields;
+        let target = if let Some(variant) = parsed.variant {
+            let constant = template_constant(variant);
+            template_constants.push(quote!(pub const #constant: &'static str = #template;));
+            quote!(Self::#variant)
+        } else {
             let root = route.root();
             template_constants.push(quote!(pub const RESOURCE_ROOT: &'static str = #root;));
-            templates.push(template.clone());
             template_constants.push(quote!(pub const RESOURCE_TEMPLATE: &'static str = #template;));
-            constructors = Some(struct_helpers(&route, &data.fields, &options)?);
-            let (parse, build, wire) =
-                implementations(&route, &data.fields, quote!(Self), 0, &options)?;
-            parse_cases.push(parse);
-            build_cases.push(build);
-            wire_cases.push(wire);
-        }
-        Data::Enum(data) => {
-            if options.template.is_some() {
-                return Err(syn::Error::new_spanned(
-                    input,
-                    "enum routes declare templates on each variant",
-                ));
-            }
-            for (index, variant) in data.variants.iter().enumerate() {
-                if variant.discriminant.is_some() {
-                    return Err(syn::Error::new_spanned(
-                        variant,
-                        "resource variants cannot have numeric discriminants",
-                    ));
-                }
-                if variant.fields.iter().enumerate().any(|(index, field)| {
-                    declaration::read_field(field, index).is_ok_and(|options| options.cache)
-                }) {
-                    return Err(syn::Error::new_spanned(
-                        variant,
-                        "enum variants cannot hold externally private resource caches",
-                    ));
-                }
-                let variant_options = declaration::read_variant_options(&variant.attrs, &options)?;
-                if variant.fields.iter().enumerate().any(|(index, field)| {
-                    declaration::read_field(field, index)
-                        .is_ok_and(|options| options.accessor.is_some())
-                }) {
-                    return Err(syn::Error::new_spanned(
-                        variant,
-                        "enum accessors stay owner-defined",
-                    ));
-                }
-                let route = Route::new(&variant_options, &variant.fields)?;
-                if routes.iter().any(|other| route.overlaps(other)) {
-                    return Err(syn::Error::new_spanned(
-                        variant,
-                        "resource route overlaps another variant's component shape",
-                    ));
-                }
-                pattern_cases.push(pattern_case(&route, &variant.fields, index)?);
-                descriptors.push(route.descriptor());
-                let variant_name = &variant.ident;
-                let template = route.template();
-                templates.push(template.clone());
-                let constant = template_constant(variant_name);
-                template_constants.push(quote!(pub const #constant: &'static str = #template;));
-                let (parse, build, wire) = implementations(
-                    &route,
-                    &variant.fields,
-                    quote!(Self::#variant_name),
-                    index,
-                    &variant_options,
-                )?;
-                routes.push(route);
-                parse_cases.push(parse);
-                build_cases.push(build);
-                wire_cases.push(wire);
-            }
-        }
-        _ => {
-            return Err(syn::Error::new_spanned(
-                input,
-                "ResourceAddress requires a struct or enum",
-            ));
-        }
+            constructors = Some(struct_helpers(route, fields, settings, options)?);
+            quote!(Self)
+        };
+        pattern_cases.push(pattern_case(route, fields, settings, index)?);
+        descriptors.push(route.descriptor());
+        templates.push(template.clone());
+        let (parse, build, wire) =
+            implementations(route, fields, settings, target, index, &parsed.options)?;
+        parse_cases.push(parse);
+        build_cases.push(build);
+        wire_cases.push(wire);
     }
     let validate_self = options
         .validate
@@ -192,23 +108,24 @@ pub(super) fn generate(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStr
 fn pattern_case(
     route: &Route,
     fields: &Fields,
+    settings: &[FieldOptions],
     index: usize,
 ) -> syn::Result<proc_macro2::TokenStream> {
     let mut cases = Vec::new();
-    for (position, field) in fields.iter().enumerate() {
-        let settings = declaration::read_field(field, position)?;
+    for (field, settings) in fields.iter().zip(settings) {
         if settings.cache {
             continue;
         }
-        let variable = settings.variable;
+        let variable = &settings.variable;
         let codec = settings
             .codec
+            .clone()
             .unwrap_or_else(|| syn::parse_quote!(::veoveo_types::IdentityResourceCodec));
         let ty = &field.ty;
         let fragment = if settings.tail {
             quote!(<#codec as ::veoveo_types::ResourceTailCodec<#ty>>::encoded_pattern(context))
         } else {
-            let ty = if route.queries.iter().any(|query| query == &variable) {
+            let ty = if route.queries.iter().any(|query| query == variable) {
                 option_inner(ty).ok_or_else(|| {
                     syn::Error::new_spanned(field, "query field must be Option<T>")
                 })?
@@ -229,6 +146,7 @@ fn pattern_case(
 fn implementations(
     route: &Route,
     fields: &Fields,
+    settings: &[FieldOptions],
     target: proc_macro2::TokenStream,
     index: usize,
     options: &Options,
@@ -248,18 +166,15 @@ fn implementations(
         .as_ref()
         .map(|function| quote! { (#function)(&parts)?; });
     let mut parsing = Vec::new();
-    let mut bindings = Vec::new();
-    let mut queries = Vec::new();
     let mut names = Vec::new();
     let mut cache = None;
     let mut uses_capture = false;
-    for (position, field) in fields.iter().enumerate() {
+    for (position, (field, field_options)) in fields.iter().zip(settings).enumerate() {
         let binding = format_ident!(
             "__resource_field_{position}",
             span = proc_macro2::Span::mixed_site()
         );
         names.push(binding.clone());
-        let field_options = declaration::read_field(field, position)?;
         if field_options.cache {
             cache = Some((position, binding.clone(), is_string(&field.ty)));
             let value = if is_string(&field.ty) {
@@ -271,21 +186,19 @@ fn implementations(
             continue;
         }
         uses_capture = true;
-        let variable = field_options.variable;
+        let variable = &field_options.variable;
         let codec = field_options
             .codec
+            .clone()
             .unwrap_or_else(|| syn::parse_quote!(::veoveo_types::IdentityResourceCodec));
-        let map_error = field_options.error.map(|function| quote! { (#function)(error) })
+        let map_error = field_options.error.as_ref().map(|function| quote! { (#function)(error) })
             .unwrap_or_else(|| quote! { let _ = error; (#route_error)(::veoveo_types::ResourceRouteError::Field) });
-        if route.queries.iter().any(|name| name == &variable) {
+        if route.queries.iter().any(|name| name == variable) {
             let inner = option_inner(&field.ty)
                 .ok_or_else(|| syn::Error::new_spanned(field, "query field must be Option<T>"))?;
             parsing.push(quote! {
                 let #binding = captured.query(#variable).map(|text| <#codec as ::veoveo_types::ResourceFieldCodec<#inner>>::parse(text)
                     .map_err(|error| { #map_error })).transpose()?;
-            });
-            queries.push(quote! {
-                if let Some(value) = #binding.as_ref() { query.push((#variable, <#codec as ::veoveo_types::ResourceFieldCodec<#inner>>::text(value))); }
             });
         } else if field_options.tail {
             let ty = &field.ty;
@@ -293,14 +206,12 @@ fn implementations(
                 let #binding = <#codec as ::veoveo_types::ResourceTailCodec<#ty>>::parse(captured.tail(#variable).expect("declared tail"))
                     .map_err(|error| { #map_error })?;
             });
-            bindings.push(quote! { ::veoveo_types::RouteBinding::Tail { variable: #variable, segments: <#codec as ::veoveo_types::ResourceTailCodec<#ty>>::segments(#binding) } });
         } else {
             let ty = &field.ty;
             parsing.push(quote! {
                 let #binding = <#codec as ::veoveo_types::ResourceFieldCodec<#ty>>::parse(captured.scalar(#variable).expect("declared scalar"))
                     .map_err(|error| { #map_error })?;
             });
-            bindings.push(quote! { ::veoveo_types::RouteBinding::Scalar { variable: #variable, value: <#codec as ::veoveo_types::ResourceFieldCodec<#ty>>::text(#binding) } });
         }
     }
     let construction = match fields {
@@ -354,15 +265,19 @@ fn implementations(
             return Ok(value);
         }
     };
-    let query_mutability = (!queries.is_empty()).then(|| quote!(mut));
-    let build = quote! {
-        #pattern => {
-            let path = [#(#bindings),*];
-            let #query_mutability query = ::std::vec::Vec::new();
-            #(#queries)*
-            Self::RESOURCE_ROUTES[#index].build(&path, &query).map_err(|error| (#route_error)(error))
-        }
-    };
+    let values = names
+        .iter()
+        .zip(settings)
+        .map(|(name, settings)| {
+            if route.queries.contains(&settings.variable) {
+                quote!(#name.as_ref())
+            } else {
+                quote!(#name)
+            }
+        })
+        .collect::<Vec<_>>();
+    let build_body = build_components(route, fields, settings, &values, index, route_error)?;
+    let build = quote!(#pattern => { #build_body });
     let wire = if let Some((position, name, string)) = cache {
         let names = names.iter().enumerate().map(|(index, field)| {
             if matches!(fields, Fields::Named(_)) {
@@ -400,7 +315,46 @@ fn implementations(
     Ok((parse, build, wire))
 }
 
-fn option_inner(ty: &Type) -> Option<&Type> {
+fn build_components(
+    route: &Route,
+    fields: &Fields,
+    settings: &[FieldOptions],
+    values: &[proc_macro2::TokenStream],
+    index: usize,
+    route_error: &syn::Expr,
+) -> syn::Result<proc_macro2::TokenStream> {
+    let mut path = Vec::new();
+    let mut queries = Vec::new();
+    for ((field, settings), value) in fields.iter().zip(settings).zip(values) {
+        if settings.cache {
+            continue;
+        }
+        let variable = &settings.variable;
+        let codec = settings
+            .codec
+            .clone()
+            .unwrap_or_else(|| syn::parse_quote!(::veoveo_types::IdentityResourceCodec));
+        let ty = &field.ty;
+        if route.queries.contains(variable) {
+            let inner = option_inner(ty)
+                .ok_or_else(|| syn::Error::new_spanned(field, "query field must be Option<T>"))?;
+            queries.push(quote!(if let Some(value) = #value { query.push((#variable, <#codec as ::veoveo_types::ResourceFieldCodec<#inner>>::text(value))); }));
+        } else if settings.tail {
+            path.push(quote!(::veoveo_types::RouteBinding::Tail { variable: #variable, segments: <#codec as ::veoveo_types::ResourceTailCodec<#ty>>::segments(#value) }));
+        } else {
+            path.push(quote!(::veoveo_types::RouteBinding::Scalar { variable: #variable, value: <#codec as ::veoveo_types::ResourceFieldCodec<#ty>>::text(#value) }));
+        }
+    }
+    let query_mutability = (!queries.is_empty()).then(|| quote!(mut));
+    Ok(quote! {
+        let path = [#(#path),*];
+        let #query_mutability query = ::std::vec::Vec::new();
+        #(#queries)*
+        Self::RESOURCE_ROUTES[#index].build(&path, &query).map_err(|error| (#route_error)(error))
+    })
+}
+
+pub(super) fn option_inner(ty: &Type) -> Option<&Type> {
     let Type::Path(path) = ty else {
         return None;
     };
@@ -426,6 +380,7 @@ mod tests;
 fn struct_helpers(
     route: &Route,
     fields: &Fields,
+    settings: &[FieldOptions],
     options: &Options,
 ) -> syn::Result<proc_macro2::TokenStream> {
     let error = options.error.as_ref().unwrap();
@@ -433,10 +388,9 @@ fn struct_helpers(
     let mut owned_parameters = Vec::new();
     let mut borrowed_parameters = Vec::new();
     let mut arguments = Vec::new();
-    let mut path = Vec::new();
-    let mut queries = Vec::new();
+    let mut values = Vec::new();
     let mut accessors = Vec::new();
-    for (index, field) in fields.iter().enumerate() {
+    for (index, (field, settings)) in fields.iter().zip(settings).enumerate() {
         let name = field
             .ident
             .clone()
@@ -447,31 +401,23 @@ fn struct_helpers(
             .map(syn::Member::Named)
             .unwrap_or_else(|| syn::Member::Unnamed(syn::Index::from(index)));
         let ty = &field.ty;
-        let settings = declaration::read_field(field, index)?;
         if settings.cache {
+            values.push(quote!());
             continue;
         }
         owned_parameters.push(quote!(#name: #ty));
-        let variable = settings.variable;
-        let codec = settings
-            .codec
-            .unwrap_or_else(|| syn::parse_quote!(::veoveo_types::IdentityResourceCodec));
-        if route.queries.contains(&variable) {
+        let variable = &settings.variable;
+        if route.queries.contains(variable) {
             let inner = option_inner(ty)
                 .ok_or_else(|| syn::Error::new_spanned(field, "query field must be Option<T>"))?;
             borrowed_parameters.push(quote!(#name: Option<&#inner>));
             arguments.push(quote!(#name.as_ref()));
-            queries.push(quote!(if let Some(value) = #name { query.push((#variable, <#codec as ::veoveo_types::ResourceFieldCodec<#inner>>::text(value))); }));
         } else {
             borrowed_parameters.push(quote!(#name: &#ty));
             arguments.push(quote!(&#name));
-            if settings.tail {
-                path.push(quote!(::veoveo_types::RouteBinding::Tail { variable: #variable, segments: <#codec as ::veoveo_types::ResourceTailCodec<#ty>>::segments(#name) }));
-            } else {
-                path.push(quote!(::veoveo_types::RouteBinding::Scalar { variable: #variable, value: <#codec as ::veoveo_types::ResourceFieldCodec<#ty>>::text(#name) }));
-            }
         }
-        if let Some(accessor) = settings.accessor {
+        values.push(quote!(#name));
+        if let Some(accessor) = &settings.accessor {
             let method = if settings.copy_accessor {
                 quote!(pub fn #accessor(&self) -> #ty { self.#member })
             } else if let Some(inner) = option_inner(ty) {
@@ -482,14 +428,11 @@ fn struct_helpers(
             accessors.push(method);
         }
     }
-    let query_mutability = (!queries.is_empty()).then(|| quote!(mut));
+    let build = build_components(route, fields, settings, &values, 0, route_error)?;
     Ok(quote! {
         /// Encode admitted typed components through the shared route descriptor.
         fn resource_build_uri(#(#borrowed_parameters),*) -> Result<::veoveo_types::ResourceUri, #error> {
-            let path = [#(#path),*];
-            let #query_mutability query = ::std::vec::Vec::new();
-            #(#queries)*
-            Self::RESOURCE_ROUTES[0].build(&path, &query).map_err(|error| (#route_error)(error))
+            #build
         }
         /// Construct a checked owner value and initialize its declared wire cache.
         pub fn resource_from_parts(#(#owned_parameters),*) -> Result<Self, #error> {
