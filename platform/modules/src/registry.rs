@@ -32,7 +32,7 @@ impl ModuleRegistry {
                     )));
                 }
             }
-            for table in [LANE_TABLE, MIGRATION_TABLE] {
+            for table in [LANE_TABLE, MIGRATION_TABLE, PREPARATION_TABLE] {
                 if module
                     .ownership()
                     .iter()

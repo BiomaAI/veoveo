@@ -27,6 +27,7 @@ pub mod runner;
 
 /// History bookkeeping is infrastructure owned by the Store base.
 pub const LANE_TABLE: &str = "platform_module_lane";
+pub const PREPARATION_TABLE: &str = "platform_module_installation";
 pub const MIGRATION_TABLE: &str = "platform_module_migration";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -42,3 +43,8 @@ impl std::fmt::Display for DeclarationError {
     }
 }
 impl std::error::Error for DeclarationError {}
+
+#[cfg(feature = "serialization")]
+mod plan;
+#[cfg(feature = "serialization")]
+pub use plan::*;

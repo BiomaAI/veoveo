@@ -278,6 +278,35 @@ impl PlatformStore {
     }
 }
 
+/// Identity of both compiled mixed catalogs while ownership extraction is pending.
+pub fn schema_catalog_identity() -> String {
+    let mut hash = Sha256::new();
+    fn part(hash: &mut Sha256, value: &[u8]) {
+        hash.update((value.len() as u64).to_be_bytes());
+        hash.update(value);
+    }
+    part(&mut hash, b"veoveo.ai/mixed-schema-catalog/v1");
+    for migration in MIGRATIONS {
+        part(&mut hash, &migration.version.to_be_bytes());
+        part(&mut hash, migration.name.as_bytes());
+        part(&mut hash, migration.filename.as_bytes());
+        part(&mut hash, migration.sql.as_bytes());
+    }
+    part(&mut hash, b"downstream");
+    for entry in downstream::MIGRATIONS {
+        part(&mut hash, &entry.requires_upstream.to_be_bytes());
+        let migration = &entry.migration;
+        part(&mut hash, &migration.version.to_be_bytes());
+        part(&mut hash, migration.name.as_bytes());
+        part(&mut hash, migration.filename.as_bytes());
+        part(&mut hash, migration.sql.as_bytes());
+    }
+    hash.finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;

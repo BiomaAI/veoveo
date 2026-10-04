@@ -7,6 +7,7 @@
 | Module declarations | Repository-owned typed Rust API; the default library has no dependencies |
 | SurrealQL | Private parser and AST adapter pinned together to `surrealdb-syn =3.3.0` and `surrealdb-sql =3.3.0`; admitted subset described below |
 | Database transport | SurrealDB Rust SDK `=3.3.0`, WebSocket with Rustls, explicit native transactions |
+| Generated installation plan | Repository-owned `veoveo.ai/module-selection/v1` and `veoveo.ai/module-plan/v1` JSON; camelCase fields, positive u64 generation encoded as canonical decimal text |
 | Migration identity | SHA-256 over the owner body and recorded declaration identity; append-only numbered lane history |
 
 ## Declaration Ownership
@@ -75,8 +76,9 @@ SQL bodies or bound values.
 
 ## History And Execution
 
-Store owns the reserved `platform_module_lane` and `platform_module_migration` tables.
-The runner alone mutates them; owner SQL cannot access either table. Logical ownership
+Store owns the reserved `platform_module_lane`, `platform_module_migration` and
+`platform_module_installation` tables.
+The runner alone mutates them; owner SQL cannot access these tables. Logical ownership
 checks constrain admitted SQL independently of the database user's privileges. A database
 EDITOR or system user does not provide per-module table isolation.
 
@@ -110,3 +112,36 @@ when upstream offers a maintained equivalent that preserves complete inspection.
 Installation commands, rendered Jobs, fresh-install/upgrade ordering and credential
 provisioning/publication separation still require deployment qualification. Existing
 production schemas, histories and bootstrap stay in use until those hosts qualify.
+## Generated Composition Plans
+
+The optional `serialization` feature adds checked JSON selection and plan documents.
+The default declaration graph has no dependencies. A composition calls actual owner
+exports and generates dependency-ordered lane descriptors, complete module names and
+host predicates. Every present key in a host predicate must be enabled; separate rows
+express alternative consumers. An enabled host requires its selected schema lane,
+while selection alone never starts a workload.
+
+The composition identity is a locked OCI digest supplied by installation compilation.
+It is not a binary self-attestation. Running the exact locked image and binding the
+rendered objects establishes provenance. Consumers regenerate the entire plan from
+compiled declarations before effects; selected module names remain open validated types.
+
+## Preparation Generation
+
+`PreparationKey` and `InstallationGeneration` are dependency-free checked types.
+The composition hashes its complete plan, compiled mixed-schema identity and runtime
+account name into a preparation identity. The generation is an installation-owned
+positive integer, independent of chart release metadata. A changed preparation identity
+requires a higher generation; the same generation with conflicting identity fails.
+
+Prepared execution initializes the reserved infrastructure, then claims the generation
+before mixed-schema work. A delayed older preparer cannot rotate the newer account.
+Completion rotates a validated database editor and writes the completion marker in one
+owned native transaction. Already completed keys do not repeat rotation. The API accepts
+only credentials for this fixed operation and has no arbitrary-SQL execution hook.
+A live Tokio runtime supports cancellation cleanup as described above.
+
+Installation lane execution compares the completed preparation key inside every
+header and migration transaction. A current lane also verifies its key before returning.
+Absent or unfinished preparation may wait within the caller's deadline; malformed
+markers, conflicting identities and superseding generations fail admission.

@@ -78,7 +78,7 @@ Component designs live beside the code whose contract they specify:
 | [`platform/audit/measurements/2026-09-30.md`](../platform/audit/measurements/2026-09-30.md) | paired native audit timings, batching selection, raw samples and limits of the development measurement |
 | [`platform/audit/src/export/DESIGN.md`](../platform/audit/src/export/DESIGN.md) | typed OCSF mapping, S3/OTLP completion and recovery, persisted delivery receipts and export-gated retention |
 | [`platform/audit/contract/DESIGN.md`](../platform/audit/contract/DESIGN.md) | protocol-independent checked audit records, closed details, typed identities and partition-scoped reads; `src/knowledge.rs` admits source observations without external navigation URLs |
-| [`platform/modules/DESIGN.md`](../platform/modules/DESIGN.md) | dependency-free checked module ownership declarations, target dependency selection and optional private SurrealQL admission/native lane runner |
+| [`platform/modules/DESIGN.md`](../platform/modules/DESIGN.md) | dependency-free checked module ownership declarations and installation identities, generated composition plans, and optional SurrealQL admission/native lane execution |
 | [`platform/workspace/DESIGN.md`](../platform/workspace/DESIGN.md) | Workspace schema ownership declaration and declared Agents dependency; persistence extraction remains planned |
 | [`platform/macros/DESIGN.md`](../platform/macros/DESIGN.md) | shared `Id`, `ResourceAddress` and `Vocabulary` derives and compile-time UTF-8 document hashing; owner admission, wire/schema profiles and consumer-only database delegation |
 | [`platform/types/DESIGN.md`](../platform/types/DESIGN.md) | protocol-independent identity and attribution, installation and agent names, authentication vocabulary and issuer/subject identities, scope names, resource references, URI component parsing and builders, lexical selectors shared by policy and SQL admission, validation errors, and public extension traits |
@@ -398,9 +398,11 @@ tasks, subscriptions, notifications, and structured content in addition to tools
 
 `src/names.rs`, `declaration.rs` and `registry.rs` own checked names, ownership claims,
 append-only lane declarations, dependency ordering and enabled-module selection without
-normal or build dependencies. `src/runner/` contains the optional exact parser adapter,
-prepared SQL admission and native transaction executor. Kernel declarations live under
-`platform/store/src/schema/`; optional owners expose `schema::module_setup`. The
+normal or build dependencies. The optional `src/plan.rs` serialization surface describes
+the selected composition, execution commands and runtime bindings without enumerating
+owners. `src/runner/` contains the optional parser adapter, prepared SQL admission,
+native transaction executor and installation preparation fence. Kernel declarations
+live under `platform/store/src/schema/`; optional owners expose `schema::module_setup`. The
 [independent schema consumer](../testing/fixtures/module-schema-consumer/README.md)
 composes all 16 real exports without contract/runtime dependency graphs.
 

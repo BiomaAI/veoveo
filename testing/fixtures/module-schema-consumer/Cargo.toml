@@ -8,7 +8,7 @@ publish = false
 resolver = "3"
 
 [dependencies]
-veoveo-modules = { path = "../../../platform/modules", default-features = false }
+veoveo-modules = { path = "../../../platform/modules", default-features = false, features = ["serialization"] }
 veoveo-platform-store = { path = "../../../platform/store", default-features = false, features = ["schema"] }
 veoveo-computers = { path = "../../../platform/computers", default-features = false, features = ["schema"] }
 veoveo-agent-runtime = { path = "../../../agents/runtime", default-features = false, features = ["schema"] }
@@ -19,3 +19,7 @@ veoveo-time-mcp = { path = "../../../servers/time-mcp", default-features = false
 veoveo-uav-sim-mcp = { path = "../../../servers/uav-sim-mcp", default-features = false, features = ["schema"] }
 veoveo-frames-mcp = { path = "../../../servers/frames-mcp", default-features = false, features = ["schema"] }
 veoveo-media-mcp = { path = "../../../servers/media-mcp", default-features = false, features = ["schema"] }
+
+[dev-dependencies]
+# Reuse qualified workspace JSON wire implementation; no runner/driver dependency.
+serde_json = "=1.0.151"

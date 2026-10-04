@@ -13,6 +13,7 @@ pub fn module_setup(execution: LaneExecution) -> Result<ModuleSetup, Declaration
             OwnershipClaim::Table(TableName::new("changefeed_checkpoint")?),
             OwnershipClaim::Table(TableName::new("platform_schema_migration")?),
             OwnershipClaim::Table(TableName::new("platform_downstream_migration")?),
+            OwnershipClaim::Table(TableName::new("platform_module_installation")?),
             OwnershipClaim::Table(TableName::new("platform_module_lane")?),
             OwnershipClaim::Table(TableName::new("platform_module_migration")?),
         ])

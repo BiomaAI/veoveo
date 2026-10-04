@@ -1,0 +1,11 @@
+{
+  "format": "veoveo.ai/module-selection/v1",
+  "enabled": [
+    "frames",
+    "map",
+    "media",
+    "recordings"
+  ],
+  "generation": "1",
+  "credentialRevision": "fixture-1"
+}

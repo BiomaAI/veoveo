@@ -1,0 +1,8 @@
+{
+  "format": "veoveo.ai/module-selection/v1",
+  "enabled": [
+    "recordings"
+  ],
+  "generation": "1",
+  "credentialRevision": "fixture-1"
+}

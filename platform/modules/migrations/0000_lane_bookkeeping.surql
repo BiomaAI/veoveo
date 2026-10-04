@@ -16,3 +16,8 @@ DEFINE FIELD IF NOT EXISTS requirements.* ON platform_module_migration TYPE obje
 DEFINE FIELD IF NOT EXISTS requirements.*.module ON platform_module_migration TYPE string;
 DEFINE FIELD IF NOT EXISTS requirements.*.version ON platform_module_migration TYPE option<int>;
 DEFINE INDEX IF NOT EXISTS module_migration_identity ON platform_module_migration FIELDS module, version UNIQUE;
+DEFINE TABLE IF NOT EXISTS platform_module_installation SCHEMAFULL PERMISSIONS NONE;
+DEFINE FIELD IF NOT EXISTS id ON platform_module_installation TYPE string;
+DEFINE FIELD IF NOT EXISTS generation ON platform_module_installation TYPE string;
+DEFINE FIELD IF NOT EXISTS identity ON platform_module_installation TYPE string;
+DEFINE FIELD IF NOT EXISTS complete ON platform_module_installation TYPE bool;

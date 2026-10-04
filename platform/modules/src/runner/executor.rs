@@ -11,10 +11,11 @@ use surrealdb::{
 use super::{PreparedInstallation, RunnerError};
 use crate::{
     LANE_TABLE, LaneRequirement, MIGRATION_TABLE, Migration, MigrationVersion, ModuleName,
+    PREPARATION_TABLE, PreparationKey,
 };
 
 #[path = "executor/transaction.rs"]
-mod transaction;
+pub(super) mod transaction;
 pub use transaction::ExecutionLimits;
 
 const INFRASTRUCTURE: &str = include_str!("../../migrations/0000_lane_bookkeeping.surql");
@@ -50,7 +51,7 @@ impl InstallationStatus {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, SurrealValue)]
-struct Header {
+pub(super) struct Header {
     id: RecordId,
     module: String,
     initialized: bool,
@@ -61,7 +62,7 @@ struct Receipt {
     version: Option<i64>,
 }
 #[derive(Clone, Debug, Deserialize, Serialize, SurrealValue)]
-struct Applied {
+pub(super) struct Applied {
     id: RecordId,
     module: String,
     version: i64,
@@ -263,6 +264,27 @@ impl PreparedInstallation<'_> {
             transaction::Output::Written => unreachable!("history operation returns history"),
         }
     }
+    /// Initialize only reserved infrastructure after complete selected-SQL admission.
+    pub async fn initialize<C: Connection>(&self, db: &Surreal<C>) -> Result<(), RunnerError> {
+        let limits = ExecutionLimits::default();
+        if infrastructure_state(db, limits).await? {
+            return Ok(());
+        }
+        let result = transaction::execute(db, transaction::Operation::Infrastructure, limits).await;
+        if let Err(error) = result
+            && !error.may_observe_winner
+        {
+            return Err(error.error);
+        }
+        if !infrastructure_state(db, limits).await? {
+            return Err(failure(
+                "no matching committed bookkeeping infrastructure",
+                None,
+            ));
+        }
+        Ok(())
+    }
+
     pub async fn apply<C: Connection>(
         &self,
         db: &Surreal<C>,
@@ -295,6 +317,26 @@ impl PreparedInstallation<'_> {
         name: &ModuleName,
         limits: ExecutionLimits,
     ) -> Result<InstallationStatus, RunnerError> {
+        self.apply_lane_guarded(db, name, limits, None).await
+    }
+    /// Installation Jobs fence every native mutation against the prepared generation.
+    pub async fn apply_installation_lane<C: Connection>(
+        &self,
+        db: &Surreal<C>,
+        name: &ModuleName,
+        preparation: &PreparationKey,
+    ) -> Result<InstallationStatus, RunnerError> {
+        self.require_preparation(db, preparation).await?;
+        self.apply_lane_guarded(db, name, ExecutionLimits::default(), Some(preparation))
+            .await
+    }
+    async fn apply_lane_guarded<C: Connection>(
+        &self,
+        db: &Surreal<C>,
+        name: &ModuleName,
+        limits: ExecutionLimits,
+        preparation: Option<&PreparationKey>,
+    ) -> Result<InstallationStatus, RunnerError> {
         if !self.selection().contains(name) {
             return Err(failure("lane is not enabled", Some(name)));
         }
@@ -306,6 +348,9 @@ impl PreparedInstallation<'_> {
         let status = self.status_with_limits(db, limits).await?;
         let lane = status.lane(name).expect("known lane");
         if lane.is_current() {
+            if let Some(key) = preparation {
+                self.require_preparation(db, key).await?;
+            }
             return Ok(status);
         }
         check_prerequisites(module.requires(), &status, name)?;
@@ -329,11 +374,14 @@ impl PreparedInstallation<'_> {
         if !lane.initialized {
             let result = transaction::execute(
                 db,
-                transaction::Operation::Header(Header {
-                    id: header_id(name),
-                    module: name.as_str().into(),
-                    initialized: true,
-                }),
+                transaction::Operation::Header {
+                    content: Header {
+                        id: header_id(name),
+                        module: name.as_str().into(),
+                        initialized: true,
+                    },
+                    preparation: preparation.cloned(),
+                },
                 limits,
             )
             .await;
@@ -393,6 +441,7 @@ impl PreparedInstallation<'_> {
                 transaction::Operation::Migration {
                     sql: migration.sql(),
                     content,
+                    preparation: preparation.cloned(),
                 },
                 limits,
             )
@@ -417,6 +466,9 @@ impl PreparedInstallation<'_> {
                     ));
                 }
             }
+        }
+        if let Some(key) = preparation {
+            self.require_preparation(db, key).await?;
         }
         self.status_with_limits(db, limits).await
     }
@@ -448,14 +500,14 @@ async fn infrastructure_state<C: Connection>(
         .take::<Option<DatabaseInfo>>(0)
         .map_err(|_| failure("cannot inspect ready database", None))?
         .ok_or_else(|| failure("ready database inspection returned no metadata", None))?;
-    let count = [LANE_TABLE, MIGRATION_TABLE]
+    let count = [LANE_TABLE, MIGRATION_TABLE, PREPARATION_TABLE]
         .iter()
         .filter(|table| info.tables.contains_key(**table))
         .count();
     if count == 0 {
         return Ok(false);
     }
-    if count != 2 {
+    if count != 3 {
         return Err(failure(
             "incomplete bookkeeping schema; repair explicitly",
             None,
@@ -464,10 +516,12 @@ async fn infrastructure_state<C: Connection>(
     let mut actual = vec![
         info.tables[LANE_TABLE].clone(),
         info.tables[MIGRATION_TABLE].clone(),
+        info.tables[PREPARATION_TABLE].clone(),
     ];
     for sql in [
         include_str!("../../queries/lane_info.surql"),
         include_str!("../../queries/migration_info.surql"),
+        include_str!("../../queries/preparation_info.surql"),
     ] {
         let mut response = tokio::time::timeout(limits.operation_timeout, db.query(sql))
             .await

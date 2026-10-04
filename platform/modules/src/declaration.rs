@@ -1,6 +1,11 @@
 //! Module-owned claims, append-only lanes and composition-supplied execution.
 use crate::*;
 
+#[cfg_attr(
+    feature = "serialization",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(feature = "serialization", serde(rename_all = "snake_case"))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ModuleLayer {
     Kernel,

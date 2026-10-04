@@ -6,9 +6,11 @@ publish = false
 
 [features]
 default = []
-runner = ["dep:serde", "dep:sha2", "dep:surrealdb", "dep:surrealdb-syn", "dep:surrealdb-sql", "dep:tokio"]
+serialization = ["dep:serde", "dep:sha2"]
+runner = ["dep:serde_json", "dep:serde", "dep:sha2", "dep:surrealdb", "dep:surrealdb-syn", "dep:surrealdb-sql", "dep:tokio"]
 
 [dependencies]
+serde_json = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
 # Private, exact matched parser/AST adapter; stability and retirement in DESIGN.md.
@@ -19,5 +21,6 @@ surrealdb = { version = "=3.3.0", default-features = false, features = ["protoco
 tokio = { workspace = true, features = ["rt", "time", "macros", "sync"], optional = true }
 
 [dev-dependencies]
+serde_json.workspace = true
 uuid.workspace = true
 tokio = { workspace = true, features = ["process", "io-util", "rt-multi-thread"] }

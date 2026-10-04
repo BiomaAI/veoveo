@@ -423,6 +423,7 @@ async fn native_transaction_timeout_and_dropped_awaiter_cancel_before_commit() {
             transaction::Operation::Migration {
                 sql: delayed.sql(),
                 content: row(&name("store"), &delayed, vec![]),
+                preparation: None,
             },
             ExecutionLimits {
                 operation_timeout: Duration::from_millis(200),
@@ -440,6 +441,7 @@ async fn native_transaction_timeout_and_dropped_awaiter_cancel_before_commit() {
                 transaction::Operation::Migration {
                     sql: delayed.sql(),
                     content,
+                    preparation: None,
                 },
                 ExecutionLimits::default(),
             )
@@ -462,4 +464,81 @@ async fn native_transaction_timeout_and_dropped_awaiter_cancel_before_commit() {
     })
     .await
     .expect("native transaction cancellation qualification exceeded 120 seconds");
+}
+
+#[tokio::test]
+#[ignore = "requires Docker and locally available digest-pinned SurrealDB 3.3.0"]
+async fn native_preparation_generation_fences_delayed_rotation_and_conflicting_identity() {
+    use crate::runner::DatabaseEditorCredentials;
+    tokio::time::timeout(Duration::from_secs(120), async {
+        let (_fixture, a, b) = fixture().await;
+        let registry = registry(vec![], vec![]);
+        let prepared = prepare(registry.select(vec![]).unwrap()).unwrap();
+        let old =
+            PreparationKey::new(InstallationGeneration::new(1).unwrap(), "a".repeat(64)).unwrap();
+        let current =
+            PreparationKey::new(InstallationGeneration::new(2).unwrap(), "b".repeat(64)).unwrap();
+        let conflict = PreparationKey::new(current.generation(), "c".repeat(64)).unwrap();
+        prepared.claim_preparation(&a, &old).await.unwrap();
+        assert!(prepared.require_preparation(&a, &old).await.is_err());
+        // A second preparer advances while the first still owns its schema work.
+        prepared.claim_preparation(&b, &current).await.unwrap();
+        assert!(
+            prepared
+                .complete_preparation(
+                    &a,
+                    &old,
+                    DatabaseEditorCredentials::new("runtime", "stale-password").unwrap()
+                )
+                .await
+                .is_err()
+        );
+        assert!(prepared.claim_preparation(&a, &conflict).await.is_err());
+        prepared
+            .complete_preparation(
+                &b,
+                &current,
+                DatabaseEditorCredentials::new("runtime", "current-password").unwrap(),
+            )
+            .await
+            .unwrap();
+        prepared.require_preparation(&a, &current).await.unwrap();
+        let stale_header = transaction::execute(
+            &a,
+            transaction::Operation::Header {
+                content: header("store"),
+                preparation: Some(old.clone()),
+            },
+            Default::default(),
+        )
+        .await;
+        assert!(stale_header.is_err());
+        assert!(
+            markers(&a, LANE_TABLE).await.is_empty(),
+            "stale installation transaction must not initialize a lane"
+        );
+
+        assert!(prepared.require_preparation(&a, &old).await.is_err());
+        assert!(prepared.claim_preparation(&a, &old).await.is_err());
+        // Repeating completion does not overwrite credentials for an already completed key.
+        prepared
+            .complete_preparation(
+                &a,
+                &current,
+                DatabaseEditorCredentials::new("runtime", "different-password").unwrap(),
+            )
+            .await
+            .unwrap();
+        b.signin(surrealdb::opt::auth::Database {
+            namespace: "module_runner".into(),
+            database: "fixture".into(),
+            username: "runtime".into(),
+            password: "current-password".into(),
+        })
+        .await
+        .unwrap();
+        b.query("RETURN true;").await.unwrap().check().unwrap();
+    })
+    .await
+    .expect("preparation generation fixture exceeded 120 seconds");
 }

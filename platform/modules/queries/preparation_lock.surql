@@ -1,0 +1,1 @@
+SELECT * FROM ONLY $record FOR UPDATE;

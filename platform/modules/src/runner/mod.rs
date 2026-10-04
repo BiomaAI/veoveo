@@ -1,5 +1,7 @@
 //! Private pinned SQL adapter and prepared-installation execution.
 mod executor;
+mod preparation;
+pub use preparation::*;
 mod policy;
 use crate::*;
 pub use executor::*;

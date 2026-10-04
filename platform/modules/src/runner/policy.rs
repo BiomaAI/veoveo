@@ -99,7 +99,9 @@ impl Visitor<'_> {
         if !valid {
             return Err(RunnerError::new("invalid static object name"));
         }
-        if kind == ObjectKind::Table && [LANE_TABLE, MIGRATION_TABLE].contains(&name) {
+        if kind == ObjectKind::Table
+            && [LANE_TABLE, MIGRATION_TABLE, PREPARATION_TABLE].contains(&name)
+        {
             return Err(RunnerError::new(
                 "user migrations cannot access runner history tables",
             ));

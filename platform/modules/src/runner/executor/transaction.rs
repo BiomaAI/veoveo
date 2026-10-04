@@ -1,5 +1,7 @@
 //! Owned transaction tasks finish cleanup even if their caller stops polling.
+use super::super::preparation::{DatabaseEditorCredentials, PreparationRecord, record_id};
 use super::*;
+use crate::PreparationKey;
 use std::{future::IntoFuture, time::Duration};
 use tokio::sync::oneshot;
 
@@ -39,19 +41,31 @@ impl Drop for CancelOnDrop {
         }
     }
 }
-pub(super) enum Operation {
+pub(crate) enum Operation {
     Infrastructure,
-    Header(Header),
-    Migration { sql: &'static str, content: Applied },
+    PreparationFence(PreparationKey),
+    PreparationComplete {
+        key: PreparationKey,
+        credentials: DatabaseEditorCredentials,
+    },
+    Header {
+        content: Header,
+        preparation: Option<PreparationKey>,
+    },
+    Migration {
+        sql: &'static str,
+        content: Applied,
+        preparation: Option<PreparationKey>,
+    },
     History,
 }
 #[derive(Debug)]
-pub(super) enum Output {
+pub(crate) enum Output {
     Written,
     History(Vec<Header>, Vec<Applied>),
 }
 #[derive(Debug)]
-pub(super) struct TransactionError {
+pub(crate) struct TransactionError {
     pub error: RunnerError,
     pub may_observe_winner: bool,
 }
@@ -86,7 +100,7 @@ async fn wait<F: IntoFuture>(
         result = tokio::time::timeout(limit, future.into_future()) => result.map_err(|_| failure("transaction operation timed out; mutation outcome requires history observation", None)),
     }
 }
-pub(super) async fn execute<C: Connection>(
+pub(crate) async fn execute<C: Connection>(
     db: &Surreal<C>,
     operation: Operation,
     limits: ExecutionLimits,
@@ -108,6 +122,31 @@ pub(super) async fn execute<C: Connection>(
             })?
             .map_err(|_| failure("cannot begin transaction", None))?;
         let result = async {
+            let preparation = match &operation {
+                Operation::Header { preparation, .. }
+                | Operation::Migration { preparation, .. } => preparation.as_ref(),
+                _ => None,
+            };
+            if let Some(key) = preparation {
+                let mut response = wait(
+                    &mut receiver,
+                    limits.operation_timeout,
+                    transaction
+                        .query(include_str!("../../../queries/preparation_lock.surql"))
+                        .bind(("record", record_id())),
+                )
+                .await?
+                .map_err(|_| failure("installation lane fence inspection failed", None))?;
+                let record: Option<PreparationRecord> = response
+                    .take(0)
+                    .map_err(|_| failure("invalid installation lane fence", None))?;
+                if record.is_none_or(|record| !record.matches(key) || !record.complete) {
+                    return Err(failure(
+                        "installation preparation changed before lane mutation",
+                        None,
+                    ));
+                }
+            }
             match &operation {
                 Operation::Infrastructure => {
                     wait(
@@ -119,7 +158,58 @@ pub(super) async fn execute<C: Connection>(
                     .and_then(|response| response.check())
                     .map_err(|_| failure("infrastructure transaction failed", None))?;
                 }
-                Operation::Header(content) => {
+                Operation::PreparationFence(key) | Operation::PreparationComplete { key, .. } => {
+                    let mut response = wait(
+                        &mut receiver,
+                        limits.operation_timeout,
+                        transaction
+                            .query(include_str!("../../../queries/preparation_lock.surql"))
+                            .bind(("record", record_id())),
+                    )
+                    .await?
+                    .map_err(|_| failure("preparation fence inspection failed", None))?;
+                    let existing: Option<PreparationRecord> = response
+                        .take(0)
+                        .map_err(|_| failure("invalid preparation fence", None))?;
+                    if let Some(record) = &existing {
+                        record.check_advance(key)?;
+                    }
+                    let complete = matches!(operation, Operation::PreparationComplete { .. });
+                    if complete && existing.as_ref().is_none_or(|record| !record.matches(key)) {
+                        return Err(failure(
+                            "preparation completion has no matching generation claim",
+                            None,
+                        ));
+                    }
+                    // An already-completed identity never rotates credentials again.
+                    if !existing
+                        .as_ref()
+                        .is_some_and(|record| record.matches(key) && record.complete)
+                    {
+                        if let Operation::PreparationComplete { credentials, .. } = &operation {
+                            wait(
+                                &mut receiver,
+                                limits.operation_timeout,
+                                transaction.query(credentials.statement()),
+                            )
+                            .await?
+                            .and_then(|r| r.check())
+                            .map_err(|_| failure("database-editor rotation failed", None))?;
+                        }
+                        wait(
+                            &mut receiver,
+                            limits.operation_timeout,
+                            transaction
+                                .query(include_str!("../../../queries/preparation_write.surql"))
+                                .bind(("record", record_id()))
+                                .bind(("content", PreparationRecord::new(key, complete))),
+                        )
+                        .await?
+                        .and_then(|r| r.check())
+                        .map_err(|_| failure("preparation marker write failed", None))?;
+                    }
+                }
+                Operation::Header { content, .. } => {
                     wait(
                         &mut receiver,
                         limits.operation_timeout,
@@ -132,7 +222,7 @@ pub(super) async fn execute<C: Connection>(
                     .and_then(|response| response.check())
                     .map_err(|_| failure("lane initialization transaction failed", None))?;
                 }
-                Operation::Migration { sql, content } => {
+                Operation::Migration { sql, content, .. } => {
                     wait(
                         &mut receiver,
                         limits.operation_timeout,

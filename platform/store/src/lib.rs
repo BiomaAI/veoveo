@@ -145,7 +145,8 @@ pub use map_projection::MapFeatureProjectionCommit;
 #[cfg(feature = "runtime")]
 pub use migrations::{
     AppliedMigration, DownstreamMigration, DownstreamMigrationError, DownstreamSchemaStatus,
-    Migration, MigrationReport, SchemaStatus, migrations, schema_sql, validate_catalog,
+    Migration, MigrationReport, SchemaStatus, migrations, schema_catalog_identity, schema_sql,
+    validate_catalog,
 };
 #[cfg(feature = "runtime")]
 pub use models::*;

@@ -81,7 +81,7 @@ fn reviewed_catalog_objects_resolve_to_their_declaring_owners() {
             "analyzer {name}"
         );
     }
-    for table in [veoveo_modules::LANE_TABLE, veoveo_modules::MIGRATION_TABLE] {
+    for table in [veoveo_modules::LANE_TABLE, veoveo_modules::MIGRATION_TABLE, veoveo_modules::PREPARATION_TABLE] {
         assert_eq!(
             registry
                 .owner_of_table(&TableName::new(table).unwrap())
@@ -175,4 +175,15 @@ fn optional_selection_adds_only_declared_optional_prerequisites() {
             .select(vec![ModuleName::new("unknown").unwrap()])
             .is_err()
     );
+}
+
+#[test]
+fn generated_plan_matches_real_owner_catalog_without_runner_dependencies() {
+    use veoveo_modules::{ModulePlanDocument, ModuleSelectionDocument};
+    let plan: ModulePlanDocument = serde_json::from_str(include_str!("../module-plan.json")).unwrap();
+    let execution = |name: &str| LaneExecution::new(ExecutionImage::new("gateway")?, ExecutionCommand::new(vec!["/usr/local/bin/gateway".into(),"module-migrate".into(),"--module".into(),name.into()])?);
+    let registry = ModuleRegistry::new(declarations(execution).unwrap()).unwrap();
+    let selection: ModuleSelectionDocument = serde_json::from_str(include_str!("../selection.json")).unwrap();
+    let regenerated = ModulePlanDocument::generate(&registry, &selection, plan.composition().clone(), plan.runtime_bindings().to_vec()).unwrap();
+    assert_eq!(plan, regenerated);
 }
