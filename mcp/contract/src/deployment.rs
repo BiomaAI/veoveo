@@ -1,4 +1,4 @@
-use std::{collections::BTreeSet, fmt, path::Path};
+use std::{collections::BTreeSet, path::Path};
 
 use anyhow::{Result, anyhow, bail};
 use schemars::JsonSchema;
@@ -6,57 +6,41 @@ use serde::{Deserialize, Serialize};
 
 use crate::ServerSlug;
 
-macro_rules! deployment_id {
-    ($name:ident, $doc:literal) => {
-        #[doc = $doc]
-        #[derive(
-            Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-        )]
-        #[serde(try_from = "String", into = "String")]
-        pub struct $name(String);
+/// Stable identifier for one canonical self-hosted installation profile.
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = anyhow::Error, validate = |value| validate_path_segment(value, "DeploymentProfileId"))]
+pub struct DeploymentProfileId(String);
 
-        impl $name {
-            pub fn new(value: impl Into<String>) -> Result<Self> {
-                let value = value.into();
-                validate_path_segment(&value, stringify!($name))?;
-                Ok(Self(value))
-            }
-
-            pub fn as_str(&self) -> &str {
-                &self.0
-            }
-        }
-
-        impl fmt::Display for $name {
-            fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str(&self.0)
-            }
-        }
-
-        impl TryFrom<String> for $name {
-            type Error = anyhow::Error;
-
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::new(value)
-            }
-        }
-
-        impl From<$name> for String {
-            fn from(value: $name) -> Self {
-                value.0
-            }
-        }
-    };
-}
-
-deployment_id!(
-    DeploymentProfileId,
-    "Stable identifier for one canonical self-hosted installation profile."
-);
-deployment_id!(
-    DeploymentRequirementId,
-    "Stable identifier for one deployment requirement."
-);
+/// Stable identifier for one deployment requirement.
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = anyhow::Error, validate = |value| validate_path_segment(value, "DeploymentRequirementId"))]
+pub struct DeploymentRequirementId(String);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PublicDeployment {

@@ -1,4 +1,4 @@
-use std::{collections::BTreeSet, fmt};
+use std::collections::BTreeSet;
 
 use chrono::{DateTime, NaiveDateTime, Utc};
 use schemars::JsonSchema;
@@ -16,60 +16,40 @@ pub const MAX_TRAVEL_MODEL_LOCATIONS: usize = 128;
 pub const MAX_TRAVEL_MODEL_VEHICLE_TYPES: usize = 64;
 pub const MAX_TRAVEL_MODEL_CELLS: usize = 1_048_576;
 
-macro_rules! travel_key {
-    ($name:ident, $label:literal) => {
-        #[derive(
-            Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-        )]
-        #[serde(try_from = "String", into = "String")]
-        #[schemars(with = "String")]
-        pub struct $name(String);
-
-        impl $name {
-            pub fn new(value: impl Into<String>) -> Result<Self, TravelModelContractError> {
-                let value = value.into();
-                if value.is_empty()
-                    || value.len() > 128
-                    || value.trim() != value
-                    || value.chars().any(|character| {
-                        !(character.is_ascii_alphanumeric()
-                            || matches!(character, '-' | '_' | '.' | ':'))
-                    })
-                {
-                    return Err(TravelModelContractError::InvalidKey($label));
-                }
-                Ok(Self(value))
-            }
-
-            pub fn as_str(&self) -> &str {
-                &self.0
-            }
-        }
-
-        impl fmt::Display for $name {
-            fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str(&self.0)
-            }
-        }
-
-        impl TryFrom<String> for $name {
-            type Error = TravelModelContractError;
-
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::new(value)
-            }
-        }
-
-        impl From<$name> for String {
-            fn from(value: $name) -> Self {
-                value.0
-            }
-        }
-    };
-}
-
-travel_key!(TravelLocationId, "travel location id");
-travel_key!(TravelVehicleTypeId, "travel vehicle type id");
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[schemars(with = "String")]
+#[id(string, error = TravelModelContractError, validate = |value| validate_travel_key(value, "travel location id"))]
+pub struct TravelLocationId(String);
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[schemars(with = "String")]
+#[id(string, error = TravelModelContractError, validate = |value| validate_travel_key(value, "travel vehicle type id"))]
+pub struct TravelVehicleTypeId(String);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
 #[serde(rename_all = "snake_case")]
@@ -251,6 +231,19 @@ pub enum TravelModelContractError {
 
 const fn default_prioritize_bidirectional() -> bool {
     true
+}
+
+fn validate_travel_key(value: &str, label: &'static str) -> Result<(), TravelModelContractError> {
+    if value.is_empty()
+        || value.len() > 128
+        || value.trim() != value
+        || value.chars().any(|character| {
+            !(character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.' | ':'))
+        })
+    {
+        return Err(TravelModelContractError::InvalidKey(label));
+    }
+    Ok(())
 }
 
 #[cfg(test)]

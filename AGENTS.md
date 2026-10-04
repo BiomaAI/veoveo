@@ -217,7 +217,15 @@ use `task_type`. Keep one spelling declaration per variant; the `surreal` hook e
 consumer-only SDK delegation. Do not reintroduce local scope, Task or string-enum
 macros for these implemented shapes.
 
-The [shared macro design](platform/macros/DESIGN.md) owns `Vocabulary` and
+Identity-bearing newtypes use the public `Identity` admission interface and `Id`
+with owner validators, errors, generation and text projection. Keep Serde and schema
+profiles explicit in the owning declaration; verify that decoding uses admission.
+Secret text projection is an explicit accessor, and formatters and errors retain
+owner redaction. Do not reintroduce local identifier/name/key/digest declaration
+macros for implemented shapes. Checked display metadata, quantities and resource
+addresses do not become identities merely to use this derive.
+
+The [shared macro design](platform/macros/DESIGN.md) owns `Id`, `Vocabulary` and
 `embedded_document!`. `server_docs!` stays in the MCP contract to select the calling
 server's documents. Other macro shapes remain subject to the active Phase 0 plan;
 this rule does not claim their shared replacements are implemented. Preserve wire

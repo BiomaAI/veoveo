@@ -1,77 +1,42 @@
-use std::{fmt, str::FromStr};
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{IdentifierError, identifier_syntax::validate_token_text};
 
-macro_rules! name {
-    ($name:ident, $validate:ident, $doc:literal) => {
-        #[doc = $doc]
-        #[derive(
-            Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-        )]
-        #[serde(try_from = "String", into = "String")]
-        pub struct $name(String);
-
-        impl $name {
-            pub fn new(value: impl Into<String>) -> Result<Self, IdentifierError> {
-                let value = value.into();
-                $validate(&value)?;
-                Ok(Self(value))
-            }
-
-            pub fn as_str(&self) -> &str {
-                &self.0
-            }
-        }
-
-        impl AsRef<str> for $name {
-            fn as_ref(&self) -> &str {
-                self.as_str()
-            }
-        }
-
-        impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str(&self.0)
-            }
-        }
-
-        impl TryFrom<String> for $name {
-            type Error = IdentifierError;
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::new(value)
-            }
-        }
-
-        impl FromStr for $name {
-            type Err = IdentifierError;
-            fn from_str(value: &str) -> Result<Self, Self::Err> {
-                Self::new(value)
-            }
-        }
-
-        impl From<$name> for String {
-            fn from(value: $name) -> Self {
-                value.0
-            }
-        }
-    };
-}
-
-pub(crate) use name;
-
-name!(
-    ScopeName,
-    validate_token_text,
-    "OAuth/OIDC scope value. It must not contain whitespace or control characters."
-);
-name!(
-    ResourceScheme,
-    validate_scheme,
-    "Server-owned resource URI scheme, for example `media`."
-);
+#[doc = "OAuth/OIDC scope value. It must not contain whitespace or control characters."]
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = IdentifierError, validate = validate_token_text)]
+pub struct ScopeName(String);
+#[doc = "Server-owned resource URI scheme, for example `media`."]
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = IdentifierError, validate = validate_scheme)]
+pub struct ResourceScheme(String);
 
 /// Implement this on a domain-owned closed scope enum. Core owns no variants.
 /// The returned name must be compared with authenticated grants by the policy owner.

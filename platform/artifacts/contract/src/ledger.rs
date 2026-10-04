@@ -14,82 +14,143 @@ impl fmt::Display for ArtifactLedgerIdError {
 }
 impl std::error::Error for ArtifactLedgerIdError {}
 
-macro_rules! artifact_uuid_id {
-    ($name:ident, $label:literal) => {
-        #[derive(
-            Clone,
-            Copy,
-            Debug,
-            PartialEq,
-            Eq,
-            PartialOrd,
-            Ord,
-            Hash,
-            Serialize,
-            Deserialize,
-            JsonSchema,
-        )]
-        #[serde(try_from = "String", into = "String")]
-        pub struct $name(uuid::Uuid);
-
-        impl $name {
-            pub fn new() -> Self {
-                Self(uuid::Uuid::now_v7())
-            }
-
-            pub fn parse(value: impl AsRef<str>) -> Result<Self, ArtifactLedgerIdError> {
-                let value = uuid::Uuid::parse_str(value.as_ref()).map_err(|_| {
-                    ArtifactLedgerIdError(concat!($label, " must be an RFC UUIDv7"))
-                })?;
-                if value.get_version_num() != 7 || value.get_variant() != uuid::Variant::RFC4122 {
-                    return Err(ArtifactLedgerIdError(concat!(
-                        $label,
-                        " must be an RFC UUIDv7"
-                    )));
-                }
-                Ok(Self(value))
-            }
-
-            pub const fn as_uuid(self) -> uuid::Uuid {
-                self.0
-            }
-        }
-
-        impl Default for $name {
-            fn default() -> Self {
-                Self::new()
-            }
-        }
-
-        impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                self.0.fmt(f)
-            }
-        }
-
-        impl TryFrom<String> for $name {
-            type Error = ArtifactLedgerIdError;
-
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::parse(value)
-            }
-        }
-
-        impl From<$name> for String {
-            fn from(value: $name) -> Self {
-                value.to_string()
-            }
-        }
-    };
+#[derive(
+    veoveo_types::Id,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(error=ArtifactLedgerIdError, admit=|value| admit_ledger_id(value,concat!("artifact write capability id"," must be an RFC UUIDv7")), wire_string, constructor=parse, generate=uuid::Uuid::now_v7)]
+pub struct ArtifactWriteCapabilityId(uuid::Uuid);
+impl ArtifactWriteCapabilityId {
+    pub const fn as_uuid(self) -> uuid::Uuid {
+        self.0
+    }
 }
 
-artifact_uuid_id!(ArtifactWriteCapabilityId, "artifact write capability id");
-artifact_uuid_id!(ArtifactReadCapabilityId, "artifact read capability id");
-artifact_uuid_id!(ArtifactTaskId, "artifact task id");
+#[derive(
+    veoveo_types::Id,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(error=ArtifactLedgerIdError, admit=|value| admit_ledger_id(value,concat!("artifact read capability id"," must be an RFC UUIDv7")), wire_string, constructor=parse, generate=uuid::Uuid::now_v7)]
+pub struct ArtifactReadCapabilityId(uuid::Uuid);
+impl ArtifactReadCapabilityId {
+    pub const fn as_uuid(self) -> uuid::Uuid {
+        self.0
+    }
+}
 
-artifact_uuid_id!(ArtifactAccessRequestId, "artifact access request id");
-artifact_uuid_id!(ArtifactUploadId, "artifact upload id");
-artifact_uuid_id!(ArtifactUploadRequestId, "upload idempotency key");
+#[derive(
+    veoveo_types::Id,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(error=ArtifactLedgerIdError, admit=|value| admit_ledger_id(value,concat!("artifact task id"," must be an RFC UUIDv7")), wire_string, constructor=parse, generate=uuid::Uuid::now_v7)]
+pub struct ArtifactTaskId(uuid::Uuid);
+impl ArtifactTaskId {
+    pub const fn as_uuid(self) -> uuid::Uuid {
+        self.0
+    }
+}
+
+#[derive(
+    veoveo_types::Id,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(error=ArtifactLedgerIdError, admit=|value| admit_ledger_id(value,concat!("artifact access request id"," must be an RFC UUIDv7")), wire_string, constructor=parse, generate=uuid::Uuid::now_v7)]
+pub struct ArtifactAccessRequestId(uuid::Uuid);
+impl ArtifactAccessRequestId {
+    pub const fn as_uuid(self) -> uuid::Uuid {
+        self.0
+    }
+}
+
+#[derive(
+    veoveo_types::Id,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(error=ArtifactLedgerIdError, admit=|value| admit_ledger_id(value,concat!("artifact upload id"," must be an RFC UUIDv7")), wire_string, constructor=parse, generate=uuid::Uuid::now_v7)]
+pub struct ArtifactUploadId(uuid::Uuid);
+impl ArtifactUploadId {
+    pub const fn as_uuid(self) -> uuid::Uuid {
+        self.0
+    }
+}
+
+#[derive(
+    veoveo_types::Id,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(error=ArtifactLedgerIdError, admit=|value| admit_ledger_id(value,concat!("upload idempotency key"," must be an RFC UUIDv7")), wire_string, constructor=parse, generate=uuid::Uuid::now_v7)]
+pub struct ArtifactUploadRequestId(uuid::Uuid);
+impl ArtifactUploadRequestId {
+    pub const fn as_uuid(self) -> uuid::Uuid {
+        self.0
+    }
+}
 
 /// Private platform addresses identify ledger objects without claiming an MCP route.
 #[derive(Clone, Copy, Debug)]
@@ -129,6 +190,17 @@ impl ArtifactLedgerAddress {
         }
         builder.build().expect("typed Artifact ledger address")
     }
+}
+
+fn admit_ledger_id(
+    value: &str,
+    message: &'static str,
+) -> Result<uuid::Uuid, ArtifactLedgerIdError> {
+    let value = uuid::Uuid::parse_str(value).map_err(|_| ArtifactLedgerIdError(message))?;
+    if value.get_version_num() != 7 || value.get_variant() != uuid::Variant::RFC4122 {
+        return Err(ArtifactLedgerIdError(message));
+    }
+    Ok(value)
 }
 
 #[cfg(test)]

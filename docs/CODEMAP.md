@@ -78,7 +78,7 @@ Component designs live beside the code whose contract they specify:
 | [`platform/audit/measurements/2026-09-30.md`](../platform/audit/measurements/2026-09-30.md) | paired native audit timings, batching selection, raw samples and limits of the development measurement |
 | [`platform/audit/src/export/DESIGN.md`](../platform/audit/src/export/DESIGN.md) | typed OCSF mapping, S3/OTLP completion and recovery, persisted delivery receipts and export-gated retention |
 | [`platform/audit/contract/DESIGN.md`](../platform/audit/contract/DESIGN.md) | protocol-independent checked audit records, closed details, typed identities and partition-scoped reads; `src/knowledge.rs` admits source observations without external navigation URLs |
-| [`platform/macros/DESIGN.md`](../platform/macros/DESIGN.md) | shared `Vocabulary` derive and compile-time UTF-8 document hashing; consumer-owned wire/schema profiles and database delegation |
+| [`platform/macros/DESIGN.md`](../platform/macros/DESIGN.md) | shared `Id` and `Vocabulary` derives and compile-time UTF-8 document hashing; owner admission, wire/schema profiles and consumer-only database delegation |
 | [`platform/types/DESIGN.md`](../platform/types/DESIGN.md) | protocol-independent identity and attribution, installation and agent names, authentication vocabulary and issuer/subject identities, scope names, resource references, URI component parsing and builders, lexical selectors shared by policy and SQL admission, validation errors, and public extension traits |
 | [`platform/runtimes/duckdb/DESIGN.md`](../platform/runtimes/duckdb/DESIGN.md) | shared analytical sandbox, typed HTTPS materialization, network policy and query limits |
 | [`mcp/conformance/DESIGN.md`](../mcp/conformance/DESIGN.md) | typed domain-neutral hosted-server certification profiles, reports, standalone distribution, live knowledge checks and typed owner change/restart and search probes |
@@ -396,7 +396,7 @@ tasks, subscriptions, notifications, and structured content in addition to tools
 The `veoveo-types` crate owns `ScopeName`, `ResourceScheme`, `ResourceUri`, validation
 errors, `Sha256Digest`, platform identity, access subjects, resolved invocation authority
 and output defaults.
-Its public `ScopeDefinition`, `ResourceAddress` and `TaskResourceAddress` traits let
+Its public `Identity`, `ScopeDefinition`, `ResourceAddress` and `TaskResourceAddress` traits let
 independent libraries supply domain vocabularies and Task-backed resource relationships. Dependencies provide serialization,
 schemas, URL parsing, and percent encoding. Consumers import its types directly. The
 [design](../platform/types/DESIGN.md) defines RFC 3986 concrete references and the stricter domain component profile;
@@ -406,6 +406,10 @@ and server library features.
 `src/https_url.rs` owns canonical network URL parsing and redacted diagnostics; download
 policies own DNS and access checks.
 `src/vocabulary.rs` owns the public closed-spelling trait and scope-token/schema helpers.
+`src/id.rs` owns the open `Identity` admission and text-exposure trait.
+`platform/macros/src/id.rs` implements the re-exported `Id` derive with owner
+admission, String mechanics, generation and optional schema hooks. The foundation
+contains no domain-form registry or database adapter.
 The re-exported `Vocabulary` derive lives in `platform/macros`. `src/digest.rs` owns the
 prefixed SHA-256 representation shared by provenance contracts. `src/sha256_hex.rs`
 owns explicit required/optional field serialization for declared bare-hex profiles.
@@ -550,7 +554,12 @@ Domain runtimes can own private queries and driver records over these connection
 | `migrations.rs` | ordered SurrealDB 3.3 schema migrations |
 | `models.rs` | persisted Rust record and enum definitions |
 | `task_result.rs`, `json_value.rs` | checked Task result envelopes and JSON driver conversion that preserves unsigned integer precision, including nested native replay payloads |
-| `ids.rs`, `table.rs` | domain-specific record IDs and table identities |
+| `ids.rs` | re-exports Store-owned ID families through `ids::*` |
+| `ids/access.rs` | enterprise, principal, tenant, gateway, Work Context and provider record IDs |
+| `ids/content.rs` | Artifact, usage and Recording record IDs |
+| `ids/agents.rs` | agent, wake, episode, Task and input-request record IDs |
+| `ids/workspace.rs` | Workspace chat, member, message, agent, run, operation and invitation record IDs |
+| `table.rs` | table identities; Store owns record conversion and its SDK derives |
 | [`workspace/`](../platform/store/src/workspace/DESIGN.md) | shared-chat persistence: transactional membership and invitations, immutable messages, committed event order, and replay; clients and agent execution both read and write through it |
 | `recording_catalog.rs` | recording datasets and layers, expiry, and cleanup |
 | `recording_catalog/access.rs` and `recording_catalog/grants.rs` | shared typed caller authority, checked grant selections, transactional creation, SQL reuse and Redap class admission |

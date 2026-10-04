@@ -354,4 +354,8 @@ running server. Review enforces K09 and K10.
 | `src/client.rs` | client capability declaration and typed observation parsing |
 | `src/docs.rs` | protocol-independent `{slug}.docs` descriptors, typed document addresses and stable pages, consumed by `veoveo_mcp_contract::docs` |
 | `src/identity.rs` | collection, document, revision and external-record identities |
-| `macros/src/lib.rs` | compile-time document embedding and SHA-256, using the workspace's existing hashing implementation |
+| `../../platform/macros/src/embedded_document.rs` | compile-time document embedding and SHA-256, using the workspace's existing hashing implementation |
+
+## Identity Declaration Mechanics
+
+Knowledge names and record/revision identities use `Id` with Knowledge-owned admission and schema functions. Slug, Unicode external-record and visible-ASCII revision profiles retain their individual lengths and accepted spelling. Composite collection addresses keep their separate owner implementation.

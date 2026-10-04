@@ -1,4 +1,4 @@
-use std::{collections::BTreeSet, fmt, str::FromStr};
+use std::{collections::BTreeSet, fmt};
 
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
@@ -24,62 +24,102 @@ fn validate_id(value: &str) -> Result<(), LiveViewIdentityError> {
     Ok(())
 }
 
-macro_rules! id_type {
-    ($name:ident) => {
-        #[derive(
-            Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-        )]
-        #[serde(try_from = "String", into = "String")]
-        pub struct $name(String);
-
-        impl $name {
-            pub fn new(value: impl Into<String>) -> Result<Self, LiveViewIdentityError> {
-                let value = value.into();
-                validate_id(&value)?;
-                Ok(Self(value))
-            }
-
-            pub fn as_str(&self) -> &str {
-                &self.0
-            }
-        }
-
-        impl fmt::Display for $name {
-            fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str(&self.0)
-            }
-        }
-
-        impl FromStr for $name {
-            type Err = LiveViewIdentityError;
-
-            fn from_str(value: &str) -> Result<Self, Self::Err> {
-                Self::new(value)
-            }
-        }
-
-        impl TryFrom<String> for $name {
-            type Error = LiveViewIdentityError;
-
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::new(value)
-            }
-        }
-
-        impl From<$name> for String {
-            fn from(value: $name) -> Self {
-                value.0
-            }
-        }
-    };
-}
-
-id_type!(LiveViewId);
-id_type!(LiveSessionId);
-id_type!(LiveCameraId);
-id_type!(LiveEntityId);
-id_type!(LiveViewerInstanceId);
-id_type!(LiveStreamProductId);
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = LiveViewIdentityError, validate = validate_id)]
+pub struct LiveViewId(String);
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = LiveViewIdentityError, validate = validate_id)]
+pub struct LiveSessionId(String);
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = LiveViewIdentityError, validate = validate_id)]
+pub struct LiveCameraId(String);
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = LiveViewIdentityError, validate = validate_id)]
+pub struct LiveEntityId(String);
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = LiveViewIdentityError, validate = validate_id)]
+pub struct LiveViewerInstanceId(String);
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = LiveViewIdentityError, validate = validate_id)]
+pub struct LiveStreamProductId(String);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LiveViewIdentityError(String);

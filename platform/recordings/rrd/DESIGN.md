@@ -48,3 +48,7 @@ byte length into the Recording result builder. `video.rs` owns encoded access-un
 `cargo test -p veoveo-rrd --lib` exercises the file contracts. Hub integration tests cover
 video selection across a producer restart and verify the resulting MP4 sample table.
 These shared operations are exported only from `veoveo_rrd`.
+
+## Identity Declaration Mechanics
+
+RRD identity declarations use `Id` with RRD-owned lexical admission. Rerun entity/frame spellings keep their existing allowance for slash and `tf#` text, while geofence IDs apply their coordinate profile. These identities keep their existing String conversion and schema declarations.

@@ -1102,3 +1102,7 @@ normal Host validation. Liveness checks the spatial engine, supervised routing p
 endpoint. Readiness requires those checks and a query against the selected platform
 database to succeed within five seconds. Database loss affects readiness without
 turning a recoverable connection outage into a liveness-driven restart.
+
+## Identity Declaration Mechanics
+
+Map ID declarations use `Id` with Map-owned prefixes, UUID admission and stable-key namespace. Owners that accept UUID aliases preserve their input spelling; canonical owners require RFC spelling. UUIDv5 stable-key generation and UUIDv7 fresh generation share the owner admission path. Coordinate names and travel keys keep their separate lexical validators and schema profiles.

@@ -155,3 +155,7 @@ and compile-time rejection of raw or wrong-domain IDs. Independent consumers mus
 resolve without service features. The MCP facade test proves public type identity;
 Hub and Gateway native tests qualify their adapters. Installed authorization, playback
 and GPU acceptance belong to the owning services.
+
+## Identity Declaration Mechanics
+
+Recording identities use `Id` with Recording-owned canonical RFC UUIDv7 admission. Serde continues to require validated String input. Each identity keeps its inline unconstrained string schema; UUID alias admission remains broader only in native Task identities.

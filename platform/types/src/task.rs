@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt, str::FromStr};
+use std::borrow::Cow;
 
 use schemars::{JsonSchema, Schema, SchemaGenerator};
 use serde::{Deserialize, Serialize};
@@ -15,8 +15,21 @@ use uuid::Uuid;
 /// fn observe_task(_: TaskId) {}
 /// observe_task(WorkContextId::new("operations").unwrap());
 /// ```
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(
+    veoveo_types::Id,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Serialize,
+    Deserialize,
+)]
 #[serde(transparent)]
+#[id(error = uuid::Error, admit = Uuid::parse_str)]
 pub struct TaskId(Uuid);
 
 impl TaskId {
@@ -36,20 +49,6 @@ impl TaskId {
 impl Default for TaskId {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl fmt::Display for TaskId {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(formatter)
-    }
-}
-
-impl FromStr for TaskId {
-    type Err = uuid::Error;
-
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        Uuid::parse_str(value).map(Self)
     }
 }
 

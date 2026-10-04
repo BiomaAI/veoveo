@@ -53,3 +53,7 @@ UAV tree has a pinned digest and passes repeated JSON value and byte round trips
 examples reject raw or wrong-domain construction. The MCP facade test proves public
 type identity. Independent consumers must resolve without runtime dependencies.
 Installed publication, Task delivery and conversion acceptance belong to the server.
+
+## Identity Declaration Mechanics
+
+Frame identities use `Id` with the coordinate owner’s lexical validator. The owner retains its relative-component rejection, accepted colon spelling and String schema profile. URI admission and frame-world relationships are separate checks.

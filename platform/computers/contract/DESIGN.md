@@ -226,3 +226,7 @@ slot disables Start after Stop; it does not remove the owner's Stop action while
 `task_kind.rs` owns `ComputerTaskKind` and its checked Task operation declarations.
 Lifecycle, execution, file transfer and maintenance consumers share these names through
 `veoveo-types::TaskTypeDefinition`; shared Task infrastructure imports no Computers types.
+
+## Identity Declaration Mechanics
+
+Computers identities implement the foundational `Identity` admission interface through `Id`. Owner functions choose accepted UUID versions and canonical RFC spelling. Serde serializes the inner UUID and decodes through validated String admission, including in nonhuman formats; schema generation preserves the owner UUID pattern and length fields.

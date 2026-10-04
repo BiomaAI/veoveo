@@ -1,75 +1,112 @@
-use std::{fmt, str::FromStr};
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-macro_rules! public_id {
-    ($name:ident, $prefix:literal) => {
-        #[derive(
-            Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-        )]
-        #[serde(try_from = "String", into = "String")]
-        pub struct $name(String);
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = String, validate = |value| validate_public_id(value, "time-source-"))]
+pub struct TimeSourceId(String);
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = String, validate = |value| validate_public_id(value, "time-release-"))]
+pub struct AuthorityReleaseId(String);
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = String, validate = |value| validate_public_id(value, "time-acquisition-"))]
+pub struct TimeAcquisitionId(String);
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = String, validate = |value| validate_public_id(value, "calendar-"))]
+pub struct CalendarId(String);
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = String, validate = |value| validate_public_id(value, "epoch-"))]
+pub struct MissionEpochId(String);
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = String, validate = |value| validate_public_id(value, "event-"))]
+pub struct TemporalEventId(String);
 
-        impl $name {
-            pub fn new(value: impl Into<String>) -> Result<Self, String> {
-                let value = value.into();
-                if value.len() < $prefix.len() + 1
-                    || value.len() > 128
-                    || !value.starts_with($prefix)
-                    || !value.bytes().all(|byte| {
-                        byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b':')
-                    })
-                {
-                    return Err(format!("expected {} identifier", $prefix));
-                }
-                Ok(Self(value))
-            }
-
-            pub fn as_str(&self) -> &str {
-                &self.0
-            }
-        }
-
-        impl AsRef<str> for $name {
-            fn as_ref(&self) -> &str {
-                self.as_str()
-            }
-        }
-
-        impl fmt::Display for $name {
-            fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str(&self.0)
-            }
-        }
-
-        impl FromStr for $name {
-            type Err = String;
-
-            fn from_str(value: &str) -> Result<Self, Self::Err> {
-                Self::new(value)
-            }
-        }
-
-        impl TryFrom<String> for $name {
-            type Error = String;
-
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::new(value)
-            }
-        }
-
-        impl From<$name> for String {
-            fn from(value: $name) -> Self {
-                value.0
-            }
-        }
-    };
+fn validate_public_id(value: &str, prefix: &'static str) -> Result<(), String> {
+    if value.len() < prefix.len() + 1
+        || value.len() > 128
+        || !value.starts_with(prefix)
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b':'))
+    {
+        return Err(format!("expected {} identifier", prefix));
+    }
+    Ok(())
 }
-
-public_id!(TimeSourceId, "time-source-");
-public_id!(AuthorityReleaseId, "time-release-");
-public_id!(TimeAcquisitionId, "time-acquisition-");
-public_id!(CalendarId, "calendar-");
-public_id!(MissionEpochId, "epoch-");
-public_id!(TemporalEventId, "event-");

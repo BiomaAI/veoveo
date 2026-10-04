@@ -732,3 +732,7 @@ Task-backed resource subscriptions share the Task runtime's current-owner watch.
 On a new database LIVE connection, the runtime rereads admitted identities under SQL
 visibility predicates. That baseline restores resource invalidations after expired
 event history without forwarding denied Task payloads or emitting idle timer changes.
+
+## Identity Declaration Mechanics
+
+Gateway, deployment and Workspace identity declarations use the foundational `Identity` interface through `Id`; each owner selects admission and Serde/schema behavior. `PrincipalDisplayName` is checked display metadata and does not implement `Identity`. `OAuthRefreshToken` exposes its value through explicit accessors and String serialization, and redacts Debug, Display and rejected-input errors. It does not zeroize its storage. Workspace UUIDs retain transparent UUID Serde and unrestricted UUID parser admission.

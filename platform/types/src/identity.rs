@@ -1,61 +1,154 @@
-use std::{fmt, str::FromStr};
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     IdentifierError,
     identifier_syntax::{validate_claim_text, validate_path_id, validate_token_text},
-    names::name,
 };
 
-name!(
-    DataLabelId,
-    validate_token_text,
-    "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label."
-);
+#[doc = "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label."]
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = IdentifierError, validate = validate_token_text)]
+pub struct DataLabelId(String);
 
-name!(
-    PrincipalId,
-    validate_claim_text,
-    "Stable authenticated user or service-principal identity."
-);
+#[doc = "Stable authenticated user or service-principal identity."]
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = IdentifierError, validate = validate_claim_text)]
+pub struct PrincipalId(String);
 
-name!(
-    TenantId,
-    validate_claim_text,
-    "Tenant, organization, or customer boundary identifier."
-);
+#[doc = "Tenant, organization, or customer boundary identifier."]
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = IdentifierError, validate = validate_claim_text)]
+pub struct TenantId(String);
 
-name!(
-    WorkContextId,
-    validate_path_id,
-    "Tenant-local boundary that governs related work and every output it produces."
-);
+#[doc = "Tenant-local boundary that governs related work and every output it produces."]
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = IdentifierError, validate = validate_path_id)]
+pub struct WorkContextId(String);
 
-name!(
-    DelegationId,
-    validate_claim_text,
-    "Auditable identity of authority delegated by an initiator to another actor."
-);
+#[doc = "Auditable identity of authority delegated by an initiator to another actor."]
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = IdentifierError, validate = validate_claim_text)]
+pub struct DelegationId(String);
 
-name!(
-    GroupId,
-    validate_claim_text,
-    "Identity-provider group identifier used by gateway policy."
-);
+#[doc = "Identity-provider group identifier used by gateway policy."]
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = IdentifierError, validate = validate_claim_text)]
+pub struct GroupId(String);
 
-name!(
-    RoleId,
-    validate_claim_text,
-    "Identity-provider role identifier used by gateway policy."
-);
+#[doc = "Identity-provider role identifier used by gateway policy."]
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = IdentifierError, validate = validate_claim_text)]
+pub struct RoleId(String);
 
-name!(
-    PolicyVersion,
-    validate_token_text,
-    "Immutable policy version identifier emitted with decisions and audit records."
-);
+#[doc = "Immutable policy version identifier emitted with decisions and audit records."]
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = IdentifierError, validate = validate_token_text)]
+pub struct PolicyVersion(String);
 
 /// A principal or group that can own governed data or receive access.
 #[derive(
@@ -67,13 +160,37 @@ pub enum AccessSubject {
     Group(GroupId),
 }
 
-name!(
-    TokenIssuer,
-    validate_claim_text,
-    "Expected token issuer identifier."
-);
-name!(
-    TokenSubject,
-    validate_claim_text,
-    "AccessSubject claim from an authenticated access token or identity assertion."
-);
+#[doc = "Expected token issuer identifier."]
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = IdentifierError, validate = validate_claim_text)]
+pub struct TokenIssuer(String);
+#[doc = "AccessSubject claim from an authenticated access token or identity assertion."]
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = IdentifierError, validate = validate_claim_text)]
+pub struct TokenSubject(String);

@@ -650,3 +650,7 @@ Checked MCP setup is implemented; installed readiness qualification for C31 is p
 registration states revision 3 and the cuOpt 26.08 engine. Documentation and
 contract resources are embedded at build time and served through MCP and the
 canonical administrative mount.
+
+## Identity Declaration Mechanics
+
+Optimization identifiers use `Id` with owner-controlled key admission and canonical prefixed RFC UUIDv7 output admission. The solver-profile name retains its extra dot/colon restrictions. Serde applies these validators through String conversion while schemas keep their existing unconstrained String profile.

@@ -1,4 +1,4 @@
-use std::{fmt, str::FromStr};
+use std::fmt;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -32,63 +32,6 @@ fn validate_coordinate_id(value: &str) -> Result<(), FrameIdError> {
     }
 }
 
-macro_rules! coordinate_id {
-    ($name:ident, $doc:literal) => {
-        #[doc = $doc]
-        #[derive(
-            Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-        )]
-        #[serde(try_from = "String", into = "String")]
-        pub struct $name(String);
-
-        impl $name {
-            pub fn new(value: impl Into<String>) -> Result<Self, FrameIdError> {
-                let value = value.into();
-                validate_coordinate_id(&value)?;
-                Ok(Self(value))
-            }
-
-            pub fn as_str(&self) -> &str {
-                &self.0
-            }
-        }
-
-        impl AsRef<str> for $name {
-            fn as_ref(&self) -> &str {
-                self.as_str()
-            }
-        }
-
-        impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str(&self.0)
-            }
-        }
-
-        impl TryFrom<String> for $name {
-            type Error = FrameIdError;
-
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::new(value)
-            }
-        }
-
-        impl FromStr for $name {
-            type Err = FrameIdError;
-
-            fn from_str(value: &str) -> Result<Self, Self::Err> {
-                Self::new(value.to_string())
-            }
-        }
-
-        impl From<$name> for String {
-            fn from(value: $name) -> Self {
-                value.0
-            }
-        }
-    };
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FrameIdError {
     value: String,
@@ -116,19 +59,71 @@ impl fmt::Display for FrameIdError {
 
 impl std::error::Error for FrameIdError {}
 
-coordinate_id!(
-    FrameId,
-    "Coordinate operation frame id for solver inputs, resources, and provenance. RRD transform frame ids live in veoveo-rrd."
-);
-coordinate_id!(
-    FrameWorldId,
-    "Stable identity of one authored coordinate-frame world."
-);
-coordinate_id!(
-    FrameWorldRevisionId,
-    "Immutable identity of one complete coordinate-frame world revision."
-);
-coordinate_id!(
-    CoordinateOperationId,
-    "Durable id for one coordinate transform, projection, geodesic, or validation operation."
-);
+#[doc = "Coordinate operation frame id for solver inputs, resources, and provenance. RRD transform frame ids live in veoveo-rrd."]
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = FrameIdError, validate = validate_coordinate_id)]
+pub struct FrameId(String);
+#[doc = "Stable identity of one authored coordinate-frame world."]
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = FrameIdError, validate = validate_coordinate_id)]
+pub struct FrameWorldId(String);
+#[doc = "Immutable identity of one complete coordinate-frame world revision."]
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = FrameIdError, validate = validate_coordinate_id)]
+pub struct FrameWorldRevisionId(String);
+#[doc = "Durable id for one coordinate transform, projection, geodesic, or validation operation."]
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = FrameIdError, validate = validate_coordinate_id)]
+pub struct CoordinateOperationId(String);

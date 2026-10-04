@@ -1,7 +1,7 @@
 mod spatial_metadata;
 pub use spatial_metadata::{FrameKind, GeofenceId, GeofenceIdError, GeofenceRule};
 
-use std::{collections::BTreeMap, fmt, str::FromStr};
+use std::{collections::BTreeMap, fmt};
 
 use re_sdk_types::{
     archetypes::{CoordinateFrame, GeoLineStrings, GeoPoints, LineStrips3D, Points3D, Transform3D},
@@ -58,78 +58,57 @@ impl fmt::Display for RrdIdError {
 
 impl std::error::Error for RrdIdError {}
 
-macro_rules! rrd_id {
-    ($name:ident, $kind:literal, $doc:literal) => {
-        #[doc = $doc]
-        #[derive(
-            Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-        )]
-        #[serde(try_from = "String", into = "String")]
-        pub struct $name(String);
-
-        impl $name {
-            pub fn new(value: impl Into<String>) -> Result<Self, RrdIdError> {
-                let value = value.into();
-                validate_rrd_id(&value, $kind)?;
-                Ok(Self(value))
-            }
-
-            pub fn as_str(&self) -> &str {
-                &self.0
-            }
-        }
-
-        impl AsRef<str> for $name {
-            fn as_ref(&self) -> &str {
-                self.as_str()
-            }
-        }
-
-        impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str(&self.0)
-            }
-        }
-
-        impl TryFrom<String> for $name {
-            type Error = RrdIdError;
-
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::new(value)
-            }
-        }
-
-        impl FromStr for $name {
-            type Err = RrdIdError;
-
-            fn from_str(value: &str) -> Result<Self, Self::Err> {
-                Self::new(value.to_string())
-            }
-        }
-
-        impl From<$name> for String {
-            fn from(value: $name) -> Self {
-                value.0
-            }
-        }
-    };
-}
-
-rrd_id!(
-    RrdFrameId,
-    "RRD transform frame id",
-    "Rerun transform frame id. Entity-derived ids use Rerun's `tf#/path` convention."
-);
-rrd_id!(
-    RrdEntityPath,
-    "RRD entity path",
-    "Rerun entity path used to locate canonical spacetime data in an RRD recording."
-);
-rrd_id!(
-    RrdTimeline,
-    "RRD timeline",
-    "Rerun timeline name used to scrub or query state over time."
-);
+#[doc = "Rerun transform frame id. Entity-derived ids use Rerun's `tf#/path` convention."]
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = RrdIdError, validate = |value| validate_rrd_id(value, "RRD transform frame id"))]
+pub struct RrdFrameId(String);
+#[doc = "Rerun entity path used to locate canonical spacetime data in an RRD recording."]
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = RrdIdError, validate = |value| validate_rrd_id(value, "RRD entity path"))]
+pub struct RrdEntityPath(String);
+#[doc = "Rerun timeline name used to scrub or query state over time."]
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = RrdIdError, validate = |value| validate_rrd_id(value, "RRD timeline"))]
+pub struct RrdTimeline(String);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct RrdTimePoint {
@@ -546,5 +525,26 @@ mod tests {
             .line_strings
             .is_some()
         );
+    }
+}
+
+#[cfg(test)]
+mod identity_profiles {
+    use super::*;
+    use veoveo_types::Identity;
+    #[test]
+    fn rrd_names_keep_their_own_spelling_and_length_profile() {
+        let frame = RrdFrameId::parse_identity("tf#/world/源").unwrap();
+        assert_eq!(frame.identity_text(), "tf#/world/源");
+        assert_eq!(serde_json::to_value(frame).unwrap(), "tf#/world/源");
+        assert!(RrdEntityPath::parse_identity("/sensor/camera").is_ok());
+        assert!(RrdTimeline::parse_identity(&"t".repeat(512)).is_ok());
+        assert!(RrdTimeline::parse_identity(&"t".repeat(513)).is_err());
+        for value in ["", "white space", "recording://resource"] {
+            assert!(RrdFrameId::parse_identity(value).is_err());
+        }
+        assert!(GeofenceId::parse_identity("zone:1").is_ok());
+        assert!(GeofenceId::parse_identity("zone/1").is_err());
+        assert!(serde_json::from_value::<GeofenceId>(serde_json::json!("zone/1")).is_err());
     }
 }

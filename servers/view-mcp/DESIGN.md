@@ -528,3 +528,7 @@ cargo xtask image build --target view-mcp
 cargo xtask smoke view-google-live \
   --output /tmp/veoveo-view-proof/statue-of-liberty.jpg
 ```
+
+## Identity Declaration Mechanics
+
+View and scene input/overlay/style identities use `Id` with their existing owner validators and String schema declarations. Composition stable-key generation and typed resource dispatch keep their separate implementations. An admitted ID establishes neither scene membership nor access.

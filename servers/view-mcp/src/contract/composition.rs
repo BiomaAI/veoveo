@@ -31,59 +31,54 @@ pub const MAX_OVERLAY_ARTIFACT_BYTES: u64 = 16_777_216;
 pub const MAX_COMPOSITION_ARTIFACT_BYTES: u64 = 67_108_864;
 pub const MAX_LABEL_BYTES: usize = 64;
 
-macro_rules! controlled_id {
-    ($name:ident, $label:literal) => {
-        #[derive(
-            Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-        )]
-        #[serde(try_from = "String", into = "String")]
-        pub struct $name(String);
-
-        impl $name {
-            pub fn new(value: impl Into<String>) -> Result<Self, SceneCompositionError> {
-                let value = value.into();
-                if value.is_empty()
-                    || value.len() > 128
-                    || value.trim() != value
-                    || !value.bytes().all(|byte| {
-                        byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b':')
-                    })
-                {
-                    return Err(SceneCompositionError::InvalidIdentifier($label));
-                }
-                Ok(Self(value))
-            }
-
-            pub fn as_str(&self) -> &str {
-                &self.0
-            }
-        }
-
-        impl fmt::Display for $name {
-            fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str(&self.0)
-            }
-        }
-
-        impl TryFrom<String> for $name {
-            type Error = SceneCompositionError;
-
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::new(value)
-            }
-        }
-
-        impl From<$name> for String {
-            fn from(value: $name) -> Self {
-                value.0
-            }
-        }
-    };
-}
-
-controlled_id!(SceneInputId, "scene input id");
-controlled_id!(SceneOverlayId, "scene overlay id");
-controlled_id!(SceneStyleId, "scene style id");
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = SceneCompositionError, validate = |value| validate_composition_key(value, "scene input id"))]
+pub struct SceneInputId(String);
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = SceneCompositionError, validate = |value| validate_composition_key(value, "scene overlay id"))]
+pub struct SceneOverlayId(String);
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = SceneCompositionError, validate = |value| validate_composition_key(value, "scene style id"))]
+pub struct SceneStyleId(String);
 
 #[derive(
     Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
@@ -822,6 +817,19 @@ pub enum SceneCompositionError {
     InvalidMediaType,
     #[error("composition serialization failed")]
     Serialization,
+}
+
+fn validate_composition_key(value: &str, label: &'static str) -> Result<(), SceneCompositionError> {
+    if value.is_empty()
+        || value.len() > 128
+        || value.trim() != value
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b':'))
+    {
+        return Err(SceneCompositionError::InvalidIdentifier(label));
+    }
+    Ok(())
 }
 
 #[cfg(test)]

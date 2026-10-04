@@ -15,44 +15,14 @@ impl std::fmt::Display for EmbeddingError {
 }
 impl std::error::Error for EmbeddingError {}
 
-macro_rules! text_identity {
-    ($name:ident) => {
-        #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-        #[serde(try_from = "String", into = "String")]
-        pub struct $name(String);
-        impl $name {
-            pub fn new(value: impl Into<String>) -> Result<Self, EmbeddingError> {
-                let value = value.into();
-                if value.is_empty()
-                    || value.len() > 256
-                    || value.trim() != value
-                    || value.chars().any(char::is_control)
-                {
-                    return Err(EmbeddingError(
-                        "embedding identity requires 1..=256 printable bytes",
-                    ));
-                }
-                Ok(Self(value))
-            }
-            pub fn as_str(&self) -> &str {
-                &self.0
-            }
-        }
-        impl TryFrom<String> for $name {
-            type Error = EmbeddingError;
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::new(value)
-            }
-        }
-        impl From<$name> for String {
-            fn from(value: $name) -> Self {
-                value.0
-            }
-        }
-    };
-}
-text_identity!(EmbeddingModelId);
-text_identity!(EmbeddingModelRevision);
+#[derive(veoveo_types::Id, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = EmbeddingError, validate = validate_embedding_id)]
+pub struct EmbeddingModelId(String);
+#[derive(veoveo_types::Id, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = EmbeddingError, validate = validate_embedding_id)]
+pub struct EmbeddingModelRevision(String);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "u16", into = "u16")]
@@ -131,4 +101,17 @@ impl From<EmbeddingVector> for VectorWire {
     fn from(value: EmbeddingVector) -> Self {
         value.0
     }
+}
+
+fn validate_embedding_id(value: &str) -> Result<(), EmbeddingError> {
+    if value.is_empty()
+        || value.len() > 256
+        || value.trim() != value
+        || value.chars().any(char::is_control)
+    {
+        return Err(EmbeddingError(
+            "embedding identity requires 1..=256 printable bytes",
+        ));
+    }
+    Ok(())
 }

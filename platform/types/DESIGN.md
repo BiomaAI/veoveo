@@ -13,7 +13,7 @@
 | HTTPS URL profile | `HttpsUrl` uses the same URL parser for canonical ASCII HTTPS addresses without credentials or fragments. Ports and repeated query names are admitted, and input query bytes are preserved. Runtime network policy owns host and address authorization. |
 | Percent encoding and form query encoding | [`percent-encoding` 2.3.2](https://docs.rs/percent-encoding/2.3.2/percent_encoding/) decodes UTF-8 components and encodes path characters left unescaped by the URL setter. URL query pairs use form semantics: `+` represents space and `%2B` represents plus. |
 | [RFC 6570 URI Templates](https://www.rfc-editor.org/rfc/rfc6570) | `ResourceTemplateUri` uses [`iri-string` 0.7.14](https://docs.rs/crate/iri-string/0.7.14) for all four expression levels and expansion. The profile admits ASCII literals with a literal lowercase scheme, `://`, and a nonempty suffix. Local guards enforce prefix lengths `1..=9999` without leading zeroes and nonempty dotted variable-name components. Expanded results must also pass the concrete resource profile. |
-| Rust extension interfaces | Public `AccessGrant`, `ScopeDefinition`, `TaskTypeDefinition`, `ResourceAddress` and `TaskResourceAddress` traits permit implementations in independent libraries |
+| Rust extension interfaces | Public `Identity`, `AccessGrant`, `ScopeDefinition`, `TaskTypeDefinition`, `ResourceAddress` and `TaskResourceAddress` traits permit implementations in independent libraries |
 | Task operation names | Veoveo names contain 1–128 ASCII bytes: a lowercase initial letter followed by lowercase letters, digits, dots, underscores or hyphens. Validation establishes syntax, not implementation or authority. |
 | SHA-256 provenance strings | `Sha256Digest` serializes as `sha256:` followed by 64 lowercase hexadecimal digits. Explicit `sha256_hex` Serde adapters serve fields whose owner declares bare lowercase hex. The type validates supplied digests and performs no hashing. |
 | Native Task UUIDs, RFC 9562 | `TaskId` generates UUIDv7 and preserves the UUID parser and Serde profile from `uuid` 1.25.0; parsing does not establish a version, Task existence, or authority |
@@ -91,6 +91,36 @@ domain admission and current SQL owner checks still apply.
 discovery. Consumers import the foundational types directly from this crate. It
 provides no server-specific enums or blanket implementation that makes an arbitrary
 name or reference a domain contract.
+
+## Identity Mechanics
+
+The public `Identity` trait in `src/id.rs` exposes owner admission through
+`parse_identity` and deliberate text exposure through `identity_text`. Its associated
+error type belongs to the owner. An independent library can implement the trait
+without a derive or an edit to the foundation. Raw String has no blanket `Identity`
+implementation. Admission establishes syntax; authentication and domain policy
+establish authority.
+
+The re-exported `Id` derive calls these ordinary mechanics. Owner functions choose
+UUID versions, accepted aliases, text limits, generation and stable-key namespaces.
+The String validation hook preserves the owned input allocation. Optional parser,
+wire-conversion, generation and schema hooks remove plumbing while leaving these
+rules with their owner. Generated values pass owner admission before construction.
+The [macro design](../macros/DESIGN.md#id) defines the hook interface.
+
+Serde and Schemars declarations belong to each wrapper. A transparent UUID wrapper
+keeps UUID's binary behavior, while an owner-declared String conversion keeps string
+serialization in binary formats too. Schema derives retain their metadata and identity;
+the optional owner schema hook retains its declared shape and Schemars' default
+identity. The shared mechanics impose no universal UUID or schema profile.
+
+`identity_text` can expose secret material even when Display and Debug redact it.
+Owners must make that exposure deliberate and sanitize errors at secret admission.
+Gateway refresh tokens preserve their explicit text and wire access while replacing
+rejected input in `IdentifierError` with `[REDACTED]`. The derive adds no zeroization.
+Nonidentity display metadata, such as `PrincipalDisplayName`, uses an ordinary checked
+newtype. Database adapters and SDK derives stay in their consumers; the foundation
+knows neither Store tables nor server-owned IDs.
 
 ## Wire Behavior
 

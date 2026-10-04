@@ -33,3 +33,7 @@ prefix. Builders and deserialization use the same admission. JSON Schema express
 the count and character ceilings; Rust admission also checks UTF-8 bytes and the
 aggregate budget. `EmbeddingPriority` distinguishes interactive work from bulk indexing.
 The client owns model-specific formatting and checks the formatted request's budget.
+
+## Identity Declaration Mechanics
+
+Embedding model and revision identities use `Id` with owner validation for printable text of 1–256 bytes. Serde applies this admission through checked String conversion. Embedding dimensions and vectors retain their separate numeric and relationship validators.

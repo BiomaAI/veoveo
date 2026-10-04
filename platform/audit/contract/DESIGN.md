@@ -81,3 +81,7 @@ variant order and Serde unit-enum profile form part of the frozen audit format.
 Owner-local tests compare every activity enum's JSON and schema with its previous
 declaration and check nonhuman unit-variant ordinals. The derive introduces no audit
 variants or authorization decisions.
+
+## Identity Declaration Mechanics
+
+Audit identities use `Id` with Audit-owned canonical RFC UUIDv7 and lowercase nonzero hexadecimal admission. Their owner schema functions preserve each UUID pattern, trace/span length and nonzero constraint. Serde uses checked String conversion for these IDs; the independent Activity enum wire profile does not change.

@@ -1,75 +1,193 @@
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::{fmt, str::FromStr};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 #[error("invalid audit identity: {0}")]
 pub struct AuditIdentityError(&'static str);
-macro_rules! uuid_id {
- ($name:ident) => {
-  #[derive(Debug,Clone,Copy,PartialEq,Eq,PartialOrd,Ord,Hash,Serialize,Deserialize)]
-  #[serde(try_from="String",into="String")]
-  pub struct $name(Uuid);
-  impl JsonSchema for $name {
-   fn schema_name()->std::borrow::Cow<'static,str>{std::borrow::Cow::Borrowed(stringify!($name))}
-   fn json_schema(_: &mut schemars::SchemaGenerator)->schemars::Schema {
-    schemars::json_schema!({"type":"string","pattern":"^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"})
-   }
-  }
-  impl $name {
-   pub fn new()->Self {Self(Uuid::now_v7())}
-   pub fn as_uuid(self)->Uuid {self.0}
-  }
-  impl Default for $name {fn default()->Self {Self::new()}}
-  impl TryFrom<Uuid> for $name {
-   type Error=AuditIdentityError;
-   fn try_from(value:Uuid)->Result<Self,Self::Error>{
-    if value.get_version_num()!=7 || value.get_variant()!=uuid::Variant::RFC4122 {return Err(AuditIdentityError(stringify!($name)))}
-    Ok(Self(value))
-   }
-  }
-  impl FromStr for $name {
-   type Err=AuditIdentityError;
-   fn from_str(s:&str)->Result<Self,Self::Err>{
-    let value=Uuid::parse_str(s).map_err(|_|AuditIdentityError(stringify!($name)))?;
-    if value.to_string()!=s{return Err(AuditIdentityError(stringify!($name)))}
-    Self::try_from(value)
-   }
-  }
-  impl TryFrom<String> for $name {type Error=AuditIdentityError;fn try_from(value:String)->Result<Self,Self::Error>{value.parse()}}
-  impl From<$name> for String {fn from(value:$name)->Self{value.to_string()}}
-  impl fmt::Display for $name {fn fmt(&self,f:&mut fmt::Formatter<'_>)->fmt::Result{self.0.fmt(f)}}
- };
-}
-uuid_id!(AuditRecordId);
-uuid_id!(AuditRequestId);
-uuid_id!(AuditEpisodeId);
 
-macro_rules! hex_id {
- ($name:ident,$length:expr) => {
-  #[derive(Debug,Clone,PartialEq,Eq,PartialOrd,Ord,Hash,Serialize,Deserialize)]
-  #[serde(try_from="String",into="String")]
-  pub struct $name(String);
-  impl JsonSchema for $name {
-   fn schema_name()->std::borrow::Cow<'static,str>{std::borrow::Cow::Borrowed(stringify!($name))}
-   fn json_schema(_: &mut schemars::SchemaGenerator)->schemars::Schema {
-    schemars::json_schema!({"type":"string","pattern":format!("^[0-9a-f]{{{}}}$",$length),"not":{"const":"0".repeat($length)}})
-   }
-  }
-  impl $name {
-   pub fn as_str(&self)->&str{&self.0}
-   pub fn parse(value:impl Into<String>)->Result<Self,AuditIdentityError>{
-    let value=value.into();
-    if value.len()!=$length || !value.bytes().all(|c|c.is_ascii_digit()||(b'a'..=b'f').contains(&c)) || value.bytes().all(|c|c==b'0') {return Err(AuditIdentityError(stringify!($name)))}
-    Ok(Self(value))
-   }
-  }
-  impl TryFrom<String> for $name {type Error=AuditIdentityError;fn try_from(v:String)->Result<Self,Self::Error>{Self::parse(v)}}
-  impl FromStr for $name {type Err=AuditIdentityError;fn from_str(v:&str)->Result<Self,Self::Err>{Self::parse(v)}}
-  impl From<$name> for String {fn from(v:$name)->Self{v.0}}
-  impl fmt::Display for $name {fn fmt(&self,f:&mut fmt::Formatter<'_>)->fmt::Result{f.write_str(&self.0)}}
- };
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(error=AuditIdentityError, admit=|value| admit_uuid(value, "AuditRecordId"), wire_string, generate=Uuid::now_v7, schema=uuid_schema)]
+pub struct AuditRecordId(Uuid);
+impl AuditRecordId {
+    pub fn as_uuid(self) -> Uuid {
+        self.0
+    }
 }
-hex_id!(AuditTraceId, 32);
-hex_id!(AuditSpanId, 16);
+impl TryFrom<Uuid> for AuditRecordId {
+    type Error = AuditIdentityError;
+    fn try_from(value: Uuid) -> Result<Self, Self::Error> {
+        validate_uuid(value, "AuditRecordId").map(Self)
+    }
+}
+
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(error=AuditIdentityError, admit=|value| admit_uuid(value, "AuditRequestId"), wire_string, generate=Uuid::now_v7, schema=uuid_schema)]
+pub struct AuditRequestId(Uuid);
+impl AuditRequestId {
+    pub fn as_uuid(self) -> Uuid {
+        self.0
+    }
+}
+impl TryFrom<Uuid> for AuditRequestId {
+    type Error = AuditIdentityError;
+    fn try_from(value: Uuid) -> Result<Self, Self::Error> {
+        validate_uuid(value, "AuditRequestId").map(Self)
+    }
+}
+
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(error=AuditIdentityError, admit=|value| admit_uuid(value, "AuditEpisodeId"), wire_string, generate=Uuid::now_v7, schema=uuid_schema)]
+pub struct AuditEpisodeId(Uuid);
+impl AuditEpisodeId {
+    pub fn as_uuid(self) -> Uuid {
+        self.0
+    }
+}
+impl TryFrom<Uuid> for AuditEpisodeId {
+    type Error = AuditIdentityError;
+    fn try_from(value: Uuid) -> Result<Self, Self::Error> {
+        validate_uuid(value, "AuditEpisodeId").map(Self)
+    }
+}
+
+#[derive(
+    veoveo_types::Id, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, constructor=parse, error=AuditIdentityError, validate=|value| validate_hex(value,32,"AuditTraceId"), schema=|_| hex_schema(32))]
+pub struct AuditTraceId(String);
+
+#[derive(
+    veoveo_types::Id, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, constructor=parse, error=AuditIdentityError, validate=|value| validate_hex(value,16,"AuditSpanId"), schema=|_| hex_schema(16))]
+pub struct AuditSpanId(String);
+
+fn validate_uuid(value: Uuid, name: &'static str) -> Result<Uuid, AuditIdentityError> {
+    if value.get_version_num() != 7 || value.get_variant() != uuid::Variant::RFC4122 {
+        return Err(AuditIdentityError(name));
+    }
+    Ok(value)
+}
+fn admit_uuid(value: &str, name: &'static str) -> Result<Uuid, AuditIdentityError> {
+    let id = Uuid::parse_str(value).map_err(|_| AuditIdentityError(name))?;
+    if id.to_string() != value {
+        return Err(AuditIdentityError(name));
+    }
+    validate_uuid(id, name)
+}
+fn uuid_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    schemars::json_schema!({"type":"string","pattern":"^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"})
+}
+fn validate_hex(value: &str, length: usize, name: &'static str) -> Result<(), AuditIdentityError> {
+    if value.len() != length
+        || !value
+            .bytes()
+            .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c))
+        || value.bytes().all(|c| c == b'0')
+    {
+        return Err(AuditIdentityError(name));
+    }
+    Ok(())
+}
+fn hex_schema(length: usize) -> schemars::Schema {
+    schemars::json_schema!({"type":"string","pattern":format!("^[0-9a-f]{{{}}}$",length),"not":{"const":"0".repeat(length)}})
+}
+
+#[cfg(test)]
+mod identity_profiles {
+    use super::*;
+    use schemars::JsonSchema;
+    use veoveo_types::Identity;
+    fn check<
+        I: Identity<Error = AuditIdentityError>
+            + JsonSchema
+            + serde::Serialize
+            + serde::de::DeserializeOwned,
+    >(
+        name: &str,
+    ) {
+        let raw = "01983da0-0000-7000-8000-000000000001";
+        assert_eq!(I::parse_identity(raw).unwrap().identity_text(), raw);
+        assert_eq!(I::schema_id(), name);
+        assert_eq!(I::schema_name(), name);
+        assert!(!I::inline_schema());
+        assert_eq!(
+            serde_json::to_value(I::json_schema(&mut schemars::SchemaGenerator::default()))
+                .unwrap(),
+            serde_json::json!({"type":"string","pattern":"^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"})
+        );
+        for value in [
+            raw.to_uppercase(),
+            raw.replace('-', ""),
+            format!("urn:uuid:{raw}"),
+            "550e8400-e29b-41d4-a716-446655440000".to_owned(),
+        ] {
+            assert!(I::parse_identity(&value).is_err());
+            assert!(serde_json::from_value::<I>(serde_json::json!(value)).is_err());
+        }
+    }
+    #[test]
+    fn uuid_owners_keep_frozen_schema_and_canonical_profile() {
+        check::<AuditRecordId>("AuditRecordId");
+        check::<AuditRequestId>("AuditRequestId");
+        check::<AuditEpisodeId>("AuditEpisodeId");
+    }
+    #[test]
+    fn audit_hex_profiles_preserve_lengths_lowercase_and_nonzero() {
+        let trace = "1".repeat(32);
+        let span = "a".repeat(16);
+        assert_eq!(AuditTraceId::parse(&trace).unwrap().identity_text(), trace);
+        assert_eq!(AuditSpanId::parse(&span).unwrap().identity_text(), span);
+        assert!(AuditTraceId::parse("0".repeat(32)).is_err());
+        assert!(AuditSpanId::parse("A".repeat(16)).is_err());
+        assert!(AuditSpanId::parse(&trace).is_err());
+        assert_eq!(
+            serde_json::to_value(AuditSpanId::json_schema(
+                &mut schemars::SchemaGenerator::default()
+            ))
+            .unwrap(),
+            serde_json::json!({"type":"string","pattern":"^[0-9a-f]{16}$","not":{"const":"0".repeat(16)}})
+        );
+    }
+}

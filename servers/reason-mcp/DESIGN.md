@@ -564,3 +564,7 @@ This candidate check does not qualify a different runtime image.
 - There is no live-proxy read mode and no attachment to a camera. Reason tasks
   can analyze just-arrived batches only after Recording Hub durably
   acknowledges them.
+
+## Identity Declaration Mechanics
+
+Pipeline and model identities use `Id` with Reason-owned catalog-name admission. Serde decodes validated Strings and schemas retain the inline unconstrained String profile. Analysis Task identity and typed resource admission remain separate owner implementations.

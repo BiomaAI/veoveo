@@ -13,7 +13,6 @@ pub use resources::*;
 mod scopes;
 pub use scopes::ViewScope;
 mod task_kind;
-use std::{fmt, str::FromStr};
 pub use task_kind::ViewTaskKind;
 
 use chrono::{DateTime, Utc};
@@ -37,59 +36,54 @@ fn validate_id(value: &str) -> Result<(), ContractError> {
     Ok(())
 }
 
-macro_rules! id_type {
-    ($name:ident) => {
-        #[derive(
-            Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-        )]
-        #[serde(try_from = "String", into = "String")]
-        pub struct $name(String);
-
-        impl $name {
-            pub fn new(value: impl Into<String>) -> Result<Self, ContractError> {
-                let value = value.into();
-                validate_id(&value)?;
-                Ok(Self(value))
-            }
-
-            pub fn as_str(&self) -> &str {
-                &self.0
-            }
-        }
-
-        impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str(&self.0)
-            }
-        }
-
-        impl FromStr for $name {
-            type Err = ContractError;
-
-            fn from_str(value: &str) -> Result<Self, Self::Err> {
-                Self::new(value)
-            }
-        }
-
-        impl TryFrom<String> for $name {
-            type Error = ContractError;
-
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::new(value)
-            }
-        }
-
-        impl From<$name> for String {
-            fn from(value: $name) -> Self {
-                value.0
-            }
-        }
-    };
-}
-
-id_type!(ViewId);
-id_type!(FrameId);
-id_type!(LayerId);
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = ContractError, validate = validate_id)]
+pub struct ViewId(String);
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = ContractError, validate = validate_id)]
+pub struct FrameId(String);
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = ContractError, validate = validate_id)]
+pub struct LayerId(String);
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Wgs84Position3d {

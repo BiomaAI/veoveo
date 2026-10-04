@@ -6,87 +6,146 @@ use url::Url;
 
 use super::{ArtifactError, invalid_identifier};
 
-macro_rules! typed_string {
-    ($name:ident, $validator:ident, $pattern:literal) => {
-        #[derive(
-            Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-        )]
-        #[serde(try_from = "String", into = "String")]
-        #[schemars(!try_from, !into)]
-        pub struct $name(#[schemars(regex(pattern = $pattern))] String);
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[schemars(!try_from,!into)]
+#[id(string,error=ArtifactError,validate=validate_dns_name)]
+pub struct ArtifactName(
+    #[schemars(regex(
+        pattern = r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$"
+    ))]
+    String,
+);
 
-        impl $name {
-            /// Constructs a validated value.
-            pub fn new(value: impl Into<String>) -> Result<Self, ArtifactError> {
-                let value = value.into();
-                $validator(&value)?;
-                Ok(Self(value))
-            }
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[schemars(!try_from,!into)]
+#[id(string,error=ArtifactError,validate=validate_semver)]
+pub struct ReleaseVersion(
+    #[schemars(regex(
+        pattern = r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$"
+    ))]
+    String,
+);
 
-            /// Returns the validated string.
-            #[must_use]
-            pub fn as_str(&self) -> &str {
-                &self.0
-            }
-        }
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[schemars(!try_from,!into)]
+#[id(string,error=ArtifactError,validate=validate_digest)]
+pub struct ArtifactDigest(#[schemars(regex(pattern = r"^sha256:[0-9a-f]{64}$"))] String);
 
-        impl AsRef<str> for $name {
-            fn as_ref(&self) -> &str {
-                self.as_str()
-            }
-        }
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[schemars(!try_from, !into)]
+pub struct ArtifactCoordinate(
+    #[schemars(regex(pattern = r"^(?!.*:latest$)(?:oci|https|python|cargo)://[^\s#]+$"))]
+    String,
+);
 
-        impl fmt::Display for $name {
-            fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str(self.as_str())
-            }
-        }
+impl ArtifactCoordinate {
+    /// Constructs a validated value.
+    pub fn new(value: impl Into<String>) -> Result<Self, ArtifactError> {
+        let value = value.into();
+        validate_coordinate(&value)?;
+        Ok(Self(value))
+    }
 
-        impl FromStr for $name {
-            type Err = ArtifactError;
-
-            fn from_str(value: &str) -> Result<Self, Self::Err> {
-                Self::new(value)
-            }
-        }
-
-        impl TryFrom<String> for $name {
-            type Error = ArtifactError;
-
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::new(value)
-            }
-        }
-
-        impl From<$name> for String {
-            fn from(value: $name) -> Self {
-                value.0
-            }
-        }
-    };
+    /// Returns the validated string.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
-typed_string!(
-    ArtifactName,
-    validate_dns_name,
-    r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$"
-);
-typed_string!(
-    ReleaseVersion,
-    validate_semver,
-    r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$"
-);
-typed_string!(ArtifactDigest, validate_digest, r"^sha256:[0-9a-f]{64}$");
-typed_string!(
-    ArtifactCoordinate,
-    validate_coordinate,
-    r"^(?!.*:latest$)(?:oci|https|python|cargo)://[^\s#]+$"
-);
-typed_string!(
-    SourceRevision,
-    validate_revision,
-    r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
-);
+impl AsRef<str> for ArtifactCoordinate {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl fmt::Display for ArtifactCoordinate {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+impl FromStr for ArtifactCoordinate {
+    type Err = ArtifactError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        Self::new(value)
+    }
+}
+
+impl TryFrom<String> for ArtifactCoordinate {
+    type Error = ArtifactError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+
+impl From<ArtifactCoordinate> for String {
+    fn from(value: ArtifactCoordinate) -> Self {
+        value.0
+    }
+}
+
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[schemars(!try_from,!into)]
+#[id(string,error=ArtifactError,validate=validate_revision)]
+pub struct SourceRevision(#[schemars(regex(pattern = r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$"))] String);
 
 fn validate_dns_name(value: &str) -> Result<(), ArtifactError> {
     if value.is_empty() || value.len() > 253 {

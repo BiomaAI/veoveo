@@ -1,4 +1,4 @@
-use std::{fmt, str::FromStr};
+use std::fmt;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -24,63 +24,6 @@ fn validate_coordinate_id(value: &str) -> Result<(), GeofenceIdError> {
             "must contain only ASCII letters, digits, underscore, dash, dot, or colon",
         ))
     }
-}
-
-macro_rules! coordinate_id {
-    ($name:ident, $doc:literal) => {
-        #[doc = $doc]
-        #[derive(
-            Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-        )]
-        #[serde(try_from = "String", into = "String")]
-        pub struct $name(String);
-
-        impl $name {
-            pub fn new(value: impl Into<String>) -> Result<Self, GeofenceIdError> {
-                let value = value.into();
-                validate_coordinate_id(&value)?;
-                Ok(Self(value))
-            }
-
-            pub fn as_str(&self) -> &str {
-                &self.0
-            }
-        }
-
-        impl AsRef<str> for $name {
-            fn as_ref(&self) -> &str {
-                self.as_str()
-            }
-        }
-
-        impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str(&self.0)
-            }
-        }
-
-        impl TryFrom<String> for $name {
-            type Error = GeofenceIdError;
-
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::new(value)
-            }
-        }
-
-        impl FromStr for $name {
-            type Err = GeofenceIdError;
-
-            fn from_str(value: &str) -> Result<Self, Self::Err> {
-                Self::new(value.to_string())
-            }
-        }
-
-        impl From<$name> for String {
-            fn from(value: $name) -> Self {
-                value.0
-            }
-        }
-    };
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -110,10 +53,23 @@ impl fmt::Display for GeofenceIdError {
 
 impl std::error::Error for GeofenceIdError {}
 
-coordinate_id!(
-    GeofenceId,
-    "Geofence identity used by validation and plans."
-);
+#[doc = "Geofence identity used by validation and plans."]
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = GeofenceIdError, validate = validate_coordinate_id)]
+pub struct GeofenceId(String);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]

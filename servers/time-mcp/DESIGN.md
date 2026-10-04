@@ -946,3 +946,7 @@ Each replica opens one shared group of projected Store LIVE queries for authorit
 Committed changes invalidate only each listener's accepted resource identities and
 requested catalog. Writes coalesce over 100 milliseconds. Source reconnection invalidates readers after a delivery gap; reads retain normal
 current authority. Idle sources emit no periodic resource-change notifications. This observes durable state and cannot dispatch work.
+
+## Identity Declaration Mechanics
+
+Public Time ID declarations use `Id` with Time-owned prefix and lexical admission. String conversion preserves the supplied spelling and the existing schema profile. Temporal numbers, instants, release relationships and cursors keep their own validation contracts.

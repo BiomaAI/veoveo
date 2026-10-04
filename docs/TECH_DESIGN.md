@@ -869,3 +869,7 @@ Coverage includes:
 
 The full behavior matrix lives in `testing/smoke` and the focused crate tests. These
 checks, not this document, are the evidence that the behavior works.
+
+## Identity Declaration Mechanics
+
+Database identities use `Id` for UUID parsing and text projection while preserving transparent UUID Serde and the SDK `SurrealValue` derive. Access, content, agent and Workspace table mappings live in focused `src/ids/` modules and keep the existing public reexports. Const UUID constructors admit every UUID; these table identities do not establish domain admission or authority.

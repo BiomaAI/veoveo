@@ -41,56 +41,19 @@ macro_rules! string_schema {
 }
 pub(super) use string_schema;
 
-macro_rules! catalog_id {
-    ($name:ident, $kind:literal) => {
-        #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
-        #[serde(try_from = "String", into = "String")]
-        pub struct $name(String);
-        impl $name {
-            pub fn parse(value: impl Into<String>) -> Result<Self, ReasonContractError> {
-                let value = value.into();
-                if value.is_empty()
-                    || value.len() > 128
-                    || !value
-                        .bytes()
-                        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'-')
-                    || !value.as_bytes()[0].is_ascii_alphanumeric()
-                {
-                    return Err(ReasonContractError::InvalidId($kind));
-                }
-                Ok(Self(value))
-            }
-            pub fn as_str(&self) -> &str {
-                &self.0
-            }
-        }
-        impl TryFrom<String> for $name {
-            type Error = ReasonContractError;
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::parse(value)
-            }
-        }
-        impl FromStr for $name {
-            type Err = ReasonContractError;
-            fn from_str(value: &str) -> Result<Self, Self::Err> {
-                Self::parse(value)
-            }
-        }
-        impl From<$name> for String {
-            fn from(value: $name) -> String {
-                value.0
-            }
-        }
-        impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                self.0.fmt(f)
-            }
-        }
-        string_schema!($name);
-    };
-}
-catalog_id!(PipelineId, "pipeline");
-catalog_id!(ModelId, "model");
+#[derive(
+    veoveo_types::Id, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string,constructor=parse,error=ReasonContractError,validate=|value| validate_catalog_id(value,"pipeline"),schema=String::json_schema,schema_inline)]
+pub struct PipelineId(String);
+
+#[derive(
+    veoveo_types::Id, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string,constructor=parse,error=ReasonContractError,validate=|value| validate_catalog_id(value,"model"),schema=String::json_schema,schema_inline)]
+pub struct ModelId(String);
 
 /// Identity of a Reason analysis backed by a native UUIDv7 Task.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
@@ -146,3 +109,16 @@ impl fmt::Display for AnalysisId {
     }
 }
 string_schema!(AnalysisId);
+
+fn validate_catalog_id(value: &str, kind: &'static str) -> Result<(), ReasonContractError> {
+    if value.is_empty()
+        || value.len() > 128
+        || !value
+            .bytes()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'-')
+        || !value.as_bytes()[0].is_ascii_alphanumeric()
+    {
+        return Err(ReasonContractError::InvalidId(kind));
+    }
+    Ok(())
+}

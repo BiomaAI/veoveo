@@ -24,7 +24,7 @@ pub use scopes::UavScope;
 mod resources;
 pub use resources::*;
 
-use std::{collections::BTreeMap, fmt, str::FromStr};
+use std::{collections::BTreeMap, fmt};
 use veoveo_recording_contract::RecordingUri;
 use veoveo_types::TaskTypeDefinition;
 
@@ -58,57 +58,6 @@ fn validate_id(value: &str) -> Result<(), IdentityError> {
     }
 }
 
-macro_rules! domain_id {
-    ($name:ident, $doc:literal) => {
-        #[doc = $doc]
-        #[derive(
-            Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize, JsonSchema,
-        )]
-        #[serde(try_from = "String", into = "String")]
-        pub struct $name(String);
-
-        impl $name {
-            pub fn new(value: impl Into<String>) -> Result<Self, IdentityError> {
-                let value = value.into();
-                validate_id(&value)?;
-                Ok(Self(value))
-            }
-
-            pub fn as_str(&self) -> &str {
-                &self.0
-            }
-        }
-
-        impl fmt::Display for $name {
-            fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str(&self.0)
-            }
-        }
-
-        impl FromStr for $name {
-            type Err = IdentityError;
-
-            fn from_str(value: &str) -> Result<Self, Self::Err> {
-                Self::new(value)
-            }
-        }
-
-        impl TryFrom<String> for $name {
-            type Error = IdentityError;
-
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::new(value)
-            }
-        }
-
-        impl From<$name> for String {
-            fn from(value: $name) -> Self {
-                value.0
-            }
-        }
-    };
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct IdentityError {
     value: String,
@@ -136,24 +85,108 @@ impl fmt::Display for IdentityError {
 
 impl std::error::Error for IdentityError {}
 
-domain_id!(
-    SessionId,
-    "Stable identity of one isolated simulation world."
-);
-domain_id!(
-    VehicleId,
-    "Stable identity of one vehicle inside a session."
-);
-domain_id!(MissionId, "Stable identity of one submitted mission.");
-domain_id!(
-    MissionPlanId,
-    "Stable identity of one admitted single-vehicle mission plan."
-);
-domain_id!(
-    ControlGrantId,
-    "Stable identity of one principal-to-vehicle control grant."
-);
-domain_id!(RecordingKey, "Producer identity of one recording stream.");
+#[doc = "Stable identity of one isolated simulation world."]
+#[derive(
+    veoveo_types::Id,
+    Clone,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = IdentityError, validate = validate_id)]
+pub struct SessionId(String);
+#[doc = "Stable identity of one vehicle inside a session."]
+#[derive(
+    veoveo_types::Id,
+    Clone,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = IdentityError, validate = validate_id)]
+pub struct VehicleId(String);
+#[doc = "Stable identity of one submitted mission."]
+#[derive(
+    veoveo_types::Id,
+    Clone,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = IdentityError, validate = validate_id)]
+pub struct MissionId(String);
+#[doc = "Stable identity of one admitted single-vehicle mission plan."]
+#[derive(
+    veoveo_types::Id,
+    Clone,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = IdentityError, validate = validate_id)]
+pub struct MissionPlanId(String);
+#[doc = "Stable identity of one principal-to-vehicle control grant."]
+#[derive(
+    veoveo_types::Id,
+    Clone,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = IdentityError, validate = validate_id)]
+pub struct ControlGrantId(String);
+#[doc = "Producer identity of one recording stream."]
+#[derive(
+    veoveo_types::Id,
+    Clone,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = IdentityError, validate = validate_id)]
+pub struct RecordingKey(String);
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]

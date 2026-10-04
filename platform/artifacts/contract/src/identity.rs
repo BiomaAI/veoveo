@@ -4,32 +4,29 @@ use serde::{Deserialize, Serialize};
 /// Canonical identity of one logical artifact occurrence. Every put creates a
 /// fresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
 )]
 #[serde(try_from = "String", into = "String")]
+#[id(error = ArtifactIdError, admit = admit_artifact_id, constructor = parse, wire_string, generate = uuid::Uuid::now_v7)]
 pub struct ArtifactId(uuid::Uuid);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ArtifactIdError;
 
-impl std::fmt::Display for ArtifactIdError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("artifact id must be a UUIDv7")
-    }
-}
-
 impl std::error::Error for ArtifactIdError {}
 
 impl ArtifactId {
-    pub fn new() -> Self {
-        Self(uuid::Uuid::now_v7())
-    }
-
-    pub fn parse(value: impl AsRef<str>) -> Result<Self, ArtifactIdError> {
-        let value = uuid::Uuid::parse_str(value.as_ref()).map_err(|_| ArtifactIdError)?;
-        Self::try_from(value)
-    }
-
     pub fn as_uuid(self) -> uuid::Uuid {
         self.0
     }
@@ -50,40 +47,6 @@ impl TryFrom<uuid::Uuid> for ArtifactId {
     }
 }
 
-impl Default for ArtifactId {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl std::fmt::Display for ArtifactId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
-impl TryFrom<String> for ArtifactId {
-    type Error = ArtifactIdError;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::parse(value)
-    }
-}
-
-impl std::str::FromStr for ArtifactId {
-    type Err = ArtifactIdError;
-
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        Self::parse(value)
-    }
-}
-
-impl From<ArtifactId> for String {
-    fn from(value: ArtifactId) -> Self {
-        value.to_string()
-    }
-}
-
 /// The neutral scheme every server uses to name any artifact on the shared plane.
 pub const ARTIFACT_PLANE_SCHEME: &str = "artifact";
 
@@ -93,6 +56,17 @@ pub fn parse_artifact_plane_uri(uri: &str) -> Option<ArtifactId> {
     crate::ArtifactUri::parse(uri)
         .ok()
         .map(|uri| uri.artifact_id())
+}
+
+fn admit_artifact_id(value: &str) -> Result<uuid::Uuid, ArtifactIdError> {
+    let uuid = uuid::Uuid::parse_str(value).map_err(|_| ArtifactIdError)?;
+    ArtifactId::try_from(uuid).map(|id| id.0)
+}
+
+impl std::fmt::Display for ArtifactIdError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("artifact id must be a UUIDv7")
+    }
 }
 
 #[cfg(test)]

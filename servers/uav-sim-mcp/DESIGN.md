@@ -928,3 +928,7 @@ and `server/resources.rs` composes caller discovery, reads,
 completion, and subscription admission. `server/bootstrap.rs` constructs the service,
 wires HTTP, and owns observer shutdown. `server/catalog_tests.rs` qualifies these
 paths against a disposable pinned Store; it performs no simulation or GPU work.
+
+## Identity Declaration Mechanics
+
+Simulation and live-view identities use `Id` with their existing owner lexical validators and String schema declarations. Recording keys remain nominal identities. Resource references and flight/control relationships keep their separate parsers and admission checks.

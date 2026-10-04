@@ -154,3 +154,7 @@ Share identities are distinct RFC UUIDv7 values. Their decoder rejects other ver
 and non-RFC variants without echoing the input. Share links keep the existing JSON
 fields and redact bearer URLs from Debug output. Transport adapters map invalid
 share identities to their existing invalid-request response.
+
+## Identity Declaration Mechanics
+
+Occurrence and private ledger identities use `Id` with Artifact-owned RFC UUIDv7 admission. Parser aliases remain valid input and display emits the normalized UUID. Owner Serde declarations keep their String wire representation and existing unconstrained string schema; generation and typed accessors stay separate from authority.

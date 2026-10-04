@@ -5,6 +5,7 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+veoveo-types.workspace = true
 anyhow.workspace = true
 schemars.workspace = true
 serde.workspace = true

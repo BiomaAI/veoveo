@@ -1,4 +1,4 @@
-use std::{fmt, str::FromStr};
+use std::fmt;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -24,63 +24,6 @@ fn validate_coordinate_id(value: &str) -> Result<(), GeodeticIdError> {
             "must contain only ASCII letters, digits, underscore, dash, dot, or colon",
         ))
     }
-}
-
-macro_rules! coordinate_id {
-    ($name:ident, $doc:literal) => {
-        #[doc = $doc]
-        #[derive(
-            Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-        )]
-        #[serde(try_from = "String", into = "String")]
-        pub struct $name(String);
-
-        impl $name {
-            pub fn new(value: impl Into<String>) -> Result<Self, GeodeticIdError> {
-                let value = value.into();
-                validate_coordinate_id(&value)?;
-                Ok(Self(value))
-            }
-
-            pub fn as_str(&self) -> &str {
-                &self.0
-            }
-        }
-
-        impl AsRef<str> for $name {
-            fn as_ref(&self) -> &str {
-                self.as_str()
-            }
-        }
-
-        impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str(&self.0)
-            }
-        }
-
-        impl TryFrom<String> for $name {
-            type Error = GeodeticIdError;
-
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::new(value)
-            }
-        }
-
-        impl FromStr for $name {
-            type Err = GeodeticIdError;
-
-            fn from_str(value: &str) -> Result<Self, Self::Err> {
-                Self::new(value.to_string())
-            }
-        }
-
-        impl From<$name> for String {
-            fn from(value: $name) -> Self {
-                value.0
-            }
-        }
-    };
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -110,12 +53,54 @@ impl fmt::Display for GeodeticIdError {
 
 impl std::error::Error for GeodeticIdError {}
 
-coordinate_id!(CrsId, "Coordinate reference system id, commonly EPSG:4326.");
-coordinate_id!(
-    DatumId,
-    "Geodetic datum id used by a CRS or coordinate operation."
-);
-coordinate_id!(
-    EllipsoidId,
-    "Reference ellipsoid id, such as WGS84 or GRS80."
-);
+#[doc = "Coordinate reference system id, commonly EPSG:4326."]
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = GeodeticIdError, validate = validate_coordinate_id)]
+pub struct CrsId(String);
+#[doc = "Geodetic datum id used by a CRS or coordinate operation."]
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = GeodeticIdError, validate = validate_coordinate_id)]
+pub struct DatumId(String);
+#[doc = "Reference ellipsoid id, such as WGS84 or GRS80."]
+#[derive(
+    veoveo_types::Id,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(string, error = GeodeticIdError, validate = validate_coordinate_id)]
+pub struct EllipsoidId(String);

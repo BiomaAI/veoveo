@@ -491,3 +491,7 @@ The coordinated installation upgrade regenerates profiles and locks; v7 profile
 headers fail with a regeneration diagnostic before obsolete fields are decoded.
 Retained image/chart digests and the prior configuration commit provide deployment
 recovery. This metadata cut does not convert application database contents.
+
+## Identity Declaration Mechanics
+
+Artifact names, release versions, digests and source revisions use `Id` with the deployment owner’s existing validators and schema regex declarations. Artifact coordinates remain checked address values rather than implementing `Identity`. Serde applies owner admission through String conversion.

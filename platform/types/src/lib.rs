@@ -21,7 +21,8 @@
 //! ```
 
 extern crate self as veoveo_types;
-pub use veoveo_macros::{Vocabulary, embedded_document};
+pub use id::Identity;
+pub use veoveo_macros::{Id, Vocabulary, embedded_document};
 pub use vocabulary::{Vocabulary, is_scope_token, scope_vocabulary_schema};
 
 mod access_grant;
@@ -29,6 +30,7 @@ mod authority;
 mod digest;
 mod error;
 mod https_url;
+mod id;
 pub mod identifier_syntax;
 mod identity;
 mod names;

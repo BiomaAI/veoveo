@@ -1,6 +1,6 @@
 //! Recording identities and redacted admission errors.
 use serde::{Deserialize, Serialize};
-use std::{fmt, str::FromStr};
+use std::fmt;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RecordingContractError {
@@ -70,72 +70,157 @@ macro_rules! string_schema {
 }
 pub(super) use string_schema;
 
-macro_rules! recording_identity {
-    ($name:ident) => {
-        #[derive(
-            Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize,
-        )]
-        #[serde(try_from = "String", into = "String")]
-        pub struct $name(uuid::Uuid);
-        impl $name {
-            pub fn new() -> Self {
-                Self(uuid::Uuid::now_v7())
-            }
-            pub fn parse(value: impl AsRef<str>) -> Result<Self, RecordingContractError> {
-                let value = value.as_ref();
-                let uuid =
-                    uuid::Uuid::parse_str(value).map_err(|_| RecordingContractError::Identity)?;
-                let id = Self::try_from(uuid)?;
-                if id.to_string() != value {
-                    return Err(RecordingContractError::Identity);
-                }
-                Ok(id)
-            }
-            pub fn as_uuid(self) -> uuid::Uuid {
-                self.0
-            }
-        }
-        impl Default for $name {
-            fn default() -> Self {
-                Self::new()
-            }
-        }
-        impl TryFrom<uuid::Uuid> for $name {
-            type Error = RecordingContractError;
-            fn try_from(uuid: uuid::Uuid) -> Result<Self, Self::Error> {
-                if uuid.get_version_num() != 7 || uuid.get_variant() != uuid::Variant::RFC4122 {
-                    return Err(RecordingContractError::Identity);
-                }
-                Ok(Self(uuid))
-            }
-        }
-        impl TryFrom<String> for $name {
-            type Error = RecordingContractError;
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::parse(value)
-            }
-        }
-        impl FromStr for $name {
-            type Err = RecordingContractError;
-            fn from_str(value: &str) -> Result<Self, Self::Err> {
-                Self::parse(value)
-            }
-        }
-        impl From<$name> for String {
-            fn from(value: $name) -> Self {
-                value.to_string()
-            }
-        }
-        impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                self.0.fmt(f)
-            }
-        }
-        string_schema!($name);
-    };
+#[derive(
+    veoveo_types::Id,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(error=RecordingContractError,admit=admit_recording_id,wire_string,constructor=parse,generate=uuid::Uuid::now_v7,schema=String::json_schema,schema_inline)]
+pub struct RecordingId(uuid::Uuid);
+impl RecordingId {
+    pub fn as_uuid(self) -> uuid::Uuid {
+        self.0
+    }
 }
-recording_identity!(RecordingId);
-recording_identity!(RecordingDatasetId);
-recording_identity!(RecordingLayerId);
-recording_identity!(RecordingReadGrantId);
-recording_identity!(RecordingProjectionId);
+impl TryFrom<uuid::Uuid> for RecordingId {
+    type Error = RecordingContractError;
+    fn try_from(value: uuid::Uuid) -> Result<Self, Self::Error> {
+        validate_recording_uuid(value).map(Self)
+    }
+}
+
+#[derive(
+    veoveo_types::Id,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(error=RecordingContractError,admit=admit_recording_id,wire_string,constructor=parse,generate=uuid::Uuid::now_v7,schema=String::json_schema,schema_inline)]
+pub struct RecordingDatasetId(uuid::Uuid);
+impl RecordingDatasetId {
+    pub fn as_uuid(self) -> uuid::Uuid {
+        self.0
+    }
+}
+impl TryFrom<uuid::Uuid> for RecordingDatasetId {
+    type Error = RecordingContractError;
+    fn try_from(value: uuid::Uuid) -> Result<Self, Self::Error> {
+        validate_recording_uuid(value).map(Self)
+    }
+}
+
+#[derive(
+    veoveo_types::Id,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(error=RecordingContractError,admit=admit_recording_id,wire_string,constructor=parse,generate=uuid::Uuid::now_v7,schema=String::json_schema,schema_inline)]
+pub struct RecordingLayerId(uuid::Uuid);
+impl RecordingLayerId {
+    pub fn as_uuid(self) -> uuid::Uuid {
+        self.0
+    }
+}
+impl TryFrom<uuid::Uuid> for RecordingLayerId {
+    type Error = RecordingContractError;
+    fn try_from(value: uuid::Uuid) -> Result<Self, Self::Error> {
+        validate_recording_uuid(value).map(Self)
+    }
+}
+
+#[derive(
+    veoveo_types::Id,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(error=RecordingContractError,admit=admit_recording_id,wire_string,constructor=parse,generate=uuid::Uuid::now_v7,schema=String::json_schema,schema_inline)]
+pub struct RecordingReadGrantId(uuid::Uuid);
+impl RecordingReadGrantId {
+    pub fn as_uuid(self) -> uuid::Uuid {
+        self.0
+    }
+}
+impl TryFrom<uuid::Uuid> for RecordingReadGrantId {
+    type Error = RecordingContractError;
+    fn try_from(value: uuid::Uuid) -> Result<Self, Self::Error> {
+        validate_recording_uuid(value).map(Self)
+    }
+}
+
+#[derive(
+    veoveo_types::Id,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
+#[serde(try_from = "String", into = "String")]
+#[id(error=RecordingContractError,admit=admit_recording_id,wire_string,constructor=parse,generate=uuid::Uuid::now_v7,schema=String::json_schema,schema_inline)]
+pub struct RecordingProjectionId(uuid::Uuid);
+impl RecordingProjectionId {
+    pub fn as_uuid(self) -> uuid::Uuid {
+        self.0
+    }
+}
+impl TryFrom<uuid::Uuid> for RecordingProjectionId {
+    type Error = RecordingContractError;
+    fn try_from(value: uuid::Uuid) -> Result<Self, Self::Error> {
+        validate_recording_uuid(value).map(Self)
+    }
+}
+
+fn validate_recording_uuid(value: uuid::Uuid) -> Result<uuid::Uuid, RecordingContractError> {
+    if value.get_version_num() != 7 || value.get_variant() != uuid::Variant::RFC4122 {
+        return Err(RecordingContractError::Identity);
+    }
+    Ok(value)
+}
+fn admit_recording_id(value: &str) -> Result<uuid::Uuid, RecordingContractError> {
+    let id = uuid::Uuid::parse_str(value).map_err(|_| RecordingContractError::Identity)?;
+    let id = validate_recording_uuid(id)?;
+    if id.to_string() != value {
+        return Err(RecordingContractError::Identity);
+    }
+    Ok(id)
+}

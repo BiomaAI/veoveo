@@ -529,3 +529,7 @@ hardware.
   transformation result.
 - Operator GStreamer configuration is trusted deployment code, never
   untrusted request input.
+
+## Identity Declaration Mechanics
+
+Pipeline and model identities use `Id` with Stream-owned catalog-name admission. Serde decodes validated Strings and schemas retain the inline unconstrained String profile. Run/live-session Task identity and typed resource admission remain separate owner implementations.

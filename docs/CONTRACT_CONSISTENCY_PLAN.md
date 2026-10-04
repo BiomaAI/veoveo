@@ -1,10 +1,11 @@
 # Platform Foundations And Contract Consistency Plan
 
-Status: Phase 0 Vocabulary and embedded-document concern completed. Closed scope,
-Task, Audit and persistence vocabularies use the shared derive, and the document
-macro lives in `platform/macros`. Scoped native qualification, contract-only isolation,
-format checks, document validation and independent expansion review pass.
-Id, ResourceAddress, checked-model and cursor mechanics remain unimplemented.
+Status: Phase 0 Vocabulary, embedded-document and Id concerns completed. Closed
+scopes, Task operations, Audit/persistence vocabularies and identifiers use shared
+declarations with owner admission and preserved wire/schema profiles. Scoped native
+checks, contract-only isolation, formatting, document validation and independent
+compiler expansion review pass. ResourceAddress is next and unqualified;
+checked-model and cursor mechanics remain open.
 This is the single implementation plan for the former Foundations, Contract
 Consistency and Repository Hardening tracks; their required open conditions transfer
 without being declared complete.
@@ -442,7 +443,7 @@ calling crate to embed that crate's documents. Generated code calls ordinary tra
 | Macro | Kind | Generates |
 |---|---|---|
 | `ResourceAddress` | Derive | From `#[resource(template = …)]` on a single address or on each variant of a resource enum: parsing and building through the shared URI layer, the serde string conversion, the `ResourceAddress` impl, accessors, a JSON Schema `pattern` from the template and each identifier's pattern, and the template declarations a server's checked setup publishes |
-| `Id` | Derive | For an identity-bearing newtype with a declared form, such as owner-declared UUID admission, `text(max, charset)`, `prefixed(prefix)` or `hex(len)`, plus a reviewed secret form: validation on every constructor, serde, `FromStr` and a JSON Schema with pattern and length. Non-secret forms may implement `Display`; secret forms preserve owner redaction, zeroization and explicit exposure rules without generating a leaking formatter. A `surreal` option adds the `SurrealValue` mapping in crates that already depend on SurrealDB. Values that are not identities, such as bounded numbers and validated text, stay ordinary newtypes |
+| `Id` | Derive | Shared `Identity` parsing/text projection, `FromStr`, optional validating String constructors/conversions, owner generation and owner schema delegation. Standard Serde and schemars derives or owner implementations retain each wire, binary and schema profile; Id alone does not establish Serde admission. Validators, domain errors, namespaces, exposure and redaction belong to each owner. No generic unchecked construction hook or database dependency is introduced. Checked display metadata, numbers and resource addresses remain separate |
 | `Vocabulary` | Derive | For an enum of unit variants: one spelling per variant (snake_case by default), `ALL`, `as_str`, `Display`, `FromStr`, serde and the JSON Schema enum from the same spelling, compile-time checks for empty or duplicate spellings, and opt-in hooks `scope` (OAuth token syntax and `ScopeDefinition`), `task_type` (`TaskTypeDefinition`) and `surreal` |
 | `embedded_document!` | Function-like | Embeds a document at compile time with its SHA-256; implemented in `platform/macros` |
 | `server_docs!` | `macro_rules!` in `mcp/contract` | Embeds a server's `AGENTS.md` and `DESIGN.md` through `embedded_document!` |
@@ -462,7 +463,9 @@ v4/v7 and its provider admits v4/v7/v8. TaskId accepts UUID aliases and versions
 generating v7. Artifact accepts parser aliases and requires RFC v7. Map owns v5
 namespace and stable-key generation. Id adoption preserves each profile and current
 schema, including Recording's unconstrained string and Computers' UUID pattern.
-Secret-form mechanics require review of the actual owner's exposure and zeroization.
+OAuthRefreshToken preserves explicit exposure and String serialization, redacts
+Debug/Display, and does not zeroize. This concern deliberately corrects rejected-token
+errors to redact the secret; constructor, FromStr and Serde failures share that rule.
 
 Address schema patterns require encoding-aware qualification against typed builders;
 mechanical adoption preserves snapshots. Checked models preserve owner validation,

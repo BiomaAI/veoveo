@@ -1,127 +1,12 @@
-use std::fmt;
-use std::str::FromStr;
-
-use serde::{Deserialize, Serialize};
-use surrealdb::types::{RecordId, SurrealValue, Uuid as SurrealUuid};
-use uuid::Uuid;
-
-macro_rules! domain_id {
-    ($name:ident, $table:literal) => {
-        #[derive(
-            Clone,
-            Copy,
-            Debug,
-            Eq,
-            Hash,
-            Ord,
-            PartialEq,
-            PartialOrd,
-            Serialize,
-            Deserialize,
-            SurrealValue,
-        )]
-        #[serde(transparent)]
-        pub struct $name(Uuid);
-
-        impl $name {
-            pub const TABLE: &'static str = $table;
-
-            pub fn new() -> Self {
-                Self(Uuid::now_v7())
-            }
-
-            pub const fn from_uuid(value: Uuid) -> Self {
-                Self(value)
-            }
-
-            pub const fn as_uuid(self) -> Uuid {
-                self.0
-            }
-
-            pub fn record_id(self) -> RecordId {
-                RecordId::new(Self::TABLE, SurrealUuid::from(self.0))
-            }
-        }
-
-        impl Default for $name {
-            fn default() -> Self {
-                Self::new()
-            }
-        }
-
-        impl fmt::Display for $name {
-            fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                self.0.fmt(formatter)
-            }
-        }
-
-        impl FromStr for $name {
-            type Err = uuid::Error;
-
-            fn from_str(value: &str) -> Result<Self, Self::Err> {
-                Uuid::parse_str(value).map(Self)
-            }
-        }
-
-        impl From<$name> for Uuid {
-            fn from(value: $name) -> Self {
-                value.0
-            }
-        }
-
-        impl From<$name> for RecordId {
-            fn from(value: $name) -> Self {
-                value.record_id()
-            }
-        }
-    };
-}
-
-domain_id!(EnterpriseId, "enterprise");
-domain_id!(TenantId, "tenant");
-domain_id!(PrincipalId, "principal");
-domain_id!(GroupId, "principal_group");
-domain_id!(OauthClientId, "oauth_client");
-domain_id!(McpServerId, "mcp_server");
-domain_id!(ProfileId, "profile");
-domain_id!(PolicyRevisionId, "policy_revision");
-domain_id!(WorkContextId, "work_context");
-domain_id!(ProviderJobId, "provider_job");
-domain_id!(ProviderEventId, "provider_event");
-domain_id!(ArtifactBlobId, "artifact_blob");
-domain_id!(ArtifactId, "artifact_occurrence");
-domain_id!(ShareLinkId, "share_link");
-domain_id!(ArtifactWriteCapabilityId, "artifact_write_capability");
-domain_id!(ArtifactReadCapabilityId, "artifact_read_capability");
-domain_id!(ArtifactWriteRedemptionId, "artifact_write_redemption");
-domain_id!(ArtifactAccessRequestId, "artifact_access_request");
-domain_id!(MediaTaskContextId, "media_task_context");
-domain_id!(MediaUsageId, "media_usage");
-domain_id!(DomainUsageId, "domain_usage");
-domain_id!(RecordingDatasetId, "recording_dataset");
-domain_id!(RecordingId, "recording");
-domain_id!(RecordingLayerId, "recording_layer");
-domain_id!(RecordingReadGrantId, "recording_read_grant");
-domain_id!(RecordingProjectionReceiptId, "recording_projection_receipt");
-domain_id!(RecordingIngestStreamId, "recording_ingest_stream");
-domain_id!(RecordingIngestBatchId, "recording_ingest_batch");
-domain_id!(
-    RecordingIngestQuotaWindowId,
-    "recording_ingest_quota_window"
-);
-domain_id!(RecordingBlueprintId, "recording_blueprint");
-domain_id!(AgentId, "agent");
-domain_id!(WakeId, "wake");
-domain_id!(AgentEpisodeId, "agent_episode");
-domain_id!(AgentTaskId, "agent_task");
-domain_id!(AgentInputRequestId, "agent_input_request");
-domain_id!(WorkspaceChatId, "workspace_chat");
-domain_id!(WorkspaceAgentId, "workspace_agent");
-domain_id!(WorkspaceRunId, "workspace_run");
-domain_id!(WorkspaceOperationId, "workspace_operation");
-domain_id!(WorkspaceMemberId, "workspace_member");
-domain_id!(WorkspaceMessageId, "workspace_message");
-domain_id!(WorkspaceInvitationId, "workspace_invitation");
+//! Database table identities, independent of their public domain projections.
+mod access;
+pub use access::*;
+mod content;
+pub use content::*;
+mod agents;
+pub use agents::*;
+mod workspace;
+pub use workspace::*;
 
 #[cfg(test)]
 mod tests {
@@ -141,5 +26,148 @@ mod tests {
         let encoded = serde_json::to_string(&id).unwrap();
         let decoded: ArtifactId = serde_json::from_str(&encoded).unwrap();
         assert_eq!(decoded, id);
+    }
+}
+
+#[cfg(test)]
+mod identity_profiles {
+    use super::*;
+    use surrealdb::types::{RecordId, SurrealValue};
+    use uuid::Uuid;
+    use veoveo_types::Identity;
+    fn check<I>(table: &str, record: RecordId)
+    where
+        I: Identity<Error = uuid::Error>
+            + SurrealValue
+            + serde::Serialize
+            + serde::de::DeserializeOwned
+            + std::fmt::Debug
+            + PartialEq,
+    {
+        let raw = "550E8400E29B41D4A716446655440000";
+        let uuid = Uuid::parse_str(raw).unwrap();
+        let id = I::parse_identity(raw).unwrap();
+        assert_eq!(id.identity_text(), uuid.to_string());
+        assert_eq!(record.table.as_str(), table);
+        assert_eq!(serde_json::to_value(&id).unwrap(), uuid.to_string());
+        let sdk = id.into_value();
+        assert_eq!(sdk, uuid.into_value());
+        assert_eq!(I::from_value(sdk).unwrap(), I::parse_identity(raw).unwrap());
+        assert!(I::parse_identity("invalid").is_err());
+    }
+    #[test]
+    fn all_table_identities_keep_uuid_admission_and_sdk_mapping() {
+        let uuid = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+        check::<EnterpriseId>("enterprise", EnterpriseId::from_uuid(uuid).record_id());
+        check::<TenantId>("tenant", TenantId::from_uuid(uuid).record_id());
+        check::<PrincipalId>("principal", PrincipalId::from_uuid(uuid).record_id());
+        check::<GroupId>("principal_group", GroupId::from_uuid(uuid).record_id());
+        check::<OauthClientId>("oauth_client", OauthClientId::from_uuid(uuid).record_id());
+        check::<McpServerId>("mcp_server", McpServerId::from_uuid(uuid).record_id());
+        check::<ProfileId>("profile", ProfileId::from_uuid(uuid).record_id());
+        check::<PolicyRevisionId>(
+            "policy_revision",
+            PolicyRevisionId::from_uuid(uuid).record_id(),
+        );
+        check::<WorkContextId>("work_context", WorkContextId::from_uuid(uuid).record_id());
+        check::<ProviderJobId>("provider_job", ProviderJobId::from_uuid(uuid).record_id());
+        check::<ProviderEventId>(
+            "provider_event",
+            ProviderEventId::from_uuid(uuid).record_id(),
+        );
+        check::<ArtifactBlobId>("artifact_blob", ArtifactBlobId::from_uuid(uuid).record_id());
+        check::<ArtifactId>(
+            "artifact_occurrence",
+            ArtifactId::from_uuid(uuid).record_id(),
+        );
+        check::<ShareLinkId>("share_link", ShareLinkId::from_uuid(uuid).record_id());
+        check::<ArtifactWriteCapabilityId>(
+            "artifact_write_capability",
+            ArtifactWriteCapabilityId::from_uuid(uuid).record_id(),
+        );
+        check::<ArtifactReadCapabilityId>(
+            "artifact_read_capability",
+            ArtifactReadCapabilityId::from_uuid(uuid).record_id(),
+        );
+        check::<ArtifactWriteRedemptionId>(
+            "artifact_write_redemption",
+            ArtifactWriteRedemptionId::from_uuid(uuid).record_id(),
+        );
+        check::<ArtifactAccessRequestId>(
+            "artifact_access_request",
+            ArtifactAccessRequestId::from_uuid(uuid).record_id(),
+        );
+        check::<MediaTaskContextId>(
+            "media_task_context",
+            MediaTaskContextId::from_uuid(uuid).record_id(),
+        );
+        check::<MediaUsageId>("media_usage", MediaUsageId::from_uuid(uuid).record_id());
+        check::<DomainUsageId>("domain_usage", DomainUsageId::from_uuid(uuid).record_id());
+        check::<RecordingDatasetId>(
+            "recording_dataset",
+            RecordingDatasetId::from_uuid(uuid).record_id(),
+        );
+        check::<RecordingId>("recording", RecordingId::from_uuid(uuid).record_id());
+        check::<RecordingLayerId>(
+            "recording_layer",
+            RecordingLayerId::from_uuid(uuid).record_id(),
+        );
+        check::<RecordingReadGrantId>(
+            "recording_read_grant",
+            RecordingReadGrantId::from_uuid(uuid).record_id(),
+        );
+        check::<RecordingProjectionReceiptId>(
+            "recording_projection_receipt",
+            RecordingProjectionReceiptId::from_uuid(uuid).record_id(),
+        );
+        check::<RecordingIngestStreamId>(
+            "recording_ingest_stream",
+            RecordingIngestStreamId::from_uuid(uuid).record_id(),
+        );
+        check::<RecordingIngestBatchId>(
+            "recording_ingest_batch",
+            RecordingIngestBatchId::from_uuid(uuid).record_id(),
+        );
+        check::<RecordingIngestQuotaWindowId>(
+            "recording_ingest_quota_window",
+            RecordingIngestQuotaWindowId::from_uuid(uuid).record_id(),
+        );
+        check::<RecordingBlueprintId>(
+            "recording_blueprint",
+            RecordingBlueprintId::from_uuid(uuid).record_id(),
+        );
+        check::<AgentId>("agent", AgentId::from_uuid(uuid).record_id());
+        check::<WakeId>("wake", WakeId::from_uuid(uuid).record_id());
+        check::<AgentEpisodeId>("agent_episode", AgentEpisodeId::from_uuid(uuid).record_id());
+        check::<AgentTaskId>("agent_task", AgentTaskId::from_uuid(uuid).record_id());
+        check::<AgentInputRequestId>(
+            "agent_input_request",
+            AgentInputRequestId::from_uuid(uuid).record_id(),
+        );
+        check::<WorkspaceChatId>(
+            "workspace_chat",
+            WorkspaceChatId::from_uuid(uuid).record_id(),
+        );
+        check::<WorkspaceAgentId>(
+            "workspace_agent",
+            WorkspaceAgentId::from_uuid(uuid).record_id(),
+        );
+        check::<WorkspaceRunId>("workspace_run", WorkspaceRunId::from_uuid(uuid).record_id());
+        check::<WorkspaceOperationId>(
+            "workspace_operation",
+            WorkspaceOperationId::from_uuid(uuid).record_id(),
+        );
+        check::<WorkspaceMemberId>(
+            "workspace_member",
+            WorkspaceMemberId::from_uuid(uuid).record_id(),
+        );
+        check::<WorkspaceMessageId>(
+            "workspace_message",
+            WorkspaceMessageId::from_uuid(uuid).record_id(),
+        );
+        check::<WorkspaceInvitationId>(
+            "workspace_invitation",
+            WorkspaceInvitationId::from_uuid(uuid).record_id(),
+        );
     }
 }

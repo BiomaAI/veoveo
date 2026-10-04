@@ -178,3 +178,7 @@ limit has not been qualified at installation scale.
 Cold/offline packaging and full release provenance need separate qualification; the installed development images do
 not establish those release properties. Speaker attribution, translation, meeting
 capture and spoken replies require separate product work.
+
+## Identity Declaration Mechanics
+
+Speech identity declarations use `Id` with owner UUID admission. Transcription accepts canonical RFC UUIDv7; dictation also admits canonical RFC UUIDv4 from browser generation. Their String wire behavior and declared version-specific schema patterns remain independent from native Task admission.
