@@ -200,7 +200,7 @@ async fn two_replicas_fence_claims_and_recover_expired_work() {
     );
     let changes = fixture
         ._database
-        .committed(veoveo_platform_store::PlatformTable::Wake)
+        .committed(veoveo_agent_runtime::AgentObservationTable::Wake)
         .await;
     assert!(
         changes
@@ -290,7 +290,7 @@ async fn operator_message_is_untrusted_idempotent_and_restart_durable() {
 
     let changes = fixture
         ._database
-        .committed(veoveo_platform_store::PlatformTable::Wake)
+        .committed(veoveo_agent_runtime::AgentObservationTable::Wake)
         .await;
     assert_eq!(
         changes.len(),
@@ -541,7 +541,7 @@ async fn input_answer_and_wake_survive_restart_atomically() {
     );
     let changes = fixture
         ._database
-        .committed(veoveo_platform_store::PlatformTable::AgentInputRequest)
+        .committed(veoveo_agent_runtime::AgentObservationTable::AgentInputRequest)
         .await;
     assert_eq!(
         changes

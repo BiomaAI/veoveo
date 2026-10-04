@@ -7,8 +7,9 @@ publish = false
 [features]
 gateway = ["dep:veoveo-gateway-contract", "dep:veoveo-mcp-gateway", "dep:veoveo-computers-transport", "dep:veoveo-mcp-contract", "dep:rmcp", "dep:tokio", "dep:axum", "dep:anyhow", "dep:serde", "dep:serde_json", "dep:chrono", "dep:secrecy", "dep:url", "dep:tokio-util", "dep:futures", "dep:veoveo-computers-contract", "dep:veoveo-types"]
 default = ["runtime"]
-schema = ["dep:veoveo-modules"]
+schema = ["dep:veoveo-modules", "dep:veoveo-types", "dep:serde", "dep:schemars"]
 runtime = [
+    "schema",
     "dep:veoveo-gateway-contract",
     "dep:futures",
     "dep:veoveo-types",
@@ -55,6 +56,7 @@ chrono = { workspace = true, optional = true }
 hex = { workspace = true, optional = true }
 getrandom = { workspace = true, optional = true }
 hmac = { workspace = true, optional = true }
+schemars = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
@@ -204,4 +206,8 @@ required-features = ["runtime"]
 
 [[test]]
 name = "worker_queue"
+required-features = ["runtime"]
+
+[[test]]
+name = "changefeed"
 required-features = ["runtime"]

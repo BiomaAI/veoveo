@@ -85,8 +85,9 @@ feed does not retain prior row contents.
 ## Persistence Module Declaration
 
 The independent `schema` feature exports `schema::module_setup(execution)` for the
-`agents` optional module. It activates only `veoveo-modules` with default features
-disabled; contract and runtime dependencies require their own features. Default
+`agents` optional module. It activates `veoveo-modules` with default features disabled and the foundational
+vocabulary, Serde and schema dependencies used by owner table declarations. MCP,
+Store and asynchronous runtime dependencies require their own features. Default
 runtime behavior is unchanged. The declaration claims `agent_*`, `managed_agent_*`, and explicit `agent`, `managed_agent`, `wake`; seven existing Agent catalog, admission and result-consumption functions.
 It requires Audit, whose transitive requirements include Tasks, Artifacts, Gateway and Identity.
 
@@ -98,3 +99,13 @@ require separate implementation and qualification. Future owner migrations and
 queries belong together in this owner's crate, with one declaration per object.
 
 The current Store `agent_management/import.surql` transaction reads Workspace runs, updates Workspace participants and chats, and creates Workspace events. The declared target omits a Workspace dependency. Participant import belongs in the Workspace owning API, composed with Agent catalog operations while preserving writer exclusion, transaction checks, rollback and audit. The current `fn::agent_consume_results` also updates kernel Task retention state; its explicit function claim does not approve foreign mutations.
+
+## Persistence Observation
+
+`AgentObservationTable` declares the owner's closed observation table names under the
+`schema` feature. Runtime consumers convert these declarations into checked
+`ObservationTable` descriptors and compose them with kernel tables. The descriptor
+admits an identifier; it does not certify installed schema or grant read authority.
+These owner tables declare 30-day changefeed retention matching the installed SQL.
+LIVE invalidation and changefeed recovery keep their existing reconciliation and
+checkpoint behavior. Public DTO contract features do not activate observation sources.

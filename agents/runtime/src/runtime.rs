@@ -1126,9 +1126,12 @@ impl AgentRuntime {
         maximum_wait: Duration,
     ) -> Result<Option<AgentInputRequestRecord>> {
         let cursor = self.store.changefeed_cursor_now().await?;
-        let mut changes = self
-            .store
-            .observe_changes(vec![PlatformTable::AgentInputRequest], cursor);
+        let mut changes = self.store.observe_changes(
+            vec![veoveo_modules::ObservationTable::from(
+                crate::AgentObservationTable::AgentInputRequest,
+            )],
+            cursor,
+        );
         let wait = async {
             while let Some(change) = changes.next().await {
                 change?;

@@ -21,13 +21,15 @@ impl AgentRuntime {
         let store = self.store.clone();
         let mut changes = store.observe_changes(
             vec![
-                PlatformTable::Wake,
-                PlatformTable::Agent,
-                PlatformTable::ManagedAgent,
-                PlatformTable::AgentDefinition,
-                PlatformTable::Principal,
-                PlatformTable::Tenant,
-                PlatformTable::WorkContext,
+                veoveo_modules::ObservationTable::from(crate::AgentObservationTable::Wake),
+                veoveo_modules::ObservationTable::from(crate::AgentObservationTable::Agent),
+                veoveo_modules::ObservationTable::from(crate::AgentObservationTable::ManagedAgent),
+                veoveo_modules::ObservationTable::from(
+                    crate::AgentObservationTable::AgentDefinition,
+                ),
+                veoveo_modules::ObservationTable::from(PlatformTable::Principal),
+                veoveo_modules::ObservationTable::from(PlatformTable::Tenant),
+                veoveo_modules::ObservationTable::from(PlatformTable::WorkContext),
             ],
             cursor,
         );

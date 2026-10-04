@@ -294,12 +294,12 @@ pub(super) fn spawn_subscription_projection(
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         use futures::StreamExt;
-        use veoveo_platform_store::PlatformTable::{MediaUsage, ProviderJob, Task};
-        let mut changes =
-            state
-                .durable
-                .store()
-                .resource_changes(vec![ProviderJob, MediaUsage, Task]);
+        use veoveo_platform_store::PlatformTable::{ProviderJob, Task};
+        let mut changes = state.durable.store().resource_changes(vec![
+            veoveo_modules::ObservationTable::from(ProviderJob),
+            veoveo_media_mcp::MediaObservationTable::MediaUsage.into(),
+            Task.into(),
+        ]);
         loop {
             tokio::select! {
                 () = cancellation.cancelled() => break,

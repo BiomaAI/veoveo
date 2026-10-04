@@ -18,3 +18,8 @@ pub mod server;
 
 #[cfg(feature = "schema")]
 pub mod schema;
+
+#[cfg(feature = "schema")]
+pub mod observation;
+#[cfg(feature = "schema")]
+pub use observation::UavObservationTable;

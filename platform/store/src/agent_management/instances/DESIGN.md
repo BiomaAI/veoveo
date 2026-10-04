@@ -72,8 +72,9 @@ new workload generation or archiving still requires the old lease to end.
 
 ## Domain Discovery Notifications
 
-Domain App catalogs may observe managed lifecycle and definition changes through the
-store's closed `ResourceChangeTable` native LIVE sources. The watcher projects record
+Domain App catalogs may observe managed lifecycle and definition changes through
+Agents' `AgentObservationTable` declarations, converted into the shared checked
+`ObservationTable` for native LIVE delivery. The watcher projects record
 identities into an invalidation signal and re-establishes discovery after reconnect.
 Registry tables provide native changefeeds for consumer recovery. Current domain grants
 and managed registration are checked on every catalog read and operation. Controller

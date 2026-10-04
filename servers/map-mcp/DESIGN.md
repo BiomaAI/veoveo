@@ -1129,8 +1129,9 @@ Source, restriction, mobility and travel cursors retain canonical hexadecimal JS
 ## Persistence Module Declaration
 
 The independent `schema` feature exports `schema::module_setup(execution)` for the
-`map` optional module. It activates only `veoveo-modules` with default features
-disabled; contract and runtime dependencies require their own features. Default
+`map` optional module. It activates `veoveo-modules` with default features disabled and the foundational
+vocabulary, Serde and schema dependencies used by owner table declarations. MCP,
+Store and asynchronous runtime dependencies require their own features. Default
 runtime behavior is unchanged. The declaration claims `map_*`.
 It requires Tasks, including earlier kernel lanes through transitive requirements.
 
@@ -1142,3 +1143,13 @@ require separate implementation and qualification. Future owner migrations and
 queries belong together in this owner's crate, with one declaration per object.
 
 No optional-module requirement is inferred from a client-facing geographic or temporal integration. Current kernel query access still needs its owner APIs.
+
+## Persistence Observation
+
+`MapObservationTable` declares the owner's closed observation table names under the
+`schema` feature. Runtime consumers convert these declarations into checked
+`ObservationTable` descriptors and compose them with kernel tables. The descriptor
+admits an identifier; it does not certify installed schema or grant read authority.
+These owner tables declare 30-day changefeed retention matching the installed SQL.
+LIVE invalidation and changefeed recovery keep their existing reconciliation and
+checkpoint behavior. Public DTO contract features do not activate observation sources.

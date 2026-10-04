@@ -15,9 +15,9 @@ use re_build_info::CrateVersion;
 use re_log_encoding::{EncodingOptions, rrd::Encoder};
 use re_log_types::{LogMsg, StoreId};
 use veoveo_mcp_contract::GatewayInternalIdentity;
-use veoveo_platform_store::{
-    PlatformTable, RecordingId, RecordingLayerRecord, RecordingRecord, RecordingState,
-};
+use veoveo_platform_store::{RecordingId, RecordingLayerRecord, RecordingRecord, RecordingState};
+
+use crate::schema::RecordingObservationTable;
 
 use crate::{
     live_playback::{LiveMessageStart, stream_live_message_batches},
@@ -60,7 +60,7 @@ pub fn authorized_live_rrd_stream(
         // authorization remains queued as a typed wakeup rather than requiring a poll.
         let mut layer_wake = recordings
             .platform_store()
-            .live::<RecordingLayerRecord>(PlatformTable::RecordingLayer)
+            .live::<RecordingLayerRecord>(RecordingObservationTable::Layer)
             .await
             .map_err(|error| io::Error::other(format!("subscribe to recording layers: {error}")))?;
         let mut last_ordinal = None;
@@ -72,7 +72,7 @@ pub fn authorized_live_rrd_stream(
             // during byte delivery instead of queuing every capture timestamp update.
             let mut recording_wake = recordings
                 .platform_store()
-                .live::<RecordingRecord>(PlatformTable::Recording)
+                .live::<RecordingRecord>(RecordingObservationTable::Recording)
                 .await
                 .map_err(|error| io::Error::other(format!("subscribe to recording lifecycle: {error}")))?;
             let next = loop {

@@ -21,7 +21,7 @@ name = "control_plane_registration"
 required-features = ["mcp"]
 
 [features]
-schema = ["dep:veoveo-modules"]
+schema = ["dep:veoveo-modules", "dep:veoveo-types", "dep:serde", "dep:schemars"]
 default = ["mcp"]
 contract = [
     "dep:veoveo-recording-contract",
@@ -37,6 +37,8 @@ contract = [
     "dep:veoveo-frames-mcp",
 ]
 runtime = [
+    "dep:veoveo-agent-runtime",
+    "schema",
     "contract",
     "chrono/clock",
     "dep:anyhow",
@@ -67,6 +69,7 @@ mcp = [
 ]
 
 [dependencies]
+veoveo-agent-runtime = { workspace = true, default-features = false, features = ["schema"], optional = true }
 veoveo-modules = { workspace = true, default-features = false, optional = true }
 veoveo-audit = { workspace = true, optional = true }
 veoveo-recording-contract = { workspace = true, optional = true }

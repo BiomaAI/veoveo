@@ -48,13 +48,15 @@ pub(super) fn router(agents: AgentManagementState) -> anyhow::Result<Router<Agen
             .unwrap_or_default();
         let mut source = store.observe_changes(
             vec![
-                PlatformTable::AgentDefinition,
-                PlatformTable::ManagedAgent,
-                PlatformTable::WorkContext,
-                PlatformTable::Principal,
-                PlatformTable::Tenant,
-                PlatformTable::GatewayRefreshFamily,
-                PlatformTable::GatewayJwtRevocation,
+                veoveo_modules::ObservationTable::from(
+                    crate::AgentObservationTable::AgentDefinition,
+                ),
+                veoveo_modules::ObservationTable::from(crate::AgentObservationTable::ManagedAgent),
+                veoveo_modules::ObservationTable::from(PlatformTable::WorkContext),
+                veoveo_modules::ObservationTable::from(PlatformTable::Principal),
+                veoveo_modules::ObservationTable::from(PlatformTable::Tenant),
+                veoveo_modules::ObservationTable::from(PlatformTable::GatewayRefreshFamily),
+                veoveo_modules::ObservationTable::from(PlatformTable::GatewayJwtRevocation),
             ],
             cursor,
         );

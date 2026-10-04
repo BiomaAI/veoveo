@@ -17,3 +17,38 @@ pub fn module_setup(execution: LaneExecution) -> Result<ModuleSetup, Declaration
         .requires(vec![LaneRequirement::Satisfied(ModuleName::new("audit")?)])
         .build()
 }
+
+/// Owner-declared native LIVE and recoverable changefeed sources.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, veoveo_types::Vocabulary)]
+pub enum ComputerObservationTable {
+    #[vocabulary(rename = "computer")]
+    Computer,
+    #[vocabulary(rename = "computer_automation_policy")]
+    AutomationPolicy,
+    #[vocabulary(rename = "computer_session_grant_policy")]
+    SessionGrantPolicy,
+    #[vocabulary(rename = "computer_execution")]
+    Execution,
+    #[vocabulary(rename = "computer_file_transfer")]
+    FileTransfer,
+    #[vocabulary(rename = "computer_automation_grant")]
+    AutomationGrant,
+    #[vocabulary(rename = "computer_session_grant")]
+    SessionGrant,
+    #[vocabulary(rename = "computer_cli_grant")]
+    CliGrant,
+    #[vocabulary(rename = "computer_maintenance")]
+    Maintenance,
+}
+
+impl From<ComputerObservationTable> for veoveo_modules::ObservationTable {
+    fn from(table: ComputerObservationTable) -> Self {
+        Self::new(
+            TableName::new(table.as_str()).expect("checked owner table declaration"),
+            veoveo_modules::ObservationReplay::Changefeed(
+                veoveo_modules::ChangefeedRetention::from_days(30)
+                    .expect("qualified owner retention"),
+            ),
+        )
+    }
+}

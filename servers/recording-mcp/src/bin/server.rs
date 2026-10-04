@@ -98,16 +98,11 @@ async fn main() -> anyhow::Result<()> {
     let resource_state = state.clone();
     let _resource_observer = tokio::spawn(async move {
         use futures::StreamExt;
-        use veoveo_platform_store::PlatformTable::*;
+        use veoveo_recording_mcp::schema::RecordingObservationTable::*;
         let mut changes = resource_state
             .recordings
             .platform_store()
-            .resource_changes(vec![
-                RecordingDataset,
-                Recording,
-                RecordingLayer,
-                RecordingBlueprint,
-            ]);
+            .resource_changes(vec![Dataset, Recording, Layer, Blueprint]);
         while changes.next().await.is_some() {
             resource_state
                 .subscribers

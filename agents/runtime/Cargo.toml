@@ -12,8 +12,9 @@ contract = ["dep:veoveo-gateway-contract", "dep:veoveo-types", "dep:serde", "dep
 catalog = ["contract", "dep:veoveo-mcp-contract"]
 gateway = ["runtime", "catalog", "dep:veoveo-mcp-gateway", "dep:anyhow", "dep:jsonwebtoken", "dep:veoveo-types", "dep:axum", "dep:parking_lot", "dep:reqwest", "dep:rmcp", "dep:secrecy", "dep:sha2", "dep:hex", "dep:tokio-util", "dep:tower-http", "dep:tracing", "dep:url"]
 default = ["runtime"]
-schema = ["dep:veoveo-modules"]
+schema = ["dep:veoveo-modules", "dep:veoveo-types", "dep:serde", "dep:schemars"]
 runtime = [
+    "schema",
     "contract",
     "dep:async-stream",
     "dep:chrono",

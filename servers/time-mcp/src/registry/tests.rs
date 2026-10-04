@@ -8,7 +8,7 @@ use futures::StreamExt;
 use sha2::{Digest, Sha256};
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
-use veoveo_platform_store::{PlatformStore, PlatformTable, PrincipalKind, ResourceInvalidation};
+use veoveo_platform_store::{PlatformStore, PrincipalKind, ResourceInvalidation};
 use veoveo_types::Sha256Digest;
 
 struct AuthorityFiles {
@@ -394,9 +394,9 @@ async fn live_and_reconciliation_invalidate_contexts_without_becoming_a_freshnes
         let reader = TimeCatalog::new(db.b.clone());
         let owner = scope(&db.a, "registry-observation").await;
         let tables = vec![
-            PlatformTable::TimeActiveAuthority,
-            PlatformTable::TimeAuthorityRelease,
-            PlatformTable::TimeAcquisition,
+            crate::TimeObservationTable::TimeActiveAuthority,
+            crate::TimeObservationTable::TimeAuthorityRelease,
+            crate::TimeObservationTable::TimeAcquisition,
         ];
         let mut changes = db.b.resource_changes(tables.clone());
         assert_eq!(

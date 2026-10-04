@@ -26,9 +26,11 @@ consumer checks and independent contract/runtime builds pass. Installed catalog
 startup admission remains open. Agents' authoring and operator-control models and the
 dependent Workspace contracts have moved to their owners. Native tests, affected
 consumer checks and isolated contract/adapter builds pass; generated browser schemas
-are unchanged. Phase 3 is active: owner observation declarations and the Computers
-change decoder are moving out of shared Store code. This batch awaits native and
-consumer qualification; production repositories and schema lanes still need to move.
+are unchanged. Phase 3 is active: owners now declare their observation tables and
+Computers owns its change decoder. Native delivery, replay, stopped-reader recovery,
+listener cleanup and schema retention checks pass. Independent schema consumers and
+the affected runtime graphs pass qualification. Production repositories and schema
+lanes still need to move.
 Five additional browser contract
 bundles pass generation, consumer tests and builds. Production schema ownership moves
 in Phase 3.
@@ -926,9 +928,15 @@ Phase 3 moves module code to its owner and puts every SurrealQL statement in a f
 | SQL admission | Tenant, owner, context, labels, parent and operation selection remain in SQL before decoding, ranking and limits; kernel functions preserve the same policy |
 | Suites | Store, task-runtime, gateway, computers and every moved module's suite against real SurrealDB |
 
-Move the Computers changefeed decoder to `platform/computers`, then replace Store's
-optional-domain table enums with checked owner observation declarations. Preserve
-checkpoint replay and malformed-row rejection. Domain repositories wrap the shared
+Computers owns its changefeed decoder in `platform/computers`. Store consumes checked
+owner observation declarations and enumerates kernel tables only. Native checks cover
+checkpoint replay, malformed-row rejection, actual schema retention and listener
+cleanup, including cancellation before a registration response arrives. Independent
+schema consumers exclude database and service runtimes. The
+[observation design](../platform/store/src/changefeed/DESIGN.md) records delivery and
+the pinned SDK's cleanup limitations.
+
+Domain repositories still need to wrap the shared
 connection and kernel services; their records, errors and queries move together.
 Agents persistence belongs in `agents/runtime`, Workspace in `platform/workspace`
 and Map in the server's persistence feature below its spatial runtime. Agent chat

@@ -300,7 +300,12 @@ async fn mutation_replay_conflicts_and_concurrent_edits_preserve_one_result() {
         Err(AgentManagementError::Conflict)
     );
     let changes = db
-        .committed(veoveo_platform_store::PlatformTable::AgentDefinition)
+        .committed(veoveo_platform_store::ObservationTable::new(
+            veoveo_modules::TableName::new("agent_definition").unwrap(),
+            veoveo_platform_store::ObservationReplay::Changefeed(
+                veoveo_platform_store::ChangefeedRetention::from_days(30).unwrap(),
+            ),
+        ))
         .await;
     let revisions = changes
         .iter()

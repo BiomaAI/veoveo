@@ -17,7 +17,7 @@ name = "contract"
 required-features = ["contract"]
 
 [features]
-schema = ["dep:veoveo-modules"]
+schema = ["dep:veoveo-modules", "dep:veoveo-types", "dep:serde", "dep:schemars"]
 default = ["mcp"]
 contract = [
     "dep:thiserror",
@@ -29,6 +29,7 @@ contract = [
     "dep:serde_json",
 ]
 runtime = [
+    "schema",
     "contract",
     "chrono/clock",
     "dep:veoveo-map-mcp",

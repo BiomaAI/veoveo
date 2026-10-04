@@ -17,10 +17,12 @@
 //! ```
 mod declaration;
 mod names;
+mod observation;
 mod registry;
 mod sql_api;
 pub use declaration::*;
 pub use names::*;
+pub use observation::*;
 pub use registry::*;
 pub use sql_api::*;
 

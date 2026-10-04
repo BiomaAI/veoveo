@@ -14,6 +14,10 @@ pub mod automation_grants;
 #[cfg(feature = "runtime")]
 mod capacity;
 #[cfg(feature = "runtime")]
+mod changefeed;
+#[cfg(feature = "runtime")]
+pub use changefeed::ComputerChange;
+#[cfg(feature = "runtime")]
 pub mod cli_grants;
 #[cfg(feature = "runtime")]
 pub mod commands;

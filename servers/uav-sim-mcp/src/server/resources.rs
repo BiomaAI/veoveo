@@ -470,10 +470,10 @@ pub(in crate::server) async fn observe(
     shutdown: CancellationToken,
 ) {
     use futures::StreamExt;
-    use veoveo_platform_store::{PlatformTable, ResourceChangeTable};
+    use veoveo_platform_store::PlatformTable;
     let mut changes = store.resource_changes(vec![
-        ResourceChangeTable::UavVehicleControlGrant,
-        ResourceChangeTable::UavVehicleMissionPlan,
+        veoveo_modules::ObservationTable::from(crate::UavObservationTable::UavVehicleControlGrant),
+        crate::UavObservationTable::UavVehicleMissionPlan.into(),
         PlatformTable::Task.into(),
     ]);
     loop {

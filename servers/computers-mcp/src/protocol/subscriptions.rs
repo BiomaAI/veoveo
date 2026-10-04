@@ -9,8 +9,9 @@ use std::{
     time::{Duration, Instant},
 };
 use veoveo_computers::ComputerActor;
+use veoveo_computers::{ComputerChange, schema::ComputerObservationTable};
 use veoveo_computers_contract::ComputerResource;
-use veoveo_platform_store::{ChangefeedDelivery, ComputerChange, PlatformTable};
+use veoveo_platform_store::{ChangefeedDelivery, ObservationTable, PlatformTable};
 use veoveo_task_runtime::{DurableTaskUpdateStream, TaskOwner};
 
 struct ListenerAuthority {
@@ -151,12 +152,12 @@ impl ComputersMcp {
                 .map_err(|_| auth::unavailable())?;
             let mut wake = platform.observe_changes(
                 vec![
-                    PlatformTable::Computer,
-                    PlatformTable::ComputerAutomationGrant,
-                    PlatformTable::ComputerSessionGrant,
-                    PlatformTable::ComputerCliGrant,
-                    PlatformTable::ComputerMaintenance,
-                    PlatformTable::Task,
+                    ObservationTable::from(ComputerObservationTable::Computer),
+                    ComputerObservationTable::AutomationGrant.into(),
+                    ComputerObservationTable::SessionGrant.into(),
+                    ComputerObservationTable::CliGrant.into(),
+                    ComputerObservationTable::Maintenance.into(),
+                    PlatformTable::Task.into(),
                 ],
                 baseline_cursor,
             );

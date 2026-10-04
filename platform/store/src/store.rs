@@ -50,6 +50,22 @@ pub struct PlatformStore {
 
 impl PlatformStore {
     pub async fn connect(config: StoreConfig) -> Result<Self, StoreError> {
+        let db = Self::connect_client(&config).await?;
+
+        let store = Self {
+            db: Arc::new(db),
+            config,
+        };
+        if store.config.migrate_on_connect() {
+            store.migrate().await?;
+        }
+        Ok(store)
+    }
+
+    /// Open and authenticate a physical connection without running migrations.
+    pub(crate) async fn connect_client(
+        config: &StoreConfig,
+    ) -> Result<Surreal<Client>, StoreError> {
         let websocket = WebsocketConfig::new()
             .read_buffer_size(config.websocket_read_buffer())
             .write_buffer_size(config.websocket_write_buffer())
@@ -110,14 +126,7 @@ impl PlatformStore {
             .use_db(config.database())
             .await?;
 
-        let store = Self {
-            db: Arc::new(db),
-            config,
-        };
-        if store.config.migrate_on_connect() {
-            store.migrate().await?;
-        }
-        Ok(store)
+        Ok(db)
     }
 
     pub fn client(&self) -> &Surreal<Client> {

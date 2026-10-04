@@ -83,6 +83,7 @@ Component designs live beside the code whose contract they specify:
 | [`platform/audit/src/export/DESIGN.md`](../platform/audit/src/export/DESIGN.md) | typed OCSF mapping, S3/OTLP completion and recovery, persisted delivery receipts and export-gated retention |
 | [`platform/audit/contract/DESIGN.md`](../platform/audit/contract/DESIGN.md) | protocol-independent checked audit records, closed details, typed identities and partition-scoped reads; `src/knowledge.rs` admits source observations without external navigation URLs |
 | [`platform/modules/DESIGN.md`](../platform/modules/DESIGN.md) | dependency-free checked module ownership declarations and installation identities, generated composition plans, and optional SurrealQL admission/native lane execution |
+| [`platform/store/src/changefeed/DESIGN.md`](../platform/store/src/changefeed/DESIGN.md) | checked owner observation declarations, LIVE invalidation, complete transaction replay and consumer checkpoints |
 | [`platform/workspace/DESIGN.md`](../platform/workspace/DESIGN.md) | lightweight Workspace DTOs, separately gated native App envelopes, gateway services and schema ownership; persistence extraction remains planned |
 | [`platform/macros/DESIGN.md`](../platform/macros/DESIGN.md) | shared `Id`, `ResourceAddress` and `Vocabulary` derives and compile-time UTF-8 document hashing; owner admission, wire/schema profiles and consumer-only database delegation |
 | [`platform/types/DESIGN.md`](../platform/types/DESIGN.md) | protocol-independent identity and attribution, installation and agent names, authentication vocabulary and issuer/subject identities, scope names, resource references, URI component parsing and builders, lexical selectors shared by policy and SQL admission, validation errors, and public extension traits |
@@ -221,6 +222,7 @@ designs above.
 | `platform/computers/src/computer_access/` and `queries/admitted_computers.surql` | private read permits, current-authority rechecks and SQL selection before public Computer page limits |
 | `platform/computers/src/authority.rs` | verified identity for operation admission and the source context that execution policy checks |
 | `platform/computers/src/audit.rs` and `audit/` | typed Computer lifecycle, access, execution and maintenance records bound into domain transactions |
+| `platform/computers/src/changefeed.rs`, `src/schema.rs` and `tests/changefeed.rs` | Computer-owned observation vocabulary, typed change decoding and native grant-change recovery assertions |
 | `platform/audit/src/service.rs` and `sealer.rs` | gateway-hosted audit lease election, recovery, health, committed-feed sealing and whole-block retention |
 | `platform/audit/src/export/` and `platform/store/src/audit/delivery.rs` | destination configuration, native LIVE wakeups, immutable export intents, provider acknowledgement and retention receipts |
 | `platform/store/src/audit/maintenance.rs` | fenced audit lease renewal, SQL-admitted retention candidates and expired download-window guard cleanup |
@@ -411,6 +413,9 @@ adapters without requiring an installation execution host. `src/sql_api.rs` desc
 versioned kernel SQL exports; `src/runner/policy/api.rs` admits their read-only bodies
 and guarded object access. `src/runner/policy/index.rs` checks schema-proven object
 paths in indexes and rejects field changes that invalidate their parent shapes.
+`src/observation.rs` declares checked observation tables and explicit LIVE-only or
+changefeed replay capability without database dependencies. Optional owners export
+their table vocabularies through schema features; Store consumes these declarations.
 The optional `src/plan.rs` serialization surface describes
 the selected composition, execution commands and runtime bindings without enumerating
 owners. `src/runner/` contains the optional parser adapter, prepared SQL admission,
@@ -648,7 +653,7 @@ Domain runtimes can own private queries and driver records over these connection
 | `knowledge.rs`, `knowledge/` | typed catalog and generation persistence, atomic catalog replacement against current control authority, coordinator leases and collection/member epochs, conditional chunk reuse, SQL catalog completion and caller-visible statistics, shared SQL admission, BM25/HNSW ranking and native reciprocal rank fusion before result selection |
 | `tests/knowledge/bulk.rs` | maximum-size member vectors over the default Store connection and rollback after a rejected bulk replacement |
 | `agent_management/revision.rs` and `agent_management/revision.surql` | SHA-256 revisions of SQL-authorized catalog and management views |
-| `changefeed.rs`, `changefeed/` | complete transaction-tail replay, consumer checkpoints and LIVE recovery; typed Task, Artifact and Computer change decoding imports the owning contract types |
+| `changefeed.rs`, `changefeed/`, `queries/changefeed/` | complete transaction-tail replay, consumer checkpoints and LIVE recovery over checked owner declarations; shared Task and Artifact decoding, with Computers decoding in its owner |
 | `platform/task-runtime/src/runtime/history.rs`, `subscriptions.rs`, `owner_subscriptions.rs` | committed-state replay for trusted workers, shared native-feed wakeups and current SQL-authorized public Task reads |
 | `agents/runtime/src/runtime/wake_observation.rs`, `agents/kernel/src/wake.rs` | native queue invalidations and timers for the next available wake or expired claim |
 | `tests/write_cost.rs` | isolated RocksDB comparison of shared sequence allocation, indexed event rows and native-feed-only writes; [before](../platform/store/measurements/2026-10-01.md) and [after latency/storage measurements](../platform/store/measurements/native-after-2026-10-01.md) |
@@ -664,9 +669,8 @@ Its optional RocksDB profile owns its database inside the disposable container.
 domain-owned queries that need the causal error after a rolled-back transaction.
 Computers admission and Task recovery reuse its isolated pinned database lifecycle.
 `platform/store/tests/resource_changes.rs` qualifies native LIVE delivery and changefeed
-recovery through an interrupted test connection. It accepts an explicit database
-endpoint and credentials, creates one disposable database, and removes it after failure
-or success.
+recovery through an interrupted test connection. It uses the shared owned database
+fixture and checks listener cleanup after dropping the observer.
 
 ## Durable Tasks
 

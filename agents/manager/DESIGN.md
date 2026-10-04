@@ -123,3 +123,10 @@ agents and managed messages already provide explicit runs under their admitted
 budgets and authority. Immutable development images do not establish full release
 qualification. The [iteration record](../../docs/DEVELOPMENT_ITERATION.md#installed-pilot-and-rerun-recheck--september-25-2026)
 contains the simulator and recording diagnostic measurements.
+
+## Persistence Observation
+
+The manager composes Agents' schema-only `AgentObservationTable` declarations with
+kernel identity tables. Native changefeeds retain the existing reconciliation cursor
+and acknowledged checkpoint behavior. Observing a change requests current-state
+reconciliation; it does not establish controller authority or start an Agent episode.

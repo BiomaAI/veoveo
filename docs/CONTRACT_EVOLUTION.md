@@ -348,6 +348,14 @@ optional runner privately pins the SurrealDB 3.3.0 parser/AST pair, admits all s
 SQL before effects, and executes named append-only histories with native transactions.
 Logical object ownership does not imply per-module database-user isolation.
 
+Owners also declare observation tables through their schema features. The shared
+`ObservationTable` type carries a checked name and an explicit LIVE-only or
+changefeed retention profile; Store enumerates only kernel tables. Native schema
+checks establish retention and owner claims. Computers owns its change decoder,
+while shared observation preserves transaction-tail replay and consumer checkpoints.
+The [observation design](../platform/store/src/changefeed/DESIGN.md) defines the
+delivery requirements; the active plan tracks their qualification.
+
 Composition supplies each lane's image target and executable command; several owners
 may use one existing image. Installation commands, database readiness, ordered lane
 completion and control-plane publication still require fresh-install/upgrade

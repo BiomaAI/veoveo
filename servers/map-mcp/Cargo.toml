@@ -40,7 +40,7 @@ name = "gateway_source_conformance"
 required-features = ["mcp"]
 
 [features]
-schema = ["dep:veoveo-modules"]
+schema = ["dep:veoveo-modules", "dep:veoveo-types", "dep:serde", "dep:schemars"]
 default = ["mcp"]
 contract = [
     "dep:chrono",
@@ -58,6 +58,7 @@ contract = [
 ]
 knowledge = ["contract", "dep:veoveo-mcp-knowledge-extension"]
 runtime = [
+    "schema",
     "knowledge",
     "chrono/clock",
     "dep:anyhow",

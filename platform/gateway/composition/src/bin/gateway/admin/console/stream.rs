@@ -25,7 +25,7 @@ use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_platform_store::{
     AgentRecord, ArtifactAccessRequestRecord, ArtifactBlobRecord, ArtifactGrantEdge,
     ArtifactOccurrenceRecord, ArtifactUploadRecord, ArtifactUploadState, ChangefeedConsumerId,
-    ChangefeedCursor, ChangefeedDelivery, ChangefeedEntry, PlatformStore, PlatformTable,
+    ChangefeedCursor, ChangefeedDelivery, ChangefeedEntry, ObservationTable, PlatformStore,
     PrincipalRecord, RecordId, RecordingLayerRecord, RecordingLayerState, RecordingRecord,
     ShareLinkRecord, TaskRecord, Value as DbValue, WakeRecord, decode_changefeed_entry,
     deterministic_tenant_id,
@@ -52,24 +52,61 @@ const RETRY_HINT_MS: u32 = 3_000;
 /// backlog; a browser away that long should refetch the snapshot anyway.
 const REPLAY_HORIZON: chrono::TimeDelta = chrono::TimeDelta::hours(24);
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ConsoleTable {
+    Principal,
+    Task,
+    ArtifactBlob,
+    ArtifactOccurrence,
+    ArtifactUpload,
+    ArtifactGrant,
+    ArtifactAccessRequest,
+    ShareLink,
+    Agent,
+    Wake,
+    Recording,
+    RecordingLayer,
+}
+impl ConsoleTable {
+    fn observation(self) -> ObservationTable {
+        use veoveo_agent_runtime::AgentObservationTable as Agents;
+        use veoveo_platform_store::PlatformTable as Kernel;
+        use veoveo_recording_mcp::schema::RecordingObservationTable as Recordings;
+        match self {
+            Self::Principal => Kernel::Principal.into(),
+            Self::Task => Kernel::Task.into(),
+            Self::ArtifactBlob => Kernel::ArtifactBlob.into(),
+            Self::ArtifactOccurrence => Kernel::ArtifactOccurrence.into(),
+            Self::ArtifactUpload => Kernel::ArtifactUpload.into(),
+            Self::ArtifactGrant => Kernel::ArtifactGrant.into(),
+            Self::ArtifactAccessRequest => Kernel::ArtifactAccessRequest.into(),
+            Self::ShareLink => Kernel::ShareLink.into(),
+            Self::Agent => Agents::Agent.into(),
+            Self::Wake => Agents::Wake.into(),
+            Self::Recording => Recordings::Recording.into(),
+            Self::RecordingLayer => Recordings::Layer.into(),
+        }
+    }
+}
+
 /// Tenant tables the console stream follows, in dependency order: within one
 /// versionstamp group parents apply before the children that re-emit them.
-const STREAM_TABLES: [PlatformTable; 12] = [
-    PlatformTable::Principal,
-    PlatformTable::Task,
-    PlatformTable::ArtifactBlob,
-    PlatformTable::ArtifactOccurrence,
-    PlatformTable::ArtifactUpload,
-    PlatformTable::ArtifactGrant,
-    PlatformTable::ArtifactAccessRequest,
-    PlatformTable::ShareLink,
-    PlatformTable::Agent,
-    PlatformTable::Wake,
-    PlatformTable::Recording,
-    PlatformTable::RecordingLayer,
+const STREAM_TABLES: [ConsoleTable; 12] = [
+    ConsoleTable::Principal,
+    ConsoleTable::Task,
+    ConsoleTable::ArtifactBlob,
+    ConsoleTable::ArtifactOccurrence,
+    ConsoleTable::ArtifactUpload,
+    ConsoleTable::ArtifactGrant,
+    ConsoleTable::ArtifactAccessRequest,
+    ConsoleTable::ShareLink,
+    ConsoleTable::Agent,
+    ConsoleTable::Wake,
+    ConsoleTable::Recording,
+    ConsoleTable::RecordingLayer,
 ];
 
-const fn table_rank(table: PlatformTable) -> usize {
+const fn table_rank(table: ConsoleTable) -> usize {
     let mut index = 0;
     while index < STREAM_TABLES.len() {
         if STREAM_TABLES[index] as usize == table as usize {
@@ -147,7 +184,13 @@ pub(crate) fn spawn_console_wake_hub(
             .changefeed_checkpoint(&consumer)
             .await
             .unwrap_or_default();
-        let mut source = store.observe_changes(STREAM_TABLES.to_vec(), cursor);
+        let mut source = store.observe_changes(
+            STREAM_TABLES
+                .into_iter()
+                .map(ConsoleTable::observation)
+                .collect(),
+            cursor,
+        );
         loop {
             let delivery = tokio::select! {
                 () = cancellation.cancelled() => return,
@@ -571,7 +614,7 @@ impl ConsoleStreamState {
                     let Some(table) = STREAM_TABLES
                         .iter()
                         .copied()
-                        .find(|table| entry.table() == Some(table.as_str()))
+                        .find(|table| entry.table() == Some(table.observation().as_str()))
                     else {
                         continue;
                     };
@@ -579,7 +622,7 @@ impl ConsoleStreamState {
                 }
                 entries.sort_by_key(|(table, _)| table_rank(*table));
                 for (table, entry) in entries {
-                    if table == PlatformTable::ArtifactOccurrence {
+                    if table == ConsoleTable::ArtifactOccurrence {
                         self.resolve_referenced_blob(store, &entry).await?;
                     }
                     if let Some(event) =
@@ -602,7 +645,7 @@ impl ConsoleStreamState {
         entry: &ChangefeedEntry,
     ) -> anyhow::Result<()> {
         if let ChangefeedEntry::Upsert(row) = entry {
-            if !self.row_in_tenant(PlatformTable::ArtifactOccurrence, row) {
+            if !self.row_in_tenant(ConsoleTable::ArtifactOccurrence, row) {
                 return Ok(());
             }
             let artifact: ArtifactOccurrenceRecord = row.clone().into_t()?;
@@ -621,7 +664,7 @@ impl ConsoleStreamState {
 
     fn apply(
         &mut self,
-        table: PlatformTable,
+        table: ConsoleTable,
         rank: usize,
         versionstamp: i64,
         entry: ChangefeedEntry,
@@ -641,19 +684,19 @@ impl ConsoleStreamState {
                     return Ok(None);
                 }
                 match table {
-                    PlatformTable::Principal => {
+                    ConsoleTable::Principal => {
                         let principal: PrincipalRecord = row.into_t()?;
                         let summary = principal_summary(&principal);
                         self.principal_names
                             .insert(record_key(&principal.id)?, principal.display_name);
                         Ok(out("principal", upsert_payload(&summary)?))
                     }
-                    PlatformTable::Task => {
+                    ConsoleTable::Task => {
                         let task: TaskRecord = row.into_t()?;
                         let summary = task_summary(task, &self.principal_names)?;
                         Ok(out("task", upsert_payload(&summary)?))
                     }
-                    PlatformTable::ArtifactBlob => {
+                    ConsoleTable::ArtifactBlob => {
                         let blob: ArtifactBlobRecord = row.into_t()?;
                         let key = record_key(&blob.id)?;
                         self.blob_lengths.insert(key.clone(), blob.byte_len);
@@ -662,7 +705,7 @@ impl ConsoleStreamState {
                             None => Ok(None),
                         }
                     }
-                    PlatformTable::ArtifactOccurrence => {
+                    ConsoleTable::ArtifactOccurrence => {
                         let artifact: ArtifactOccurrenceRecord = row.into_t()?;
                         let id = record_key(&artifact.id)?;
                         self.blob_artifacts
@@ -670,7 +713,7 @@ impl ConsoleStreamState {
                         self.artifacts.insert(id.clone(), artifact);
                         self.emit_artifact(&id, versionstamp, rank)
                     }
-                    PlatformTable::ArtifactUpload => {
+                    ConsoleTable::ArtifactUpload => {
                         let upload: ArtifactUploadRecord = row.into_t()?;
                         if upload.state == ArtifactUploadState::Open
                             || !self.artifact_access.matches_upload_scope(
@@ -692,7 +735,7 @@ impl ConsoleStreamState {
                         };
                         Ok(out("artifact_upload", serde_json::to_value(event)?))
                     }
-                    PlatformTable::ArtifactGrant => {
+                    ConsoleTable::ArtifactGrant => {
                         let grant: ArtifactGrantEdge = row.into_t()?;
                         let artifact = record_key(&grant.r#in)?;
                         if !self.artifacts.contains_key(&artifact) {
@@ -704,7 +747,7 @@ impl ConsoleStreamState {
                         );
                         self.emit_artifact(&artifact, versionstamp, rank)
                     }
-                    PlatformTable::ArtifactAccessRequest => {
+                    ConsoleTable::ArtifactAccessRequest => {
                         let request: ArtifactAccessRequestRecord = row.into_t()?;
                         Ok(out(
                             "access_request",
@@ -714,7 +757,7 @@ impl ConsoleStreamState {
                             }),
                         ))
                     }
-                    PlatformTable::ShareLink => {
+                    ConsoleTable::ShareLink => {
                         let link: ShareLinkRecord = row.into_t()?;
                         let artifact = record_key(&link.artifact)?;
                         if !self.artifacts.contains_key(&artifact) {
@@ -726,13 +769,13 @@ impl ConsoleStreamState {
                         );
                         self.emit_artifact(&artifact, versionstamp, rank)
                     }
-                    PlatformTable::Agent => {
+                    ConsoleTable::Agent => {
                         let agent: AgentRecord = row.into_t()?;
                         let id = record_key(&agent.id)?;
                         self.agents.insert(id.clone(), agent);
                         self.emit_agent(&id, versionstamp, rank)
                     }
-                    PlatformTable::Wake => {
+                    ConsoleTable::Wake => {
                         let wake: WakeRecord = row.into_t()?;
                         let agent = record_key(&wake.agent)?;
                         self.wakes.insert(
@@ -744,13 +787,13 @@ impl ConsoleStreamState {
                         );
                         self.emit_agent(&agent, versionstamp, rank)
                     }
-                    PlatformTable::Recording => {
+                    ConsoleTable::Recording => {
                         let recording: RecordingRecord = row.into_t()?;
                         let id = record_key(&recording.id)?;
                         self.recordings.insert(id.clone(), recording);
                         self.emit_recording(&id, versionstamp, rank)
                     }
-                    PlatformTable::RecordingLayer => {
+                    ConsoleTable::RecordingLayer => {
                         let layer: RecordingLayerRecord = row.into_t()?;
                         let recording = record_key(&layer.recording)?;
                         self.layers.insert(
@@ -759,7 +802,6 @@ impl ConsoleStreamState {
                         );
                         self.emit_recording(&recording, versionstamp, rank)
                     }
-                    _ => Ok(None),
                 }
             }
             ChangefeedEntry::Delete { record, original } => {
@@ -773,7 +815,7 @@ impl ConsoleStreamState {
                 }
                 let key = record_key(&record)?;
                 match table {
-                    PlatformTable::Principal => {
+                    ConsoleTable::Principal => {
                         let principal: PrincipalRecord = original.into_t()?;
                         self.principal_names.remove(&key);
                         Ok(out(
@@ -781,12 +823,12 @@ impl ConsoleStreamState {
                             delete_payload(&principal_summary(&principal).id),
                         ))
                     }
-                    PlatformTable::Task => Ok(out("task", delete_payload(&key))),
-                    PlatformTable::ArtifactBlob => {
+                    ConsoleTable::Task => Ok(out("task", delete_payload(&key))),
+                    ConsoleTable::ArtifactBlob => {
                         self.blob_lengths.remove(&key);
                         Ok(None)
                     }
-                    PlatformTable::ArtifactOccurrence => {
+                    ConsoleTable::ArtifactOccurrence => {
                         if let Some(artifact) = self.artifacts.remove(&key)
                             && let Ok(blob) = record_key(&artifact.blob)
                         {
@@ -796,34 +838,34 @@ impl ConsoleStreamState {
                         self.links.retain(|_, (artifact, _)| *artifact != key);
                         Ok(out("artifact", delete_payload(&key)))
                     }
-                    PlatformTable::ArtifactGrant => match self.grants.remove(&key) {
+                    ConsoleTable::ArtifactGrant => match self.grants.remove(&key) {
                         Some((artifact, _)) => self.emit_artifact(&artifact, versionstamp, rank),
                         None => Ok(None),
                     },
-                    PlatformTable::ArtifactAccessRequest => Ok(out(
+                    ConsoleTable::ArtifactAccessRequest => Ok(out(
                         "access_request",
                         serde_json::json!({ "op": "changed", "id": key }),
                     )),
-                    PlatformTable::ShareLink => match self.links.remove(&key) {
+                    ConsoleTable::ShareLink => match self.links.remove(&key) {
                         Some((artifact, _)) => self.emit_artifact(&artifact, versionstamp, rank),
                         None => Ok(None),
                     },
-                    PlatformTable::Agent => {
+                    ConsoleTable::Agent => {
                         let agent: AgentRecord = original.into_t()?;
                         self.agents.remove(&key);
                         self.wakes.retain(|_, (agent, _)| *agent != key);
                         Ok(out("agent", delete_payload(agent_public_key(&agent))))
                     }
-                    PlatformTable::Wake => match self.wakes.remove(&key) {
+                    ConsoleTable::Wake => match self.wakes.remove(&key) {
                         Some((agent, _)) => self.emit_agent(&agent, versionstamp, rank),
                         None => Ok(None),
                     },
-                    PlatformTable::Recording => {
+                    ConsoleTable::Recording => {
                         self.recordings.remove(&key);
                         self.layers.retain(|_, (recording, _, _)| *recording != key);
                         Ok(out("recording", delete_payload(&key)))
                     }
-                    PlatformTable::RecordingLayer => match self.layers.remove(&key) {
+                    ConsoleTable::RecordingLayer => match self.layers.remove(&key) {
                         Some((recording, _, _)) => {
                             self.emit_recording(&recording, versionstamp, rank)
                         }
@@ -837,8 +879,8 @@ impl ConsoleStreamState {
 
     /// Grant edges carry no tenant field; membership is decided by whether
     /// the artifact they attach to is part of this tenant's state.
-    fn row_in_tenant(&self, table: PlatformTable, row: &DbValue) -> bool {
-        if matches!(table, PlatformTable::ArtifactGrant) {
+    fn row_in_tenant(&self, table: ConsoleTable, row: &DbValue) -> bool {
+        if matches!(table, ConsoleTable::ArtifactGrant) {
             return true;
         }
         matches!(row.get("tenant"), DbValue::RecordId(record) if *record == self.tenant)
@@ -964,16 +1006,15 @@ mod tests {
         for (index, table) in STREAM_TABLES.iter().enumerate() {
             assert_eq!(table_rank(*table), index);
         }
-        assert!(table_rank(PlatformTable::Principal) < table_rank(PlatformTable::Task));
+        assert!(table_rank(ConsoleTable::Principal) < table_rank(ConsoleTable::Task));
         assert!(
-            table_rank(PlatformTable::ArtifactBlob) < table_rank(PlatformTable::ArtifactOccurrence)
+            table_rank(ConsoleTable::ArtifactBlob) < table_rank(ConsoleTable::ArtifactOccurrence)
         );
         assert!(
-            table_rank(PlatformTable::ArtifactOccurrence)
-                < table_rank(PlatformTable::ArtifactGrant)
+            table_rank(ConsoleTable::ArtifactOccurrence) < table_rank(ConsoleTable::ArtifactGrant)
         );
-        assert!(table_rank(PlatformTable::Agent) < table_rank(PlatformTable::Wake));
-        assert!(table_rank(PlatformTable::Recording) < table_rank(PlatformTable::RecordingLayer));
+        assert!(table_rank(ConsoleTable::Agent) < table_rank(ConsoleTable::Wake));
+        assert!(table_rank(ConsoleTable::Recording) < table_rank(ConsoleTable::RecordingLayer));
     }
 
     #[test]

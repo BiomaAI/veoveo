@@ -112,10 +112,14 @@ pub(super) fn spawn_observer(
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let mut changes = state.tasks.platform_store().resource_changes(vec![
-            PlatformTable::FrameWorld,
-            PlatformTable::FrameWorldRevision,
-            PlatformTable::DomainUsage,
-            PlatformTable::Task,
+            veoveo_modules::ObservationTable::from(
+                veoveo_frames_mcp::FramesObservationTable::FrameWorld,
+            ),
+            veoveo_modules::ObservationTable::from(
+                veoveo_frames_mcp::FramesObservationTable::FrameWorldRevision,
+            ),
+            veoveo_modules::ObservationTable::from(PlatformTable::DomainUsage),
+            veoveo_modules::ObservationTable::from(PlatformTable::Task),
         ]);
         loop {
             tokio::select! {

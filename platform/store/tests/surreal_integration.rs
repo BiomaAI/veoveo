@@ -1160,7 +1160,12 @@ async fn recording_catalog_commits_layers_and_governed_authority_atomically() {
     .await
     .expect("Recording catalog qualification exceeded 90 seconds");
     let changes = db
-        .committed(veoveo_platform_store::PlatformTable::Recording)
+        .committed(veoveo_platform_store::ObservationTable::new(
+            veoveo_modules::TableName::new("recording").unwrap(),
+            veoveo_platform_store::ObservationReplay::Changefeed(
+                veoveo_platform_store::ChangefeedRetention::from_days(30).unwrap(),
+            ),
+        ))
         .await;
     assert!(changes.iter().any(|row| row["state"] == "sealed"));
 }

@@ -1,4 +1,5 @@
 //! One wake source per service replica. Notifications invalidate; fresh domain reads authorize.
+use crate::{ComputerChange, schema::ComputerObservationTable};
 use crate::{ComputerError, ComputersStore, Result};
 use futures::StreamExt;
 use std::time::Duration;
@@ -6,7 +7,7 @@ use tokio::sync::{broadcast, watch};
 use uuid::Uuid;
 use veoveo_computers_contract::{ComputerId, ExecutionId, FileTransferId};
 use veoveo_platform_store::{
-    ChangefeedCursor, ChangefeedDelivery, ComputerChange, PlatformStore, PlatformTable,
+    ChangefeedCursor, ChangefeedDelivery, ObservationTable, PlatformStore, PlatformTable,
 };
 use veoveo_types::{GatewayRefreshFamilyId, TaskId};
 
@@ -176,21 +177,21 @@ async fn observe(
 ) -> Result<()> {
     let mut source = platform.observe_changes(
         vec![
-            PlatformTable::Enterprise,
-            PlatformTable::Tenant,
-            PlatformTable::Principal,
-            PlatformTable::ComputerAutomationPolicy,
-            PlatformTable::ComputerSessionGrantPolicy,
-            PlatformTable::Task,
-            PlatformTable::ComputerExecution,
-            PlatformTable::ComputerFileTransfer,
-            PlatformTable::Computer,
-            PlatformTable::ComputerAutomationGrant,
-            PlatformTable::ComputerSessionGrant,
-            PlatformTable::ComputerCliGrant,
-            PlatformTable::ComputerMaintenance,
-            PlatformTable::GatewayRefreshFamily,
-            PlatformTable::GatewayControlActive,
+            ObservationTable::from(PlatformTable::Enterprise),
+            PlatformTable::Tenant.into(),
+            PlatformTable::Principal.into(),
+            ComputerObservationTable::AutomationPolicy.into(),
+            ComputerObservationTable::SessionGrantPolicy.into(),
+            PlatformTable::Task.into(),
+            ComputerObservationTable::Execution.into(),
+            ComputerObservationTable::FileTransfer.into(),
+            ComputerObservationTable::Computer.into(),
+            ComputerObservationTable::AutomationGrant.into(),
+            ComputerObservationTable::SessionGrant.into(),
+            ComputerObservationTable::CliGrant.into(),
+            ComputerObservationTable::Maintenance.into(),
+            PlatformTable::GatewayRefreshFamily.into(),
+            PlatformTable::GatewayControlActive.into(),
         ],
         ChangefeedCursor::initial(),
     );

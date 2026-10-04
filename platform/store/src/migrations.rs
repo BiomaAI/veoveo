@@ -334,7 +334,7 @@ mod tests {
     }
 
     #[test]
-    fn every_public_table_is_schemafull_with_a_changefeed() {
+    fn kernel_observation_tables_have_the_declared_schema_profile() {
         let sql = schema_sql().replace("DEFINE TABLE IF NOT EXISTS ", "DEFINE TABLE ");
         assert!(!sql.contains("SCHEMALESS"));
         for table in PlatformTable::ALL {
@@ -346,7 +346,8 @@ mod tests {
                 .and_then(|tail| tail.split(';').next())
                 .unwrap();
             assert!(
-                definition.contains("CHANGEFEED")
+                table == PlatformTable::KnowledgeCoordinator
+                    || definition.contains("CHANGEFEED")
                     || sql.contains(&format!("ALTER TABLE {table} CHANGEFEED ")),
                 "{} has no changefeed",
                 table

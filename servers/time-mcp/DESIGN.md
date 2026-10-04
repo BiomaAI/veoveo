@@ -964,8 +964,9 @@ The five temporal cursors use owner codecs for their hexadecimal JSON collection
 ## Persistence Module Declaration
 
 The independent `schema` feature exports `schema::module_setup(execution)` for the
-`time` optional module. It activates only `veoveo-modules` with default features
-disabled; contract and runtime dependencies require their own features. Default
+`time` optional module. It activates `veoveo-modules` with default features disabled and the foundational
+vocabulary, Serde and schema dependencies used by owner table declarations. MCP,
+Store and asynchronous runtime dependencies require their own features. Default
 runtime behavior is unchanged. The declaration claims `time_*`.
 It requires Identity and its Store requirement.
 
@@ -977,3 +978,13 @@ require separate implementation and qualification. Future owner migrations and
 queries belong together in this owner's crate, with one declaration per object.
 
 Artifact path text and client-facing temporal relationships do not invent optional schema requirements.
+
+## Persistence Observation
+
+`TimeObservationTable` declares the owner's closed observation table names under the
+`schema` feature. Runtime consumers convert these declarations into checked
+`ObservationTable` descriptors and compose them with kernel tables. The descriptor
+admits an identifier; it does not certify installed schema or grant read authority.
+These owner tables declare 30-day changefeed retention matching the installed SQL.
+LIVE invalidation and changefeed recovery keep their existing reconciliation and
+checkpoint behavior. Public DTO contract features do not activate observation sources.

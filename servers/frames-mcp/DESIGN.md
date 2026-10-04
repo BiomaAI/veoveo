@@ -451,8 +451,9 @@ liveness-driven restart.
 ## Persistence Module Declaration
 
 The independent `schema` feature exports `schema::module_setup(execution)` for the
-`frames` optional module. It activates only `veoveo-modules` with default features
-disabled; contract and runtime dependencies require their own features. Default
+`frames` optional module. It activates `veoveo-modules` with default features disabled and the foundational
+vocabulary, Serde and schema dependencies used by owner table declarations. MCP,
+Store and asynchronous runtime dependencies require their own features. Default
 runtime behavior is unchanged. The declaration claims explicit `frame_world`, `frame_world_revision`, `coordinate_operation`, and `task_used_frame` tables.
 It requires Tasks, including earlier kernel lanes through transitive requirements.
 
@@ -464,3 +465,13 @@ require separate implementation and qualification. Future owner migrations and
 queries belong together in this owner's crate, with one declaration per object.
 
 The explicit `task_used_frame` claim prevents a Task prefix claim from swallowing this relationship. Existing mixed migration placement does not qualify the declared owner.
+
+## Persistence Observation
+
+`FramesObservationTable` declares the owner's closed observation table names under the
+`schema` feature. Runtime consumers convert these declarations into checked
+`ObservationTable` descriptors and compose them with kernel tables. The descriptor
+admits an identifier; it does not certify installed schema or grant read authority.
+These owner tables declare 30-day changefeed retention matching the installed SQL.
+LIVE invalidation and changefeed recovery keep their existing reconciliation and
+checkpoint behavior. Public DTO contract features do not activate observation sources.

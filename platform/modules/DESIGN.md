@@ -24,6 +24,15 @@ Its ordinary nominal types and contextual standard-library errors avoid a depend
 cycle. Schema-only owner features expose declarations without pulling in contracts,
 server runtimes, database drivers or GPU libraries.
 
+`ObservationTable` combines a checked `TableName` with either LIVE-only delivery or
+a declared changefeed retention duration. Optional owners supply their own closed
+observation enums and convert them into this descriptor; shared infrastructure does
+not list their tables. The declaration does not prove table installation or retention.
+Native owner schema checks establish those properties. Record replay rejects
+LIVE-only sources, while resource invalidation can use them with current-state
+reconciliation. The [Store observation design](../store/src/changefeed/DESIGN.md)
+defines delivery and checkpoint behavior.
+
 Execution declarations bind a logical image target to executable argv. Image targets
 contain ASCII letters, digits, dot, underscore, slash and hyphen, with a 256-byte limit.
 Composition resolves that target to its qualified OCI digest and supplies the command;

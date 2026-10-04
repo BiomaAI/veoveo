@@ -95,7 +95,7 @@ pub use artifacts::{
 #[cfg(feature = "runtime")]
 pub use changefeed::{
     ArtifactChange, ChangefeedBatch, ChangefeedConsumerId, ChangefeedCursor, ChangefeedDelivery,
-    ChangefeedEntry, ComputerChange, LiveStream, TaskChange, decode_changefeed_entry,
+    ChangefeedEntry, LiveStream, TaskChange, decode_changefeed_entry,
 };
 #[cfg(feature = "runtime")]
 pub use config::{StoreAuthLevel, StoreConfig, StoreConfigBuilder, StoreCredentials};
@@ -170,7 +170,7 @@ pub use recordings::{
     RecordingCursor, RecordingDraft, RecordingLayerCounts, RecordingReadScope, RecordingSeal,
 };
 #[cfg(feature = "runtime")]
-pub use resource_changes::{ResourceChangeTable, ResourceInvalidation};
+pub use resource_changes::ResourceInvalidation;
 #[cfg(feature = "runtime")]
 pub use store::{PlatformClient, PlatformStore, primary_transaction_error};
 #[cfg(feature = "runtime")]
@@ -183,6 +183,11 @@ pub use task_ids::task_record_id;
 pub use task_result::TaskResultRecord;
 #[cfg(feature = "runtime")]
 pub use usage::DomainUsageDraft;
+#[cfg(feature = "runtime")]
+pub use veoveo_modules::{ChangefeedRetention, ObservationReplay, ObservationTable};
 
 #[cfg(feature = "schema")]
 pub mod schema;
+
+#[cfg(all(test, feature = "runtime"))]
+extern crate self as veoveo_platform_store;

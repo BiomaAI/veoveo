@@ -229,3 +229,61 @@ fn generated_plan_matches_real_owner_catalog_without_runner_dependencies() {
     .unwrap();
     assert_eq!(plan, regenerated);
 }
+
+#[test]
+fn owner_observation_declarations_resolve_to_their_schema_owner() {
+    let registry = ModuleRegistry::new(declarations(execution).unwrap()).unwrap();
+    fn verify<T: Copy + Into<veoveo_modules::ObservationTable>>(
+        registry: &ModuleRegistry,
+        owner: &str,
+        tables: &[T],
+    ) {
+        for table in tables {
+            let table: veoveo_modules::ObservationTable = (*table).into();
+            assert_eq!(
+                registry
+                    .owner_of_table(table.name())
+                    .unwrap()
+                    .name()
+                    .as_str(),
+                owner
+            );
+        }
+    }
+    verify(
+        &registry,
+        "agents",
+        veoveo_agent_runtime::AgentObservationTable::ALL,
+    );
+    verify(
+        &registry,
+        "computers",
+        veoveo_computers::schema::ComputerObservationTable::ALL,
+    );
+    verify(
+        &registry,
+        "recordings",
+        veoveo_recording_mcp::schema::RecordingObservationTable::ALL,
+    );
+    verify(&registry, "map", veoveo_map_mcp::MapObservationTable::ALL);
+    verify(
+        &registry,
+        "time",
+        veoveo_time_mcp::TimeObservationTable::ALL,
+    );
+    verify(
+        &registry,
+        "frames",
+        veoveo_frames_mcp::FramesObservationTable::ALL,
+    );
+    verify(
+        &registry,
+        "media",
+        veoveo_media_mcp::MediaObservationTable::ALL,
+    );
+    verify(
+        &registry,
+        "uav",
+        veoveo_uav_sim_mcp::UavObservationTable::ALL,
+    );
+}

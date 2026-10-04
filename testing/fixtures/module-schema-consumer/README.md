@@ -19,9 +19,10 @@ CARGO_TARGET_DIR=target cargo test --manifest-path testing/fixtures/module-schem
 cargo tree --manifest-path testing/fixtures/module-schema-consumer/Cargo.toml --edges normal,build
 ```
 
-The normal/build graph consists of this fixture, the eleven schema-declaring crates,
-and the optional checked plan serialization graph. `veoveo-modules` default declarations
-still have no dependencies. Contract libraries, database drivers, parser/runner dependencies,
-MCP hosting and runtimes must not enter through a schema dependency. JSON decoding reuses
-qualified `serde_json =1.0.151`; generated plans preserve their camelCase wire profile
-and decimal-string generation without any HTTP schema or runtime dependency.
+The normal/build graph includes the owner declarations, checked plan serialization,
+and the foundational `Vocabulary` derive with its Serde and Schemars support.
+`veoveo-modules` default declarations have no dependencies. Domain contract libraries,
+database drivers, parser/runner dependencies, MCP hosting and asynchronous runtimes
+must not enter through a schema dependency. JSON decoding reuses qualified
+`serde_json =1.0.151`; generated plans preserve their camelCase wire profile and
+decimal-string generation.

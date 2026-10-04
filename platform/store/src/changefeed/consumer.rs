@@ -3,12 +3,9 @@ use std::{collections::BTreeSet, time::Duration};
 
 use chrono::{TimeDelta, Utc};
 use futures::{FutureExt, StreamExt, stream::BoxStream};
-use surrealdb::{
-    Notification,
-    types::{RecordId, SurrealValue},
-};
+use surrealdb::types::{RecordId, SurrealValue};
 
-use crate::{PlatformStore, PlatformTable, StoreError};
+use crate::{ObservationReplay, ObservationTable, PlatformStore, StoreError};
 
 use super::{ChangefeedCursor, ChangefeedEntry, decode_changefeed_entry};
 
@@ -62,11 +59,6 @@ struct Checkpoint {
     versionstamp: i64,
 }
 
-#[derive(SurrealValue)]
-struct Identity {
-    id: RecordId,
-}
-
 impl PlatformStore {
     pub async fn changefeed_checkpoint(
         &self,
@@ -74,7 +66,7 @@ impl PlatformStore {
     ) -> Result<ChangefeedCursor, StoreError> {
         let mut response = self
             .client()
-            .query("SELECT versionstamp FROM ONLY $checkpoint;")
+            .query(include_str!("../../queries/changefeed/checkpoint.surql"))
             .bind(("checkpoint", consumer.record()))
             .await?
             .check()?;
@@ -92,11 +84,7 @@ impl PlatformStore {
         cursor: ChangefeedCursor,
     ) -> Result<(), StoreError> {
         self.client()
-            .query(
-                "UPSERT ONLY $checkpoint SET \
-                 versionstamp = math::max([versionstamp ?? 0, $cursor]), \
-                 updated_at = $now RETURN NONE;",
-            )
+            .query(include_str!("../../queries/changefeed/acknowledge.surql"))
             .bind(("checkpoint", consumer.record()))
             .bind(("cursor", cursor.versionstamp()))
             .bind(("now", Utc::now()))
@@ -108,25 +96,36 @@ impl PlatformStore {
     /// LIVE provides wake signals; the native feed supplies committed changes.
     /// Consumers own typed table decoding, current-state reconciliation and
     /// checkpoint acknowledgement. No idle timer queries the database.
-    pub fn observe_changes(
+    pub fn observe_changes<T: Into<ObservationTable>>(
         &self,
-        tables: Vec<PlatformTable>,
+        tables: Vec<T>,
         after: ChangefeedCursor,
     ) -> BoxStream<'static, Result<ChangefeedDelivery, StoreError>> {
         let store = self.clone();
-        let names: BTreeSet<_> = tables.into_iter().map(PlatformTable::as_str).collect();
-        let query = names
+        let tables: Vec<ObservationTable> = tables.into_iter().map(Into::into).collect();
+        let names: BTreeSet<_> = tables
             .iter()
-            .map(|name| format!("LIVE SELECT id FROM {name};"))
-            .collect::<String>();
+            .map(|table| table.as_str().to_owned())
+            .collect();
+        let retention = tables
+            .iter()
+            .map(|table| match table.replay() {
+                ObservationReplay::LiveOnly => None,
+                ObservationReplay::Changefeed(retention) => Some(retention.seconds()),
+            })
+            .collect::<Option<Vec<_>>>();
         Box::pin(async_stream::stream! {
             if names.is_empty() { return; }
+            let Some(retention) = retention else {
+                yield Err(StoreError::InvalidChangefeedEntry { reason: "recoverable observation requires declared changefeed retention" });
+                return;
+            };
+            let replay_window = replay_window(retention);
             let mut cursor = after;
             loop {
                 let connect = async {
                     let anchor = store.changefeed_cursor_now().await?;
-                    let mut response = store.client().query(query.clone()).await?.check()?;
-                    let stream = response.stream::<Notification<Identity>>(())?;
+                    let stream = store.live_identities(&tables).await?;
                     Ok::<_, StoreError>((anchor, stream))
                 };
                 let (anchor, mut live) = match tokio::time::timeout(Duration::from_secs(15), connect).await {
@@ -142,11 +141,10 @@ impl PlatformStore {
                         continue;
                     }
                 };
-                // All admitted platform tables retain at least seven days.
-                // Reconcile conservatively before the shortest retention ends.
+                // Leave a one-day safety margin before the shortest declared retention.
                 let stale = cursor == ChangefeedCursor::initial()
                     || cursor.timestamp().zip(anchor.timestamp())
-                        .is_none_or(|(then, now)| now - then >= TimeDelta::days(6));
+                        .is_none_or(|(then, now)| now - then >= replay_window);
                 if stale {
                     cursor = anchor;
                 }
@@ -204,5 +202,29 @@ impl PlatformStore {
                 }
             }
         })
+    }
+}
+
+fn replay_window(retention: Vec<u32>) -> TimeDelta {
+    TimeDelta::seconds(i64::from(
+        retention
+            .into_iter()
+            .min()
+            .unwrap_or(0)
+            .saturating_sub(86_400),
+    ))
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn shortest_retention_controls_the_conservative_window() {
+        assert_eq!(
+            replay_window(vec![30 * 86400, 7 * 86400]),
+            TimeDelta::days(6)
+        );
+        assert_eq!(replay_window(vec![86400]), TimeDelta::zero());
+        assert_eq!(replay_window(vec![1]), TimeDelta::zero());
+        assert_eq!(replay_window(vec![]), TimeDelta::zero());
     }
 }

@@ -77,8 +77,9 @@ impl TestDb {
     )]
     pub async fn committed(
         &self,
-        table: veoveo_platform_store::PlatformTable,
+        table: impl Into<veoveo_platform_store::ObservationTable>,
     ) -> Vec<serde_json::Value> {
+        let table = table.into();
         use veoveo_platform_store::{ChangefeedCursor, ChangefeedEntry, decode_changefeed_entry};
         tokio::time::timeout(Duration::from_secs(30), async {
             let mut cursor = ChangefeedCursor::initial();
@@ -107,6 +108,41 @@ impl TestDb {
         .expect("fixture native replay exceeded 30 seconds")
     }
 
+    /// Isolated administrative session for native privileged grammar qualification.
+    #[allow(
+        dead_code,
+        reason = "Only privileged fixture grammar uses administration"
+    )]
+    pub async fn admin(&self) -> PlatformStore {
+        tokio::time::timeout(
+            Duration::from_secs(60),
+            PlatformStore::connect(self.admin_config.clone()),
+        )
+        .await
+        .expect("fixture admin connection exceeded60seconds")
+        .unwrap()
+    }
+
+    /// Reconnect through an owned network fault fixture with the same editor identity.
+    #[allow(
+        dead_code,
+        reason = "Only reconnect qualification replaces its endpoint"
+    )]
+    pub async fn connect_at(&self, endpoint: &str) -> PlatformStore {
+        PlatformStore::connect(
+            StoreConfig::builder(
+                endpoint,
+                self.a.config().namespace(),
+                self.a.config().database(),
+                self.runtime_credentials.clone(),
+            )
+            .build()
+            .unwrap(),
+        )
+        .await
+        .unwrap()
+    }
+
     #[allow(
         dead_code,
         reason = "Fixture consumers select memory or RocksDB explicitly"
@@ -115,6 +151,10 @@ impl TestDb {
         Self::with_backend(StoreBackend::Memory).await
     }
 
+    #[allow(
+        dead_code,
+        reason = "Fixture consumers select memory or RocksDB explicitly"
+    )]
     pub async fn with_backend(backend: StoreBackend) -> Self {
         Self::with_backend_and_schema(backend, "").await
     }
@@ -222,4 +262,37 @@ async fn connect(config: StoreConfig, stage: &str) -> PlatformStore {
         .await
         .unwrap_or_else(|_| panic!("Store fixture {stage}: connection exceeded 10 seconds"))
         .unwrap_or_else(|_| panic!("Store fixture {stage}: connection failed"))
+}
+
+/// Recovery fixtures stop the previous reader before mutating and restarting it.
+#[allow(
+    dead_code,
+    reason = "Only stopped-reader recovery fixtures await LIVE retirement"
+)]
+pub async fn wait_for_no_live(
+    store: &PlatformStore,
+    tables: &[veoveo_platform_store::ObservationTable],
+) {
+    tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            let mut remaining = 0;
+            for table in tables {
+                let mut response = store
+                    .client()
+                    .query(format!("INFO FOR TABLE {};", table.as_str()))
+                    .await
+                    .unwrap()
+                    .check()
+                    .unwrap();
+                let info: Option<serde_json::Value> = response.take(0).unwrap();
+                remaining += info.unwrap()["lives"].as_object().unwrap().len();
+            }
+            if remaining == 0 {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+    })
+    .await
+    .expect("stopped-reader LIVE queries survived ten-second cleanup bound");
 }

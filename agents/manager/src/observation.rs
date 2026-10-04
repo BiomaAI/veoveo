@@ -15,13 +15,21 @@ pub async fn observe_intents(store: PlatformStore, changed: watch::Sender<u64>) 
         .unwrap_or_default();
     let mut source = store.observe_changes(
         vec![
-            PlatformTable::ManagedAgent,
-            PlatformTable::AgentDefinition,
-            PlatformTable::Agent,
-            PlatformTable::AgentEpisode,
-            PlatformTable::Principal,
-            PlatformTable::Tenant,
-            PlatformTable::WorkContext,
+            veoveo_modules::ObservationTable::from(
+                veoveo_agent_runtime::AgentObservationTable::ManagedAgent,
+            ),
+            veoveo_modules::ObservationTable::from(
+                veoveo_agent_runtime::AgentObservationTable::AgentDefinition,
+            ),
+            veoveo_modules::ObservationTable::from(
+                veoveo_agent_runtime::AgentObservationTable::Agent,
+            ),
+            veoveo_modules::ObservationTable::from(
+                veoveo_agent_runtime::AgentObservationTable::AgentEpisode,
+            ),
+            veoveo_modules::ObservationTable::from(PlatformTable::Principal),
+            veoveo_modules::ObservationTable::from(PlatformTable::Tenant),
+            veoveo_modules::ObservationTable::from(PlatformTable::WorkContext),
         ],
         cursor,
     );

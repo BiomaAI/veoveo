@@ -6,15 +6,14 @@ use futures::StreamExt;
 use std::{collections::BTreeSet, time::Duration};
 use surrealdb::types::{RecordId, Uuid as DbUuid};
 use veoveo_platform_store::{
-    ArtifactChange, ChangefeedConsumerId, ChangefeedCursor, ChangefeedDelivery, ComputerChange,
-    PlatformTable, TaskChange, task_record_id,
+    ArtifactChange, ChangefeedConsumerId, ChangefeedCursor, ChangefeedDelivery, PlatformTable,
+    TaskChange, task_record_id,
 };
 use veoveo_types::TaskId;
 
 const SCHEMA: &str = "
     REMOVE TABLE task; DEFINE TABLE task SCHEMALESS CHANGEFEED 30d;
     REMOVE TABLE artifact_grant; DEFINE TABLE artifact_grant SCHEMALESS CHANGEFEED 30d INCLUDE ORIGINAL;
-    REMOVE TABLE computer_automation_grant; DEFINE TABLE computer_automation_grant SCHEMALESS CHANGEFEED 30d INCLUDE ORIGINAL;
 ";
 
 #[tokio::test]
@@ -23,11 +22,7 @@ async fn native_source_catches_baseline_races_restarts_and_delete_parents() {
         let db =
             fixture::TestDb::with_backend_and_schema(fixture::StoreBackend::RocksDb, SCHEMA).await;
         let consumer = ChangefeedConsumerId::new("qualification/native-reader").unwrap();
-        let tables = vec![
-            PlatformTable::Task,
-            PlatformTable::ArtifactGrant,
-            PlatformTable::ComputerAutomationGrant,
-        ];
+        let tables = vec![PlatformTable::Task, PlatformTable::ArtifactGrant];
         let mut changes =
             db.a.observe_changes(tables.clone(), ChangefeedCursor::initial());
         let first = changes.next().await.unwrap().unwrap();
@@ -37,18 +32,13 @@ async fn native_source_catches_baseline_races_restarts_and_delete_parents() {
             .unwrap();
         let task = TaskId::from_uuid(uuid::Uuid::now_v7());
         let artifact = veoveo_artifact_contract::ArtifactId::new();
-        let computer = veoveo_computers_contract::ComputerId::new();
-        let grant = veoveo_computers_contract::AutomationGrantId::new();
         let artifact_grant = RecordId::new("artifact_grant", DbUuid::from(uuid::Uuid::now_v7()));
-        let computer_grant =
-            RecordId::new("computer_automation_grant", DbUuid::from(grant.into_uuid()));
         // Writes occur while the source is paused at its baseline yield.
         db.b.client()
             .query(
                 "BEGIN TRANSACTION;
             CREATE ONLY $task SET content = 'never decoded by the identity reader';
             CREATE ONLY $artifact_grant SET in = $artifact;
-            CREATE ONLY $computer_grant SET computer_id = $computer, grant_id = $grant;
             COMMIT TRANSACTION;",
             )
             .bind(("task", task_record_id(task)))
@@ -57,9 +47,6 @@ async fn native_source_catches_baseline_races_restarts_and_delete_parents() {
                 "artifact",
                 RecordId::new("artifact_occurrence", DbUuid::from(artifact.as_uuid())),
             ))
-            .bind(("computer_grant", computer_grant.clone()))
-            .bind(("computer", computer.into_uuid()))
-            .bind(("grant", grant.into_uuid()))
             .await
             .unwrap()
             .check()
@@ -78,17 +65,9 @@ async fn native_source_catches_baseline_races_restarts_and_delete_parents() {
                         assert_eq!(change.artifact_id, artifact);
                         found.insert("artifact");
                     }
-                    if let Some(ComputerChange::Automation {
-                        computer: id,
-                        grant: g,
-                    }) = ComputerChange::decode(&entry).unwrap()
-                    {
-                        assert_eq!((id, g), (computer, grant));
-                        found.insert("computer");
-                    }
                 }
             }
-            if found.len() == 3 {
+            if found.len() == 2 {
                 break cursor;
             }
         };
@@ -102,14 +81,22 @@ async fn native_source_catches_baseline_races_restarts_and_delete_parents() {
             "a late acknowledgement cannot rewind recovery"
         );
         drop(changes);
-        db.b.client()
-            .query("BEGIN TRANSACTION; DELETE ONLY $a; DELETE ONLY $c; COMMIT TRANSACTION;")
-            .bind(("a", artifact_grant))
-            .bind(("c", computer_grant))
-            .await
-            .unwrap()
-            .check()
-            .unwrap();
+        fixture::wait_for_no_live(
+            &db.b,
+            &tables.iter().cloned().map(Into::into).collect::<Vec<_>>(),
+        )
+        .await;
+        let mut deletion =
+            db.b.client()
+                .query("BEGIN TRANSACTION; DELETE ONLY $a; COMMIT TRANSACTION;")
+                .bind(("a", artifact_grant))
+                .await
+                .unwrap();
+        if let Some(error) =
+            veoveo_platform_store::primary_transaction_error(deletion.take_errors())
+        {
+            panic!("artifact delete transaction failed: {error:#}");
+        }
         let mut resumed =
             db.a.observe_changes(tables, db.a.changefeed_checkpoint(&consumer).await.unwrap());
         assert!(matches!(
@@ -117,7 +104,7 @@ async fn native_source_catches_baseline_races_restarts_and_delete_parents() {
             ChangefeedDelivery::Reconcile { .. }
         ));
         let mut parents = BTreeSet::new();
-        while parents.len() < 2 {
+        while parents.is_empty() {
             if let ChangefeedDelivery::Changes { entries, .. } =
                 resumed.next().await.unwrap().unwrap()
             {
@@ -125,12 +112,6 @@ async fn native_source_catches_baseline_races_restarts_and_delete_parents() {
                     if let Some(change) = ArtifactChange::decode(&entry).unwrap() {
                         assert_eq!(change.artifact_id, artifact);
                         parents.insert("artifact");
-                    }
-                    if let Some(ComputerChange::Automation { computer: id, .. }) =
-                        ComputerChange::decode(&entry).unwrap()
-                    {
-                        assert_eq!(id, computer);
-                        parents.insert("computer");
                     }
                 }
             }

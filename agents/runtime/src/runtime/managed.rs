@@ -17,12 +17,14 @@ impl AgentRuntime {
         let cursor = self.store.changefeed_cursor_now().await?;
         let mut changes = self.store.observe_changes(
             vec![
-                PlatformTable::ManagedAgent,
-                PlatformTable::AgentDefinition,
-                PlatformTable::Principal,
-                PlatformTable::Tenant,
-                PlatformTable::WorkContext,
-                PlatformTable::Agent,
+                veoveo_modules::ObservationTable::from(crate::AgentObservationTable::ManagedAgent),
+                veoveo_modules::ObservationTable::from(
+                    crate::AgentObservationTable::AgentDefinition,
+                ),
+                veoveo_modules::ObservationTable::from(PlatformTable::Principal),
+                veoveo_modules::ObservationTable::from(PlatformTable::Tenant),
+                veoveo_modules::ObservationTable::from(PlatformTable::WorkContext),
+                veoveo_modules::ObservationTable::from(crate::AgentObservationTable::Agent),
             ],
             cursor,
         );

@@ -1,60 +1,50 @@
-//! Opt-in native SurrealDB qualification. Requires root credentials at a ws://
-//! VEOVEO_SURREAL_URL endpoint; all writes use one disposable test database.
+//! Native reconnect qualification in an owned pinned SurrealDB fixture.
 use std::time::Duration;
 
 use futures::StreamExt;
-use secrecy::SecretString;
-use veoveo_platform_store::{
-    PlatformStore, PlatformTable, ResourceInvalidation, StoreConfig, StoreCredentials,
-};
-
+use veoveo_modules::TableName;
+use veoveo_platform_store::{ObservationReplay, ObservationTable, ResourceInvalidation};
 #[path = "../../../testing/fixtures/connection_switch.rs"]
 mod connection_switch;
+#[path = "../../../testing/fixtures/store.rs"]
+mod store;
 use connection_switch::ConnectionSwitch;
 
-fn config(endpoint: String, database: &str) -> StoreConfig {
-    StoreConfig::builder(
-        endpoint,
-        "veoveo_resource_integration",
-        database,
-        StoreCredentials::root(
-            std::env::var("VEOVEO_SURREAL_USER").unwrap_or_else(|_| "root".into()),
-            SecretString::from(
-                std::env::var("VEOVEO_SURREAL_PASSWORD").unwrap_or_else(|_| "root".into()),
-            ),
-        ),
-    )
-    .build()
-    .unwrap()
+async fn task_live_ids(writer: &veoveo_platform_store::PlatformStore) -> Vec<String> {
+    let mut response = writer
+        .client()
+        .query("INFO FOR TABLE observation_fixture_task;")
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    let info: Option<serde_json::Value> = response.take(0).unwrap();
+    info.unwrap()["lives"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .cloned()
+        .collect()
 }
 
 #[tokio::test]
 async fn replica_changes_and_reconnect_invalidate_without_outbox_or_idle_polling() {
-    if std::env::var("VEOVEO_SURREAL_INTEGRATION").as_deref() != Ok("1") {
-        return;
-    }
-    let endpoint = std::env::var("VEOVEO_SURREAL_URL").expect("explicit test endpoint");
-    let database = format!("resources_{}", uuid::Uuid::now_v7().simple());
-    let writer = tokio::time::timeout(
-        Duration::from_secs(15),
-        PlatformStore::connect(config(endpoint.clone(), &database)),
-    )
-    .await
-    .expect("database connection timed out")
-    .unwrap();
+    let fixture = store::TestDb::new().await;
+    let writer = fixture.a.clone();
+    let endpoint = writer.config().endpoint().to_string();
     let test_writer = writer.clone();
-    let mut test = tokio::spawn(async move {
+    let mut test = Box::pin(async {
         // Deliberately define no outbox. The same table identities used by the
         // Frames, Media and Recording hubs must deliver directly from the store.
         test_writer
             .client()
             .query(
-                "DEFINE TABLE frame_world SCHEMALESS CHANGEFEED 1h INCLUDE ORIGINAL;
-             DEFINE TABLE provider_job SCHEMALESS CHANGEFEED 1h INCLUDE ORIGINAL;
-             DEFINE TABLE media_usage SCHEMALESS CHANGEFEED 1h INCLUDE ORIGINAL;
-             DEFINE TABLE recording SCHEMALESS CHANGEFEED 1h INCLUDE ORIGINAL;
-             DEFINE TABLE task SCHEMALESS CHANGEFEED 1h INCLUDE ORIGINAL;
-             DEFINE TABLE domain_usage SCHEMALESS CHANGEFEED 1h INCLUDE ORIGINAL;
+                "DEFINE TABLE observation_fixture_frame_world SCHEMALESS CHANGEFEED 1h INCLUDE ORIGINAL;
+             DEFINE TABLE observation_fixture_provider_job SCHEMALESS CHANGEFEED 1h INCLUDE ORIGINAL;
+             DEFINE TABLE observation_fixture_media_usage SCHEMALESS CHANGEFEED 1h INCLUDE ORIGINAL;
+             DEFINE TABLE observation_fixture_recording SCHEMALESS CHANGEFEED 1h INCLUDE ORIGINAL;
+             DEFINE TABLE observation_fixture_task SCHEMALESS CHANGEFEED 1h INCLUDE ORIGINAL;
+             DEFINE TABLE observation_fixture_domain_usage SCHEMALESS CHANGEFEED 1h INCLUDE ORIGINAL;
              DEFINE TABLE changefeed_noise_fixture SCHEMALESS CHANGEFEED 1h INCLUDE ORIGINAL;",
             )
             .await
@@ -72,17 +62,22 @@ async fn replica_changes_and_reconnect_invalidate_without_outbox_or_idle_polling
             remote.port_or_known_default().unwrap(),
         )
         .await;
-        let reader = PlatformStore::connect(config(switch.endpoint.clone(), &database))
-            .await
-            .unwrap();
-        let mut changes = reader.resource_changes(vec![
-            PlatformTable::FrameWorld,
-            PlatformTable::ProviderJob,
-            PlatformTable::MediaUsage,
-            PlatformTable::Recording,
-            PlatformTable::Task,
-            PlatformTable::DomainUsage,
-        ]);
+        let reader = fixture.connect_at(&switch.endpoint).await;
+        let mut changes = reader.resource_changes(
+            [
+                "observation_fixture_frame_world",
+                "observation_fixture_provider_job",
+                "observation_fixture_media_usage",
+                "observation_fixture_recording",
+                "observation_fixture_task",
+                "observation_fixture_domain_usage",
+            ]
+            .into_iter()
+            .map(|name| {
+                ObservationTable::new(TableName::new(name).unwrap(), ObservationReplay::LiveOnly)
+            })
+            .collect(),
+        );
         assert_eq!(
             changes.next().await,
             Some(ResourceInvalidation::Reconcile),
@@ -95,12 +90,12 @@ async fn replica_changes_and_reconnect_invalidate_without_outbox_or_idle_polling
             "an idle source must not wake"
         );
         for statement in [
-            "CREATE frame_world:fixture SET revision = 1;",
-            "CREATE provider_job:fixture SET state = 'completed';",
-            "CREATE media_usage:fixture SET cost = 1;",
-            "CREATE recording:fixture SET state = 'writing';",
-            "CREATE task:fixture SET state = 'succeeded';",
-            "CREATE domain_usage:fixture SET quantity = 1;",
+            "CREATE observation_fixture_frame_world:fixture SET revision = 1;",
+            "CREATE observation_fixture_provider_job:fixture SET state = 'completed';",
+            "CREATE observation_fixture_media_usage:fixture SET cost = 1;",
+            "CREATE observation_fixture_recording:fixture SET state = 'writing';",
+            "CREATE observation_fixture_task:fixture SET state = 'succeeded';",
+            "CREATE observation_fixture_domain_usage:fixture SET quantity = 1;",
         ] {
             test_writer
                 .client()
@@ -116,13 +111,14 @@ async fn replica_changes_and_reconnect_invalidate_without_outbox_or_idle_polling
                 Some(ResourceInvalidation::Live)
             );
         }
+        let initial_ids = task_live_ids(&writer).await;
         switch.set_enabled(false).await;
         // These commits occur while the observer cannot receive LIVE events.
         test_writer
             .client()
             .query(
                 "CREATE changefeed_noise_fixture:unrelated SET ordinal = 1;
-             UPDATE frame_world:fixture SET revision = 2;",
+             UPDATE observation_fixture_frame_world:fixture SET revision = 2;",
             )
             .await
             .unwrap()
@@ -137,7 +133,7 @@ async fn replica_changes_and_reconnect_invalidate_without_outbox_or_idle_polling
         );
         test_writer
             .client()
-            .query("DELETE recording:fixture;")
+            .query("DELETE observation_fixture_recording:fixture;")
             .await
             .unwrap()
             .check()
@@ -148,26 +144,48 @@ async fn replica_changes_and_reconnect_invalidate_without_outbox_or_idle_polling
                 .expect("LIVE did not resume"),
             Some(ResourceInvalidation::Live)
         );
+        let final_ids = task_live_ids(&writer).await;
         drop(changes);
+        let mut retained = std::collections::BTreeMap::new();
+        let cleanup = tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                let mut remaining = 0;
+                for name in [
+                    "frame_world",
+                    "provider_job",
+                    "media_usage",
+                    "recording",
+                    "task",
+                    "domain_usage",
+                ] {
+                    let mut response = writer
+                        .client()
+                        .query(format!("INFO FOR TABLE observation_fixture_{name};"))
+                        .await
+                        .unwrap()
+                        .check()
+                        .unwrap();
+                    let info: Option<serde_json::Value> = response.take(0).unwrap();
+                    let count = info.unwrap()["lives"]
+                        .as_object()
+                        .expect("native LIVE catalog")
+                        .len();
+                    retained.insert(name, count);
+                    remaining += count;
+                }
+                if remaining == 0 {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(25)).await;
+            }
+        })
+        .await;
+        assert!(
+            cleanup.is_ok(),
+            "dropped observation retained native LIVE queries: {retained:?}; initial={initial_ids:?} final={final_ids:?} after={:?}",
+            task_live_ids(&writer).await
+        );
     });
     let result = tokio::time::timeout(Duration::from_secs(60), &mut test).await;
-    if result.is_err() {
-        test.abort();
-        let _ = test.await;
-    }
-    // Cleanup runs after failures and timeouts as well as after a passing test.
-    tokio::time::timeout(
-        Duration::from_secs(15),
-        writer
-            .client()
-            .query(format!("REMOVE DATABASE {};", writer.config().database())),
-    )
-    .await
-    .expect("test database cleanup timed out")
-    .unwrap()
-    .check()
-    .unwrap();
-    result
-        .expect("resource qualification exceeded 60 seconds")
-        .expect("resource qualification failed");
+    result.expect("resource qualification exceeded 60 seconds");
 }

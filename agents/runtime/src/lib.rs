@@ -81,3 +81,8 @@ fn fixture_claims() -> (
         })
         .clone()
 }
+
+#[cfg(feature = "schema")]
+pub mod observation;
+#[cfg(feature = "schema")]
+pub use observation::AgentObservationTable;

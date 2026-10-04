@@ -1,49 +1,9 @@
 //! Shared domain invalidation sources. Content still requires an authorized read.
-use crate::{ChangefeedCursor, PlatformStore, PlatformTable, StoreError, decode_changefeed_entry};
+use crate::{
+    ChangefeedCursor, ObservationTable, PlatformStore, StoreError, decode_changefeed_entry,
+};
 use futures::{StreamExt, stream::BoxStream};
 use std::time::Duration;
-use surrealdb::{
-    Notification,
-    types::{RecordId, SurrealValue},
-};
-
-/// Closed native-LIVE sources for domain invalidation. Recoverable consumers
-/// replay each table through its native changefeed.
-#[derive(Clone, Copy)]
-pub enum ResourceChangeTable {
-    Platform(PlatformTable),
-    AgentDefinition,
-    ManagedAgent,
-    WorkContext,
-    UavVehicleControlGrant,
-    UavVehicleMissionPlan,
-    KnowledgeSync,
-    KnowledgeCoordinator,
-}
-impl From<PlatformTable> for ResourceChangeTable {
-    fn from(table: PlatformTable) -> Self {
-        Self::Platform(table)
-    }
-}
-impl ResourceChangeTable {
-    fn as_str(self) -> &'static str {
-        match self {
-            Self::Platform(table) => table.as_str(),
-            Self::AgentDefinition => "agent_definition",
-            Self::ManagedAgent => "managed_agent",
-            Self::WorkContext => "work_context",
-            Self::UavVehicleControlGrant => "uav_vehicle_control_grant",
-            Self::UavVehicleMissionPlan => "uav_vehicle_mission_plan",
-            Self::KnowledgeSync => "knowledge_sync",
-            Self::KnowledgeCoordinator => "knowledge_coordinator",
-        }
-    }
-}
-
-#[derive(SurrealValue)]
-struct Identity {
-    id: RecordId,
-}
 
 /// Why callers must reread. The signal never includes a record or its identity.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -59,16 +19,12 @@ impl PlatformStore {
     /// before invalidating readers. The invalidation also covers expired history
     /// and registry tables without changefeeds. No record content or identity is
     /// exposed to the caller; every wake means re-read.
-    pub fn resource_changes<T: Into<ResourceChangeTable>>(
+    pub fn resource_changes<T: Into<ObservationTable>>(
         &self,
         tables: Vec<T>,
     ) -> BoxStream<'static, ResourceInvalidation> {
-        let tables: Vec<ResourceChangeTable> = tables.into_iter().map(Into::into).collect();
+        let tables: Vec<ObservationTable> = tables.into_iter().map(Into::into).collect();
         let store = self.clone();
-        let query = tables
-            .iter()
-            .map(|table| format!("LIVE SELECT id FROM {};", table.as_str()))
-            .collect::<String>();
         Box::pin(async_stream::stream! {
             if tables.is_empty() { return; }
             let mut cursor = None;
@@ -77,8 +33,7 @@ impl PlatformStore {
                     // Establish the overlap before registering LIVE. Mutations
                     // after this anchor are either replayed or queued by LIVE.
                     let anchor = store.changefeed_cursor_now().await?;
-                    let mut response = store.client().query(query.clone()).await?.check()?;
-                    let stream = response.stream::<Notification<Identity>>(())?;
+                    let stream = store.live_identities(&tables).await?;
                     let invalidation = if let Some(cursor) = cursor
                         && store.replay_resource_invalidation(cursor, anchor, &tables).await?
                     {
@@ -129,7 +84,7 @@ impl PlatformStore {
         &self,
         mut cursor: ChangefeedCursor,
         until: ChangefeedCursor,
-        tables: &[ResourceChangeTable],
+        tables: &[ObservationTable],
     ) -> Result<bool, StoreError> {
         while cursor <= until {
             let batches = self.replay_changes(cursor, 1_000).await?;

@@ -1,16 +1,14 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use surrealdb::method::Stream;
 use surrealdb::types::{RecordId, SurrealValue, Value};
 
-use crate::{PlatformStore, PlatformTable, StoreError};
+use crate::{ObservationTable, PlatformStore, StoreError};
 
 mod artifacts;
-mod computers;
 mod consumer;
+mod live;
 mod tasks;
 pub use artifacts::ArtifactChange;
-pub use computers::ComputerChange;
 pub use consumer::{ChangefeedConsumerId, ChangefeedDelivery};
 pub use tasks::TaskChange;
 
@@ -153,7 +151,8 @@ pub fn decode_changefeed_entry(change: &Value) -> Result<ChangefeedEntry, StoreE
     })
 }
 
-pub type LiveStream<T> = Stream<Vec<T>>;
+pub type LiveStream<T> =
+    futures::stream::BoxStream<'static, Result<surrealdb::Notification<T>, surrealdb::Error>>;
 
 impl PlatformStore {
     /// The next committed cursor at a finite observed tail, before a current-state
@@ -183,18 +182,25 @@ impl PlatformStore {
 
     /// Subscribe to future changes. Consumers must replay the table changefeed
     /// from their durable cursor before treating LIVE delivery as current.
-    pub async fn live<T>(&self, table: PlatformTable) -> Result<LiveStream<T>, StoreError>
+    pub async fn live<T>(
+        &self,
+        table: impl Into<ObservationTable>,
+    ) -> Result<LiveStream<T>, StoreError>
     where
-        T: SurrealValue + Unpin,
+        T: SurrealValue + Unpin + Send + 'static,
     {
-        Ok(self.db.select(table.as_str()).live().await?)
+        self.live_rows(table.into()).await
     }
 
     /// A cursor anchored "now" on the database's own clock. Capture it before
     /// reading a projection so replay from the cursor overlaps the projection
     /// instead of gapping it.
     pub async fn changefeed_cursor_now(&self) -> Result<ChangefeedCursor, StoreError> {
-        let mut response = self.db.query("RETURN time::now();").await?.check()?;
+        let mut response = self
+            .db
+            .query(include_str!("../queries/changefeed/clock.surql"))
+            .await?
+            .check()?;
         let now: Value = response.take(0)?;
         let Value::Datetime(now) = now else {
             return Err(StoreError::MissingRecord {
@@ -258,11 +264,10 @@ impl PlatformStore {
                 max: MAX_CHANGEFEED_LIMIT,
             });
         }
-        let statement = format!(
-            "SHOW CHANGES FOR DATABASE SINCE {} LIMIT {};",
-            cursor.versionstamp(),
-            limit
-        );
+        // SurrealDB 3.3 SHOW fields are numeric grammar literals, not expressions.
+        let statement = include_str!("../queries/changefeed/replay.surql")
+            .replace("__CURSOR__", &cursor.versionstamp().to_string())
+            .replace("__LIMIT__", &limit.to_string());
         let mut response = self.db.query(statement).await?.check()?;
         Ok(response.take(0)?)
     }

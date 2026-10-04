@@ -375,7 +375,12 @@ captured image before the result qualifies.
 
 ## Replica Resource Observation
 
-Each replica opens one shared group of projected Store LIVE queries for datasets, recordings, layers and Blueprints.
+The schema-only `schema::RecordingObservationTable` declaration supplies checked table names to
+the shared Store observation API without importing the Store. This profile uses
+`veoveo-modules`, the shared `Vocabulary` derive, Serde and JSON Schema support;
+it activates neither MCP integration nor asynchronous execution. Each replica opens one
+shared group of projected Store LIVE queries for datasets, recordings, layers and
+Blueprints.
 Committed changes invalidate only each listener's accepted resource contents, including
 the recording catalog resource. They do not emit resource-list changes. Writes coalesce
 over 100 milliseconds. The catalog URI accepts subscriptions from authenticated callers;
@@ -386,9 +391,9 @@ current authority. Idle sources emit no periodic resource-change notifications. 
 ## Persistence Module Declaration
 
 The independent `schema` feature exports `schema::module_setup(execution)` for the
-`recordings` optional module. It activates only `veoveo-modules` with default features
-disabled; contract and runtime dependencies require their own features. Default
-runtime behavior is unchanged. The declaration claims `recording_*` and the explicit `recording` table.
+`recordings` optional module. It activates `veoveo-modules` with default features disabled and the shared
+vocabulary, serialization and schema libraries. Domain contracts, Store and runtime
+services require their own features. The declaration claims `recording_*` and the explicit `recording` table.
 It requires Tasks, including earlier kernel lanes through transitive requirements.
 
 The lane is empty. The composition root supplies the checked execution image and

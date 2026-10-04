@@ -6,8 +6,7 @@ use futures::StreamExt;
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{GatewayInternalIdentity, SubscriptionHub};
 use veoveo_platform_store::{
-    PlatformStore, PlatformTable, ResourceChangeTable, deterministic_tenant_id,
-    deterministic_work_context_id,
+    PlatformStore, PlatformTable, deterministic_tenant_id, deterministic_work_context_id,
 };
 
 use crate::contract::SessionId;
@@ -51,12 +50,14 @@ pub(super) async fn observe(
     shutdown: CancellationToken,
 ) {
     let mut changes = store.resource_changes(vec![
-        ResourceChangeTable::ManagedAgent,
-        ResourceChangeTable::AgentDefinition,
-        ResourceChangeTable::UavVehicleControlGrant,
+        veoveo_modules::ObservationTable::from(
+            veoveo_agent_runtime::AgentObservationTable::ManagedAgent,
+        ),
+        veoveo_agent_runtime::AgentObservationTable::AgentDefinition.into(),
+        crate::UavObservationTable::UavVehicleControlGrant.into(),
         PlatformTable::Principal.into(),
         PlatformTable::Tenant.into(),
-        ResourceChangeTable::WorkContext,
+        PlatformTable::WorkContext.into(),
     ]);
     loop {
         tokio::select! {

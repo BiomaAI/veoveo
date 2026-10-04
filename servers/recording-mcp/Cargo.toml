@@ -22,10 +22,11 @@ required-features = ["contract"]
 
 [features]
 gateway = ["veoveo-recording-contract/policy", "dep:veoveo-gateway-contract", "contract", "dep:veoveo-mcp-gateway", "dep:veoveo-mcp-contract", "dep:veoveo-types", "dep:anyhow", "dep:axum", "dep:prost", "dep:veoveo-recording-protocol", "dep:chrono", "dep:secrecy", "dep:reqwest", "dep:parking_lot", "dep:futures", "dep:tokio", "dep:serde", "dep:serde_json", "dep:url", "dep:tracing", "dep:bytes", "chrono/clock", "dep:sha2"]
-schema = ["dep:veoveo-modules"]
+schema = ["dep:veoveo-modules", "dep:veoveo-types", "dep:serde", "dep:schemars"]
 default = ["mcp"]
 contract = ["dep:veoveo-recording-contract"]
 runtime = [
+    "schema",
     "dep:veoveo-gateway-contract",
     "contract",
     "dep:chrono",

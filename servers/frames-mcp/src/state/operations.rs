@@ -202,7 +202,7 @@ fn record_id(id: &CoordinateOperationId) -> Option<RecordId> {
     let id = uuid::Uuid::parse_str(id.as_str().strip_prefix("op-")?).ok()?;
     (id.get_version_num() == 7).then(|| {
         RecordId::new(
-            PlatformTable::CoordinateOperation.as_str(),
+            crate::FramesObservationTable::CoordinateOperation.as_str(),
             surrealdb::types::Uuid::from(id),
         )
     })

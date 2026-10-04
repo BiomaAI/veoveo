@@ -79,6 +79,14 @@ payloads. Native table changefeeds supply domain notifications.
 
 ## Authority Observation
 
+The schema-only `schema::ComputerObservationTable` declaration supplies checked table names to
+the shared Store observation API without importing the Store. This profile uses
+`veoveo-modules`, the shared `Vocabulary` derive, Serde and JSON Schema support;
+it activates neither MCP integration nor asynchronous execution. The runtime
+`changefeed::ComputerChange` decoder owns Computer and automation-grant identity
+admission and reuses the shared Task decoder. It requires native UUID values and
+admitted Computer/grant versions; strings and malformed parent rows fail admission.
+
 `authority_changes.rs` owns a lazily started native changefeed source shared by all
 clones of a domain store. Consumers subscribe before reading their authority baseline.
 The source watches Computer and grant state, Task and execution journals, browser
@@ -1133,9 +1141,9 @@ registrations need the authority-reader work in the
 ## Persistence Module Declaration
 
 The independent `schema` feature exports `schema::module_setup(execution)` for the
-`computers` optional module. It activates only `veoveo-modules` with default features
-disabled; contract and runtime dependencies require their own features. Default
-runtime behavior is unchanged. The declaration claims `computer_*` and the explicit `computer` table.
+`computers` optional module. It activates `veoveo-modules` with default features disabled and the shared
+vocabulary, serialization and schema libraries. Domain contracts, Store and runtime
+services require their own features. The declaration claims `computer_*` and the explicit `computer` table.
 It requires Audit, whose transitive requirements include Tasks, Artifacts, Gateway and Identity.
 
 The lane is empty. The composition root supplies the checked execution image and

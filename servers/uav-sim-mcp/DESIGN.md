@@ -944,8 +944,9 @@ UAV cursors retain hexadecimal JSON envelopes and their existing constructor/par
 ## Persistence Module Declaration
 
 The independent `schema` feature exports `schema::module_setup(execution)` for the
-`uav` optional module. It activates only `veoveo-modules` with default features
-disabled; contract and runtime dependencies require their own features. Default
+`uav` optional module. It activates `veoveo-modules` with default features disabled and the foundational
+vocabulary, Serde and schema dependencies used by owner table declarations. MCP,
+Store and asynchronous runtime dependencies require their own features. Default
 runtime behavior is unchanged. The declaration claims `uav_*`.
 It requires Agents and its earlier kernel requirements.
 
@@ -957,3 +958,17 @@ require separate implementation and qualification. Future owner migrations and
 queries belong together in this owner's crate, with one declaration per object.
 
 `server/agent_targets.surql` reads `managed_agent` and calls `fn::managed_agent_enabled`, which establishes the Agents dependency. The current `task_uav_plan` index is a foreign mutation on the kernel Task table and needs an owner-approved replacement.
+
+## Persistence Observation
+
+`UavObservationTable` declares the owner's closed observation table names under the
+`schema` feature. Runtime consumers convert these declarations into checked
+`ObservationTable` descriptors and compose them with kernel tables. The descriptor
+admits an identifier; it does not certify installed schema or grant read authority.
+These owner tables declare 30-day changefeed retention matching the installed SQL.
+LIVE invalidation and changefeed recovery keep their existing reconciliation and
+checkpoint behavior. Public DTO contract features do not activate observation sources.
+
+Managed-target invalidation reuses `AgentObservationTable` through Agents' schema-only
+feature. This dependency starts no Agent runtime service and grants no control over an
+Agent or vehicle. UAV owns its vehicle-control-grant and mission-plan sources.

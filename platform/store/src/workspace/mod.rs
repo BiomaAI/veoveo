@@ -74,11 +74,12 @@ impl PlatformStore {
 
     /// A latency hint only. Authorized consumers read the durable chat head.
     pub async fn workspace_wakes(&self) -> Result<crate::LiveStream<WorkspaceEvent>> {
-        self.client()
-            .select("workspace_event")
-            .live()
-            .await
-            .map_err(|_| WorkspaceError::Unavailable)
+        self.live::<WorkspaceEvent>(veoveo_modules::ObservationTable::new(
+            veoveo_modules::TableName::new("workspace_event").expect("workspace persistence table"),
+            veoveo_modules::ObservationReplay::LiveOnly,
+        ))
+        .await
+        .map_err(|_| WorkspaceError::Unavailable)
     }
 
     pub async fn workspace_recent_snapshot(

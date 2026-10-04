@@ -7,7 +7,7 @@ use rmcp::service::SubscriptionContext;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use tokio_util::sync::CancellationToken;
-use veoveo_platform_store::{PlatformTable, ResourceChangeTable, ResourceInvalidation};
+use veoveo_platform_store::{ObservationTable, PlatformTable, ResourceInvalidation};
 use veoveo_types::{ResourceAddress, ResourceUri, Sha256Digest};
 
 struct Snapshot {
@@ -22,7 +22,7 @@ impl<E: Embeddings + 'static> KnowledgeMcp<E> {
         let changes = self.changes.clone();
         tokio::spawn(async move {
             use PlatformTable::*;
-            let mut tables: Vec<ResourceChangeTable> = vec![
+            let mut tables: Vec<ObservationTable> = vec![
                 KnowledgeCollection,
                 KnowledgeGeneration,
                 KnowledgeActive,
@@ -33,16 +33,16 @@ impl<E: Embeddings + 'static> KnowledgeMcp<E> {
                 Enterprise,
                 Tenant,
                 Principal,
-                ManagedAgent,
-                AgentDefinition,
                 WorkContext,
             ]
             .into_iter()
             .map(Into::into)
             .collect();
             tables.extend([
-                ResourceChangeTable::KnowledgeSync,
-                ResourceChangeTable::KnowledgeCoordinator,
+                veoveo_agent_runtime::AgentObservationTable::ManagedAgent.into(),
+                veoveo_agent_runtime::AgentObservationTable::AgentDefinition.into(),
+                PlatformTable::KnowledgeSync.into(),
+                PlatformTable::KnowledgeCoordinator.into(),
             ]);
             let mut stream = store.resource_changes(tables);
             loop {
