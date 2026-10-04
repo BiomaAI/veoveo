@@ -30,3 +30,5 @@ pub fn run() -> anyhow::Result<()> {
 mod catalog_tests;
 #[cfg(test)]
 mod test_support;
+#[cfg(test)]
+mod tool_input_tests;

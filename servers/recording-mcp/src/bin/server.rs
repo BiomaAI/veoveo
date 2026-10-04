@@ -129,3 +129,6 @@ async fn main() -> anyhow::Result<()> {
     .serve(SocketAddr::from(([0, 0, 0, 0], args.port)))
     .await
 }
+#[cfg(test)]
+#[path = "server/tool_input_tests.rs"]
+mod tool_input_tests;

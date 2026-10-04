@@ -794,3 +794,6 @@ mod task_tests {
         );
     }
 }
+#[cfg(test)]
+#[path = "server/tool_input_tests.rs"]
+mod tool_input_tests;

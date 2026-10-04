@@ -110,6 +110,27 @@ enum RenderCommand {
 }
 
 impl RendererHandle {
+    /// Closed render channel for hosted admission tests; dispatch always fails.
+    #[cfg(all(test, feature = "mcp"))]
+    pub(crate) fn unavailable() -> Self {
+        let (commands, receiver) = mpsc::channel();
+        drop(receiver);
+        Self {
+            sender: Arc::new(RendererSender {
+                commands,
+                thread: None,
+            }),
+            adapter: GpuAdapterStatus {
+                name: "unavailable protocol fixture".into(),
+                backend: "unavailable".into(),
+                device_type: "unavailable".into(),
+                vendor: 0,
+                hardware_accelerated: false,
+                nvidia: false,
+            },
+        }
+    }
+
     pub fn start(config: RendererConfig) -> Result<Self, RendererError> {
         let (sender, receiver) = mpsc::channel();
         let (ready_sender, ready_receiver) = mpsc::sync_channel(1);

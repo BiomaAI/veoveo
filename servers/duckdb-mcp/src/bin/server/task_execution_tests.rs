@@ -8,8 +8,7 @@ use veoveo_duckdb_mcp::{
 use veoveo_mcp_contract::{ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret};
 use veoveo_task_runtime::{TaskPayloadState, TaskRuntime};
 
-#[path = "../../../../../testing/fixtures/store.rs"]
-mod store;
+use crate::store_fixture as store;
 
 #[tokio::test]
 async fn execution_and_recovered_query_keep_native_ids_in_results_and_usage() {

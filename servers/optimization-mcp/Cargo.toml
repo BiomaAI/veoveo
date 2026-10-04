@@ -121,6 +121,7 @@ veoveo-platform-store = { path = "../../platform/store", optional = true }
 veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
 
 [dev-dependencies]
+veoveo-mcp-contract = { workspace = true, features = ["testing"] }
 veoveo-platform-store = { path = "../../platform/store", features = ["schema"] }
 veoveo-modules = { workspace = true, features = ["runner"] }
 # Qualified RFC 6570 expansion, matching the foundation's exact 0.7.14 pin.

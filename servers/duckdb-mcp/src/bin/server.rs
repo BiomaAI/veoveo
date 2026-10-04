@@ -413,3 +413,10 @@ mod tool_tests {
         assert!(!super::DuckdbMcp::tool_router().list_all().is_empty());
     }
 }
+#[cfg(test)]
+#[path = "server/tool_input_tests.rs"]
+mod tool_input_tests;
+
+#[cfg(test)]
+#[path = "../../../../testing/fixtures/store.rs"]
+mod store_fixture;

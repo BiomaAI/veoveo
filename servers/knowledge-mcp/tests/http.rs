@@ -85,6 +85,21 @@ async fn hosted_search_links_catalog_and_embedding_follow_current_sql_authority(
             let malformed = client.call_tool(input(&tool.name, serde_json::json!({}))).await.unwrap();
             assert_eq!(malformed.is_error, Some(true), "typed arguments required: {malformed:?}");
         }
+        for (name, mut arguments) in [
+            ("search", serde_json::json!({"query":"flood","limit":5})),
+            ("embed", serde_json::json!({"mode":"query","task":"Find passages","texts":["flood","access"]})),
+        ] {
+            match name {
+                "search" => { let _: SearchRequest = serde_json::from_value(arguments.clone()).unwrap(); }
+                "embed" => { let _: EmbedRequest = serde_json::from_value(arguments.clone()).unwrap(); }
+                _ => unreachable!(),
+            }
+            arguments["undeclared"] = true.into();
+            let response = client.call_tool_once(input(name, arguments)).await.unwrap();
+            let rmcp::model::CallToolResponse::Complete(malformed) = response else { panic!("malformed input must complete"); };
+            assert_eq!(malformed.is_error, Some(true));
+            assert!(serde_json::to_string(&malformed.content).unwrap().contains("undeclared"));
+        }
         let sources=client.read_resource(ReadResourceRequestParams::new(KnowledgeResource::Sources {after:None}.to_uri().unwrap().to_string())).await.unwrap();
         let body=serde_json::to_string(&sources).unwrap();assert!(body.contains("media.records"));assert!(!body.contains("media.private"));
         let exact=client.read_resource(ReadResourceRequestParams::new(KnowledgeResource::Collection(content.descriptor.collection().clone()).to_uri().unwrap().to_string())).await.unwrap();

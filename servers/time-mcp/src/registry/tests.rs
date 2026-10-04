@@ -1,6 +1,8 @@
 mod activation;
 mod digest;
 mod lifecycle;
+#[cfg(feature = "mcp")]
+mod tool_input_tests;
 use super::*;
 use crate::{contract::*, test_store::TestDb};
 use chrono::Utc;

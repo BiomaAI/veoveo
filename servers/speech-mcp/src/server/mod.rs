@@ -172,3 +172,5 @@ async fn ready(state: &SpeechService) -> bool {
             Ok(Ok(()))
         )
 }
+#[cfg(test)]
+mod tool_input_tests;

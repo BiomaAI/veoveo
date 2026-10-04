@@ -149,6 +149,7 @@ veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
 veoveo-mcp-knowledge-extension = { workspace = true, features = ["contract"], optional = true }
 
 [dev-dependencies]
+veoveo-mcp-contract = { workspace = true, features = ["testing"] }
 veoveo-gateway-contract.workspace = true
 jsonschema.workspace = true
 veoveo-deploy-contract.workspace = true

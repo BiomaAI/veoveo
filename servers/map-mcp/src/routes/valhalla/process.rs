@@ -31,6 +31,23 @@ pub struct ValhallaProcess {
 }
 
 impl ValhallaProcess {
+    /// Unstarted provider owner for hosted argument admission tests.
+    /// Restart fails because its executable is absent from the owned fixture.
+    #[cfg(all(test, feature = "mcp"))]
+    pub(crate) fn unavailable(root: &std::path::Path, client: ValhallaClient) -> Self {
+        Self {
+            config: ValhallaProcessConfig {
+                executable: root.join("unavailable-valhalla"),
+                config_file: root.join("unavailable-config"),
+                concurrency: 1,
+                startup_timeout: Duration::from_secs(1),
+            },
+            client,
+            process: Arc::new(Mutex::new(None)),
+            operation: Arc::new(Mutex::new(())),
+        }
+    }
+
     pub async fn start(config: ValhallaProcessConfig, client: &ValhallaClient) -> Result<Self> {
         validate_config(&config)?;
         let manager = Self {

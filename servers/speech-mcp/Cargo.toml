@@ -77,6 +77,8 @@ veoveo-platform-store = { workspace = true, optional = true }
 veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
 
 [dev-dependencies]
+veoveo-gateway-contract.workspace = true
+veoveo-mcp-contract = { workspace = true, features = ["testing"] }
 veoveo-mcp-conformance = { path = "../../mcp/conformance" }
 base64.workspace = true
 rcgen.workspace = true

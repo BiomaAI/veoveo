@@ -145,6 +145,7 @@ re_sdk = { workspace = true, optional = true }
 re_sdk_types = { workspace = true, optional = true }
 
 [dev-dependencies]
+veoveo-mcp-contract = { workspace = true, features = ["testing"] }
 veoveo-gateway-catalog.workspace = true
 serde.workspace = true
 veoveo-platform-store.workspace = true

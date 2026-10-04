@@ -601,3 +601,5 @@ mod well_known_tests {
         assert!(json.get("capabilities").is_none());
     }
 }
+#[cfg(test)]
+mod tool_input_tests;

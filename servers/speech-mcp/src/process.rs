@@ -19,6 +19,26 @@ pub struct WorkerProcess {
 }
 
 impl WorkerProcess {
+    /// An exited process and absent socket for hosted admission tests.
+    /// It cannot report worker readiness or accept inference requests.
+    #[cfg(all(test, feature = "mcp"))]
+    pub(crate) async fn unavailable() -> Result<Self> {
+        let workspace = tempfile::tempdir()?;
+        let socket = workspace.path().join("unavailable-worker.sock");
+        let mut child = Command::new("/usr/bin/false")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .kill_on_drop(true)
+            .spawn()?;
+        child.wait().await?;
+        Ok(Self {
+            child: Mutex::new(child),
+            workspace,
+            socket,
+        })
+    }
+
     pub async fn start(python: &Path, capacity: u8) -> Result<Self> {
         ensure!(
             (1..=8).contains(&capacity),

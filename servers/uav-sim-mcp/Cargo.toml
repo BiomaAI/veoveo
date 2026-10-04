@@ -106,6 +106,7 @@ veoveo-platform-store = { path = "../../platform/store", optional = true }
 veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
 
 [dev-dependencies]
+veoveo-mcp-contract = { workspace = true, features = ["testing"] }
 veoveo-gateway-catalog.workspace = true
 veoveo-gateway-contract.workspace = true
 axum.workspace = true

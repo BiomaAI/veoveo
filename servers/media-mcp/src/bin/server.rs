@@ -657,3 +657,6 @@ mod tests {
         assert_eq!(annotations.open_world_hint, Some(true));
     }
 }
+#[cfg(test)]
+#[path = "server/tool_input_tests.rs"]
+mod tool_input_tests;

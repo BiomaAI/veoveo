@@ -15,6 +15,37 @@ use veoveo_reason_mcp::contract::*;
 use veoveo_types::{AccessLevel, AccessSubject, ResourceAddress, ResourceUri};
 
 type Client = RunningService<rmcp::RoleClient, ClientConfig>;
+
+#[tokio::test]
+async fn unknown_tool_arguments_complete_before_analysis_admission() {
+    tokio::time::timeout(Duration::from_secs(120), async {
+        let db = crate::store_fixture::TestDb::new().await;
+        let fixture = Fixture::new(db.a.clone()).await;
+        let server = fixture.reason(None).await;
+        let client = fixture.sdk(server.address, &fixture.owner).await;
+        let mut arguments = serde_json::json!({
+            "video": {"recording_uri":"recording://recordings/01983da0-0000-7000-8000-000000000000",
+                "entity_path":"/camera/front", "timeline":"sensor_time", "range":{"start":10,"end":20}},
+            "pipeline_id":"traffic-events",
+            "task":{"kind":"detect_events","prompt":"Vehicles entering the intersection"}
+        });
+        let valid: AnalyzeRecordingRequest = serde_json::from_value(arguments.clone()).unwrap();
+        validate_reasoning_task(&valid.task).unwrap();
+        validate_sampling(valid.sampling).unwrap();
+        validate_decode(valid.decode).unwrap();
+        let tasks = veoveo_task_runtime::TaskRuntime::new(db.a.clone(), "reason", "strict-input");
+        assert!(tasks.list().await.unwrap().is_empty());
+        arguments["undeclared"] = true.into();
+        let response = client.call_tool_once(CallToolRequestParams::new("analyze_recording").with_arguments(arguments.as_object().unwrap().clone())).await.unwrap();
+        let CallToolResponse::Complete(result) = response else { panic!("malformed input must complete"); };
+        assert_eq!(result.is_error, Some(true));
+        assert!(serde_json::to_string(&result.content).unwrap().contains("undeclared"));
+        assert!(tasks.list().await.unwrap().is_empty());
+        assert_eq!(fixture.content_reads.load(std::sync::atomic::Ordering::Relaxed), 0);
+        client.cancel().await.unwrap();
+        server.stop().await;
+    }).await.expect("Reason malformed tool input exceeded 120 seconds");
+}
 async fn read(
     client: &Client,
     uri: &ResourceUri,

@@ -11,6 +11,70 @@ use veoveo_mcp_knowledge_extension as extension;
 use veoveo_types::{AccessLevel, AccessSubject, ResourceUri};
 
 #[tokio::test]
+async fn unknown_tool_arguments_complete_without_changing_artifact_metadata() {
+    tokio::time::timeout(Duration::from_secs(120), async {
+        let db = crate::store_fixture::TestDb::new().await;
+        let f = Fixture::new(db.a.clone()).await;
+        let artifact = f
+            .artifacts
+            .put(
+                &f.owner,
+                PutArtifactRequest::default(),
+                b"strict input fixture".to_vec(),
+            )
+            .await
+            .unwrap();
+        let client = f.sdk(&f.owner).await;
+        let before = f
+            .artifacts
+            .head(&f.owner, &artifact.artifact_id())
+            .await
+            .unwrap();
+        let arguments = serde_json::json!({"artifact_id":artifact.artifact_id()});
+        let _: veoveo_artifact_mcp::contract::ArtifactReference =
+            serde_json::from_value(arguments.clone()).unwrap();
+        let valid = client
+            .call_tool(
+                CallToolRequestParams::new("metadata")
+                    .with_arguments(arguments.as_object().unwrap().clone()),
+            )
+            .await
+            .unwrap();
+        assert_ne!(valid.is_error, Some(true));
+        let mut invalid = arguments;
+        invalid["undeclared"] = true.into();
+        let response = client
+            .call_tool_once(
+                CallToolRequestParams::new("metadata")
+                    .with_arguments(invalid.as_object().unwrap().clone()),
+            )
+            .await
+            .unwrap();
+        let CallToolResponse::Complete(result) = response else {
+            panic!("malformed input must complete");
+        };
+        assert_eq!(result.is_error, Some(true));
+        assert!(
+            serde_json::to_string(&result.content)
+                .unwrap()
+                .contains("undeclared")
+        );
+        let after = f
+            .artifacts
+            .head(&f.owner, &artifact.artifact_id())
+            .await
+            .unwrap();
+        assert_eq!(
+            serde_json::to_value(before).unwrap(),
+            serde_json::to_value(after).unwrap()
+        );
+        client.cancel().await.unwrap();
+    })
+    .await
+    .expect("Artifact malformed tool input exceeded 120 seconds");
+}
+
+#[tokio::test]
 async fn readiness_detects_plane_loss_without_failing_liveness() {
     let db = crate::store_fixture::TestDb::new().await;
     let mut fixture = Fixture::new(db.a.clone()).await;

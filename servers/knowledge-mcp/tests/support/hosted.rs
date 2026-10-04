@@ -89,13 +89,20 @@ pub fn plane(registrations: &[CollectionRegistration]) -> GatewayControlPlane {
 }
 
 pub async fn install(store: &PlatformStore, plane: &GatewayControlPlane) {
+    // Match GatewayCatalog publication: opaque maps must survive Store ordering
+    // even when aggregate dependencies enable serde_json's preserve_order.
+    let mut document = serde_json::to_value(plane).unwrap();
+    document.sort_all_objects();
+    let plane: GatewayControlPlane = serde_json::from_value(document).unwrap();
     let name = uuid::Uuid::now_v7().to_string();
     let revision = RecordId::new("gateway_control_revision", name.clone());
     let content = GatewayControlRevisionContent {
         revision_id: name.clone(),
-        sha256: Sha256Digest::from_bytes(Sha256::digest(serde_json::to_vec(plane).unwrap()).into())
-            .hex()
-            .to_owned(),
+        sha256: Sha256Digest::from_bytes(
+            Sha256::digest(serde_json::to_vec(&plane).unwrap()).into(),
+        )
+        .hex()
+        .to_owned(),
         source: GatewayControlRevisionSource::SeedFile,
         applied_at: Utc::now(),
         applied_by: "knowledge-fixture".into(),
@@ -104,6 +111,25 @@ pub async fn install(store: &PlatformStore, plane: &GatewayControlPlane) {
     };
     store.client().query("BEGIN TRANSACTION; CREATE ONLY $revision CONTENT $content; UPSERT gateway_control_active:current SET revision=$revision, revision_id=$name, updated_at=time::now(); COMMIT TRANSACTION;")
         .bind(("revision",revision)).bind(("content", content)).bind(("name",name)).await.unwrap().check().unwrap();
+    let stored = store
+        .active_gateway_control_revision()
+        .await
+        .unwrap_or_else(|_| panic!("fixture active control revision read failed"))
+        .expect("fixture active control revision");
+    let restored: GatewayControlPlane =
+        serde_json::from_value(serde_json::to_value(stored.control_plane).unwrap())
+            .unwrap_or_else(|_| panic!("fixture stored control-plane admission failed"));
+    veoveo_policy::PolicyCatalog::new(
+        restored.clone(),
+        veoveo_gateway_catalog::registry().unwrap(),
+    )
+    .unwrap_or_else(|_| panic!("fixture stored policy admission failed"));
+    let digest =
+        Sha256Digest::from_bytes(Sha256::digest(serde_json::to_vec(&restored).unwrap()).into());
+    assert!(
+        digest.hex() == stored.sha256,
+        "fixture stored control-plane digest must match publication"
+    );
 }
 
 pub struct Signing {

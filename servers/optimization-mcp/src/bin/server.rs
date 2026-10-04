@@ -203,3 +203,6 @@ mod well_known_tests {
         assert!(json.get("capabilities").is_none());
     }
 }
+#[cfg(test)]
+#[path = "server/tool_input_tests.rs"]
+mod tool_input_tests;

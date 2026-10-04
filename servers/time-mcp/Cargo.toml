@@ -137,6 +137,7 @@ veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
 surrealdb = { version = "=3.3.0", default-features = false, optional = true }
 
 [dev-dependencies]
+veoveo-mcp-contract = { workspace = true, features = ["testing"] }
 veoveo-gateway-contract.workspace = true
 jsonschema.workspace = true
 veoveo-deploy-contract.workspace = true

@@ -33,3 +33,7 @@ pub use server::run;
 pub use contract::*;
 #[cfg(feature = "runtime")]
 pub use state::ViewService;
+
+#[cfg(all(test, feature = "mcp"))]
+#[path = "../../../testing/fixtures/store.rs"]
+pub(crate) mod store_fixture;

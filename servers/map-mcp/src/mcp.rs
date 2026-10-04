@@ -1130,5 +1130,7 @@ fn is_feature_template(uri: &str) -> bool {
 mod well_known_tests;
 
 #[cfg(test)]
+mod tool_input_tests;
+#[cfg(test)]
 #[path = "mcp/workspace_app_tests.rs"]
 mod workspace_app_tests;

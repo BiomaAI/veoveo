@@ -208,6 +208,27 @@ async fn canonical_http_and_mcp_share_one_private_idempotent_task_across_replica
         }
     }
     let input = json!({"requestId":Uuid::now_v7()});
+    let _: veoveo_computers_mcp::contract::CreateInput =
+        serde_json::from_value(input.clone()).unwrap();
+    let malformed = rpc(
+        &client,
+        &a,
+        &alice,
+        "tools/call",
+        json!({"name":"create", "arguments":{"requestId":input["requestId"],"undeclared":true}}),
+        true,
+    )
+    .await;
+    assert!(malformed.get("error").is_none(), "{malformed}");
+    let completed: rmcp::model::CallToolResult =
+        serde_json::from_value(malformed["result"].clone()).unwrap();
+    assert_eq!(completed.is_error, Some(true));
+    assert_eq!(malformed["result"]["resultType"], "complete");
+    assert!(
+        serde_json::to_string(&completed.content)
+            .unwrap()
+            .contains("undeclared")
+    );
     let rejected = rpc(
         &client,
         &a,

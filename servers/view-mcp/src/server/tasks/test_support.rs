@@ -1,8 +1,7 @@
 use super::*;
 use serde_json::json;
 
-#[path = "../../../../../testing/fixtures/store.rs"]
-pub(super) mod fixture;
+pub(super) use crate::store_fixture as fixture;
 
 pub(super) fn identity() -> GatewayInternalIdentity {
     let fixtures: Vec<serde_json::Value> = serde_json::from_str(include_str!(
