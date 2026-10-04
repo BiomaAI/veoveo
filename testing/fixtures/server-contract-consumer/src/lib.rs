@@ -423,6 +423,7 @@ mod tests {
                         "veoveo-timeseries-mcp",
                         "veoveo-media-mcp",
                         "veoveo-frames-contract",
+                        "veoveo-gateway-contract",
                         "veoveo-map-mcp",
                         "veoveo-duckdb-mcp",
                         "veoveo-reason-mcp",
