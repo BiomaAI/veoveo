@@ -1,7 +1,6 @@
 # syntax=docker/dockerfile:1.25.0@sha256:0adf442eae370b6087e08edc7c50b552d80ddf261576f4ebd6421006b2461f12
 
-# The qualified provider toolchain is independent of Veoveo's Rust toolchain.
-FROM rust:1.95.0-slim-bookworm@sha256:d7482085ff5b415f84dba5647ae71606650bdef00db7aeb69f4b3d170c3e4082 AS compiler
+FROM docker.io/library/rust:1.99.0-slim-bookworm@sha256:452176c0cefca88c0b3184ce85a4eb03e3d4fa05d2afb5366abcba853221019e AS compiler
 COPY <<EOF /etc/apt/sources.list.d/debian.sources
 Types: deb
 URIs: http://snapshot.debian.org/archive/debian/20260910T000000Z/
@@ -20,7 +19,7 @@ EOF
 RUN apt-get update --error-on=any \
     && apt-get install -y --no-install-recommends ca-certificates git jq build-essential pkg-config libz3-dev \
     && rm -rf /var/lib/apt/lists/*
-ENV RUSTUP_TOOLCHAIN=1.95.0 CARGO_TARGET_DIR=/provider-target
+ENV RUSTUP_TOOLCHAIN=1.99.0 CARGO_TARGET_DIR=/provider-target
 
 FROM compiler AS source
 WORKDIR /source
@@ -50,8 +49,9 @@ EOF
 FROM compiler AS gateway-build
 COPY --from=source /gateway /gateway
 WORKDIR /gateway
+# Keep the compiler-independent registry source cache. Scope compiled artifacts to Rust 1.99.
 RUN --mount=type=cache,id=veoveo-openshell-rust195-bookworm-cargo,target=/usr/local/cargo/registry,sharing=locked \
-    --mount=type=cache,id=veoveo-openshell-rust195-bookworm-target,target=/provider-target,sharing=locked \
+    --mount=type=cache,id=veoveo-openshell-rust199-bookworm-target,target=/provider-target,sharing=locked \
     cargo test --locked --release -p openshell-core --test mtls_user_admission \
     && cargo build --locked --release -p openshell-server -p openshell-driver-docker \
     && mkdir /binaries \
@@ -61,7 +61,7 @@ FROM compiler AS supervisor-build
 COPY --from=source /supervisor /supervisor
 WORKDIR /supervisor
 RUN --mount=type=cache,id=veoveo-openshell-rust195-bookworm-cargo,target=/usr/local/cargo/registry,sharing=locked \
-    --mount=type=cache,id=veoveo-openshell-rust195-bookworm-target,target=/provider-target,sharing=locked \
+    --mount=type=cache,id=veoveo-openshell-rust199-bookworm-target,target=/provider-target,sharing=locked \
     cargo build --locked --release -p openshell-sandbox \
     && mkdir /binaries \
     && cp /provider-target/release/openshell-sandbox /binaries/

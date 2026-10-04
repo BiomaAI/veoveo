@@ -18,7 +18,7 @@ public ingress and installed qualification remain in
 | Veoveo private policy checkpoint protobuf v1 | `protocol/maintenance.proto`; canonical Prost encoding of exact provider/source/run and selected gateway version with the generated provider configuration. Encrypted journal storage is required; this format grants no authority |
 | Internal attachment lease | Monotonic authority staleness at most 30 seconds, renewal interval at most ten seconds; admission credentials are distinct from an established connection's authority |
 | `veoveo.ai/computer-files/v1` | Private framed JSON header with raw binary file stream and typed SHA-256 receipt; regular files up to 64 MiB, no archive extraction, fixed guest helper command |
-| Rust/Tonic/Prost | Qualified workspace Tonic `0.14.6` and Prost `0.14.4`; new generator Tonic-Prost-Build `0.14.6`, Russh `0.63.3`, Typify `0.8.0` |
+| Rust 1.99.0, Tonic and Prost | Provider builds use the official Bookworm compiler image; qualified workspace Tonic `0.14.6` and Prost `0.14.4`; generator Tonic-Prost-Build `0.14.6`, Russh `0.63.3`, Typify `0.8.0` |
 | Docker volume-plugin API v1; Engine HTTP API `1.53` | Selected volume methods and registered-container enumeration; the worker fixture composes the production allocator with the native provider |
 
 Upstream stable versions were checked through crates.io and the NVIDIA GitHub
