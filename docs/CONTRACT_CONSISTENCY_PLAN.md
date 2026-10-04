@@ -44,8 +44,10 @@ The independent consumer checks all 114 production tool-input root schemas; affe
 native suites and browser/Python consumers pass. The next batch closes controlled
 HTTP bodies, registered installation configuration and private process inputs.
 Affected native suites, Python peers, generated browser consumers and Stream's C++
-build pass. Per-server wire checks, exhaustive variant and schema-equivalence coverage,
-the remaining loaders and installed process qualification remain open.
+build pass. Recording's sensor-stack loader now closes its flat variants and validates
+sensor IDs during decoding. UAV state, acknowledgements, completion results and events
+use typed Python output models. Per-server wire checks, exhaustive variant and
+schema-equivalence coverage, and installed process qualification remain open.
 This is the single implementation plan for the former Foundations, Contract
 Consistency and Repository Hardening tracks; their required open conditions transfer
 without being declared complete.
@@ -646,32 +648,35 @@ capabilities separately. A smaller macro catalog alone does not satisfy this
 requirement. Existing value, wire, schema and independent-consumer tests continue to
 protect behavior during the correction.
 
-The applied repair removes repeated ordinary-ID derives and conversions. The corrected
-comparison covers 172 Rust and manifest paths, including moved owners, previously
-omitted macro-expansion sites and the complete shared URI backend. It compares Git
-trees at `ba20a34d^` and `a69609ef0`, avoiding a worktree capture mislabeled as a commit.
-Complete owner, facade and manifest files remain counted. Qualification includes
-standalone tests, colocated test modules and Rustdoc fixtures.
+The applied repair removes repeated ordinary-ID derives and conversions. The measured
+set covers 183 Rust and manifest paths, including the original declaration owners,
+moved Gateway ID implementations, shared URI and checked/cursor helpers, and every
+owner in the cursor serialization batch. It compares Git trees at `ba20a34d^` and
+`087eea538`. Complete owner, facade and manifest files remain counted. Qualification
+includes standalone tests, colocated test modules and Rustdoc fixtures.
 
 | Source category | Before migration | Current | Change |
 |---|---:|---:|---:|
-| Implementation/API | 21,313 | 23,614 | +2,301 |
-| Qualification | 5,505 | 9,124 | +3,619 |
-| Total | 26,818 | 32,738 | +5,920 |
+| Implementation/API | 22,615 | 25,233 | +2,618 |
+| Qualification | 5,517 | 9,330 | +3,813 |
+| Total | 28,132 | 34,563 | +6,431 |
 
-Separately identified concerns contribute 374 implementation lines for cursor/numeric
-changes, 381 for Recording's optional catalog registration and 106 for later strict
-input admission. The remaining 1,440 lines require further attribution or reduction.
-That partial attribution does not prove the declaration machinery's final cost.
-All shared ID/address machinery stays charged to the replacement.
+This scope includes checked-value, cursor, numeric and optional-catalog changes as well
+as later strict input admission. Their contributions need paired accounting with code
+removed from original owners; subtracting new modules alone would hide migration costs.
+The measured growth does not establish the declaration machinery's final cost or a
+historical reduction. All shared mechanics stay charged to their replacement.
 
-The latest simplification removes 223 implementation lines, including its new shared
-helpers, and adds 56 test lines. UUID profiles share focused const constructors.
-The macro frontends share derive checks, and address emission shares field-shape and
-component construction. Shared and owner native suites, independent contract consumers,
-workspace lint and repository checks pass. Remaining repetition includes Redap wire
-adapters, cursor/schema wrappers and Rust convenience API variants. The historical
-reduction requirement stays open alongside the independent Phase 5 and 6 batches.
+UUID profiles share focused const constructors. The macro frontends share derive checks,
+and address emission shares field-shape and component construction. The cursor batch
+removes 32 String conversion implementations across 16 owner types. Its complete
+17-file family, including the shared helper, removes 138 implementation/API lines and
+adds 93 qualification lines. Explicit stateless admission preserves contextual parsing,
+retained wire aliases and owner schema identity. Shared and owner native suites,
+the independent contract consumer, workspace lint and repository checks pass.
+Remaining repetition includes Time's collection-bound cursor wrappers, selected-resource
+subscription wrappers, Redap wire adapters and Rust convenience API variants. The
+historical reduction requirement stays open alongside the independent Phase 5 and 6 batches.
 
 The correction uses attribute front ends for ID and resource declarations so they
 can generate standard derives as well as implementations. Ordinary public traits
@@ -1163,11 +1168,16 @@ types and workspace lint pass. The image recipes include the matching locked Pyt
 dependencies. Final image and installed process qualification remain open; the
 simulation Python-layer update needs composed hardware acceptance.
 
-The remaining inventory includes `recording-hub`'s `sensor_sim --stack` loader:
-its flattened `SensorSpec` and nested wave, track and coordinate values still need
-strict admission. Protocol-wide Rust/Python schema equivalence, UAV outbound
-state/event model adoption and production per-server MCP wire rejection checks
-also remain open. Stream's C++ decoder passes its native build; installed runner
+Recording Hub's `sensor-sim --stack` loader admits each flat sensor variant through a
+closed typed decoder. Nested wave, track and coordinate values reject extra fields;
+sensor IDs run constructor validation during decoding. Native tests cover every variant,
+required fields, optional duration defaults and file-loader diagnostics.
+The UAV overlay validates typed state, acknowledgements, completion results and lifecycle
+events before HTTP or NDJSON serialization. Shared fixtures cover Python emission and
+Rust decoding, including all seven camera rigs. Output errors expose validation kinds
+without payload values; unresolved Recording keys stay separate from physical completion.
+Protocol-wide Rust/Python schema equivalence and production per-server MCP wire rejection
+checks remain open. Stream's C++ decoder passes its native build; installed runner
 checks remain open.
 HTTP field-name diagnostics also remain incomplete for Serde's adjacent-tag enum
 decoder: an extra key inside `AccessSubject` is rejected with a generic 400. The
@@ -1210,6 +1220,12 @@ Store runtime vocabularies or gateway-private types. Phases 2–3 must establish
 lightweight owners without copying enums or importing runtime dependencies into a
 browser contract. Broader Artifact/grant, Task, Agent and policy projections remain
 required. Python peers and MCP App assets also retain the work listed below.
+
+The UAV Python suite compares 21 shared output structures and seven camera-rig variants
+with the maintained Rust schema snapshot. It checks field sets, required and nullable
+values, enum spellings and numeric guarantees. Private Recording rows, lifecycle events
+and completion envelopes use shared decode fixtures and protocol tests; they do not yet
+have private Rust schema snapshots. These checks do not close protocol-wide equivalence.
 
 | Consumer | Change |
 |---|---|
