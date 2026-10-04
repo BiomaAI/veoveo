@@ -9,14 +9,9 @@ use veoveo_types::{
     ResourceAddress, ResourceUri, ResourceUriBuilder, ResourceUriParts, UriSegment,
 };
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+#[error("expected a canonical DuckDB resource with its declared parameters")]
 pub struct DuckDbResourceError;
-impl fmt::Display for DuckDbResourceError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("expected a canonical DuckDB resource with its declared parameters")
-    }
-}
-impl std::error::Error for DuckDbResourceError {}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DuckDbDocument {

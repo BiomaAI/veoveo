@@ -258,15 +258,6 @@ async fn run_task_inner(
     progress: Option<TaskProgress>,
     cancellation: CancellationToken,
 ) {
-    macro_rules! fail {
-        ($message:expr) => {{
-            let message: String = $message;
-            tracing::warn!(%task_id, "stream task failed: {message}");
-            complete_tool_error(&state, task_id, message).await;
-            return;
-        }};
-    }
-
     set_progress(
         &state,
         task_id,
@@ -278,7 +269,10 @@ async fn run_task_inner(
     let work_slot = tokio::select! {
         permit = state.work_slots.clone().acquire_owned() => match permit {
             Ok(permit) => permit,
-            Err(error) => fail!(format!("stream work queue closed: {error}")),
+            Err(error) => {
+                fail_task(&state, task_id, format!("stream work queue closed: {error}")).await;
+                return;
+            },
         },
         () = cancellation.cancelled() => {
             update_task(&state, task_id, TaskTransition::Cancelled).await;
@@ -308,7 +302,10 @@ async fn run_task_inner(
     let source = tokio::select! {
         result = materialize => match result {
             Ok(source) => source,
-            Err(error) => fail!(format!("video materialization failed: {error:#}")),
+            Err(error) => {
+                fail_task(&state, task_id, format!("video materialization failed: {error:#}")).await;
+                return;
+            },
         },
         () = cancellation.cancelled() => {
             update_task(&state, task_id, TaskTransition::Cancelled).await;
@@ -319,27 +316,59 @@ async fn run_task_inner(
     let result = match request.input {
         StreamTaskInput::RunRecording(input) => {
             let Some(pipeline) = state.catalog.pipeline(&input.pipeline_id).cloned() else {
-                fail!(format!("unknown pipeline `{}`", input.pipeline_id));
+                fail_task(
+                    &state,
+                    task_id,
+                    format!("unknown pipeline `{}`", input.pipeline_id),
+                )
+                .await;
+                return;
             };
             let Some(model_id) = pipeline.profile.model_id() else {
-                fail!(format!(
-                    "pipeline `{}` does not expose typed perception results",
-                    pipeline.id
-                ));
+                fail_task(
+                    &state,
+                    task_id,
+                    format!(
+                        "pipeline `{}` does not expose typed perception results",
+                        pipeline.id
+                    ),
+                )
+                .await;
+                return;
             };
             let Some(model) = state.catalog.model(model_id).cloned() else {
-                fail!(format!("pipeline model `{}` disappeared", model_id));
+                fail_task(
+                    &state,
+                    task_id,
+                    format!("pipeline model `{}` disappeared", model_id),
+                )
+                .await;
+                return;
             };
             let work = match tempfile::Builder::new()
                 .prefix("veoveo-stream-recording-task-")
                 .tempdir()
             {
                 Ok(work) => work,
-                Err(error) => fail!(format!("creating task workspace failed: {error}")),
+                Err(error) => {
+                    fail_task(
+                        &state,
+                        task_id,
+                        format!("creating task workspace failed: {error}"),
+                    )
+                    .await;
+                    return;
+                }
             };
             let input_path = work.path().join("input.mp4");
             if let Err(error) = tokio::fs::write(&input_path, &source.mp4).await {
-                fail!(format!("writing runner input failed: {error}"));
+                fail_task(
+                    &state,
+                    task_id,
+                    format!("writing runner input failed: {error}"),
+                )
+                .await;
+                return;
             }
             set_progress(
                 &state,
@@ -351,7 +380,10 @@ async fn run_task_inner(
             .await;
             let timeline_kind = match timeline_kind(&source.clip) {
                 Ok(kind) => kind,
-                Err(error) => fail!(format!("{error:#}")),
+                Err(error) => {
+                    fail_task(&state, task_id, format!("{error:#}")).await;
+                    return;
+                }
             };
             let execute =
                 state
@@ -372,7 +404,10 @@ async fn run_task_inner(
             let analysis = tokio::select! {
                 result = execute => match result {
                     Ok(result) => result,
-                    Err(error) => fail!(format!("DeepStream analysis failed: {error:#}")),
+                    Err(error) => {
+                        fail_task(&state, task_id, format!("DeepStream analysis failed: {error:#}")).await;
+                        return;
+                    },
                 },
                 () = cancellation.cancelled() => {
                     update_task(&state, task_id, TaskTransition::Cancelled).await;
@@ -395,8 +430,19 @@ async fn run_task_inner(
             .await
             {
                 Ok(Ok(bytes)) => bytes,
-                Ok(Err(error)) => fail!(format!("annotation RRD failed: {error:#}")),
-                Err(error) => fail!(format!("annotation worker failed: {error}")),
+                Ok(Err(error)) => {
+                    fail_task(&state, task_id, format!("annotation RRD failed: {error:#}")).await;
+                    return;
+                }
+                Err(error) => {
+                    fail_task(
+                        &state,
+                        task_id,
+                        format!("annotation worker failed: {error}"),
+                    )
+                    .await;
+                    return;
+                }
             };
             publish_analysis(
                 &state,
@@ -418,12 +464,28 @@ async fn run_task_inner(
     }
     let result = match result {
         Ok(result) => result,
-        Err(error) => fail!(format!("publishing stream artifacts failed: {error:#}")),
+        Err(error) => {
+            fail_task(
+                &state,
+                task_id,
+                format!("publishing stream artifacts failed: {error:#}"),
+            )
+            .await;
+            return;
+        }
     };
     notify_progress(&progress, 1.0, "completed").await;
     let payload = match serde_json::to_value(result) {
         Ok(payload) => payload,
-        Err(error) => fail!(format!("serializing stream result failed: {error}")),
+        Err(error) => {
+            fail_task(
+                &state,
+                task_id,
+                format!("serializing stream result failed: {error}"),
+            )
+            .await;
+            return;
+        }
     };
     update_task(
         &state,
@@ -501,4 +563,9 @@ fn validate_input(state: &AppState, input: &StreamTaskInput) -> Result<()> {
         }
     }
     Ok(())
+}
+
+async fn fail_task(state: &AppState, task_id: RunId, message: String) {
+    tracing::warn!(%task_id, "stream task failed: {message}");
+    complete_tool_error(state, task_id, message).await;
 }

@@ -130,7 +130,7 @@ impl veoveo_types::CursorCodec for SessionCursorCodec {
         let bytes = serde_json::to_vec(&SessionWire {
             version: 1,
             collection: uris::SESSIONS_URI.to_owned(),
-            position: position.clone(),
+            position: *position,
         })
         .expect("closed cursor fields serialize");
         Ok(URL_SAFE_NO_PAD.encode(bytes))

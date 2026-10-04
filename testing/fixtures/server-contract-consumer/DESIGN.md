@@ -7,7 +7,9 @@ default features disabled and `contract` enabled. The fixture calls their public
 it implements no transport or installed service protocol.
 JSON Schema Draft 2020-12 checks use jsonschema 0.51.0 with network and file retrieval
 disabled, and serde_json 1.0.151. These exact test-only pins reuse the workspace
-qualification profile.
+qualification profile. Its independent codec error uses thiserror 2.0.20, matching
+the workspace-qualified static-error implementation rather than upgrading it
+alongside error plumbing.
 Its `knowledge` feature also consumes Map and Reason collection descriptors through
 their lightweight knowledge features.
 

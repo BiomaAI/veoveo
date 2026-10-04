@@ -24,16 +24,9 @@ pub const TERM_TEMPLATE: &str = "glossary://term/{term_id}";
 pub enum GlossaryScope {}
 
 /// An invalid identifier or resource address.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("invalid Glossary identifier or address")]
 pub struct GlossaryError;
-
-impl fmt::Display for GlossaryError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("invalid Glossary identifier or address")
-    }
-}
-
-impl std::error::Error for GlossaryError {}
 
 /// A term identifier: 1 to 64 lowercase ASCII letters, digits and hyphens,
 /// starting with a letter.

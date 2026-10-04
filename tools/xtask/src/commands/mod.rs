@@ -8,6 +8,7 @@ pub(crate) mod helm;
 pub(crate) mod identifiers;
 pub(crate) mod image;
 pub(crate) mod image_manifest;
+pub(crate) mod macro_policy;
 pub(crate) mod python;
 pub(crate) mod registry;
 pub(crate) mod release;

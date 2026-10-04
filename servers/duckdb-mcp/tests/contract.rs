@@ -1,3 +1,10 @@
+fn check_schema<T: schemars::JsonSchema>(baseline: &serde_json::Value, name: &str) {
+    assert_eq!(
+        serde_json::to_value(schemars::schema_for!(T)).unwrap(),
+        baseline[name],
+        "{name}"
+    );
+}
 #[path = "contract/catalog.rs"]
 mod catalog;
 #[path = "contract/execution.rs"]
@@ -17,51 +24,45 @@ use veoveo_duckdb_mcp::contract::*;
 fn schemas_match_the_declared_contract() {
     let baseline: Value =
         serde_json::from_str(include_str!("../testdata/source-contract.schema.json")).unwrap();
-    macro_rules! check {
-        ($($ty:ty),+ $(,)?) => { $(
-            assert_eq!(serde_json::to_value(schemars::schema_for!($ty)).unwrap(), baseline[stringify!($ty)], stringify!($ty));
-        )+ };
-    }
-    check!(
-        DuckDbFormat,
-        DuckDbReadOptions,
-        DuckDbReadOptionName,
-        DuckDbReadOptionValue,
-        DuckDbReadOptionText,
-        DuckDbSqlText,
-        DuckDbTableName,
-        DuckDbColumnName,
-        DuckDbSource,
-        DuckDbTabularSource,
-        DuckDbSourceUris,
-        DuckDbArtifactSourceUri,
-        DuckDbDatabaseId,
-        DuckDbTabularFormat,
-        DuckDbQueryOutputMode,
-        DuckDbQueryRequest,
-        DuckDbExecuteRequest,
-        DuckDbIngestMode,
-        DuckDbIngestRequest,
-        DuckDbTabularSelection,
-        DuckDbExportRequest,
-        DuckDbColumn,
-        DuckDbQueryOutput,
-        DuckDbExecuteOutput,
-        DuckDbIngestOutput,
-        DuckDbExportOutput,
-        DuckDbDatabaseUri,
-        DuckDbResource,
-        DuckDbDatabaseCursor,
-        DuckDbDatabaseEntry,
-        DuckDbDatabasePage,
-        DuckDbDatabaseSchema,
-        DuckDbTableSchema,
-        DuckDbSchemaColumn,
-        DuckDbArtifactOrigin,
-        DuckDbArtifactOperation,
-        DuckDbUsageDetails,
-        DuckDbQueryUsage
-    );
+
+    check_schema::<DuckDbFormat>(&baseline, stringify!(DuckDbFormat));
+    check_schema::<DuckDbReadOptions>(&baseline, stringify!(DuckDbReadOptions));
+    check_schema::<DuckDbReadOptionName>(&baseline, stringify!(DuckDbReadOptionName));
+    check_schema::<DuckDbReadOptionValue>(&baseline, stringify!(DuckDbReadOptionValue));
+    check_schema::<DuckDbReadOptionText>(&baseline, stringify!(DuckDbReadOptionText));
+    check_schema::<DuckDbSqlText>(&baseline, stringify!(DuckDbSqlText));
+    check_schema::<DuckDbTableName>(&baseline, stringify!(DuckDbTableName));
+    check_schema::<DuckDbColumnName>(&baseline, stringify!(DuckDbColumnName));
+    check_schema::<DuckDbSource>(&baseline, stringify!(DuckDbSource));
+    check_schema::<DuckDbTabularSource>(&baseline, stringify!(DuckDbTabularSource));
+    check_schema::<DuckDbSourceUris>(&baseline, stringify!(DuckDbSourceUris));
+    check_schema::<DuckDbArtifactSourceUri>(&baseline, stringify!(DuckDbArtifactSourceUri));
+    check_schema::<DuckDbDatabaseId>(&baseline, stringify!(DuckDbDatabaseId));
+    check_schema::<DuckDbTabularFormat>(&baseline, stringify!(DuckDbTabularFormat));
+    check_schema::<DuckDbQueryOutputMode>(&baseline, stringify!(DuckDbQueryOutputMode));
+    check_schema::<DuckDbQueryRequest>(&baseline, stringify!(DuckDbQueryRequest));
+    check_schema::<DuckDbExecuteRequest>(&baseline, stringify!(DuckDbExecuteRequest));
+    check_schema::<DuckDbIngestMode>(&baseline, stringify!(DuckDbIngestMode));
+    check_schema::<DuckDbIngestRequest>(&baseline, stringify!(DuckDbIngestRequest));
+    check_schema::<DuckDbTabularSelection>(&baseline, stringify!(DuckDbTabularSelection));
+    check_schema::<DuckDbExportRequest>(&baseline, stringify!(DuckDbExportRequest));
+    check_schema::<DuckDbColumn>(&baseline, stringify!(DuckDbColumn));
+    check_schema::<DuckDbQueryOutput>(&baseline, stringify!(DuckDbQueryOutput));
+    check_schema::<DuckDbExecuteOutput>(&baseline, stringify!(DuckDbExecuteOutput));
+    check_schema::<DuckDbIngestOutput>(&baseline, stringify!(DuckDbIngestOutput));
+    check_schema::<DuckDbExportOutput>(&baseline, stringify!(DuckDbExportOutput));
+    check_schema::<DuckDbDatabaseUri>(&baseline, stringify!(DuckDbDatabaseUri));
+    check_schema::<DuckDbResource>(&baseline, stringify!(DuckDbResource));
+    check_schema::<DuckDbDatabaseCursor>(&baseline, stringify!(DuckDbDatabaseCursor));
+    check_schema::<DuckDbDatabaseEntry>(&baseline, stringify!(DuckDbDatabaseEntry));
+    check_schema::<DuckDbDatabasePage>(&baseline, stringify!(DuckDbDatabasePage));
+    check_schema::<DuckDbDatabaseSchema>(&baseline, stringify!(DuckDbDatabaseSchema));
+    check_schema::<DuckDbTableSchema>(&baseline, stringify!(DuckDbTableSchema));
+    check_schema::<DuckDbSchemaColumn>(&baseline, stringify!(DuckDbSchemaColumn));
+    check_schema::<DuckDbArtifactOrigin>(&baseline, stringify!(DuckDbArtifactOrigin));
+    check_schema::<DuckDbArtifactOperation>(&baseline, stringify!(DuckDbArtifactOperation));
+    check_schema::<DuckDbUsageDetails>(&baseline, stringify!(DuckDbUsageDetails));
+    check_schema::<DuckDbQueryUsage>(&baseline, stringify!(DuckDbQueryUsage));
 }
 
 #[test]

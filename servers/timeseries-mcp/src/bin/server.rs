@@ -69,6 +69,12 @@ use app_state::{AppState, update_task};
 use config::Args;
 use outputs::forecast_result;
 use ownership::{runtime_owner, task_owner_from_identity, task_owner_from_runtime};
+
+async fn fail_task(state: &AppState, task_id: TaskId, message: String) {
+    tracing::warn!(%task_id, "timeseries task failed: {message}");
+    complete_tool_error(state, task_id, message).await;
+}
+
 #[cfg(test)]
 use setup::SERVER_DOCS;
 use setup::{SERVER_SETUP, TimeseriesContract};
@@ -365,14 +371,6 @@ async fn run_task_inner(
     progress: Option<TaskProgress>,
     cancellation: CancellationToken,
 ) {
-    macro_rules! fail {
-        ($msg:expr) => {{
-            let msg: String = $msg;
-            tracing::warn!(%task_id, "timeseries task failed: {msg}");
-            complete_tool_error(&state, task_id, msg).await;
-            return;
-        }};
-    }
     notify_task_progress(&progress, 0.1, "materializing source").await;
     let artifact = match tokio::task::spawn_blocking({
         let input = request.input.clone();
@@ -382,8 +380,14 @@ async fn run_task_inner(
     .await
     {
         Ok(Ok(artifact)) => artifact,
-        Ok(Err(err)) => fail!(format!("forecast failed: {err}")),
-        Err(err) => fail!(format!("forecast worker failed: {err}")),
+        Ok(Err(err)) => {
+            fail_task(&state, task_id, format!("forecast failed: {err}")).await;
+            return;
+        }
+        Err(err) => {
+            fail_task(&state, task_id, format!("forecast worker failed: {err}")).await;
+            return;
+        }
     };
     if cancellation.is_cancelled() {
         update_task(&state, task_id, TaskTransition::Cancelled).await;
@@ -400,12 +404,23 @@ async fn run_task_inner(
     .await
     {
         Ok(result) => result,
-        Err(err) => fail!(format!("artifact write failed: {err}")),
+        Err(err) => {
+            fail_task(&state, task_id, format!("artifact write failed: {err}")).await;
+            return;
+        }
     };
     notify_task_progress(&progress, 1.0, "completed").await;
     let payload = match serde_json::to_value(&result) {
         Ok(payload) => payload,
-        Err(err) => fail!(format!("serializing forecast result failed: {err}")),
+        Err(err) => {
+            fail_task(
+                &state,
+                task_id,
+                format!("serializing forecast result failed: {err}"),
+            )
+            .await;
+            return;
+        }
     };
     update_task(
         &state,

@@ -215,6 +215,12 @@ two through 64 uniquely identified cases and one solver policy. BatchSolve is
 the reason for a dedicated tool: the executor can keep the comparison on the
 GPU path while the result preserves an exact case identity.
 
+## Numeric Admission
+
+Nominal numeric types share an owner finite-value check and their own range policy.
+`NonNegativeF64` includes negative zero; `PositiveF64` excludes zero; `UnitInterval`
+includes both endpoints. They serialize as f64 and expose copied const getters.
+
 ## Mathematical Contract
 
 Mathematical variables and constraints use stable controlled IDs. Coefficients

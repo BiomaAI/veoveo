@@ -3,18 +3,12 @@ use super::{DuckDbDatabaseId, DuckDbDatabaseUri};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::fmt;
 
 pub const DUCKDB_DATABASE_PAGE_SIZE: usize = 100;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+#[error("expected an ordered DuckDB database page with matching identities and cursor")]
 pub struct DuckDbCatalogError;
-impl fmt::Display for DuckDbCatalogError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("expected an ordered DuckDB database page with matching identities and cursor")
-    }
-}
-impl std::error::Error for DuckDbCatalogError {}
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

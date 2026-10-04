@@ -26,14 +26,9 @@ pub use pairing::*;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+#[error("Computer result identities or limits do not agree")]
 pub struct ComputerResultError;
-impl std::fmt::Display for ComputerResultError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("Computer result identities or limits do not agree")
-    }
-}
-impl std::error::Error for ComputerResultError {}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]

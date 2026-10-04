@@ -11,14 +11,9 @@ use url::Url;
 #[serde(try_from = "String", into = "String")]
 pub struct HttpsUrl(Url);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("expected a canonical absolute HTTPS URL without credentials or a fragment")]
 pub struct HttpsUrlError;
-impl fmt::Display for HttpsUrlError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("expected a canonical absolute HTTPS URL without credentials or a fragment")
-    }
-}
-impl std::error::Error for HttpsUrlError {}
 
 impl HttpsUrl {
     pub fn parse(value: &str) -> Result<Self, HttpsUrlError> {

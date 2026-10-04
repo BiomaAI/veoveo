@@ -102,16 +102,11 @@ impl fmt::Display for FrameStreamUri {
 #[serde(try_from = "String", into = "String")]
 pub struct FrameEntityPath(String);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error(
+    "frame entity path must be nonblank, at most 2048 bytes, and contain no control characters"
+)]
 pub struct FrameEntityPathError;
-
-impl fmt::Display for FrameEntityPathError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("frame entity path must be nonblank, at most 2048 bytes, and contain no control characters")
-    }
-}
-
-impl std::error::Error for FrameEntityPathError {}
 
 impl FrameEntityPath {
     pub fn new(value: impl Into<String>) -> Result<Self, FrameEntityPathError> {

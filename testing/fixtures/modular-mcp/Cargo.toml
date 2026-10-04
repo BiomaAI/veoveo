@@ -6,10 +6,11 @@ publish = false
 
 [features]
 default = ["mcp"]
-contract = ["dep:veoveo-types", "dep:serde", "dep:schemars"]
+contract = ["dep:thiserror", "dep:veoveo-types", "dep:serde", "dep:schemars"]
 mcp = ["contract", "dep:axum", "dep:rmcp", "dep:serde_json", "dep:veoveo-mcp-contract"]
 
 [dependencies]
+thiserror = { workspace = true, optional = true }
 veoveo-types = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 schemars = { workspace = true, optional = true }

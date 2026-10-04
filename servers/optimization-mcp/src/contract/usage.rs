@@ -8,17 +8,9 @@ use veoveo_types::{ResourceAddress, ResourceFieldCodec, ResourceUri, TaskId};
 
 pub const OPTIMIZATION_USAGE_PAGE_SIZE: usize = 100;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
+#[error("expected a valid Optimization usage page, cursor, or canonical Task UUIDv7 address")]
 pub struct OptimizationUsageError;
-
-impl fmt::Display for OptimizationUsageError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(
-            "expected a valid Optimization usage page, cursor, or canonical Task UUIDv7 address",
-        )
-    }
-}
-impl std::error::Error for OptimizationUsageError {}
 
 fn task_identity(id: TaskId) -> Result<TaskId, OptimizationUsageError> {
     (id.as_uuid().get_version_num() == 7 && id.as_uuid().get_variant() == uuid::Variant::RFC4122)

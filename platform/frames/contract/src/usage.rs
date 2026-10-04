@@ -7,15 +7,9 @@ use veoveo_types::{ResourceAddress, ResourceFieldCodec, ResourceUri, TaskId};
 
 pub const FRAME_USAGE_PAGE_SIZE: usize = 100;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
+#[error("expected a valid Frames usage page, cursor, or canonical Task UUIDv7 address")]
 pub struct FrameUsageError;
-
-impl fmt::Display for FrameUsageError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("expected a valid Frames usage page, cursor, or canonical Task UUIDv7 address")
-    }
-}
-impl std::error::Error for FrameUsageError {}
 
 fn task_identity(id: TaskId) -> Result<TaskId, FrameUsageError> {
     (id.as_uuid().get_version_num() == 7)

@@ -36,22 +36,47 @@ impl Endpoint {
         matches!(self, Self::Stream | Self::Export)
     }
 }
-macro_rules! handler {
-    ($name:ident, $endpoint:ident) => {
-        pub(crate) async fn $name(
-            State(state): State<AppState>,
-            RawQuery(query): RawQuery,
-            headers: HeaderMap,
-        ) -> Response {
-            forward(state, headers, query, Endpoint::$endpoint).await
-        }
-    };
+
+pub(crate) async fn partitions(
+    State(state): State<AppState>,
+    RawQuery(query): RawQuery,
+    headers: HeaderMap,
+) -> Response {
+    forward(state, headers, query, Endpoint::Partitions).await
 }
-handler!(partitions, Partitions);
-handler!(records, Records);
-handler!(summary, Summary);
-handler!(stream, Stream);
-handler!(export, Export);
+
+pub(crate) async fn records(
+    State(state): State<AppState>,
+    RawQuery(query): RawQuery,
+    headers: HeaderMap,
+) -> Response {
+    forward(state, headers, query, Endpoint::Records).await
+}
+
+pub(crate) async fn summary(
+    State(state): State<AppState>,
+    RawQuery(query): RawQuery,
+    headers: HeaderMap,
+) -> Response {
+    forward(state, headers, query, Endpoint::Summary).await
+}
+
+pub(crate) async fn stream(
+    State(state): State<AppState>,
+    RawQuery(query): RawQuery,
+    headers: HeaderMap,
+) -> Response {
+    forward(state, headers, query, Endpoint::Stream).await
+}
+
+pub(crate) async fn export(
+    State(state): State<AppState>,
+    RawQuery(query): RawQuery,
+    headers: HeaderMap,
+) -> Response {
+    forward(state, headers, query, Endpoint::Export).await
+}
+
 pub(crate) async fn open_view(
     State(state): State<AppState>,
     headers: HeaderMap,

@@ -1167,3 +1167,12 @@ DuckDbQueryRequest retains its Wire defaults and schema relationship transforms 
 ## Cursor Admission
 
 Database and usage cursors use owner base64url JSON codecs with private OpaqueCursor storage. Database catalog parsing requires exact re-encoding; usage parsing preserves admitted aliases. Entry and page relationship checks run once before existing redundant-ID and fixed-limit projections.
+
+## Request Text And Tool Errors
+
+SQL text, table names and column names share an owner lexical validator that rejects
+Unicode-whitespace-only text and NUL while preserving admitted bytes. Their nominal
+types keep distinct schema descriptions; the engine owns SQL grammar and identifier
+quoting. Task error helpers settle a Succeeded Task carrying MCP `isError=true`, then
+the caller returns before any normal completion. A result serialization failure uses
+the existing Failed transition.

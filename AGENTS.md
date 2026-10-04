@@ -233,11 +233,21 @@ and admitted aliases. Ordinary address implementations may compose concrete doma
 shapes or network adapters that do not fit the derive. Do not reintroduce local
 address declaration or address-schema macros for these implemented shapes.
 
+## Macros
+
 The [shared macro design](platform/macros/DESIGN.md) owns `Id`, `Vocabulary`,
 `ResourceAddress` and `embedded_document!`. `server_docs!` stays in the MCP contract to select the calling
-server's documents. Other macro shapes remain subject to the active Phase 0 plan;
-this rule does not claim their shared replacements are implemented. Preserve wire
-forms, schema metadata and enum ordinals during mechanical migration.
+server's documents. The design lists every admitted definition and the generated
+third-party Redap service exception. Use ordinary functions, generics and builders
+for owner scalar admission, error settlement, fixed handlers and test repetition.
+Static unit errors use `thiserror`; preserve contextual formatting, redaction and
+source behavior in each owning error.
+Shared additions belong in `platform/macros`; an outside-core definition requires
+an owning design reason that functions or generics cannot express. New definitions
+require a design entry, exact policy catalog entry and tests.
+`cargo xtask enforce rust --macros-only` checks the complete tracked-source catalog;
+the default Rust enforcement runs the same check first. Preserve wire forms, schema
+metadata and enum ordinals during mechanical changes.
 
 ## Shared Admission Mechanics
 
@@ -253,7 +263,7 @@ preserve documented Copy and on-demand representations through ordinary codecs.
 Keep each envelope, limit, alias policy and schema with its owner. Contextual parsing
 requires the caller's typed context. Structured keysets and versionstamps remain their
 owner's structured types. Do not reintroduce local checked-model or cursor declaration
-macros for these implemented shapes; the remaining Phase 0 helper and macro gate is open.
+macros for these implemented shapes.
 
 ## Database First
 

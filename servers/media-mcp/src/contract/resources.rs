@@ -7,7 +7,6 @@ use super::{
 use crate::uris;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::fmt;
 use veoveo_types::{
     ResourceAddress, ResourceUri, ResourceUriBuilder, ResourceUriParts, UriSegment,
 };
@@ -52,14 +51,9 @@ pub enum MediaResource {
     Artifact(MediaArtifactUri),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("invalid Media resource URI")]
 pub struct MediaResourceError;
-impl fmt::Display for MediaResourceError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("invalid Media resource URI")
-    }
-}
-impl std::error::Error for MediaResourceError {}
 
 impl MediaResource {
     pub fn parse(value: impl AsRef<str>) -> Result<Self, MediaResourceError> {

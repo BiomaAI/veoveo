@@ -45,7 +45,11 @@ enum Command {
 #[derive(Debug, Subcommand)]
 enum EnforceScope {
     /// Run Rust formatting, linting, tests, and documentation checks.
-    Rust,
+    Rust {
+        /// Check the complete tracked-source macro catalog without broader workspace suites.
+        #[arg(long)]
+        macros_only: bool,
+    },
     /// Run the locked local SDK and in-repository Python checks.
     Python,
     /// Check relative links and heading anchors in tracked Markdown.
@@ -416,12 +420,14 @@ fn main() -> Result<()> {
     let repository = RepositoryContext::discover(&PathBuf::from("."))?;
     match cli.command {
         Command::Doctor => doctor::run(&repository),
-        Command::Enforce { scope } => match scope.unwrap_or(EnforceScope::Rust) {
-            EnforceScope::Rust => enforce::rust(&repository),
-            EnforceScope::Python => enforce::python(&repository),
-            EnforceScope::Docs => enforce::docs(&repository),
-            EnforceScope::Identifiers => enforce::identifiers(&repository),
-        },
+        Command::Enforce { scope } => {
+            match scope.unwrap_or(EnforceScope::Rust { macros_only: false }) {
+                EnforceScope::Rust { macros_only } => enforce::rust(&repository, macros_only),
+                EnforceScope::Python => enforce::python(&repository),
+                EnforceScope::Docs => enforce::docs(&repository),
+                EnforceScope::Identifiers => enforce::identifiers(&repository),
+            }
+        }
         Command::Image { command } => match command {
             ImageCommand::Builder { command } => match command {
                 BuilderCommand::Status => builder::status(&repository),
@@ -488,5 +494,31 @@ fn main() -> Result<()> {
             }
         },
         Command::Smoke(args) => smoke::run(&repository, &args.arguments),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn enforce_rust_macro_option_keeps_default_surface() {
+        let default = Cli::try_parse_from(["xtask", "enforce"]).unwrap();
+        assert!(matches!(default.command, Command::Enforce { scope: None }));
+        let rust = Cli::try_parse_from(["xtask", "enforce", "rust"]).unwrap();
+        assert!(matches!(
+            rust.command,
+            Command::Enforce {
+                scope: Some(EnforceScope::Rust { macros_only: false })
+            }
+        ));
+        let focused = Cli::try_parse_from(["xtask", "enforce", "rust", "--macros-only"]).unwrap();
+        assert!(matches!(
+            focused.command,
+            Command::Enforce {
+                scope: Some(EnforceScope::Rust { macros_only: true })
+            }
+        ));
+        assert!(Cli::try_parse_from(["xtask", "enforce", "docs", "--macros-only"]).is_err());
     }
 }

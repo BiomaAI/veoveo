@@ -1,3 +1,10 @@
+fn check_schema<T: schemars::JsonSchema>(baseline: &serde_json::Value, name: &str) {
+    assert_eq!(
+        serde_json::to_value(schemars::schema_for!(T)).unwrap(),
+        baseline[name],
+        "{name}"
+    );
+}
 #[path = "contract/findings.rs"]
 mod findings;
 #[path = "contract/grounding.rs"]
@@ -85,34 +92,32 @@ fn answer_kinds_and_confidence_provenance_preserve_the_public_wire() {
 fn schemas_preserve_the_published_contract() {
     let baseline: serde_json::Value =
         serde_json::from_str(include_str!("../testdata/contract.schema.json")).unwrap();
-    macro_rules! check { ($($ty:ty),+ $(,)?) => { $(assert_eq!(serde_json::to_value(schemars::schema_for!($ty)).unwrap(), baseline[stringify!($ty)], stringify!($ty));)+ }; }
-    check!(
-        AnalyzeRecordingRequest,
-        ReasoningTask,
-        ObservationSampling,
-        DecodePolicy,
-        GroundingReference,
-        GroundingDetections,
-        GroundingFrame,
-        GroundingDetection,
-        ReasoningAnswer,
-        ReasonedEvent,
-        ConfidenceBasis,
-        ReasoningResults,
-        AnalyzeRecordingOutput,
-        ReasoningSummary,
-        PipelineView,
-        PipelineOperation,
-        ModelView,
-        ModelFormat,
-        AnalysisView,
-        IndexRange,
-        RecordingSourceIdentity,
-        RecordingSourceIdentityKind,
-        RecordingSourceSnapshot,
-        RecordingVideoSelection,
-        VideoTimelineKind,
-        FindingData,
-        FindingSummary,
-    );
+
+    check_schema::<AnalyzeRecordingRequest>(&baseline, stringify!(AnalyzeRecordingRequest));
+    check_schema::<ReasoningTask>(&baseline, stringify!(ReasoningTask));
+    check_schema::<ObservationSampling>(&baseline, stringify!(ObservationSampling));
+    check_schema::<DecodePolicy>(&baseline, stringify!(DecodePolicy));
+    check_schema::<GroundingReference>(&baseline, stringify!(GroundingReference));
+    check_schema::<GroundingDetections>(&baseline, stringify!(GroundingDetections));
+    check_schema::<GroundingFrame>(&baseline, stringify!(GroundingFrame));
+    check_schema::<GroundingDetection>(&baseline, stringify!(GroundingDetection));
+    check_schema::<ReasoningAnswer>(&baseline, stringify!(ReasoningAnswer));
+    check_schema::<ReasonedEvent>(&baseline, stringify!(ReasonedEvent));
+    check_schema::<ConfidenceBasis>(&baseline, stringify!(ConfidenceBasis));
+    check_schema::<ReasoningResults>(&baseline, stringify!(ReasoningResults));
+    check_schema::<AnalyzeRecordingOutput>(&baseline, stringify!(AnalyzeRecordingOutput));
+    check_schema::<ReasoningSummary>(&baseline, stringify!(ReasoningSummary));
+    check_schema::<PipelineView>(&baseline, stringify!(PipelineView));
+    check_schema::<PipelineOperation>(&baseline, stringify!(PipelineOperation));
+    check_schema::<ModelView>(&baseline, stringify!(ModelView));
+    check_schema::<ModelFormat>(&baseline, stringify!(ModelFormat));
+    check_schema::<AnalysisView>(&baseline, stringify!(AnalysisView));
+    check_schema::<IndexRange>(&baseline, stringify!(IndexRange));
+    check_schema::<RecordingSourceIdentity>(&baseline, stringify!(RecordingSourceIdentity));
+    check_schema::<RecordingSourceIdentityKind>(&baseline, stringify!(RecordingSourceIdentityKind));
+    check_schema::<RecordingSourceSnapshot>(&baseline, stringify!(RecordingSourceSnapshot));
+    check_schema::<RecordingVideoSelection>(&baseline, stringify!(RecordingVideoSelection));
+    check_schema::<VideoTimelineKind>(&baseline, stringify!(VideoTimelineKind));
+    check_schema::<FindingData>(&baseline, stringify!(FindingData));
+    check_schema::<FindingSummary>(&baseline, stringify!(FindingSummary));
 }

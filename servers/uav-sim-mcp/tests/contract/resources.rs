@@ -1,3 +1,13 @@
+fn check_identifier<T, E>(name: &str, construct: impl Fn(&str) -> Result<T, E>)
+where
+    T: serde::de::DeserializeOwned,
+{
+    for value in [".", "..", "", "a/b", "a?b", "a#b", "a%b", "a b", "é"] {
+        assert!(construct(value).is_err(), "{name} {value}");
+        assert!(serde_json::from_value::<T>(value.into()).is_err());
+    }
+    assert!(construct("A_1.-b").is_ok());
+}
 use veoveo_uav_sim_mcp::{contract::*, uris};
 
 fn wire(resource: &UavResource) -> String {
@@ -244,27 +254,28 @@ fn resource_admission_rejects_ambiguous_routes_and_components() {
 
 #[test]
 fn relative_identifiers_are_rejected_at_construction_and_retained_json_admission() {
-    macro_rules! check { ($($ty:ty),+ $(,)?) => { $(
-        for value in [".", "..", "", "a/b", "a?b", "a#b", "a%b", "a b", "é"] {
-            assert!(<$ty>::new(value).is_err(), "{} {value}", stringify!($ty));
-            assert!(serde_json::from_value::<$ty>(value.into()).is_err());
-        }
-        assert!(<$ty>::new("A_1.-b").is_ok());
-    )+ }; }
-    check!(
-        SessionId,
-        VehicleId,
-        MissionId,
-        MissionPlanId,
-        ControlGrantId,
-        RecordingKey,
-        LiveSessionId,
-        LiveCameraId,
-        LiveViewId,
-        LiveEntityId,
-        LiveViewerInstanceId,
-        LiveStreamProductId
-    );
+    check_identifier::<SessionId, _>(stringify!(SessionId), |value| SessionId::new(value));
+    check_identifier::<VehicleId, _>(stringify!(VehicleId), |value| VehicleId::new(value));
+    check_identifier::<MissionId, _>(stringify!(MissionId), |value| MissionId::new(value));
+    check_identifier::<MissionPlanId, _>(stringify!(MissionPlanId), |value| {
+        MissionPlanId::new(value)
+    });
+    check_identifier::<ControlGrantId, _>(stringify!(ControlGrantId), |value| {
+        ControlGrantId::new(value)
+    });
+    check_identifier::<RecordingKey, _>(stringify!(RecordingKey), |value| RecordingKey::new(value));
+    check_identifier::<LiveSessionId, _>(stringify!(LiveSessionId), |value| {
+        LiveSessionId::new(value)
+    });
+    check_identifier::<LiveCameraId, _>(stringify!(LiveCameraId), |value| LiveCameraId::new(value));
+    check_identifier::<LiveViewId, _>(stringify!(LiveViewId), |value| LiveViewId::new(value));
+    check_identifier::<LiveEntityId, _>(stringify!(LiveEntityId), |value| LiveEntityId::new(value));
+    check_identifier::<LiveViewerInstanceId, _>(stringify!(LiveViewerInstanceId), |value| {
+        LiveViewerInstanceId::new(value)
+    });
+    check_identifier::<LiveStreamProductId, _>(stringify!(LiveStreamProductId), |value| {
+        LiveStreamProductId::new(value)
+    });
     assert!(
         serde_json::from_value::<SessionRequest>(serde_json::json!({"session_id":".."})).is_err()
     );

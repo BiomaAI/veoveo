@@ -8,15 +8,9 @@ use veoveo_types::{ResourceAddress, ResourceFieldCodec, ResourceUri, TaskId};
 
 pub const MEDIA_USAGE_PAGE_SIZE: usize = 100;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
+#[error("expected a valid Media usage page, cursor, or canonical Task UUIDv7 address")]
 pub struct MediaUsageError;
-
-impl fmt::Display for MediaUsageError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("expected a valid Media usage page, cursor, or canonical Task UUIDv7 address")
-    }
-}
-impl std::error::Error for MediaUsageError {}
 
 fn task_identity(id: TaskId) -> Result<TaskId, MediaUsageError> {
     (id.as_uuid().get_version_num() == 7 && id.as_uuid().get_variant() == uuid::Variant::RFC4122)

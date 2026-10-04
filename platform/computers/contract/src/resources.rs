@@ -10,7 +10,6 @@
 use crate::{AutomationGrantId, ComputerId, ExecutionId, FileTransferId};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::fmt;
 use veoveo_types::{ResourceAddress, ResourceFieldCodec, ResourceUri};
 
 pub const COMPUTERS_URI: &str = "computer://computers";
@@ -92,14 +91,9 @@ pub enum ComputerResource {
     Contract,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+#[error("invalid Computer resource URI")]
 pub struct ComputerResourceError;
-impl fmt::Display for ComputerResourceError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("invalid Computer resource URI")
-    }
-}
-impl std::error::Error for ComputerResourceError {}
 
 impl ComputerResource {
     pub fn parse(value: impl AsRef<str>) -> Result<Self, ComputerResourceError> {

@@ -367,6 +367,7 @@ designs above.
 | `tools/image-build/` | registry-neutral managed BuildKit base configuration, shared Rust builder inputs, and the source-locked first-party Datasheet image environment |
 | `tools/xtask/src/commands/image/browser_compilation_tests.rs` | real Bake and Cargo planning regression for a stable browser compiler action across standalone and platform selections |
 | `tools/xtask/src/commands/identifiers.rs` | tracked-text identifier namespace enforcement with section-scoped migration documentation exceptions |
+| `tools/xtask/src/commands/macro_policy.rs` | Maintained Rust syntax traversal and exact six-entry macro catalog; `enforce rust --macros-only` shares the default Rust gate and the [macro design](../platform/macros/DESIGN.md#macro-catalog-and-enforcement) |
 | `tools/xtask/` | compiled repository command, enforcement, typed smoke prerequisite builds and dispatch, image planning, profile-registry builder configuration, and release orchestration |
 
 ## Placement Rules

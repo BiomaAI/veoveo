@@ -81,6 +81,12 @@ use app_state::{AppState, update_task};
 use config::Cli;
 use ownership::{frame_scope_from_identity, frame_scope_from_runtime, runtime_owner};
 use prompts::FramesPrompt;
+
+async fn fail_task(state: &AppState, task_id: TaskId, message: String) {
+    tracing::warn!(%task_id, "Frames task failed: {message}");
+    complete_tool_error(state, task_id, message).await;
+}
+
 #[cfg(test)]
 use setup::SERVER_DOCS;
 use setup::{FramesContract, SERVER_SETUP};
@@ -490,14 +496,6 @@ async fn run_task_inner(
     request: BatchTaskRequest,
     cancellation: CancellationToken,
 ) {
-    macro_rules! fail {
-        ($msg:expr) => {{
-            let msg: String = $msg;
-            tracing::warn!(%task_id, "Frames task failed: {msg}");
-            complete_tool_error(&state, task_id, msg).await;
-            return;
-        }};
-    }
     update_task(
         &state,
         task_id,
@@ -509,11 +507,22 @@ async fn run_task_inner(
     .await;
     let scope = match frame_scope_from_runtime(&state, &owner).await {
         Ok(scope) => scope,
-        Err(error) => fail!(format!("coordinate identity failed: {error}")),
+        Err(error) => {
+            fail_task(
+                &state,
+                task_id,
+                format!("coordinate identity failed: {error}"),
+            )
+            .await;
+            return;
+        }
     };
     let worlds = match resolve_worlds(&state, &scope, &request.args.convert).await {
         Ok(worlds) => worlds,
-        Err(error) => fail!(format!("world resolution failed: {error}")),
+        Err(error) => {
+            fail_task(&state, task_id, format!("world resolution failed: {error}")).await;
+            return;
+        }
     };
     let convert_args = request.args.convert.clone();
     let mut converted =
@@ -521,8 +530,14 @@ async fn run_task_inner(
             .await
         {
             Ok(Ok(output)) => output,
-            Ok(Err(error)) => fail!(format!("batch transform failed: {error}")),
-            Err(error) => fail!(format!("batch worker failed: {error}")),
+            Ok(Err(error)) => {
+                fail_task(&state, task_id, format!("batch transform failed: {error}")).await;
+                return;
+            }
+            Err(error) => {
+                fail_task(&state, task_id, format!("batch worker failed: {error}")).await;
+                return;
+            }
         };
     if cancellation.is_cancelled() {
         update_task(&state, task_id, TaskTransition::Cancelled).await;
@@ -535,14 +550,28 @@ async fn run_task_inner(
     );
     let operation_scope = match ownership::operation_scope_from_runtime(&owner) {
         Ok(scope) => scope,
-        Err(error) => fail!(format!("operation authority failed: {error}")),
+        Err(error) => {
+            fail_task(
+                &state,
+                task_id,
+                format!("operation authority failed: {error}"),
+            )
+            .await;
+            return;
+        }
     };
     if let Err(error) = state
         .frames
         .record_operation(&operation_scope, Some(task_id), &converted.provenance)
         .await
     {
-        fail!(format!("operation provenance write failed: {error}"));
+        fail_task(
+            &state,
+            task_id,
+            format!("operation provenance write failed: {error}"),
+        )
+        .await;
+        return;
     }
     let output = BatchTransformOutput {
         result: converted,
@@ -559,7 +588,10 @@ async fn run_task_inner(
     .await
     {
         Ok(result) => result,
-        Err(error) => fail!(format!("batch output failed: {error}")),
+        Err(error) => {
+            fail_task(&state, task_id, format!("batch output failed: {error}")).await;
+            return;
+        }
     };
     if cancellation.is_cancelled() {
         update_task(&state, task_id, TaskTransition::Cancelled).await;
@@ -567,7 +599,15 @@ async fn run_task_inner(
     }
     let payload = match serde_json::to_value(&result) {
         Ok(payload) => payload,
-        Err(error) => fail!(format!("serializing batch result failed: {error}")),
+        Err(error) => {
+            fail_task(
+                &state,
+                task_id,
+                format!("serializing batch result failed: {error}"),
+            )
+            .await;
+            return;
+        }
     };
     update_task(
         &state,

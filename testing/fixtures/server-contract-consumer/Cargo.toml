@@ -30,5 +30,8 @@ veoveo-media-mcp = { path = "../../../servers/media-mcp", default-features = fal
 veoveo-types = { path = "../../../platform/types" }
 
 [dev-dependencies]
+# Match the resolved workspace error implementation; upstream stable is 2.0.21.
+# Qualify static-error formatting separately from a derive implementation upgrade.
+thiserror = "=2.0.20"
 jsonschema = { version = "=0.51.0", default-features = false }
 serde_json = "=1.0.151"

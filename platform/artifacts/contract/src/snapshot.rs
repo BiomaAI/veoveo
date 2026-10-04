@@ -27,14 +27,11 @@ pub struct ArtifactReadGrant {
     pub expires_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error(
+    "artifact snapshot requires neutral metadata, stored attribution, matching grants and a valid metadata timestamp"
+)]
 pub struct ArtifactSnapshotError;
-impl std::fmt::Display for ArtifactSnapshotError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("artifact snapshot requires neutral metadata, stored attribution, matching grants and a valid metadata timestamp")
-    }
-}
-impl std::error::Error for ArtifactSnapshotError {}
 
 impl ArtifactMetadataSnapshot {
     pub fn new(

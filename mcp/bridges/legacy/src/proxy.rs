@@ -64,24 +64,34 @@ trait CatalogResult {
     fn set_cache(&mut self, ttl_ms: u64, scope: CacheScope);
 }
 
-macro_rules! catalog_result {
-    ($($ty:ty),+ $(,)?) => {$(
-        impl CatalogResult for $ty {
-            fn set_cache(&mut self, ttl_ms: u64, scope: CacheScope) {
-                self.result_type = Some(rmcp::model::ResultType::COMPLETE);
-                self.ttl_ms = Some(ttl_ms);
-                self.cache_scope = Some(scope);
-            }
-        }
-    )+};
+impl CatalogResult for ListToolsResult {
+    fn set_cache(&mut self, ttl_ms: u64, scope: CacheScope) {
+        self.result_type = Some(rmcp::model::ResultType::COMPLETE);
+        self.ttl_ms = Some(ttl_ms);
+        self.cache_scope = Some(scope);
+    }
 }
-
-catalog_result!(
-    ListToolsResult,
-    ListPromptsResult,
-    ListResourcesResult,
-    ListResourceTemplatesResult,
-);
+impl CatalogResult for ListPromptsResult {
+    fn set_cache(&mut self, ttl_ms: u64, scope: CacheScope) {
+        self.result_type = Some(rmcp::model::ResultType::COMPLETE);
+        self.ttl_ms = Some(ttl_ms);
+        self.cache_scope = Some(scope);
+    }
+}
+impl CatalogResult for ListResourcesResult {
+    fn set_cache(&mut self, ttl_ms: u64, scope: CacheScope) {
+        self.result_type = Some(rmcp::model::ResultType::COMPLETE);
+        self.ttl_ms = Some(ttl_ms);
+        self.cache_scope = Some(scope);
+    }
+}
+impl CatalogResult for ListResourceTemplatesResult {
+    fn set_cache(&mut self, ttl_ms: u64, scope: CacheScope) {
+        self.result_type = Some(rmcp::model::ResultType::COMPLETE);
+        self.ttl_ms = Some(ttl_ms);
+        self.cache_scope = Some(scope);
+    }
+}
 
 impl ServerHandler for LegacyProxy {
     fn supported_protocol_versions(&self) -> Cow<'static, [ProtocolVersion]> {

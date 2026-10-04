@@ -1,4 +1,4 @@
-use std::{borrow::Cow, error::Error, fmt};
+use std::{borrow::Cow, fmt};
 
 use schemars::{JsonSchema, Schema, SchemaGenerator};
 use serde::{Deserialize, Serialize};
@@ -54,16 +54,9 @@ impl JsonSchema for Sha256Digest {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("expected sha256: followed by 64 lowercase hexadecimal digits")]
 pub struct Sha256DigestError;
-
-impl fmt::Display for Sha256DigestError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("expected sha256: followed by 64 lowercase hexadecimal digits")
-    }
-}
-
-impl Error for Sha256DigestError {}
 
 fn validate_digest(value: &str) -> Result<(), Sha256DigestError> {
     let Some(hex) = value.strip_prefix(SHA256_PREFIX) else {

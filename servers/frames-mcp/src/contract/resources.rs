@@ -6,7 +6,6 @@ use super::{
 use crate::uris;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::fmt;
 use veoveo_artifact_contract::{ArtifactId, ArtifactUri};
 use veoveo_types::{
     ResourceAddress, ResourceUri, ResourceUriBuilder, ResourceUriParts, UriSegment,
@@ -52,14 +51,9 @@ pub enum FramesResource {
     Artifact(ArtifactId),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("invalid Frames resource URI")]
 pub struct FramesResourceError;
-impl fmt::Display for FramesResourceError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("invalid Frames resource URI")
-    }
-}
-impl std::error::Error for FramesResourceError {}
 
 impl FramesResource {
     pub fn parse(value: impl AsRef<str>) -> Result<Self, FramesResourceError> {

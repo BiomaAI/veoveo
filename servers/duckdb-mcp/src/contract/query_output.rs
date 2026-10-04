@@ -35,14 +35,11 @@ struct QueryOutputWire {
     artifact: Option<ArtifactMetadata>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error(
+    "expected matching DuckDB row widths and observed count, or a complete Artifact output without inline data"
+)]
 pub struct DuckDbQueryOutputError;
-impl std::fmt::Display for DuckDbQueryOutputError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("expected matching DuckDB row widths and observed count, or a complete Artifact output without inline data")
-    }
-}
-impl std::error::Error for DuckDbQueryOutputError {}
 
 impl DuckDbQueryOutput {
     /// `row_count` counts observed rows. With truncation it is a lower bound

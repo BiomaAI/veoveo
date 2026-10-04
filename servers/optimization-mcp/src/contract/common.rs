@@ -259,69 +259,145 @@ pub struct SolutionId(String);
 #[id(string,constructor=parse,error=OptimizationContractError,validate=|value| validate_output_id(value,"verification-","verification id"),generate=|| format!("{}{}","verification-",uuid::Uuid::now_v7()))]
 pub struct VerificationId(String);
 
-macro_rules! finite_number {
-    ($name:ident, $label:literal, $requirement:literal, $predicate:expr) => {
-        #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, JsonSchema)]
-        #[serde(try_from = "f64", into = "f64")]
-        #[schemars(with = "f64")]
-        pub struct $name(f64);
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, JsonSchema)]
+#[serde(try_from = "f64", into = "f64")]
+#[schemars(with = "f64")]
+pub struct FiniteF64(f64);
 
-        impl $name {
-            pub fn new(value: f64) -> Result<Self, OptimizationContractError> {
-                if !value.is_finite() || !($predicate)(value) {
-                    return Err(OptimizationContractError::InvalidNumber(
-                        $label,
-                        $requirement,
-                    ));
-                }
-                Ok(Self(value))
-            }
+impl FiniteF64 {
+    pub fn new(value: f64) -> Result<Self, OptimizationContractError> {
+        check_number(
+            value,
+            "finite value",
+            "representable as a finite f64",
+            |_value: f64| true,
+        )?;
+        Ok(Self(value))
+    }
 
-            pub const fn get(self) -> f64 {
-                self.0
-            }
-        }
-
-        impl TryFrom<f64> for $name {
-            type Error = OptimizationContractError;
-
-            fn try_from(value: f64) -> Result<Self, Self::Error> {
-                Self::new(value)
-            }
-        }
-
-        impl From<$name> for f64 {
-            fn from(value: $name) -> Self {
-                value.0
-            }
-        }
-    };
+    pub const fn get(self) -> f64 {
+        self.0
+    }
 }
 
-finite_number!(
-    FiniteF64,
-    "finite value",
-    "representable as a finite f64",
-    |_value: f64| true
-);
-finite_number!(
-    NonNegativeF64,
-    "non-negative value",
-    "greater than or equal to zero",
-    |value: f64| value >= 0.0
-);
-finite_number!(
-    PositiveF64,
-    "positive value",
-    "greater than zero",
-    |value: f64| value > 0.0
-);
-finite_number!(
-    UnitInterval,
-    "unit interval",
-    "within zero and one inclusive",
-    |value: f64| (0.0..=1.0).contains(&value)
-);
+impl TryFrom<f64> for FiniteF64 {
+    type Error = OptimizationContractError;
+
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+
+impl From<FiniteF64> for f64 {
+    fn from(value: FiniteF64) -> Self {
+        value.0
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, JsonSchema)]
+#[serde(try_from = "f64", into = "f64")]
+#[schemars(with = "f64")]
+pub struct NonNegativeF64(f64);
+
+impl NonNegativeF64 {
+    pub fn new(value: f64) -> Result<Self, OptimizationContractError> {
+        check_number(
+            value,
+            "non-negative value",
+            "greater than or equal to zero",
+            |value: f64| value >= 0.0,
+        )?;
+        Ok(Self(value))
+    }
+
+    pub const fn get(self) -> f64 {
+        self.0
+    }
+}
+
+impl TryFrom<f64> for NonNegativeF64 {
+    type Error = OptimizationContractError;
+
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+
+impl From<NonNegativeF64> for f64 {
+    fn from(value: NonNegativeF64) -> Self {
+        value.0
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, JsonSchema)]
+#[serde(try_from = "f64", into = "f64")]
+#[schemars(with = "f64")]
+pub struct PositiveF64(f64);
+
+impl PositiveF64 {
+    pub fn new(value: f64) -> Result<Self, OptimizationContractError> {
+        check_number(
+            value,
+            "positive value",
+            "greater than zero",
+            |value: f64| value > 0.0,
+        )?;
+        Ok(Self(value))
+    }
+
+    pub const fn get(self) -> f64 {
+        self.0
+    }
+}
+
+impl TryFrom<f64> for PositiveF64 {
+    type Error = OptimizationContractError;
+
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+
+impl From<PositiveF64> for f64 {
+    fn from(value: PositiveF64) -> Self {
+        value.0
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, JsonSchema)]
+#[serde(try_from = "f64", into = "f64")]
+#[schemars(with = "f64")]
+pub struct UnitInterval(f64);
+
+impl UnitInterval {
+    pub fn new(value: f64) -> Result<Self, OptimizationContractError> {
+        check_number(
+            value,
+            "unit interval",
+            "within zero and one inclusive",
+            |value: f64| (0.0..=1.0).contains(&value),
+        )?;
+        Ok(Self(value))
+    }
+
+    pub const fn get(self) -> f64 {
+        self.0
+    }
+}
+
+impl TryFrom<f64> for UnitInterval {
+    type Error = OptimizationContractError;
+
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+
+impl From<UnitInterval> for f64 {
+    fn from(value: UnitInterval) -> Self {
+        value.0
+    }
+}
 
 impl Default for FiniteF64 {
     fn default() -> Self {
@@ -431,6 +507,18 @@ fn validate_output_id(
     Ok(())
 }
 
+fn check_number(
+    value: f64,
+    label: &'static str,
+    requirement: &'static str,
+    predicate: impl FnOnce(f64) -> bool,
+) -> Result<(), OptimizationContractError> {
+    if !value.is_finite() || !predicate(value) {
+        return Err(OptimizationContractError::InvalidNumber(label, requirement));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -445,5 +533,29 @@ mod tests {
     fn output_ids_are_uuid_v7() {
         let id = ProblemId::new();
         assert_eq!(ProblemId::parse(id.to_string()).unwrap(), id);
+    }
+}
+
+#[cfg(test)]
+mod numeric_profile_tests {
+    use super::*;
+    #[test]
+    fn finite_owner_policies_and_negative_zero_are_preserved() {
+        for invalid in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert!(FiniteF64::new(invalid).is_err());
+            assert!(NonNegativeF64::new(invalid).is_err());
+            assert!(PositiveF64::new(invalid).is_err());
+            assert!(UnitInterval::new(invalid).is_err());
+        }
+        assert!(FiniteF64::new(-1.0).is_ok());
+        assert!(NonNegativeF64::new(-1.0).is_err());
+        assert!(PositiveF64::new(0.0).is_err());
+        assert!(UnitInterval::new(1.0).is_ok());
+        assert!(UnitInterval::new(1.1).is_err());
+        assert!(NonNegativeF64::new(-0.0).unwrap().get().is_sign_negative());
+        assert_eq!(
+            PositiveF64::new(0.0).unwrap_err().to_string(),
+            "positive value must be finite and greater than zero"
+        );
     }
 }

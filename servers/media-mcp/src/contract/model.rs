@@ -133,11 +133,6 @@ impl From<MediaModelUri> for String {
         value.wire.to_string()
     }
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
+#[error("invalid Media model identity or URI")]
 pub struct MediaModelUriError;
-impl fmt::Display for MediaModelUriError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("invalid Media model identity or URI")
-    }
-}
-impl std::error::Error for MediaModelUriError {}

@@ -239,14 +239,6 @@ async fn run_task_inner(
     caller: Option<veoveo_mcp_contract::PlaneCaller>,
     cancellation: CancellationToken,
 ) {
-    macro_rules! fail {
-        ($msg:expr) => {{
-            let msg: String = $msg;
-            tracing::warn!(%task_id, "duckdb task failed: {msg}");
-            complete_tool_error(&state, task_id, msg).await;
-            return;
-        }};
-    }
     update_task(
         &state,
         task_id,
@@ -266,7 +258,10 @@ async fn run_task_inner(
                 &identity,
             ) {
                 Ok(writer) => writer,
-                Err(error) => fail!(error),
+                Err(error) => {
+                    fail_task(&state, task_id, error).await;
+                    return;
+                }
             };
             match sql_ops::query_op(&state, &writer, &identity, request).await {
                 Ok(output) => {
@@ -280,11 +275,15 @@ async fn run_task_inner(
                     )
                     .await
                     {
-                        fail!(format!("usage write failed: {error}"));
+                        fail_task(&state, task_id, format!("usage write failed: {error}")).await;
+                        return;
                     }
                     outputs::query_result(&output)
                 }
-                Err(err) => fail!(format!("query failed: {}", err.message)),
+                Err(err) => {
+                    fail_task(&state, task_id, format!("query failed: {}", err.message)).await;
+                    return;
+                }
             }
         }
         TaskArgs::Execute(request) => match sql_ops::execute_op(&state, &identity, request).await {
@@ -300,16 +299,28 @@ async fn run_task_inner(
                 )
                 .await
                 {
-                    fail!(format!("usage write failed: {error}"));
+                    fail_task(&state, task_id, format!("usage write failed: {error}")).await;
+                    return;
                 }
                 outputs::execute_result(&output)
             }
-            Err(err) => fail!(format!("execute failed: {}", err.message)),
+            Err(err) => {
+                fail_task(&state, task_id, format!("execute failed: {}", err.message)).await;
+                return;
+            }
         },
         TaskArgs::Ingest(request) => {
             let caller = match caller.as_ref() {
                 Some(caller) => caller,
-                None => fail!("interrupted ingest cannot be replayed".to_owned()),
+                None => {
+                    fail_task(
+                        &state,
+                        task_id,
+                        "interrupted ingest cannot be replayed".to_owned(),
+                    )
+                    .await;
+                    return;
+                }
             };
             match sql_ops::ingest_op(&state, caller, &identity, request).await {
                 Ok(output) => {
@@ -324,11 +335,15 @@ async fn run_task_inner(
                     )
                     .await
                     {
-                        fail!(format!("usage write failed: {error}"));
+                        fail_task(&state, task_id, format!("usage write failed: {error}")).await;
+                        return;
                     }
                     outputs::ingest_result(&output)
                 }
-                Err(err) => fail!(format!("ingest failed: {}", err.message)),
+                Err(err) => {
+                    fail_task(&state, task_id, format!("ingest failed: {}", err.message)).await;
+                    return;
+                }
             }
         }
         TaskArgs::Export(request) => {
@@ -339,7 +354,10 @@ async fn run_task_inner(
                 &identity,
             ) {
                 Ok(writer) => writer,
-                Err(error) => fail!(error),
+                Err(error) => {
+                    fail_task(&state, task_id, error).await;
+                    return;
+                }
             };
             match sql_ops::export_op(&state, &writer, &identity, request).await {
                 Ok(output) => {
@@ -354,17 +372,29 @@ async fn run_task_inner(
                     )
                     .await
                     {
-                        fail!(format!("usage write failed: {error}"));
+                        fail_task(&state, task_id, format!("usage write failed: {error}")).await;
+                        return;
                     }
                     outputs::export_result(&output)
                 }
-                Err(err) => fail!(format!("export failed: {}", err.message)),
+                Err(err) => {
+                    fail_task(&state, task_id, format!("export failed: {}", err.message)).await;
+                    return;
+                }
             }
         }
     };
     let result = match result {
         Ok(result) => result,
-        Err(err) => fail!(format!("result assembly failed: {}", err.message)),
+        Err(err) => {
+            fail_task(
+                &state,
+                task_id,
+                format!("result assembly failed: {}", err.message),
+            )
+            .await;
+            return;
+        }
     };
     if cancellation.is_cancelled() {
         update_task(&state, task_id, TaskTransition::Cancelled).await;
@@ -372,7 +402,15 @@ async fn run_task_inner(
     }
     let payload = match serde_json::to_value(&result) {
         Ok(payload) => payload,
-        Err(error) => fail!(format!("serializing result failed: {error}")),
+        Err(error) => {
+            fail_task(
+                &state,
+                task_id,
+                format!("serializing result failed: {error}"),
+            )
+            .await;
+            return;
+        }
     };
     update_task(
         &state,
@@ -395,6 +433,11 @@ fn query_usage(output: &DuckDbQueryOutput) -> DuckDbQueryUsage {
             truncated: output.truncated(),
         },
     }
+}
+
+async fn fail_task(state: &AppState, task_id: TaskId, message: String) {
+    tracing::warn!(%task_id, "duckdb task failed: {message}");
+    complete_tool_error(state, task_id, message).await;
 }
 
 #[cfg(test)]

@@ -1,18 +1,11 @@
-use std::{error::Error, fmt};
+use std::fmt;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
+#[error("agent identifier must contain 1–128 lowercase letters, digits, hyphens or underscores")]
 pub struct AgentIdentifierError;
-impl fmt::Display for AgentIdentifierError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(
-            "agent identifier must contain 1–128 lowercase letters, digits, hyphens or underscores",
-        )
-    }
-}
-impl Error for AgentIdentifierError {}
 
 #[derive(
     veoveo_types::Id,

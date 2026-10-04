@@ -27,6 +27,7 @@ required-features = ["mcp"]
 [features]
 default = ["mcp"]
 contract = [
+    "dep:thiserror",
     "dep:base64",
     "dep:schemars",
     "dep:serde",
@@ -69,6 +70,7 @@ mcp = [
 ]
 
 [dependencies]
+thiserror = { workspace = true, optional = true }
 veoveo-duckdb-mcp = { path = "../duckdb-mcp", default-features = false, features = ["contract"], optional = true }
 veoveo-artifact-contract = { workspace = true, optional = true }
 veoveo-types = { workspace = true, optional = true }

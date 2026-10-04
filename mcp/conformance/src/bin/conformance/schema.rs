@@ -5,218 +5,98 @@ struct ContractSchema {
     schema: Value,
 }
 
-fn contract_schemas() -> Result<Vec<ContractSchema>> {
-    macro_rules! add_schema {
-        ($schemas:ident, $filename:literal, $ty:ty) => {{
-            $schemas.push(ContractSchema {
-                filename: $filename,
-                schema: serde_json::to_value(schemars::schema_for!($ty))?,
-            });
-        }};
-    }
+fn contract_schema<T: schemars::JsonSchema>(filename: &'static str) -> Result<ContractSchema> {
+    Ok(ContractSchema {
+        filename,
+        schema: serde_json::to_value(schemars::schema_for!(T))?,
+    })
+}
 
-    let mut schemas = Vec::new();
-    add_schema!(
-        schemas,
-        "mcp-conformance-profile.schema.json",
-        veoveo_mcp_conformance::HostedServerConformanceProfile
-    );
-    add_schema!(
-        schemas,
-        "mcp-conformance-report.schema.json",
-        veoveo_mcp_conformance::ConformanceReport
-    );
-    add_schema!(
-        schemas,
-        "gateway-control-plane.schema.json",
-        GatewayControlPlane
-    );
-    add_schema!(
-        schemas,
-        "gateway-control-plane-revision.schema.json",
-        GatewayControlPlaneRevision
-    );
-    add_schema!(schemas, "server-manifest.schema.json", ServerManifest);
-    add_schema!(schemas, "gateway-profile.schema.json", GatewayProfile);
-    add_schema!(
-        schemas,
-        "profile-server-exposure.schema.json",
-        ProfileServerExposure
-    );
-    add_schema!(
-        schemas,
-        "mcp-surface-capabilities.schema.json",
-        McpSurfaceCapabilities
-    );
-    add_schema!(schemas, "upstream-endpoint.schema.json", UpstreamEndpoint);
-    add_schema!(schemas, "secret-reference.schema.json", SecretReference);
-    add_schema!(schemas, "identity-provider.schema.json", IdentityProvider);
-    add_schema!(
-        schemas,
-        "resource-authorization-server.schema.json",
-        ResourceAuthorizationServer
-    );
-    add_schema!(
-        schemas,
-        "oauth-client-registration.schema.json",
-        OAuthClientRegistration
-    );
-    add_schema!(
-        schemas,
-        "identity-provider-oidc-client-registration.schema.json",
-        IdentityProviderOidcClientRegistration
-    );
-    add_schema!(schemas, "policy-set.schema.json", PolicySet);
-    add_schema!(schemas, "policy-rule.schema.json", PolicyRule);
-    add_schema!(
-        schemas,
-        "data-label-definition.schema.json",
-        DataLabelDefinition
-    );
-    add_schema!(schemas, "tenant-definition.schema.json", TenantDefinition);
-    add_schema!(schemas, "principal.schema.json", Principal);
-    add_schema!(
-        schemas,
-        "principal-audit-attributes.schema.json",
-        PrincipalAuditAttributes
-    );
-    add_schema!(
-        schemas,
-        "access-token-subject.schema.json",
-        AccessTokenSubject
-    );
-    add_schema!(schemas, "policy-decision.schema.json", PolicyDecision);
-    add_schema!(
-        schemas,
-        "audit-record.schema.json",
-        veoveo_mcp_contract::audit::AuditRecord
-    );
-    add_schema!(
-        schemas,
-        "audit-block.schema.json",
-        veoveo_mcp_contract::audit::AuditBlock
-    );
-    add_schema!(
-        schemas,
-        "gateway-jwt-revocation-request.schema.json",
-        GatewayJwtRevocationRequest
-    );
-    add_schema!(
-        schemas,
-        "gateway-jwt-revocation.schema.json",
-        GatewayJwtRevocation
-    );
-    add_schema!(
-        schemas,
-        "gateway-jwt-revocation-apply-result.schema.json",
-        GatewayJwtRevocationApplyResult
-    );
-    add_schema!(
-        schemas,
-        "gateway-jwt-revocation-prune-result.schema.json",
-        GatewayJwtRevocationPruneResult
-    );
-    add_schema!(
-        schemas,
-        "gateway-resource-subscription.schema.json",
-        GatewayResourceSubscription
-    );
-    add_schema!(
-        schemas,
-        "gateway-resource-projection.schema.json",
-        GatewayResourceProjection
-    );
-    add_schema!(
-        schemas,
-        "gateway-internal-identity.schema.json",
-        GatewayInternalIdentity
-    );
-    add_schema!(
-        schemas,
-        "gateway-authorization-request.schema.json",
-        GatewayAuthorizationRequest
-    );
-    add_schema!(
-        schemas,
-        "gateway-authorization-code-record.schema.json",
-        GatewayAuthorizationCodeRecord
-    );
-    add_schema!(
-        schemas,
-        "self-hosted-deployment-plan.schema.json",
-        SelfHostedDeploymentPlan
-    );
-    add_schema!(
-        schemas,
-        "self-hosted-deployment-profile.schema.json",
-        SelfHostedDeploymentProfile
-    );
-    add_schema!(
-        schemas,
-        "service-to-service-security.schema.json",
-        ServiceToServiceSecurity
-    );
-    add_schema!(
-        schemas,
-        "object-store-deployment.schema.json",
-        ObjectStoreDeployment
-    );
-    add_schema!(
-        schemas,
-        "platform-store-deployment.schema.json",
-        PlatformStoreDeployment
-    );
-    add_schema!(
-        schemas,
-        "analytical-runtime-deployment.schema.json",
-        AnalyticalRuntimeDeployment
-    );
-    add_schema!(schemas, "ingress-deployment.schema.json", IngressDeployment);
-    add_schema!(
-        schemas,
-        "identity-provider-deployment.schema.json",
-        IdentityProviderDeployment
-    );
-    add_schema!(
-        schemas,
-        "secret-manager-deployment.schema.json",
-        SecretManagerDeployment
-    );
-    add_schema!(
-        schemas,
-        "telemetry-deployment.schema.json",
-        TelemetryDeployment
-    );
-    add_schema!(schemas, "tenant-model.schema.json", TenantModel);
-    add_schema!(
-        schemas,
-        "data-retention-policy.schema.json",
-        DataRetentionPolicy
-    );
-    add_schema!(
-        schemas,
-        "compliance-metadata.schema.json",
-        ComplianceMetadata
-    );
-    add_schema!(schemas, "artifact-metadata.schema.json", ArtifactMetadata);
-    add_schema!(
-        schemas,
-        "coordinate-operation-provenance.schema.json",
-        CoordinateOperationProvenance
-    );
-    add_schema!(
-        schemas,
-        "generation-prediction-summary.schema.json",
-        GenerationPredictionSummary
-    );
-    add_schema!(
-        schemas,
-        "media-generation-result.schema.json",
-        MediaGenerationResult
-    );
-    add_schema!(schemas, "usage-record.schema.json", UsageRecord);
-    add_schema!(schemas, "usage-report.schema.json", UsageReport);
-    Ok(schemas)
+fn contract_schemas() -> Result<Vec<ContractSchema>> {
+    Ok(vec![
+        contract_schema::<veoveo_mcp_conformance::HostedServerConformanceProfile>(
+            "mcp-conformance-profile.schema.json",
+        )?,
+        contract_schema::<veoveo_mcp_conformance::ConformanceReport>(
+            "mcp-conformance-report.schema.json",
+        )?,
+        contract_schema::<GatewayControlPlane>("gateway-control-plane.schema.json")?,
+        contract_schema::<GatewayControlPlaneRevision>(
+            "gateway-control-plane-revision.schema.json",
+        )?,
+        contract_schema::<ServerManifest>("server-manifest.schema.json")?,
+        contract_schema::<GatewayProfile>("gateway-profile.schema.json")?,
+        contract_schema::<ProfileServerExposure>("profile-server-exposure.schema.json")?,
+        contract_schema::<McpSurfaceCapabilities>("mcp-surface-capabilities.schema.json")?,
+        contract_schema::<UpstreamEndpoint>("upstream-endpoint.schema.json")?,
+        contract_schema::<SecretReference>("secret-reference.schema.json")?,
+        contract_schema::<IdentityProvider>("identity-provider.schema.json")?,
+        contract_schema::<ResourceAuthorizationServer>(
+            "resource-authorization-server.schema.json",
+        )?,
+        contract_schema::<OAuthClientRegistration>("oauth-client-registration.schema.json")?,
+        contract_schema::<IdentityProviderOidcClientRegistration>(
+            "identity-provider-oidc-client-registration.schema.json",
+        )?,
+        contract_schema::<PolicySet>("policy-set.schema.json")?,
+        contract_schema::<PolicyRule>("policy-rule.schema.json")?,
+        contract_schema::<DataLabelDefinition>("data-label-definition.schema.json")?,
+        contract_schema::<TenantDefinition>("tenant-definition.schema.json")?,
+        contract_schema::<Principal>("principal.schema.json")?,
+        contract_schema::<PrincipalAuditAttributes>("principal-audit-attributes.schema.json")?,
+        contract_schema::<AccessTokenSubject>("access-token-subject.schema.json")?,
+        contract_schema::<PolicyDecision>("policy-decision.schema.json")?,
+        contract_schema::<veoveo_mcp_contract::audit::AuditRecord>("audit-record.schema.json")?,
+        contract_schema::<veoveo_mcp_contract::audit::AuditBlock>("audit-block.schema.json")?,
+        contract_schema::<GatewayJwtRevocationRequest>(
+            "gateway-jwt-revocation-request.schema.json",
+        )?,
+        contract_schema::<GatewayJwtRevocation>("gateway-jwt-revocation.schema.json")?,
+        contract_schema::<GatewayJwtRevocationApplyResult>(
+            "gateway-jwt-revocation-apply-result.schema.json",
+        )?,
+        contract_schema::<GatewayJwtRevocationPruneResult>(
+            "gateway-jwt-revocation-prune-result.schema.json",
+        )?,
+        contract_schema::<GatewayResourceSubscription>(
+            "gateway-resource-subscription.schema.json",
+        )?,
+        contract_schema::<GatewayResourceProjection>("gateway-resource-projection.schema.json")?,
+        contract_schema::<GatewayInternalIdentity>("gateway-internal-identity.schema.json")?,
+        contract_schema::<GatewayAuthorizationRequest>(
+            "gateway-authorization-request.schema.json",
+        )?,
+        contract_schema::<GatewayAuthorizationCodeRecord>(
+            "gateway-authorization-code-record.schema.json",
+        )?,
+        contract_schema::<SelfHostedDeploymentPlan>("self-hosted-deployment-plan.schema.json")?,
+        contract_schema::<SelfHostedDeploymentProfile>(
+            "self-hosted-deployment-profile.schema.json",
+        )?,
+        contract_schema::<ServiceToServiceSecurity>("service-to-service-security.schema.json")?,
+        contract_schema::<ObjectStoreDeployment>("object-store-deployment.schema.json")?,
+        contract_schema::<PlatformStoreDeployment>("platform-store-deployment.schema.json")?,
+        contract_schema::<AnalyticalRuntimeDeployment>(
+            "analytical-runtime-deployment.schema.json",
+        )?,
+        contract_schema::<IngressDeployment>("ingress-deployment.schema.json")?,
+        contract_schema::<IdentityProviderDeployment>("identity-provider-deployment.schema.json")?,
+        contract_schema::<SecretManagerDeployment>("secret-manager-deployment.schema.json")?,
+        contract_schema::<TelemetryDeployment>("telemetry-deployment.schema.json")?,
+        contract_schema::<TenantModel>("tenant-model.schema.json")?,
+        contract_schema::<DataRetentionPolicy>("data-retention-policy.schema.json")?,
+        contract_schema::<ComplianceMetadata>("compliance-metadata.schema.json")?,
+        contract_schema::<ArtifactMetadata>("artifact-metadata.schema.json")?,
+        contract_schema::<CoordinateOperationProvenance>(
+            "coordinate-operation-provenance.schema.json",
+        )?,
+        contract_schema::<GenerationPredictionSummary>(
+            "generation-prediction-summary.schema.json",
+        )?,
+        contract_schema::<MediaGenerationResult>("media-generation-result.schema.json")?,
+        contract_schema::<UsageRecord>("usage-record.schema.json")?,
+        contract_schema::<UsageReport>("usage-report.schema.json")?,
+    ])
 }
 
 pub(super) fn cmd_contract_schemas(output_dir: PathBuf) -> Result<()> {

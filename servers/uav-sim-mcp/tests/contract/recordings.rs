@@ -1,3 +1,20 @@
+fn check_recordings<T>(wire: serde_json::Value, recordings: impl Fn(&T) -> &[RecordingUri])
+where
+    T: serde::Serialize + serde::de::DeserializeOwned,
+{
+    let result: T = serde_json::from_value(wire.clone()).unwrap();
+    assert_eq!(recordings(&result), [uri()]);
+    assert_eq!(serde_json::to_value(result).unwrap(), wire);
+    for invalid in [
+        "recording://recordings/producer-stream",
+        "recording://catalog",
+        "artifact://unexpected",
+    ] {
+        let mut wire = wire.clone();
+        wire["recording_uris"] = serde_json::json!([invalid]);
+        assert!(serde_json::from_value::<T>(wire).is_err());
+    }
+}
 use serde_json::{Value, json};
 use veoveo_recording_contract::{RecordingId, RecordingUri};
 use veoveo_uav_sim_mcp::contract::{
@@ -105,24 +122,8 @@ fn durable_results_admit_only_recording_owner_addresses() {
         "started_at":"2026-09-28T12:00:00Z", "finished_at":"2026-09-28T12:01:00Z",
         "completed_waypoints":2, "recording_uris":[uri()]});
     let capture = json!({"session_id":"s", "elapsed_seconds":1.0, "recording_uris":[uri()]});
-    macro_rules! check {
-        ($ty:ty, $wire:expr) => {{
-            let wire = $wire;
-            let result: $ty = serde_json::from_value(wire.clone()).unwrap();
-            assert_eq!(result.recording_uris, vec![uri()]);
-            assert_eq!(serde_json::to_value(result).unwrap(), wire);
-            for invalid in [
-                "recording://recordings/producer-stream",
-                "recording://catalog",
-                "artifact://unexpected",
-            ] {
-                let mut wire = wire.clone();
-                wire["recording_uris"] = json!([invalid]);
-                assert!(serde_json::from_value::<$ty>(wire).is_err());
-            }
-        }};
-    }
-    check!(ScenarioResult, scenario);
-    check!(MissionResult, mission);
-    check!(CaptureDatasetResult, capture);
+
+    check_recordings::<ScenarioResult>(scenario, |result| &result.recording_uris);
+    check_recordings::<MissionResult>(mission, |result| &result.recording_uris);
+    check_recordings::<CaptureDatasetResult>(capture, |result| &result.recording_uris);
 }

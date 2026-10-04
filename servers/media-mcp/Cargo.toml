@@ -39,6 +39,7 @@ required-features = ["mcp"]
 [features]
 default = ["mcp"]
 contract = [
+    "dep:thiserror",
     "dep:base64",
     "dep:chrono",
     "dep:schemars",
@@ -79,6 +80,7 @@ mcp = [
 ]
 
 [dependencies]
+thiserror = { workspace = true, optional = true }
 # Matches the qualified Store driver and installed 3.3.0 query profile.
 surrealdb = { version = "=3.3.0", default-features = false, optional = true }
 veoveo-artifact-contract = { workspace = true, optional = true }

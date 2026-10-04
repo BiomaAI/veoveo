@@ -14,6 +14,7 @@ required-features = ["contract"]
 [features]
 default = ["runtime"]
 contract = [
+    "dep:thiserror",
     "dep:veoveo-recording-contract",
     "dep:anyhow",
     "dep:chrono",
@@ -33,6 +34,7 @@ runtime = [
 ]
 
 [dependencies]
+thiserror = { workspace = true, optional = true }
 anyhow = { workspace = true, optional = true }
 # Match the qualified workspace release; public snapshots need date/time values only.
 chrono = { version = "=0.4.45", default-features = false, features = ["serde", "std"], optional = true }

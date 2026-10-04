@@ -47,14 +47,10 @@ impl veoveo_types::AccessGrant for Grant {
 #[serde(try_from = "String", into = "String")]
 pub struct ArtifactShareLinkId(uuid::Uuid);
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
+#[error("artifact share link id must be an RFC UUIDv7")]
 pub struct ArtifactShareLinkIdError;
-impl fmt::Display for ArtifactShareLinkIdError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("artifact share link id must be an RFC UUIDv7")
-    }
-}
-impl std::error::Error for ArtifactShareLinkIdError {}
+
 impl ArtifactShareLinkId {
     pub fn new() -> Self {
         Self(uuid::Uuid::now_v7())

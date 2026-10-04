@@ -124,22 +124,53 @@ async fn forward<T: Serialize, R: DeserializeOwned + Serialize>(
     response
 }
 
-macro_rules! read_root {
-    ($name:ident, $path:literal, $output:ty) => {
-        async fn $name(State(state): State<AppState>, headers: HeaderMap) -> Response {
-            forward::<(), $output>(&state, &headers, Method::GET, $path, Page::default(), None)
-                .await
-        }
-    };
+async fn authoring(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    forward::<(), wire::Authoring>(
+        &state,
+        &headers,
+        Method::GET,
+        "agent-authoring",
+        Page::default(),
+        None,
+    )
+    .await
 }
-read_root!(authoring, "agent-authoring", wire::Authoring);
-read_root!(models, "agent-models", Vec<wire::ModelChoice>);
-read_root!(templates, "agent-templates", Vec<wire::TemplateChoice>);
-read_root!(
-    capabilities,
-    "agent-capabilities",
-    Vec<wire::CapabilityChoice>
-);
+
+async fn models(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    forward::<(), Vec<wire::ModelChoice>>(
+        &state,
+        &headers,
+        Method::GET,
+        "agent-models",
+        Page::default(),
+        None,
+    )
+    .await
+}
+
+async fn templates(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    forward::<(), Vec<wire::TemplateChoice>>(
+        &state,
+        &headers,
+        Method::GET,
+        "agent-templates",
+        Page::default(),
+        None,
+    )
+    .await
+}
+
+async fn capabilities(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    forward::<(), Vec<wire::CapabilityChoice>>(
+        &state,
+        &headers,
+        Method::GET,
+        "agent-capabilities",
+        Page::default(),
+        None,
+    )
+    .await
+}
 
 async fn list(
     State(state): State<AppState>,
@@ -233,62 +264,108 @@ async fn metadata(
     )
     .await
 }
-macro_rules! mutation {
-    ($name:ident, $method:ident, $suffix:literal, $input:ty, $output:ty) => {
-        async fn $name(
-            State(state): State<AppState>,
-            Path(id): Path<wire::AgentDefinitionId>,
-            headers: HeaderMap,
-            Json(request): Json<$input>,
-        ) -> Response {
-            forward::<_, $output>(
-                &state,
-                &headers,
-                Method::$method,
-                &format!("agent-definitions/{id}/{}", $suffix),
-                Page::default(),
-                Some(&request),
-            )
-            .await
-        }
-    };
+
+async fn save(
+    State(state): State<AppState>,
+    Path(id): Path<wire::AgentDefinitionId>,
+    headers: HeaderMap,
+    Json(request): Json<wire::SaveDraft>,
+) -> Response {
+    forward::<_, wire::Definition>(
+        &state,
+        &headers,
+        Method::PUT,
+        &format!("agent-definitions/{id}/draft"),
+        Page::default(),
+        Some(&request),
+    )
+    .await
 }
-mutation!(save, PUT, "draft", wire::SaveDraft, wire::Definition);
-mutation!(
-    validate,
-    POST,
-    "validate",
-    wire::ValidateDefinition,
-    wire::Validation
-);
-mutation!(
-    publish,
-    POST,
-    "publish",
-    wire::PublishDefinition,
-    wire::Definition
-);
-mutation!(
-    disable,
-    POST,
-    "disable",
-    wire::RevisionRequest,
-    wire::Definition
-);
-mutation!(
-    enable,
-    POST,
-    "enable",
-    wire::RevisionRequest,
-    wire::Definition
-);
-mutation!(
-    archive,
-    POST,
-    "archive",
-    wire::RevisionRequest,
-    wire::Definition
-);
+
+async fn validate(
+    State(state): State<AppState>,
+    Path(id): Path<wire::AgentDefinitionId>,
+    headers: HeaderMap,
+    Json(request): Json<wire::ValidateDefinition>,
+) -> Response {
+    forward::<_, wire::Validation>(
+        &state,
+        &headers,
+        Method::POST,
+        &format!("agent-definitions/{id}/validate"),
+        Page::default(),
+        Some(&request),
+    )
+    .await
+}
+
+async fn publish(
+    State(state): State<AppState>,
+    Path(id): Path<wire::AgentDefinitionId>,
+    headers: HeaderMap,
+    Json(request): Json<wire::PublishDefinition>,
+) -> Response {
+    forward::<_, wire::Definition>(
+        &state,
+        &headers,
+        Method::POST,
+        &format!("agent-definitions/{id}/publish"),
+        Page::default(),
+        Some(&request),
+    )
+    .await
+}
+
+async fn disable(
+    State(state): State<AppState>,
+    Path(id): Path<wire::AgentDefinitionId>,
+    headers: HeaderMap,
+    Json(request): Json<wire::RevisionRequest>,
+) -> Response {
+    forward::<_, wire::Definition>(
+        &state,
+        &headers,
+        Method::POST,
+        &format!("agent-definitions/{id}/disable"),
+        Page::default(),
+        Some(&request),
+    )
+    .await
+}
+
+async fn enable(
+    State(state): State<AppState>,
+    Path(id): Path<wire::AgentDefinitionId>,
+    headers: HeaderMap,
+    Json(request): Json<wire::RevisionRequest>,
+) -> Response {
+    forward::<_, wire::Definition>(
+        &state,
+        &headers,
+        Method::POST,
+        &format!("agent-definitions/{id}/enable"),
+        Page::default(),
+        Some(&request),
+    )
+    .await
+}
+
+async fn archive(
+    State(state): State<AppState>,
+    Path(id): Path<wire::AgentDefinitionId>,
+    headers: HeaderMap,
+    Json(request): Json<wire::RevisionRequest>,
+) -> Response {
+    forward::<_, wire::Definition>(
+        &state,
+        &headers,
+        Method::POST,
+        &format!("agent-definitions/{id}/archive"),
+        Page::default(),
+        Some(&request),
+    )
+    .await
+}
 
 async fn events(State(state): State<AppState>, headers: HeaderMap) -> Response {
     let session = match api::upstream_session(&state, &headers).await {

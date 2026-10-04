@@ -1807,24 +1807,53 @@ trait TypedRecordId: Sized {
     fn from_uuid(value: uuid::Uuid) -> Self;
 }
 
-macro_rules! typed_record_id {
-    ($type:ty, $version:literal) => {
-        impl TypedRecordId for $type {
-            const TABLE: &'static str = <$type>::TABLE;
-            const UUID_VERSION: usize = $version;
-            fn from_uuid(value: uuid::Uuid) -> Self {
-                <$type>::from_uuid(value)
-            }
-        }
-    };
+impl TypedRecordId for TenantId {
+    const TABLE: &'static str = <TenantId>::TABLE;
+    const UUID_VERSION: usize = 5;
+    fn from_uuid(value: uuid::Uuid) -> Self {
+        <TenantId>::from_uuid(value)
+    }
 }
 
-typed_record_id!(TenantId, 5);
-typed_record_id!(PrincipalId, 5);
-typed_record_id!(RecordingDatasetId, 7);
-typed_record_id!(RecordingId, 7);
-typed_record_id!(RecordingLayerId, 7);
-typed_record_id!(RecordingIngestStreamId, 7);
+impl TypedRecordId for PrincipalId {
+    const TABLE: &'static str = <PrincipalId>::TABLE;
+    const UUID_VERSION: usize = 5;
+    fn from_uuid(value: uuid::Uuid) -> Self {
+        <PrincipalId>::from_uuid(value)
+    }
+}
+
+impl TypedRecordId for RecordingDatasetId {
+    const TABLE: &'static str = <RecordingDatasetId>::TABLE;
+    const UUID_VERSION: usize = 7;
+    fn from_uuid(value: uuid::Uuid) -> Self {
+        <RecordingDatasetId>::from_uuid(value)
+    }
+}
+
+impl TypedRecordId for RecordingId {
+    const TABLE: &'static str = <RecordingId>::TABLE;
+    const UUID_VERSION: usize = 7;
+    fn from_uuid(value: uuid::Uuid) -> Self {
+        <RecordingId>::from_uuid(value)
+    }
+}
+
+impl TypedRecordId for RecordingLayerId {
+    const TABLE: &'static str = <RecordingLayerId>::TABLE;
+    const UUID_VERSION: usize = 7;
+    fn from_uuid(value: uuid::Uuid) -> Self {
+        <RecordingLayerId>::from_uuid(value)
+    }
+}
+
+impl TypedRecordId for RecordingIngestStreamId {
+    const TABLE: &'static str = <RecordingIngestStreamId>::TABLE;
+    const UUID_VERSION: usize = 7;
+    fn from_uuid(value: uuid::Uuid) -> Self {
+        <RecordingIngestStreamId>::from_uuid(value)
+    }
+}
 
 fn typed_record_uuid<T: TypedRecordId>(record: &RecordId, expected_table: &str) -> Result<T> {
     ensure!(

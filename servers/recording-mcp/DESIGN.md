@@ -59,7 +59,10 @@ cluster-internal authority or the playback public host. A missing Host returns H
 and an untrusted one HTTP 421, before any credential check; an admitted Host with
 invalid gateway credentials returns HTTP 401 on the MCP, administrative and playback
 routes. Health and readiness probes are unauthenticated, and Redap authorizes each call
-with its own host-bound read grant.
+with its own host-bound read grant. `impl_scoped_redap_service` applies the same
+authorize-or-deny policy across the generated third-party gRPC service trait. The
+method implementations require call-site expansion; this declared exception belongs
+to the [shared macro catalog](../../platform/macros/DESIGN.md#macro-catalog-and-enforcement).
 
 Store grant requests validate the catalog revision and normalize the selected Recording
 IDs. Viewer and projection grants admit one Recording; catalog grants admit up to 500.

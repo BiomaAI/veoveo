@@ -1,109 +1,65 @@
+fn check_schema<T: schemars::JsonSchema>(baseline: &serde_json::Value, name: &str) {
+    assert_eq!(
+        serde_json::to_value(schemars::schema_for!(T)).unwrap(),
+        baseline[name],
+        "{name}"
+    );
+}
 #[test]
 fn coordinate_contract_schemas_preserve_published_wire_shapes() {
     let baseline: serde_json::Value =
         serde_json::from_str(include_str!("../testdata/coordinate-contract.schema.json")).unwrap();
-    macro_rules! check {
-        ($ty:ty, $name:literal) => {
-            assert_eq!(
-                serde_json::to_value(schemars::schema_for!($ty)).unwrap(),
-                baseline[$name],
-                "{}",
-                $name
-            );
-        };
-    }
-    check!(
-        veoveo_frames_contract::CoordinateOperationId,
-        "CoordinateOperationId"
+
+    check_schema::<veoveo_frames_contract::CoordinateOperationId>(
+        &baseline,
+        "CoordinateOperationId",
     );
-    check!(
-        veoveo_frames_contract::CoordinateOperationKind,
-        "CoordinateOperationKind"
+    check_schema::<veoveo_frames_contract::CoordinateOperationKind>(
+        &baseline,
+        "CoordinateOperationKind",
     );
-    check!(
-        veoveo_frames_contract::CoordinateOperationProvenance,
-        "CoordinateOperationProvenance"
+    check_schema::<veoveo_frames_contract::CoordinateOperationProvenance>(
+        &baseline,
+        "CoordinateOperationProvenance",
     );
-    check!(
-        veoveo_frames_contract::CoordinateOperationRef,
-        "CoordinateOperationRef"
+    check_schema::<veoveo_frames_contract::CoordinateOperationRef>(
+        &baseline,
+        "CoordinateOperationRef",
     );
-    check!(veoveo_frames_contract::CoordinateSpace, "CoordinateSpace");
-    check!(veoveo_frames_contract::FrameAxes, "FrameAxes");
-    check!(
-        veoveo_frames_contract::FrameAxisDirection,
-        "FrameAxisDirection"
+    check_schema::<veoveo_frames_contract::CoordinateSpace>(&baseline, "CoordinateSpace");
+    check_schema::<veoveo_frames_contract::FrameAxes>(&baseline, "FrameAxes");
+    check_schema::<veoveo_frames_contract::FrameAxisDirection>(&baseline, "FrameAxisDirection");
+    check_schema::<veoveo_frames_contract::FrameBasis>(&baseline, "FrameBasis");
+    check_schema::<veoveo_frames_contract::FrameId>(&baseline, "FrameId");
+    check_schema::<veoveo_frames_contract::FrameNode>(&baseline, "FrameNode");
+    check_schema::<veoveo_frames_contract::FrameParentTransform>(&baseline, "FrameParentTransform");
+    check_schema::<veoveo_frames_contract::FrameWorldId>(&baseline, "FrameWorldId");
+    check_schema::<veoveo_frames_contract::FrameWorldRevision>(&baseline, "FrameWorldRevision");
+    check_schema::<veoveo_frames_contract::FrameWorldRevisionId>(&baseline, "FrameWorldRevisionId");
+    check_schema::<veoveo_frames_contract::FrameWorldRevisionUri>(
+        &baseline,
+        "FrameWorldRevisionUri",
     );
-    check!(veoveo_frames_contract::FrameBasis, "FrameBasis");
-    check!(veoveo_frames_contract::FrameId, "FrameId");
-    check!(veoveo_frames_contract::FrameNode, "FrameNode");
-    check!(
-        veoveo_frames_contract::FrameParentTransform,
-        "FrameParentTransform"
+    check_schema::<veoveo_frames_contract::FrameWorldTree>(&baseline, "FrameWorldTree");
+    check_schema::<veoveo_frames_contract::FrameWorldUri>(&baseline, "FrameWorldUri");
+    check_schema::<veoveo_frames_contract::Wgs84Position>(&baseline, "Wgs84Position");
+    check_schema::<veoveo_frames_contract::WorldFrameUri>(&baseline, "WorldFrameUri");
+    check_schema::<veoveo_frames_contract::EcefPosition>(&baseline, "EcefPosition");
+    check_schema::<veoveo_frames_contract::WorldFramePosition>(&baseline, "WorldFramePosition");
+    check_schema::<veoveo_frames_contract::CoordinatePoint>(&baseline, "CoordinatePoint");
+    check_schema::<veoveo_frames_contract::ConvertFrameRequest>(&baseline, "ConvertFrameRequest");
+    check_schema::<veoveo_frames_contract::ConvertFrameOutput>(&baseline, "ConvertFrameOutput");
+    check_schema::<veoveo_frames_contract::FrameSourceReference>(&baseline, "FrameSourceReference");
+    check_schema::<veoveo_frames_contract::CreateWorldRequest>(&baseline, "CreateWorldRequest");
+    check_schema::<veoveo_frames_contract::FrameWorldSummary>(&baseline, "FrameWorldSummary");
+    check_schema::<veoveo_frames_contract::CreateWorldOutput>(&baseline, "CreateWorldOutput");
+    check_schema::<veoveo_frames_contract::PublishWorldRequest>(&baseline, "PublishWorldRequest");
+    check_schema::<veoveo_frames_contract::PublishWorldOutput>(&baseline, "PublishWorldOutput");
+    check_schema::<veoveo_frames_contract::BatchTransformRequest>(
+        &baseline,
+        "BatchTransformRequest",
     );
-    check!(veoveo_frames_contract::FrameWorldId, "FrameWorldId");
-    check!(
-        veoveo_frames_contract::FrameWorldRevision,
-        "FrameWorldRevision"
-    );
-    check!(
-        veoveo_frames_contract::FrameWorldRevisionId,
-        "FrameWorldRevisionId"
-    );
-    check!(
-        veoveo_frames_contract::FrameWorldRevisionUri,
-        "FrameWorldRevisionUri"
-    );
-    check!(veoveo_frames_contract::FrameWorldTree, "FrameWorldTree");
-    check!(veoveo_frames_contract::FrameWorldUri, "FrameWorldUri");
-    check!(veoveo_frames_contract::Wgs84Position, "Wgs84Position");
-    check!(veoveo_frames_contract::WorldFrameUri, "WorldFrameUri");
-    check!(veoveo_frames_contract::EcefPosition, "EcefPosition");
-    check!(
-        veoveo_frames_contract::WorldFramePosition,
-        "WorldFramePosition"
-    );
-    check!(veoveo_frames_contract::CoordinatePoint, "CoordinatePoint");
-    check!(
-        veoveo_frames_contract::ConvertFrameRequest,
-        "ConvertFrameRequest"
-    );
-    check!(
-        veoveo_frames_contract::ConvertFrameOutput,
-        "ConvertFrameOutput"
-    );
-    check!(
-        veoveo_frames_contract::FrameSourceReference,
-        "FrameSourceReference"
-    );
-    check!(
-        veoveo_frames_contract::CreateWorldRequest,
-        "CreateWorldRequest"
-    );
-    check!(
-        veoveo_frames_contract::FrameWorldSummary,
-        "FrameWorldSummary"
-    );
-    check!(
-        veoveo_frames_contract::CreateWorldOutput,
-        "CreateWorldOutput"
-    );
-    check!(
-        veoveo_frames_contract::PublishWorldRequest,
-        "PublishWorldRequest"
-    );
-    check!(
-        veoveo_frames_contract::PublishWorldOutput,
-        "PublishWorldOutput"
-    );
-    check!(
-        veoveo_frames_contract::BatchTransformRequest,
-        "BatchTransformRequest"
-    );
-    check!(
-        veoveo_frames_contract::BatchTransformOutput,
-        "BatchTransformOutput"
-    );
+    check_schema::<veoveo_frames_contract::BatchTransformOutput>(&baseline, "BatchTransformOutput");
 }
 
 use veoveo_frames_contract::{

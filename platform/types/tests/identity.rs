@@ -1,3 +1,12 @@
+fn capture_schema<T: schemars::JsonSchema>(
+    schemas: &mut serde_json::Map<String, serde_json::Value>,
+    name: &str,
+) {
+    schemas.insert(
+        name.into(),
+        serde_json::to_value(schemars::schema_for!(T)).unwrap(),
+    );
+}
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::{Value, json};
 use std::{fmt::Debug, str::FromStr};
@@ -188,21 +197,17 @@ fn identity_schemas_match_the_pre_extraction_contract() {
     let expected: Value =
         serde_json::from_str(include_str!("fixtures/identity_schemas.json")).unwrap();
     let mut schemas = serde_json::Map::new();
-    macro_rules! capture {
-        ($($name:ty),+) => { $(schemas.insert(stringify!($name).into(), serde_json::to_value(schemars::schema_for!($name)).unwrap());)+ };
-    }
-    capture!(
-        DataLabelId,
-        PrincipalId,
-        TenantId,
-        WorkContextId,
-        DelegationId,
-        GroupId,
-        RoleId,
-        PolicyVersion,
-        AccessSubject,
-        InvocationMode,
-        InvocationProvenance
-    );
+
+    capture_schema::<DataLabelId>(&mut schemas, stringify!(DataLabelId));
+    capture_schema::<PrincipalId>(&mut schemas, stringify!(PrincipalId));
+    capture_schema::<TenantId>(&mut schemas, stringify!(TenantId));
+    capture_schema::<WorkContextId>(&mut schemas, stringify!(WorkContextId));
+    capture_schema::<DelegationId>(&mut schemas, stringify!(DelegationId));
+    capture_schema::<GroupId>(&mut schemas, stringify!(GroupId));
+    capture_schema::<RoleId>(&mut schemas, stringify!(RoleId));
+    capture_schema::<PolicyVersion>(&mut schemas, stringify!(PolicyVersion));
+    capture_schema::<AccessSubject>(&mut schemas, stringify!(AccessSubject));
+    capture_schema::<InvocationMode>(&mut schemas, stringify!(InvocationMode));
+    capture_schema::<InvocationProvenance>(&mut schemas, stringify!(InvocationProvenance));
     assert_eq!(Value::Object(schemas), expected);
 }

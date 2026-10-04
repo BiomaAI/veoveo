@@ -143,3 +143,11 @@ HTTP protocol fixtures pass. Store and installed qualification are tracked in th
 [consolidated plan](../../../../docs/CONTRACT_CONSISTENCY_PLAN.md#unified-audit-log).
 The reference configuration selects bundled S3 export.
 Compliance-mode provider acceptance is pending under regulated-readiness gap G9.
+
+## Destination Text Admission
+
+Bucket names contain 3–63 lowercase ASCII letters, digits or hyphens with alphanumeric
+endpoints. Object prefixes contain 1–256 bytes of ASCII alphanumeric, hyphen,
+underscore, dot and slash; every slash-separated segment is nonempty and differs
+from `.` and `..`. Prefixes may contain uppercase letters. Owner validators preserve
+input bytes and feed the nominal String conversion used by Serde.

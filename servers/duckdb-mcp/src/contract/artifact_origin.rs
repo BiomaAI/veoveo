@@ -2,7 +2,6 @@
 use super::{DuckDbDatabaseId, DuckDbTableName, DuckDbTaskKind, usage::task_identity};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::fmt;
 use veoveo_types::TaskId;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -50,14 +49,9 @@ struct OriginWire {
     task_id: Option<TaskId>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+#[error("expected a native Task UUIDv7 in DuckDB operation metadata")]
 pub struct DuckDbArtifactOriginError;
-impl fmt::Display for DuckDbArtifactOriginError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("expected a native Task UUIDv7 in DuckDB operation metadata")
-    }
-}
-impl std::error::Error for DuckDbArtifactOriginError {}
 
 impl DuckDbArtifactOrigin {
     /// A direct call carries no Task association.

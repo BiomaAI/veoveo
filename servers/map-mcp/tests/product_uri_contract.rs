@@ -1,3 +1,35 @@
+fn make<T>(stable: bool, generate: fn() -> T, from_stable: impl Fn(&[u8]) -> T) -> T {
+    if stable {
+        from_stable(b"product-fixture")
+    } else {
+        generate()
+    }
+}
+fn single<I, U>(id: I, build: fn(I) -> U, get: fn(&U) -> &I, template: &str, key: &str)
+where
+    I: Clone + PartialEq + std::fmt::Debug + std::fmt::Display,
+    U: ResourceAddress
+        + Serialize
+        + DeserializeOwned
+        + schemars::JsonSchema
+        + PartialEq
+        + std::fmt::Debug,
+    U::Error: std::fmt::Debug,
+{
+    let uri = build(id.clone());
+    assert_eq!(get(&uri), &id);
+    check(uri, template, &[(key, id.to_string())]);
+}
+fn rejects<T: veoveo_types::Identity>(prefix: &str) {
+    for raw in [
+        "019f7122-3d89-7d21-0312-8940d1e0f510",
+        "019F7122-3D89-7D21-8312-8940D1E0F510",
+        "019f71223d897d2183128940d1e0f510",
+        "019f7122-3d89-4d21-8312-8940d1e0f510",
+    ] {
+        assert!(T::parse_identity(&format!("{prefix}{raw}")).is_err());
+    }
+}
 use iri_string::template::simple_context::SimpleContext;
 use serde::{Serialize, de::DeserializeOwned};
 use veoveo_map_mcp::contract::*;
@@ -53,18 +85,15 @@ where
 #[test]
 fn builders_and_templates_share_exact_owner_ids() {
     for stable in [false, true] {
-        macro_rules! make {
-            ($ty:ty) => {
-                if stable {
-                    <$ty>::from_stable_key(b"product-fixture")
-                } else {
-                    <$ty>::new()
-                }
-            };
-        }
-        let dataset = make!(MapDatasetId);
-        let release = make!(DatasetReleaseId);
-        let feature = make!(SourceFeatureId);
+        let dataset = make(stable, MapDatasetId::new, |key| {
+            MapDatasetId::from_stable_key(key)
+        });
+        let release = make(stable, DatasetReleaseId::new, |key| {
+            DatasetReleaseId::from_stable_key(key)
+        });
+        let feature = make(stable, SourceFeatureId::new, |key| {
+            SourceFeatureId::from_stable_key(key)
+        });
         check(
             MapReleaseUri::new(dataset.clone(), release.clone()),
             MapReleaseUri::TEMPLATE,
@@ -81,50 +110,53 @@ fn builders_and_templates_share_exact_owner_ids() {
                 ("source_feature_id", feature.to_string()),
             ],
         );
-        macro_rules! single {
-            ($uri:ty, $id:ty, $key:literal) => {
-                let id = make!($id);
-                let uri = <$uri>::new(id.clone());
-                assert_eq!(uri.id(), &id);
-                check(uri, <$uri>::TEMPLATE, &[($key, id.to_string())]);
-            };
-        }
-        single!(MapRouteUri, RouteId, "route_id");
-        single!(MapRasterUri, RasterProductId, "raster_id");
-        single!(
-            MapRasterDerivationUri,
-            RasterDerivationId,
-            "raster_derivation_id"
+
+        single(
+            make(stable, RouteId::new, RouteId::from_stable_key),
+            MapRouteUri::new,
+            MapRouteUri::id,
+            MapRouteUri::TEMPLATE,
+            "route_id",
         );
-        single!(
-            MapSpatialDerivationUri,
-            SpatialDerivationId,
-            "spatial_derivation_id"
+        single(
+            make(stable, RasterProductId::new, |key| {
+                RasterProductId::from_stable_key(key)
+            }),
+            MapRasterUri::new,
+            MapRasterUri::id,
+            MapRasterUri::TEMPLATE,
+            "raster_id",
+        );
+        single(
+            make(stable, RasterDerivationId::new, |key| {
+                RasterDerivationId::from_stable_key(key)
+            }),
+            MapRasterDerivationUri::new,
+            MapRasterDerivationUri::id,
+            MapRasterDerivationUri::TEMPLATE,
+            "raster_derivation_id",
+        );
+        single(
+            make(stable, SpatialDerivationId::new, |key| {
+                SpatialDerivationId::from_stable_key(key)
+            }),
+            MapSpatialDerivationUri::new,
+            MapSpatialDerivationUri::id,
+            MapSpatialDerivationUri::TEMPLATE,
+            "spatial_derivation_id",
         );
     }
 }
 
 #[test]
 fn ids_reject_foreign_prefixes_noncanonical_spelling_and_non_rfc_uuids() {
-    macro_rules! rejects {
-        ($ty:ty) => {
-            for raw in [
-                "019f7122-3d89-7d21-0312-8940d1e0f510",
-                "019F7122-3D89-7D21-8312-8940D1E0F510",
-                "019f71223d897d2183128940d1e0f510",
-                "019f7122-3d89-4d21-8312-8940d1e0f510",
-            ] {
-                assert!(<$ty>::parse(format!("{}{raw}", <$ty>::PREFIX)).is_err());
-            }
-        };
-    }
-    rejects!(MapDatasetId);
-    rejects!(DatasetReleaseId);
-    rejects!(SourceFeatureId);
-    rejects!(RasterProductId);
-    rejects!(RasterDerivationId);
-    rejects!(SpatialDerivationId);
-    rejects!(RouteId);
+    rejects::<MapDatasetId>(MapDatasetId::PREFIX);
+    rejects::<DatasetReleaseId>(DatasetReleaseId::PREFIX);
+    rejects::<SourceFeatureId>(SourceFeatureId::PREFIX);
+    rejects::<RasterProductId>(RasterProductId::PREFIX);
+    rejects::<RasterDerivationId>(RasterDerivationId::PREFIX);
+    rejects::<SpatialDerivationId>(SpatialDerivationId::PREFIX);
+    rejects::<RouteId>(RouteId::PREFIX);
     let uri = MapRouteUri::new(RouteId::new());
     assert!(MapRouteUri::parse(uri.as_str().replace("/route-", "/raster-")).is_err());
     assert!(MapSourceFeatureUri::parse("map://source-feature/arbitrary/secret").is_err());

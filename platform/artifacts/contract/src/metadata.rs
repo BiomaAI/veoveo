@@ -110,14 +110,9 @@ struct ArtifactMetadataWire {
     metadata: Value,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("artifact metadata id and URI must identify the same occurrence")]
 pub struct ArtifactMetadataError;
-impl std::fmt::Display for ArtifactMetadataError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("artifact metadata id and URI must identify the same occurrence")
-    }
-}
-impl std::error::Error for ArtifactMetadataError {}
 
 impl TryFrom<ArtifactMetadataWire> for ArtifactMetadata {
     type Error = ArtifactMetadataError;

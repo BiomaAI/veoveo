@@ -175,6 +175,29 @@ emits `include_str!` alongside the digest, so rustc tracks document changes.
 `server_docs!` stays in `mcp/contract` because its declaration selects the calling
 server's documents. Document content and discovery remain owned by their consumers.
 
+## Macro Catalog And Enforcement
+
+`cargo xtask enforce rust` checks every tracked Rust source against this catalog
+before its native checks. `--macros-only` runs the same catalog check without the
+workspace suites. The parser visits file, module and function bodies, including
+lexically present cfg branches. Comments, string fixtures and macro invocation tokens
+are opaque. Invalid Rust or an unsupported declaration fails the check. Git's index
+selects source paths, including newly staged files, and excludes build outputs.
+
+| Definition | Kind and path | Owner reason |
+|---|---|---|
+| `Id`, `ResourceAddress`, `Vocabulary` | Derives in `platform/macros/src/lib.rs` | Shared nominal declaration mechanics delegate to ordinary foundation traits |
+| `embedded_document` | Function-like proc macro in `platform/macros/src/lib.rs` | Compile-time UTF-8 embedding and hashing |
+| `server_docs` | Declarative macro in `mcp/contract/src/docs.rs` | Document selection must expand in the calling server crate |
+| `impl_scoped_redap_service` | Declarative macro in `servers/recording-mcp/src/playback.rs` | One owner authorization policy implements the generated third-party gRPC service trait |
+
+The checker matches path, public macro name, Rust entrypoint name and kind, and
+requires one definition for every catalog entry. Adding an entry requires owner
+rationale and parser tests. The policy lives in
+[`tools/xtask/src/commands/macro_policy.rs`](../../tools/xtask/src/commands/macro_policy.rs).
+Production scalar and error helpers use ordinary owner functions and nominal types;
+test repetition uses generic functions.
+
 ## Dependencies And Qualification
 
 The macro implementation reuses the existing locked syn 3.0.4, quote 1.0.47,
@@ -185,6 +208,12 @@ quote and proc-macro2 match the registry's stable releases. These workspace pins
 exact and do not change the resolved implementations. The macro crate explicitly enables
 syn’s `full` expression parser for owner closure hooks; independent consumers do not
 rely on another dependency to supply that feature.
+The source policy uses the same syn 3.0.4 pin with `full`, `visit` and `parsing`.
+Its input is on-disk Rust; the interpolated-lifetime fix in upstream 3.0.6 does not
+change that input profile. Parser and real-tree tests qualify the retained pin.
+Owner unit errors use thiserror 2.0.20, the resolved implementation shared by the
+workspace. Upstream stable is 2.0.21; the exact older pin keeps error-message parity
+qualification separate from an implementation upgrade.
 No additional third-party dependency implements these declarations.
 
 Foundation tests qualify independent trait implementations, explicit spellings,
@@ -193,4 +222,4 @@ migrated enum against its previous Serde/schemars declaration and verify unit-va
 ordinals. Store and Time compare SDK kinds, conversion, rejection and JSON values
 against their previous declarations. Contract-only consumers qualify dependency
 isolation. The active [plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md#phase-0-core-macros-and-shared-building-blocks)
-tracks owner qualification and the remaining checked-model and cursor concerns.
+tracks owner qualification and the remaining implementation phases.

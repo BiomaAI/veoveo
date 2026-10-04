@@ -1,22 +1,20 @@
+fn check_schema<T: schemars::JsonSchema>(baseline: &serde_json::Value, name: &str) {
+    assert_eq!(
+        serde_json::to_value(schemars::schema_for!(T)).unwrap(),
+        baseline[name],
+        "{name}"
+    );
+}
 #[test]
 fn coordinate_contract_schemas_preserve_published_wire_shapes() {
     let baseline: serde_json::Value =
         serde_json::from_str(include_str!("../testdata/coordinate-contract.schema.json")).unwrap();
-    macro_rules! check {
-        ($ty:ty, $name:literal) => {
-            assert_eq!(
-                serde_json::to_value(schemars::schema_for!($ty)).unwrap(),
-                baseline[$name],
-                "{}",
-                $name
-            );
-        };
-    }
-    check!(veoveo_rrd::FrameKind, "FrameKind");
-    check!(veoveo_rrd::GeofenceId, "GeofenceId");
-    check!(veoveo_rrd::GeofenceRule, "GeofenceRule");
-    check!(veoveo_rrd::RrdFrameDefinition, "RrdFrameDefinition");
-    check!(veoveo_rrd::RrdGeofenceGeometry, "RrdGeofenceGeometry");
+
+    check_schema::<veoveo_rrd::FrameKind>(&baseline, "FrameKind");
+    check_schema::<veoveo_rrd::GeofenceId>(&baseline, "GeofenceId");
+    check_schema::<veoveo_rrd::GeofenceRule>(&baseline, "GeofenceRule");
+    check_schema::<veoveo_rrd::RrdFrameDefinition>(&baseline, "RrdFrameDefinition");
+    check_schema::<veoveo_rrd::RrdGeofenceGeometry>(&baseline, "RrdGeofenceGeometry");
 }
 
 #[test]

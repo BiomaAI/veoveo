@@ -5,6 +5,7 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+thiserror.workspace = true
 veoveo-types.workspace = true
 veoveo-artifact-contract.workspace = true
 anyhow.workspace = true

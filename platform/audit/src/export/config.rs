@@ -39,45 +39,70 @@ pub struct OtlpConfig {
     pub allow_http: bool,
     pub bearer_token_env: Option<String>,
 }
-macro_rules! checked_string {
-    ($name:ident, $validate:expr) => {
-        #[derive(Debug, Clone, Serialize, Deserialize)]
-        #[serde(try_from = "String", into = "String")]
-        pub struct $name(String);
-        impl TryFrom<String> for $name {
-            type Error = &'static str;
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                if !($validate)(&value) {
-                    return Err(concat!("invalid ", stringify!($name)));
-                }
-                Ok(Self(value))
-            }
-        }
-        impl From<$name> for String {
-            fn from(value: $name) -> Self {
-                value.0
-            }
-        }
-        impl $name {
-            pub fn as_str(&self) -> &str {
-                &self.0
-            }
-        }
-    };
-}
-checked_string!(BucketName, |s: &str| (3..=63).contains(&s.len())
-    && s.bytes()
-        .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
-    && s.as_bytes()[0].is_ascii_alphanumeric()
-    && s.as_bytes()[s.len() - 1].is_ascii_alphanumeric());
-checked_string!(ObjectPrefix, |s: &str| !s.is_empty()
-    && s.len() <= 256
-    && s.split('/').all(|part| !part.is_empty()
-        && part != "."
-        && part != ".."
-        && part
+fn valid_bucket(value: &str) -> bool {
+    (3..=63).contains(&value.len())
+        && value
             .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b"-_.".contains(&b))));
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+        && value.as_bytes()[0].is_ascii_alphanumeric()
+        && value.as_bytes()[value.len() - 1].is_ascii_alphanumeric()
+}
+fn valid_prefix(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 256
+        && value.split('/').all(|part| {
+            !part.is_empty()
+                && part != "."
+                && part != ".."
+                && part
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b"-_.".contains(&b))
+        })
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct BucketName(String);
+impl TryFrom<String> for BucketName {
+    type Error = &'static str;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        if !valid_bucket(&value) {
+            return Err("invalid BucketName");
+        }
+        Ok(Self(value))
+    }
+}
+impl From<BucketName> for String {
+    fn from(value: BucketName) -> Self {
+        value.0
+    }
+}
+impl BucketName {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct ObjectPrefix(String);
+impl TryFrom<String> for ObjectPrefix {
+    type Error = &'static str;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        if !valid_prefix(&value) {
+            return Err("invalid ObjectPrefix");
+        }
+        Ok(Self(value))
+    }
+}
+impl From<ObjectPrefix> for String {
+    fn from(value: ObjectPrefix) -> Self {
+        value.0
+    }
+}
+impl ObjectPrefix {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
 
 pub(super) fn endpoint(url: &Url, allow_http: bool) -> Result<(), ExportError> {
     if !(url.scheme() == "https" || allow_http && url.scheme() == "http")
@@ -120,4 +145,36 @@ pub(super) fn destination_id<T: Serialize>(
     Ok(AuditDestinationId::from_configuration_hash(digest(
         &canonical_bytes(&("veoveo.audit.export/v1", kind, config))?,
     )))
+}
+
+#[cfg(test)]
+mod destination_text_tests {
+    use super::*;
+    #[test]
+    fn bucket_and_prefix_keep_distinct_lexical_profiles() {
+        for bucket in ["abc", "a-1", &"a".repeat(63)] {
+            assert_eq!(
+                BucketName::try_from(bucket.to_owned()).unwrap().as_str(),
+                bucket
+            );
+        }
+        for invalid in ["ab", "Aaa", "abc.def", "-abc", "abc-", " abc"] {
+            assert_eq!(
+                BucketName::try_from(invalid.to_owned()).unwrap_err(),
+                "invalid BucketName"
+            );
+        }
+        for prefix in ["A", "a/B-c_d.ext", &"a".repeat(256)] {
+            assert_eq!(
+                ObjectPrefix::try_from(prefix.to_owned()).unwrap().as_str(),
+                prefix
+            );
+        }
+        for invalid in ["", "/a", "a/", "a//b", ".", "a/..", " a", &"a".repeat(257)] {
+            assert_eq!(
+                ObjectPrefix::try_from(invalid.to_owned()).unwrap_err(),
+                "invalid ObjectPrefix"
+            );
+        }
+    }
 }

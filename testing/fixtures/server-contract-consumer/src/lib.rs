@@ -301,46 +301,42 @@ mod tests {
         }
     }
 
+    fn check_scopes<T>(external: &veoveo_types::ScopeName, empty: bool)
+    where
+        T: veoveo_types::Vocabulary + std::fmt::Display + std::str::FromStr + std::fmt::Debug,
+        for<'a> T: TryFrom<&'a veoveo_types::ScopeName>,
+        <T as std::str::FromStr>::Err: std::fmt::Debug,
+    {
+        assert_eq!(T::ALL.is_empty(), empty);
+        for scope in T::ALL {
+            assert_eq!(scope.to_string().parse::<T>().unwrap(), *scope);
+        }
+        assert!(T::try_from(external).is_err());
+    }
+
     #[test]
     fn all_server_scope_vocabularies_are_available_without_service_dependencies() {
         use veoveo_types::ScopeName;
         let external = ScopeName::new("independent:read").unwrap();
-        macro_rules! empty {
-            ($($scope:ty),+ $(,)?) => { $(
-                assert!(<$scope>::ALL.is_empty());
-                assert!(<$scope>::try_from(&external).is_err());
-            )+ };
-        }
-        empty!(
-            veoveo_artifact_mcp::contract::ArtifactScope,
-            veoveo_computers_mcp::contract::ComputerScope,
-            veoveo_speech_mcp::contract::SpeechScope,
-            veoveo_frames_mcp::contract::FramesScope,
-            veoveo_timeseries_mcp::contract::TimeseriesScope,
-            veoveo_media_mcp::contract::MediaScope,
-            veoveo_duckdb_mcp::contract::DuckDbScope,
-            veoveo_optimization_mcp::contract::OptimizationScope,
-            veoveo_stream_mcp::contract::StreamScope,
-            veoveo_reason_mcp::contract::ReasonScope,
-        );
-        macro_rules! declared {
-            ($($scope:ty),+ $(,)?) => { $(
-                assert!(!<$scope>::ALL.is_empty());
-                for scope in <$scope>::ALL {
-                    assert_eq!(scope.to_string().parse::<$scope>().unwrap(), *scope);
-                }
-                assert!(<$scope>::try_from(&external).is_err());
-            )+ };
-        }
-        declared!(
-            veoveo_map_mcp::contract::MapScope,
-            veoveo_time_mcp::contract::TimeScope,
-            veoveo_view_mcp::contract::ViewScope,
-            veoveo_uav_sim_mcp::contract::UavScope,
-            veoveo_recording_mcp::contract::RecordingScope,
-            veoveo_recording_mcp::contract::RecordingProducerScope,
-            veoveo_knowledge_mcp::contract::KnowledgeScope,
-        );
+
+        check_scopes::<veoveo_artifact_mcp::contract::ArtifactScope>(&external, true);
+        check_scopes::<veoveo_computers_mcp::contract::ComputerScope>(&external, true);
+        check_scopes::<veoveo_speech_mcp::contract::SpeechScope>(&external, true);
+        check_scopes::<veoveo_frames_mcp::contract::FramesScope>(&external, true);
+        check_scopes::<veoveo_timeseries_mcp::contract::TimeseriesScope>(&external, true);
+        check_scopes::<veoveo_media_mcp::contract::MediaScope>(&external, true);
+        check_scopes::<veoveo_duckdb_mcp::contract::DuckDbScope>(&external, true);
+        check_scopes::<veoveo_optimization_mcp::contract::OptimizationScope>(&external, true);
+        check_scopes::<veoveo_stream_mcp::contract::StreamScope>(&external, true);
+        check_scopes::<veoveo_reason_mcp::contract::ReasonScope>(&external, true);
+
+        check_scopes::<veoveo_map_mcp::contract::MapScope>(&external, false);
+        check_scopes::<veoveo_time_mcp::contract::TimeScope>(&external, false);
+        check_scopes::<veoveo_view_mcp::contract::ViewScope>(&external, false);
+        check_scopes::<veoveo_uav_sim_mcp::contract::UavScope>(&external, false);
+        check_scopes::<veoveo_recording_mcp::contract::RecordingScope>(&external, false);
+        check_scopes::<veoveo_recording_mcp::contract::RecordingProducerScope>(&external, false);
+        check_scopes::<veoveo_knowledge_mcp::contract::KnowledgeScope>(&external, false);
     }
 
     #[test]

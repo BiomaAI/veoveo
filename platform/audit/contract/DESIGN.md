@@ -85,3 +85,11 @@ variants or authorization decisions.
 ## Identity Declaration Mechanics
 
 Audit identities use `Id` with Audit-owned canonical RFC UUIDv7 and lowercase nonzero hexadecimal admission. Their owner schema functions preserve each UUID pattern, trace/span length and nonzero constraint. Serde uses checked String conversion for these IDs; the independent Activity enum wire profile does not change.
+
+## Integrity Counter Admission
+
+`AuditBlockSequence` admits 1 through i64::MAX; `AuditVersionstamp` also admits zero.
+Their owner validator and decimal parser require the canonical unsigned spelling.
+Serde converts through String in both human-readable and binary formats. JSON and
+JCS therefore preserve versionstamps that exceed exact IEEE-754 integer precision.
+The nominal counter types keep copied getters and their existing schema profiles.

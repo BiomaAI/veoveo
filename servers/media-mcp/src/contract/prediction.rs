@@ -6,14 +6,9 @@ use veoveo_types::{
     ResourceAddress, ResourceTemplateUri, ResourceUri, ResourceUriParts, UriSegment,
 };
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
+#[error("expected a bounded Media prediction identity or canonical prediction address")]
 pub struct MediaPredictionError;
-impl fmt::Display for MediaPredictionError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("expected a bounded Media prediction identity or canonical prediction address")
-    }
-}
-impl std::error::Error for MediaPredictionError {}
 
 /// Opaque provider identity, distinct from native Task and Store job identities.
 #[derive(

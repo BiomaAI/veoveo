@@ -8,17 +8,9 @@ use veoveo_types::{ResourceAddress, ResourceFieldCodec, ResourceUri, TaskId};
 
 pub const TIMESERIES_USAGE_PAGE_SIZE: usize = 100;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
+#[error("expected a valid Timeseries usage page, cursor, or canonical Task UUIDv7 address")]
 pub struct TimeseriesUsageError;
-
-impl fmt::Display for TimeseriesUsageError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(
-            "expected a valid Timeseries usage page, cursor, or canonical Task UUIDv7 address",
-        )
-    }
-}
-impl std::error::Error for TimeseriesUsageError {}
 
 fn task_identity(id: TaskId) -> Result<TaskId, TimeseriesUsageError> {
     (id.as_uuid().get_version_num() == 7 && id.as_uuid().get_variant() == uuid::Variant::RFC4122)

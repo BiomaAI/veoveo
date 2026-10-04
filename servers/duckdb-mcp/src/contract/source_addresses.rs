@@ -112,11 +112,6 @@ impl JsonSchema for DuckDbArtifactSourceUri {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("expected a nonempty HTTPS source list or a neutral Artifact occurrence URI")]
 pub struct DuckDbSourceAddressError;
-impl fmt::Display for DuckDbSourceAddressError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("expected a nonempty HTTPS source list or a neutral Artifact occurrence URI")
-    }
-}
-impl std::error::Error for DuckDbSourceAddressError {}

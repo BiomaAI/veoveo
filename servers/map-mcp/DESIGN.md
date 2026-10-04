@@ -1115,6 +1115,11 @@ Map ID declarations use `Id` with Map-owned prefixes, UUID admission and stable-
 
 ## Value Admission
 
+Quantity types share the Map finite, nonnegative validator, preserve negative zero,
+and expose copied const getters. `Degrees` has no 360-degree cap. `Ratio` has its
+separate inclusive zero-to-one admission; errors retain the quantity name, value
+and rule.
+
 SourceSummary stores unchanged summary fields through `Checked` with Map-owned parent and metadata relationships. Restriction summaries keep their explicit URI-derived identity adapter.
 
 ## Cursor Admission

@@ -1,15 +1,9 @@
 //! Separate identities for durable transcription and private browser dictation.
 use serde::{Deserialize, Serialize};
-use std::fmt;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
+#[error("invalid Speech identity for this operation")]
 pub struct SpeechIdentityError;
-impl fmt::Display for SpeechIdentityError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("invalid Speech identity for this operation")
-    }
-}
-impl std::error::Error for SpeechIdentityError {}
 
 #[derive(
     veoveo_types::Id,

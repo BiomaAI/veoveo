@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+thiserror.workspace = true
 # Match the qualified workspace pins; metadata needs date/time types without a clock.
 chrono = { version = "=0.4.45", default-features = false, features = ["serde"] }
 schemars = { workspace = true, features = ["chrono04"] }

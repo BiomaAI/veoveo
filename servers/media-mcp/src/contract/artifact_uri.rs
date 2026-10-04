@@ -73,11 +73,6 @@ impl From<MediaArtifactUri> for String {
         value.wire.to_string()
     }
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("invalid Media artifact URI")]
 pub struct MediaArtifactUriError;
-impl fmt::Display for MediaArtifactUriError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("invalid Media artifact URI")
-    }
-}
-impl std::error::Error for MediaArtifactUriError {}

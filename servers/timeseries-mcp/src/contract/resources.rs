@@ -4,7 +4,6 @@ use super::{TimeseriesTaskUsageUri, TimeseriesUsageIndexUri};
 use crate::uris;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::fmt;
 use veoveo_types::{
     ResourceAddress, ResourceUri, ResourceUriBuilder, ResourceUriParts, UriSegment,
 };
@@ -44,14 +43,9 @@ pub enum TimeseriesResource {
     Artifact(TimeseriesArtifactUri),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("invalid Timeseries resource URI")]
 pub struct TimeseriesResourceError;
-impl fmt::Display for TimeseriesResourceError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("invalid Timeseries resource URI")
-    }
-}
-impl std::error::Error for TimeseriesResourceError {}
 
 impl TimeseriesResource {
     pub fn parse(value: impl AsRef<str>) -> Result<Self, TimeseriesResourceError> {

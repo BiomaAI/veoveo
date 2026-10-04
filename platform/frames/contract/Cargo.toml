@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+thiserror.workspace = true
 # Date/time values only, matching the existing qualified Frames profile.
 chrono = { version = "=0.4.45", default-features = false, features = ["serde", "std"] }
 hex.workspace = true

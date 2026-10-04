@@ -1,13 +1,12 @@
 # Platform Foundations And Contract Consistency Plan
 
-Status: Phase 0 Vocabulary, embedded-document, Id, ResourceAddress, Checked-model
-and opaque-cursor concerns completed. Owner admission and wire/schema profiles are
-qualified through shared mechanics, complete-owner native checks and contract-only
-consumers. Checked models preserve immutable admitted values; explicit adapters retain
-normalization, redundant-field projection and documented mutable representations.
-Cursor owners preserve envelopes, aliases, limits and typed context. Remaining helper,
-error and macro-enforcement work keeps Phase 0 active; later phases and installed
-acceptance requirements remain open.
+Status: Phase 0 shared mechanics and complete-owner implementation are qualified.
+Vocabulary, embedded documents, Id, ResourceAddress, Checked models and opaque cursors
+preserve their owner admission and wire/schema profiles. Production helper and static
+unit-error adoption is complete; the tracked-source macro catalog is enforced.
+Explicit owner adapters retain normalization, redundant-field projection, mutable
+representations and codec-specific envelopes. Later phases, Foundations and hardening
+transfer conditions, and installed acceptance remain open.
 This is the single implementation plan for the former Foundations, Contract
 Consistency and Repository Hardening tracks; their required open conditions transfer
 without being declared complete.
@@ -406,16 +405,16 @@ before phase 8. Record reviewed architecture changes in
 
 ## Phase 0: Core Macros And Shared Building Blocks
 
-Veoveo defines 103 `macro_rules!` macros: 85 in production code across 27 crates and
+The baseline inventory identified 103 `macro_rules!` macros: 85 in production code across 27 crates and
 18 in tests. Most re-implement a handful of shapes, each with its own parsing,
 formatting, serialization and schema code. Phase 0 replaces them with five core
-macros, a few generic types, and plain functions. After all Phase 0 concerns land, a macro is an
-exception that needs a reason, and every crate checks the core catalog before
-writing repetitive code.
+macros, a few generic types, and plain functions. A macro is an exception that needs a reason, and every crate checks the core
+catalog before writing repetitive code. The current tree has four procedural
+definitions and two approved declarative definitions, with no other local definitions.
 
 ### Inventory
 
-| Shape | Local macros today | Count | Replacement |
+| Shape | Baseline local macros | Count | Replacement |
 |---|---|---|---|
 | Typed resource addresses | `address` in 7 crates, `address_traits` in 6, `string_schema` in 4, `address_wire` in 3, `wire_traits`, `wire_address`, `single_address`, `result_uri` | 24 | `#[derive(ResourceAddress)]` |
 | Identifiers, names, keys and digests | `coordinate_id` in 3 crates; `catalog_id`, `controlled_id`, `domain_id`, `id_type`, `identity` and `name` in 2 each; `typed_id`, `secret_typed_id`, `identifier`, `id`, `deployment_id`, `artifact_uuid_id`, `uuid_id`, `hex_id`, `map_id`, `output_id`, `public_id`, `recording_identity`, `rrd_id`, `text_identity`, `travel_key`, `typed_string` | 31 | `#[derive(Id)]` |
@@ -429,17 +428,19 @@ writing repetitive code.
 | Third-party trait delegation | `impl_scoped_redap_service`, which applies one authorize-or-deny policy across the generated Rerun gRPC service trait | 1 | Declared exception |
 | Test helpers | `check` in 9 suites, `capture` in 2, `corrupt`, `declared`, `empty`, `make`, `qualify`, `rejects`, `single` | 18 | Generic test functions |
 
-Shapes that need only a generic type are also hand-written outside macros: 94
-`*Wire` mirror structs and 74 `try_from = "…Wire"` types repeat a field list to
-validate it, 52 cursor types carry their own encoding, and 46 unit error structs
-hand-write `Display`. Phase 0 inventories their owner-specific validation and adopts shared mechanics
-where the admitted shape and wire shape intentionally agree.
+The baseline also recorded 94 `*Wire` mirror structs and 74
+`try_from = "…Wire"` types repeating a field list for validation, 52 cursor types
+with owner encoding and an estimated 46 handwritten unit errors. The final same-file
+and split-definition refresh found 41 handwritten unit errors, all with static
+messages and no source. Phase 0 adopts shared mechanics where the admitted and wire
+shapes agree; the concrete model and cursor exceptions appear below.
 
 ### Core Macros
 
-All Veoveo macros live in one proc-macro crate, `platform/macros` (`veoveo-macros`),
-re-exported by `veoveo-types`, except `server_docs!`, which must expand in the
-calling crate to embed that crate's documents. Generated code calls ordinary traits in
+The four procedural macros live in `platform/macros` (`veoveo-macros`),
+re-exported by `veoveo-types`. The catalog also admits `server_docs!`, which must
+expand in the calling crate to select documents, and the owner-declared third-party
+Redap trait delegation. Generated code calls ordinary traits in
 `platform/types`, so each macro stays thin and its behaviour is readable Rust.
 
 | Macro | Kind | Generates |
@@ -510,8 +511,8 @@ intentional diagnostic ordering change. Shared route, complete-owner native and
 isolated-contract gates pass. Independent codec fixtures qualify canonical and
 admitted encoded patterns, nonempty query and tail constraints, reserved characters
 and absolute-end rejection with a JSON Schema validator. Compiler expansion review
-qualifies the Map and Time pilots. The remaining Phase 0 helper/error work, complete
-macro gate and installed acceptance requirements remain open.
+qualifies the Map and Time pilots. The helper/error concern and complete macro gate are qualified below; installed
+acceptance requirements remain open.
 
 ### Checked And Cursor Concern Qualification
 
@@ -536,7 +537,31 @@ become opaque String tokens. The owner pass covers 31 nominal opaque cursors and
 anonymous text boundaries without imposing a common encoding. Shared and complete-owner
 native, schema/admission, contextual misuse, immutable-access, contract-only isolation
 and filtered runtime-boundary checks pass. Strict scoped lint and document gates qualify
-this concern; helper/error work and the full Phase 0 macro gate remain open.
+this concern. The helper/error concern and full macro gate are qualified below.
+
+### Helper And Error Concern
+
+Scalar owners use ordinary nominal types and shared local validators. Audit counters
+keep canonical decimal String Serde in human and binary formats and their i64 bounds.
+DuckDB request text keeps verbatim Unicode, nonblank/NUL admission and its existing
+schema descriptions. Map and Optimization keep copied const getters, finite-number
+rules and negative-zero profiles. Static unit errors use thiserror without changing
+messages, implemented traits or source behavior; contextual errors keep owner logic.
+
+Task error helpers await existing settlement, then each caller explicitly returns.
+A tool error settles a Succeeded Task with MCP `isError=true`; only the existing
+result-serialization failure uses Failed. Hub record admission, BFF handlers, legacy
+catalog metadata, conformance schema ordering and View parser ordering keep their
+owner semantics. Generic test helpers replace local declarations. The macro policy
+parses the complete tracked source tree against the exact six-entry catalog.
+Combined native checks qualify frozen Audit formats, owner contracts and schema
+profiles, task error settlement and the affected runtime entrypoints. Independent
+contract graphs exclude hosted MCP, database, GPU and server-runtime dependencies.
+Scoped strict lint, parser misuse tests and the full tracked-source catalog pass.
+The Phase 0 acceptance audit covers typed address and identity admission, independent
+extensions, wire stability, discovery agreement and every declared macro. Explicit
+model and cursor exclusions are the owner representations described above. Later
+phase and installed acceptance gates remain open.
 
 ### Rollout And Gates
 
@@ -544,9 +569,8 @@ Phase 0 preserves serialized forms. Establish and qualify the shared mechanics, 
 migrate each concern across all affected owners and consumers in one pass, deleting
 its local duplication. Commit coherent concerns after the aggregate checks; do not
 run a separate full validation cycle for each crate. An intentional schema tightening is a distinct reviewed change with affected
-consumer checks; mechanical migrations preserve existing schema snapshots. The
-macro-definition gate in `cargo xtask enforce rust` lands after all Phase 0 concerns
-are implemented.
+consumer checks; mechanical migrations preserve existing schema snapshots. The macro-definition gate in `cargo xtask enforce rust` checks the six declared
+definitions; `--macros-only` runs that same tracked-source policy independently.
 The current Rust wrapper runs all workspace features and suites; individual concerns
 use scoped native checks and independently resolved contract consumers.
 
@@ -557,7 +581,7 @@ use scoped native checks and independently resolved contract consumers.
 | Misuse tests | `compile_fail` cases for a template that names an unknown field, a field without a typed identifier, and an invalid scope spelling |
 | Wire stability | Mechanical conversions preserve wire fixtures and schemas; separately declared tightenings have explicit changed fixtures and consumer qualification |
 | Discovery agreement | Each server's published resource templates equal the templates its address types declare |
-| Macro check | `cargo xtask enforce rust` reports no `macro_rules!` outside `platform/macros` and the declared exceptions |
+| Macro check | `cargo xtask enforce rust --macros-only` reports exactly the core catalog and declared exceptions, including nested declarations; the default Rust gate runs the same policy first |
 
 ## Phase 1: Module Contract And Lanes
 

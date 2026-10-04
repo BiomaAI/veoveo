@@ -598,7 +598,10 @@ Documents are embedded at build time from the crate, so a running server
 serves the manual for exactly the version deployed, including in offline
 installations. The `veoveo_mcp_contract::docs` module provides the embedding,
 declaration, and rendering machinery; consuming it is the intended way to
-comply.
+comply. `server_docs!` selects the consuming crate's `AGENTS.md` and `DESIGN.md`,
+then calls the shared `embedded_document!` proc macro. Its manifest-relative document
+selection must expand in the calling crate, as declared in the
+[shared macro catalog](../../platform/macros/DESIGN.md#macro-catalog-and-enforcement).
 
 The Console renders these resources generically; the gateway generates an
 installation llms.txt from the catalog. Neither requires per-server work.

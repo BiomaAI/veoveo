@@ -8,14 +8,11 @@ use veoveo_types::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Part(String);
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("invalid independent fixture address")]
 struct Invalid;
-impl std::fmt::Display for Invalid {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("invalid independent fixture address")
-    }
-}
-impl std::error::Error for Invalid {}
+
+
 fn route_error(_: ResourceRouteError) -> Invalid {
     Invalid
 }

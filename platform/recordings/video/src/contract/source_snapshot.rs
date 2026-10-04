@@ -5,20 +5,16 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fmt,
     num::NonZeroU64,
 };
 use veoveo_recording_contract::{RecordingDatasetId, RecordingId, RecordingLayerId};
 use veoveo_types::{Sha256Digest, sha256_hex};
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+#[error(
+    "recording sources require positive bytes, valid layer facts and distinct source identities"
+)]
 pub struct RecordingSourceError;
-impl fmt::Display for RecordingSourceError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("recording sources require positive bytes, valid layer facts and distinct source identities")
-    }
-}
-impl std::error::Error for RecordingSourceError {}
 
 /// Construction facts for ordered inputs. Builders preserve order for digest identity.
 /// ```compile_fail

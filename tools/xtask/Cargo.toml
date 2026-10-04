@@ -28,3 +28,6 @@ veoveo-deploy-runtime.workspace = true
 veoveo-image-build-control.workspace = true
 veoveo-mcp-contract = { workspace = true, default-features = false }
 veoveo-mcp-conformance = { path = "../../mcp/conformance" }
+
+# Reuse the workspace-qualified parser; source-file policy is qualified by native tests.
+syn = { workspace = true, features = ["full", "visit", "parsing"] }

@@ -21,13 +21,6 @@ impl std::fmt::Display for FrameWorldError {
 }
 impl std::error::Error for FrameWorldError {}
 
-macro_rules! invalid_value {
-    ($($arg:tt)*) => { FrameWorldError::new(format!($($arg)*)) };
-}
-macro_rules! invalid {
-    ($($arg:tt)*) => { return Err(invalid_value!($($arg)*)) };
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct ValidatedWorldTree {
     tree: FrameWorldTree,
@@ -38,10 +31,14 @@ pub struct ValidatedWorldTree {
 impl ValidatedWorldTree {
     pub fn new(mut tree: FrameWorldTree) -> Result<Self, FrameWorldError> {
         if tree.frames.is_empty() {
-            invalid!("a frame world requires at least one frame");
+            return Err(FrameWorldError::new(
+                "a frame world requires at least one frame",
+            ));
         }
         if tree.frames.len() > MAX_WORLD_FRAMES {
-            invalid!("a frame world supports at most {MAX_WORLD_FRAMES} frames");
+            return Err(FrameWorldError::new(format!(
+                "a frame world supports at most {MAX_WORLD_FRAMES} frames"
+            )));
         }
         tree.frames
             .sort_by(|left, right| left.frame_id.cmp(&right.frame_id));
@@ -49,7 +46,10 @@ impl ValidatedWorldTree {
         let mut frames = BTreeMap::new();
         for frame in &tree.frames {
             if frames.insert(frame.frame_id.clone(), frame).is_some() {
-                invalid!("frame `{}` appears more than once", frame.frame_id);
+                return Err(FrameWorldError::new(format!(
+                    "frame `{}` appears more than once",
+                    frame.frame_id
+                )));
             }
             frame.basis.axes().validate().map_err(|message| {
                 FrameWorldError::new(format!("frame `{}`: {message}", frame.frame_id))
@@ -57,10 +57,10 @@ impl ValidatedWorldTree {
             if let Some(description) = &frame.description
                 && (description.trim().is_empty() || description.len() > 1_024)
             {
-                invalid!(
+                return Err(FrameWorldError::new(format!(
                     "frame `{}` description must be 1 to 1024 characters",
                     frame.frame_id
-                );
+                )));
             }
         }
 
@@ -70,23 +70,23 @@ impl ValidatedWorldTree {
             .filter(|frame| frame.parent_frame_id.is_none())
             .collect::<Vec<_>>();
         if roots.len() != 1 {
-            invalid!(
+            return Err(FrameWorldError::new(format!(
                 "a frame world requires exactly one root frame, found {}",
                 roots.len()
-            );
+            )));
         }
         let root = roots[0];
         if root.parent_transform.is_some() {
-            invalid!(
+            return Err(FrameWorldError::new(format!(
                 "root frame `{}` cannot have a parent transform",
                 root.frame_id
-            );
+            )));
         }
         if root.basis != FrameBasis::EcefWgs84 {
-            invalid!(
+            return Err(FrameWorldError::new(format!(
                 "root frame `{}` must use the ecef_wgs84 basis",
                 root.frame_id
-            );
+            )));
         }
         let root_frame_id = root.frame_id.clone();
 
@@ -95,19 +95,22 @@ impl ValidatedWorldTree {
                 continue;
             };
             let parent = frames.get(parent_id).ok_or_else(|| {
-                invalid_value!(
+                FrameWorldError::new(format!(
                     "frame `{}` has unknown parent `{parent_id}`",
                     frame.frame_id
-                )
+                ))
             })?;
             if parent_id == &frame.frame_id {
-                invalid!("frame `{}` cannot parent itself", frame.frame_id);
+                return Err(FrameWorldError::new(format!(
+                    "frame `{}` cannot parent itself",
+                    frame.frame_id
+                )));
             }
             let transform = frame.parent_transform.as_ref().ok_or_else(|| {
-                invalid_value!(
+                FrameWorldError::new(format!(
                     "non-root frame `{}` requires a parent transform",
                     frame.frame_id
-                )
+                ))
             })?;
             validate_parent_transform(frame, parent, transform)?;
         }
@@ -118,10 +121,10 @@ impl ValidatedWorldTree {
             let mut current = frame;
             while !rooted.contains(&current.frame_id) {
                 if !visited.insert(current.frame_id.clone()) {
-                    invalid!(
+                    return Err(FrameWorldError::new(format!(
                         "frame world contains a cycle through frame `{}`",
                         current.frame_id
-                    );
+                    )));
                 }
                 let parent_id = current
                     .parent_frame_id
@@ -168,16 +171,16 @@ fn validate_parent_transform(
         FrameParentTransform::GeodeticTangent { origin } => {
             origin.validate().map_err(FrameWorldError::new)?;
             if parent.basis != FrameBasis::EcefWgs84 {
-                invalid!(
+                return Err(FrameWorldError::new(format!(
                     "geodetic tangent frame `{}` requires an ecef_wgs84 parent",
                     frame.frame_id
-                );
+                )));
             }
             if !matches!(frame.basis, FrameBasis::Enu | FrameBasis::Ned) {
-                invalid!(
+                return Err(FrameWorldError::new(format!(
                     "geodetic tangent frame `{}` must use an ENU or NED basis",
                     frame.frame_id
-                );
+                )));
             }
         }
         FrameParentTransform::StaticRigid {
@@ -188,10 +191,10 @@ fn validate_parent_transform(
             ensure_finite(rotation_xyzw, "static quaternion")?;
             let norm_squared = rotation_xyzw.iter().map(|value| value * value).sum::<f64>();
             if (norm_squared - 1.0).abs() > UNIT_QUATERNION_TOLERANCE {
-                invalid!(
+                return Err(FrameWorldError::new(format!(
                     "frame `{}` static quaternion must be normalized",
                     frame.frame_id
-                );
+                )));
             }
         }
         FrameParentTransform::DynamicStream { .. } => {}
@@ -203,6 +206,8 @@ fn ensure_finite<const N: usize>(values: &[f64; N], name: &str) -> Result<(), Fr
     if values.iter().all(|value| value.is_finite()) {
         Ok(())
     } else {
-        invalid!("{name} values must be finite")
+        Err(FrameWorldError::new(format!(
+            "{name} values must be finite"
+        )))
     }
 }

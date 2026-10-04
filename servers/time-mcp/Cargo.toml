@@ -51,6 +51,7 @@ required-features = ["mcp"]
 [features]
 default = ["mcp"]
 contract = [
+    "dep:thiserror",
     "dep:chrono",
     "dep:hex",
     "dep:schemars",

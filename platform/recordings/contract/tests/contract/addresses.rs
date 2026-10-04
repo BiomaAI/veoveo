@@ -1,3 +1,42 @@
+fn qualify<T>(generate: fn() -> T, as_uuid: fn(T) -> uuid::Uuid)
+where
+    T: veoveo_types::Identity
+        + TryFrom<uuid::Uuid>
+        + Copy
+        + PartialEq
+        + std::fmt::Debug
+        + serde::Serialize
+        + serde::de::DeserializeOwned
+        + schemars::JsonSchema,
+    <T as veoveo_types::Identity>::Error: std::fmt::Debug + std::fmt::Display,
+    <T as TryFrom<uuid::Uuid>>::Error: std::fmt::Debug,
+{
+    let id = T::parse_identity(ID).unwrap();
+    assert_eq!(T::try_from(as_uuid(id)).unwrap(), id);
+    assert_eq!(serde_json::to_value(id).unwrap(), ID);
+    assert_eq!(
+        serde_json::from_value::<T>(serde_json::json!(ID)).unwrap(),
+        id
+    );
+    assert_eq!(as_uuid(generate()).get_version_num(), 7);
+    assert_eq!(
+        serde_json::to_value(schemars::schema_for!(T)).unwrap()["type"],
+        "string"
+    );
+    for invalid in [
+        "private-identity",
+        "00000000-0000-0000-0000-000000000000",
+        "01983da0-0000-4000-8000-000000000001",
+        "01983da0-0000-7000-c000-000000000001",
+        "01983DA0-0000-7000-8000-000000000001",
+        "01983da0000070008000000000000001",
+        "urn:uuid:01983da0-0000-7000-8000-000000000001",
+    ] {
+        let error = T::parse_identity(invalid).unwrap_err();
+        assert!(!error.to_string().contains(invalid));
+        assert!(serde_json::from_value::<T>(serde_json::json!(invalid)).is_err());
+    }
+}
 use serde_json::{Value, json};
 use veoveo_recording_contract::{uris, *};
 use veoveo_types::{ResourceAddress, ResourceTemplateUri};
@@ -45,37 +84,11 @@ fn identities_require_canonical_rfc_uuid_v7_at_wire_admission() {
 
 #[test]
 fn every_recording_identity_uses_the_same_admission_profile() {
-    macro_rules! qualify {
-        ($id:ty) => {
-            let id = <$id>::parse(ID).unwrap();
-            assert_eq!(<$id>::try_from(id.as_uuid()).unwrap(), id);
-            assert_eq!(serde_json::to_value(id).unwrap(), ID);
-            assert_eq!(serde_json::from_value::<$id>(json!(ID)).unwrap(), id);
-            assert_eq!(<$id>::new().as_uuid().get_version_num(), 7);
-            assert_eq!(
-                serde_json::to_value(schemars::schema_for!($id)).unwrap()["type"],
-                "string"
-            );
-            for invalid in [
-                "private-identity",
-                "00000000-0000-0000-0000-000000000000",
-                "01983da0-0000-4000-8000-000000000001",
-                "01983da0-0000-7000-c000-000000000001",
-                "01983DA0-0000-7000-8000-000000000001",
-                "01983da0000070008000000000000001",
-                "urn:uuid:01983da0-0000-7000-8000-000000000001",
-            ] {
-                let error = <$id>::parse(invalid).unwrap_err();
-                assert!(!error.to_string().contains(invalid));
-                assert!(serde_json::from_value::<$id>(json!(invalid)).is_err());
-            }
-        };
-    }
-    qualify!(RecordingId);
-    qualify!(RecordingDatasetId);
-    qualify!(RecordingLayerId);
-    qualify!(RecordingReadGrantId);
-    qualify!(RecordingProjectionId);
+    qualify::<RecordingId>(RecordingId::new, RecordingId::as_uuid);
+    qualify::<RecordingDatasetId>(RecordingDatasetId::new, RecordingDatasetId::as_uuid);
+    qualify::<RecordingLayerId>(RecordingLayerId::new, RecordingLayerId::as_uuid);
+    qualify::<RecordingReadGrantId>(RecordingReadGrantId::new, RecordingReadGrantId::as_uuid);
+    qualify::<RecordingProjectionId>(RecordingProjectionId::new, RecordingProjectionId::as_uuid);
 }
 
 #[test]

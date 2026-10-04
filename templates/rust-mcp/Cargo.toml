@@ -16,7 +16,7 @@ required-features = ["mcp"]
 [features]
 default = ["mcp"]
 # Public types only: no MCP, transport or runtime dependency.
-contract = ["dep:schemars", "dep:serde", "dep:veoveo-types"]
+contract = ["dep:thiserror", "dep:schemars", "dep:serde", "dep:veoveo-types"]
 # Domain logic. A server with Store, provider or engine dependencies gates them here.
 runtime = ["contract"]
 # The hosted server binary.
@@ -32,6 +32,7 @@ mcp = [
 ]
 
 [dependencies]
+thiserror = { workspace = true, optional = true }
 anyhow = { workspace = true, optional = true }
 clap = { workspace = true, optional = true }
 rmcp = { workspace = true, features = ["server", "macros", "transport-streamable-http-server"], optional = true }

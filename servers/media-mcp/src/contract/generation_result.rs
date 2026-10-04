@@ -2,7 +2,7 @@
 use super::{GenerationPredictionSummary, MediaGenerationUri, MediaPredictionId};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeSet, fmt};
+use std::collections::BTreeSet;
 use veoveo_artifact_contract::{ArtifactMetadata, ArtifactUri};
 use veoveo_types::{ResourceScheme, TaskId};
 
@@ -16,14 +16,11 @@ pub struct MediaOutputArtifactMetadata {
     pub output_index: usize,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error(
+    "Media generation result requires matching Task, prediction, result address and ordered output attribution"
+)]
 pub struct MediaGenerationError;
-impl fmt::Display for MediaGenerationError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("Media generation result requires matching Task, prediction, result address and ordered output attribution")
-    }
-}
-impl std::error::Error for MediaGenerationError {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 enum ResultSchema {

@@ -1,3 +1,10 @@
+fn check_schema<T: schemars::JsonSchema>(baseline: &serde_json::Value, name: &str) {
+    assert_eq!(
+        serde_json::to_value(schemars::schema_for!(T)).unwrap(),
+        baseline[name],
+        "{name}"
+    );
+}
 use veoveo_stream_mcp::contract::*;
 
 #[path = "contract/replay.rs"]
@@ -68,44 +75,42 @@ fn live_admission_and_lifecycle_types_are_available_to_clients() {
 fn schemas_preserve_the_published_contract() {
     let baseline: serde_json::Value =
         serde_json::from_str(include_str!("../testdata/contract.schema.json")).unwrap();
-    macro_rules! check { ($($ty:ty),+ $(,)?) => { $(assert_eq!(serde_json::to_value(schemars::schema_for!($ty)).unwrap(), baseline[stringify!($ty)], stringify!($ty));)+ }; }
-    check!(
-        RunRecordingRequest,
-        SamplingPolicy,
-        BoundingBox2D,
-        Detection,
-        FrameDetections,
-        AnalysisResults,
-        RunRecordingOutput,
-        AnalysisSummary,
-        PipelineView,
-        PipelineProfile,
-        PerceptionOperation,
-        ModelView,
-        ModelFormat,
-        RunView,
-        RunPage,
-        LiveResultFrame,
-        LiveResultsView,
-        EncodedVideoChunk,
-        LivePreviewView,
-        IndexRange,
-        RecordingSourceIdentity,
-        RecordingSourceIdentityKind,
-        RecordingSourceSnapshot,
-        RecordingVideoSelection,
-        VideoTimelineKind,
-        StartLiveSessionRequest,
-        StopLiveSessionRequest,
-        StartLiveSessionOutput,
-        StopLiveSessionOutput,
-        LiveIngressView,
-        LiveVideoView,
-        LiveTransport,
-        LiveSessionLifecycle,
-        LiveRecordingLifecycle,
-        LiveRecordingOutputView,
-        LiveSessionView,
-        LiveSessionsPage,
-    );
+
+    check_schema::<RunRecordingRequest>(&baseline, stringify!(RunRecordingRequest));
+    check_schema::<SamplingPolicy>(&baseline, stringify!(SamplingPolicy));
+    check_schema::<BoundingBox2D>(&baseline, stringify!(BoundingBox2D));
+    check_schema::<Detection>(&baseline, stringify!(Detection));
+    check_schema::<FrameDetections>(&baseline, stringify!(FrameDetections));
+    check_schema::<AnalysisResults>(&baseline, stringify!(AnalysisResults));
+    check_schema::<RunRecordingOutput>(&baseline, stringify!(RunRecordingOutput));
+    check_schema::<AnalysisSummary>(&baseline, stringify!(AnalysisSummary));
+    check_schema::<PipelineView>(&baseline, stringify!(PipelineView));
+    check_schema::<PipelineProfile>(&baseline, stringify!(PipelineProfile));
+    check_schema::<PerceptionOperation>(&baseline, stringify!(PerceptionOperation));
+    check_schema::<ModelView>(&baseline, stringify!(ModelView));
+    check_schema::<ModelFormat>(&baseline, stringify!(ModelFormat));
+    check_schema::<RunView>(&baseline, stringify!(RunView));
+    check_schema::<RunPage>(&baseline, stringify!(RunPage));
+    check_schema::<LiveResultFrame>(&baseline, stringify!(LiveResultFrame));
+    check_schema::<LiveResultsView>(&baseline, stringify!(LiveResultsView));
+    check_schema::<EncodedVideoChunk>(&baseline, stringify!(EncodedVideoChunk));
+    check_schema::<LivePreviewView>(&baseline, stringify!(LivePreviewView));
+    check_schema::<IndexRange>(&baseline, stringify!(IndexRange));
+    check_schema::<RecordingSourceIdentity>(&baseline, stringify!(RecordingSourceIdentity));
+    check_schema::<RecordingSourceIdentityKind>(&baseline, stringify!(RecordingSourceIdentityKind));
+    check_schema::<RecordingSourceSnapshot>(&baseline, stringify!(RecordingSourceSnapshot));
+    check_schema::<RecordingVideoSelection>(&baseline, stringify!(RecordingVideoSelection));
+    check_schema::<VideoTimelineKind>(&baseline, stringify!(VideoTimelineKind));
+    check_schema::<StartLiveSessionRequest>(&baseline, stringify!(StartLiveSessionRequest));
+    check_schema::<StopLiveSessionRequest>(&baseline, stringify!(StopLiveSessionRequest));
+    check_schema::<StartLiveSessionOutput>(&baseline, stringify!(StartLiveSessionOutput));
+    check_schema::<StopLiveSessionOutput>(&baseline, stringify!(StopLiveSessionOutput));
+    check_schema::<LiveIngressView>(&baseline, stringify!(LiveIngressView));
+    check_schema::<LiveVideoView>(&baseline, stringify!(LiveVideoView));
+    check_schema::<LiveTransport>(&baseline, stringify!(LiveTransport));
+    check_schema::<LiveSessionLifecycle>(&baseline, stringify!(LiveSessionLifecycle));
+    check_schema::<LiveRecordingLifecycle>(&baseline, stringify!(LiveRecordingLifecycle));
+    check_schema::<LiveRecordingOutputView>(&baseline, stringify!(LiveRecordingOutputView));
+    check_schema::<LiveSessionView>(&baseline, stringify!(LiveSessionView));
+    check_schema::<LiveSessionsPage>(&baseline, stringify!(LiveSessionsPage));
 }

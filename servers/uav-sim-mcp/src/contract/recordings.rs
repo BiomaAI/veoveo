@@ -95,14 +95,9 @@ struct RecordingStateWire {
     started_at: DateTime<Utc>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+#[error("UAV recording catalog state and identity disagree")]
 pub struct RecordingCatalogError;
-impl std::fmt::Display for RecordingCatalogError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("UAV recording catalog state and identity disagree")
-    }
-}
-impl std::error::Error for RecordingCatalogError {}
 
 impl TryFrom<RecordingStateWire> for RecordingState {
     type Error = RecordingCatalogError;

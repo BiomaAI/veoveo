@@ -225,25 +225,21 @@ async fn native_selected_plan_metadata_and_grant_profile_fail_closed() {
         let record_id = scoped_record_id("uav_vehicle_mission_plan", &pilot, plan.plan_id.as_str());
         let good = authority.plan_record(&record_id).await.unwrap();
         assert_eq!(plan_view(&good).unwrap(), plan);
-        let mut bad = Vec::new();
-        macro_rules! corrupt {
-            ($field:ident, $value:expr) => {{
-                let mut row = good.clone(); row.$field = $value; bad.push(row);
-            }};
-        }
-        corrupt!(plan_id, "different".into());
-        corrupt!(mission_id, "different".into());
-        corrupt!(principal_key, "different".into());
-        corrupt!(session_id, "different".into());
-        corrupt!(vehicle_id, "different".into());
-        corrupt!(map_route_uri, "map://route/different".into());
-        corrupt!(map_route_digest_sha256, "b".repeat(64));
-        corrupt!(map_mobility_profile_uri, "map://mobility-profile/invalid/1".into());
-        corrupt!(state, "executing".into());
-        corrupt!(revision, 1);
-        corrupt!(expires_at, good.expires_at + Duration::seconds(1));
-        corrupt!(created_at, good.created_at + Duration::seconds(1));
-        corrupt!(updated_at, good.updated_at + Duration::seconds(1));
+        let bad = [
+            corrupted(&good, |row| row.plan_id = "different".into()),
+            corrupted(&good, |row| row.mission_id = "different".into()),
+            corrupted(&good, |row| row.principal_key = "different".into()),
+            corrupted(&good, |row| row.session_id = "different".into()),
+            corrupted(&good, |row| row.vehicle_id = "different".into()),
+            corrupted(&good, |row| row.map_route_uri = "map://route/different".into()),
+            corrupted(&good, |row| row.map_route_digest_sha256 = "b".repeat(64)),
+            corrupted(&good, |row| row.map_mobility_profile_uri = "map://mobility-profile/invalid/1".into()),
+            corrupted(&good, |row| row.state = "executing".into()),
+            corrupted(&good, |row| row.revision = 1),
+            corrupted(&good, |row| row.expires_at = good.expires_at + Duration::seconds(1)),
+            corrupted(&good, |row| row.created_at = good.created_at + Duration::seconds(1)),
+            corrupted(&good, |row| row.updated_at = good.updated_at + Duration::seconds(1)),
+        ];
         for row in bad { assert!(plan_view(&row).is_err()); }
         let mut wrong_id = good.clone();
         wrong_id.id = RecordId::new("uav_vehicle_mission_plan", "wrong");
@@ -261,4 +257,10 @@ async fn native_selected_plan_metadata_and_grant_profile_fail_closed() {
         assert!(authority.grants_page(&pilot, false, None, None).await.is_err());
         assert!(authority.grants_page(&peer, false, None, None).await.unwrap().items.is_empty());
     }).await.expect("retained Map metadata qualification exceeded 60 seconds");
+}
+
+fn corrupted<T: Clone>(good: &T, update: impl FnOnce(&mut T)) -> T {
+    let mut row = good.clone();
+    update(&mut row);
+    row
 }

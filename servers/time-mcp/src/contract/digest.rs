@@ -1,5 +1,5 @@
 //! Time's bare-hexadecimal wire adapter over the foundational SHA-256 value.
-use std::{borrow::Cow, error::Error, fmt, str::FromStr};
+use std::{borrow::Cow, fmt, str::FromStr};
 
 use schemars::{JsonSchema, Schema, SchemaGenerator};
 use serde::{Deserialize, Serialize};
@@ -88,13 +88,6 @@ impl JsonSchema for AuthoritySourceDigest {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("authority source digest must contain 64 hexadecimal digits")]
 pub struct AuthoritySourceDigestError;
-
-impl fmt::Display for AuthoritySourceDigestError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("authority source digest must contain 64 hexadecimal digits")
-    }
-}
-
-impl Error for AuthoritySourceDigestError {}

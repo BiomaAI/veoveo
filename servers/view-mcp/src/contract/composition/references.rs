@@ -32,15 +32,31 @@ pub enum GovernedResourceUri {
 impl GovernedResourceUri {
     pub fn parse(value: impl AsRef<str>) -> Result<Self, SceneCompositionError> {
         let value = value.as_ref();
-        macro_rules! admit {
-            ($($ty:ty => $variant:ident),+ $(,)?) => {
-                $(if let Ok(address) = <$ty>::parse(value) { return Ok(Self::$variant(address)); })+
-            };
+
+        if let Ok(address) = ArtifactUri::parse(value) {
+            return Ok(Self::Artifact(address));
         }
-        admit!(ArtifactUri => Artifact, MapSourceFeatureUri => SourceFeature,
-            MapRasterUri => Raster, MapRasterDerivationUri => RasterDerivation,
-            MapSpatialDerivationUri => SpatialDerivation, MapRouteUri => Route,
-            RecordingUri => Recording, FrameOperationUri => FrameOperation);
+        if let Ok(address) = MapSourceFeatureUri::parse(value) {
+            return Ok(Self::SourceFeature(address));
+        }
+        if let Ok(address) = MapRasterUri::parse(value) {
+            return Ok(Self::Raster(address));
+        }
+        if let Ok(address) = MapRasterDerivationUri::parse(value) {
+            return Ok(Self::RasterDerivation(address));
+        }
+        if let Ok(address) = MapSpatialDerivationUri::parse(value) {
+            return Ok(Self::SpatialDerivation(address));
+        }
+        if let Ok(address) = MapRouteUri::parse(value) {
+            return Ok(Self::Route(address));
+        }
+        if let Ok(address) = RecordingUri::parse(value) {
+            return Ok(Self::Recording(address));
+        }
+        if let Ok(address) = FrameOperationUri::parse(value) {
+            return Ok(Self::FrameOperation(address));
+        };
         Err(SceneCompositionError::InvalidGovernedResourceUri)
     }
 

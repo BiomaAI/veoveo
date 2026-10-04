@@ -1,3 +1,12 @@
+fn capture_schema<T: schemars::JsonSchema>(
+    schemas: &mut serde_json::Map<String, serde_json::Value>,
+    name: &str,
+) {
+    schemas.insert(
+        name.into(),
+        serde_json::to_value(schemars::schema_for!(T)).unwrap(),
+    );
+}
 #[path = "contract/recordings.rs"]
 mod recordings;
 #[path = "contract/resources.rs"]
@@ -45,105 +54,130 @@ fn schemas_preserve_the_published_contract() {
     let path =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("testdata/contract.schema.json");
     let mut schemas = serde_json::Map::new();
-    macro_rules! check { ($($ty:ty),+ $(,)?) => { $(schemas.insert(stringify!($ty).into(), serde_json::to_value(schemars::schema_for!($ty)).unwrap());)+ }; }
-    check!(
-        ActiveVehicleGrantsRequest,
-        CameraCodec,
-        CameraEncoder,
-        CameraLifecycle,
-        CameraRenderPoseState,
-        CameraState,
-        CameraTransport,
-        CaptureDatasetRequest,
-        CaptureDatasetResult,
-        CloseLiveViewRequest,
-        CloseLiveViewResult,
-        CollectionPage<VehicleMissionPlan>,
-        CommandAcknowledgement,
-        ConfigureWorldOutput,
-        ConfigureWorldRequest,
-        ControlGrantId,
-        DurableOperation,
-        DurableOperationResult,
-        EnuDirection,
-        EnuVector,
-        ExecuteMissionRequest,
-        ExecuteVehicleMissionPlanRequest,
-        GrantVehicleControlRequest,
-        MissionId,
-        MissionLifecycle,
-        MissionPlanId,
-        MissionPlanLifecycle,
-        MissionResult,
-        MissionWaypoint,
-        NedVector,
-        OpenLiveViewRequest,
-        PrepareVehicleMissionRequest,
-        QuaternionXyzw,
-        RecordingCatalogLifecycle,
-        RecordingKey,
-        RecordingPublisherLifecycle,
-        RecordingState,
-        RenewLiveViewRequest,
-        RevokeVehicleControlRequest,
-        RunScenarioRequest,
-        RuntimeTimingState,
-        ScenarioResult,
-        SessionId,
-        SessionRequest,
-        SimulationCommand,
-        SimulationLifecycle,
-        SimulationState,
-        SimulationWorldBinding,
-        StepSimulationRequest,
-        TakeoffRequest,
-        TileFailureCode,
-        TileFailureState,
-        TileLifecycle,
-        TileLoadType,
-        TileState,
-        VehicleControlGrant,
-        VehicleControlPermission,
-        VehicleFlightState,
-        VehicleId,
-        VehicleMission,
-        VehicleMissionPlan,
-        VehicleRequest,
-        VehicleState,
-        LiveCameraDescriptor,
-        LiveCameraHealth,
-        LiveCameraId,
-        LiveCameraRegion,
-        LiveCameraRig,
-        LiveCameraSmoothing,
-        LiveCameraSource,
-        LiveCameraStreamPolicy,
-        LiveColorMatrix,
-        LiveColorMetadata,
-        LiveColorPrimaries,
-        LiveColorRange,
-        LiveColorTransfer,
-        LiveEntityId,
-        LiveMediaEndpoint,
-        LiveMediaTransport,
-        LivePose,
-        LiveQuaternionXyzw,
-        LiveSessionId,
-        LiveStreamProductId,
-        LiveStreamProductLifecycle,
-        LiveStreamProductState,
-        LiveVector3,
-        LiveViewAccessToken,
-        LiveViewCodec,
-        LiveViewConnection,
-        LiveViewHardwareEncoder,
-        LiveViewId,
-        LiveViewLifecycle,
-        LiveViewOwner,
-        LiveViewState,
-        LiveViewUri,
-        LiveViewerInstanceId,
+
+    capture_schema::<ActiveVehicleGrantsRequest>(
+        &mut schemas,
+        stringify!(ActiveVehicleGrantsRequest),
     );
+    capture_schema::<CameraCodec>(&mut schemas, stringify!(CameraCodec));
+    capture_schema::<CameraEncoder>(&mut schemas, stringify!(CameraEncoder));
+    capture_schema::<CameraLifecycle>(&mut schemas, stringify!(CameraLifecycle));
+    capture_schema::<CameraRenderPoseState>(&mut schemas, stringify!(CameraRenderPoseState));
+    capture_schema::<CameraState>(&mut schemas, stringify!(CameraState));
+    capture_schema::<CameraTransport>(&mut schemas, stringify!(CameraTransport));
+    capture_schema::<CaptureDatasetRequest>(&mut schemas, stringify!(CaptureDatasetRequest));
+    capture_schema::<CaptureDatasetResult>(&mut schemas, stringify!(CaptureDatasetResult));
+    capture_schema::<CloseLiveViewRequest>(&mut schemas, stringify!(CloseLiveViewRequest));
+    capture_schema::<CloseLiveViewResult>(&mut schemas, stringify!(CloseLiveViewResult));
+    capture_schema::<CollectionPage<VehicleMissionPlan>>(
+        &mut schemas,
+        stringify!(CollectionPage<VehicleMissionPlan>),
+    );
+    capture_schema::<CommandAcknowledgement>(&mut schemas, stringify!(CommandAcknowledgement));
+    capture_schema::<ConfigureWorldOutput>(&mut schemas, stringify!(ConfigureWorldOutput));
+    capture_schema::<ConfigureWorldRequest>(&mut schemas, stringify!(ConfigureWorldRequest));
+    capture_schema::<ControlGrantId>(&mut schemas, stringify!(ControlGrantId));
+    capture_schema::<DurableOperation>(&mut schemas, stringify!(DurableOperation));
+    capture_schema::<DurableOperationResult>(&mut schemas, stringify!(DurableOperationResult));
+    capture_schema::<EnuDirection>(&mut schemas, stringify!(EnuDirection));
+    capture_schema::<EnuVector>(&mut schemas, stringify!(EnuVector));
+    capture_schema::<ExecuteMissionRequest>(&mut schemas, stringify!(ExecuteMissionRequest));
+    capture_schema::<ExecuteVehicleMissionPlanRequest>(
+        &mut schemas,
+        stringify!(ExecuteVehicleMissionPlanRequest),
+    );
+    capture_schema::<GrantVehicleControlRequest>(
+        &mut schemas,
+        stringify!(GrantVehicleControlRequest),
+    );
+    capture_schema::<MissionId>(&mut schemas, stringify!(MissionId));
+    capture_schema::<MissionLifecycle>(&mut schemas, stringify!(MissionLifecycle));
+    capture_schema::<MissionPlanId>(&mut schemas, stringify!(MissionPlanId));
+    capture_schema::<MissionPlanLifecycle>(&mut schemas, stringify!(MissionPlanLifecycle));
+    capture_schema::<MissionResult>(&mut schemas, stringify!(MissionResult));
+    capture_schema::<MissionWaypoint>(&mut schemas, stringify!(MissionWaypoint));
+    capture_schema::<NedVector>(&mut schemas, stringify!(NedVector));
+    capture_schema::<OpenLiveViewRequest>(&mut schemas, stringify!(OpenLiveViewRequest));
+    capture_schema::<PrepareVehicleMissionRequest>(
+        &mut schemas,
+        stringify!(PrepareVehicleMissionRequest),
+    );
+    capture_schema::<QuaternionXyzw>(&mut schemas, stringify!(QuaternionXyzw));
+    capture_schema::<RecordingCatalogLifecycle>(
+        &mut schemas,
+        stringify!(RecordingCatalogLifecycle),
+    );
+    capture_schema::<RecordingKey>(&mut schemas, stringify!(RecordingKey));
+    capture_schema::<RecordingPublisherLifecycle>(
+        &mut schemas,
+        stringify!(RecordingPublisherLifecycle),
+    );
+    capture_schema::<RecordingState>(&mut schemas, stringify!(RecordingState));
+    capture_schema::<RenewLiveViewRequest>(&mut schemas, stringify!(RenewLiveViewRequest));
+    capture_schema::<RevokeVehicleControlRequest>(
+        &mut schemas,
+        stringify!(RevokeVehicleControlRequest),
+    );
+    capture_schema::<RunScenarioRequest>(&mut schemas, stringify!(RunScenarioRequest));
+    capture_schema::<RuntimeTimingState>(&mut schemas, stringify!(RuntimeTimingState));
+    capture_schema::<ScenarioResult>(&mut schemas, stringify!(ScenarioResult));
+    capture_schema::<SessionId>(&mut schemas, stringify!(SessionId));
+    capture_schema::<SessionRequest>(&mut schemas, stringify!(SessionRequest));
+    capture_schema::<SimulationCommand>(&mut schemas, stringify!(SimulationCommand));
+    capture_schema::<SimulationLifecycle>(&mut schemas, stringify!(SimulationLifecycle));
+    capture_schema::<SimulationState>(&mut schemas, stringify!(SimulationState));
+    capture_schema::<SimulationWorldBinding>(&mut schemas, stringify!(SimulationWorldBinding));
+    capture_schema::<StepSimulationRequest>(&mut schemas, stringify!(StepSimulationRequest));
+    capture_schema::<TakeoffRequest>(&mut schemas, stringify!(TakeoffRequest));
+    capture_schema::<TileFailureCode>(&mut schemas, stringify!(TileFailureCode));
+    capture_schema::<TileFailureState>(&mut schemas, stringify!(TileFailureState));
+    capture_schema::<TileLifecycle>(&mut schemas, stringify!(TileLifecycle));
+    capture_schema::<TileLoadType>(&mut schemas, stringify!(TileLoadType));
+    capture_schema::<TileState>(&mut schemas, stringify!(TileState));
+    capture_schema::<VehicleControlGrant>(&mut schemas, stringify!(VehicleControlGrant));
+    capture_schema::<VehicleControlPermission>(&mut schemas, stringify!(VehicleControlPermission));
+    capture_schema::<VehicleFlightState>(&mut schemas, stringify!(VehicleFlightState));
+    capture_schema::<VehicleId>(&mut schemas, stringify!(VehicleId));
+    capture_schema::<VehicleMission>(&mut schemas, stringify!(VehicleMission));
+    capture_schema::<VehicleMissionPlan>(&mut schemas, stringify!(VehicleMissionPlan));
+    capture_schema::<VehicleRequest>(&mut schemas, stringify!(VehicleRequest));
+    capture_schema::<VehicleState>(&mut schemas, stringify!(VehicleState));
+    capture_schema::<LiveCameraDescriptor>(&mut schemas, stringify!(LiveCameraDescriptor));
+    capture_schema::<LiveCameraHealth>(&mut schemas, stringify!(LiveCameraHealth));
+    capture_schema::<LiveCameraId>(&mut schemas, stringify!(LiveCameraId));
+    capture_schema::<LiveCameraRegion>(&mut schemas, stringify!(LiveCameraRegion));
+    capture_schema::<LiveCameraRig>(&mut schemas, stringify!(LiveCameraRig));
+    capture_schema::<LiveCameraSmoothing>(&mut schemas, stringify!(LiveCameraSmoothing));
+    capture_schema::<LiveCameraSource>(&mut schemas, stringify!(LiveCameraSource));
+    capture_schema::<LiveCameraStreamPolicy>(&mut schemas, stringify!(LiveCameraStreamPolicy));
+    capture_schema::<LiveColorMatrix>(&mut schemas, stringify!(LiveColorMatrix));
+    capture_schema::<LiveColorMetadata>(&mut schemas, stringify!(LiveColorMetadata));
+    capture_schema::<LiveColorPrimaries>(&mut schemas, stringify!(LiveColorPrimaries));
+    capture_schema::<LiveColorRange>(&mut schemas, stringify!(LiveColorRange));
+    capture_schema::<LiveColorTransfer>(&mut schemas, stringify!(LiveColorTransfer));
+    capture_schema::<LiveEntityId>(&mut schemas, stringify!(LiveEntityId));
+    capture_schema::<LiveMediaEndpoint>(&mut schemas, stringify!(LiveMediaEndpoint));
+    capture_schema::<LiveMediaTransport>(&mut schemas, stringify!(LiveMediaTransport));
+    capture_schema::<LivePose>(&mut schemas, stringify!(LivePose));
+    capture_schema::<LiveQuaternionXyzw>(&mut schemas, stringify!(LiveQuaternionXyzw));
+    capture_schema::<LiveSessionId>(&mut schemas, stringify!(LiveSessionId));
+    capture_schema::<LiveStreamProductId>(&mut schemas, stringify!(LiveStreamProductId));
+    capture_schema::<LiveStreamProductLifecycle>(
+        &mut schemas,
+        stringify!(LiveStreamProductLifecycle),
+    );
+    capture_schema::<LiveStreamProductState>(&mut schemas, stringify!(LiveStreamProductState));
+    capture_schema::<LiveVector3>(&mut schemas, stringify!(LiveVector3));
+    capture_schema::<LiveViewAccessToken>(&mut schemas, stringify!(LiveViewAccessToken));
+    capture_schema::<LiveViewCodec>(&mut schemas, stringify!(LiveViewCodec));
+    capture_schema::<LiveViewConnection>(&mut schemas, stringify!(LiveViewConnection));
+    capture_schema::<LiveViewHardwareEncoder>(&mut schemas, stringify!(LiveViewHardwareEncoder));
+    capture_schema::<LiveViewId>(&mut schemas, stringify!(LiveViewId));
+    capture_schema::<LiveViewLifecycle>(&mut schemas, stringify!(LiveViewLifecycle));
+    capture_schema::<LiveViewOwner>(&mut schemas, stringify!(LiveViewOwner));
+    capture_schema::<LiveViewState>(&mut schemas, stringify!(LiveViewState));
+    capture_schema::<LiveViewUri>(&mut schemas, stringify!(LiveViewUri));
+    capture_schema::<LiveViewerInstanceId>(&mut schemas, stringify!(LiveViewerInstanceId));
     if std::env::var_os("VEOVEO_UPDATE_UAV_CONTRACT_SCHEMA").is_some() {
         std::fs::write(
             &path,

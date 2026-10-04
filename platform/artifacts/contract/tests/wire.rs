@@ -1,3 +1,12 @@
+fn capture_schema<T: schemars::JsonSchema>(
+    schemas: &mut serde_json::Map<String, serde_json::Value>,
+    name: &str,
+) {
+    schemas.insert(
+        name.into(),
+        serde_json::to_value(schemars::schema_for!(T)).unwrap(),
+    );
+}
 use serde_json::{Value, json};
 use veoveo_artifact_contract::{
     ArtifactId, ArtifactMetadata, ArtifactProvenance, ArtifactReleaseState, ComplianceMetadata,
@@ -98,15 +107,11 @@ fn artifact_metadata_preserves_nested_identity_and_attribution() {
 fn schemas_match_the_published_contract() {
     let expected: Value = serde_json::from_str(include_str!("fixtures/schemas.json")).unwrap();
     let mut schemas = serde_json::Map::new();
-    macro_rules! capture {
-        ($($name:ty),+) => { $(schemas.insert(stringify!($name).into(), serde_json::to_value(schemars::schema_for!($name)).unwrap());)+ };
-    }
-    capture!(
-        ArtifactId,
-        ArtifactMetadata,
-        ArtifactProvenance,
-        ArtifactReleaseState,
-        ComplianceMetadata
-    );
+
+    capture_schema::<ArtifactId>(&mut schemas, stringify!(ArtifactId));
+    capture_schema::<ArtifactMetadata>(&mut schemas, stringify!(ArtifactMetadata));
+    capture_schema::<ArtifactProvenance>(&mut schemas, stringify!(ArtifactProvenance));
+    capture_schema::<ArtifactReleaseState>(&mut schemas, stringify!(ArtifactReleaseState));
+    capture_schema::<ComplianceMetadata>(&mut schemas, stringify!(ComplianceMetadata));
     assert_eq!(Value::Object(schemas), expected);
 }

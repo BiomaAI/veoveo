@@ -111,14 +111,11 @@ impl JsonSchema for DuckDbDatabaseId {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error(
+    "expected a DuckDB database ID of 1..=64 lowercase ASCII letters, digits or underscores, starting with a letter"
+)]
 pub struct DuckDbDatabaseIdError;
-impl fmt::Display for DuckDbDatabaseIdError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("expected a DuckDB database ID of 1..=64 lowercase ASCII letters, digits or underscores, starting with a letter")
-    }
-}
-impl std::error::Error for DuckDbDatabaseIdError {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "mode", rename_all = "snake_case", deny_unknown_fields)]

@@ -1,20 +1,11 @@
-use std::{error::Error, fmt};
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::{EffectiveTimeAuthority, TimeInstant};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("resolved instant and effective authority must use the same releases")]
 pub struct ResolutionAuthorityMismatch;
-
-impl fmt::Display for ResolutionAuthorityMismatch {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("resolved instant and effective authority must use the same releases")
-    }
-}
-
-impl Error for ResolutionAuthorityMismatch {}
 
 /// Representations computed by the temporal engine from its loaded authority data.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

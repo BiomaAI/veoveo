@@ -1,6 +1,6 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::{fmt, str::FromStr};
+use std::str::FromStr;
 use veoveo_types::{
     ResourceAddress, ResourceUri, ResourceUriBuilder, ResourceUriParts, UriSegment,
 };
@@ -79,14 +79,9 @@ pub enum ObservatoryResource {
     Reading(ReadingId),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("expected an Observatory resource with a valid reading ID and no query or escaped alias")]
 pub struct ObservatoryAddressError;
-impl fmt::Display for ObservatoryAddressError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("expected an Observatory resource with a valid reading ID and no query or escaped alias")
-    }
-}
-impl std::error::Error for ObservatoryAddressError {}
 
 impl ResourceAddress for ObservatoryResource {
     type Error = ObservatoryAddressError;

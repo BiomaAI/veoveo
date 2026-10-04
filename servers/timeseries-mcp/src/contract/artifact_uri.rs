@@ -73,11 +73,6 @@ impl From<TimeseriesArtifactUri> for String {
         value.wire.to_string()
     }
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("invalid Timeseries artifact URI")]
 pub struct TimeseriesArtifactUriError;
-impl fmt::Display for TimeseriesArtifactUriError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("invalid Timeseries artifact URI")
-    }
-}
-impl std::error::Error for TimeseriesArtifactUriError {}

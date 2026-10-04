@@ -1,32 +1,21 @@
+fn check_schema<T: schemars::JsonSchema>(baseline: &serde_json::Value, name: &str) {
+    assert_eq!(
+        serde_json::to_value(schemars::schema_for!(T)).unwrap(),
+        baseline[name],
+        "{name}"
+    );
+}
 #[test]
 fn coordinate_contract_schemas_preserve_published_wire_shapes() {
     let baseline: serde_json::Value =
         serde_json::from_str(include_str!("../testdata/coordinate-contract.schema.json")).unwrap();
-    macro_rules! check {
-        ($ty:ty, $name:literal) => {
-            assert_eq!(
-                serde_json::to_value(schemars::schema_for!($ty)).unwrap(),
-                baseline[$name],
-                "{}",
-                $name
-            );
-        };
-    }
-    check!(veoveo_map_mcp::contract::CrsId, "CrsId");
-    check!(veoveo_map_mcp::contract::DatumId, "DatumId");
-    check!(veoveo_map_mcp::contract::EllipsoidId, "EllipsoidId");
-    check!(
-        veoveo_map_mcp::contract::ProjectedPosition,
-        "ProjectedPosition"
-    );
-    check!(
-        veoveo_map_mcp::contract::TransformCrsOutput,
-        "TransformCrsOutput"
-    );
-    check!(
-        veoveo_map_mcp::contract::TransformCrsRequest,
-        "TransformCrsRequest"
-    );
+
+    check_schema::<veoveo_map_mcp::contract::CrsId>(&baseline, "CrsId");
+    check_schema::<veoveo_map_mcp::contract::DatumId>(&baseline, "DatumId");
+    check_schema::<veoveo_map_mcp::contract::EllipsoidId>(&baseline, "EllipsoidId");
+    check_schema::<veoveo_map_mcp::contract::ProjectedPosition>(&baseline, "ProjectedPosition");
+    check_schema::<veoveo_map_mcp::contract::TransformCrsOutput>(&baseline, "TransformCrsOutput");
+    check_schema::<veoveo_map_mcp::contract::TransformCrsRequest>(&baseline, "TransformCrsRequest");
 }
 
 #[test]

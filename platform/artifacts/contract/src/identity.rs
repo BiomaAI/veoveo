@@ -21,10 +21,9 @@ use serde::{Deserialize, Serialize};
 #[id(error = ArtifactIdError, admit = admit_artifact_id, constructor = parse, wire_string, generate = uuid::Uuid::now_v7)]
 pub struct ArtifactId(uuid::Uuid);
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("artifact id must be a UUIDv7")]
 pub struct ArtifactIdError;
-
-impl std::error::Error for ArtifactIdError {}
 
 impl ArtifactId {
     pub fn as_uuid(self) -> uuid::Uuid {
@@ -61,12 +60,6 @@ pub fn parse_artifact_plane_uri(uri: &str) -> Option<ArtifactId> {
 fn admit_artifact_id(value: &str) -> Result<uuid::Uuid, ArtifactIdError> {
     let uuid = uuid::Uuid::parse_str(value).map_err(|_| ArtifactIdError)?;
     ArtifactId::try_from(uuid).map(|id| id.0)
-}
-
-impl std::fmt::Display for ArtifactIdError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("artifact id must be a UUIDv7")
-    }
 }
 
 #[cfg(test)]

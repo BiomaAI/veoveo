@@ -1,12 +1,18 @@
 use anyhow::Result;
 
 use crate::{
-    commands::{doc_links, identifiers as identifier_policy, python as python_package},
+    commands::{
+        doc_links, identifiers as identifier_policy, macro_policy, python as python_package,
+    },
     context::RepositoryContext,
     process,
 };
 
-pub(crate) fn rust(repository: &RepositoryContext) -> Result<()> {
+pub(crate) fn rust(repository: &RepositoryContext, macros_only: bool) -> Result<()> {
+    macro_policy::enforce(repository)?;
+    if macros_only {
+        return Ok(());
+    }
     let root = Some(repository.root());
     process::cargo_status(["fmt", "--all", "--", "--check"], root)?;
     process::cargo_status(

@@ -19,6 +19,7 @@ required-features = ["contract"]
 [features]
 default = ["mcp"]
 contract = [
+    "dep:thiserror",
     "dep:veoveo-frames-contract",
     "dep:veoveo-types",
     "dep:veoveo-artifact-contract",
@@ -59,6 +60,7 @@ mcp = [
 ]
 
 [dependencies]
+thiserror = { workspace = true, optional = true }
 veoveo-frames-contract = { workspace = true, optional = true }
 veoveo-map-mcp = { path = "../map-mcp", default-features = false, features = ["contract"], optional = true }
 veoveo-artifact-contract = { workspace = true, optional = true }

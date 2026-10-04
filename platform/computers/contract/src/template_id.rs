@@ -58,11 +58,8 @@ impl JsonSchema for TemplateId {
         })
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+#[error(
+    "expected a Computer template name of 1–64 lowercase ASCII letters, digits or hyphens, beginning with a letter or digit"
+)]
 pub struct TemplateIdError;
-impl fmt::Display for TemplateIdError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("expected a Computer template name of 1–64 lowercase ASCII letters, digits or hyphens, beginning with a letter or digit")
-    }
-}
-impl std::error::Error for TemplateIdError {}

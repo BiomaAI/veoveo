@@ -17,15 +17,9 @@ pub struct FrameWorldPage {
     pub next_cursor: Option<FrameWorldCursor>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("expected a Frames world collection address with an optional valid v1 cursor")]
 pub struct FrameCatalogError;
-
-impl fmt::Display for FrameCatalogError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("expected a Frames world collection address with an optional valid v1 cursor")
-    }
-}
-impl std::error::Error for FrameCatalogError {}
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

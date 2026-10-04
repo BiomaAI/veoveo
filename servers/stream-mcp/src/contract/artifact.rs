@@ -22,14 +22,9 @@ static SCHEME: LazyLock<ResourceScheme> =
 #[serde(try_from = "String", into = "String")]
 pub struct StreamArtifactUri(ArtifactUri);
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
+#[error("expected a Stream Artifact URI with a UUIDv7 occurrence")]
 pub struct StreamArtifactUriError;
-impl fmt::Display for StreamArtifactUriError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("expected a Stream Artifact URI with a UUIDv7 occurrence")
-    }
-}
-impl std::error::Error for StreamArtifactUriError {}
 
 impl StreamArtifactUri {
     pub fn new(id: ArtifactId) -> Self {
