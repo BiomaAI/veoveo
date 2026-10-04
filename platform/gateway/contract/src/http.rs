@@ -29,7 +29,7 @@ pub enum UpstreamTransportSecurity {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case", tag = "source")]
+#[serde(rename_all = "snake_case", tag = "source", deny_unknown_fields)]
 pub enum CertificateAuthoritySource {
     File { path: CertificateAuthorityFilePath },
 }

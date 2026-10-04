@@ -8,11 +8,26 @@ use super::{ComponentId, ComponentRole, ObjectIdentity};
 use crate::{DeploymentProfile, DeploymentSourceRole};
 
 /// Repository whose immutable revision supplies the component declaration.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum ComponentOwner {
     Source { name: String },
     Installation,
+}
+
+impl<'de> Deserialize<'de> for ComponentOwner {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+        enum Wire {
+            Source { name: String },
+            Installation {},
+        }
+        Ok(match Wire::deserialize(deserializer)? {
+            Wire::Source { name } => Self::Source { name },
+            Wire::Installation {} => Self::Installation,
+        })
+    }
 }
 
 /// Installation operations that must have an owner before component selection.
@@ -338,6 +353,19 @@ pub fn required_installation_inputs(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn installation_owner_rejects_unknown_fields_and_preserves_wire() {
+        let valid = serde_json::json!({"kind": "installation"});
+        let owner = serde_json::from_value::<ComponentOwner>(valid.clone()).unwrap();
+        assert_eq!(owner, ComponentOwner::Installation);
+        assert_eq!(serde_json::to_value(owner).unwrap(), valid);
+        let error = serde_json::from_value::<ComponentOwner>(
+            serde_json::json!({"kind": "installation", "name": "ignored"}),
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("name"));
+    }
+
     use super::*;
 
     #[test]

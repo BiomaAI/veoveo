@@ -520,7 +520,7 @@ pub enum GpuAllocatorMaturityAcceptance {
 }
 
 /// Authorized removal of a conflicting NVIDIA device plugin from DRA-owned nodes.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 #[serde(tag = "mode", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum ConflictingGpuDevicePluginRemoval {
     /// The installation guarantees that no device plugin runs on selected nodes.
@@ -533,6 +533,38 @@ pub enum ConflictingGpuDevicePluginRemoval {
         release_name: String,
         expected_chart_version: String,
     },
+}
+
+impl<'de> Deserialize<'de> for ConflictingGpuDevicePluginRemoval {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(tag = "mode", rename_all = "kebab-case", deny_unknown_fields)]
+        enum Wire {
+            RequireAbsent {},
+            DeleteDaemonSet {
+                namespace: String,
+                name: String,
+            },
+            UninstallHelmRelease {
+                namespace: String,
+                release_name: String,
+                expected_chart_version: String,
+            },
+        }
+        Ok(match Wire::deserialize(deserializer)? {
+            Wire::RequireAbsent {} => Self::RequireAbsent,
+            Wire::DeleteDaemonSet { namespace, name } => Self::DeleteDaemonSet { namespace, name },
+            Wire::UninstallHelmRelease {
+                namespace,
+                release_name,
+                expected_chart_version,
+            } => Self::UninstallHelmRelease {
+                namespace,
+                release_name,
+                expected_chart_version,
+            },
+        })
+    }
 }
 
 /// Complete managed installation of the qualified NVIDIA GPU DRA driver.
@@ -2360,6 +2392,20 @@ fn require_file(path: &Path, kind: &str) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn absent_device_plugin_configuration_rejects_unknown_fields_and_preserves_wire() {
+        let valid = serde_json::json!({"mode": "require-absent"});
+        let removal =
+            serde_json::from_value::<ConflictingGpuDevicePluginRemoval>(valid.clone()).unwrap();
+        assert_eq!(removal, ConflictingGpuDevicePluginRemoval::RequireAbsent);
+        assert_eq!(serde_json::to_value(removal).unwrap(), valid);
+        let error = serde_json::from_value::<ConflictingGpuDevicePluginRemoval>(
+            serde_json::json!({"mode": "require-absent", "namespace": "ignored"}),
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("namespace"));
+    }
+
     use std::{
         collections::{BTreeMap, BTreeSet},
         fs,

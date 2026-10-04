@@ -9,6 +9,7 @@ use veoveo_types::ResourceTemplateUri;
 use super::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct PolicySet {
     pub version: PolicyVersion,
     pub rules: Vec<PolicyRule>,
@@ -17,6 +18,7 @@ pub struct PolicySet {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct PolicyRule {
     pub id: PolicyRuleId,
     pub effect: PolicyEffect,

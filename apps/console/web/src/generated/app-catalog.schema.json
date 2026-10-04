@@ -77,6 +77,7 @@
       "type": "object"
     },
     "AppResourceDependency": {
+      "additionalProperties": false,
       "description": "One exact cross-server resource family admitted to one owning MCP App.\n\nThe gateway filters these declarations by the active profile, scopes, and\ndata labels before projecting them to a host. The eventual resource read\nstill passes through ordinary gateway resource exposure and policy.",
       "properties": {
         "app_resource": {
@@ -127,6 +128,7 @@
       "type": "string"
     },
     "AppToolDependency": {
+      "additionalProperties": false,
       "description": "One exact cross-server tool set admitted to one owning MCP App.",
       "properties": {
         "app_resource": {
@@ -187,6 +189,7 @@
       "type": "object"
     },
     "AppToolImport": {
+      "additionalProperties": false,
       "properties": {
         "name": {
           "$ref": "#/$defs/LocalToolName",

@@ -24,6 +24,7 @@ pub enum AppResourceOperation {
 /// data labels before projecting them to a host. The eventual resource read
 /// still passes through ordinary gateway resource exposure and policy.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct AppResourceDependency {
     pub app_resource: ResourceUri,
     pub server: ServerSlug,
@@ -37,6 +38,7 @@ pub struct AppResourceDependency {
 
 /// One exact cross-server tool set admitted to one owning MCP App.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct AppToolDependency {
     pub app_resource: ResourceUri,
     pub server: ServerSlug,
@@ -47,6 +49,7 @@ pub struct AppToolDependency {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct AppToolImport {
     /// Stable name exposed to the App frame.
     pub name: LocalToolName,

@@ -6,6 +6,7 @@ use serde_json::Value;
 use veoveo_types::{GatewayProfileId, ServerSlug, TenantId};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct SecretReference {
     pub id: SecretReferenceId,
     pub source: SecretSource,
@@ -46,11 +47,30 @@ pub enum SecretPurpose {
     TlsClientPrivateKey,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case", tag = "kind")]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+#[serde(rename_all = "snake_case", tag = "kind", deny_unknown_fields)]
 pub enum SecretOwner {
     Gateway,
     Profile { profile: GatewayProfileId },
     Server { server: ServerSlug },
     Tenant { tenant: TenantId },
+}
+
+impl<'de> Deserialize<'de> for SecretOwner {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "snake_case", tag = "kind", deny_unknown_fields)]
+        enum Wire {
+            Gateway {},
+            Profile { profile: GatewayProfileId },
+            Server { server: ServerSlug },
+            Tenant { tenant: TenantId },
+        }
+        Ok(match Wire::deserialize(deserializer)? {
+            Wire::Gateway {} => Self::Gateway,
+            Wire::Profile { profile } => Self::Profile { profile },
+            Wire::Server { server } => Self::Server { server },
+            Wire::Tenant { tenant } => Self::Tenant { tenant },
+        })
+    }
 }

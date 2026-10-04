@@ -11,6 +11,7 @@ pub const MAX_BRANDING_LOGO_BYTES: usize = 128 * 1024;
 /// clients such as the console. Configured per installation in the control
 /// plane so a rebrand is a config revision, never an image rebuild.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct InstallationBranding {
     /// Installation display name shown in window titles and chrome.
     pub name: String,

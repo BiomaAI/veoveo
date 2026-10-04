@@ -27,6 +27,7 @@ pub struct ServerPublicEndpoint {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct SelfHostedDeploymentPlan {
     pub profiles: Vec<SelfHostedDeploymentProfile>,
 }
@@ -36,6 +37,7 @@ pub struct SelfHostedDeploymentPlan {
 /// Tenants are internal isolation boundaries inside this installation. This is
 /// deliberately not a vendor-hosted or multi-customer control-plane model.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct SelfHostedDeploymentProfile {
     pub id: DeploymentProfileId,
     pub installation_scope: InstallationScope,
@@ -70,6 +72,7 @@ pub enum ConnectivityMode {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct TenantModel {
     pub kind: TenantModelKind,
     pub tenant_keys_are_installation_local: bool,
@@ -101,6 +104,7 @@ pub enum DeploymentServiceKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct PlatformStoreDeployment {
     pub engine: PlatformStoreEngine,
     pub version: SurrealDbVersion,
@@ -157,6 +161,7 @@ pub enum LiveQueryRole {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ObjectStoreDeployment {
     pub kind: ObjectStoreKind,
     pub endpoint: DeploymentEndpoint,
@@ -173,6 +178,7 @@ pub enum ObjectStoreKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct AnalyticalRuntimeDeployment {
     pub engine: AnalyticalRuntimeEngine,
     pub purpose: AnalyticalRuntimePurpose,
@@ -202,6 +208,7 @@ pub enum ExternalDataAccess {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct IngressDeployment {
     pub kind: IngressKind,
     pub public_base_url: DeploymentEndpoint,
@@ -216,6 +223,7 @@ pub enum IngressKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct IdentityProviderDeployment {
     pub kind: IdentityProviderKind,
     pub issuer: DeploymentEndpoint,
@@ -229,6 +237,7 @@ pub enum IdentityProviderKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct SecretManagerDeployment {
     pub kind: SecretManagerKind,
     pub existing_secret_name: String,
@@ -243,6 +252,7 @@ pub enum SecretManagerKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ServiceToServiceSecurity {
     pub gateway_identity: GatewayToServerIdentity,
     pub transport: ServiceToServiceTransport,
@@ -263,6 +273,7 @@ pub enum ServiceToServiceTransport {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct TelemetryDeployment {
     pub collector: TelemetryCollectorKind,
     pub endpoint: DeploymentEndpoint,
@@ -289,6 +300,7 @@ pub enum TelemetrySignal {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct DataRetentionPolicy {
     pub task_metadata_days: u32,
     pub artifact_metadata_days: u32,

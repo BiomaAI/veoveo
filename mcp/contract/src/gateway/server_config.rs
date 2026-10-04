@@ -7,6 +7,7 @@ use serde_json::Value;
 use super::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ServerManifest {
     pub slug: ServerSlug,
     pub uri_scheme: ResourceScheme,
@@ -53,6 +54,7 @@ pub enum ResourceProjectionMode {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct GatewayProfile {
     pub id: GatewayProfileId,
     pub identity_provider: IdentityProviderId,
@@ -83,6 +85,7 @@ pub enum DiscoveryFailureMode {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ProfileServerExposure {
     pub server: ServerSlug,
     pub tools: Exposure<LocalToolName>,
@@ -92,12 +95,34 @@ pub struct ProfileServerExposure {
     pub tasks: TaskExposure,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case", tag = "mode", content = "items")]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+#[serde(
+    rename_all = "snake_case",
+    tag = "mode",
+    content = "items",
+    deny_unknown_fields
+)]
 pub enum Exposure<T> {
     All,
     Listed(Vec<T>),
     None,
+}
+
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for Exposure<T> {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "snake_case", tag = "mode", deny_unknown_fields)]
+        enum Wire<T> {
+            All {},
+            Listed { items: Vec<T> },
+            None {},
+        }
+        Ok(match Wire::deserialize(deserializer)? {
+            Wire::All {} => Self::All,
+            Wire::Listed { items } => Self::Listed(items),
+            Wire::None {} => Self::None,
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -341,6 +366,7 @@ impl From<JwksFilePath> for String {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct UpstreamEndpoint {
     pub transport: UpstreamTransport,
     pub url: UpstreamUrl,
@@ -361,6 +387,7 @@ pub enum UpstreamTransport {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct OwnedRoute {
     pub path: MountPath,
     pub purpose: OwnedRoutePurpose,
@@ -376,6 +403,7 @@ pub enum OwnedRoutePurpose {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct McpSurfaceCapabilities {
     pub tools: bool,
     pub resources: bool,

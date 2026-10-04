@@ -57,6 +57,7 @@ impl WorkContextMembershipLevel {
 
 /// Initial discretionary policy stamped on every output in a Work Context.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct WorkContextGrant {
     pub subject: AccessSubject,
     pub level: AccessLevel,
@@ -64,6 +65,7 @@ pub struct WorkContextGrant {
 
 /// Immutable output defaults resolved with an invocation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct WorkContextOutputPolicy {
     pub owner: AccessSubject,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

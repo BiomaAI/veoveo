@@ -11,6 +11,7 @@ use veoveo_gateway_contract::{
 use veoveo_types::{DataLabelId, OAuthClientId, PolicyVersion, ScopeName, TenantId};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct RecordingIngestResource {
     pub id: ProtectedResourceName,
     pub protected_resource: ProtectedResourceId,
@@ -26,6 +27,7 @@ pub struct RecordingIngestResource {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct RecordingProducerRegistration {
     pub id: RecordingProducerId,
     pub oauth_client: OAuthClientId,
@@ -45,6 +47,7 @@ pub struct RecordingProducerRegistration {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct RecordingProducerBlueprintPolicy {
     pub enabled: bool,
     pub maximum_bytes: u64,
@@ -53,6 +56,7 @@ pub struct RecordingProducerBlueprintPolicy {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct RecordingProducerQuotas {
     pub maximum_concurrent_streams: u32,
     pub maximum_batches_per_minute: u32,
@@ -61,6 +65,7 @@ pub struct RecordingProducerQuotas {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct RecordingRetentionPolicy {
     pub open_stream_days: u32,
 }

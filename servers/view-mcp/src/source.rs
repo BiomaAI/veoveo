@@ -23,11 +23,13 @@ use crate::{
 pub const GOOGLE_P3DT_ROOT_URL: &str = "https://tile.googleapis.com/v1/3dtiles/root.json";
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LayerCatalogFile {
     pub layers: Vec<LayerDefinition>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct LayerDefinition {
     pub layer_id: LayerId,
     pub label: String,
@@ -35,7 +37,7 @@ pub struct LayerDefinition {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum LayerSourceDefinition {
     GooglePhotorealistic {
         #[serde(default = "default_google_root")]
@@ -673,6 +675,27 @@ impl From<reqwest::Error> for SourceError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn layer_catalog_file_rejects_unknown_root_and_nested_fields() {
+        let fixture: serde_json::Value =
+            serde_json::from_slice(include_bytes!("../../../configs/view/layers.json")).unwrap();
+        serde_json::from_value::<LayerCatalogFile>(fixture.clone()).unwrap();
+        for pointer in ["", "/layers/0", "/layers/0/source"] {
+            let mut invalid = fixture.clone();
+            invalid
+                .pointer_mut(pointer)
+                .unwrap()
+                .as_object_mut()
+                .unwrap()
+                .insert("misspelled_config_field".into(), serde_json::json!(true));
+            let error = serde_json::from_value::<LayerCatalogFile>(invalid).unwrap_err();
+            assert!(
+                error.to_string().contains("misspelled_config_field"),
+                "{pointer}: {error}"
+            );
+        }
+    }
 
     #[test]
     fn cache_key_never_contains_google_key() {

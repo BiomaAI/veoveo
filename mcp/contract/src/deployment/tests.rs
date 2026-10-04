@@ -123,3 +123,35 @@ fn canonical_plan() -> SelfHostedDeploymentPlan {
 fn canonical_plan_path() -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../configs/deployments.json")
 }
+
+#[test]
+fn installation_plan_rejects_unknown_root_and_nested_fields() {
+    let fixture = serde_json::to_value(canonical_plan()).unwrap();
+    for pointer in [
+        "",
+        "/profiles/0",
+        "/profiles/0/tenant_model",
+        "/profiles/0/platform_store",
+        "/profiles/0/object_store",
+        "/profiles/0/analytical_runtime",
+        "/profiles/0/ingress",
+        "/profiles/0/identity_provider",
+        "/profiles/0/secret_manager",
+        "/profiles/0/service_to_service",
+        "/profiles/0/telemetry",
+        "/profiles/0/retention",
+    ] {
+        let mut invalid = fixture.clone();
+        invalid
+            .pointer_mut(pointer)
+            .unwrap()
+            .as_object_mut()
+            .unwrap()
+            .insert("misspelled_config_field".into(), serde_json::json!(true));
+        let error = serde_json::from_value::<SelfHostedDeploymentPlan>(invalid).unwrap_err();
+        assert!(
+            error.to_string().contains("misspelled_config_field"),
+            "{pointer}: {error}"
+        );
+    }
+}

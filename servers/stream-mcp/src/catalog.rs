@@ -43,17 +43,46 @@ pub struct PipelineConfig {
     pub live: Option<LivePipelineConfig>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[derive(Clone, Debug)]
 pub enum PipelineProfileConfig {
     PassThrough,
     Perception {
         operation: PerceptionOperation,
         model_id: ModelId,
         inference_config_path: PathBuf,
-        #[serde(default)]
         tracker: Option<TrackerConfig>,
     },
+}
+
+impl<'de> Deserialize<'de> for PipelineProfileConfig {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+        enum Wire {
+            PassThrough {},
+            Perception {
+                operation: PerceptionOperation,
+                model_id: ModelId,
+                inference_config_path: PathBuf,
+                #[serde(default)]
+                tracker: Option<TrackerConfig>,
+            },
+        }
+        Ok(match Wire::deserialize(deserializer)? {
+            Wire::PassThrough {} => Self::PassThrough,
+            Wire::Perception {
+                operation,
+                model_id,
+                inference_config_path,
+                tracker,
+            } => Self::Perception {
+                operation,
+                model_id,
+                inference_config_path,
+                tracker,
+            },
+        })
+    }
 }
 
 impl PipelineProfileConfig {
@@ -764,6 +793,19 @@ mod tests {
         )
         .unwrap_err();
         assert!(error.to_string().contains("queue_capacity"));
+    }
+
+    #[test]
+    fn tagged_pass_through_configuration_rejects_unknown_fields() {
+        assert!(matches!(
+            serde_json::from_str::<PipelineProfileConfig>(r#"{"kind":"pass_through"}"#).unwrap(),
+            PipelineProfileConfig::PassThrough
+        ));
+        let error = serde_json::from_str::<PipelineProfileConfig>(
+            r#"{"kind":"pass_through","model_id":"ignored"}"#,
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("model_id"));
     }
 
     #[test]

@@ -130,3 +130,104 @@ fn core_control_planes_use_exact_list_change_capabilities() {
         }
     }
 }
+
+#[test]
+fn installation_configuration_rejects_unknown_core_and_registered_section_fields() {
+    let fixture: Value = serde_json::from_slice(
+        &fs::read("../../examples/bioma/gateway.json").expect("read Bioma control plane"),
+    )
+    .unwrap();
+    let registry = catalog_registry::registry();
+    serde_json::from_value::<GatewayControlPlane>(fixture.clone())
+        .unwrap()
+        .validate(&registry)
+        .unwrap();
+    for pointer in [
+        "",
+        "/branding",
+        "/identity_providers/0",
+        "/identity_providers/0/jwks",
+        "/identity_providers/0/claim_mapping",
+        "/identity_providers/0/claim_mapping/tenant",
+        "/authorization_servers/0",
+        "/servers/0",
+        "/servers/0/upstream",
+        "/servers/0/capabilities",
+        "/servers/0/owned_routes/0",
+        "/profiles/0",
+        "/profiles/0/servers/0",
+        "/profiles/0/servers/0/tools",
+        "/profiles/0/servers/0/prompts",
+        "/tenants/0",
+        "/policies/0",
+        "/policies/0/rules/0",
+        "/data_labels/0",
+        "/work_contexts/0",
+        "/work_contexts/0/output_policy",
+        "/work_contexts/0/output_policy/initial_grants/0",
+        "/work_contexts/0/memberships/0",
+        "/oauth_clients/0",
+        "/oidc_clients/0",
+        "/secrets/0",
+        "/secrets/0/owner",
+        "/recording_ingest_resources/0",
+        "/recording_ingest_resources/0/upstream",
+        "/recording_ingest_resources/0/producers/0",
+        "/recording_ingest_resources/0/producers/0/quotas",
+        "/recording_ingest_resources/0/producers/0/blueprints",
+        "/recording_ingest_resources/0/producers/0/retention",
+    ] {
+        let mut invalid = fixture.clone();
+        invalid
+            .pointer_mut(pointer)
+            .unwrap_or_else(|| panic!("missing fixture object {pointer}"))
+            .as_object_mut()
+            .unwrap()
+            .insert("misspelled_config_field".into(), Value::Bool(true));
+        let registered_section = pointer.starts_with("/recording_ingest_resources/");
+        if registered_section {
+            let error =
+                serde_json::from_value::<veoveo_recording_contract::RecordingCatalogSection>(
+                    invalid["recording_ingest_resources"].clone(),
+                )
+                .expect_err("registered owner decoder must reject the unknown field");
+            assert!(
+                error.to_string().contains("misspelled_config_field"),
+                "{pointer}: {error}"
+            );
+        }
+        let outcome = serde_json::from_value::<GatewayControlPlane>(invalid)
+            .map_err(|error| error.to_string())
+            .and_then(|control| {
+                control
+                    .validate(&registry)
+                    .map(|_| ())
+                    .map_err(|error| error.to_string())
+            });
+        let error = outcome.expect_err(pointer);
+        if pointer.is_empty() {
+            assert_eq!(error, "unknown or unbound catalog section");
+        } else if registered_section {
+            assert_eq!(error, "extension admission failed");
+        } else {
+            assert!(
+                error.contains("misspelled_config_field"),
+                "{pointer}: {error}"
+            );
+        }
+    }
+}
+
+#[test]
+fn installation_metadata_and_claim_dictionaries_remain_extensible() {
+    let mut fixture: Value =
+        serde_json::from_slice(&fs::read("../../examples/bioma/gateway.json").unwrap()).unwrap();
+    fixture["metadata"]["installation_note"] = serde_json::json!({"custom_field": true});
+    fixture["servers"][0]["metadata"]["custom_field"] = Value::Bool(true);
+    fixture["identity_providers"][0]["claim_mapping"]["tenant"]["values"]["installation-defined-claim"] =
+        Value::String("bioma".into());
+    serde_json::from_value::<GatewayControlPlane>(fixture)
+        .unwrap()
+        .validate(&catalog_registry::registry())
+        .unwrap();
+}

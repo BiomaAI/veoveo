@@ -21,6 +21,7 @@ use veoveo_types::{GroupId, PolicyVersion, PrincipalId, RoleId, TenantId, WorkCo
 /// keeps enterprise role and group vocabulary in deployment configuration,
 /// outside Veoveo's protocol and storage contracts.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct WorkContextMembershipRule {
     pub level: WorkContextMembershipLevel,
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
@@ -51,6 +52,7 @@ impl WorkContextMembershipRule {
 
 /// One configured Work Context.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct WorkContextDefinition {
     pub id: WorkContextId,
     pub tenant: TenantId,
