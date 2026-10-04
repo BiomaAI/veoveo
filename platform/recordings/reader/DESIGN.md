@@ -23,7 +23,10 @@ the actor's tenant and calls the Store's shared Recording read query. SQL requir
 that tenant and all recording labels in the actor's clearance before returning a row.
 The reader then loads a bounded catalog layer set and
 materializes committed layers through the cache. Complete acknowledged live parts are
-copied into task-local storage and rechecked against their captured length and digest.
+opened once and copied into task-local storage through that file handle. Each copy
+is bounded by the admitted file length, inspected for its producer identity and hashed.
+Only one live part handle stays open at a time; large recordings do not require a
+file descriptor for every part.
 The reader then normalizes those copies to the catalog's dataset and Recording IDs.
 Committed codec metadata and live video samples therefore join into one Rerun store
 after segment rollover. The snapshot records the original source bytes and hashes;
@@ -36,14 +39,21 @@ the interval when its final file exists and upload is in progress. The reader ch
 parts-directory confinement even when that final file is present. Hub removes the
 parts after catalog commit; a committed read requires the verified Artifact cache
 lease. The materialized staging file does not replace the acknowledged parts as an
-analysis source.
+analysis source. After copying, the reader rechecks every selected live layer's catalog
+state. A commit can race directory enumeration and produce an incomplete list without
+an I/O error. If a live layer left Writing/Staged, the reader discards that attempt
+and obtains a fresh authorized plan, up to three attempts per request. Missing-file
+errors permit that refresh only when the catalog confirms the transition. Identity,
+byte-limit and other errors fail immediately. Cache leases and temporary copies are
+released between attempts. An unlink after a part is opened cannot interrupt its copy.
 
 `materialize_analysis_snapshot` requires explicit Artifact read authority and a
 positive source-byte limit. A caller must match the recording identity and labels.
 A task capability is checked through Artifact's current scope endpoint before any
 catalog access, including snapshots containing only live ingest parts. Its verified
 principal, tenant and labels must match the durable task owner. The tighter of the
-capability's byte ceiling and the requested source limit applies before live copies.
+capability's byte ceiling and the requested source limit bounds the cumulative source
+bytes; each part's length is admitted before copying it.
 Committed layers also pass the Artifact occurrence checks during materialization.
 
 Stream and Reason persist bounded read capabilities alongside their existing output

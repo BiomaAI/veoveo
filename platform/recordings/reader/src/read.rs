@@ -1,5 +1,7 @@
 use std::collections::BTreeSet;
-use std::path::PathBuf;
+use std::fs::File;
+use std::io::Read;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, ensure};
 use chrono::{DateTime, Utc};
@@ -9,7 +11,7 @@ use veoveo_mcp_contract::{
 };
 use veoveo_platform_store::{
     PrincipalKind as StorePrincipalKind, RecordingDatasetId, RecordingId, RecordingLayerId,
-    RecordingLayerKind, RecordingLayerState, RecordingState,
+    RecordingLayerKind, RecordingLayerState, RecordingState, TenantId as StoreTenantId,
 };
 use veoveo_rrd::ingest_parts::{
     ingest_part_paths, ingest_part_sequence, ingest_segment_parts_directory,
@@ -18,7 +20,7 @@ use veoveo_rrd::segment::inspect_segment;
 use veoveo_types::{DataLabelId, PrincipalId, Sha256Digest, TenantId};
 
 use super::{MAX_LAYERS, RecordingReader};
-use crate::access::{authorized_live_layer_path, record_uuid};
+use crate::access::{authorized_live_layer_path, confined_layer_path, record_uuid};
 use crate::cache::CachedLayer;
 
 /// Stable identity and clearance used to reopen a governed recording.
@@ -83,6 +85,8 @@ pub struct RecordingReadLayer {
 
 #[derive(Clone)]
 pub struct RecordingReadPlan {
+    tenant_id: StoreTenantId,
+    spool_root: PathBuf,
     pub recording_id: RecordingId,
     pub dataset_id: RecordingDatasetId,
     pub dataset_key: String,
@@ -147,8 +151,14 @@ impl RecordingReadPlan {
             .collect()
     }
 
-    fn analysis_snapshot(&self) -> Result<RecordingReadSnapshot> {
+    fn materialize_analysis_snapshot(
+        self,
+        max_source_bytes: u64,
+    ) -> Result<MaterializedRecordingReadSnapshot> {
+        let mut temporary = None;
         let mut sources = Vec::new();
+        let mut paths = Vec::new();
+        let mut bytes = 0_u64;
         for layer in &self.layers {
             match layer.state {
                 RecordingLayerState::Committed => {
@@ -163,6 +173,7 @@ impl RecordingReadPlan {
                         metadata.is_file() && metadata.len() == layer.byte_len,
                         "recording layer byte length no longer matches the catalog"
                     );
+                    admit_source_bytes(&mut bytes, layer.byte_len, max_source_bytes)?;
                     sources.push(RecordingReadSource {
                         layer_id: layer.layer_id,
                         layer_name: layer.layer_name.clone(),
@@ -176,19 +187,39 @@ impl RecordingReadPlan {
                             .context("committed recording layer is missing sha256")?,
                         path: layer.path.clone(),
                     });
+                    paths.push(layer.path.clone());
                 }
-                // Publication materializes the final file before changing the
-                // catalog to Staged. Acknowledged parts remain the live source
-                // until commit; neither transition can hide their samples.
                 RecordingLayerState::Writing | RecordingLayerState::Staged => {
-                    let parts_directory = ingest_segment_parts_directory(&layer.path);
+                    let relative = layer
+                        .path
+                        .strip_prefix(&self.spool_root)?
+                        .to_str()
+                        .context("live layer path is not UTF-8")?;
+                    let authorized = authorized_live_layer_path(&self.spool_root, relative)?;
+                    let parts_directory = ingest_segment_parts_directory(&authorized);
                     for path in ingest_part_paths(&parts_directory)? {
                         let sequence = ingest_part_sequence(&path).with_context(|| {
                             format!("reading live ingest part sequence {}", path.display())
                         })?;
-                        let inspection = inspect_segment(&path).with_context(|| {
-                            format!("validating live ingest part {}", path.display())
-                        })?;
+                        // Hold the inode through the copy. Hub may unlink the
+                        // immutable acknowledged part after committing its layer.
+                        let part = PinnedLivePart::open(&path)?;
+                        admit_source_bytes(&mut bytes, part.byte_len, max_source_bytes)?;
+                        let directory = match &temporary {
+                            Some(directory) => directory,
+                            None => temporary.insert(
+                                tempfile::Builder::new()
+                                    .prefix("veoveo-recording-snapshot-")
+                                    .tempdir()
+                                    .context("creating live recording snapshot workspace")?,
+                            ),
+                        };
+                        let destination = directory.path().join(format!(
+                            "{:05}-{}-{sequence:020}.rrd",
+                            sources.len(),
+                            layer.layer_id
+                        ));
+                        let inspection = part.copy_to(&destination)?;
                         ensure!(
                             inspection.application_id == self.producer_application_id
                                 && inspection.recording_key == self.producer_recording_key,
@@ -204,89 +235,27 @@ impl RecordingReadPlan {
                             sha256: Sha256Digest::from_hex(inspection.sha256)?,
                             path,
                         });
+                        // Normalize only the task-local copy; the snapshot keeps
+                        // the original producer bytes and digest.
+                        veoveo_rrd::recording_layer::normalize_recording_layer(
+                            &destination,
+                            self.dataset_id.as_uuid(),
+                            self.recording_id.as_uuid(),
+                        )?;
+                        paths.push(destination);
                     }
                 }
                 RecordingLayerState::Failed => {}
             }
         }
-        sources.sort_by_key(|source| {
-            (
-                source.layer_ordinal,
-                source.layer_name.clone(),
-                source.part_sequence.unwrap_or_default(),
-            )
-        });
-        Ok(RecordingReadSnapshot {
+        // Catalog layers and each layer's parts are already ordered. Keep the
+        // source receipts and materialized paths in the same order.
+        let snapshot = RecordingReadSnapshot {
             recording_id: self.recording_id,
             dataset_id: self.dataset_id,
             captured_at: Utc::now(),
             sources,
-        })
-    }
-
-    fn materialize_analysis_snapshot(
-        self,
-        max_source_bytes: u64,
-    ) -> Result<MaterializedRecordingReadSnapshot> {
-        let snapshot = self.analysis_snapshot()?;
-        let bytes = snapshot.sources.iter().try_fold(0_u64, |total, source| {
-            total
-                .checked_add(source.byte_len)
-                .context("recording source byte count overflow")
-        })?;
-        ensure!(
-            bytes <= max_source_bytes,
-            "recording snapshot exceeds its source byte limit"
-        );
-        let mut temporary = None;
-        let mut paths = Vec::with_capacity(snapshot.sources.len());
-        for (index, source) in snapshot.sources.iter().enumerate() {
-            if source.kind != RecordingReadSourceKind::LiveIngestPart {
-                paths.push(source.path.clone());
-                continue;
-            }
-            let directory = match &temporary {
-                Some(directory) => directory,
-                None => temporary.insert(
-                    tempfile::Builder::new()
-                        .prefix("veoveo-recording-snapshot-")
-                        .tempdir()
-                        .context("creating live recording snapshot workspace")?,
-                ),
-            };
-            let destination = directory.path().join(format!(
-                "{index:05}-{}-{:020}.rrd",
-                source.layer_id,
-                source
-                    .part_sequence
-                    .context("live ingest source is missing its part sequence")?
-            ));
-            let copied = std::fs::copy(&source.path, &destination).with_context(|| {
-                format!(
-                    "copying live ingest part {} into the analysis snapshot",
-                    source.path.display()
-                )
-            })?;
-            ensure!(
-                copied == source.byte_len,
-                "live ingest part changed while the analysis snapshot was captured"
-            );
-            let copied_inspection = inspect_segment(&destination)?;
-            ensure!(
-                copied_inspection.byte_len == source.byte_len
-                    && copied_inspection.sha256 == source.sha256.hex(),
-                "copied live ingest part does not match its captured identity"
-            );
-            // Committed layers already use these catalog IDs. Normalize only
-            // the verified task-local copy so codec state and live samples join
-            // into one Rerun store after a segment rolls over.
-            veoveo_rrd::recording_layer::normalize_recording_layer(
-                &destination,
-                self.dataset_id.as_uuid(),
-                self.recording_id.as_uuid(),
-            )?;
-            paths.push(destination);
-        }
+        };
         Ok(MaterializedRecordingReadSnapshot {
             plan: self,
             snapshot,
@@ -294,6 +263,65 @@ impl RecordingReadPlan {
             _temporary: temporary,
         })
     }
+}
+
+fn admit_source_bytes(total: &mut u64, byte_len: u64, limit: u64) -> Result<()> {
+    *total = total
+        .checked_add(byte_len)
+        .context("recording source byte count overflow")?;
+    ensure!(
+        *total <= limit,
+        "recording snapshot exceeds its source byte limit"
+    );
+    Ok(())
+}
+
+struct PinnedLivePart {
+    file: File,
+    byte_len: u64,
+}
+
+impl PinnedLivePart {
+    fn open(path: &Path) -> Result<Self> {
+        let file = File::open(path)
+            .with_context(|| format!("opening live ingest part {}", path.display()))?;
+        let metadata = file.metadata()?;
+        ensure!(
+            metadata.is_file() && metadata.len() > 0,
+            "live ingest part is not a nonempty regular file"
+        );
+        Ok(Self {
+            file,
+            byte_len: metadata.len(),
+        })
+    }
+
+    fn copy_to(mut self, destination: &Path) -> Result<veoveo_rrd::segment::SegmentInspection> {
+        let mut output = File::create_new(destination)?;
+        // Never copy more than the admitted length, even if a corrupt producer
+        // modifies a part that should have been immutable after acknowledgement.
+        let copied = std::io::copy(&mut (&mut self.file).take(self.byte_len), &mut output)
+            .context("copying pinned live ingest part into the analysis snapshot")?;
+        let mut extra = [0_u8; 1];
+        ensure!(
+            copied == self.byte_len && self.file.read(&mut extra)? == 0,
+            "live ingest part changed while the analysis snapshot was captured"
+        );
+        let inspection = inspect_segment(destination)?;
+        ensure!(
+            inspection.byte_len == self.byte_len,
+            "copied live ingest part changed length"
+        );
+        Ok(inspection)
+    }
+}
+
+fn source_disappeared(error: &anyhow::Error) -> bool {
+    error.chain().any(|cause| {
+        cause
+            .downcast_ref::<std::io::Error>()
+            .is_some_and(|error| error.kind() == std::io::ErrorKind::NotFound)
+    })
 }
 
 impl RecordingReader {
@@ -340,13 +368,60 @@ impl RecordingReader {
                 max_source_bytes.min(scope.max_total_bytes.get())
             }
         };
-        let Some(plan) = self.read_plan(authority, credential, recording_id).await? else {
-            return Ok(None);
-        };
-        tokio::task::spawn_blocking(move || plan.materialize_analysis_snapshot(limit))
-            .await
-            .context("recording analysis snapshot worker panicked")?
-            .map(Some)
+        // A layer can commit while its parts are being enumerated, including
+        // an apparently successful but empty/partial directory read. Recheck the
+        // live catalog states before accepting any snapshot. Each retry obtains
+        // a fresh authorized plan and committed layers through Artifact.
+        for attempt in 0..3 {
+            let Some(plan) = self.read_plan(authority, credential, recording_id).await? else {
+                return Ok(None);
+            };
+            let tenant_id = plan.tenant_id;
+            let live_layers = plan
+                .layers
+                .iter()
+                .filter(|layer| {
+                    matches!(
+                        layer.state,
+                        RecordingLayerState::Writing | RecordingLayerState::Staged
+                    )
+                })
+                .map(|layer| layer.layer_id)
+                .collect::<Vec<_>>();
+            let result =
+                tokio::task::spawn_blocking(move || plan.materialize_analysis_snapshot(limit))
+                    .await
+                    .context("recording analysis snapshot worker panicked")?;
+            if let Err(error) = &result
+                && !source_disappeared(error)
+            {
+                return result.map(Some);
+            }
+            let mut changed = false;
+            for layer_id in live_layers {
+                let current = self
+                    .store
+                    .recording_layer(tenant_id, layer_id)
+                    .await?
+                    .context("recording layer disappeared from its catalog during capture")?;
+                if !matches!(
+                    current.state,
+                    RecordingLayerState::Writing | RecordingLayerState::Staged
+                ) {
+                    changed = true;
+                }
+            }
+            if !changed {
+                return result.map(Some);
+            }
+            ensure!(
+                attempt < 2,
+                "recording layers kept changing across three snapshot attempts"
+            );
+            // Drop all task-local files and cache pins before refreshing.
+            drop(result);
+        }
+        unreachable!("last changed snapshot attempt returns an error")
     }
 
     async fn read_plan(
@@ -445,7 +520,7 @@ impl RecordingReader {
                         .as_deref()
                         .context("uncommitted layer has no staging path")?;
                     (
-                        authorized_live_layer_path(&self.spool_root, relative)?,
+                        confined_layer_path(&self.spool_root, relative)?,
                         None,
                         layer
                             .sha256
@@ -472,6 +547,8 @@ impl RecordingReader {
             });
         }
         Ok(Some(RecordingReadPlan {
+            tenant_id: platform_identity.tenant_id,
+            spool_root: self.spool_root.clone(),
             recording_id,
             dataset_id,
             dataset_key: dataset.dataset_key,
@@ -536,7 +613,7 @@ mod tests {
         static_recording.flush_blocking().unwrap();
         drop(static_recording);
 
-        let live_layer = directory.path().join("live.rrd");
+        let live_layer = directory.path().canonicalize().unwrap().join("live.rrd");
         let parts = ingest_segment_parts_directory(&live_layer);
         std::fs::create_dir(&parts).unwrap();
         let part = parts.join("00000000000000000042.rrd");
@@ -553,6 +630,12 @@ mod tests {
         live.flush_blocking().unwrap();
         drop(live);
         let original = inspect_segment(&part).unwrap();
+        let pinned = PinnedLivePart::open(&part).unwrap();
+        std::fs::remove_file(&part).unwrap();
+        let copy = directory.path().join("pinned-copy.rrd");
+        assert_eq!(pinned.copy_to(&copy).unwrap(), original);
+        // The rest of this fixture qualifies live/committed codec composition.
+        std::fs::rename(copy, &part).unwrap();
         if materialized_file {
             std::fs::copy(&part, &live_layer).unwrap();
             veoveo_rrd::recording_layer::normalize_recording_layer(
@@ -564,6 +647,8 @@ mod tests {
         }
 
         let plan = RecordingReadPlan {
+            tenant_id: StoreTenantId::new(),
+            spool_root: directory.path().canonicalize().unwrap(),
             recording_id,
             dataset_id,
             dataset_key: "fixture".to_owned(),
@@ -586,6 +671,13 @@ mod tests {
                 cached: None,
             }],
         };
+        let mut wrong_identity = plan.clone();
+        wrong_identity.producer_recording_key = "unrelated-session".to_owned();
+        let error = wrong_identity
+            .materialize_analysis_snapshot(1_000_000)
+            .err()
+            .unwrap();
+        assert!(error.to_string().contains("producer recording identity"));
         assert!(
             plan.clone()
                 .materialize_analysis_snapshot(original.byte_len - 1)
@@ -621,11 +713,46 @@ mod tests {
     }
 
     #[test]
+    fn pinned_parts_reject_growth_without_copying_unadmitted_bytes() {
+        use std::io::Write;
+        let directory = tempfile::tempdir().unwrap();
+        let source = directory.path().join("part.rrd");
+        std::fs::write(&source, b"original").unwrap();
+        let pinned = PinnedLivePart::open(&source).unwrap();
+        let mut writer = File::options().append(true).open(&source).unwrap();
+        writer.write_all(b"unexpected growth").unwrap();
+        let destination = directory.path().join("copy.rrd");
+        let error = pinned.copy_to(&destination).unwrap_err();
+        assert!(error.to_string().contains("changed while"));
+        assert_eq!(std::fs::read(destination).unwrap(), b"original");
+    }
+
+    #[test]
+    fn pinned_parts_reject_truncation() {
+        let directory = tempfile::tempdir().unwrap();
+        let source = directory.path().join("part.rrd");
+        std::fs::write(&source, b"original").unwrap();
+        let pinned = PinnedLivePart::open(&source).unwrap();
+        File::options()
+            .write(true)
+            .open(&source)
+            .unwrap()
+            .set_len(2)
+            .unwrap();
+        let error = pinned
+            .copy_to(&directory.path().join("copy.rrd"))
+            .unwrap_err();
+        assert!(error.to_string().contains("changed while"));
+    }
+
+    #[test]
     fn committed_analysis_sources_require_a_verified_cache_lease() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("unverified.rrd");
         std::fs::write(&path, b"unverified archive").unwrap();
         let plan = RecordingReadPlan {
+            tenant_id: StoreTenantId::new(),
+            spool_root: directory.path().canonicalize().unwrap(),
             recording_id: RecordingId::new(),
             dataset_id: RecordingDatasetId::new(),
             dataset_key: "test".to_owned(),
@@ -648,7 +775,7 @@ mod tests {
                 cached: None,
             }],
         };
-        let error = plan.analysis_snapshot().unwrap_err();
+        let error = plan.materialize_analysis_snapshot(1_000_000).err().unwrap();
         assert!(
             error
                 .to_string()
