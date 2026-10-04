@@ -48,6 +48,11 @@ disable close further dispatch. Pause allows the bounded current episode to drai
 and retains Task observation without admitting new model work. Task completion
 continues through the existing durable watcher and wake path.
 
+The kernel commits episode admission before entering the execution continuation
+that constructs model and tool work. Failed admission leaves that continuation
+uninvoked. A native database test exercises a stale scheduler fence and checks both
+the rejected transaction and the successful admission order.
+
 The process publishes managed readiness after its gateway connection and tools are
 installed. It relinquishes its scheduler lease before a generation handoff. The
 lease remains the sole writer boundary for retained memory and episode execution.

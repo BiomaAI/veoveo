@@ -87,7 +87,20 @@ impl EpisodeDriver {
             .await
             .context("refreshing the gateway connection")?;
 
-        let episode = self.runtime.start_episode(wake_note).await?;
+        with_started_episode(&self.runtime, wake_note, |episode| {
+            self.run_admitted_episode(connection, episode, wake_note, wake_body, wake_ids)
+        })
+        .await
+    }
+
+    async fn run_admitted_episode(
+        &self,
+        connection: &mut GatewayConnection,
+        episode: EpisodeHandle,
+        wake_note: &str,
+        wake_body: &str,
+        wake_ids: &[WakeId],
+    ) -> Result<EpisodeReport> {
         let deadline = self
             .managed_deadline
             .map(|limit| tokio::time::Instant::now() + limit);
@@ -406,5 +419,178 @@ impl EpisodeDriver {
         if let Err(error) = self.rrd.rotate_if_needed() {
             tracing::warn!(%error, "rrd rotation failed");
         }
+    }
+}
+
+/// Construct and execute the dispatch continuation only after durable admission.
+/// Gateway refresh happens before this gate; all episode/model/tool work is inside it.
+async fn with_started_episode<T, F>(
+    runtime: &AgentRuntime,
+    wake_note: &str,
+    execute: impl FnOnce(EpisodeHandle) -> F,
+) -> Result<T>
+where
+    F: std::future::Future<Output = Result<T>>,
+{
+    let episode = runtime.start_episode(wake_note).await?;
+    execute(episode).await
+}
+
+#[cfg(test)]
+#[path = "../../../testing/fixtures/store.rs"]
+mod database;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{DateTime, Utc};
+    use std::{
+        sync::atomic::{AtomicUsize, Ordering},
+        time::Duration,
+    };
+    use veoveo_agent_runtime::{AgentInstanceId, AgentRuntimeError, AgentSpec};
+    use veoveo_platform_store::{
+        AgentState, ArtifactGrantSubjectKind, InvocationAuthorityRecord, InvocationMode,
+        OpenObject, WorkContextMembershipLevel,
+    };
+
+    #[tokio::test]
+    async fn failed_episode_persistence_never_enters_dispatch_continuation() {
+        let database = database::TestDb::new().await;
+        tokio::time::timeout(Duration::from_secs(30), async {
+            let spec = || AgentSpec {
+                tenant_key: "episode-admission".into(),
+                agent_key: "dispatch-order".into(),
+                display_name: "Dispatch ordering".into(),
+                profile: "qualification".into(),
+                authority: InvocationAuthorityRecord {
+                    context_key: "episode-admission".into(),
+                    membership: WorkContextMembershipLevel::Contributor,
+                    policy_revision: "r1".into(),
+                    owner_kind: ArtifactGrantSubjectKind::Principal,
+                    owner_key: "agent:dispatch-order".into(),
+                    initial_grants: Vec::new(),
+                    classification: None,
+                    data_labels: Vec::new(),
+                    invocation_mode: InvocationMode::Automated,
+                    initiator_key: None,
+                    delegation_id: None,
+                },
+                manifest: OpenObject::default(),
+                memory_database: "memory.duckdb".into(),
+            };
+            let stale = AgentRuntime::register(database.a.clone(), spec(), AgentInstanceId::new())
+                .await
+                .unwrap();
+            let current =
+                AgentRuntime::register(database.b.clone(), spec(), AgentInstanceId::new())
+                    .await
+                    .unwrap();
+            let first_lease = stale
+                .acquire_lease(Duration::from_millis(100))
+                .await
+                .unwrap()
+                .expect("initial scheduler lease");
+            tokio::time::sleep(Duration::from_millis(150)).await;
+            let replacement_lease = current
+                .acquire_lease(Duration::from_secs(30))
+                .await
+                .unwrap()
+                .expect("replacement scheduler lease");
+            assert!(replacement_lease.fence > first_lease.fence);
+
+            let baseline = current.agent_record().await.unwrap();
+            assert_eq!(baseline.fence, replacement_lease.fence);
+            assert_eq!(
+                baseline.lease_owner,
+                Some(current.instance_id().to_string())
+            );
+            assert_ne!(baseline.lease_owner, Some(stale.instance_id().to_string()));
+            assert_eq!(baseline.next_episode_sequence, 1);
+            assert!(baseline.last_episode.is_none());
+            let dispatches = AtomicUsize::new(0);
+            let failed = with_started_episode(&stale, "stale scheduler", |_| {
+                dispatches.fetch_add(1, Ordering::SeqCst);
+                async { Ok(()) }
+            })
+            .await
+            .unwrap_err();
+            // check() returns the first statement error: the rollback marks earlier
+            // statements NotExecuted before the later lease-fencing THROW. Assert
+            // a structured query rejection, rather than the masked THROW text or
+            // a missing local lease/connection failure. The same query succeeds
+            // below with the replacement's stored owner and fence.
+            let Some(AgentRuntimeError::Database(error)) =
+                failed.downcast_ref::<AgentRuntimeError>()
+            else {
+                panic!("episode admission did not reach the database: {failed}");
+            };
+            assert!(
+                error.is_query(),
+                "unexpected rejection kind: {}",
+                error.kind_str()
+            );
+            assert!(
+                error.query_details().is_some(),
+                "query rejection has no structured details"
+            );
+            assert_eq!(dispatches.load(Ordering::SeqCst), 0);
+            assert_eq!(current.agent_record().await.unwrap(), baseline);
+            assert_eq!(
+                current
+                    .episodes_started_since(DateTime::<Utc>::UNIX_EPOCH)
+                    .await
+                    .unwrap(),
+                0
+            );
+
+            let admitted_runtime = &current;
+            let admitted = with_started_episode(&current, "current scheduler", |episode| {
+                dispatches.fetch_add(1, Ordering::SeqCst);
+                async move {
+                    // The successful control observes admission before execution.
+                    let stored = admitted_runtime.episode_record(episode.episode_id).await?;
+                    assert_eq!(stored.state, AgentEpisodeState::Running);
+                    assert_eq!(stored.sequence, episode.sequence);
+                    assert_eq!(stored.completion_calls, 0);
+                    let agent = admitted_runtime.agent_record().await?;
+                    assert_eq!(agent.state, AgentState::Running);
+                    assert_eq!(agent.next_episode_sequence, episode.sequence + 1);
+                    assert_eq!(agent.last_episode, Some(episode.episode_id.record_id()));
+                    Ok(episode)
+                }
+            })
+            .await
+            .unwrap();
+            assert_eq!(dispatches.load(Ordering::SeqCst), 1);
+            assert_eq!(admitted.sequence, 1);
+            assert_eq!(
+                current
+                    .episodes_started_since(DateTime::<Utc>::UNIX_EPOCH)
+                    .await
+                    .unwrap(),
+                1
+            );
+            current
+                .complete_episode(
+                    admitted.episode_id,
+                    EpisodeCompletion {
+                        state: AgentEpisodeState::Completed,
+                        final_output: "dispatch continuation qualified".into(),
+                        summary: None,
+                        input_tokens: 0,
+                        output_tokens: 0,
+                        completion_calls: 0,
+                        tool_calls: 0,
+                        error: None,
+                    },
+                    &[],
+                )
+                .await
+                .unwrap();
+            current.release_lease().await.unwrap();
+        })
+        .await
+        .expect("episode admission qualification exceeded 30 seconds");
     }
 }
