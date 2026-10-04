@@ -1,15 +1,12 @@
 use crate::contract::CrsId;
-use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::{
     Degrees, Facility, LocationId, MapLocation, Meters, ProjectedPosition, Restriction,
-    RestrictionId, RouteId, RoutePlan, RouteStatus, ValidationId, Wgs84BoundingBox,
-    Wgs84LineString, Wgs84Polygon, Wgs84Position,
+    RestrictionId, RouteId, RoutePlan, ValidationId, Wgs84BoundingBox, Wgs84LineString,
+    Wgs84Polygon, Wgs84Position,
 };
-
-pub const MAP_ROUTE_HANDOFF_SCHEMA: &str = "veoveo.ai/map-route-handoff/v1";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct TransformCrsRequest {
@@ -194,25 +191,6 @@ pub struct RouteValidation {
 #[serde(deny_unknown_fields)]
 pub struct PrepareRouteHandoffRequest {
     pub route_id: RouteId,
-}
-
-/// Execution-neutral, Map-owned route projection for a consuming domain.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct MapRouteHandoff {
-    pub schema_profile: String,
-    pub route_uri: String,
-    pub route_digest_sha256: String,
-    pub route_status: RouteStatus,
-    pub mobility_profile_uri: crate::contract::MapMobilityProfileUri,
-    #[schemars(length(min = 2, max = 10_000))]
-    pub path: Vec<Wgs84Position>,
-    pub validation_id: ValidationId,
-    pub validated_at: DateTime<Utc>,
-    pub operational_snapshot_id: String,
-    pub base_release_ids: Vec<String>,
-    pub restriction_ids: Vec<String>,
-    pub prepared_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

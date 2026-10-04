@@ -13,7 +13,7 @@ use crate::{
 use chrono::{TimeDelta, Utc};
 use std::{collections::BTreeSet, sync::Arc, time::Duration};
 use veoveo_map_mcp::contract::{
-    MAP_ROUTE_HANDOFF_SCHEMA, MapMobilityProfileUri, MapRouteHandoff, MobilityProfileId,
+    MapMobilityProfileUri, MapRouteHandoffBuilder, MapRouteHandoffSchema, MobilityProfileId,
     MobilityProfileVersion, RouteStatus, ValidationId, Wgs84Position as MapPosition,
 };
 use veoveo_mcp_contract::{GatewayInternalIdentity, SubscriptionHub};
@@ -54,10 +54,12 @@ pub(super) fn mission_request(key: &str) -> PrepareVehicleMissionRequest {
             &veoveo_frames_mcp::contract::FrameWorldId::new("native").unwrap(),
             &veoveo_frames_mcp::contract::FrameWorldRevisionId::new("revision-one").unwrap(),
         ),
-        map_route: MapRouteHandoff {
-            schema_profile: MAP_ROUTE_HANDOFF_SCHEMA.into(),
-            route_uri: "map://route/native".into(),
-            route_digest_sha256: "a".repeat(64),
+        map_route: MapRouteHandoffBuilder {
+            schema_profile: MapRouteHandoffSchema::V1,
+            route_uri: veoveo_map_mcp::contract::MapRouteUri::new(
+                veoveo_map_mcp::contract::RouteId::from_stable_key(b"native"),
+            ),
+            route_digest_sha256: veoveo_types::Sha256Digest::from_hex("a".repeat(64)).unwrap(),
             route_status: RouteStatus::Validated,
             mobility_profile_uri: MapMobilityProfileUri::new(
                 MobilityProfileId::from_stable_key(b"native"),
@@ -77,11 +79,13 @@ pub(super) fn mission_request(key: &str) -> PrepareVehicleMissionRequest {
             ],
             validation_id: ValidationId::new(),
             validated_at: now,
-            operational_snapshot_id: "snapshot-native".into(),
-            base_release_ids: vec!["release-native".into()],
+            operational_snapshot_id: veoveo_map_mcp::contract::OperationalSnapshotId::new(),
+            base_release_ids: vec![veoveo_map_mcp::contract::DatasetReleaseId::new()],
             restriction_ids: vec![],
             prepared_at: now,
-        },
+        }
+        .build()
+        .unwrap(),
         speed_mps: 5.0,
         hold_seconds_at_destination: 0.0,
     }

@@ -466,24 +466,32 @@
   },
   "CollectionPage<VehicleMissionPlan>": {
     "$defs": {
+      "DatasetReleaseId": {
+        "type": "string"
+      },
       "FrameWorldRevisionUri": {
         "type": "string"
       },
       "MapRouteHandoff": {
+        "$ref": "#/$defs/MapRouteHandoffBuilder",
+        "description": "A checked, execution-neutral Map route. It conveys no authority to execute a vehicle."
+      },
+      "MapRouteHandoffBuilder": {
         "additionalProperties": false,
-        "description": "Execution-neutral, Map-owned route projection for a consuming domain.",
+        "description": "Construction inputs. `build` checks the relationships before a consumer can use them.",
         "properties": {
           "base_release_ids": {
             "items": {
-              "type": "string"
+              "$ref": "#/$defs/DatasetReleaseId"
             },
+            "minItems": 1,
             "type": "array"
           },
           "mobility_profile_uri": {
             "type": "string"
           },
           "operational_snapshot_id": {
-            "type": "string"
+            "$ref": "#/$defs/OperationalSnapshotId"
           },
           "path": {
             "items": {
@@ -499,21 +507,26 @@
           },
           "restriction_ids": {
             "items": {
-              "type": "string"
+              "$ref": "#/$defs/RestrictionId"
             },
             "type": "array"
           },
           "route_digest_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
             "type": "string"
           },
           "route_status": {
-            "$ref": "#/$defs/RouteStatus"
+            "enum": [
+              "validated",
+              "planning_advisory"
+            ],
+            "type": "string"
           },
           "route_uri": {
-            "type": "string"
+            "$ref": "#/$defs/MapRouteUri"
           },
           "schema_profile": {
-            "type": "string"
+            "$ref": "#/$defs/MapRouteHandoffSchema"
           },
           "validated_at": {
             "format": "date-time",
@@ -539,6 +552,16 @@
         ],
         "type": "object"
       },
+      "MapRouteHandoffSchema": {
+        "enum": [
+          "veoveo.ai/map-route-handoff/v1"
+        ],
+        "type": "string"
+      },
+      "MapRouteUri": {
+        "description": "```compile_fail\nuse veoveo_map_mcp::contract::{MapRouteUri, RasterProductId};\nMapRouteUri::new(RasterProductId::new());\n```",
+        "type": "string"
+      },
       "MissionId": {
         "description": "Stable identity of one submitted mission.",
         "type": "string"
@@ -557,14 +580,10 @@
         ],
         "type": "string"
       },
-      "RouteStatus": {
-        "enum": [
-          "planning_advisory",
-          "validated",
-          "stale",
-          "invalidated",
-          "unavailable"
-        ],
+      "OperationalSnapshotId": {
+        "type": "string"
+      },
+      "RestrictionId": {
         "type": "string"
       },
       "SessionId": {
@@ -4308,24 +4327,32 @@
   },
   "PrepareVehicleMissionRequest": {
     "$defs": {
+      "DatasetReleaseId": {
+        "type": "string"
+      },
       "FrameWorldRevisionUri": {
         "type": "string"
       },
       "MapRouteHandoff": {
+        "$ref": "#/$defs/MapRouteHandoffBuilder",
+        "description": "A checked, execution-neutral Map route. It conveys no authority to execute a vehicle."
+      },
+      "MapRouteHandoffBuilder": {
         "additionalProperties": false,
-        "description": "Execution-neutral, Map-owned route projection for a consuming domain.",
+        "description": "Construction inputs. `build` checks the relationships before a consumer can use them.",
         "properties": {
           "base_release_ids": {
             "items": {
-              "type": "string"
+              "$ref": "#/$defs/DatasetReleaseId"
             },
+            "minItems": 1,
             "type": "array"
           },
           "mobility_profile_uri": {
             "type": "string"
           },
           "operational_snapshot_id": {
-            "type": "string"
+            "$ref": "#/$defs/OperationalSnapshotId"
           },
           "path": {
             "items": {
@@ -4341,21 +4368,26 @@
           },
           "restriction_ids": {
             "items": {
-              "type": "string"
+              "$ref": "#/$defs/RestrictionId"
             },
             "type": "array"
           },
           "route_digest_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
             "type": "string"
           },
           "route_status": {
-            "$ref": "#/$defs/RouteStatus"
+            "enum": [
+              "validated",
+              "planning_advisory"
+            ],
+            "type": "string"
           },
           "route_uri": {
-            "type": "string"
+            "$ref": "#/$defs/MapRouteUri"
           },
           "schema_profile": {
-            "type": "string"
+            "$ref": "#/$defs/MapRouteHandoffSchema"
           },
           "validated_at": {
             "format": "date-time",
@@ -4381,18 +4413,24 @@
         ],
         "type": "object"
       },
+      "MapRouteHandoffSchema": {
+        "enum": [
+          "veoveo.ai/map-route-handoff/v1"
+        ],
+        "type": "string"
+      },
+      "MapRouteUri": {
+        "description": "```compile_fail\nuse veoveo_map_mcp::contract::{MapRouteUri, RasterProductId};\nMapRouteUri::new(RasterProductId::new());\n```",
+        "type": "string"
+      },
       "MissionId": {
         "description": "Stable identity of one submitted mission.",
         "type": "string"
       },
-      "RouteStatus": {
-        "enum": [
-          "planning_advisory",
-          "validated",
-          "stale",
-          "invalidated",
-          "unavailable"
-        ],
+      "OperationalSnapshotId": {
+        "type": "string"
+      },
+      "RestrictionId": {
         "type": "string"
       },
       "SessionId": {
@@ -7024,24 +7062,32 @@
   },
   "VehicleMissionPlan": {
     "$defs": {
+      "DatasetReleaseId": {
+        "type": "string"
+      },
       "FrameWorldRevisionUri": {
         "type": "string"
       },
       "MapRouteHandoff": {
+        "$ref": "#/$defs/MapRouteHandoffBuilder",
+        "description": "A checked, execution-neutral Map route. It conveys no authority to execute a vehicle."
+      },
+      "MapRouteHandoffBuilder": {
         "additionalProperties": false,
-        "description": "Execution-neutral, Map-owned route projection for a consuming domain.",
+        "description": "Construction inputs. `build` checks the relationships before a consumer can use them.",
         "properties": {
           "base_release_ids": {
             "items": {
-              "type": "string"
+              "$ref": "#/$defs/DatasetReleaseId"
             },
+            "minItems": 1,
             "type": "array"
           },
           "mobility_profile_uri": {
             "type": "string"
           },
           "operational_snapshot_id": {
-            "type": "string"
+            "$ref": "#/$defs/OperationalSnapshotId"
           },
           "path": {
             "items": {
@@ -7057,21 +7103,26 @@
           },
           "restriction_ids": {
             "items": {
-              "type": "string"
+              "$ref": "#/$defs/RestrictionId"
             },
             "type": "array"
           },
           "route_digest_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
             "type": "string"
           },
           "route_status": {
-            "$ref": "#/$defs/RouteStatus"
+            "enum": [
+              "validated",
+              "planning_advisory"
+            ],
+            "type": "string"
           },
           "route_uri": {
-            "type": "string"
+            "$ref": "#/$defs/MapRouteUri"
           },
           "schema_profile": {
-            "type": "string"
+            "$ref": "#/$defs/MapRouteHandoffSchema"
           },
           "validated_at": {
             "format": "date-time",
@@ -7097,6 +7148,16 @@
         ],
         "type": "object"
       },
+      "MapRouteHandoffSchema": {
+        "enum": [
+          "veoveo.ai/map-route-handoff/v1"
+        ],
+        "type": "string"
+      },
+      "MapRouteUri": {
+        "description": "```compile_fail\nuse veoveo_map_mcp::contract::{MapRouteUri, RasterProductId};\nMapRouteUri::new(RasterProductId::new());\n```",
+        "type": "string"
+      },
       "MissionId": {
         "description": "Stable identity of one submitted mission.",
         "type": "string"
@@ -7115,14 +7176,10 @@
         ],
         "type": "string"
       },
-      "RouteStatus": {
-        "enum": [
-          "planning_advisory",
-          "validated",
-          "stale",
-          "invalidated",
-          "unavailable"
-        ],
+      "OperationalSnapshotId": {
+        "type": "string"
+      },
+      "RestrictionId": {
         "type": "string"
       },
       "SessionId": {

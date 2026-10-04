@@ -48,6 +48,12 @@ provide value types, validation, serialization and URI parsing. It excludes the 
 MCP integration, database, async runtime, simulator adapter and GPU libraries. Chrono's
 clock support belongs to the runtime feature.
 
+Mission requests hold Map's checked `MapRouteHandoff`. Its builder and decoder own
+route address, digest, geometry and provenance validation. UAV admission adds the
+current vehicle grant, matching mobility profile, permission for advisory routes,
+ellipsoidal heights, freshness and motion limits. Retained mission reads compare
+the typed handoff with their indexed route and profile identities before execution.
+
 `contract/world_binding.rs` derives `SimulationWorldBinding` from a validated Frames
 revision and a typed frame URI. `InstallationWorldBinding` validates that result during
 construction and JSON decoding. The builder rejects frames from another revision,

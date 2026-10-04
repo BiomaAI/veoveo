@@ -155,3 +155,7 @@ tempfile = "3"
 [[test]]
 name = "catalog_contract"
 required-features = ["contract"]
+
+[[test]]
+name = "route_handoff_contract"
+required-features = ["contract"]

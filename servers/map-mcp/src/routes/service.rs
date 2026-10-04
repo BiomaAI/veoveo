@@ -9,11 +9,11 @@ use crate::{
     analytics::MapAnalytics,
     catalog::{MapAccessContext, MapCatalog},
     contract::{
-        BuildTravelModelRequest, DatasetReleaseState, FacilityId, MAP_ROUTE_HANDOFF_SCHEMA,
-        MapFamily, MapRouteHandoff, MobilityProfile, OperationalSnapshot, OperationalSnapshotId,
-        OptimizationTravelModel, PrepareRouteHandoffRequest, ReachableArea, ReachableAreaId,
-        ReachableAreaRequest, Restriction, RestrictionEffectKind, RouteEndpoint, RouteId,
-        RouteMatrix, RouteMatrixCell, RouteMatrixId, RouteMatrixRequest, RouteObjective,
+        BuildTravelModelRequest, DatasetReleaseState, FacilityId, MapFamily, MapRouteHandoff,
+        MapRouteHandoffBuilder, MapRouteHandoffSchema, MobilityProfile, OperationalSnapshot,
+        OperationalSnapshotId, OptimizationTravelModel, PrepareRouteHandoffRequest, ReachableArea,
+        ReachableAreaId, ReachableAreaRequest, Restriction, RestrictionEffectKind, RouteEndpoint,
+        RouteId, RouteMatrix, RouteMatrixCell, RouteMatrixId, RouteMatrixRequest, RouteObjective,
         RouteObjectiveKind, RoutePlan, RouteProvenance, RouteRequest, RouteStatus, RouteValidation,
         TRAVEL_MODEL_ARTIFACT_VERSION, TravelCostMetric, TravelModelArtifact, TravelModelMatrix,
         TravelModelProfileProvenance, ValidateRouteRequest, ValidationId, Wgs84BoundingBox,
@@ -146,7 +146,7 @@ impl RouteService {
         let summary = sum_cost(&planned.legs)?;
         let route_id = RouteId::new();
         let plan = RoutePlan {
-            route_uri: crate::contract::MapRouteUri::new(route_id.clone()).to_string(),
+            route_uri: crate::contract::MapRouteUri::new(route_id.clone()),
             route_id,
             status: planned.status,
             mobility_profile_id: request.mobility_profile_id.clone(),
@@ -594,7 +594,9 @@ impl RouteService {
                 validation.findings.join("; ")
             );
         }
-        let route_digest_sha256 = hex::encode(Sha256::digest(serde_json::to_vec(&route)?));
+        let route_digest_sha256 = veoveo_types::Sha256Digest::from_bytes(
+            Sha256::digest(serde_json::to_vec(&route)?).into(),
+        );
         let mut path = Vec::new();
         for leg in &route.legs {
             for position in &leg.geometry.coordinates {
@@ -606,8 +608,8 @@ impl RouteService {
         if !(2..=10_000).contains(&path.len()) {
             bail!("route handoff path must contain 2..=10000 distinct consecutive positions");
         }
-        Ok(MapRouteHandoff {
-            schema_profile: MAP_ROUTE_HANDOFF_SCHEMA.to_owned(),
+        Ok(MapRouteHandoffBuilder {
+            schema_profile: MapRouteHandoffSchema::V1,
             route_uri: route.route_uri.clone(),
             route_digest_sha256,
             route_status: route.status,
@@ -618,20 +620,12 @@ impl RouteService {
             path,
             validation_id: validation.validation_id,
             validated_at: validation.validated_at,
-            operational_snapshot_id: route.provenance.operational_snapshot_id.to_string(),
-            base_release_ids: route
-                .provenance
-                .base_release_ids
-                .into_iter()
-                .map(|id| id.to_string())
-                .collect(),
-            restriction_ids: route
-                .restriction_ids
-                .into_iter()
-                .map(|id| id.to_string())
-                .collect(),
+            operational_snapshot_id: route.provenance.operational_snapshot_id,
+            base_release_ids: route.provenance.base_release_ids.into_iter().collect(),
+            restriction_ids: route.restriction_ids.into_iter().collect(),
             prepared_at: Utc::now(),
-        })
+        }
+        .build()?)
     }
 
     fn resolve_endpoint(

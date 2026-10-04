@@ -1048,6 +1048,7 @@ domain vocabulary.
 | `servers/map-mcp/src/contract/travel_models.rs` | `veoveo.ai/travel-model-artifact/v1` cross-server wire profile, controlled location and vehicle-type IDs, bounds, provenance, and Map record |
 | `servers/map-mcp/src/contract/travel_model_uri.rs` and `travel_model_page.rs` | Map-owned travel-model addresses, canonical UUIDv5/v7 identities, native Task cursors and typed collection pages shared with Optimization through the contract feature |
 | `servers/map-mcp/src/contract/product_uri.rs` | typed dataset release, source feature, raster, derivation and route addresses shared with View; domain ID admission, parent components and discovery templates |
+| `servers/map-mcp/src/contract/route_handoff.rs` | checked route handoff builder and JSON admission, typed route/profile addresses, digest, geometry and provenance; UAV adds execution policy |
 | `servers/map-mcp/src/travel_models.rs` | completed travel-model exact reads, pages and completion, with owner, context and retained-identity agreement in SQL before limits |
 | `servers/optimization-mcp/tests/map_travel_model.rs` | cross-server artifact wire compatibility and consumption of Map-owned addresses and collection templates |
 | `servers/map-mcp/src/routes/service.rs` | route and Valhalla matrix construction, immutable mobility-profile versions, persisted operational snapshots, unavailable arcs, and the validated `veoveo.ai/map-route-handoff/v1` cross-server handoff |
@@ -1169,7 +1170,7 @@ Simulation live-view ownership:
 | `servers/uav-sim-mcp/src/server/task_worker.rs`, `task_worker/native_tests.rs` | pinned Task creation before admission, dispatch guard consumption, interrupted Task handling, recovery without replay, settled-pin repair and native HTTP/Store failure qualification |
 | `platform/store/migrations/0096_uav_executing_vehicle.surql` | additive tenant/context/session/vehicle/state index for UAV execution exclusion; admission policy stays in UAV |
 | `servers/uav-sim-mcp/src/server/control_authority/lease_tests.rs` | native RocksDB contention across principals, obsolete-token rejection, expiry fencing, revision exhaustion and injected rollback failures |
-| `servers/uav-sim-mcp/src/server/control_authority/map_handoff.rs` | UAV route-status, geometry, freshness and motion policy over Map-owned handoff types |
+| `servers/uav-sim-mcp/src/server/control_authority/map_handoff.rs` | UAV grant, advisory-route, ellipsoidal-height, freshness and motion policy over Map-owned checked handoffs |
 | `servers/uav-sim-mcp/src/server/control_authority/reads.rs` | SQL grant/plan visibility and paging; shared profile/advisory grant predicates for selection and execution admission |
 | `servers/uav-sim-mcp/src/server/control_authority/map_tests.rs` | native profile-selection, admission revocation/rollback and retained-plan qualification without simulator dispatch |
 | `servers/uav-sim-mcp/src/server/live_view.rs` | actor/browser stream authorizations, stable shared-product selection, expiry, closure, and connection telemetry |

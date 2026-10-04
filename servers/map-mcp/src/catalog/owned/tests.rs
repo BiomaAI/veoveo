@@ -29,7 +29,7 @@ fn plan(n: usize, release: usize) -> RoutePlan {
     let now = Utc::now();
     RoutePlan {
         route_id: key("route", n).parse().unwrap(),
-        route_uri: crate::contract::MapRouteUri::new(key("route", n).parse().unwrap()).to_string(),
+        route_uri: crate::contract::MapRouteUri::new(key("route", n).parse().unwrap()),
         status: RouteStatus::Unavailable,
         mobility_profile_id: key("mobility", 1).parse().unwrap(),
         mobility_profile_version: crate::contract::MobilityProfileVersion::FIRST,
@@ -287,6 +287,28 @@ async fn qualify() {
     );
     qualify_recovery(&writer, &reader, &owner, &peer).await;
     qualify_invalidation(&writer, &reader, &owner, &peer, &foreign).await;
+    // The query selects the owner's row; the decoded product must name that row.
+    let mut mismatched = plan(9000, 1);
+    mismatched.route_uri = MapRouteUri::new(key("route", 9001).parse().unwrap());
+    writer
+        .persist_route(&owner, &mismatched, "a".repeat(64))
+        .await
+        .unwrap();
+    assert!(
+        reader
+            .route(&owner, &mismatched.route_id)
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("selected identity")
+    );
+    assert!(
+        reader
+            .route(&peer, &mismatched.route_id)
+            .await
+            .unwrap()
+            .is_none()
+    );
 }
 
 async fn qualify_recovery(

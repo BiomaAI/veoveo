@@ -790,10 +790,10 @@ mod tests {
             veoveo_map_mcp::contract::MobilityProfileId::new(),
             veoveo_map_mcp::contract::MobilityProfileVersion::FIRST,
         );
-        let produced = veoveo_map_mcp::MapRouteHandoff {
-            schema_profile: veoveo_map_mcp::MAP_ROUTE_HANDOFF_SCHEMA.to_owned(),
-            route_uri: format!("map://route/{}", veoveo_map_mcp::RouteId::new()),
-            route_digest_sha256: "a".repeat(64),
+        let produced = veoveo_map_mcp::MapRouteHandoffBuilder {
+            schema_profile: veoveo_map_mcp::MapRouteHandoffSchema::V1,
+            route_uri: veoveo_map_mcp::MapRouteUri::new(veoveo_map_mcp::RouteId::new()),
+            route_digest_sha256: veoveo_types::Sha256Digest::from_hex("a".repeat(64)).unwrap(),
             route_status: veoveo_map_mcp::RouteStatus::Validated,
             mobility_profile_uri: profile_uri.clone(),
             path: vec![
@@ -804,11 +804,13 @@ mod tests {
             ],
             validation_id: veoveo_map_mcp::ValidationId::new(),
             validated_at: now,
-            operational_snapshot_id: "snapshot-demo".to_owned(),
-            base_release_ids: vec!["release-demo".to_owned()],
+            operational_snapshot_id: veoveo_map_mcp::contract::OperationalSnapshotId::new(),
+            base_release_ids: vec![veoveo_map_mcp::contract::DatasetReleaseId::new()],
             restriction_ids: Vec::new(),
             prepared_at: now,
-        };
+        }
+        .build()
+        .unwrap();
 
         let request: PrepareVehicleMissionRequest = serde_json::from_value(serde_json::json!({
             "session_id": "session-alpha",
@@ -821,6 +823,6 @@ mod tests {
         }))
         .unwrap();
         assert_eq!(request.map_route, produced);
-        assert_eq!(request.map_route.mobility_profile_uri, profile_uri);
+        assert_eq!(request.map_route.mobility_profile_uri(), &profile_uri);
     }
 }

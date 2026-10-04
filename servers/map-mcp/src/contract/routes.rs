@@ -313,7 +313,7 @@ pub struct RouteAlternative {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct RoutePlan {
     pub route_id: RouteId,
-    pub route_uri: String,
+    pub route_uri: super::MapRouteUri,
     pub status: RouteStatus,
     pub mobility_profile_id: MobilityProfileId,
     pub mobility_profile_version: crate::contract::MobilityProfileVersion,

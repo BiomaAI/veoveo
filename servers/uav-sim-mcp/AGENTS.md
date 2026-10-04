@@ -107,6 +107,9 @@ plant, PX4 transport, and authoritative operator cameras and encoded products.
 - Qualify contract dependencies with a separate consumer workspace; workspace feature
   unification cannot prove isolation. `tests/contract.rs` compares all public schema
   snapshots and can run from that consumer.
+  After an intentional schema change, regenerate through the same test with
+  `VEOVEO_UPDATE_UAV_CONTRACT_SCHEMA=1 cargo test -p veoveo-uav-sim-mcp --test contract schemas_preserve_the_published_contract`,
+  review the snapshot diff, then run the test without the update variable.
 - `cargo test -p veoveo-uav-sim-mcp` (deterministic fake adapter, credential
   free)
 - The following command runs the Python runtime tests:

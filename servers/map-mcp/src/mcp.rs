@@ -549,7 +549,7 @@ impl MapMcp {
             .await
             .map_err(invalid_params)?;
         structured_result(
-            format!("prepared route handoff {}", output.route_uri),
+            format!("prepared route handoff {}", output.route_uri()),
             &output,
         )
     }

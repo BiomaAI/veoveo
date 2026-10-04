@@ -42,9 +42,10 @@ fn scopes_admit_only_the_domain_vocabulary_and_preserve_wire_names() {
 
 #[test]
 fn schemas_preserve_the_published_contract() {
-    let baseline: serde_json::Value =
-        serde_json::from_str(include_str!("../testdata/contract.schema.json")).unwrap();
-    macro_rules! check { ($($ty:ty),+ $(,)?) => { $(assert_eq!(serde_json::to_value(schemars::schema_for!($ty)).unwrap(), baseline[stringify!($ty)], stringify!($ty));)+ }; }
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("testdata/contract.schema.json");
+    let mut schemas = serde_json::Map::new();
+    macro_rules! check { ($($ty:ty),+ $(,)?) => { $(schemas.insert(stringify!($ty).into(), serde_json::to_value(schemars::schema_for!($ty)).unwrap());)+ }; }
     check!(
         ActiveVehicleGrantsRequest,
         CameraCodec,
@@ -143,6 +144,16 @@ fn schemas_preserve_the_published_contract() {
         LiveViewUri,
         LiveViewerInstanceId,
     );
+    if std::env::var_os("VEOVEO_UPDATE_UAV_CONTRACT_SCHEMA").is_some() {
+        std::fs::write(
+            &path,
+            format!("{}\n", serde_json::to_string_pretty(&schemas).unwrap()),
+        )
+        .unwrap();
+    }
+    let baseline: serde_json::Map<String, serde_json::Value> =
+        serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    assert_eq!(schemas, baseline);
 }
 
 #[test]

@@ -99,7 +99,14 @@ impl MapCatalog {
         self.store()
             .map_route(&scope.identity, id.as_str())
             .await?
-            .map(|row| decode(&row.canonical_json, "route"))
+            .map(|row| {
+                let route: RoutePlan = decode(&row.canonical_json, "route")?;
+                anyhow::ensure!(
+                    route.route_id == *id && route.route_uri.id() == id,
+                    "route document disagrees with its selected identity"
+                );
+                Ok(route)
+            })
             .transpose()
     }
 

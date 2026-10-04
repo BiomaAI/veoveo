@@ -123,6 +123,14 @@ release provenance, and restriction identities. A consuming domain may add its
 own actuation constraints, but it does not resolve places, plan a replacement
 path, or reinterpret Map restrictions.
 
+The contract library exposes `MapRouteHandoffBuilder` and a checked
+`MapRouteHandoff`. Construction and JSON decoding validate the supported schema,
+route state, typed addresses and provenance IDs, lowercase SHA-256, unique release
+and restriction references, path bounds and validation/preparation order. The path
+contains 2–10,000 valid WGS84 positions without consecutive duplicates. Ground paths
+may omit height; UAV requires it when admitting flight. A handoff conveys no execution
+authority. Exact retained route reads reject a URI that names a different route.
+
 ### Durable Routing Operations
 
 Single routes, route matrices, and reachable areas use the MCP Task API. Each

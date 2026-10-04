@@ -1,6 +1,6 @@
 //! UAV admission policy over Map's public contract.
 use super::*;
-use veoveo_map_mcp::contract::{MAP_ROUTE_HANDOFF_SCHEMA, RouteStatus};
+use veoveo_map_mcp::contract::RouteStatus;
 
 const PLAN_VALIDATION_MAX_AGE: Duration = Duration::minutes(5);
 
@@ -12,12 +12,7 @@ pub(super) struct RouteRequirement<'a> {
 
 impl<'a> RouteRequirement<'a> {
     pub(super) fn new(handoff: &'a MapRouteHandoff) -> Result<Self> {
-        if handoff.schema_profile != MAP_ROUTE_HANDOFF_SCHEMA {
-            return Err(ControlAuthorityError::Invalid(
-                "Map route handoff uses an unsupported schema profile".into(),
-            ));
-        }
-        let advisory = match handoff.route_status {
+        let advisory = match handoff.route_status() {
             RouteStatus::Validated => false,
             RouteStatus::PlanningAdvisory => true,
             RouteStatus::Stale | RouteStatus::Invalidated | RouteStatus::Unavailable => {
@@ -28,7 +23,7 @@ impl<'a> RouteRequirement<'a> {
             }
         };
         Ok(Self {
-            profile: &handoff.mobility_profile_uri,
+            profile: handoff.mobility_profile_uri(),
             advisory,
         })
     }
@@ -45,28 +40,19 @@ pub(super) fn validate_map_handoff(
     {
         return Err(ControlAuthorityError::Forbidden);
     }
-    if !single_resource_uri(&handoff.route_uri, "map://route/")
-        || !valid_sha256(&handoff.route_digest_sha256)
-        || !(2..=10_000).contains(&handoff.path.len())
-    {
-        return Err(ControlAuthorityError::Invalid(
-            "Map route handoff identity, digest, or path bounds are invalid".into(),
-        ));
-    }
     if handoff
-        .path
+        .path()
         .iter()
-        .any(|position| position.validate().is_err() || position.ellipsoidal_height_m.is_none())
+        .any(|position| position.ellipsoidal_height_m.is_none())
     {
         return Err(ControlAuthorityError::Invalid(
             "every executable Map route position requires valid ellipsoidal height".into(),
         ));
     }
     let now = Utc::now();
-    if handoff.validated_at < now - PLAN_VALIDATION_MAX_AGE
-        || handoff.validated_at > now + Duration::seconds(30)
-        || handoff.prepared_at < handoff.validated_at
-        || handoff.prepared_at > now + Duration::seconds(30)
+    if handoff.validated_at() < now - PLAN_VALIDATION_MAX_AGE
+        || handoff.validated_at() > now + Duration::seconds(30)
+        || handoff.prepared_at() > now + Duration::seconds(30)
     {
         return Err(ControlAuthorityError::Invalid(
             "Map route handoff validation is stale or temporally inconsistent".into(),

@@ -351,13 +351,13 @@ fn indeterminate(reason: &str) -> TaskTransition {
 fn mission_operation(plan: &VehicleMissionPlan) -> Result<DurableOperation, String> {
     let last_index = plan
         .map_route
-        .path
+        .path()
         .len()
         .checked_sub(1)
         .ok_or_else(|| "admitted Map route has no positions".to_owned())?;
     let waypoints = plan
         .map_route
-        .path
+        .path()
         .iter()
         .enumerate()
         .map(|(index, position)| {
@@ -536,7 +536,7 @@ mod tests {
     use super::*;
     use chrono::Utc;
     use veoveo_map_mcp::contract::{
-        MAP_ROUTE_HANDOFF_SCHEMA, MapMobilityProfileUri, MapRouteHandoff, MobilityProfileId,
+        MapMobilityProfileUri, MapRouteHandoffBuilder, MapRouteHandoffSchema, MobilityProfileId,
         MobilityProfileVersion, RouteStatus, ValidationId, Wgs84Position as MapPosition,
     };
 
@@ -572,10 +572,12 @@ mod tests {
             session_id: SessionId::new("uav-showcase").unwrap(),
             vehicle_id: VehicleId::new("uav-1").unwrap(),
             expected_world_revision_uri: revision_uri,
-            map_route: MapRouteHandoff {
-                schema_profile: MAP_ROUTE_HANDOFF_SCHEMA.to_owned(),
-                route_uri: "map://route/route-1".to_owned(),
-                route_digest_sha256: "a".repeat(64),
+            map_route: MapRouteHandoffBuilder {
+                schema_profile: MapRouteHandoffSchema::V1,
+                route_uri: veoveo_map_mcp::contract::MapRouteUri::new(
+                    veoveo_map_mcp::contract::RouteId::from_stable_key(b"native"),
+                ),
+                route_digest_sha256: veoveo_types::Sha256Digest::from_hex("a".repeat(64)).unwrap(),
                 route_status: RouteStatus::Validated,
                 mobility_profile_uri: MapMobilityProfileUri::new(
                     MobilityProfileId::from_stable_key(b"native"),
@@ -595,11 +597,13 @@ mod tests {
                 ],
                 validation_id: ValidationId::new(),
                 validated_at: now,
-                operational_snapshot_id: "snapshot-1".to_owned(),
-                base_release_ids: vec!["release-1".to_owned()],
+                operational_snapshot_id: veoveo_map_mcp::contract::OperationalSnapshotId::new(),
+                base_release_ids: vec![veoveo_map_mcp::contract::DatasetReleaseId::new()],
                 restriction_ids: Vec::new(),
                 prepared_at: now,
-            },
+            }
+            .build()
+            .unwrap(),
             speed_mps: 12.0,
             hold_seconds_at_destination: 8.0,
             state: MissionPlanLifecycle::Prepared,

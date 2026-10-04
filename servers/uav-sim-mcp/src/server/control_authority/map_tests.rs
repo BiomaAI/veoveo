@@ -36,25 +36,24 @@ fn map_status_and_handoff_policy_stay_explicit() {
         RouteStatus::Invalidated,
         RouteStatus::Unavailable,
     ] {
-        request.map_route.route_status = status;
-        assert!(RouteRequirement::new(&request.map_route).is_err());
-        assert!(validate_map_handoff(&request, &granted).is_err());
+        let mut builder = request.map_route.clone().into_builder();
+        builder.route_status = status;
+        assert!(builder.build().is_err());
     }
-    request.map_route.route_status = RouteStatus::PlanningAdvisory;
+    let mut builder = request.map_route.clone().into_builder();
+    builder.route_status = RouteStatus::PlanningAdvisory;
+    request.map_route = builder.build().unwrap();
     assert!(validate_map_handoff(&request, &granted).is_err());
     granted.allow_planning_advisory = true;
     assert!(validate_map_handoff(&request, &granted).is_ok());
     let good = request.clone();
-    request.map_route.path[0].ellipsoidal_height_m = None;
+    let mut builder = good.map_route.clone().into_builder();
+    builder.path[0].ellipsoidal_height_m = None;
+    request.map_route = builder.build().unwrap();
     assert!(validate_map_handoff(&request, &granted).is_err());
-    request = good.clone();
-    request.map_route.path[0].latitude_deg = 91.0;
-    assert!(validate_map_handoff(&request, &granted).is_err());
-    request = good.clone();
-    request.map_route.validated_at -= Duration::minutes(6);
-    assert!(validate_map_handoff(&request, &granted).is_err());
-    request = good.clone();
-    request.map_route.path.truncate(1);
+    let mut builder = good.map_route.clone().into_builder();
+    builder.validated_at -= Duration::minutes(6);
+    request.map_route = builder.build().unwrap();
     assert!(validate_map_handoff(&request, &granted).is_err());
     let mut wire = serde_json::to_value(&good).unwrap();
     wire["map_route"]["path"][0]["unexpected"] = true.into();
@@ -70,7 +69,9 @@ async fn native_route_grants_filter_profiles_and_advisory_before_limit() {
         let reader = VehicleControlAuthority::new(db.b.clone());
         let pilot = identity("route-grants", "operations", "pilot", &[]);
         let mut request = mission_request("route-profile");
-        request.map_route.route_status = RouteStatus::PlanningAdvisory;
+        let mut builder = request.map_route.into_builder();
+        builder.route_status = RouteStatus::PlanningAdvisory;
+        request.map_route = builder.build().unwrap();
         let wrong_profile = MapMobilityProfileUri::new(
             MobilityProfileId::from_stable_key(b"other"),
             MobilityProfileVersion::FIRST,
@@ -92,7 +93,7 @@ async fn native_route_grants_filter_profiles_and_advisory_before_limit() {
         let granted = authority.grant(&pilot, admitted).await.unwrap();
         assert_eq!(
             granted.map_mobility_profile_uri,
-            request.map_route.mobility_profile_uri
+            request.map_route.mobility_profile_uri().clone()
         );
         let plan = reader.prepare_plan(&pilot, request).await.unwrap();
         assert_eq!(

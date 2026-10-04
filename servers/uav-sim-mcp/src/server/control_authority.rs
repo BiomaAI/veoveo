@@ -279,9 +279,9 @@ impl VehicleControlAuthority {
             principal_key: plan.principal_key.clone(),
             session_id: plan.session_id.to_string(),
             vehicle_id: plan.vehicle_id.to_string(),
-            map_route_uri: plan.map_route.route_uri.clone(),
-            map_route_digest_sha256: plan.map_route.route_digest_sha256.clone(),
-            map_mobility_profile_uri: plan.map_route.mobility_profile_uri.as_str().to_owned(),
+            map_route_uri: plan.map_route.route_uri().to_string(),
+            map_route_digest_sha256: plan.map_route.route_digest_sha256().hex().to_owned(),
+            map_mobility_profile_uri: plan.map_route.mobility_profile_uri().as_str().to_owned(),
             state: "prepared".to_owned(),
             canonical_json: serde_json::to_string(&plan)?,
             expires_at: plan.expires_at,
@@ -435,9 +435,9 @@ fn plan_view(record: &PlanRecord) -> Result<VehicleMissionPlan> {
         || plan.principal_key != record.principal_key
         || plan.session_id.as_str() != record.session_id
         || plan.vehicle_id.as_str() != record.vehicle_id
-        || plan.map_route.route_uri != record.map_route_uri
-        || plan.map_route.route_digest_sha256 != record.map_route_digest_sha256
-        || plan.map_route.mobility_profile_uri.as_str() != record.map_mobility_profile_uri
+        || plan.map_route.route_uri().as_str() != record.map_route_uri
+        || plan.map_route.route_digest_sha256().hex() != record.map_route_digest_sha256
+        || plan.map_route.mobility_profile_uri().as_str() != record.map_mobility_profile_uri
         || state != record.state
         || checked_i64(plan.revision)? != record.revision
         || plan.expires_at != record.expires_at
@@ -511,27 +511,6 @@ fn vehicle_lease_record_id(
     )
 }
 
-fn single_resource_uri(value: &str, prefix: &str) -> bool {
-    value
-        .strip_prefix(prefix)
-        .is_some_and(|suffix| !suffix.is_empty() && !suffix.contains('/'))
-}
-
-fn valid_sha256(value: &str) -> bool {
-    value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
-}
-
 fn checked_i64(value: u64) -> Result<i64> {
     i64::try_from(value).map_err(|_| ControlAuthorityError::Conflict)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn digest_validation_is_strict() {
-        assert!(valid_sha256(&"a".repeat(64)));
-        assert!(!valid_sha256(&"g".repeat(64)));
-    }
 }
