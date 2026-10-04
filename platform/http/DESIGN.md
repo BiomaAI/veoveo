@@ -32,6 +32,10 @@ Those errors receive the generic 400 diagnostic. The extractor reads the typed
 Serde error source and only recognizes an explicit unknown-field diagnostic; it
 does not infer field names from arbitrary validation messages.
 
+`AccessSubject` uses an owner-defined strict map decoder for its `kind` and `id`
+fields. Its undeclared keys reach this extractor as structured unknown-field errors.
+Malformed tag and identity values receive the generic diagnostic.
+
 Response serialization continues to use Axum's `Json<T>`. Domain validation after
 decoding keeps its owner-defined error response. Authentication remains in each
 route's existing middleware or handler. Custom handlers that authenticate before

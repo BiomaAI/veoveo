@@ -125,17 +125,28 @@ async fn artifact_http_rejects_unknown_request_fields_and_keeps_metadata_open() 
                 .unwrap();
             assert_eq!(response.status(), reqwest::StatusCode::BAD_REQUEST);
             let diagnostic = response.text().await.unwrap();
-            if suffix == "grants" {
-                // Adjacent-tag field rejection stays generic because its Serde
-                // diagnostic shares the invalid-value error shape.
-                assert_eq!(diagnostic, "invalid JSON request body");
-                assert!(!diagnostic.contains("secret-sentinel"));
-            } else {
-                assert!(
-                    diagnostic.contains(field),
-                    "{suffix} must name {field}: {diagnostic}"
-                );
-            }
+            assert!(
+                diagnostic.contains(field),
+                "{suffix} must name {field}: {diagnostic}"
+            );
+            assert!(!diagnostic.contains("secret-sentinel"));
+        }
+        for (field, invalid) in [
+            ("kind", serde_json::json!("unknown field `secret-sentinel`")),
+            ("id", serde_json::json!({"secret":"secret-sentinel"})),
+            ("id", serde_json::json!("secret-sentinel\u{0}")),
+        ] {
+            let mut body = serde_json::to_value(&grant).unwrap();
+            body["subject"][field] = invalid;
+            let response = client
+                .post(format!("{base}/artifacts/{id}/grants"))
+                .bearer_auth(&caller.bearer_token)
+                .json(&body)
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(response.status(), reqwest::StatusCode::BAD_REQUEST);
+            assert_eq!(response.text().await.unwrap(), "invalid JSON request body");
         }
         assert_eq!(plane.head(&caller, &id).await.unwrap(), metadata);
     })

@@ -7,7 +7,7 @@ fn capture_schema<T: schemars::JsonSchema>(
         serde_json::to_value(schemars::schema_for!(T)).unwrap(),
     );
 }
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{Value, json};
 use std::{fmt::Debug, str::FromStr};
 use veoveo_types::{
@@ -239,6 +239,193 @@ fn access_subject_variants_reject_undeclared_fields() {
         assert!(serde_json::from_value::<AccessSubject>(input.clone()).is_ok());
         let mut extra = input;
         extra["undeclared"] = json!(true);
-        assert!(serde_json::from_value::<AccessSubject>(extra).is_err());
+        assert!(
+            serde_json::from_value::<AccessSubject>(extra)
+                .unwrap_err()
+                .to_string()
+                .starts_with("unknown field `undeclared`")
+        );
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(
+    rename = "AccessSubject",
+    rename_all = "snake_case",
+    tag = "kind",
+    content = "id",
+    deny_unknown_fields
+)]
+enum LegacySubject {
+    Principal(PrincipalId),
+    Group(GroupId),
+}
+impl From<LegacySubject> for AccessSubject {
+    fn from(subject: LegacySubject) -> Self {
+        match subject {
+            LegacySubject::Principal(id) => Self::Principal(id),
+            LegacySubject::Group(id) => Self::Group(id),
+        }
+    }
+}
+
+#[test]
+fn subject_decoder_preserves_field_order_and_rejects_duplicate_missing_and_invalid_fields() {
+    for wire in [
+        r#"{"kind":"principal","id":"issuer#user"}"#,
+        r#"{"id":"issuer#user","kind":"principal"}"#,
+        r#"{"kind":"group","id":"engineering"}"#,
+        r#"{"id":"engineering","kind":"group"}"#,
+        r#"["principal","issuer#user"]"#,
+        r#"["group","engineering"]"#,
+        r#"{"kind":{"principal":null},"id":"issuer#user"}"#,
+        r#"{"id":"engineering","kind":{"group":null}}"#,
+    ] {
+        let legacy: LegacySubject = serde_json::from_str(wire).unwrap();
+        assert_eq!(
+            serde_json::from_str::<AccessSubject>(wire).unwrap(),
+            legacy.into()
+        );
+    }
+    for wire in [
+        r#"{"kind":"principal","kind":"group","id":"user"}"#,
+        r#"{"kind":"group","id":"user","id":"other"}"#,
+        r#"{"id":"user","id":"other","kind":"principal"}"#,
+        r#"{"kind":"principal"}"#,
+        r#"{"id":"user"}"#,
+        r#"{}"#,
+        r#"{"kind":"role","id":"user"}"#,
+        r#"{"kind":42,"id":"user"}"#,
+        r#"{"kind":"principal","id":""}"#,
+        r#"{"kind":"group","id":"\u0000"}"#,
+        r#"{"id":null,"kind":"principal"}"#,
+        r#"{"kind":"group","id":{"secret":"sentinel"}}"#,
+        r#"["principal"]"#,
+        r#"[{"principal":null},"user"]"#,
+        r#"[{"group":null},"engineering"]"#,
+    ] {
+        assert!(
+            serde_json::from_str::<LegacySubject>(wire).is_err(),
+            "{wire}"
+        );
+        assert!(
+            serde_json::from_str::<AccessSubject>(wire).is_err(),
+            "{wire}"
+        );
+    }
+    for wire in [
+        r#"{"extra":"secret-sentinel","kind":"principal","id":"user"}"#,
+        r#"{"kind":"principal","id":"user","extra":"secret-sentinel"}"#,
+        r#"{"extra":"secret-sentinel","id":"engineering","kind":"group"}"#,
+        r#"{"id":"engineering","kind":"group","extra":"secret-sentinel"}"#,
+    ] {
+        let error = serde_json::from_str::<AccessSubject>(wire)
+            .unwrap_err()
+            .to_string();
+        assert!(error.starts_with("unknown field `extra`"), "{error}");
+        assert!(!error.contains("secret-sentinel"));
+    }
+}
+
+#[derive(Clone, Copy)]
+enum BinarySubjectTag<'a> {
+    Ordinal(u32),
+    Text(&'a str),
+    Bytes(&'a [u8]),
+}
+
+struct BinarySubject<'a> {
+    tag: BinarySubjectTag<'a>,
+    id: &'a str,
+    field: u8,
+}
+impl<'de> serde::Deserializer<'de> for BinarySubject<'de> {
+    type Error = serde::de::value::Error;
+    fn is_human_readable(&self) -> bool {
+        false
+    }
+    fn deserialize_any<V: serde::de::Visitor<'de>>(self, _: V) -> Result<V::Value, Self::Error> {
+        Err(serde::de::Error::custom(
+            "expected the subject struct profile",
+        ))
+    }
+    fn deserialize_struct<V: serde::de::Visitor<'de>>(
+        self,
+        name: &'static str,
+        fields: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, Self::Error> {
+        assert_eq!(name, "AccessSubject");
+        assert_eq!(fields, ["kind", "id"]);
+        visitor.visit_seq(self)
+    }
+    serde::forward_to_deserialize_any! {
+        bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string
+        bytes byte_buf option unit unit_struct newtype_struct seq tuple tuple_struct
+        map enum identifier ignored_any
+    }
+}
+impl<'de> serde::de::SeqAccess<'de> for BinarySubject<'de> {
+    type Error = serde::de::value::Error;
+    fn next_element_seed<T: serde::de::DeserializeSeed<'de>>(
+        &mut self,
+        seed: T,
+    ) -> Result<Option<T::Value>, Self::Error> {
+        let field = self.field;
+        self.field += 1;
+        match field {
+            0 => seed.deserialize(BinarySubjectKind(self.tag)).map(Some),
+            1 => seed
+                .deserialize(serde::de::value::StrDeserializer::new(self.id))
+                .map(Some),
+            _ => Ok(None),
+        }
+    }
+}
+struct BinarySubjectKind<'a>(BinarySubjectTag<'a>);
+impl<'de> serde::Deserializer<'de> for BinarySubjectKind<'de> {
+    type Error = serde::de::value::Error;
+    fn deserialize_any<V: serde::de::Visitor<'de>>(self, _: V) -> Result<V::Value, Self::Error> {
+        Err(serde::de::Error::custom("expected the subject tag profile"))
+    }
+    fn deserialize_identifier<V: serde::de::Visitor<'de>>(
+        self,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error> {
+        match self.0 {
+            BinarySubjectTag::Ordinal(ordinal) => visitor.visit_u32(ordinal),
+            BinarySubjectTag::Text(text) => visitor.visit_borrowed_str(text),
+            BinarySubjectTag::Bytes(bytes) => visitor.visit_borrowed_bytes(bytes),
+        }
+    }
+    serde::forward_to_deserialize_any! {
+        bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string
+        bytes byte_buf option unit unit_struct newtype_struct seq tuple tuple_struct
+        map struct enum ignored_any
+    }
+}
+
+#[test]
+fn subject_binary_struct_and_identifier_tag_profile_matches_legacy_decoder() {
+    use BinarySubjectTag::{Bytes, Ordinal, Text};
+    for (tag, id) in [
+        (Ordinal(0), "issuer#user"),
+        (Ordinal(1), "engineering"),
+        (Text("principal"), "issuer#user"),
+        (Text("group"), "engineering"),
+        (Bytes(b"principal"), "issuer#user"),
+        (Bytes(b"group"), "engineering"),
+        (Ordinal(0), ""),
+        (Ordinal(1), "\0"),
+        (Ordinal(2), "user"),
+        (Text("role"), "user"),
+        (Bytes(b"role"), "user"),
+        (Bytes(b"\xff"), "user"),
+    ] {
+        let wire = || BinarySubject { tag, id, field: 0 };
+        let legacy = LegacySubject::deserialize(wire()).map(AccessSubject::from);
+        let current = AccessSubject::deserialize(wire());
+        assert_eq!(legacy.is_ok(), matches!(id, "issuer#user" | "engineering"));
+        assert_eq!(current, legacy);
     }
 }

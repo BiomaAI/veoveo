@@ -43,6 +43,9 @@ Platform identity belongs here too: `PrincipalId`, `TenantId`, `WorkContextId`,
 and `TokenSubject` are distinct
 validated newtypes. `AccessSubject` identifies a principal or group. `InvocationMode`
 and `InvocationProvenance` describe direct, delegated, or automated attribution.
+`AccessSubject` decodes maps through a closed owner wire struct, which reports
+undeclared keys without treating submitted values as field names. Sequence decoding
+uses its adjacent-tag Serde profile, including identifier-based tag admission.
 `TaskId` identifies a native platform Task independently of its database record or MCP handle.
 It depends on Serde, Schemars, URL, percent encoding, iri-string, UUID and Chrono date/time values. It contains no protocol transport, asynchronous
 runtime, database client, provider integration, or server vocabulary.
