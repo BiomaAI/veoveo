@@ -213,8 +213,8 @@ async fn accepted_command_uses_current_grant_limits_after_admission_family_revoc
     let identity = support::browser::identity(&db, "bob").await;
     let bob = ComputerActor::from_verified(&identity).unwrap();
     let mut input = support::automation::input(computer);
-    input.principal_id = bob.owner().principal_key.clone();
-    input.oauth_client_id = "console".into();
+    input.principal_id = bob.owner().principal_key.clone().try_into().unwrap();
+    input.oauth_client_id = "console".parse().unwrap();
     let grant = a.issue_automation_grant(&owner, &input).await.unwrap();
     let claim = queue_claim(&db, &a, &bob, computer, grant.grant_id).await;
     let family = identity

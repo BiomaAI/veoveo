@@ -261,10 +261,9 @@ fn automation_result(
     revoked: bool,
 ) -> Result<Vec<u8>, ()> {
     let result: api::AutomationGrantResult = serde_json::from_slice(bytes).map_err(|_| ())?;
-    if result.grant.computer_id != computer
-        || grant.is_some_and(|grant| result.grant.grant_id != grant)
-        || (revoked && result.grant.revoked_at.is_none())
-        || result.result_uri != api::automation_grant_uri(computer, result.grant.grant_id).as_str()
+    if result.grant().computer_id != computer
+        || grant.is_some_and(|grant| result.grant().grant_id != grant)
+        || (revoked && result.grant().revoked_at.is_none())
     {
         return Err(());
     }

@@ -144,6 +144,9 @@ is invalid. This addition is coordinated within unreleased terminal v2.
 `automation.rs` defines named-principal grant input, inventory and revocation DTOs.
 `principalId` identifies the grantee; it never selects the Computer owner.
 `oauthClientId` binds the application through which that principal may use the grant.
+Inputs, views and client choices carry foundational `PrincipalId` and `OAuthClientId`
+values through domain admission and authority checks. JSON decoding rejects malformed
+identities; the database adapter converts them to text when writing driver records.
 Permissions are a nonempty unique set of Read, Execute, Start and Stop. Execute
 requires explicit time and output limits plus `onInterruption: "stop_computer"`.
 Cancellation, expiry or uncertain execution can stop other processes on that Computer
@@ -188,6 +191,9 @@ IDs resolve through `artifact://{artifact_id}` under Artifact read authority.
 
 `AutomationGrantResult` wraps one grant and its canonical result URI. Exact grant reads
 include revoked/expired records even when the live inventory no longer lists them.
+Construction derives `AutomationGrantUri` from the grant's typed Computer and grant
+IDs. JSON decoding rejects a different parent, grant, resource kind or query component.
+Consumers use the checked result and still enforce the requested Computer and grant.
 The empty `RevokeAutomationGrantBody` is closed and cannot carry additional authority.
 
 `UpdateTemplateInput` selects an admitted template ID or the first request's default.

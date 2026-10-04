@@ -21,6 +21,8 @@ all nonempty vocabularies. Recording producer permissions remain distinct from s
 The analytical consumer builds a Timeseries forecast from DuckDB's tabular source
 profile and column types, checked forecast steps, and a nonempty training filter.
 It also promotes that source into DuckDB's complete input type.
+Map handoff construction and Computers grant addresses use their owner libraries'
+checked builders without pulling either host runtime into the consumer.
 
 Run the isolated checks with one shared build directory:
 

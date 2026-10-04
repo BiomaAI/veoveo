@@ -421,7 +421,7 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
     };
     let grant = serde_json::from_value::<AutomationGrantResult>(issued.structured_content.unwrap())
         .unwrap()
-        .grant;
+        .into_grant();
     use base64::Engine;
     let input = ExecuteInput {
         computer_id: computer.computer_id, grant_id: grant.grant_id, request_id: veoveo_computers::api::RequestId::new(),

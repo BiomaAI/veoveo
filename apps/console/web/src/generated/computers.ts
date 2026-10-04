@@ -21,10 +21,29 @@ export type AccessGrantKind = "browser" | "cli";
  */
 export type AutomationGrantId = string;
 /**
+ * Registered OAuth client id allowed to request gateway-profile tokens.
+ *
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "OAuthClientId".
+ */
+export type OAuthClientId = string;
+/**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "AutomationPermission".
  */
 export type AutomationPermission = "read" | "execute" | "start" | "stop";
+/**
+ * Stable authenticated user or service-principal identity.
+ *
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "PrincipalId".
+ */
+export type PrincipalId = string;
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "AutomationGrantUri".
+ */
+export type AutomationGrantUri = string;
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "CancelFileTransferBody".
@@ -401,9 +420,9 @@ export interface AutomationGrantView {
   grantId: AutomationGrantId;
   issuedAt: string;
   name: string;
-  oauthClientId: string;
+  oauthClientId: OAuthClientId;
   permissions: AutomationPermission[];
-  principalId: string;
+  principalId: PrincipalId;
   revokedAt?: string | null;
 }
 /**
@@ -427,7 +446,7 @@ export interface AutomationExecutionLimits {
  */
 export interface AutomationGrantResult {
   grant: AutomationGrantView;
-  result_uri: string;
+  result_uri: AutomationGrantUri;
 }
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
@@ -466,11 +485,11 @@ export interface AutomationGrantCollection {
  */
 export interface AutomationClientChoice {
   displayName: string;
-  oauthClientId: string;
+  oauthClientId: OAuthClientId;
   /**
    * Automated clients authenticate as this canonical service principal.
    */
-  servicePrincipalId?: string | null;
+  servicePrincipalId?: PrincipalId | null;
 }
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
@@ -701,7 +720,7 @@ export interface IssueAutomationGrantInput {
   executionLimits?: AutomationExecutionLimits | null;
   expiresAt: string;
   name: string;
-  oauthClientId: string;
+  oauthClientId: OAuthClientId;
   /**
    * @minItems 1
    * @maxItems 4
@@ -711,7 +730,7 @@ export interface IssueAutomationGrantInput {
     | [AutomationPermission, AutomationPermission]
     | [AutomationPermission, AutomationPermission, AutomationPermission]
     | [AutomationPermission, AutomationPermission, AutomationPermission, AutomationPermission];
-  principalId: string;
+  principalId: PrincipalId;
   requestId: RequestId;
 }
 /**

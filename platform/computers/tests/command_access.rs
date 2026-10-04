@@ -149,8 +149,8 @@ async fn a_current_human_token_from_another_client_cannot_read_a_command_task() 
     .unwrap();
     let actor = support::authenticated(&human);
     let mut input = support::automation::input(computer);
-    input.principal_id = human.principal_key.clone();
-    input.oauth_client_id = "console".into();
+    input.principal_id = human.principal_key.clone().try_into().unwrap();
+    input.oauth_client_id = "console".parse().unwrap();
     let grant = a.issue_automation_grant(&owner, &input).await.unwrap();
     let claim = command_support::queue_claim(&db, &a, &actor, computer, grant.grant_id).await;
     let execution =

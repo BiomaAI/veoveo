@@ -54,7 +54,8 @@ impl ComputersStore {
         actor: &ComputerActor,
         input: &IssueAutomationGrantInput,
     ) -> Result<AutomationGrantView> {
-        let principal = model::validate(input)?;
+        model::validate(input)?;
+        let principal = &input.principal_id;
         let owner = self.automation_owner(actor, "grant_automation").await?;
         let computer = self.get(actor.owner(), input.computer_id).await?;
         if computer.provider_instance_id != self.provider_instance_id {
@@ -111,7 +112,7 @@ impl ComputersStore {
             .control_plane()
             .oauth_clients
             .iter()
-            .find(|client| client.id.as_str() == input.oauth_client_id)
+            .find(|client| client.id == input.oauth_client_id)
             .ok_or(ComputerError::InvalidInput)?;
         if !super::management::admitted_client(&owner.snapshot, client) {
             return Err(ComputerError::InvalidInput);
@@ -140,7 +141,7 @@ impl ComputersStore {
             return Err(ComputerError::NotFound);
         }
         if let Some(expected) = super::management::service_principal_id(&owner.snapshot, client)?
-            && (principal.as_str() != expected || grantee.kind != PrincipalKind::Service)
+            && (principal != &expected || grantee.kind != PrincipalKind::Service)
         {
             return Err(ComputerError::InvalidInput);
         }
@@ -153,7 +154,7 @@ impl ComputersStore {
             authority: object(actor.accepted())?,
             grantee: grantee.id,
             principal_id: principal.to_string(),
-            oauth_client_id: input.oauth_client_id.clone(),
+            oauth_client_id: input.oauth_client_id.to_string(),
             grantee_issuer: grantee.issuer,
             grantee_subject: grantee.subject,
             grantee_kind: grantee.kind,

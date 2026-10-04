@@ -195,6 +195,67 @@ pub fn automation_grant_uri(computer: ComputerId, grant: AutomationGrantId) -> R
     ComputerResource::Grant { computer, grant }.to_uri()
 }
 
+/// One grant under its owning Computer. A valid address grants no access.
+///
+/// ```compile_fail
+/// use veoveo_computers_contract::{AutomationGrantUri, ComputerId, ExecutionId};
+/// AutomationGrantUri::new(ComputerId::new(), ExecutionId::new());
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct AutomationGrantUri {
+    computer: ComputerId,
+    grant: AutomationGrantId,
+}
+impl JsonSchema for AutomationGrantUri {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "AutomationGrantUri".into()
+    }
+    fn json_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        schemars::json_schema!({
+            "type": "string",
+            "pattern": "^computer://computers/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/automation/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        })
+    }
+}
+impl AutomationGrantUri {
+    pub fn new(computer: ComputerId, grant: AutomationGrantId) -> Self {
+        Self { computer, grant }
+    }
+    pub fn computer_id(self) -> ComputerId {
+        self.computer
+    }
+    pub fn grant_id(self) -> AutomationGrantId {
+        self.grant
+    }
+    pub fn to_uri(self) -> ResourceUri {
+        automation_grant_uri(self.computer, self.grant)
+    }
+}
+impl From<AutomationGrantUri> for String {
+    fn from(value: AutomationGrantUri) -> Self {
+        value.to_uri().to_string()
+    }
+}
+impl TryFrom<String> for AutomationGrantUri {
+    type Error = ComputerResourceError;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        match ComputerResource::parse(value)? {
+            ComputerResource::Grant { computer, grant } => Ok(Self::new(computer, grant)),
+            _ => Err(ComputerResourceError),
+        }
+    }
+}
+impl ResourceAddress for AutomationGrantUri {
+    type Error = ComputerResourceError;
+    fn parse(value: &ResourceUri) -> Result<Self, Self::Error> {
+        Self::try_from(value.to_string())
+    }
+    fn to_uri(&self) -> Result<ResourceUri, Self::Error> {
+        Ok((*self).to_uri())
+    }
+}
+
 macro_rules! result_uri {
     ($uri:ident, $id:ident, $variant:ident, $getter:ident, $template:literal, $route:literal) => {
         #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]

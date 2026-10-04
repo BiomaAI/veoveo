@@ -167,21 +167,21 @@ async fn public_command_admission_repairs_one_task_with_actual_artifact_authorit
             .grantable_permissions
             .contains(&AutomationPermission::Execute)
     );
-    assert!(
-        inventory
-            .client_choices
-            .iter()
-            .any(|client| client.oauth_client_id == "service"
-                && client.service_principal_id.as_deref()
-                    == Some("https://computers.test#service"))
-    );
+    assert!(inventory.client_choices.iter().any(|client| {
+        client.oauth_client_id.as_str() == "service"
+            && client
+                .service_principal_id
+                .as_ref()
+                .map(veoveo_types::PrincipalId::as_str)
+                == Some("https://computers.test#service")
+    }));
     assert_eq!(inventory.grants.len(), 1);
     assert_eq!(
         inventory.limits.maximum_execution_seconds,
         support::automation::POLICY.maximum_execution_seconds
     );
     let mut input = json!({
-        "computerId":computer,"grantId":grant.grant.grant_id,"requestId":Uuid::now_v7(),
+        "computerId":computer,"grantId":grant.grant().grant_id,"requestId":Uuid::now_v7(),
         "arguments":["/bin/printf","private-public-command-argument"],"directory":".",
         "environment":{"PRIVATE_TOKEN":"private-public-command-environment"},
         "stdin":STANDARD.encode(vec![0xff; 1024 * 1024]),
@@ -293,7 +293,8 @@ async fn public_command_admission_repairs_one_task_with_actual_artifact_authorit
     let revoked = client
         .post(format!(
             "{}/admin/computers/{computer}/automation/{}/revoke",
-            right.base, grant.grant.grant_id
+            right.base,
+            grant.grant().grant_id
         ))
         .bearer_auth(&owner_token)
         .json(&json!({}))
@@ -306,7 +307,7 @@ async fn public_command_admission_repairs_one_task_with_actual_artifact_authorit
             .json::<AutomationGrantResult>()
             .await
             .unwrap()
-            .grant
+            .grant()
             .revoked_at
             .is_some()
     );
@@ -329,7 +330,7 @@ async fn public_command_admission_repairs_one_task_with_actual_artifact_authorit
             &left,
             token,
             "resources/read",
-            json!({"uri":grant.result_uri}),
+            json!({"uri":grant.result_uri()}),
             true,
         )
         .await;

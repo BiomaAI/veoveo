@@ -17,6 +17,46 @@ pub fn public_requests(id: ArtifactId) -> (ArtifactReference, Action, Transcribe
 mod tests {
     use super::*;
     #[test]
+    fn map_handoff_and_computer_grant_types_need_no_host_runtime() {
+        use veoveo_computers_mcp::contract::{AutomationGrantId, AutomationGrantUri, ComputerId};
+        use veoveo_map_mcp::contract::*;
+        let now = "2026-10-04T00:00:00Z".parse().unwrap();
+        let route = MapRouteUri::new(RouteId::new());
+        let handoff = MapRouteHandoffBuilder {
+            schema_profile: MapRouteHandoffSchema::V1,
+            route_uri: route.clone(),
+            route_digest_sha256: veoveo_types::Sha256Digest::from_bytes([1; 32]),
+            route_status: RouteStatus::Validated,
+            mobility_profile_uri: MapMobilityProfileUri::new(
+                MobilityProfileId::new(),
+                MobilityProfileVersion::FIRST,
+            ),
+            path: vec![
+                Wgs84Position::new(0., 0., None).unwrap(),
+                Wgs84Position::new(1., 1., None).unwrap(),
+            ],
+            validation_id: ValidationId::new(),
+            validated_at: now,
+            operational_snapshot_id: OperationalSnapshotId::new(),
+            base_release_ids: vec![DatasetReleaseId::new()],
+            restriction_ids: vec![],
+            prepared_at: now,
+        }
+        .build()
+        .unwrap();
+        assert_eq!(handoff.route_uri(), &route);
+        let computer = ComputerId::new();
+        let grant = AutomationGrantId::new();
+        let uri = AutomationGrantUri::new(computer, grant);
+        assert_eq!(uri.computer_id(), computer);
+        assert_eq!(
+            AutomationGrantUri::try_from(String::from(uri))
+                .unwrap()
+                .grant_id(),
+            grant
+        );
+    }
+    #[test]
     fn analytical_consumers_share_sources_and_build_checked_forecast_requests() {
         use veoveo_duckdb_mcp::contract::{DuckDbSource, DuckDbTabularSource};
         use veoveo_timeseries_mcp::contract::{

@@ -8,6 +8,29 @@ requirements, accepted risks and remaining work. This log does not establish com
 
 ## Implementation And Installation Checkpoints
 
+Typed route handoff and automation-grant batch (2026-10-04): Map commit
+`01476095` introduces a checked owner-library builder and decoder for route handoffs.
+Route/profile addresses, digest and provenance IDs stay typed through Map preparation
+and UAV admission. Map checks path bounds, coordinates, state, unique provenance and
+timestamp order. UAV keeps current vehicle/profile/advisory grants, ellipsoidal height,
+freshness and motion policy. Retained Map route reads reject a different route URI.
+Computers grant inputs, views and client choices carry foundational principal/client
+IDs. Checked results derive their typed address from the grant and reject mismatched
+Computer or grant identities on decoding. Domain, MCP, HTTP and gateway consumers use
+those values; generated Console schemas/types and UAV schema snapshots are updated.
+
+One implementation pass covers producers, consumers and fixtures. The aggregate build
+finds two stale Computers HTTP fixture assertions; their correction passes the same
+build selection in 11 seconds. The native execution batch passes 304 cases, including
+75 UAV cases, thirteen Computers HTTP cases, sixteen gateway cases and 75 flight-harness
+consumer cases. Separate contract-only profiles pass eleven and twelve cases, and
+44 documentation examples/compile-fail cases pass. Strict Clippy, Console type checking,
+31 browser unit tests and generated-client consistency pass. The native provider command
+suite compiles; its separately provisioned execution is not repeated in this batch.
+Logs, exact command selections and result manifests are under
+`output/development/map-uav-computers-types/`. The cluster and BuildKit stay stopped;
+publication and installed checks for this source batch remain pending.
+
 Composed flight and core Knowledge acceptance (2026-10-04): reference revision
 `6d4cd2c5` selects Stream `sha256:8ca9f9cb4a307a530c98cd77238cbafa05465aa5f55496d077d6ca83e3e80ea2`
 and Reason `sha256:83ac3b3d987582c7afca39e1e27138ea7e4703c9130eb8f25ce013992d45944d`,

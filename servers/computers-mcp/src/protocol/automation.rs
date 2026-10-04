@@ -53,13 +53,13 @@ fn grant_reply(
     match result {
         Ok(result) => {
             let mut reply = CallToolResult::success(vec![
-                ContentBlock::text(if result.grant.revoked_at.is_some() {
+                ContentBlock::text(if result.grant().revoked_at.is_some() {
                     "Automation grant revoked."
                 } else {
                     "Automation grant issued."
                 }),
                 ContentBlock::resource_link(Resource::new(
-                    result.result_uri.clone(),
+                    String::from(result.result_uri()),
                     "Automation grant",
                 )),
             ]);

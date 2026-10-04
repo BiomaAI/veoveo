@@ -8,7 +8,7 @@ use crate::{
 use std::collections::BTreeSet;
 use veoveo_mcp_contract::OAuthClientRegistration;
 use veoveo_policy::PolicyCatalogView;
-use veoveo_types::InvocationMode;
+use veoveo_types::{InvocationMode, PrincipalId};
 
 #[derive(Default)]
 pub(super) struct GrantManagement {
@@ -41,7 +41,7 @@ pub(super) fn admitted_client(
 pub(super) fn service_principal_id(
     snapshot: &AuthoritySnapshot,
     client: &OAuthClientRegistration,
-) -> Result<Option<String>> {
+) -> Result<Option<PrincipalId>> {
     if client.invocation_mode != InvocationMode::Automated {
         return Ok(None);
     }
@@ -52,7 +52,10 @@ pub(super) fn service_principal_id(
         .iter()
         .find(|server| server.id == client.authorization_server)
         .ok_or(ComputerError::Unavailable)?;
-    Ok(Some(format!("{}#{}", server.issuer, client.id)))
+    Ok(Some(
+        PrincipalId::new(format!("{}#{}", server.issuer, client.id))
+            .map_err(|_| ComputerError::Unavailable)?,
+    ))
 }
 
 impl ComputersStore {
@@ -94,7 +97,7 @@ impl ComputersStore {
             clients.truncate(128);
             for client in clients {
                 hints.clients.push(AutomationClientChoice {
-                    oauth_client_id: client.id.to_string(),
+                    oauth_client_id: client.id.clone(),
                     display_name: client
                         .display_name
                         .clone()

@@ -485,13 +485,8 @@ impl ComputersStore {
         };
         if grant.view.computer_id != computer_id
             || grant.provider != self.provider_instance_id
-            || grant.view.principal_id != source.id.as_str()
-            || grant.view.oauth_client_id
-                != accepted
-                    .request_context
-                    .access_token
-                    .oauth_client_id
-                    .as_str()
+            || grant.view.principal_id != source.id
+            || grant.view.oauth_client_id != accepted.request_context.access_token.oauth_client_id
             || grant.grantee_issuer != source.issuer.as_str()
             || grant.grantee_subject != source.subject.as_str()
             || grant.grantee_kind != kind

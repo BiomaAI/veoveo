@@ -224,8 +224,8 @@ async fn a_user_principal_can_receive_a_grant_but_cannot_change_its_oauth_client
     let mut identity = support::identity(&bob);
     let actor = ComputerActor::from_verified(&identity).unwrap();
     let mut request = input(computer);
-    request.principal_id = bob.principal_key;
-    request.oauth_client_id = "console".into();
+    request.principal_id = bob.principal_key.try_into().unwrap();
+    request.oauth_client_id = "console".parse().unwrap();
     let grant = a.issue_automation_grant(&owner, &request).await.unwrap();
     assert!(
         a.authorize_automation_grant(
@@ -402,19 +402,19 @@ async fn invalid_bounds_unknown_principals_and_foreign_owners_create_no_grants()
     let (a, _, owner, agent, computer) = setup(&db).await;
     let original = input(computer);
     let mut missing = original.clone();
-    missing.principal_id = "https://computers.test#missing".into();
+    missing.principal_id = "https://computers.test#missing".parse().unwrap();
     assert_eq!(
         a.issue_automation_grant(&owner, &missing).await,
         Err(ComputerError::NotFound)
     );
     let mut mismatched = original.clone();
-    mismatched.principal_id = owner.owner().principal_key.clone();
+    mismatched.principal_id = owner.owner().principal_key.clone().try_into().unwrap();
     assert_eq!(
         a.issue_automation_grant(&owner, &mismatched).await,
         Err(ComputerError::InvalidInput)
     );
     let mut unknown_client = original.clone();
-    unknown_client.oauth_client_id = "unknown-client".into();
+    unknown_client.oauth_client_id = "unknown-client".parse().unwrap();
     assert_eq!(
         a.issue_automation_grant(&owner, &unknown_client).await,
         Err(ComputerError::InvalidInput)
@@ -475,7 +475,10 @@ async fn owner_grant_choices_follow_current_permissions_and_registration_scope()
     );
     assert_eq!(inventory.client_choices[0].service_principal_id, None);
     assert_eq!(
-        inventory.client_choices[2].service_principal_id.as_deref(),
+        inventory.client_choices[2]
+            .service_principal_id
+            .as_ref()
+            .map(veoveo_types::PrincipalId::as_str),
         Some("https://computers.test#service")
     );
     assert_eq!(
@@ -515,10 +518,10 @@ async fn owner_grant_choices_follow_current_permissions_and_registration_scope()
         !narrowed
             .client_choices
             .iter()
-            .any(|client| client.oauth_client_id == "secondary-service")
+            .any(|client| client.oauth_client_id.as_str() == "secondary-service")
     );
     let mut secondary_request = input(computer);
-    secondary_request.oauth_client_id = "secondary-service".into();
+    secondary_request.oauth_client_id = "secondary-service".parse().unwrap();
     assert_eq!(
         a.issue_automation_grant(&owner, &secondary_request).await,
         Err(ComputerError::InvalidInput)
@@ -560,7 +563,7 @@ async fn owner_grant_choices_are_bounded_and_do_not_limit_exact_client_issuance(
         !inventory
             .client_choices
             .iter()
-            .any(|client| client.oauth_client_id == "service")
+            .any(|client| client.oauth_client_id.as_str() == "service")
     );
     assert!(
         a.issue_automation_grant(&owner, &input(computer))

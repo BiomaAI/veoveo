@@ -187,7 +187,7 @@ async fn named_start_and_stop_share_public_discovery_retry_and_owner_recovery() 
             serde_json::from_str(resource["result"]["contents"][0]["text"].as_str().unwrap())
                 .unwrap();
         assert_eq!(view.access_mode, ComputerAccessMode::Granted);
-        assert_eq!(view.granted_access[0].grant_id, grant.grant.grant_id);
+        assert_eq!(view.granted_access[0].grant_id, grant.grant().grant_id);
         assert!(
             !view.can_connect && !view.can_delete && !view.can_create && !view.can_transfer_files
         );
@@ -208,7 +208,7 @@ async fn named_start_and_stop_share_public_discovery_retry_and_owner_recovery() 
         } else {
             "stop"
         };
-        let input = json!({"computerId":computer,"requestId":Uuid::now_v7(),"grantId":grant.grant.grant_id});
+        let input = json!({"computerId":computer,"requestId":Uuid::now_v7(),"grantId":grant.grant().grant_id});
         let first = rpc(
             &client,
             &left,
@@ -236,7 +236,7 @@ async fn named_start_and_stop_share_public_discovery_retry_and_owner_recovery() 
         let retry = client
             .post(format!("{}/admin/computers/{computer}/{name}", right.base))
             .bearer_auth(&agent_token)
-            .json(&json!({"requestId":input["requestId"],"grantId":grant.grant.grant_id}))
+            .json(&json!({"requestId":input["requestId"],"grantId":grant.grant().grant_id}))
             .send()
             .await
             .unwrap();
@@ -278,7 +278,7 @@ async fn named_start_and_stop_share_public_discovery_retry_and_owner_recovery() 
             &owner,
             &RevokeAutomationGrantInput {
                 computer_id: computer,
-                grant_id: grant.grant.grant_id,
+                grant_id: grant.grant().grant_id,
             },
         )
         .await

@@ -145,8 +145,8 @@ async fn an_owner_cannot_turn_a_granted_retry_into_an_ungranted_request() {
     let db = support::TestDb::new().await;
     let (store, _, owner, _, computer) = support::automation::setup(&db).await;
     let mut input = support::automation::input(computer);
-    input.principal_id = owner.owner().principal_key.clone();
-    input.oauth_client_id = "console".into();
+    input.principal_id = owner.owner().principal_key.clone().try_into().unwrap();
+    input.oauth_client_id = "console".parse().unwrap();
     input.permissions = [AutomationPermission::Stop].into();
     input.execution_limits = None;
     let granted = store.issue_automation_grant(&owner, &input).await.unwrap();

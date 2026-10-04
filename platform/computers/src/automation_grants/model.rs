@@ -10,9 +10,8 @@ use serde::Deserialize;
 use std::collections::BTreeSet;
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
-use veoveo_mcp_contract::OAuthClientId;
 use veoveo_platform_store::{OpenObject, PrincipalKind, deterministic_principal_id};
-use veoveo_types::PrincipalId;
+use veoveo_types::{OAuthClientId, PrincipalId};
 
 pub(super) fn scope(
     permissions: &BTreeSet<AutomationPermission>,
@@ -30,7 +29,7 @@ pub(super) fn scope(
     }
     Ok(())
 }
-pub(super) fn validate(input: &IssueAutomationGrantInput) -> Result<PrincipalId> {
+pub(super) fn validate(input: &IssueAutomationGrantInput) -> Result<()> {
     validate_fields(
         &input.name,
         &input.principal_id,
@@ -41,23 +40,21 @@ pub(super) fn validate(input: &IssueAutomationGrantInput) -> Result<PrincipalId>
 }
 fn validate_fields(
     name: &str,
-    principal_id: &str,
-    oauth_client_id: &str,
+    principal_id: &PrincipalId,
+    oauth_client_id: &OAuthClientId,
     permissions: &BTreeSet<AutomationPermission>,
     limits: Option<AutomationExecutionLimits>,
-) -> Result<PrincipalId> {
+) -> Result<()> {
     if name.trim() != name
         || name.is_empty()
         || name.len() > 64
         || name.chars().any(char::is_control)
-        || principal_id.len() > 2048
-        || oauth_client_id.len() > 256
+        || principal_id.as_str().len() > 2048
+        || oauth_client_id.as_str().len() > 256
     {
         return Err(ComputerError::InvalidInput);
     }
-    scope(permissions, limits)?;
-    OAuthClientId::new(oauth_client_id).map_err(|_| ComputerError::InvalidInput)?;
-    PrincipalId::new(principal_id).map_err(|_| ComputerError::InvalidInput)
+    scope(permissions, limits)
 }
 pub(super) fn permission_name(permission: AutomationPermission) -> &'static str {
     match permission {
@@ -138,10 +135,14 @@ impl TryFrom<Record> for Grant {
             .map_err(|_| ComputerError::Unavailable)?;
         let grant_id = crate::api::AutomationGrantId::try_from(row.grant_id)
             .map_err(|_| ComputerError::Unavailable)?;
+        let principal_id =
+            PrincipalId::new(row.principal_id).map_err(|_| ComputerError::Unavailable)?;
+        let oauth_client_id =
+            OAuthClientId::new(row.oauth_client_id).map_err(|_| ComputerError::Unavailable)?;
         validate_fields(
             &row.name,
-            &row.principal_id,
-            &row.oauth_client_id,
+            &principal_id,
+            &oauth_client_id,
             &permissions,
             limits,
         )
@@ -155,7 +156,7 @@ impl TryFrom<Record> for Grant {
             || row.grantee
                 != deterministic_principal_id(
                     authority.invocation.tenant.as_str(),
-                    &row.principal_id,
+                    principal_id.as_str(),
                 )
                 .map_err(|_| ComputerError::Unavailable)?
                 .record_id()
@@ -167,8 +168,8 @@ impl TryFrom<Record> for Grant {
             view: AutomationGrantView {
                 computer_id,
                 grant_id,
-                principal_id: row.principal_id,
-                oauth_client_id: row.oauth_client_id,
+                principal_id,
+                oauth_client_id,
                 name: row.name,
                 permissions,
                 execution_limits: limits,
