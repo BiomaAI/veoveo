@@ -24,30 +24,39 @@ pub enum OptimizationContractError {
 }
 
 #[veoveo_types::id(text(LocationIdProfile), error_context = "location id")]
+#[schemars(with = "String")]
 pub struct LocationId(String);
 
 #[veoveo_types::id(text(LocationIdProfile), error_context = "order id")]
+#[schemars(with = "String")]
 pub struct OrderId(String);
 
 #[veoveo_types::id(text(LocationIdProfile), error_context = "vehicle id")]
+#[schemars(with = "String")]
 pub struct VehicleId(String);
 
 #[veoveo_types::id(text(LocationIdProfile), error_context = "vehicle type id")]
+#[schemars(with = "String")]
 pub struct VehicleTypeId(String);
 
 #[veoveo_types::id(text(LocationIdProfile), error_context = "capacity dimension id")]
+#[schemars(with = "String")]
 pub struct CapacityDimensionId(String);
 
 #[veoveo_types::id(text(LocationIdProfile), error_context = "route case id")]
+#[schemars(with = "String")]
 pub struct RouteCaseId(String);
 
 #[veoveo_types::id(text(LocationIdProfile), error_context = "variable id")]
+#[schemars(with = "String")]
 pub struct VariableId(String);
 
 #[veoveo_types::id(text(LocationIdProfile), error_context = "constraint id")]
+#[schemars(with = "String")]
 pub struct ConstraintId(String);
 
 #[veoveo_types::id(text(SolverProfileIdProfile))]
+#[schemars(with = "String")]
 pub struct SolverProfileId(String);
 
 #[veoveo_types::id(
@@ -55,9 +64,11 @@ pub struct SolverProfileId(String);
     fresh,
     error_context = "problem id"
 )]
+#[schemars(with = "String")]
 pub struct ProblemId(String);
 
 #[veoveo_types::id(prefixed(ProblemIdProfile, "run-"), fresh, error_context = "run id")]
+#[schemars(with = "String")]
 pub struct RunId(String);
 
 #[veoveo_types::id(
@@ -65,6 +76,7 @@ pub struct RunId(String);
     fresh,
     error_context = "solution id"
 )]
+#[schemars(with = "String")]
 pub struct SolutionId(String);
 
 #[veoveo_types::id(
@@ -72,6 +84,7 @@ pub struct SolutionId(String);
     fresh,
     error_context = "verification id"
 )]
+#[schemars(with = "String")]
 pub struct VerificationId(String);
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, JsonSchema)]
