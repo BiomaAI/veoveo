@@ -959,7 +959,14 @@ Time windows, authority bindings, effective authority pairs and resolution outpu
 
 ## Cursor Admission
 
-The five temporal cursors use owner codecs for their hexadecimal JSON collection envelopes. OpaqueCursor retains admitted original text, including hexadecimal-case and JSON spelling aliases. Constructors keep their existing infallible signatures and parser size policy; copied and borrowed position accessors preserve the owner API.
+The five temporal cursors select distinct collection profiles through one generic
+owner codec. Each profile binds its position type and collection URI at compile time;
+acquired and bootstrap authority releases have separate profiles even though both use
+`AuthorityReleaseId`. `OpaqueCursor` retains admitted original text, including
+hexadecimal-case and JSON spelling aliases. Transparent Serde delegates admission to
+the stateless codec. Each public wrapper keeps its own string schema identity.
+Constructors keep their infallible signatures and parser size policy; copied and
+borrowed position accessors preserve the owner API.
 
 ## Persistence Module Declaration
 

@@ -46,193 +46,151 @@ fn decode<P: DeserializeOwned>(wire: &str, collection: &str) -> Result<P, TimeRe
     Ok(cursor.position)
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct TimeCursorCodec<P> {
-    collection: &'static str,
-    marker: std::marker::PhantomData<P>,
+trait CursorCollection {
+    type Position: Serialize + DeserializeOwned;
+    const URI: &'static str;
 }
-impl<P> TimeCursorCodec<P> {
-    fn new(collection: &'static str) -> Self {
-        Self {
-            collection,
-            marker: std::marker::PhantomData,
-        }
-    }
-}
-impl<P: Serialize + DeserializeOwned> veoveo_types::CursorCodec for TimeCursorCodec<P> {
-    type Position = P;
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct TimeCursorCodec<C>(std::marker::PhantomData<C>);
+impl<C: CursorCollection + Default> veoveo_types::StatelessCursorCodec for TimeCursorCodec<C> {}
+impl<C: CursorCollection> veoveo_types::CursorCodec for TimeCursorCodec<C> {
+    type Position = C::Position;
     type Error = TimeResourceError;
-    fn check(&self, _position: &P) -> Result<(), Self::Error> {
+    fn check(&self, _position: &Self::Position) -> Result<(), Self::Error> {
         Ok(())
     }
-    fn encode(&self, position: &P) -> Result<String, Self::Error> {
+    fn encode(&self, position: &Self::Position) -> Result<String, Self::Error> {
         Ok(hex::encode(
             serde_json::to_vec(&WireCursor {
                 version: 1,
-                collection: self.collection.to_owned(),
+                collection: C::URI.to_owned(),
                 position,
             })
             .expect("closed Time cursor fields serialize"),
         ))
     }
-    fn decode(&self, wire: &str) -> Result<P, Self::Error> {
-        decode(wire, self.collection)
+    fn decode(&self, wire: &str) -> Result<Self::Position, Self::Error> {
+        decode(wire, C::URI)
     }
 }
+
+fn admit_position<C: CursorCollection + Default>(
+    position: C::Position,
+) -> veoveo_types::OpaqueCursor<TimeCursorCodec<C>> {
+    veoveo_types::OpaqueCursor::try_new(TimeCursorCodec::<C>::default(), position)
+        .expect("typed Time cursor")
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct CalendarCollection;
+impl CursorCollection for CalendarCollection {
+    type Position = VersionPosition<CalendarId>;
+    const URI: &'static str = uris::CALENDARS_URI;
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(try_from = "String", into = "String")]
+#[serde(transparent)]
 pub struct CalendarCursor {
-    cursor: veoveo_types::OpaqueCursor<TimeCursorCodec<VersionPosition<CalendarId>>>,
+    #[schemars(with = "String")]
+    cursor: veoveo_types::OpaqueCursor<TimeCursorCodec<CalendarCollection>>,
 }
 impl CalendarCursor {
-    fn from_position(position: VersionPosition<CalendarId>) -> Self {
-        Self {
-            cursor: veoveo_types::OpaqueCursor::try_new(
-                TimeCursorCodec::new(uris::CALENDARS_URI),
-                position,
-            )
-            .expect("typed Time cursor"),
-        }
-    }
     pub fn parse(wire: impl Into<String>) -> Result<Self, TimeResourceError> {
-        veoveo_types::OpaqueCursor::parse(TimeCursorCodec::new(uris::CALENDARS_URI), wire)
+        veoveo_types::OpaqueCursor::parse(TimeCursorCodec::<CalendarCollection>::default(), wire)
             .map(|cursor| Self { cursor })
     }
     pub fn as_str(&self) -> &str {
         self.cursor.as_str()
     }
 }
-impl TryFrom<String> for CalendarCursor {
-    type Error = TimeResourceError;
-    fn try_from(wire: String) -> Result<Self, Self::Error> {
-        Self::parse(wire)
-    }
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct EpochCollection;
+impl CursorCollection for EpochCollection {
+    type Position = VersionPosition<MissionEpochId>;
+    const URI: &'static str = uris::EPOCHS_URI;
 }
-impl From<CalendarCursor> for String {
-    fn from(value: CalendarCursor) -> Self {
-        value.cursor.into_wire()
-    }
-}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(try_from = "String", into = "String")]
+#[serde(transparent)]
 pub struct EpochCursor {
-    cursor: veoveo_types::OpaqueCursor<TimeCursorCodec<VersionPosition<MissionEpochId>>>,
+    #[schemars(with = "String")]
+    cursor: veoveo_types::OpaqueCursor<TimeCursorCodec<EpochCollection>>,
 }
 impl EpochCursor {
-    fn from_position(position: VersionPosition<MissionEpochId>) -> Self {
-        Self {
-            cursor: veoveo_types::OpaqueCursor::try_new(
-                TimeCursorCodec::new(uris::EPOCHS_URI),
-                position,
-            )
-            .expect("typed Time cursor"),
-        }
-    }
     pub fn parse(wire: impl Into<String>) -> Result<Self, TimeResourceError> {
-        veoveo_types::OpaqueCursor::parse(TimeCursorCodec::new(uris::EPOCHS_URI), wire)
+        veoveo_types::OpaqueCursor::parse(TimeCursorCodec::<EpochCollection>::default(), wire)
             .map(|cursor| Self { cursor })
     }
     pub fn as_str(&self) -> &str {
         self.cursor.as_str()
     }
 }
-impl TryFrom<String> for EpochCursor {
-    type Error = TimeResourceError;
-    fn try_from(wire: String) -> Result<Self, Self::Error> {
-        Self::parse(wire)
-    }
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct EventCollection;
+impl CursorCollection for EventCollection {
+    type Position = EventPosition;
+    const URI: &'static str = uris::EVENTS_URI;
 }
-impl From<EpochCursor> for String {
-    fn from(value: EpochCursor) -> Self {
-        value.cursor.into_wire()
-    }
-}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(try_from = "String", into = "String")]
+#[serde(transparent)]
 pub struct EventCursor {
-    cursor: veoveo_types::OpaqueCursor<TimeCursorCodec<EventPosition>>,
+    #[schemars(with = "String")]
+    cursor: veoveo_types::OpaqueCursor<TimeCursorCodec<EventCollection>>,
 }
 impl EventCursor {
-    fn from_position(position: EventPosition) -> Self {
-        Self {
-            cursor: veoveo_types::OpaqueCursor::try_new(
-                TimeCursorCodec::new(uris::EVENTS_URI),
-                position,
-            )
-            .expect("typed Time cursor"),
-        }
-    }
     pub fn parse(wire: impl Into<String>) -> Result<Self, TimeResourceError> {
-        veoveo_types::OpaqueCursor::parse(TimeCursorCodec::new(uris::EVENTS_URI), wire)
+        veoveo_types::OpaqueCursor::parse(TimeCursorCodec::<EventCollection>::default(), wire)
             .map(|cursor| Self { cursor })
     }
     pub fn as_str(&self) -> &str {
         self.cursor.as_str()
     }
 }
-impl TryFrom<String> for EventCursor {
-    type Error = TimeResourceError;
-    fn try_from(wire: String) -> Result<Self, Self::Error> {
-        Self::parse(wire)
-    }
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct AuthorityCollection;
+impl CursorCollection for AuthorityCollection {
+    type Position = AuthorityReleaseId;
+    const URI: &'static str = uris::AUTHORITY_RELEASES_URI;
 }
-impl From<EventCursor> for String {
-    fn from(value: EventCursor) -> Self {
-        value.cursor.into_wire()
-    }
-}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(try_from = "String", into = "String")]
+#[serde(transparent)]
 pub struct AuthorityCursor {
-    cursor: veoveo_types::OpaqueCursor<TimeCursorCodec<AuthorityReleaseId>>,
+    #[schemars(with = "String")]
+    cursor: veoveo_types::OpaqueCursor<TimeCursorCodec<AuthorityCollection>>,
 }
 impl AuthorityCursor {
-    fn from_position(position: AuthorityReleaseId) -> Self {
-        Self {
-            cursor: veoveo_types::OpaqueCursor::try_new(
-                TimeCursorCodec::new(uris::AUTHORITY_RELEASES_URI),
-                position,
-            )
-            .expect("typed Time cursor"),
-        }
-    }
     pub fn parse(wire: impl Into<String>) -> Result<Self, TimeResourceError> {
-        veoveo_types::OpaqueCursor::parse(TimeCursorCodec::new(uris::AUTHORITY_RELEASES_URI), wire)
+        veoveo_types::OpaqueCursor::parse(TimeCursorCodec::<AuthorityCollection>::default(), wire)
             .map(|cursor| Self { cursor })
     }
     pub fn as_str(&self) -> &str {
         self.cursor.as_str()
     }
 }
-impl TryFrom<String> for AuthorityCursor {
-    type Error = TimeResourceError;
-    fn try_from(wire: String) -> Result<Self, Self::Error> {
-        Self::parse(wire)
-    }
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct BootstrapAuthorityCollection;
+impl CursorCollection for BootstrapAuthorityCollection {
+    type Position = AuthorityReleaseId;
+    const URI: &'static str = uris::BOOTSTRAP_AUTHORITIES_URI;
 }
-impl From<AuthorityCursor> for String {
-    fn from(value: AuthorityCursor) -> Self {
-        value.cursor.into_wire()
-    }
-}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(try_from = "String", into = "String")]
+#[serde(transparent)]
 pub struct BootstrapAuthorityCursor {
-    cursor: veoveo_types::OpaqueCursor<TimeCursorCodec<AuthorityReleaseId>>,
+    #[schemars(with = "String")]
+    cursor: veoveo_types::OpaqueCursor<TimeCursorCodec<BootstrapAuthorityCollection>>,
 }
 impl BootstrapAuthorityCursor {
-    fn from_position(position: AuthorityReleaseId) -> Self {
-        Self {
-            cursor: veoveo_types::OpaqueCursor::try_new(
-                TimeCursorCodec::new(uris::BOOTSTRAP_AUTHORITIES_URI),
-                position,
-            )
-            .expect("typed Time cursor"),
-        }
-    }
     pub fn parse(wire: impl Into<String>) -> Result<Self, TimeResourceError> {
         veoveo_types::OpaqueCursor::parse(
-            TimeCursorCodec::new(uris::BOOTSTRAP_AUTHORITIES_URI),
+            TimeCursorCodec::<BootstrapAuthorityCollection>::default(),
             wire,
         )
         .map(|cursor| Self { cursor })
@@ -241,27 +199,19 @@ impl BootstrapAuthorityCursor {
         self.cursor.as_str()
     }
 }
-impl TryFrom<String> for BootstrapAuthorityCursor {
-    type Error = TimeResourceError;
-    fn try_from(wire: String) -> Result<Self, Self::Error> {
-        Self::parse(wire)
-    }
-}
-impl From<BootstrapAuthorityCursor> for String {
-    fn from(value: BootstrapAuthorityCursor) -> Self {
-        value.cursor.into_wire()
-    }
-}
+
 impl CalendarCursor {
     /// ```compile_fail
     /// use veoveo_time_mcp::contract::{CalendarCursor, MissionEpochId, TimeVersion};
     /// CalendarCursor::new(&MissionEpochId::parse("epoch-example").unwrap(), TimeVersion::new(1).unwrap());
     /// ```
     pub fn new(key: &CalendarId, version: TimeVersion) -> Self {
-        Self::from_position(VersionPosition {
-            key: key.clone(),
-            version,
-        })
+        Self {
+            cursor: admit_position::<CalendarCollection>(VersionPosition {
+                key: key.clone(),
+                version,
+            }),
+        }
     }
     pub fn calendar_id(&self) -> &CalendarId {
         &self.cursor.position().key
@@ -273,10 +223,12 @@ impl CalendarCursor {
 
 impl EpochCursor {
     pub fn new(key: &MissionEpochId, version: TimeVersion) -> Self {
-        Self::from_position(VersionPosition {
-            key: key.clone(),
-            version,
-        })
+        Self {
+            cursor: admit_position::<EpochCollection>(VersionPosition {
+                key: key.clone(),
+                version,
+            }),
+        }
     }
     pub fn epoch_id(&self) -> &MissionEpochId {
         &self.cursor.position().key
@@ -297,7 +249,9 @@ impl EventCursor {
             tai_seconds,
             nanosecond,
         };
-        Self::from_position(position)
+        Self {
+            cursor: admit_position::<EventCollection>(position),
+        }
     }
     pub fn event_id(&self) -> &TemporalEventId {
         &self.cursor.position().event_key
@@ -312,7 +266,9 @@ impl EventCursor {
 
 impl AuthorityCursor {
     pub fn new(id: &AuthorityReleaseId) -> Self {
-        Self::from_position(id.clone())
+        Self {
+            cursor: admit_position::<AuthorityCollection>(id.clone()),
+        }
     }
     pub fn release_id(&self) -> &AuthorityReleaseId {
         self.cursor.position()
@@ -320,7 +276,9 @@ impl AuthorityCursor {
 }
 impl BootstrapAuthorityCursor {
     pub fn new(id: &AuthorityReleaseId) -> Self {
-        Self::from_position(id.clone())
+        Self {
+            cursor: admit_position::<BootstrapAuthorityCollection>(id.clone()),
+        }
     }
     pub fn release_id(&self) -> &AuthorityReleaseId {
         self.cursor.position()

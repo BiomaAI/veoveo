@@ -399,6 +399,84 @@ fn authority_cursors_cannot_cross_collection_roots() {
     let bootstrap = BootstrapAuthorityCursor::new(&release);
     assert!(AuthorityCursor::parse(bootstrap.as_str()).is_err());
     assert!(BootstrapAuthorityCursor::parse(acquired.as_str()).is_err());
+    assert!(
+        serde_json::from_value::<AuthorityCursor>(serde_json::to_value(&bootstrap).unwrap())
+            .is_err()
+    );
+    assert!(
+        serde_json::from_value::<BootstrapAuthorityCursor>(
+            serde_json::to_value(&acquired).unwrap()
+        )
+        .is_err()
+    );
+}
+
+fn qualify_cursor_wire<C>(cursor: C, envelope: &str, name: &str)
+where
+    C: serde::Serialize + serde::de::DeserializeOwned + schemars::JsonSchema,
+{
+    let canonical = hex::encode(envelope);
+    assert_eq!(serde_json::to_value(&cursor).unwrap(), canonical);
+    let alias = hex::encode(envelope.replace("\":", "\": ")).to_ascii_uppercase();
+    let admitted: C = serde_json::from_value(alias.clone().into()).unwrap();
+    assert_eq!(serde_json::to_value(admitted).unwrap(), alias);
+    let longest = hex::encode(format!("{envelope:<1024}"));
+    let admitted: C = serde_json::from_value(longest.clone().into()).unwrap();
+    assert_eq!(serde_json::to_value(admitted).unwrap(), longest);
+    assert!(serde_json::from_value::<C>(format!("{longest}20").into()).is_err());
+    for invalid in [String::new(), "00".into(), "a".repeat(2049)] {
+        assert!(serde_json::from_value::<C>(invalid.into()).is_err());
+    }
+    let mut invalid: serde_json::Value = serde_json::from_str(envelope).unwrap();
+    invalid["version"] = 2.into();
+    assert!(
+        serde_json::from_value::<C>(hex::encode(serde_json::to_vec(&invalid).unwrap()).into())
+            .is_err()
+    );
+    assert_eq!(C::schema_name(), name);
+    assert_eq!(
+        C::schema_id(),
+        format!("veoveo_time_mcp::contract::resource::cursor::{name}")
+    );
+    assert!(!C::inline_schema());
+    let schema = serde_json::to_value(schemars::schema_for!(C)).unwrap();
+    assert_eq!(schema["title"], name);
+    assert_eq!(schema["type"], "string");
+    assert_eq!(schema.as_object().unwrap().len(), 3);
+}
+
+#[test]
+fn all_cursor_collections_keep_hex_envelopes_aliases_and_nominal_schemas() {
+    qualify_cursor_wire(
+        CalendarCursor::new(&CalendarId::parse("calendar-one").unwrap(), version()),
+        r#"{"version":1,"collection":"time://calendars","position":{"key":"calendar-one","version":12}}"#,
+        "CalendarCursor",
+    );
+    qualify_cursor_wire(
+        EpochCursor::new(&MissionEpochId::parse("epoch-one").unwrap(), version()),
+        r#"{"version":1,"collection":"time://epochs","position":{"key":"epoch-one","version":12}}"#,
+        "EpochCursor",
+    );
+    qualify_cursor_wire(
+        EventCursor::new(
+            &TemporalEventId::parse("event-one").unwrap(),
+            -42,
+            SubsecondNanoseconds::MAX,
+        ),
+        r#"{"version":1,"collection":"time://events","position":{"tai_seconds":-42,"nanosecond":999999999,"event_key":"event-one"}}"#,
+        "EventCursor",
+    );
+    let release = AuthorityReleaseId::parse("time-release-fixture").unwrap();
+    qualify_cursor_wire(
+        AuthorityCursor::new(&release),
+        r#"{"version":1,"collection":"time://authorities/releases","position":"time-release-fixture"}"#,
+        "AuthorityCursor",
+    );
+    qualify_cursor_wire(
+        BootstrapAuthorityCursor::new(&release),
+        r#"{"version":1,"collection":"time://authorities/bootstrap","position":"time-release-fixture"}"#,
+        "BootstrapAuthorityCursor",
+    );
 }
 
 #[test]
