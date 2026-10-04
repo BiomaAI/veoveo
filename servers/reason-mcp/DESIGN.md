@@ -159,7 +159,7 @@ has a 10-second timeout, and notification delivery has a 10-second deadline.
 
 ## Data path
 
-The Rust executable comes from the shared Rust 1.98.1 Bookworm control compiler.
+The Rust executable comes from the shared Rust 1.99.0 Bookworm control compiler.
 Its family excludes analytics feature unification. The runtime image contains no
 Rust build stage. Cargo's declared asset inputs place the Python runner outside the
 Rust source context. Image assembly installs hash-locked runner dependencies from

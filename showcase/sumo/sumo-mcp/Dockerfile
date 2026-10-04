@@ -10,8 +10,8 @@ FROM --platform=${SUMO_PLATFORM} rust:1.97.1-slim-bullseye@sha256:dd159e8e44aaa8
 # Bullseye is no longer published for the current Rust patch release. Keep its
 # runtime ABI while selecting the repository toolchain for compilation.
 RUN rustup set auto-self-update disable \
-    && rustup toolchain install 1.98.1 --profile minimal --no-self-update \
-    && rustup default 1.98.1 \
+    && rustup toolchain install 1.99.0 --profile minimal --no-self-update \
+    && rustup default 1.99.0 \
     && rustup toolchain uninstall 1.97.1
 
 WORKDIR /src

@@ -5,8 +5,8 @@
 | Boundary | Profile |
 |---|---|
 | Cargo metadata v1 and Cargo tree | locked Linux amd64 manifest/target inventory; selected compiler-family features, normal and build edges |
-| Rust 1.98.1 | Bookworm control compiler, Linux amd64 GNU ABI; separate Cargo selection from analytics consumers |
-| Rust 1.98.1 | dedicated Trixie browser compiler, Linux amd64 GNU ABI; one browser-edge package selection across runtime target sets |
+| Rust 1.99.0 | Bookworm control compiler, Linux amd64 GNU ABI; separate Cargo selection from analytics consumers |
+| Rust 1.99.0 | dedicated Trixie browser compiler, Linux amd64 GNU ABI; one browser-edge package selection across runtime target sets |
 | Docker Buildx Bake | typed target selection and generated context overrides |
 | BuildKit source mounts | disposable writable compiler inputs for freshness synchronization, read-only native inputs, persistent locked Cargo caches |
 | Docker BuildKit Syft scanner 1.12.0 | digest-pinned release generator; Syft 1.51.0 emits SPDX SBOM attestations |
@@ -182,10 +182,10 @@ The browser edge uses `rust-trixie-browser-v1`, whose sole production package is
 does not widen that package's Cargo feature graph or source closure. This preserves
 the browser compiler action when an iteration changes from a platform build to a
 Console or Workspace asset-only build. The family uses the existing artifact recipe
-and its own target cache. Its official Rust 1.98.1 Trixie image is pinned by digest;
-the [Rust release catalog](https://blog.rust-lang.org/releases/) and
+and its own target cache. Its official Rust 1.99.0 Trixie image is pinned by digest.
+The [Rust release catalog](https://blog.rust-lang.org/releases/) and
 [official image catalog](https://github.com/docker-library/official-images/blob/master/library/rust)
-were checked on September 16, 2026. The planner regression compares the complete
+identify the published compiler. The planner regression compares the complete
 browser family and resolved compiler arguments for standalone and platform-core
 selection. The compiler boundary does not add a runtime process or image.
 
@@ -209,7 +209,7 @@ These internal packaging bytes must survive eviction and rebuilding of the runti
 assembly cache. Qualification compares the resulting runnable manifest with its
 staged digest after that eviction.
 
-The control family now uses the digest-pinned official Rust 1.98.1 Bookworm image
+The control family now uses the digest-pinned official Rust 1.99.0 Bookworm image
 directly. Bookworm preserves a glibc baseline below DeepStream's Ubuntu 24.04
 runtime. The separately cached control target still keeps its Cargo feature set
 independent of Map's analytics family.

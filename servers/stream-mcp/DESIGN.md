@@ -20,7 +20,7 @@ over encoded sensor streams and governed recordings.
 | Stream Artifact addresses | `StreamArtifactUri` wraps the Artifact contract's presented address with the fixed `stream` scheme and a typed Artifact occurrence ID. |
 | MCP Tasks extension `io.modelcontextprotocol/tasks` | Version `2026-07-28`; recording replay is durable, cancellable, resumable from governed identity, and returns its terminal payload through `tasks/get`. A live session is direct bounded work, not an indefinitely running task. |
 | [GStreamer 1.0](https://gstreamer.freedesktop.org/documentation/) | Operator-admitted native launch graphs are private installation configuration. Clients select stable pipeline IDs and never submit launch text. |
-| Rust 1.98.1 and GNU ELF | The Linux amd64 control executable compiles on Bookworm independently of the DeepStream C++ runner; their private JSON process boundary is unchanged. |
+| Rust 1.99.0 and GNU ELF | The Linux amd64 control executable compiles on Bookworm independently of the DeepStream C++ runner; their private JSON process boundary is unchanged. |
 | [NVIDIA DeepStream 9.1](https://docs.nvidia.com/metropolis/deepstream/9.1/text/DS_Release_notes.html) and TensorRT | NVIDIA NVDEC, `nvstreammux`, `nvinfer`, and optional `nvtracker` execute the perception profile. Triton is a build-stage dependency only. |
 | [RTP 2.0](https://www.rfc-editor.org/rfc/rfc3550) and [RTP payload format for H.264](https://www.rfc-editor.org/rfc/rfc6184) | Live ingress accepts one admitted RTP/H.264 UDP endpoint with a dynamic payload type and a 90 kHz clock. |
 | H.264/AVC Annex B and RFC 6381 | Encoded access units use Annex B byte-stream alignment. Each live pipeline declares the exact `avc1.PPCCLL` decoder profile exposed to its App. |

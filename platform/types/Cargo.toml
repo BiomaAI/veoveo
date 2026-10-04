@@ -18,3 +18,4 @@ url.workspace = true
 uuid = { version = "=1.25.0", default-features = false, features = ["serde", "std", "v7"] }
 
 [dev-dependencies]
+schemars = { workspace = true, features = ["uuid1"] }
