@@ -8,6 +8,41 @@ requirements, accepted risks and remaining work. This log does not establish com
 
 ## Implementation And Installation Checkpoints
 
+Composed flight and core Knowledge acceptance (2026-10-04): reference revision
+`6d4cd2c5` selects Stream `sha256:8ca9f9cb4a307a530c98cd77238cbafa05465aa5f55496d077d6ca83e3e80ea2`
+and Reason `sha256:83ac3b3d987582c7afca39e1e27138ea7e4703c9130eb8f25ce013992d45944d`,
+built from `27046a2d`. Reason stays at zero replicas and has no new GPU acceptance.
+Publication takes 594 seconds, including image assembly, SBOM and provenance.
+The reader correction passes deployed Stream replay over recording
+`01a10446-6ff0-7dd3-901e-499bddad5b4c`, simulation time 1089599999999–1114600000000.
+
+The complete composed run passes both domain and visual phases. It rearms, takes
+off, completes the Map mission and live Stream check, replays the recording, returns
+to the launch surface and lands. Artifact preview succeeds for an authorized context
+member and denies an independent context. Rerun follows for 120 seconds and reconnects;
+source-aligned lag is 0.1975982406 seconds. Headed Chrome uses RTX 4090 WebGL;
+SwiftShader WebGPU is excluded from hardware evidence. Server encoding uses NVENC.
+The client declares supported, smooth software H.264 decoding. All three flight
+captures have zero dropped video frames in their samples; landing altitude is 0.04 m.
+Phase-outcomes v3 now preserves successful visual measurements if another phase fails.
+The native report batch passes 75 flight cases, ten Helm cases and configuration/docs checks.
+
+The full installed Knowledge harness passes in 28.47 seconds: sixteen selected
+collections, their completion/catalog/statistics, subscriptions, source-linked search,
+eleven verified document links and 1024-dimensional CUDA embeddings. Knowledge and
+Embedding are Ready alongside the simulator at final observation. This startup needed
+an embedding retry and a Knowledge pod restart to clear dependency backoff. The first
+embedding process exit has no retained error log, so its cause is unconfirmed; the
+previous startup's KV-cache admission failure has its own checkpoint. This run does not
+qualify unattended cold startup. Terminal GPU admission failures from node startup
+were recorded and removed after replacement pods were running.
+
+Logs and reports are under `output/development/reader-installed-73cc62fb/`.
+Flight artifacts are in its `6d4cd2c5afb0001a51f795488367462a3ec27527/01a1044d-1ccf-7f13-b952-cda0a649bb9c/`
+subdirectory. The owned log follower and cluster are stopped after acceptance;
+BuildKit stays stopped. The complete-flight deferral is closed. Phase 3 and the
+remaining installed/recovery inventory remain open.
+
 Composed visual acceptance and core Knowledge checkpoint (2026-10-03): simulator
 source `3f10a3c3` is published and selected through `cdcafcd6`. The full flight rearms
 a grounded vehicle in Land mode, takes off, completes mission and live Stream checks,

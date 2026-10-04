@@ -118,11 +118,6 @@ Flux applies it. Chart publication alone does not replace unchanged Pod template
 
 ## Release publication
 
-<!-- TODO(foundations): Finish composed flight and installed workload acceptance.
-Sensor health, landing, re-arming, takeoff, Map routing and mission completion pass.
-DuckDB 1.5.6 Map recovery, live Stream, and focused live-part Stream replay with
-grounded Reason pass. Complete composed acceptance with the shared recording path. -->
-
 Service clients authenticate with separate installation-owned RSA keys. Only their
 public JWKS belongs in this GitOps bundle. The private PEM files stay in the caller's
 credential store with owner-only permissions and encrypted backup. The repository's
