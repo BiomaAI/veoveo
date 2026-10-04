@@ -77,6 +77,12 @@ fn render(chart: &Path, extension: bool, settings: &[&str]) -> Vec<Value> {
     for path in values {
         command.args(["-f", path]);
     }
+    if !extension {
+        command.args([
+            "--set-file",
+            "moduleInstallation.planJson=testing/fixtures/module-schema-consumer/module-plan.json",
+        ]);
+    }
     for setting in settings {
         command.args(["--set", setting]);
     }
@@ -136,9 +142,12 @@ fn computers_configuration_and_artifact_dependency_match_the_service_profile() {
     assert_eq!(configuration["schema"], "veoveo.ai/computers-service/v3");
     assert_eq!(configuration["capacity"]["kind"], "unconfigured");
     let denied = Command::new("helm")
+        .current_dir(repository())
         .args(["template", "computers"])
         .arg(&chart)
         .args([
+            "--set-file",
+            "moduleInstallation.planJson=testing/fixtures/module-schema-consumer/module-plan.json",
             "--set",
             "installationPreset=custom",
             "--set",
@@ -155,9 +164,12 @@ fn computers_configuration_and_artifact_dependency_match_the_service_profile() {
         String::from_utf8_lossy(&denied.stderr).contains("artifact-service for command outputs")
     );
     let denied = Command::new("helm")
+        .current_dir(repository())
         .args(["template", "computers"])
         .arg(&chart)
         .args([
+            "--set-file",
+            "moduleInstallation.planJson=testing/fixtures/module-schema-consumer/module-plan.json",
             "--set",
             "computerCapacity=openshell-docker",
             "--set-json",
