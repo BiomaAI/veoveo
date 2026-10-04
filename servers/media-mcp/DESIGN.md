@@ -205,3 +205,20 @@ cursor codec and unchanged query spelling.
 ## Cursor Admission
 
 Usage and prediction cursors retain their distinct typed Task and prediction positions through owner base64url JSON codecs. Parsing preserves admitted wire aliases and existing collection and size checks. Entry/page admission precedes explicit redundant-ID and fixed-limit projection.
+
+## Persistence Module Declaration
+
+The independent `schema` feature exports `schema::module_setup(execution)` for the
+`media` optional module. It activates only `veoveo-modules` with default features
+disabled; contract and runtime dependencies require their own features. Default
+runtime behavior is unchanged. The declaration claims explicit `media_task_context` and `media_usage` tables.
+It requires Tasks, including earlier kernel lanes through transitive requirements.
+
+The lane is empty. The composition root supplies the checked execution image and
+command; the existing gateway composition image is the initial host candidate.
+Its current `installation-bootstrap` command runs the mixed Store catalog, which
+continues to own production migration execution. A named-lane command and its Job
+require separate implementation and qualification. Future owner migrations and
+queries belong together in this owner's crate, with one declaration per object.
+
+Media provider requests and GPU data-plane behavior are independent of this persistence declaration.

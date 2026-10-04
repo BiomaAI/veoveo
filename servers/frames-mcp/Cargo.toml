@@ -17,6 +17,7 @@ name = "contract"
 required-features = ["contract"]
 
 [features]
+schema = ["dep:veoveo-modules"]
 default = ["mcp"]
 contract = [
     "dep:thiserror",
@@ -60,6 +61,7 @@ mcp = [
 ]
 
 [dependencies]
+veoveo-modules = { workspace = true, default-features = false, optional = true }
 thiserror = { workspace = true, optional = true }
 veoveo-frames-contract = { workspace = true, optional = true }
 veoveo-map-mcp = { path = "../map-mcp", default-features = false, features = ["contract"], optional = true }

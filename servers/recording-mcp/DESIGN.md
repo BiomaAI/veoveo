@@ -368,3 +368,20 @@ over 100 milliseconds. The catalog URI accepts subscriptions from authenticated 
 exact recording and layer URIs require visibility of that recording at admission.
 Source reconnection invalidates readers after a delivery gap; reads retain normal
 current authority. Idle sources emit no periodic resource-change notifications. This observes durable state and cannot dispatch work.
+
+## Persistence Module Declaration
+
+The independent `schema` feature exports `schema::module_setup(execution)` for the
+`recordings` optional module. It activates only `veoveo-modules` with default features
+disabled; contract and runtime dependencies require their own features. Default
+runtime behavior is unchanged. The declaration claims `recording_*` and the explicit `recording` table.
+It requires Tasks, including earlier kernel lanes through transitive requirements.
+
+The lane is empty. The composition root supplies the checked execution image and
+command; the existing gateway composition image is the initial host candidate.
+Its current `installation-bootstrap` command runs the mixed Store catalog, which
+continues to own production migration execution. A named-lane command and its Job
+require separate implementation and qualification. Future owner migrations and
+queries belong together in this owner's crate, with one declaration per object.
+
+Artifact references in dataset blueprints and layers are covered by the required earlier Artifacts lane. The declaration does not move catalog or ingest persistence from the current Store.

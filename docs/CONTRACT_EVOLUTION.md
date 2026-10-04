@@ -340,6 +340,22 @@ recovery rather than polling. The replacement is a hard cut: the new table repla
 
 ## CE-13: Modular Types And Server-Owned Contracts
 
+Module schema declarations use the dependency-free `veoveo-modules` library. Its complete
+catalog checks typed table/function/analyzer ownership and the target module dependency
+DAG, while enabled selection includes required kernels and optional prerequisites.
+Exact analyzer claims cover the shared kernel search and Knowledge analyzers. The
+optional runner privately pins the SurrealDB 3.3.0 parser/AST pair, admits all selected
+SQL before effects, and executes named append-only histories with native transactions.
+Logical object ownership does not imply per-module database-user isolation.
+
+Composition supplies each lane's image target and executable command; several owners
+may use one existing image. Installation commands, database readiness, ordered lane
+completion and control-plane publication still require fresh-install/upgrade
+qualification before replacing production schema/bootstrap. The [module design](../platform/modules/DESIGN.md)
+records the implemented profile and parser replacement requirement. Target Workspace →
+Agents ordering requires Phase 3 to move participant import into the Workspace owner
+while preserving recovery and audit semantics.
+
 Scope names and resource identities are Veoveo concepts used by protocol adapters.
 The accepted foundation is a small `veoveo-types` crate under `platform/types`, owning
 validated names, platform identity and attribution, generic resource URI handling,

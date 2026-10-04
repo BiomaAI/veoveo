@@ -60,3 +60,20 @@ lease. They recheck dispatch at the known lease expiry and close on source failu
 Input-request waits observe their own table and retain the caller's maximum wait.
 Work Context observation needs only an identity and a current authority read, so its
 feed does not retain prior row contents.
+
+## Persistence Module Declaration
+
+The independent `schema` feature exports `schema::module_setup(execution)` for the
+`agents` optional module. It activates only `veoveo-modules` with default features
+disabled; contract and runtime dependencies require their own features. Default
+runtime behavior is unchanged. The declaration claims `agent_*`, `managed_agent_*`, and explicit `agent`, `managed_agent`, `wake`; seven existing Agent catalog, admission and result-consumption functions.
+It requires Audit, whose transitive requirements include Tasks, Artifacts, Gateway and Identity.
+
+The lane is empty. The composition root supplies the checked execution image and
+command; the existing gateway composition image is the initial host candidate.
+Its current `installation-bootstrap` command runs the mixed Store catalog, which
+continues to own production migration execution. A named-lane command and its Job
+require separate implementation and qualification. Future owner migrations and
+queries belong together in this owner's crate, with one declaration per object.
+
+The current Store `agent_management/import.surql` transaction reads Workspace runs, updates Workspace participants and chats, and creates Workspace events. The declared target omits a Workspace dependency. Participant import belongs in the Workspace owning API, composed with Agent catalog operations while preserving writer exclusion, transaction checks, rollback and audit. The current `fn::agent_consume_results` also updates kernel Task retention state; its explicit function claim does not approve foreign mutations.

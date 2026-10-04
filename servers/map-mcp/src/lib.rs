@@ -62,3 +62,6 @@ pub use contract::*;
 #[cfg(all(test, feature = "runtime"))]
 #[path = "../../../testing/fixtures/store.rs"]
 mod test_store;
+
+#[cfg(feature = "schema")]
+pub mod schema;

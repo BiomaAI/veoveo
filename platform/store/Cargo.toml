@@ -7,28 +7,120 @@ edition.workspace = true
 name = "veoveo_platform_store"
 path = "src/lib.rs"
 
+[features]
+default = ["runtime"]
+schema = ["dep:veoveo-modules"]
+runtime = [
+    "dep:schemars",
+    "dep:veoveo-knowledge-contract",
+    "dep:veoveo-embedding-contract",
+    "dep:veoveo-mcp-knowledge-extension",
+    "dep:veoveo-audit-contract",
+    "dep:veoveo-types",
+    "dep:veoveo-artifact-contract",
+    "dep:veoveo-computers-contract",
+    "dep:async-stream",
+    "dep:chrono",
+    "dep:futures",
+    "dep:hex",
+    "dep:secrecy",
+    "dep:serde",
+    "dep:serde_json",
+    "dep:sha2",
+    "dep:surrealdb",
+    "dep:thiserror",
+    "dep:tokio",
+    "dep:url",
+    "dep:uuid",
+]
+
 [dependencies]
-schemars.workspace = true
-veoveo-knowledge-contract.workspace = true
-veoveo-embedding-contract.workspace = true
-veoveo-mcp-knowledge-extension = { workspace = true, features = ["contract"] }
-veoveo-audit-contract.workspace = true
-veoveo-types.workspace = true
-veoveo-artifact-contract.workspace = true
-veoveo-computers-contract = { path = "../computers/contract" }
-async-stream = "=0.3.6"
-chrono.workspace = true
-futures.workspace = true
-hex.workspace = true
-secrecy.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-sha2.workspace = true
-surrealdb = { version = "=3.3.0", default-features = false, features = ["protocol-ws", "rustls"] }
-thiserror = "2.0.20"
-tokio = { workspace = true, features = ["time", "rt"] }
-url.workspace = true
-uuid = { workspace = true, features = ["serde", "v5", "v7"] }
+veoveo-modules = { workspace = true, default-features = false, optional = true }
+schemars = { workspace = true, optional = true }
+veoveo-knowledge-contract = { workspace = true, optional = true }
+veoveo-embedding-contract = { workspace = true, optional = true }
+veoveo-mcp-knowledge-extension = { workspace = true, features = ["contract"], optional = true }
+veoveo-audit-contract = { workspace = true, optional = true }
+veoveo-types = { workspace = true, optional = true }
+veoveo-artifact-contract = { workspace = true, optional = true }
+veoveo-computers-contract = { path = "../computers/contract", optional = true }
+async-stream = { version = "=0.3.6", optional = true }
+chrono = { workspace = true, optional = true }
+futures = { workspace = true, optional = true }
+hex = { workspace = true, optional = true }
+secrecy = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+surrealdb = { version = "=3.3.0", default-features = false, features = ["protocol-ws", "rustls"], optional = true }
+thiserror = { version = "2.0.20", optional = true }
+tokio = { workspace = true, features = ["time", "rt"], optional = true }
+url = { workspace = true, optional = true }
+uuid = { workspace = true, features = ["serde", "v5", "v7"], optional = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["process", "macros", "rt-multi-thread", "net", "io-util", "sync"] }
+
+[[test]]
+name = "agent_management"
+required-features = ["runtime"]
+
+[[test]]
+name = "audit"
+required-features = ["runtime"]
+
+[[test]]
+name = "audit_indexing"
+required-features = ["runtime"]
+
+[[test]]
+name = "changefeed_consumers"
+required-features = ["runtime"]
+
+[[test]]
+name = "current_authority"
+required-features = ["runtime"]
+
+[[test]]
+name = "fixture_lifecycle"
+required-features = ["runtime"]
+
+[[test]]
+name = "identity_sync"
+required-features = ["runtime"]
+
+[[test]]
+name = "knowledge"
+required-features = ["runtime"]
+
+[[test]]
+name = "map_authoring_reads"
+required-features = ["runtime"]
+
+[[test]]
+name = "map_completion"
+required-features = ["runtime"]
+
+[[test]]
+name = "recording_grants"
+required-features = ["runtime"]
+
+[[test]]
+name = "recording_projections"
+required-features = ["runtime"]
+
+[[test]]
+name = "resource_changes"
+required-features = ["runtime"]
+
+[[test]]
+name = "surreal_integration"
+required-features = ["runtime"]
+
+[[test]]
+name = "workspace"
+required-features = ["runtime"]
+
+[[test]]
+name = "write_cost"
+required-features = ["runtime"]

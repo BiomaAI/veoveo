@@ -6,7 +6,9 @@ preserve their owner admission and wire/schema profiles. Production helper and s
 unit-error adoption is complete; the tracked-source macro catalog is enforced.
 Explicit owner adapters retain normalization, redundant-field projection, mutable
 representations and codec-specific envelopes. Later phases, Foundations and hardening
-transfer conditions, and installed acceptance remain open.
+transfer conditions, and installed acceptance remain open. Phase 1 is active: the
+module declaration and native runner foundation is qualified; execution commands,
+Jobs and production lane cutover remain pending.
 This is the single implementation plan for the former Foundations, Contract
 Consistency and Repository Hardening tracks; their required open conditions transfer
 without being declared complete.
@@ -306,7 +308,7 @@ catalog without pulling in a runtime.
 |---|---|
 | `name` | Module identity, for example `map` |
 | `layer` | `kernel` (required, ordered) or `optional` |
-| `ownership` | Typed table and function claims: prefix families plus explicit names such as Frames `coordinate_operation` and Agents `wake`. The registry rejects overlapping claims. Kernel API functions have an explicit owning lane under `fn::kernel::*` |
+| `ownership` | Typed table, function and exact analyzer claims: prefix families plus explicit names such as Frames `coordinate_operation` and Agents `wake`. The registry rejects overlapping claims. Kernel API functions have an explicit owning lane under `fn::kernel::*` |
 | `lane` | Ordered, checksummed migrations included with `include_str!` from the module's `migrations/` folder |
 | `execution` | Declared image and command for the lane. An existing composition image may execute several owners' distinct lanes; separate images or processes require an operational reason |
 | `requires` | Kernel modules and versions it requires; for an optional module, also the optional modules it declares |
@@ -320,7 +322,7 @@ generalizing the existing downstream lane into named lanes.
 
 ### Rules For Modules
 
-1. A module defines, alters and removes only its own tables and functions. A kernel
+1. A module defines, alters and removes only its own tables, functions and analyzers. A kernel
    module references only earlier kernel modules. No kernel module references an
    optional module. An optional module references another optional module only
    through a declared dependency.
@@ -338,10 +340,26 @@ generalizing the existing downstream lane into named lanes.
 
 The runner enforces rule 1. Before applying a lane it parses every statement and
 rejects any `DEFINE`, `ALTER` or `REMOVE` outside the module's declared table and
-function claims, including nested statements. Unsupported statement classes fail
+function/analyzer claims, including nested statements. Unsupported statement classes fail
 before execution. Database EDITOR and system-user privileges do not provide per-module
-table isolation. Phase 1 qualifies whether the SurrealDB 3.3 SDK exposes its statement
-parser; otherwise the runner accepts only an allow-listed statement grammar.
+table isolation. The SDK does not expose the required AST. The private runner adapter pins upstream
+`surrealdb-syn` and `surrealdb-sql` together at 3.3.0 and applies a fail-closed supported
+profile. The [module design](../platform/modules/DESIGN.md#sql-admission) records bounds,
+unsupported constructs and upstream internal-API replacement conditions. All selected
+bodies pass admission before runner bookkeeping or any body executes.
+
+The module foundation adds exact analyzer ownership because production SQL defines
+`platform_search` for shared kernel search and `knowledge_text` for Knowledge. Store
+claims the former and Knowledge the latter. Analyzer callbacks remain unsupported until
+their effects are qualified. Store also owns the reserved lane/header history tables;
+owner SQL cannot access them.
+
+Migration versions begin at zero, and initialized empty lanes use a header rather than
+a sentinel version. Fixed per-migration minima and completion receipts preserve prior
+history when dependency lanes grow. `Satisfied` requires the dependency's compiled lane
+to be fully current before new dependent work. The complete catalog distinguishes known
+disabled optional histories from unknown lanes; selection includes every kernel and
+optional prerequisites. Publication status checks selected completion.
 
 ### Extension Pattern
 
@@ -590,13 +608,22 @@ may leave production schema, migration histories and bootstrap unchanged until e
 hosts are qualified. Phase 1 completion still requires the declared commands and Jobs;
 this staging does not waive those gates.
 
+The native foundation and all 16 schema-only owner exports are qualified. The complete
+catalog resolves the reviewed 166 tables, 14 functions, two analyzers and two reserved
+history tables; this declares target ownership without admitting the existing mixed
+production SQL. The runner qualifies nonempty lanes, fixed prerequisite identity,
+known disabled histories, independent lane execution, transaction rollback/concurrency
+and timeout/drop cancellation. Production schema, histories and bootstrap remain
+unchanged. Command/image availability, rendered Jobs and fresh-install/upgrade
+publication ordering remain required before Phase 1 can complete.
+
 | Work | Detail |
 |---|---|
 | Module contract | `platform/modules` crate with `ModuleSetup`, `ModuleName`, layer, typed ownership claims, `Migration` and lane types; a module design document beside it, the counterpart of `mcp/contract/DESIGN.md` |
-| Runner | The runner moves into `veoveo-modules` behind a `runner` feature. The downstream lane generalizes into named lanes with `requires`. History records name the lane |
-| Ownership validator | Statement-level check of every lane migration against the module's declared table/function claims, including explicit non-prefix names |
+| Runner | Implemented native `veoveo-modules` runner with prepared SQL admission, named append-only histories and prerequisites. Existing Store migration/bootstrap remains in use pending host qualification |
+| Ownership validator | Statement-level check of every lane migration against the module's declared table/function/analyzer claims, including explicit non-prefix names |
 | Module declarations | One `ModuleSetup` per module, initially with an empty lane; declare owner paths and lane execution image plus command. Composition images may host multiple distinct lanes |
-| Kernel order | Qualify the declared target DAG and inventory current-schema cycles. Phase 3 removes incompatible associations before final closure |
+| Kernel order | Qualify the declared target DAG and inventory current-schema cycles, including Agents participant import mutating Workspace. The target Workspace → Agents order moves that participant import into Workspace in Phase 3. Phase 3 removes incompatible associations before final closure |
 | Migrate commands | Qualify the declared lane commands and execution images; composition images may execute several owner lanes |
 | Helm | Database readiness, ordered kernel and enabled optional lane Jobs, then control-plane publication on fresh install and upgrade; migration credentials mounted only into Jobs |
 
@@ -604,7 +631,7 @@ this staging does not waive those gates.
 |---|---|
 | Runner tests | Lane ordering, `requires`, dependency order, concurrent Jobs and transaction rollback, using the existing isolated SurrealDB fixtures |
 | Ownership tests | Reject foreign claims, nested foreign mutations and unsupported statement classes before executing any statement |
-| Helm tests | `cargo test -p veoveo-deployment-smoke` plus fresh-install and upgrade qualification of DB readiness → lane completion → publication on fresh install and upgrade, including rendered commands and credential mounts. Pre-install hooks cannot wait for ordinary DB resources not yet created; hook weights alone do not establish readiness |
+| Helm tests | `cargo test -p veoveo-deployment-smoke` and `cargo xtask smoke helm-config`, plus fresh-install and upgrade qualification of DB readiness → lane completion → publication on fresh install and upgrade, including rendered commands and credential mounts. Pre-install hooks cannot wait for ordinary DB resources not yet created; hook weights alone do not establish readiness |
 
 ## Phase 2: Kernel Extension Points
 

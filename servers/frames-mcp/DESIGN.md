@@ -447,3 +447,20 @@ normal Host validation. Liveness reports that the HTTP process is running. Readi
 platform database to accept a query within five seconds. A database outage returns
 503 from readiness while liveness stays 200; the worker can reconnect without a
 liveness-driven restart.
+
+## Persistence Module Declaration
+
+The independent `schema` feature exports `schema::module_setup(execution)` for the
+`frames` optional module. It activates only `veoveo-modules` with default features
+disabled; contract and runtime dependencies require their own features. Default
+runtime behavior is unchanged. The declaration claims explicit `frame_world`, `frame_world_revision`, `coordinate_operation`, and `task_used_frame` tables.
+It requires Tasks, including earlier kernel lanes through transitive requirements.
+
+The lane is empty. The composition root supplies the checked execution image and
+command; the existing gateway composition image is the initial host candidate.
+Its current `installation-bootstrap` command runs the mixed Store catalog, which
+continues to own production migration execution. A named-lane command and its Job
+require separate implementation and qualification. Future owner migrations and
+queries belong together in this owner's crate, with one declaration per object.
+
+The explicit `task_used_frame` claim prevents a Task prefix claim from swallowing this relationship. Existing mixed migration placement does not qualify the declared owner.

@@ -12310,6 +12310,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "reblessive"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbc4a4ea2a66a41a1152c4b3d86e8954dc087bdf33af35446e6e176db4e73c8c"
+
+[[package]]
 name = "reborrow"
 version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14257,6 +14263,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "storekey"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bd9a94571bde7369ecaac47cec2e6844642d99166bd452fbd8def74b5b917b2f"
+dependencies = [
+ "bytes",
+ "storekey-derive",
+ "uuid",
+]
+
+[[package]]
+name = "storekey-derive"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6079d53242246522ec982de613c5c952cc7b1380ef2f8622fcdab9bfe73c0098"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "string_cache"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14533,6 +14561,66 @@ dependencies = [
  "url",
  "uuid",
  "web-time",
+]
+
+[[package]]
+name = "surrealdb-sql"
+version = "3.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6397f3b9141dbceca638116045b525c9f31bea3a6b374ab3546fa052bfb07e33"
+dependencies = [
+ "bytes",
+ "chrono",
+ "geo",
+ "getrandom 0.3.4",
+ "hex",
+ "phf 0.13.1",
+ "rand 0.9.5",
+ "regex",
+ "rust_decimal",
+ "serde",
+ "surrealdb-common",
+ "surrealdb-iam",
+ "surrealdb-strand",
+ "surrealdb-types",
+ "unicase",
+ "uuid",
+]
+
+[[package]]
+name = "surrealdb-strand"
+version = "3.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "adc99fc8f56f55b3bcadd4ee4fe6ec4811dc04a3e686099fd0c69af7ee4edde0"
+dependencies = [
+ "revision",
+ "serde",
+ "storekey",
+]
+
+[[package]]
+name = "surrealdb-syn"
+version = "3.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bab01f470fa61bc45a4c46286f7ba94297d6ec7c46708845d9e164311fb8e443"
+dependencies = [
+ "bytes",
+ "chrono",
+ "geo",
+ "phf 0.13.1",
+ "reblessive",
+ "regex",
+ "rust_decimal",
+ "surrealdb-cnf",
+ "surrealdb-common",
+ "surrealdb-iam",
+ "surrealdb-sql",
+ "surrealdb-strand",
+ "surrealdb-types",
+ "thiserror 2.0.20",
+ "tracing",
+ "unicase",
+ "uuid",
 ]
 
 [[package]]
@@ -15929,6 +16017,7 @@ dependencies = [
  "tokio",
  "uuid",
  "veoveo-mcp-contract",
+ "veoveo-modules",
  "veoveo-platform-store",
  "veoveo-task-runtime",
  "veoveo-types",
@@ -16195,6 +16284,7 @@ dependencies = [
  "veoveo-computer-execution",
  "veoveo-computers-contract",
  "veoveo-mcp-contract",
+ "veoveo-modules",
  "veoveo-platform-store",
  "veoveo-policy",
  "veoveo-task-runtime",
@@ -16576,6 +16666,7 @@ dependencies = [
  "veoveo-map-mcp",
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
+ "veoveo-modules",
  "veoveo-platform-store",
  "veoveo-rrd",
  "veoveo-task-runtime",
@@ -16726,6 +16817,7 @@ dependencies = [
  "veoveo-mcp-conformance",
  "veoveo-mcp-contract",
  "veoveo-mcp-knowledge-extension",
+ "veoveo-modules",
  "veoveo-platform-store",
  "veoveo-task-runtime",
  "veoveo-types",
@@ -16961,6 +17053,7 @@ dependencies = [
  "veoveo-artifact-contract",
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
+ "veoveo-modules",
  "veoveo-platform-store",
  "veoveo-task-runtime",
  "veoveo-types",
@@ -16978,6 +17071,19 @@ dependencies = [
  "thiserror 2.0.20",
  "veoveo-mcp-contract",
  "veoveo-types",
+]
+
+[[package]]
+name = "veoveo-modules"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "sha2 0.11.0",
+ "surrealdb",
+ "surrealdb-sql",
+ "surrealdb-syn",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]
@@ -17041,6 +17147,7 @@ dependencies = [
  "veoveo-embedding-contract",
  "veoveo-knowledge-contract",
  "veoveo-mcp-knowledge-extension",
+ "veoveo-modules",
  "veoveo-types",
 ]
 
@@ -17258,6 +17365,7 @@ dependencies = [
  "veoveo-artifact-contract",
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
+ "veoveo-modules",
  "veoveo-platform-store",
  "veoveo-recording-contract",
  "veoveo-recording-hub",
@@ -17602,6 +17710,7 @@ dependencies = [
  "veoveo-mcp-conformance",
  "veoveo-mcp-contract",
  "veoveo-mcp-knowledge-extension",
+ "veoveo-modules",
  "veoveo-platform-store",
  "veoveo-task-runtime",
  "veoveo-types",
@@ -17700,6 +17809,7 @@ dependencies = [
  "veoveo-map-mcp",
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
+ "veoveo-modules",
  "veoveo-platform-store",
  "veoveo-recording-contract",
  "veoveo-task-runtime",
@@ -17750,6 +17860,13 @@ dependencies = [
  "veoveo-recording-contract",
  "veoveo-task-runtime",
  "veoveo-types",
+]
+
+[[package]]
+name = "veoveo-workspace"
+version = "0.1.0"
+dependencies = [
+ "veoveo-modules",
 ]
 
 [[package]]

@@ -4,30 +4,184 @@ version.workspace = true
 edition.workspace = true
 publish = false
 
+[features]
+default = ["runtime"]
+schema = ["dep:veoveo-modules"]
+runtime = [
+    "dep:futures",
+    "dep:veoveo-types",
+    "dep:veoveo-audit-contract",
+    "dep:base64",
+    "dep:chacha20poly1305",
+    "dep:chrono",
+    "dep:hex",
+    "dep:getrandom",
+    "dep:hmac",
+    "dep:serde",
+    "dep:serde_json",
+    "dep:sha2",
+    "dep:surrealdb",
+    "dep:thiserror",
+    "dep:tokio",
+    "dep:uuid",
+    "dep:zeroize",
+    "dep:veoveo-computer-execution",
+    "dep:veoveo-computers-contract",
+    "dep:veoveo-mcp-contract",
+    "dep:veoveo-platform-store",
+    "dep:veoveo-policy",
+    "dep:veoveo-task-runtime",
+]
+
 [dependencies]
-futures.workspace = true
-veoveo-types.workspace = true
-veoveo-audit-contract.workspace = true
-base64.workspace = true
-chacha20poly1305.workspace = true
-chrono.workspace = true
-hex.workspace = true
-getrandom.workspace = true
-hmac.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-sha2.workspace = true
-surrealdb = { version = "=3.3.0", default-features = false, features = ["protocol-ws", "rustls"] }
-thiserror.workspace = true
-tokio = { workspace = true, features = ["time"] }
-uuid = { workspace = true, features = ["serde", "v7"] }
-zeroize.workspace = true
-veoveo-computer-execution = { path = "execution" }
-veoveo-computers-contract = { path = "contract" }
-veoveo-mcp-contract.workspace = true
-veoveo-platform-store = { path = "../store" }
-veoveo-policy = { path = "../policy" }
-veoveo-task-runtime = { path = "../task-runtime" }
+veoveo-modules = { workspace = true, default-features = false, optional = true }
+futures = { workspace = true, optional = true }
+veoveo-types = { workspace = true, optional = true }
+veoveo-audit-contract = { workspace = true, optional = true }
+base64 = { workspace = true, optional = true }
+chacha20poly1305 = { workspace = true, optional = true }
+chrono = { workspace = true, optional = true }
+hex = { workspace = true, optional = true }
+getrandom = { workspace = true, optional = true }
+hmac = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+surrealdb = { version = "=3.3.0", default-features = false, features = ["protocol-ws", "rustls"], optional = true }
+thiserror = { workspace = true, optional = true }
+tokio = { workspace = true, features = ["time"], optional = true }
+uuid = { workspace = true, features = ["serde", "v7"], optional = true }
+zeroize = { workspace = true, optional = true }
+veoveo-computer-execution = { path = "execution", optional = true }
+veoveo-computers-contract = { path = "contract", optional = true }
+veoveo-mcp-contract = { workspace = true, optional = true }
+veoveo-platform-store = { path = "../store", optional = true }
+veoveo-policy = { path = "../policy", optional = true }
+veoveo-task-runtime = { path = "../task-runtime", optional = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["process", "io-util", "macros", "rt-multi-thread"] }
+
+[[test]]
+name = "admission"
+required-features = ["runtime"]
+
+[[test]]
+name = "authority"
+required-features = ["runtime"]
+
+[[test]]
+name = "authority_changes"
+required-features = ["runtime"]
+
+[[test]]
+name = "automation_grants"
+required-features = ["runtime"]
+
+[[test]]
+name = "automation_lifecycle"
+required-features = ["runtime"]
+
+[[test]]
+name = "cli_grants"
+required-features = ["runtime"]
+
+[[test]]
+name = "command_access"
+required-features = ["runtime"]
+
+[[test]]
+name = "command_completion"
+required-features = ["runtime"]
+
+[[test]]
+name = "command_containment"
+required-features = ["runtime"]
+
+[[test]]
+name = "command_continuation"
+required-features = ["runtime"]
+
+[[test]]
+name = "command_output_access"
+required-features = ["runtime"]
+
+[[test]]
+name = "commands"
+required-features = ["runtime"]
+
+[[test]]
+name = "computer_access"
+required-features = ["runtime"]
+
+[[test]]
+name = "cross_client_effects"
+required-features = ["runtime"]
+
+[[test]]
+name = "current_authority"
+required-features = ["runtime"]
+
+[[test]]
+name = "file_admission"
+required-features = ["runtime"]
+
+[[test]]
+name = "file_containment"
+required-features = ["runtime"]
+
+[[test]]
+name = "file_continuation"
+required-features = ["runtime"]
+
+[[test]]
+name = "file_journal"
+required-features = ["runtime"]
+
+[[test]]
+name = "journal_cost"
+required-features = ["runtime"]
+
+[[test]]
+name = "journal_payloads"
+required-features = ["runtime"]
+
+[[test]]
+name = "lifecycle"
+required-features = ["runtime"]
+
+[[test]]
+name = "maintenance"
+required-features = ["runtime"]
+
+[[test]]
+name = "observed_restart"
+required-features = ["runtime"]
+
+[[test]]
+name = "operations"
+required-features = ["runtime"]
+
+[[test]]
+name = "resource_ownership"
+required-features = ["runtime"]
+
+[[test]]
+name = "session_grants"
+required-features = ["runtime"]
+
+[[test]]
+name = "sql_admission"
+required-features = ["runtime"]
+
+[[test]]
+name = "sql_receipt_admission"
+required-features = ["runtime"]
+
+[[test]]
+name = "sql_task_admission"
+required-features = ["runtime"]
+
+[[test]]
+name = "worker_queue"
+required-features = ["runtime"]

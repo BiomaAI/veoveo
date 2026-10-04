@@ -40,6 +40,7 @@ name = "gateway_source_conformance"
 required-features = ["mcp"]
 
 [features]
+schema = ["dep:veoveo-modules"]
 default = ["mcp"]
 contract = [
     "dep:chrono",
@@ -97,6 +98,7 @@ mcp = [
 ]
 
 [dependencies]
+veoveo-modules = { workspace = true, default-features = false, optional = true }
 veoveo-artifact-contract = { workspace = true, optional = true }
 veoveo-types = { workspace = true, optional = true }
 anyhow = { workspace = true, optional = true }

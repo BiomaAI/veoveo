@@ -1,0 +1,12 @@
+[package]
+name = "veoveo-workspace"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[features]
+default = []
+schema = ["dep:veoveo-modules"]
+
+[dependencies]
+veoveo-modules = { workspace = true, default-features = false, optional = true }

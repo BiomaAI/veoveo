@@ -37,6 +37,7 @@ name = "surreal_integration"
 required-features = ["mcp"]
 
 [features]
+schema = ["dep:veoveo-modules"]
 default = ["mcp"]
 contract = [
     "dep:thiserror",
@@ -80,6 +81,7 @@ mcp = [
 ]
 
 [dependencies]
+veoveo-modules = { workspace = true, default-features = false, optional = true }
 thiserror = { workspace = true, optional = true }
 # Matches the qualified Store driver and installed 3.3.0 query profile.
 surrealdb = { version = "=3.3.0", default-features = false, optional = true }

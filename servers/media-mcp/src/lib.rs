@@ -14,3 +14,6 @@ pub mod task_results;
 pub mod uris;
 #[cfg(feature = "runtime")]
 pub mod webhook;
+
+#[cfg(feature = "schema")]
+pub mod schema;

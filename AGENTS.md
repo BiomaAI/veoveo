@@ -265,6 +265,16 @@ requires the caller's typed context. Structured keysets and versionstamps remain
 owner's structured types. Do not reintroduce local checked-model or cursor declaration
 macros for these implemented shapes.
 
+## Module Schema Declarations
+
+Schema-only owner exports depend on the dependency-free `veoveo-modules` declaration
+library. Keep table/function/analyzer claims and target dependencies in the owning
+schema module. Composition supplies image targets and commands. The private runner
+admits every selected SQL body before effects; extend its supported AST profile only
+with complete child inspection and adversarial owner/layer checks. Preserve known
+disabled-module histories and append-only migration identity. Installation commands
+and Jobs require separate qualification before replacing production bootstrap.
+
 ## Database First
 
 Before building a mechanism in Veoveo, check whether SurrealDB already provides it,

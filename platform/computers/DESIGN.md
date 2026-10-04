@@ -1117,3 +1117,20 @@ The current grant form selects registrations admitted to the caller's profile. A
 cross-profile authority transition requires its own contract. Managed Computer
 registrations need the authority-reader work in the
 [manager design](../../agents/manager/DESIGN.md#qualification-limits).
+
+## Persistence Module Declaration
+
+The independent `schema` feature exports `schema::module_setup(execution)` for the
+`computers` optional module. It activates only `veoveo-modules` with default features
+disabled; contract and runtime dependencies require their own features. Default
+runtime behavior is unchanged. The declaration claims `computer_*` and the explicit `computer` table.
+It requires Audit, whose transitive requirements include Tasks, Artifacts, Gateway and Identity.
+
+The lane is empty. The composition root supplies the checked execution image and
+command; the existing gateway composition image is the initial host candidate.
+Its current `installation-bootstrap` command runs the mixed Store catalog, which
+continues to own production migration execution. A named-lane command and its Job
+require separate implementation and qualification. Future owner migrations and
+queries belong together in this owner's crate, with one declaration per object.
+
+Its declaration does not certify the current Audit-to-Computers record reference.

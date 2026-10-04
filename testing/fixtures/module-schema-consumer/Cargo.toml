@@ -1,0 +1,21 @@
+[package]
+name = "veoveo-module-schema-consumer"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+resolver = "3"
+
+[dependencies]
+veoveo-modules = { path = "../../../platform/modules", default-features = false }
+veoveo-platform-store = { path = "../../../platform/store", default-features = false, features = ["schema"] }
+veoveo-computers = { path = "../../../platform/computers", default-features = false, features = ["schema"] }
+veoveo-agent-runtime = { path = "../../../agents/runtime", default-features = false, features = ["schema"] }
+veoveo-workspace = { path = "../../../platform/workspace", default-features = false, features = ["schema"] }
+veoveo-recording-mcp = { path = "../../../servers/recording-mcp", default-features = false, features = ["schema"] }
+veoveo-map-mcp = { path = "../../../servers/map-mcp", default-features = false, features = ["schema"] }
+veoveo-time-mcp = { path = "../../../servers/time-mcp", default-features = false, features = ["schema"] }
+veoveo-uav-sim-mcp = { path = "../../../servers/uav-sim-mcp", default-features = false, features = ["schema"] }
+veoveo-frames-mcp = { path = "../../../servers/frames-mcp", default-features = false, features = ["schema"] }
+veoveo-media-mcp = { path = "../../../servers/media-mcp", default-features = false, features = ["schema"] }

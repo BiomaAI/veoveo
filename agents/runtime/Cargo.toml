@@ -7,21 +7,44 @@ edition.workspace = true
 name = "veoveo_agent_runtime"
 path = "src/lib.rs"
 
+[features]
+default = ["runtime"]
+schema = ["dep:veoveo-modules"]
+runtime = [
+    "dep:async-stream",
+    "dep:chrono",
+    "dep:futures",
+    "dep:serde",
+    "dep:serde_json",
+    "dep:surrealdb",
+    "dep:thiserror",
+    "dep:tokio",
+    "dep:uuid",
+    "dep:veoveo-platform-store",
+    "dep:veoveo-mcp-contract",
+    "dep:veoveo-task-runtime",
+]
+
 [dependencies]
-async-stream = "=0.3.6"
-chrono.workspace = true
-futures.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-surrealdb = { version = "=3.3.0", default-features = false, features = ["protocol-ws", "rustls"] }
-thiserror = "2.0.20"
-tokio = { workspace = true, features = ["time"] }
-uuid.workspace = true
-veoveo-platform-store.workspace = true
-veoveo-mcp-contract.workspace = true
-veoveo-task-runtime = { path = "../../platform/task-runtime" }
+veoveo-modules = { workspace = true, default-features = false, optional = true }
+async-stream = { version = "=0.3.6", optional = true }
+chrono = { workspace = true, optional = true }
+futures = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+surrealdb = { version = "=3.3.0", default-features = false, features = ["protocol-ws", "rustls"], optional = true }
+thiserror = { version = "2.0.20", optional = true }
+tokio = { workspace = true, features = ["time"], optional = true }
+uuid = { workspace = true, optional = true }
+veoveo-platform-store = { workspace = true, optional = true }
+veoveo-mcp-contract = { workspace = true, optional = true }
+veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
 
 [dev-dependencies]
 veoveo-types.workspace = true
 secrecy.workspace = true
 tokio = { workspace = true, features = ["process", "io-util", "macros", "rt-multi-thread", "time"] }
+
+[[test]]
+name = "surreal_integration"
+required-features = ["runtime"]

@@ -21,6 +21,7 @@ name = "control_plane_registration"
 required-features = ["mcp"]
 
 [features]
+schema = ["dep:veoveo-modules"]
 default = ["mcp"]
 contract = [
     "dep:veoveo-recording-contract",
@@ -66,6 +67,7 @@ mcp = [
 ]
 
 [dependencies]
+veoveo-modules = { workspace = true, default-features = false, optional = true }
 veoveo-audit = { workspace = true, optional = true }
 veoveo-recording-contract = { workspace = true, optional = true }
 veoveo-map-mcp = { path = "../map-mcp", default-features = false, features = ["contract"], optional = true }

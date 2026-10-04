@@ -15,3 +15,6 @@ pub mod uris;
 mod live_app;
 #[cfg(feature = "mcp")]
 pub mod server;
+
+#[cfg(feature = "schema")]
+pub mod schema;

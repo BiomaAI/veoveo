@@ -15,6 +15,8 @@ members = [
     "mcp/contract",
     "mcp/knowledge-extension",
     "platform/macros",
+    "platform/modules",
+    "platform/workspace",
     "platform/audit",
     "platform/audit/contract",
     "platform/artifacts/client",
@@ -71,6 +73,7 @@ members = [
     "tools/image-build/control",
     "tools/xtask",
 ]
+exclude = ["testing/fixtures/module-schema-consumer"]
 resolver = "3"
 
 [workspace.metadata]
@@ -211,6 +214,8 @@ zeroize = "=1.9.0"
 vaultrs = { version = "0.8.0", default-features = false, features = ["rustls"] }
 veoveo-mcp-contract = { path = "mcp/contract", default-features = false }
 veoveo-types = { path = "platform/types" }
+veoveo-modules = { path = "platform/modules", default-features = false }
+veoveo-workspace = { path = "platform/workspace", default-features = false }
 veoveo-artifact-contract = { path = "platform/artifacts/contract" }
 veoveo-deploy-contract = { path = "deploy/contract" }
 veoveo-deploy-runtime = { path = "deploy/runtime" }

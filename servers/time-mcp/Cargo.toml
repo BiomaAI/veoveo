@@ -49,6 +49,7 @@ name = "gateway_source_conformance"
 required-features = ["mcp"]
 
 [features]
+schema = ["dep:veoveo-modules"]
 default = ["mcp"]
 contract = [
     "dep:thiserror",
@@ -96,6 +97,7 @@ mcp = [
 ]
 
 [dependencies]
+veoveo-modules = { workspace = true, default-features = false, optional = true }
 veoveo-mcp-knowledge-extension = { workspace = true, features = ["contract"], optional = true }
 veoveo-types = { workspace = true, optional = true }
 anyhow = { workspace = true, optional = true }

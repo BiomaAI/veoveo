@@ -940,3 +940,20 @@ InstallationWorldBinding stores the admitted session and simulation-world fields
 ## Cursor Admission
 
 UAV cursors retain hexadecimal JSON envelopes and their existing constructor/parser limits through owner codecs. Grant and live-view codecs store the typed session binding privately, and both encode and decode enforce collection agreement. Contextual cursors require explicit caller context and provide no generic String deserializer that invents a session.
+
+## Persistence Module Declaration
+
+The independent `schema` feature exports `schema::module_setup(execution)` for the
+`uav` optional module. It activates only `veoveo-modules` with default features
+disabled; contract and runtime dependencies require their own features. Default
+runtime behavior is unchanged. The declaration claims `uav_*`.
+It requires Agents and its earlier kernel requirements.
+
+The lane is empty. The composition root supplies the checked execution image and
+command; the existing gateway composition image is the initial host candidate.
+Its current `installation-bootstrap` command runs the mixed Store catalog, which
+continues to own production migration execution. A named-lane command and its Job
+require separate implementation and qualification. Future owner migrations and
+queries belong together in this owner's crate, with one declaration per object.
+
+`server/agent_targets.surql` reads `managed_agent` and calls `fn::managed_agent_enabled`, which establishes the Agents dependency. The current `task_uav_plan` index is a foreign mutation on the kernel Task table and needs an owner-approved replacement.

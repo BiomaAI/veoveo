@@ -1,0 +1,18 @@
+DEFINE TABLE IF NOT EXISTS platform_module_lane SCHEMAFULL PERMISSIONS NONE;
+DEFINE FIELD IF NOT EXISTS id ON platform_module_lane TYPE string;
+DEFINE FIELD IF NOT EXISTS module ON platform_module_lane TYPE string READONLY;
+DEFINE FIELD IF NOT EXISTS initialized ON platform_module_lane TYPE bool READONLY;
+DEFINE INDEX IF NOT EXISTS module_lane_identity ON platform_module_lane FIELDS module UNIQUE;
+DEFINE TABLE IF NOT EXISTS platform_module_migration SCHEMAFULL PERMISSIONS NONE;
+DEFINE FIELD IF NOT EXISTS id ON platform_module_migration TYPE string;
+DEFINE FIELD IF NOT EXISTS module ON platform_module_migration TYPE string READONLY;
+DEFINE FIELD IF NOT EXISTS version ON platform_module_migration TYPE int READONLY;
+DEFINE FIELD IF NOT EXISTS name ON platform_module_migration TYPE string READONLY;
+DEFINE FIELD IF NOT EXISTS filename ON platform_module_migration TYPE string READONLY;
+DEFINE FIELD IF NOT EXISTS checksum ON platform_module_migration TYPE string READONLY;
+DEFINE FIELD IF NOT EXISTS requires_checksum ON platform_module_migration TYPE string READONLY;
+DEFINE FIELD IF NOT EXISTS requirements ON platform_module_migration TYPE array<object> READONLY;
+DEFINE FIELD IF NOT EXISTS requirements.* ON platform_module_migration TYPE object;
+DEFINE FIELD IF NOT EXISTS requirements.*.module ON platform_module_migration TYPE string;
+DEFINE FIELD IF NOT EXISTS requirements.*.version ON platform_module_migration TYPE option<int>;
+DEFINE INDEX IF NOT EXISTS module_migration_identity ON platform_module_migration FIELDS module, version UNIQUE;

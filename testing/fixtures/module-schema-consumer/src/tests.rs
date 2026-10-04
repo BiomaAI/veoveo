@@ -1,0 +1,178 @@
+use super::*;
+use veoveo_modules::{
+    AnalyzerName, ExecutionCommand, ExecutionImage, FunctionName, ModuleLayer, ModuleName,
+    ModuleRegistry, TableName,
+};
+
+#[path = "expected.rs"]
+mod expected;
+
+fn execution(name: &str) -> Result<LaneExecution, DeclarationError> {
+    // A logical composition host and pending command template, not proof of an executable.
+    LaneExecution::new(
+        ExecutionImage::new("gateway")?,
+        ExecutionCommand::new(vec![
+            "gateway".into(),
+            "module-migrate".into(),
+            "--module".into(),
+            name.into(),
+        ])?,
+    )
+}
+
+#[test]
+fn every_owner_exports_an_empty_independent_lane_and_keeps_supplied_execution() {
+    let owners = declarations(execution).unwrap();
+    assert_eq!(owners.len(), 16);
+    assert_eq!(
+        owners
+            .iter()
+            .filter(|owner| owner.layer() == ModuleLayer::Kernel)
+            .count(),
+        7
+    );
+    for owner in &owners {
+        assert!(owner.lane().is_empty());
+        assert_eq!(
+            owner.execution(),
+            &execution(owner.name().as_str()).unwrap()
+        );
+        assert!(owner.extensions().is_empty());
+    }
+}
+
+// These expectations name objects; they do not parse or approve migration bodies.
+#[test]
+fn reviewed_catalog_objects_resolve_to_their_declaring_owners() {
+    let registry = ModuleRegistry::new(declarations(execution).unwrap()).unwrap();
+    assert_eq!(expected::TABLES.len(), 166);
+    assert_eq!(expected::FUNCTIONS.len(), 14);
+    assert_eq!(expected::ANALYZERS.len(), 2);
+    for &(name, owner) in expected::TABLES {
+        assert_eq!(
+            registry
+                .owner_of_table(&TableName::new(name).unwrap())
+                .unwrap()
+                .name()
+                .as_str(),
+            owner,
+            "table {name}"
+        );
+    }
+    for &(name, owner) in expected::FUNCTIONS {
+        assert_eq!(
+            registry
+                .owner_of_function(&FunctionName::new(name).unwrap())
+                .unwrap()
+                .name()
+                .as_str(),
+            owner,
+            "function {name}"
+        );
+    }
+    for &(name, owner) in expected::ANALYZERS {
+        assert_eq!(
+            registry
+                .owner_of_analyzer(&AnalyzerName::new(name).unwrap())
+                .unwrap()
+                .name()
+                .as_str(),
+            owner,
+            "analyzer {name}"
+        );
+    }
+    for table in [veoveo_modules::LANE_TABLE, veoveo_modules::MIGRATION_TABLE] {
+        assert_eq!(
+            registry
+                .owner_of_table(&TableName::new(table).unwrap())
+                .unwrap()
+                .name()
+                .as_str(),
+            "store"
+        );
+    }
+    assert!(
+        registry
+            .owner_of_table(&TableName::new("independent_table").unwrap())
+            .is_none()
+    );
+    assert!(
+        registry
+            .owner_of_function(&FunctionName::new("fn::independent").unwrap())
+            .is_none()
+    );
+    assert!(
+        registry
+            .owner_of_analyzer(&AnalyzerName::new("independent_text").unwrap())
+            .is_none()
+    );
+}
+
+#[test]
+fn target_dependencies_order_regardless_of_declaration_order() {
+    let mut owners = declarations(execution).unwrap();
+    owners.reverse();
+    let registry = ModuleRegistry::new(owners).unwrap();
+    let ordered = registry.ordered();
+    assert_eq!(ordered.len(), 16);
+    for (position, owner) in ordered.iter().enumerate() {
+        for requirement in owner.requires() {
+            let prerequisite = ordered
+                .iter()
+                .position(|other| other.name() == requirement.module())
+                .unwrap();
+            assert!(
+                prerequisite < position,
+                "{} requires {}",
+                owner.name(),
+                requirement.module()
+            );
+        }
+    }
+    let kernels = registry.select(Vec::new()).unwrap();
+    assert_eq!(
+        kernels
+            .ordered()
+            .iter()
+            .map(|owner| owner.name().as_str())
+            .collect::<Vec<_>>(),
+        [
+            "store",
+            "identity",
+            "gateway",
+            "artifacts",
+            "tasks",
+            "audit",
+            "knowledge"
+        ]
+    );
+}
+
+#[test]
+fn optional_selection_adds_only_declared_optional_prerequisites() {
+    let registry = ModuleRegistry::new(declarations(execution).unwrap()).unwrap();
+    for enabled in ["workspace", "uav"] {
+        let selected = registry
+            .select(vec![ModuleName::new(enabled).unwrap()])
+            .unwrap();
+        assert_eq!(selected.ordered().len(), 9);
+        assert!(selected.contains(&ModuleName::new("agents").unwrap()));
+        assert!(selected.contains(&ModuleName::new(enabled).unwrap()));
+        for absent in ["computers", "map", "time", "recordings", "frames", "media"] {
+            assert!(
+                !selected.contains(&ModuleName::new(absent).unwrap()),
+                "{absent}"
+            );
+        }
+    }
+    let time = registry
+        .select(vec![ModuleName::new("time").unwrap()])
+        .unwrap();
+    assert_eq!(time.ordered().len(), 8);
+    assert!(!time.contains(&ModuleName::new("agents").unwrap()));
+    assert!(
+        registry
+            .select(vec![ModuleName::new("unknown").unwrap()])
+            .is_err()
+    );
+}

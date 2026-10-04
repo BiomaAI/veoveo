@@ -21,6 +21,7 @@ name = "contract"
 required-features = ["contract"]
 
 [features]
+schema = ["dep:veoveo-modules"]
 default = ["mcp"]
 contract = ["dep:veoveo-recording-contract"]
 runtime = [
@@ -83,6 +84,7 @@ redap = [
 redap-conformance = ["redap", "dep:re_redap_tests"]
 
 [dependencies]
+veoveo-modules = { workspace = true, default-features = false, optional = true }
 veoveo-recording-contract = { workspace = true, optional = true }
 veoveo-artifact-contract = { workspace = true, optional = true }
 veoveo-types = { workspace = true, optional = true }

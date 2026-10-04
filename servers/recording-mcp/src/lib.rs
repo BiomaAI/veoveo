@@ -26,3 +26,6 @@ pub use service::{
     PlaybackArchiveLayerPlan, PlaybackBlueprintPlan, PlaybackLiveLayerPlan, RecordingPlaybackPlan,
     RecordingService,
 };
+
+#[cfg(feature = "schema")]
+pub mod schema;

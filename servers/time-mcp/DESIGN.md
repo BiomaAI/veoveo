@@ -960,3 +960,20 @@ Time windows, authority bindings, effective authority pairs and resolution outpu
 ## Cursor Admission
 
 The five temporal cursors use owner codecs for their hexadecimal JSON collection envelopes. OpaqueCursor retains admitted original text, including hexadecimal-case and JSON spelling aliases. Constructors keep their existing infallible signatures and parser size policy; copied and borrowed position accessors preserve the owner API.
+
+## Persistence Module Declaration
+
+The independent `schema` feature exports `schema::module_setup(execution)` for the
+`time` optional module. It activates only `veoveo-modules` with default features
+disabled; contract and runtime dependencies require their own features. Default
+runtime behavior is unchanged. The declaration claims `time_*`.
+It requires Identity and its Store requirement.
+
+The lane is empty. The composition root supplies the checked execution image and
+command; the existing gateway composition image is the initial host candidate.
+Its current `installation-bootstrap` command runs the mixed Store catalog, which
+continues to own production migration execution. A named-lane command and its Job
+require separate implementation and qualification. Future owner migrations and
+queries belong together in this owner's crate, with one declaration per object.
+
+Artifact path text and client-facing temporal relationships do not invent optional schema requirements.

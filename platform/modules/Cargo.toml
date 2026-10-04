@@ -1,0 +1,23 @@
+[package]
+name = "veoveo-modules"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[features]
+default = []
+runner = ["dep:serde", "dep:sha2", "dep:surrealdb", "dep:surrealdb-syn", "dep:surrealdb-sql", "dep:tokio"]
+
+[dependencies]
+serde = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+# Private, exact matched parser/AST adapter; stability and retirement in DESIGN.md.
+surrealdb-syn = { version = "=3.3.0", optional = true }
+surrealdb-sql = { version = "=3.3.0", optional = true }
+# Match the qualified installed server and existing Store transport profile.
+surrealdb = { version = "=3.3.0", default-features = false, features = ["protocol-ws", "rustls"], optional = true }
+tokio = { workspace = true, features = ["rt", "time", "macros", "sync"], optional = true }
+
+[dev-dependencies]
+uuid.workspace = true
+tokio = { workspace = true, features = ["process", "io-util", "rt-multi-thread"] }
