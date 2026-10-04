@@ -125,15 +125,12 @@ impl ComputersStore {
         control.require_read(None)?;
         let mut params = scope(actor.accepted())?;
         params.extend([
-            ("computer", computer.into_uuid().into_value()),
+            ("computer", computer.as_uuid().into_value()),
             (
                 "grant",
                 crate::automation_grants::record(grant).into_value(),
             ),
-            (
-                "provider",
-                self.provider_instance_id.into_uuid().into_value(),
-            ),
+            ("provider", self.provider_instance_id.as_uuid().into_value()),
         ]);
         let mut read = self
             .query(
@@ -149,7 +146,7 @@ impl ComputersStore {
             .await?;
         let ids: Vec<Uuid> = read.take(0).map_err(|_| ComputerError::Unavailable)?;
         control.require_read(None)?;
-        Ok(ids == [grant.into_uuid()])
+        Ok(ids == [grant.as_uuid()])
     }
     pub async fn read_accessible_computers(
         &self,
@@ -387,15 +384,12 @@ impl ComputersStore {
     ) -> Result<Vec<crate::api::AutomationGrantId>> {
         let mut params = scope(actor.accepted())?;
         params.extend([
-            ("computer", computer.into_uuid().into_value()),
+            ("computer", computer.as_uuid().into_value()),
             (
                 "computer_record",
                 crate::model::computer_record(computer).into_value(),
             ),
-            (
-                "provider",
-                self.provider_instance_id.into_uuid().into_value(),
-            ),
+            ("provider", self.provider_instance_id.as_uuid().into_value()),
             ("read_only", read_only.into_value()),
         ]);
         let mut read = self
@@ -437,13 +431,10 @@ impl ComputersStore {
         let mut params = scope(actor.accepted())?;
         params.extend(crate::store::owner_query_bindings(actor.owner())?);
         params.extend([
-            (
-                "provider",
-                self.provider_instance_id.into_uuid().into_value(),
-            ),
+            ("provider", self.provider_instance_id.as_uuid().into_value()),
             (
                 "after",
-                after.map(crate::api::ComputerId::into_uuid).into_value(),
+                after.map(crate::api::ComputerId::as_uuid).into_value(),
             ),
             ("limit", i64::from(limit + 1).into_value()),
             ("prefix", prefix.to_owned().into_value()),

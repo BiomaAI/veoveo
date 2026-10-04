@@ -1,10 +1,9 @@
 //! Caller-owned usage pages and addresses, independent of Store and TaskRuntime.
-use std::fmt;
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_types::{ResourceAddress, ResourceFieldCodec, ResourceUri, TaskId};
+use veoveo_types::{ResourceFieldCodec, ResourceUri, TaskId};
 
 pub const TIMESERIES_USAGE_PAGE_SIZE: usize = 100;
 
@@ -96,69 +95,32 @@ impl From<TimeseriesUsageCursor> for String {
     }
 }
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::ResourceAddress,
+#[veoveo_types::resource_address(
+    cached(TimeseriesUsageErrorAddresses),
+    template = "timeseries://usage{?cursor}"
 )]
-#[serde(try_from = "String", into = "String")]
-#[resource(template="timeseries://usage{?cursor}", error=TimeseriesUsageError, route_error=|_| TimeseriesUsageError, wire)]
 pub struct TimeseriesUsageIndexUri {
     #[resource(cache)]
     wire: ResourceUri,
-    #[resource(codec=UsageCursorCodec, error=|_| TimeseriesUsageError)]
+    #[resource(codec=UsageCursorCodec, error=|_| TimeseriesUsageError, accessor = cursor, argument = optional_borrowed)]
     cursor: Option<TimeseriesUsageCursor>,
 }
 
 impl TimeseriesUsageIndexUri {
     pub const ROOT: &str = Self::RESOURCE_ROOT;
     pub const TEMPLATE: &str = Self::RESOURCE_TEMPLATE;
-
-    pub fn new(cursor: Option<&TimeseriesUsageCursor>) -> Self {
-        Self::resource_from_parts(cursor.cloned()).expect("typed usage index address")
-    }
-
-    pub fn parse(value: impl AsRef<str>) -> Result<Self, TimeseriesUsageError> {
-        let uri = ResourceUri::new(value.as_ref()).map_err(|_| TimeseriesUsageError)?;
-        <Self as ResourceAddress>::parse(&uri)
-    }
-
-    pub fn cursor(&self) -> Option<&TimeseriesUsageCursor> {
-        self.cursor.as_ref()
-    }
-    pub fn as_str(&self) -> &str {
-        self.wire.as_str()
-    }
 }
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::ResourceAddress,
-)]
-#[serde(try_from = "String", into = "String")]
-#[resource(template="timeseries://usage/task/{task_id}", error=TimeseriesUsageError, route_error=|_| TimeseriesUsageError, wire)]
+#[veoveo_types::resource_address(cached_checked(TimeseriesUsageErrorAddresses), template = "timeseries://usage/task/{task_id}", traits = cloned, schema = derived)]
 pub struct TimeseriesTaskUsageUri {
     #[resource(cache)]
     wire: ResourceUri,
-    #[resource(codec=UsageTaskCodec, error=|_| TimeseriesUsageError)]
+    #[resource(codec=UsageTaskCodec, error=|_| TimeseriesUsageError, accessor = task_id, copy_accessor, admit = task_identity)]
     task_id: TaskId,
 }
 
 impl TimeseriesTaskUsageUri {
     pub const TEMPLATE: &str = Self::RESOURCE_TEMPLATE;
-
-    pub fn new(task_id: TaskId) -> Result<Self, TimeseriesUsageError> {
-        Self::resource_from_parts(task_identity(task_id)?)
-    }
-
-    pub fn parse(value: impl AsRef<str>) -> Result<Self, TimeseriesUsageError> {
-        let uri = ResourceUri::new(value.as_ref()).map_err(|_| TimeseriesUsageError)?;
-        <Self as ResourceAddress>::parse(&uri)
-    }
-
-    pub fn task_id(&self) -> TaskId {
-        self.task_id
-    }
-    pub fn as_str(&self) -> &str {
-        self.wire.as_str()
-    }
 }
 
 struct UsageCursorCodec;
@@ -179,16 +141,6 @@ impl ResourceFieldCodec<TaskId> for UsageTaskCodec {
     }
     fn text(value: &TaskId) -> std::borrow::Cow<'_, str> {
         value.to_string().into()
-    }
-}
-impl fmt::Display for TimeseriesUsageIndexUri {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-impl fmt::Display for TimeseriesTaskUsageUri {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
     }
 }
 
@@ -324,4 +276,14 @@ impl From<TimeseriesUsagePage> for PageWire {
             next_cursor: value.next_cursor,
         }
     }
+}
+
+#[doc(hidden)]
+pub struct TimeseriesUsageErrorAddresses;
+impl veoveo_types::ResourceProfile for TimeseriesUsageErrorAddresses {
+    type Error = TimeseriesUsageError;
+    const PROFILE: veoveo_types::ResourceProfileSpec<Self::Error> =
+        veoveo_types::ResourceProfileSpec {
+            route_error: |_, _| TimeseriesUsageError,
+        };
 }

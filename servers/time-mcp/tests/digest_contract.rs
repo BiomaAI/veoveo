@@ -66,7 +66,7 @@ fn acquisition_requests_keep_optional_digest_fields_and_bare_hex() {
         Some(AuthoritySourceDigest::parse("aB".repeat(32)).unwrap()),
     ] {
         let request = CreateAcquisitionRequest {
-            source_id: TimeSourceId::new("time-source-fixture").unwrap(),
+            source_id: TimeSourceId::parse("time-source-fixture").unwrap(),
             expected_source_digest_sha256: digest.clone(),
             idempotency_key: "fixture".into(),
         };

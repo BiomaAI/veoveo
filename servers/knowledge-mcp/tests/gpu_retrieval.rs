@@ -66,8 +66,8 @@ fn write_domain_comparison_configurations() {
     ] {
         let config = Configuration {
             space: EmbeddingSpace {
-                model: EmbeddingModelId::new(name).unwrap(),
-                revision: EmbeddingModelRevision::new(revision).unwrap(),
+                model: EmbeddingModelId::parse(name).unwrap(),
+                revision: EmbeddingModelRevision::parse(revision).unwrap(),
                 dimension: EmbeddingDimension::new(dimension).unwrap(),
                 runtime_image:
                     "sha256:8a69ffad015f138d7170c4ddc429e230a3bc1c1719f67e14324749df200a4b90"

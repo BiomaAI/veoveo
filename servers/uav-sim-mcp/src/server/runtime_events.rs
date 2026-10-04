@@ -160,7 +160,7 @@ mod tests {
 
     #[test]
     fn runtime_ready_event_is_strict_and_session_bound() {
-        let expected = LiveSessionId::new("session-alpha").unwrap();
+        let expected = LiveSessionId::parse("session-alpha").unwrap();
         let event = parse(
             br#"{"schema":"veoveo.ai/uav-runtime-event/v2","event":"ready","sessionId":"session-alpha","generation":2}"#,
             &expected,

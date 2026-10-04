@@ -71,15 +71,15 @@ pub fn trust_bundle(key_id: &str) -> GatewayInternalTrustBundle {
 /// The test user: `user-1` in `tenant-a`, operator, without data labels.
 pub fn principal() -> Principal {
     Principal {
-        id: PrincipalId::new("https://idp.example.com#user-1").unwrap(),
+        id: PrincipalId::parse("https://idp.example.com#user-1").unwrap(),
         kind: PrincipalKind::User,
-        issuer: TokenIssuer::new("https://idp.example.com").unwrap(),
-        subject: TokenSubject::new("user-1").unwrap(),
-        tenant: Some(TenantId::new("tenant-a").unwrap()),
-        groups: BTreeSet::from([GroupId::new("engineering").unwrap()]),
+        issuer: TokenIssuer::parse("https://idp.example.com").unwrap(),
+        subject: TokenSubject::parse("user-1").unwrap(),
+        tenant: Some(TenantId::parse("tenant-a").unwrap()),
+        groups: BTreeSet::from([GroupId::parse("engineering").unwrap()]),
         group_roles: BTreeSet::new(),
-        roles: BTreeSet::from([RoleId::new("operator").unwrap()]),
-        scopes: BTreeSet::from([ScopeName::new("operator:use").unwrap()]),
+        roles: BTreeSet::from([RoleId::parse("operator").unwrap()]),
+        scopes: BTreeSet::from([ScopeName::parse("operator:use").unwrap()]),
         data_labels: BTreeSet::new(),
         assurances: BTreeSet::new(),
         authenticated_at: Some(Utc::now()),
@@ -89,10 +89,10 @@ pub fn principal() -> Principal {
 /// The test user's direct invocation authority as owner of work context `mission`.
 pub fn authority() -> InvocationAuthority {
     InvocationAuthority {
-        work_context: WorkContextId::new("mission").unwrap(),
-        tenant: TenantId::new("tenant-a").unwrap(),
+        work_context: WorkContextId::parse("mission").unwrap(),
+        tenant: TenantId::parse("tenant-a").unwrap(),
         membership: WorkContextMembershipLevel::Owner,
-        policy_revision: PolicyVersion::new("r1").unwrap(),
+        policy_revision: PolicyVersion::parse("r1").unwrap(),
         output_policy: WorkContextOutputPolicy {
             owner: AccessSubject::Principal(principal().id),
             initial_grants: Vec::new(),
@@ -167,11 +167,11 @@ impl TestGateway {
     /// A gateway assertion for the test user, addressed to this server.
     pub fn token(&self) -> String {
         GatewayInternalTokenIssuer::new(
-            TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER).unwrap(),
+            TokenIssuer::parse(GATEWAY_INTERNAL_TOKEN_ISSUER).unwrap(),
             signing_key(TEST_KEY_ID),
         )
         .issue(
-            GatewayProfileId::new("operations").unwrap(),
+            GatewayProfileId::parse("operations").unwrap(),
             self.slug.clone(),
             principal(),
             authority(),

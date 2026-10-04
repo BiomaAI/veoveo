@@ -17,8 +17,8 @@ fn map_package_is_the_optimization_wire_contract() {
         )),
         model: OptimizationTravelModel {
             location_ids: vec![
-                TravelLocationId::new("depot").unwrap(),
-                TravelLocationId::new("customer").unwrap(),
+                TravelLocationId::parse("depot").unwrap(),
+                TravelLocationId::parse("customer").unwrap(),
             ],
             cost_matrices: vec![matrix()],
             transit_time_matrices: vec![matrix()],
@@ -37,7 +37,7 @@ fn map_package_is_the_optimization_wire_contract() {
 
 fn matrix() -> TravelModelMatrix {
     TravelModelMatrix {
-        vehicle_type_id: TravelVehicleTypeId::new("truck").unwrap(),
+        vehicle_type_id: TravelVehicleTypeId::parse("truck").unwrap(),
         dimension: 2,
         values: vec![0.0, 12.0, 10.0, 0.0],
         unavailable_cells: Vec::new(),

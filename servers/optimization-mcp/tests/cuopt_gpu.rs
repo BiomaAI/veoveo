@@ -52,12 +52,12 @@ fn routing_problem() -> CompiledRoutingProblem {
     CompiledRoutingProblem {
         location_ids: ["depot", "one", "two"]
             .into_iter()
-            .map(|value| LocationId::new(value).unwrap())
+            .map(|value| LocationId::parse(value).unwrap())
             .collect(),
         nodes: vec![
             CompiledRouteNode {
-                order_id: OrderId::new("order-one").unwrap(),
-                location_id: LocationId::new("one").unwrap(),
+                order_id: OrderId::parse("order-one").unwrap(),
+                location_id: LocationId::parse("one").unwrap(),
                 location_index: 1,
                 kind: RouteNodeKind::Service,
                 service_duration: 0,
@@ -66,8 +66,8 @@ fn routing_problem() -> CompiledRoutingProblem {
                 prize: 0.0,
             },
             CompiledRouteNode {
-                order_id: OrderId::new("order-two").unwrap(),
-                location_id: LocationId::new("two").unwrap(),
+                order_id: OrderId::parse("order-two").unwrap(),
+                location_id: LocationId::parse("two").unwrap(),
                 location_index: 2,
                 kind: RouteNodeKind::Service,
                 service_duration: 0,
@@ -77,7 +77,7 @@ fn routing_problem() -> CompiledRoutingProblem {
             },
         ],
         vehicles: vec![CompiledVehicle {
-            vehicle_id: VehicleId::new("vehicle-one").unwrap(),
+            vehicle_id: VehicleId::parse("vehicle-one").unwrap(),
             vehicle_type: 0,
             start_location: 0,
             end_location: 0,
@@ -114,7 +114,7 @@ fn mathematical_model(variable_kind: VariableKind) -> CompiledMathematicalModel 
     CompiledMathematicalModel {
         variable_ids: ["x", "y"]
             .into_iter()
-            .map(|value| VariableId::new(value).unwrap())
+            .map(|value| VariableId::parse(value).unwrap())
             .collect(),
         variable_kinds: vec![variable_kind; 2],
         variable_lower_bounds: vec![Some(finite(0.0)), Some(finite(0.0))],
@@ -122,7 +122,7 @@ fn mathematical_model(variable_kind: VariableKind) -> CompiledMathematicalModel 
         objective_direction: ObjectiveDirection::Minimize,
         objective_offset: finite(0.0),
         objective_coefficients: vec![finite(1.0), finite(1.0)],
-        constraint_ids: vec![ConstraintId::new("minimum").unwrap()],
+        constraint_ids: vec![ConstraintId::parse("minimum").unwrap()],
         constraint_matrix: CsrMatrix {
             rows: 1,
             columns: 2,
@@ -190,7 +190,7 @@ async fn solves_models_with_empty_linear_matrices_on_the_gpu() {
     quadratic.objective_offset = finite(0.0);
     quadratic.quadratic_objective = quadratic_program().quadratic_objective;
     let mut empty_row = linear.clone();
-    empty_row.constraint_ids = vec![ConstraintId::new("zero-row").unwrap()];
+    empty_row.constraint_ids = vec![ConstraintId::parse("zero-row").unwrap()];
     empty_row.constraint_matrix.rows = 1;
     empty_row.constraint_matrix.offsets.push(0);
     empty_row.constraint_lower_bounds = vec![Some(finite(0.0))];
@@ -209,7 +209,7 @@ async fn solves_models_with_empty_linear_matrices_on_the_gpu() {
     let mut quadratic_only = linear.clone();
     quadratic_only.quadratic_constraints =
         quadratically_constrained_program().quadratic_constraints;
-    quadratic_only.constraint_ids = vec![ConstraintId::new("unit-circle").unwrap()];
+    quadratic_only.constraint_ids = vec![ConstraintId::parse("unit-circle").unwrap()];
     quadratic_only.objective_coefficients = vec![finite(-1.0); 2];
     quadratic_only.objective_offset = finite(0.0);
     quadratic_only.initial_dual_solution = Some(vec![finite(0.0)]);
@@ -323,11 +323,11 @@ fn quadratically_constrained_program() -> CompiledMathematicalModel {
     let mut model = mathematical_model(VariableKind::Continuous);
     model
         .constraint_ids
-        .push(ConstraintId::new("unit-circle").unwrap());
+        .push(ConstraintId::parse("unit-circle").unwrap());
     model
         .quadratic_constraints
         .push(CompiledQuadraticConstraint {
-            constraint_id: ConstraintId::new("unit-circle").unwrap(),
+            constraint_id: ConstraintId::parse("unit-circle").unwrap(),
             linear_indices: vec![],
             linear_values: vec![],
             rows: vec![0, 1],
@@ -343,7 +343,7 @@ fn second_order_cone_program() -> CompiledMathematicalModel {
     CompiledMathematicalModel {
         variable_ids: ["x", "y", "t"]
             .into_iter()
-            .map(|value| VariableId::new(value).unwrap())
+            .map(|value| VariableId::parse(value).unwrap())
             .collect(),
         variable_kinds: vec![VariableKind::Continuous; 3],
         variable_lower_bounds: vec![Some(finite(0.0)), Some(finite(0.0)), Some(finite(0.0))],
@@ -352,8 +352,8 @@ fn second_order_cone_program() -> CompiledMathematicalModel {
         objective_offset: finite(0.0),
         objective_coefficients: vec![finite(0.0), finite(0.0), finite(1.0)],
         constraint_ids: vec![
-            ConstraintId::new("minimum").unwrap(),
-            ConstraintId::new("cone").unwrap(),
+            ConstraintId::parse("minimum").unwrap(),
+            ConstraintId::parse("cone").unwrap(),
         ],
         constraint_matrix: CsrMatrix {
             rows: 1,
@@ -366,7 +366,7 @@ fn second_order_cone_program() -> CompiledMathematicalModel {
         constraint_upper_bounds: vec![None],
         quadratic_objective: None,
         quadratic_constraints: vec![CompiledQuadraticConstraint {
-            constraint_id: ConstraintId::new("cone").unwrap(),
+            constraint_id: ConstraintId::parse("cone").unwrap(),
             linear_indices: vec![],
             linear_values: vec![],
             rows: vec![0, 1, 2],

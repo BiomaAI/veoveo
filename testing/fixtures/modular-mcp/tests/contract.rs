@@ -18,7 +18,7 @@ fn independent_owned_addresses_and_scope_names_round_trip() {
         );
     }
     assert_eq!(ObservatoryScope::Read.name().as_str(), "observatory:read");
-    assert!(ObservatoryScope::try_from(&ScopeName::new("unrelated:read").unwrap()).is_err());
+    assert!(ObservatoryScope::try_from(&ScopeName::parse("unrelated:read").unwrap()).is_err());
 }
 
 #[test]

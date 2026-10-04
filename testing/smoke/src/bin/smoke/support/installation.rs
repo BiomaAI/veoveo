@@ -115,7 +115,7 @@ impl InstalledTarget {
 
     pub async fn token_for_context(&self, conformance: &Path, context: &str) -> Result<String> {
         self.operator
-            .token_for_context(conformance, &WorkContextId::new(context)?)
+            .token_for_context(conformance, &WorkContextId::parse(context)?)
             .await
     }
 }
@@ -221,16 +221,16 @@ impl InstalledIdentity {
             scopes: selection
                 .scopes
                 .iter()
-                .map(ScopeName::new)
+                .map(ScopeName::parse)
                 .collect::<Result<_, _>>()?,
             resource: profile.protected_resource.clone(),
             token_endpoint: server.token_endpoint.clone(),
-            principal: PrincipalId::new(format!("{}#{}", server.issuer, client.id))?,
+            principal: PrincipalId::parse(format!("{}#{}", server.issuer, client.id))?,
             invocation_mode: client.invocation_mode,
             comparison_context: selection
                 .comparison_context
                 .as_ref()
-                .map(WorkContextId::new)
+                .map(WorkContextId::parse)
                 .transpose()?,
             credentials,
             access_token_key_id: server.access_token_key_id.clone(),

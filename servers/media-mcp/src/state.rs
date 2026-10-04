@@ -960,7 +960,7 @@ pub fn data_labels(owner: &TaskOwner) -> Result<BTreeSet<DataLabelId>, StoreErro
         .data_labels
         .iter()
         .map(|label| {
-            DataLabelId::new(label.clone()).map_err(|_| StoreError::InvalidIdentityField {
+            DataLabelId::parse(label.clone()).map_err(|_| StoreError::InvalidIdentityField {
                 field: "data_labels",
                 reason: "invalid media task data label",
             })

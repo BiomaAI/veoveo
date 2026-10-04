@@ -97,7 +97,7 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
         .decode(internal_signing_key_der_b64.expose_secret().trim())
         .context("internal signing key must be base64-encoded Ed25519 PKCS#8 DER")?;
     let internal_token_issuer = GatewayInternalTokenIssuer::new(
-        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
+        TokenIssuer::parse(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
         GatewayInternalSigningKey::new(internal_signing_key_id, internal_signing_key_der)?,
     );
     let deployment = PublicDeployment::new(public_base_url)?;
@@ -168,7 +168,7 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
             .redirect(reqwest::redirect::Policy::none())
             .build()?,
         internal_token_issuer: internal_token_issuer.clone(),
-        artifact_server: veoveo_mcp_contract::ServerSlug::new("artifact")?,
+        artifact_server: veoveo_mcp_contract::ServerSlug::parse("artifact")?,
         artifact_service_url: artifact_service_url.trim_end_matches('/').to_owned(),
     };
     let artifact_download_router = Router::new()
@@ -263,7 +263,7 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
         gateway_state: gateway_state.clone(),
         internal_token_issuer,
         upstream_http,
-        artifact_server: veoveo_mcp_contract::ServerSlug::new("artifact")?,
+        artifact_server: veoveo_mcp_contract::ServerSlug::parse("artifact")?,
         artifact_service_url,
         offline_mode,
         server_health,

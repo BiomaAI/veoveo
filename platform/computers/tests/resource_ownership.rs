@@ -43,7 +43,7 @@ async fn retained_collection_uses_current_profile_policy_and_indexed_owner_ident
     assert_eq!(page.computers[0].computer().unwrap(), &before);
     for mut other in [support::owner("bob"), workspace.owner().clone()] {
         if other.principal_key == workspace.owner().principal_key {
-            other.authority.work_context = WorkContextId::new("other-context").unwrap();
+            other.authority.work_context = WorkContextId::parse("other-context").unwrap();
         }
         assert!(replica.get(&other, computer_id).await.is_err());
         assert!(
@@ -126,14 +126,14 @@ async fn retained_collection_uses_current_profile_policy_and_indexed_owner_ident
         .authority
         .output_policy
         .data_labels
-        .insert(DataLabelId::new("cui").unwrap());
+        .insert(DataLabelId::parse("cui").unwrap());
     db.a.client()
         .query("UPDATE ONLY $computer SET owner_context = $owner;")
         .bind((
             "computer",
             veoveo_platform_store::RecordId::new(
                 "computer",
-                surrealdb::types::Uuid::from(computer_id.into_uuid()),
+                surrealdb::types::Uuid::from(computer_id.as_uuid()),
             ),
         ))
         .bind((

@@ -138,7 +138,7 @@ pub(super) async fn execute(
     )?;
     let request = PrepareVehicleMissionRequest {
         session_id: scenario.session_id.clone(),
-        mission_id: MissionId::new(format!("acceptance-{}", uuid::Uuid::now_v7()))?,
+        mission_id: MissionId::parse(format!("acceptance-{}", uuid::Uuid::now_v7()))?,
         vehicle_id: scenario.vehicle_id.clone(),
         expected_world_revision_uri: revision.clone(),
         map_route: handoff,

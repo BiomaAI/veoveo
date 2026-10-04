@@ -219,7 +219,7 @@ mod tests {
             .into_response();
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
         assert!(!response.headers().contains_key(header::SET_COOKIE));
-        let scopes = BTreeSet::from([veoveo_types::ScopeName::new("artifact:upload").unwrap()]);
+        let scopes = BTreeSet::from([veoveo_types::ScopeName::parse("artifact:upload").unwrap()]);
         assert!(validate_part_session(session(200), &scopes, 100).is_err());
     }
 }

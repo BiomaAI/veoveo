@@ -69,7 +69,7 @@ impl MediaGenerationResult {
         {
             return Err(MediaGenerationError);
         }
-        let scheme = ResourceScheme::new("media").expect("declared Media scheme");
+        let scheme = ResourceScheme::parse("media").expect("declared Media scheme");
         let mut identities = BTreeSet::new();
         for (index, artifact) in artifacts.iter().enumerate() {
             let attribution: MediaOutputArtifactMetadata =

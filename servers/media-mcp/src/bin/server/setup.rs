@@ -27,7 +27,7 @@ impl McpServerContract for MediaContract {
     type Scope = MediaScope;
     type Resource = MediaResource;
     fn slug() -> ServerSlug {
-        ServerSlug::new("media").expect("declared slug")
+        ServerSlug::parse("media").expect("declared slug")
     }
     fn scheme() -> ResourceScheme {
         uris::SCHEME.clone()

@@ -1046,7 +1046,7 @@ mod tests {
             access_expires_at: now + 300,
             refresh_token: "refresh-token".to_owned(),
             refresh_expires_at: now + 3_600,
-            granted_scopes: BTreeSet::from([ScopeName::new("admin:manage").unwrap()]),
+            granted_scopes: BTreeSet::from([ScopeName::parse("admin:manage").unwrap()]),
             csrf_token: "csrf-token".to_owned(),
         };
         let sealed = sessions.seal(&session, SESSION_AAD).unwrap();

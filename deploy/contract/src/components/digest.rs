@@ -165,5 +165,5 @@ fn hash(value: &impl Serialize) -> Result<ArtifactDigest> {
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect::<String>();
-    Ok(ArtifactDigest::new(format!("sha256:{hex}"))?)
+    Ok(ArtifactDigest::parse(format!("sha256:{hex}"))?)
 }

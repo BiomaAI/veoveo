@@ -3,7 +3,7 @@ use syn::ext::IdentExt;
 use syn::{Attribute, Expr, Field, Fields, LitBool, LitStr, Type};
 
 #[derive(Clone)]
-pub(super) struct Options {
+pub(crate) struct Options {
     pub template: Option<LitStr>,
     pub error: Option<Type>,
     pub route_error: Option<Expr>,
@@ -33,7 +33,7 @@ impl Default for Options {
         }
     }
 }
-pub(super) fn read_options(attrs: &[Attribute]) -> syn::Result<Options> {
+pub(crate) fn read_options(attrs: &[Attribute]) -> syn::Result<Options> {
     let mut options = Options::default();
     let mut seen = std::collections::BTreeSet::new();
     for attr in attrs.iter().filter(|attr| attr.path().is_ident("resource")) {
@@ -77,7 +77,7 @@ pub(super) fn read_options(attrs: &[Attribute]) -> syn::Result<Options> {
     Ok(options)
 }
 
-pub(super) fn read_variant_options(attrs: &[Attribute], parent: &Options) -> syn::Result<Options> {
+pub(crate) fn read_variant_options(attrs: &[Attribute], parent: &Options) -> syn::Result<Options> {
     let variant = read_options(attrs)?;
     if variant.error.is_some()
         || variant.validate.is_some()
@@ -103,7 +103,7 @@ pub(super) fn read_variant_options(attrs: &[Attribute], parent: &Options) -> syn
     Ok(options)
 }
 
-pub(super) struct FieldOptions {
+pub(crate) struct FieldOptions {
     pub variable: String,
     pub codec: Option<Type>,
     pub error: Option<Expr>,
@@ -112,7 +112,7 @@ pub(super) struct FieldOptions {
     pub accessor: Option<syn::Ident>,
     pub copy_accessor: bool,
 }
-pub(super) fn read_field(field: &Field, position: usize) -> syn::Result<FieldOptions> {
+pub(crate) fn read_field(field: &Field, position: usize) -> syn::Result<FieldOptions> {
     let mut options = FieldOptions {
         variable: field
             .ident
@@ -195,12 +195,12 @@ pub(super) fn read_field(field: &Field, position: usize) -> syn::Result<FieldOpt
     Ok(options)
 }
 
-pub(super) enum Part {
+pub(crate) enum Part {
     Literal(String),
     Scalar(String),
     Tail(String),
 }
-pub(super) struct Route {
+pub(crate) struct Route {
     template: LitStr,
     root: String,
     scheme: String,

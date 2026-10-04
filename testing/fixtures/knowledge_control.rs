@@ -34,7 +34,7 @@ pub fn plane() -> GatewayControlPlane {
     let mut profile = plane.profiles[0].clone();
     profile.id = "knowledge-indexing".parse().unwrap();
     profile.protected_resource =
-        ProtectedResourceId::new("https://veoveo.example/mcp/knowledge-indexing").unwrap();
+        ProtectedResourceId::parse("https://veoveo.example/mcp/knowledge-indexing").unwrap();
     profile.policy_version = policy.version.clone();
     profile.artifact_upload = None;
     profile.auth_modes = [AuthMode::OAuthClientCredentials].into();

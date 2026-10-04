@@ -255,7 +255,7 @@ impl From<BootstrapAuthorityCursor> for String {
 impl CalendarCursor {
     /// ```compile_fail
     /// use veoveo_time_mcp::contract::{CalendarCursor, MissionEpochId, TimeVersion};
-    /// CalendarCursor::new(&MissionEpochId::new("epoch-example").unwrap(), TimeVersion::new(1).unwrap());
+    /// CalendarCursor::new(&MissionEpochId::parse("epoch-example").unwrap(), TimeVersion::new(1).unwrap());
     /// ```
     pub fn new(key: &CalendarId, version: TimeVersion) -> Self {
         Self::from_position(VersionPosition {
@@ -289,7 +289,7 @@ impl EpochCursor {
 impl EventCursor {
     /// ```compile_fail
     /// use veoveo_time_mcp::{EventCursor, TemporalEventId};
-    /// EventCursor::new(&TemporalEventId::new("event-example").unwrap(), 0, 1_000_000_000);
+    /// EventCursor::new(&TemporalEventId::parse("event-example").unwrap(), 0, 1_000_000_000);
     /// ```
     pub fn new(key: &TemporalEventId, tai_seconds: i64, nanosecond: SubsecondNanoseconds) -> Self {
         let position = EventPosition {

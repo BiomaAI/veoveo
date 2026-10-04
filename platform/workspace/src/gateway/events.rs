@@ -91,7 +91,7 @@ async fn events(
     Path((profile, chat)): Path<(String, Uuid)>,
     Extension(subject): Extension<AuthenticatedSubject>,
 ) -> Response {
-    let Ok(profile) = GatewayProfileId::new(profile) else {
+    let Ok(profile) = GatewayProfileId::parse(profile) else {
         return StatusCode::NOT_FOUND.into_response();
     };
     let catalog = state.catalog.current();
@@ -227,8 +227,8 @@ mod tests {
         let gateway =
             crate::gateway_test_state(db.b.clone(), Arc::new(Default::default())).unwrap();
         let mut subject = super::super::tests::subject("Alice");
-        let profile = GatewayProfileId::new("operator").unwrap();
-        let server = AuthorizationServerId::new("test").unwrap();
+        let profile = GatewayProfileId::parse("operator").unwrap();
+        let server = AuthorizationServerId::parse("test").unwrap();
         let chat = WorkspaceChatId::from_uuid(Uuid::now_v7());
         let actor = authority::admit(&workspace, &subject).await.unwrap();
         let mut live = db.b.workspace_wakes().await.unwrap();

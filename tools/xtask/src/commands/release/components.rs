@@ -191,7 +191,7 @@ fn parse_source_revisions(inputs: &[String]) -> Result<BTreeMap<String, SourceRe
         ensure!(!source.is_empty(), "chart source name is empty");
         ensure!(
             revisions
-                .insert(source.to_owned(), SourceRevision::new(revision)?)
+                .insert(source.to_owned(), SourceRevision::parse(revision)?)
                 .is_none(),
             "duplicate chart source {source}"
         );

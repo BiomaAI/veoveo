@@ -101,7 +101,7 @@ mod tests {
     fn unprobed_servers_report_no_state_instead_of_offline() {
         let checked_at = Utc::now();
         let probed = BTreeMap::from([(
-            ServerSlug::new("frames").unwrap(),
+            ServerSlug::parse("frames").unwrap(),
             GatewayServerHealth {
                 state: GatewayServerHealthState::Healthy,
                 checked_at,
@@ -110,7 +110,7 @@ mod tests {
         let report = report(
             ["uav-sim", "frames"]
                 .into_iter()
-                .map(|slug| ServerSlug::new(slug).unwrap()),
+                .map(|slug| ServerSlug::parse(slug).unwrap()),
             |slug| probed.get(slug),
         );
         let json = serde_json::to_value(&report).unwrap();

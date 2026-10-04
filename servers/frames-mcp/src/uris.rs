@@ -1,7 +1,7 @@
 //! Fixed declarations shared by the typed contract and hosted discovery.
 pub static SCHEME: std::sync::LazyLock<veoveo_types::ResourceScheme> =
     std::sync::LazyLock::new(|| {
-        veoveo_types::ResourceScheme::new("frames").expect("declared server resource scheme")
+        veoveo_types::ResourceScheme::parse("frames").expect("declared server resource scheme")
     });
 
 pub const WORKSPACE_APP_URI: &str = "ui://frames/workspace.html";

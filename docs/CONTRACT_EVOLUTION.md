@@ -388,25 +388,27 @@ the existing public traits. Database delegation expands only in an owning consum
 it adds no database dependency to the foundation. Mechanical adoption preserves
 wire values, schema identities and Serde enum ordinals.
 
-Identity mechanics use the ordinary public `Identity` trait and re-exported `Id`
-derive. Each owner supplies admission and its error type. Optional hooks provide
-String conversions, parsing constructors, generation and schema delegation;
-generated values pass admission again. UUID versions, alias handling, stable-key
-namespaces and lexical rules stay with the owner. Independent libraries can implement
-`Identity` without changing core. Raw strings do not acquire a blanket implementation,
-and core holds no registry of domain forms.
+Identity mechanics use the ordinary public `Identity` trait and re-exported `id`
+attribute. Compact declarations select shared forms and an ordinary owner profile.
+Owners supply admission, errors, generation namespaces and wire/schema policy once
+per family. Generated standard derives and conversions remove per-ID plumbing.
+Public `UuidIdentity` and `StableKeyIdentity` capabilities support shared consumers;
+independent libraries can implement the traits without changing core.
 
-Owners keep their Serde and Schemars declarations, including String versus inner-value
-binary serialization and existing schema metadata. The optional schema hook preserves
-its owner-supplied shape, inline policy and Schemars' default schema identity rather
-than forcing a module-qualified identity. Store applies its SDK derive and record
-conversion in its own ID modules. These mechanics add no database dependency to the
-foundation. Secret text exposure stays explicit; secret owners redact Display and
-Debug and sanitize returned admission errors. Gateway refresh-token errors discard
-rejected bearer input. The shared derive introduces no zeroization guarantee.
-Nonidentity checked values use ordinary newtypes. The active
+Internal admission constructors use `parse`; `new` creates fresh IDs. The coordinated
+source cut updates workspace callers without aliases for older method signatures.
+Owner UUID versions, spellings, binary serialization, schema metadata and redaction
+are preserved. Schema identity overrides reuse generated metadata. Consumer-only
+SDK delegation adds no database dependency to the foundation. Secret text exposure
+stays explicit, and owner validators sanitize rejected bearer material. These
+mechanics provide no zeroization guarantee. Nonidentity checked values use ordinary
+newtypes.
+
+The `resource_address` attribute shares typed construction, codecs, formatting and
+schema mechanics through owner route declarations and public resource traits.
+Shared infrastructure contains no inventory of owner IDs or routes. The active
 [Phase 0 plan](CONTRACT_CONSISTENCY_PLAN.md#phase-0-core-macros-and-shared-building-blocks)
-tracks qualification and the other shared mechanics.
+tracks the full owner adoption and qualification.
 
 Each server library owns its closed scope enum, domain IDs, resource variants, and
 public request and response types. A Rust server exposes these through a `contract`

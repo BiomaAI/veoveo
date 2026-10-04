@@ -37,10 +37,7 @@ impl ComputersStore {
         )?;
         params.extend([
             ("journal", operation_record(id).into_value()),
-            (
-                "provider",
-                self.provider_instance_id.into_uuid().into_value(),
-            ),
+            ("provider", self.provider_instance_id.as_uuid().into_value()),
         ]);
         let started = Instant::now();
         let mut response = self
@@ -81,10 +78,7 @@ impl ComputersStore {
                 "computer",
                 computer_record(operation.computer_id).into_value(),
             ),
-            (
-                "provider",
-                self.provider_instance_id.into_uuid().into_value(),
-            ),
+            ("provider", self.provider_instance_id.as_uuid().into_value()),
         ]);
         bindings.push(crate::audit::binding(
             &operation.execution_authority,

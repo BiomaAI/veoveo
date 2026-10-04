@@ -30,9 +30,9 @@ fn recorded_geofences_keep_their_distinct_vocabulary() {
     );
     assert!(serde_json::from_str::<GeofenceRule>("\"must_remain_inside\"").is_err());
     assert_eq!(
-        GeofenceId::new("geo:mission-1").unwrap().as_str(),
+        GeofenceId::parse("geo:mission-1").unwrap().as_str(),
         "geo:mission-1"
     );
-    assert!(GeofenceId::new("bad/id").is_err());
-    assert!(GeofenceId::new("x".repeat(129)).is_err());
+    assert!(GeofenceId::parse("bad/id").is_err());
+    assert!(GeofenceId::parse("x".repeat(129)).is_err());
 }

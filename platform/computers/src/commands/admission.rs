@@ -105,7 +105,7 @@ impl ComputersStore {
             .data_labels
             .iter()
             .map(|label| {
-                veoveo_types::DataLabelId::new(label.clone())
+                veoveo_types::DataLabelId::parse(label.clone())
                     .map_err(|_| ComputerError::Unavailable)
             })
             .collect::<Result<std::collections::BTreeSet<_>>>()?;
@@ -138,9 +138,9 @@ impl ComputersStore {
         };
         let sealed = keys.seal(&binding, payload)?;
         let content = Content {
-            execution_id: binding.execution_id.into_uuid(),
-            computer_id: computer_id.into_uuid(),
-            provider_instance_id: self.provider_instance_id.into_uuid(),
+            execution_id: binding.execution_id.as_uuid(),
+            computer_id: computer_id.as_uuid(),
+            provider_instance_id: self.provider_instance_id.as_uuid(),
             actor_key: actor_key.clone(),
             binding: object(&binding)?,
             authority: object(actor.accepted())?,
@@ -228,11 +228,8 @@ impl ComputersStore {
                 include_str!("../../queries/accepted_execution.surql"),
                 vec![
                     ("journal", prior.execution.into_value()),
-                    (
-                        "provider",
-                        self.provider_instance_id.into_uuid().into_value(),
-                    ),
-                    ("computer_id", computer.into_uuid().into_value()),
+                    ("provider", self.provider_instance_id.as_uuid().into_value()),
+                    ("computer_id", computer.as_uuid().into_value()),
                     ("computer_text", computer.to_string().into_value()),
                     ("actor_key", actor_key.to_owned().into_value()),
                     (

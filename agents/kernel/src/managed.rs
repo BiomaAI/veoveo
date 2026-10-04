@@ -69,7 +69,7 @@ impl ManagedKernel {
                 && model.tenant.as_str() == registration.tenant_key
                 && model
                     .work_contexts
-                    .contains(&WorkContextId::new(registration.context_key.clone())?)
+                    .contains(&WorkContextId::parse(registration.context_key.clone())?)
                 && model.required_scopes.iter().all(|scope| instance
                     .identity
                     .scopes

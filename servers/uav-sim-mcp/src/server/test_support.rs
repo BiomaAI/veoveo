@@ -16,18 +16,18 @@ pub(super) fn identity(
     name: &str,
     labels: &[&str],
 ) -> GatewayInternalIdentity {
-    let principal = PrincipalId::new(name).unwrap();
-    let tenant = TenantId::new(tenant).unwrap();
+    let principal = PrincipalId::parse(name).unwrap();
+    let tenant = TenantId::parse(tenant).unwrap();
     let now = Utc::now();
     let mut identity = GatewayInternalIdentity {
-        issuer: TokenIssuer::new("https://gateway.example").unwrap(),
-        profile: GatewayProfileId::new("uav-index-test").unwrap(),
-        server: ServerSlug::new("uav-sim").unwrap(),
+        issuer: TokenIssuer::parse("https://gateway.example").unwrap(),
+        profile: GatewayProfileId::parse("uav-index-test").unwrap(),
+        server: ServerSlug::parse("uav-sim").unwrap(),
         actor: Principal {
             id: principal.clone(),
             kind: PrincipalKind::User,
-            issuer: TokenIssuer::new("https://identity.example").unwrap(),
-            subject: TokenSubject::new(name).unwrap(),
+            issuer: TokenIssuer::parse("https://identity.example").unwrap(),
+            subject: TokenSubject::parse(name).unwrap(),
             tenant: Some(tenant.clone()),
             groups: BTreeSet::new(),
             group_roles: BTreeSet::new(),
@@ -37,14 +37,14 @@ pub(super) fn identity(
             authenticated_at: None,
             data_labels: labels
                 .iter()
-                .map(|label| DataLabelId::new(*label).unwrap())
+                .map(|label| DataLabelId::parse(*label).unwrap())
                 .collect(),
         },
         authority: InvocationAuthority {
-            work_context: WorkContextId::new(context).unwrap(),
+            work_context: WorkContextId::parse(context).unwrap(),
             tenant,
             membership: WorkContextMembershipLevel::Owner,
-            policy_revision: PolicyVersion::new("r1").unwrap(),
+            policy_revision: PolicyVersion::parse("r1").unwrap(),
             output_policy: WorkContextOutputPolicy {
                 owner: AccessSubject::Principal(principal.clone()),
                 initial_grants: Vec::new(),
@@ -56,7 +56,7 @@ pub(super) fn identity(
             },
         },
         request_context: None,
-        jwt_id: JwtId::new(uuid::Uuid::now_v7().to_string()).unwrap(),
+        jwt_id: JwtId::parse(uuid::Uuid::now_v7().to_string()).unwrap(),
         issued_at: now,
         not_before: now,
         expires_at: now + TimeDelta::minutes(5),
@@ -91,7 +91,7 @@ pub(super) fn state(
     )
     .unwrap();
     Arc::new(super::state::AppState {
-        session_id: SessionId::new("native-session").unwrap(),
+        session_id: SessionId::parse("native-session").unwrap(),
         adapter,
         tasks: TaskRuntime::new(store.clone(), "uav-sim", worker),
         control_authority: VehicleControlAuthority::new(store.clone()),
@@ -115,7 +115,7 @@ pub(super) fn context(
     identity
         .actor
         .scopes
-        .insert(ScopeName::new("external:custom").unwrap());
+        .insert(ScopeName::parse("external:custom").unwrap());
     bind_request_context(&mut identity);
     let (mut parts, _) = axum::http::Request::new(()).into_parts();
     parts.extensions.insert(identity);
@@ -142,9 +142,9 @@ fn bind_request_context(identity: &mut GatewayInternalIdentity) {
             managed_execution: None,
             issuer: identity.actor.issuer.clone(),
             subject: identity.actor.subject.clone(),
-            oauth_client_id: OAuthClientId::new("native-test").unwrap(),
+            oauth_client_id: OAuthClientId::parse("native-test").unwrap(),
             session_family: None,
-            audience: ProtectedResourceId::new("https://gateway.example/mcp/uav-index-test")
+            audience: ProtectedResourceId::parse("https://gateway.example/mcp/uav-index-test")
                 .unwrap(),
             work_context: identity.authority.work_context.clone(),
             invocation_mode: veoveo_types::InvocationMode::Direct,

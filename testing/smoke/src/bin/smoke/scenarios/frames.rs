@@ -210,7 +210,7 @@ pub(crate) async fn frames_mcp(
     assert_json_pointer_str(&converted, "/points/0/kind", "world_frame")?;
     assert_json_pointer_str(&converted, "/points/0/frame_uri", &robot_frame_uri)?;
     let operation_uri = veoveo_frames_mcp::contract::FrameOperationUri::new(
-        &veoveo_frames_mcp::contract::CoordinateOperationId::new(operation_id(
+        &veoveo_frames_mcp::contract::CoordinateOperationId::parse(operation_id(
             &converted,
             "/provenance/operation/operation_id",
         )?)?,
@@ -241,7 +241,7 @@ pub(crate) async fn frames_mcp(
     let batch_output: SmokeFramesBatchOutput = structured_from_output(&batch)?;
     assert_json_pointer_str(&batch_output.result, "/points/0/kind", "ecef_wgs84")?;
     let batch_operation_uri = veoveo_frames_mcp::contract::FrameOperationUri::new(
-        &veoveo_frames_mcp::contract::CoordinateOperationId::new(operation_id(
+        &veoveo_frames_mcp::contract::CoordinateOperationId::parse(operation_id(
             &batch_output.result,
             "/provenance/operation/operation_id",
         )?)?,
@@ -258,7 +258,7 @@ pub(crate) async fn frames_mcp(
         .ok_or_else(|| anyhow!("batch output had no artifact metadata"))?;
     if artifact.artifact_uri
         != veoveo_artifact_contract::ArtifactUri::presented(
-            &veoveo_types::ResourceScheme::new("frames")?,
+            &veoveo_types::ResourceScheme::parse("frames")?,
             artifact.artifact_id(),
         )
     {

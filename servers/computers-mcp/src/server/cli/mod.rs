@@ -150,7 +150,7 @@ async fn attached(
     let activity = Arc::new(activity);
     let computer = baseline.computer();
     let binding = Binding::from_instance(
-        computer.computer_id.into_uuid(),
+        computer.computer_id.as_uuid(),
         computer.instance_id(),
         computer.template_fingerprint.clone(),
     )

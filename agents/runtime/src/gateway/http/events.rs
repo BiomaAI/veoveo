@@ -99,7 +99,7 @@ async fn stream(
     Path(profile): Path<String>,
     Extension(subject): Extension<AuthenticatedSubject>,
 ) -> Response {
-    let Ok(profile_id) = veoveo_mcp_contract::GatewayProfileId::new(&profile) else {
+    let Ok(profile_id) = veoveo_mcp_contract::GatewayProfileId::parse(&profile) else {
         return StatusCode::NOT_FOUND.into_response();
     };
     let action = if authority::allowed(

@@ -5,24 +5,28 @@
 //! ```compile_fail
 //! use veoveo_types::{PrincipalId, TenantId};
 //! fn assign_actor(_: PrincipalId) {}
-//! assign_actor(TenantId::new("operations").unwrap());
+//! assign_actor(TenantId::parse("operations").unwrap());
 //! ```
 //! Subject variants require the matching identity:
 //! ```compile_fail
 //! use veoveo_types::{AccessSubject, GroupId};
-//! let subject = AccessSubject::Principal(GroupId::new("operators").unwrap());
+//! let subject = AccessSubject::Principal(GroupId::parse("operators").unwrap());
 //! ```
 //! Delegated provenance requires the identity of the delegation:
 //! ```compile_fail
 //! use veoveo_types::{InvocationProvenance, PrincipalId};
 //! let provenance = InvocationProvenance::Delegated {
-//!     initiator: PrincipalId::new("operator").unwrap(),
+//!     initiator: PrincipalId::parse("operator").unwrap(),
 //! };
 //! ```
 
 extern crate self as veoveo_types;
 pub use id::Identity;
-pub use veoveo_macros::{Id, ResourceAddress, Vocabulary, embedded_document};
+pub use veoveo_macros::{Vocabulary, embedded_document, id, resource_address};
+mod id_profile;
+pub use id_profile::*;
+mod resource_profile;
+pub use resource_profile::{ResourceProfile, ResourceProfileSpec, ResourceSchema};
 pub use vocabulary::{Vocabulary, is_scope_token, scope_vocabulary_schema};
 
 mod actions;

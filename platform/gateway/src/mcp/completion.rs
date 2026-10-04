@@ -36,7 +36,7 @@ impl GatewayMcp {
                 resource_template_policy_target(server.clone(), &reference.uri)?
             }
             Reference::Prompt(reference) => {
-                let prompt = PromptName::new(reference.name.clone()).map_err(|err| {
+                let prompt = PromptName::parse(reference.name.clone()).map_err(|err| {
                     mcp_invalid_params(format!("invalid completion prompt: {err}"))
                 })?;
                 PolicyTarget::Prompt {

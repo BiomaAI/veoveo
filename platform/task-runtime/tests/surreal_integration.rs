@@ -22,12 +22,12 @@ use veoveo_types::{
 use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy};
 
 fn authority() -> InvocationAuthority {
-    let principal = PrincipalId::new("integration-principal").unwrap();
+    let principal = PrincipalId::parse("integration-principal").unwrap();
     InvocationAuthority {
-        work_context: WorkContextId::new("integration-mission").unwrap(),
-        tenant: TenantId::new("integration-tenant").unwrap(),
+        work_context: WorkContextId::parse("integration-mission").unwrap(),
+        tenant: TenantId::parse("integration-tenant").unwrap(),
         membership: WorkContextMembershipLevel::Owner,
-        policy_revision: PolicyVersion::new("r1").unwrap(),
+        policy_revision: PolicyVersion::parse("r1").unwrap(),
         output_policy: WorkContextOutputPolicy {
             owner: AccessSubject::Principal(principal.clone()),
             initial_grants: Vec::new(),

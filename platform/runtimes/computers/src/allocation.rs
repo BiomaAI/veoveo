@@ -159,7 +159,7 @@ impl HomeAllocator {
     }
     pub async fn ready(&self) -> Result<()> {
         let request = wire::ReadyRequest {
-            provider_id: storage_identity(self.provider_id.into_uuid())?,
+            provider_id: storage_identity(self.provider_id.as_uuid())?,
             schema: SCHEMA
                 .parse()
                 .map_err(|_| RuntimeFailure::AllocationFailed)?,
@@ -214,7 +214,7 @@ impl HomeAllocator {
             operation: "handoff"
                 .parse()
                 .map_err(|_| RuntimeFailure::AllocationFailed)?,
-            provider_id: storage_identity(self.provider_id.into_uuid())?,
+            provider_id: storage_identity(self.provider_id.as_uuid())?,
             computer_id: storage_identity(source.computer_id())?,
             operation_id: storage_identity(operation_id.as_uuid())?,
             source_instance_id: storage_identity(
@@ -289,7 +289,7 @@ impl HomeAllocator {
             operation: "abandon"
                 .parse()
                 .map_err(|_| RuntimeFailure::AllocationFailed)?,
-            provider_id: storage_identity(self.provider_id.into_uuid())?,
+            provider_id: storage_identity(self.provider_id.as_uuid())?,
             computer_id: storage_identity(source.computer_id())?,
             operation_id: storage_identity(operation_id.as_uuid())?,
             source_instance_id: storage_identity(
@@ -335,7 +335,7 @@ impl HomeAllocator {
             return Err(RuntimeFailure::BindingMismatch);
         }
         let request = wire::BoundRequest {
-            provider_id: storage_identity(self.provider_id.into_uuid())?,
+            provider_id: storage_identity(self.provider_id.as_uuid())?,
             instance_id: storage_identity(
                 binding
                     .replacement_instance_id()

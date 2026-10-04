@@ -1,46 +1,14 @@
 //! Separate identities for durable transcription and private browser dictation.
-use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 #[error("invalid Speech identity for this operation")]
 pub struct SpeechIdentityError;
 
-#[derive(
-    veoveo_types::Id,
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(error=SpeechIdentityError,admit=|value| admit_speech_id(value,|version| version == 7),wire_string,constructor=parse,generate=uuid::Uuid::now_v7,schema=|_| speech_id_schema("7"))]
+#[veoveo_types::id(uuid(TranscriptionIdProfile), fresh)]
 pub struct TranscriptionId(uuid::Uuid);
 
 // Browser crypto.randomUUID uses v4; native callers generate v7.
-#[derive(
-    veoveo_types::Id,
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(error=SpeechIdentityError,admit=|value| admit_speech_id(value,|version| matches!(
-    version,
-    4 | 7
-)),wire_string,constructor=parse,generate=uuid::Uuid::now_v7,schema=|_| speech_id_schema("[47]"))]
+#[veoveo_types::id(uuid(DictationSessionIdProfile), fresh)]
 pub struct DictationSessionId(uuid::Uuid);
 
 impl TryFrom<veoveo_types::TaskId> for TranscriptionId {
@@ -60,21 +28,60 @@ impl TranscriptionId {
     }
 }
 
-fn admit_speech_id(
-    value: &str,
-    valid: impl FnOnce(usize) -> bool,
-) -> Result<uuid::Uuid, SpeechIdentityError> {
-    let id = uuid::Uuid::parse_str(value).map_err(|_| SpeechIdentityError)?;
-    if id.get_variant() != uuid::Variant::RFC4122
-        || !valid(id.get_version_num())
-        || id.to_string() != value
-    {
-        return Err(SpeechIdentityError);
-    }
-    Ok(id)
-}
 fn speech_id_schema(versions: &str) -> schemars::Schema {
     schemars::json_schema!({"type":"string","format":"uuid","maxLength":36,"pattern":format!("^[0-9a-f]{{8}}-[0-9a-f]{{4}}-{}[0-9a-f]{{3}}-[89ab][0-9a-f]{{3}}-[0-9a-f]{{12}}$",versions)})
+}
+
+use veoveo_types::{
+    FreshId, IdGeneration, IdProfile, IdProfileSpec, IdSchema, UuidGrammar, UuidSpelling,
+    UuidVariant,
+};
+
+#[doc(hidden)]
+pub struct TranscriptionIdProfile;
+impl IdProfile for TranscriptionIdProfile {
+    type Error = SpeechIdentityError;
+    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
+        generation: IdGeneration {
+            fresh: FreshId::UuidV7,
+            stable_v5_namespace: None,
+        },
+        schema: IdSchema::Owner {
+            schema: |_, _| speech_id_schema("7"),
+            inline: false,
+        },
+        ..IdProfileSpec::uuid(
+            UuidGrammar {
+                versions: &[7],
+                variant: UuidVariant::Rfc4122,
+                spelling: UuidSpelling::CanonicalLowerHyphenated,
+            },
+            |_, _, _| SpeechIdentityError,
+        )
+    };
+}
+#[doc(hidden)]
+pub struct DictationSessionIdProfile;
+impl IdProfile for DictationSessionIdProfile {
+    type Error = SpeechIdentityError;
+    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
+        generation: IdGeneration {
+            fresh: FreshId::UuidV7,
+            stable_v5_namespace: None,
+        },
+        schema: IdSchema::Owner {
+            schema: |_, _| speech_id_schema("[47]"),
+            inline: false,
+        },
+        ..IdProfileSpec::uuid(
+            UuidGrammar {
+                versions: &[4, 7],
+                variant: UuidVariant::Rfc4122,
+                spelling: UuidSpelling::CanonicalLowerHyphenated,
+            },
+            |_, _, _| SpeechIdentityError,
+        )
+    };
 }
 
 #[cfg(test)]

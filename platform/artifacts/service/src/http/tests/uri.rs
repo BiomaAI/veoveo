@@ -32,7 +32,7 @@ async fn typed_resolution_round_trips_and_http_rejects_malformed_addresses() {
         assert_eq!(unauthenticated.status(), reqwest::StatusCode::UNAUTHORIZED);
 
         let presentation =
-            ArtifactUri::presented(&ResourceScheme::new("independent-fixture").unwrap(), id);
+            ArtifactUri::presented(&ResourceScheme::parse("independent-fixture").unwrap(), id);
         for uri in [id.plane_uri(), presentation] {
             let object = plane.resolve(&caller, &uri).await.unwrap();
             assert_eq!(object.metadata, metadata);

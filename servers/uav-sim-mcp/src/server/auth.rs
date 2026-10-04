@@ -51,7 +51,7 @@ mod tests {
         let mut identity =
             crate::server::test_support::identity("tenant", "operations", "pilot", &[]);
         for bits in 0..(1 << UavScope::ALL.len()) {
-            identity.actor.scopes = [ScopeName::new("other:read").unwrap()].into();
+            identity.actor.scopes = [ScopeName::parse("other:read").unwrap()].into();
             for (index, scope) in UavScope::ALL.iter().enumerate() {
                 if bits & (1 << index) != 0 {
                     identity.actor.scopes.insert((*scope).into());

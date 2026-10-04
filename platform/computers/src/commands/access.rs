@@ -110,10 +110,10 @@ impl ComputersStore {
             .validate()
             .map_err(|_| ComputerError::Unavailable)?;
         if row.id != super::record(execution)
-            || row.execution_id != execution.into_uuid()
+            || row.execution_id != execution.as_uuid()
             || binding.execution_id != execution
-            || row.computer_id != binding.computer_id.into_uuid()
-            || row.provider_instance_id != binding.provider_instance_id.into_uuid()
+            || row.computer_id != binding.computer_id.as_uuid()
+            || row.provider_instance_id != binding.provider_instance_id.as_uuid()
             || row.actor_key != super::actor_key(&accepted)?
             || binding.actor_key != row.actor_key
             || row.task != task_record_id(execution.task_id())

@@ -28,7 +28,7 @@ pub fn register_catalog(
         ComputerAction::Attach,
         ActionDescriptor {
             access: veoveo_gateway_contract::ActionAccess::Write,
-            target_kinds: BTreeSet::from([ExtensionName::new("resource")?]),
+            target_kinds: BTreeSet::from([ExtensionName::parse("resource")?]),
             selectors,
             server: Some(ServerRequirement {
                 slug: Some("computers".parse().expect("fixed server")),

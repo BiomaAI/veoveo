@@ -124,7 +124,7 @@ async fn catalog(
     axum::extract::Query(page): axum::extract::Query<CatalogPage>,
 ) -> Api<wire::AgentCatalogPage> {
     authority::admit(&state.workspace, &subject).await?;
-    let profile = GatewayProfileId::new(profile).map_err(|_| StatusCode::NOT_FOUND)?;
+    let profile = GatewayProfileId::parse(profile).map_err(|_| StatusCode::NOT_FOUND)?;
     Ok(Json(
         state
             .agents
@@ -140,7 +140,7 @@ async fn add(
     Json(request): Json<wire::AddAgent>,
 ) -> Api<wire::ChatAgent> {
     let authority = authority::admit(&state.workspace, &subject).await?;
-    let profile = GatewayProfileId::new(profile).map_err(|_| StatusCode::NOT_FOUND)?;
+    let profile = GatewayProfileId::parse(profile).map_err(|_| StatusCode::NOT_FOUND)?;
     let definition = state
         .agents
         .resolve(
@@ -218,7 +218,7 @@ async fn start(
     headers: HeaderMap,
     Json(request): Json<wire::StartRun>,
 ) -> Api<wire::Run> {
-    let profile = GatewayProfileId::new(profile).map_err(|_| StatusCode::NOT_FOUND)?;
+    let profile = GatewayProfileId::parse(profile).map_err(|_| StatusCode::NOT_FOUND)?;
     let caller = Caller::new(profile.clone(), subject.clone(), &headers)?;
     let authority = authority::admit_live(
         &state.workspace,

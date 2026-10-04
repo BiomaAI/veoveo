@@ -193,7 +193,7 @@ async fn listed(store: &PlatformStore, pilot: &ManagedAgentInstance, session: &s
         store,
         pilot.tenant.clone(),
         pilot.work_context.clone(),
-        &SessionId::new(session).unwrap(),
+        &SessionId::parse(session).unwrap(),
     )
     .await
     .unwrap()

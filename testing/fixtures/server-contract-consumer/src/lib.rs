@@ -286,9 +286,9 @@ mod tests {
                 resource
             );
         }
-        let world = FrameWorldUri::new(&FrameWorldId::new("survey").unwrap());
-        let revision = world.revision(&FrameWorldRevisionId::new("revision-1").unwrap());
-        let frame = revision.frame(&FrameId::new("camera").unwrap());
+        let world = FrameWorldUri::new(&FrameWorldId::parse("survey").unwrap());
+        let revision = world.revision(&FrameWorldRevisionId::parse("revision-1").unwrap());
+        let frame = revision.frame(&FrameId::parse("camera").unwrap());
         for resource in [
             FramesResource::World(world),
             FramesResource::Frame(frame),
@@ -317,7 +317,7 @@ mod tests {
     #[test]
     fn all_server_scope_vocabularies_are_available_without_service_dependencies() {
         use veoveo_types::ScopeName;
-        let external = ScopeName::new("independent:read").unwrap();
+        let external = ScopeName::parse("independent:read").unwrap();
 
         check_scopes::<veoveo_artifact_mcp::contract::ArtifactScope>(&external, true);
         check_scopes::<veoveo_computers_mcp::contract::ComputerScope>(&external, true);

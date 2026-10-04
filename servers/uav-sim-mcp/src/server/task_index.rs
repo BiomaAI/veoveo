@@ -223,12 +223,12 @@ pub(super) async fn missions_page(
         rows,
         |row| {
             Ok(
-                UavMissionCursor::new(MissionId::new(row.mission_id.clone())?)?
+                UavMissionCursor::new(MissionId::parse(row.mission_id.clone())?)?
                     .as_str()
                     .to_owned(),
             )
         },
-        |row| Ok(uris::mission(&MissionId::new(row.mission_id)?).into()),
+        |row| Ok(uris::mission(&MissionId::parse(row.mission_id)?).into()),
     )
 }
 

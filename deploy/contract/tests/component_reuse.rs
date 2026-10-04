@@ -14,7 +14,7 @@ fn installation_revision_advances_provenance_without_forcing_an_unchanged_releas
     let previous = fixture("platform", ComponentRole::Platform);
     let mut current = previous.clone();
     current.declaration.configuration.source.revision =
-        SourceRevision::new("b".repeat(40)).unwrap();
+        SourceRevision::parse("b".repeat(40)).unwrap();
     let current = relock(&current);
     assert_ne!(current.units[0].digest, previous.units[0].digest);
     assert_eq!(
@@ -89,14 +89,14 @@ impl Repository {
             "-m",
             message,
         ]);
-        SourceRevision::new(self.git(&["rev-parse", "HEAD"]).trim()).unwrap()
+        SourceRevision::parse(self.git(&["rev-parse", "HEAD"]).trim()).unwrap()
     }
 
     fn source(&self, name: &str) -> ComponentSource {
         ComponentSource {
             name: name.into(),
             repository: self.path().to_str().unwrap().into(),
-            revision: SourceRevision::new(self.git(&["rev-parse", "HEAD"]).trim()).unwrap(),
+            revision: SourceRevision::parse(self.git(&["rev-parse", "HEAD"]).trim()).unwrap(),
         }
     }
 
@@ -106,7 +106,7 @@ impl Repository {
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect::<String>();
-        ArtifactDigest::new(format!("sha256:{hex}")).unwrap()
+        ArtifactDigest::parse(format!("sha256:{hex}")).unwrap()
     }
 
     fn locked(&self, name: &str, role: ComponentRole) -> LockedComponent {
@@ -261,7 +261,7 @@ fn independent_git_revisions_reuse_unchanged_artifacts_and_dependencies() {
 fn different_immutable_revisions_may_contain_different_versions_of_a_shared_input() {
     let previous = fixture("platform", ComponentRole::Platform);
     let mut next = previous.clone();
-    next.declaration.source.revision = SourceRevision::new("b".repeat(40)).unwrap();
+    next.declaration.source.revision = SourceRevision::parse("b".repeat(40)).unwrap();
     next.declaration.inputs = next
         .declaration
         .inputs

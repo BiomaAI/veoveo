@@ -249,7 +249,7 @@ mod tests {
         let text = "The bridge deck requires inspection before reopening.";
         let observation = Observation::builder(
             collection.clone(),
-            Revision::new("revision-one").unwrap(),
+            Revision::parse("revision-one").unwrap(),
             content_digest(text),
             observed_at,
         )

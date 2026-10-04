@@ -128,10 +128,10 @@ pub(crate) async fn catalog_grant(
     headers: HeaderMap,
     Json(request): Json<CreateRecordingCatalogGrantRequest>,
 ) -> Response {
-    let Ok(profile) = GatewayProfileId::new(profile) else {
+    let Ok(profile) = GatewayProfileId::parse(profile) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let Ok(server) = ServerSlug::new(RECORDING_SERVER) else {
+    let Ok(server) = ServerSlug::parse(RECORDING_SERVER) else {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     };
     let catalog = current_catalog(&state.catalog);
@@ -141,7 +141,7 @@ pub(crate) async fn catalog_grant(
     let manifest = manifest.clone();
     for recording_id in request.recording_ids() {
         let uri = RecordingUri::new(*recording_id).as_resource_uri().clone();
-        let trace_id = match TraceId::new(subject.audit.trace_id.to_string()) {
+        let trace_id = match TraceId::parse(&subject.audit.trace_id) {
             Ok(value) => value,
             Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
         };
@@ -307,13 +307,13 @@ async fn proxy_playback(
     subject: AuthenticatedSubject,
     headers: HeaderMap,
 ) -> Response {
-    let Ok(profile) = GatewayProfileId::new(profile) else {
+    let Ok(profile) = GatewayProfileId::parse(profile) else {
         return StatusCode::NOT_FOUND.into_response();
     };
     let Ok(recording_id) = RecordingId::parse(recording_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let Ok(server) = ServerSlug::new(RECORDING_SERVER) else {
+    let Ok(server) = ServerSlug::parse(RECORDING_SERVER) else {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     };
     let uri = RecordingUri::new(recording_id).as_resource_uri().clone();
@@ -322,7 +322,7 @@ async fn proxy_playback(
         return StatusCode::NOT_FOUND.into_response();
     };
     let manifest = manifest.clone();
-    let trace_id = match TraceId::new(subject.audit.trace_id.to_string()) {
+    let trace_id = match TraceId::parse(&subject.audit.trace_id) {
         Ok(value) => value,
         Err(error) => {
             tracing::error!(%error, "failed to create recording playback trace id");

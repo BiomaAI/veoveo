@@ -148,14 +148,14 @@ mod tests {
 
     #[test]
     fn named_bootstrap_references_keep_the_public_profile_without_becoming_stored_keys() {
-        let bootstrap = AuthorityReleaseId::new("time-release-tzdb-bootstrap").unwrap();
+        let bootstrap = AuthorityReleaseId::parse("time-release-tzdb-bootstrap").unwrap();
         assert!(validate_key("release_key", &bootstrap, "time-release-").is_err());
         assert_eq!(
             serde_json::from_str::<AuthorityReleaseId>(&serde_json::to_string(&bootstrap).unwrap())
                 .unwrap(),
             bootstrap
         );
-        let stored = AuthorityReleaseId::new(format!("time-release-{}", Uuid::now_v7())).unwrap();
+        let stored = AuthorityReleaseId::parse(format!("time-release-{}", Uuid::now_v7())).unwrap();
         assert!(validate_key("release_key", &stored, "time-release-").is_ok());
     }
 

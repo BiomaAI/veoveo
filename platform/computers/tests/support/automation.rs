@@ -15,7 +15,7 @@ pub const POLICY: AutomationGrantPolicy = AutomationGrantPolicy {
 pub fn control() -> GatewayControlPlane {
     let mut control = super::interactive::control();
     for tool in ["execute", "grant_automation", "revoke_automation"] {
-        let tool = LocalToolName::new(tool).unwrap();
+        let tool = LocalToolName::parse(tool).unwrap();
         control.servers[0].tools.push(tool.clone());
         control.policies[0].rules[0].tools.insert(tool);
     }

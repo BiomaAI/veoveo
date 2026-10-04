@@ -107,34 +107,34 @@ pub(super) fn bearer_token_from_args(args: &Args) -> Result<Option<String>> {
 fn issue_internal_conformance_token(args: &Args, private_key_der_b64: &str) -> Result<String> {
     let private_key_der = BASE64_STANDARD.decode(private_key_der_b64.trim())?;
     let issuer = GatewayInternalTokenIssuer::new(
-        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
+        TokenIssuer::parse(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
         GatewayInternalSigningKey::new(args.internal_signing_key_id.clone(), private_key_der)?,
     );
-    let principal_issuer = TokenIssuer::new("https://conformance.veoveo.local")?;
-    let principal_subject = TokenSubject::new(args.internal_principal_subject.clone())?;
+    let principal_issuer = TokenIssuer::parse("https://conformance.veoveo.local")?;
+    let principal_subject = TokenSubject::parse(args.internal_principal_subject.clone())?;
     let principal = Principal {
-        id: PrincipalId::new(format!("{principal_issuer}#{principal_subject}"))?,
+        id: PrincipalId::parse(format!("{principal_issuer}#{principal_subject}"))?,
         kind: PrincipalKind::Service,
         issuer: principal_issuer,
         subject: principal_subject,
-        tenant: Some(TenantId::new(args.internal_tenant.clone())?),
+        tenant: Some(TenantId::parse(args.internal_tenant.clone())?),
         groups: Default::default(),
         group_roles: Default::default(),
         roles: Default::default(),
         scopes: args
             .internal_scopes
             .iter()
-            .map(|scope| ScopeName::new(scope.clone()))
+            .map(|scope| ScopeName::parse(scope.clone()))
             .collect::<Result<_, _>>()?,
         data_labels: Default::default(),
         assurances: Default::default(),
         authenticated_at: Some(Utc::now()),
     };
     let authority = InvocationAuthority {
-        work_context: WorkContextId::new(args.internal_work_context.clone())?,
-        tenant: TenantId::new(args.internal_tenant.clone())?,
+        work_context: WorkContextId::parse(args.internal_work_context.clone())?,
+        tenant: TenantId::parse(args.internal_tenant.clone())?,
         membership: WorkContextMembershipLevel::Owner,
-        policy_revision: PolicyVersion::new("r1")?,
+        policy_revision: PolicyVersion::parse("r1")?,
         output_policy: WorkContextOutputPolicy {
             owner: AccessSubject::Principal(principal.id.clone()),
             initial_grants: Vec::new(),
@@ -152,9 +152,9 @@ fn issue_internal_conformance_token(args: &Args, private_key_der_b64: &str) -> R
             managed_execution: None,
             issuer: principal.issuer.clone(),
             subject: principal.subject.clone(),
-            oauth_client_id: OAuthClientId::new(principal.subject.as_str())?,
+            oauth_client_id: OAuthClientId::parse(principal.subject.as_str())?,
             session_family: None,
-            audience: ProtectedResourceId::new("https://conformance.veoveo.local")?,
+            audience: ProtectedResourceId::parse("https://conformance.veoveo.local")?,
             work_context: authority.work_context.clone(),
             invocation_mode: authority.provenance.mode(),
             initiator: None,
@@ -168,8 +168,8 @@ fn issue_internal_conformance_token(args: &Args, private_key_der_b64: &str) -> R
         principal: principal.clone(),
     };
     let token = issuer.issue(
-        GatewayProfileId::new(args.internal_profile.clone())?,
-        ServerSlug::new(args.internal_server.clone())?,
+        GatewayProfileId::parse(args.internal_profile.clone())?,
+        ServerSlug::parse(args.internal_server.clone())?,
         principal,
         authority,
         Some(request_context),
@@ -215,8 +215,8 @@ mod tests {
             issue_internal_conformance_token(&args, &BASE64_STANDARD.encode(key.serialize_der()))
                 .unwrap();
         let identity = GatewayInternalTokenVerifier::new(
-            TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER).unwrap(),
-            ServerSlug::new("computers").unwrap(),
+            TokenIssuer::parse(GATEWAY_INTERNAL_TOKEN_ISSUER).unwrap(),
+            ServerSlug::parse("computers").unwrap(),
             trust,
         )
         .verify(&token)

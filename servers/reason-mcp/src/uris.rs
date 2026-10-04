@@ -8,7 +8,7 @@ use veoveo_types::{ResourceAddress, ResourceUri};
 
 pub static SCHEME: std::sync::LazyLock<veoveo_types::ResourceScheme> =
     std::sync::LazyLock::new(|| {
-        veoveo_types::ResourceScheme::new("reason").expect("declared server resource scheme")
+        veoveo_types::ResourceScheme::parse("reason").expect("declared server resource scheme")
     });
 
 pub const DOCS_URI: &str = "reason://docs";

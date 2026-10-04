@@ -711,7 +711,7 @@ fn validated_granted_scopes(
 ) -> anyhow::Result<BTreeSet<ScopeName>> {
     let scopes = value
         .split_ascii_whitespace()
-        .map(ScopeName::new)
+        .map(ScopeName::parse)
         .collect::<Result<BTreeSet<_>, _>>()
         .context("gateway token returned an invalid scope set")?;
     if !required.is_subset(&scopes) {
@@ -848,13 +848,13 @@ mod tests {
     fn authorization_configuration_requires_exact_resource_and_complete_scope_support() {
         let required = ["admin:manage", "operator:use"]
             .into_iter()
-            .map(|scope| ScopeName::new(scope).unwrap())
+            .map(|scope| ScopeName::parse(scope).unwrap())
             .collect();
         let metadata = ProtectedResourceMetadata {
             resource: "https://console.example/mcp/admin".to_owned(),
             scopes_supported: ["admin:manage", "operator:use", "view:read"]
                 .into_iter()
-                .map(|scope| ScopeName::new(scope).unwrap())
+                .map(|scope| ScopeName::parse(scope).unwrap())
                 .collect(),
         };
         assert!(authorization_configuration_matches(
@@ -865,7 +865,7 @@ mod tests {
 
         let missing_scope = ["admin:manage", "operator:use", "view:write"]
             .into_iter()
-            .map(|scope| ScopeName::new(scope).unwrap())
+            .map(|scope| ScopeName::parse(scope).unwrap())
             .collect();
         assert!(!authorization_configuration_matches(
             "https://console.example/mcp/admin",
@@ -883,7 +883,7 @@ mod tests {
     fn granted_scopes_must_cover_the_console_configuration() {
         let required = ["operator:use", "view:read"]
             .into_iter()
-            .map(|scope| ScopeName::new(scope).unwrap())
+            .map(|scope| ScopeName::parse(scope).unwrap())
             .collect();
         let granted = validated_granted_scopes(&required, "view:read operator:use").unwrap();
         assert_eq!(granted, required);

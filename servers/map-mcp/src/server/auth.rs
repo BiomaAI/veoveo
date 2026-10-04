@@ -28,7 +28,7 @@ mod tests {
     #[test]
     fn typed_admission_preserves_other_domains_and_revocation() {
         let mut grants = BTreeSet::from([
-            ScopeName::new("another-server:custom").unwrap(),
+            ScopeName::parse("another-server:custom").unwrap(),
             MapScope::FeatureRead.into(),
         ]);
         assert!(require_scope(&grants, MapScope::FeatureRead).is_ok());

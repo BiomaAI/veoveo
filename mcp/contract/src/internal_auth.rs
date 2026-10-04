@@ -264,8 +264,8 @@ impl GatewayInternalTokenIssuer {
         if expires_at <= now {
             return Err(InternalTokenError::ExpiredDelegation);
         }
-        let jwt_id =
-            JwtId::new(uuid::Uuid::new_v4().to_string()).map_err(InternalTokenError::Identifier)?;
+        let jwt_id = JwtId::parse(uuid::Uuid::new_v4().to_string())
+            .map_err(InternalTokenError::Identifier)?;
         Ok(GatewayInternalIdentity {
             issuer: self.issuer.clone(),
             profile,
@@ -293,8 +293,8 @@ impl GatewayInternalTokenIssuer {
         if expires_at <= now {
             return Err(InternalTokenError::ExpiredDelegation);
         }
-        let jwt_id =
-            JwtId::new(uuid::Uuid::new_v4().to_string()).map_err(InternalTokenError::Identifier)?;
+        let jwt_id = JwtId::parse(uuid::Uuid::new_v4().to_string())
+            .map_err(InternalTokenError::Identifier)?;
         let identity = GatewayInternalResourceIdentity {
             issuer: self.issuer.clone(),
             protected_resource,
@@ -405,7 +405,7 @@ impl GatewayInternalResourceTokenVerifier {
                 actual: claims.server,
             });
         }
-        if PrincipalId::new(claims.sub.clone()).map_err(InternalTokenError::Identifier)?
+        if PrincipalId::parse(claims.sub.clone()).map_err(InternalTokenError::Identifier)?
             != claims.actor.id
         {
             return Err(InternalTokenError::SubjectPrincipalMismatch);
@@ -551,7 +551,7 @@ impl GatewayInternalTokenVerifier {
                 actual: claims.server,
             });
         }
-        if PrincipalId::new(claims.sub.clone()).map_err(InternalTokenError::Identifier)?
+        if PrincipalId::parse(claims.sub.clone()).map_err(InternalTokenError::Identifier)?
             != claims.actor.id
         {
             return Err(InternalTokenError::SubjectPrincipalMismatch);
@@ -715,12 +715,12 @@ pub(crate) mod tests {
     #[test]
     fn upload_assertions_require_dedicated_audience_and_signed_policy_binding() {
         let issuer = GatewayInternalTokenIssuer::new(
-            TokenIssuer::new("veoveo-internal").unwrap(),
+            TokenIssuer::parse("veoveo-internal").unwrap(),
             signing_key("key-1"),
         );
         let verifier = GatewayInternalTokenVerifier::new(
-            TokenIssuer::new("veoveo-internal").unwrap(),
-            ServerSlug::new(crate::ARTIFACT_UPLOAD_AUDIENCE).unwrap(),
+            TokenIssuer::parse("veoveo-internal").unwrap(),
+            ServerSlug::parse(crate::ARTIFACT_UPLOAD_AUDIENCE).unwrap(),
             trust_bundle("key-1"),
         );
         let binding = crate::ArtifactUploadAuthority {
@@ -738,9 +738,9 @@ pub(crate) mod tests {
                 managed_execution: None,
                 issuer: actor.issuer.clone(),
                 subject: actor.subject.clone(),
-                oauth_client_id: crate::OAuthClientId::new("upload-test").unwrap(),
+                oauth_client_id: crate::OAuthClientId::parse("upload-test").unwrap(),
                 session_family: None,
-                audience: veoveo_gateway_contract::ProtectedResourceId::new(
+                audience: veoveo_gateway_contract::ProtectedResourceId::parse(
                     "https://gateway.test/mcp/default",
                 )
                 .unwrap(),
@@ -757,7 +757,7 @@ pub(crate) mod tests {
         };
         let token = issuer
             .issue_artifact_upload(
-                GatewayProfileId::new("default").unwrap(),
+                GatewayProfileId::parse("default").unwrap(),
                 actor,
                 invocation,
                 request_context,
@@ -770,8 +770,8 @@ pub(crate) mod tests {
         assert_eq!(verified.identity.actor.id, principal().id);
         let ordinary = issuer
             .issue(
-                GatewayProfileId::new("default").unwrap(),
-                ServerSlug::new(crate::ARTIFACT_UPLOAD_AUDIENCE).unwrap(),
+                GatewayProfileId::parse("default").unwrap(),
+                ServerSlug::parse(crate::ARTIFACT_UPLOAD_AUDIENCE).unwrap(),
                 principal(),
                 authority(),
                 None,
@@ -785,8 +785,8 @@ pub(crate) mod tests {
             "a token without a signed policy binding was accepted"
         );
         let domain = GatewayInternalTokenVerifier::new(
-            TokenIssuer::new("veoveo-internal").unwrap(),
-            ServerSlug::new("media").unwrap(),
+            TokenIssuer::parse("veoveo-internal").unwrap(),
+            ServerSlug::parse("media").unwrap(),
             trust_bundle("key-1"),
         );
         assert!(domain.verify(&token).is_err());
@@ -815,13 +815,13 @@ pub(crate) mod tests {
     #[test]
     fn internal_token_round_trips_typed_identity() {
         let issuer = GatewayInternalTokenIssuer::new(
-            TokenIssuer::new("veoveo-internal").unwrap(),
+            TokenIssuer::parse("veoveo-internal").unwrap(),
             signing_key("key-1"),
         );
         let issued = issuer
             .issue(
-                GatewayProfileId::new("default").unwrap(),
-                ServerSlug::new("media").unwrap(),
+                GatewayProfileId::parse("default").unwrap(),
+                ServerSlug::parse("media").unwrap(),
                 principal(),
                 authority(),
                 None,
@@ -831,8 +831,8 @@ pub(crate) mod tests {
         assert!(!format!("{issued:?}").contains(&issued.bearer_token));
 
         let verified = GatewayInternalTokenVerifier::new(
-            TokenIssuer::new("veoveo-internal").unwrap(),
-            ServerSlug::new("media").unwrap(),
+            TokenIssuer::parse("veoveo-internal").unwrap(),
+            ServerSlug::parse("media").unwrap(),
             trust_bundle("key-1"),
         )
         .verify(&issued.bearer_token)
@@ -846,13 +846,13 @@ pub(crate) mod tests {
     #[test]
     fn internal_resource_token_round_trips_without_a_synthetic_profile() {
         let issuer = GatewayInternalTokenIssuer::new(
-            TokenIssuer::new("veoveo-internal").unwrap(),
+            TokenIssuer::parse("veoveo-internal").unwrap(),
             signing_key("key-1"),
         );
         let issued = issuer
             .issue_resource(
-                ProtectedResourceId::new("https://veoveo.example/ingest/recordings").unwrap(),
-                ServerSlug::new("recording-hub").unwrap(),
+                ProtectedResourceId::parse("https://veoveo.example/ingest/recordings").unwrap(),
+                ServerSlug::parse("recording-hub").unwrap(),
                 principal(),
                 authority(),
                 Utc::now() + TimeDelta::minutes(5),
@@ -861,8 +861,8 @@ pub(crate) mod tests {
         assert!(!format!("{issued:?}").contains(&issued.bearer_token));
 
         let verified = GatewayInternalResourceTokenVerifier::new(
-            TokenIssuer::new("veoveo-internal").unwrap(),
-            ServerSlug::new("recording-hub").unwrap(),
+            TokenIssuer::parse("veoveo-internal").unwrap(),
+            ServerSlug::parse("recording-hub").unwrap(),
             trust_bundle("key-1"),
         )
         .verify(&issued.bearer_token)
@@ -877,13 +877,13 @@ pub(crate) mod tests {
     #[test]
     fn internal_token_rejects_wrong_server_audience() {
         let issuer = GatewayInternalTokenIssuer::new(
-            TokenIssuer::new("veoveo-internal").unwrap(),
+            TokenIssuer::parse("veoveo-internal").unwrap(),
             signing_key("key-1"),
         );
         let issued = issuer
             .issue(
-                GatewayProfileId::new("default").unwrap(),
-                ServerSlug::new("media").unwrap(),
+                GatewayProfileId::parse("default").unwrap(),
+                ServerSlug::parse("media").unwrap(),
                 principal(),
                 authority(),
                 None,
@@ -892,8 +892,8 @@ pub(crate) mod tests {
             .unwrap();
 
         let err = GatewayInternalTokenVerifier::new(
-            TokenIssuer::new("veoveo-internal").unwrap(),
-            ServerSlug::new("simulation").unwrap(),
+            TokenIssuer::parse("veoveo-internal").unwrap(),
+            ServerSlug::parse("simulation").unwrap(),
             trust_bundle("key-1"),
         )
         .verify(&issued.bearer_token)
@@ -905,13 +905,13 @@ pub(crate) mod tests {
     #[test]
     fn internal_token_rejects_unknown_key_id() {
         let issuer = GatewayInternalTokenIssuer::new(
-            TokenIssuer::new("veoveo-internal").unwrap(),
+            TokenIssuer::parse("veoveo-internal").unwrap(),
             signing_key("retired-key"),
         );
         let issued = issuer
             .issue(
-                GatewayProfileId::new("default").unwrap(),
-                ServerSlug::new("media").unwrap(),
+                GatewayProfileId::parse("default").unwrap(),
+                ServerSlug::parse("media").unwrap(),
                 principal(),
                 authority(),
                 None,
@@ -920,8 +920,8 @@ pub(crate) mod tests {
             .unwrap();
 
         let err = GatewayInternalTokenVerifier::new(
-            TokenIssuer::new("veoveo-internal").unwrap(),
-            ServerSlug::new("media").unwrap(),
+            TokenIssuer::parse("veoveo-internal").unwrap(),
+            ServerSlug::parse("media").unwrap(),
             trust_bundle("active-key"),
         )
         .verify(&issued.bearer_token)

@@ -70,7 +70,7 @@ mod tests {
     use super::*;
 
     fn fixture() -> ImageReleaseEvidence {
-        let revision = SourceRevision::new("a".repeat(40)).unwrap();
+        let revision = SourceRevision::parse("a".repeat(40)).unwrap();
         ImageReleaseEvidence {
             schema_version: IMAGE_RELEASE_EVIDENCE_SCHEMA.into(),
             source_revision: revision.clone(),
@@ -98,7 +98,7 @@ mod tests {
         parsed.validate().unwrap();
         assert_eq!(parsed, original);
         let mut relabeled = parsed;
-        relabeled.images[0].source_revision = SourceRevision::new("d".repeat(40)).unwrap();
+        relabeled.images[0].source_revision = SourceRevision::parse("d".repeat(40)).unwrap();
         assert!(
             relabeled
                 .validate()

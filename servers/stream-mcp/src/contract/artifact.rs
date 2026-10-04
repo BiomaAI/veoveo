@@ -7,7 +7,7 @@ use veoveo_artifact_contract::{ArtifactAddress, ArtifactId, ArtifactUri};
 use veoveo_types::{ResourceAddress, ResourceScheme, ResourceUri};
 
 static SCHEME: LazyLock<ResourceScheme> =
-    LazyLock::new(|| ResourceScheme::new("stream").expect("declared Stream scheme"));
+    LazyLock::new(|| ResourceScheme::parse("stream").expect("declared Stream scheme"));
 
 /// A Stream presentation built from the Artifact owner's occurrence type.
 /// ```compile_fail

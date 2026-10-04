@@ -99,7 +99,7 @@ fn every_maintenance_identity_and_label_is_authenticated() {
     for id in [
         Uuid::nil(),
         binding.source_instance_id,
-        binding.computer_id.into_uuid(),
+        binding.computer_id.as_uuid(),
     ] {
         let mut invalid = binding.clone();
         invalid.target_instance_id = id;

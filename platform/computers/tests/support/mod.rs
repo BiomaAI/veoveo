@@ -40,24 +40,24 @@ pub fn identity(owner: &TaskOwner) -> veoveo_mcp_contract::GatewayInternalIdenti
         DataLabelId, InvocationMode, InvocationProvenance, PrincipalId, ScopeName, TenantId,
     };
     let principal = Principal {
-        id: PrincipalId::new(owner.principal_key.clone()).unwrap(),
+        id: PrincipalId::parse(owner.principal_key.clone()).unwrap(),
         kind: match owner.principal_kind {
             veoveo_platform_store::PrincipalKind::User => PrincipalKind::User,
             veoveo_platform_store::PrincipalKind::Service => PrincipalKind::Service,
         },
-        issuer: TokenIssuer::new(owner.issuer.clone()).unwrap(),
-        subject: TokenSubject::new(owner.subject.clone()).unwrap(),
-        tenant: Some(TenantId::new(owner.tenant_key()).unwrap()),
+        issuer: TokenIssuer::parse(owner.issuer.clone()).unwrap(),
+        subject: TokenSubject::parse(owner.subject.clone()).unwrap(),
+        tenant: Some(TenantId::parse(owner.tenant_key()).unwrap()),
         groups: Default::default(),
         group_roles: Default::default(),
         roles: Default::default(),
-        scopes: [ScopeName::new("operator:use").unwrap()]
+        scopes: [ScopeName::parse("operator:use").unwrap()]
             .into_iter()
             .collect(),
         data_labels: owner
             .data_labels
             .iter()
-            .map(|s| DataLabelId::new(s.clone()).unwrap())
+            .map(|s| DataLabelId::parse(s.clone()).unwrap())
             .collect(),
         assurances: Default::default(),
         authenticated_at: None,
@@ -67,7 +67,7 @@ pub fn identity(owner: &TaskOwner) -> veoveo_mcp_contract::GatewayInternalIdenti
         managed_execution: None,
         issuer: principal.issuer.clone(),
         subject: principal.subject.clone(),
-        oauth_client_id: OAuthClientId::new(
+        oauth_client_id: OAuthClientId::parse(
             if owner.authority.provenance.mode() == InvocationMode::Automated {
                 &owner.subject
             } else {
@@ -76,7 +76,7 @@ pub fn identity(owner: &TaskOwner) -> veoveo_mcp_contract::GatewayInternalIdenti
         )
         .unwrap(),
         session_family: None,
-        audience: ProtectedResourceId::new("https://computers.test/mcp/operator").unwrap(),
+        audience: ProtectedResourceId::parse("https://computers.test/mcp/operator").unwrap(),
         work_context: owner.authority.work_context.clone(),
         invocation_mode: owner.authority.provenance.mode(),
         initiator: owner.authority.provenance.initiator().cloned(),
@@ -85,15 +85,15 @@ pub fn identity(owner: &TaskOwner) -> veoveo_mcp_contract::GatewayInternalIdenti
             _ => None,
         },
         scopes: principal.scopes.clone(),
-        jwt_id: Some(JwtId::new(uuid::Uuid::now_v7().to_string()).unwrap()),
+        jwt_id: Some(JwtId::parse(uuid::Uuid::now_v7().to_string()).unwrap()),
         issued_at: now,
         not_before: None,
         expires_at: now + chrono::TimeDelta::hours(1),
     };
     GatewayInternalIdentity {
-        issuer: TokenIssuer::new("veoveo-internal").unwrap(),
-        profile: GatewayProfileId::new(owner.profile.clone()).unwrap(),
-        server: ServerSlug::new("computers").unwrap(),
+        issuer: TokenIssuer::parse("veoveo-internal").unwrap(),
+        profile: GatewayProfileId::parse(owner.profile.clone()).unwrap(),
+        server: ServerSlug::parse("computers").unwrap(),
         actor: principal.clone(),
         authority: owner.authority.clone(),
         request_context: Some(GatewayRequestContext {
@@ -102,7 +102,7 @@ pub fn identity(owner: &TaskOwner) -> veoveo_mcp_contract::GatewayInternalIdenti
             principal,
             access_token,
         }),
-        jwt_id: JwtId::new(uuid::Uuid::now_v7().to_string()).unwrap(),
+        jwt_id: JwtId::parse(uuid::Uuid::now_v7().to_string()).unwrap(),
         issued_at: now,
         not_before: now,
         expires_at: now + chrono::TimeDelta::minutes(1),

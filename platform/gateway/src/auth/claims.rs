@@ -133,12 +133,12 @@ impl JwtClaimsWire {
         let mut values = BTreeSet::new();
         if let Some(scope) = &self.scope {
             for item in scope.split_whitespace() {
-                values.insert(ScopeName::new(item).map_err(AuthError::Claim)?);
+                values.insert(ScopeName::parse(item).map_err(AuthError::Claim)?);
             }
         }
         if let Some(scp) = &self.scp {
             for item in scp.values() {
-                values.insert(ScopeName::new(item).map_err(AuthError::Claim)?);
+                values.insert(ScopeName::parse(item).map_err(AuthError::Claim)?);
             }
         }
         Ok(values)
@@ -150,12 +150,12 @@ impl IdJagClaims {
         let mut values = BTreeSet::new();
         if let Some(scope) = &self.scope {
             for item in scope.split_whitespace() {
-                values.insert(ScopeName::new(item).map_err(AuthError::Claim)?);
+                values.insert(ScopeName::parse(item).map_err(AuthError::Claim)?);
             }
         }
         if let Some(scp) = &self.scp {
             for item in scp.values() {
-                values.insert(ScopeName::new(item).map_err(AuthError::Claim)?);
+                values.insert(ScopeName::parse(item).map_err(AuthError::Claim)?);
             }
         }
         Ok(values)

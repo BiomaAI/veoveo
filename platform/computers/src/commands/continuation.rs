@@ -64,10 +64,7 @@ impl ComputersStore {
                         "execution",
                         super::record(operation.execution_id()).into_value(),
                     ),
-                    (
-                        "provider",
-                        self.provider_instance_id.into_uuid().into_value(),
-                    ),
+                    ("provider", self.provider_instance_id.as_uuid().into_value()),
                     ("task", task_record_id(operation.task_id()).into_value()),
                     ("dispatch_id", operation.dispatch_id.into_value()),
                     (

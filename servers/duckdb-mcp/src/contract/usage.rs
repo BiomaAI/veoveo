@@ -1,10 +1,9 @@
 //! Caller-owned usage pages and addresses, independent of Store and TaskRuntime.
-use std::fmt;
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_types::{ResourceAddress, ResourceFieldCodec, ResourceUri, TaskId};
+use veoveo_types::{ResourceFieldCodec, ResourceUri, TaskId};
 
 pub const DUCKDB_USAGE_PAGE_SIZE: usize = 100;
 
@@ -95,74 +94,32 @@ impl From<DuckDbUsageCursor> for String {
     }
 }
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::ResourceAddress,
+#[veoveo_types::resource_address(
+    cached(DuckDbUsageErrorAddresses),
+    template = "duckdb://usage{?cursor}"
 )]
-#[serde(try_from = "String", into = "String")]
-#[resource(template="duckdb://usage{?cursor}", error=DuckDbUsageError, route_error=|_| DuckDbUsageError, wire)]
 pub struct DuckDbUsageIndexUri {
     #[resource(cache)]
     wire: ResourceUri,
-    #[resource(codec=UsageCursorCodec, error=|_| DuckDbUsageError)]
+    #[resource(codec=UsageCursorCodec, error=|_| DuckDbUsageError, accessor = cursor, argument = optional_borrowed)]
     cursor: Option<DuckDbUsageCursor>,
 }
 
 impl DuckDbUsageIndexUri {
     pub const ROOT: &str = Self::RESOURCE_ROOT;
     pub const TEMPLATE: &str = Self::RESOURCE_TEMPLATE;
-
-    pub fn new(cursor: Option<&DuckDbUsageCursor>) -> Self {
-        Self::resource_from_parts(cursor.cloned()).expect("typed usage index address")
-    }
-
-    pub fn parse(value: impl AsRef<str>) -> Result<Self, DuckDbUsageError> {
-        let uri = ResourceUri::new(value.as_ref()).map_err(|_| DuckDbUsageError)?;
-        <Self as ResourceAddress>::parse(&uri)
-    }
-
-    pub fn cursor(&self) -> Option<&DuckDbUsageCursor> {
-        self.cursor.as_ref()
-    }
-    pub fn as_str(&self) -> &str {
-        self.wire.as_str()
-    }
 }
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::ResourceAddress,
-)]
-#[serde(try_from = "String", into = "String")]
-#[resource(template="duckdb://usage/task/{task_id}", error=DuckDbUsageError, route_error=|_| DuckDbUsageError, wire)]
+#[veoveo_types::resource_address(cached_checked(DuckDbUsageErrorAddresses), template = "duckdb://usage/task/{task_id}", traits = cloned, schema = derived)]
 pub struct DuckDbTaskUsageUri {
     #[resource(cache)]
     wire: ResourceUri,
-    #[resource(codec=UsageTaskCodec, error=|_| DuckDbUsageError)]
+    #[resource(codec=UsageTaskCodec, error=|_| DuckDbUsageError, accessor = task_id, copy_accessor, admit = task_identity)]
     task_id: TaskId,
 }
 
 impl DuckDbTaskUsageUri {
     pub const TEMPLATE: &str = Self::RESOURCE_TEMPLATE;
-
-    /// Database identities cannot be used as Task addresses.
-    /// ```compile_fail
-    /// use veoveo_duckdb_mcp::contract::{DuckDbDatabaseId, DuckDbTaskUsageUri};
-    /// DuckDbTaskUsageUri::new(DuckDbDatabaseId::new("metrics").unwrap());
-    /// ```
-    pub fn new(task_id: TaskId) -> Result<Self, DuckDbUsageError> {
-        Self::resource_from_parts(task_identity(task_id)?)
-    }
-
-    pub fn parse(value: impl AsRef<str>) -> Result<Self, DuckDbUsageError> {
-        let uri = ResourceUri::new(value.as_ref()).map_err(|_| DuckDbUsageError)?;
-        <Self as ResourceAddress>::parse(&uri)
-    }
-
-    pub fn task_id(&self) -> TaskId {
-        self.task_id
-    }
-    pub fn as_str(&self) -> &str {
-        self.wire.as_str()
-    }
 }
 
 struct UsageCursorCodec;
@@ -183,16 +140,6 @@ impl ResourceFieldCodec<TaskId> for UsageTaskCodec {
     }
     fn text(value: &TaskId) -> std::borrow::Cow<'_, str> {
         value.to_string().into()
-    }
-}
-impl fmt::Display for DuckDbUsageIndexUri {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-impl fmt::Display for DuckDbTaskUsageUri {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
     }
 }
 
@@ -325,3 +272,20 @@ impl From<DuckDbUsagePage> for PageWire {
         }
     }
 }
+
+#[doc(hidden)]
+pub struct DuckDbUsageErrorAddresses;
+impl veoveo_types::ResourceProfile for DuckDbUsageErrorAddresses {
+    type Error = DuckDbUsageError;
+    const PROFILE: veoveo_types::ResourceProfileSpec<Self::Error> =
+        veoveo_types::ResourceProfileSpec {
+            route_error: |_, _| DuckDbUsageError,
+        };
+}
+
+/// Database identities cannot be used as Task addresses.
+/// ```compile_fail
+/// use veoveo_duckdb_mcp::contract::{DuckDbDatabaseId, DuckDbTaskUsageUri};
+/// DuckDbTaskUsageUri::new(DuckDbDatabaseId::parse("metrics").unwrap());
+/// ```
+const _: () = ();

@@ -741,7 +741,7 @@ pub(super) async fn cmd_run(
     };
     ensure_call_tool_succeeded(&result)?;
     let links = print_call_tool_result(&result);
-    let outputs = if uris.scheme() == &veoveo_types::ResourceScheme::new("media")? {
+    let outputs = if uris.scheme() == &veoveo_types::ResourceScheme::parse("media")? {
         let value = result
             .structured_content
             .clone()

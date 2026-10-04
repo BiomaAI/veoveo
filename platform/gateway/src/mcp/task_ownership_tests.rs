@@ -29,10 +29,10 @@ use crate::test_store as fixture;
 pub(crate) fn subject() -> AuthenticatedSubject {
     let mut actor = super::tests::principal();
     let mut authority = super::tests::authority();
-    actor.tenant = Some(TenantId::new("enterprise").unwrap());
+    actor.tenant = Some(TenantId::parse("enterprise").unwrap());
     authority.tenant = actor.tenant.clone().unwrap();
-    actor.scopes = BTreeSet::from([ScopeName::new("operator:use").unwrap()]);
-    actor.data_labels.insert(DataLabelId::new("cui").unwrap());
+    actor.scopes = BTreeSet::from([ScopeName::parse("operator:use").unwrap()]);
+    actor.data_labels.insert(DataLabelId::parse("cui").unwrap());
     AuthenticatedSubject {
         extensions: Default::default(),
         audit: veoveo_mcp_contract::audit::AuditRequest::background(),
@@ -40,9 +40,9 @@ pub(crate) fn subject() -> AuthenticatedSubject {
             managed_execution: None,
             issuer: actor.issuer.clone(),
             subject: actor.subject.clone(),
-            oauth_client_id: OAuthClientId::new("workspace").unwrap(),
+            oauth_client_id: OAuthClientId::parse("workspace").unwrap(),
             session_family: None,
-            audience: ProtectedResourceId::new("https://veoveo.example/mcp/workspace").unwrap(),
+            audience: ProtectedResourceId::parse("https://veoveo.example/mcp/workspace").unwrap(),
             work_context: authority.work_context.clone(),
             invocation_mode: InvocationMode::Direct,
             initiator: Some(actor.id.clone()),
@@ -70,10 +70,10 @@ pub(super) fn gateway(state: GatewayState, plane: GatewayControlPlane) -> Gatewa
             GatewayCatalog::from_control_plane(plane, crate::test_catalog_admission::binding())
                 .unwrap(),
         )),
-        GatewayProfileId::new("workspace").unwrap(),
+        GatewayProfileId::parse("workspace").unwrap(),
         state,
         GatewayInternalTokenIssuer::new(
-            TokenIssuer::new("test-gateway").unwrap(),
+            TokenIssuer::parse("test-gateway").unwrap(),
             GatewayInternalSigningKey::new("test", key).unwrap(),
         ),
         GatewayUpstreamHttpClientPool::default(),
@@ -143,9 +143,9 @@ async fn recovery_uses_durable_identity_and_current_permissions_for_all_task_act
     refreshed
         .actor
         .scopes
-        .insert(ScopeName::new("time:timeline").unwrap());
+        .insert(ScopeName::parse("time:timeline").unwrap());
     refreshed.actor.authenticated_at = Some(Utc::now());
-    refreshed.authority.policy_revision = PolicyVersion::new("r2").unwrap();
+    refreshed.authority.policy_revision = PolicyVersion::parse("r2").unwrap();
     refreshed.authority.membership = WorkContextMembershipLevel::Contributor;
     refreshed.principal = refreshed.actor.clone();
     refreshed.access_token.scopes = refreshed.actor.scopes.clone();
@@ -155,16 +155,16 @@ async fn recovery_uses_durable_identity_and_current_permissions_for_all_task_act
     assert!(admitted(&gateway, &original, id.as_str()).await);
     let mut denied = Vec::new();
     let mut caller = refreshed.clone();
-    caller.actor.id = PrincipalId::new("other#person").unwrap();
+    caller.actor.id = PrincipalId::parse("other#person").unwrap();
     denied.push(caller);
     let mut caller = refreshed.clone();
-    caller.actor.issuer = TokenIssuer::new("https://other.test").unwrap();
+    caller.actor.issuer = TokenIssuer::parse("https://other.test").unwrap();
     denied.push(caller);
     let mut caller = refreshed.clone();
-    caller.authority.tenant = TenantId::new("other").unwrap();
+    caller.authority.tenant = TenantId::parse("other").unwrap();
     denied.push(caller);
     let mut caller = refreshed.clone();
-    caller.authority.work_context = WorkContextId::new("other").unwrap();
+    caller.authority.work_context = WorkContextId::parse("other").unwrap();
     denied.push(caller);
     let mut caller = refreshed.clone();
     caller.actor.data_labels.clear();
@@ -182,7 +182,7 @@ async fn recovery_uses_durable_identity_and_current_permissions_for_all_task_act
     denied.push(caller);
     let mut caller = refreshed.clone();
     caller.authority.provenance = InvocationProvenance::Direct {
-        initiator: PrincipalId::new("other#initiator").unwrap(),
+        initiator: PrincipalId::parse("other#initiator").unwrap(),
     };
     denied.push(caller);
     for caller in denied {
@@ -201,7 +201,7 @@ async fn recovery_uses_durable_identity_and_current_permissions_for_all_task_act
         }
     }
     let mut other_profile = gateway.clone();
-    other_profile.profile_id = GatewayProfileId::new("admin").unwrap();
+    other_profile.profile_id = GatewayProfileId::parse("admin").unwrap();
     assert!(!admitted(&other_profile, &refreshed, id.as_str()).await);
     let mut revoked = plane.clone();
     for policy in &mut revoked.policies {
@@ -236,18 +236,18 @@ fn delegated_ownership_requires_the_same_initiator_and_grant() {
     let mut caller = subject();
     caller.authority.provenance = InvocationProvenance::Delegated {
         initiator: caller.principal.id.clone(),
-        delegation_id: DelegationId::new("grant-1").unwrap(),
+        delegation_id: DelegationId::parse("grant-1").unwrap(),
     };
     let owner = GatewayTaskOwnership::from_invocation(&caller.actor, &caller.authority);
     assert!(owner.allows(&caller.actor, &caller.authority));
     for provenance in [
         InvocationProvenance::Delegated {
             initiator: caller.principal.id.clone(),
-            delegation_id: DelegationId::new("grant-2").unwrap(),
+            delegation_id: DelegationId::parse("grant-2").unwrap(),
         },
         InvocationProvenance::Delegated {
-            initiator: PrincipalId::new("other#initiator").unwrap(),
-            delegation_id: DelegationId::new("grant-1").unwrap(),
+            initiator: PrincipalId::parse("other#initiator").unwrap(),
+            delegation_id: DelegationId::parse("grant-1").unwrap(),
         },
         InvocationProvenance::Direct {
             initiator: caller.principal.id.clone(),
@@ -331,7 +331,7 @@ async fn version_zero_shared_task_recovers_without_rewriting_or_rebinding_extern
     refreshed
         .actor
         .scopes
-        .insert(ScopeName::new("time:timeline").unwrap());
+        .insert(ScopeName::parse("time:timeline").unwrap());
     refreshed.principal = refreshed.actor.clone();
     assert!(admitted(&gateway, &refreshed, id.as_str()).await);
     assert!(admitted(&gateway, &original, external.as_str()).await);

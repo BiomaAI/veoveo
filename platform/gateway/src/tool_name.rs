@@ -30,8 +30,8 @@ impl GatewayToolProjection {
             return Err(GatewayNameError::InvalidNamespaceShape(name.clone()));
         }
         Ok(Self {
-            server: ServerSlug::new(server).map_err(GatewayNameError::InvalidServerSlug)?,
-            tool: LocalToolName::new(tool).map_err(GatewayNameError::InvalidLocalToolName)?,
+            server: ServerSlug::parse(server).map_err(GatewayNameError::InvalidServerSlug)?,
+            tool: LocalToolName::parse(tool).map_err(GatewayNameError::InvalidLocalToolName)?,
         })
     }
 }

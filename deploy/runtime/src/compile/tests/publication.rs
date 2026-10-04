@@ -61,7 +61,7 @@ fn verify_publication(
                 let revision = commit(&roots[owner], "new source chart");
                 updates
                     .source_revisions
-                    .insert(owner.into(), SourceRevision::new(revision).unwrap());
+                    .insert(owner.into(), SourceRevision::parse(revision).unwrap());
             }
             let hidden = roots[other].with_extension("unavailable");
             fs::rename(&roots[other], &hidden).unwrap();
@@ -171,7 +171,7 @@ fn verify_publication(
     let mut updates = crate::ComponentUpdates {
         source_revisions: BTreeMap::from([(
             "workload".into(),
-            SourceRevision::new(git(&roots["workload"], &["rev-parse", "HEAD"])).unwrap(),
+            SourceRevision::parse(git(&roots["workload"], &["rev-parse", "HEAD"])).unwrap(),
         )]),
         ..Default::default()
     };
@@ -189,7 +189,7 @@ fn verify_publication(
     fs::write(&path, text).unwrap();
     updates.source_revisions = BTreeMap::from([(
         "platform".into(),
-        SourceRevision::new(commit(&roots["platform"], "overlapping chart")).unwrap(),
+        SourceRevision::parse(commit(&roots["platform"], "overlapping chart")).unwrap(),
     )]);
     assert!(crate::update_components(&profile, &lock, &requested, &updates).is_err());
 }

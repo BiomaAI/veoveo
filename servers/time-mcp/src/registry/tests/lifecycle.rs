@@ -31,7 +31,7 @@ async fn stored_columns_supply_versions_with_current_body_validation() {
             .create_event(
                 &owner,
                 TemporalEvent {
-                    event_id: TemporalEventId::new(format!("event-{}", Uuid::now_v7())).unwrap(),
+                    event_id: TemporalEventId::parse(format!("event-{}", Uuid::now_v7())).unwrap(),
                     name: "fixture".into(),
                     due: resolved(&TemporalEngine::new(files.bootstrap.clone())),
                     state: TemporalEventState::Scheduled,

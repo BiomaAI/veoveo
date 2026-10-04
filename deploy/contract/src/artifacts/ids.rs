@@ -6,22 +6,8 @@ use url::Url;
 
 use super::{ArtifactError, invalid_identifier};
 
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
+#[veoveo_types::id(text(ArtifactNames))]
 #[schemars(!try_from,!into)]
-#[id(string,error=ArtifactError,validate=validate_dns_name)]
 pub struct ArtifactName(
     #[schemars(regex(
         pattern = r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$"
@@ -29,22 +15,8 @@ pub struct ArtifactName(
     String,
 );
 
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
+#[veoveo_types::id(text(ReleaseVersions))]
 #[schemars(!try_from,!into)]
-#[id(string,error=ArtifactError,validate=validate_semver)]
 pub struct ReleaseVersion(
     #[schemars(regex(
         pattern = r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$"
@@ -52,22 +24,8 @@ pub struct ReleaseVersion(
     String,
 );
 
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
+#[veoveo_types::id(prefixed(ArtifactDigests, "sha256:"))]
 #[schemars(!try_from,!into)]
-#[id(string,error=ArtifactError,validate=validate_digest)]
 pub struct ArtifactDigest(#[schemars(regex(pattern = r"^sha256:[0-9a-f]{64}$"))] String);
 
 #[derive(
@@ -129,23 +87,33 @@ impl From<ArtifactCoordinate> for String {
     }
 }
 
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
+#[veoveo_types::id(text(SourceRevisions))]
 #[schemars(!try_from,!into)]
-#[id(string,error=ArtifactError,validate=validate_revision)]
 pub struct SourceRevision(#[schemars(regex(pattern = r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$"))] String);
+
+#[doc(hidden)]
+pub struct SourceRevisions;
+impl veoveo_types::IdProfile for SourceRevisions {
+    type Error = ArtifactError;
+    const PROFILE: veoveo_types::IdProfileSpec<Self::Error> =
+        veoveo_types::IdProfileSpec::text(|value, _| validate_revision(value));
+}
+
+#[doc(hidden)]
+pub struct ArtifactNames;
+impl veoveo_types::IdProfile for ArtifactNames {
+    type Error = ArtifactError;
+    const PROFILE: veoveo_types::IdProfileSpec<Self::Error> =
+        veoveo_types::IdProfileSpec::text(|value, _| validate_dns_name(value));
+}
+
+#[doc(hidden)]
+pub struct ReleaseVersions;
+impl veoveo_types::IdProfile for ReleaseVersions {
+    type Error = ArtifactError;
+    const PROFILE: veoveo_types::IdProfileSpec<Self::Error> =
+        veoveo_types::IdProfileSpec::text(|value, _| validate_semver(value));
+}
 
 fn validate_dns_name(value: &str) -> Result<(), ArtifactError> {
     if value.is_empty() || value.len() > 253 {
@@ -181,28 +149,6 @@ fn validate_semver(value: &str) -> Result<(), ArtifactError> {
             "must be Semantic Versioning 2.0.0",
         )
     })
-}
-
-fn validate_digest(value: &str) -> Result<(), ArtifactError> {
-    let Some(hex) = value.strip_prefix("sha256:") else {
-        return Err(invalid_identifier(
-            "artifact digest",
-            value,
-            "must start with sha256:",
-        ));
-    };
-    if hex.len() != 64
-        || !hex
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-    {
-        return Err(invalid_identifier(
-            "artifact digest",
-            value,
-            "must contain 64 lowercase hexadecimal digits",
-        ));
-    }
-    Ok(())
 }
 
 fn validate_coordinate(value: &str) -> Result<(), ArtifactError> {
@@ -255,4 +201,28 @@ fn validate_revision(value: &str) -> Result<(), ArtifactError> {
         ));
     }
     Ok(())
+}
+
+#[doc(hidden)]
+pub struct ArtifactDigests;
+impl veoveo_types::IdProfile for ArtifactDigests {
+    type Error = ArtifactError;
+    const PROFILE: veoveo_types::IdProfileSpec<Self::Error> = veoveo_types::IdProfileSpec::hex(
+        veoveo_types::HexGrammar {
+            length: 64,
+            case: veoveo_types::HexCase::Lower,
+            nonzero: false,
+        },
+        |value, _, failure| {
+            invalid_identifier(
+                "artifact digest",
+                value,
+                if matches!(failure, veoveo_types::IdFailure::Prefix) {
+                    "must start with sha256:"
+                } else {
+                    "must contain 64 lowercase hexadecimal digits"
+                },
+            )
+        },
+    );
 }

@@ -52,7 +52,7 @@ async fn native_authority_changes_cover_grants_directory_policy_tasks_and_journa
             "record",
             RecordId::new(
                 "computer_execution",
-                surrealdb::types::Uuid::from(operation.execution_id().into_uuid()),
+                surrealdb::types::Uuid::from(operation.execution_id().as_uuid()),
             ),
         ))
         .await

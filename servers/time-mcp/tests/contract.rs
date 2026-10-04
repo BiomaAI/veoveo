@@ -31,7 +31,7 @@ fn scope_wire_values_match_the_published_vocabulary_and_schema() {
         assert!(unknown.parse::<TimeScope>().is_err());
         assert!(serde_json::from_value::<TimeScope>(unknown.into()).is_err());
     }
-    assert!(ScopeName::new("installation:additional").is_ok());
+    assert!(ScopeName::parse("installation:additional").is_ok());
 }
 
 fn check_id<T: Serialize + DeserializeOwned>(valid: &str, foreign: &str) {
@@ -62,7 +62,7 @@ fn public_id_deserialization_applies_domain_validation() {
 
 #[test]
 fn consumer_constructs_authority_identity_from_the_owning_library() {
-    let id = AuthorityReleaseId::new("time-release-iana").unwrap();
+    let id = AuthorityReleaseId::parse("time-release-iana").unwrap();
     let uri = TimeAuthorityReleaseUri::new(&id);
     assert_eq!(
         uri.as_str(),
@@ -118,7 +118,7 @@ fn release_uri_preserves_every_supported_id_character() {
         "time-release-Alpha_9.2:edition",
         "time-release-.",
     ] {
-        let id = AuthorityReleaseId::new(id).unwrap();
+        let id = AuthorityReleaseId::parse(id).unwrap();
         let uri = TimeAuthorityReleaseUri::new(&id);
         let decoded = TimeAuthorityReleaseUri::parse(uri.as_str()).unwrap();
         assert_eq!(decoded.release_id(), &id);

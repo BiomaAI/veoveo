@@ -37,10 +37,10 @@ pub async fn identity_for_profile(
     let mut identity = super::identity(&owner);
     let id = Uuid::now_v7();
     let context = identity.request_context.as_mut().unwrap();
-    context.access_token.oauth_client_id = OAuthClientId::new(client).unwrap();
-    context.access_token.audience = ProtectedResourceId::new(resource).unwrap();
+    context.access_token.oauth_client_id = OAuthClientId::parse(client).unwrap();
+    context.access_token.audience = ProtectedResourceId::parse(resource).unwrap();
     context.access_token.session_family =
-        Some(GatewayRefreshFamilyId::new(id.to_string()).unwrap());
+        Some(GatewayRefreshFamilyId::parse(id.to_string()).unwrap());
     let principal = &context.principal;
     let now = Utc::now();
     let record = gateway_refresh_family_record_id(id);

@@ -25,10 +25,10 @@ impl McpServerContract for TimeContract {
     type Resource = TimeResource;
 
     fn slug() -> ServerSlug {
-        ServerSlug::new("time").expect("declared Time slug")
+        ServerSlug::parse("time").expect("declared Time slug")
     }
     fn scheme() -> ResourceScheme {
-        ResourceScheme::new("time").expect("declared Time scheme")
+        ResourceScheme::parse("time").expect("declared Time scheme")
     }
     fn scopes() -> &'static [TimeScope] {
         TimeScope::ALL

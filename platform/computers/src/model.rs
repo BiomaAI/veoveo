@@ -31,7 +31,7 @@ pub struct ComputerPage {
 impl Computer {
     pub fn instance_id(&self) -> Uuid {
         self.replacement_instance_id
-            .unwrap_or(self.computer_id.into_uuid())
+            .unwrap_or(self.computer_id.as_uuid())
     }
 }
 
@@ -99,5 +99,5 @@ impl TryFrom<ComputerRecord> for Computer {
 }
 
 pub(crate) fn computer_record(id: crate::api::ComputerId) -> RecordId {
-    RecordId::new("computer", surrealdb::types::Uuid::from(id.into_uuid()))
+    RecordId::new("computer", surrealdb::types::Uuid::from(id.as_uuid()))
 }

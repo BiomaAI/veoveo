@@ -19,7 +19,7 @@ use veoveo_platform_store::OpenObject;
 fn record(id: crate::api::AccessGrantId) -> RecordId {
     RecordId::new(
         "computer_session_grant",
-        surrealdb::types::Uuid::from(id.into_uuid()),
+        surrealdb::types::Uuid::from(id.as_uuid()),
     )
 }
 pub(crate) fn object(value: &impl Serialize) -> Result<OpenObject> {

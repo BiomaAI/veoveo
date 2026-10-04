@@ -47,7 +47,7 @@ async fn publishes_immutable_revisions_and_moves_active_pointer_atomically() {
 
     let audit_context = veoveo_audit_contract::AuditContext {
         actor: veoveo_audit_contract::AuditActor {
-            principal: PrincipalId::new("integration-admin").unwrap(),
+            principal: PrincipalId::parse("integration-admin").unwrap(),
             kind: veoveo_audit_contract::AuditPrincipalKind::Service,
             tenant: None,
             oauth_client: None,
@@ -72,23 +72,23 @@ async fn publishes_immutable_revisions_and_moves_active_pointer_atomically() {
 
     let mut second_plane = empty_control_plane();
     second_plane.tenants.push(TenantDefinition {
-        id: TenantId::new("tenant-integration").unwrap(),
+        id: TenantId::parse("tenant-integration").unwrap(),
         title: Some("Integration tenant".to_owned()),
         description: None,
         metadata: serde_json::json!({}),
     });
     second_plane.policies.push(PolicySet {
-        version: PolicyVersion::new("r1").unwrap(),
+        version: PolicyVersion::parse("r1").unwrap(),
         rules: Vec::new(),
         metadata: serde_json::Value::Null,
     });
     second_plane.work_contexts.push(WorkContextDefinition {
-        id: WorkContextId::new("operations").unwrap(),
-        tenant: TenantId::new("tenant-integration").unwrap(),
+        id: WorkContextId::parse("operations").unwrap(),
+        tenant: TenantId::parse("tenant-integration").unwrap(),
         title: "Operations".to_owned(),
-        policy_revision: PolicyVersion::new("r1").unwrap(),
+        policy_revision: PolicyVersion::parse("r1").unwrap(),
         output_policy: WorkContextOutputPolicy {
-            owner: AccessSubject::Group(GroupId::new("operations").unwrap()),
+            owner: AccessSubject::Group(GroupId::parse("operations").unwrap()),
             initial_grants: Vec::new(),
             classification: None,
             data_labels: BTreeSet::new(),
@@ -98,7 +98,7 @@ async fn publishes_immutable_revisions_and_moves_active_pointer_atomically() {
             principals: BTreeSet::new(),
             groups: BTreeSet::new(),
             roles: BTreeSet::new(),
-            oauth_clients: BTreeSet::from([OAuthClientId::new("automation").unwrap()]),
+            oauth_clients: BTreeSet::from([OAuthClientId::parse("automation").unwrap()]),
         }],
     });
     let second = revision("gcp-second", "b".repeat(64), second_plane);
@@ -187,11 +187,11 @@ fn revision(
     control_plane: GatewayControlPlane,
 ) -> GatewayControlPlaneRevision {
     GatewayControlPlaneRevision {
-        revision_id: GatewayControlPlaneRevisionId::new(id).unwrap(),
+        revision_id: GatewayControlPlaneRevisionId::parse(id).unwrap(),
         sha256,
         source: GatewayControlPlaneRevisionSource::SeedFile,
         applied_at: Utc::now(),
-        applied_by: PrincipalId::new("integration-admin").unwrap(),
+        applied_by: PrincipalId::parse("integration-admin").unwrap(),
         tenant: None,
         control_plane,
     }

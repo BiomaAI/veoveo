@@ -52,14 +52,12 @@ impl VehicleControlAuthority {
         index::page(
             records,
             |row| {
-                Ok(
-                    UavGrantCursor::new(
-                        active_session,
-                        ControlGrantId::new(row.grant_id.clone())?,
-                    )?
-                    .as_str()
-                    .to_owned(),
-                )
+                Ok(UavGrantCursor::new(
+                    active_session,
+                    ControlGrantId::parse(row.grant_id.clone())?,
+                )?
+                .as_str()
+                .to_owned())
             },
             |row| Ok(grant_view(row)?),
         )
@@ -93,7 +91,7 @@ impl VehicleControlAuthority {
             records,
             |row| {
                 Ok(
-                    UavPlanCursor::new(MissionPlanId::new(row.plan_id.clone())?)?
+                    UavPlanCursor::new(MissionPlanId::parse(row.plan_id.clone())?)?
                         .as_str()
                         .to_owned(),
                 )
@@ -253,7 +251,7 @@ impl VehicleControlAuthority {
         records
             .into_iter()
             .map(|row| {
-                VehicleId::new(row.vehicle_id)
+                VehicleId::parse(row.vehicle_id)
                     .map_err(|e| ControlAuthorityError::Invalid(e.to_string()))
             })
             .collect()

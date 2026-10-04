@@ -36,7 +36,7 @@ fn stopped(operation: &FileOperation) -> ReachedState {
     ReachedState {
         provider_instance_id: binding.provider_instance_id,
         computer_id: binding.computer_id,
-        replacement_instance_id: (binding.instance_id != binding.computer_id.into_uuid())
+        replacement_instance_id: (binding.instance_id != binding.computer_id.as_uuid())
             .then_some(binding.instance_id),
         template_fingerprint: binding.template_fingerprint.clone(),
         resource_id: binding.resource_id.clone(),

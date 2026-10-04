@@ -439,7 +439,7 @@ mod tests {
         let valid = release(1, &dataset);
         valid.validate().unwrap();
         for scheme in ["map", "artifact"] {
-            let scheme = veoveo_types::ResourceScheme::new(scheme).unwrap();
+            let scheme = veoveo_types::ResourceScheme::parse(scheme).unwrap();
             let presented = veoveo_artifact_contract::ArtifactUri::presented(
                 &scheme,
                 valid.raw_artifact_uri.artifact_id(),

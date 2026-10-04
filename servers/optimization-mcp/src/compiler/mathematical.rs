@@ -279,7 +279,7 @@ mod tests {
 
     #[test]
     fn compiler_merges_duplicate_terms_into_stable_csr() {
-        let x = VariableId::new("x").unwrap();
+        let x = VariableId::parse("x").unwrap();
         let problem = ConvexProblem {
             version: CONVEX_PROBLEM_VERSION.to_owned(),
             kind: ConvexProblemKind::LinearProgram,
@@ -298,7 +298,7 @@ mod tests {
                 offset: FiniteF64::default(),
             },
             linear_constraints: vec![LinearConstraint {
-                constraint_id: ConstraintId::new("row").unwrap(),
+                constraint_id: ConstraintId::parse("row").unwrap(),
                 terms: vec![
                     LinearTerm {
                         variable_id: x.clone(),

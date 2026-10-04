@@ -147,7 +147,7 @@ fn automation_mutations_require_named_tools_and_reads_keep_exact_resource_identi
                 path,
                 &Method::GET,
                 Some(computer),
-                Some(veoveo_types::TaskId::from_uuid(grant.into_uuid())),
+                Some(veoveo_types::TaskId::from_uuid(grant.as_uuid())),
                 grant_id,
                 None,
                 None
@@ -441,7 +441,7 @@ fn self_revocation_is_a_json_mutation_bound_to_the_parents_read_authority() {
             path,
             &Method::POST,
             Some(computer),
-            Some(veoveo_types::TaskId::from_uuid(grant.into_uuid())),
+            Some(veoveo_types::TaskId::from_uuid(grant.as_uuid())),
             None,
             Some(grant),
             None

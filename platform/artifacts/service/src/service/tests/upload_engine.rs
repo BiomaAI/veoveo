@@ -32,12 +32,12 @@ async fn fixture(
         .unwrap()
         .unwrap();
     let mut identity = actor.identity.clone();
-    identity.server = contract::ServerSlug::new(contract::ARTIFACT_UPLOAD_AUDIENCE).unwrap();
-    identity.profile = contract::GatewayProfileId::new("fixture").unwrap();
+    identity.server = contract::ServerSlug::parse(contract::ARTIFACT_UPLOAD_AUDIENCE).unwrap();
+    identity.profile = contract::GatewayProfileId::parse("fixture").unwrap();
     identity
         .actor
         .scopes
-        .insert(veoveo_types::ScopeName::new("artifact:upload").unwrap());
+        .insert(veoveo_types::ScopeName::parse("artifact:upload").unwrap());
     bind_request_context(&mut identity);
     contract::VerifiedArtifactUploadIdentity {
         identity,
@@ -60,7 +60,7 @@ async fn upload_http_enforces_identity_and_streams_to_a_durable_receipt() {
     let store = database.connect().await;
     let actor = caller("alice", "acme", &[]);
     let verified = fixture(&store, &actor).await;
-    let issuer_id = contract::TokenIssuer::new("veoveo-internal").unwrap();
+    let issuer_id = contract::TokenIssuer::parse("veoveo-internal").unwrap();
     let issuer =
         GatewayInternalTokenIssuer::new(issuer_id.clone(), crate::http::tests::signing_key());
     let token = issuer
@@ -75,7 +75,7 @@ async fn upload_http_enforces_identity_and_streams_to_a_durable_receipt() {
         .unwrap();
     let verifier = GatewayInternalTokenVerifier::new(
         issuer_id,
-        contract::ServerSlug::new(contract::ARTIFACT_UPLOAD_AUDIENCE).unwrap(),
+        contract::ServerSlug::parse(contract::ARTIFACT_UPLOAD_AUDIENCE).unwrap(),
         crate::http::tests::trust_bundle(),
     );
     let service = UploadService::new(
@@ -104,7 +104,7 @@ async fn upload_http_enforces_identity_and_streams_to_a_durable_receipt() {
     let ordinary = issuer
         .issue(
             verified.identity.profile.clone(),
-            contract::ServerSlug::new("artifact").unwrap(),
+            contract::ServerSlug::parse("artifact").unwrap(),
             verified.identity.actor.clone(),
             verified.identity.authority.clone(),
             None,
@@ -206,7 +206,7 @@ async fn upload_http_enforces_identity_and_streams_to_a_durable_receipt() {
         data.len() as u64
     );
     let mut foreign = verified.identity.clone();
-    foreign.actor.id = veoveo_types::PrincipalId::new("another-person").unwrap();
+    foreign.actor.id = veoveo_types::PrincipalId::parse("another-person").unwrap();
     foreign.authority.provenance = InvocationProvenance::Direct {
         initiator: foreign.actor.id.clone(),
     };
@@ -343,7 +343,7 @@ async fn upload_service_replays_admission_and_parts_then_recovers_completion_on_
     assert!(!created);
     assert_eq!(session.upload_id, replay.upload_id);
     let mut foreign = verified.clone();
-    foreign.identity.actor.id = veoveo_types::PrincipalId::new("another-person").unwrap();
+    foreign.identity.actor.id = veoveo_types::PrincipalId::parse("another-person").unwrap();
     assert!(matches!(
         service.status(&foreign, session.upload_id, 0).await,
         Err(crate::uploads::UploadFault(
@@ -559,12 +559,12 @@ async fn upload_ownership_filters_foreign_malformed_rows_before_decoding() {
         for field in ["tenant", "actor", "profile", "context", "issuer", "subject", "missing_tenant"] {
             let mut foreign = verified.clone();
             match field {
-                "tenant" => foreign.identity.actor.tenant = Some(veoveo_types::TenantId::new("other-tenant").unwrap()),
-                "actor" => foreign.identity.actor.id = veoveo_types::PrincipalId::new("other-actor").unwrap(),
-                "profile" => foreign.identity.profile = veoveo_types::GatewayProfileId::new("other-profile").unwrap(),
-                "context" => foreign.identity.authority.work_context = veoveo_types::WorkContextId::new("other-context").unwrap(),
-                "issuer" => foreign.identity.actor.issuer = veoveo_types::TokenIssuer::new("https://other.example").unwrap(),
-                "subject" => foreign.identity.actor.subject = veoveo_types::TokenSubject::new("other-subject").unwrap(),
+                "tenant" => foreign.identity.actor.tenant = Some(veoveo_types::TenantId::parse("other-tenant").unwrap()),
+                "actor" => foreign.identity.actor.id = veoveo_types::PrincipalId::parse("other-actor").unwrap(),
+                "profile" => foreign.identity.profile = veoveo_types::GatewayProfileId::parse("other-profile").unwrap(),
+                "context" => foreign.identity.authority.work_context = veoveo_types::WorkContextId::parse("other-context").unwrap(),
+                "issuer" => foreign.identity.actor.issuer = veoveo_types::TokenIssuer::parse("https://other.example").unwrap(),
+                "subject" => foreign.identity.actor.subject = veoveo_types::TokenSubject::parse("other-subject").unwrap(),
                 "missing_tenant" => foreign.identity.actor.tenant = None,
                 _ => unreachable!(),
             }

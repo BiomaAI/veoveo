@@ -9,7 +9,7 @@ pub(super) async fn publish_world_revision(
     scenario: &UavAcceptanceScenario,
 ) -> Result<FrameWorldRevision> {
     let tree_digest = hex::encode(Sha256::digest(serde_json::to_vec(&scenario.world.tree)?));
-    let world_id = FrameWorldId::new(format!(
+    let world_id = FrameWorldId::parse(format!(
         "{}-{}",
         scenario.world.world_id,
         &tree_digest[..16]

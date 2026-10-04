@@ -547,7 +547,7 @@ mod tests {
     #[test]
     fn every_live_operation_is_indeterminate_after_interruption() {
         let operation = DurableOperation::CaptureDataset(CaptureDatasetRequest {
-            session_id: SessionId::new("alpha").unwrap(),
+            session_id: SessionId::parse("alpha").unwrap(),
             duration_seconds: 1.0,
             sensors: vec!["down-camera".to_owned()],
         });
@@ -562,15 +562,15 @@ mod tests {
     fn admitted_map_path_becomes_one_private_vehicle_mission() {
         let now = Utc::now();
         let revision_uri = veoveo_frames_mcp::contract::FrameWorldRevisionUri::new(
-            &veoveo_frames_mcp::contract::FrameWorldId::new("nyc").unwrap(),
-            &veoveo_frames_mcp::contract::FrameWorldRevisionId::new("revision-1").unwrap(),
+            &veoveo_frames_mcp::contract::FrameWorldId::parse("nyc").unwrap(),
+            &veoveo_frames_mcp::contract::FrameWorldRevisionId::parse("revision-1").unwrap(),
         );
         let plan = VehicleMissionPlan {
-            plan_id: MissionPlanId::new("plan-1").unwrap(),
-            mission_id: MissionId::new("mission-1").unwrap(),
+            plan_id: MissionPlanId::parse("plan-1").unwrap(),
+            mission_id: MissionId::parse("mission-1").unwrap(),
             principal_key: "issuer#pilot-1".to_owned(),
-            session_id: SessionId::new("uav-showcase").unwrap(),
-            vehicle_id: VehicleId::new("uav-1").unwrap(),
+            session_id: SessionId::parse("uav-showcase").unwrap(),
+            vehicle_id: VehicleId::parse("uav-1").unwrap(),
             expected_world_revision_uri: revision_uri,
             map_route: MapRouteHandoffBuilder {
                 schema_profile: MapRouteHandoffSchema::V1,

@@ -737,7 +737,7 @@ mod tests {
         tokio::fs::write(directory.path().join("tile.glb"), b"glTF")
             .await
             .unwrap();
-        let layer_id = LayerId::new("local-test").unwrap();
+        let layer_id = LayerId::parse("local-test").unwrap();
         let catalog = LayerCatalog::from_definitions(
             vec![LayerDefinition {
                 layer_id: layer_id.clone(),

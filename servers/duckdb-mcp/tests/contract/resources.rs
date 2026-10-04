@@ -39,7 +39,7 @@ fn every_resource_family_round_trips_through_its_owner_and_wire() {
         uris::artifact_uri(ID.parse().unwrap()).to_string(),
         format!("duckdb://artifact/{ID}")
     );
-    assert!(DuckDbScope::try_from(&ScopeName::new("installation:custom").unwrap()).is_err());
+    assert!(DuckDbScope::try_from(&ScopeName::parse("installation:custom").unwrap()).is_err());
     assert_eq!(
         serde_json::to_value(schemars::schema_for!(DuckDbResource)).unwrap()["type"],
         "string"

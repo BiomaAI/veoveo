@@ -1,7 +1,7 @@
 //! Fixed declarations shared by the typed contract and hosted discovery.
 pub static SCHEME: std::sync::LazyLock<veoveo_types::ResourceScheme> =
     std::sync::LazyLock::new(|| {
-        veoveo_types::ResourceScheme::new("timeseries").expect("declared server resource scheme")
+        veoveo_types::ResourceScheme::parse("timeseries").expect("declared server resource scheme")
     });
 
 pub const DOCS_URI: &str = "timeseries://docs";

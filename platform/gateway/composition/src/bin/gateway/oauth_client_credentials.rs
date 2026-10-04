@@ -353,7 +353,7 @@ pub(super) async fn token_endpoint_client_credentials(
         }
     };
     let work_context = match request.work_context.as_deref() {
-        Some(value) => match WorkContextId::new(value.trim()) {
+        Some(value) => match WorkContextId::parse(value.trim()) {
             Ok(context) => context,
             Err(_) => {
                 return oauth_error_response(

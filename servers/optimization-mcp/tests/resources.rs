@@ -21,7 +21,8 @@ fn every_discovery_template_expands_to_a_typed_address() {
         (
             uris::PROFILE_TEMPLATE,
             R::Profile(
-                OptimizationProfileUri::new(SolverProfileId::new("route.v2-a_1").unwrap()).unwrap(),
+                OptimizationProfileUri::new(SolverProfileId::parse("route.v2-a_1").unwrap())
+                    .unwrap(),
             ),
             "profile_id",
             "route.v2-a_1".into(),
@@ -227,8 +228,8 @@ fn output_identity_admission_is_canonical_rfc_uuidv7() {
         assert!(SolutionId::parse(format!("solution-{value}")).is_err());
         assert!(VerificationId::parse(format!("verification-{value}")).is_err());
     }
-    assert!(SolverProfileId::new(".").is_err());
-    assert!(SolverProfileId::new("..").is_err());
-    assert!(SolverProfileId::new("a:b").is_err());
-    assert!(OptimizationScope::try_from(&ScopeName::new("installation:read").unwrap()).is_err());
+    assert!(SolverProfileId::parse(".").is_err());
+    assert!(SolverProfileId::parse("..").is_err());
+    assert!(SolverProfileId::parse("a:b").is_err());
+    assert!(OptimizationScope::try_from(&ScopeName::parse("installation:read").unwrap()).is_err());
 }

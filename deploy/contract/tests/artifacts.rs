@@ -5,12 +5,12 @@ use veoveo_deploy_contract::{
 
 #[test]
 fn artifact_identity_rejects_ambiguous_and_mutable_inputs() {
-    assert!(ArtifactDigest::new("sha256:abc").is_err());
+    assert!(ArtifactDigest::parse("sha256:abc").is_err());
     assert!(ArtifactCoordinate::new("oci://registry.example/image:latest").is_err());
     assert!(ArtifactCoordinate::new("https://user:secret@example.test/image").is_err());
-    assert!(ReleaseVersion::new("release-one").is_err());
-    assert!(SourceRevision::new("main").is_err());
-    assert!(SourceRevision::new("a".repeat(40)).is_ok());
+    assert!(ReleaseVersion::parse("release-one").is_err());
+    assert!(SourceRevision::parse("main").is_err());
+    assert!(SourceRevision::parse("a".repeat(40)).is_ok());
 }
 
 #[test]

@@ -3,7 +3,7 @@ use veoveo_types::{IdentifierError, ResourceScheme, ResourceUri, ScopeName};
 #[test]
 fn scope_names_preserve_external_vocabularies_and_reject_invalid_tokens() {
     for name in ["map:feature:read", "openid", "new-server:custom-operation"] {
-        let scope = ScopeName::new(name).unwrap();
+        let scope = ScopeName::parse(name).unwrap();
         assert_eq!(scope.as_str(), name);
         assert_eq!(
             serde_json::to_value(&scope).unwrap(),
@@ -22,11 +22,11 @@ fn scope_names_preserve_external_vocabularies_and_reject_invalid_tokens() {
         "x\0y",
         "\u{2003}read",
     ] {
-        assert!(ScopeName::new(invalid).is_err(), "accepted {invalid:?}");
+        assert!(ScopeName::parse(invalid).is_err(), "accepted {invalid:?}");
         assert!(serde_json::from_value::<ScopeName>(serde_json::json!(invalid)).is_err());
     }
     assert_eq!(
-        ScopeName::new("").unwrap_err().to_string(),
+        ScopeName::parse("").unwrap_err().to_string(),
         "invalid identifier \"\": must not be empty"
     );
 }
@@ -34,11 +34,11 @@ fn scope_names_preserve_external_vocabularies_and_reject_invalid_tokens() {
 #[test]
 fn scheme_profile_and_reference_wire_spelling_are_preserved() {
     for valid in ["example", "uav-sim", "vendor.v2", "vendor+resource"] {
-        assert_eq!(ResourceScheme::new(valid).unwrap().as_str(), valid);
+        assert_eq!(ResourceScheme::parse(valid).unwrap().as_str(), valid);
     }
     for invalid in ["", "Map", "2map", "map_read", "map:read", "map/read"] {
         assert!(
-            ResourceScheme::new(invalid).is_err(),
+            ResourceScheme::parse(invalid).is_err(),
             "accepted {invalid:?}"
         );
     }

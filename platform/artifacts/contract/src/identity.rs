@@ -1,24 +1,6 @@
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-
 /// Canonical identity of one logical artifact occurrence. Every put creates a
 /// fresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(error = ArtifactIdError, admit = admit_artifact_id, constructor = parse, wire_string, generate = uuid::Uuid::now_v7)]
+#[veoveo_types::id(uuid(ArtifactIds), fresh)]
 pub struct ArtifactId(uuid::Uuid);
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -26,23 +8,8 @@ pub struct ArtifactId(uuid::Uuid);
 pub struct ArtifactIdError;
 
 impl ArtifactId {
-    pub fn as_uuid(self) -> uuid::Uuid {
-        self.0
-    }
-
     pub fn plane_uri(self) -> crate::ArtifactUri {
         crate::ArtifactUri::plane(self)
-    }
-}
-
-impl TryFrom<uuid::Uuid> for ArtifactId {
-    type Error = ArtifactIdError;
-
-    fn try_from(value: uuid::Uuid) -> Result<Self, Self::Error> {
-        if value.get_version_num() != 7 || value.get_variant() != uuid::Variant::RFC4122 {
-            return Err(ArtifactIdError);
-        }
-        Ok(Self(value))
     }
 }
 
@@ -57,9 +24,30 @@ pub fn parse_artifact_plane_uri(uri: &str) -> Option<ArtifactId> {
         .map(|uri| uri.artifact_id())
 }
 
-fn admit_artifact_id(value: &str) -> Result<uuid::Uuid, ArtifactIdError> {
-    let uuid = uuid::Uuid::parse_str(value).map_err(|_| ArtifactIdError)?;
-    ArtifactId::try_from(uuid).map(|id| id.0)
+use veoveo_types::{
+    FreshId, IdGeneration, IdProfile, IdProfileSpec, IdSchema, UuidGrammar, UuidSpelling,
+    UuidVariant,
+};
+
+#[doc(hidden)]
+pub struct ArtifactIds;
+impl IdProfile for ArtifactIds {
+    type Error = ArtifactIdError;
+    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
+        generation: IdGeneration {
+            fresh: FreshId::UuidV7,
+            stable_v5_namespace: None,
+        },
+        schema: IdSchema::DerivedString,
+        ..IdProfileSpec::uuid(
+            UuidGrammar {
+                versions: &[7],
+                variant: UuidVariant::Rfc4122,
+                spelling: UuidSpelling::ParserAliases,
+            },
+            |_, _, _| ArtifactIdError,
+        )
+    };
 }
 
 #[cfg(test)]

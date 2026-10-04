@@ -10,7 +10,7 @@ impl Signing {
     pub fn new() -> Self {
         let key = rcgen::KeyPair::generate_for(&rcgen::PKCS_ED25519).unwrap();
         let trust = GatewayInternalTrustBundle::from_json(&json!({"keys":[{"kty":"OKP","crv":"Ed25519","x":URL_SAFE_NO_PAD.encode(key.public_key_raw()),"alg":"EdDSA","use":"sig","kid":"fixture"}]}).to_string()).unwrap();
-        let issuer = TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER).unwrap();
+        let issuer = TokenIssuer::parse(GATEWAY_INTERNAL_TOKEN_ISSUER).unwrap();
         Self {
             issuer: GatewayInternalTokenIssuer::new(
                 issuer,
@@ -47,7 +47,7 @@ impl Signing {
         self.issuer
             .issue(
                 id.profile,
-                ServerSlug::new(audience).unwrap(),
+                ServerSlug::parse(audience).unwrap(),
                 id.actor,
                 id.authority,
                 id.request_context,

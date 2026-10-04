@@ -5,7 +5,7 @@ use veoveo_types::{ResourceAddress, ResourceUri};
 
 pub static SCHEME: std::sync::LazyLock<veoveo_types::ResourceScheme> =
     std::sync::LazyLock::new(|| {
-        veoveo_types::ResourceScheme::new("stream").expect("declared server resource scheme")
+        veoveo_types::ResourceScheme::parse("stream").expect("declared server resource scheme")
     });
 
 pub const DOCS_URI: &str = "stream://docs";

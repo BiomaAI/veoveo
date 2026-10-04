@@ -320,8 +320,8 @@ mod tests {
             forged[field] = serde_json::json!("forbidden");
             assert!(serde_json::from_value::<Content>(forged).is_err());
         }
-        assert!(AgentDefinitionId::new("../escape").is_err());
-        assert!(AgentDefinitionId::new("a".repeat(129)).is_err());
+        assert!(AgentDefinitionId::parse("../escape").is_err());
+        assert!(AgentDefinitionId::parse("a".repeat(129)).is_err());
     }
 }
 

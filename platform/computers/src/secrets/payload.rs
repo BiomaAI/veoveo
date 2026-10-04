@@ -31,7 +31,7 @@ pub struct CommandBinding {
 impl CommandBinding {
     pub fn instance_id(&self) -> Uuid {
         self.replacement_instance_id
-            .unwrap_or(self.computer_id.into_uuid())
+            .unwrap_or(self.computer_id.as_uuid())
     }
     pub(super) fn aad(&self) -> Result<Vec<u8>> {
         let hash = |s: &str| {
@@ -49,7 +49,7 @@ impl CommandBinding {
             || self.required_output_labels.len() > 256
             || self
                 .replacement_instance_id
-                .is_some_and(|id| id.is_nil() || id == self.computer_id.into_uuid())
+                .is_some_and(|id| id.is_nil() || id == self.computer_id.as_uuid())
         {
             return Err(ComputerError::InvalidInput);
         }

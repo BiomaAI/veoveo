@@ -55,7 +55,7 @@ impl ClientAssertionVerifier {
         }
         Ok(VerifiedClientAssertion {
             client_id: self.config.client_id.clone(),
-            jwt_id: JwtId::new(claims.jti).map_err(AuthError::Claim)?,
+            jwt_id: JwtId::parse(claims.jti).map_err(AuthError::Claim)?,
             expires_at: unix_timestamp(claims.exp, "exp")?,
         })
     }

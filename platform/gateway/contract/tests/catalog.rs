@@ -15,12 +15,12 @@ enum InventedTarget {
 }
 fn audit(_: &InventedTarget) -> Result<TargetAuditResource, ExtensionError> {
     Ok(TargetAuditResource {
-        server: veoveo_types::ServerSlug::new("invented").unwrap(),
+        server: veoveo_types::ServerSlug::parse("invented").unwrap(),
         uri: veoveo_types::ResourceUri::new("invented://items/root").unwrap(),
     })
 }
 fn name(value: &str) -> ExtensionName {
-    ExtensionName::new(value).unwrap()
+    ExtensionName::parse(value).unwrap()
 }
 fn descriptor(kind: &str) -> ActionDescriptor {
     ActionDescriptor {
@@ -177,7 +177,7 @@ struct ProjectedObject {
 impl CatalogSection for ProjectedObjects {
     fn validate(&self, _: &CatalogFacts) -> Result<(), ExtensionError> {
         for item in &self.0 {
-            ExtensionName::new(item.kind.clone())?;
+            ExtensionName::parse(item.kind.clone())?;
         }
         Ok(())
     }
@@ -190,7 +190,7 @@ impl CatalogSection for ProjectedObjects {
             .map(|item| {
                 Ok(CatalogObjectDescriptor {
                     tenant: item.tenant.clone(),
-                    kind: ExtensionName::new(item.kind.clone())?,
+                    kind: ExtensionName::parse(item.kind.clone())?,
                     id: item.id.clone(),
                     value: serde_json::json!({"value":1}),
                 })

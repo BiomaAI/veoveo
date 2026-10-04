@@ -15,7 +15,7 @@ fn typed_scheme_and_authority_build_without_interpolation() {
         "wss",
         "file",
     ] {
-        let scheme = ResourceScheme::new(scheme).unwrap();
+        let scheme = ResourceScheme::parse(scheme).unwrap();
         let uri =
             ResourceUriBuilder::from_components(&scheme, UriAuthority::new("occurrence").unwrap())
                 .unwrap()
@@ -29,7 +29,7 @@ fn typed_scheme_and_authority_build_without_interpolation() {
         assert!(!parts.has_query());
     }
     let uri = ResourceUriBuilder::from_components(
-        &ResourceScheme::new("artifact").unwrap(),
+        &ResourceScheme::parse("artifact").unwrap(),
         UriAuthority::new("0197f78e-f2f0-7a6e-8a5d-f41c691e4471").unwrap(),
     )
     .unwrap()
@@ -65,13 +65,13 @@ fn authority_admission_rejects_injection_encoding_and_normalization() {
         let authority = UriAuthority::new(value).unwrap();
         assert!(
             ResourceUriBuilder::from_components(
-                &ResourceScheme::new("https").unwrap(),
+                &ResourceScheme::parse("https").unwrap(),
                 authority.clone()
             )
             .is_err()
         );
         let uri = ResourceUriBuilder::from_components(
-            &ResourceScheme::new("example").unwrap(),
+            &ResourceScheme::parse("example").unwrap(),
             authority,
         )
         .unwrap()

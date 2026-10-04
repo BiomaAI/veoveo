@@ -14,7 +14,7 @@ async fn view_task_selection_uses_the_authenticated_work_context() {
         let writer = TaskRuntime::new(db.b.clone(), SERVER_SLUG, "writer");
         let caller = identity();
         let mut foreign = caller.clone();
-        foreign.authority.work_context = WorkContextId::new("another-context").unwrap();
+        foreign.authority.work_context = WorkContextId::parse("another-context").unwrap();
         let mut ids = Vec::new();
         for identity in [&caller, &foreign] {
             ids.push(
@@ -79,7 +79,7 @@ async fn view_task_selection_uses_the_authenticated_work_context() {
                 .is_none()
         );
         let mut invalid = caller;
-        invalid.authority.tenant = TenantId::new("another-tenant").unwrap();
+        invalid.authority.tenant = TenantId::parse("another-tenant").unwrap();
         assert_eq!(
             task_query(&runtime, &invalid).err().unwrap().message,
             "invalid View Task authority"

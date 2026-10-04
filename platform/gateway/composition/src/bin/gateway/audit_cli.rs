@@ -118,7 +118,7 @@ async fn connect(
     partition: &PartitionArgs,
     method: AuditReadMethod,
 ) -> anyhow::Result<PlatformStore> {
-    let principal = PrincipalId::new(store.username.clone())?;
+    let principal = PrincipalId::parse(store.username.clone())?;
     let store = PlatformStore::connect(store.into_config()?).await?;
     // The DB-authenticated operator is installation-scoped, including when the
     // selected read partition is a tenant. No CLI argument claims a tenant actor.

@@ -235,10 +235,10 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
     .unwrap();
     // Isolated fixture adoption: qualify all command/lifecycle paths against a
     // real replacement home. Durable product maintenance admission is separate.
-    let initial = Binding::new(computer.computer_id.into_uuid(), selected.fingerprint()).unwrap();
+    let initial = Binding::new(computer.computer_id.as_uuid(), selected.fingerprint()).unwrap();
     let replacement_id = Uuid::now_v7();
     let binding = Binding::replacement(
-        computer.computer_id.into_uuid(),
+        computer.computer_id.as_uuid(),
         replacement_id,
         selected.fingerprint(),
     )
@@ -255,7 +255,7 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
             "computer",
             surrealdb::types::RecordId::new(
                 "computer",
-                surrealdb::types::Uuid::from(computer.computer_id.into_uuid()),
+                surrealdb::types::Uuid::from(computer.computer_id.as_uuid()),
             ),
         ))
         .bind(("instance", replacement_id))
@@ -318,8 +318,8 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         chrono::Utc::now() + chrono::TimeDelta::minutes(10),
     );
     let auth = PlaneAuthenticator::new(
-        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER).unwrap(),
-        vec![ServerSlug::new("computers").unwrap()],
+        TokenIssuer::parse(GATEWAY_INTERNAL_TOKEN_ISSUER).unwrap(),
+        vec![ServerSlug::parse("computers").unwrap()],
         signer.trust.clone(),
     );
     let caller = PlaneCaller {
@@ -750,7 +750,7 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
     // Real product journal and worker, using the same isolated retained home and
     // provider tuple. The earlier manual adapter sequence is now owned here.
     let mut maintenance_control = support::automation::control();
-    let tool = veoveo_mcp_contract::LocalToolName::new("update_template").unwrap();
+    let tool = veoveo_mcp_contract::LocalToolName::parse("update_template").unwrap();
     maintenance_control.servers[0].tools.push(tool.clone());
     maintenance_control.policies[0].rules[0].tools.insert(tool);
     support::policy::install(&db.a, maintenance_control).await;
@@ -834,7 +834,7 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
     assert_eq!(retained.active_operation, None);
     assert_eq!(retained.instance_id(), operation.target_instance_id);
     let replacement = Binding::from_instance(
-        retained.computer_id.into_uuid(),
+        retained.computer_id.as_uuid(),
         retained.instance_id(),
         retained.template_fingerprint.clone(),
     )

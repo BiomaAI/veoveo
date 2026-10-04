@@ -25,7 +25,7 @@ async fn builds_client_with_mutual_tls_material_from_typed_secrets() {
 
     let catalog = catalog_with_mutual_tls_upstream(&ca_path, &cert_env, &key_env);
     let server = catalog
-        .server(&ServerSlug::new("media").expect("server slug"))
+        .server(&ServerSlug::parse("media").expect("server slug"))
         .expect("media server");
 
     ComputersGatewayClientPool::new()
@@ -50,7 +50,7 @@ async fn rejects_invalid_mutual_tls_identity_material() {
 
     let catalog = catalog_with_mutual_tls_upstream(&ca_path, &cert_env, &key_env);
     let server = catalog
-        .server(&ServerSlug::new("media").expect("server slug"))
+        .server(&ServerSlug::parse("media").expect("server slug"))
         .expect("media server");
 
     let err = ComputersGatewayClientPool::new()
@@ -79,12 +79,12 @@ async fn transport_equivalent_servers_share_one_http_client() {
     let catalog = GatewayCatalog::from_control_plane(control_plane, catalog_admission::binding())
         .expect("validated catalog");
     let first = catalog
-        .server(&ServerSlug::new("media").expect("server slug"))
+        .server(&ServerSlug::parse("media").expect("server slug"))
         .expect("media server");
     let mut second = first.clone();
-    second.slug = ServerSlug::new("second").expect("second server slug");
+    second.slug = ServerSlug::parse("second").expect("second server slug");
     second.upstream.url =
-        UpstreamUrl::new("http://127.0.0.1:8788/second/mcp").expect("second upstream URL");
+        UpstreamUrl::parse("http://127.0.0.1:8788/second/mcp").expect("second upstream URL");
     let pool = ComputersGatewayClientPool::new();
 
     let (first_ws, second_ws) =
@@ -170,7 +170,7 @@ async fn catalog_revision_change_retires_previous_upgrade_clients() {
         let first = GatewayCatalog::from_control_plane(plane.clone(), catalog_admission::binding())
             .unwrap();
         let pool = ComputersGatewayClientPool::new();
-        let slug = ServerSlug::new("media").unwrap();
+        let slug = ServerSlug::parse("media").unwrap();
         pool.client(&first, first.server(&slug).unwrap())
             .await
             .unwrap();

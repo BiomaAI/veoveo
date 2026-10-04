@@ -47,7 +47,7 @@ impl ResourceUriBuilder {
     /// handling; the resulting authority must preserve its supplied spelling.
     /// ```compile_fail
     /// use veoveo_types::{ResourceScheme, ResourceUriBuilder};
-    /// ResourceUriBuilder::from_components(&ResourceScheme::new("example").unwrap(), "item");
+    /// ResourceUriBuilder::from_components(&ResourceScheme::parse("example").unwrap(), "item");
     /// ```
     pub fn from_components(
         scheme: &ResourceScheme,

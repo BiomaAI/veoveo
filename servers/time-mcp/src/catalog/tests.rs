@@ -39,8 +39,8 @@ fn instant() -> TimeInstant {
         nanosecond: crate::SubsecondNanoseconds::new(17).unwrap(),
         uncertainty_nanoseconds: 0,
         authority: AuthorityBinding::new(
-            AuthorityReleaseId::new("time-release-tzdb").unwrap(),
-            AuthorityReleaseId::new("time-release-leaps").unwrap(),
+            AuthorityReleaseId::parse("time-release-tzdb").unwrap(),
+            AuthorityReleaseId::parse("time-release-leaps").unwrap(),
         )
         .unwrap(),
     }
@@ -51,7 +51,7 @@ async fn event(catalog: &TimeCatalog, owner: &TimeAccessContext, key: &str) -> T
         .create_event(
             owner,
             TemporalEvent {
-                event_id: TemporalEventId::new(key).unwrap(),
+                event_id: TemporalEventId::parse(key).unwrap(),
                 name: key.into(),
                 due: instant(),
                 state: TemporalEventState::Scheduled,
@@ -94,7 +94,7 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
         )
         .await;
         let peer_event =
-            TemporalEventId::new("event-00000000-0000-7000-8000-000000000000").unwrap();
+            TemporalEventId::parse("event-00000000-0000-7000-8000-000000000000").unwrap();
         assert!(catalog.event(&owner, &peer_event).await.unwrap().is_none());
         assert!(
             catalog
@@ -164,7 +164,7 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
                 .state,
             TemporalEventState::Scheduled
         );
-        let own_id = TemporalEventId::new("event-ffffffff-ffff-7000-8000-000000000000").unwrap();
+        let own_id = TemporalEventId::parse("event-ffffffff-ffff-7000-8000-000000000000").unwrap();
         assert_eq!(
             catalog
                 .cancel_event(&owner, &own_id, crate::TimeVersion::FIRST)
@@ -238,8 +238,10 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
                 .create_epoch(
                     &owner,
                     MissionEpoch {
-                        epoch_id: MissionEpochId::new("epoch-00000000-0000-7000-8000-000000000001")
-                            .unwrap(),
+                        epoch_id: MissionEpochId::parse(
+                            "epoch-00000000-0000-7000-8000-000000000001",
+                        )
+                        .unwrap(),
                         name: "launch".into(),
                         instant: instant(),
                         version: crate::TimeVersion::new(version).unwrap(),
@@ -251,7 +253,7 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
                 .create_calendar(
                     &owner,
                     OperationalCalendar {
-                        calendar_id: CalendarId::new(
+                        calendar_id: CalendarId::parse(
                             "calendar-00000000-0000-7000-8000-000000000001",
                         )
                         .unwrap(),
@@ -269,7 +271,7 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
             .create_calendar(
                 &owner,
                 OperationalCalendar {
-                    calendar_id: CalendarId::new("calendar-00000000-0000-7000-8000-000000000002")
+                    calendar_id: CalendarId::parse("calendar-00000000-0000-7000-8000-000000000002")
                         .unwrap(),
                     version: crate::TimeVersion::new(42).unwrap(),
                     name: "Other".into(),
@@ -280,7 +282,7 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
             )
             .await
             .unwrap();
-        let epoch_id = MissionEpochId::new("epoch-00000000-0000-7000-8000-000000000001").unwrap();
+        let epoch_id = MissionEpochId::parse("epoch-00000000-0000-7000-8000-000000000001").unwrap();
         assert_eq!(
             catalog
                 .epoch(&owner, &epoch_id)
@@ -306,7 +308,7 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
             catalog
                 .epoch(
                     &owner,
-                    &MissionEpochId::new("epoch-00000000-0000-7000-8000-000000000002").unwrap()
+                    &MissionEpochId::parse("epoch-00000000-0000-7000-8000-000000000002").unwrap()
                 )
                 .await
                 .unwrap()
@@ -338,7 +340,7 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
         );
         let versions = || TimeCompletion::CalendarVersion {
             calendar_key: Some(
-                CalendarId::new("calendar-00000000-0000-7000-8000-000000000001").unwrap(),
+                CalendarId::parse("calendar-00000000-0000-7000-8000-000000000001").unwrap(),
             ),
         };
         assert_eq!(
@@ -393,7 +395,7 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
                 .create_calendar(
                     &owner,
                     OperationalCalendar {
-                        calendar_id: CalendarId::new(
+                        calendar_id: CalendarId::parse(
                             "calendar-00000000-0000-7000-8000-000000000001",
                         )
                         .unwrap(),
@@ -480,7 +482,7 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
             .create_time_mission_epoch(TimeMissionEpochDraft {
                 work_context: owner.work_context.clone(),
                 identity: owner.identity.clone(),
-                epoch_key: MissionEpochId::new("epoch-00000000-0000-7000-8000-000000000010")
+                epoch_key: MissionEpochId::parse("epoch-00000000-0000-7000-8000-000000000010")
                     .unwrap(),
                 name: "unrelated".into(),
                 epoch_version: crate::TimeVersion::new(1).unwrap(),
@@ -492,7 +494,7 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
             .unwrap();
         let requested = vec![
             epoch_id.clone(),
-            MissionEpochId::new("epoch-00000000-0000-7000-8000-000000000099").unwrap(),
+            MissionEpochId::parse("epoch-00000000-0000-7000-8000-000000000099").unwrap(),
         ];
         let epochs = catalog.epochs_for_keys(&owner, &requested).await.unwrap();
         assert_eq!(epochs.len(), 1);

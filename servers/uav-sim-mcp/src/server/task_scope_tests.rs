@@ -37,7 +37,7 @@ async fn call_paths_require_the_tool_scope_before_persistence_or_execution() {
     let db = test_support::fixture::TestDb::new().await;
     tokio::time::timeout(Duration::from_secs(90), async {
         let mut simulation = fake_state().unwrap();
-        simulation.session_id = crate::contract::SessionId::new("native-session").unwrap();
+        simulation.session_id = crate::contract::SessionId::parse("native-session").unwrap();
         let adapter = Arc::new(Mutex::new(FakeAdapter::new(simulation.clone())));
         let state = test_support::state(
             &db.a,

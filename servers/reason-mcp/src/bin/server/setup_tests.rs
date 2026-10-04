@@ -34,7 +34,7 @@ fn checked_setup_owns_the_declared_resources_templates_and_capabilities() {
         setup.documents().contract_declaration().contract_revision,
         veoveo_mcp_contract::docs::CONTRACT_REVISION
     );
-    assert!(ReasonScope::try_from(&ScopeName::new("operator:use").unwrap()).is_err());
+    assert!(ReasonScope::try_from(&ScopeName::parse("operator:use").unwrap()).is_err());
 }
 
 #[test]

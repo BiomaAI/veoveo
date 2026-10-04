@@ -39,7 +39,7 @@ fn actual_artifact_labels_and_classification_become_output_requirements() {
     let input = admitted();
     let labels: BTreeSet<DataLabelId> = ["restricted", "grounding-label"]
         .into_iter()
-        .map(|v| DataLabelId::new(v).unwrap())
+        .map(|v| DataLabelId::parse(v).unwrap())
         .collect();
     assert_eq!(input.required_labels(), &labels);
     let grounding = input.into_detections();

@@ -63,10 +63,7 @@ impl ComputersStore {
         let mut params = crate::store::owner_query_bindings(owner)?;
         params.extend([
             ("request", request.into_value()),
-            (
-                "provider",
-                self.provider_instance_id.into_uuid().into_value(),
-            ),
+            ("provider", self.provider_instance_id.as_uuid().into_value()),
         ]);
         let mut response = self
             .query(include_str!("../queries/reservation_read.surql"), params)
@@ -107,11 +104,11 @@ impl ComputersStore {
         let id = crate::api::ComputerId::new();
         let computer = computer_record(id);
         let content = Content {
-            computer_id: id.into_uuid(),
+            computer_id: id.as_uuid(),
             owner_key: key.clone(),
             tenant_key: owner.tenant_key().into(),
             owner_context: object(owner)?,
-            provider_instance_id: self.provider_instance_id.into_uuid(),
+            provider_instance_id: self.provider_instance_id.as_uuid(),
             template_id: input.template_id.to_string(),
             template_fingerprint: input.template_fingerprint.clone(),
         };

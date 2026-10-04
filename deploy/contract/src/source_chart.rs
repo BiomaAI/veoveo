@@ -80,7 +80,7 @@ pub fn source_chart_content_digest(repository: &Path, chart: &Path) -> Result<Ar
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect::<String>();
-    Ok(ArtifactDigest::new(format!("sha256:{hex}"))?)
+    Ok(ArtifactDigest::parse(format!("sha256:{hex}"))?)
 }
 
 fn collect_files(root: &Path, directory: &Path, files: &mut Vec<PathBuf>) -> Result<()> {

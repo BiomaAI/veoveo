@@ -51,7 +51,7 @@ pub(crate) async fn revoke_refresh_token(
             "authorization server is unavailable",
         );
     };
-    let client_id = match OAuthClientId::new(form.client_id.trim()) {
+    let client_id = match OAuthClientId::parse(form.client_id.trim()) {
         Ok(client_id) => client_id,
         Err(_) => {
             return invalid_client_response(
@@ -211,7 +211,7 @@ fn parse_request(
     form: RefreshRevocationForm,
     client_id: OAuthClientId,
 ) -> Result<GatewayRefreshRevocationRequest, RevocationRequestError> {
-    let token = OAuthRefreshToken::new(form.token.trim())
+    let token = OAuthRefreshToken::parse(form.token.trim())
         .map_err(|_| RevocationRequestError::InvalidToken)?;
     let token_type_hint = match form.token_type_hint.as_deref().map(str::trim) {
         None | Some("") => None,
@@ -220,7 +220,7 @@ fn parse_request(
     };
     let resource = form
         .resource
-        .map(|resource| ProtectedResourceId::new(resource.trim()))
+        .map(|resource| ProtectedResourceId::parse(resource.trim()))
         .transpose()
         .map_err(|_| RevocationRequestError::InvalidToken)?;
     Ok(GatewayRefreshRevocationRequest {
@@ -298,7 +298,7 @@ mod tests {
 
     #[test]
     fn revocation_form_builds_the_typed_secret_request() {
-        let client_id = OAuthClientId::new("console").unwrap();
+        let client_id = OAuthClientId::parse("console").unwrap();
         let request = parse_request(
             RefreshRevocationForm {
                 token: "A".repeat(43),
@@ -330,7 +330,7 @@ mod tests {
                 client_id: "console".to_owned(),
                 resource: None,
             },
-            OAuthClientId::new("console").unwrap(),
+            OAuthClientId::parse("console").unwrap(),
         )
         .unwrap_err();
 

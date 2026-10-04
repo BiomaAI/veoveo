@@ -14,7 +14,7 @@ fn services_cannot_evaluate_an_ambiguous_catalog() {
     }
     assert!(
         snapshot
-            .server(&ServerSlug::new("unknown-policy-server").unwrap())
+            .server(&ServerSlug::parse("unknown-policy-server").unwrap())
             .is_none()
     );
     let mut duplicate = plane.clone();

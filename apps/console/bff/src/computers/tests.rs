@@ -113,7 +113,7 @@ impl Fixture {
             access_expires_at: now + if refresh { 1 } else { 300 },
             refresh_token: "fixture-refresh".into(),
             refresh_expires_at: now + 3600,
-            granted_scopes: BTreeSet::from([ScopeName::new("admin:manage").unwrap()]),
+            granted_scopes: BTreeSet::from([ScopeName::parse("admin:manage").unwrap()]),
             csrf_token: "fixture-csrf".into(),
         };
         format!(

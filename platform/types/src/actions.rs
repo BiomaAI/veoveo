@@ -1,35 +1,16 @@
 //! Registry-bound execution names for owner-declared closed vocabularies.
 use crate::{ExtensionError, Vocabulary};
-use serde::{Deserialize, Serialize};
+
 use std::{any::TypeId, collections::BTreeMap, fmt, marker::PhantomData, sync::Arc};
 
-#[derive(
-    crate::Id,
-    Clone,
-    Debug,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    schemars::JsonSchema,
-)]
-#[id(string, validate=validate_action_name, error=ExtensionError)]
-#[serde(try_from = "String", into = "String")]
+#[veoveo_types::id(text(ActionNames))]
 pub struct ActionName(String);
-fn validate_action_name(value: &str) -> Result<(), ExtensionError> {
-    if value.is_empty()
-        || value.len() > 128
-        || !value.bytes().all(|b| {
-            b.is_ascii_lowercase() || b.is_ascii_digit() || matches!(b, b'_' | b'-' | b'.')
-        })
-        || !value.as_bytes()[0].is_ascii_lowercase()
-    {
-        return Err(ExtensionError::new("invalid action name"));
-    }
-    Ok(())
+#[doc(hidden)]
+pub struct ActionNames;
+impl crate::IdProfile for ActionNames {
+    type Error = ExtensionError;
+    const PROFILE: crate::IdProfileSpec<Self::Error> =
+        crate::IdProfileSpec::text(|value, _| validate_action_name(value));
 }
 #[derive(Debug)]
 struct Identity;
@@ -137,7 +118,7 @@ impl ActionRegistryBuilder {
         }
         let mut names = BTreeMap::new();
         for action in A::ALL {
-            let name = ActionName::new(action.as_str())?;
+            let name = ActionName::parse(action.as_str())?;
             if self.names.contains_key(&name) || names.values().any(|old| old == &name) {
                 return Err(ExtensionError::new("action already declared"));
             }
@@ -163,7 +144,7 @@ impl ActionRegistryBuilder {
         }
         let mut names = BTreeMap::new();
         for action in A::ALL {
-            let name = ActionName::new(action.as_str())?;
+            let name = ActionName::parse(action.as_str())?;
             if !matches!(self.names.get(&name), Some(None))
                 || names.values().any(|old| old == &name)
             {
@@ -246,6 +227,19 @@ impl ActionRegistry {
     }
 }
 
+fn validate_action_name(value: &str) -> Result<(), ExtensionError> {
+    if value.is_empty()
+        || value.len() > 128
+        || !value.bytes().all(|b| {
+            b.is_ascii_lowercase() || b.is_ascii_digit() || matches!(b, b'_' | b'-' | b'.')
+        })
+        || !value.as_bytes()[0].is_ascii_lowercase()
+    {
+        return Err(ExtensionError::new("invalid action name"));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -295,24 +289,26 @@ mod tests {
         assert!(other_key.value(&apple).is_err());
         assert!(
             registry
-                .resolve(&ActionName::new("unknown").unwrap())
+                .resolve(&ActionName::parse("unknown").unwrap())
                 .is_err()
         );
     }
     #[test]
     fn reservation_and_binding_are_atomic_and_unbound_names_are_not_choices() {
         let mut builder = ActionRegistryBuilder::new();
-        builder.reserve(ActionName::new("apple").unwrap()).unwrap();
+        builder
+            .reserve(ActionName::parse("apple").unwrap())
+            .unwrap();
         assert!(builder.bind::<Fruit>().is_err());
-        builder.reserve(ActionName::new("pear").unwrap()).unwrap();
+        builder.reserve(ActionName::parse("pear").unwrap()).unwrap();
         let key = builder.bind::<Fruit>().unwrap();
         builder
-            .reserve(ActionName::new("unavailable").unwrap())
+            .reserve(ActionName::parse("unavailable").unwrap())
             .unwrap();
         let registry = builder.build();
         assert!(
             registry
-                .resolve(&ActionName::new("unavailable").unwrap())
+                .resolve(&ActionName::parse("unavailable").unwrap())
                 .is_err()
         );
         assert_eq!(

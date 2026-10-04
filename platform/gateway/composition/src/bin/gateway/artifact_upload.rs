@@ -63,7 +63,7 @@ async fn proxy(
     let Some(profile) = catalog.profile(&route.profile) else {
         return fault(Code::NotFound);
     };
-    let Ok(trace_id) = contract::TraceId::new(subject.audit.trace_id.to_string()) else {
+    let Ok(trace_id) = contract::TraceId::parse(&subject.audit.trace_id) else {
         return fault(Code::Unavailable);
     };
     let target = contract::PolicyTarget::Server {

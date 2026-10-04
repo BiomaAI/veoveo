@@ -690,7 +690,7 @@ mod tests {
                 meta: if self.degraded {
                     use veoveo_mcp_contract::ServerSlug;
                     GatewayDiscoveryDegradation::new(vec![GatewayDiscoveryFailure {
-                        server: ServerSlug::new("offline").unwrap(),
+                        server: ServerSlug::parse("offline").unwrap(),
                         surface: GatewayDiscoverySurface::Resources,
                         code: GatewayDiscoveryFailureCode::UpstreamUnavailable,
                     }])

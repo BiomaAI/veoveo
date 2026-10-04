@@ -201,7 +201,7 @@ async fn attached(
             .map_err(|_| ())?;
     let (activity, updates) = authority::Activity::new();
     let binding = Binding::from_instance(
-        id.into_uuid(),
+        id.as_uuid(),
         baseline.computer().instance_id(),
         baseline.computer().template_fingerprint.clone(),
     )

@@ -303,7 +303,7 @@ fn native_intent(
     operation: &Operation,
 ) -> Result<(Binding, LifecycleCheckpoint, Option<Observation>)> {
     let binding = Binding::from_instance(
-        operation.computer_id.into_uuid(),
+        operation.computer_id.as_uuid(),
         operation.instance_id(),
         operation.template_fingerprint.clone(),
     )

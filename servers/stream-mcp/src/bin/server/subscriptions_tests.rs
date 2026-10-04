@@ -284,7 +284,7 @@ async fn denied_resources_and_lost_live_sessions_never_emit_updates() {
         assert_eq!(service.subscribe(&filter, owner()).await.err().unwrap().message, "Stream run not found");
         let filter = SubscriptionFilter::builder().resource_subscriptions([uris::session_uri(session).to_string()]).build();
         let mut denied = owner();
-        denied.authority.work_context = veoveo_types::WorkContextId::new("other-context").unwrap();
+        denied.authority.work_context = veoveo_types::WorkContextId::parse("other-context").unwrap();
         assert!(service.subscribe(&filter, denied).await.is_err());
         let mut updates = service.subscribe(&filter, owner()).await.unwrap();
         next(&mut updates).await;

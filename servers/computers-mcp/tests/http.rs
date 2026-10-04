@@ -729,7 +729,7 @@ async fn subscription_closes_on_current_family_logout_or_expiry_before_assertion
             .as_mut()
             .unwrap()
             .access_token
-            .session_family = Some(GatewayRefreshFamilyId::new(id.to_string()).unwrap());
+            .session_family = Some(GatewayRefreshFamilyId::parse(id.to_string()).unwrap());
         let source = &identity.request_context.as_ref().unwrap().principal;
         let now = chrono::Utc::now();
         let family = GatewayRefreshFamilyRecord {

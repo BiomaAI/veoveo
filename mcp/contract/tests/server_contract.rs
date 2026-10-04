@@ -88,10 +88,10 @@ impl<const CASE: u8> McpServerContract for Fixture<CASE> {
     type Scope = Permission;
     type Resource = Address;
     fn slug() -> ServerSlug {
-        ServerSlug::new("independent").unwrap()
+        ServerSlug::parse("independent").unwrap()
     }
     fn scheme() -> ResourceScheme {
-        ResourceScheme::new("independent").unwrap()
+        ResourceScheme::parse("independent").unwrap()
     }
     fn scopes() -> &'static [Permission] {
         match CASE {
@@ -180,7 +180,7 @@ fn scope_membership_keeps_unknown_grants_and_rejects_undeclared_permissions() {
     let grants = BTreeSet::from([
         Permission::Read.into(),
         Permission::Write.into(),
-        ScopeName::new("another:read").unwrap(),
+        ScopeName::parse("another:read").unwrap(),
     ]);
     assert!(setup.has_scope(&grants, Permission::Read));
     assert!(!setup.has_scope(&grants, Permission::Write));

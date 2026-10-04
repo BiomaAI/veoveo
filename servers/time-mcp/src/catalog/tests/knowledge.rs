@@ -13,7 +13,7 @@ async fn observations_use_stored_authority_and_versioned_members() {
         peer.work_context = "reader-context".parse().unwrap();
         let foreign = scope(&db.a, "foreign", "creator").await;
         let calendar = OperationalCalendar {
-            calendar_id: CalendarId::new("calendar-00000000-0000-7000-8000-000000000010").unwrap(),
+            calendar_id: CalendarId::parse("calendar-00000000-0000-7000-8000-000000000010").unwrap(),
             version: TimeVersion::FIRST,
             name: "Calendar".into(),
             zone_id: "UTC".into(),
@@ -64,7 +64,7 @@ async fn observations_use_stored_authority_and_versioned_members() {
                 .is_none()
         );
 
-        let epoch_id = MissionEpochId::new("epoch-00000000-0000-7000-8000-000000000010").unwrap();
+        let epoch_id = MissionEpochId::parse("epoch-00000000-0000-7000-8000-000000000010").unwrap();
         for version in [1, 2] {
             catalog
                 .create_epoch(

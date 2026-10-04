@@ -385,7 +385,7 @@ async fn context_policy_filters_before_limits_and_requires_all_stored_contexts_t
         let reader = TaskRuntime::new(db.b.clone(), "optimization", "reader");
         let caller = owner(Some("tenant-a"), "owner", "operator", &["mission"]);
         let mut foreign = caller.clone();
-        foreign.authority.work_context = veoveo_types::WorkContextId::new("other-context").unwrap();
+        foreign.authority.work_context = veoveo_types::WorkContextId::parse("other-context").unwrap();
         for number in 1..=105 {
             let id = create(&writer, &foreign, number, 1).await;
             db.a.client().query("UPDATE ONLY $task SET request.input = NONE RETURN NONE;")
@@ -413,7 +413,7 @@ async fn context_policy_filters_before_limits_and_requires_all_stored_contexts_t
         assert!(!reader.task_visible(WorkContext(&foreign), pending).await.unwrap());
 
         let mut invalid = caller.clone();
-        invalid.authority.tenant = veoveo_types::TenantId::new("wrong-tenant").unwrap();
+        invalid.authority.tenant = veoveo_types::TenantId::parse("wrong-tenant").unwrap();
         assert!(matches!(reader.usage_page(WorkContext(&invalid), None, 100).await, Err(TaskError::InvalidAuthority(_))));
         assert!(matches!(reader.usage(WorkContext(&invalid), pending).await, Err(TaskError::InvalidAuthority(_))));
         assert!(matches!(reader.task_visible(WorkContext(&invalid), pending).await, Err(TaskError::InvalidAuthority(_))));

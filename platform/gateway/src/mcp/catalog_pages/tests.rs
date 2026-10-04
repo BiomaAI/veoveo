@@ -4,7 +4,7 @@ use veoveo_mcp_knowledge_extension::{DocumentId, docs};
 use veoveo_types::ResourceScheme;
 
 fn template(index: usize) -> ResourceTemplate {
-    let scheme = ResourceScheme::new(format!("fixture{index:03}")).unwrap();
+    let scheme = ResourceScheme::parse(format!("fixture{index:03}")).unwrap();
     ResourceTemplate::new(docs::member_template(&scheme).to_string(), "Document")
 }
 
@@ -90,7 +90,7 @@ fn each_surface_keeps_its_typed_identity_in_the_cursor() {
             Resource::new(
                 docs::member_uri(
                     &"fixture".parse().unwrap(),
-                    &DocumentId::new(format!("d{i:03}")).unwrap(),
+                    &DocumentId::parse(format!("d{i:03}")).unwrap(),
                 )
                 .to_string(),
                 "Fixture",

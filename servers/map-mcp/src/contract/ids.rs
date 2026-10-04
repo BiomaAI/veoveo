@@ -1,8 +1,11 @@
-use std::fmt;
-
+#[cfg(test)]
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use std::fmt;
 use uuid::Uuid;
+use veoveo_types::{
+    FreshId, IdFailure, IdGeneration, IdGrammar, IdMetadata, IdProfile, IdProfileSpec, UuidGrammar,
+    UuidSpelling, UuidVariant,
+};
 
 const MAP_STABLE_ID_NAMESPACE: Uuid = Uuid::from_u128(0xc15a_8bd8_ef8d_5c4e_a3aa_633e_b162_2aa8);
 
@@ -24,867 +27,140 @@ impl fmt::Display for MapIdError {
 
 impl std::error::Error for MapIdError {}
 
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=MapIdError,validate=|value| validate_map_id(value,Self::PREFIX,true),generate=|| format!("{}{}",Self::PREFIX,Uuid::now_v7()))]
-pub struct MapDatasetId(String);
-impl MapDatasetId {
-    pub const PREFIX: &'static str = "dataset-";
-    pub fn from_stable_key(value: &[u8]) -> Self {
-        Self::parse(stable_map_id(Self::PREFIX, value))
-            .expect("stable map generator produces an admitted identity")
-    }
-    pub fn uuid(&self) -> Uuid {
-        map_uuid(self.as_str(), Self::PREFIX)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=MapIdError,validate=|value| validate_map_id(value,Self::PREFIX,true),generate=|| format!("{}{}",Self::PREFIX,Uuid::now_v7()))]
-pub struct DatasetReleaseId(String);
-impl DatasetReleaseId {
-    pub const PREFIX: &'static str = "release-";
-    pub fn from_stable_key(value: &[u8]) -> Self {
-        Self::parse(stable_map_id(Self::PREFIX, value))
-            .expect("stable map generator produces an admitted identity")
-    }
-    pub fn uuid(&self) -> Uuid {
-        map_uuid(self.as_str(), Self::PREFIX)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=MapIdError,validate=|value| validate_map_id(value,Self::PREFIX,true),generate=|| format!("{}{}",Self::PREFIX,Uuid::now_v7()))]
-pub struct MapSourceId(String);
-impl MapSourceId {
-    pub const PREFIX: &'static str = "source-";
-    pub fn from_stable_key(value: &[u8]) -> Self {
-        Self::parse(stable_map_id(Self::PREFIX, value))
-            .expect("stable map generator produces an admitted identity")
-    }
-    pub fn uuid(&self) -> Uuid {
-        map_uuid(self.as_str(), Self::PREFIX)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=MapIdError,validate=|value| validate_map_id(value,Self::PREFIX,true),generate=|| format!("{}{}",Self::PREFIX,Uuid::now_v7()))]
-pub struct SourceFeatureId(String);
-impl SourceFeatureId {
-    pub const PREFIX: &'static str = "source-feature-";
-    pub fn from_stable_key(value: &[u8]) -> Self {
-        Self::parse(stable_map_id(Self::PREFIX, value))
-            .expect("stable map generator produces an admitted identity")
-    }
-    pub fn uuid(&self) -> Uuid {
-        map_uuid(self.as_str(), Self::PREFIX)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=MapIdError,validate=|value| validate_map_id(value,Self::PREFIX,true),generate=|| format!("{}{}",Self::PREFIX,Uuid::now_v7()))]
-pub struct RasterProductId(String);
-impl RasterProductId {
-    pub const PREFIX: &'static str = "raster-";
-    pub fn from_stable_key(value: &[u8]) -> Self {
-        Self::parse(stable_map_id(Self::PREFIX, value))
-            .expect("stable map generator produces an admitted identity")
-    }
-    pub fn uuid(&self) -> Uuid {
-        map_uuid(self.as_str(), Self::PREFIX)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=MapIdError,validate=|value| validate_map_id(value,Self::PREFIX,true),generate=|| format!("{}{}",Self::PREFIX,Uuid::now_v7()))]
-pub struct RasterDerivationId(String);
-impl RasterDerivationId {
-    pub const PREFIX: &'static str = "raster-derivation-";
-    pub fn from_stable_key(value: &[u8]) -> Self {
-        Self::parse(stable_map_id(Self::PREFIX, value))
-            .expect("stable map generator produces an admitted identity")
-    }
-    pub fn uuid(&self) -> Uuid {
-        map_uuid(self.as_str(), Self::PREFIX)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=MapIdError,validate=|value| validate_map_id(value,Self::PREFIX,true),generate=|| format!("{}{}",Self::PREFIX,Uuid::now_v7()))]
-pub struct SpatialDerivationId(String);
-impl SpatialDerivationId {
-    pub const PREFIX: &'static str = "spatial-derivation-";
-    pub fn from_stable_key(value: &[u8]) -> Self {
-        Self::parse(stable_map_id(Self::PREFIX, value))
-            .expect("stable map generator produces an admitted identity")
-    }
-    pub fn uuid(&self) -> Uuid {
-        map_uuid(self.as_str(), Self::PREFIX)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=MapIdError,validate=|value| validate_map_id(value,Self::PREFIX,false),generate=|| format!("{}{}",Self::PREFIX,Uuid::now_v7()))]
-pub struct SourcePolicyId(String);
-impl SourcePolicyId {
-    pub const PREFIX: &'static str = "source-policy-";
-    pub fn from_stable_key(value: &[u8]) -> Self {
-        Self::parse(stable_map_id(Self::PREFIX, value))
-            .expect("stable map generator produces an admitted identity")
-    }
-    pub fn uuid(&self) -> Uuid {
-        map_uuid(self.as_str(), Self::PREFIX)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=MapIdError,validate=|value| validate_map_id(value,Self::PREFIX,false),generate=|| format!("{}{}",Self::PREFIX,Uuid::now_v7()))]
-pub struct AcquisitionId(String);
-impl AcquisitionId {
-    pub const PREFIX: &'static str = "acquisition-";
-    pub fn from_stable_key(value: &[u8]) -> Self {
-        Self::parse(stable_map_id(Self::PREFIX, value))
-            .expect("stable map generator produces an admitted identity")
-    }
-    pub fn uuid(&self) -> Uuid {
-        map_uuid(self.as_str(), Self::PREFIX)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=MapIdError,validate=|value| validate_map_id(value,Self::PREFIX,true),generate=|| format!("{}{}",Self::PREFIX,Uuid::now_v7()))]
-pub struct OperationalSnapshotId(String);
-impl OperationalSnapshotId {
-    pub const PREFIX: &'static str = "snapshot-";
-    pub fn from_stable_key(value: &[u8]) -> Self {
-        Self::parse(stable_map_id(Self::PREFIX, value))
-            .expect("stable map generator produces an admitted identity")
-    }
-    pub fn uuid(&self) -> Uuid {
-        map_uuid(self.as_str(), Self::PREFIX)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=MapIdError,validate=|value| validate_map_id(value,Self::PREFIX,true),generate=|| format!("{}{}",Self::PREFIX,Uuid::now_v7()))]
-pub struct LocationId(String);
-impl LocationId {
-    pub const PREFIX: &'static str = "location-";
-    pub fn from_stable_key(value: &[u8]) -> Self {
-        Self::parse(stable_map_id(Self::PREFIX, value))
-            .expect("stable map generator produces an admitted identity")
-    }
-    pub fn uuid(&self) -> Uuid {
-        map_uuid(self.as_str(), Self::PREFIX)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=MapIdError,validate=|value| validate_map_id(value,Self::PREFIX,false),generate=|| format!("{}{}",Self::PREFIX,Uuid::now_v7()))]
-pub struct MapBoundaryId(String);
-impl MapBoundaryId {
-    pub const PREFIX: &'static str = "boundary-";
-    pub fn from_stable_key(value: &[u8]) -> Self {
-        Self::parse(stable_map_id(Self::PREFIX, value))
-            .expect("stable map generator produces an admitted identity")
-    }
-    pub fn uuid(&self) -> Uuid {
-        map_uuid(self.as_str(), Self::PREFIX)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=MapIdError,validate=|value| validate_map_id(value,Self::PREFIX,true),generate=|| format!("{}{}",Self::PREFIX,Uuid::now_v7()))]
-pub struct FacilityId(String);
-impl FacilityId {
-    pub const PREFIX: &'static str = "facility-";
-    pub fn from_stable_key(value: &[u8]) -> Self {
-        Self::parse(stable_map_id(Self::PREFIX, value))
-            .expect("stable map generator produces an admitted identity")
-    }
-    pub fn uuid(&self) -> Uuid {
-        map_uuid(self.as_str(), Self::PREFIX)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=MapIdError,validate=|value| validate_map_id(value,Self::PREFIX,true),generate=|| format!("{}{}",Self::PREFIX,Uuid::now_v7()))]
-pub struct MobilityProfileId(String);
-impl MobilityProfileId {
-    pub const PREFIX: &'static str = "mobility-";
-    pub fn from_stable_key(value: &[u8]) -> Self {
-        Self::parse(stable_map_id(Self::PREFIX, value))
-            .expect("stable map generator produces an admitted identity")
-    }
-    pub fn uuid(&self) -> Uuid {
-        map_uuid(self.as_str(), Self::PREFIX)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=MapIdError,validate=|value| validate_map_id(value,Self::PREFIX,true),generate=|| format!("{}{}",Self::PREFIX,Uuid::now_v7()))]
-pub struct RestrictionId(String);
-impl RestrictionId {
-    pub const PREFIX: &'static str = "restriction-";
-    pub fn from_stable_key(value: &[u8]) -> Self {
-        Self::parse(stable_map_id(Self::PREFIX, value))
-            .expect("stable map generator produces an admitted identity")
-    }
-    pub fn uuid(&self) -> Uuid {
-        map_uuid(self.as_str(), Self::PREFIX)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=MapIdError,validate=|value| validate_map_id(value,Self::PREFIX,false),generate=|| format!("{}{}",Self::PREFIX,Uuid::now_v7()))]
-pub struct MapGeofenceId(String);
-impl MapGeofenceId {
-    pub const PREFIX: &'static str = "geofence-";
-    pub fn from_stable_key(value: &[u8]) -> Self {
-        Self::parse(stable_map_id(Self::PREFIX, value))
-            .expect("stable map generator produces an admitted identity")
-    }
-    pub fn uuid(&self) -> Uuid {
-        map_uuid(self.as_str(), Self::PREFIX)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=MapIdError,validate=|value| validate_map_id(value,Self::PREFIX,true),generate=|| format!("{}{}",Self::PREFIX,Uuid::now_v7()))]
-pub struct RouteId(String);
-impl RouteId {
-    pub const PREFIX: &'static str = "route-";
-    pub fn from_stable_key(value: &[u8]) -> Self {
-        Self::parse(stable_map_id(Self::PREFIX, value))
-            .expect("stable map generator produces an admitted identity")
-    }
-    pub fn uuid(&self) -> Uuid {
-        map_uuid(self.as_str(), Self::PREFIX)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=MapIdError,validate=|value| validate_map_id(value,Self::PREFIX,false),generate=|| format!("{}{}",Self::PREFIX,Uuid::now_v7()))]
-pub struct RouteMatrixId(String);
-impl RouteMatrixId {
-    pub const PREFIX: &'static str = "matrix-";
-    pub fn from_stable_key(value: &[u8]) -> Self {
-        Self::parse(stable_map_id(Self::PREFIX, value))
-            .expect("stable map generator produces an admitted identity")
-    }
-    pub fn uuid(&self) -> Uuid {
-        map_uuid(self.as_str(), Self::PREFIX)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=MapIdError,validate=|value| validate_map_id(value,Self::PREFIX,true),generate=|| format!("{}{}",Self::PREFIX,Uuid::now_v7()))]
-pub struct TravelModelId(String);
-impl TravelModelId {
-    pub const PREFIX: &'static str = "travel-model-";
-    pub fn from_stable_key(value: &[u8]) -> Self {
-        Self::parse(stable_map_id(Self::PREFIX, value))
-            .expect("stable map generator produces an admitted identity")
-    }
-    pub fn uuid(&self) -> Uuid {
-        map_uuid(self.as_str(), Self::PREFIX)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=MapIdError,validate=|value| validate_map_id(value,Self::PREFIX,false),generate=|| format!("{}{}",Self::PREFIX,Uuid::now_v7()))]
-pub struct ReachableAreaId(String);
-impl ReachableAreaId {
-    pub const PREFIX: &'static str = "reachable-area-";
-    pub fn from_stable_key(value: &[u8]) -> Self {
-        Self::parse(stable_map_id(Self::PREFIX, value))
-            .expect("stable map generator produces an admitted identity")
-    }
-    pub fn uuid(&self) -> Uuid {
-        map_uuid(self.as_str(), Self::PREFIX)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=MapIdError,validate=|value| validate_map_id(value,Self::PREFIX,true),generate=|| format!("{}{}",Self::PREFIX,Uuid::now_v7()))]
-pub struct ValidationId(String);
-impl ValidationId {
-    pub const PREFIX: &'static str = "validation-";
-    pub fn from_stable_key(value: &[u8]) -> Self {
-        Self::parse(stable_map_id(Self::PREFIX, value))
-            .expect("stable map generator produces an admitted identity")
-    }
-    pub fn uuid(&self) -> Uuid {
-        map_uuid(self.as_str(), Self::PREFIX)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=MapIdError,validate=|value| validate_map_id(value,Self::PREFIX,false),generate=|| format!("{}{}",Self::PREFIX,Uuid::now_v7()))]
-pub struct MapOperationId(String);
-impl MapOperationId {
-    pub const PREFIX: &'static str = "map-operation-";
-    pub fn from_stable_key(value: &[u8]) -> Self {
-        Self::parse(stable_map_id(Self::PREFIX, value))
-            .expect("stable map generator produces an admitted identity")
-    }
-    pub fn uuid(&self) -> Uuid {
-        map_uuid(self.as_str(), Self::PREFIX)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=MapIdError,validate=|value| validate_map_id(value,Self::PREFIX,true),generate=|| format!("{}{}",Self::PREFIX,Uuid::now_v7()))]
-pub struct FeatureLayerId(String);
-impl FeatureLayerId {
-    pub const PREFIX: &'static str = "feature-layer-";
-    pub fn from_stable_key(value: &[u8]) -> Self {
-        Self::parse(stable_map_id(Self::PREFIX, value))
-            .expect("stable map generator produces an admitted identity")
-    }
-    pub fn uuid(&self) -> Uuid {
-        map_uuid(self.as_str(), Self::PREFIX)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=MapIdError,validate=|value| validate_map_id(value,Self::PREFIX,true),generate=|| format!("{}{}",Self::PREFIX,Uuid::now_v7()))]
-pub struct MapFeatureId(String);
-impl MapFeatureId {
-    pub const PREFIX: &'static str = "feature-";
-    pub fn from_stable_key(value: &[u8]) -> Self {
-        Self::parse(stable_map_id(Self::PREFIX, value))
-            .expect("stable map generator produces an admitted identity")
-    }
-    pub fn uuid(&self) -> Uuid {
-        map_uuid(self.as_str(), Self::PREFIX)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=MapIdError,validate=|value| validate_map_id(value,Self::PREFIX,false),generate=|| format!("{}{}",Self::PREFIX,Uuid::now_v7()))]
-pub struct FeatureChangeSetId(String);
-impl FeatureChangeSetId {
-    pub const PREFIX: &'static str = "changeset-";
-    pub fn from_stable_key(value: &[u8]) -> Self {
-        Self::parse(stable_map_id(Self::PREFIX, value))
-            .expect("stable map generator produces an admitted identity")
-    }
-    pub fn uuid(&self) -> Uuid {
-        map_uuid(self.as_str(), Self::PREFIX)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=MapIdError,validate=|value| validate_map_id(value,Self::PREFIX,false),generate=|| format!("{}{}",Self::PREFIX,Uuid::now_v7()))]
-pub struct FeatureSchemaRevisionId(String);
-impl FeatureSchemaRevisionId {
-    pub const PREFIX: &'static str = "feature-schema-";
-    pub fn from_stable_key(value: &[u8]) -> Self {
-        Self::parse(stable_map_id(Self::PREFIX, value))
-            .expect("stable map generator produces an admitted identity")
-    }
-    pub fn uuid(&self) -> Uuid {
-        map_uuid(self.as_str(), Self::PREFIX)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=MapIdError,validate=|value| validate_map_id(value,Self::PREFIX,false),generate=|| format!("{}{}",Self::PREFIX,Uuid::now_v7()))]
-pub struct StyleRevisionId(String);
-impl StyleRevisionId {
-    pub const PREFIX: &'static str = "style-";
-    pub fn from_stable_key(value: &[u8]) -> Self {
-        Self::parse(stable_map_id(Self::PREFIX, value))
-            .expect("stable map generator produces an admitted identity")
-    }
-    pub fn uuid(&self) -> Uuid {
-        map_uuid(self.as_str(), Self::PREFIX)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=MapIdError,validate=|value| validate_map_id(value,Self::PREFIX,true),generate=|| format!("{}{}",Self::PREFIX,Uuid::now_v7()))]
-pub struct LayerPublicationId(String);
-impl LayerPublicationId {
-    pub const PREFIX: &'static str = "publication-";
-    pub fn from_stable_key(value: &[u8]) -> Self {
-        Self::parse(stable_map_id(Self::PREFIX, value))
-            .expect("stable map generator produces an admitted identity")
-    }
-    pub fn uuid(&self) -> Uuid {
-        map_uuid(self.as_str(), Self::PREFIX)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=MapIdError,validate=|value| validate_map_id(value,Self::PREFIX,false),generate=|| format!("{}{}",Self::PREFIX,Uuid::now_v7()))]
-pub struct LayerProductId(String);
-impl LayerProductId {
-    pub const PREFIX: &'static str = "layer-product-";
-    pub fn from_stable_key(value: &[u8]) -> Self {
-        Self::parse(stable_map_id(Self::PREFIX, value))
-            .expect("stable map generator produces an admitted identity")
-    }
-    pub fn uuid(&self) -> Uuid {
-        map_uuid(self.as_str(), Self::PREFIX)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=MapIdError,validate=|value| validate_map_id(value,Self::PREFIX,false),generate=|| format!("{}{}",Self::PREFIX,Uuid::now_v7()))]
-pub struct MapCompositionId(String);
-impl MapCompositionId {
-    pub const PREFIX: &'static str = "composition-";
-    pub fn from_stable_key(value: &[u8]) -> Self {
-        Self::parse(stable_map_id(Self::PREFIX, value))
-            .expect("stable map generator produces an admitted identity")
-    }
-    pub fn uuid(&self) -> Uuid {
-        map_uuid(self.as_str(), Self::PREFIX)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=MapIdError,validate=|value| validate_map_id(value,Self::PREFIX,false),generate=|| format!("{}{}",Self::PREFIX,Uuid::now_v7()))]
-pub struct MapCompositionRevisionId(String);
-impl MapCompositionRevisionId {
-    pub const PREFIX: &'static str = "composition-revision-";
-    pub fn from_stable_key(value: &[u8]) -> Self {
-        Self::parse(stable_map_id(Self::PREFIX, value))
-            .expect("stable map generator produces an admitted identity")
-    }
-    pub fn uuid(&self) -> Uuid {
-        map_uuid(self.as_str(), Self::PREFIX)
-    }
-}
-
-fn validate_map_id(value: &str, prefix: &'static str, canonical: bool) -> Result<(), MapIdError> {
-    let invalid = || MapIdError {
+fn map_id_error(value: &str, metadata: IdMetadata, _: IdFailure) -> MapIdError {
+    MapIdError {
         value: value.to_owned(),
-        expected_prefix: prefix,
-    };
-    let raw = value.strip_prefix(prefix).ok_or_else(invalid)?;
-    let uuid = Uuid::parse_str(raw).map_err(|_| invalid())?;
-    if !matches!(uuid.get_version_num(), 5 | 7)
-        || (canonical && (uuid.get_variant() != uuid::Variant::RFC4122 || raw != uuid.to_string()))
-    {
-        return Err(invalid());
+        expected_prefix: metadata.prefix,
     }
-    Ok(())
 }
-fn stable_map_id(prefix: &str, value: &[u8]) -> String {
-    format!(
-        "{}{}",
-        prefix,
-        Uuid::new_v5(&MAP_STABLE_ID_NAMESPACE, value)
-    )
+#[doc(hidden)]
+pub struct MapIds;
+impl IdProfile for MapIds {
+    type Error = MapIdError;
+    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
+        generation: IdGeneration {
+            fresh: FreshId::UuidV7,
+            stable_v5_namespace: Some(MAP_STABLE_ID_NAMESPACE),
+        },
+        ..IdProfileSpec::uuid(
+            UuidGrammar {
+                versions: &[5, 7],
+                variant: UuidVariant::Rfc4122,
+                spelling: UuidSpelling::CanonicalLowerHyphenated,
+            },
+            map_id_error,
+        )
+    };
 }
-fn map_uuid(value: &str, prefix: &str) -> Uuid {
-    Uuid::parse_str(&value[prefix.len()..]).expect("validated map id always contains a UUID")
+#[doc(hidden)]
+pub struct MapAliasIds;
+impl IdProfile for MapAliasIds {
+    type Error = MapIdError;
+    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
+        grammar: IdGrammar::Uuid(
+            UuidGrammar {
+                versions: &[5, 7],
+                variant: UuidVariant::Any,
+                spelling: UuidSpelling::ParserAliases,
+            },
+            map_id_error,
+        ),
+        ..MapIds::PROFILE
+    };
 }
+
+#[veoveo_types::id(prefixed(MapIds, "dataset-"), fresh, stable)]
+pub struct MapDatasetId(String);
+
+#[veoveo_types::id(prefixed(MapIds, "release-"), fresh, stable)]
+pub struct DatasetReleaseId(String);
+
+#[veoveo_types::id(prefixed(MapIds, "source-"), fresh, stable)]
+pub struct MapSourceId(String);
+
+#[veoveo_types::id(prefixed(MapIds, "source-feature-"), fresh, stable)]
+pub struct SourceFeatureId(String);
+
+#[veoveo_types::id(prefixed(MapIds, "raster-"), fresh, stable)]
+pub struct RasterProductId(String);
+
+#[veoveo_types::id(prefixed(MapIds, "raster-derivation-"), fresh, stable)]
+pub struct RasterDerivationId(String);
+
+#[veoveo_types::id(prefixed(MapIds, "spatial-derivation-"), fresh, stable)]
+pub struct SpatialDerivationId(String);
+
+#[veoveo_types::id(prefixed(MapAliasIds, "source-policy-"), fresh, stable)]
+pub struct SourcePolicyId(String);
+
+#[veoveo_types::id(prefixed(MapAliasIds, "acquisition-"), fresh, stable)]
+pub struct AcquisitionId(String);
+
+#[veoveo_types::id(prefixed(MapIds, "snapshot-"), fresh, stable)]
+pub struct OperationalSnapshotId(String);
+
+#[veoveo_types::id(prefixed(MapIds, "location-"), fresh, stable)]
+pub struct LocationId(String);
+
+#[veoveo_types::id(prefixed(MapAliasIds, "boundary-"), fresh, stable)]
+pub struct MapBoundaryId(String);
+
+#[veoveo_types::id(prefixed(MapIds, "facility-"), fresh, stable)]
+pub struct FacilityId(String);
+
+#[veoveo_types::id(prefixed(MapIds, "mobility-"), fresh, stable)]
+pub struct MobilityProfileId(String);
+
+#[veoveo_types::id(prefixed(MapIds, "restriction-"), fresh, stable)]
+pub struct RestrictionId(String);
+
+#[veoveo_types::id(prefixed(MapAliasIds, "geofence-"), fresh, stable)]
+pub struct MapGeofenceId(String);
+
+#[veoveo_types::id(prefixed(MapIds, "route-"), fresh, stable)]
+pub struct RouteId(String);
+
+#[veoveo_types::id(prefixed(MapAliasIds, "matrix-"), fresh, stable)]
+pub struct RouteMatrixId(String);
+
+#[veoveo_types::id(prefixed(MapIds, "travel-model-"), fresh, stable)]
+pub struct TravelModelId(String);
+
+#[veoveo_types::id(prefixed(MapAliasIds, "reachable-area-"), fresh, stable)]
+pub struct ReachableAreaId(String);
+
+#[veoveo_types::id(prefixed(MapIds, "validation-"), fresh, stable)]
+pub struct ValidationId(String);
+
+#[veoveo_types::id(prefixed(MapAliasIds, "map-operation-"), fresh, stable)]
+pub struct MapOperationId(String);
+
+#[veoveo_types::id(prefixed(MapIds, "feature-layer-"), fresh, stable)]
+pub struct FeatureLayerId(String);
+
+#[veoveo_types::id(prefixed(MapIds, "feature-"), fresh, stable)]
+pub struct MapFeatureId(String);
+
+#[veoveo_types::id(prefixed(MapAliasIds, "changeset-"), fresh, stable)]
+pub struct FeatureChangeSetId(String);
+
+#[veoveo_types::id(prefixed(MapAliasIds, "feature-schema-"), fresh, stable)]
+pub struct FeatureSchemaRevisionId(String);
+
+#[veoveo_types::id(prefixed(MapAliasIds, "style-"), fresh, stable)]
+pub struct StyleRevisionId(String);
+
+#[veoveo_types::id(prefixed(MapIds, "publication-"), fresh, stable)]
+pub struct LayerPublicationId(String);
+
+#[veoveo_types::id(prefixed(MapAliasIds, "layer-product-"), fresh, stable)]
+pub struct LayerProductId(String);
+
+#[veoveo_types::id(prefixed(MapAliasIds, "composition-"), fresh, stable)]
+pub struct MapCompositionId(String);
+
+#[veoveo_types::id(prefixed(MapAliasIds, "composition-revision-"), fresh, stable)]
+pub struct MapCompositionRevisionId(String);
 
 #[cfg(test)]
 mod tests {
@@ -893,9 +169,9 @@ mod tests {
     #[test]
     fn ids_are_prefixed_uuid_v7_values() {
         let id = RouteId::new();
-        assert!(id.as_str().starts_with(RouteId::PREFIX));
-        assert_eq!(id.uuid().get_version_num(), 7);
-        assert_eq!(RouteId::parse(id.to_string()).unwrap(), id);
+        assert!(id.as_str().starts_with("route-"));
+        assert_eq!(id.as_uuid().get_version_num(), 7);
+        assert_eq!(RouteId::parse(&id).unwrap(), id);
     }
 
     #[test]
@@ -915,8 +191,8 @@ mod tests {
         let first = LocationId::from_stable_key(b"source-a:place:42");
         let second = LocationId::from_stable_key(b"source-a:place:42");
         assert_eq!(first, second);
-        assert_eq!(first.uuid().get_version_num(), 5);
-        assert_eq!(LocationId::parse(first.to_string()).unwrap(), first);
+        assert_eq!(first.as_uuid().get_version_num(), 5);
+        assert_eq!(LocationId::parse(&first).unwrap(), first);
     }
 }
 

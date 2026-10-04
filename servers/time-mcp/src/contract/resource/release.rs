@@ -18,7 +18,7 @@ pub struct TimeAuthorityReleaseUri {
 impl TimeAuthorityReleaseUri {
     /// ```compile_fail
     /// use veoveo_time_mcp::contract::{CalendarId, TimeAuthorityReleaseUri};
-    /// TimeAuthorityReleaseUri::new(&CalendarId::new("calendar-example").unwrap());
+    /// TimeAuthorityReleaseUri::new(&CalendarId::parse("calendar-example").unwrap());
     /// ```
     pub fn new(release_id: &AuthorityReleaseId) -> Self {
         let uri = TimeResource::AuthorityRelease(release_id.clone())

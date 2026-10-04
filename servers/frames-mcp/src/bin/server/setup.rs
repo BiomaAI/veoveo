@@ -139,7 +139,7 @@ impl McpServerContract for FramesContract {
     type Scope = FramesScope;
     type Resource = FramesResource;
     fn slug() -> ServerSlug {
-        ServerSlug::new("frames").expect("declared slug")
+        ServerSlug::parse("frames").expect("declared slug")
     }
     fn scheme() -> ResourceScheme {
         uris::SCHEME.clone()
@@ -200,7 +200,8 @@ mod setup_tests {
         assert_eq!(setup.resource_templates().len(), 9);
         assert!(setup.scope_names().is_empty());
         assert!(
-            FramesScope::try_from(&veoveo_types::ScopeName::new("external:read").unwrap()).is_err()
+            FramesScope::try_from(&veoveo_types::ScopeName::parse("external:read").unwrap())
+                .is_err()
         );
         let capabilities = &setup.server_config().capabilities;
         assert!(
@@ -258,7 +259,7 @@ mod setup_tests {
                 let mut paged = variables.clone();
                 let cursor = if template.template().as_str() == FrameWorldsUri::TEMPLATE {
                     veoveo_frames_mcp::contract::FrameWorldCursor::new(
-                        &veoveo_frames_mcp::contract::FrameWorldId::new("survey").unwrap(),
+                        &veoveo_frames_mcp::contract::FrameWorldId::parse("survey").unwrap(),
                     )
                     .as_str()
                     .to_owned()

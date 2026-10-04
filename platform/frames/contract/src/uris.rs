@@ -50,137 +50,35 @@ fn unescaped_route(parts: &ResourceUriParts) -> Result<(), FrameUriError> {
     }
 }
 
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    veoveo_types::ResourceAddress,
-)]
-#[serde(try_from = "String", into = "String")]
-#[resource(template="frames://world/{world_id}", error=FrameUriError, route_error=route_error, wire, input=unescaped_route)]
+#[veoveo_types::resource_address(cached(FrameUriErrorAddresses), template = "frames://world/{world_id}", traits = ordered, constructor = borrowed, from_str, resource_uri, input = unescaped_route)]
 pub struct FrameWorldUri {
     #[resource(cache)]
     wire: ResourceUri,
-    #[resource(error=FrameUriError::Identity)]
+    #[resource(error=FrameUriError::Identity, accessor = world_id, clone_accessor)]
     world_id: FrameWorldId,
 }
 
 impl FrameWorldUri {
-    /// ```compile_fail
-    /// use veoveo_frames_contract::{FrameId, FrameWorldUri};
-    /// FrameWorldUri::new(&FrameId::new("wrong-domain").unwrap());
-    /// ```
-    pub fn new(world_id: &FrameWorldId) -> Self {
-        Self::resource_from_parts(world_id.clone()).expect("typed Frame address")
-    }
-    pub fn parse(value: impl AsRef<str>) -> Result<Self, FrameUriError> {
-        let uri = ResourceUri::new(value.as_ref())?;
-        <Self as ResourceAddress>::parse(&uri)
-    }
-    pub fn world_id(&self) -> FrameWorldId {
-        self.world_id.clone()
-    }
     pub fn revision(&self, revision_id: &FrameWorldRevisionId) -> FrameWorldRevisionUri {
         FrameWorldRevisionUri::new(&self.world_id, revision_id)
     }
 }
-impl FrameWorldUri {
-    pub fn as_str(&self) -> &str {
-        self.wire.as_str()
-    }
-    pub fn as_resource_uri(&self) -> &ResourceUri {
-        &self.wire
-    }
-}
-impl FromStr for FrameWorldUri {
-    type Err = FrameUriError;
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        Self::parse(value)
-    }
-}
-impl fmt::Display for FrameWorldUri {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    veoveo_types::ResourceAddress,
-)]
-#[serde(try_from = "String", into = "String")]
-#[resource(template="frames://world/{world_id}/revision/{revision_id}", error=FrameUriError, route_error=route_error, wire, input=unescaped_route)]
+#[veoveo_types::resource_address(cached(FrameUriErrorAddresses), template = "frames://world/{world_id}/revision/{revision_id}", traits = ordered, constructor = borrowed, from_str, resource_uri, input = unescaped_route)]
 pub struct FrameWorldRevisionUri {
     #[resource(cache)]
     wire: ResourceUri,
-    #[resource(error=FrameUriError::Identity)]
+    #[resource(error=FrameUriError::Identity, accessor = world_id, clone_accessor)]
     world_id: FrameWorldId,
-    #[resource(error=FrameUriError::Identity)]
+    #[resource(error=FrameUriError::Identity, accessor = revision_id, clone_accessor)]
     revision_id: FrameWorldRevisionId,
 }
 
 impl FrameWorldRevisionUri {
-    /// ```compile_fail
-    /// use veoveo_frames_contract::{FrameWorldId, FrameWorldRevisionUri};
-    /// let world = FrameWorldId::new("survey").unwrap();
-    /// FrameWorldRevisionUri::new(&world, &world);
-    /// ```
-    pub fn new(world_id: &FrameWorldId, revision_id: &FrameWorldRevisionId) -> Self {
-        Self::resource_from_parts(world_id.clone(), revision_id.clone())
-            .expect("typed Frame address")
-    }
-    pub fn parse(value: impl AsRef<str>) -> Result<Self, FrameUriError> {
-        let uri = ResourceUri::new(value.as_ref())?;
-        <Self as ResourceAddress>::parse(&uri)
-    }
-    pub fn world_id(&self) -> FrameWorldId {
-        self.world_id.clone()
-    }
-    pub fn revision_id(&self) -> FrameWorldRevisionId {
-        self.revision_id.clone()
-    }
     pub fn frame(&self, frame_id: &FrameId) -> WorldFrameUri {
         WorldFrameUri::new(self, frame_id)
     }
 }
-impl FrameWorldRevisionUri {
-    pub fn as_str(&self) -> &str {
-        self.wire.as_str()
-    }
-    pub fn as_resource_uri(&self) -> &ResourceUri {
-        &self.wire
-    }
-}
-impl FromStr for FrameWorldRevisionUri {
-    type Err = FrameUriError;
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        Self::parse(value)
-    }
-}
-impl fmt::Display for FrameWorldRevisionUri {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-
-#[derive(veoveo_types::ResourceAddress)]
-#[resource(template="frames://world/{world_id}/revision/{revision_id}/frame/{frame_id}", error=FrameUriError, route_error=route_error, input=unescaped_route)]
+#[veoveo_types::resource_address(custom(template="frames://world/{world_id}/revision/{revision_id}/frame/{frame_id}", error=FrameUriError, route_error=route_error, input=unescaped_route))]
 struct WorldFrameRoute {
     #[resource(error=FrameUriError::Identity)]
     world_id: FrameWorldId,
@@ -203,8 +101,8 @@ pub struct WorldFrameUri {
 impl WorldFrameUri {
     /// ```compile_fail
     /// use veoveo_frames_contract::{FrameId, FrameWorldId, FrameWorldUri, WorldFrameUri};
-    /// let world = FrameWorldUri::new(&FrameWorldId::new("survey").unwrap());
-    /// WorldFrameUri::new(&world, &FrameId::new("camera").unwrap());
+    /// let world = FrameWorldUri::new(&FrameWorldId::parse("survey").unwrap());
+    /// WorldFrameUri::new(&world, &FrameId::parse("camera").unwrap());
     /// ```
     pub fn new(revision: &FrameWorldRevisionUri, frame_id: &FrameId) -> Self {
         let route = WorldFrameRoute::resource_from_parts(
@@ -275,54 +173,41 @@ impl ResourceAddress for WorldFrameUri {
 }
 
 /// Address of one recorded Frames operation. It carries its operation identity.
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::ResourceAddress,
-)]
-#[serde(try_from = "String", into = "String")]
-#[resource(template="frames://operation/{operation_id}", error=FrameUriError, route_error=route_error, wire)]
+#[veoveo_types::resource_address(cached(FrameUriErrorAddresses), template = "frames://operation/{operation_id}", constructor = borrowed, from_str, resource_uri)]
 pub struct FrameOperationUri {
     #[resource(cache)]
     wire: ResourceUri,
-    #[resource(error=FrameUriError::Identity)]
+    #[resource(error=FrameUriError::Identity, accessor = operation_id)]
     operation_id: CoordinateOperationId,
 }
 
 impl FrameOperationUri {
     pub const TEMPLATE: &str = Self::RESOURCE_TEMPLATE;
+}
 
-    /// ```compile_fail
-    /// use veoveo_frames_contract::{FrameOperationUri, FrameWorldId};
-    /// FrameOperationUri::new(&FrameWorldId::new("world").unwrap());
-    /// ```
-    pub fn new(operation_id: &CoordinateOperationId) -> Self {
-        Self::resource_from_parts(operation_id.clone()).expect("typed Frame address")
-    }
+#[doc(hidden)]
+pub struct FrameUriErrorAddresses;
+impl veoveo_types::ResourceProfile for FrameUriErrorAddresses {
+    type Error = FrameUriError;
+    const PROFILE: veoveo_types::ResourceProfileSpec<Self::Error> =
+        veoveo_types::ResourceProfileSpec {
+            route_error: |_, error| route_error(error),
+        };
+}
 
-    pub fn parse(value: impl AsRef<str>) -> Result<Self, FrameUriError> {
-        let uri = ResourceUri::new(value.as_ref())?;
-        <Self as ResourceAddress>::parse(&uri)
-    }
-
-    pub fn operation_id(&self) -> &CoordinateOperationId {
-        &self.operation_id
-    }
-}
-impl FrameOperationUri {
-    pub fn as_str(&self) -> &str {
-        self.wire.as_str()
-    }
-    pub fn as_resource_uri(&self) -> &ResourceUri {
-        &self.wire
-    }
-}
-impl FromStr for FrameOperationUri {
-    type Err = FrameUriError;
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        Self::parse(value)
-    }
-}
-impl fmt::Display for FrameOperationUri {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
+/// ```compile_fail
+/// use veoveo_frames_contract::{FrameId, FrameWorldUri};
+/// FrameWorldUri::new(&FrameId::parse("wrong-domain").unwrap());
+/// ```
+const _: () = ();
+/// ```compile_fail
+/// use veoveo_frames_contract::{FrameWorldId, FrameWorldRevisionUri};
+/// let world = FrameWorldId::parse("survey").unwrap();
+/// FrameWorldRevisionUri::new(&world, &world);
+/// ```
+const _: () = ();
+/// ```compile_fail
+/// use veoveo_frames_contract::{FrameOperationUri, FrameWorldId};
+/// FrameOperationUri::new(&FrameWorldId::parse("world").unwrap());
+/// ```
+const _: () = ();

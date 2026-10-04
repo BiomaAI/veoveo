@@ -178,7 +178,7 @@ impl LiveViewService {
 
         let now = Utc::now();
         let expires_at = expiry(now, self.config.session_duration)?;
-        let live_view_id = LiveViewId::new(format!("view-{}", Uuid::now_v7()))
+        let live_view_id = LiveViewId::parse(format!("view-{}", Uuid::now_v7()))
             .map_err(|_| LiveViewError::Identifier)?;
         let token = new_token()?;
         let resource_uri =
@@ -638,7 +638,7 @@ fn signal(state: &LiveViewState) -> ViewerSignal {
 fn new_token() -> Result<LiveViewAccessToken, LiveViewError> {
     let mut bytes = [0_u8; 32];
     getrandom::fill(&mut bytes).map_err(|_| LiveViewError::Access)?;
-    LiveViewAccessToken::new(URL_SAFE_NO_PAD.encode(bytes)).map_err(|_| LiveViewError::Access)
+    LiveViewAccessToken::parse(URL_SAFE_NO_PAD.encode(bytes)).map_err(|_| LiveViewError::Access)
 }
 
 fn token_hash(token: &LiveViewAccessToken) -> [u8; 32] {
@@ -710,11 +710,11 @@ mod tests {
 
     fn owner() -> LiveViewOwner {
         LiveViewOwner {
-            subject: AccessSubject::Group(GroupId::new("operators").unwrap()),
-            tenant: TenantId::new("tenant-a").unwrap(),
-            work_context: WorkContextId::new("context-a").unwrap(),
-            policy_revision: PolicyVersion::new("policy-1").unwrap(),
-            data_labels: [DataLabelId::new("simulation").unwrap()]
+            subject: AccessSubject::Group(GroupId::parse("operators").unwrap()),
+            tenant: TenantId::parse("tenant-a").unwrap(),
+            work_context: WorkContextId::parse("context-a").unwrap(),
+            policy_revision: PolicyVersion::parse("policy-1").unwrap(),
+            data_labels: [DataLabelId::parse("simulation").unwrap()]
                 .into_iter()
                 .collect(),
         }
@@ -763,9 +763,9 @@ mod tests {
 
     fn request(instance: &str) -> OpenLiveViewRequest {
         OpenLiveViewRequest {
-            session_id: LiveSessionId::new("session-alpha").unwrap(),
-            camera_id: LiveCameraId::new("follow").unwrap(),
-            viewer_instance_id: LiveViewerInstanceId::new(instance).unwrap(),
+            session_id: LiveSessionId::parse("session-alpha").unwrap(),
+            camera_id: LiveCameraId::parse("follow").unwrap(),
+            viewer_instance_id: LiveViewerInstanceId::parse(instance).unwrap(),
         }
     }
 
@@ -778,7 +778,7 @@ mod tests {
                 service
                     .open(
                         owner(),
-                        audit_context(PrincipalId::new(format!("viewer-{index}")).unwrap()),
+                        audit_context(PrincipalId::parse(format!("viewer-{index}")).unwrap()),
                         request(&format!("browser-{index}")),
                     )
                     .await
@@ -810,8 +810,8 @@ mod tests {
     async fn viewer_pages_apply_ownership_before_the_limit() {
         tokio::time::timeout(Duration::from_secs(10), async {
             let (service, _) = service().await;
-            let actor = PrincipalId::new("alice").unwrap();
-            let other = PrincipalId::new("bob").unwrap();
+            let actor = PrincipalId::parse("alice").unwrap();
+            let other = PrincipalId::parse("bob").unwrap();
             for i in 0..102 {
                 service
                     .open(
@@ -834,7 +834,7 @@ mod tests {
                     .unwrap();
                 expected.insert(connection.stream.live_view_id);
             }
-            let session = LiveSessionId::new("session-alpha").unwrap();
+            let session = LiveSessionId::parse("session-alpha").unwrap();
             let cursor = |view: &LiveViewState| -> anyhow::Result<String> {
                 Ok(crate::contract::UavLiveViewCursor::new(
                     session.clone(),
@@ -870,14 +870,14 @@ mod tests {
                     .page(
                         &owner(),
                         &actor,
-                        &LiveSessionId::new("other-session").unwrap(),
+                        &LiveSessionId::parse("other-session").unwrap(),
                         None
                     )
                     .await
                     .is_empty()
             );
             let mut denied = owner();
-            denied.work_context = WorkContextId::new("other-context").unwrap();
+            denied.work_context = WorkContextId::parse("other-context").unwrap();
             assert!(
                 service
                     .page(&denied, &actor, &session, None)
@@ -892,7 +892,7 @@ mod tests {
     #[tokio::test]
     async fn closing_one_viewer_does_not_stop_the_shared_product() {
         let (service, adapter) = service().await;
-        let actor = PrincipalId::new("alice").unwrap();
+        let actor = PrincipalId::parse("alice").unwrap();
         let first = service
             .open(owner(), audit_context(actor.clone()), request("browser-a"))
             .await
@@ -908,7 +908,7 @@ mod tests {
                 CloseLiveViewRequest {
                     session_id: first.stream.session_id,
                     live_view_id: first.stream.live_view_id,
-                    viewer_instance_id: LiveViewerInstanceId::new("browser-a").unwrap(),
+                    viewer_instance_id: LiveViewerInstanceId::parse("browser-a").unwrap(),
                 },
             )
             .await
@@ -931,7 +931,7 @@ mod tests {
     #[tokio::test]
     async fn stream_disconnect_releases_connection_state_immediately() {
         let (service, adapter) = service().await;
-        let actor = PrincipalId::new("alice").unwrap();
+        let actor = PrincipalId::parse("alice").unwrap();
         let opened = service
             .open(owner(), audit_context(actor), request("browser-a"))
             .await

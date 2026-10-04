@@ -93,7 +93,7 @@ impl McpServerContract for TimeseriesContract {
     type Scope = TimeseriesScope;
     type Resource = TimeseriesResource;
     fn slug() -> ServerSlug {
-        ServerSlug::new("timeseries").expect("declared slug")
+        ServerSlug::parse("timeseries").expect("declared slug")
     }
     fn scheme() -> ResourceScheme {
         uris::SCHEME.clone()
@@ -162,7 +162,7 @@ mod setup_tests {
         assert_eq!(setup.resource_templates().len(), 4);
         assert!(setup.scope_names().is_empty());
         assert!(
-            TimeseriesScope::try_from(&veoveo_types::ScopeName::new("external:read").unwrap())
+            TimeseriesScope::try_from(&veoveo_types::ScopeName::parse("external:read").unwrap())
                 .is_err()
         );
         let capabilities = &setup.server_config().capabilities;

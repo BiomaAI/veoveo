@@ -100,7 +100,7 @@ impl KnowledgeSourceTarget {
         }
         let mut selected = Vec::new();
         for mut tool in tools {
-            let projected = GatewayToolName::new(tool.name.as_ref())?;
+            let projected = GatewayToolName::parse(tool.name.as_ref())?;
             let (server, local) = projected
                 .as_str()
                 .split_once("__")
@@ -109,8 +109,8 @@ impl KnowledgeSourceTarget {
                 !local.contains("__"),
                 "gateway tool has multiple namespace separators"
             );
-            let server = ServerSlug::new(server)?;
-            let local = LocalToolName::new(local)?;
+            let server = ServerSlug::parse(server)?;
+            let local = LocalToolName::parse(local)?;
             if server == self.server {
                 ensure!(
                     self.tool_name(&local)? == projected.as_str(),

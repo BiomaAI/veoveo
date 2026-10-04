@@ -7,11 +7,11 @@ async fn assert_published_attribution<R: ArtifactRepository>(
 ) {
     for invocation in [
         InvocationProvenance::Direct {
-            initiator: PrincipalId::new("alice").unwrap(),
+            initiator: PrincipalId::parse("alice").unwrap(),
         },
         InvocationProvenance::Delegated {
-            initiator: PrincipalId::new("operator").unwrap(),
-            delegation_id: DelegationId::new("delegation/17").unwrap(),
+            initiator: PrincipalId::parse("operator").unwrap(),
+            delegation_id: DelegationId::parse("delegation/17").unwrap(),
         },
         InvocationProvenance::Automated,
     ] {
@@ -23,9 +23,10 @@ async fn assert_published_attribution<R: ArtifactRepository>(
         }
         if matches!(invocation, InvocationProvenance::Delegated { .. }) {
             actor.identity.actor.kind = PrincipalKind::Service;
-            actor.identity.actor.subject = TokenSubject::new("artifact-test").unwrap();
+            actor.identity.actor.subject = TokenSubject::parse("artifact-test").unwrap();
             actor.identity.actor.id =
-                PrincipalId::new(format!("{}#artifact-test", actor.identity.actor.issuer)).unwrap();
+                PrincipalId::parse(format!("{}#artifact-test", actor.identity.actor.issuer))
+                    .unwrap();
             actor.identity.authority.output_policy.owner =
                 AccessSubject::Principal(actor.identity.actor.id.clone());
         }

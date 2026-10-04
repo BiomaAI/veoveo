@@ -34,7 +34,7 @@ impl RecordingCatalog {
         sections: &veoveo_gateway_contract::AdmittedCatalogSections,
     ) -> Result<Self, veoveo_types::ExtensionError> {
         let key = registry.section_key::<super::RecordingCatalogSection>(
-            &veoveo_types::ExtensionName::new(super::RECORDING_INGEST_SECTION)?,
+            &veoveo_types::ExtensionName::parse(super::RECORDING_INGEST_SECTION)?,
         )?;
         let resources = sections
             .get(&key)?

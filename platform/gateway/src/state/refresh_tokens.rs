@@ -100,7 +100,7 @@ impl RefreshTokenDeliveryCipher {
             )
             .map_err(|_| anyhow!("refresh delivery envelope authentication failed"))?;
         let token = String::from_utf8(plaintext).context("refresh delivery token is not UTF-8")?;
-        OAuthRefreshToken::new(token).map_err(Into::into)
+        OAuthRefreshToken::parse(token).map_err(Into::into)
     }
 }
 
@@ -239,7 +239,7 @@ impl GatewayState {
             .checked_add_signed(TimeDelta::seconds(REFRESH_TOKEN_TTL_SECONDS))
             .context("refresh-token lifetime overflow")?;
         let family_uuid = Uuid::now_v7();
-        let family_id = GatewayRefreshFamilyId::new(family_uuid.to_string())?;
+        let family_id = GatewayRefreshFamilyId::parse(family_uuid.to_string())?;
         let family_record_id = gateway_refresh_family_record_id(family_uuid);
         let token = random_refresh_token()?;
         let token_record = GatewayRefreshTokenRecord {
@@ -418,16 +418,16 @@ pub(super) fn grant_from_family(family: GatewayRefreshFamilyRecord) -> Result<Ga
         serde_json::from_value(serde_json::to_value(family.principal)?)?;
     Ok(GatewayRefreshGrant {
         family_id,
-        authorization_server: AuthorizationServerId::new(family.authorization_server)?,
-        profile: GatewayProfileId::new(family.profile)?,
-        oauth_client_id: OAuthClientId::new(family.oauth_client_id)?,
-        work_context: WorkContextId::new(family.work_context)?,
+        authorization_server: AuthorizationServerId::parse(family.authorization_server)?,
+        profile: GatewayProfileId::parse(family.profile)?,
+        oauth_client_id: OAuthClientId::parse(family.oauth_client_id)?,
+        work_context: WorkContextId::parse(family.work_context)?,
         principal: stored_principal.principal,
         principal_display_name: stored_principal.principal_display_name,
         scopes: family
             .scopes
             .into_iter()
-            .map(ScopeName::new)
+            .map(ScopeName::parse)
             .collect::<Result<_, _>>()?,
         generation: u64::try_from(family.current_generation)
             .context("stored refresh-token generation is negative")?,
@@ -440,7 +440,7 @@ fn family_id(family: &GatewayRefreshFamilyRecord) -> Result<GatewayRefreshFamily
     let RecordIdKey::Uuid(value) = &family.id.key else {
         anyhow::bail!("stored refresh-token family id is not a UUID");
     };
-    GatewayRefreshFamilyId::new(value.to_string()).map_err(Into::into)
+    GatewayRefreshFamilyId::parse(value.to_string()).map_err(Into::into)
 }
 
 fn refresh_delivery_aad(family: &GatewayRefreshFamilyRecord, generation: i64) -> Result<Vec<u8>> {
@@ -478,7 +478,7 @@ fn serialize_refresh_principal(
 fn random_refresh_token() -> Result<OAuthRefreshToken> {
     let mut bytes = [0_u8; 32];
     getrandom::fill(&mut bytes).context("failed to generate refresh-token entropy")?;
-    OAuthRefreshToken::new(URL_SAFE_NO_PAD.encode(bytes)).map_err(Into::into)
+    OAuthRefreshToken::parse(URL_SAFE_NO_PAD.encode(bytes)).map_err(Into::into)
 }
 
 fn refresh_token_hash(token: &OAuthRefreshToken) -> String {
@@ -498,7 +498,7 @@ mod tests {
     #[test]
     fn delivery_envelope_round_trips_only_with_its_bound_identity() {
         let cipher = RefreshTokenDeliveryCipher::new(TEST_KEY).unwrap();
-        let token = OAuthRefreshToken::new("r".repeat(43)).unwrap();
+        let token = OAuthRefreshToken::parse("r".repeat(43)).unwrap();
         let envelope = cipher.seal(&token, b"profile-a/family-a/1").unwrap();
 
         assert_ne!(envelope.expose_secret(), token.as_str());
@@ -527,11 +527,11 @@ mod tests {
     #[test]
     fn refresh_principal_state_preserves_display_metadata() {
         let principal = Principal {
-            id: PrincipalId::new("https://idp.example#alice").unwrap(),
+            id: PrincipalId::parse("https://idp.example#alice").unwrap(),
             kind: PrincipalKind::User,
-            issuer: TokenIssuer::new("https://idp.example").unwrap(),
-            subject: TokenSubject::new("alice").unwrap(),
-            tenant: Some(TenantId::new("tenant-a").unwrap()),
+            issuer: TokenIssuer::parse("https://idp.example").unwrap(),
+            subject: TokenSubject::parse("alice").unwrap(),
+            tenant: Some(TenantId::parse("tenant-a").unwrap()),
             groups: BTreeSet::new(),
             group_roles: BTreeSet::new(),
             roles: BTreeSet::new(),

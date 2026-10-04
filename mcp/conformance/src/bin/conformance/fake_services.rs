@@ -1085,9 +1085,9 @@ pub(super) async fn cmd_fake_hosted_mcp(
     internal_trust_jwks: String,
     ready_file: Option<PathBuf>,
 ) -> Result<()> {
-    let server_slug = ServerSlug::new(server.clone())?;
+    let server_slug = ServerSlug::parse(server.clone())?;
     let verifier = GatewayInternalTokenVerifier::new(
-        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
+        TokenIssuer::parse(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
         server_slug,
         GatewayInternalTrustBundle::from_json(&internal_trust_jwks)?,
     );

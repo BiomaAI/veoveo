@@ -39,5 +39,5 @@ pub(crate) use server_proxy::proxy_server_admin;
 pub(super) use tasks::cancel_task;
 
 fn admin_profile_id(profile: String) -> Option<GatewayProfileId> {
-    GatewayProfileId::new(profile).ok()
+    GatewayProfileId::parse(profile).ok()
 }

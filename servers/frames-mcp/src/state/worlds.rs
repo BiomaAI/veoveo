@@ -129,7 +129,8 @@ impl FramesState {
         request: PublishWorldRequest,
     ) -> Result<PublishWorldOutput> {
         let validated = ValidatedWorldTree::new(request.tree)?;
-        let revision_id = FrameWorldRevisionId::new(format!("revision-{}", uuid::Uuid::now_v7()))?;
+        let revision_id =
+            FrameWorldRevisionId::parse(format!("revision-{}", uuid::Uuid::now_v7()))?;
         let digest = validated.spec_digest().clone();
         let result = self
             .store

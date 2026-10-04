@@ -432,7 +432,7 @@ pub(super) async fn ensure_operator_control_grant(
         ControlGrantId, GrantVehicleControlRequest, VehicleControlGrant, VehicleControlPermission,
     };
     let request = GrantVehicleControlRequest {
-        grant_id: ControlGrantId::new(format!("acceptance-operator-{}", scenario.vehicle_id))?,
+        grant_id: ControlGrantId::parse(format!("acceptance-operator-{}", scenario.vehicle_id))?,
         session_id: scenario.session_id.clone(),
         vehicle_id: scenario.vehicle_id.clone(),
         principal_key: principal_key.clone(),

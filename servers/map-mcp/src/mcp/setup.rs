@@ -21,7 +21,7 @@ impl McpServerContract for MapContract {
     type Scope = MapScope;
     type Resource = MapAddress;
     fn slug() -> ServerSlug {
-        ServerSlug::new("map").expect("declared Map slug")
+        ServerSlug::parse("map").expect("declared Map slug")
     }
     fn scheme() -> ResourceScheme {
         crate::uris::SCHEME.clone()

@@ -5,20 +5,7 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 use veoveo_types::IdentifierError;
 
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    veoveo_types::Id,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, validate = validate_upstream_url, error = IdentifierError)]
+#[veoveo_types::id(text(UpstreamUrls))]
 pub struct UpstreamUrl(String);
 impl UpstreamUrl {
     pub fn parsed(&self) -> Result<Url, IdentifierError> {
@@ -26,20 +13,7 @@ impl UpstreamUrl {
             .map_err(|_| IdentifierError::new(self.as_str(), "must be a valid URL"))
     }
 }
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    veoveo_types::Id,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, validate = validate_local_file_path, error = IdentifierError)]
+#[veoveo_types::id(text(LocalFilePaths))]
 pub struct CertificateAuthorityFilePath(String);
 
 #[derive(
@@ -120,4 +94,20 @@ fn validate_local_file_path(value: &str) -> Result<(), IdentifierError> {
         ));
     }
     Ok(())
+}
+
+#[doc(hidden)]
+pub struct UpstreamUrls;
+impl veoveo_types::IdProfile for UpstreamUrls {
+    type Error = IdentifierError;
+    const PROFILE: veoveo_types::IdProfileSpec<Self::Error> =
+        veoveo_types::IdProfileSpec::text(|value, _| validate_upstream_url(value));
+}
+
+#[doc(hidden)]
+pub struct LocalFilePaths;
+impl veoveo_types::IdProfile for LocalFilePaths {
+    type Error = IdentifierError;
+    const PROFILE: veoveo_types::IdProfileSpec<Self::Error> =
+        veoveo_types::IdProfileSpec::text(|value, _| validate_local_file_path(value));
 }

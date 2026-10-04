@@ -111,7 +111,7 @@ async fn concurrent_grants_are_idempotent_bounded_and_revocation_never_reissues_
         a.issue_automation_grant(&owner, &request).await.unwrap(),
         revoked
     );
-    let mut events = db.b.client().query("SELECT VALUE activity FROM audit_record WHERE target_ref = $computer AND activity = 'computer_revoke' AND draft.detail.stage = 'grant_revoked';").bind(("computer", RecordId::new("computer", surrealdb::types::Uuid::from(computer.into_uuid())))).await.unwrap().check().unwrap();
+    let mut events = db.b.client().query("SELECT VALUE activity FROM audit_record WHERE target_ref = $computer AND activity = 'computer_revoke' AND draft.detail.stage = 'grant_revoked';").bind(("computer", RecordId::new("computer", surrealdb::types::Uuid::from(computer.as_uuid())))).await.unwrap().check().unwrap();
     let events: Vec<String> = events.take(0).unwrap();
     assert_eq!(events.len(), 1);
 }
@@ -247,7 +247,7 @@ async fn a_user_principal_can_receive_a_grant_but_cannot_change_its_oauth_client
         .find(|client| client.id.as_str() == "console")
         .unwrap()
         .clone();
-    client.id = veoveo_gateway_contract::OAuthClientId::new("console-secondary").unwrap();
+    client.id = veoveo_gateway_contract::OAuthClientId::parse("console-secondary").unwrap();
     current.work_contexts[0].memberships[0]
         .oauth_clients
         .insert(client.id.clone());
@@ -324,10 +324,7 @@ async fn current_principals_policy_clearance_and_reduced_limits_bound_each_use()
         Err(ComputerError::Forbidden)
     ));
     support::policy::install(&db.b, control()).await;
-    let record = RecordId::new(
-        "computer",
-        surrealdb::types::Uuid::from(computer.into_uuid()),
-    );
+    let record = RecordId::new("computer", surrealdb::types::Uuid::from(computer.as_uuid()));
     db.b.client()
         .query("UPDATE ONLY $computer SET owner_context.data_labels = ['pii'];")
         .bind(("computer", record.clone()))
@@ -490,11 +487,11 @@ async fn owner_grant_choices_follow_current_permissions_and_registration_scope()
     let mut current = control();
     current.policies[0].rules[0]
         .tools
-        .remove(&LocalToolName::new("start").unwrap());
+        .remove(&LocalToolName::parse("start").unwrap());
     let mut other = current.profiles[0].clone();
-    other.id = GatewayProfileId::new("secondary").unwrap();
+    other.id = GatewayProfileId::parse("secondary").unwrap();
     other.protected_resource =
-        ProtectedResourceId::new("https://computers.test/mcp/secondary").unwrap();
+        ProtectedResourceId::parse("https://computers.test/mcp/secondary").unwrap();
     other.auth_modes = [AuthMode::OAuthClientCredentials].into();
     let mut secondary_client = current
         .oauth_clients
@@ -502,7 +499,7 @@ async fn owner_grant_choices_follow_current_permissions_and_registration_scope()
         .find(|c| c.id.as_str() == "service")
         .unwrap()
         .clone();
-    secondary_client.id = OAuthClientId::new("secondary-service").unwrap();
+    secondary_client.id = OAuthClientId::parse("secondary-service").unwrap();
     secondary_client.allowed_resources = [other.protected_resource.clone()].into();
     current.oauth_clients.push(secondary_client);
     current.profiles.push(other);
@@ -530,7 +527,7 @@ async fn owner_grant_choices_follow_current_permissions_and_registration_scope()
 
     current.policies[0].rules[0]
         .tools
-        .remove(&LocalToolName::new("grant_automation").unwrap());
+        .remove(&LocalToolName::parse("grant_automation").unwrap());
     support::policy::install(&db.b, current).await;
     let revoked = a.list_automation_grants(&owner, computer).await.unwrap();
     assert!(!revoked.can_grant);
@@ -547,7 +544,7 @@ async fn owner_grant_choices_are_bounded_and_do_not_limit_exact_client_issuance(
     let mut current = control();
     for index in 0..130 {
         let mut client = current.oauth_clients[0].clone();
-        client.id = OAuthClientId::new(format!("hint-{index:03}")).unwrap();
+        client.id = OAuthClientId::parse(format!("hint-{index:03}")).unwrap();
         current.oauth_clients.push(client);
     }
     support::policy::install(&db.b, current).await;

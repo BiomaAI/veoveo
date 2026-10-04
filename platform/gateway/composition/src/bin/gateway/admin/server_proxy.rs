@@ -37,7 +37,7 @@ pub(crate) async fn proxy_server_admin(
     let Some(profile_id) = admin_profile_id(profile) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let Ok(server_slug) = ServerSlug::new(server) else {
+    let Ok(server_slug) = ServerSlug::parse(server) else {
         return StatusCode::NOT_FOUND.into_response();
     };
     if !valid_admin_path(&path) {

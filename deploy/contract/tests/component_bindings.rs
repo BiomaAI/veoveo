@@ -68,7 +68,7 @@ fn retained_image_provenance_is_bound_even_when_the_catalog_is_resealed() {
     let mut lock = fixture();
     lock.validate().unwrap();
     // A chart snapshot is not evidence that a retained image was built there.
-    let revision = SourceRevision::new(&lock.sources[0].revision).unwrap();
+    let revision = SourceRevision::parse(&lock.sources[0].revision).unwrap();
     lock.components[1].units[0].inputs = lock.components[1].units[0]
         .inputs
         .iter()
@@ -95,7 +95,7 @@ fn image_variants_bind_exact_build_revisions_instead_of_catalog_order() {
     for same_bytes in [false, true] {
         let mut lock = fixture();
         let mut newer = lock.sources[0].images[0].clone();
-        newer.source_revision = SourceRevision::new("4".repeat(40)).unwrap();
+        newer.source_revision = SourceRevision::parse("4".repeat(40)).unwrap();
         newer.publication_digest = format!("sha256:{}", "5".repeat(64));
         if !same_bytes {
             newer.digest = format!("sha256:{}", "6".repeat(64));
@@ -115,7 +115,7 @@ fn image_variants_bind_exact_build_revisions_instead_of_catalog_order() {
                     && target == &newer.name
                 {
                     source.revision = newer.source_revision.clone();
-                    *digest = ArtifactDigest::new(&newer.digest).unwrap();
+                    *digest = ArtifactDigest::parse(&newer.digest).unwrap();
                 }
                 input
             })
@@ -141,7 +141,7 @@ fn image_variants_bind_exact_build_revisions_instead_of_catalog_order() {
 fn retained_versions_do_not_relax_image_ownership_or_publication_identity() {
     let original = fixture();
     let mut newer = original.sources[0].images[0].clone();
-    newer.source_revision = SourceRevision::new("4".repeat(40)).unwrap();
+    newer.source_revision = SourceRevision::parse("4".repeat(40)).unwrap();
 
     let mut repeated = original.clone();
     repeated.sources[0]
@@ -210,7 +210,7 @@ fn resealed_chart_or_removed_artifact_cannot_escape_the_complete_lock() {
         .cloned()
         .map(|mut input| {
             if let ComponentInput::Chart { digest, .. } = &mut input {
-                *digest = ArtifactDigest::new(format!("sha256:{}", "9".repeat(64))).unwrap();
+                *digest = ArtifactDigest::parse(format!("sha256:{}", "9".repeat(64))).unwrap();
             }
             input
         })
@@ -313,13 +313,13 @@ fn configuration_identity_cannot_relabel_values_or_escape_the_installation() {
                 .source
                 .clone(),
             path: "values.yaml".into(),
-            digest: ArtifactDigest::new(format!("sha256:{}", "8".repeat(64))).unwrap(),
+            digest: ArtifactDigest::parse(format!("sha256:{}", "8".repeat(64))).unwrap(),
         });
     relabeled.components[1]
         .declaration
         .configuration
         .source
-        .revision = SourceRevision::new("9".repeat(40)).unwrap();
+        .revision = SourceRevision::parse("9".repeat(40)).unwrap();
     relock(&mut relabeled, 1);
     assert!(relabeled.validate().is_err());
 

@@ -47,7 +47,7 @@ fn final_access_uses_source_policy_group_grants_and_record_deadlines() {
     let allows = |caller: &SearchCaller, access: &AccessDescriptor| {
         let observation = Observation::builder(
             descriptor.collection().clone(),
-            Revision::new("1").unwrap(),
+            Revision::parse("1").unwrap(),
             content_digest("text"),
             now,
         )
@@ -213,7 +213,7 @@ fn authenticated_policy_resolves_source_selection_and_current_context_membership
     assert!(
         !reader
             .work_contexts
-            .contains(&WorkContextId::new("foreign-context").unwrap())
+            .contains(&WorkContextId::parse("foreign-context").unwrap())
     );
     let selected = &reader.collections[descriptor.collection()];
     assert!(selected.matches_uri(&ResourceUri::new("media://model/public/a").unwrap()));

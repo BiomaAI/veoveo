@@ -118,7 +118,7 @@ impl Fixture {
 
     async fn connect(&self) -> Result<RunningService<RoleClient, ClientConfig>, RequestError> {
         let issuer = GatewayInternalTokenIssuer::new(
-            TokenIssuer::new("test-gateway").unwrap(),
+            TokenIssuer::parse("test-gateway").unwrap(),
             GatewayInternalSigningKey::new(
                 "test",
                 base64::engine::general_purpose::STANDARD
@@ -209,7 +209,7 @@ async fn gateway_preserves_body_rejection_without_replaying_or_poisoning_other_r
             .find(|server| server.slug.as_str() == "media")
             .unwrap();
         manifest.upstream.url =
-            veoveo_gateway_contract::UpstreamUrl::new(source.endpoint.clone()).unwrap();
+            veoveo_gateway_contract::UpstreamUrl::parse(source.endpoint.clone()).unwrap();
         manifest.upstream.health_url = manifest.upstream.url.clone();
         manifest.upstream.security =
             veoveo_gateway_contract::UpstreamTransportSecurity::LoopbackHttp;

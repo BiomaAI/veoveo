@@ -23,7 +23,7 @@ async fn attachment_requires_its_own_resource_policy_and_current_contributor_mem
             _ => {
                 policy.policies[0].rules[2]
                     .required_data_labels
-                    .insert(DataLabelId::new("cui").unwrap());
+                    .insert(DataLabelId::parse("cui").unwrap());
             }
         }
         support::policy::install(&db.b, policy).await;
@@ -40,13 +40,15 @@ async fn attachment_requires_its_own_resource_policy_and_current_contributor_mem
     let handle = a.redeem_browser_grant(&actor, &ticket.token).await.unwrap();
     assert!(a.renew_browser_grant(&handle, false).await.is_ok());
     let mut invalid = control();
-    invalid.servers[0].slug = ServerSlug::new("foreign").unwrap();
-    invalid.servers[0].uri_scheme = ResourceScheme::new("foreign").unwrap();
+    invalid.servers[0].slug = ServerSlug::parse("foreign").unwrap();
+    invalid.servers[0].uri_scheme = ResourceScheme::parse("foreign").unwrap();
     // The existing rules still name computers, so use the exact new scope too.
-    invalid.profiles[0].servers[0].server = ServerSlug::new("foreign").unwrap();
+    invalid.profiles[0].servers[0].server = ServerSlug::parse("foreign").unwrap();
     invalid.profiles[0].servers[0].resources = Exposure::All;
     for rule in &mut invalid.policies[0].rules {
-        rule.servers = [ServerSlug::new("foreign").unwrap()].into_iter().collect();
+        rule.servers = [ServerSlug::parse("foreign").unwrap()]
+            .into_iter()
+            .collect();
     }
     assert!(
         veoveo_policy::PolicyCatalog::new(invalid, veoveo_gateway_catalog::registry().unwrap())
@@ -104,7 +106,7 @@ async fn expired_ticket_grant_and_family_cannot_be_revived_by_activity() {
         );
         db.b.client()
             .query(statement)
-            .bind(("grant", grant_record(handle.grant_id().into_uuid())))
+            .bind(("grant", grant_record(handle.grant_id().as_uuid())))
             .bind(("family", family))
             .await
             .unwrap()

@@ -55,7 +55,7 @@ impl PolicyAction {
     pub fn name(&self) -> ActionName {
         match self {
             Self::Kernel(action) => {
-                ActionName::new(action.as_str()).expect("closed kernel action spelling")
+                ActionName::parse(action.as_str()).expect("closed kernel action spelling")
             }
             Self::Registered(action) => action.name().clone(),
         }

@@ -180,7 +180,7 @@ pub(crate) fn bytes_digest(bytes: &[u8]) -> Result<ArtifactDigest> {
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect::<String>();
-    Ok(ArtifactDigest::new(format!("sha256:{hex}"))?)
+    Ok(ArtifactDigest::parse(format!("sha256:{hex}"))?)
 }
 
 pub(crate) fn object_digest(object: &Value) -> Result<ArtifactDigest> {

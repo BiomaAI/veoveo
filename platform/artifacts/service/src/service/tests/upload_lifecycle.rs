@@ -159,7 +159,7 @@ async fn upload_publication_commits_receipt_grants_audit_and_duplicate_cleanup_a
             aggregate.occurrence.policy_revision,
             row.authority.policy_revision
         );
-        let tenant = veoveo_types::TenantId::new("acme").unwrap();
+        let tenant = veoveo_types::TenantId::parse("acme").unwrap();
         let scope = AuditReadScope::new(Some(tenant.clone()), false);
         let mut query = AuditQuery::new(AuditPartition::Tenant(tenant));
         query.class = Some(AuditClass::ArtifactActivity);

@@ -22,16 +22,16 @@ fn gateway_and_background_catalogs_preserve_policy_semantics() {
         for profile in &plane.profiles {
             for with_scopes in [false, true] {
                 let principal = Principal {
-                    id: PrincipalId::new("https://policy.test#actor").unwrap(),
+                    id: PrincipalId::parse("https://policy.test#actor").unwrap(),
                     kind,
-                    issuer: TokenIssuer::new("https://policy.test").unwrap(),
-                    subject: TokenSubject::new("actor").unwrap(),
-                    tenant: Some(TenantId::new("enterprise").unwrap()),
+                    issuer: TokenIssuer::parse("https://policy.test").unwrap(),
+                    subject: TokenSubject::parse("actor").unwrap(),
+                    tenant: Some(TenantId::parse("enterprise").unwrap()),
                     groups: BTreeSet::new(),
                     group_roles: BTreeSet::new(),
                     roles: BTreeSet::from([
-                        RoleId::new("operator").unwrap(),
-                        RoleId::new("administrator").unwrap(),
+                        RoleId::parse("operator").unwrap(),
+                        RoleId::parse("administrator").unwrap(),
                     ]),
                     scopes: if with_scopes {
                         profile.required_scopes.iter().cloned().collect()
@@ -47,13 +47,13 @@ fn gateway_and_background_catalogs_preserve_policy_semantics() {
                         .tools
                         .iter()
                         .cloned()
-                        .chain([LocalToolName::new("unregistered_policy_probe").unwrap()])
+                        .chain([LocalToolName::parse("unregistered_policy_probe").unwrap()])
                     {
                         let target = PolicyTarget::Tool {
                             server: server.slug.clone(),
                             tool,
                         };
-                        let trace = TraceId::new("shared-policy-probe").unwrap();
+                        let trace = TraceId::parse("shared-policy-probe").unwrap();
                         let request = PolicyRequest {
                             principal: &principal,
                             profile: &profile.id,

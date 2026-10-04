@@ -53,7 +53,7 @@ impl StandaloneAppRoute {
             .ok_or(StandaloneAppRouteError::InvalidServer)
             .and_then(decode_segment)
             .and_then(|value| {
-                ServerSlug::new(value).map_err(|_| StandaloneAppRouteError::InvalidServer)
+                ServerSlug::parse(value).map_err(|_| StandaloneAppRouteError::InvalidServer)
             })?;
         let page = raw_segments
             .map(decode_segment)

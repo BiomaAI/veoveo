@@ -19,10 +19,10 @@ fn control() -> GatewayControlPlane {
     )))
     .unwrap();
     let mut rule = control.policies[0].rules[0].clone();
-    rule.id = PolicyRuleId::new("computer-access").unwrap();
+    rule.id = PolicyRuleId::parse("computer-access").unwrap();
     rule.actions = [
         GatewayAction::ResourcesRead.into(),
-        veoveo_types::ActionName::new(veoveo_computers_contract::ComputerAction::Attach.as_str())
+        veoveo_types::ActionName::parse(veoveo_computers_contract::ComputerAction::Attach.as_str())
             .unwrap(),
     ]
     .into_iter()
@@ -33,15 +33,15 @@ fn control() -> GatewayControlPlane {
 }
 fn subject() -> AuthenticatedSubject {
     let principal = Principal {
-        id: PrincipalId::new("https://computers.test#alice").unwrap(),
+        id: PrincipalId::parse("https://computers.test#alice").unwrap(),
         kind: PrincipalKind::User,
-        issuer: TokenIssuer::new("https://computers.test").unwrap(),
-        subject: TokenSubject::new("alice").unwrap(),
-        tenant: Some(TenantId::new("test").unwrap()),
+        issuer: TokenIssuer::parse("https://computers.test").unwrap(),
+        subject: TokenSubject::parse("alice").unwrap(),
+        tenant: Some(TenantId::parse("test").unwrap()),
         groups: Default::default(),
         group_roles: Default::default(),
         roles: Default::default(),
-        scopes: [ScopeName::new("operator:use").unwrap()]
+        scopes: [ScopeName::parse("operator:use").unwrap()]
             .into_iter()
             .collect(),
         data_labels: Default::default(),
@@ -57,17 +57,17 @@ fn subject() -> AuthenticatedSubject {
         managed_execution: None,
         issuer: principal.issuer.clone(),
         subject: principal.subject.clone(),
-        oauth_client_id: OAuthClientId::new("console").unwrap(),
+        oauth_client_id: OAuthClientId::parse("console").unwrap(),
         session_family: Some(
-            GatewayRefreshFamilyId::new(uuid::Uuid::now_v7().to_string()).unwrap(),
+            GatewayRefreshFamilyId::parse(uuid::Uuid::now_v7().to_string()).unwrap(),
         ),
-        audience: ProtectedResourceId::new("https://computers.test/mcp/operator").unwrap(),
+        audience: ProtectedResourceId::parse("https://computers.test/mcp/operator").unwrap(),
         work_context: authority.work_context.clone(),
         invocation_mode: InvocationMode::Direct,
         initiator: Some(principal.id.clone()),
         delegation_id: None,
         scopes: principal.scopes.clone(),
-        jwt_id: Some(JwtId::new(uuid::Uuid::new_v4().to_string()).unwrap()),
+        jwt_id: Some(JwtId::parse(uuid::Uuid::new_v4().to_string()).unwrap()),
         issued_at: now,
         not_before: None,
         expires_at: now + TimeDelta::seconds(25),
@@ -87,11 +87,11 @@ fn subject() -> AuthenticatedSubject {
 async fn admission_preserves_signed_source_context_without_admin_permission_and_audits_denials() {
     let db = store::TestDb::new().await;
     let key = rcgen::KeyPair::generate_for(&rcgen::PKCS_ED25519).unwrap();
-    let issuer = TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER).unwrap();
+    let issuer = TokenIssuer::parse(GATEWAY_INTERNAL_TOKEN_ISSUER).unwrap();
     let trust = GatewayInternalTrustBundle::from_json(&serde_json::json!({"keys":[{"kty":"OKP","crv":"Ed25519","x":URL_SAFE_NO_PAD.encode(key.public_key_raw()),"alg":"EdDSA","use":"sig","kid":"fixture"}]}).to_string()).unwrap();
     let verifier = GatewayInternalTokenVerifier::new(
         issuer.clone(),
-        ServerSlug::new("computers").unwrap(),
+        ServerSlug::parse("computers").unwrap(),
         trust,
     );
     let state = ComputersState {
@@ -124,7 +124,7 @@ async fn admission_preserves_signed_source_context_without_admin_permission_and_
         grant_id: None,
         access_grant_id: None,
         pairing_id: None,
-        profile: GatewayProfileId::new("operator").unwrap(),
+        profile: GatewayProfileId::parse("operator").unwrap(),
         id: Some(id),
     };
     let admitted = authority::authorize(&state, &route, Operation::Terminal(id), caller.clone())
@@ -199,7 +199,7 @@ async fn admission_preserves_signed_source_context_without_admin_permission_and_
         StatusCode::FORBIDDEN
     );
     // Both clients read only this fixture tenant through SQL admission.
-    let tenant = veoveo_types::TenantId::new("test").unwrap();
+    let tenant = veoveo_types::TenantId::parse("test").unwrap();
     let scope = audit::AuditReadScope::new(Some(tenant.clone()), false);
     let mut query = audit::AuditQuery::new(audit::AuditPartition::Tenant(tenant));
     query.class = Some(audit::AuditClass::ApiActivity);

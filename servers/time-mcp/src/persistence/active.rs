@@ -115,7 +115,7 @@ impl TimePersistence {
 
 fn release_id(value: String, field: &'static str) -> Result<AuthorityReleaseId, PersistenceError> {
     validate_key(field, &value, "time-release-")?;
-    AuthorityReleaseId::new(value).map_err(|_| invalid(field, "invalid stored release identity"))
+    AuthorityReleaseId::parse(value).map_err(|_| invalid(field, "invalid stored release identity"))
 }
 
 fn admit(tenant: TenantId, row: ActiveAuthorityRow) -> Result<ActiveAuthority, PersistenceError> {

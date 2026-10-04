@@ -39,7 +39,7 @@ async fn computer_changes_catch_baseline_races_restarts_and_deleted_grant_parent
         let computer = veoveo_computers_contract::ComputerId::new();
         let grant = veoveo_computers_contract::AutomationGrantId::new();
         let computer_grant =
-            RecordId::new("computer_automation_grant", DbUuid::from(grant.into_uuid()));
+            RecordId::new("computer_automation_grant", DbUuid::from(grant.as_uuid()));
         // Writes occur while the source is paused at its baseline yield.
         db.b.client()
             .query(
@@ -50,8 +50,8 @@ async fn computer_changes_catch_baseline_races_restarts_and_deleted_grant_parent
             )
             .bind(("task", task_record_id(task)))
             .bind(("computer_grant", computer_grant.clone()))
-            .bind(("computer", computer.into_uuid()))
-            .bind(("grant", grant.into_uuid()))
+            .bind(("computer", computer.as_uuid()))
+            .bind(("grant", grant.as_uuid()))
             .await
             .unwrap()
             .check()

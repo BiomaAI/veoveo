@@ -12,19 +12,14 @@ use std::{
     sync::Arc,
 };
 
-#[derive(crate::Id, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-#[id(string, validate=validate_extension_name, error=ExtensionError)]
+#[veoveo_types::id(text(ExtensionNames))]
 pub struct ExtensionName(String);
-fn validate_extension_name(value: &str) -> Result<(), ExtensionError> {
-    if value.is_empty()
-        || value.len() > 128
-        || !value
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.' | b'/' | b':'))
-    {
-        return Err(ExtensionError::new("invalid extension name"));
-    }
-    Ok(())
+#[doc(hidden)]
+pub struct ExtensionNames;
+impl crate::IdProfile for ExtensionNames {
+    type Error = ExtensionError;
+    const PROFILE: crate::IdProfileSpec<Self::Error> =
+        crate::IdProfileSpec::text(|value, _| validate_extension_name(value));
 }
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[error("{0}")]
@@ -354,6 +349,18 @@ impl<'de> serde::Deserialize<'de> for UniqueJsonValue {
     }
 }
 
+fn validate_extension_name(value: &str) -> Result<(), ExtensionError> {
+    if value.is_empty()
+        || value.len() > 128
+        || !value
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.' | b'/' | b':'))
+    {
+        return Err(ExtensionError::new("invalid extension name"));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -364,7 +371,7 @@ mod tests {
     }
     fn bound() -> (ExtensionRegistry, ExtensionKey<Contribution>) {
         let mut builder = ExtensionRegistryBuilder::new(["core"]);
-        let name = ExtensionName::new("example_count").unwrap();
+        let name = ExtensionName::parse("example_count").unwrap();
         builder.reserve(name.clone()).unwrap();
         let key = builder.bind_serde(&name).unwrap();
         (builder.build(), key)
@@ -374,10 +381,10 @@ mod tests {
         let mut builder = ExtensionRegistryBuilder::new(["core"]);
         assert!(
             builder
-                .reserve(ExtensionName::new("core").unwrap())
+                .reserve(ExtensionName::parse("core").unwrap())
                 .is_err()
         );
-        let name = ExtensionName::new("example_count").unwrap();
+        let name = ExtensionName::parse("example_count").unwrap();
         builder.reserve(name.clone()).unwrap();
         assert!(builder.reserve(name.clone()).is_err());
         builder.bind_serde::<Contribution>(&name).unwrap();
@@ -404,7 +411,7 @@ mod tests {
     fn reserved_claims_require_codecs_and_valid_values_unrelated_claims_are_ignored() {
         let mut builder = ExtensionRegistryBuilder::new(std::iter::empty::<String>());
         builder
-            .reserve(ExtensionName::new("example_count").unwrap())
+            .reserve(ExtensionName::parse("example_count").unwrap())
             .unwrap();
         let registry = builder.build();
         assert!(
@@ -455,7 +462,7 @@ mod immutable_payload_tests {
     #[test]
     fn owned_typed_values_cannot_mutate_admitted_wire_or_later_reads() {
         let mut builder = ExtensionRegistryBuilder::new(std::iter::empty::<String>());
-        let name = ExtensionName::new("interior").unwrap();
+        let name = ExtensionName::parse("interior").unwrap();
         builder.reserve(name.clone()).unwrap();
         let key = builder.bind_serde::<Interior>(&name).unwrap();
         let registry = builder.build();

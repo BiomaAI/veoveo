@@ -29,7 +29,7 @@ impl FramesState {
         response
             .take::<Vec<String>>(0)?
             .into_iter()
-            .map(|value| Ok(FrameWorldId::new(value)?))
+            .map(|value| Ok(FrameWorldId::parse(value)?))
             .collect()
     }
 
@@ -50,7 +50,7 @@ impl FramesState {
         response
             .take::<Vec<String>>(0)?
             .into_iter()
-            .map(|value| Ok(FrameWorldRevisionId::new(value)?))
+            .map(|value| Ok(FrameWorldRevisionId::parse(value)?))
             .collect()
     }
 
@@ -72,7 +72,7 @@ impl FramesState {
         response
             .take::<Vec<String>>(0)?
             .into_iter()
-            .map(|value| Ok(FrameId::new(value)?))
+            .map(|value| Ok(FrameId::parse(value)?))
             .collect()
     }
 }

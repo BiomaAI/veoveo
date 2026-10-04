@@ -220,8 +220,8 @@ mod tests {
         AutomationGrantView {
             computer_id: crate::ComputerId::new(),
             grant_id: crate::AutomationGrantId::new(),
-            principal_id: PrincipalId::new("https://issuer.test#agent").unwrap(),
-            oauth_client_id: OAuthClientId::new("agent").unwrap(),
+            principal_id: PrincipalId::parse("https://issuer.test#agent").unwrap(),
+            oauth_client_id: OAuthClientId::parse("agent").unwrap(),
             name: "Reader".into(),
             permissions: [AutomationPermission::Read].into(),
             execution_limits: None,

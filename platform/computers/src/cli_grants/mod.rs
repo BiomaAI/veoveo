@@ -17,11 +17,11 @@ fn record(table: &str, id: Uuid) -> RecordId {
     RecordId::new(table, surrealdb::types::Uuid::from(id))
 }
 fn grant_record(id: crate::api::AccessGrantId) -> RecordId {
-    record("computer_cli_grant", id.into_uuid())
+    record("computer_cli_grant", id.as_uuid())
 }
 fn connection_record(id: crate::api::AccessConnectionId) -> RecordId {
-    record("computer_cli_connection", id.into_uuid())
+    record("computer_cli_connection", id.as_uuid())
 }
 fn pairing_record(id: crate::api::CliPairingId) -> RecordId {
-    record("computer_cli_pairing", id.into_uuid())
+    record("computer_cli_pairing", id.as_uuid())
 }

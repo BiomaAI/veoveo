@@ -52,7 +52,7 @@ impl Kind {
                     .await?;
                 replica.ensure_command_task(&command).await.unwrap();
                 assert_eq!(replica.pending_commands(None, 1).await.unwrap().len(), 1);
-                command.execution_id().into_uuid()
+                command.execution_id().as_uuid()
             }
             Self::File => {
                 let authority = store
@@ -73,7 +73,7 @@ impl Kind {
                     replica.pending_file_transfers(None, 1).await.unwrap().len(),
                     1
                 );
-                file.transfer_id().into_uuid()
+                file.transfer_id().as_uuid()
             }
         };
         Ok((

@@ -26,12 +26,12 @@ impl Intent {
     fn new(operation: &MaintenanceOperation) -> NativeResult<Self> {
         Ok(Self {
             source: Binding::from_instance(
-                operation.computer_id.into_uuid(),
+                operation.computer_id.as_uuid(),
                 operation.source_instance_id,
                 operation.source_template_fingerprint.clone(),
             )?,
             target: Binding::from_instance(
-                operation.computer_id.into_uuid(),
+                operation.computer_id.as_uuid(),
                 operation.target_instance_id,
                 operation.target.template_fingerprint.clone(),
             )?,

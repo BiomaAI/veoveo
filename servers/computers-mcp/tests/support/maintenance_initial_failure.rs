@@ -54,8 +54,7 @@ impl Scenario<'_> {
             )
             .await
             .unwrap();
-        let binding =
-            Binding::new(computer.computer_id.into_uuid(), source.1.fingerprint()).unwrap();
+        let binding = Binding::new(computer.computer_id.as_uuid(), source.1.fingerprint()).unwrap();
         allocator.prepare(&binding).await.unwrap();
         let original = store
             .queue_operation(
@@ -141,7 +140,7 @@ impl Scenario<'_> {
             "late original allocator access must be denied"
         );
         let current = Binding::from_instance(
-            adopted.computer_id.into_uuid(),
+            adopted.computer_id.as_uuid(),
             adopted.instance_id(),
             adopted.template_fingerprint,
         )

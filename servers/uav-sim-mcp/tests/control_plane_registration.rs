@@ -41,7 +41,7 @@ fn registrations_declare_the_contract_and_preserve_cross_server_identities() {
         assert_eq!(
             uav.referenced_resource_schemes,
             ["frames", "map", "recording"]
-                .map(|name| ResourceScheme::new(name).unwrap())
+                .map(|name| ResourceScheme::parse(name).unwrap())
                 .into_iter()
                 .collect::<BTreeSet<_>>(),
             "{path}"

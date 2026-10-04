@@ -181,7 +181,7 @@ impl CatalogRegistryBuilder {
         let mut checked = BTreeMap::new();
         for (action, descriptor) in descriptors {
             descriptor.validate()?;
-            let name = ActionName::new(action.as_str())?;
+            let name = ActionName::parse(action.as_str())?;
             if checked.insert(name, descriptor).is_some() {
                 return Err(ExtensionError::new("duplicate action descriptor"));
             }
@@ -427,7 +427,7 @@ impl CatalogRegistry {
             .get("kind")
             .and_then(Value::as_str)
             .ok_or_else(|| ExtensionError::new("target kind is required"))?;
-        let kind = ExtensionName::new(kind)?;
+        let kind = ExtensionName::parse(kind)?;
         let declaration = self
             .target_declarations
             .get(&kind)

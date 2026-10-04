@@ -238,7 +238,7 @@ async fn unreadable_output_policy_is_rejected_before_consuming_capacity() {
         .authority
         .output_policy
         .data_labels
-        .insert(veoveo_types::DataLabelId::new("restricted").unwrap());
+        .insert(veoveo_types::DataLabelId::parse("restricted").unwrap());
     assert!(matches!(
         a.reserve(&crate::support::authenticated(&alice), &request())
             .await,
@@ -283,7 +283,7 @@ async fn action_admission_preserves_the_previous_run_and_checks_current_membersh
         .unwrap();
     let record = surrealdb::types::RecordId::new(
         "computer",
-        surrealdb::types::Uuid::from(computer.computer_id.into_uuid()),
+        surrealdb::types::Uuid::from(computer.computer_id.as_uuid()),
     );
     // Simulated completed provider observation; this fixture tests durable admission.
     db.a.client().query("UPDATE ONLY $computer SET phase = 'stopped', provider_resource_id = 'sandbox-1', process_id = 'run-1', updated_at = time::now();").bind(("computer", record)).await.unwrap().check().unwrap();

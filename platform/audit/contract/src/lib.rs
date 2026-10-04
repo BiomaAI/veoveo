@@ -36,9 +36,9 @@ impl InstallationAuditRole {
     pub fn id(self) -> &'static veoveo_types::RoleId {
         use std::sync::LazyLock;
         static ADMIN: LazyLock<veoveo_types::RoleId> =
-            LazyLock::new(|| veoveo_types::RoleId::new("administrator").expect("declared role"));
+            LazyLock::new(|| veoveo_types::RoleId::parse("administrator").expect("declared role"));
         static AUDITOR: LazyLock<veoveo_types::RoleId> =
-            LazyLock::new(|| veoveo_types::RoleId::new("auditor").expect("declared role"));
+            LazyLock::new(|| veoveo_types::RoleId::parse("auditor").expect("declared role"));
         match self {
             Self::Administrator => &ADMIN,
             Self::Auditor => &AUDITOR,

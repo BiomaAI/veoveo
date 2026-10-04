@@ -79,7 +79,7 @@ impl Preflight for RetainedHomes {
     ) -> Result<(), PreflightError> {
         let fingerprint = template.fingerprint();
         if operation.provider_instance_id != self.provider_id
-            || operation.computer_id.into_uuid() != binding.computer_id()
+            || operation.computer_id.as_uuid() != binding.computer_id()
             || operation.template_fingerprint != fingerprint
             || binding.template_fingerprint() != fingerprint
         {

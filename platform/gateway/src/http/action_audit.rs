@@ -32,7 +32,7 @@ pub async fn authorize_gateway_action(
     let Some(profile) = catalog.profile(profile_id).cloned() else {
         return Err(Box::new(StatusCode::NOT_FOUND.into_response()));
     };
-    let trace_id = match TraceId::new(subject.audit.trace_id.to_string()) {
+    let trace_id = match TraceId::parse(&subject.audit.trace_id) {
         Ok(trace_id) => trace_id,
         Err(err) => return Err(Box::new(internal_error_response(err))),
     };

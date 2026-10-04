@@ -15,10 +15,10 @@ fn rfc6570_declarations_expand_to_the_typed_domain_builders() {
     use veoveo_time_mcp::uris;
     use veoveo_types::ResourceTemplateUri;
 
-    let calendar = CalendarId::new("calendar-one").unwrap();
-    let epoch = MissionEpochId::new("epoch-one").unwrap();
-    let event = TemporalEventId::new("event-one").unwrap();
-    let release = AuthorityReleaseId::new("time-release-iana").unwrap();
+    let calendar = CalendarId::parse("calendar-one").unwrap();
+    let epoch = MissionEpochId::parse("epoch-one").unwrap();
+    let event = TemporalEventId::parse("event-one").unwrap();
+    let release = AuthorityReleaseId::parse("time-release-iana").unwrap();
     let calendar_cursor = CalendarCursor::new(&calendar, version());
     let epoch_cursor = EpochCursor::new(&epoch, version());
     let event_cursor = EventCursor::new(&event, -42, SubsecondNanoseconds::MAX);
@@ -30,12 +30,12 @@ fn rfc6570_declarations_expand_to_the_typed_domain_builders() {
         ),
         (
             uris::ZONE_TEMPLATE,
-            TimeResource::Zone(TimeZoneId::new("America/New_York").unwrap()),
+            TimeResource::Zone(TimeZoneId::parse("America/New_York").unwrap()),
             vec![("zone_id", "America/New_York".into())],
         ),
         (
             uris::ZONE_TEMPLATE,
-            TimeResource::Zone(TimeZoneId::new("Etc/GMT+5").unwrap()),
+            TimeResource::Zone(TimeZoneId::parse("Etc/GMT+5").unwrap()),
             vec![("zone_id", "Etc/GMT+5".into())],
         ),
         (
@@ -167,33 +167,33 @@ fn all_resource_families_preserve_the_published_wire_shape() {
             "time://authorities/current",
         ),
         (
-            TimeResource::AuthorityRelease(AuthorityReleaseId::new("time-release-iana").unwrap()),
+            TimeResource::AuthorityRelease(AuthorityReleaseId::parse("time-release-iana").unwrap()),
             "time://authorities/releases/time-release-iana",
         ),
         (
-            TimeResource::Zone(TimeZoneId::new("America/New_York").unwrap()),
+            TimeResource::Zone(TimeZoneId::parse("America/New_York").unwrap()),
             "time://zones/America/New_York",
         ),
         (
-            TimeResource::Zone(TimeZoneId::new("Etc/GMT+5").unwrap()),
+            TimeResource::Zone(TimeZoneId::parse("Etc/GMT+5").unwrap()),
             "time://zones/Etc/GMT+5",
         ),
         (TimeResource::Calendars { cursor: None }, "time://calendars"),
         (
             TimeResource::Calendar {
-                id: CalendarId::new("calendar-one").unwrap(),
+                id: CalendarId::parse("calendar-one").unwrap(),
                 version: version(),
             },
             "time://calendars/calendar-one/versions/12",
         ),
         (TimeResource::Epochs { cursor: None }, "time://epochs"),
         (
-            TimeResource::Epoch(MissionEpochId::new("epoch-one").unwrap()),
+            TimeResource::Epoch(MissionEpochId::parse("epoch-one").unwrap()),
             "time://epochs/epoch-one",
         ),
         (TimeResource::Events { cursor: None }, "time://events"),
         (
-            TimeResource::Event(TemporalEventId::new("event-one").unwrap()),
+            TimeResource::Event(TemporalEventId::parse("event-one").unwrap()),
             "time://events/event-one",
         ),
     ];
@@ -234,13 +234,13 @@ fn pages_round_trip_with_their_own_cursor_types_and_existing_v1_tokens() {
         },
         TimeResource::Epochs {
             cursor: Some(EpochCursor::new(
-                &MissionEpochId::new("epoch-one").unwrap(),
+                &MissionEpochId::parse("epoch-one").unwrap(),
                 version(),
             )),
         },
         TimeResource::Events {
             cursor: Some(EventCursor::new(
-                &TemporalEventId::new("event-one").unwrap(),
+                &TemporalEventId::parse("event-one").unwrap(),
                 -42,
                 SubsecondNanoseconds::MAX,
             )),
@@ -338,7 +338,7 @@ fn routes_reject_wrong_ids_aliases_and_unsupported_components() {
     for name in [
         "", "/UTC", "UTC/", "../UTC", "UTC//GMT", "UTC?x", "UTC\n", "bad%zone",
     ] {
-        assert!(TimeZoneId::new(name).is_err());
+        assert!(TimeZoneId::parse(name).is_err());
     }
     assert!(TimeVersion::new(0).is_err());
     assert!(TimeVersion::new(u64::MAX).is_err());
@@ -394,7 +394,7 @@ fn version_schema_and_admin_paths_enforce_the_database_range() {
 
 #[test]
 fn authority_cursors_cannot_cross_collection_roots() {
-    let release = AuthorityReleaseId::new("time-release-fixture").unwrap();
+    let release = AuthorityReleaseId::parse("time-release-fixture").unwrap();
     let acquired = AuthorityCursor::new(&release);
     let bootstrap = BootstrapAuthorityCursor::new(&release);
     assert!(AuthorityCursor::parse(bootstrap.as_str()).is_err());
@@ -454,7 +454,7 @@ fn shared_routes_agree_with_discovery_and_preserve_matched_error_profiles() {
         TimeResource::parse("time://zones/America%2FNew_York"),
         Err(TimeResourceError::UnknownResource)
     );
-    let zone = TimeResource::Zone(TimeZoneId::new("America/New_York").unwrap());
+    let zone = TimeResource::Zone(TimeZoneId::parse("America/New_York").unwrap());
     assert_eq!(
         zone.resource_components_uri().unwrap().as_str(),
         "time://zones/America/New_York"
@@ -468,7 +468,7 @@ fn route_patterns_validate_encoded_builder_output_without_claiming_domain_admiss
         serde_json::json!({"type": "string", "pattern": zone_route.wire_pattern().unwrap()});
     let validator = jsonschema::validator_for(&schema).unwrap();
     for name in ["UTC", "America/New_York", "Etc/GMT+5"] {
-        let wire = TimeResource::Zone(TimeZoneId::new(name).unwrap())
+        let wire = TimeResource::Zone(TimeZoneId::parse(name).unwrap())
             .to_uri()
             .unwrap();
         assert!(
@@ -490,7 +490,7 @@ fn route_patterns_validate_encoded_builder_output_without_claiming_domain_admiss
 
 #[test]
 fn route_query_schema_and_admission_preserve_opaque_cursor_hex_aliases() {
-    let event = TemporalEventId::new("event-one").unwrap();
+    let event = TemporalEventId::parse("event-one").unwrap();
     let canonical = EventCursor::new(&event, -42, SubsecondNanoseconds::MAX);
     let uppercase = canonical.as_str().to_ascii_uppercase();
     let cursor = EventCursor::parse(uppercase.clone()).unwrap();

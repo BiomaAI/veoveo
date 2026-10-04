@@ -201,9 +201,9 @@ impl TryFrom<Record> for FileOperation {
             .validate()
             .map_err(|_| ComputerError::Unavailable)?;
         if row.id != super::record(file.transfer_id())
-            || file.transfer_id().into_uuid() != row.transfer_id
-            || file.computer_id().into_uuid() != row.computer_id
-            || file.binding.provider_instance_id.into_uuid() != row.provider_instance_id
+            || file.transfer_id().as_uuid() != row.transfer_id
+            || file.computer_id().as_uuid() != row.computer_id
+            || file.binding.provider_instance_id.as_uuid() != row.provider_instance_id
             || row.actor_key != super::actor_key(&file.authority)?
             || file.binding.actor_key != row.actor_key
             || file.binding.owner_key != row.owner_key

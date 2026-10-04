@@ -28,7 +28,7 @@ pub(crate) async fn token_endpoint_refresh_token(
     request: TokenRequest,
     started_at: Instant,
 ) -> axum::response::Response {
-    let client_id = match OAuthClientId::new(request.client_id.trim()) {
+    let client_id = match OAuthClientId::parse(request.client_id.trim()) {
         Ok(client_id) => client_id,
         Err(_) => {
             return invalid_refresh_response(
@@ -100,7 +100,7 @@ pub(crate) async fn token_endpoint_refresh_token(
         .refresh_token
         .as_deref()
         .map(str::trim)
-        .map(OAuthRefreshToken::new)
+        .map(OAuthRefreshToken::parse)
         .transpose()
     {
         Ok(Some(token)) => token,

@@ -25,7 +25,7 @@ fn checked_discovery_needs_no_store_cache_or_redap_instance() {
         SERVER_SETUP.scope_names(),
         &BTreeSet::from([RecordingScope::Seal.name().clone()])
     );
-    let mut grants = BTreeSet::from([ScopeName::new("admin:manage").unwrap()]);
+    let mut grants = BTreeSet::from([ScopeName::parse("admin:manage").unwrap()]);
     assert!(!SERVER_SETUP.has_scope(&grants, RecordingScope::Seal));
     grants.insert(RecordingScope::Seal.into());
     assert!(SERVER_SETUP.has_scope(&grants, RecordingScope::Seal));
@@ -88,7 +88,7 @@ fn registrations_and_admin_clients_require_the_recording_seal_permission() {
                     ] {
                         assert!(
                             rule.required_scopes
-                                .contains(&ScopeName::new(scope).unwrap()),
+                                .contains(&ScopeName::parse(scope).unwrap()),
                             "{}: {scope}",
                             rule.id
                         );
@@ -96,7 +96,7 @@ fn registrations_and_admin_clients_require_the_recording_seal_permission() {
                     assert_eq!(
                         rule.profiles,
                         BTreeSet::from([
-                            veoveo_mcp_contract::GatewayProfileId::new("admin").unwrap()
+                            veoveo_mcp_contract::GatewayProfileId::parse("admin").unwrap()
                         ])
                     );
                 }
@@ -112,7 +112,7 @@ fn registrations_and_admin_clients_require_the_recording_seal_permission() {
                 client.allowed_scopes.contains(RecordingScope::Seal.name()),
                 client
                     .allowed_scopes
-                    .contains(&ScopeName::new("admin:manage").unwrap()),
+                    .contains(&ScopeName::parse("admin:manage").unwrap()),
                 "{}",
                 client.id
             );

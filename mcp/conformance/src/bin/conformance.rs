@@ -441,7 +441,7 @@ async fn main() -> Result<()> {
         _ => TaskCapability::Enabled,
     };
     let client = connect(&args, task_capability).await?;
-    let uris = ServerResourceUris::new(veoveo_types::ResourceScheme::new(args.scheme)?);
+    let uris = ServerResourceUris::new(veoveo_types::ResourceScheme::parse(args.scheme)?);
 
     let result = match args.cmd {
         Cmd::KnowledgeSource(_) => unreachable!("handled before MCP connection"),

@@ -50,7 +50,7 @@ fn task_owner_admission_rejects_cross_owner_recovery_and_accepts_changed_policy(
     let request = request();
     request.validate_owner(&owner()).unwrap();
     let mut changed = owner();
-    changed.authority.policy_revision = veoveo_types::PolicyVersion::new("r2").unwrap();
+    changed.authority.policy_revision = veoveo_types::PolicyVersion::parse("r2").unwrap();
     request.validate_owner(&changed).unwrap();
     for changed in [
         TaskOwner {
@@ -63,14 +63,14 @@ fn task_owner_admission_rejects_cross_owner_recovery_and_accepts_changed_policy(
         },
         TaskOwner {
             authority: veoveo_types::InvocationAuthority {
-                tenant: veoveo_types::TenantId::new("other").unwrap(),
+                tenant: veoveo_types::TenantId::parse("other").unwrap(),
                 ..owner().authority
             },
             ..owner()
         },
         TaskOwner {
             authority: veoveo_types::InvocationAuthority {
-                work_context: veoveo_types::WorkContextId::new("other").unwrap(),
+                work_context: veoveo_types::WorkContextId::parse("other").unwrap(),
                 ..owner().authority
             },
             ..owner()

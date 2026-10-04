@@ -54,7 +54,7 @@ async fn an_ended_catalog_source_reaches_the_downstream_reconnect_path() {
         .await
         .unwrap();
     let mut routed = Box::pin(routed_notifications(
-        ServerSlug::new("catalog").unwrap(),
+        ServerSlug::parse("catalog").unwrap(),
         false,
         subscription,
     ));
@@ -75,9 +75,9 @@ async fn an_ended_catalog_source_reaches_the_downstream_reconnect_path() {
 fn key(server: &str) -> DiscoveryCacheKey {
     DiscoveryCacheKey {
         catalog_generation: 1,
-        principal: PrincipalId::new("listener").unwrap(),
+        principal: PrincipalId::parse("listener").unwrap(),
         authorization_fingerprint: [7; 32],
-        server: ServerSlug::new(server).unwrap(),
+        server: ServerSlug::parse(server).unwrap(),
     }
 }
 
@@ -331,7 +331,7 @@ async fn subscription_list_changes_invalidate_cached_catalog_surfaces() {
             .await;
     }
 
-    let server = ServerSlug::new("media").unwrap();
+    let server = ServerSlug::parse("media").unwrap();
     let mut changed = ServerNotification::ResourceListChangedNotification(Default::default());
     gateway
         .project_subscription_notification(&server, None, &mut changed)

@@ -51,7 +51,7 @@ pub(crate) async fn authorization_callback(
             "state is required",
         );
     };
-    let idp_state = match OAuthStateValue::new(raw_state.trim()) {
+    let idp_state = match OAuthStateValue::parse(raw_state.trim()) {
         Ok(value) => value,
         Err(_) => {
             return oauth_error_response(

@@ -177,7 +177,7 @@ impl Config {
         .build()
         .context("building SurrealDB configuration")?;
 
-        let internal_token_issuer = TokenIssuer::new(env_or(
+        let internal_token_issuer = TokenIssuer::parse(env_or(
             "INTERNAL_TOKEN_ISSUER",
             GATEWAY_INTERNAL_TOKEN_ISSUER,
         ))
@@ -190,7 +190,7 @@ impl Config {
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(|value| {
-            ServerSlug::new(value)
+            ServerSlug::parse(value)
                 .map_err(|error| anyhow!("invalid artifact audience `{value}`: {error}"))
         })
         .collect::<anyhow::Result<Vec<_>>>()?;

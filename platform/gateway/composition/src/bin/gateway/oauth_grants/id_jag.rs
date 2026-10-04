@@ -55,7 +55,7 @@ pub(crate) async fn token_endpoint_id_jag(
         );
     }
 
-    let client_id = match OAuthClientId::new(request.client_id.trim()) {
+    let client_id = match OAuthClientId::parse(request.client_id.trim()) {
         Ok(client_id) => client_id,
         Err(_) => {
             if let Err(err) = record_id_jag_auth_audit(
@@ -418,7 +418,7 @@ pub(crate) async fn token_endpoint_id_jag(
         }
     };
     let work_context = match request.work_context.as_deref() {
-        Some(value) => match WorkContextId::new(value.trim()) {
+        Some(value) => match WorkContextId::parse(value.trim()) {
             Ok(context) => context,
             Err(_) => {
                 return oauth_error_response(
@@ -440,7 +440,7 @@ pub(crate) async fn token_endpoint_id_jag(
             "Work Context membership is required",
         );
     }
-    let delegation_id = match DelegationId::new(verified_id_jag.jwt_id.as_str()) {
+    let delegation_id = match DelegationId::parse(verified_id_jag.jwt_id.as_str()) {
         Ok(delegation_id) => delegation_id,
         Err(err) => {
             tracing::error!("failed to bind delegated invocation: {err}");

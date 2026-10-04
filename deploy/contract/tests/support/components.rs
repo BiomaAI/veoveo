@@ -8,14 +8,14 @@ pub fn id(name: &str) -> ComponentId {
 }
 
 pub fn digest(byte: char) -> ArtifactDigest {
-    ArtifactDigest::new(format!("sha256:{}", byte.to_string().repeat(64))).unwrap()
+    ArtifactDigest::parse(format!("sha256:{}", byte.to_string().repeat(64))).unwrap()
 }
 
 pub fn fixture(name: &str, role: ComponentRole) -> LockedComponent {
     let source = ComponentSource {
         name: name.into(),
         repository: format!("https://example.invalid/{name}.git"),
-        revision: SourceRevision::new("a".repeat(40)).unwrap(),
+        revision: SourceRevision::parse("a".repeat(40)).unwrap(),
     };
     let target = AtomicTarget::HelmRelease {
         namespace: "veoveo".into(),
@@ -56,7 +56,7 @@ pub fn fixture(name: &str, role: ComponentRole) -> LockedComponent {
             source: ComponentSource {
                 name: INSTALLATION_SOURCE_NAME.into(),
                 repository: "https://example.invalid/installation.git".into(),
-                revision: SourceRevision::new("a".repeat(40)).unwrap(),
+                revision: SourceRevision::parse("a".repeat(40)).unwrap(),
             },
             profile: "deployment.json".into(),
         },

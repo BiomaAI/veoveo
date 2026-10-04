@@ -93,7 +93,7 @@ impl ComputersStore {
                 vec![
                     ("request", request.into_value()),
                     ("operation_id", input.task_id.as_uuid().into_value()),
-                    ("request_id", input.request_id.into_uuid().into_value()),
+                    ("request_id", input.request_id.as_uuid().into_value()),
                 ],
             )
             .await?;
@@ -104,7 +104,7 @@ impl ComputersStore {
         )
         .map_err(|_| ComputerError::Unavailable)?;
         if prior.operation_id != input.task_id.as_uuid()
-            || prior.request_id != input.request_id.into_uuid()
+            || prior.request_id != input.request_id.as_uuid()
             || prior.fingerprint != fingerprint(&saved)?
         {
             return Err(ComputerError::Unavailable);
@@ -181,12 +181,12 @@ impl ComputersStore {
             let decision = authority.decision(
                 veoveo_gateway_contract::GatewayAction::ToolsCall,
                 &resume_target(),
-                &veoveo_mcp_contract::TraceId::new(input.request_id.to_string())
+                &veoveo_mcp_contract::TraceId::parse(input.request_id.to_string())
                     .expect("UUID trace"),
             );
             let content = Content {
                 operation_id: input.task_id.as_uuid(),
-                request_id: input.request_id.into_uuid(),
+                request_id: input.request_id.as_uuid(),
                 fingerprint: fingerprint(input)?,
                 input: object(input)?,
                 authority: object(actor.accepted())?,
@@ -227,10 +227,7 @@ impl ComputersStore {
                         ("maintenance", record(input.task_id).into_value()),
                         ("operation_id", input.task_id.as_uuid().into_value()),
                         ("computer", computer_record(input.computer_id).into_value()),
-                        (
-                            "provider",
-                            self.provider_instance_id.into_uuid().into_value(),
-                        ),
+                        ("provider", self.provider_instance_id.as_uuid().into_value()),
                         ("expected_updated_at", before.updated_at.into_value()),
                         ("expected_progress", object(&before.progress)?.into_value()),
                         ("progress", object(&after.progress)?.into_value()),

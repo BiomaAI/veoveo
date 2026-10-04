@@ -1,7 +1,8 @@
 //! Fixed discovery declarations; dynamic addresses use the typed resource contract.
 pub static SCHEME: std::sync::LazyLock<veoveo_types::ResourceScheme> =
     std::sync::LazyLock::new(|| {
-        veoveo_types::ResourceScheme::new("optimization").expect("declared server resource scheme")
+        veoveo_types::ResourceScheme::parse("optimization")
+            .expect("declared server resource scheme")
     });
 
 pub const CAPABILITIES_URI: &str = "optimization://capabilities";

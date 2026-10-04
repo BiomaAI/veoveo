@@ -12,7 +12,7 @@ pub(super) async fn send(
     Json(request): Json<wire::SendMessage>,
 ) -> Api<wire::Message> {
     let actor = authority::admit(&state.workspace, &subject).await?;
-    let profile = GatewayProfileId::new(profile).map_err(|_| StatusCode::NOT_FOUND)?;
+    let profile = GatewayProfileId::parse(profile).map_err(|_| StatusCode::NOT_FOUND)?;
     let caller = Caller::new(profile, subject.clone(), &headers)?;
     let chat = WorkspaceChatId::from_uuid(chat);
     let task_permit = state

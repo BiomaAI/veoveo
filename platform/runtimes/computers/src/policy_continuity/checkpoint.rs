@@ -71,7 +71,7 @@ impl OpenShellRuntime {
             || message.version != 1
             || message.gateway_version != GATEWAY_VERSION
             || Uuid::from_slice(&message.provider_instance_id).ok()
-                != Some(self.provider_instance_id.into_uuid())
+                != Some(self.provider_instance_id.as_uuid())
             || Uuid::from_slice(&message.computer_id).ok() != Some(source.computer_id())
             || Uuid::from_slice(&message.source_instance_id).ok()
                 != Some(

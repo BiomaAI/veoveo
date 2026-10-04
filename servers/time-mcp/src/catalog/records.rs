@@ -207,7 +207,7 @@ pub(super) fn acquisition_from_record(record: TimeAcquisitionRecord) -> Result<T
                 "staged_release_key",
                 validate_key("key", &key, Entity::Release.prefix()).is_ok(),
             )?;
-            AuthorityReleaseId::new(key).map_err(|_| invalid(kind, "staged_release_key").into())
+            AuthorityReleaseId::parse(key).map_err(|_| invalid(kind, "staged_release_key").into())
         })
         .transpose()?;
     value.updated_at = record.updated_at;

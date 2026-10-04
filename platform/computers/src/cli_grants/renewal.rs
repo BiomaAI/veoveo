@@ -26,9 +26,9 @@ impl ComputersStore {
                 AND closed_at = NONE AND expires_at > time::now();
                 SELECT * FROM ONLY $policy; RETURN time::now();", vec![
                 ("grant", super::grant_record(handle.grant_id).into_value()),
-                ("provider", self.provider_instance_id.into_uuid().into_value()),
-                ("grant_id", handle.grant_id.into_uuid().into_value()),
-                ("connection_id", handle.connection_id.into_uuid().into_value()),
+                ("provider", self.provider_instance_id.as_uuid().into_value()),
+                ("grant_id", handle.grant_id.as_uuid().into_value()),
+                ("connection_id", handle.connection_id.as_uuid().into_value()),
                 ("connection", super::connection_record(handle.connection_id).into_value()),
                 ("policy", self.session_policy_record().into_value()),
             ]).await?;
@@ -43,10 +43,10 @@ impl ComputersStore {
             let now = now.ok_or(ComputerError::Unavailable)?;
             let absolute = grant.expires_at.min(grant.issued_at + TimeDelta::seconds(i64::from(limits.absolute_seconds)));
             let idle = grant.idle_expires_at.min(grant.last_activity_at + TimeDelta::seconds(i64::from(limits.idle_seconds)));
-            if grant.provider_instance_id != self.provider_instance_id.into_uuid() || limits.max_grants == 0 || grant.revoked_at.is_some()
+            if grant.provider_instance_id != self.provider_instance_id.as_uuid() || limits.max_grants == 0 || grant.revoked_at.is_some()
                 || absolute <= now || idle <= now || grant.issued_at > now || grant.last_activity_at < grant.issued_at
-                || grant.last_activity_at > now || connection.connection_id != handle.connection_id.into_uuid()
-                || connection.grant_id != handle.grant_id.into_uuid() || connection.closed_at.is_some() || connection.expires_at <= now
+                || grant.last_activity_at > now || connection.connection_id != handle.connection_id.as_uuid()
+                || connection.grant_id != handle.grant_id.as_uuid() || connection.closed_at.is_some() || connection.expires_at <= now
             { return Err(ComputerError::Forbidden); }
             let accepted = grant.accepted()?;
             let snapshot = self.read_authority(&accepted).await?;
@@ -67,9 +67,9 @@ impl ComputersStore {
             let lease_end = now + TimeDelta::from_std(remaining).map_err(|_| ComputerError::Unavailable)?;
             self.query(include_str!("../../queries/renew_cli_connection.surql"), vec![
                 ("grant", super::grant_record(handle.grant_id).into_value()),
-                ("grant_id", handle.grant_id.into_uuid().into_value()),
+                ("grant_id", handle.grant_id.as_uuid().into_value()),
                 ("connection", super::connection_record(handle.connection_id).into_value()),
-                ("connection_id", handle.connection_id.into_uuid().into_value()),
+                ("connection_id", handle.connection_id.as_uuid().into_value()),
                 ("policy", self.session_policy_record().into_value()),
                 ("policy_fingerprint", policy.fingerprint.into_value()),
                 ("activity", activity.into_value()),

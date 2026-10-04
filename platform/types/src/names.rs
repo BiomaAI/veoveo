@@ -1,41 +1,10 @@
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-
-use crate::{IdentifierError, identifier_syntax::validate_token_text};
+use crate::IdentifierError;
 
 #[doc = "OAuth/OIDC scope value. It must not contain whitespace or control characters."]
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = IdentifierError, validate = validate_token_text)]
+#[veoveo_types::id(text(crate::identifier_syntax::TokenTextProfile))]
 pub struct ScopeName(String);
 #[doc = "Server-owned resource URI scheme, for example `media`."]
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = IdentifierError, validate = validate_scheme)]
+#[veoveo_types::id(text(SchemeNames))]
 pub struct ResourceScheme(String);
 
 /// Implement this on a domain-owned closed scope enum. Core owns no variants.
@@ -44,10 +13,18 @@ pub struct ResourceScheme(String);
 /// ```compile_fail
 /// use veoveo_types::{ScopeDefinition, ScopeName};
 /// fn domain_scope<S: ScopeDefinition>(_: S) {}
-/// domain_scope(ScopeName::new("example:read").unwrap());
+/// domain_scope(ScopeName::parse("example:read").unwrap());
 /// ```
 pub trait ScopeDefinition: Copy + Eq {
     fn name(self) -> &'static ScopeName;
+}
+
+#[doc(hidden)]
+pub struct SchemeNames;
+impl crate::IdProfile for SchemeNames {
+    type Error = IdentifierError;
+    const PROFILE: crate::IdProfileSpec<Self::Error> =
+        crate::IdProfileSpec::text(|value, _| validate_scheme(value));
 }
 
 fn validate_scheme(value: &str) -> Result<(), IdentifierError> {

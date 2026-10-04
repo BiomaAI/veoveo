@@ -30,7 +30,7 @@ pub(super) async fn scope(
             .unwrap(),
         data_labels: labels
             .iter()
-            .map(|value| DataLabelId::new(*value).unwrap())
+            .map(|value| DataLabelId::parse(*value).unwrap())
             .collect(),
     }
 }
@@ -39,16 +39,16 @@ pub(super) fn tree() -> FrameWorldTree {
     FrameWorldTree {
         frames: vec![
             FrameNode {
-                frame_id: FrameId::new("root").unwrap(),
+                frame_id: FrameId::parse("root").unwrap(),
                 basis: FrameBasis::EcefWgs84,
                 parent_frame_id: None,
                 parent_transform: None,
                 description: None,
             },
             FrameNode {
-                frame_id: FrameId::new("vehicle").unwrap(),
+                frame_id: FrameId::parse("vehicle").unwrap(),
                 basis: FrameBasis::Frd,
-                parent_frame_id: Some(FrameId::new("root").unwrap()),
+                parent_frame_id: Some(FrameId::parse("root").unwrap()),
                 parent_transform: Some(FrameParentTransform::StaticRigid {
                     translation_m: [1., 2., 3.],
                     rotation_xyzw: [0., 0., 0., 1.],
@@ -60,7 +60,7 @@ pub(super) fn tree() -> FrameWorldTree {
 }
 
 pub(super) async fn create(state: &FramesState, scope: &FrameScope, name: &str) -> FrameWorldId {
-    let world_id = FrameWorldId::new(name).unwrap();
+    let world_id = FrameWorldId::parse(name).unwrap();
     state
         .create_world(
             scope,
@@ -174,7 +174,7 @@ async fn native_world_reads_apply_current_tenant_and_all_labels_in_sql() {
         assert!(reader.get_world(&owner, &world_id).await.unwrap().is_none());
         assert_eq!(reader.worlds_page(&owner, None).await.unwrap().items.len(), 1);
         let mut newly_cleared = owner.clone();
-        newly_cleared.data_labels.insert(DataLabelId::new("restricted").unwrap());
+        newly_cleared.data_labels.insert(DataLabelId::parse("restricted").unwrap());
         assert_revision_visible(&reader, &newly_cleared, &revision, true).await;
     }).await.expect("world visibility qualification exceeded 90 seconds");
 }
@@ -194,7 +194,7 @@ async fn native_revision_reads_reject_wrong_or_deleted_parents() {
         assert_revision_visible(&reader, &owner, &revision, true).await;
         let wrong_uri = FrameWorldRevisionUri::new(&other_id, &revision.revision_id());
         assert!(reader.get_revision(&owner, &wrong_uri).await.unwrap().is_none());
-        assert!(reader.get_frame(&owner, &WorldFrameUri::new(&wrong_uri, &FrameId::new("root").unwrap())).await.unwrap().is_none());
+        assert!(reader.get_frame(&owner, &WorldFrameUri::new(&wrong_uri, &FrameId::parse("root").unwrap())).await.unwrap().is_none());
 
         // Retained/corrupted copied keys cannot authorize a different record link.
         for (parent_scope, parent_world) in [(&owner, &other_id), (&foreign, &world_id)] {
@@ -270,7 +270,7 @@ async fn native_frame_reads_select_only_the_requested_node() {
             let uri = WorldFrameUri::new(revision.revision_uri(), &node.frame_id);
             assert_eq!(reader.get_frame(&owner, &uri).await.unwrap(), Some(node.clone()));
         }
-        let missing = WorldFrameUri::new(revision.revision_uri(), &FrameId::new("missing").unwrap());
+        let missing = WorldFrameUri::new(revision.revision_uri(), &FrameId::parse("missing").unwrap());
         assert!(reader.get_frame(&owner, &missing).await.unwrap().is_none());
         let root = revision.frame(&revision.root_frame_uri()).unwrap();
         // An invalid unrelated node proves resource selection happens in SQL,

@@ -366,8 +366,8 @@ impl Config {
         config.oauth_resource = gateway_url.join("/mcp/workspace").unwrap();
         config.mcp_transport_url = config.oauth_resource.clone();
         config.oauth_scopes = [
-            ScopeName::new("operator:use").unwrap(),
-            ScopeName::new("artifact:upload").unwrap(),
+            ScopeName::parse("operator:use").unwrap(),
+            ScopeName::parse("artifact:upload").unwrap(),
         ]
         .into_iter()
         .collect();
@@ -386,7 +386,7 @@ impl Config {
                 .join("/mcp/admin")
                 .expect("valid test transport"),
             oauth_scopes: BTreeSet::from([
-                ScopeName::new("admin:manage").expect("valid test scope")
+                ScopeName::parse("admin:manage").expect("valid test scope")
             ]),
             profile: "admin".to_owned(),
             outbound_ca_bundle: None,
@@ -585,7 +585,7 @@ impl std::fmt::Debug for Config {
 fn parse_oauth_scopes(value: &str) -> anyhow::Result<BTreeSet<ScopeName>> {
     let scopes = value
         .split_ascii_whitespace()
-        .map(ScopeName::new)
+        .map(ScopeName::parse)
         .collect::<Result<BTreeSet<_>, _>>()
         .context("OAuth scopes contain an invalid scope")?;
     if scopes.is_empty() {

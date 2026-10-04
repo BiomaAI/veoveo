@@ -281,7 +281,7 @@ impl GatewayMcp {
         let mut client_denied = 0u32;
         let mut targets = Vec::with_capacity(upstream_tools.len());
         for mut tool in upstream_tools {
-            let local_tool = LocalToolName::new(tool.name.as_ref().to_owned()).map_err(|err| {
+            let local_tool = LocalToolName::parse(tool.name.as_ref()).map_err(|err| {
                 mcp_internal(format!("upstream exposed invalid tool name: {err}"))
             })?;
             if !self

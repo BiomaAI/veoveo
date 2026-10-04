@@ -75,7 +75,7 @@ fn world_catalog_cursors_preserve_typed_positions_and_round_trip() {
     assert_eq!(root.as_str(), FrameWorldsUri::ROOT);
     assert_eq!(FrameWorldsUri::parse(root.as_str()).unwrap(), root);
     for value in ["mission-alpha", "ENU:mission.01", &"x".repeat(128)] {
-        let id = FrameWorldId::new(value).unwrap();
+        let id = FrameWorldId::parse(value).unwrap();
         let cursor = FrameWorldCursor::new(&id);
         assert_eq!(cursor.after(), &id);
         assert_eq!(FrameWorldCursor::parse(cursor.as_str()).unwrap(), cursor);
@@ -108,7 +108,7 @@ fn world_catalog_rejects_wrong_cursor_envelopes_and_ambiguous_uris() {
     for wire in ["", "zz", "a", &"00".repeat(513)] {
         assert!(FrameWorldCursor::parse(wire).is_err());
     }
-    let cursor = FrameWorldCursor::new(&FrameWorldId::new("world").unwrap());
+    let cursor = FrameWorldCursor::new(&FrameWorldId::parse("world").unwrap());
     for value in [
         "frames://worlds/".to_owned(),
         "frames://worlds?".to_owned(),
@@ -144,9 +144,9 @@ fn world_revision_and_frame_addresses_preserve_ids_and_wire_spelling() {
         "a-b.c:9",
         &"x".repeat(128),
     ] {
-        let world_id = FrameWorldId::new(suffix).unwrap();
-        let revision_id = FrameWorldRevisionId::new(suffix).unwrap();
-        let frame_id = FrameId::new(suffix).unwrap();
+        let world_id = FrameWorldId::parse(suffix).unwrap();
+        let revision_id = FrameWorldRevisionId::parse(suffix).unwrap();
+        let frame_id = FrameId::parse(suffix).unwrap();
         let world = FrameWorldUri::new(&world_id);
         let revision = world.revision(&revision_id);
         let frame = revision.frame(&frame_id);
@@ -192,10 +192,10 @@ fn admission_rejects_relative_and_malformed_frame_identities() {
         "ü",
         &"x".repeat(129),
     ] {
-        assert!(FrameId::new(invalid).is_err(), "{invalid}");
-        assert!(veoveo_frames_contract::CoordinateOperationId::new(invalid).is_err());
-        assert!(FrameWorldId::new(invalid).is_err(), "{invalid}");
-        assert!(FrameWorldRevisionId::new(invalid).is_err(), "{invalid}");
+        assert!(FrameId::parse(invalid).is_err(), "{invalid}");
+        assert!(veoveo_frames_contract::CoordinateOperationId::parse(invalid).is_err());
+        assert!(FrameWorldId::parse(invalid).is_err(), "{invalid}");
+        assert!(FrameWorldRevisionId::parse(invalid).is_err(), "{invalid}");
         assert!(serde_json::from_value::<FrameWorldId>(serde_json::json!(invalid)).is_err());
     }
 }
@@ -259,7 +259,7 @@ fn operation_addresses_and_references_keep_their_identity_in_agreement() {
         CoordinateOperationId, CoordinateOperationRef, FrameOperationUri,
     };
     use veoveo_types::ResourceAddress;
-    let id = CoordinateOperationId::new("op-01950000-0000-7000-8000-000000000001").unwrap();
+    let id = CoordinateOperationId::parse("op-01950000-0000-7000-8000-000000000001").unwrap();
     let uri = FrameOperationUri::new(&id);
     assert_eq!(
         uri.as_str(),

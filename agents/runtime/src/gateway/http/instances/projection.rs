@@ -35,7 +35,7 @@ pub(super) fn operation(
 ) -> Result<wire::LifecycleOperation, Fault> {
     Ok(wire::LifecycleOperation {
         id: common::uuid(&value.id)?,
-        instance: wire::AgentManagedInstanceId::new(key).map_err(|_| Fault::unavailable())?,
+        instance: wire::AgentManagedInstanceId::parse(key).map_err(|_| Fault::unavailable())?,
         generation: value.generation,
         phase: phase(value.phase),
         message: value.message,
@@ -92,9 +92,9 @@ pub(super) async fn instances(
                 .get(&v.requested_revision.to_sql())
                 .ok_or_else(Fault::unavailable)?;
             Ok(wire::ManagedInstance {
-                id: wire::AgentManagedInstanceId::new(v.key).map_err(|_| Fault::unavailable())?,
+                id: wire::AgentManagedInstanceId::parse(v.key).map_err(|_| Fault::unavailable())?,
                 name: v.name,
-                definition: wire::AgentDefinitionId::new(definition.clone())
+                definition: wire::AgentDefinitionId::parse(definition.clone())
                     .map_err(|_| Fault::unavailable())?,
                 owner: common::uuid(&v.owner)?,
                 work_context: common::context(
@@ -102,7 +102,7 @@ pub(super) async fn instances(
                     &actor.subject.authority.tenant,
                     &v.work_context,
                 )?,
-                template: wire::AgentTemplateId::new(requested.template.clone())
+                template: wire::AgentTemplateId::parse(requested.template.clone())
                     .map_err(|_| Fault::unavailable())?,
                 requested_revision: common::digest(&requested.digest)?,
                 active_revision: v

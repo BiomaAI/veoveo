@@ -42,7 +42,7 @@ fn selection(
         (uris::WORLD_REVISION_TEMPLATE | uris::WORLD_FRAME_TEMPLATE, "revision_id") => {
             parent("world_id")
                 .map(|id| {
-                    FrameWorldId::new(id.clone())
+                    FrameWorldId::parse(id.clone())
                         .map(Selection::Revisions)
                         .map_err(invalid)
                 })
@@ -50,11 +50,11 @@ fn selection(
         }
         (uris::WORLD_FRAME_TEMPLATE, "frame_id") => {
             let world = parent("world_id")
-                .map(|value| FrameWorldId::new(value.clone()))
+                .map(|value| FrameWorldId::parse(value.clone()))
                 .transpose()
                 .map_err(invalid)?;
             let revision = parent("revision_id")
-                .map(|value| FrameWorldRevisionId::new(value.clone()))
+                .map(|value| FrameWorldRevisionId::parse(value.clone()))
                 .transpose()
                 .map_err(invalid)?;
             let (Some(world), Some(revision)) = (world, revision) else {
@@ -151,8 +151,8 @@ mod tests {
         assert_eq!(
             selection(uris::WORLD_FRAME_TEMPLATE, &request).unwrap(),
             Some(Selection::Frames(FrameWorldRevisionUri::new(
-                &FrameWorldId::new("world").unwrap(),
-                &FrameWorldRevisionId::new("revision").unwrap()
+                &FrameWorldId::parse("world").unwrap(),
+                &FrameWorldRevisionId::parse("revision").unwrap()
             )))
         );
         let request = request.with_context(CompletionContext::with_arguments(HashMap::from([

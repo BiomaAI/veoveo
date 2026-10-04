@@ -41,7 +41,7 @@ pub(super) async fn token_endpoint(
 ) -> axum::response::Response {
     let started_at = Instant::now();
     let catalog = current_catalog(&state.catalog);
-    let client_id = match OAuthClientId::new(request.client_id.trim()) {
+    let client_id = match OAuthClientId::parse(request.client_id.trim()) {
         Ok(id) => id,
         Err(_) => return *invalid_client(),
     };
@@ -239,7 +239,7 @@ pub(super) fn resolve_oauth_resource<'a>(
     raw_client_id: &str,
     raw_resource: Option<&str>,
 ) -> Result<ResolvedOAuthResource<'a>, Box<axum::response::Response>> {
-    let client_id = OAuthClientId::new(raw_client_id.trim()).map_err(|_| invalid_client())?;
+    let client_id = OAuthClientId::parse(raw_client_id.trim()).map_err(|_| invalid_client())?;
     let client = catalog
         .oauth_client(&client_id)
         .ok_or_else(invalid_client)?;
@@ -303,7 +303,7 @@ fn resolve_registered_resource<'a>(
         .map(ResolvedOAuthResource::Profile)
         .or_else(|| {
             catalog
-                .contributed_protected_resource(&ProtectedResourceId::new(resource).ok()?)
+                .contributed_protected_resource(&ProtectedResourceId::parse(resource).ok()?)
                 .map(ResolvedOAuthResource::Contributed)
         })
 }

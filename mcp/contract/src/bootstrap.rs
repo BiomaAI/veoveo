@@ -112,7 +112,7 @@ mod tests {
     use super::*;
 
     fn slug(value: &str) -> ServerSlug {
-        ServerSlug::new(value).expect("valid slug")
+        ServerSlug::parse(value).expect("valid slug")
     }
 
     #[test]

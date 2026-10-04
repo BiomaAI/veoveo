@@ -16,7 +16,7 @@ pub(super) async fn protected_resource_metadata(
     State(state): State<AppState>,
     AxumPath(profile): AxumPath<String>,
 ) -> impl IntoResponse {
-    let Ok(profile_id) = GatewayProfileId::new(profile) else {
+    let Ok(profile_id) = GatewayProfileId::parse(profile) else {
         return StatusCode::NOT_FOUND.into_response();
     };
     let catalog = current_catalog(&state.catalog);

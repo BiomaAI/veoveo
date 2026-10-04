@@ -27,8 +27,8 @@ mod fixture;
 
 fn space(revision: &str) -> EmbeddingSpace {
     EmbeddingSpace {
-        model: EmbeddingModelId::new("synthetic-fixture").unwrap(),
-        revision: EmbeddingModelRevision::new(revision).unwrap(),
+        model: EmbeddingModelId::parse("synthetic-fixture").unwrap(),
+        revision: EmbeddingModelRevision::parse(revision).unwrap(),
         dimension: EmbeddingDimension::new(3).unwrap(),
         runtime_image: Sha256Digest::from_bytes([7; 32]),
     }
@@ -36,10 +36,10 @@ fn space(revision: &str) -> EmbeddingSpace {
 fn registration(tenant: &str) -> CollectionRegistration {
     CollectionRegistration {
         source_contract_revision: 3,
-        tenant: TenantId::new(tenant).unwrap(),
+        tenant: TenantId::parse(tenant).unwrap(),
         descriptor: CollectionDescriptor::new(
             CollectionId::try_from("fixture.records".to_owned()).unwrap(),
-            EntityKind::new("record").unwrap(),
+            EntityKind::parse("record").unwrap(),
             ResourceTemplateUri::new("fixture://records{?cursor}").unwrap(),
             Freshness::max_age(30),
             ChangeSignal::Listen,
@@ -103,12 +103,12 @@ fn member_with_policy(
             expires_at: None,
             read_policy,
             tenant: registration.tenant.clone(),
-            work_context: WorkContextId::new(context).unwrap(),
-            owner: AccessSubject::Principal(PrincipalId::new("author").unwrap()),
+            work_context: WorkContextId::parse(context).unwrap(),
+            owner: AccessSubject::Principal(PrincipalId::parse("author").unwrap()),
             grants: grants.into_iter().map(source::ReadGrant::new).collect(),
             data_labels: labels
                 .iter()
-                .map(|v| DataLabelId::new(*v).unwrap())
+                .map(|v| DataLabelId::parse(*v).unwrap())
                 .collect(),
         },
     )
@@ -123,7 +123,7 @@ fn member_with_access(
     let text = "Fixture knowledge content";
     let observation = Observation::builder(
         registration.descriptor.collection().clone(),
-        Revision::new("r1").unwrap(),
+        Revision::parse("r1").unwrap(),
         source::content_digest(text),
         Utc::now(),
     )
@@ -172,9 +172,9 @@ fn scope(registration: &CollectionRegistration) -> CandidateScope {
         active_work_context: "operations".parse().unwrap(),
         tenant: registration.tenant.clone(),
         collections: BTreeMap::from([(registration.descriptor.collection().clone(), selection())]),
-        work_contexts: BTreeSet::from([WorkContextId::new("operations").unwrap()]),
+        work_contexts: BTreeSet::from([WorkContextId::parse("operations").unwrap()]),
         subjects: BTreeSet::from([AccessSubject::Principal(
-            PrincipalId::new("reader").unwrap(),
+            PrincipalId::parse("reader").unwrap(),
         )]),
         clearance: BTreeSet::new(),
     }
@@ -610,7 +610,7 @@ async fn qualify() {
             .unwrap()
             .is_empty()
     );
-    denied_scope.tenant = TenantId::new("foreign").unwrap();
+    denied_scope.tenant = TenantId::parse("foreign").unwrap();
     assert!(
         db.b.knowledge_candidates_page(&denied_scope, first, None, 100)
             .await
@@ -969,7 +969,7 @@ async fn catalog_admits_before_source_paging_and_exact_record_decoding() {
     tokio::time::timeout(Duration::from_secs(180), async {
         use veoveo_platform_store::knowledge::CatalogSelection;
         let db = fixture::TestDb::new().await;
-        let tenant = TenantId::new("catalog-native").unwrap();
+        let tenant = TenantId::parse("catalog-native").unwrap();
         let mut approvals = BTreeMap::new();
         let mut expected = Vec::new();
         for n in 0..105 {

@@ -72,8 +72,8 @@ async fn public_command_admission_repairs_one_task_with_actual_artifact_authorit
             .unwrap(),
     );
     let auth = veoveo_artifact_service::PlaneAuthenticator::new(
-        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER).unwrap(),
-        vec![ServerSlug::new("computers").unwrap()],
+        TokenIssuer::parse(GATEWAY_INTERNAL_TOKEN_ISSUER).unwrap(),
+        vec![ServerSlug::parse("computers").unwrap()],
         signing.trust.clone(),
     );
     let router: Router = veoveo_artifact_service::http::router(

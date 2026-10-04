@@ -22,12 +22,12 @@ fn every_resource_family_round_trips_through_the_shared_components() {
         ViewResource::Compositions,
         ViewResource::Views,
         ViewResource::Frames,
-        ViewResource::Layer(LayerUri::new(LayerId::new("layer-1").unwrap())),
-        ViewResource::View(ViewUri::new(ViewId::new("view-1").unwrap())),
+        ViewResource::Layer(LayerUri::new(LayerId::parse("layer-1").unwrap())),
+        ViewResource::View(ViewUri::new(ViewId::parse("view-1").unwrap())),
         ViewResource::Composition(CompositionUri::new(composition)),
-        ViewResource::Frame(FrameUri::new(FrameId::new("frame-1").unwrap())),
+        ViewResource::Frame(FrameUri::new(FrameId::parse("frame-1").unwrap())),
         ViewResource::Tile(TileUri::new(tile)),
-        ViewResource::Scene(ViewSceneUri::new(ViewId::new("view-1").unwrap(), policy()).unwrap()),
+        ViewResource::Scene(ViewSceneUri::new(ViewId::parse("view-1").unwrap(), policy()).unwrap()),
     ];
     for resource in resources {
         let uri = resource.to_uri().unwrap();
@@ -42,7 +42,7 @@ fn every_resource_family_round_trips_through_the_shared_components() {
 
 #[test]
 fn scene_construction_keeps_the_wire_shape_and_checks_numeric_admission() {
-    let id = ViewId::new("view-1").unwrap();
+    let id = ViewId::parse("view-1").unwrap();
     let address = ViewSceneUri::new(id.clone(), policy()).unwrap();
     assert_eq!(
         address.to_string(),
@@ -145,9 +145,9 @@ fn route_admission_rejects_credentials_aliases_and_wrong_parents() {
     assert!(FrameUri::parse("view://view/view-1").is_err());
     assert!(CompositionUri::parse("view://frame/frame-1").is_err());
     for id in [".", "..", "a/b", "a?b", "a#b", "a%b", "a b"] {
-        assert!(ViewId::new(id).is_err());
-        assert!(FrameId::new(id).is_err());
-        assert!(LayerId::new(id).is_err());
+        assert!(ViewId::parse(id).is_err());
+        assert!(FrameId::parse(id).is_err());
+        assert!(LayerId::parse(id).is_err());
     }
 }
 

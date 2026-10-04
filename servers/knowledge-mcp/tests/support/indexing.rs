@@ -17,8 +17,8 @@ impl SyntheticEmbeddings {
     pub(crate) fn new() -> Self {
         Self {
             space: EmbeddingSpace {
-                model: EmbeddingModelId::new("synthetic-fixture").unwrap(),
-                revision: EmbeddingModelRevision::new("fixture-1").unwrap(),
+                model: EmbeddingModelId::parse("synthetic-fixture").unwrap(),
+                revision: EmbeddingModelRevision::parse("fixture-1").unwrap(),
                 dimension: EmbeddingDimension::new(3).unwrap(),
                 runtime_image: Sha256Digest::from_bytes([1; 32]),
             },
@@ -112,7 +112,7 @@ impl KnowledgeSource for Source {
         }
         let observation = Observation::builder(
             record.registration.descriptor.collection().clone(),
-            Revision::new(record.revision.to_string())?,
+            Revision::parse(record.revision.to_string())?,
             extension::content_digest(&record.text),
             Utc::now(),
         )
@@ -155,7 +155,7 @@ pub(crate) fn registration(name: &str, indexing: IndexingMode) -> CollectionRegi
             indexing,
         )
         .unwrap()
-        .with_required_scopes([ScopeName::new("fixture:read").unwrap()]),
+        .with_required_scopes([ScopeName::parse("fixture:read").unwrap()]),
         approval: KnowledgeCollectionApproval {
             collection: CollectionId::new("fixture".parse().unwrap(), name.parse().unwrap())
                 .unwrap(),

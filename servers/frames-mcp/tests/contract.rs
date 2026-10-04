@@ -5,11 +5,11 @@ fn contract_feature_exposes_shared_frames_types() {
         FrameId, FrameWorldId, FrameWorldRevisionId, FrameWorldRevisionUri,
     };
     let revision = FrameWorldRevisionUri::new(
-        &FrameWorldId::new("survey").unwrap(),
-        &FrameWorldRevisionId::new("revision-1").unwrap(),
+        &FrameWorldId::parse("survey").unwrap(),
+        &FrameWorldRevisionId::parse("revision-1").unwrap(),
     );
     let frame: veoveo_frames_mcp::contract::WorldFrameUri =
-        revision.frame(&FrameId::new("camera").unwrap());
+        revision.frame(&FrameId::parse("camera").unwrap());
     assert_eq!(frame.revision_uri(), revision);
     let _: veoveo_frames_contract::WorldFrameUri = frame;
 }
@@ -19,8 +19,8 @@ fn hosted_addresses_compose_the_domain_owners_and_reject_uri_aliases() {
     use veoveo_artifact_contract::ArtifactId;
     use veoveo_frames_mcp::contract::*;
     use veoveo_types::{ResourceAddress, TaskId};
-    let world = FrameWorldUri::new(&FrameWorldId::new("survey").unwrap());
-    let revision = world.revision(&FrameWorldRevisionId::new("revision-1").unwrap());
+    let world = FrameWorldUri::new(&FrameWorldId::parse("survey").unwrap());
+    let revision = world.revision(&FrameWorldRevisionId::parse("revision-1").unwrap());
     let task = TaskId::new();
     let cursor = FrameWorldCursor::new(&world.world_id());
     let usage_cursor = FrameUsageCursor::new(task).unwrap();
@@ -34,9 +34,9 @@ fn hosted_addresses_compose_the_domain_owners_and_reject_uri_aliases() {
         FramesResource::Worlds(FrameWorldsUri::new(Some(&cursor))),
         FramesResource::World(world.clone()),
         FramesResource::Revision(revision.clone()),
-        FramesResource::Frame(revision.frame(&FrameId::new("camera").unwrap())),
+        FramesResource::Frame(revision.frame(&FrameId::parse("camera").unwrap())),
         FramesResource::Operation(FrameOperationUri::new(
-            &CoordinateOperationId::new("conversion-1").unwrap(),
+            &CoordinateOperationId::parse("conversion-1").unwrap(),
         )),
         FramesResource::Usage(FrameUsageIndexUri::new(None)),
         FramesResource::Usage(FrameUsageIndexUri::new(Some(&usage_cursor))),

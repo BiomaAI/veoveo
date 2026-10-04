@@ -109,7 +109,7 @@ pub(super) fn definition(id: &str, base_url: &str) -> ResolvedAgent {
         deadline_seconds: 120,
     };
     let model = veoveo_agent_runtime::gateway::http::models::ModelConnection {
-        id: veoveo_agent_runtime::contract::authoring::AgentModelId::new(format!("{id}-model"))
+        id: veoveo_agent_runtime::contract::authoring::AgentModelId::parse(format!("{id}-model"))
             .unwrap(),
         name: id.into(),
         provider: "Fixture".into(),
@@ -390,7 +390,7 @@ fn model_admission_requires_exact_context_registered_provider_secret_and_bounded
     definition.tenant = context.tenant.clone();
     definition.work_contexts = vec![context.id.clone()];
     definition.api_key =
-        veoveo_gateway_contract::SecretReferenceId::new("media_provider_api_key").unwrap();
+        veoveo_gateway_contract::SecretReferenceId::parse("media_provider_api_key").unwrap();
     veoveo_agent_runtime::gateway::http::models::validate(&[definition.clone()], &catalog).unwrap();
     for destination in [
         "https://credential@model.example/v1",
@@ -407,10 +407,10 @@ fn model_admission_requires_exact_context_registered_provider_secret_and_bounded
     invalid.limits.max_output_tokens = 9000;
     assert!(veoveo_agent_runtime::gateway::http::models::validate(&[invalid], &catalog).is_err());
     let mut invalid = definition.clone();
-    invalid.tenant = veoveo_types::TenantId::new("foreign").unwrap();
+    invalid.tenant = veoveo_types::TenantId::parse("foreign").unwrap();
     assert!(veoveo_agent_runtime::gateway::http::models::validate(&[invalid], &catalog).is_err());
     let mut invalid = definition.clone();
-    invalid.api_key = veoveo_gateway_contract::SecretReferenceId::new("unregistered").unwrap();
+    invalid.api_key = veoveo_gateway_contract::SecretReferenceId::parse("unregistered").unwrap();
     assert!(veoveo_agent_runtime::gateway::http::models::validate(&[invalid], &catalog).is_err());
     assert!(
         veoveo_agent_runtime::gateway::http::models::validate(

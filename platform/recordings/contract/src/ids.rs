@@ -1,5 +1,5 @@
 //! Recording identities and redacted admission errors.
-use serde::{Deserialize, Serialize};
+
 use std::fmt;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -57,157 +57,41 @@ pub(super) fn string_schema(generator: &mut schemars::SchemaGenerator) -> schema
     <String as schemars::JsonSchema>::json_schema(generator)
 }
 
-#[derive(
-    veoveo_types::Id,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    PartialEq,
-    Ord,
-    PartialOrd,
-    Hash,
-    Serialize,
-    Deserialize,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(error=RecordingContractError,admit=admit_recording_id,wire_string,constructor=parse,generate=uuid::Uuid::now_v7,schema=String::json_schema,schema_inline)]
+#[veoveo_types::id(uuid(RecordingIds), fresh)]
 pub struct RecordingId(uuid::Uuid);
-impl RecordingId {
-    pub fn as_uuid(self) -> uuid::Uuid {
-        self.0
-    }
-}
-impl TryFrom<uuid::Uuid> for RecordingId {
-    type Error = RecordingContractError;
-    fn try_from(value: uuid::Uuid) -> Result<Self, Self::Error> {
-        validate_recording_uuid(value).map(Self)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    PartialEq,
-    Ord,
-    PartialOrd,
-    Hash,
-    Serialize,
-    Deserialize,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(error=RecordingContractError,admit=admit_recording_id,wire_string,constructor=parse,generate=uuid::Uuid::now_v7,schema=String::json_schema,schema_inline)]
+#[veoveo_types::id(uuid(RecordingIds), fresh)]
 pub struct RecordingDatasetId(uuid::Uuid);
-impl RecordingDatasetId {
-    pub fn as_uuid(self) -> uuid::Uuid {
-        self.0
-    }
-}
-impl TryFrom<uuid::Uuid> for RecordingDatasetId {
-    type Error = RecordingContractError;
-    fn try_from(value: uuid::Uuid) -> Result<Self, Self::Error> {
-        validate_recording_uuid(value).map(Self)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    PartialEq,
-    Ord,
-    PartialOrd,
-    Hash,
-    Serialize,
-    Deserialize,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(error=RecordingContractError,admit=admit_recording_id,wire_string,constructor=parse,generate=uuid::Uuid::now_v7,schema=String::json_schema,schema_inline)]
+#[veoveo_types::id(uuid(RecordingIds), fresh)]
 pub struct RecordingLayerId(uuid::Uuid);
-impl RecordingLayerId {
-    pub fn as_uuid(self) -> uuid::Uuid {
-        self.0
-    }
-}
-impl TryFrom<uuid::Uuid> for RecordingLayerId {
-    type Error = RecordingContractError;
-    fn try_from(value: uuid::Uuid) -> Result<Self, Self::Error> {
-        validate_recording_uuid(value).map(Self)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    PartialEq,
-    Ord,
-    PartialOrd,
-    Hash,
-    Serialize,
-    Deserialize,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(error=RecordingContractError,admit=admit_recording_id,wire_string,constructor=parse,generate=uuid::Uuid::now_v7,schema=String::json_schema,schema_inline)]
+#[veoveo_types::id(uuid(RecordingIds), fresh)]
 pub struct RecordingReadGrantId(uuid::Uuid);
-impl RecordingReadGrantId {
-    pub fn as_uuid(self) -> uuid::Uuid {
-        self.0
-    }
-}
-impl TryFrom<uuid::Uuid> for RecordingReadGrantId {
-    type Error = RecordingContractError;
-    fn try_from(value: uuid::Uuid) -> Result<Self, Self::Error> {
-        validate_recording_uuid(value).map(Self)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    PartialEq,
-    Ord,
-    PartialOrd,
-    Hash,
-    Serialize,
-    Deserialize,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(error=RecordingContractError,admit=admit_recording_id,wire_string,constructor=parse,generate=uuid::Uuid::now_v7,schema=String::json_schema,schema_inline)]
+#[veoveo_types::id(uuid(RecordingIds), fresh)]
 pub struct RecordingProjectionId(uuid::Uuid);
-impl RecordingProjectionId {
-    pub fn as_uuid(self) -> uuid::Uuid {
-        self.0
-    }
-}
-impl TryFrom<uuid::Uuid> for RecordingProjectionId {
-    type Error = RecordingContractError;
-    fn try_from(value: uuid::Uuid) -> Result<Self, Self::Error> {
-        validate_recording_uuid(value).map(Self)
-    }
-}
+use veoveo_types::{
+    FreshId, IdGeneration, IdProfile, IdProfileSpec, IdSchema, UuidGrammar, UuidSpelling,
+    UuidVariant,
+};
 
-fn validate_recording_uuid(value: uuid::Uuid) -> Result<uuid::Uuid, RecordingContractError> {
-    if value.get_version_num() != 7 || value.get_variant() != uuid::Variant::RFC4122 {
-        return Err(RecordingContractError::Identity);
-    }
-    Ok(value)
-}
-fn admit_recording_id(value: &str) -> Result<uuid::Uuid, RecordingContractError> {
-    let id = uuid::Uuid::parse_str(value).map_err(|_| RecordingContractError::Identity)?;
-    let id = validate_recording_uuid(id)?;
-    if id.to_string() != value {
-        return Err(RecordingContractError::Identity);
-    }
-    Ok(id)
+#[doc(hidden)]
+pub struct RecordingIds;
+impl IdProfile for RecordingIds {
+    type Error = RecordingContractError;
+    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
+        generation: IdGeneration {
+            fresh: FreshId::UuidV7,
+            stable_v5_namespace: None,
+        },
+        schema: IdSchema::Owner {
+            schema: |generator, _| string_schema(generator),
+            inline: true,
+        },
+        ..IdProfileSpec::uuid(
+            UuidGrammar {
+                versions: &[7],
+                variant: UuidVariant::Rfc4122,
+                spelling: UuidSpelling::CanonicalLowerHyphenated,
+            },
+            |_, _, _| RecordingContractError::Identity,
+        )
+    };
 }

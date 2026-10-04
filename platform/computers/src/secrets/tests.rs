@@ -66,7 +66,7 @@ fn replacement_identity_is_authenticated_without_reencoding_initial_envelopes() 
     assert!(encoded.get("replacement_instance_id").is_none());
     let restored: CommandBinding = serde_json::from_value(encoded).unwrap();
     keys.open(&restored, &original).unwrap();
-    assert_eq!(restored.instance_id(), restored.computer_id.into_uuid());
+    assert_eq!(restored.instance_id(), restored.computer_id.as_uuid());
     let mut replacement = initial.clone();
     replacement.replacement_instance_id = Some(Uuid::now_v7());
     assert!(keys.open(&replacement, &original).is_err());
@@ -75,7 +75,7 @@ fn replacement_identity_is_authenticated_without_reencoding_initial_envelopes() 
     assert!(keys.open(&initial, &replaced).is_err());
     replacement.replacement_instance_id = Some(Uuid::now_v7());
     assert!(keys.open(&replacement, &replaced).is_err());
-    for invalid in [Uuid::nil(), initial.computer_id.into_uuid()] {
+    for invalid in [Uuid::nil(), initial.computer_id.as_uuid()] {
         replacement.replacement_instance_id = Some(invalid);
         assert!(keys.seal(&replacement, &payload).is_err());
     }
@@ -247,7 +247,7 @@ fn output_access_is_rotatable_purpose_bound_and_cannot_drop_labels() {
     binding.execution_id = crate::api::ExecutionId::new();
     binding
         .required_output_labels
-        .insert(veoveo_types::DataLabelId::new("retained-home").unwrap());
+        .insert(veoveo_types::DataLabelId::parse("retained-home").unwrap());
     let capability = IssuedArtifactWriteCapability {
         capability_id: ArtifactWriteCapabilityId::new(),
         secret: ArtifactWriteCapabilitySecret::new("private-output-capability-secret-fixture")

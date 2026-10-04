@@ -52,7 +52,7 @@ async fn exercise(import: bool) {
     let (a, b, owner, old_agent, computer) = support::automation::setup(&db).await;
     let mut control = support::automation::control();
     for name in ["transfer_file", "update_template"] {
-        let name = LocalToolName::new(name).unwrap();
+        let name = LocalToolName::parse(name).unwrap();
         control.servers[0].tools.push(name.clone());
         control.policies[0].rules[0].tools.insert(name);
     }
@@ -121,8 +121,8 @@ async fn exercise(import: bool) {
             .unwrap(),
     );
     let auth = veoveo_artifact_service::PlaneAuthenticator::new(
-        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER).unwrap(),
-        vec![ServerSlug::new("computers").unwrap()],
+        TokenIssuer::parse(GATEWAY_INTERNAL_TOKEN_ISSUER).unwrap(),
+        vec![ServerSlug::parse("computers").unwrap()],
         signing.trust.clone(),
     );
     let router: Router = veoveo_artifact_service::http::router(

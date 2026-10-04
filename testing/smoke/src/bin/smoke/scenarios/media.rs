@@ -309,7 +309,7 @@ pub(crate) async fn media_task_run(
     }) {
         bail!("not all artifact metadata rows used task id `{task_id}`: {structured:?}");
     }
-    let media_scheme = veoveo_types::ResourceScheme::new("media")?;
+    let media_scheme = veoveo_types::ResourceScheme::parse("media")?;
     if structured.artifacts().iter().any(|artifact| {
         artifact.artifact_uri
             != veoveo_artifact_contract::ArtifactUri::presented(

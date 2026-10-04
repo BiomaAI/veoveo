@@ -20,10 +20,10 @@ impl ComputersStore {
                 AND revoked_at = NONE AND expires_at > time::now() AND idle_expires_at > time::now()
                 AND family.revoked_at = NONE AND family.expires_at > time::now();", vec![
                 ("grant", super::grant_record(grant_id).into_value()),
-                ("provider", self.provider_instance_id.into_uuid().into_value()),
+                ("provider", self.provider_instance_id.as_uuid().into_value()),
                 ("credential_hash", hash.clone().into_value()),
                 ("profile", expected_profile.to_string().into_value()),
-                ("computer", expected_computer.map(crate::api::ComputerId::into_uuid).into_value()),
+                ("computer", expected_computer.map(crate::api::ComputerId::as_uuid).into_value()),
             ]).await?;
             let grant: Option<model::Grant> = read.take(0).map_err(|_| ComputerError::Unavailable)?;
             let grant = grant.ok_or(ComputerError::Forbidden)?;
@@ -59,19 +59,19 @@ impl ComputersStore {
                 include_str!("../../queries/open_cli_connection.surql"),
                 vec![
                     ("grant", super::grant_record(grant_id).into_value()),
-                    ("grant_id", grant_id.into_uuid().into_value()),
+                    ("grant_id", grant_id.as_uuid().into_value()),
                     (
                         "computer",
                         crate::model::computer_record(computer_id).into_value(),
                     ),
-                    ("computer_id", computer_id.into_uuid().into_value()),
-                    ("provider", self.provider_instance_id.into_uuid().into_value()),
+                    ("computer_id", computer_id.as_uuid().into_value()),
+                    ("provider", self.provider_instance_id.as_uuid().into_value()),
                     ("credential_hash", hash.into_value()),
                     (
                         "connection",
                         super::connection_record(connection_id).into_value(),
                     ),
-                    ("connection_id", connection_id.into_uuid().into_value()),
+                    ("connection_id", connection_id.as_uuid().into_value()),
                     ("policy", self.session_policy_record().into_value()),
                     ("resource", computer.provider_resource_id.into_value()),
                     ("process", computer.process_id.into_value()),
@@ -108,12 +108,9 @@ impl ComputersStore {
             let owner = owner_key(&computer.owner)?;
             let mut params = crate::store::owner_query_bindings(actor.owner())?;
             params.extend([
-                (
-                    "provider",
-                    self.provider_instance_id.into_uuid().into_value(),
-                ),
+                ("provider", self.provider_instance_id.as_uuid().into_value()),
                 ("owner_key", owner.clone().into_value()),
-                ("computer_id", computer_id.into_uuid().into_value()),
+                ("computer_id", computer_id.as_uuid().into_value()),
             ]);
             let mut read = self
                 .query(
@@ -140,7 +137,7 @@ impl ComputersStore {
                         &row.owner_key,
                         &accepted.task_owner(),
                     )?;
-                    if row.owner_key != owner || row.computer_id != computer_id.into_uuid() {
+                    if row.owner_key != owner || row.computer_id != computer_id.as_uuid() {
                         return Err(ComputerError::Unavailable);
                     }
                     Ok(CliGrantView {
@@ -179,12 +176,9 @@ impl ComputersStore {
             let mut params = crate::store::owner_query_bindings(actor.owner())?;
             params.extend([
                 ("grant", super::grant_record(grant_id).into_value()),
-                ("computer_id", computer_id.into_uuid().into_value()),
+                ("computer_id", computer_id.as_uuid().into_value()),
                 ("owner_key", owner_key(&computer.owner)?.into_value()),
-                (
-                    "provider",
-                    self.provider_instance_id.into_uuid().into_value(),
-                ),
+                ("provider", self.provider_instance_id.as_uuid().into_value()),
             ]);
             let mut read = self
                 .query(
@@ -203,7 +197,7 @@ impl ComputersStore {
                 include_str!("../../queries/revoke_cli_grant.surql"),
                 vec![
                     ("grant", super::grant_record(grant_id).into_value()),
-                    ("computer_id", computer_id.into_uuid().into_value()),
+                    ("computer_id", computer_id.as_uuid().into_value()),
                     ("owner_key", row.owner_key.into_value()),
                     (
                         "admission_expires_at",
@@ -235,19 +229,13 @@ impl ComputersStore {
                 AND $connection.grant_id = $grant_id AND $connection.closed_at = NONE;",
                     vec![
                         ("grant", super::grant_record(handle.grant_id).into_value()),
-                        (
-                            "provider",
-                            self.provider_instance_id.into_uuid().into_value(),
-                        ),
+                        ("provider", self.provider_instance_id.as_uuid().into_value()),
                         (
                             "connection",
                             super::connection_record(handle.connection_id).into_value(),
                         ),
-                        (
-                            "connection_id",
-                            handle.connection_id.into_uuid().into_value(),
-                        ),
-                        ("grant_id", handle.grant_id.into_uuid().into_value()),
+                        ("connection_id", handle.connection_id.as_uuid().into_value()),
+                        ("grant_id", handle.grant_id.as_uuid().into_value()),
                     ],
                 )
                 .await?;
@@ -264,11 +252,8 @@ impl ComputersStore {
                         "connection",
                         super::connection_record(handle.connection_id).into_value(),
                     ),
-                    (
-                        "connection_id",
-                        handle.connection_id.into_uuid().into_value(),
-                    ),
-                    ("grant_id", handle.grant_id.into_uuid().into_value()),
+                    ("connection_id", handle.connection_id.as_uuid().into_value()),
+                    ("grant_id", handle.grant_id.as_uuid().into_value()),
                     crate::audit::binding(
                         &accepted,
                         grant.computer_id()?,

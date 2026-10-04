@@ -6,7 +6,7 @@ use veoveo_frames_contract::{
 
 fn root() -> FrameNode {
     FrameNode {
-        frame_id: FrameId::new("earth").unwrap(),
+        frame_id: FrameId::parse("earth").unwrap(),
         basis: FrameBasis::EcefWgs84,
         parent_frame_id: None,
         parent_transform: None,
@@ -16,9 +16,9 @@ fn root() -> FrameNode {
 
 fn child(id: &str, parent: &str) -> FrameNode {
     FrameNode {
-        frame_id: FrameId::new(id).unwrap(),
+        frame_id: FrameId::parse(id).unwrap(),
         basis: FrameBasis::Enu,
-        parent_frame_id: Some(FrameId::new(parent).unwrap()),
+        parent_frame_id: Some(FrameId::parse(parent).unwrap()),
         parent_transform: Some(FrameParentTransform::StaticRigid {
             translation_m: [0.0; 3],
             rotation_xyzw: [0.0, 0.0, 0.0, 1.0],
@@ -30,8 +30,8 @@ fn child(id: &str, parent: &str) -> FrameNode {
 fn revision() -> FrameWorldRevision {
     FrameWorldRevision::new(
         FrameWorldRevisionUri::new(
-            &FrameWorldId::new("survey").unwrap(),
-            &FrameWorldRevisionId::new("revision-1").unwrap(),
+            &FrameWorldId::parse("survey").unwrap(),
+            &FrameWorldRevisionId::parse("revision-1").unwrap(),
         ),
         1.try_into().unwrap(),
         ValidatedWorldTree::new(FrameWorldTree {
@@ -84,7 +84,7 @@ fn metadata_round_trips_and_derives_all_identities() {
         root().frame_id
     );
     let wrong_parent = FrameWorldRevisionUri::new(
-        &FrameWorldId::new("other").unwrap(),
+        &FrameWorldId::parse("other").unwrap(),
         &revision.revision_id(),
     );
     assert!(
@@ -147,7 +147,7 @@ fn decoding_rejects_identity_tree_root_and_digest_disagreement() {
 #[test]
 fn summary_admits_only_coherent_empty_or_published_heads() {
     let empty = FrameWorldSummary::new(
-        FrameWorldId::new("survey").unwrap(),
+        FrameWorldId::parse("survey").unwrap(),
         "Survey".into(),
         revision().created_at(),
     );
@@ -387,8 +387,8 @@ fn existing_uav_dynamic_world_keeps_its_wire_tree() {
     );
     let revision = FrameWorldRevision::new(
         FrameWorldRevisionUri::new(
-            &FrameWorldId::new("showcase").unwrap(),
-            &FrameWorldRevisionId::new("revision-1").unwrap(),
+            &FrameWorldId::parse("showcase").unwrap(),
+            &FrameWorldRevisionId::parse("revision-1").unwrap(),
         ),
         1.try_into().unwrap(),
         admitted.clone(),
@@ -447,7 +447,7 @@ fn frame_world_input_policy_preserves_route_and_identity_errors() {
         FrameWorldUri::parse("frames://world/%2E%2E"),
         Err(FrameUriError::Components(_))
     ));
-    let world = FrameWorldUri::new(&FrameWorldId::new("survey").unwrap());
+    let world = FrameWorldUri::new(&FrameWorldId::parse("survey").unwrap());
     assert_eq!(
         FrameWorldUri::RESOURCE_ROUTES[0]
             .discovery_template()

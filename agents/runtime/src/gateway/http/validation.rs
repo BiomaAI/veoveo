@@ -257,7 +257,7 @@ pub(super) async fn capabilities(
         .take(512)
         .map(|t| {
             Ok(wire::CapabilityChoice {
-                name: veoveo_gateway_contract::GatewayToolName::new(t.name.to_string())
+                name: veoveo_gateway_contract::GatewayToolName::parse(&t.name)
                     .map_err(|_| Fault::unavailable())?,
                 title: t.title.unwrap_or_else(|| t.name.to_string()),
                 description: t.description.map(|d| d.into_owned()).unwrap_or_default(),

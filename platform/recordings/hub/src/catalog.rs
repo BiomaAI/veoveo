@@ -74,10 +74,10 @@ impl PlatformCatalog {
                 PrincipalKind::Service,
             )
             .await?;
-        let principal_id = ContractPrincipalId::new(format!(
+        let principal_id = ContractPrincipalId::parse(format!(
             "{}#{}",
-            TokenIssuer::new(&policy.owner_issuer)?,
-            TokenSubject::new(&policy.owner_subject)?
+            TokenIssuer::parse(&policy.owner_issuer)?,
+            TokenSubject::parse(&policy.owner_subject)?
         ))?;
         let context = store
             .work_context_by_key(identity.tenant_id, &policy.work_context_key)
@@ -351,7 +351,7 @@ impl PlatformCatalog {
 fn artifact_labels(values: &[String]) -> Result<BTreeSet<DataLabelId>> {
     values
         .iter()
-        .map(|value| DataLabelId::new(value.to_owned()).map_err(Into::into))
+        .map(|value| DataLabelId::parse(value).map_err(Into::into))
         .collect()
 }
 
@@ -359,9 +359,7 @@ fn artifact_classification(value: &str) -> Result<Option<DataLabelId>> {
     if value == "unclassified" {
         Ok(None)
     } else {
-        DataLabelId::new(value.to_owned())
-            .map(Some)
-            .map_err(Into::into)
+        DataLabelId::parse(value).map(Some).map_err(Into::into)
     }
 }
 

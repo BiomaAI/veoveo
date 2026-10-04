@@ -81,13 +81,13 @@ impl FramesState {
 }
 
 fn world_summary(record: FrameWorldRecord) -> Result<FrameWorldSummary> {
-    let world_id = FrameWorldId::new(record.world_key)?;
+    let world_id = FrameWorldId::parse(record.world_key)?;
     let mut summary = FrameWorldSummary::new(world_id, record.display_name, record.created_at)
         .with_description(record.description);
     match (record.head_revision_key, u64::try_from(record.revision)?) {
         (None, 0) => {}
         (Some(id), number) if number > 0 => {
-            summary = summary.with_head(FrameWorldRevisionId::new(id)?, number.try_into()?);
+            summary = summary.with_head(FrameWorldRevisionId::parse(id)?, number.try_into()?);
         }
         _ => bail!("stored world head and publication number disagree"),
     }
@@ -96,10 +96,10 @@ fn world_summary(record: FrameWorldRecord) -> Result<FrameWorldSummary> {
 }
 
 fn world_revision(record: FrameWorldRevisionRecord) -> Result<FrameWorldRevision> {
-    let world_id = FrameWorldId::new(record.world_key)?;
-    let revision_id = FrameWorldRevisionId::new(record.revision_key)?;
+    let world_id = FrameWorldId::parse(record.world_key)?;
+    let revision_id = FrameWorldRevisionId::parse(record.revision_key)?;
     let revision_uri = FrameWorldRevisionUri::new(&world_id, &revision_id);
-    let root_frame_id = crate::contract::FrameId::new(record.root_frame_key)?;
+    let root_frame_id = crate::contract::FrameId::parse(record.root_frame_key)?;
     Ok(FrameWorldRevision::from_parts(
         revision_uri.clone(),
         u64::try_from(record.revision)

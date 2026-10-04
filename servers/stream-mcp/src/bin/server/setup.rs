@@ -25,7 +25,7 @@ impl McpServerContract for StreamContract {
     type Scope = StreamScope;
     type Resource = StreamResource;
     fn slug() -> ServerSlug {
-        ServerSlug::new(SERVER_SLUG).expect("declared Stream slug")
+        ServerSlug::parse(SERVER_SLUG).expect("declared Stream slug")
     }
     fn scheme() -> ResourceScheme {
         uris::SCHEME.clone()

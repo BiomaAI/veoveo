@@ -113,7 +113,7 @@ impl SurrealArtifactRepository {
         artifact_id: ArtifactId,
         aggregate: platform::ArtifactAggregate,
     ) -> Result<StoredArtifact, RepositoryError> {
-        let tenant = TenantId::new(aggregate.tenant.slug)
+        let tenant = TenantId::parse(aggregate.tenant.slug)
             .map_err(|error| RepositoryError::Corrupt(error.to_string()))?;
         let authority = contract_authority(tenant.clone(), aggregate.occurrence.authority.clone())?;
         let occurrence = &aggregate.occurrence;
@@ -154,7 +154,7 @@ impl SurrealArtifactRepository {
             None
         } else {
             Some(
-                DataLabelId::new(aggregate.occurrence.classification)
+                DataLabelId::parse(aggregate.occurrence.classification)
                     .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
             )
         };
@@ -170,11 +170,11 @@ impl SurrealArtifactRepository {
             .map(|edge| {
                 let subject = match edge.subject_kind {
                     platform::ArtifactGrantSubjectKind::Principal => AccessSubject::Principal(
-                        PrincipalId::new(edge.subject_key)
+                        PrincipalId::parse(edge.subject_key)
                             .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
                     ),
                     platform::ArtifactGrantSubjectKind::Group => AccessSubject::Group(
-                        GroupId::new(edge.subject_key)
+                        GroupId::parse(edge.subject_key)
                             .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
                     ),
                 };
@@ -221,7 +221,7 @@ impl SurrealArtifactRepository {
                 owner: Some(authority.output_policy.owner.clone()),
                 work_context: Some(authority.work_context.clone()),
                 provenance: Some(ArtifactProvenance::new(
-                    PrincipalId::new(aggregate.occurrence.producer_key)
+                    PrincipalId::parse(aggregate.occurrence.producer_key)
                         .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
                     authority.provenance.clone(),
                     authority.policy_revision.clone(),
@@ -536,7 +536,7 @@ impl ArtifactRepository for SurrealArtifactRepository {
             Err(error) => return Err(repository_error(error)),
         };
         let capability = redemption.capability;
-        let tenant = TenantId::new(capability.tenant_key.clone())
+        let tenant = TenantId::parse(capability.tenant_key.clone())
             .map_err(|error| RepositoryError::Corrupt(error.to_string()))?;
         let authority = contract_authority(tenant.clone(), capability.authority)?;
         Ok(Some(RedeemedWriteCapability {
@@ -548,19 +548,19 @@ impl ArtifactRepository for SurrealArtifactRepository {
             actor: RepositoryActor {
                 audit: capability.audit.0,
                 tenant,
-                principal: PrincipalId::new(capability.actor_key)
+                principal: PrincipalId::parse(capability.actor_key)
                     .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
                 kind: contract_principal_kind(capability.actor_kind),
-                issuer: TokenIssuer::new(capability.actor_issuer)
+                issuer: TokenIssuer::parse(capability.actor_issuer)
                     .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
-                subject: TokenSubject::new(capability.actor_subject)
+                subject: TokenSubject::parse(capability.actor_subject)
                     .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
             },
             authority,
             labels: parse_labels(capability.labels)?,
-            profile: GatewayProfileId::new(capability.profile_key)
+            profile: GatewayProfileId::parse(capability.profile_key)
                 .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
-            server: ServerSlug::new(capability.server_key)
+            server: ServerSlug::parse(capability.server_key)
                 .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
             task_id: capability.task_id,
             finalized: redemption.redemption.state
@@ -790,16 +790,16 @@ fn contract_access_request(
             .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
         artifact_id: ArtifactId::parse(record_uuid(&record.artifact)?.to_string())
             .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
-        work_context: WorkContextId::new(record.work_context_key)
+        work_context: WorkContextId::parse(record.work_context_key)
             .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
-        requester: PrincipalId::new(record.requester_key)
+        requester: PrincipalId::parse(record.requester_key)
             .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
         requested_level: access_level(record.requested_level),
         justification: record.justification,
         state: contract_access_request_state(record.state),
         decided_by: record
             .decided_by_key
-            .map(PrincipalId::new)
+            .map(PrincipalId::parse)
             .transpose()
             .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
         decision_note: record.decision_note,
@@ -895,7 +895,7 @@ fn contract_authority(
         }
         platform::InvocationMode::Delegated => InvocationProvenance::Delegated {
             initiator: parse_principal(authority.initiator_key, "delegated initiator")?,
-            delegation_id: DelegationId::new(authority.delegation_id.ok_or_else(|| {
+            delegation_id: DelegationId::parse(authority.delegation_id.ok_or_else(|| {
                 RepositoryError::Corrupt(
                     "delegated artifact authority is missing its delegation identity".into(),
                 )
@@ -924,15 +924,15 @@ fn contract_authority(
         .collect::<Result<Vec<_>, RepositoryError>>()?;
     let classification = authority
         .classification
-        .map(DataLabelId::new)
+        .map(DataLabelId::parse)
         .transpose()
         .map_err(|error| RepositoryError::Corrupt(error.to_string()))?;
     Ok(InvocationAuthority {
-        work_context: WorkContextId::new(authority.context_key)
+        work_context: WorkContextId::parse(authority.context_key)
             .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
         tenant,
         membership: contract_membership(authority.membership),
-        policy_revision: PolicyVersion::new(authority.policy_revision)
+        policy_revision: PolicyVersion::parse(authority.policy_revision)
             .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
         output_policy: WorkContextOutputPolicy {
             owner,
@@ -963,10 +963,10 @@ fn contract_subject(
     key: String,
 ) -> Result<AccessSubject, RepositoryError> {
     match kind {
-        platform::ArtifactGrantSubjectKind::Principal => PrincipalId::new(key)
+        platform::ArtifactGrantSubjectKind::Principal => PrincipalId::parse(key)
             .map(AccessSubject::Principal)
             .map_err(|error| RepositoryError::Corrupt(error.to_string())),
-        platform::ArtifactGrantSubjectKind::Group => GroupId::new(key)
+        platform::ArtifactGrantSubjectKind::Group => GroupId::parse(key)
             .map(AccessSubject::Group)
             .map_err(|error| RepositoryError::Corrupt(error.to_string())),
     }
@@ -976,7 +976,7 @@ fn parse_principal(
     principal: Option<String>,
     field: &'static str,
 ) -> Result<PrincipalId, RepositoryError> {
-    PrincipalId::new(principal.ok_or_else(|| {
+    PrincipalId::parse(principal.ok_or_else(|| {
         RepositoryError::Corrupt(format!("artifact authority is missing its {field}"))
     })?)
     .map_err(|error| RepositoryError::Corrupt(error.to_string()))
@@ -1019,7 +1019,7 @@ fn parse_labels(values: Vec<String>) -> Result<BTreeSet<DataLabelId>, Repository
     values
         .into_iter()
         .map(|value| {
-            DataLabelId::new(value).map_err(|error| RepositoryError::Corrupt(error.to_string()))
+            DataLabelId::parse(value).map_err(|error| RepositoryError::Corrupt(error.to_string()))
         })
         .collect()
 }

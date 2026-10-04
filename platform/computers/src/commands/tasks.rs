@@ -24,8 +24,8 @@ impl ComputersStore {
              AND (task_projected_at = NONE OR task.retention_pins CONTAINS string::concat('computer-execution/', <string>execution_id))
              ORDER BY execution_id LIMIT $limit;",
                 vec![
-                    ("provider", self.provider_instance_id.into_uuid().into_value()),
-                    ("after", after.map(crate::api::ExecutionId::into_uuid).into_value()),
+                    ("provider", self.provider_instance_id.as_uuid().into_value()),
+                    ("after", after.map(crate::api::ExecutionId::as_uuid).into_value()),
                     ("limit", limit.into_value()),
                 ],
             )
@@ -51,10 +51,7 @@ impl ComputersStore {
                         "journal",
                         super::record(command.execution_id()).into_value(),
                     ),
-                    (
-                        "provider",
-                        self.provider_instance_id.into_uuid().into_value(),
-                    ),
+                    ("provider", self.provider_instance_id.as_uuid().into_value()),
                     (
                         "binding",
                         crate::session_grants::object(&command.binding)?.into_value(),
@@ -122,10 +119,7 @@ impl ComputersStore {
                     super::record(command.execution_id()).into_value(),
                 ),
                 ("task", task_record_id(command.task_id()).into_value()),
-                (
-                    "provider",
-                    self.provider_instance_id.into_uuid().into_value(),
-                ),
+                ("provider", self.provider_instance_id.as_uuid().into_value()),
                 ("status", status.into_value()),
                 ("stage", stage.into_value()),
             ],

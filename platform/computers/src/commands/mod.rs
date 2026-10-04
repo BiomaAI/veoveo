@@ -25,19 +25,19 @@ use surrealdb::types::RecordId;
 fn record(id: crate::api::ExecutionId) -> RecordId {
     RecordId::new(
         "computer_execution",
-        surrealdb::types::Uuid::from(id.into_uuid()),
+        surrealdb::types::Uuid::from(id.as_uuid()),
     )
 }
 fn payload_record(id: crate::api::ExecutionId) -> RecordId {
     RecordId::new(
         "computer_execution_payload",
-        surrealdb::types::Uuid::from(id.into_uuid()),
+        surrealdb::types::Uuid::from(id.as_uuid()),
     )
 }
 pub(crate) fn slot(computer: veoveo_computers_contract::ComputerId) -> RecordId {
     RecordId::new(
         "computer_execution_slot",
-        surrealdb::types::Uuid::from(computer.into_uuid()),
+        surrealdb::types::Uuid::from(computer.as_uuid()),
     )
 }
 fn actor_key(actor: &AcceptedAuthority) -> Result<String> {

@@ -1516,7 +1516,7 @@ pub(crate) mod tests {
         let (service, _) = service();
         let alice = caller("alice", "acme", &[]);
         let mut bob = caller("bob", "acme", &[]);
-        bob.identity.authority.work_context = WorkContextId::new("other-work").unwrap();
+        bob.identity.authority.work_context = WorkContextId::parse("other-work").unwrap();
         bind_request_context(&mut bob.identity);
         let first = service
             .put(&alice, PutArtifactRequest::default(), b"first".to_vec())
@@ -1671,7 +1671,7 @@ pub(crate) mod tests {
         wrong_labels
             .artifact
             .data_labels
-            .insert(DataLabelId::new("restricted").unwrap());
+            .insert(DataLabelId::parse("restricted").unwrap());
         assert_eq!(
             service
                 .redeem_write_capability(
@@ -1963,7 +1963,7 @@ pub(crate) mod tests {
         let (service, _) = service();
         let alice = caller("alice", "acme", &["controlled"]);
         let mut bob = caller("bob", "acme", &["controlled"]);
-        bob.identity.authority.work_context = WorkContextId::new("other-work").unwrap();
+        bob.identity.authority.work_context = WorkContextId::parse("other-work").unwrap();
         bob.identity.authority.membership = WorkContextMembershipLevel::Viewer;
         bind_request_context(&mut bob.identity);
         let mut custodian = caller("casey", "acme", &["controlled"]);
@@ -1973,7 +1973,7 @@ pub(crate) mod tests {
             .put(
                 &alice,
                 PutArtifactRequest {
-                    classification: Some(DataLabelId::new("controlled").unwrap()),
+                    classification: Some(DataLabelId::parse("controlled").unwrap()),
                     ..PutArtifactRequest::default()
                 },
                 b"governed".to_vec(),
@@ -2045,7 +2045,7 @@ pub(crate) mod tests {
         );
 
         let mut no_clearance = caller("dana", "acme", &[]);
-        no_clearance.identity.authority.work_context = WorkContextId::new("other-work").unwrap();
+        no_clearance.identity.authority.work_context = WorkContextId::parse("other-work").unwrap();
         bind_request_context(&mut no_clearance.identity);
         assert_eq!(
             service

@@ -20,8 +20,8 @@ pub(crate) fn require_attach(
     {
         return Err(ComputerError::Forbidden);
     }
-    let server = ServerSlug::new("computers").expect("static server");
-    let trace = TraceId::new(Uuid::now_v7().to_string()).expect("UUID trace");
+    let server = ServerSlug::parse("computers").expect("static server");
+    let trace = TraceId::parse(Uuid::now_v7().to_string()).expect("UUID trace");
     let target = PolicyTarget::Resource {
         server,
         uri: ResourceUri::new(crate::api::computer_uri(computer)).expect("Computer URI"),

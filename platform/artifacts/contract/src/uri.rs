@@ -9,8 +9,9 @@ use veoveo_types::{
 
 use crate::{ARTIFACT_PLANE_SCHEME, ArtifactId};
 
-static PLANE_SCHEME: LazyLock<ResourceScheme> =
-    LazyLock::new(|| ResourceScheme::new(ARTIFACT_PLANE_SCHEME).expect("declared Artifact scheme"));
+static PLANE_SCHEME: LazyLock<ResourceScheme> = LazyLock::new(|| {
+    ResourceScheme::parse(ARTIFACT_PLANE_SCHEME).expect("declared Artifact scheme")
+});
 
 /// The Artifact occurrence addressed by a neutral or server-presented resource.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -31,7 +32,7 @@ pub enum ArtifactAddress {
 /// ```compile_fail
 /// use veoveo_artifact_contract::ArtifactUri;
 /// use veoveo_types::WorkContextId;
-/// ArtifactUri::plane(WorkContextId::new("operations").unwrap());
+/// ArtifactUri::plane(WorkContextId::parse("operations").unwrap());
 /// ```
 /// ```compile_fail
 /// use veoveo_artifact_contract::{ArtifactId, ArtifactUri};
@@ -105,7 +106,7 @@ impl ArtifactUri {
         if parts.has_query() || value.contains('%') {
             return Err(ArtifactUriError::Route);
         }
-        let scheme = ResourceScheme::new(parts.scheme()).map_err(|_| ArtifactUriError::Route)?;
+        let scheme = ResourceScheme::parse(parts.scheme()).map_err(|_| ArtifactUriError::Route)?;
         let mut path = parts.path_segments();
         let address = match (path.next(), path.next()) {
             (None, None) if scheme == *PLANE_SCHEME => ArtifactAddress::Plane(

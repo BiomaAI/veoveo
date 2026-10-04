@@ -16,7 +16,7 @@ struct UnresolvedRecordingKey(String);
 
 impl UnresolvedRecordingKey {
     fn admit(self) -> Result<RecordingKey, AdapterError> {
-        RecordingKey::new(self.0).map_err(|_| {
+        RecordingKey::parse(self.0).map_err(|_| {
             AdapterError::InvalidRecordingCatalog("invalid producer recording key".to_owned())
         })
     }

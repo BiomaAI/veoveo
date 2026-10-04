@@ -30,13 +30,13 @@ pub use preparation::FilePreparation;
 fn record(id: crate::api::FileTransferId) -> surrealdb::types::RecordId {
     surrealdb::types::RecordId::new(
         "computer_file_transfer",
-        surrealdb::types::Uuid::from(id.into_uuid()),
+        surrealdb::types::Uuid::from(id.as_uuid()),
     )
 }
 fn payload_record(id: crate::api::FileTransferId) -> surrealdb::types::RecordId {
     surrealdb::types::RecordId::new(
         "computer_file_transfer_payload",
-        surrealdb::types::Uuid::from(id.into_uuid()),
+        surrealdb::types::Uuid::from(id.as_uuid()),
     )
 }
 fn object(value: &impl serde::Serialize) -> crate::Result<veoveo_platform_store::OpenObject> {
@@ -56,7 +56,7 @@ fn actor_key(actor: &crate::AcceptedAuthority) -> crate::Result<String> {
 
 pub(crate) fn target() -> veoveo_mcp_contract::PolicyTarget {
     veoveo_mcp_contract::PolicyTarget::Tool {
-        server: veoveo_mcp_contract::ServerSlug::new("computers").expect("static server"),
-        tool: veoveo_mcp_contract::LocalToolName::new("transfer_file").expect("static tool"),
+        server: veoveo_mcp_contract::ServerSlug::parse("computers").expect("static server"),
+        tool: veoveo_mcp_contract::LocalToolName::parse("transfer_file").expect("static tool"),
     }
 }

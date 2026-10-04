@@ -29,7 +29,7 @@ async fn maximum_member_vectors_fit_the_wire_and_failed_replacement_rolls_back()
         let text = "Maximum-size vector replacement fixture";
         let observation = Observation::builder(
             registration.descriptor.collection().clone(),
-            Revision::new("large-member-one").unwrap(),
+            Revision::parse("large-member-one").unwrap(),
             source::content_digest(text), Utc::now(),
         ).access(AccessDescriptor {
             tenant: registration.tenant.clone(),

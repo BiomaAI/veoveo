@@ -267,7 +267,7 @@ async fn run(config: SpoolerConfig, args: Args) -> Result<()> {
         RecordingIngestServiceConfig {
             journal_root: args.journal_dir.clone(),
             spool_root: config.spool_dir.clone(),
-            protected_resource: ProtectedResourceId::new(&args.ingest_protected_resource)?,
+            protected_resource: ProtectedResourceId::parse(&args.ingest_protected_resource)?,
             maximum_batch_bytes: veoveo_recording_protocol::DEFAULT_MAXIMUM_BATCH_BYTES,
             capture_layer_max_bytes: config.capture_layer_max_bytes,
             capture_layer_max_age_seconds: config.capture_layer_max_age_s,
@@ -278,8 +278,8 @@ async fn run(config: SpoolerConfig, args: Args) -> Result<()> {
     let reconciled_ingest = ingest.reconcile().await?;
     tracing::info!(reconciled_ingest, "recording ingest journal reconciled");
     let verifier = GatewayInternalResourceTokenVerifier::new(
-        TokenIssuer::new(&args.internal_token_issuer)?,
-        ServerSlug::new("recording-hub")?,
+        TokenIssuer::parse(&args.internal_token_issuer)?,
+        ServerSlug::parse("recording-hub")?,
         GatewayInternalTrustBundle::from_json(args.internal_trust_jwks.expose_secret())?,
     );
     let ingest_router = recording_ingest_internal_router(

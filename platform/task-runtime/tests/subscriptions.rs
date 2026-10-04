@@ -21,12 +21,12 @@ use veoveo_types::{
 };
 use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy};
 fn authority() -> InvocationAuthority {
-    let principal = PrincipalId::new("integration-principal").unwrap();
+    let principal = PrincipalId::parse("integration-principal").unwrap();
     InvocationAuthority {
-        work_context: WorkContextId::new("integration-mission").unwrap(),
-        tenant: TenantId::new("integration-tenant").unwrap(),
+        work_context: WorkContextId::parse("integration-mission").unwrap(),
+        tenant: TenantId::parse("integration-tenant").unwrap(),
         membership: WorkContextMembershipLevel::Owner,
-        policy_revision: PolicyVersion::new("r1").unwrap(),
+        policy_revision: PolicyVersion::parse("r1").unwrap(),
         output_policy: WorkContextOutputPolicy {
             owner: AccessSubject::Principal(principal.clone()),
             initial_grants: Vec::new(),
@@ -204,7 +204,7 @@ async fn task_pages_filter_before_limit_and_resume_creation_time_ties() {
                 }
                 "tenant" => {
                     input.owner.tenant_key = Some("another-tenant".into());
-                    input.owner.authority.tenant = TenantId::new("another-tenant").unwrap();
+                    input.owner.authority.tenant = TenantId::parse("another-tenant").unwrap();
                 }
                 "type" => {
                     input.task_type =
@@ -290,7 +290,7 @@ async fn task_pages_filter_before_limit_and_resume_creation_time_ties() {
         // TaskOwner::allows distinguishes absence from an explicit tenant.
         let mut installation_owner = owner();
         installation_owner.tenant_key = None;
-        installation_owner.authority.tenant = TenantId::new("installation").unwrap();
+        installation_owner.authority.tenant = TenantId::parse("installation").unwrap();
         let mut input = draft("analysis", RecoveryClass::Resume);
         input.owner = installation_owner.clone();
         let absent = writer.create(input.clone()).await.unwrap().snapshot.task_id;
@@ -443,7 +443,7 @@ async fn owner_reads_and_subscription_baselines_filter_before_decoding() {
         );
         let mut implicit = owner();
         implicit.tenant_key = None;
-        implicit.authority.tenant = TenantId::new("installation").unwrap();
+        implicit.authority.tenant = TenantId::parse("installation").unwrap();
         let mut explicit = implicit.clone();
         explicit.tenant_key = Some("installation".into());
         for (allowed, denied) in [(&implicit, &explicit), (&explicit, &implicit)] {

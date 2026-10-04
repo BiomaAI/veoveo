@@ -26,7 +26,7 @@ pub async fn setup(
     let state = support::automation::setup(db).await;
     let mut control = support::automation::control();
     for name in ["transfer_file", "update_template"] {
-        let name = LocalToolName::new(name).unwrap();
+        let name = LocalToolName::parse(name).unwrap();
         control.servers[0].tools.push(name.clone());
         control.policies[0].rules[0].tools.insert(name);
     }

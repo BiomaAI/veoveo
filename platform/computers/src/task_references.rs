@@ -58,7 +58,7 @@ pub(crate) fn worker_bindings(
     Ok(vec![
         ("task", task_record_id(task).into_value()),
         ("task_id", task.as_uuid().into_value()),
-        ("computer_id", computer.into_uuid().into_value()),
+        ("computer_id", computer.as_uuid().into_value()),
         ("actor", actor.into_value()),
     ])
 }

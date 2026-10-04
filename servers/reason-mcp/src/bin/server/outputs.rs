@@ -149,12 +149,12 @@ async fn put(
 fn compliance(classification: &str, labels: &[String]) -> Result<ComplianceMetadata> {
     Ok(ComplianceMetadata {
         classification: (classification != "unclassified")
-            .then(|| DataLabelId::new(classification.to_owned()))
+            .then(|| DataLabelId::parse(classification))
             .transpose()?,
         data_labels: labels
             .iter()
             .cloned()
-            .map(DataLabelId::new)
+            .map(DataLabelId::parse)
             .collect::<Result<BTreeSet<_>, _>>()?,
         ..Default::default()
     })

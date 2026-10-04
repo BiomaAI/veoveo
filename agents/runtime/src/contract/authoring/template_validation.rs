@@ -93,7 +93,7 @@ impl wire::RuntimeTemplate {
         );
         let mut environment = BTreeSet::new();
         for (name, parameter) in &template.parameters {
-            wire::AgentTemplateId::new(name.clone()).context("invalid parameter name")?;
+            wire::AgentTemplateId::parse(name.clone()).context("invalid parameter name")?;
             let variable = &parameter.environment_variable;
             // Author-controlled values can only enter the dedicated parameter namespace.
             ensure!(

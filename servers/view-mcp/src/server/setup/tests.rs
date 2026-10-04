@@ -28,7 +28,7 @@ fn checked_discovery_is_available_without_store_or_renderer() {
             .map(|scope| scope.name().clone())
             .collect()
     );
-    let baseline = BTreeSet::from([ScopeName::new("operator:use").unwrap()]);
+    let baseline = BTreeSet::from([ScopeName::parse("operator:use").unwrap()]);
     assert_eq!(visible_resources(&baseline).len(), 8);
     let granted = BTreeSet::from([ViewScope::Capture.name().clone()]);
     let resources = visible_resources(&granted);

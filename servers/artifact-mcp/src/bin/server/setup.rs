@@ -25,10 +25,10 @@ impl McpServerContract for ArtifactContract {
     type Scope = ArtifactScope;
     type Resource = ArtifactResource;
     fn slug() -> ServerSlug {
-        ServerSlug::new("artifact").expect("declared slug")
+        ServerSlug::parse("artifact").expect("declared slug")
     }
     fn scheme() -> ResourceScheme {
-        ResourceScheme::new("artifact").expect("declared scheme")
+        ResourceScheme::parse("artifact").expect("declared scheme")
     }
     fn scopes() -> &'static [ArtifactScope] {
         ArtifactScope::ALL
@@ -196,7 +196,7 @@ mod tests {
             );
         }
         assert!(
-            ArtifactScope::try_from(&veoveo_types::ScopeName::new("external:read").unwrap())
+            ArtifactScope::try_from(&veoveo_types::ScopeName::parse("external:read").unwrap())
                 .is_err()
         );
     }

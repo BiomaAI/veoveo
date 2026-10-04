@@ -1055,7 +1055,7 @@ fn ensure_scope(grants: &BTreeSet<ScopeName>, required: RecordingScope) -> Resul
 fn labels(values: &[String]) -> Result<BTreeSet<DataLabelId>> {
     values
         .iter()
-        .map(|value| DataLabelId::new(value.to_owned()).map_err(Into::into))
+        .map(|value| DataLabelId::parse(value).map_err(Into::into))
         .collect()
 }
 
@@ -1063,9 +1063,7 @@ fn artifact_classification(value: &str) -> Result<Option<DataLabelId>> {
     if value == "unclassified" {
         Ok(None)
     } else {
-        DataLabelId::new(value.to_owned())
-            .map(Some)
-            .map_err(Into::into)
+        DataLabelId::parse(value).map(Some).map_err(Into::into)
     }
 }
 
@@ -1162,8 +1160,8 @@ mod tests {
     #[test]
     fn sealing_requires_its_own_scope_even_for_an_administrator() {
         let mut grants = BTreeSet::from([
-            ScopeName::new("admin:manage").unwrap(),
-            ScopeName::new("recording:ingest").unwrap(),
+            ScopeName::parse("admin:manage").unwrap(),
+            ScopeName::parse("recording:ingest").unwrap(),
         ]);
         assert!(ensure_scope(&grants, RecordingScope::Seal).is_err());
         grants.insert(RecordingScope::Seal.into());

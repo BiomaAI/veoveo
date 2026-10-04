@@ -274,7 +274,7 @@ mod tests {
             .contribute_target(
                 &registry
                     .target_key::<RecordingTarget>(
-                        &veoveo_types::ExtensionName::new(RECORDING_TARGET_GROUP).unwrap(),
+                        &veoveo_types::ExtensionName::parse(RECORDING_TARGET_GROUP).unwrap(),
                     )
                     .unwrap(),
                 &target,

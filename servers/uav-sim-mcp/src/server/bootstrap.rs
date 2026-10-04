@@ -63,7 +63,7 @@ pub(in crate::server) async fn serve() -> anyhow::Result<()> {
         super::super::world_bootstrap::apply(path, &adapter).await?;
     }
     let session_id = adapter.state().await?.session_id;
-    let runtime_session_id = LiveSessionId::new(session_id.to_string())?;
+    let runtime_session_id = LiveSessionId::parse(&session_id)?;
     let live_view_audit = LiveViewAudit::new(tasks.platform_store().clone());
     let live_views = LiveViewService::new(
         adapter.clone(),

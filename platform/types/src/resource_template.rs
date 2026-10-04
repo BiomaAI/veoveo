@@ -30,7 +30,8 @@ impl ResourceTemplateUri {
         let (scheme, suffix) = value
             .split_once("://")
             .ok_or(ResourceTemplateError::InvalidAbsoluteReference)?;
-        ResourceScheme::new(scheme).map_err(|_| ResourceTemplateError::InvalidAbsoluteReference)?;
+        ResourceScheme::parse(scheme)
+            .map_err(|_| ResourceTemplateError::InvalidAbsoluteReference)?;
         if suffix.is_empty() {
             return Err(ResourceTemplateError::InvalidAbsoluteReference);
         }

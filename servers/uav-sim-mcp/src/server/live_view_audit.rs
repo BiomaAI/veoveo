@@ -24,7 +24,7 @@ impl LiveViewAudit {
     ) -> anyhow::Result<AuditDraft> {
         Ok(context.draft(
             AuditTarget::Resource {
-                server: veoveo_mcp_contract::ServerSlug::new("uav-sim")?,
+                server: veoveo_mcp_contract::ServerSlug::parse("uav-sim")?,
                 uri,
             },
             AuditDetail::LiveView { activity },

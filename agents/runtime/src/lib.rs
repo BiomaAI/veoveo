@@ -72,7 +72,7 @@ fn fixture_claims() -> (
         .get_or_init(|| {
             let mut builder =
                 veoveo_types::ExtensionRegistryBuilder::new(std::iter::empty::<String>());
-            let name = veoveo_types::ExtensionName::new(contract::MANAGED_AGENT_CLAIM).unwrap();
+            let name = veoveo_types::ExtensionName::parse(contract::MANAGED_AGENT_CLAIM).unwrap();
             builder.reserve(name.clone()).unwrap();
             let key = builder
                 .bind(&name, contract::admit_managed_agent_token)

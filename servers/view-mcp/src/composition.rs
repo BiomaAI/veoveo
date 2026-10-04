@@ -635,8 +635,8 @@ mod tests {
 
     #[test]
     fn style_ids_remain_controlled() {
-        assert!(SceneStyleId::new("operations:1").is_ok());
-        assert!(SceneStyleId::new("operations/1").is_err());
+        assert!(SceneStyleId::parse("operations:1").is_ok());
+        assert!(SceneStyleId::parse("operations/1").is_err());
     }
 
     #[test]

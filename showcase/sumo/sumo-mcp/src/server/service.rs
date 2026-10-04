@@ -600,8 +600,8 @@ pub(super) async fn serve() -> anyhow::Result<()> {
         shutdown.child_token(),
     ));
     let verifier = GatewayInternalTokenVerifier::new(
-        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
-        veoveo_mcp_contract::ServerSlug::new(SERVER_SLUG)?,
+        TokenIssuer::parse(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
+        veoveo_mcp_contract::ServerSlug::parse(SERVER_SLUG)?,
         GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?,
     );
     let mut allowed_hosts = public_allowed_hosts(&public_deployment, args.allow_loopback_hosts);

@@ -225,26 +225,29 @@ use `task_type`. Keep one spelling declaration per variant; the `surreal` hook e
 consumer-only SDK delegation. Do not reintroduce local scope, Task or string-enum
 macros for these implemented shapes.
 
-Identity-bearing newtypes use the public `Identity` admission interface and `Id`
-with owner validators, errors, generation and text projection. Keep Serde and schema
-profiles explicit in the owning declaration; verify that decoding uses admission.
-Secret text projection is an explicit accessor, and formatters and errors retain
-owner redaction. Do not reintroduce local identifier/name/key/digest declaration
-macros for implemented shapes. Checked display metadata, quantities and resource
-addresses do not become identities merely to use this derive.
+Identity-bearing newtypes use the public `Identity` admission interface and the
+`id` attribute's declarative forms. Share ordinary owner profiles for admission,
+generation, wire/schema policy and errors; each ID declares its form and differing
+prefix or context. Let the attribute supply standard derives and conversions.
+Keep unusual representation or normalization in explicit owner hooks, and verify
+that every deserializer applies admission. Use `parse` for admitted input and `new`
+for fresh generation. Secret text exposure stays deliberate; owner formatting and
+errors preserve redaction. Nonidentity display metadata and quantities stay checked
+values. Do not reintroduce local identifier/name/key/digest declaration macros.
 
-Resource address declarations use `ResourceAddress` and owner field or tail codecs
-for implemented route shapes. Parsing, checked construction and discovery templates
-share the route declaration. Preserve owner admission, cached wire and explicit
-Serde/schema profiles; qualify supplied encoded schema fragments against builders
-and admitted aliases. Ordinary address implementations may compose concrete domain
-shapes or network adapters that do not fit the derive. Do not reintroduce local
-address declaration or address-schema macros for these implemented shapes.
+Resource addresses use the `resource_address` attribute and public `ResourceAddress`
+trait. One owner route declaration supplies typed parsing, construction and discovery
+with shared field or tail codecs. Generate standard constructors, accessors and
+formatting through the supported forms; keep domain relationships and unusual
+representations with their owner. Profiles preserve admitted wire, binary Serde and
+schema metadata. Qualify encoded schema fragments against builders and admitted
+aliases. Direct component wrapping cannot bypass a required admission or relationship
+check. Do not reintroduce local address or address-schema declaration macros.
 
 ## Macros
 
-The [shared macro design](platform/macros/DESIGN.md) owns `Id`, `Vocabulary`,
-`ResourceAddress` and `embedded_document!`. `server_docs!` stays in the MCP contract to select the calling
+The [shared macro design](platform/macros/DESIGN.md) owns `id`, `resource_address`,
+`Vocabulary` and `embedded_document!`. `server_docs!` stays in the MCP contract to select the calling
 server's documents. The design lists every admitted definition and the generated
 third-party Redap service exception. Use ordinary functions, generics and builders
 for owner scalar admission, error settlement, fixed handlers and test repetition.

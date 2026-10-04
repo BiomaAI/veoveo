@@ -39,7 +39,7 @@ fn takeoff_waits_for_the_selected_aircraft_to_reach_altitude() {
     state.vehicles[0].flight_state = VehicleFlightState::Flying;
     state.vehicles[0].enu.up_m = 1.7;
     let mut other = state.vehicles[0].clone();
-    other.vehicle_id = VehicleId::new("other-uav").unwrap();
+    other.vehicle_id = VehicleId::parse("other-uav").unwrap();
     other.enu.up_m = 300.0;
     state.vehicles.insert(0, other);
     assert!(!takeoff_is_ready(&state, &selected, 192.0).unwrap());

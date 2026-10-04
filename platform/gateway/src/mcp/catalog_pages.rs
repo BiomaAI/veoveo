@@ -45,7 +45,7 @@ impl CatalogItem for Tool {
     type Key = GatewayToolName;
     const SURFACE: Surface = Surface::Tools;
     fn key(&self) -> Result<Self::Key, McpError> {
-        GatewayToolName::new(self.name.as_ref())
+        GatewayToolName::parse(self.name.as_ref())
             .map_err(|_| mcp_internal("invalid tool identity in admitted catalog"))
     }
 }
@@ -53,7 +53,7 @@ impl CatalogItem for Prompt {
     type Key = PromptName;
     const SURFACE: Surface = Surface::Prompts;
     fn key(&self) -> Result<Self::Key, McpError> {
-        PromptName::new(self.name.clone())
+        PromptName::parse(self.name.clone())
             .map_err(|_| mcp_internal("invalid prompt identity in admitted catalog"))
     }
 }

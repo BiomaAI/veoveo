@@ -49,7 +49,7 @@ async fn main() -> anyhow::Result<()> {
     if let Some(uploads) = uploads {
         let verifier = GatewayInternalTokenVerifier::new(
             config.internal_token_issuer,
-            ServerSlug::new(ARTIFACT_UPLOAD_AUDIENCE)?,
+            ServerSlug::parse(ARTIFACT_UPLOAD_AUDIENCE)?,
             config.internal_trust_bundle,
         );
         app = app.merge(veoveo_artifact_service::http::uploads::router(

@@ -266,7 +266,7 @@ async fn optional_tenant_and_current_context_clearance_remain_distinct() {
                     .is_some()
             );
             let mut other = allowed.clone();
-            other.authority.work_context = veoveo_types::WorkContextId::new("other").unwrap();
+            other.authority.work_context = veoveo_types::WorkContextId::parse("other").unwrap();
             assert!(reads.run(&other, &row.run).await.unwrap().is_none());
             update(
                 &writer,
@@ -291,7 +291,7 @@ async fn optional_tenant_and_current_context_clearance_remain_distinct() {
                     .is_some()
             );
             let mut wrong = cleared;
-            wrong.authority.tenant = veoveo_types::TenantId::new("other").unwrap();
+            wrong.authority.tenant = veoveo_types::TenantId::parse("other").unwrap();
             assert!(reads.problem(&wrong, &row.problem).await.is_err());
         }
     })

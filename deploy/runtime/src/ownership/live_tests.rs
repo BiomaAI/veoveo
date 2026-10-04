@@ -46,13 +46,13 @@ pub(crate) fn component(namespace: &str, name: &str, objects: &[&str]) -> Compil
     let source = ComponentSource {
         name: name.into(),
         repository: format!("https://example.invalid/{name}"),
-        revision: SourceRevision::new("a".repeat(40)).unwrap(),
+        revision: SourceRevision::parse("a".repeat(40)).unwrap(),
     };
     let configuration = InstallationSnapshot {
         source: ComponentSource {
             name: "installation".into(),
             repository: "https://example.invalid/installation".into(),
-            revision: SourceRevision::new("b".repeat(40)).unwrap(),
+            revision: SourceRevision::parse("b".repeat(40)).unwrap(),
         },
         profile: "deployment.json".into(),
     };
@@ -63,7 +63,7 @@ pub(crate) fn component(namespace: &str, name: &str, objects: &[&str]) -> Compil
     let inputs = BTreeSet::from([ComponentInput::Chart {
         source: source.clone(),
         coordinate: format!("source://{name}/chart"),
-        digest: ArtifactDigest::new(format!("sha256:{}", "c".repeat(64))).unwrap(),
+        digest: ArtifactDigest::parse(format!("sha256:{}", "c".repeat(64))).unwrap(),
     }]);
     let prepared = PreparedAtomicUnit {
         component: name.to_owned().try_into().unwrap(),

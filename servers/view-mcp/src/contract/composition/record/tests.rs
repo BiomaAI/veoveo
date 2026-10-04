@@ -17,11 +17,11 @@ fn composition_identity_binds_request_and_authority_but_not_creation_clock() {
         later.composition_digest_sha256()
     );
     let mut request = fixture::request();
-    request.base_layer = LayerId::new("other").unwrap();
+    request.base_layer = LayerId::parse("other").unwrap();
     let different = SceneComposition::new(request, fixture::authority(), fixture::now()).unwrap();
     assert_ne!(original.composition_id(), different.composition_id());
     let mut authority = fixture::authority();
-    authority.invocation.policy_revision = veoveo_types::PolicyVersion::new("r2").unwrap();
+    authority.invocation.policy_revision = veoveo_types::PolicyVersion::parse("r2").unwrap();
     let different = SceneComposition::new(fixture::request(), authority, fixture::now()).unwrap();
     assert_ne!(original.composition_id(), different.composition_id());
 }
@@ -85,7 +85,7 @@ fn composition_serialized_bytes_round_trip_without_losing_float_identity() {
 fn input_order_is_canonical_at_construction_and_checked_at_decode() {
     let mut request = fixture::request();
     let mut other = request.governed_inputs[0].clone();
-    other.input_id = SceneInputId::new("aaa").unwrap();
+    other.input_id = SceneInputId::parse("aaa").unwrap();
     request.governed_inputs.push(other);
     let one = SceneComposition::new(request.clone(), fixture::authority(), fixture::now()).unwrap();
     request.governed_inputs.reverse();

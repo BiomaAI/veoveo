@@ -49,14 +49,14 @@ pub fn build(
         gateway_state: context.gateway_state.clone(),
         internal_token_issuer: context.internal_token_issuer.clone(),
         upstream_http: context.upstream_http.clone(),
-        artifact_server: ServerSlug::new("artifact")?,
+        artifact_server: ServerSlug::parse("artifact")?,
     };
     let publication = RecordingLayerPublicationState {
         catalog: context.catalog.clone(),
         gateway_state: context.gateway_state.clone(),
         http: context.auth_http.clone(),
         internal_token_issuer: context.internal_token_issuer.clone(),
-        artifact_server: ServerSlug::new("artifact")?,
+        artifact_server: ServerSlug::parse("artifact")?,
         artifact_service_url,
     };
     let ingest = RecordingIngestGatewayState {

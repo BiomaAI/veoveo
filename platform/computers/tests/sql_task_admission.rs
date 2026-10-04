@@ -104,7 +104,7 @@ async fn command_metadata_requires_current_execute_or_owner_read_before_decoding
             command_support::queue_claim(&db, &store, &agent, computer, grant.grant_id).await;
         let id = ExecutionId::try_from(claim.snapshot.task_id.as_uuid()).unwrap();
         let saved = store.command_for_claim(&claim).await.unwrap();
-        corrupt_authority(&db, record("computer_execution", id.into_uuid())).await;
+        corrupt_authority(&db, record("computer_execution", id.as_uuid())).await;
         assert!(matches!(
             store.ensure_command_task(&saved).await,
             Err(ComputerError::StateConflict)
@@ -163,7 +163,7 @@ async fn command_metadata_requires_current_execute_or_owner_read_before_decoding
         ));
         db.a.client()
             .query("UPDATE ONLY $row SET binding.required_output_labels = ['private'];")
-            .bind(("row", record("computer_execution", id.into_uuid())))
+            .bind(("row", record("computer_execution", id.as_uuid())))
             .await
             .unwrap()
             .check()
@@ -191,7 +191,7 @@ async fn file_metadata_requires_current_execute_or_owner_read_before_decoding() 
         let claim = file_support::queue_claim(&db, &store, &agent, computer, grant.grant_id).await;
         let id = FileTransferId::try_from(claim.snapshot.task_id.as_uuid()).unwrap();
         let saved = store.file_for_claim(&claim).await.unwrap();
-        corrupt_authority(&db, record("computer_file_transfer", id.into_uuid())).await;
+        corrupt_authority(&db, record("computer_file_transfer", id.as_uuid())).await;
         assert!(matches!(
             store.ensure_file_task(&saved).await,
             Err(ComputerError::StateConflict)
@@ -250,7 +250,7 @@ async fn file_metadata_requires_current_execute_or_owner_read_before_decoding() 
         ));
         db.a.client()
             .query("UPDATE ONLY $row SET binding.required_labels = ['private'];")
-            .bind(("row", record("computer_file_transfer", id.into_uuid())))
+            .bind(("row", record("computer_file_transfer", id.as_uuid())))
             .await
             .unwrap()
             .check()
@@ -289,7 +289,7 @@ async fn browser_grants_filter_ticket_parent_provider_and_connection_before_deco
             .0
             .parse()
             .unwrap();
-        corrupt_authority(&db, record("computer_session_grant", id.into_uuid())).await;
+        corrupt_authority(&db, record("computer_session_grant", id.as_uuid())).await;
         let wrong = TerminalToken::new(format!("{id}.{}", "f".repeat(64)));
         assert!(matches!(
             store.redeem_browser_grant(&actor, &wrong).await,
@@ -310,7 +310,7 @@ async fn browser_grants_filter_ticket_parent_provider_and_connection_before_deco
         ));
         db.a.client()
             .query("UPDATE ONLY $row SET provider_instance_id = $provider;")
-            .bind(("row", record("computer_session_grant", id.into_uuid())))
+            .bind(("row", record("computer_session_grant", id.as_uuid())))
             .bind(("provider", Uuid::now_v7()))
             .await
             .unwrap()
@@ -327,14 +327,14 @@ async fn browser_grants_filter_ticket_parent_provider_and_connection_before_deco
         );
         corrupt_authority(
             &db,
-            record("computer_session_grant", handle.grant_id().into_uuid()),
+            record("computer_session_grant", handle.grant_id().as_uuid()),
         )
         .await;
         db.a.client()
             .query("UPDATE ONLY $row SET connection_id = $connection;")
             .bind((
                 "row",
-                record("computer_session_grant", handle.grant_id().into_uuid()),
+                record("computer_session_grant", handle.grant_id().as_uuid()),
             ))
             .bind(("connection", Uuid::now_v7()))
             .await
@@ -377,16 +377,12 @@ async fn cli_grants_filter_credentials_parent_provider_and_connection_before_dec
             .confirm_cli_pairing(&actor, computer, pairing.pairing_id)
             .await
             .unwrap();
-        let profile = veoveo_mcp_contract::GatewayProfileId::new("operator").unwrap();
+        let profile = veoveo_mcp_contract::GatewayProfileId::parse("operator").unwrap();
         let handle = store
             .open_cli_connection(Some(computer), profile.clone(), &grant.credential)
             .await
             .unwrap();
-        corrupt_authority(
-            &db,
-            record("computer_cli_grant", grant.grant_id.into_uuid()),
-        )
-        .await;
+        corrupt_authority(&db, record("computer_cli_grant", grant.grant_id.as_uuid())).await;
         let wrong = CliGrantCredential::new(format!("vcli1.{}.{}", grant.grant_id, "f".repeat(64)));
         assert!(matches!(
             store
@@ -417,7 +413,7 @@ async fn cli_grants_filter_credentials_parent_provider_and_connection_before_dec
             .query(
                 "UPDATE computer_cli_connection SET grant_id = $foreign WHERE grant_id = $grant;",
             )
-            .bind(("grant", grant.grant_id.into_uuid()))
+            .bind(("grant", grant.grant_id.as_uuid()))
             .bind(("foreign", Uuid::now_v7()))
             .await
             .unwrap()
@@ -431,7 +427,7 @@ async fn cli_grants_filter_credentials_parent_provider_and_connection_before_dec
             .query("UPDATE ONLY $row SET provider_instance_id = $provider;")
             .bind((
                 "row",
-                record("computer_cli_grant", grant.grant_id.into_uuid()),
+                record("computer_cli_grant", grant.grant_id.as_uuid()),
             ))
             .bind(("provider", Uuid::now_v7()))
             .await
@@ -475,7 +471,7 @@ async fn cli_pairing_matches_parent_and_session_before_decoding_callback() {
         // before Rust decoding. The production schema enforces valid ports too.
         db.a.client()
             .query("DEFINE FIELD OVERWRITE callback_port ON computer_cli_pairing TYPE int; UPDATE ONLY $row SET callback_port = 999999;")
-            .bind(("row", record("computer_cli_pairing", pairing.pairing_id.into_uuid())))
+            .bind(("row", record("computer_cli_pairing", pairing.pairing_id.as_uuid())))
             .await
             .unwrap()
             .check()

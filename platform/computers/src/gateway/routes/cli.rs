@@ -44,7 +44,7 @@ async fn upgrade(
         cli_authorization(&headers, CliCredentialFraming::Internal, query.as_deref())
             .map_err(|_| Fault::denied())?;
     let catalog = state.catalog.current();
-    let server = ServerSlug::new("computers").expect("static server");
+    let server = ServerSlug::parse("computers").expect("static server");
     let (_, _, manifest) = catalog
         .profile_server(&route.profile, &server)
         .ok_or_else(Fault::missing)?;

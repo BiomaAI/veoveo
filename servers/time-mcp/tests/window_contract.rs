@@ -3,8 +3,8 @@ use veoveo_time_mcp::*;
 
 fn authority() -> AuthorityBinding {
     AuthorityBinding::new(
-        AuthorityReleaseId::new("time-release-tzdb").unwrap(),
-        AuthorityReleaseId::new("time-release-leaps").unwrap(),
+        AuthorityReleaseId::parse("time-release-tzdb").unwrap(),
+        AuthorityReleaseId::parse("time-release-leaps").unwrap(),
     )
     .unwrap()
 }
@@ -43,8 +43,8 @@ fn window_constructor_and_wire_require_ordered_bounds_with_one_authority() {
     }
     let mut foreign = end;
     foreign.authority = AuthorityBinding::new(
-        AuthorityReleaseId::new("time-release-other-tzdb").unwrap(),
-        AuthorityReleaseId::new("time-release-other-leaps").unwrap(),
+        AuthorityReleaseId::parse("time-release-other-tzdb").unwrap(),
+        AuthorityReleaseId::parse("time-release-other-leaps").unwrap(),
     )
     .unwrap();
     assert_eq!(
@@ -82,8 +82,8 @@ fn intersection_preserves_selected_bound_metadata_and_maximum_tied_uncertainty()
     }
     let mut first = instant(-5, 0);
     first.authority = AuthorityBinding::new(
-        AuthorityReleaseId::new("time-release-foreign-tzdb").unwrap(),
-        AuthorityReleaseId::new("time-release-foreign-leaps").unwrap(),
+        AuthorityReleaseId::parse("time-release-foreign-tzdb").unwrap(),
+        AuthorityReleaseId::parse("time-release-foreign-leaps").unwrap(),
     )
     .unwrap();
     let mut last = first.clone();

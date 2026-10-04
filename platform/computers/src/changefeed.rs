@@ -86,8 +86,8 @@ mod tests {
         let computer = ComputerId::new();
         let grant = AutomationGrantId::new();
         let row = grant_row(
-            Value::Uuid(DbUuid::from(computer.into_uuid())),
-            Value::Uuid(DbUuid::from(grant.into_uuid())),
+            Value::Uuid(DbUuid::from(computer.as_uuid())),
+            Value::Uuid(DbUuid::from(grant.as_uuid())),
         );
         let expected = Some(ComputerChange::Automation { computer, grant });
         assert_eq!(
@@ -115,22 +115,22 @@ mod tests {
         );
         for (parent, identity) in [
             (
-                Value::String(computer.into_uuid().to_string()),
-                Value::Uuid(DbUuid::from(grant.into_uuid())),
+                Value::String(computer.as_uuid().to_string()),
+                Value::Uuid(DbUuid::from(grant.as_uuid())),
             ),
             (
                 Value::Uuid(DbUuid::from(uuid::Uuid::new_v4())),
-                Value::Uuid(DbUuid::from(grant.into_uuid())),
+                Value::Uuid(DbUuid::from(grant.as_uuid())),
             ),
             (
-                Value::Uuid(DbUuid::from(computer.into_uuid())),
-                Value::String(grant.into_uuid().to_string()),
+                Value::Uuid(DbUuid::from(computer.as_uuid())),
+                Value::String(grant.as_uuid().to_string()),
             ),
             (
-                Value::Uuid(DbUuid::from(computer.into_uuid())),
+                Value::Uuid(DbUuid::from(computer.as_uuid())),
                 Value::Uuid(DbUuid::from(uuid::Uuid::new_v4())),
             ),
-            (Value::None, Value::Uuid(DbUuid::from(grant.into_uuid()))),
+            (Value::None, Value::Uuid(DbUuid::from(grant.as_uuid()))),
         ] {
             assert!(
                 ComputerChange::decode(&ChangefeedEntry::Upsert(grant_row(parent, identity)))
@@ -144,14 +144,14 @@ mod tests {
         let computer = ComputerId::new();
         assert_eq!(
             ComputerChange::decode(&ChangefeedEntry::Delete {
-                record: RecordId::new("computer", DbUuid::from(computer.into_uuid())),
+                record: RecordId::new("computer", DbUuid::from(computer.as_uuid())),
                 original: None,
             })
             .unwrap(),
             Some(ComputerChange::Computer(computer))
         );
         for record in [
-            RecordId::new("computer", computer.into_uuid().to_string()),
+            RecordId::new("computer", computer.as_uuid().to_string()),
             RecordId::new("computer", DbUuid::from(uuid::Uuid::new_v4())),
         ] {
             assert!(

@@ -21,7 +21,7 @@ fn resource_scope_matrix_preserves_read_control_admin_and_stream_requirements() 
         identity
             .actor
             .scopes
-            .insert(veoveo_types::ScopeName::new("external:custom").unwrap());
+            .insert(veoveo_types::ScopeName::parse("external:custom").unwrap());
         let has = |scope| identity_has_scope(&identity, scope);
         let read = has(UavScope::Read) || has(UavScope::Control) || has(UavScope::Admin);
         let control = has(UavScope::Control) || has(UavScope::Admin);
@@ -59,7 +59,7 @@ async fn reads_and_subscription_admission_reject_bad_routes_scopes_and_parents()
     let db = test_support::fixture::TestDb::new().await;
     tokio::time::timeout(Duration::from_secs(60), async {
         let mut simulation = fake_state().unwrap();
-        simulation.session_id = SessionId::new("native-session").unwrap();
+        simulation.session_id = SessionId::parse("native-session").unwrap();
         let adapter = Arc::new(Mutex::new(FakeAdapter::new(simulation.clone())));
         let state = test_support::state(
             &db.a,
@@ -131,7 +131,7 @@ async fn reads_and_subscription_admission_reject_bad_routes_scopes_and_parents()
             assert!(subscribe(server, uri, &context).await.is_err());
         }
         let cursor =
-            UavMissionCursor::new(crate::contract::MissionId::new("last").unwrap()).unwrap();
+            UavMissionCursor::new(crate::contract::MissionId::parse("last").unwrap()).unwrap();
         let address = serde_json::to_value(UavResource::Missions {
             cursor: Some(cursor),
         })
@@ -150,9 +150,9 @@ async fn reads_and_subscription_admission_reject_bad_routes_scopes_and_parents()
                 crate::server::ownership::live_view_owner(&identity),
                 identity.audit_context().unwrap(),
                 crate::contract::OpenLiveViewRequest {
-                    session_id: LiveSessionId::new("native-session").unwrap(),
+                    session_id: LiveSessionId::parse("native-session").unwrap(),
                     camera_id: simulation.live_cameras[0].camera_id.clone(),
-                    viewer_instance_id: crate::contract::LiveViewerInstanceId::new(
+                    viewer_instance_id: crate::contract::LiveViewerInstanceId::parse(
                         "resource-viewer",
                     )
                     .unwrap(),
@@ -172,10 +172,10 @@ async fn reads_and_subscription_admission_reject_bad_routes_scopes_and_parents()
         subscribe(server, connection.stream.resource_uri.as_str(), &context)
             .await
             .unwrap();
-        simulation.session_id = SessionId::new("other").unwrap();
+        simulation.session_id = SessionId::parse("other").unwrap();
         *adapter.lock().await = FakeAdapter::new(simulation);
         let wrong_parent = uris::live_view(
-            &LiveSessionId::new("other").unwrap(),
+            &LiveSessionId::parse("other").unwrap(),
             &connection.stream.live_view_id,
         );
         let error = server

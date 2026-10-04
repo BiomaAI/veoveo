@@ -13,7 +13,7 @@ pub fn synthetic_catalog(
     let installation = ComponentSource {
         name: INSTALLATION_SOURCE_NAME.into(),
         repository: "https://example.invalid/installation.git".into(),
-        revision: SourceRevision::new(installation_revision).unwrap(),
+        revision: SourceRevision::parse(installation_revision).unwrap(),
     };
     let namespace = ObjectIdentity {
         group: String::new(),
@@ -34,7 +34,7 @@ pub fn synthetic_catalog(
         let owner = ComponentSource {
             name: source.name.clone(),
             repository: source.repository.clone(),
-            revision: SourceRevision::new(&source.revision).unwrap(),
+            revision: SourceRevision::parse(&source.revision).unwrap(),
         };
         let images = source
             .images
@@ -46,7 +46,7 @@ pub fn synthetic_catalog(
                 },
                 target: image.name.clone(),
                 repository: image.repository.clone(),
-                digest: ArtifactDigest::new(&image.digest).unwrap(),
+                digest: ArtifactDigest::parse(&image.digest).unwrap(),
             })
             .collect::<BTreeSet<_>>();
         let units = source
@@ -57,7 +57,7 @@ pub fn synthetic_catalog(
                 inputs.insert(ComponentInput::Chart {
                     source: owner.clone(),
                     coordinate: chart.coordinate.clone(),
-                    digest: ArtifactDigest::new(&chart.digest).unwrap(),
+                    digest: ArtifactDigest::parse(&chart.digest).unwrap(),
                 });
                 (
                     AtomicTarget::HelmRelease {
@@ -121,7 +121,7 @@ fn synthetic_component(
             inputs,
             objects: vec![RenderedObject {
                 identity,
-                digest: ArtifactDigest::new(format!("sha256:{}", "f".repeat(64))).unwrap(),
+                digest: ArtifactDigest::parse(format!("sha256:{}", "f".repeat(64))).unwrap(),
             }],
             tool_scope: AtomicToolScope::Exact,
         })

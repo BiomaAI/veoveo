@@ -6,10 +6,10 @@ use veoveo_recording_contract::{CreateRecordingProjectionRequest, RecordingProje
 
 pub(super) fn frame(index: usize) -> WorldFrameUri {
     FrameWorldRevisionUri::new(
-        &FrameWorldId::new("survey").unwrap(),
-        &FrameWorldRevisionId::new("revision-1").unwrap(),
+        &FrameWorldId::parse("survey").unwrap(),
+        &FrameWorldRevisionId::parse("revision-1").unwrap(),
     )
-    .frame(&FrameId::new(format!("camera-{index}")).unwrap())
+    .frame(&FrameId::parse(format!("camera-{index}")).unwrap())
 }
 
 #[test]

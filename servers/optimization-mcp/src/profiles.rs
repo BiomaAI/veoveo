@@ -158,7 +158,7 @@ fn profile(
     milp_relative_gap: f64,
     retain_milp_incumbents: bool,
 ) -> SolverProfile {
-    let profile_id = SolverProfileId::new(id).expect("static profile id is valid");
+    let profile_id = SolverProfileId::parse(id).expect("static profile id is valid");
     SolverProfile {
         profile_uri: OptimizationProfileUri::new(profile_id.clone())
             .expect("static profile URI is valid"),

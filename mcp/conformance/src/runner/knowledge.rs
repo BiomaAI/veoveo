@@ -217,7 +217,7 @@ fn valid_docs_descriptor(
     let Ok(enumeration) = url::Url::parse(descriptor.enumerate().as_str()) else {
         return false;
     };
-    let Ok(scheme) = ResourceScheme::new(enumeration.scheme()) else {
+    let Ok(scheme) = ResourceScheme::parse(enumeration.scheme()) else {
         return false;
     };
     descriptor == &knowledge::docs::collection(server, &scheme)

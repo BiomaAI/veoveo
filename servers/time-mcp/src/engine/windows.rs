@@ -75,8 +75,8 @@ mod tests {
 
     fn authority() -> AuthorityBinding {
         AuthorityBinding::new(
-            AuthorityReleaseId::new("time-release-window-tzdb").unwrap(),
-            AuthorityReleaseId::new("time-release-window-leaps").unwrap(),
+            AuthorityReleaseId::parse("time-release-window-tzdb").unwrap(),
+            AuthorityReleaseId::parse("time-release-window-leaps").unwrap(),
         )
         .unwrap()
     }
@@ -184,8 +184,8 @@ mod tests {
     fn inactive_authority_is_rejected_on_either_side_even_without_overlap() {
         let mut start = window(10, 11, 0).start().clone();
         start.authority = AuthorityBinding::new(
-            AuthorityReleaseId::new("time-release-foreign-tzdb").unwrap(),
-            AuthorityReleaseId::new("time-release-foreign-leaps").unwrap(),
+            AuthorityReleaseId::parse("time-release-foreign-tzdb").unwrap(),
+            AuthorityReleaseId::parse("time-release-foreign-leaps").unwrap(),
         )
         .unwrap();
         let mut end = start.clone();

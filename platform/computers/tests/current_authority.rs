@@ -109,37 +109,37 @@ async fn queued_work_obeys_current_policy_and_preserves_the_actual_dispatch_deci
             "scope" => {
                 current.policies[0].rules[0]
                     .required_scopes
-                    .insert(ScopeName::new("extra:required").unwrap());
+                    .insert(ScopeName::parse("extra:required").unwrap());
                 for client in &mut current.oauth_clients {
                     client
                         .allowed_scopes
-                        .insert(ScopeName::new("extra:required").unwrap());
+                        .insert(ScopeName::parse("extra:required").unwrap());
                 }
             }
             "principal" => {
                 current.policies[0].rules[0]
                     .principal_ids
-                    .insert(PrincipalId::new("https://computers.test#bob").unwrap());
+                    .insert(PrincipalId::parse("https://computers.test#bob").unwrap());
             }
             "membership" => {
                 current.work_contexts[0].memberships[0].level = WorkContextMembershipLevel::Viewer
             }
             "classification" => {
                 current.work_contexts[0].output_policy.classification =
-                    Some(DataLabelId::new("cui").unwrap())
+                    Some(DataLabelId::parse("cui").unwrap())
             }
             "label" => {
                 current.work_contexts[0]
                     .output_policy
                     .data_labels
-                    .insert(DataLabelId::new("pii").unwrap());
+                    .insert(DataLabelId::parse("pii").unwrap());
             }
             "exposure" => current.profiles[0].servers[0].tools = Exposure::None,
             "client" => {
-                current.oauth_clients[0].id = OAuthClientId::new("replacement-console").unwrap();
+                current.oauth_clients[0].id = OAuthClientId::parse("replacement-console").unwrap();
                 let clients = &mut current.work_contexts[0].memberships[0].oauth_clients;
-                clients.remove(&OAuthClientId::new("console").unwrap());
-                clients.insert(OAuthClientId::new("replacement-console").unwrap());
+                clients.remove(&OAuthClientId::parse("console").unwrap());
+                clients.insert(OAuthClientId::parse("replacement-console").unwrap());
             }
             _ => {
                 current.policies[0].rules[0].actions =
@@ -304,8 +304,8 @@ async fn services_use_current_actor_and_source_authority_without_a_browser_sessi
         owner.principal_kind = veoveo_platform_store::PrincipalKind::Service;
         owner.authority.provenance = if delegated {
             InvocationProvenance::Delegated {
-                initiator: PrincipalId::new("https://computers.test#alice").unwrap(),
-                delegation_id: DelegationId::new("accepted-delegation").unwrap(),
+                initiator: PrincipalId::parse("https://computers.test#alice").unwrap(),
+                delegation_id: DelegationId::parse("accepted-delegation").unwrap(),
             }
         } else {
             InvocationProvenance::Automated
@@ -315,7 +315,7 @@ async fn services_use_current_actor_and_source_authority_without_a_browser_sessi
             let context = identity.request_context.as_mut().unwrap();
             context.principal = support::identity(&support::owner("alice")).actor;
             context.access_token.subject = context.principal.subject.clone();
-            context.access_token.oauth_client_id = OAuthClientId::new("delegated").unwrap();
+            context.access_token.oauth_client_id = OAuthClientId::parse("delegated").unwrap();
         }
         let expected_source = identity
             .request_context

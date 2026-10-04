@@ -25,7 +25,7 @@ impl TimeCatalog {
             rows,
             |row| {
                 Ok(CalendarCursor::new(
-                    &CalendarId::new(&row.calendar_key).map_err(anyhow::Error::msg)?,
+                    &CalendarId::parse(&row.calendar_key).map_err(anyhow::Error::msg)?,
                     TimeVersion::new(row.calendar_version.try_into()?)?,
                 ))
             },
@@ -45,7 +45,7 @@ impl TimeCatalog {
             rows,
             |row| {
                 Ok(EpochCursor::new(
-                    &MissionEpochId::new(&row.epoch_key).map_err(anyhow::Error::msg)?,
+                    &MissionEpochId::parse(&row.epoch_key).map_err(anyhow::Error::msg)?,
                     TimeVersion::new(row.epoch_version.try_into()?)?,
                 ))
             },
@@ -66,7 +66,7 @@ impl TimeCatalog {
             rows,
             |row| {
                 Ok(EventCursor::new(
-                    &TemporalEventId::new(&row.event_key).map_err(anyhow::Error::msg)?,
+                    &TemporalEventId::parse(&row.event_key).map_err(anyhow::Error::msg)?,
                     row.due_tai_seconds_since_1970,
                     crate::SubsecondNanoseconds::new(row.due_nanosecond.try_into()?)?,
                 ))

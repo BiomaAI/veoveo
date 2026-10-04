@@ -32,11 +32,11 @@ impl McpServerContract for GlossaryContract {
     type Resource = GlossaryResource;
 
     fn slug() -> ServerSlug {
-        ServerSlug::new("glossary").expect("declared slug")
+        ServerSlug::parse("glossary").expect("declared slug")
     }
 
     fn scheme() -> ResourceScheme {
-        ResourceScheme::new(SCHEME).expect("declared scheme")
+        ResourceScheme::parse(SCHEME).expect("declared scheme")
     }
 
     fn scopes() -> &'static [GlossaryScope] {

@@ -103,7 +103,7 @@ impl AgentManagementState {
             .ok_or(StatusCode::FORBIDDEN)?
             .clone();
         Ok(ResolvedAgent {
-            id: wire::AgentDefinitionId::new(executable.key)
+            id: wire::AgentDefinitionId::parse(executable.key)
                 .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?,
             name: executable.name,
             revision: projection::digest(&executable.revision.digest).map_err(|e| e.code())?,
@@ -174,7 +174,7 @@ impl AgentManagementState {
             entries
                 .last()
                 .map(|v| {
-                    wire::AgentDefinitionId::new(v.key.clone())
+                    wire::AgentDefinitionId::parse(v.key.clone())
                         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)
                 })
                 .transpose()?
@@ -197,7 +197,7 @@ impl AgentManagementState {
                 continue;
             };
             items.push(ExecutableAgent {
-                id: wire::AgentDefinitionId::new(entry.key)
+                id: wire::AgentDefinitionId::parse(entry.key)
                     .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?,
                 name: entry.name,
                 description: entry.description,
@@ -207,7 +207,7 @@ impl AgentManagementState {
                 tools: entry
                     .tools
                     .into_iter()
-                    .map(|t| GatewayToolName::new(t).map_err(|_| StatusCode::SERVICE_UNAVAILABLE))
+                    .map(|t| GatewayToolName::parse(t).map_err(|_| StatusCode::SERVICE_UNAVAILABLE))
                     .collect::<Result<_, _>>()?,
             });
         }

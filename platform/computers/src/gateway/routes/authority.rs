@@ -37,7 +37,7 @@ async fn admitted(
     subject: AuthenticatedSubject,
 ) -> Result<Authorized, Fault> {
     let catalog = state.catalog.current();
-    let server = ServerSlug::new("computers").expect("static server");
+    let server = ServerSlug::parse("computers").expect("static server");
     let (_, _, manifest) = catalog
         .profile_server(&route.profile, &server)
         .ok_or_else(Fault::missing)?;
@@ -47,7 +47,7 @@ async fn admitted(
         let action = action
             .resolve(catalog.registry())
             .map_err(|_| Fault::unavailable())?;
-        let trace = contract::TraceId::new(subject.audit.trace_id.to_string()).expect("UUID trace");
+        let trace = contract::TraceId::parse(&subject.audit.trace_id).expect("UUID trace");
         let mut decision = catalog.decide(PolicyRequest {
             principal: &subject.principal,
             profile: &route.profile,

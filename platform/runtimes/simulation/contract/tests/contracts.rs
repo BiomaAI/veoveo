@@ -4,14 +4,14 @@ use veoveo_deploy_contract::*;
 use veoveo_simulation_contract::*;
 
 fn digest(byte: char) -> ArtifactDigest {
-    ArtifactDigest::new(format!("sha256:{}", byte.to_string().repeat(64))).expect("valid digest")
+    ArtifactDigest::parse(format!("sha256:{}", byte.to_string().repeat(64))).expect("valid digest")
 }
 
 fn artifact(name: &str, kind: ArtifactKind, byte: char) -> ArtifactDescriptor {
     ArtifactDescriptor {
-        name: ArtifactName::new(name).expect("artifact name"),
+        name: ArtifactName::parse(name).expect("artifact name"),
         kind,
-        version: ReleaseVersion::new("1.0.0").expect("version"),
+        version: ReleaseVersion::parse("1.0.0").expect("version"),
         coordinate: ArtifactCoordinate::new(format!("oci://registry.example/{name}:1.0.0"))
             .expect("coordinate"),
         digest: digest(byte),
@@ -52,7 +52,7 @@ fn simulation_build_lock_requires_complete_immutable_tuple() {
         .collect();
     let lock = SimulationRuntimeBuildLock {
         schema_version: SimulationRuntimeBuildLockSchema::V1,
-        profile: ArtifactName::new("isaac-sim-6").expect("profile"),
+        profile: ArtifactName::parse("isaac-sim-6").expect("profile"),
         upstream_image: ArtifactCoordinate::new(format!(
             "oci://nvcr.io/nvidia/isaac-sim@{}",
             digest('a')
@@ -64,14 +64,14 @@ fn simulation_build_lock_requires_complete_immutable_tuple() {
             component: RuntimeComponent::IsaacLab,
             repository: "https://github.com/isaac-sim/IsaacLab.git".to_owned(),
             tag: "v3.0.0-EA".to_owned(),
-            revision: SourceRevision::new("f".repeat(40)).expect("revision"),
+            revision: SourceRevision::parse("f".repeat(40)).expect("revision"),
             archive_digest: digest('1'),
             prerelease_reason: Some(
                 "Isaac Lab has no stable Isaac Sim 6.1-compatible release".to_owned(),
             ),
         }],
         python_distributions: vec![PythonDistributionInput {
-            package: ArtifactName::new("warp-lang").expect("package"),
+            package: ArtifactName::parse("warp-lang").expect("package"),
             version: "1.16.0".to_owned(),
             filename: "warp_lang-1.16.0-py3-none-manylinux_2_28_x86_64.whl".to_owned(),
             digest: digest('b'),
@@ -138,9 +138,9 @@ fn simulation_release_evidence_requires_paired_overlays() {
         source_revision: anonymous.source_revision.clone(),
         profile: anonymous.profile.clone(),
         base_image: ArtifactDescriptor {
-            name: ArtifactName::new("uav-sim-base").expect("name"),
+            name: ArtifactName::parse("uav-sim-base").expect("name"),
             kind: ArtifactKind::OciImage,
-            version: ReleaseVersion::new("1.0.0").expect("version"),
+            version: ReleaseVersion::parse("1.0.0").expect("version"),
             coordinate: anonymous.base_image.clone(),
             digest: anonymous.base_digest.clone(),
             platform: None,
@@ -174,7 +174,7 @@ fn simulation_release_evidence_requires_paired_overlays() {
 fn simulation_result(overlay_kind: SimulationOverlayKind) -> SimulationConformanceResult {
     SimulationConformanceResult {
         schema_version: SimulationConformanceResultSchema::V2,
-        profile: ArtifactName::new("isaac-sim-6").expect("profile"),
+        profile: ArtifactName::parse("isaac-sim-6").expect("profile"),
         base_image: ArtifactCoordinate::new(format!(
             "oci://registry.example/veoveo/uav-sim-base@{}",
             digest('a')
@@ -188,7 +188,7 @@ fn simulation_result(overlay_kind: SimulationOverlayKind) -> SimulationConforman
         ))
         .expect("overlay image"),
         overlay_digest: digest('b'),
-        source_revision: SourceRevision::new("c".repeat(40)).expect("revision"),
+        source_revision: SourceRevision::parse("c".repeat(40)).expect("revision"),
         build_lock_digest: digest('d'),
         components: simulation_components(),
         hardware: SimulationHardwareEvidence {

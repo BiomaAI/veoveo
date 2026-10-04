@@ -815,7 +815,7 @@ mod tests {
         membership: WorkContextMembershipLevel,
         data_labels: &[&str],
     ) -> TaskOwner {
-        let principal_id = PrincipalId::new(principal).unwrap();
+        let principal_id = PrincipalId::parse(principal).unwrap();
         TaskOwner {
             principal_key: principal.to_owned(),
             principal_kind: PrincipalKind::Service,
@@ -828,10 +828,10 @@ mod tests {
                 .map(|label| (*label).to_owned())
                 .collect(),
             authority: InvocationAuthority {
-                work_context: WorkContextId::new(work_context).unwrap(),
-                tenant: TenantId::new("tenant").unwrap(),
+                work_context: WorkContextId::parse(work_context).unwrap(),
+                tenant: TenantId::parse("tenant").unwrap(),
                 membership,
-                policy_revision: PolicyVersion::new("r1").unwrap(),
+                policy_revision: PolicyVersion::parse("r1").unwrap(),
                 output_policy: WorkContextOutputPolicy {
                     owner: AccessSubject::Principal(principal_id),
                     initial_grants: Vec::new(),
@@ -1012,7 +1012,7 @@ mod tests {
                 .collect::<BTreeSet<_>>();
             assert_eq!(ids.len(), 107);
             let mut other_context = caller.clone();
-            other_context.authority.work_context = WorkContextId::new("other").unwrap();
+            other_context.authority.work_context = WorkContextId::parse("other").unwrap();
             let mut missing_labels = caller;
             missing_labels.data_labels.clear();
             for stranger in [other_context, missing_labels] {

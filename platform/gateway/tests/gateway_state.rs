@@ -39,10 +39,14 @@ async fn concurrent_gateway_audit_writes_retry_transaction_conflicts() {
         .await
         .unwrap();
     let state = GatewayState::new(PlatformStore::connect(runtime).await.unwrap());
-    let profile = GatewayProfileId::new("admin").unwrap();
+    let profile = GatewayProfileId::parse("admin").unwrap();
     let now = Utc::now();
-    let principal =
-        authorization_code(now, &profile, &OAuthClientId::new("admin-console").unwrap()).principal;
+    let principal = authorization_code(
+        now,
+        &profile,
+        &OAuthClientId::parse("admin-console").unwrap(),
+    )
+    .principal;
 
     let results = join_all((0..12).map(|index| {
         let state = state.clone();
@@ -83,11 +87,11 @@ async fn gateway_correctness_state_is_shared_and_single_use_across_replicas() {
     let first = GatewayState::new(PlatformStore::connect(runtime.clone()).await.unwrap());
     let second = GatewayState::new(PlatformStore::connect(runtime).await.unwrap());
     let now = Utc::now();
-    let authorization_server = AuthorizationServerId::new("veoveo").unwrap();
-    let client_id = OAuthClientId::new("operator-console").unwrap();
+    let authorization_server = AuthorizationServerId::parse("veoveo").unwrap();
+    let client_id = OAuthClientId::parse("operator-console").unwrap();
 
     for (jwt_id, register_id_jag) in [("assertion-jti", false), ("id-jag-jti", true)] {
-        let jwt_id = JwtId::new(jwt_id).unwrap();
+        let jwt_id = JwtId::parse(jwt_id).unwrap();
         let expires_at = now + TimeDelta::minutes(5);
         let (left, right) = if register_id_jag {
             tokio::join!(
@@ -131,9 +135,9 @@ async fn gateway_correctness_state_is_shared_and_single_use_across_replicas() {
         );
     }
 
-    let profile = GatewayProfileId::new("operator").unwrap();
-    let issuer = TokenIssuer::new("https://idp.example.com").unwrap();
-    let revoked_jwt = JwtId::new("revoked-jwt").unwrap();
+    let profile = GatewayProfileId::parse("operator").unwrap();
+    let issuer = TokenIssuer::parse("https://idp.example.com").unwrap();
+    let revoked_jwt = JwtId::parse("revoked-jwt").unwrap();
     let revocation = GatewayJwtRevocation {
         profile: profile.clone(),
         issuer: issuer.clone(),
@@ -153,8 +157,8 @@ async fn gateway_correctness_state_is_shared_and_single_use_across_replicas() {
 
     let subscription = GatewayResourceSubscription {
         profile: profile.clone(),
-        owner: PrincipalId::new("https://idp.example.com#alice").unwrap(),
-        upstream_server: ServerSlug::new("artifact").unwrap(),
+        owner: PrincipalId::parse("https://idp.example.com#alice").unwrap(),
+        upstream_server: ServerSlug::parse("artifact").unwrap(),
         resource_uri: ResourceUri::new("artifact://0197f78e-f2f0-7a6e-8a5d-f41c691e4471").unwrap(),
         created_at: now,
         updated_at: now,
@@ -224,7 +228,7 @@ async fn gateway_correctness_state_is_shared_and_single_use_across_replicas() {
             authorization_server: &authorization_server,
             profile: &profile,
             oauth_client_id: &client_id,
-            work_context: &WorkContextId::new("mission").unwrap(),
+            work_context: &WorkContextId::parse("mission").unwrap(),
             principal: &principal,
             principal_display_name: &PrincipalDisplayName::new("Alice").unwrap(),
             scopes: &principal.scopes,
@@ -421,16 +425,16 @@ async fn refresh_rotation_rolls_back_when_success_audit_cannot_commit() {
     let state = GatewayState::new(PlatformStore::connect(runtime).await.unwrap());
     let now = Utc::now();
     let delivery_cipher = test_refresh_delivery_cipher();
-    let authorization_server = AuthorizationServerId::new("veoveo").unwrap();
-    let profile = GatewayProfileId::new("operator").unwrap();
-    let client_id = OAuthClientId::new("operator-console").unwrap();
+    let authorization_server = AuthorizationServerId::parse("veoveo").unwrap();
+    let profile = GatewayProfileId::parse("operator").unwrap();
+    let client_id = OAuthClientId::parse("operator-console").unwrap();
     let principal = authorization_code(now, &profile, &client_id).principal;
     let issued = state
         .issue_refresh_token(GatewayRefreshIssueRequest {
             authorization_server: &authorization_server,
             profile: &profile,
             oauth_client_id: &client_id,
-            work_context: &WorkContextId::new("mission").unwrap(),
+            work_context: &WorkContextId::parse("mission").unwrap(),
             principal: &principal,
             principal_display_name: &PrincipalDisplayName::new("Alice").unwrap(),
             scopes: &principal.scopes,
@@ -521,16 +525,16 @@ async fn consuming_a_successor_clears_its_delivery_envelope_atomically() {
     let state = GatewayState::new(PlatformStore::connect(runtime).await.unwrap());
     let now = Utc::now();
     let delivery_cipher = test_refresh_delivery_cipher();
-    let authorization_server = AuthorizationServerId::new("veoveo").unwrap();
-    let profile = GatewayProfileId::new("operator").unwrap();
-    let client_id = OAuthClientId::new("operator-console").unwrap();
+    let authorization_server = AuthorizationServerId::parse("veoveo").unwrap();
+    let profile = GatewayProfileId::parse("operator").unwrap();
+    let client_id = OAuthClientId::parse("operator-console").unwrap();
     let principal = authorization_code(now, &profile, &client_id).principal;
     let issued = state
         .issue_refresh_token(GatewayRefreshIssueRequest {
             authorization_server: &authorization_server,
             profile: &profile,
             oauth_client_id: &client_id,
-            work_context: &WorkContextId::new("mission").unwrap(),
+            work_context: &WorkContextId::parse("mission").unwrap(),
             principal: &principal,
             principal_display_name: &PrincipalDisplayName::new("Alice").unwrap(),
             scopes: &principal.scopes,
@@ -635,16 +639,16 @@ async fn public_client_revocation_is_bound_idempotent_and_family_wide() {
     let state = GatewayState::new(PlatformStore::connect(runtime).await.unwrap());
     let now = Utc::now();
     let delivery_cipher = test_refresh_delivery_cipher();
-    let authorization_server = AuthorizationServerId::new("veoveo").unwrap();
-    let profile = GatewayProfileId::new("operator").unwrap();
-    let client_id = OAuthClientId::new("operator-console").unwrap();
+    let authorization_server = AuthorizationServerId::parse("veoveo").unwrap();
+    let profile = GatewayProfileId::parse("operator").unwrap();
+    let client_id = OAuthClientId::parse("operator-console").unwrap();
     let principal = authorization_code(now, &profile, &client_id).principal;
     let issued = state
         .issue_refresh_token(GatewayRefreshIssueRequest {
             authorization_server: &authorization_server,
             profile: &profile,
             oauth_client_id: &client_id,
-            work_context: &WorkContextId::new("mission").unwrap(),
+            work_context: &WorkContextId::parse("mission").unwrap(),
             principal: &principal,
             principal_display_name: &PrincipalDisplayName::new("Alice").unwrap(),
             scopes: &principal.scopes,
@@ -659,7 +663,7 @@ async fn public_client_revocation_is_bound_idempotent_and_family_wide() {
                 &issued.token,
                 &authorization_server,
                 &profile,
-                &OAuthClientId::new("different-client").unwrap(),
+                &OAuthClientId::parse("different-client").unwrap(),
                 now + TimeDelta::seconds(1),
             )
             .await
@@ -752,20 +756,20 @@ fn authorization_request(
     client_id: &OAuthClientId,
 ) -> GatewayAuthorizationRequest {
     GatewayAuthorizationRequest {
-        idp_state: OAuthStateValue::new("integration-idp-state").unwrap(),
+        idp_state: OAuthStateValue::parse("integration-idp-state").unwrap(),
         profile: profile.clone(),
         oauth_client_id: client_id.clone(),
-        work_context: WorkContextId::new("mission").unwrap(),
-        oidc_client: OidcClientRegistrationId::new("enterprise").unwrap(),
+        work_context: WorkContextId::parse("mission").unwrap(),
+        oidc_client: OidcClientRegistrationId::parse("enterprise").unwrap(),
         redirect_uri: OAuthRedirectUri::new("https://veoveo.example/oauth/callback").unwrap(),
-        client_state: Some(OAuthStateValue::new("client-state").unwrap()),
-        requested_scopes: BTreeSet::from([ScopeName::new("operator:use").unwrap()]),
-        code_challenge: PkceCodeChallenge::new("A".repeat(43)).unwrap(),
+        client_state: Some(OAuthStateValue::parse("client-state").unwrap()),
+        requested_scopes: BTreeSet::from([ScopeName::parse("operator:use").unwrap()]),
+        code_challenge: PkceCodeChallenge::parse("A".repeat(43)).unwrap(),
         code_challenge_method: PkceCodeChallengeMethod::S256,
-        idp_code_verifier: PkceCodeVerifier::new("B".repeat(43)).unwrap(),
-        idp_code_challenge: PkceCodeChallenge::new("C".repeat(43)).unwrap(),
+        idp_code_verifier: PkceCodeVerifier::parse("B".repeat(43)).unwrap(),
+        idp_code_challenge: PkceCodeChallenge::parse("C".repeat(43)).unwrap(),
         idp_code_challenge_method: PkceCodeChallengeMethod::S256,
-        nonce: OidcNonce::new("integration-nonce").unwrap(),
+        nonce: OidcNonce::parse("integration-nonce").unwrap(),
         created_at: now,
         expires_at: now + TimeDelta::minutes(5),
     }
@@ -777,29 +781,29 @@ fn authorization_code(
     client_id: &OAuthClientId,
 ) -> GatewayAuthorizationCodeRecord {
     let principal = Principal {
-        id: PrincipalId::new("https://idp.example.com#alice").unwrap(),
+        id: PrincipalId::parse("https://idp.example.com#alice").unwrap(),
         kind: PrincipalKind::User,
-        issuer: TokenIssuer::new("https://idp.example.com").unwrap(),
-        subject: TokenSubject::new("alice").unwrap(),
-        tenant: Some(TenantId::new("tenant-a").unwrap()),
+        issuer: TokenIssuer::parse("https://idp.example.com").unwrap(),
+        subject: TokenSubject::parse("alice").unwrap(),
+        tenant: Some(TenantId::parse("tenant-a").unwrap()),
         groups: BTreeSet::new(),
         group_roles: BTreeSet::new(),
         roles: BTreeSet::new(),
-        scopes: BTreeSet::from([ScopeName::new("operator:use").unwrap()]),
+        scopes: BTreeSet::from([ScopeName::parse("operator:use").unwrap()]),
         data_labels: BTreeSet::new(),
         assurances: BTreeSet::new(),
         authenticated_at: Some(now),
     };
     GatewayAuthorizationCodeRecord {
-        code: OAuthAuthorizationCode::new("D".repeat(43)).unwrap(),
+        code: OAuthAuthorizationCode::parse("D".repeat(43)).unwrap(),
         profile: profile.clone(),
         oauth_client_id: client_id.clone(),
-        work_context: WorkContextId::new("mission").unwrap(),
-        oidc_client: OidcClientRegistrationId::new("enterprise").unwrap(),
+        work_context: WorkContextId::parse("mission").unwrap(),
+        oidc_client: OidcClientRegistrationId::parse("enterprise").unwrap(),
         redirect_uri: OAuthRedirectUri::new("https://veoveo.example/oauth/callback").unwrap(),
         client_state: None,
-        scopes: BTreeSet::from([ScopeName::new("operator:use").unwrap()]),
-        code_challenge: PkceCodeChallenge::new("E".repeat(43)).unwrap(),
+        scopes: BTreeSet::from([ScopeName::parse("operator:use").unwrap()]),
+        code_challenge: PkceCodeChallenge::parse("E".repeat(43)).unwrap(),
         code_challenge_method: PkceCodeChallengeMethod::S256,
         principal,
         principal_display_name: PrincipalDisplayName::new("Alice").unwrap(),

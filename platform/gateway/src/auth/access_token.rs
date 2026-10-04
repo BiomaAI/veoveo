@@ -95,10 +95,10 @@ impl JwtVerifier {
             return Err(AuthError::MissingRequiredScope);
         }
 
-        let issuer = TokenIssuer::new(claims.iss.clone()).map_err(AuthError::Claim)?;
-        let subject = TokenSubject::new(claims.sub.clone()).map_err(AuthError::Claim)?;
+        let issuer = TokenIssuer::parse(claims.iss.clone()).map_err(AuthError::Claim)?;
+        let subject = TokenSubject::parse(claims.sub.clone()).map_err(AuthError::Claim)?;
         let oauth_client_id =
-            OAuthClientId::new(claims.client_id.clone()).map_err(AuthError::Claim)?;
+            OAuthClientId::parse(claims.client_id.clone()).map_err(AuthError::Claim)?;
         let token_subject = AccessTokenSubject {
             managed_execution: None,
             issuer: issuer.clone(),
@@ -106,23 +106,23 @@ impl JwtVerifier {
             oauth_client_id,
             session_family: claims.session_family,
             audience: self.config.audience.clone(),
-            work_context: WorkContextId::new(claims.work_context.clone())
+            work_context: WorkContextId::parse(claims.work_context.clone())
                 .map_err(AuthError::Claim)?,
             invocation_mode: claims.invocation_mode,
             initiator: claims
                 .initiator
-                .map(PrincipalId::new)
+                .map(PrincipalId::parse)
                 .transpose()
                 .map_err(AuthError::Claim)?,
             delegation_id: claims
                 .delegation_id
-                .map(DelegationId::new)
+                .map(DelegationId::parse)
                 .transpose()
                 .map_err(AuthError::Claim)?,
             scopes: scopes.clone(),
             jwt_id: claims
                 .jti
-                .map(JwtId::new)
+                .map(JwtId::parse)
                 .transpose()
                 .map_err(AuthError::Claim)?,
             issued_at: unix_timestamp(claims.iat.unwrap_or(0), "iat")?,
@@ -133,13 +133,13 @@ impl JwtVerifier {
             expires_at,
         };
         let principal = Principal {
-            id: PrincipalId::new(claims.principal_id).map_err(AuthError::Claim)?,
+            id: PrincipalId::parse(claims.principal_id).map_err(AuthError::Claim)?,
             kind: claims.principal_kind.unwrap_or(PrincipalKind::User),
             issuer,
             subject,
             tenant: claims
                 .tenant
-                .map(TenantId::new)
+                .map(TenantId::parse)
                 .transpose()
                 .map_err(AuthError::Claim)?,
             groups: claims
@@ -147,7 +147,7 @@ impl JwtVerifier {
                 .map(StringListClaim::into_values)
                 .unwrap_or_default()
                 .into_iter()
-                .map(GroupId::new)
+                .map(GroupId::parse)
                 .collect::<Result<_, _>>()
                 .map_err(AuthError::Claim)?,
             // Per-group roles are not asserted by the OAuth access token today;
@@ -158,7 +158,7 @@ impl JwtVerifier {
                 .map(StringListClaim::into_values)
                 .unwrap_or_default()
                 .into_iter()
-                .map(RoleId::new)
+                .map(RoleId::parse)
                 .collect::<Result<_, _>>()
                 .map_err(AuthError::Claim)?,
             scopes,
@@ -167,7 +167,7 @@ impl JwtVerifier {
                 .map(StringListClaim::into_values)
                 .unwrap_or_default()
                 .into_iter()
-                .map(DataLabelId::new)
+                .map(DataLabelId::parse)
                 .collect::<Result<_, _>>()
                 .map_err(AuthError::Claim)?,
             assurances: principal_assurances(claims.principal_assurances)?,

@@ -161,7 +161,7 @@ async fn stream_status(
     Path(stream_id): Path<String>,
     headers: HeaderMap,
 ) -> Response {
-    let stream_id = match RecordingIngestStreamId::new(&stream_id) {
+    let stream_id = match RecordingIngestStreamId::parse(&stream_id) {
         Ok(stream_id) => stream_id,
         Err(_) => return stream_not_found(),
     };
@@ -182,7 +182,7 @@ async fn append_batch(
     headers: HeaderMap,
     body: Bytes,
 ) -> Response {
-    let stream_id = match RecordingIngestStreamId::new(&stream_id) {
+    let stream_id = match RecordingIngestStreamId::parse(&stream_id) {
         Ok(stream_id) => stream_id,
         Err(_) => return stream_not_found(),
     };
@@ -217,7 +217,7 @@ async fn publish_blueprint(
     headers: HeaderMap,
     body: Bytes,
 ) -> Response {
-    let stream_id = match RecordingIngestStreamId::new(&stream_id) {
+    let stream_id = match RecordingIngestStreamId::parse(&stream_id) {
         Ok(stream_id) => stream_id,
         Err(_) => return stream_not_found(),
     };
@@ -252,7 +252,7 @@ async fn finish_stream(
     headers: HeaderMap,
     body: Bytes,
 ) -> Response {
-    let stream_id = match RecordingIngestStreamId::new(&stream_id) {
+    let stream_id = match RecordingIngestStreamId::parse(&stream_id) {
         Ok(stream_id) => stream_id,
         Err(_) => return stream_not_found(),
     };
@@ -329,7 +329,7 @@ async fn proxy_authorized(
         Ok(authenticated) => authenticated,
         Err(response) => return *response,
     };
-    let trace_id = match TraceId::new(subject.audit.trace_id.to_string()) {
+    let trace_id = match TraceId::parse(&subject.audit.trace_id) {
         Ok(trace_id) => trace_id,
         Err(error) => return auth_audit_error_response(error.into()),
     };
@@ -380,7 +380,7 @@ async fn proxy_authorized(
         );
         let internal_token = match state.internal_token_issuer.issue_resource(
             resource.protected_resource.clone(),
-            match ServerSlug::new("recording-hub") {
+            match ServerSlug::parse("recording-hub") {
                 Ok(server) => server,
                 Err(error) => return auth_audit_error_response(error.into()),
             },

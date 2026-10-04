@@ -195,7 +195,7 @@ mod tests {
 
         let catalog = catalog_with_mutual_tls_upstream(&ca_path, &cert_env, &key_env);
         let server = catalog
-            .server(&ServerSlug::new("media").expect("server slug"))
+            .server(&ServerSlug::parse("media").expect("server slug"))
             .expect("media server");
 
         build_upstream_http_client(&catalog, server)
@@ -219,7 +219,7 @@ mod tests {
 
         let catalog = catalog_with_mutual_tls_upstream(&ca_path, &cert_env, &key_env);
         let server = catalog
-            .server(&ServerSlug::new("media").expect("server slug"))
+            .server(&ServerSlug::parse("media").expect("server slug"))
             .expect("media server");
 
         let err = build_upstream_http_client(&catalog, server)
@@ -244,12 +244,12 @@ mod tests {
         )
         .expect("validated catalog");
         let first = catalog
-            .server(&ServerSlug::new("media").expect("server slug"))
+            .server(&ServerSlug::parse("media").expect("server slug"))
             .expect("media server");
         let mut second = first.clone();
-        second.slug = ServerSlug::new("second").expect("second server slug");
+        second.slug = ServerSlug::parse("second").expect("second server slug");
         second.upstream.url =
-            UpstreamUrl::new("http://127.0.0.1:8788/second/mcp").expect("second upstream URL");
+            UpstreamUrl::parse("http://127.0.0.1:8788/second/mcp").expect("second upstream URL");
         let pool = GatewayUpstreamHttpClientPool::new();
 
         let (first_client, second_client) =

@@ -1,17 +1,12 @@
-use std::{borrow::Cow, fmt};
+use std::fmt;
 
-use schemars::{JsonSchema, Schema, SchemaGenerator};
-use serde::{Deserialize, Serialize};
+use schemars::{Schema, SchemaGenerator};
 
 const SHA256_PREFIX: &str = "sha256:";
 const SHA256_HEX_LENGTH: usize = 64;
 
 /// Canonical SHA-256 digest used by cross-server provenance contracts.
-#[derive(
-    veoveo_types::Id, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, constructor = parse, error = Sha256DigestError, validate = validate_digest)]
+#[veoveo_types::id(prefixed(DigestIds, "sha256:"))]
 pub struct Sha256Digest(String);
 
 impl Sha256Digest {
@@ -37,37 +32,32 @@ impl Sha256Digest {
     }
 }
 
-impl JsonSchema for Sha256Digest {
-    fn inline_schema() -> bool {
-        true
-    }
-
-    fn schema_name() -> Cow<'static, str> {
-        Cow::Borrowed("Sha256Digest")
-    }
-
-    fn json_schema(_generator: &mut SchemaGenerator) -> Schema {
-        schemars::json_schema!({
-            "type": "string",
-            "pattern": "^sha256:[0-9a-f]{64}$"
-        })
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 #[error("expected sha256: followed by 64 lowercase hexadecimal digits")]
 pub struct Sha256DigestError;
 
-fn validate_digest(value: &str) -> Result<(), Sha256DigestError> {
-    let Some(hex) = value.strip_prefix(SHA256_PREFIX) else {
-        return Err(Sha256DigestError);
+#[doc(hidden)]
+pub struct DigestIds;
+impl crate::IdProfile for DigestIds {
+    type Error = Sha256DigestError;
+    const PROFILE: crate::IdProfileSpec<Self::Error> = crate::IdProfileSpec {
+        schema: crate::IdSchema::Owner {
+            schema: digest_schema,
+            inline: true,
+        },
+        ..crate::IdProfileSpec::hex(
+            crate::HexGrammar {
+                length: SHA256_HEX_LENGTH,
+                case: crate::HexCase::Lower,
+                nonzero: false,
+            },
+            |_, _, _| Sha256DigestError,
+        )
     };
-    if hex.len() != SHA256_HEX_LENGTH
-        || !hex
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-    {
-        return Err(Sha256DigestError);
-    }
-    Ok(())
+}
+fn digest_schema(_: &mut SchemaGenerator, _: crate::IdMetadata) -> Schema {
+    schemars::json_schema!({
+        "type": "string",
+        "pattern": "^sha256:[0-9a-f]{64}$"
+    })
 }

@@ -89,7 +89,7 @@ impl ComputersStore {
             computer_id: computer.computer_id,
             instance_id: computer
                 .replacement_instance_id
-                .unwrap_or(computer.computer_id.into_uuid()),
+                .unwrap_or(computer.computer_id.as_uuid()),
             provider_instance_id: self.provider_instance_id,
             grant_id: authority.grant_id(),
             direction: payload.transfer().direction(),
@@ -108,9 +108,9 @@ impl ComputersStore {
         };
         let sealed = keys.seal_file_transfer(&binding, payload)?;
         let content = Content {
-            transfer_id: binding.transfer_id.into_uuid(),
-            computer_id: binding.computer_id.into_uuid(),
-            provider_instance_id: self.provider_instance_id.into_uuid(),
+            transfer_id: binding.transfer_id.as_uuid(),
+            computer_id: binding.computer_id.as_uuid(),
+            provider_instance_id: self.provider_instance_id.as_uuid(),
             owner_key: binding.owner_key.clone(),
             actor_key: actor_key.clone(),
             binding: super::object(&binding)?,
@@ -197,11 +197,8 @@ impl ComputersStore {
                 include_str!("../../queries/accepted_execution.surql"),
                 vec![
                     ("journal", prior.transfer.into_value()),
-                    (
-                        "provider",
-                        self.provider_instance_id.into_uuid().into_value(),
-                    ),
-                    ("computer_id", computer.into_uuid().into_value()),
+                    ("provider", self.provider_instance_id.as_uuid().into_value()),
+                    ("computer_id", computer.as_uuid().into_value()),
                     ("computer_text", computer.to_string().into_value()),
                     ("actor_key", actor_key.to_owned().into_value()),
                     (

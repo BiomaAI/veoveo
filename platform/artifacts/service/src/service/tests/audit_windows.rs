@@ -9,7 +9,7 @@ async fn access_request_and_capability_denials_keep_requested_targets_and_caller
         .put(
             &owner,
             PutArtifactRequest {
-                classification: Some(DataLabelId::new("controlled").unwrap()),
+                classification: Some(DataLabelId::parse("controlled").unwrap()),
                 ..PutArtifactRequest::default()
             },
             vec![1; 8],
@@ -109,7 +109,7 @@ async fn concurrent_ranges_share_one_window_and_every_denial_is_recorded() {
     let (service, repository) = service();
     let owner = caller("owner", "acme", &[]);
     let mut denied = caller("other", "acme", &[]);
-    denied.identity.authority.work_context = WorkContextId::new("other-work").unwrap();
+    denied.identity.authority.work_context = WorkContextId::parse("other-work").unwrap();
     bind_request_context(&mut denied.identity);
     let artifact = service
         .put(&owner, PutArtifactRequest::default(), vec![1; 32])

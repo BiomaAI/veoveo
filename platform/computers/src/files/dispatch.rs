@@ -143,7 +143,7 @@ impl ComputersStore {
             || crate::identity::owner_key(&current.owner)? != operation.binding.owner_key
             || current
                 .replacement_instance_id
-                .unwrap_or(current.computer_id.into_uuid())
+                .unwrap_or(current.computer_id.as_uuid())
                 != operation.binding.instance_id
             || current.template_fingerprint != operation.binding.template_fingerprint
             || current.provider_resource_id.as_deref() != Some(&operation.binding.resource_id)

@@ -113,10 +113,7 @@ impl ComputersStore {
                     "execution",
                     super::record(saved.execution_id()).into_value(),
                 ),
-                (
-                    "provider",
-                    self.provider_instance_id.into_uuid().into_value(),
-                ),
+                ("provider", self.provider_instance_id.as_uuid().into_value()),
                 ("binding", object(&saved.binding)?.into_value()),
                 ("authority", object(&saved.authority)?.into_value()),
                 (

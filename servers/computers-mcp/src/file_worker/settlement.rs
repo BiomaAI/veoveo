@@ -12,7 +12,7 @@ impl FileWorker {
         let operation = self.store.begin_file_containment(claim, reason).await?;
         let b = operation.binding();
         let binding = Binding::from_instance(
-            b.computer_id.into_uuid(),
+            b.computer_id.as_uuid(),
             b.instance_id,
             b.template_fingerprint.clone(),
         )
@@ -215,7 +215,7 @@ fn reached(operation: &FileOperation, observation: Observation) -> ReachedState 
         provider_instance_id: operation.binding().provider_instance_id,
         computer_id: operation.computer_id(),
         replacement_instance_id: (operation.binding().instance_id
-            != operation.computer_id().into_uuid())
+            != operation.computer_id().as_uuid())
         .then_some(operation.binding().instance_id),
         template_fingerprint: operation.binding().template_fingerprint.clone(),
         resource_id: observation.sandbox_id,

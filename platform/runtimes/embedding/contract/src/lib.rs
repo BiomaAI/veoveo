@@ -15,13 +15,9 @@ impl std::fmt::Display for EmbeddingError {
 }
 impl std::error::Error for EmbeddingError {}
 
-#[derive(veoveo_types::Id, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = EmbeddingError, validate = validate_embedding_id)]
+#[veoveo_types::id(text(EmbeddingIds))]
 pub struct EmbeddingModelId(String);
-#[derive(veoveo_types::Id, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = EmbeddingError, validate = validate_embedding_id)]
+#[veoveo_types::id(text(EmbeddingIds))]
 pub struct EmbeddingModelRevision(String);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -108,6 +104,16 @@ impl From<EmbeddingVector> for VectorWire {
     fn from(value: EmbeddingVector) -> Self {
         value.0.into_inner()
     }
+}
+
+use veoveo_types::{IdProfile, IdProfileSpec};
+
+#[doc(hidden)]
+pub struct EmbeddingIds;
+impl IdProfile for EmbeddingIds {
+    type Error = EmbeddingError;
+    const PROFILE: IdProfileSpec<Self::Error> =
+        IdProfileSpec::text(|value, _| validate_embedding_id(value));
 }
 
 fn validate_embedding_id(value: &str) -> Result<(), EmbeddingError> {

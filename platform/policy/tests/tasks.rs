@@ -12,15 +12,15 @@ use veoveo_types::{PrincipalId, RoleId, ScopeName, TaskId, TenantId};
 
 fn actor() -> Principal {
     Principal {
-        id: PrincipalId::new("task-policy-test").unwrap(),
+        id: PrincipalId::parse("task-policy-test").unwrap(),
         kind: PrincipalKind::User,
-        issuer: TokenIssuer::new("https://idp.example.com").unwrap(),
-        subject: TokenSubject::new("task-policy-test").unwrap(),
-        tenant: Some(TenantId::new("tenant-a").unwrap()),
+        issuer: TokenIssuer::parse("https://idp.example.com").unwrap(),
+        subject: TokenSubject::parse("task-policy-test").unwrap(),
+        tenant: Some(TenantId::parse("tenant-a").unwrap()),
         groups: BTreeSet::new(),
         group_roles: BTreeSet::new(),
-        roles: BTreeSet::from([RoleId::new("operator").unwrap()]),
-        scopes: BTreeSet::from([ScopeName::new("operator:use").unwrap()]),
+        roles: BTreeSet::from([RoleId::parse("operator").unwrap()]),
+        scopes: BTreeSet::from([ScopeName::parse("operator:use").unwrap()]),
         data_labels: BTreeSet::new(),
         assurances: BTreeSet::new(),
         authenticated_at: None,
@@ -37,7 +37,7 @@ fn check(plane: GatewayControlPlane, actor: &Principal, target: &PolicyTarget) -
             profile: &profile,
             action: GatewayAction::TasksCancel.into(),
             target,
-            trace_id: &TraceId::new("task-policy").unwrap(),
+            trace_id: &TraceId::parse("task-policy").unwrap(),
         },
     )
     .reason
@@ -47,7 +47,7 @@ fn check(plane: GatewayControlPlane, actor: &Principal, target: &PolicyTarget) -
 fn native_and_gateway_tasks_share_server_exposure_and_policy_requirements() {
     let plane: GatewayControlPlane =
         serde_json::from_str(include_str!("../../../configs/gateway.smoke.json")).unwrap();
-    let server = ServerSlug::new("media").unwrap();
+    let server = ServerSlug::parse("media").unwrap();
     for target in [
         PolicyTarget::PlatformTask {
             server: server.clone(),
@@ -55,7 +55,7 @@ fn native_and_gateway_tasks_share_server_exposure_and_policy_requirements() {
         },
         PolicyTarget::Task {
             server,
-            task_id: CanonicalTaskId::new("gtr_fixture").unwrap(),
+            task_id: CanonicalTaskId::parse("gtr_fixture").unwrap(),
         },
     ] {
         assert_eq!(
@@ -76,7 +76,7 @@ fn native_and_gateway_tasks_share_server_exposure_and_policy_requirements() {
         );
         let mut denied = plane.clone();
         denied.policies[0].rules[0].effect = PolicyEffect::Deny;
-        denied.policies[0].rules[0].servers = BTreeSet::from([ServerSlug::new("media").unwrap()]);
+        denied.policies[0].rules[0].servers = BTreeSet::from([ServerSlug::parse("media").unwrap()]);
         assert_eq!(
             check(denied, &actor(), &target),
             PolicyReasonCode::PolicyDeny

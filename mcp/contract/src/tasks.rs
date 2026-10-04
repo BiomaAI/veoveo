@@ -77,7 +77,8 @@ pub struct GatewayTaskStatus {
 
 impl GatewayTaskStatus {
     pub fn from_task(task: &Task) -> anyhow::Result<Self> {
-        let task_id = OpaqueTaskId::new(task.task_id.clone()).context("invalid opaque task id")?;
+        let task_id =
+            OpaqueTaskId::parse(task.task_id.clone()).context("invalid opaque task id")?;
         let created_at = DateTime::parse_from_rfc3339(&task.created_at)
             .context("invalid gateway task created_at timestamp")?
             .with_timezone(&Utc);

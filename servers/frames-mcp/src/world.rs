@@ -120,9 +120,9 @@ mod tests {
         FrameWorldTree {
             frames: vec![
                 FrameNode {
-                    frame_id: FrameId::new("follow-camera-optical").unwrap(),
+                    frame_id: FrameId::parse("follow-camera-optical").unwrap(),
                     basis: FrameBasis::OpticalRdf,
-                    parent_frame_id: Some(FrameId::new("uav-body").unwrap()),
+                    parent_frame_id: Some(FrameId::parse("uav-body").unwrap()),
                     parent_transform: Some(FrameParentTransform::StaticRigid {
                         translation_m: [0.0, 0.0, 0.0],
                         rotation_xyzw: [0.0, 0.0, 0.0, 1.0],
@@ -130,16 +130,16 @@ mod tests {
                     description: None,
                 },
                 FrameNode {
-                    frame_id: FrameId::new("earth-ecef").unwrap(),
+                    frame_id: FrameId::parse("earth-ecef").unwrap(),
                     basis: FrameBasis::EcefWgs84,
                     parent_frame_id: None,
                     parent_transform: None,
                     description: None,
                 },
                 FrameNode {
-                    frame_id: FrameId::new("times-square-enu").unwrap(),
+                    frame_id: FrameId::parse("times-square-enu").unwrap(),
                     basis: FrameBasis::Enu,
-                    parent_frame_id: Some(FrameId::new("earth-ecef").unwrap()),
+                    parent_frame_id: Some(FrameId::parse("earth-ecef").unwrap()),
                     parent_transform: Some(FrameParentTransform::GeodeticTangent {
                         origin: Wgs84Position {
                             latitude_degrees: 40.758,
@@ -150,11 +150,11 @@ mod tests {
                     description: None,
                 },
                 FrameNode {
-                    frame_id: FrameId::new("isaac-world").unwrap(),
+                    frame_id: FrameId::parse("isaac-world").unwrap(),
                     basis: FrameBasis::Cartesian {
                         axes: FrameAxes::east_north_up(),
                     },
-                    parent_frame_id: Some(FrameId::new("times-square-enu").unwrap()),
+                    parent_frame_id: Some(FrameId::parse("times-square-enu").unwrap()),
                     parent_transform: Some(FrameParentTransform::StaticRigid {
                         translation_m: [0.0, 0.0, 0.0],
                         rotation_xyzw: [0.0, 0.0, 0.0, 1.0],
@@ -162,9 +162,9 @@ mod tests {
                     description: None,
                 },
                 FrameNode {
-                    frame_id: FrameId::new("uav-body").unwrap(),
+                    frame_id: FrameId::parse("uav-body").unwrap(),
                     basis: FrameBasis::Frd,
-                    parent_frame_id: Some(FrameId::new("isaac-world").unwrap()),
+                    parent_frame_id: Some(FrameId::parse("isaac-world").unwrap()),
                     parent_transform: Some(FrameParentTransform::DynamicStream {
                         stream_uri: "uav-sim://session/showcase/vehicle/uav-1/pose"
                             .parse()
@@ -193,7 +193,7 @@ mod tests {
             .iter_mut()
             .find(|frame| frame.frame_id.as_str() == "earth-ecef")
             .unwrap();
-        root.parent_frame_id = Some(FrameId::new("isaac-world").unwrap());
+        root.parent_frame_id = Some(FrameId::parse("isaac-world").unwrap());
         root.parent_transform = Some(FrameParentTransform::StaticRigid {
             translation_m: [0.0; 3],
             rotation_xyzw: [0.0, 0.0, 0.0, 1.0],
@@ -216,8 +216,8 @@ mod tests {
     #[test]
     fn resolves_static_descendants_into_ecef() {
         let validated = ValidatedWorldTree::new(new_york_tree()).unwrap();
-        let world_id = FrameWorldId::new("uav-showcase-new-york").unwrap();
-        let revision_id = FrameWorldRevisionId::new("revision-1").unwrap();
+        let world_id = FrameWorldId::parse("uav-showcase-new-york").unwrap();
+        let revision_id = FrameWorldRevisionId::parse("revision-1").unwrap();
         let revision_uri = crate::contract::FrameWorldRevisionUri::new(&world_id, &revision_id);
         let revision = FrameWorldRevision::new(
             revision_uri,
@@ -227,7 +227,7 @@ mod tests {
         );
         let isaac = WorldFrameUri::new(
             revision.revision_uri(),
-            &FrameId::new("isaac-world").unwrap(),
+            &FrameId::parse("isaac-world").unwrap(),
         );
         let transform = ecef_from_frame(&revision, &isaac).unwrap();
         let expected = wgs84_to_ecef(&Wgs84Position {

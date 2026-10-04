@@ -57,17 +57,17 @@ async fn command_tasks_keep_source_client_authority_and_owner_control_separate()
                     .unwrap()
                     .access_token
                     .oauth_client_id =
-                    veoveo_gateway_contract::OAuthClientId::new("different-client").unwrap()
+                    veoveo_gateway_contract::OAuthClientId::parse("different-client").unwrap()
             }
             "profile" => {
                 identity.profile =
-                    veoveo_mcp_contract::GatewayProfileId::new("different-profile").unwrap()
+                    veoveo_mcp_contract::GatewayProfileId::parse("different-profile").unwrap()
             }
             "expired" => identity.expires_at = chrono::Utc::now() - chrono::TimeDelta::seconds(1),
             // Consistently changed invocation inputs remain different identities.
             "context" => {
                 identity.authority.work_context =
-                    veoveo_types::WorkContextId::new("different-context").unwrap();
+                    veoveo_types::WorkContextId::parse("different-context").unwrap();
                 identity
                     .request_context
                     .as_mut()
@@ -77,7 +77,7 @@ async fn command_tasks_keep_source_client_authority_and_owner_control_separate()
             }
             "tenant" => {
                 identity.authority.tenant =
-                    veoveo_types::TenantId::new("different-tenant").unwrap();
+                    veoveo_types::TenantId::parse("different-tenant").unwrap();
                 identity.actor.tenant = Some(identity.authority.tenant.clone());
                 identity.request_context.as_mut().unwrap().principal.tenant =
                     identity.actor.tenant.clone();
@@ -120,7 +120,7 @@ async fn command_tasks_keep_source_client_authority_and_owner_control_separate()
     let mut control = support::automation::control();
     control.policies[0].rules[0]
         .tools
-        .remove(&veoveo_mcp_contract::LocalToolName::new("stop").unwrap());
+        .remove(&veoveo_mcp_contract::LocalToolName::parse("stop").unwrap());
     support::policy::install(&db.a, control).await;
     assert!(
         a.authorize_command_task(&owner, execution, CommandTaskAction::Observe)
@@ -168,7 +168,7 @@ async fn a_current_human_token_from_another_client_cannot_read_a_command_task() 
         .unwrap()
         .access_token
         .oauth_client_id =
-        veoveo_gateway_contract::OAuthClientId::new("another-human-client").unwrap();
+        veoveo_gateway_contract::OAuthClientId::parse("another-human-client").unwrap();
     let another_client = ComputerActor::from_verified(&identity).unwrap();
     assert!(
         b.authorize_command_task(&another_client, execution, CommandTaskAction::Observe)

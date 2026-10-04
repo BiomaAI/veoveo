@@ -54,8 +54,8 @@ impl CommandDispatchDecision {
 }
 pub(crate) fn execute_target() -> PolicyTarget {
     PolicyTarget::Tool {
-        server: veoveo_mcp_contract::ServerSlug::new("computers").expect("static server"),
-        tool: veoveo_mcp_contract::LocalToolName::new("execute").expect("static tool"),
+        server: veoveo_mcp_contract::ServerSlug::parse("computers").expect("static server"),
+        tool: veoveo_mcp_contract::LocalToolName::parse("execute").expect("static tool"),
     }
 }
 

@@ -234,7 +234,7 @@ impl TimeMcp {
             ));
         }
         let event = TemporalEvent {
-            event_id: TemporalEventId::new(format!("event-{}", Uuid::now_v7()))
+            event_id: TemporalEventId::parse(format!("event-{}", Uuid::now_v7()))
                 .map_err(invalid_params)?,
             name: request.name,
             due: request.due,
@@ -376,7 +376,7 @@ impl DomainServer for TimeMcp {
                     .context
                     .as_ref()
                     .and_then(|context| context.get_argument("calendar_id"))
-                    .map(|key| crate::contract::CalendarId::new(key.clone()))
+                    .map(|key| crate::contract::CalendarId::parse(key.clone()))
                     .transpose()
                     .map_err(invalid_params)?,
             }),
@@ -388,7 +388,7 @@ impl DomainServer for TimeMcp {
                     .context
                     .as_ref()
                     .and_then(|context| context.get_argument("epoch_id"))
-                    .map(|key| crate::MissionEpochId::new(key.clone()))
+                    .map(|key| crate::MissionEpochId::parse(key.clone()))
                     .transpose()
                     .map_err(invalid_params)?,
             }),
@@ -526,7 +526,7 @@ mod tests {
             );
         }
         let conventions = veoveo_mcp_contract::ServerResourceUris::new(
-            veoveo_types::ResourceScheme::new("time").expect("declared resource scheme"),
+            veoveo_types::ResourceScheme::parse("time").expect("declared resource scheme"),
         );
         assert_eq!(uris::DOCS_URI, conventions.docs_root_uri());
         assert_eq!(uris::CONTRACT_URI, conventions.contract_uri().as_str());

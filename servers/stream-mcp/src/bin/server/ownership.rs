@@ -36,24 +36,24 @@ pub(super) fn recording_authority_from_runtime(
     owner: &TaskOwner,
 ) -> Result<RecordingReadAuthority, String> {
     Ok(RecordingReadAuthority::new(
-        PrincipalId::new(owner.principal_key.clone()).map_err(|error| error.to_string())?,
+        PrincipalId::parse(owner.principal_key.clone()).map_err(|error| error.to_string())?,
         match owner.principal_kind {
             veoveo_task_runtime::PrincipalKind::User => PrincipalKind::User,
             veoveo_task_runtime::PrincipalKind::Service => PrincipalKind::Service,
         },
-        TokenIssuer::new(owner.issuer.clone()).map_err(|error| error.to_string())?,
-        TokenSubject::new(owner.subject.clone()).map_err(|error| error.to_string())?,
+        TokenIssuer::parse(owner.issuer.clone()).map_err(|error| error.to_string())?,
+        TokenSubject::parse(owner.subject.clone()).map_err(|error| error.to_string())?,
         owner
             .tenant_key
             .clone()
-            .map(TenantId::new)
+            .map(TenantId::parse)
             .transpose()
             .map_err(|error| error.to_string())?,
         owner
             .data_labels
             .iter()
             .cloned()
-            .map(DataLabelId::new)
+            .map(DataLabelId::parse)
             .collect::<Result<BTreeSet<_>, _>>()
             .map_err(|error| error.to_string())?,
     ))

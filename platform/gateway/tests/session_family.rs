@@ -16,20 +16,20 @@ async fn session_binding_survives_rotation_and_rejects_cross_replica_revocation(
     let db = fixture::TestDb::new().await;
     let first = GatewayState::new(db.a.clone());
     let second = GatewayState::new(db.b.clone());
-    let profile = GatewayProfileId::new("operator").unwrap();
-    let authorization_server = AuthorizationServerId::new("veoveo").unwrap();
-    let client = OAuthClientId::new("console").unwrap();
-    let context = WorkContextId::new("mission").unwrap();
+    let profile = GatewayProfileId::parse("operator").unwrap();
+    let authorization_server = AuthorizationServerId::parse("veoveo").unwrap();
+    let client = OAuthClientId::parse("console").unwrap();
+    let context = WorkContextId::parse("mission").unwrap();
     let principal = Principal {
-        id: PrincipalId::new("https://identity.example#one").unwrap(),
+        id: PrincipalId::parse("https://identity.example#one").unwrap(),
         kind: PrincipalKind::User,
-        issuer: TokenIssuer::new("https://identity.example").unwrap(),
-        subject: TokenSubject::new("one").unwrap(),
-        tenant: Some(TenantId::new("tenant-a").unwrap()),
+        issuer: TokenIssuer::parse("https://identity.example").unwrap(),
+        subject: TokenSubject::parse("one").unwrap(),
+        tenant: Some(TenantId::parse("tenant-a").unwrap()),
         groups: BTreeSet::new(),
         group_roles: BTreeSet::new(),
         roles: BTreeSet::new(),
-        scopes: BTreeSet::from([ScopeName::new("operator:use").unwrap()]),
+        scopes: BTreeSet::from([ScopeName::parse("operator:use").unwrap()]),
         data_labels: BTreeSet::new(),
         assurances: BTreeSet::new(),
         authenticated_at: None,
@@ -54,17 +54,17 @@ async fn session_binding_survives_rotation_and_rejects_cross_replica_revocation(
             .unwrap();
         let token = AccessTokenSubject {
             managed_execution: None,
-            issuer: TokenIssuer::new("https://veoveo.example").unwrap(),
+            issuer: TokenIssuer::parse("https://veoveo.example").unwrap(),
             subject: principal.subject.clone(),
             oauth_client_id: client.clone(),
             session_family: Some(issued.grant.family_id.clone()),
-            audience: ProtectedResourceId::new("https://veoveo.example/mcp/operator").unwrap(),
+            audience: ProtectedResourceId::parse("https://veoveo.example/mcp/operator").unwrap(),
             work_context: context.clone(),
             invocation_mode: InvocationMode::Direct,
             initiator: Some(principal.id.clone()),
             delegation_id: None,
             scopes: principal.scopes.clone(),
-            jwt_id: Some(JwtId::new("access-one").unwrap()),
+            jwt_id: Some(JwtId::parse("access-one").unwrap()),
             issued_at: now,
             not_before: None,
             expires_at: now + TimeDelta::minutes(15),
@@ -80,7 +80,7 @@ async fn session_binding_survives_rotation_and_rejects_cross_replica_revocation(
                 .unwrap()
         );
         let mut foreign = authenticated.clone();
-        foreign.subject = TokenSubject::new("two").unwrap();
+        foreign.subject = TokenSubject::parse("two").unwrap();
         assert!(
             !second
                 .access_token_session_valid(&profile, &authorization_server, &token, &foreign)
@@ -88,7 +88,7 @@ async fn session_binding_survives_rotation_and_rejects_cross_replica_revocation(
                 .unwrap()
         );
         foreign = authenticated.clone();
-        foreign.tenant = Some(TenantId::new("tenant-b").unwrap());
+        foreign.tenant = Some(TenantId::parse("tenant-b").unwrap());
         assert!(
             !second
                 .access_token_session_valid(&profile, &authorization_server, &token, &foreign)
@@ -98,7 +98,7 @@ async fn session_binding_survives_rotation_and_rejects_cross_replica_revocation(
         assert!(
             !second
                 .access_token_session_valid(
-                    &GatewayProfileId::new("other").unwrap(),
+                    &GatewayProfileId::parse("other").unwrap(),
                     &authorization_server,
                     &token,
                     &authenticated
@@ -110,7 +110,7 @@ async fn session_binding_survives_rotation_and_rejects_cross_replica_revocation(
             !second
                 .access_token_session_valid(
                     &profile,
-                    &AuthorizationServerId::new("other").unwrap(),
+                    &AuthorizationServerId::parse("other").unwrap(),
                     &token,
                     &authenticated
                 )
@@ -120,10 +120,10 @@ async fn session_binding_survives_rotation_and_rejects_cross_replica_revocation(
         for mismatch in ["client", "context", "scope"] {
             let mut bad = token.clone();
             match mismatch {
-                "client" => bad.oauth_client_id = OAuthClientId::new("other").unwrap(),
-                "context" => bad.work_context = WorkContextId::new("other").unwrap(),
+                "client" => bad.oauth_client_id = OAuthClientId::parse("other").unwrap(),
+                "context" => bad.work_context = WorkContextId::parse("other").unwrap(),
                 _ => {
-                    bad.scopes.insert(ScopeName::new("admin:use").unwrap());
+                    bad.scopes.insert(ScopeName::parse("admin:use").unwrap());
                 }
             }
             assert!(

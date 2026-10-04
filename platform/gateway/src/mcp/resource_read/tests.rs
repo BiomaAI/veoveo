@@ -16,17 +16,19 @@ use veoveo_types::{ResourceScheme, ResourceUri, ServerSlug};
 
 fn projection() -> GatewayResourceProjection {
     GatewayResourceProjection {
-        server: ServerSlug::new("time").unwrap(),
+        server: ServerSlug::parse("time").unwrap(),
         gateway_uri: ResourceUri::new("time://docs/design").unwrap(),
         upstream_uri: ResourceUri::new("time://docs/design").unwrap(),
     }
 }
 fn observation() -> Observation {
-    let descriptor =
-        knowledge::docs::collection(&projection().server, &ResourceScheme::new("time").unwrap());
+    let descriptor = knowledge::docs::collection(
+        &projection().server,
+        &ResourceScheme::parse("time").unwrap(),
+    );
     Observation::builder(
         descriptor.collection().clone(),
-        Revision::new("source-revision").unwrap(),
+        Revision::parse("source-revision").unwrap(),
         knowledge::content_digest("source content"),
         chrono::Utc::now(),
     )
@@ -39,7 +41,10 @@ fn result(meta: &rmcp::model::RequestMetaObject) -> ReadResourceResult {
         "text/plain",
         "source content".into(),
         observation(),
-        &knowledge::docs::collection(&projection().server, &ResourceScheme::new("time").unwrap()),
+        &knowledge::docs::collection(
+            &projection().server,
+            &ResourceScheme::parse("time").unwrap(),
+        ),
         Some(meta),
     )
     .unwrap()
@@ -57,7 +62,7 @@ fn source_validation_rejects_forged_bytes_owner_and_unsolicited_observations() {
     );
     assert!(validate_source_read(&valid, &projection(), None, false).is_err());
     let mut wrong_owner = projection();
-    wrong_owner.server = ServerSlug::new("map").unwrap();
+    wrong_owner.server = ServerSlug::parse("map").unwrap();
     assert!(validate_source_read(&valid, &wrong_owner, None, true).is_err());
     let mut changed = valid;
     changed.contents = vec![rmcp::model::ResourceContents::text(
@@ -455,7 +460,7 @@ async fn indexing_gate_binds_approval_enumeration_members_and_revocation() {
         let observation = |labels: Vec<veoveo_types::DataLabelId>| {
             Observation::builder(
                 registration.descriptor.collection().clone(),
-                Revision::new("v1").unwrap(),
+                Revision::parse("v1").unwrap(),
                 knowledge::content_digest("record"),
                 chrono::Utc::now(),
             )

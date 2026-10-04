@@ -29,14 +29,14 @@ async fn admitted(
     subject: AuthenticatedSubject,
 ) -> Result<Authorized, Fault> {
     let catalog = state.catalog.current();
-    let server = ServerSlug::new("speech").expect("static server");
+    let server = ServerSlug::parse("speech").expect("static server");
     let (_, _, manifest) = catalog
         .profile_server(&route.profile, &server)
         .ok_or_else(Fault::missing)?;
     let manifest = manifest.clone();
     let (target, actions) = route.authorization();
     for &action in actions {
-        let trace = contract::TraceId::new(subject.audit.trace_id.to_string()).expect("UUID trace");
+        let trace = contract::TraceId::parse(&subject.audit.trace_id).expect("UUID trace");
         let mut decision = catalog.decide(PolicyRequest {
             principal: &subject.principal,
             profile: &route.profile,

@@ -38,7 +38,7 @@ fn agent_control_actions_are_gateway_scoped() {
         .validate(&crate::catalog_fixture::registry())
         .expect("agent control is an explicit gateway policy surface");
 
-    config.policies[0].rules[0].servers = BTreeSet::from([ServerSlug::new("media").unwrap()]);
+    config.policies[0].rules[0].servers = BTreeSet::from([ServerSlug::parse("media").unwrap()]);
     let error = config
         .validate(&crate::catalog_fixture::registry())
         .expect_err("agent control cannot inherit an MCP server filter");
@@ -72,7 +72,7 @@ fn agent_management_actions_are_explicit_gateway_permissions() {
         config
             .validate(&crate::catalog_fixture::registry())
             .expect("agent management is an explicit gateway policy surface");
-        config.policies[0].rules[0].servers = BTreeSet::from([ServerSlug::new("media").unwrap()]);
+        config.policies[0].rules[0].servers = BTreeSet::from([ServerSlug::parse("media").unwrap()]);
         let error = config
             .validate(&crate::catalog_fixture::registry())
             .expect_err("agent management cannot inherit server-scoped authority");

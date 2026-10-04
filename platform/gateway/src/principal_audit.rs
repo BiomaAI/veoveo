@@ -79,16 +79,16 @@ mod tests {
     #[test]
     fn principal_audit_metadata_projects_authz_attributes() {
         let principal = Principal {
-            id: PrincipalId::new("issuer#subject").unwrap(),
+            id: PrincipalId::parse("issuer#subject").unwrap(),
             kind: PrincipalKind::User,
-            issuer: TokenIssuer::new("issuer").unwrap(),
-            subject: TokenSubject::new("subject").unwrap(),
+            issuer: TokenIssuer::parse("issuer").unwrap(),
+            subject: TokenSubject::parse("subject").unwrap(),
             tenant: None,
-            groups: BTreeSet::from([GroupId::new("engineering").unwrap()]),
+            groups: BTreeSet::from([GroupId::parse("engineering").unwrap()]),
             group_roles: BTreeSet::new(),
-            roles: BTreeSet::from([RoleId::new("operator").unwrap()]),
-            scopes: BTreeSet::from([ScopeName::new("operator:use").unwrap()]),
-            data_labels: BTreeSet::from([DataLabelId::new("cui").unwrap()]),
+            roles: BTreeSet::from([RoleId::parse("operator").unwrap()]),
+            scopes: BTreeSet::from([ScopeName::parse("operator:use").unwrap()]),
+            data_labels: BTreeSet::from([DataLabelId::parse("cui").unwrap()]),
             assurances: BTreeSet::from([PrincipalAssurance::UsPerson]),
             authenticated_at: Some(Utc::now()),
         };

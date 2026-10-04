@@ -96,7 +96,7 @@ impl AutomationAuthority {
             return Err(ComputerError::Forbidden);
         }
         let target = crate::current_authority::execution_target(operation.action);
-        let trace = TraceId::new(operation.operation_id.to_string()).expect("UUID trace");
+        let trace = TraceId::parse(operation.operation_id.to_string()).expect("UUID trace");
         let evidence = crate::ExecutionDecision {
             control_revision: self.source_snapshot.control_revision.clone(),
             control_sha256: self.source_snapshot.control_sha256.clone(),
@@ -135,7 +135,7 @@ impl AutomationAuthority {
         transfer: veoveo_computers_contract::FileTransferId,
     ) -> Result<crate::files::FileDispatchDecision> {
         self.require_file_transfer()?;
-        let trace = TraceId::new(transfer.to_string()).expect("UUID trace");
+        let trace = TraceId::parse(transfer.to_string()).expect("UUID trace");
         Ok(crate::files::FileDispatchDecision {
             control_revision: self.source_snapshot.control_revision.clone(),
             control_sha256: self.source_snapshot.control_sha256.clone(),
@@ -178,10 +178,10 @@ impl AutomationAuthority {
             return Err(ComputerError::Forbidden);
         }
         let target = PolicyTarget::Tool {
-            server: ServerSlug::new("computers").expect("static server"),
-            tool: LocalToolName::new("execute").expect("static tool"),
+            server: ServerSlug::parse("computers").expect("static server"),
+            tool: LocalToolName::parse("execute").expect("static tool"),
         };
-        let trace = TraceId::new(execution.to_string()).expect("UUID trace");
+        let trace = TraceId::parse(execution.to_string()).expect("UUID trace");
         Ok(crate::commands::CommandDispatchDecision {
             control_revision: self.source_snapshot.control_revision.clone(),
             control_sha256: self.source_snapshot.control_sha256.clone(),
@@ -334,10 +334,10 @@ pub(super) fn owned(
 pub(super) fn require_tool(snapshot: &AuthoritySnapshot, tool: &str) -> Result<()> {
     snapshot.check_fresh()?;
     let target = PolicyTarget::Tool {
-        server: ServerSlug::new("computers").expect("static server"),
-        tool: LocalToolName::new(tool).expect("static tool"),
+        server: ServerSlug::parse("computers").expect("static server"),
+        tool: LocalToolName::parse(tool).expect("static tool"),
     };
-    let trace = TraceId::new(Uuid::now_v7().to_string()).expect("UUID trace");
+    let trace = TraceId::parse(Uuid::now_v7().to_string()).expect("UUID trace");
     if !snapshot
         .membership
         .allows(WorkContextMembershipLevel::Contributor)
@@ -360,10 +360,10 @@ pub(super) fn require_permission(
     }
     snapshot.check_fresh()?;
     let target = PolicyTarget::Resource {
-        server: ServerSlug::new("computers").expect("static server"),
+        server: ServerSlug::parse("computers").expect("static server"),
         uri: ResourceUri::new(crate::api::computer_uri(computer)).expect("Computer URI"),
     };
-    let trace = TraceId::new(Uuid::now_v7().to_string()).expect("UUID trace");
+    let trace = TraceId::parse(Uuid::now_v7().to_string()).expect("UUID trace");
     if snapshot
         .decision(GatewayAction::ResourcesRead, &target, &trace)
         .effect
@@ -589,7 +589,7 @@ impl ComputersStore {
         let mut params = crate::store::owner_query_bindings(&retained)?;
         params.extend([
             ("computer", computer_record(computer_id).into_value()),
-            ("provider", grant.provider.into_uuid().into_value()),
+            ("provider", grant.provider.as_uuid().into_value()),
             ("owner_key", grant.owner_key.clone().into_value()),
             ("admission_end", admission_end.into_value()),
         ]);

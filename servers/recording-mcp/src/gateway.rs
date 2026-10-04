@@ -58,7 +58,7 @@ mod tests {
             sha256: "a".repeat(64),
             source: GatewayControlPlaneRevisionSource::SeedFile,
             applied_at: chrono::Utc::now(),
-            applied_by: PrincipalId::new("fixture-admin").unwrap(),
+            applied_by: PrincipalId::parse("fixture-admin").unwrap(),
             tenant: None,
             control_plane,
         };
@@ -138,7 +138,7 @@ mod tests {
         let mut configuration: GatewayControlPlane =
             serde_json::from_str(include_str!("../../../configs/gateway.smoke.json")).unwrap();
         assert_eq!(section(&configuration).0.len(), 1);
-        let installation_scope = ScopeName::new("installation:producer").unwrap();
+        let installation_scope = ScopeName::parse("installation:producer").unwrap();
         mutate_section(&mut configuration, |section| {
             section.0[0]
                 .required_scopes

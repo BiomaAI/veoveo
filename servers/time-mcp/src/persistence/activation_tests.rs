@@ -17,7 +17,7 @@ async fn time_authority_activation_retires_the_previous_release_atomically() {
             .await
             .unwrap();
         let store = TimePersistence::new(db.b.clone());
-        let source_key = TimeSourceId::new(format!("time-source-{}", Uuid::now_v7())).unwrap();
+        let source_key = TimeSourceId::parse(format!("time-source-{}", Uuid::now_v7())).unwrap();
         store
             .create_time_source(TimeSourceDraft {
                 identity: identity.clone(),
@@ -49,7 +49,7 @@ async fn time_authority_activation_retires_the_previous_release_atomically() {
             };
 
         let first_key =
-            AuthorityReleaseId::new(format!("time-release-{}", Uuid::now_v7())).unwrap();
+            AuthorityReleaseId::parse(format!("time-release-{}", Uuid::now_v7())).unwrap();
         store
             .create_time_authority_release(create_release(first_key.clone(), "a".repeat(64)))
             .await
@@ -67,7 +67,7 @@ async fn time_authority_activation_retires_the_previous_release_atomically() {
         assert_eq!(first.state, TimeAuthorityReleaseState::Active);
 
         let second_key =
-            AuthorityReleaseId::new(format!("time-release-{}", Uuid::now_v7())).unwrap();
+            AuthorityReleaseId::parse(format!("time-release-{}", Uuid::now_v7())).unwrap();
         store
             .create_time_authority_release(create_release(second_key.clone(), "b".repeat(64)))
             .await
@@ -104,9 +104,10 @@ async fn time_authority_activation_retires_the_previous_release_atomically() {
             Some(first_key.as_str())
         );
         assert_eq!(pointer.record_version.get(), 2);
-        let left_key = AuthorityReleaseId::new(format!("time-release-{}", Uuid::now_v7())).unwrap();
+        let left_key =
+            AuthorityReleaseId::parse(format!("time-release-{}", Uuid::now_v7())).unwrap();
         let right_key =
-            AuthorityReleaseId::new(format!("time-release-{}", Uuid::now_v7())).unwrap();
+            AuthorityReleaseId::parse(format!("time-release-{}", Uuid::now_v7())).unwrap();
         for (key, digest) in [(&left_key, "c"), (&right_key, "d")] {
             store
                 .create_time_authority_release(create_release(key.clone(), digest.repeat(64)))
@@ -176,7 +177,7 @@ async fn time_authority_activation_retires_the_previous_release_atomically() {
             .check()
             .unwrap();
         let candidate =
-            AuthorityReleaseId::new(format!("time-release-{}", Uuid::now_v7())).unwrap();
+            AuthorityReleaseId::parse(format!("time-release-{}", Uuid::now_v7())).unwrap();
         store
             .create_time_authority_release(create_release(candidate.clone(), "e".repeat(64)))
             .await

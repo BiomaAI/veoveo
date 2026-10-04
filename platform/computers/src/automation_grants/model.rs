@@ -136,9 +136,9 @@ impl TryFrom<Record> for Grant {
         let grant_id = crate::api::AutomationGrantId::try_from(row.grant_id)
             .map_err(|_| ComputerError::Unavailable)?;
         let principal_id =
-            PrincipalId::new(row.principal_id).map_err(|_| ComputerError::Unavailable)?;
+            PrincipalId::parse(row.principal_id).map_err(|_| ComputerError::Unavailable)?;
         let oauth_client_id =
-            OAuthClientId::new(row.oauth_client_id).map_err(|_| ComputerError::Unavailable)?;
+            OAuthClientId::parse(row.oauth_client_id).map_err(|_| ComputerError::Unavailable)?;
         validate_fields(
             &row.name,
             &principal_id,

@@ -91,7 +91,7 @@ impl Fixture {
             !args.base_image.chars().any(char::is_whitespace),
             "fixture base image contains whitespace"
         );
-        ArtifactDigest::new(
+        ArtifactDigest::parse(
             args.base_image
                 .split_once('@')
                 .context("fixture base image must be digest-pinned")?
@@ -280,7 +280,7 @@ spec:
             digest: String,
         }
         let metadata: Metadata = serde_json::from_slice(&fs::read(metadata)?)?;
-        ArtifactDigest::new(&metadata.digest)?;
+        ArtifactDigest::parse(&metadata.digest)?;
         let first = targets.first().context("image build has no targets")?;
         let published = format!(
             "{}/{}/{first}@{}",
@@ -322,7 +322,7 @@ spec:
             runnable.len() == 1,
             "publication has no unique runnable linux/amd64 manifest"
         );
-        ArtifactDigest::new(&runnable[0].digest)?;
+        ArtifactDigest::parse(&runnable[0].digest)?;
         targets
             .iter()
             .map(|target| {
@@ -332,7 +332,7 @@ spec:
                         "{}/{}/{target}",
                         self.profile.definition.registry.pull_address, self.namespace
                     ),
-                    source_revision: SourceRevision::new(&revision)?,
+                    source_revision: SourceRevision::parse(&revision)?,
                     digest: runnable[0].digest.clone(),
                     publication_digest: metadata.digest.clone(),
                 })

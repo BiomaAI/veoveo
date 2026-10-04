@@ -727,15 +727,15 @@ mod tests {
 
     fn fake_world() -> SimulationWorldBinding {
         let revision_uri = FrameWorldRevisionUri::new(
-            &FrameWorldId::new("test-world").unwrap(),
-            &FrameWorldRevisionId::new("revision-1").unwrap(),
+            &FrameWorldId::parse("test-world").unwrap(),
+            &FrameWorldRevisionId::parse("revision-1").unwrap(),
         );
         SimulationWorldBinding {
             revision_uri: revision_uri.clone(),
             spec_sha256: "a".repeat(64),
             simulation_frame_uri: WorldFrameUri::new(
                 &revision_uri,
-                &FrameId::new("isaac-world").unwrap(),
+                &FrameId::parse("isaac-world").unwrap(),
             ),
             georeference_origin: Wgs84Position {
                 latitude_degrees: 13.6929,
@@ -747,7 +747,7 @@ mod tests {
 
     fn fake_state() -> SimulationState {
         SimulationState {
-            session_id: SessionId::new("session-alpha").unwrap(),
+            session_id: SessionId::parse("session-alpha").unwrap(),
             lifecycle: SimulationLifecycle::Running,
             simulation_time_s: 1.0,
             physics_step: 250,
@@ -788,7 +788,7 @@ mod tests {
                 diagnostic: None,
             },
             cameras: vec![CameraState {
-                vehicle_id: VehicleId::new("uav-1").unwrap(),
+                vehicle_id: VehicleId::parse("uav-1").unwrap(),
                 entity_path: "/world/uav-sim/session-alpha/vehicle/uav-1/camera/down".to_owned(),
                 lifecycle: CameraLifecycle::Ready,
                 width: 640,
@@ -806,7 +806,7 @@ mod tests {
             live_cameras: Vec::new(),
             stream_products: Vec::new(),
             vehicles: vec![VehicleState {
-                vehicle_id: VehicleId::new("uav-1").unwrap(),
+                vehicle_id: VehicleId::parse("uav-1").unwrap(),
                 flight_state: VehicleFlightState::Standby,
                 wgs84: Wgs84Position {
                     latitude_degrees: 13.6929,
@@ -846,7 +846,7 @@ mod tests {
     #[test]
     fn fake_adapter_serializes_lifecycle_and_steps() {
         let mut adapter = FakeAdapter::new(fake_state());
-        let session_id = SessionId::new("session-alpha").unwrap();
+        let session_id = SessionId::parse("session-alpha").unwrap();
         adapter
             .command(&SimulationCommand::Pause(crate::contract::SessionRequest {
                 session_id: session_id.clone(),
@@ -870,8 +870,8 @@ mod tests {
         adapter
             .command(&SimulationCommand::Takeoff(
                 crate::contract::TakeoffRequest {
-                    session_id: SessionId::new("session-alpha").unwrap(),
-                    vehicle_id: VehicleId::new("uav-1").unwrap(),
+                    session_id: SessionId::parse("session-alpha").unwrap(),
+                    vehicle_id: VehicleId::parse("uav-1").unwrap(),
                     relative_altitude_m: 10.0,
                 },
             ))

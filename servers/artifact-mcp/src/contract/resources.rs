@@ -7,7 +7,7 @@ use veoveo_types::{
 };
 
 static SCHEME: LazyLock<ResourceScheme> =
-    LazyLock::new(|| ResourceScheme::new("artifact").expect("declared scheme"));
+    LazyLock::new(|| ResourceScheme::parse("artifact").expect("declared scheme"));
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ArtifactDocument {

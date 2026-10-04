@@ -232,7 +232,7 @@ fn declared_templates_expand_to_the_owning_builders() {
 fn stream_declares_no_additional_domain_scopes() {
     use veoveo_types::ScopeName;
     for name in ["operator:use", "stream:read", "future:server:read"] {
-        assert!(StreamScope::try_from(&ScopeName::new(name).unwrap()).is_err());
+        assert!(StreamScope::try_from(&ScopeName::parse(name).unwrap()).is_err());
     }
 }
 

@@ -320,7 +320,7 @@ impl<D: DomainServer, Dep, Trust, H> HostedServerBuilder<D, Dep, Trust, H> {
     ) -> anyhow::Result<HostedServerBuilder<D, Dep, Provided<Arc<GatewayInternalTokenVerifier>>, H>>
     {
         let verifier = GatewayInternalTokenVerifier::new(
-            TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
+            TokenIssuer::parse(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
             D::Contract::slug(),
             trust,
         );

@@ -311,7 +311,7 @@ mod tests {
             access_expires_at: 42,
             refresh_token: "secret-refresh-token".to_owned(),
             refresh_expires_at: 84,
-            granted_scopes: [ScopeName::new("operator:use").unwrap()]
+            granted_scopes: [ScopeName::parse("operator:use").unwrap()]
                 .into_iter()
                 .collect(),
             csrf_token: "csrf-token".to_owned(),
@@ -325,7 +325,7 @@ mod tests {
         assert!(
             decoded
                 .granted_scopes
-                .contains(&ScopeName::new("operator:use").unwrap())
+                .contains(&ScopeName::parse("operator:use").unwrap())
         );
 
         let mut bytes = URL_SAFE_NO_PAD.decode(encoded).unwrap();
@@ -345,7 +345,7 @@ mod tests {
             access_expires_at: 100,
             refresh_token: "refresh".to_owned(),
             refresh_expires_at: 200,
-            granted_scopes: [ScopeName::new("operator:use").unwrap()]
+            granted_scopes: [ScopeName::parse("operator:use").unwrap()]
                 .into_iter()
                 .collect(),
             csrf_token: "csrf".to_owned(),

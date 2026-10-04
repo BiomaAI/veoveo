@@ -51,12 +51,11 @@ impl DeferredToolResolver for BackgroundTaskResolver {
                     self.backend_type
                 )));
             }
-            let task_id =
-                CanonicalTaskId::new(descriptor.execution_id().to_owned()).map_err(|error| {
-                    ToolExecutionError::invalid_args(format!(
-                        "deferred descriptor has a non-canonical task id: {error}"
-                    ))
-                })?;
+            let task_id = CanonicalTaskId::parse(descriptor.execution_id()).map_err(|error| {
+                ToolExecutionError::invalid_args(format!(
+                    "deferred descriptor has a non-canonical task id: {error}"
+                ))
+            })?;
             Ok(DeferredToolHandle::new(
                 descriptor.clone(),
                 BackgroundTaskDriver { task_id },

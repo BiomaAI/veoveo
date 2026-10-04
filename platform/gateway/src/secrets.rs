@@ -424,12 +424,12 @@ mod tests {
 
     fn secret(source: SecretSource, purpose: SecretPurpose) -> SecretReference {
         SecretReference {
-            id: SecretReferenceId::new("test_secret").unwrap(),
+            id: SecretReferenceId::parse("test_secret").unwrap(),
             source,
             purpose,
-            locator: SecretLocator::new("VEOVEO_TEST_SECRET_RESOLVER_VALUE").unwrap(),
+            locator: SecretLocator::parse("VEOVEO_TEST_SECRET_RESOLVER_VALUE").unwrap(),
             owner: SecretOwner::Server {
-                server: ServerSlug::new("media").unwrap(),
+                server: ServerSlug::parse("media").unwrap(),
             },
             rotation_hint: None,
             metadata: Value::Null,
@@ -438,7 +438,7 @@ mod tests {
 
     fn vault_secret(locator: &str) -> SecretReference {
         let mut secret = secret(SecretSource::Vault, SecretPurpose::OAuthClientSecret);
-        secret.locator = SecretLocator::new(locator).unwrap();
+        secret.locator = SecretLocator::parse(locator).unwrap();
         secret
     }
 
@@ -485,7 +485,7 @@ mod tests {
         assert_eq!(
             err,
             SecretResolverError::UnsupportedSource {
-                id: SecretReferenceId::new("test_secret").unwrap(),
+                id: SecretReferenceId::parse("test_secret").unwrap(),
                 source: SecretSource::CloudSecretManager,
             }
         );

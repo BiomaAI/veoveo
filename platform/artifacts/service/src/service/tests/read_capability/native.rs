@@ -12,7 +12,7 @@ async fn artifact_read_delegation_survives_service_recreation_and_enforces_nativ
     alice
         .memberships
         .insert(veoveo_mcp_contract::GroupMembership {
-            group: veoveo_types::GroupId::new("readers").unwrap(),
+            group: veoveo_types::GroupId::parse("readers").unwrap(),
             role: veoveo_mcp_contract::GroupRole::Read,
         });
     let context_id = context(&store, &alice).await;

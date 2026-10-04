@@ -124,7 +124,7 @@ fn generate(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
             fn name(self) -> &'static ::veoveo_types::ScopeName {
                 match self { #(Self::#variants => {
                     static NAME: ::std::sync::LazyLock<::veoveo_types::ScopeName> = ::std::sync::LazyLock::new(||
-                        ::veoveo_types::ScopeName::new(#spellings).expect("invalid declared scope"));
+                        ::veoveo_types::ScopeName::parse(#spellings).expect("invalid declared scope"));
                     &NAME
                 }),* }
             }
@@ -150,7 +150,7 @@ fn generate(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
     });
     let (parse, wire) = if scope {
         (
-            quote! { Self::try_from(&::veoveo_types::ScopeName::new(value)?) },
+            quote! { Self::try_from(&::veoveo_types::ScopeName::parse(value)?) },
             quote! {
                 impl ::serde::Serialize for #name {
                     fn serialize<S: ::serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {

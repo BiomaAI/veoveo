@@ -85,7 +85,7 @@ Component designs live beside the code whose contract they specify:
 | [`platform/modules/DESIGN.md`](../platform/modules/DESIGN.md) | dependency-free checked module ownership declarations and installation identities, generated composition plans, and optional SurrealQL admission/native lane execution |
 | [`platform/store/src/changefeed/DESIGN.md`](../platform/store/src/changefeed/DESIGN.md) | checked owner observation declarations, LIVE invalidation, complete transaction replay and consumer checkpoints |
 | [`platform/workspace/DESIGN.md`](../platform/workspace/DESIGN.md) | lightweight Workspace DTOs, separately gated native App envelopes, gateway services and schema ownership; persistence extraction remains planned |
-| [`platform/macros/DESIGN.md`](../platform/macros/DESIGN.md) | shared `Id`, `ResourceAddress` and `Vocabulary` derives and compile-time UTF-8 document hashing; owner admission, wire/schema profiles and consumer-only database delegation |
+| [`platform/macros/DESIGN.md`](../platform/macros/DESIGN.md) | shared `id` and `resource_address` attributes, the `Vocabulary` derive and compile-time UTF-8 document hashing; compact owner profiles, typed admission and consumer-only database delegation |
 | [`platform/types/DESIGN.md`](../platform/types/DESIGN.md) | protocol-independent identity and attribution, installation and agent names, authentication vocabulary and issuer/subject identities, scope names, resource references, URI component parsing and builders, lexical selectors shared by policy and SQL admission, validation errors, and public extension traits |
 | [`platform/runtimes/duckdb/DESIGN.md`](../platform/runtimes/duckdb/DESIGN.md) | shared analytical sandbox, typed HTTPS materialization, network policy and query limits |
 | [`mcp/conformance/DESIGN.md`](../mcp/conformance/DESIGN.md) | typed domain-neutral hosted-server certification profiles, reports, standalone distribution, live knowledge checks and typed owner change/restart and search probes |
@@ -468,14 +468,16 @@ and server library features.
 policies own DNS and access checks.
 `src/vocabulary.rs` owns the public closed-spelling trait and scope-token/schema helpers.
 `src/id.rs` owns the open `Identity` admission and text-exposure trait.
-`platform/macros/src/id.rs` implements the re-exported `Id` derive with owner
-admission, String mechanics, generation and optional schema hooks. The foundation
-contains no domain-form registry or database adapter.
+`src/id_profile.rs` owns public admission, generation and wire/schema profiles.
+`platform/macros/src/id_frontend.rs` parses the re-exported `id` attribute and selects
+standard derives; `id.rs` emits identity trait delegation. The foundation contains no
+domain registry or database adapter.
 `src/resource_route.rs` owns component route descriptors, checked discovery and the
 open scalar/tail codec traits. `src/resource_route/pattern.rs` supplies encoding-aware
-structural patterns. `platform/macros/src/resource_address.rs` and
-`resource_address/declaration.rs` compile struct/enum route declarations, concrete
-constructor helpers, accessors and owner hooks; independent address implementations
+structural patterns. `src/resource_profile.rs` supplies owner error/schema profiles.
+`platform/macros/src/resource_address_frontend.rs` parses compact address forms;
+`resource_address.rs` and `resource_address/declaration.rs` compile routes,
+constructor helpers, accessors and owner hooks. Independent address implementations
 keep the ordinary trait. Public template constants come from those same declarations.
 The re-exported `Vocabulary` derive lives in `platform/macros`. `src/digest.rs` owns the
 prefixed SHA-256 representation shared by provenance contracts. `src/sha256_hex.rs`

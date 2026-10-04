@@ -21,7 +21,7 @@ fn typed_builders_cover_neutral_independent_and_standard_schemes() {
         "ws",
         "wss",
     ] {
-        let scheme = ResourceScheme::new(name).unwrap();
+        let scheme = ResourceScheme::parse(name).unwrap();
         let uri = ArtifactUri::presented(&scheme, id);
         assert_eq!(uri.as_str(), format!("{name}://artifact/{ID}"));
         assert_eq!(uri.artifact_id(), id);
@@ -144,7 +144,7 @@ fn metadata_identity_is_derived_and_conflicting_wire_identity_is_rejected() {
         "created_at": "2026-09-27T00:00:00Z"
     });
     let metadata: ArtifactMetadata = serde_json::from_value(wire.clone()).unwrap();
-    let scheme = ResourceScheme::new("independent-domain").unwrap();
+    let scheme = ResourceScheme::parse("independent-domain").unwrap();
     let presented = metadata.presented_under_scheme(&scheme);
     assert_eq!(presented.artifact_id(), ArtifactId::parse(ID).unwrap());
     let encoded = serde_json::to_value(&presented).unwrap();

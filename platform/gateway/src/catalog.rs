@@ -480,9 +480,9 @@ impl GatewayCatalog {
                         InvocationMode::Delegated,
                     ));
                 }
-                let subject = TokenSubject::new(client.id.as_str())
+                let subject = TokenSubject::parse(client.id.as_str())
                     .map_err(|_| GatewayAuthorityError::InvalidActorIdentity)?;
-                let actor_id = PrincipalId::new(format!("{}#{subject}", access_token.issuer))
+                let actor_id = PrincipalId::parse(format!("{}#{subject}", access_token.issuer))
                     .map_err(|_| GatewayAuthorityError::InvalidActorIdentity)?;
                 (
                     Principal {

@@ -280,7 +280,7 @@ fn immutable_render_source_inputs_and_complete_inventory_must_match_lock() {
     let requested = BTreeSet::from([id("platform")]);
     let observations = observed(&platform);
     let mut renders = prepared(&platform);
-    renders[0].source.revision = SourceRevision::new("b".repeat(40)).unwrap();
+    renders[0].source.revision = SourceRevision::parse("b".repeat(40)).unwrap();
     assert_error(
         component_mutation_plan(&catalog, &requested, &renders, &observations),
         "source differs",

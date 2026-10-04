@@ -14,12 +14,12 @@ fn scope(
     labels: &[&str],
 ) -> FrameOperationScope {
     FrameOperationScope::new(
-        PrincipalId::new(principal).unwrap(),
-        tenant.map(|t| TenantId::new(t).unwrap()),
-        GatewayProfileId::new(profile).unwrap(),
+        PrincipalId::parse(principal).unwrap(),
+        tenant.map(|t| TenantId::parse(t).unwrap()),
+        GatewayProfileId::parse(profile).unwrap(),
         labels
             .iter()
-            .map(|s| DataLabelId::new(*s).unwrap())
+            .map(|s| DataLabelId::parse(*s).unwrap())
             .collect(),
     )
 }
@@ -93,7 +93,7 @@ async fn direct_operations_enforce_sql_authority_and_immutable_concurrent_replay
         let mut oversized = caller.clone();
         oversized
             .clearance
-            .insert(DataLabelId::new("x".repeat(257)).unwrap());
+            .insert(DataLabelId::parse("x".repeat(257)).unwrap());
         assert!(
             a.record_operation(&oversized, None, &provenance())
                 .await
@@ -136,7 +136,7 @@ async fn direct_operations_enforce_sql_authority_and_immutable_concurrent_replay
         let mut cleared = caller.clone();
         cleared
             .clearance
-            .insert(DataLabelId::new("secret").unwrap());
+            .insert(DataLabelId::parse("secret").unwrap());
         assert!(b.get_operation(&cleared, uri).await.unwrap().is_some());
         // SQL must discard a denied record without trying to decode its provenance.
         db.a.client()
@@ -298,7 +298,7 @@ async fn operation_schema_requires_profile_authority() {
 #[test]
 fn persisted_operation_keys_require_uuid_v7() {
     assert!(
-        record_id(&CoordinateOperationId::new(format!("op-{}", uuid::Uuid::now_v7())).unwrap())
+        record_id(&CoordinateOperationId::parse(format!("op-{}", uuid::Uuid::now_v7())).unwrap())
             .is_some()
     );
     for key in [
@@ -306,7 +306,7 @@ fn persisted_operation_keys_require_uuid_v7() {
         "op-550e8400-e29b-41d4-a716-446655440000",
         "01950000-0000-7000-8000-000000000001",
     ] {
-        assert!(record_id(&CoordinateOperationId::new(key).unwrap()).is_none());
+        assert!(record_id(&CoordinateOperationId::parse(key).unwrap()).is_none());
     }
 }
 

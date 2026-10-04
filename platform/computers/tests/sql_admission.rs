@@ -6,7 +6,7 @@ use veoveo_platform_store::{OpenObject, RecordId};
 use veoveo_task_runtime::TaskOwner;
 
 fn record(id: ComputerId) -> RecordId {
-    RecordId::new("computer", surrealdb::types::Uuid::from(id.into_uuid()))
+    RecordId::new("computer", surrealdb::types::Uuid::from(id.as_uuid()))
 }
 async fn reserve(store: &ComputersStore, owner: &TaskOwner) -> ComputerId {
     store
@@ -146,7 +146,7 @@ async fn granted_pages_skip_denied_keys_without_decoding_private_rows_or_losing_
         retained["profile"] = serde_json::json!(42);
         replace_owner(&db, classified, retained).await;
         db.a.client().query("UPDATE ONLY $grant SET grantee_issuer = 'https://foreign.invalid', authority.request_context = 42;")
-            .bind(("grant", RecordId::new("computer_automation_grant", surrealdb::types::Uuid::from(wrong_grant.grant_id.into_uuid()))))
+            .bind(("grant", RecordId::new("computer_automation_grant", surrealdb::types::Uuid::from(wrong_grant.grant_id.as_uuid()))))
             .await.unwrap().check().unwrap();
         let control = store.control_authority(&agent).await.unwrap();
         for hidden in [classified, foreign] {
@@ -181,10 +181,10 @@ async fn current_owner_policy_is_resolved_before_decoding_granted_computer_state
             })
             .unwrap()
             .clone();
-        deny.id = veoveo_mcp_contract::PolicyRuleId::new("deny-alice-read").unwrap();
+        deny.id = veoveo_mcp_contract::PolicyRuleId::parse("deny-alice-read").unwrap();
         deny.effect = veoveo_mcp_contract::PolicyEffect::Deny;
         deny.principal_ids =
-            [veoveo_types::PrincipalId::new(owner.owner().principal_key.clone()).unwrap()].into();
+            [veoveo_types::PrincipalId::parse(owner.owner().principal_key.clone()).unwrap()].into();
         policy.policies[0].rules.push(deny);
         support::policy::install(&db.a, policy).await;
         let mut corrupt = serde_json::to_value(owner.owner()).unwrap();
@@ -228,7 +228,7 @@ async fn policy_replacement_and_logout_invalidate_an_already_resolved_owner_read
         let old = store.control_authority(&owner).await.unwrap();
         let mut policy = support::interactive::control();
         policy.policies[0].rules[0].id =
-            veoveo_mcp_contract::PolicyRuleId::new("replacement-action-policy").unwrap();
+            veoveo_mcp_contract::PolicyRuleId::parse("replacement-action-policy").unwrap();
         support::policy::install(&db.a, policy).await;
         assert!(matches!(
             store.read_computer_access(&owner, &old, computer).await,

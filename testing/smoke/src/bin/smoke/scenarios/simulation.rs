@@ -246,7 +246,7 @@ async fn simulation_certify_inner(
 ) -> Result<()> {
     let (base_coordinate, base_digest) = exact_oci_image("base image", base_image)?;
     let (overlay_coordinate, overlay_digest) = exact_oci_image("overlay image", overlay_image)?;
-    let source_revision = SourceRevision::new(source_revision)?;
+    let source_revision = SourceRevision::parse(source_revision)?;
     ensure!(
         timeout >= Duration::from_secs(120),
         "simulation certification timeout must allow at least 120 seconds"
@@ -272,7 +272,7 @@ async fn simulation_certify_inner(
     let build_lock: SimulationRuntimeBuildLock =
         serde_json::from_slice(&build_lock_bytes).context("decoding embedded simulation lock")?;
     build_lock.validate()?;
-    let build_lock_digest = ArtifactDigest::new(format!(
+    let build_lock_digest = ArtifactDigest::parse(format!(
         "sha256:{}",
         hex::encode(Sha256::digest(&build_lock_bytes))
     ))?;
@@ -321,8 +321,11 @@ async fn simulation_certify_inner(
     let sbom = inspect_attestation(&repository, base_image, "SBOM", transcript)?;
     let provenance = inspect_attestation(&repository, base_image, "Provenance", transcript)?;
     let attestations = SimulationAttestationEvidence {
-        sbom_digest: ArtifactDigest::new(format!("sha256:{}", hex::encode(Sha256::digest(&sbom))))?,
-        provenance_digest: ArtifactDigest::new(format!(
+        sbom_digest: ArtifactDigest::parse(format!(
+            "sha256:{}",
+            hex::encode(Sha256::digest(&sbom))
+        ))?,
+        provenance_digest: ArtifactDigest::parse(format!(
             "sha256:{}",
             hex::encode(Sha256::digest(&provenance))
         ))?,
@@ -585,7 +588,7 @@ fn exact_oci_image(field: &str, reference: &str) -> Result<(ArtifactCoordinate, 
         !repository.contains("://") && !repository.is_empty(),
         "{field} must be an OCI repository without a URL scheme"
     );
-    let digest = ArtifactDigest::new(digest)?;
+    let digest = ArtifactDigest::parse(digest)?;
     let coordinate = ArtifactCoordinate::new(format!("oci://{repository}@{digest}"))?;
     Ok((coordinate, digest))
 }

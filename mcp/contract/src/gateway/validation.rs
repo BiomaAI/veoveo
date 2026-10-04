@@ -1104,7 +1104,7 @@ fn validate_oauth_client_surface(
                 },
             );
         };
-        let Ok(server_slug) = ServerSlug::new(server_slug.to_string()) else {
+        let Ok(server_slug) = ServerSlug::parse(server_slug) else {
             return Err(
                 GatewayControlPlaneError::UnknownOAuthClientCompatibilityHelper {
                     client: client.id.clone(),
@@ -1112,7 +1112,7 @@ fn validate_oauth_client_surface(
                 },
             );
         };
-        let Ok(tool_name) = LocalToolName::new(tool_name.to_string()) else {
+        let Ok(tool_name) = LocalToolName::parse(tool_name) else {
             return Err(
                 GatewayControlPlaneError::UnknownOAuthClientCompatibilityHelper {
                     client: client.id.clone(),
@@ -1271,7 +1271,7 @@ pub(super) fn validate_oidc_client_registration(
     }
     if !client
         .scopes
-        .contains(&ScopeName::new("openid").expect("valid literal"))
+        .contains(&ScopeName::parse("openid").expect("valid literal"))
     {
         return Err(GatewayControlPlaneError::OidcClientMissingOpenIdScope(
             client.id.clone(),

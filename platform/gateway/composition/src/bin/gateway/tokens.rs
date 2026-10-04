@@ -117,9 +117,9 @@ pub(super) fn client_credentials_principal(
     tenant: &TenantId,
     scopes: &BTreeSet<ScopeName>,
 ) -> anyhow::Result<Principal> {
-    let subject = TokenSubject::new(client_id.as_str())?;
+    let subject = TokenSubject::parse(client_id.as_str())?;
     Ok(Principal {
-        id: PrincipalId::new(format!("{}#{subject}", authorization_server.issuer))?,
+        id: PrincipalId::parse(format!("{}#{subject}", authorization_server.issuer))?,
         kind: PrincipalKind::Service,
         issuer: authorization_server.issuer.clone(),
         subject,
@@ -159,7 +159,7 @@ pub(super) async fn issue_access_token(
     let expires_at = now
         .checked_add_signed(TimeDelta::seconds(ACCESS_TOKEN_TTL_SECONDS))
         .ok_or_else(|| anyhow!("access token expiration overflow"))?;
-    let jwt_id = JwtId::new(uuid::Uuid::new_v4().to_string())?;
+    let jwt_id = JwtId::parse(uuid::Uuid::new_v4().to_string())?;
     let scope = (!scopes.is_empty()).then(|| {
         scopes
             .iter()
@@ -261,7 +261,7 @@ mod tests {
     fn issued_access_token_debug_redacts_bearer_value() {
         let issued = IssuedAccessToken {
             access_token: "sensitive-access-token".to_owned(),
-            jwt_id: JwtId::new("test-jwt-id").unwrap(),
+            jwt_id: JwtId::parse("test-jwt-id").unwrap(),
         };
         let debug = format!("{issued:?}");
         assert!(debug.contains("[REDACTED]"));

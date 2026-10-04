@@ -22,7 +22,7 @@ impl Application {
             return Err(ApplicationError::Unavailable);
         }
         let binding = Binding::from_instance(
-            before.computer_id.into_uuid(),
+            before.computer_id.as_uuid(),
             before.instance_id(),
             before.template_fingerprint.clone(),
         )

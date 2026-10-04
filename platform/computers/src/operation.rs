@@ -57,7 +57,7 @@ pub struct Operation {
 impl Operation {
     pub fn instance_id(&self) -> Uuid {
         self.replacement_instance_id
-            .unwrap_or(self.computer_id.into_uuid())
+            .unwrap_or(self.computer_id.as_uuid())
     }
     pub fn task_id(&self) -> TaskId {
         self.operation_id

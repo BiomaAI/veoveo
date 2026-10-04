@@ -1,9 +1,8 @@
 //! Caller-owned usage pages and addresses, independent of Store and TaskRuntime.
-use std::fmt;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_types::{ResourceAddress, ResourceFieldCodec, ResourceUri, TaskId};
+use veoveo_types::{ResourceFieldCodec, ResourceUri, TaskId};
 
 pub const FRAME_USAGE_PAGE_SIZE: usize = 100;
 
@@ -65,7 +64,7 @@ impl FrameUsageCursor {
     /// Positions require native Tasks, never frame-world or operation IDs.
     /// ```compile_fail
     /// use veoveo_frames_contract::{FrameUsageCursor, FrameWorldId};
-    /// FrameUsageCursor::new(FrameWorldId::new("world").unwrap());
+    /// FrameUsageCursor::new(FrameWorldId::parse("world").unwrap());
     /// ```
     pub fn new(after: TaskId) -> Result<Self, FrameUsageError> {
         let cursor = veoveo_types::OpaqueCursor::try_new(FrameUsageCursorCodec, after)?;
@@ -93,69 +92,32 @@ impl From<FrameUsageCursor> for String {
     }
 }
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::ResourceAddress,
+#[veoveo_types::resource_address(
+    cached(FrameUsageErrorAddresses),
+    template = "frames://usage{?cursor}"
 )]
-#[serde(try_from = "String", into = "String")]
-#[resource(template="frames://usage{?cursor}", error=FrameUsageError, route_error=|_| FrameUsageError, wire)]
 pub struct FrameUsageIndexUri {
     #[resource(cache)]
     wire: ResourceUri,
-    #[resource(codec=UsageCursorCodec, error=|_| FrameUsageError)]
+    #[resource(codec=UsageCursorCodec, error=|_| FrameUsageError, accessor = cursor, argument = optional_borrowed)]
     cursor: Option<FrameUsageCursor>,
 }
 
 impl FrameUsageIndexUri {
     pub const ROOT: &str = Self::RESOURCE_ROOT;
     pub const TEMPLATE: &str = Self::RESOURCE_TEMPLATE;
-
-    pub fn new(cursor: Option<&FrameUsageCursor>) -> Self {
-        Self::resource_from_parts(cursor.cloned()).expect("typed usage index address")
-    }
-
-    pub fn parse(value: impl AsRef<str>) -> Result<Self, FrameUsageError> {
-        let uri = ResourceUri::new(value.as_ref()).map_err(|_| FrameUsageError)?;
-        <Self as ResourceAddress>::parse(&uri)
-    }
-
-    pub fn cursor(&self) -> Option<&FrameUsageCursor> {
-        self.cursor.as_ref()
-    }
-    pub fn as_str(&self) -> &str {
-        self.wire.as_str()
-    }
 }
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::ResourceAddress,
-)]
-#[serde(try_from = "String", into = "String")]
-#[resource(template="frames://usage/task/{task_id}", error=FrameUsageError, route_error=|_| FrameUsageError, wire)]
+#[veoveo_types::resource_address(cached_checked(FrameUsageErrorAddresses), template = "frames://usage/task/{task_id}", traits = cloned, schema = derived)]
 pub struct FrameTaskUsageUri {
     #[resource(cache)]
     wire: ResourceUri,
-    #[resource(codec=UsageTaskCodec, error=|_| FrameUsageError)]
+    #[resource(codec=UsageTaskCodec, error=|_| FrameUsageError, accessor = task_id, copy_accessor, admit = task_identity)]
     task_id: TaskId,
 }
 
 impl FrameTaskUsageUri {
     pub const TEMPLATE: &str = Self::RESOURCE_TEMPLATE;
-
-    pub fn new(task_id: TaskId) -> Result<Self, FrameUsageError> {
-        Self::resource_from_parts(task_identity(task_id)?)
-    }
-
-    pub fn parse(value: impl AsRef<str>) -> Result<Self, FrameUsageError> {
-        let uri = ResourceUri::new(value.as_ref()).map_err(|_| FrameUsageError)?;
-        <Self as ResourceAddress>::parse(&uri)
-    }
-
-    pub fn task_id(&self) -> TaskId {
-        self.task_id
-    }
-    pub fn as_str(&self) -> &str {
-        self.wire.as_str()
-    }
 }
 
 struct UsageCursorCodec;
@@ -176,16 +138,6 @@ impl ResourceFieldCodec<TaskId> for UsageTaskCodec {
     }
     fn text(value: &TaskId) -> std::borrow::Cow<'_, str> {
         value.to_string().into()
-    }
-}
-impl fmt::Display for FrameUsageIndexUri {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-impl fmt::Display for FrameTaskUsageUri {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
     }
 }
 
@@ -317,4 +269,14 @@ impl From<FrameUsagePage> for PageWire {
             next_cursor: value.next_cursor,
         }
     }
+}
+
+#[doc(hidden)]
+pub struct FrameUsageErrorAddresses;
+impl veoveo_types::ResourceProfile for FrameUsageErrorAddresses {
+    type Error = FrameUsageError;
+    const PROFILE: veoveo_types::ResourceProfileSpec<Self::Error> =
+        veoveo_types::ResourceProfileSpec {
+            route_error: |_, _| FrameUsageError,
+        };
 }

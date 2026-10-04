@@ -89,7 +89,7 @@ pub(super) async fn admission(
     let id = uuid::Uuid::now_v7();
     let mut audit = actor.identity.audit_context().unwrap();
     audit.authority.profile = Some("fixture".parse().unwrap());
-    audit.authority.policy_revision = Some(veoveo_types::PolicyVersion::new("r1").unwrap());
+    audit.authority.policy_revision = Some(veoveo_types::PolicyVersion::parse("r1").unwrap());
     platform::ArtifactUploadRecord {
         audit: platform::audit::AuditContextRecord(audit),
         id: platform::upload_record_id(id),

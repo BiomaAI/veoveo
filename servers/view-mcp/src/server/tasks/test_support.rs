@@ -54,7 +54,7 @@ pub(super) fn capture(identity: &GatewayInternalIdentity) -> ViewCaptureTaskRequ
         })
         .collect();
     let view = ViewRecord::new(
-        ViewId::new("view-1").unwrap(),
+        ViewId::parse("view-1").unwrap(),
         &record,
         data::camera(),
         data::now(),
@@ -84,7 +84,7 @@ pub(super) fn capture(identity: &GatewayInternalIdentity) -> ViewCaptureTaskRequ
 pub(super) fn completed(request: &ViewCaptureTaskRequest) -> serde_json::Value {
     use crate::contract::{test_support as data, *};
     let frame = CapturedFrame::builder(
-        FrameId::new("frame-1").unwrap(),
+        FrameId::parse("frame-1").unwrap(),
         request.snapshot().view(),
         request.snapshot().composition().record(),
         request.request().scene_time,

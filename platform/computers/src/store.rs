@@ -109,7 +109,7 @@ impl ComputersStore {
         params.extend([
             (
                 "after",
-                after.map(crate::api::ComputerId::into_uuid).into_value(),
+                after.map(crate::api::ComputerId::as_uuid).into_value(),
             ),
             ("limit", i64::from(limit + 1).into_value()),
         ]);

@@ -29,7 +29,7 @@ fn uri() -> RecordingUri {
 }
 fn state(catalog: RecordingCatalog) -> RecordingState {
     RecordingState {
-        recording_key: RecordingKey::new("producer-stream").unwrap(),
+        recording_key: RecordingKey::parse("producer-stream").unwrap(),
         catalog,
         active: true,
         publisher_lifecycle: RecordingPublisherLifecycle::Ready,

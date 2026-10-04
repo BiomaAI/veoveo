@@ -217,9 +217,9 @@ fn public_ids_and_commands_admit_the_existing_wire_profile() {
 #[test]
 fn contract_consumers_validate_live_product_geometry_and_secrets() {
     let mut product = LiveStreamProductState {
-        stream_product_id: LiveStreamProductId::new("atlas").unwrap(),
+        stream_product_id: LiveStreamProductId::parse("atlas").unwrap(),
         camera_regions: vec![LiveCameraRegion {
-            camera_id: LiveCameraId::new("follow").unwrap(),
+            camera_id: LiveCameraId::parse("follow").unwrap(),
             x_px: 0,
             y_px: 0,
             width_px: 640,
@@ -246,7 +246,7 @@ fn contract_consumers_validate_live_product_geometry_and_secrets() {
     );
     product.camera_regions[0].x_px = 1;
     assert!(!product.validate());
-    let token = LiveViewAccessToken::new("a".repeat(32)).unwrap();
+    let token = LiveViewAccessToken::parse("a".repeat(32)).unwrap();
     assert_eq!(format!("{token:?}"), "LiveViewAccessToken(<redacted>)");
     assert_eq!(token.expose_for_stream(), "a".repeat(32));
 }

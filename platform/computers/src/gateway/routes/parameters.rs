@@ -279,7 +279,7 @@ impl Operation {
         }
     }
     pub fn authorization(self) -> (PolicyTarget, &'static [RouteAction]) {
-        let server = ServerSlug::new("computers").expect("static server");
+        let server = ServerSlug::parse("computers").expect("static server");
         let tool = match self {
             Self::Create => Some("create"),
             Self::Start(_) => Some("start"),
@@ -295,7 +295,7 @@ impl Operation {
             return (
                 PolicyTarget::Tool {
                     server,
-                    tool: LocalToolName::new(tool).expect("static tool"),
+                    tool: LocalToolName::parse(tool).expect("static tool"),
                 },
                 &[RouteAction::Kernel(GatewayAction::ToolsCall)],
             );

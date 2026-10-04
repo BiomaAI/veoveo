@@ -193,9 +193,9 @@ async fn assert_download_admission(db: &fixture::TestDb) {
     let other_actor = identity("projection-query", "another-reader", &["operations"]);
     let other_tenant = identity("another-tenant", "foreign-reader", &["operations"]);
     let mut other_context = caller.clone();
-    other_context.authority.work_context = WorkContextId::new("another-context").unwrap();
+    other_context.authority.work_context = WorkContextId::parse("another-context").unwrap();
     let mut other_policy = caller.clone();
-    other_policy.authority.policy_revision = PolicyVersion::new("r2").unwrap();
+    other_policy.authority.policy_revision = PolicyVersion::parse("r2").unwrap();
     let mut no_clearance = caller.clone();
     no_clearance.actor.data_labels.clear();
     for (name, denied) in [

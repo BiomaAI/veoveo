@@ -38,10 +38,10 @@ pub fn collection(server: &ServerSlug, scheme: &ResourceScheme) -> CollectionDes
     CollectionDescriptor::new(
         CollectionId::new(
             server.clone(),
-            CollectionName::new("docs").expect("declared name"),
+            CollectionName::parse("docs").expect("declared name"),
         )
         .expect("server slug"),
-        EntityKind::new("document").expect("declared kind"),
+        EntityKind::parse("document").expect("declared kind"),
         ResourceTemplateUri::new(index_uri(scheme).to_string()).expect("docs URI"),
         Freshness::immutable(),
         ChangeSignal::Immutable,
@@ -101,7 +101,7 @@ pub fn observation(
 ) -> Observation {
     Observation::builder(
         collection.collection().clone(),
-        Revision::new(digest.as_str()).expect("digest revision"),
+        Revision::parse(digest.as_str()).expect("digest revision"),
         digest,
         observed_at,
     )

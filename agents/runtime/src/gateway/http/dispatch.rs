@@ -19,7 +19,7 @@ pub(super) async fn check(
 ) -> Result<StatusCode, Fault> {
     let forbidden = || Fault::status(StatusCode::FORBIDDEN);
     let catalog = state.catalog.current();
-    let profile = GatewayProfileId::new(profile).map_err(|_| forbidden())?;
+    let profile = GatewayProfileId::parse(profile).map_err(|_| forbidden())?;
     let profile = catalog.profile(&profile).ok_or_else(forbidden)?;
     authority::live_session(&state, profile, &subject).await?;
     let registry = state
@@ -28,7 +28,7 @@ pub(super) async fn check(
         .map_err(|_| forbidden())?;
     let key = registry
         .key::<crate::contract::ManagedAgentToken>(
-            &veoveo_types::ExtensionName::new(crate::contract::MANAGED_AGENT_CLAIM)
+            &veoveo_types::ExtensionName::parse(crate::contract::MANAGED_AGENT_CLAIM)
                 .map_err(|_| forbidden())?,
         )
         .map_err(|_| forbidden())?;

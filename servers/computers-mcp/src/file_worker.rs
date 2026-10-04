@@ -263,7 +263,7 @@ impl FileWorker {
         }
         .map_err(|_| FileWorkerError::Configuration)?;
         let binding = Binding::from_instance(
-            ticket.binding().computer_id.into_uuid(),
+            ticket.binding().computer_id.as_uuid(),
             ticket.binding().instance_id,
             ticket.binding().template_fingerprint.clone(),
         )

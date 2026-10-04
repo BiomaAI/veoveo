@@ -171,7 +171,7 @@ pub(super) fn access_reason(decision: AccessDecision) -> AuditReason {
 pub(super) fn share_context(link: ArtifactShareLinkId, stored: &StoredArtifact) -> AuditContext {
     AuditContext {
         actor: AuditActor {
-            principal: PrincipalId::new(ArtifactLedgerAddress::Share(link).uri().as_str())
+            principal: PrincipalId::parse(ArtifactLedgerAddress::Share(link).uri().as_str())
                 .expect("share identity is a checked private URI"),
             kind: AuditPrincipalKind::Capability,
             tenant: Some(stored.tenant.clone()),

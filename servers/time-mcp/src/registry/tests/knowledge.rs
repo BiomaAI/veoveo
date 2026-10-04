@@ -48,7 +48,7 @@ async fn authority_observations_and_pages_preserve_stored_tenant_provenance() {
             let mut copy = release.clone();
             copy.source_digest_sha256 = format!("{index:064x}").parse().unwrap();
             copy.release_id =
-                AuthorityReleaseId::new(format!("time-release-{}", Uuid::now_v7())).unwrap();
+                AuthorityReleaseId::parse(format!("time-release-{}", Uuid::now_v7())).unwrap();
             catalog.create_release(&owner, copy).await.unwrap();
         }
         let page = catalog.releases_page(&reader, None).await.unwrap();

@@ -20,7 +20,7 @@ impl ServerDocs {
         let entries = self
             .iter()
             .map(|doc| {
-                let id = DocumentId::new(doc.id)?;
+                let id = DocumentId::parse(doc.id)?;
                 Ok(knowledge::docs::DocumentEntry {
                     uri: knowledge::docs::member_uri(scheme, &id),
                     id,
@@ -44,7 +44,7 @@ impl ServerDocs {
                 "docs template does not match its scheme",
             ));
         }
-        let slug = ServerSlug::new(self.server())
+        let slug = ServerSlug::parse(self.server())
             .map_err(|_| knowledge::KnowledgeError("invalid document owner"))?;
         knowledge::server::attach_collection(template, &knowledge::docs::collection(&slug, scheme));
         Ok(())
@@ -103,7 +103,7 @@ impl ServerDocs {
                 let cursor = parts
                     .query_parameters()
                     .get("cursor")
-                    .map(|s| DocumentId::new(s.clone()))
+                    .map(|s| DocumentId::parse(s.clone()))
                     .transpose()
                     .map_err(|_| invalid(()))?;
                 let page = self
@@ -120,11 +120,11 @@ impl ServerDocs {
                 ])
             }
             [id] if !parts.has_query() => {
-                let id = DocumentId::new(id.as_ref()).map_err(|_| invalid(()))?;
+                let id = DocumentId::parse(id.as_ref()).map_err(|_| invalid(()))?;
                 let doc = self
                     .doc(id.as_str())
                     .ok_or_else(|| ErrorData::resource_not_found("unknown document", None))?;
-                let slug = ServerSlug::new(self.server())
+                let slug = ServerSlug::parse(self.server())
                     .map_err(|_| ErrorData::internal_error("invalid document owner", None))?;
                 let collection = knowledge::docs::collection(&slug, scheme);
                 let observation = knowledge::docs::observation(

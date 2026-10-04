@@ -134,7 +134,7 @@ pub(crate) async fn authorize_endpoint(
             "authorization request is invalid",
         );
     }
-    let client_id = match OAuthClientId::new(request.client_id.trim()) {
+    let client_id = match OAuthClientId::parse(request.client_id.trim()) {
         Ok(client_id) => client_id,
         Err(_) => {
             if let Err(err) = record_oidc_auth_audit(
@@ -207,7 +207,7 @@ pub(crate) async fn authorize_endpoint(
         );
     }
     let work_context = match request.work_context.as_deref() {
-        Some(value) => match WorkContextId::new(value.trim()) {
+        Some(value) => match WorkContextId::parse(value.trim()) {
             Ok(context) if catalog.work_context(&context).is_some() => context,
             _ => {
                 if let Err(err) = record_oidc_auth_audit(
@@ -264,7 +264,7 @@ pub(crate) async fn authorize_endpoint(
     let client_state = match request
         .state
         .as_deref()
-        .map(OAuthStateValue::new)
+        .map(OAuthStateValue::parse)
         .transpose()
     {
         Ok(state) => state,
@@ -321,7 +321,7 @@ pub(crate) async fn authorize_endpoint(
             );
         }
     };
-    let code_challenge = match PkceCodeChallenge::new(request.code_challenge.trim()) {
+    let code_challenge = match PkceCodeChallenge::parse(request.code_challenge.trim()) {
         Ok(challenge) if request.code_challenge_method == "S256" => challenge,
         _ => {
             if let Err(err) = record_oidc_auth_audit(

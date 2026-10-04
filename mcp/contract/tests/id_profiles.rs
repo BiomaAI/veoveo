@@ -10,21 +10,21 @@ use veoveo_types::{Identity, LocalToolName, ServerSlug};
 
 #[test]
 fn gateway_profiles_preserve_owner_admission_and_string_schemas() {
-    let provider = IdentityProviderId::new("enterprise-idp").unwrap();
+    let provider = IdentityProviderId::parse("enterprise-idp").unwrap();
     assert_eq!(provider.identity_text(), "enterprise-idp");
     assert_eq!(serde_json::to_value(&provider).unwrap(), "enterprise-idp");
-    assert!(IdentityProviderId::new("invalid/idp").is_err());
+    assert!(IdentityProviderId::parse("invalid/idp").is_err());
     assert!("invalid/idp".parse::<IdentityProviderId>().is_err());
     assert!(serde_json::from_str::<IdentityProviderId>(r#""invalid/idp""#).is_err());
 
     let tool = GatewayToolName::from_parts(
-        &ServerSlug::new("media").unwrap(),
-        &LocalToolName::new("render").unwrap(),
+        &ServerSlug::parse("media").unwrap(),
+        &LocalToolName::parse("render").unwrap(),
     )
     .unwrap();
     assert_eq!(tool.as_str(), "media__render");
-    assert!(CompatibilityHelperId::new("media.models").is_ok());
-    assert!(CompatibilityHelperId::new("media.models.extra").is_err());
+    assert!(CompatibilityHelperId::parse("media.models").is_ok());
+    assert!(CompatibilityHelperId::parse("media.models.extra").is_err());
 
     let schema = serde_json::to_value(schemars::schema_for!(IdentityProviderId)).unwrap();
     assert_eq!(schema["title"], "IdentityProviderId");
@@ -55,7 +55,7 @@ fn display_metadata_keeps_checked_text_without_becoming_an_identity() {
 
 #[test]
 fn deployment_ids_keep_owner_rules_and_nominal_types() {
-    let profile = DeploymentProfileId::new("connected_installation-1").unwrap();
+    let profile = DeploymentProfileId::parse("connected_installation-1").unwrap();
     assert_eq!(profile.identity_text(), "connected_installation-1");
     assert_eq!(profile.as_ref(), "connected_installation-1");
     assert_eq!(
@@ -69,12 +69,12 @@ fn deployment_ids_keep_owner_rules_and_nominal_types() {
         "connected_installation-1"
     );
     for value in ["", "Uppercase", "a/b", "padded "] {
-        assert!(DeploymentProfileId::new(value).is_err());
+        assert!(DeploymentProfileId::parse(value).is_err());
         assert!(value.parse::<DeploymentRequirementId>().is_err());
         assert!(serde_json::from_value::<DeploymentProfileId>(serde_json::json!(value)).is_err());
     }
     assert!(
-        DeploymentProfileId::new("Uppercase")
+        DeploymentProfileId::parse("Uppercase")
             .unwrap_err()
             .to_string()
             .starts_with("DeploymentProfileId ")
@@ -96,7 +96,7 @@ fn deployment_ids_keep_owner_rules_and_nominal_types() {
 #[test]
 fn refresh_tokens_expose_wire_text_and_redact_formatters() {
     let raw = "refresh_token_with_distinctive_wire_material_1234567890";
-    let token = OAuthRefreshToken::new(raw).unwrap();
+    let token = OAuthRefreshToken::parse(raw).unwrap();
     assert_eq!(token.as_str(), raw);
     assert_eq!(token.as_ref(), raw);
     assert_eq!(token.identity_text(), raw);
@@ -124,7 +124,7 @@ fn rejected_refresh_token_diagnostics_never_retain_input() {
         "distinctive_short_secret!",
     ] {
         let errors = [
-            OAuthRefreshToken::new(raw).unwrap_err(),
+            OAuthRefreshToken::parse(raw).unwrap_err(),
             raw.parse::<OAuthRefreshToken>().unwrap_err(),
             OAuthRefreshToken::try_from(raw.to_owned()).unwrap_err(),
             OAuthRefreshToken::parse_identity(raw).unwrap_err(),

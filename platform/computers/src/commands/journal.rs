@@ -35,10 +35,7 @@ impl ComputersStore {
         )?;
         params.extend([
             ("journal", super::record(id).into_value()),
-            (
-                "provider",
-                self.provider_instance_id.into_uuid().into_value(),
-            ),
+            ("provider", self.provider_instance_id.as_uuid().into_value()),
         ]);
         let started = Instant::now();
         let mut read = self
@@ -70,17 +67,14 @@ impl ComputersStore {
             ),
             (
                 "execution_id",
-                operation.execution_id().into_uuid().into_value(),
+                operation.execution_id().as_uuid().into_value(),
             ),
             (
                 "computer",
                 crate::model::computer_record(operation.computer_id()).into_value(),
             ),
             ("slot", super::slot(operation.computer_id()).into_value()),
-            (
-                "provider",
-                self.provider_instance_id.into_uuid().into_value(),
-            ),
+            ("provider", self.provider_instance_id.as_uuid().into_value()),
         ]);
         use veoveo_audit_contract::AuditReason;
         let failure = match event {

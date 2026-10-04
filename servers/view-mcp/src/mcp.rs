@@ -512,7 +512,7 @@ mod tests {
             .find(|tool| tool.name.as_ref() == "create_scene_composition")
             .expect("composition tool");
         let layer = LayerSummary {
-            layer_id: LayerId::new("google-photorealistic").unwrap(),
+            layer_id: LayerId::parse("google-photorealistic").unwrap(),
             label: "Google Photorealistic 3D Tiles".to_owned(),
             source_kind: "google_photorealistic".to_owned(),
         };
@@ -536,12 +536,12 @@ mod tests {
     #[test]
     fn unknown_layer_error_returns_exact_recovery_values() {
         let layers = [LayerSummary {
-            layer_id: LayerId::new("google-photorealistic").unwrap(),
+            layer_id: LayerId::parse("google-photorealistic").unwrap(),
             label: "Google Photorealistic 3D Tiles".to_owned(),
             source_kind: "google_photorealistic".to_owned(),
         }];
         let error = invalid_scene_composition_params(
-            ServiceError::LayerNotFound(LayerId::new("google").unwrap()),
+            ServiceError::LayerNotFound(LayerId::parse("google").unwrap()),
             &layers,
         );
         assert_eq!(error.code, rmcp::model::ErrorCode::INVALID_PARAMS);

@@ -16,7 +16,7 @@ use veoveo_artifact_contract::{ArtifactId, ArtifactMetadata, ArtifactUri};
 
 pub static ARTIFACT_SCHEME: std::sync::LazyLock<veoveo_types::ResourceScheme> =
     std::sync::LazyLock::new(|| {
-        veoveo_types::ResourceScheme::new("speech").expect("declared Speech scheme")
+        veoveo_types::ResourceScheme::parse("speech").expect("declared Speech scheme")
     });
 
 pub const MAX_SOURCE_BYTES: u64 = 2 * 1024 * 1024 * 1024;

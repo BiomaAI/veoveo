@@ -4,9 +4,9 @@
 //! ```compile_fail
 //! use veoveo_uav_sim_mcp::contract::{LiveCameraId, LiveViewerInstanceId, OpenLiveViewRequest};
 //! let request = OpenLiveViewRequest {
-//!     session_id: LiveCameraId::new("session").unwrap(),
-//!     camera_id: LiveCameraId::new("camera").unwrap(),
-//!     viewer_instance_id: LiveViewerInstanceId::new("browser").unwrap(),
+//!     session_id: LiveCameraId::parse("session").unwrap(),
+//!     camera_id: LiveCameraId::parse("camera").unwrap(),
+//!     viewer_instance_id: LiveViewerInstanceId::parse("browser").unwrap(),
 //! };
 //! ```
 mod world_binding;
@@ -34,29 +34,6 @@ use serde::{Deserialize, Serialize};
 pub use veoveo_frames_mcp::contract::Wgs84Position;
 use veoveo_frames_mcp::contract::{FrameWorldRevision, FrameWorldRevisionUri, WorldFrameUri};
 use veoveo_map_mcp::contract::{MapMobilityProfileUri, MapRouteHandoff};
-
-fn validate_id(value: &str) -> Result<(), IdentityError> {
-    if matches!(value, "." | "..") {
-        return Err(IdentityError::new(
-            value,
-            "must not be a relative path segment",
-        ));
-    }
-    if value.is_empty() || value.len() > 128 {
-        return Err(IdentityError::new(value, "must be 1 to 128 characters"));
-    }
-    if value
-        .chars()
-        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '.'))
-    {
-        Ok(())
-    } else {
-        Err(IdentityError::new(
-            value,
-            "must contain only ASCII letters, digits, underscore, dash, or dot",
-        ))
-    }
-}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct IdentityError {
@@ -86,106 +63,22 @@ impl fmt::Display for IdentityError {
 impl std::error::Error for IdentityError {}
 
 #[doc = "Stable identity of one isolated simulation world."]
-#[derive(
-    veoveo_types::Id,
-    Clone,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = IdentityError, validate = validate_id)]
+#[veoveo_types::id(text(SimulationIds))]
 pub struct SessionId(String);
 #[doc = "Stable identity of one vehicle inside a session."]
-#[derive(
-    veoveo_types::Id,
-    Clone,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = IdentityError, validate = validate_id)]
+#[veoveo_types::id(text(SimulationIds))]
 pub struct VehicleId(String);
 #[doc = "Stable identity of one submitted mission."]
-#[derive(
-    veoveo_types::Id,
-    Clone,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = IdentityError, validate = validate_id)]
+#[veoveo_types::id(text(SimulationIds))]
 pub struct MissionId(String);
 #[doc = "Stable identity of one admitted single-vehicle mission plan."]
-#[derive(
-    veoveo_types::Id,
-    Clone,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = IdentityError, validate = validate_id)]
+#[veoveo_types::id(text(SimulationIds))]
 pub struct MissionPlanId(String);
 #[doc = "Stable identity of one principal-to-vehicle control grant."]
-#[derive(
-    veoveo_types::Id,
-    Clone,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = IdentityError, validate = validate_id)]
+#[veoveo_types::id(text(SimulationIds))]
 pub struct ControlGrantId(String);
 #[doc = "Producer identity of one recording stream."]
-#[derive(
-    veoveo_types::Id,
-    Clone,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = IdentityError, validate = validate_id)]
+#[veoveo_types::id(text(SimulationIds))]
 pub struct RecordingKey(String);
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -780,6 +673,38 @@ pub struct ActiveVehicleGrantsRequest {
     pub cursor: Option<String>,
 }
 
+use veoveo_types::{IdProfile, IdProfileSpec};
+
+#[doc(hidden)]
+pub struct SimulationIds;
+impl IdProfile for SimulationIds {
+    type Error = IdentityError;
+    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec::text(|value, _| validate_id(value));
+}
+
+fn validate_id(value: &str) -> Result<(), IdentityError> {
+    if matches!(value, "." | "..") {
+        return Err(IdentityError::new(
+            value,
+            "must not be a relative path segment",
+        ));
+    }
+    if value.is_empty() || value.len() > 128 {
+        return Err(IdentityError::new(value, "must be 1 to 128 characters"));
+    }
+    if value
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '.'))
+    {
+        Ok(())
+    } else {
+        Err(IdentityError::new(
+            value,
+            "must contain only ASCII letters, digits, underscore, dash, or dot",
+        ))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -787,17 +712,17 @@ mod tests {
     #[test]
     fn identifiers_are_strict() {
         assert_eq!(
-            SessionId::new("session-alpha").unwrap().as_str(),
+            SessionId::parse("session-alpha").unwrap().as_str(),
             "session-alpha"
         );
-        assert!(SessionId::new("session/alpha").is_err());
-        assert!(VehicleId::new("").is_err());
+        assert!(SessionId::parse("session/alpha").is_err());
+        assert!(VehicleId::parse("").is_err());
     }
 
     #[test]
     fn command_shape_is_tagged_and_strict() {
         let command = SimulationCommand::Step(StepSimulationRequest {
-            session_id: SessionId::new("session-alpha").unwrap(),
+            session_id: SessionId::parse("session-alpha").unwrap(),
             steps: 4,
         });
         let value = serde_json::to_value(command).unwrap();
@@ -809,7 +734,7 @@ mod tests {
     #[test]
     fn durable_operation_names_are_canonical() {
         let operation = DurableOperation::CaptureDataset(CaptureDatasetRequest {
-            session_id: SessionId::new("session-alpha").unwrap(),
+            session_id: SessionId::parse("session-alpha").unwrap(),
             duration_seconds: 10.0,
             sensors: vec!["down-camera".to_owned()],
         });

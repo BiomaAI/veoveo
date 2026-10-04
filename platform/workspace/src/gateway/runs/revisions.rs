@@ -16,7 +16,7 @@ pub(super) async fn preview(
     Query(target): Query<Target>,
 ) -> Api<wire::AgentRevisionPreview> {
     let actor = authority::admit(&state.workspace, &subject).await?;
-    let profile = GatewayProfileId::new(profile).map_err(|_| StatusCode::NOT_FOUND)?;
+    let profile = GatewayProfileId::parse(profile).map_err(|_| StatusCode::NOT_FOUND)?;
     let admitted = state
         .workspace
         .store
@@ -67,7 +67,7 @@ pub(super) async fn adopt(
     Json(request): Json<wire::UpdateChatAgent>,
 ) -> Api<wire::ChatAgent> {
     let actor = authority::admit(&state.workspace, &subject).await?;
-    let profile = GatewayProfileId::new(profile).map_err(|_| StatusCode::NOT_FOUND)?;
+    let profile = GatewayProfileId::parse(profile).map_err(|_| StatusCode::NOT_FOUND)?;
     let chat = WorkspaceChatId::from_uuid(chat);
     let admitted = state
         .workspace

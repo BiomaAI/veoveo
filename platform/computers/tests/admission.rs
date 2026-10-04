@@ -145,7 +145,7 @@ async fn collections_support_services_and_contexts_without_multiplying_owner_quo
         veoveo_task_runtime::PrincipalKind::Service
     );
     let mut other_context = alice.clone();
-    other_context.authority.work_context = veoveo_types::WorkContextId::new("another").unwrap();
+    other_context.authority.work_context = veoveo_types::WorkContextId::parse("another").unwrap();
     assert!(
         a.list(&other_context, None, 10)
             .await
@@ -248,7 +248,7 @@ async fn concurrent_distinct_admissions_enforce_each_shared_capacity_boundary() 
     ));
     let mut other_tenant = owner("dana");
     other_tenant.tenant_key = Some("tenant-two".into());
-    other_tenant.authority.tenant = veoveo_types::TenantId::new("tenant-two").unwrap();
+    other_tenant.authority.tenant = veoveo_types::TenantId::parse("tenant-two").unwrap();
     b.reserve(&crate::support::authenticated(&other_tenant), &request())
         .await
         .unwrap();

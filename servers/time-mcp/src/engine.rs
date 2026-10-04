@@ -705,8 +705,8 @@ mod tests {
     const LEAPS: &str = "2272060800 10\n2287785600 11\n2303683200 12\n2335219200 13\n2366755200 14\n2398291200 15\n2429913600 16\n2461449600 17\n2492985600 18\n2524521600 19\n2571782400 20\n2603318400 21\n2634854400 22\n2698012800 23\n2776982400 24\n2840140800 25\n2871676800 26\n2918937600 27\n2950473600 28\n2982009600 29\n3029443200 30\n3076704000 31\n3124137600 32\n3345062400 33\n3439756800 34\n3550089600 35\n3644697600 36\n3692217600 37\n";
 
     fn engine() -> TemporalEngine {
-        let tzdb_release_id = AuthorityReleaseId::new("time-release-tzdb-test").unwrap();
-        let leap_release_id = AuthorityReleaseId::new("time-release-leaps-test").unwrap();
+        let tzdb_release_id = AuthorityReleaseId::parse("time-release-tzdb-test").unwrap();
+        let leap_release_id = AuthorityReleaseId::parse("time-release-leaps-test").unwrap();
         let authority = AuthorityContext::from_paths(
             EffectiveTimeAuthority::new(
                 test_authority_reference(tzdb_release_id, AuthorityDatasetKind::Tzdb),
@@ -848,7 +848,7 @@ mod tests {
         let output = engine
             .expand_schedule(&ExpandScheduleRequest {
                 calendar: OperationalCalendar {
-                    calendar_id: CalendarId::new("calendar-dst-test").unwrap(),
+                    calendar_id: CalendarId::parse("calendar-dst-test").unwrap(),
                     version: crate::TimeVersion::new(1).unwrap(),
                     name: "Eastern operations".to_owned(),
                     zone_id: "America/New_York".to_owned(),
@@ -911,7 +911,7 @@ mod tests {
             |start: &str, end: &str| TimeWindow::new(resolve(start, 7), resolve(end, 11)).unwrap();
         let mut request = ExpandScheduleRequest {
             calendar: OperationalCalendar {
-                calendar_id: CalendarId::new("calendar-clipping-test").unwrap(),
+                calendar_id: CalendarId::parse("calendar-clipping-test").unwrap(),
                 version: crate::TimeVersion::FIRST,
                 name: "UTC shifts".into(),
                 zone_id: "UTC".into(),
@@ -1002,8 +1002,8 @@ mod tests {
         let mut foreign_start = request.horizon.start().clone();
         let mut foreign_end = request.horizon.end().clone();
         foreign_start.authority = crate::AuthorityBinding::new(
-            AuthorityReleaseId::new("time-release-foreign-tzdb").unwrap(),
-            AuthorityReleaseId::new("time-release-foreign-leaps").unwrap(),
+            AuthorityReleaseId::parse("time-release-foreign-tzdb").unwrap(),
+            AuthorityReleaseId::parse("time-release-foreign-leaps").unwrap(),
         )
         .unwrap();
         foreign_end.authority = foreign_start.authority.clone();
@@ -1051,7 +1051,7 @@ mod tests {
         let engine = engine();
         let authority = engine.authority.binding().clone();
         let epoch = |version, seconds| MissionEpoch {
-            epoch_id: MissionEpochId::new("epoch-launch").unwrap(),
+            epoch_id: MissionEpochId::parse("epoch-launch").unwrap(),
             name: "Launch".to_owned(),
             instant: TimeInstant {
                 tai_seconds_since_1970: seconds,
@@ -1065,7 +1065,7 @@ mod tests {
         let resolved = engine
             .resolve(&ResolveTimeRequest {
                 expression: TimeExpression::EpochRelative {
-                    epoch_id: MissionEpochId::new("epoch-launch").unwrap(),
+                    epoch_id: MissionEpochId::parse("epoch-launch").unwrap(),
                     offset_nanoseconds: 1_000_000_000,
                 },
                 additional_uncertainty_nanoseconds: 0,
@@ -1119,7 +1119,7 @@ mod tests {
             })
             .unwrap()
             .into_instant();
-        let id = MissionEpochId::new("epoch-uncertain-launch").unwrap();
+        let id = MissionEpochId::parse("epoch-uncertain-launch").unwrap();
         let epoch = |instant| MissionEpoch {
             epoch_id: id.clone(),
             name: "launch".into(),
@@ -1158,8 +1158,8 @@ mod tests {
         }
         let mut foreign = base;
         foreign.authority = crate::AuthorityBinding::new(
-            AuthorityReleaseId::new("time-release-sensitive-tzdb").unwrap(),
-            AuthorityReleaseId::new("time-release-sensitive-leaps").unwrap(),
+            AuthorityReleaseId::parse("time-release-sensitive-tzdb").unwrap(),
+            AuthorityReleaseId::parse("time-release-sensitive-leaps").unwrap(),
         )
         .unwrap();
         engine.replace_epochs([epoch(foreign)]);
@@ -1193,7 +1193,7 @@ mod tests {
     #[test]
     fn uncertainty_addition_rejects_overflow_without_changing_the_epoch() {
         let engine = engine();
-        let id = MissionEpochId::new("epoch-uncertainty-limit").unwrap();
+        let id = MissionEpochId::parse("epoch-uncertainty-limit").unwrap();
         let base = engine
             .resolve(&ResolveTimeRequest {
                 expression: TimeExpression::Rfc3339 {
@@ -1246,7 +1246,7 @@ mod tests {
     #[test]
     fn epoch_relative_coordinates_reject_seconds_overflow() {
         let engine = engine();
-        let id = crate::MissionEpochId::new("epoch-coordinate-limit").unwrap();
+        let id = crate::MissionEpochId::parse("epoch-coordinate-limit").unwrap();
         for (seconds, nanos, overflow_offset) in [
             (i64::MAX, SubsecondNanoseconds::MAX, 1),
             (i64::MIN, SubsecondNanoseconds::ZERO, -1),

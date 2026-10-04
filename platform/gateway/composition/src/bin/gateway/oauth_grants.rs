@@ -71,7 +71,7 @@ pub(super) async fn token_endpoint_authorization_code(
             "authorization code flow is not enabled for this gateway profile",
         );
     }
-    let client_id = match OAuthClientId::new(request.client_id.trim()) {
+    let client_id = match OAuthClientId::parse(request.client_id.trim()) {
         Ok(client_id) => client_id,
         Err(_) => {
             if let Err(err) = record_oidc_auth_audit(
@@ -170,7 +170,7 @@ pub(super) async fn token_endpoint_authorization_code(
         .code
         .as_deref()
         .map(str::trim)
-        .map(OAuthAuthorizationCode::new)
+        .map(OAuthAuthorizationCode::parse)
         .transpose()
     {
         Ok(Some(code)) => code,
@@ -234,7 +234,7 @@ pub(super) async fn token_endpoint_authorization_code(
         .code_verifier
         .as_deref()
         .map(str::trim)
-        .map(PkceCodeVerifier::new)
+        .map(PkceCodeVerifier::parse)
         .transpose()
     {
         Ok(Some(code_verifier)) => code_verifier,

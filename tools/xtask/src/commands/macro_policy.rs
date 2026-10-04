@@ -31,15 +31,15 @@ struct Entry {
 const CATALOG: &[Entry] = &[
     Entry {
         path: "platform/macros/src/lib.rs",
-        name: "Id",
+        name: "id",
         function: "id",
-        kind: Kind::Derive,
+        kind: Kind::Attribute,
     },
     Entry {
         path: "platform/macros/src/lib.rs",
-        name: "ResourceAddress",
+        name: "resource_address",
         function: "resource_address",
-        kind: Kind::Derive,
+        kind: Kind::Attribute,
     },
     Entry {
         path: "platform/macros/src/lib.rs",

@@ -78,7 +78,8 @@ impl Signing {
                 subject: actor.subject.clone(),
                 oauth_client_id: "reason-fixture".parse().unwrap(),
                 session_family: None,
-                audience: ProtectedResourceId::new("https://reason.fixture/mcp/operator").unwrap(),
+                audience: ProtectedResourceId::parse("https://reason.fixture/mcp/operator")
+                    .unwrap(),
                 work_context: authority.work_context.clone(),
                 invocation_mode: InvocationMode::Direct,
                 initiator: Some(actor.id.clone()),

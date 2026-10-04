@@ -31,7 +31,7 @@ pub(super) fn fixture_subject(name: &str) -> AuthenticatedSubject {
     subject
         .principal
         .scopes
-        .insert(ScopeName::new("operator:use").unwrap());
+        .insert(ScopeName::parse("operator:use").unwrap());
     subject.access_token.scopes = subject.principal.scopes.clone();
     subject
 }
@@ -277,7 +277,7 @@ async fn http_authoring_publishes_immutable_revisions_with_private_content_and_r
     );
     let actor = authority::admit(
         &state,
-        GatewayProfileId::new("operator").unwrap().to_string(),
+        GatewayProfileId::parse("operator").unwrap().to_string(),
         fixture_subject("Alice"),
         Action::AgentDefinitionsRead,
     )

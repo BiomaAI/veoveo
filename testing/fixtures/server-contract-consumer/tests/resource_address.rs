@@ -12,7 +12,6 @@ struct Part(String);
 #[error("invalid independent fixture address")]
 struct Invalid;
 
-
 fn route_error(_: ResourceRouteError) -> Invalid {
     Invalid
 }
@@ -50,9 +49,9 @@ impl ResourceFieldCodec<Part> for PartCodec {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, veoveo_types::ResourceAddress)]
-#[resource(template = "fixture://items/by-name/{id}{?cursor}", error = Invalid,
-    route_error = route_error, canonical = false)]
+#[derive(Debug, PartialEq, Eq)]
+#[veoveo_types::resource_address(custom(template = "fixture://items/by-name/{id}{?cursor}", error = Invalid,
+    route_error = route_error, canonical = false))]
 struct Address {
     #[resource(cache)]
     wire: ResourceUri,
@@ -152,8 +151,7 @@ impl ResourceFieldCodec<Part> for EmptyCodec {
         })
     }
 }
-#[derive(veoveo_types::ResourceAddress)]
-#[resource(template = "fixture://empty{?cursor}", error = Invalid, route_error = route_error, canonical = false)]
+#[veoveo_types::resource_address(custom(template = "fixture://empty{?cursor}", error = Invalid, route_error = route_error, canonical = false))]
 struct EmptyQuery {
     #[resource(codec = EmptyCodec, error = |error| error)]
     cursor: Option<Part>,
@@ -210,8 +208,7 @@ impl ResourceTailCodec<Tail> for TailCodec {
         })
     }
 }
-#[derive(veoveo_types::ResourceAddress)]
-#[resource(template = "fixture://tail/{+path}", error = Invalid, route_error = route_error, canonical = false)]
+#[veoveo_types::resource_address(custom(template = "fixture://tail/{+path}", error = Invalid, route_error = route_error, canonical = false))]
 struct TailAddress {
     #[resource(variable = "path", tail, codec = TailCodec, error = |error| error)]
     tail: Tail,

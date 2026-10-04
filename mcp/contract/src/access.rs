@@ -177,16 +177,16 @@ mod tests {
     use super::*;
 
     fn pid(s: &str) -> PrincipalId {
-        PrincipalId::new(s).unwrap()
+        PrincipalId::parse(s).unwrap()
     }
     fn gid(s: &str) -> GroupId {
-        GroupId::new(s).unwrap()
+        GroupId::parse(s).unwrap()
     }
     fn tid(s: &str) -> TenantId {
-        TenantId::new(s).unwrap()
+        TenantId::parse(s).unwrap()
     }
     fn lid(s: &str) -> DataLabelId {
-        DataLabelId::new(s).unwrap()
+        DataLabelId::parse(s).unwrap()
     }
     fn artifact_id() -> ArtifactId {
         ArtifactId::new()

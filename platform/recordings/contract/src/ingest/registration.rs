@@ -91,7 +91,7 @@ impl CatalogSection for RecordingCatalogSection {
         for resource in &self.0 {
             rows.push(veoveo_gateway_contract::CatalogObjectDescriptor {
                 tenant: None,
-                kind: ExtensionName::new("recording_ingest_resource")?,
+                kind: ExtensionName::parse("recording_ingest_resource")?,
                 id: resource.id.to_string(),
                 value: serde_json::to_value(resource)
                     .map_err(|error| ExtensionError::new(error.to_string()))?,
@@ -99,7 +99,7 @@ impl CatalogSection for RecordingCatalogSection {
             for producer in &resource.producers {
                 rows.push(veoveo_gateway_contract::CatalogObjectDescriptor {
                     tenant: Some(producer.tenant.clone()),
-                    kind: ExtensionName::new("recording_producer")?,
+                    kind: ExtensionName::parse("recording_producer")?,
                     id: producer.id.to_string(),
                     value: serde_json::to_value(producer)
                         .map_err(|error| ExtensionError::new(error.to_string()))?,
@@ -147,8 +147,8 @@ pub fn register_catalog(builder: &mut CatalogRegistryBuilder) -> Result<(), Exte
             ActionDescriptor {
                 access: veoveo_gateway_contract::ActionAccess::Write,
                 target_kinds: BTreeSet::from([
-                    ExtensionName::new("server")?,
-                    ExtensionName::new("resource")?,
+                    ExtensionName::parse("server")?,
+                    ExtensionName::parse("resource")?,
                 ]),
                 selectors: selectors
                     .keys()
@@ -163,8 +163,8 @@ pub fn register_catalog(builder: &mut CatalogRegistryBuilder) -> Result<(), Exte
             ActionDescriptor {
                 access: veoveo_gateway_contract::ActionAccess::Write,
                 target_kinds: BTreeSet::from([
-                    ExtensionName::new("recording_producer")?,
-                    ExtensionName::new("recording_stream")?,
+                    ExtensionName::parse("recording_producer")?,
+                    ExtensionName::parse("recording_stream")?,
                 ]),
                 selectors: selectors.clone(),
                 server: None,
@@ -173,14 +173,14 @@ pub fn register_catalog(builder: &mut CatalogRegistryBuilder) -> Result<(), Exte
         actions.push((action, descriptor));
     }
     builder.register_actions(actions)?;
-    builder.register_section::<RecordingCatalogSection>(ExtensionName::new(
+    builder.register_section::<RecordingCatalogSection>(ExtensionName::parse(
         RECORDING_INGEST_SECTION,
     )?)?;
     builder.register_target::<RecordingTarget>(
-        ExtensionName::new(RECORDING_TARGET_GROUP)?,
+        ExtensionName::parse(RECORDING_TARGET_GROUP)?,
         vec![
-            ExtensionName::new("recording_producer")?,
-            ExtensionName::new("recording_stream")?,
+            ExtensionName::parse("recording_producer")?,
+            ExtensionName::parse("recording_stream")?,
         ],
         super::target_audit_resource,
     )?;

@@ -16,7 +16,7 @@ impl ReadCapabilityRepository for SurrealArtifactRepository {
             .map_err(repository_error)?
             .map(|context| {
                 Ok(ReadContextVersion {
-                    policy_revision: PolicyVersion::new(context.policy_revision)
+                    policy_revision: PolicyVersion::parse(context.policy_revision)
                         .map_err(corrupt)?,
                     digest: context.digest,
                 })
@@ -122,28 +122,28 @@ fn decode(
     id: ArtifactReadCapabilityId,
     record: platform::ArtifactReadCapabilityRecord,
 ) -> Result<ReadCapabilityDraft, RepositoryError> {
-    let tenant = TenantId::new(record.tenant_key).map_err(corrupt)?;
+    let tenant = TenantId::parse(record.tenant_key).map_err(corrupt)?;
     let authority = contract_authority(tenant.clone(), record.authority)?;
     Ok(ReadCapabilityDraft {
         capability_id: id,
         actor: RepositoryActor {
             audit: record.audit.0,
             tenant,
-            principal: PrincipalId::new(record.actor_key).map_err(corrupt)?,
+            principal: PrincipalId::parse(record.actor_key).map_err(corrupt)?,
             kind: match record.actor_kind {
                 platform::PrincipalKind::User => PrincipalKind::User,
                 platform::PrincipalKind::Service => PrincipalKind::Service,
             },
-            issuer: TokenIssuer::new(record.actor_issuer).map_err(corrupt)?,
-            subject: TokenSubject::new(record.actor_subject).map_err(corrupt)?,
+            issuer: TokenIssuer::parse(record.actor_issuer).map_err(corrupt)?,
+            subject: TokenSubject::parse(record.actor_subject).map_err(corrupt)?,
         },
         context: ReadContextVersion {
             policy_revision: authority.policy_revision.clone(),
             digest: record.context_digest,
         },
         authority,
-        profile: GatewayProfileId::new(record.profile_key).map_err(corrupt)?,
-        server: ServerSlug::new(record.server_key).map_err(corrupt)?,
+        profile: GatewayProfileId::parse(record.profile_key).map_err(corrupt)?,
+        server: ServerSlug::parse(record.server_key).map_err(corrupt)?,
         task_id: ArtifactTaskId::parse(record.task_id.to_string()).map_err(corrupt)?,
         token_hash: record.token_hash,
         labels: parse_labels(record.labels)?,
@@ -152,7 +152,7 @@ fn decode(
             .into_iter()
             .map(|member| {
                 Ok(GroupMembership {
-                    group: GroupId::new(member.group_key).map_err(corrupt)?,
+                    group: GroupId::parse(member.group_key).map_err(corrupt)?,
                     role: match member.permission {
                         platform::GrantPermission::Read => GroupRole::Read,
                         platform::GrantPermission::Write => GroupRole::Write,

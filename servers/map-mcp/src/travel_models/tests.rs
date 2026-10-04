@@ -8,7 +8,7 @@ use veoveo_types::{
 use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy};
 
 fn owner(tenant: &str, context: &str, name: &str, profile: &str, labels: &[&str]) -> TaskOwner {
-    let principal = PrincipalId::new(name).unwrap();
+    let principal = PrincipalId::parse(name).unwrap();
     TaskOwner {
         principal_key: name.into(),
         principal_kind: PrincipalKind::User,
@@ -18,10 +18,10 @@ fn owner(tenant: &str, context: &str, name: &str, profile: &str, labels: &[&str]
         tenant_key: Some(tenant.into()),
         data_labels: labels.iter().map(|s| (*s).into()).collect(),
         authority: InvocationAuthority {
-            work_context: WorkContextId::new(context).unwrap(),
-            tenant: TenantId::new(tenant).unwrap(),
+            work_context: WorkContextId::parse(context).unwrap(),
+            tenant: TenantId::parse(tenant).unwrap(),
             membership: WorkContextMembershipLevel::Owner,
-            policy_revision: PolicyVersion::new("r1").unwrap(),
+            policy_revision: PolicyVersion::parse("r1").unwrap(),
             output_policy: WorkContextOutputPolicy {
                 owner: AccessSubject::Principal(principal.clone()),
                 initial_grants: vec![],
@@ -138,7 +138,7 @@ async fn optional_tenants_clearance_and_selected_parent_corruption_are_checked()
             let mut cleared = allowed.clone();
             cleared.data_labels.insert("secret".into());
             assert!(reads.get(&cleared, &model).await.unwrap().is_some());
-            cleared.authority.tenant = TenantId::new("other").unwrap();
+            cleared.authority.tenant = TenantId::parse("other").unwrap();
             assert!(reads.get(&cleared, &model).await.is_err());
         }
         let model: TravelModelId = key(30).parse().unwrap();
@@ -155,7 +155,7 @@ async fn optional_tenants_clearance_and_selected_parent_corruption_are_checked()
 }
 async fn task(runtime: &TaskRuntime, owner: TaskOwner, key: Option<&str>) -> TaskId {
     let id = TaskId::new();
-    let principal = veoveo_types::PrincipalId::new(owner.principal_key.clone()).unwrap();
+    let principal = veoveo_types::PrincipalId::parse(owner.principal_key.clone()).unwrap();
     let context = owner.authority.work_context.clone();
     runtime
             .create(CreateTask {

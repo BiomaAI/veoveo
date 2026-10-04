@@ -24,7 +24,7 @@ pub(super) async fn download_artifact(
     method: Method,
     request_headers: HeaderMap,
 ) -> Response {
-    let Ok(profile) = GatewayProfileId::new(profile) else {
+    let Ok(profile) = GatewayProfileId::parse(profile) else {
         return StatusCode::NOT_FOUND.into_response();
     };
     let Ok(artifact_id) = ArtifactId::parse(artifact_id) else {
@@ -37,7 +37,7 @@ pub(super) async fn download_artifact(
     if catalog.profile(&profile).is_none() {
         return StatusCode::NOT_FOUND.into_response();
     }
-    let trace_id = match TraceId::new(subject.audit.trace_id.to_string()) {
+    let trace_id = match TraceId::parse(&subject.audit.trace_id) {
         Ok(trace_id) => trace_id,
         Err(error) => {
             tracing::error!("failed to create artifact download trace id: {error}");

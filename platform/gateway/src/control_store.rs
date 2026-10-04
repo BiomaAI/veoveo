@@ -30,7 +30,7 @@ pub struct GatewayControlPlaneRevisionHead {
 }
 
 pub fn new_gateway_control_plane_revision_id() -> Result<GatewayControlPlaneRevisionId> {
-    GatewayControlPlaneRevisionId::new(format!("gcp-{}", uuid::Uuid::now_v7()))
+    GatewayControlPlaneRevisionId::parse(format!("gcp-{}", uuid::Uuid::now_v7()))
         .context("failed to construct UUIDv7 gateway control-plane revision id")
 }
 
@@ -133,7 +133,7 @@ impl GatewayControlStore {
             .await?
             .map(|record| -> Result<GatewayControlPlaneRevisionHead> {
                 Ok(GatewayControlPlaneRevisionHead {
-                    revision_id: GatewayControlPlaneRevisionId::new(record.revision_id)?,
+                    revision_id: GatewayControlPlaneRevisionId::parse(record.revision_id)?,
                     sha256: record.sha256,
                 })
             })
@@ -345,12 +345,12 @@ fn revision_from_record(
         .context("stored gateway control plane failed validation")?;
 
     Ok(GatewayControlPlaneRevision {
-        revision_id: GatewayControlPlaneRevisionId::new(record.revision_id)?,
+        revision_id: GatewayControlPlaneRevisionId::parse(record.revision_id)?,
         sha256: record.sha256,
         source: revision_source_from_store(record.source),
         applied_at: record.applied_at,
-        applied_by: PrincipalId::new(record.applied_by)?,
-        tenant: record.tenant.map(TenantId::new).transpose()?,
+        applied_by: PrincipalId::parse(record.applied_by)?,
+        tenant: record.tenant.map(TenantId::parse).transpose()?,
         control_plane,
     })
 }
@@ -614,7 +614,7 @@ mod tests {
 
     #[test]
     fn control_plane_object_rows_include_queryable_top_level_objects() {
-        let tenant_id = TenantId::new("tenant-fixture").unwrap();
+        let tenant_id = TenantId::parse("tenant-fixture").unwrap();
         let server_fixture: GatewayControlPlane =
             serde_json::from_str(include_str!("../../../configs/gateway.smoke.json")).unwrap();
         let control_plane = GatewayControlPlane {
@@ -631,14 +631,14 @@ mod tests {
                 metadata: serde_json::json!({}),
             }],
             work_contexts: vec![WorkContextDefinition {
-                id: WorkContextId::new("mission").unwrap(),
+                id: WorkContextId::parse("mission").unwrap(),
                 tenant: tenant_id.clone(),
                 title: "Mission".to_owned(),
-                policy_revision: PolicyVersion::new("policy-fixture").unwrap(),
+                policy_revision: PolicyVersion::parse("policy-fixture").unwrap(),
                 output_policy: WorkContextOutputPolicy {
-                    owner: AccessSubject::Group(GroupId::new("operations").unwrap()),
+                    owner: AccessSubject::Group(GroupId::parse("operations").unwrap()),
                     initial_grants: vec![WorkContextGrant {
-                        subject: AccessSubject::Group(GroupId::new("reviewers").unwrap()),
+                        subject: AccessSubject::Group(GroupId::parse("reviewers").unwrap()),
                         level: AccessLevel::Read,
                     }],
                     classification: None,
@@ -649,13 +649,13 @@ mod tests {
                     principals: BTreeSet::new(),
                     groups: BTreeSet::new(),
                     roles: BTreeSet::new(),
-                    oauth_clients: BTreeSet::from([OAuthClientId::new("agent").unwrap()]),
+                    oauth_clients: BTreeSet::from([OAuthClientId::parse("agent").unwrap()]),
                 }],
             }],
             policies: vec![PolicySet {
-                version: PolicyVersion::new("policy-fixture").unwrap(),
+                version: PolicyVersion::parse("policy-fixture").unwrap(),
                 rules: vec![PolicyRule {
-                    id: PolicyRuleId::new("allow-fixture").unwrap(),
+                    id: PolicyRuleId::parse("allow-fixture").unwrap(),
                     effect: PolicyEffect::Allow,
                     actions: BTreeSet::from([GatewayAction::ToolsCall.into()]),
                     profiles: BTreeSet::new(),

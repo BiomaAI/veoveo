@@ -3,7 +3,7 @@ use veoveo_artifact_contract::{ArtifactMetadata, ArtifactProvenance};
 use veoveo_types::{DelegationId, InvocationProvenance, PolicyVersion, PrincipalId};
 
 fn principal(id: &str) -> PrincipalId {
-    PrincipalId::new(id).unwrap()
+    PrincipalId::parse(id).unwrap()
 }
 
 fn invocations() -> [(InvocationProvenance, Value); 3] {
@@ -17,7 +17,7 @@ fn invocations() -> [(InvocationProvenance, Value); 3] {
         (
             InvocationProvenance::Delegated {
                 initiator: principal("issuer#operator"),
-                delegation_id: DelegationId::new("delegation/17").unwrap(),
+                delegation_id: DelegationId::parse("delegation/17").unwrap(),
             },
             json!({
                 "invocation_mode": "delegated",
@@ -42,7 +42,7 @@ fn typed_invocation_matches_current_wire_profile() {
         let typed = ArtifactProvenance::new(
             principal("issuer#worker"),
             invocation.clone(),
-            PolicyVersion::new("v1").unwrap(),
+            PolicyVersion::parse("v1").unwrap(),
         );
         let serialized = serde_json::to_value(&typed).unwrap();
         assert_eq!(serialized, wire);

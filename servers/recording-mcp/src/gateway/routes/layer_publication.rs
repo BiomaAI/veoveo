@@ -24,17 +24,17 @@ pub(crate) async fn publish_recording_layer(
     headers: HeaderMap,
     body: Body,
 ) -> Response {
-    let Ok(profile) = GatewayProfileId::new(profile) else {
+    let Ok(profile) = GatewayProfileId::parse(profile) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let Ok(recording_server) = ServerSlug::new(RECORDING_SERVER) else {
+    let Ok(recording_server) = ServerSlug::parse(RECORDING_SERVER) else {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     };
     let catalog = current_catalog(&state.catalog);
     if catalog.profile(&profile).is_none() {
         return StatusCode::NOT_FOUND.into_response();
     }
-    let trace_id = match TraceId::new(subject.audit.trace_id.to_string()) {
+    let trace_id = match TraceId::parse(&subject.audit.trace_id) {
         Ok(value) => value,
         Err(error) => {
             tracing::error!(%error, "failed to create recording publication trace id");

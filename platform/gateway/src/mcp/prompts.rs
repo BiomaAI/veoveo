@@ -163,7 +163,7 @@ impl GatewayMcp {
             .map(|prompt| {
                 Ok(veoveo_mcp_contract::PolicyTarget::Prompt {
                     server: server_slug.clone(),
-                    prompt: PromptName::new(prompt.name.clone())
+                    prompt: PromptName::parse(prompt.name.clone())
                         .map_err(|_| mcp_internal("upstream exposed invalid prompt name"))?,
                 })
             })
@@ -191,7 +191,7 @@ impl GatewayMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<GetPromptResult, RequestError> {
         let server = self.server_for_prompt(&request.name)?;
-        let prompt = PromptName::new(request.name.clone())
+        let prompt = PromptName::parse(request.name.clone())
             .map_err(|err| mcp_invalid_params(format!("invalid prompt name: {err}")))?;
         let subject = self
             .authorize_prompt(&context, GatewayAction::PromptsGet, server.clone(), prompt)

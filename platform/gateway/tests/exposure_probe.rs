@@ -22,7 +22,7 @@ fn local_control_plane_exposes_the_view_preview_app() {
         GatewayCatalog::load_json(Path::new(LOCAL_CONTROL_PLANE), catalog_admission::binding())
             .expect("load control plane");
     for profile in ["operator", "admin"] {
-        let profile_id = GatewayProfileId::new(profile).unwrap();
+        let profile_id = GatewayProfileId::parse(profile).unwrap();
         let owner = catalog
             .server_for_resource_uri(&profile_id, "ui://view/preview.html")
             .map(|(_, server)| server.slug.to_string());
@@ -54,19 +54,19 @@ fn local_console_profiles_authorize_every_release_target_app_resource() {
             .expect("load control plane");
 
     for profile_name in ["operator", "admin"] {
-        let profile_id = GatewayProfileId::new(profile_name).unwrap();
+        let profile_id = GatewayProfileId::parse(profile_name).unwrap();
         let profile = catalog.profile(&profile_id).expect("console profile");
         let principal = Principal {
-            id: PrincipalId::new("app-acceptance@example.com").unwrap(),
+            id: PrincipalId::parse("app-acceptance@example.com").unwrap(),
             kind: PrincipalKind::User,
-            issuer: TokenIssuer::new("https://idp.example.com").unwrap(),
-            subject: TokenSubject::new("app-acceptance").unwrap(),
-            tenant: Some(TenantId::new("enterprise").unwrap()),
+            issuer: TokenIssuer::parse("https://idp.example.com").unwrap(),
+            subject: TokenSubject::parse("app-acceptance").unwrap(),
+            tenant: Some(TenantId::parse("enterprise").unwrap()),
             groups: BTreeSet::new(),
             group_roles: BTreeSet::new(),
             roles: BTreeSet::from([
-                RoleId::new("operator").unwrap(),
-                RoleId::new("administrator").unwrap(),
+                RoleId::parse("operator").unwrap(),
+                RoleId::parse("administrator").unwrap(),
             ]),
             scopes: profile.required_scopes.iter().cloned().collect(),
             data_labels: BTreeSet::new(),
@@ -89,10 +89,10 @@ fn local_console_profiles_authorize_every_release_target_app_resource() {
                 profile: &profile_id,
                 action: GatewayAction::ResourcesList.into(),
                 target: &PolicyTarget::Resource {
-                    server: ServerSlug::new(server).unwrap(),
+                    server: ServerSlug::parse(server).unwrap(),
                     uri: ResourceUri::new(uri).unwrap(),
                 },
-                trace_id: &TraceId::new(format!("{profile_name}-{server}-app")).unwrap(),
+                trace_id: &TraceId::parse(format!("{profile_name}-{server}-app")).unwrap(),
             });
             assert_eq!(
                 decision.effect,
@@ -108,13 +108,13 @@ fn local_recording_reads_and_sealing_have_separate_permissions() {
     let catalog =
         GatewayCatalog::load_json(Path::new(LOCAL_CONTROL_PLANE), catalog_admission::binding())
             .expect("load control plane");
-    let admin = GatewayProfileId::new("admin").unwrap();
-    let operator = GatewayProfileId::new("operator").unwrap();
+    let admin = GatewayProfileId::parse("admin").unwrap();
+    let operator = GatewayProfileId::parse("operator").unwrap();
     for (kind, id, roles) in [
         (
             PrincipalKind::User,
             "app-acceptance@example.com",
-            BTreeSet::from([RoleId::new("administrator").unwrap()]),
+            BTreeSet::from([RoleId::parse("administrator").unwrap()]),
         ),
         (
             PrincipalKind::Service,
@@ -123,11 +123,11 @@ fn local_recording_reads_and_sealing_have_separate_permissions() {
         ),
     ] {
         let mut principal = Principal {
-            id: PrincipalId::new(id).unwrap(),
+            id: PrincipalId::parse(id).unwrap(),
             kind,
-            issuer: TokenIssuer::new("https://veoveo.example/oauth").unwrap(),
-            subject: TokenSubject::new("recording-acceptance").unwrap(),
-            tenant: Some(TenantId::new("enterprise").unwrap()),
+            issuer: TokenIssuer::parse("https://veoveo.example/oauth").unwrap(),
+            subject: TokenSubject::parse("recording-acceptance").unwrap(),
+            tenant: Some(TenantId::parse("enterprise").unwrap()),
             groups: BTreeSet::new(),
             group_roles: BTreeSet::new(),
             roles,
@@ -161,7 +161,7 @@ fn local_recording_reads_and_sealing_have_separate_permissions() {
         let mut missing_admin_scope = principal.clone();
         missing_admin_scope
             .scopes
-            .remove(&ScopeName::new("admin:manage").unwrap());
+            .remove(&ScopeName::parse("admin:manage").unwrap());
         assert_recording_permissions(
             &catalog,
             &missing_admin_scope,
@@ -171,7 +171,7 @@ fn local_recording_reads_and_sealing_have_separate_permissions() {
         );
 
         let mut wrong_subject = principal.clone();
-        wrong_subject.id = PrincipalId::new("unregistered-service").unwrap();
+        wrong_subject.id = PrincipalId::parse("unregistered-service").unwrap();
         wrong_subject.roles.clear();
         assert_recording_permissions(
             &catalog,
@@ -181,7 +181,7 @@ fn local_recording_reads_and_sealing_have_separate_permissions() {
             PolicyEffect::Deny,
         );
 
-        principal.roles.insert(RoleId::new("operator").unwrap());
+        principal.roles.insert(RoleId::parse("operator").unwrap());
         principal.scopes.extend(
             catalog
                 .profile(&operator)
@@ -207,22 +207,22 @@ fn assert_recording_permissions(
     ordinary: PolicyEffect,
     sealing: PolicyEffect,
 ) {
-    let server = ServerSlug::new("recording").unwrap();
+    let server = ServerSlug::parse("recording").unwrap();
     let app = PolicyTarget::Resource {
         server: server.clone(),
         uri: ResourceUri::new("ui://recording/explorer.html").unwrap(),
     };
     let projection = PolicyTarget::Tool {
         server: server.clone(),
-        tool: LocalToolName::new("create_recording_projection").unwrap(),
+        tool: LocalToolName::parse("create_recording_projection").unwrap(),
     };
     let seal = PolicyTarget::Tool {
         server: server.clone(),
-        tool: LocalToolName::new("seal_recording").unwrap(),
+        tool: LocalToolName::parse("seal_recording").unwrap(),
     };
     let prompt = PolicyTarget::Prompt {
         server,
-        prompt: PromptName::new("recording-seal").unwrap(),
+        prompt: PromptName::parse("recording-seal").unwrap(),
     };
     for (action, target, expected) in [
         (GatewayAction::ResourcesList, &app, ordinary),
@@ -239,7 +239,7 @@ fn assert_recording_permissions(
             profile,
             action: action.into(),
             target,
-            trace_id: &TraceId::new("recording-permission-acceptance").unwrap(),
+            trace_id: &TraceId::parse("recording-permission-acceptance").unwrap(),
         });
         assert_eq!(decision.effect, expected, "{decision:?}");
     }
@@ -262,7 +262,7 @@ fn local_operator_profile_challenges_for_the_complete_view_scope_bundle() {
     let catalog =
         GatewayCatalog::load_json(Path::new(LOCAL_CONTROL_PLANE), catalog_admission::binding())
             .expect("load control plane");
-    let profile_id = GatewayProfileId::new("operator").unwrap();
+    let profile_id = GatewayProfileId::parse("operator").unwrap();
     let profile = catalog.profile(&profile_id).expect("operator profile");
     let scopes = profile
         .required_scopes

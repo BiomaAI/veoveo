@@ -21,16 +21,13 @@ async fn access_inventory_and_revocation_share_owned_state_and_resource_invalida
     .await;
     let mut policy = app_support::control();
     let mut attach = policy.policies[0].rules[1].clone();
-    attach.id = PolicyRuleId::new("attach").unwrap();
-    attach.actions =
-        [
-            veoveo_types::ActionName::new(
-                veoveo_computers_contract::ComputerAction::Attach.as_str(),
-            )
-            .unwrap(),
-        ]
-        .into_iter()
-        .collect();
+    attach.id = PolicyRuleId::parse("attach").unwrap();
+    attach.actions = [veoveo_types::ActionName::parse(
+        veoveo_computers_contract::ComputerAction::Attach.as_str(),
+    )
+    .unwrap()]
+    .into_iter()
+    .collect();
     policy.policies[0].rules.push(attach);
     support::policy::install(&db.a, policy).await;
     let store = ComputersStore::new(
@@ -65,7 +62,7 @@ async fn access_inventory_and_revocation_share_owned_state_and_resource_invalida
         .unwrap()
         .computer_id;
     db.a.client().query("UPDATE ONLY $computer SET phase = 'ready', provider_resource_id = 'fixture-resource', process_id = 'fixture-process';")
-        .bind(("computer", surrealdb::types::RecordId::new("computer", surrealdb::types::Uuid::from(computer.into_uuid()))))
+        .bind(("computer", surrealdb::types::RecordId::new("computer", surrealdb::types::Uuid::from(computer.as_uuid()))))
         .await.unwrap().check().unwrap();
     let ticket = store.issue_browser_grant(&actor, computer).await.unwrap();
     let handle = store

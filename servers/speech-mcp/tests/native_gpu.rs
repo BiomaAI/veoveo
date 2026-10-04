@@ -336,7 +336,7 @@ async fn private_sessions(python: &std::path::Path, pcm: &[u8]) -> Result<()> {
         "private draft leaked"
     );
     let mut other_context = alice.clone();
-    other_context.authority.work_context = WorkContextId::new("other-work-context")?;
+    other_context.authority.work_context = WorkContextId::parse("other-work-context")?;
     ensure!(
         sessions.read(&other_context, id).await.is_err(),
         "Work Context boundary missing"

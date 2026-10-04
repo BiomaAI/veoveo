@@ -44,10 +44,10 @@ async fn authenticate(mut request: Request, next: Next) -> axum::response::Respo
     {
         Some("Bearer fixture-read") => BTreeSet::from([
             ObservatoryScope::Read.into(),
-            ScopeName::new("unrelated:custom").unwrap(),
+            ScopeName::parse("unrelated:custom").unwrap(),
         ]),
         Some("Bearer fixture-unrelated") => {
-            BTreeSet::from([ScopeName::new("unrelated:custom").unwrap()])
+            BTreeSet::from([ScopeName::parse("unrelated:custom").unwrap()])
         }
         _ => return StatusCode::UNAUTHORIZED.into_response(),
     };

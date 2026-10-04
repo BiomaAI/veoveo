@@ -66,10 +66,7 @@ impl ComputersStore {
                         "execution",
                         super::record(operation.transfer_id()).into_value(),
                     ),
-                    (
-                        "provider",
-                        self.provider_instance_id.into_uuid().into_value(),
-                    ),
+                    ("provider", self.provider_instance_id.as_uuid().into_value()),
                     ("task", task_record_id(operation.task_id()).into_value()),
                     ("dispatch_id", operation.dispatch_id.into_value()),
                     (
@@ -156,7 +153,7 @@ impl ComputersStore {
         if current.provider_instance_id != binding.provider_instance_id
             || current
                 .replacement_instance_id
-                .unwrap_or(current.computer_id.into_uuid())
+                .unwrap_or(current.computer_id.as_uuid())
                 != binding.instance_id
             || crate::identity::owner_key(&current.owner)? != binding.owner_key
             || current.template_fingerprint != binding.template_fingerprint

@@ -5,69 +5,27 @@ pub use veoveo_types::{
 };
 use veoveo_types::{
     IdentifierError,
-    identifier_syntax::{validate_claim_text, validate_path_id, validate_token_text},
+    identifier_syntax::{ClaimTextProfile, PathIdProfile, TokenTextProfile},
 };
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::wire::{
-    validate_compatibility_helper_id, validate_gateway_name, validate_oauth_authorization_code,
+    validate_compatibility_helper_id, validate_oauth_authorization_code,
     validate_oauth_state_value, validate_pkce_code_token, validate_principal_display_name,
 };
 
 /// Configured identity provider id used by gateway profiles.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    veoveo_types::Id,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, validate = validate_path_id, error = IdentifierError)]
+#[veoveo_types::id(text(PathIdProfile))]
 pub struct IdentityProviderId(String);
 
 /// Artifact-service audience admitted for one hosted server.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    veoveo_types::Id,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, validate = validate_gateway_name, error = IdentifierError)]
+#[veoveo_types::id(text(PathIdProfile))]
 pub struct ArtifactAudience(String);
 
 /// Installation platform capability required by one hosted server.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    veoveo_types::Id,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, validate = validate_path_id, error = IdentifierError)]
+#[veoveo_types::id(text(PathIdProfile))]
 pub struct PlatformCapabilityId(String);
 
 /// Human-readable label for the authenticated principal. It is display metadata, never an authorization identity.
@@ -124,174 +82,51 @@ impl From<PrincipalDisplayName> for String {
 }
 
 /// Policy rule identifier used for decision evidence.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    veoveo_types::Id,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, validate = validate_token_text, error = IdentifierError)]
+#[veoveo_types::id(text(TokenTextProfile))]
 pub struct PolicyRuleId(String);
 
 /// Explicit compatibility helper id exposed to limited MCP clients, for example `media.models`.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    veoveo_types::Id,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, validate = validate_compatibility_helper_id, error = IdentifierError)]
+#[veoveo_types::id(text(GatewayCompatibilityHelperIdProfile))]
 pub struct CompatibilityHelperId(String);
 
 /// Gateway registration id for its OIDC client relationship with an enterprise identity provider.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    veoveo_types::Id,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, validate = validate_path_id, error = IdentifierError)]
+#[veoveo_types::id(text(PathIdProfile))]
 pub struct OidcClientRegistrationId(String);
 
 /// OIDC client id assigned to the gateway by an enterprise identity provider.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    veoveo_types::Id,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, validate = validate_claim_text, error = IdentifierError)]
+#[veoveo_types::id(text(ClaimTextProfile))]
 pub struct OidcClientId(String);
 
 /// OIDC nonce bound to an enterprise identity-provider authorization request.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    veoveo_types::Id,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, validate = validate_oauth_state_value, error = IdentifierError)]
+#[veoveo_types::id(text(GatewayOauthStateValueProfile))]
 pub struct OidcNonce(String);
 
 /// JWT id used for replay protection or revocation tracking.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    veoveo_types::Id,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, validate = validate_claim_text, error = IdentifierError)]
+#[veoveo_types::id(text(ClaimTextProfile))]
 pub struct JwtId(String);
 
 /// Opaque OAuth state value stored for browser authorization continuity.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    veoveo_types::Id,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, validate = validate_oauth_state_value, error = IdentifierError)]
+#[veoveo_types::id(text(GatewayOauthStateValueProfile))]
 pub struct OAuthStateValue(String);
 
 /// Gateway-issued OAuth authorization code exchanged once for a profile access token.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    veoveo_types::Id,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, validate = validate_oauth_authorization_code, error = IdentifierError)]
+#[veoveo_types::id(text(GatewayOauthAuthorizationCodeProfile))]
 pub struct OAuthAuthorizationCode(String);
 
 /// Opaque, rotating OAuth refresh token. Only its SHA-256 digest is persisted.
-#[derive(
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    veoveo_types::Id,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, validate = validate_refresh_token, error = IdentifierError, no_display)]
+#[veoveo_types::id(text(GatewayRefreshTokens), secret, ordered)]
 pub struct OAuthRefreshToken(String);
 
-// Preserve admission while keeping rejected bearer material out of diagnostics.
-fn validate_refresh_token(value: &str) -> Result<(), IdentifierError> {
-    validate_oauth_authorization_code(value).map_err(|_| {
-        IdentifierError::new(
-            "[REDACTED]",
-            "must be 43 to 128 bytes containing only ASCII letters, digits, hyphen, period, underscore, or tilde",
-        )
-    })
+impl OAuthRefreshToken {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl AsRef<str> for OAuthRefreshToken {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
 }
 
 impl fmt::Debug for OAuthRefreshToken {
@@ -307,109 +142,74 @@ impl fmt::Display for OAuthRefreshToken {
 }
 
 /// PKCE code challenge bound to a gateway-issued authorization code.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    veoveo_types::Id,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, validate = validate_pkce_code_token, error = IdentifierError)]
+#[veoveo_types::id(text(GatewayPkceTokens))]
 pub struct PkceCodeChallenge(String);
 
 /// PKCE code verifier presented to the gateway token endpoint.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    veoveo_types::Id,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, validate = validate_pkce_code_token, error = IdentifierError)]
+#[veoveo_types::id(text(GatewayPkceTokens))]
 pub struct PkceCodeVerifier(String);
 
 /// Request trace/correlation id used in audit and runtime state.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    veoveo_types::Id,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, validate = validate_token_text, error = IdentifierError)]
+#[veoveo_types::id(text(TokenTextProfile))]
 pub struct TraceId(String);
 
 /// Provider-server task identifier used by the final MCP task identity.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    veoveo_types::Id,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, validate = validate_token_text, error = IdentifierError)]
+#[veoveo_types::id(text(TokenTextProfile))]
 pub struct OpaqueTaskId(String);
 
 /// Durable gateway control-plane revision id.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    veoveo_types::Id,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, validate = validate_token_text, error = IdentifierError)]
+#[veoveo_types::id(text(TokenTextProfile))]
 pub struct GatewayControlPlaneRevisionId(String);
 
 /// MCP JSON-RPC method name used in policy and audit events.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    veoveo_types::Id,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, validate = validate_token_text, error = IdentifierError)]
+#[veoveo_types::id(text(TokenTextProfile))]
 pub struct McpMethodName(String);
+
+use veoveo_types::{IdProfile, IdProfileSpec};
+
+#[doc(hidden)]
+pub struct GatewayCompatibilityHelperIdProfile;
+impl IdProfile for GatewayCompatibilityHelperIdProfile {
+    type Error = IdentifierError;
+    const PROFILE: IdProfileSpec<Self::Error> =
+        IdProfileSpec::text(|value, _| validate_compatibility_helper_id(value));
+}
+#[doc(hidden)]
+pub struct GatewayOauthStateValueProfile;
+impl IdProfile for GatewayOauthStateValueProfile {
+    type Error = IdentifierError;
+    const PROFILE: IdProfileSpec<Self::Error> =
+        IdProfileSpec::text(|value, _| validate_oauth_state_value(value));
+}
+#[doc(hidden)]
+pub struct GatewayOauthAuthorizationCodeProfile;
+impl IdProfile for GatewayOauthAuthorizationCodeProfile {
+    type Error = IdentifierError;
+    const PROFILE: IdProfileSpec<Self::Error> =
+        IdProfileSpec::text(|value, _| validate_oauth_authorization_code(value));
+}
+
+#[doc(hidden)]
+pub struct GatewayRefreshTokens;
+impl IdProfile for GatewayRefreshTokens {
+    type Error = IdentifierError;
+    const PROFILE: IdProfileSpec<Self::Error> =
+        IdProfileSpec::text(|value, _| validate_refresh_token(value));
+}
+
+#[doc(hidden)]
+pub struct GatewayPkceTokens;
+impl IdProfile for GatewayPkceTokens {
+    type Error = IdentifierError;
+    const PROFILE: IdProfileSpec<Self::Error> =
+        IdProfileSpec::text(|value, _| validate_pkce_code_token(value));
+}
+
+fn validate_refresh_token(value: &str) -> Result<(), IdentifierError> {
+    validate_oauth_authorization_code(value).map_err(|_| {
+        IdentifierError::new(
+            "[REDACTED]",
+            "must be 43 to 128 bytes containing only ASCII letters, digits, hyphen, period, underscore, or tilde",
+        )
+    })
+}

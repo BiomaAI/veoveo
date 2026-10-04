@@ -63,14 +63,11 @@ impl ComputersStore {
         let mut params = authority::bindings(&snapshot);
         params.extend([
             ("computer", computer_record(computer_id).into_value()),
-            ("computer_id", computer_id.into_uuid().into_value()),
+            ("computer_id", computer_id.as_uuid().into_value()),
             ("grant", super::record(grant_id).into_value()),
-            ("grant_id", grant_id.into_uuid().into_value()),
+            ("grant_id", grant_id.as_uuid().into_value()),
             ("owner_key", owner_key(&computer.owner)?.into_value()),
-            (
-                "provider",
-                self.provider_instance_id.into_uuid().into_value(),
-            ),
+            ("provider", self.provider_instance_id.as_uuid().into_value()),
             ("authority", super::object(actor.accepted())?.into_value()),
             ("family", family.into_value()),
             ("ticket_hash", hash.into_value()),
@@ -91,7 +88,7 @@ impl ComputersStore {
                 "guard",
                 RecordId::new(
                     "computer_session_grant_guard",
-                    surrealdb::types::Uuid::from(computer_id.into_uuid()),
+                    surrealdb::types::Uuid::from(computer_id.as_uuid()),
                 )
                 .into_value(),
             ),
@@ -152,10 +149,7 @@ impl ComputersStore {
         params.extend(crate::computer_access::scope(actor.accepted())?);
         params.extend([
             ("grant", super::record(grant_id).into_value()),
-            (
-                "provider",
-                self.provider_instance_id.into_uuid().into_value(),
-            ),
+            ("provider", self.provider_instance_id.as_uuid().into_value()),
             ("ticket_hash", hash.clone().into_value()),
             (
                 "session_family",
@@ -194,7 +188,7 @@ impl ComputersStore {
                     .access_token
                     .oauth_client_id
             || accepted.invocation.work_context != actor.accepted().invocation.work_context
-            || row.provider_instance_id != self.provider_instance_id.into_uuid()
+            || row.provider_instance_id != self.provider_instance_id.as_uuid()
         {
             return Err(ComputerError::Forbidden);
         }
@@ -214,12 +208,9 @@ impl ComputersStore {
                     ("ticket_hash", hash.into_value()),
                     ("policy", self.session_policy_record().into_value()),
                     ("owner_key", row.owner_key.clone().into_value()),
-                    ("connection", connection_id.into_uuid().into_value()),
+                    ("connection", connection_id.as_uuid().into_value()),
                     ("computer", computer_record(row.computer_id()?).into_value()),
-                    (
-                        "provider",
-                        self.provider_instance_id.into_uuid().into_value(),
-                    ),
+                    ("provider", self.provider_instance_id.as_uuid().into_value()),
                     (
                         "admission_expires_at",
                         actor.admission_expires_at().into_value(),
@@ -242,7 +233,7 @@ impl ComputersStore {
         let redeemed: Option<Uuid> = result
             .take(result_index)
             .map_err(|_| ComputerError::Unavailable)?;
-        if redeemed != Some(connection_id.into_uuid()) {
+        if redeemed != Some(connection_id.as_uuid()) {
             return Err(ComputerError::Forbidden);
         }
         Ok(SessionGrantHandle {

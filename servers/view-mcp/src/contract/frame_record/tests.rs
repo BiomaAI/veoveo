@@ -28,7 +28,7 @@ fn report() -> FrameRenderReport {
 fn frame() -> CapturedFrame {
     // Metadata/byte-identity fixture, not image or hardware acceptance.
     CapturedFrame::builder(
-        FrameId::new("frame-1").unwrap(),
+        FrameId::parse("frame-1").unwrap(),
         &view(),
         &composition(),
         now(),
@@ -73,12 +73,12 @@ fn capture_derives_identity_parent_and_byte_metadata() {
 #[test]
 fn capture_requires_matching_parent_time_encoding_and_nonempty_bytes() {
     let mut request = crate::contract::test_support::request();
-    request.base_layer = LayerId::new("other-layer").unwrap();
+    request.base_layer = LayerId::parse("other-layer").unwrap();
     let other =
         SceneComposition::new(request, crate::contract::test_support::authority(), now()).unwrap();
     assert!(
         CapturedFrame::builder(
-            FrameId::new("f").unwrap(),
+            FrameId::parse("f").unwrap(),
             &view(),
             &other,
             now(),
@@ -94,7 +94,7 @@ fn capture_requires_matching_parent_time_encoding_and_nonempty_bytes() {
     ] {
         assert!(
             CapturedFrame::builder(
-                FrameId::new("f").unwrap(),
+                FrameId::parse("f").unwrap(),
                 &view(),
                 &composition(),
                 now(),
@@ -109,7 +109,7 @@ fn capture_requires_matching_parent_time_encoding_and_nonempty_bytes() {
     invalid.width_px = 0;
     assert!(
         CapturedFrame::builder(
-            FrameId::new("f").unwrap(),
+            FrameId::parse("f").unwrap(),
             &view(),
             &composition(),
             now(),
@@ -174,7 +174,7 @@ fn capture_encoding_and_wire_schema_share_the_closed_media_profile() {
             ..policy()
         };
         let output = CapturedFrame::builder(
-            FrameId::new("frame-1").unwrap(),
+            FrameId::parse("frame-1").unwrap(),
             &view(),
             &composition(),
             now(),
@@ -206,7 +206,7 @@ fn frame_admission_rejects_nonfinite_and_inconsistent_render_reports() {
         detail.actual_max_screen_error_px = actual;
         assert!(
             CapturedFrame::builder(
-                FrameId::new("f").unwrap(),
+                FrameId::parse("f").unwrap(),
                 &view(),
                 &composition(),
                 now(),
@@ -221,7 +221,7 @@ fn frame_admission_rejects_nonfinite_and_inconsistent_render_reports() {
     detail.pending_tile_count = 1;
     assert!(
         CapturedFrame::builder(
-            FrameId::new("f").unwrap(),
+            FrameId::parse("f").unwrap(),
             &view(),
             &composition(),
             now(),
@@ -234,7 +234,7 @@ fn frame_admission_rejects_nonfinite_and_inconsistent_render_reports() {
     detail.detail_complete = false;
     assert!(
         CapturedFrame::builder(
-            FrameId::new("f").unwrap(),
+            FrameId::parse("f").unwrap(),
             &view(),
             &composition(),
             now(),
@@ -251,7 +251,7 @@ fn frame_builder_preserves_governed_attribution_and_orders_rendered_lines() {
     let mut detail = report();
     detail.attribution.lines = vec!["Z".into(), "A".into(), "A".into()];
     let output = CapturedFrame::builder(
-        FrameId::new("f").unwrap(),
+        FrameId::parse("f").unwrap(),
         &view(),
         &composition(),
         now(),

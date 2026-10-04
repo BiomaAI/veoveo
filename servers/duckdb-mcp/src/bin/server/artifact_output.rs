@@ -171,7 +171,7 @@ mod tests {
         identity
             .actor
             .data_labels
-            .insert(DataLabelId::new("mission").unwrap());
+            .insert(DataLabelId::parse("mission").unwrap());
         let caller = veoveo_mcp_contract::PlaneCaller::from_gateway(
             identity.clone(),
             veoveo_mcp_contract::hosting::ForwardedBearer::new("fixture-bearer"),
@@ -207,7 +207,7 @@ mod tests {
         identity
             .actor
             .data_labels
-            .insert(DataLabelId::new("mission").unwrap());
+            .insert(DataLabelId::parse("mission").unwrap());
         let task_id = TaskId::new();
         let capability = capability(task_id);
         let writer =

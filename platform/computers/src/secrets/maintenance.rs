@@ -49,7 +49,7 @@ impl MaintenanceBinding {
         .any(Uuid::is_nil)
             || self.operation_id.as_uuid().get_version_num() != 7
             || self.target_instance_id == self.source_instance_id
-            || self.target_instance_id == self.computer_id.into_uuid()
+            || self.target_instance_id == self.computer_id.as_uuid()
             || [
                 &self.owner_key,
                 &self.actor_key,

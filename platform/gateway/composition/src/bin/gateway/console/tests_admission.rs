@@ -17,7 +17,7 @@ fn control() -> GatewayControlPlane {
     )))
     .unwrap();
     let mut rule = control.policies[0].rules[0].clone();
-    rule.id = PolicyRuleId::new("computer-access").unwrap();
+    rule.id = PolicyRuleId::parse("computer-access").unwrap();
     let registry = crate::bindings::catalog_admission().unwrap();
     let attach = registry
         .registry()
@@ -35,15 +35,15 @@ fn control() -> GatewayControlPlane {
 }
 fn subject() -> AuthenticatedSubject {
     let principal = Principal {
-        id: PrincipalId::new("https://computers.test#alice").unwrap(),
+        id: PrincipalId::parse("https://computers.test#alice").unwrap(),
         kind: PrincipalKind::User,
-        issuer: TokenIssuer::new("https://computers.test").unwrap(),
-        subject: TokenSubject::new("alice").unwrap(),
-        tenant: Some(TenantId::new("test").unwrap()),
+        issuer: TokenIssuer::parse("https://computers.test").unwrap(),
+        subject: TokenSubject::parse("alice").unwrap(),
+        tenant: Some(TenantId::parse("test").unwrap()),
         groups: Default::default(),
         group_roles: Default::default(),
         roles: Default::default(),
-        scopes: [ScopeName::new("operator:use").unwrap()]
+        scopes: [ScopeName::parse("operator:use").unwrap()]
             .into_iter()
             .collect(),
         data_labels: Default::default(),
@@ -59,17 +59,17 @@ fn subject() -> AuthenticatedSubject {
         managed_execution: None,
         issuer: principal.issuer.clone(),
         subject: principal.subject.clone(),
-        oauth_client_id: OAuthClientId::new("console").unwrap(),
+        oauth_client_id: OAuthClientId::parse("console").unwrap(),
         session_family: Some(
-            GatewayRefreshFamilyId::new(uuid::Uuid::now_v7().to_string()).unwrap(),
+            GatewayRefreshFamilyId::parse(uuid::Uuid::now_v7().to_string()).unwrap(),
         ),
-        audience: ProtectedResourceId::new("https://computers.test/mcp/operator").unwrap(),
+        audience: ProtectedResourceId::parse("https://computers.test/mcp/operator").unwrap(),
         work_context: authority.work_context.clone(),
         invocation_mode: InvocationMode::Direct,
         initiator: Some(principal.id.clone()),
         delegation_id: None,
         scopes: principal.scopes.clone(),
-        jwt_id: Some(JwtId::new(uuid::Uuid::new_v4().to_string()).unwrap()),
+        jwt_id: Some(JwtId::parse(uuid::Uuid::new_v4().to_string()).unwrap()),
         issued_at: now,
         not_before: None,
         expires_at: now + TimeDelta::seconds(25),
@@ -94,7 +94,7 @@ async fn session_bootstrap_is_available_without_inventory_authority_and_tracks_c
         )),
         offline_mode: true,
     };
-    let profile = GatewayProfileId::new("operator").unwrap();
+    let profile = GatewayProfileId::parse("operator").unwrap();
     for admin in [false, true, false] {
         let mut next = control();
         if admin {

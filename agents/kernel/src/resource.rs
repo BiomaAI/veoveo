@@ -770,12 +770,12 @@ mod tests {
 
     fn observed_result(meta: &rmcp::model::RequestMetaObject) -> ReadResourceResult {
         let collection = knowledge::docs::collection(
-            &veoveo_types::ServerSlug::new("time").unwrap(),
-            &veoveo_types::ResourceScheme::new("time").unwrap(),
+            &veoveo_types::ServerSlug::parse("time").unwrap(),
+            &veoveo_types::ResourceScheme::parse("time").unwrap(),
         );
         let observation = Observation::builder(
             collection.collection().clone(),
-            knowledge::Revision::new("revision-7").unwrap(),
+            knowledge::Revision::parse("revision-7").unwrap(),
             knowledge::content_digest("current source"),
             chrono::Utc::now(),
         )
@@ -849,7 +849,7 @@ mod tests {
             ),
             Err(ResourceReadFailure::InvalidObservation)
         ));
-        let revision = knowledge::Revision::new("revision-7").unwrap();
+        let revision = knowledge::Revision::parse("revision-7").unwrap();
         knowledge::client::declare_read(&mut meta, Some(&revision));
         assert!(matches!(
             validate_contents(observed_result(&meta), &uri, &limits),

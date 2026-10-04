@@ -29,7 +29,7 @@ fn full_catalog_readers_and_published_schemas_share_registration() {
     let mut unknown = plane.clone();
     unknown.policies[0].rules[0]
         .actions
-        .insert(veoveo_types::ActionName::new("unknown_action").unwrap());
+        .insert(veoveo_types::ActionName::parse("unknown_action").unwrap());
     assert!(
         GatewayCatalog::from_control_plane(unknown.clone(), catalog_admission::binding()).is_err()
     );

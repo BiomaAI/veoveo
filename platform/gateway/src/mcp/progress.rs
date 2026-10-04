@@ -105,9 +105,9 @@ mod tests {
     #[tokio::test]
     async fn progress_tokens_translate_and_remove_by_token() {
         let registry = GatewayProgressTokens::default();
-        let profile = GatewayProfileId::new("default").unwrap();
-        let principal = PrincipalId::new("issuer#subject").unwrap();
-        let server = ServerSlug::new("media").unwrap();
+        let profile = GatewayProfileId::parse("default").unwrap();
+        let principal = PrincipalId::parse("issuer#subject").unwrap();
+        let server = ServerSlug::parse("media").unwrap();
 
         registry
             .register(&profile, &principal, &server, token(1), token(99))

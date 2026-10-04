@@ -55,7 +55,7 @@ mod tests {
     #[test]
     fn typed_scope_admission_preserves_independent_grants_and_denials() {
         let mut grants = BTreeSet::from([
-            ScopeName::new("unrelated-server:custom").unwrap(),
+            ScopeName::parse("unrelated-server:custom").unwrap(),
             TimeScope::Read.into(),
             TimeScope::Schedule.into(),
         ]);

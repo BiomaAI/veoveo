@@ -143,7 +143,7 @@ impl ResourceOwner {
             )
             .as_bytes(),
         );
-        PrincipalId::new(format!("view-subscription:{}", hex::encode(digest)))
+        PrincipalId::parse(format!("view-subscription:{}", hex::encode(digest)))
             .expect("sha256 subscription principal is a valid claim")
     }
 }
@@ -323,7 +323,7 @@ impl ViewService {
             return Err(ServiceError::OwnerViewLimit);
         }
         let now = Utc::now();
-        let view_id = ViewId::new(Uuid::now_v7().simple().to_string())?;
+        let view_id = ViewId::parse(Uuid::now_v7().simple().to_string())?;
         let record = ViewRecord::new(view_id.clone(), &composition, request.camera, now)?;
         views.insert(
             view_id,
@@ -733,7 +733,7 @@ impl ViewService {
         if rendered.bytes.len() as u64 > self.config.max_single_frame_bytes {
             return Err(ServiceError::FrameTooLarge);
         }
-        let frame_id = FrameId::new(Uuid::now_v7().simple().to_string())?;
+        let frame_id = FrameId::parse(Uuid::now_v7().simple().to_string())?;
         let actual_sse = if selection.actual_max_screen_error_px.is_finite() {
             selection
                 .actual_max_screen_error_px
@@ -1253,7 +1253,7 @@ mod tests {
 
     fn token_entry(location: &str) -> TileTokenEntry {
         TileTokenEntry {
-            layer: LayerId::new("layer").unwrap(),
+            layer: LayerId::parse("layer").unwrap(),
             location: location.to_owned(),
         }
     }

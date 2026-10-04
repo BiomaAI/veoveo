@@ -11,114 +11,17 @@ use veoveo_types::{
 
 pub const LIVE_VIEW_SCHEMA: &str = "veoveo.ai/live-view/v4";
 
-fn validate_id(value: &str) -> Result<(), LiveViewIdentityError> {
-    if value.is_empty()
-        || matches!(value, "." | "..")
-        || value.len() > 128
-        || !value
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
-    {
-        return Err(LiveViewIdentityError(value.to_owned()));
-    }
-    Ok(())
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = LiveViewIdentityError, validate = validate_id)]
+#[veoveo_types::id(text(LiveViewIds))]
 pub struct LiveViewId(String);
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = LiveViewIdentityError, validate = validate_id)]
+#[veoveo_types::id(text(LiveViewIds))]
 pub struct LiveSessionId(String);
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = LiveViewIdentityError, validate = validate_id)]
+#[veoveo_types::id(text(LiveViewIds))]
 pub struct LiveCameraId(String);
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = LiveViewIdentityError, validate = validate_id)]
+#[veoveo_types::id(text(LiveViewIds))]
 pub struct LiveEntityId(String);
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = LiveViewIdentityError, validate = validate_id)]
+#[veoveo_types::id(text(LiveViewIds))]
 pub struct LiveViewerInstanceId(String);
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = LiveViewIdentityError, validate = validate_id)]
+#[veoveo_types::id(text(LiveViewIds))]
 pub struct LiveStreamProductId(String);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -182,22 +85,10 @@ impl From<LiveViewUri> for String {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(try_from = "String", into = "String")]
+#[veoveo_types::id(text(LiveViewTokens), secret)]
 pub struct LiveViewAccessToken(String);
 
 impl LiveViewAccessToken {
-    pub fn new(value: impl Into<String>) -> Result<Self, LiveViewIdentityError> {
-        let value = value.into();
-        if !(32..=512).contains(&value.len())
-            || value.trim() != value
-            || value.chars().any(char::is_control)
-        {
-            return Err(LiveViewIdentityError("<redacted>".to_owned()));
-        }
-        Ok(Self(value))
-    }
-
     pub fn expose_for_stream(&self) -> &str {
         &self.0
     }
@@ -206,20 +97,6 @@ impl LiveViewAccessToken {
 impl fmt::Debug for LiveViewAccessToken {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str("LiveViewAccessToken(<redacted>)")
-    }
-}
-
-impl TryFrom<String> for LiveViewAccessToken {
-    type Error = LiveViewIdentityError;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::new(value)
-    }
-}
-
-impl From<LiveViewAccessToken> for String {
-    fn from(value: LiveViewAccessToken) -> Self {
-        value.0
     }
 }
 
@@ -832,13 +709,51 @@ impl fmt::Display for LiveViewStateError {
 
 impl std::error::Error for LiveViewStateError {}
 
+use veoveo_types::{IdProfile, IdProfileSpec};
+
+#[doc(hidden)]
+pub struct LiveViewIds;
+impl IdProfile for LiveViewIds {
+    type Error = LiveViewIdentityError;
+    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec::text(|value, _| validate_id(value));
+}
+
+fn validate_id(value: &str) -> Result<(), LiveViewIdentityError> {
+    if value.is_empty()
+        || matches!(value, "." | "..")
+        || value.len() > 128
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+    {
+        return Err(LiveViewIdentityError(value.to_owned()));
+    }
+    Ok(())
+}
+
+#[doc(hidden)]
+pub struct LiveViewTokens;
+impl IdProfile for LiveViewTokens {
+    type Error = LiveViewIdentityError;
+    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec::text(|value, _| {
+        if !(32..=512).contains(&value.len())
+            || value.trim() != value
+            || value.chars().any(char::is_control)
+        {
+            Err(LiveViewIdentityError("<redacted>".to_owned()))
+        } else {
+            Ok(())
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn access_token_debug_is_redacted() {
-        let token = LiveViewAccessToken::new("a".repeat(32)).unwrap();
+        let token = LiveViewAccessToken::parse("a".repeat(32)).unwrap();
         assert_eq!(format!("{token:?}"), "LiveViewAccessToken(<redacted>)");
         assert_eq!(token.expose_for_stream(), "a".repeat(32));
     }
@@ -860,11 +775,11 @@ mod tests {
     #[test]
     fn camera_descriptor_validates_smoothing_and_optics() {
         let descriptor = LiveCameraDescriptor {
-            camera_id: LiveCameraId::new("follow").unwrap(),
-            session_id: LiveSessionId::new("session-a").unwrap(),
+            camera_id: LiveCameraId::parse("follow").unwrap(),
+            session_id: LiveSessionId::parse("session-a").unwrap(),
             revision: 1,
             rig: LiveCameraRig::FollowEntity {
-                target_entity_id: LiveEntityId::new("uav-1").unwrap(),
+                target_entity_id: LiveEntityId::parse("uav-1").unwrap(),
                 eye_offset_flu_m: LiveVector3 {
                     x: -8.0,
                     y: 2.0,
@@ -898,8 +813,8 @@ mod tests {
         let mut invalid = descriptor;
         invalid.rig = LiveCameraRig::FormationOverview {
             target_entity_ids: vec![
-                LiveEntityId::new("uav-2").unwrap(),
-                LiveEntityId::new("uav-1").unwrap(),
+                LiveEntityId::parse("uav-2").unwrap(),
+                LiveEntityId::parse("uav-1").unwrap(),
             ],
             padding_m: 10.0,
             smoothing: LiveCameraSmoothing {
@@ -915,14 +830,14 @@ mod tests {
     #[test]
     fn tiled_product_requires_unique_non_overlapping_in_bounds_regions() {
         let region = |camera_id: &str, x_px: u32| LiveCameraRegion {
-            camera_id: LiveCameraId::new(camera_id).unwrap(),
+            camera_id: LiveCameraId::parse(camera_id).unwrap(),
             x_px,
             y_px: 0,
             width_px: 1_280,
             height_px: 720,
         };
         let product = |camera_regions| LiveStreamProductState {
-            stream_product_id: LiveStreamProductId::new("camera-atlas").unwrap(),
+            stream_product_id: LiveStreamProductId::parse("camera-atlas").unwrap(),
             camera_regions,
             coded_width_px: 2_560,
             coded_height_px: 720,

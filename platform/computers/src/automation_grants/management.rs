@@ -53,7 +53,7 @@ pub(super) fn service_principal_id(
         .find(|server| server.id == client.authorization_server)
         .ok_or(ComputerError::Unavailable)?;
     Ok(Some(
-        PrincipalId::new(format!("{}#{}", server.issuer, client.id))
+        PrincipalId::parse(format!("{}#{}", server.issuer, client.id))
             .map_err(|_| ComputerError::Unavailable)?,
     ))
 }

@@ -18,12 +18,9 @@ impl ComputersStore {
             let owner = owner_key(&computer.owner)?;
             let mut params = crate::store::owner_query_bindings(actor.owner())?;
             params.extend([
-                (
-                    "provider",
-                    self.provider_instance_id.into_uuid().into_value(),
-                ),
+                ("provider", self.provider_instance_id.as_uuid().into_value()),
                 ("owner_key", owner.clone().into_value()),
-                ("computer_id", computer_id.into_uuid().into_value()),
+                ("computer_id", computer_id.as_uuid().into_value()),
             ]);
             let mut response = self
                 .query(
@@ -46,7 +43,7 @@ impl ComputersStore {
                         &row.owner_key,
                         &accepted.task_owner(),
                     )?;
-                    if row.owner_key != owner || row.computer_id != computer_id.into_uuid() {
+                    if row.owner_key != owner || row.computer_id != computer_id.as_uuid() {
                         return Err(ComputerError::Unavailable);
                     }
                     Ok(AccessGrantView {

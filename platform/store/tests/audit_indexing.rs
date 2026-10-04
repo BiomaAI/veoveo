@@ -19,7 +19,7 @@ fn read(not_modified: bool, failed: bool) -> IndexingRead {
         veoveo_types::ResourceUri::new("time://docs/design").unwrap();
     let observation = Observation::builder(
         collection.collection().clone(),
-        Revision::new("revision-1").unwrap(),
+        Revision::parse("revision-1").unwrap(),
         content_digest("body"),
         chrono::Utc::now(),
     )

@@ -14,7 +14,7 @@ async fn maintenance_admits_actor_parent_provider_and_claim_before_private_state
         assert!(matches!(a.maintenance(caller, id).await, Err(ComputerError::Unavailable)));
         assert!(matches!(a.maintenance(&owner("bob"), id).await, Err(ComputerError::NotFound)));
         let mut other_context = caller.clone();
-        other_context.authority.work_context = veoveo_types::WorkContextId::new("another-context").unwrap();
+        other_context.authority.work_context = veoveo_types::WorkContextId::parse("another-context").unwrap();
         assert!(matches!(a.maintenance(&other_context, id).await, Err(ComputerError::NotFound)));
         let foreign = ComputersStore::new(db.b.clone(), "00000000-0000-7000-8000-000000000063".parse::<veoveo_computers::api::ProviderInstanceId>().unwrap(), veoveo_gateway_catalog::registry().expect("installed owner catalog recipe")).unwrap();
         assert!(matches!(foreign.maintenance(caller, id).await, Err(ComputerError::NotFound)));
@@ -31,7 +31,7 @@ async fn maintenance_admits_actor_parent_provider_and_claim_before_private_state
         assert!(matches!(a.maintenance_for_claim(&claim).await, Err(ComputerError::Unavailable)));
         // The operation still names this actor, but the parent needs higher clearance.
         db.a.client().query("UPDATE ONLY $computer SET owner_context.data_labels = ['private'];")
-            .bind(("computer", RecordId::new("computer", StoreUuid::from(operation.computer_id.into_uuid()))))
+            .bind(("computer", RecordId::new("computer", StoreUuid::from(operation.computer_id.as_uuid()))))
             .await.unwrap().check().unwrap();
         assert!(matches!(a.maintenance(caller, id).await, Err(ComputerError::NotFound)));
         assert!(matches!(a.maintenance_for_request(caller, operation.computer_id, operation.request_id).await, Err(ComputerError::NotFound)));
@@ -54,7 +54,7 @@ async fn accepted_resume_receipts_require_parent_access_before_input_decoding() 
             .bind(("operation", paused.operation_id.as_uuid())).await.unwrap().check().unwrap();
         assert!(matches!(a.maintenance_resume_for_request(&actor, &input).await, Err(ComputerError::Unavailable)));
         db.a.client().query("UPDATE ONLY $computer SET owner_context.data_labels = ['private'];")
-            .bind(("computer", RecordId::new("computer", StoreUuid::from(input.computer_id.into_uuid()))))
+            .bind(("computer", RecordId::new("computer", StoreUuid::from(input.computer_id.as_uuid()))))
             .await.unwrap().check().unwrap();
         assert!(matches!(a.maintenance_resume_for_request(&actor, &input).await, Err(ComputerError::NotFound)));
         let retained = a.maintenance_for_claim(&claim).await.unwrap();

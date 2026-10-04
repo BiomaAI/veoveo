@@ -1,7 +1,4 @@
-use std::{
-    collections::{BTreeMap, BTreeSet, HashSet},
-    fmt,
-};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
@@ -31,164 +28,59 @@ pub const MAX_OVERLAY_ARTIFACT_BYTES: u64 = 16_777_216;
 pub const MAX_COMPOSITION_ARTIFACT_BYTES: u64 = 67_108_864;
 pub const MAX_LABEL_BYTES: usize = 64;
 
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = SceneCompositionError, validate = |value| validate_composition_key(value, "scene input id"))]
+#[veoveo_types::id(text(SceneInputIdProfile), error_context = "scene input id")]
 pub struct SceneInputId(String);
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = SceneCompositionError, validate = |value| validate_composition_key(value, "scene overlay id"))]
+#[veoveo_types::id(text(SceneInputIdProfile), error_context = "scene overlay id")]
 pub struct SceneOverlayId(String);
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = SceneCompositionError, validate = |value| validate_composition_key(value, "scene style id"))]
+#[veoveo_types::id(text(SceneInputIdProfile), error_context = "scene style id")]
 pub struct SceneStyleId(String);
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
+#[veoveo_types::id(prefixed(CompositionIds, "composition-"), stable)]
 pub struct SceneCompositionId(String);
 
-impl SceneCompositionId {
-    const PREFIX: &'static str = "composition-";
-    const NAMESPACE: u128 = 0x296b_036e_65dd_57b4_b309_3c47_b22e_419f;
-
-    pub fn from_stable_key(value: &[u8]) -> Self {
-        Self(format!(
-            "{}{}",
-            Self::PREFIX,
-            uuid::Uuid::new_v5(&uuid::Uuid::from_u128(Self::NAMESPACE), value)
-        ))
-    }
-
-    pub fn parse(value: impl Into<String>) -> Result<Self, SceneCompositionError> {
-        let value = value.into();
-        let uuid = value
-            .strip_prefix(Self::PREFIX)
-            .and_then(|suffix| uuid::Uuid::parse_str(suffix).ok())
-            .filter(|uuid| uuid.get_version_num() == 5)
-            .ok_or(SceneCompositionError::InvalidCompositionId)?;
-        Ok(Self(format!("{}{}", Self::PREFIX, uuid)))
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl veoveo_types::Identity for SceneCompositionId {
-    type Error = SceneCompositionError;
-    fn parse_identity(value: &str) -> Result<Self, Self::Error> {
-        Self::parse(value)
-    }
-    fn identity_text(&self) -> std::borrow::Cow<'_, str> {
-        self.0.as_str().into()
-    }
-}
-impl fmt::Display for SceneCompositionId {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(&self.0)
-    }
-}
-
-impl TryFrom<String> for SceneCompositionId {
-    type Error = SceneCompositionError;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::parse(value)
-    }
-}
-
-impl From<SceneCompositionId> for String {
-    fn from(value: SceneCompositionId) -> Self {
-        value.0
-    }
-}
-
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
+#[veoveo_types::id(hex(SceneDigests))]
 pub struct Sha256Digest(String);
-
 impl Sha256Digest {
-    pub fn parse(value: impl Into<String>) -> Result<Self, SceneCompositionError> {
-        let value = value.into();
-        if value.len() != 64
-            || !value
-                .bytes()
-                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-        {
-            return Err(SceneCompositionError::InvalidSha256);
-        }
-        Ok(Self(value))
-    }
-
     pub fn from_bytes(value: &[u8]) -> Self {
         use sha2::{Digest as _, Sha256};
         Self(hex::encode(Sha256::digest(value)))
     }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
 }
 
-impl fmt::Display for Sha256Digest {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(&self.0)
-    }
-}
-
-impl TryFrom<String> for Sha256Digest {
+#[doc(hidden)]
+pub struct CompositionIds;
+impl IdProfile for CompositionIds {
     type Error = SceneCompositionError;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::parse(value)
-    }
+    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
+        canonical: true,
+        generation: IdGeneration {
+            fresh: FreshId::None,
+            stable_v5_namespace: Some(uuid::Uuid::from_u128(
+                0x296b_036e_65dd_57b4_b309_3c47_b22e_419f,
+            )),
+        },
+        ..IdProfileSpec::uuid(
+            UuidGrammar {
+                versions: &[5],
+                variant: UuidVariant::Any,
+                spelling: UuidSpelling::ParserAliases,
+            },
+            |_, _, _| SceneCompositionError::InvalidCompositionId,
+        )
+    };
 }
-
-impl From<Sha256Digest> for String {
-    fn from(value: Sha256Digest) -> Self {
-        value.0
-    }
+#[doc(hidden)]
+pub struct SceneDigests;
+impl IdProfile for SceneDigests {
+    type Error = SceneCompositionError;
+    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec::hex(
+        HexGrammar {
+            length: 64,
+            case: HexCase::Lower,
+            nonzero: false,
+        },
+        |_, _, _| SceneCompositionError::InvalidSha256,
+    );
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -828,6 +720,20 @@ pub enum SceneCompositionError {
     Serialization,
 }
 
+use veoveo_types::{
+    FreshId, HexCase, HexGrammar, IdGeneration, IdProfile, IdProfileSpec, UuidGrammar,
+    UuidSpelling, UuidVariant,
+};
+
+#[doc(hidden)]
+pub struct SceneInputIdProfile;
+impl IdProfile for SceneInputIdProfile {
+    type Error = SceneCompositionError;
+    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec::text(|value, metadata| {
+        validate_composition_key(value, metadata.error_context)
+    });
+}
+
 fn validate_composition_key(value: &str, label: &'static str) -> Result<(), SceneCompositionError> {
     if value.is_empty()
         || value.len() > 128
@@ -859,7 +765,7 @@ mod tests {
 
     fn input(id: &str, uri: &str, media_type: Option<&str>) -> GovernedSceneInput {
         GovernedSceneInput {
-            input_id: SceneInputId::new(id).unwrap(),
+            input_id: SceneInputId::parse(id).unwrap(),
             resource_uri: GovernedResourceUri::parse(uri).unwrap(),
             digest_sha256: Sha256Digest::from_bytes(id.as_bytes()),
             media_type: media_type.map(ToOwned::to_owned),
@@ -871,7 +777,7 @@ mod tests {
     #[test]
     fn composition_ids_and_digests_are_strong_wire_strings() {
         let id = SceneCompositionId::from_stable_key(b"composition");
-        assert_eq!(SceneCompositionId::parse(id.to_string()).unwrap(), id);
+        assert_eq!(SceneCompositionId::parse(&id).unwrap(), id);
         assert!(SceneCompositionId::parse("composition-nope").is_err());
         assert_eq!(Sha256Digest::from_bytes(b"x").as_str().len(), 64);
         assert!(GovernedResourceUri::parse("map://route/../route-1").is_err());
@@ -882,10 +788,10 @@ mod tests {
     fn base_only_composition_is_valid() {
         let request = CreateSceneCompositionRequest {
             schema_version: SCENE_COMPOSITION_SCHEMA_VERSION,
-            base_layer: LayerId::new("base").unwrap(),
+            base_layer: LayerId::parse("base").unwrap(),
             map_releases: BTreeSet::new(),
             local_frame: None,
-            style_id: SceneStyleId::new("default:1").unwrap(),
+            style_id: SceneStyleId::parse("default:1").unwrap(),
             governed_inputs: Vec::new(),
             overlays: Vec::new(),
         };
@@ -901,14 +807,14 @@ mod tests {
         );
         let mut request = CreateSceneCompositionRequest {
             schema_version: SCENE_COMPOSITION_SCHEMA_VERSION,
-            base_layer: LayerId::new("base").unwrap(),
+            base_layer: LayerId::parse("base").unwrap(),
             map_releases: BTreeSet::new(),
             local_frame: None,
-            style_id: SceneStyleId::new("default:1").unwrap(),
+            style_id: SceneStyleId::parse("default:1").unwrap(),
             governed_inputs: vec![operation],
             overlays: vec![SceneOverlay {
-                overlay_id: SceneOverlayId::new("marker").unwrap(),
-                governed_input_ids: BTreeSet::from([SceneInputId::new("operation").unwrap()]),
+                overlay_id: SceneOverlayId::parse("marker").unwrap(),
+                governed_input_ids: BTreeSet::from([SceneInputId::parse("operation").unwrap()]),
                 geometry: SceneOverlayGeometrySource::Inline {
                     geometry: SceneOverlayGeometry::Marker {
                         position: ScenePosition::LocalMeters {
@@ -926,16 +832,16 @@ mod tests {
             SceneCompositionError::LocalFrameRequired
         );
         let revision = FrameWorldRevisionUri::new(
-            &FrameWorldId::new("world").unwrap(),
-            &FrameWorldRevisionId::new("revision-1").unwrap(),
+            &FrameWorldId::parse("world").unwrap(),
+            &FrameWorldRevisionId::parse("revision-1").unwrap(),
         );
         request.local_frame = Some(LocalFrameBinding {
-            frame_uri: WorldFrameUri::new(&revision, &FrameId::new("local").unwrap()),
+            frame_uri: WorldFrameUri::new(&revision, &FrameId::parse("local").unwrap()),
             world_revision: revision,
             ecef_from_frame: [
                 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 2.0, 3.0, 1.0,
             ],
-            operation_input_id: SceneInputId::new("operation").unwrap(),
+            operation_input_id: SceneInputId::parse("operation").unwrap(),
         });
         request.validate().unwrap();
     }
@@ -945,20 +851,20 @@ mod tests {
         let artifact_id = veoveo_artifact_contract::ArtifactId::new();
         let request = CreateSceneCompositionRequest {
             schema_version: SCENE_COMPOSITION_SCHEMA_VERSION,
-            base_layer: LayerId::new("base").unwrap(),
+            base_layer: LayerId::parse("base").unwrap(),
             map_releases: BTreeSet::new(),
             local_frame: None,
-            style_id: SceneStyleId::new("default:1").unwrap(),
+            style_id: SceneStyleId::parse("default:1").unwrap(),
             governed_inputs: vec![input(
                 "geometry",
                 artifact_id.plane_uri().as_str(),
                 Some("application/json"),
             )],
             overlays: vec![SceneOverlay {
-                overlay_id: SceneOverlayId::new("line").unwrap(),
-                governed_input_ids: BTreeSet::from([SceneInputId::new("geometry").unwrap()]),
+                overlay_id: SceneOverlayId::parse("line").unwrap(),
+                governed_input_ids: BTreeSet::from([SceneInputId::parse("geometry").unwrap()]),
                 geometry: SceneOverlayGeometrySource::Artifact {
-                    input_id: SceneInputId::new("geometry").unwrap(),
+                    input_id: SceneInputId::parse("geometry").unwrap(),
                 },
                 style: SceneOverlayStyle::default(),
                 visibility: SceneOverlayVisibility::default(),
@@ -976,10 +882,10 @@ mod tests {
         let request =
             CreateSceneCompositionRequest {
                 schema_version: SCENE_COMPOSITION_SCHEMA_VERSION,
-                base_layer: LayerId::new("base").unwrap(),
+                base_layer: LayerId::parse("base").unwrap(),
                 map_releases: BTreeSet::new(),
                 local_frame: None,
-                style_id: SceneStyleId::new("default:1").unwrap(),
+                style_id: SceneStyleId::parse("default:1").unwrap(),
                 governed_inputs: vec![input(
                     "route",
                     veoveo_map_mcp::contract::MapRouteUri::new(
@@ -989,8 +895,8 @@ mod tests {
                     None,
                 )],
                 overlays: vec![SceneOverlay {
-                    overlay_id: SceneOverlayId::new("route").unwrap(),
-                    governed_input_ids: BTreeSet::from([SceneInputId::new("route").unwrap()]),
+                    overlay_id: SceneOverlayId::parse("route").unwrap(),
+                    governed_input_ids: BTreeSet::from([SceneInputId::parse("route").unwrap()]),
                     geometry: SceneOverlayGeometrySource::Inline {
                         geometry: SceneOverlayGeometry::Marker {
                             position: position(),

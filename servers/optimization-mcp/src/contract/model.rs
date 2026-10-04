@@ -437,7 +437,7 @@ mod tests {
 
     fn variable(id: &str, kind: VariableKind) -> ModelVariable {
         ModelVariable {
-            variable_id: VariableId::new(id).unwrap(),
+            variable_id: VariableId::parse(id).unwrap(),
             kind,
             bounds: VariableBounds {
                 lower: Some(FiniteF64::new(0.0).unwrap()),

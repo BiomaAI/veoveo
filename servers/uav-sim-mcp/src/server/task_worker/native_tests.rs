@@ -120,7 +120,7 @@ async fn provider_operation(
     };
     match state.reply {
         Reply::WrongMission => {
-            result.mission_id = crate::contract::MissionId::new("unrelated-mission").unwrap()
+            result.mission_id = crate::contract::MissionId::parse("unrelated-mission").unwrap()
         }
         Reply::Incomplete => result.lifecycle = crate::contract::MissionLifecycle::Running,
         Reply::WrongCount => result.completed_waypoints += 1,

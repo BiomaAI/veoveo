@@ -32,7 +32,7 @@ fn target_reference(target: &AuditTarget) -> Result<Option<RecordId>, StoreError
         )),
         AuditTarget::Computer { computer } => Some(RecordId::new(
             "computer",
-            SurrealUuid::from(computer.into_uuid()),
+            SurrealUuid::from(computer.as_uuid()),
         )),
         AuditTarget::Task { task } => {
             Some(RecordId::new("task", SurrealUuid::from(task.as_uuid())))

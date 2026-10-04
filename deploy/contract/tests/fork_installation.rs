@@ -208,7 +208,7 @@ fn fork_merge_preserves_separate_release_ownership_and_retained_images() {
                     .into_iter()
                     .map(|name| LockedImage {
                         repository: format!("registry.example.internal/platform/{name}"),
-                        source_revision: veoveo_deploy_contract::SourceRevision::new(
+                        source_revision: veoveo_deploy_contract::SourceRevision::parse(
                             &platform_revision,
                         )
                         .unwrap(),
@@ -230,7 +230,7 @@ fn fork_merge_preserves_separate_release_ownership_and_retained_images() {
                 revision: workload_revision.clone(),
                 images: vec![LockedImage {
                     name: "anonymous-workload".to_owned(),
-                    source_revision: veoveo_deploy_contract::SourceRevision::new(
+                    source_revision: veoveo_deploy_contract::SourceRevision::parse(
                         &workload_revision,
                     )
                     .unwrap(),

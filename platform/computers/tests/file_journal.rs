@@ -96,7 +96,7 @@ async fn one_dispatch_survives_a_lost_ticket_and_owner_authority_is_current() {
     let mut denied = control();
     denied.policies[0].rules[0]
         .tools
-        .remove(&veoveo_mcp_contract::LocalToolName::new("transfer_file").unwrap());
+        .remove(&veoveo_mcp_contract::LocalToolName::parse("transfer_file").unwrap());
     support::policy::install(&db.a, denied).await;
     assert!(matches!(
         b.file_continuation(&successor, ticket.operation())
@@ -116,7 +116,7 @@ async fn one_dispatch_survives_a_lost_ticket_and_owner_authority_is_current() {
 fn control() -> veoveo_mcp_contract::GatewayControlPlane {
     let mut control = support::automation::control();
     for name in ["transfer_file", "update_template"] {
-        let name = veoveo_mcp_contract::LocalToolName::new(name).unwrap();
+        let name = veoveo_mcp_contract::LocalToolName::parse(name).unwrap();
         control.servers[0].tools.push(name.clone());
         control.policies[0].rules[0].tools.insert(name);
     }

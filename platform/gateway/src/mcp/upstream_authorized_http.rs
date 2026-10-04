@@ -298,7 +298,7 @@ mod tests {
 
     fn client() -> GatewayAuthorizedHttpClient {
         let issuer = GatewayInternalTokenIssuer::new(
-            TokenIssuer::new("veoveo-internal").unwrap(),
+            TokenIssuer::parse("veoveo-internal").unwrap(),
             GatewayInternalSigningKey::new(
                 "veoveo-internal-1",
                 base64::engine::general_purpose::STANDARD
@@ -307,26 +307,26 @@ mod tests {
             )
             .unwrap(),
         );
-        let actor_id = PrincipalId::new("https://identity.example#operator").unwrap();
+        let actor_id = PrincipalId::parse("https://identity.example#operator").unwrap();
         let actor = Principal {
             id: actor_id.clone(),
             kind: PrincipalKind::User,
-            issuer: TokenIssuer::new("https://identity.example").unwrap(),
-            subject: TokenSubject::new("operator").unwrap(),
-            tenant: Some(TenantId::new("tenant").unwrap()),
+            issuer: TokenIssuer::parse("https://identity.example").unwrap(),
+            subject: TokenSubject::parse("operator").unwrap(),
+            tenant: Some(TenantId::parse("tenant").unwrap()),
             groups: BTreeSet::new(),
             group_roles: BTreeSet::new(),
             roles: BTreeSet::new(),
-            scopes: BTreeSet::from([ScopeName::new("operator:use").unwrap()]),
+            scopes: BTreeSet::from([ScopeName::parse("operator:use").unwrap()]),
             data_labels: BTreeSet::new(),
             assurances: BTreeSet::new(),
             authenticated_at: None,
         };
         let authority = InvocationAuthority {
-            work_context: WorkContextId::new("mission").unwrap(),
-            tenant: TenantId::new("tenant").unwrap(),
+            work_context: WorkContextId::parse("mission").unwrap(),
+            tenant: TenantId::parse("tenant").unwrap(),
             membership: WorkContextMembershipLevel::Owner,
-            policy_revision: PolicyVersion::new("r1").unwrap(),
+            policy_revision: PolicyVersion::parse("r1").unwrap(),
             output_policy: WorkContextOutputPolicy {
                 owner: AccessSubject::Principal(actor_id.clone()),
                 initial_grants: Vec::new(),
@@ -340,8 +340,8 @@ mod tests {
         GatewayAuthorizedHttpClient::new(
             reqwest::Client::new(),
             issuer,
-            GatewayProfileId::new("operator").unwrap(),
-            ServerSlug::new("uav-sim").unwrap(),
+            GatewayProfileId::parse("operator").unwrap(),
+            ServerSlug::parse("uav-sim").unwrap(),
             &crate::AuthenticatedSubject {
                 extensions: Default::default(),
                 audit: veoveo_mcp_contract::audit::AuditRequest::background(),
@@ -349,14 +349,14 @@ mod tests {
                     managed_execution: None,
                     issuer: actor.issuer.clone(),
                     subject: actor.subject.clone(),
-                    oauth_client_id: veoveo_mcp_contract::OAuthClientId::new("console").unwrap(),
+                    oauth_client_id: veoveo_mcp_contract::OAuthClientId::parse("console").unwrap(),
                     session_family: Some(
-                        veoveo_mcp_contract::GatewayRefreshFamilyId::new(
+                        veoveo_mcp_contract::GatewayRefreshFamilyId::parse(
                             uuid::Uuid::now_v7().to_string(),
                         )
                         .unwrap(),
                     ),
-                    audience: veoveo_gateway_contract::ProtectedResourceId::new("operator")
+                    audience: veoveo_gateway_contract::ProtectedResourceId::parse("operator")
                         .unwrap(),
                     work_context: authority.work_context.clone(),
                     invocation_mode: veoveo_types::InvocationMode::Direct,
@@ -401,7 +401,7 @@ mod tests {
         }
         let mut other_session = client.clone();
         other_session.request_context.access_token.session_family = Some(
-            veoveo_mcp_contract::GatewayRefreshFamilyId::new(uuid::Uuid::now_v7().to_string())
+            veoveo_mcp_contract::GatewayRefreshFamilyId::parse(uuid::Uuid::now_v7().to_string())
                 .unwrap(),
         );
         let token = other_session.issue_bearer_token().unwrap();
@@ -435,7 +435,7 @@ mod tests {
 
         tokio::time::timeout(std::time::Duration::from_secs(10), async {
             let verifier = GatewayInternalTokenVerifier::new(
-                TokenIssuer::new("veoveo-internal").unwrap(),
+                TokenIssuer::parse("veoveo-internal").unwrap(),
                 "uav-sim".parse().unwrap(),
                 GatewayInternalTrustBundle::from_json(r#"{"keys":[{"kty":"OKP","crv":"Ed25519","x":"OMOoJJu_AQS7UM8u2GVtMVj8W1zcE6QhR0DMBr9HEcg","alg":"EdDSA","use":"sig","kid":"veoveo-internal-1"}]}"#).unwrap(),
             );

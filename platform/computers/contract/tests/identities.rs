@@ -45,7 +45,7 @@ fn identity_trait_preserves_canonical_constructor_and_schema_profiles() {
     let raw = "01983da0-0000-7000-8000-000000000001";
     let id = ComputerId::parse_identity(raw).unwrap();
     assert_eq!(id.identity_text(), raw);
-    assert_eq!(ComputerId::try_from(id.into_uuid()).unwrap(), id);
+    assert_eq!(ComputerId::try_from(id.as_uuid()).unwrap(), id);
     let schema = serde_json::to_value(schemars::schema_for!(ComputerId)).unwrap();
     assert_eq!(
         schema["pattern"],

@@ -62,7 +62,7 @@ impl ComputersStore {
     pub(crate) fn session_policy_record(&self) -> RecordId {
         RecordId::new(
             "computer_session_grant_policy",
-            surrealdb::types::Uuid::from(self.provider_instance_id.into_uuid()),
+            surrealdb::types::Uuid::from(self.provider_instance_id.as_uuid()),
         )
     }
     pub async fn install_session_grant_policy(

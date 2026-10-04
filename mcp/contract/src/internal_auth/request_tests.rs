@@ -18,19 +18,19 @@ fn fixtures() -> Vec<Fixture> {
 #[test]
 fn all_invocation_modes_preserve_signed_source_and_session_context() {
     let issuer = GatewayInternalTokenIssuer::new(
-        TokenIssuer::new("veoveo-internal").unwrap(),
+        TokenIssuer::parse("veoveo-internal").unwrap(),
         tests::signing_key("key-1"),
     );
     let verifier = GatewayInternalTokenVerifier::new(
-        TokenIssuer::new("veoveo-internal").unwrap(),
-        ServerSlug::new("computers").unwrap(),
+        TokenIssuer::parse("veoveo-internal").unwrap(),
+        ServerSlug::parse("computers").unwrap(),
         tests::trust_bundle("key-1"),
     );
     for fixture in fixtures() {
         let issued = issuer
             .issue(
-                GatewayProfileId::new("operator").unwrap(),
-                ServerSlug::new("computers").unwrap(),
+                GatewayProfileId::parse("operator").unwrap(),
+                ServerSlug::parse("computers").unwrap(),
                 fixture.actor,
                 fixture.authority,
                 Some(fixture.request_context.clone()),
@@ -52,17 +52,19 @@ fn source_expiry_caps_assertions_and_cannot_be_extended_by_a_signed_context() {
     let mut fixture = fixtures().remove(0);
     fixture.request_context.access_token.expires_at = Utc::now() + TimeDelta::seconds(10);
     let key = tests::signing_key("key-1");
-    let issuer =
-        GatewayInternalTokenIssuer::new(TokenIssuer::new("veoveo-internal").unwrap(), key.clone());
+    let issuer = GatewayInternalTokenIssuer::new(
+        TokenIssuer::parse("veoveo-internal").unwrap(),
+        key.clone(),
+    );
     let verifier = GatewayInternalTokenVerifier::new(
-        TokenIssuer::new("veoveo-internal").unwrap(),
-        ServerSlug::new("computers").unwrap(),
+        TokenIssuer::parse("veoveo-internal").unwrap(),
+        ServerSlug::parse("computers").unwrap(),
         tests::trust_bundle("key-1"),
     );
     let issue = |context| {
         issuer.issue(
-            GatewayProfileId::new("operator").unwrap(),
-            ServerSlug::new("computers").unwrap(),
+            GatewayProfileId::parse("operator").unwrap(),
+            ServerSlug::parse("computers").unwrap(),
             fixture.actor.clone(),
             fixture.authority.clone(),
             Some(context),
@@ -106,24 +108,25 @@ fn signed_context_rejects_mismatched_actor_tenant_scope_and_provenance() {
             let mut actor = fixture.actor.clone();
             match mismatch {
                 "subject" => {
-                    context.access_token.subject = crate::TokenSubject::new("foreign").unwrap()
+                    context.access_token.subject = crate::TokenSubject::parse("foreign").unwrap()
                 }
                 "issuer" => {
                     context.access_token.issuer =
-                        TokenIssuer::new("https://foreign.example").unwrap()
+                        TokenIssuer::parse("https://foreign.example").unwrap()
                 }
                 "tenant" => {
-                    context.principal.tenant = Some(veoveo_types::TenantId::new("foreign").unwrap())
+                    context.principal.tenant =
+                        Some(veoveo_types::TenantId::parse("foreign").unwrap())
                 }
                 "context" => {
                     context.access_token.work_context =
-                        veoveo_types::WorkContextId::new("foreign").unwrap()
+                        veoveo_types::WorkContextId::parse("foreign").unwrap()
                 }
                 "scope" => {
                     context
                         .access_token
                         .scopes
-                        .insert(veoveo_types::ScopeName::new("admin:use").unwrap());
+                        .insert(veoveo_types::ScopeName::parse("admin:use").unwrap());
                 }
                 "mode" => {
                     context.access_token.invocation_mode = if context.access_token.invocation_mode
@@ -134,7 +137,7 @@ fn signed_context_rejects_mismatched_actor_tenant_scope_and_provenance() {
                         veoveo_types::InvocationMode::Direct
                     }
                 }
-                _ => actor.id = PrincipalId::new("foreign").unwrap(),
+                _ => actor.id = PrincipalId::parse("foreign").unwrap(),
             }
             assert!(
                 context.validate_for(&actor, &fixture.authority).is_err(),
@@ -158,17 +161,19 @@ fn assertion_profiles_reject_mixed_versions_and_invalid_execution_attribution() 
         })
         .unwrap();
     let key = tests::signing_key("key-1");
-    let issuer =
-        GatewayInternalTokenIssuer::new(TokenIssuer::new("veoveo-internal").unwrap(), key.clone());
+    let issuer = GatewayInternalTokenIssuer::new(
+        TokenIssuer::parse("veoveo-internal").unwrap(),
+        key.clone(),
+    );
     let verifier = GatewayInternalTokenVerifier::new(
-        TokenIssuer::new("veoveo-internal").unwrap(),
-        ServerSlug::new("computers").unwrap(),
+        TokenIssuer::parse("veoveo-internal").unwrap(),
+        ServerSlug::parse("computers").unwrap(),
         tests::trust_bundle("key-1"),
     );
     let issued = issuer
         .issue(
-            GatewayProfileId::new("operator").unwrap(),
-            ServerSlug::new("computers").unwrap(),
+            GatewayProfileId::parse("operator").unwrap(),
+            ServerSlug::parse("computers").unwrap(),
             fixture.actor.clone(),
             fixture.authority.clone(),
             Some(fixture.request_context.clone()),
@@ -255,7 +260,7 @@ fn signed_execution_projection_preserves_frozen_audit_actor_shape() {
         .audit_context(
             &fixture.actor,
             &fixture.authority,
-            &GatewayProfileId::new("operator").unwrap(),
+            &GatewayProfileId::parse("operator").unwrap(),
         )
         .unwrap();
     assert_eq!(audit.actor.managed_agent, Some(projection));

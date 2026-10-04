@@ -59,7 +59,7 @@ async fn collection_reads_reject_identity_and_ordering_conflicts_after_sql_visib
             .create_calendar(
                 &owner,
                 OperationalCalendar {
-                    calendar_id: CalendarId::new("calendar-00000000-0000-7000-8000-000000000001")
+                    calendar_id: CalendarId::parse("calendar-00000000-0000-7000-8000-000000000001")
                         .unwrap(),
                     version: crate::TimeVersion::new(1).unwrap(),
                     name: "operations".into(),
@@ -150,7 +150,7 @@ async fn collection_reads_reject_identity_and_ordering_conflicts_after_sql_visib
             .create_epoch(
                 &owner,
                 MissionEpoch {
-                    epoch_id: MissionEpochId::new("epoch-00000000-0000-7000-8000-000000000001")
+                    epoch_id: MissionEpochId::parse("epoch-00000000-0000-7000-8000-000000000001")
                         .unwrap(),
                     name: "mission".into(),
                     instant: instant(),
@@ -207,7 +207,7 @@ async fn collection_reads_reject_identity_and_ordering_conflicts_after_sql_visib
             .create_event(
                 &owner,
                 TemporalEvent {
-                    event_id: TemporalEventId::new("event-00000000-0000-7000-8000-000000000001")
+                    event_id: TemporalEventId::parse("event-00000000-0000-7000-8000-000000000001")
                         .unwrap(),
                     name: "launch".into(),
                     due: instant(),
@@ -323,7 +323,7 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
             .create_source(
                 &owner,
                 crate::NewTimeSource {
-                    source_id: TimeSourceId::new(
+                    source_id: TimeSourceId::parse(
                         "time-source-00000000-0000-7000-8000-000000000001",
                     )
                     .unwrap(),
@@ -371,7 +371,7 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
             .create_release(
                 &owner,
                 AuthorityRelease {
-                    release_id: AuthorityReleaseId::new(
+                    release_id: AuthorityReleaseId::parse(
                         "time-release-00000000-0000-7000-8000-000000000001",
                     )
                     .unwrap(),
@@ -402,7 +402,7 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
         let active_body = body(&db.a, &record).await;
         let mut second = release.clone();
         second.release_id =
-            AuthorityReleaseId::new("time-release-00000000-0000-7000-8000-000000000002").unwrap();
+            AuthorityReleaseId::parse("time-release-00000000-0000-7000-8000-000000000002").unwrap();
         second.source_digest_sha256 = "b".repeat(64).parse().unwrap();
         let second = catalog.create_release(&owner, second).await.unwrap();
         catalog
@@ -455,7 +455,7 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
             .create_acquisition(
                 &owner,
                 TimeAcquisition {
-                    acquisition_id: TimeAcquisitionId::new(
+                    acquisition_id: TimeAcquisitionId::parse(
                         "time-acquisition-00000000-0000-7000-8000-000000000001",
                     )
                     .unwrap(),
@@ -520,7 +520,7 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
         set(&db.a, &record, "canonical_json", original.clone()).await;
         let mut wrong_source = acquisition.clone();
         wrong_source.source_id =
-            TimeSourceId::new("time-source-00000000-0000-7000-8000-000000000002").unwrap();
+            TimeSourceId::parse("time-source-00000000-0000-7000-8000-000000000002").unwrap();
         let mut wrong_digest = acquisition.clone();
         wrong_digest.expected_source_digest_sha256 = None;
         let mut wrong_creation = acquisition.clone();
@@ -593,7 +593,7 @@ async fn matching_subsecond_corruption_rejects_reads_without_rewriting_rows() {
             .create_epoch(
                 &owner,
                 MissionEpoch {
-                    epoch_id: MissionEpochId::new("epoch-00000000-0000-7000-8000-000000000001")
+                    epoch_id: MissionEpochId::parse("epoch-00000000-0000-7000-8000-000000000001")
                         .unwrap(),
                     name: "epoch".into(),
                     instant: value.clone(),
@@ -606,7 +606,7 @@ async fn matching_subsecond_corruption_rejects_reads_without_rewriting_rows() {
             .create_event(
                 &owner,
                 TemporalEvent {
-                    event_id: TemporalEventId::new("event-00000000-0000-7000-8000-000000000001")
+                    event_id: TemporalEventId::parse("event-00000000-0000-7000-8000-000000000001")
                         .unwrap(),
                     name: "event".into(),
                     due: value,
@@ -707,7 +707,7 @@ async fn retained_instants_reject_ambiguous_authority_bindings_after_sql_visibil
             .create_epoch(
                 &owner,
                 MissionEpoch {
-                    epoch_id: MissionEpochId::new("epoch-00000000-0000-7000-8000-000000000001")
+                    epoch_id: MissionEpochId::parse("epoch-00000000-0000-7000-8000-000000000001")
                         .unwrap(),
                     name: "epoch".into(),
                     instant: instant(),

@@ -72,7 +72,7 @@ pub fn content(value: wire::Content) -> domain::AgentContent {
 pub(super) fn public_content(value: domain::AgentContent) -> Result<wire::Content, Fault> {
     Ok(wire::Content {
         model: wire::ModelReference {
-            id: wire::AgentModelId::new(value.model.id).map_err(|_| Fault::unavailable())?,
+            id: wire::AgentModelId::parse(value.model.id).map_err(|_| Fault::unavailable())?,
             revision: digest(&value.model.revision)?,
         },
         instructions: value.instructions,
@@ -80,7 +80,7 @@ pub(super) fn public_content(value: domain::AgentContent) -> Result<wire::Conten
             .tools
             .into_iter()
             .map(|t| {
-                veoveo_gateway_contract::GatewayToolName::new(t).map_err(|_| Fault::unavailable())
+                veoveo_gateway_contract::GatewayToolName::parse(t).map_err(|_| Fault::unavailable())
             })
             .collect::<Result<_, _>>()?,
         budgets: wire::Budgets {
@@ -97,7 +97,8 @@ pub(super) fn public_content(value: domain::AgentContent) -> Result<wire::Conten
                 parameters,
                 resource_subscriptions,
             } => wire::Execution::Managed {
-                template: wire::AgentTemplateId::new(template).map_err(|_| Fault::unavailable())?,
+                template: wire::AgentTemplateId::parse(template)
+                    .map_err(|_| Fault::unavailable())?,
                 template_revision: digest(&template_revision)?,
                 parameters: parameters
                     .into_iter()
@@ -178,7 +179,7 @@ pub(super) async fn definitions(
         .into_iter()
         .map(|d| {
             Ok(wire::Definition {
-                id: wire::AgentDefinitionId::new(d.key).map_err(|_| Fault::unavailable())?,
+                id: wire::AgentDefinitionId::parse(d.key).map_err(|_| Fault::unavailable())?,
                 name: d.name,
                 description: d.description,
                 owner: uuid(&d.owner)?,

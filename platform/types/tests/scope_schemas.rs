@@ -40,7 +40,7 @@ fn empty_vocabulary_rejects_every_name_and_has_an_uninhabited_schema() {
         assert!(name.parse::<Scope>().is_err());
         assert!(serde_json::from_value::<Scope>(serde_json::json!(name)).is_err());
     }
-    assert!(Scope::try_from(&ScopeName::new("other:read").unwrap()).is_err());
+    assert!(Scope::try_from(&ScopeName::parse("other:read").unwrap()).is_err());
     assert_eq!(
         serde_json::to_value(Scope::json_schema(&mut schemars::SchemaGenerator::default()))
             .unwrap(),

@@ -32,10 +32,10 @@ impl McpServerContract for ObservatoryContract {
     type Scope = ObservatoryScope;
     type Resource = ObservatoryResource;
     fn slug() -> ServerSlug {
-        ServerSlug::new("observatory").unwrap()
+        ServerSlug::parse("observatory").unwrap()
     }
     fn scheme() -> ResourceScheme {
-        ResourceScheme::new("observatory").unwrap()
+        ResourceScheme::parse("observatory").unwrap()
     }
     fn scopes() -> &'static [ObservatoryScope] {
         ObservatoryScope::ALL
@@ -188,7 +188,7 @@ impl ServerHandler for ObservatoryMcp {
     ) -> Result<ReadResourceResponse, ErrorData> {
         authorize(&context)?;
         if let Some(result) = SETUP.documents().read_authorized_knowledge(
-            &veoveo_types::ResourceScheme::new("observatory").unwrap(),
+            &veoveo_types::ResourceScheme::parse("observatory").unwrap(),
             &request,
             &context.meta,
         )? {

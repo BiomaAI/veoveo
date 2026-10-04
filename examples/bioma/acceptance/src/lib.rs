@@ -129,7 +129,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             profile.required_scopes,
-            vec![ScopeName::new("operator:use").unwrap()]
+            vec![ScopeName::parse("operator:use").unwrap()]
         );
         assert!(
             !client
@@ -175,7 +175,7 @@ mod tests {
         for profile in ["operator", "admin", "agent"] {
             let owner = catalog
                 .server_for_resource_uri(
-                    &GatewayProfileId::new(profile).unwrap(),
+                    &GatewayProfileId::parse(profile).unwrap(),
                     "computer://computers",
                 )
                 .map(|(_, server)| server.slug.to_string());
@@ -184,7 +184,7 @@ mod tests {
         assert!(
             catalog
                 .server_for_resource_uri(
-                    &GatewayProfileId::new("recording-publish").unwrap(),
+                    &GatewayProfileId::parse("recording-publish").unwrap(),
                     "computer://computers",
                 )
                 .is_none()
@@ -218,14 +218,14 @@ mod tests {
         )
         .expect("load Bioma control plane");
         for profile in ["operator", "admin"] {
-            let profile_id = GatewayProfileId::new(profile).expect("profile ID");
+            let profile_id = GatewayProfileId::parse(profile).expect("profile ID");
             let owner = catalog
                 .server_for_resource_uri(&profile_id, "ui://view/preview.html")
                 .map(|(_, server)| server.slug.to_string());
             assert_eq!(owner.as_deref(), Some("view"));
         }
 
-        let profile_id = GatewayProfileId::new("operator").expect("operator profile ID");
+        let profile_id = GatewayProfileId::parse("operator").expect("operator profile ID");
         let profile = catalog.profile(&profile_id).expect("operator profile");
         let scopes = profile
             .required_scopes

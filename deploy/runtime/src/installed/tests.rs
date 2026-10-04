@@ -315,7 +315,7 @@ fn live_installed_reuse_detects_drift_and_preserves_unchanged_revisions() {
     );
     assert_eq!(snapshot(&namespace.context, &namespace.name), before);
     // A commit-only change must preserve the original installed provenance.
-    let revision = SourceRevision::new("d".repeat(40)).unwrap();
+    let revision = SourceRevision::parse("d".repeat(40)).unwrap();
     platform.locked.declaration.source.revision = revision.clone();
     platform.units[0].prepared.source.revision = revision.clone();
     platform.units[0].prepared.inputs = platform.units[0]

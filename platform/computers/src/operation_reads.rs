@@ -45,10 +45,7 @@ impl ComputersStore {
                 "operation",
                 crate::operation_admission::operation_record(id).into_value(),
             ),
-            (
-                "provider",
-                self.provider_instance_id.into_uuid().into_value(),
-            ),
+            ("provider", self.provider_instance_id.as_uuid().into_value()),
             ("as_owner", participant.is_owner().into_value()),
         ]);
         let mut response = self
@@ -88,16 +85,13 @@ impl ComputersStore {
                 "operation",
                 crate::operation_admission::operation_record(lookup.id).into_value(),
             ),
-            (
-                "provider",
-                self.provider_instance_id.into_uuid().into_value(),
-            ),
+            ("provider", self.provider_instance_id.as_uuid().into_value()),
             ("as_owner", lookup.participant.is_owner().into_value()),
-            ("computer_id", lookup.computer.into_uuid().into_value()),
+            ("computer_id", lookup.computer.as_uuid().into_value()),
             ("action", action.into_value()),
             (
                 "grant_id",
-                lookup.grant.map(AutomationGrantId::into_uuid).into_value(),
+                lookup.grant.map(AutomationGrantId::as_uuid).into_value(),
             ),
             (
                 "retained_owner",

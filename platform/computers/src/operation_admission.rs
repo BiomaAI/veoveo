@@ -145,13 +145,13 @@ impl ComputersStore {
         };
         let content = Content {
             operation_id: id.as_uuid(),
-            computer_id: computer_id.into_uuid(),
+            computer_id: computer_id.as_uuid(),
             task: task_record_id(id),
             actor_context: object(caller)?,
             owner_context: object(&computer.owner)?,
-            automation_grant_id: grant_id.map(crate::api::AutomationGrantId::into_uuid),
+            automation_grant_id: grant_id.map(crate::api::AutomationGrantId::as_uuid),
             execution_authority: object(actor.accepted())?,
-            provider_instance_id: computer.provider_instance_id.into_uuid(),
+            provider_instance_id: computer.provider_instance_id.as_uuid(),
             template_fingerprint: computer.template_fingerprint,
             replacement_instance_id: computer.replacement_instance_id,
             action: action.into(),

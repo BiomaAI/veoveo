@@ -143,7 +143,7 @@ async fn cancellation_requires_exact_consent_current_recovery_policy_and_private
     let mut denied = control();
     denied.policies[0].rules[0]
         .tools
-        .remove(&LocalToolName::new("resume_update").unwrap());
+        .remove(&LocalToolName::parse("resume_update").unwrap());
     support::policy::install(&db.a, denied).await;
     assert!(matches!(
         b.resume_maintenance(&actor, &input).await,
@@ -172,7 +172,7 @@ async fn cancellation_requires_exact_consent_current_recovery_policy_and_private
             .unwrap()
             .take(0)
             .unwrap();
-    assert_eq!(count, vec![input.request_id.into_uuid()]);
+    assert_eq!(count, vec![input.request_id.as_uuid()]);
 }
 
 #[tokio::test]

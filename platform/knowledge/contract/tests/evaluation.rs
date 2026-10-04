@@ -13,7 +13,7 @@ fn member(n: usize) -> EvaluationMember {
                 .build()
                 .unwrap(),
         },
-        revision: veoveo_mcp_knowledge_extension::Revision::new("r1").unwrap(),
+        revision: veoveo_mcp_knowledge_extension::Revision::parse("r1").unwrap(),
         content_sha256: Sha256Digest::from_bytes([1; 32]),
     }
 }

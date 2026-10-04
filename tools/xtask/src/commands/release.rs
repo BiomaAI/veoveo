@@ -508,7 +508,7 @@ fn release_direct_images(repository: &RepositoryContext, args: &ReleaseImagesArg
     });
     let evidence = ImageReleaseEvidence {
         schema_version: IMAGE_RELEASE_EVIDENCE_SCHEMA.into(),
-        source_revision: veoveo_deploy_contract::SourceRevision::new(publication.revision())?,
+        source_revision: veoveo_deploy_contract::SourceRevision::parse(publication.revision())?,
         registry: registry.clone(),
         images,
     };
@@ -943,7 +943,7 @@ fn lock_published_images(
             Ok(LockedImage {
                 name,
                 repository: translate_registry(&push_repository, push_registry, pull_registry)?,
-                source_revision: veoveo_deploy_contract::SourceRevision::new(revision)?,
+                source_revision: veoveo_deploy_contract::SourceRevision::parse(revision)?,
                 digest: digests.runtime,
                 publication_digest: digests.publication,
             })

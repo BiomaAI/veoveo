@@ -53,3 +53,27 @@ pub fn validate_claim_text(value: &str) -> Result<(), IdentifierError> {
     }
     Ok(())
 }
+
+#[doc(hidden)]
+pub struct PathIdProfile;
+impl crate::IdProfile for PathIdProfile {
+    type Error = IdentifierError;
+    const PROFILE: crate::IdProfileSpec<Self::Error> =
+        crate::IdProfileSpec::text(|value, _| validate_path_id(value));
+}
+
+#[doc(hidden)]
+pub struct TokenTextProfile;
+impl crate::IdProfile for TokenTextProfile {
+    type Error = IdentifierError;
+    const PROFILE: crate::IdProfileSpec<Self::Error> =
+        crate::IdProfileSpec::text(|value, _| validate_token_text(value));
+}
+
+#[doc(hidden)]
+pub struct ClaimTextProfile;
+impl crate::IdProfile for ClaimTextProfile {
+    type Error = IdentifierError;
+    const PROFILE: crate::IdProfileSpec<Self::Error> =
+        crate::IdProfileSpec::text(|value, _| validate_claim_text(value));
+}

@@ -52,7 +52,7 @@ fn usage_builders_preserve_native_task_identity_and_wire_shape() {
 fn usage_admission_rejects_wrong_collection_versions_and_address_aliases() {
     let id = task(7);
     let cursor = FrameUsageCursor::new(id).unwrap();
-    let world = FrameWorldCursor::new(&FrameWorldId::new("world").unwrap());
+    let world = FrameWorldCursor::new(&FrameWorldId::parse("world").unwrap());
     assert!(FrameUsageCursor::parse(world.as_str()).is_err());
     for envelope in [
         json!({"version":2,"collection":FrameUsageIndexUri::ROOT,"after":id}),

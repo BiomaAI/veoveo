@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-use veoveo_types::{Id, Identity, PrincipalId, Sha256Digest, TaskId};
+use serde::Deserialize;
+use veoveo_types::{Identity, PrincipalId, Sha256Digest, TaskId};
 
 fn admit(value: &str) -> Result<(), &'static str> {
     if value.starts_with("owner:") && value.len() > 6 {
@@ -13,9 +13,7 @@ fn admit(value: &str) -> Result<(), &'static str> {
 }
 
 /// Identity declared by an independent owner.
-#[derive(Id, Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[id(string, validate = admit, error = &'static str)]
-#[serde(try_from = "String", into = "String")]
+#[veoveo_types::id(prefixed(ExternalNames, "owner:"))]
 #[schemars(rename = "ExternalIdentity", !try_from, !into)]
 struct ExternalId(#[schemars(regex(pattern = "^owner:.+$"))] String);
 
@@ -33,12 +31,12 @@ impl Identity for ManualIdentity {
 }
 
 #[test]
-fn ordinary_trait_and_derive_admit_the_same_owner_values() {
+fn ordinary_trait_and_attribute_admit_the_same_owner_values() {
     for value in ["owner:α", "owner:item", "", "owner:", "other:item"] {
         let derived = ExternalId::parse_identity(value);
         let manual = ManualIdentity::parse_identity(value);
         assert_eq!(derived.is_ok(), manual.is_ok());
-        assert_eq!(derived.is_ok(), ExternalId::new(value).is_ok());
+        assert_eq!(derived.is_ok(), ExternalId::parse(value).is_ok());
         assert_eq!(derived.is_ok(), value.parse::<ExternalId>().is_ok());
         assert_eq!(
             derived.is_ok(),
@@ -113,9 +111,9 @@ fn foundational_unicode_and_digest_profiles_do_not_narrow() {
 
 #[test]
 fn formatting_preserves_owner_string_and_uuid_formatter_profiles() {
-    let id = ExternalId::new("owner:item").unwrap();
+    let id = ExternalId::parse("owner:item").unwrap();
     assert_eq!(format!("{id:>20}"), "owner:item");
-    let agent = veoveo_types::AgentDefinitionId::new("agent").unwrap();
+    let agent = veoveo_types::AgentDefinitionId::parse("agent").unwrap();
     assert_eq!(format!("{agent:>8}"), "   agent");
     let uuid = uuid::Uuid::nil();
     let task = TaskId::from_uuid(uuid);
@@ -124,9 +122,8 @@ fn formatting_preserves_owner_string_and_uuid_formatter_profiles() {
 
 // A generator failure must not require Debug or expose an owner's error.
 struct SecretFailure;
-#[derive(Id)]
-#[id(string, constructor = parse, error = SecretFailure,
-    validate = |_| Err(SecretFailure), generate = || "distinctive-generator-secret".to_owned())]
+#[veoveo_types::id(custom(string, error = SecretFailure,
+    validate = |_| Err(SecretFailure), generate = || "distinctive-generator-secret".to_owned()))]
 struct FailedGenerator(String);
 
 #[test]
@@ -154,9 +151,8 @@ fn admit_custom(value: &str) -> Result<OpaqueInner, ()> {
         .map(OpaqueInner)
         .ok_or(())
 }
-#[derive(Id)]
-#[id(error = (), admit = admit_custom, text = custom_text,
-    generate = || OpaqueInner(7), constructor = parse)]
+#[veoveo_types::id(custom(error = (), admit = admit_custom, text = custom_text,
+    generate = || OpaqueInner(7)))]
 struct ProjectedIdentity(OpaqueInner);
 
 #[test]
@@ -201,4 +197,11 @@ fn task_uuid_binary_decoder_profile_is_unchanged() {
         uuid
     );
     assert!(TaskId::deserialize(UuidBytes(&[0; 15])).is_err());
+}
+
+struct ExternalNames;
+impl veoveo_types::IdProfile for ExternalNames {
+    type Error = &'static str;
+    const PROFILE: veoveo_types::IdProfileSpec<Self::Error> =
+        veoveo_types::IdProfileSpec::text(|value, _| admit(value));
 }

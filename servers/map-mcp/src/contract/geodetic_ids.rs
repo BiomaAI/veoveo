@@ -1,8 +1,5 @@
 use std::fmt;
 
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-
 fn validate_coordinate_id(value: &str) -> Result<(), GeodeticIdError> {
     if value.is_empty() || value.len() > 128 {
         return Err(GeodeticIdError::new(value, "must be 1 to 128 characters"));
@@ -54,53 +51,19 @@ impl fmt::Display for GeodeticIdError {
 impl std::error::Error for GeodeticIdError {}
 
 #[doc = "Coordinate reference system id, commonly EPSG:4326."]
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = GeodeticIdError, validate = validate_coordinate_id)]
+#[veoveo_types::id(text(GeodeticKeys))]
 pub struct CrsId(String);
 #[doc = "Geodetic datum id used by a CRS or coordinate operation."]
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = GeodeticIdError, validate = validate_coordinate_id)]
+#[veoveo_types::id(text(GeodeticKeys))]
 pub struct DatumId(String);
 #[doc = "Reference ellipsoid id, such as WGS84 or GRS80."]
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = GeodeticIdError, validate = validate_coordinate_id)]
+#[veoveo_types::id(text(GeodeticKeys))]
 pub struct EllipsoidId(String);
+
+#[doc(hidden)]
+pub struct GeodeticKeys;
+impl veoveo_types::IdProfile for GeodeticKeys {
+    type Error = GeodeticIdError;
+    const PROFILE: veoveo_types::IdProfileSpec<Self::Error> =
+        veoveo_types::IdProfileSpec::text(|value, _| validate_coordinate_id(value));
+}

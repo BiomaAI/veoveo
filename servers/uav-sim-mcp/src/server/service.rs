@@ -864,11 +864,11 @@ impl ResourceSubscriptions for UavSimMcp {
 
 pub(crate) fn fake_state() -> anyhow::Result<SimulationState> {
     let revision_uri = veoveo_frames_mcp::contract::FrameWorldRevisionUri::new(
-        &veoveo_frames_mcp::contract::FrameWorldId::new("test-world")?,
-        &veoveo_frames_mcp::contract::FrameWorldRevisionId::new("revision-1")?,
+        &veoveo_frames_mcp::contract::FrameWorldId::parse("test-world")?,
+        &veoveo_frames_mcp::contract::FrameWorldRevisionId::parse("revision-1")?,
     );
     Ok(SimulationState {
-        session_id: SessionId::new("session-alpha")?,
+        session_id: SessionId::parse("session-alpha")?,
         lifecycle: SimulationLifecycle::Ready,
         simulation_time_s: 0.0,
         physics_step: 0,
@@ -896,7 +896,7 @@ pub(crate) fn fake_state() -> anyhow::Result<SimulationState> {
             spec_sha256: "a".repeat(64),
             simulation_frame_uri: veoveo_frames_mcp::contract::WorldFrameUri::new(
                 &revision_uri,
-                &veoveo_frames_mcp::contract::FrameId::new("isaac-world")?,
+                &veoveo_frames_mcp::contract::FrameId::parse("isaac-world")?,
             ),
             georeference_origin: Wgs84Position {
                 latitude_degrees: 13.6929,
@@ -921,7 +921,7 @@ pub(crate) fn fake_state() -> anyhow::Result<SimulationState> {
             diagnostic: None,
         },
         cameras: vec![CameraState {
-            vehicle_id: VehicleId::new("uav-1")?,
+            vehicle_id: VehicleId::parse("uav-1")?,
             entity_path: "/world/uav-sim/session-alpha/vehicle/uav-1/camera/down".to_owned(),
             lifecycle: CameraLifecycle::Ready,
             width: 640,
@@ -937,11 +937,11 @@ pub(crate) fn fake_state() -> anyhow::Result<SimulationState> {
             diagnostic: None,
         }],
         live_cameras: vec![crate::contract::LiveCameraDescriptor {
-            camera_id: crate::contract::LiveCameraId::new("follow")?,
-            session_id: LiveSessionId::new("session-alpha")?,
+            camera_id: crate::contract::LiveCameraId::parse("follow")?,
+            session_id: LiveSessionId::parse("session-alpha")?,
             revision: 1,
             rig: crate::contract::LiveCameraRig::FollowEntity {
-                target_entity_id: crate::contract::LiveEntityId::new("uav-1")?,
+                target_entity_id: crate::contract::LiveEntityId::parse("uav-1")?,
                 eye_offset_flu_m: crate::contract::LiveVector3 {
                     x: -8.0,
                     y: 0.0,
@@ -970,9 +970,9 @@ pub(crate) fn fake_state() -> anyhow::Result<SimulationState> {
             last_frame_at: Some(Utc::now()),
         }],
         stream_products: vec![crate::contract::LiveStreamProductState {
-            stream_product_id: crate::contract::LiveStreamProductId::new("camera-atlas")?,
+            stream_product_id: crate::contract::LiveStreamProductId::parse("camera-atlas")?,
             camera_regions: vec![crate::contract::LiveCameraRegion {
-                camera_id: crate::contract::LiveCameraId::new("follow")?,
+                camera_id: crate::contract::LiveCameraId::parse("follow")?,
                 x_px: 0,
                 y_px: 0,
                 width_px: 1_280,
@@ -992,7 +992,7 @@ pub(crate) fn fake_state() -> anyhow::Result<SimulationState> {
             diagnostic: None,
         }],
         vehicles: vec![VehicleState {
-            vehicle_id: VehicleId::new("uav-1")?,
+            vehicle_id: VehicleId::parse("uav-1")?,
             flight_state: crate::contract::VehicleFlightState::Standby,
             wgs84: Wgs84Position {
                 latitude_degrees: 13.6929,
@@ -1052,7 +1052,7 @@ fn require_session(state: &SimulationState, session_id: &SessionId) -> Result<()
 }
 
 fn require_live_session(state: &SimulationState, session: &LiveSessionId) -> Result<(), McpError> {
-    let session = SessionId::new(session.as_str()).map_err(invalid)?;
+    let session = SessionId::parse(session.as_str()).map_err(invalid)?;
     require_session(state, &session)
 }
 

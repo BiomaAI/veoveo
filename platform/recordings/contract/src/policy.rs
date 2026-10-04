@@ -132,15 +132,16 @@ mod recording_ingest_tests {
         TraceId,
     ) {
         let protected_resource =
-            ProtectedResourceId::new("https://veoveo.example/ingest/recordings").unwrap();
-        let tenant = veoveo_types::TenantId::new("tenant-a").unwrap();
-        let scope = ScopeName::new("recording:ingest").unwrap();
-        let label = DataLabelId::new("cui").unwrap();
+            ProtectedResourceId::parse("https://veoveo.example/ingest/recordings").unwrap();
+        let tenant = veoveo_types::TenantId::parse("tenant-a").unwrap();
+        let scope = ScopeName::parse("recording:ingest").unwrap();
+        let label = DataLabelId::parse("cui").unwrap();
         let principal = Principal {
-            id: veoveo_types::PrincipalId::new("https://veoveo.example/oauth#sensor-a").unwrap(),
+            id: veoveo_types::PrincipalId::parse("https://veoveo.example/oauth#sensor-a").unwrap(),
             kind: veoveo_mcp_contract::PrincipalKind::Service,
-            issuer: veoveo_mcp_contract::TokenIssuer::new("https://veoveo.example/oauth").unwrap(),
-            subject: veoveo_mcp_contract::TokenSubject::new("sensor-a").unwrap(),
+            issuer: veoveo_mcp_contract::TokenIssuer::parse("https://veoveo.example/oauth")
+                .unwrap(),
+            subject: veoveo_mcp_contract::TokenSubject::parse("sensor-a").unwrap(),
             tenant: Some(tenant.clone()),
             groups: BTreeSet::new(),
             group_roles: BTreeSet::new(),
@@ -151,11 +152,11 @@ mod recording_ingest_tests {
             authenticated_at: None,
         };
         let producer = RecordingProducerRegistration {
-            id: RecordingProducerId::new("sensor-a").unwrap(),
-            oauth_client: OAuthClientId::new("sensor-a").unwrap(),
+            id: RecordingProducerId::parse("sensor-a").unwrap(),
+            oauth_client: OAuthClientId::parse("sensor-a").unwrap(),
             tenant: tenant.clone(),
-            dataset: RecordingDatasetName::new("factory-floor").unwrap(),
-            allowed_application_ids: BTreeSet::from([RecordingApplicationId::new(
+            dataset: RecordingDatasetName::parse("factory-floor").unwrap(),
+            allowed_application_ids: BTreeSet::from([RecordingApplicationId::parse(
                 "inspection-camera",
             )
             .unwrap()]),
@@ -181,13 +182,13 @@ mod recording_ingest_tests {
             metadata: Value::Null,
         };
         let resource = RecordingIngestResource {
-            id: ProtectedResourceName::new("recording-ingest").unwrap(),
+            id: ProtectedResourceName::parse("recording-ingest").unwrap(),
             protected_resource: protected_resource.clone(),
-            authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
-            policy_version: PolicyVersion::new("2026-07-16").unwrap(),
+            authorization_server: AuthorizationServerId::parse("veoveo").unwrap(),
+            policy_version: PolicyVersion::parse("2026-07-16").unwrap(),
             upstream: HttpUpstreamEndpoint {
-                url: UpstreamUrl::new("http://recording-hub:9878").unwrap(),
-                health_url: UpstreamUrl::new("http://recording-hub:9878/healthz").unwrap(),
+                url: UpstreamUrl::parse("http://recording-hub:9878").unwrap(),
+                health_url: UpstreamUrl::parse("http://recording-hub:9878/healthz").unwrap(),
                 security: UpstreamTransportSecurity::ClusterInternalHttp,
                 trusted_certificate_authorities: Vec::new(),
                 client_certificate: None,
@@ -199,9 +200,9 @@ mod recording_ingest_tests {
             metadata: Value::Null,
         };
         let rule = PolicyRule {
-            id: PolicyRuleId::new("allow-sensor-recording-ingest").unwrap(),
+            id: PolicyRuleId::parse("allow-sensor-recording-ingest").unwrap(),
             effect: PolicyEffect::Allow,
-            actions: BTreeSet::from([veoveo_types::ActionName::new(
+            actions: BTreeSet::from([veoveo_types::ActionName::parse(
                 RecordingAction::BatchAppend.as_str(),
             )
             .unwrap()]),
@@ -225,7 +226,7 @@ mod recording_ingest_tests {
             resource,
             producer,
             rule,
-            TraceId::new("trace-recording-ingest").unwrap(),
+            TraceId::parse("trace-recording-ingest").unwrap(),
         )
     }
 
@@ -270,7 +271,7 @@ mod recording_ingest_tests {
             [],
             ["gateway", "server", "resource"]
                 .into_iter()
-                .map(|kind| veoveo_types::ExtensionName::new(kind).unwrap()),
+                .map(|kind| veoveo_types::ExtensionName::parse(kind).unwrap()),
         );
         crate::register_catalog(&mut builder).unwrap();
         let registry = builder.build().unwrap();

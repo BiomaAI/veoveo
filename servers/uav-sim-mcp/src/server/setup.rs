@@ -26,10 +26,10 @@ impl McpServerContract for UavContract {
     type Scope = UavScope;
     type Resource = UavResource;
     fn slug() -> ServerSlug {
-        ServerSlug::new(SERVER_SLUG).expect("declared UAV slug")
+        ServerSlug::parse(SERVER_SLUG).expect("declared UAV slug")
     }
     fn scheme() -> ResourceScheme {
-        ResourceScheme::new(uris::SCHEME).expect("declared UAV scheme")
+        ResourceScheme::parse(uris::SCHEME).expect("declared UAV scheme")
     }
     fn scopes() -> &'static [UavScope] {
         UavScope::ALL

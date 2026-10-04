@@ -166,7 +166,7 @@ impl ServerResourceUri {
         let (scheme, path) = uri
             .split_once("://")
             .ok_or_else(|| ServerResourceUriError::new(uri, "must include a URI scheme"))?;
-        let scheme = ResourceScheme::new(scheme).map_err(|_| {
+        let scheme = ResourceScheme::parse(scheme).map_err(|_| {
             ServerResourceUriError::new(uri, "scheme must follow lowercase URI scheme syntax")
         })?;
         validate_path(uri, path)?;
@@ -345,7 +345,7 @@ mod tests {
     #[test]
     fn server_resource_uri_conventions_round_trip() {
         let uris = ServerResourceUris::new(
-            veoveo_types::ResourceScheme::new("example").expect("declared resource scheme"),
+            veoveo_types::ResourceScheme::parse("example").expect("declared resource scheme"),
         );
         assert_eq!(uris.models_uri(), "example://models");
         assert_eq!(uris.model_template(), "example://model/{model_id}");
@@ -399,13 +399,13 @@ mod tests {
         assert_eq!(
             ServerResourceUri::parse("media://models").unwrap(),
             ServerResourceUri::Models {
-                scheme: ResourceScheme::new("media").unwrap()
+                scheme: ResourceScheme::parse("media").unwrap()
             }
         );
         assert_eq!(
             ServerResourceUri::parse("media://model/provider/model").unwrap(),
             ServerResourceUri::Model {
-                scheme: ResourceScheme::new("media").unwrap(),
+                scheme: ResourceScheme::parse("media").unwrap(),
                 model_id: "provider/model".into()
             }
         );
@@ -424,7 +424,7 @@ mod tests {
         assert_eq!(
             ServerResourceUri::parse("media://custom/path").unwrap(),
             ServerResourceUri::Other {
-                scheme: ResourceScheme::new("media").unwrap(),
+                scheme: ResourceScheme::parse("media").unwrap(),
                 path: "custom/path".into()
             }
         );

@@ -172,7 +172,7 @@ pub struct CreateTemporalEventRequest {
 /// ```compile_fail
 /// use veoveo_time_mcp::{CancelTemporalEventRequest, TemporalEventId, TimeWriteGuard};
 /// let request = CancelTemporalEventRequest {
-///     event_id: TemporalEventId::new("event-example").unwrap(),
+///     event_id: TemporalEventId::parse("event-example").unwrap(),
 ///     expected_record_version: TimeWriteGuard::Absent,
 /// };
 /// ```

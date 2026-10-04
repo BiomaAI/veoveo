@@ -112,7 +112,7 @@ async fn finish(
         AdminOperationAuditRecord {
             audit_target: Some(crate::gateway::http::audit::managed_instance_audit_target(
                 &actor.subject.authority.tenant,
-                &wire::AgentManagedInstanceId::new(key).map_err(|_| Fault::unavailable())?,
+                &wire::AgentManagedInstanceId::parse(key).map_err(|_| Fault::unavailable())?,
             )),
             action: super::authority::policy_action(&actor.catalog, actor.action)
                 .map_err(|_| Fault::unavailable())?,

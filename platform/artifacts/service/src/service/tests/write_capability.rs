@@ -12,13 +12,14 @@ async fn output_floor_survives_omitted_labels_and_changed_presentation_classific
         "acme",
         &["retained-home", "cui", "internal", "presentation"],
     );
-    alice.identity.authority.output_policy.classification = Some(DataLabelId::new("cui").unwrap());
+    alice.identity.authority.output_policy.classification =
+        Some(DataLabelId::parse("cui").unwrap());
     alice
         .identity
         .authority
         .output_policy
         .data_labels
-        .insert(DataLabelId::new("internal").unwrap());
+        .insert(DataLabelId::parse("internal").unwrap());
     let original = alice.identity.authority.clone();
     let capability = service
         .issue_write_capability(
@@ -28,12 +29,14 @@ async fn output_floor_survives_omitted_labels_and_changed_presentation_classific
                 expires_at: Utc::now() + TimeDelta::minutes(5),
                 max_artifact_count: NonZeroU32::new(2).unwrap(),
                 max_total_bytes: NonZeroU64::new(1024).unwrap(),
-                required_data_labels: BTreeSet::from([DataLabelId::new("retained-home").unwrap()]),
+                required_data_labels: BTreeSet::from(
+                    [DataLabelId::parse("retained-home").unwrap()],
+                ),
             },
         )
         .await
         .unwrap();
-    for (index, classification) in [None, Some(DataLabelId::new("presentation").unwrap())]
+    for (index, classification) in [None, Some(DataLabelId::parse("presentation").unwrap())]
         .into_iter()
         .enumerate()
     {
@@ -59,7 +62,7 @@ async fn output_floor_survives_omitted_labels_and_changed_presentation_classific
                 artifact
                     .compliance
                     .data_labels
-                    .contains(&DataLabelId::new(label).unwrap())
+                    .contains(&DataLabelId::parse(label).unwrap())
             );
         }
         let retry = service
@@ -110,7 +113,9 @@ async fn inherited_output_labels_persist_across_independent_native_service_insta
                 expires_at: Utc::now() + TimeDelta::minutes(5),
                 max_artifact_count: NonZeroU32::new(1).unwrap(),
                 max_total_bytes: NonZeroU64::new(1024).unwrap(),
-                required_data_labels: BTreeSet::from([DataLabelId::new("retained-home").unwrap()]),
+                required_data_labels: BTreeSet::from(
+                    [DataLabelId::parse("retained-home").unwrap()],
+                ),
             },
         )
         .await
@@ -140,7 +145,7 @@ async fn inherited_output_labels_persist_across_independent_native_service_insta
         artifact
             .compliance
             .data_labels
-            .contains(&DataLabelId::new("retained-home").unwrap())
+            .contains(&DataLabelId::parse("retained-home").unwrap())
     );
     let retry = second
         .redeem_write_capability(
@@ -180,7 +185,7 @@ async fn output_floor_requires_caller_clearance_at_issuance() {
         expires_at: Utc::now() + TimeDelta::minutes(5),
         max_artifact_count: NonZeroU32::new(1).unwrap(),
         max_total_bytes: NonZeroU64::new(1024).unwrap(),
-        required_data_labels: BTreeSet::from([DataLabelId::new("unheld-label").unwrap()]),
+        required_data_labels: BTreeSet::from([DataLabelId::parse("unheld-label").unwrap()]),
     };
     assert!(matches!(
         service
@@ -194,7 +199,7 @@ async fn output_floor_requires_caller_clearance_at_issuance() {
         .identity
         .authority
         .output_policy
-        .classification = Some(DataLabelId::new("unheld-label").unwrap());
+        .classification = Some(DataLabelId::parse("unheld-label").unwrap());
     assert!(matches!(
         service
             .issue_write_capability(&invalid_policy, request)

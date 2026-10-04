@@ -45,19 +45,10 @@ fn relationship(value: &Feature) -> Result<(), Error> {
     }
 }
 
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    Serialize,
-    Deserialize,
-    schemars::JsonSchema,
-    veoveo_types::ResourceAddress,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(try_from = "String", into = "String")]
 #[schemars(with = "String")]
-#[resource(template="map://source-feature/{release_id}/{source_feature_id}", error=Error, route_error=route_error, validate=relationship, wire)]
+#[veoveo_types::resource_address(custom(template="map://source-feature/{release_id}/{source_feature_id}", error=Error, route_error=route_error, validate=relationship, wire))]
 struct Feature {
     #[resource(error=|_| Error::Field)]
     #[resource(accessor=release_id)]
@@ -126,8 +117,8 @@ impl ResourceFieldCodec<Component> for CursorCodec {
         value.identity_text()
     }
 }
-#[derive(Debug, Clone, PartialEq, Eq, veoveo_types::ResourceAddress)]
-#[resource(template="example://pairs/{id}{?cursor,limit}", error=Error, route_error=route_error, canonical=false, allow_empty_query)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[veoveo_types::resource_address(custom(template="example://pairs/{id}{?cursor,limit}", error=Error, route_error=route_error, canonical=false, allow_empty_query))]
 struct AliasAddress {
     id: Component,
     #[resource(codec=CursorCodec)]
@@ -174,8 +165,8 @@ impl ResourceTailCodec<Zone> for ZoneCodec {
         value.0.iter().map(|part| part.as_str().into()).collect()
     }
 }
-#[derive(Debug, Clone, PartialEq, Eq, veoveo_types::ResourceAddress)]
-#[resource(error=Error, route_error=route_error)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[veoveo_types::resource_address(custom(error=Error, route_error=route_error))]
 enum TimeShape {
     #[resource(template = "time://docs")]
     Docs,
@@ -187,8 +178,8 @@ enum TimeShape {
         cursor: Option<Component>,
     },
 }
-#[derive(Debug, Clone, PartialEq, Eq, veoveo_types::ResourceAddress)]
-#[resource(error=Error, route_error=route_error)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[veoveo_types::resource_address(custom(error=Error, route_error=route_error))]
 enum Overlap {
     #[resource(template = "example://item/{id}")]
     Strict(#[resource(variable="id", error=|_| Error::Field)] Component),
@@ -239,15 +230,15 @@ fn invalid_matched_route_cannot_fall_through_to_another_codec() {
     assert!(Overlap::parse(&ResourceUri::new("example://item/ok").unwrap()).is_ok());
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, veoveo_types::ResourceAddress)]
-#[resource(template="example://raw/{type}", error=Error, route_error=route_error)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[veoveo_types::resource_address(custom(template="example://raw/{type}", error=Error, route_error=route_error))]
 struct RawField {
     r#type: Component,
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Debug, Clone, PartialEq, Eq, veoveo_types::ResourceAddress)]
-#[resource(error=Error, route_error=route_error)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[veoveo_types::resource_address(custom(error=Error, route_error=route_error))]
 enum RawVariant {
     #[resource(template = "example://type")]
     r#type,
@@ -272,8 +263,8 @@ fn reject_escaped_input(parts: &veoveo_types::ResourceUriParts) -> Result<(), Er
     }
 }
 
-#[derive(Debug, veoveo_types::ResourceAddress)]
-#[resource(template="example://checked/{id}", error=Error, route_error=route_error, input=reject_escaped_input)]
+#[derive(Debug)]
+#[veoveo_types::resource_address(custom(template="example://checked/{id}", error=Error, route_error=route_error, input=reject_escaped_input))]
 struct InputChecked {
     #[resource(error=|_| Error::Field)]
     id: Component,
@@ -335,8 +326,8 @@ impl ResourceFieldCodec<Component> for PreciseCodec {
     }
 }
 
-#[derive(Debug, veoveo_types::ResourceAddress)]
-#[resource(template="example://precise/{id}{?cursor}", error=Error, route_error=route_error)]
+#[derive(Debug)]
+#[veoveo_types::resource_address(custom(template="example://precise/{id}{?cursor}", error=Error, route_error=route_error))]
 struct PreciseRoute {
     #[resource(codec=PreciseCodec)]
     id: Component,

@@ -38,7 +38,7 @@ impl FileTransferAccess {
         let valid = match self {
             Self::Import { capability } => {
                 binding.direction == FileTransferDirection::Import
-                    && capability.task_id.as_uuid() == binding.transfer_id.into_uuid()
+                    && capability.task_id.as_uuid() == binding.transfer_id.as_uuid()
             }
             Self::Export { capability } => {
                 binding.direction == FileTransferDirection::Export

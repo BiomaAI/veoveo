@@ -4,7 +4,7 @@ use veoveo_types::Sha256Digest;
 
 fn reference(name: &str, kind: AuthorityDatasetKind) -> TimeAuthorityReference {
     TimeAuthorityReference::new(
-        TimeAuthorityReleaseUri::bootstrap(&AuthorityReleaseId::new(name).unwrap()),
+        TimeAuthorityReleaseUri::bootstrap(&AuthorityReleaseId::parse(name).unwrap()),
         kind,
         TimeAuthoritySource::Bootstrap,
         Sha256Digest::from_hex("a".repeat(64)).unwrap(),
@@ -18,11 +18,11 @@ fn reference_construction_preserves_wire_fields_and_derives_identity() {
     for source in [
         TimeAuthoritySource::Bootstrap,
         TimeAuthoritySource::Acquisition {
-            source_id: TimeSourceId::new("time-source-fixture").unwrap(),
-            acquisition_id: TimeAcquisitionId::new("time-acquisition-fixture").unwrap(),
+            source_id: TimeSourceId::parse("time-source-fixture").unwrap(),
+            acquisition_id: TimeAcquisitionId::parse("time-acquisition-fixture").unwrap(),
         },
     ] {
-        let id = AuthorityReleaseId::new("time-release-2026b:published").unwrap();
+        let id = AuthorityReleaseId::parse("time-release-2026b:published").unwrap();
         let uri = match source {
             TimeAuthoritySource::Bootstrap => TimeAuthorityReleaseUri::bootstrap(&id),
             _ => TimeAuthorityReleaseUri::new(&id),
@@ -159,7 +159,7 @@ fn effective_pair_checks_roles_and_derives_the_instant_binding() {
 
 #[test]
 fn instant_bindings_reject_one_identity_assigned_to_both_families() {
-    let id = AuthorityReleaseId::new("time-release-fixture").unwrap();
+    let id = AuthorityReleaseId::parse("time-release-fixture").unwrap();
     assert_eq!(
         AuthorityBinding::new(id.clone(), id.clone()),
         Err(TimeAuthorityError::DuplicateRelease)
@@ -303,7 +303,7 @@ fn resolved_and_converted_outputs_reject_either_mismatched_authority_family() {
 
 #[test]
 fn bootstrap_and_acquired_source_locations_cannot_be_interchanged() {
-    let id = AuthorityReleaseId::new("time-release-fixture").unwrap();
+    let id = AuthorityReleaseId::parse("time-release-fixture").unwrap();
     for (uri, source) in [
         (
             TimeAuthorityReleaseUri::new(&id),
@@ -312,8 +312,8 @@ fn bootstrap_and_acquired_source_locations_cannot_be_interchanged() {
         (
             TimeAuthorityReleaseUri::bootstrap(&id),
             TimeAuthoritySource::Acquisition {
-                source_id: TimeSourceId::new("time-source-fixture").unwrap(),
-                acquisition_id: TimeAcquisitionId::new("time-acquisition-fixture").unwrap(),
+                source_id: TimeSourceId::parse("time-source-fixture").unwrap(),
+                acquisition_id: TimeAcquisitionId::parse("time-acquisition-fixture").unwrap(),
             },
         ),
     ] {

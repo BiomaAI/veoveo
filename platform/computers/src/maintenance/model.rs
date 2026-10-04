@@ -191,14 +191,14 @@ impl TryFrom<MaintenanceRecord> for MaintenanceOperation {
             || [op.source_instance_id, op.target_instance_id]
                 .iter()
                 .any(Uuid::is_nil)
-            || op.target_instance_id == op.computer_id.into_uuid()
+            || op.target_instance_id == op.computer_id.as_uuid()
             || op.target_instance_id == op.source_instance_id
             || !fingerprint(&op.source_template_fingerprint)
             || row.task != task_record_id(op.task_id())
             || owner_key(&op.actor)? != row.owner_key
             || op.execution_authority.task_owner() != op.actor
             || matches!(op.source, MaintenanceSource::InitialFailure { .. })
-                && op.source_instance_id != op.computer_id.into_uuid()
+                && op.source_instance_id != op.computer_id.as_uuid()
         {
             return Err(ComputerError::Unavailable);
         }

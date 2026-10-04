@@ -453,7 +453,7 @@ async fn read_text_resource(client: &Client, uri: &str) -> Result<String> {
 async fn read_document_index(client: &Client, scheme: &str) -> Result<Vec<String>> {
     use veoveo_mcp_contract::docs::knowledge_extension::docs;
     use veoveo_types::{ResourceScheme, ResourceUriBuilder};
-    let scheme = ResourceScheme::new(scheme)?;
+    let scheme = ResourceScheme::parse(scheme)?;
     let root = docs::index_uri(&scheme);
     let mut uri = root.clone();
     let mut ids = Vec::new();

@@ -23,10 +23,10 @@ impl McpServerContract for ViewContract {
     type Scope = ViewScope;
     type Resource = ViewResource;
     fn slug() -> ServerSlug {
-        ServerSlug::new("view").expect("declared View slug")
+        ServerSlug::parse("view").expect("declared View slug")
     }
     fn scheme() -> ResourceScheme {
-        ResourceScheme::new("view").expect("declared View scheme")
+        ResourceScheme::parse("view").expect("declared View scheme")
     }
     fn scopes() -> &'static [ViewScope] {
         ViewScope::ALL

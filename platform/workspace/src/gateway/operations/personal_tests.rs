@@ -80,7 +80,7 @@ async fn personal_feeds_follow_native_tasks_on_two_replicas_without_private_payl
         let replica = new_state(db.b.clone(), fixture.port);
         let _stop = state.stop.clone().drop_guard();
         let _replica_stop = replica.stop.clone().drop_guard();
-        let actor = state.authority(&subject, &GatewayProfileId::new("operator").unwrap()).await.unwrap();
+        let actor = state.authority(&subject, &GatewayProfileId::parse("operator").unwrap()).await.unwrap();
         let chat = WorkspaceChatId::new();
         db.a.create_workspace_chat(&actor, chat, "Private live work").await.unwrap();
         let app = new_app(state.clone());

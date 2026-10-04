@@ -61,7 +61,7 @@ impl GatewayMcp {
         task_id: &str,
         trace_id: Option<TraceId>,
     ) -> Result<CanonicalTaskRoute, McpError> {
-        let canonical_task_id = CanonicalTaskId::new(task_id.to_owned())
+        let canonical_task_id = CanonicalTaskId::parse(task_id)
             .map_err(|error| mcp_invalid_params(format!("invalid canonical task id: {error}")))?;
         let Some(route) = self
             .state
@@ -122,7 +122,7 @@ impl GatewayMcp {
         if !owned {
             return Err(mcp_invalid_params("unknown task id"));
         }
-        let server = ServerSlug::new(record_key(&route.server)?)
+        let server = ServerSlug::parse(record_key(&route.server)?)
             .map_err(|error| mcp_internal(format!("task has invalid server: {error}")))?;
         let exposed = self
             .catalog
@@ -218,7 +218,7 @@ impl GatewayMcp {
         if client.client_surface != OAuthClientSurface::ToolsCompat {
             return Ok(false);
         }
-        let helper = CompatibilityHelperId::new(format!("{server}.{tool}")).map_err(|err| {
+        let helper = CompatibilityHelperId::parse(format!("{server}.{tool}")).map_err(|err| {
             mcp_internal(format!("failed to build compatibility helper id: {err}"))
         })?;
         Ok(client.allowed_compatibility_helpers.contains(&helper))
@@ -309,7 +309,7 @@ impl GatewayMcp {
         action: GatewayAction,
         target: PolicyTarget,
     ) -> Result<(AuthenticatedSubject, PolicyDecision), McpError> {
-        let trace_id = TraceId::new(subject.audit.trace_id.to_string())
+        let trace_id = TraceId::parse(&subject.audit.trace_id)
             .map_err(|err| mcp_internal(format!("failed to create trace id: {err}")))?;
         self.evaluate_policy_for_subject_with_trace(subject, action, target, trace_id)
             .await
@@ -620,7 +620,7 @@ impl GatewayMcp {
     }
 
     pub(super) fn server_for_prompt(&self, prompt: &str) -> Result<ServerSlug, McpError> {
-        let prompt = PromptName::new(prompt.to_string())
+        let prompt = PromptName::parse(prompt)
             .map_err(|err| mcp_invalid_params(format!("invalid prompt name: {err}")))?;
         let catalog = self.catalog.current();
         let matches = catalog.prompt_servers(&self.profile_id, &prompt);
@@ -645,8 +645,7 @@ fn trace_id_for_context(context: &RequestContext<RoleServer>) -> Result<TraceId,
         .extensions
         .get::<crate::request_observation::RequestObservation>()
         .ok_or_else(|| mcp_invalid_request("HTTP request correlation missing"))?;
-    TraceId::new(observation.audit.trace_id.to_string())
-        .map_err(|_| mcp_internal("invalid request trace"))
+    TraceId::parse(&observation.audit.trace_id).map_err(|_| mcp_internal("invalid request trace"))
 }
 
 fn record_key(record: &veoveo_platform_store::RecordId) -> Result<String, McpError> {
@@ -740,14 +739,14 @@ mod tests {
     #[test]
     fn policy_denial_names_the_tool_and_explains_the_reason() {
         let decision = PolicyDecision::deny(
-            GatewayProfileId::new("operator").unwrap(),
+            GatewayProfileId::parse("operator").unwrap(),
             GatewayAction::ToolsCall,
             PolicyTarget::Tool {
-                server: ServerSlug::new("map").unwrap(),
-                tool: LocalToolName::new("route").unwrap(),
+                server: ServerSlug::parse("map").unwrap(),
+                tool: LocalToolName::parse("route").unwrap(),
             },
             PolicyReasonCode::MissingScope,
-            TraceId::new("policy-denial-message").unwrap(),
+            TraceId::parse("policy-denial-message").unwrap(),
         );
         let message = policy_denial_message(&decision);
         assert!(message.starts_with("You don't have permission to call `map__route`."));

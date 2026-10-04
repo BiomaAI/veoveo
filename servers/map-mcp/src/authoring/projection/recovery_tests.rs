@@ -85,9 +85,9 @@ async fn recovery() {
         related_resources: vec![],
         evidence_resources: vec![],
         provenance: FeatureProvenance {
-            actor_id: veoveo_types::PrincipalId::new("author").unwrap(),
-            work_context: veoveo_types::WorkContextId::new("operations").unwrap(),
-            policy_revision: veoveo_types::PolicyVersion::new("r1").unwrap(),
+            actor_id: veoveo_types::PrincipalId::parse("author").unwrap(),
+            work_context: veoveo_types::WorkContextId::parse("operations").unwrap(),
+            policy_revision: veoveo_types::PolicyVersion::parse("r1").unwrap(),
             invocation_mode: veoveo_types::InvocationMode::Direct,
             initiator_id: None,
             delegation_id: None,

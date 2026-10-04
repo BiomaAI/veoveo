@@ -8,7 +8,7 @@ use crate::contract::{
 /// validates these descriptors before startup.
 pub static SCHEME: std::sync::LazyLock<veoveo_types::ResourceScheme> =
     std::sync::LazyLock::new(|| {
-        veoveo_types::ResourceScheme::new("map").expect("declared server resource scheme")
+        veoveo_types::ResourceScheme::parse("map").expect("declared server resource scheme")
     });
 
 pub const DOCS_URI: &str = "map://docs";

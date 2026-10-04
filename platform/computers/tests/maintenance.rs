@@ -22,7 +22,7 @@ use veoveo_task_runtime::{RecoveryClass, TaskRuntime};
 fn control() -> GatewayControlPlane {
     let mut control = support::interactive::control();
     for name in ["update_template", "resume_update"] {
-        let name = LocalToolName::new(name).unwrap();
+        let name = LocalToolName::parse(name).unwrap();
         control.servers[0].tools.push(name.clone());
         control.policies[0].rules[0].tools.insert(name);
     }
@@ -65,12 +65,12 @@ async fn replicas_share_one_replacement_task_fence_and_retained_capacity() {
         let operation = result.unwrap();
         assert_eq!(operation.operation_id, expected.operation_id);
         assert_eq!(operation.target_instance_id, expected.target_instance_id);
-        assert_eq!(operation.source_instance_id, computer_id.into_uuid());
+        assert_eq!(operation.source_instance_id, computer_id.as_uuid());
         assert_eq!(operation.stage, MaintenanceStage::Queued);
         assert_eq!(operation.target, target);
         assert!(matches!(operation.source, MaintenanceSource::Ready { .. }));
     }
-    assert_ne!(expected.target_instance_id, computer_id.into_uuid());
+    assert_ne!(expected.target_instance_id, computer_id.as_uuid());
     let after = b.get(actor.owner(), computer_id).await.unwrap();
     assert_eq!(after.active_operation, Some(expected.operation_id));
     assert_eq!(after.phase, before.phase);
@@ -127,7 +127,7 @@ async fn replicas_share_one_replacement_task_fence_and_retained_capacity() {
         reply.take::<Vec<RecordId>>(1).unwrap(),
         vec![RecordId::new(
             "computer",
-            StoreUuid::from(computer_id.into_uuid())
+            StoreUuid::from(computer_id.as_uuid())
         )]
     );
     assert_eq!(
@@ -296,7 +296,7 @@ async fn failed_initial_create_is_fenced_without_reclassifying_its_unknown_effec
     let retained = a.get(actor.owner(), computer.computer_id).await.unwrap();
     assert_eq!(retained.active_operation, Some(replacement.operation_id));
     assert_eq!(retained.phase, ComputerPhase::RecoveryRequired);
-    assert_eq!(retained.instance_id(), computer.computer_id.into_uuid());
+    assert_eq!(retained.instance_id(), computer.computer_id.as_uuid());
     assert!(retained.provider_resource_id.is_none());
     assert!(matches!(
         a.reserve(
@@ -349,7 +349,7 @@ async fn maintenance_requires_current_named_policy_private_owner_and_no_executio
     let mut denied = control();
     denied.policies[0].rules[0]
         .tools
-        .remove(&LocalToolName::new("update_template").unwrap());
+        .remove(&LocalToolName::parse("update_template").unwrap());
     support::policy::install(&db.a, denied).await;
     assert!(matches!(
         a.queue_maintenance(
@@ -376,10 +376,10 @@ async fn maintenance_requires_current_named_policy_private_owner_and_no_executio
             "slot",
             RecordId::new(
                 "computer_execution_slot",
-                StoreUuid::from(computer_id.into_uuid()),
+                StoreUuid::from(computer_id.as_uuid()),
             ),
         ))
-        .bind(("computer", computer_id.into_uuid()))
+        .bind(("computer", computer_id.as_uuid()))
         .bind((
             "execution",
             RecordId::new("computer_execution", StoreUuid::from(Uuid::now_v7())),
@@ -418,7 +418,7 @@ async fn browser_admits_maintenance_for_an_existing_replacement() {
         .query("UPDATE ONLY $computer SET replacement_instance_id = $replacement;")
         .bind((
             "computer",
-            RecordId::new("computer", StoreUuid::from(id.into_uuid())),
+            RecordId::new("computer", StoreUuid::from(id.as_uuid())),
         ))
         .bind(("replacement", Uuid::now_v7()))
         .await

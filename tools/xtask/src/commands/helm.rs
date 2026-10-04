@@ -98,7 +98,7 @@ pub(crate) fn build(
     revision: &str,
     selection: &[Chart],
 ) -> Result<HelmRelease> {
-    ReleaseVersion::new(version).context("validating Helm release version")?;
+    ReleaseVersion::parse(version).context("validating Helm release version")?;
     let helm_version = process::output_text("helm", ["version", "--short"], Some(source))?;
     let helm_version = helm_version.trim();
     ensure!(!helm_version.is_empty(), "Helm did not report a version");

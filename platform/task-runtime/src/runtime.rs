@@ -1143,12 +1143,12 @@ mod tests {
     use veoveo_types::{PolicyVersion, PrincipalId, TenantId, WorkContextId};
 
     fn direct_authority(principal: &str, tenant: &str) -> InvocationAuthority {
-        let principal = PrincipalId::new(principal).unwrap();
+        let principal = PrincipalId::parse(principal).unwrap();
         InvocationAuthority {
-            work_context: WorkContextId::new("mission").unwrap(),
-            tenant: TenantId::new(tenant).unwrap(),
+            work_context: WorkContextId::parse("mission").unwrap(),
+            tenant: TenantId::parse(tenant).unwrap(),
             membership: WorkContextMembershipLevel::Owner,
-            policy_revision: PolicyVersion::new("r1").unwrap(),
+            policy_revision: PolicyVersion::parse("r1").unwrap(),
             output_policy: WorkContextOutputPolicy {
                 owner: AccessSubject::Principal(principal.clone()),
                 initial_grants: Vec::new(),

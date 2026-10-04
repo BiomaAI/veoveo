@@ -26,7 +26,7 @@ struct MapBootstrapPayload {
 }
 
 fn map_slug() -> ServerSlug {
-    ServerSlug::new(super::SERVER_SLUG).expect("map is a valid server slug")
+    ServerSlug::parse(super::SERVER_SLUG).expect("map is a valid server slug")
 }
 
 fn decode(bytes: &[u8]) -> Result<(ServerBootstrapDocument, MapBootstrapPayload)> {

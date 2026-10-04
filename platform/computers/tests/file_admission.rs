@@ -25,7 +25,7 @@ async fn setup(
     let state = support::automation::setup(db).await;
     let mut control = support::automation::control();
     for name in ["transfer_file", "update_template"] {
-        let name = LocalToolName::new(name).unwrap();
+        let name = LocalToolName::parse(name).unwrap();
         control.servers[0].tools.push(name.clone());
         control.policies[0].rules[0].tools.insert(name);
     }
@@ -77,7 +77,7 @@ async fn replicas_reserve_one_file_slot_and_recover_the_same_private_task() {
         b.ensure_file_task(&operation).await.unwrap();
     }
     let task = TaskRuntime::new(db.b.clone(), "computers", "observer")
-        .get(veoveo_types::TaskId::from_uuid(*id.as_uuid()))
+        .get(veoveo_types::TaskId::from_uuid(id.as_uuid()))
         .await
         .unwrap()
         .unwrap();
@@ -100,7 +100,7 @@ async fn replicas_reserve_one_file_slot_and_recover_the_same_private_task() {
                         "record",
                         surrealdb::types::RecordId::new(
                             "computer_file_transfer",
-                            surrealdb::types::Uuid::from(id.into_uuid()),
+                            surrealdb::types::Uuid::from(id.as_uuid()),
                         ),
                     ))
                     .await
@@ -292,10 +292,7 @@ async fn artifact_access_is_task_bound_private_and_first_adequate_receipt_wins()
         FileCapabilityRequest::Import(request) => request,
         _ => panic!("read capability required"),
     };
-    assert_eq!(
-        request.task_id.as_uuid(),
-        operation.transfer_id().into_uuid()
-    );
+    assert_eq!(request.task_id.as_uuid(), operation.transfer_id().as_uuid());
     assert_eq!(request.max_artifact_count.get(), 1);
     assert_eq!(request.max_total_bytes.get(), 1024);
     let access = |task: veoveo_computers_contract::FileTransferId| FileTransferAccess::Import {
@@ -356,7 +353,7 @@ async fn stale_policy_and_changed_process_cannot_reserve_file_work() {
         .await
         .unwrap();
     let mut control = support::automation::control();
-    let name = LocalToolName::new("transfer_file").unwrap();
+    let name = LocalToolName::parse("transfer_file").unwrap();
     control.servers[0].tools.push(name.clone());
     control.policies[0].rules[0].tools.insert(name);
     support::policy::install(&db.a, control).await;

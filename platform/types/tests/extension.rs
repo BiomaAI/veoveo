@@ -15,12 +15,12 @@ impl ScopeDefinition for OrchardScope {
         match self {
             Self::InventoryRead => {
                 static NAME: LazyLock<ScopeName> =
-                    LazyLock::new(|| ScopeName::new("orchard:inventory:read").unwrap());
+                    LazyLock::new(|| ScopeName::parse("orchard:inventory:read").unwrap());
                 &NAME
             }
             Self::HarvestWrite => {
                 static NAME: LazyLock<ScopeName> =
-                    LazyLock::new(|| ScopeName::new("orchard:harvest:write").unwrap());
+                    LazyLock::new(|| ScopeName::parse("orchard:harvest:write").unwrap());
                 &NAME
             }
         }
@@ -59,8 +59,8 @@ fn admits(grants: &BTreeSet<ScopeName>, required: OrchardScope) -> bool {
 #[test]
 fn consumer_owned_vocabulary_and_resources_need_no_core_registration() {
     let grants = BTreeSet::from([
-        ScopeName::new("orchard:inventory:read").unwrap(),
-        ScopeName::new("another-server:custom").unwrap(),
+        ScopeName::parse("orchard:inventory:read").unwrap(),
+        ScopeName::parse("another-server:custom").unwrap(),
     ]);
     assert!(admits(&grants, OrchardScope::InventoryRead));
     assert!(!admits(&grants, OrchardScope::HarvestWrite));

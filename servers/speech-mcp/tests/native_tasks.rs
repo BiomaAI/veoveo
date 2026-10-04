@@ -65,7 +65,7 @@ fn caller(signing: &signing::Signing, name: &str) -> PlaneCaller {
         identity
             .actor
             .data_labels
-            .insert(DataLabelId::new("speech-private").unwrap());
+            .insert(DataLabelId::parse("speech-private").unwrap());
         identity.request_context.as_mut().unwrap().principal = identity.actor.clone();
     }
     PlaneCaller {
@@ -96,8 +96,8 @@ async fn exercise() -> Result<()> {
         ObjectStoreConfig::Memory.build()?,
     );
     let auth = PlaneAuthenticator::new(
-        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
-        vec![ServerSlug::new("speech")?],
+        TokenIssuer::parse(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
+        vec![ServerSlug::parse("speech")?],
         signing.trust.clone(),
     );
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
@@ -120,7 +120,7 @@ async fn exercise() -> Result<()> {
             PutArtifactRequest {
                 mime_type: Some("audio/wav".into()),
                 filename: Some("speech-acceptance.wav".into()),
-                classification: Some(DataLabelId::new("speech-private")?),
+                classification: Some(DataLabelId::parse("speech-private")?),
                 data_labels: Default::default(),
                 retention_expires_at: None,
                 metadata: serde_json::json!({}),
@@ -164,7 +164,7 @@ async fn exercise() -> Result<()> {
         "private Task leaked"
     );
     let mut switched = alice.clone();
-    switched.identity.authority.work_context = WorkContextId::new("another-context")?;
+    switched.identity.authority.work_context = WorkContextId::parse("another-context")?;
     ensure!(
         service
             .authorize(

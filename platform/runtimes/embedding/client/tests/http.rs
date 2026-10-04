@@ -101,8 +101,8 @@ impl Fixture {
 }
 fn space() -> EmbeddingSpace {
     EmbeddingSpace {
-        model: EmbeddingModelId::new("fixture").unwrap(),
-        revision: EmbeddingModelRevision::new("pinned-revision").unwrap(),
+        model: EmbeddingModelId::parse("fixture").unwrap(),
+        revision: EmbeddingModelRevision::parse("pinned-revision").unwrap(),
         dimension: EmbeddingDimension::new(3).unwrap(),
         runtime_image: Sha256Digest::from_bytes([1; 32]),
     }

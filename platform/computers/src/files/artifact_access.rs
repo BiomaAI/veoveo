@@ -106,10 +106,7 @@ impl ComputersStore {
             include_str!("../../queries/attach_file_access.surql"),
             vec![
                 ("transfer", super::record(saved.transfer_id()).into_value()),
-                (
-                    "provider",
-                    self.provider_instance_id.into_uuid().into_value(),
-                ),
+                ("provider", self.provider_instance_id.as_uuid().into_value()),
                 ("binding", super::object(&saved.binding)?.into_value()),
                 ("authority", super::object(&saved.authority)?.into_value()),
                 (

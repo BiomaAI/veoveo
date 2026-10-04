@@ -1,8 +1,5 @@
 use std::fmt;
 
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-
 fn validate_coordinate_id(value: &str) -> Result<(), FrameIdError> {
     if matches!(value, "." | "..") {
         return Err(FrameIdError::new(
@@ -60,70 +57,24 @@ impl fmt::Display for FrameIdError {
 impl std::error::Error for FrameIdError {}
 
 #[doc = "Coordinate operation frame id for solver inputs, resources, and provenance. RRD transform frame ids live in veoveo-rrd."]
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = FrameIdError, validate = validate_coordinate_id)]
+#[veoveo_types::id(text(CoordinateIds))]
 pub struct FrameId(String);
 #[doc = "Stable identity of one authored coordinate-frame world."]
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = FrameIdError, validate = validate_coordinate_id)]
+#[veoveo_types::id(text(CoordinateIds))]
 pub struct FrameWorldId(String);
 #[doc = "Immutable identity of one complete coordinate-frame world revision."]
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = FrameIdError, validate = validate_coordinate_id)]
+#[veoveo_types::id(text(CoordinateIds))]
 pub struct FrameWorldRevisionId(String);
 #[doc = "Durable id for one coordinate transform, projection, geodesic, or validation operation."]
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = FrameIdError, validate = validate_coordinate_id)]
+#[veoveo_types::id(text(CoordinateIds))]
 pub struct CoordinateOperationId(String);
+
+use veoveo_types::{IdProfile, IdProfileSpec};
+
+#[doc(hidden)]
+pub struct CoordinateIds;
+impl IdProfile for CoordinateIds {
+    type Error = FrameIdError;
+    const PROFILE: IdProfileSpec<Self::Error> =
+        IdProfileSpec::text(|value, _| validate_coordinate_id(value));
+}

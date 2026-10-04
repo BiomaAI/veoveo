@@ -9,7 +9,7 @@ use veoveo_task_runtime::TaskRuntime;
 pub fn control() -> veoveo_mcp_contract::GatewayControlPlane {
     let mut control = support::policy::control();
     let mut read = control.policies[0].rules[0].clone();
-    read.id = PolicyRuleId::new("computer-read").unwrap();
+    read.id = PolicyRuleId::parse("computer-read").unwrap();
     read.actions = [GatewayAction::ResourcesRead.into()].into_iter().collect();
     read.tools.clear();
     control.policies[0].rules.push(read);

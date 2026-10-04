@@ -25,9 +25,9 @@ use crate::server::test_support::fixture;
 
 pub(super) fn grant(identity: &GatewayInternalIdentity, key: &str) -> GrantVehicleControlRequest {
     GrantVehicleControlRequest {
-        grant_id: ControlGrantId::new(key).unwrap(),
-        session_id: SessionId::new("native-session").unwrap(),
-        vehicle_id: VehicleId::new("vehicle-one").unwrap(),
+        grant_id: ControlGrantId::parse(key).unwrap(),
+        session_id: SessionId::parse("native-session").unwrap(),
+        vehicle_id: VehicleId::parse("vehicle-one").unwrap(),
         principal_key: identity.actor.id.to_string(),
         permissions: BTreeSet::from([
             VehicleControlPermission::Inspect,
@@ -47,12 +47,12 @@ pub(super) fn grant(identity: &GatewayInternalIdentity, key: &str) -> GrantVehic
 pub(super) fn mission_request(key: &str) -> PrepareVehicleMissionRequest {
     let now = Utc::now();
     PrepareVehicleMissionRequest {
-        session_id: SessionId::new("native-session").unwrap(),
-        mission_id: MissionId::new(key).unwrap(),
-        vehicle_id: VehicleId::new("vehicle-one").unwrap(),
+        session_id: SessionId::parse("native-session").unwrap(),
+        mission_id: MissionId::parse(key).unwrap(),
+        vehicle_id: VehicleId::parse("vehicle-one").unwrap(),
         expected_world_revision_uri: veoveo_frames_mcp::contract::FrameWorldRevisionUri::new(
-            &veoveo_frames_mcp::contract::FrameWorldId::new("native").unwrap(),
-            &veoveo_frames_mcp::contract::FrameWorldRevisionId::new("revision-one").unwrap(),
+            &veoveo_frames_mcp::contract::FrameWorldId::parse("native").unwrap(),
+            &veoveo_frames_mcp::contract::FrameWorldRevisionId::parse("revision-one").unwrap(),
         ),
         map_route: MapRouteHandoffBuilder {
             schema_profile: MapRouteHandoffSchema::V1,
@@ -188,20 +188,20 @@ async fn native_sql_pages_and_lookups_preserve_authority_beyond_previous_caps() 
                 .unwrap();
         }
         let mut revoked = grant(&pilot, "revoked");
-        revoked.vehicle_id = VehicleId::new("vehicle-revoked").unwrap();
+        revoked.vehicle_id = VehicleId::parse("vehicle-revoked").unwrap();
         writer.grant(&pilot, revoked).await.unwrap();
         writer
             .revoke(
                 &pilot,
                 RevokeVehicleControlRequest {
-                    grant_id: ControlGrantId::new("revoked").unwrap(),
+                    grant_id: ControlGrantId::parse("revoked").unwrap(),
                     expected_revision: 0,
                 },
             )
             .await
             .unwrap();
-        let session = SessionId::new("native-session").unwrap();
-        let vehicle = VehicleId::new("vehicle-one").unwrap();
+        let session = SessionId::parse("native-session").unwrap();
+        let vehicle = VehicleId::parse("vehicle-one").unwrap();
         let admitted = reader
             .require_permission(
                 &pilot,
@@ -223,7 +223,7 @@ async fn native_sql_pages_and_lookups_preserve_authority_beyond_previous_caps() 
                 .require_permission(
                     &pilot,
                     &session,
-                    &VehicleId::new("vehicle-revoked").unwrap(),
+                    &VehicleId::parse("vehicle-revoked").unwrap(),
                     VehicleControlPermission::Execute
                 )
                 .await
@@ -233,7 +233,7 @@ async fn native_sql_pages_and_lookups_preserve_authority_beyond_previous_caps() 
             reader
                 .require_permission(
                     &pilot,
-                    &SessionId::new("other-session").unwrap(),
+                    &SessionId::parse("other-session").unwrap(),
                     &vehicle,
                     VehicleControlPermission::Execute
                 )
@@ -245,7 +245,10 @@ async fn native_sql_pages_and_lookups_preserve_authority_beyond_previous_caps() 
                 .inspectable_vehicles(
                     &pilot,
                     &session,
-                    &[vehicle.clone(), VehicleId::new("vehicle-revoked").unwrap()]
+                    &[
+                        vehicle.clone(),
+                        VehicleId::parse("vehicle-revoked").unwrap()
+                    ]
                 )
                 .await
                 .unwrap(),
@@ -266,7 +269,7 @@ async fn native_sql_pages_and_lookups_preserve_authority_beyond_previous_caps() 
         assert_eq!(last.items.len(), 2);
         assert!(last.next_cursor.is_none());
         assert!(UavGrantCursor::parse(None, &cursor).is_err());
-        assert!(UavGrantCursor::parse(Some(&SessionId::new("other").unwrap()), &cursor).is_err());
+        assert!(UavGrantCursor::parse(Some(&SessionId::parse("other").unwrap()), &cursor).is_err());
         let mut count = 0;
         let mut after = None;
         loop {
@@ -292,7 +295,7 @@ async fn native_sql_pages_and_lookups_preserve_authority_beyond_previous_caps() 
                 .visible_grant(
                     &pilot,
                     false,
-                    &ControlGrantId::new("other-visible").unwrap()
+                    &ControlGrantId::parse("other-visible").unwrap()
                 )
                 .await
                 .unwrap()
@@ -300,7 +303,11 @@ async fn native_sql_pages_and_lookups_preserve_authority_beyond_previous_caps() 
         );
         assert!(
             reader
-                .visible_grant(&pilot, true, &ControlGrantId::new("other-visible").unwrap())
+                .visible_grant(
+                    &pilot,
+                    true,
+                    &ControlGrantId::parse("other-visible").unwrap()
+                )
                 .await
                 .unwrap()
                 .is_some()
@@ -361,7 +368,7 @@ async fn native_sql_pages_and_lookups_preserve_authority_beyond_previous_caps() 
         labeled
             .actor
             .data_labels
-            .insert(veoveo_types::DataLabelId::new("restricted").unwrap());
+            .insert(veoveo_types::DataLabelId::parse("restricted").unwrap());
         let hidden = writer
             .prepare_plan(&pilot, mission_request("classified-mission"))
             .await
@@ -369,7 +376,7 @@ async fn native_sql_pages_and_lookups_preserve_authority_beyond_previous_caps() 
         let hidden_task = admitted_task(&tasks, &labeled, &hidden).await;
         let mut different_profile = pilot.clone();
         different_profile.profile =
-            veoveo_mcp_contract::GatewayProfileId::new("other-profile").unwrap();
+            veoveo_mcp_contract::GatewayProfileId::parse("other-profile").unwrap();
         let profile_task = task(&tasks, &different_profile, &hidden).await;
         for denied in [&peer, &foreign, &different_profile] {
             assert!(
@@ -398,7 +405,7 @@ async fn native_sql_pages_and_lookups_preserve_authority_beyond_previous_caps() 
                 .is_none()
         );
         assert!(
-            task_index::mission(&db.b, &pilot, &MissionId::new("hidden-mission").unwrap())
+            task_index::mission(&db.b, &pilot, &MissionId::parse("hidden-mission").unwrap())
                 .await
                 .unwrap()
                 .is_none()

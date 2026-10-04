@@ -41,7 +41,7 @@ impl ViewDocument {
 #[serde(try_from = "String", into = "String")]
 pub struct TileKey(Sha256Digest);
 impl TileKey {
-    pub fn parse(value: impl Into<String>) -> Result<Self, ViewResourceError> {
+    pub fn parse(value: impl AsRef<str>) -> Result<Self, ViewResourceError> {
         Sha256Digest::parse(value)
             .map(Self)
             .map_err(|_| ViewResourceError)
@@ -81,140 +81,43 @@ impl schemars::JsonSchema for TileKey {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, veoveo_types::ResourceAddress)]
-#[serde(try_from = "String", into = "String")]
-#[resource(template = "view://layer/{layer_id}", error = ViewResourceError, route_error = |_| ViewResourceError, wire, schema = resource_string_schema, schema_inline)]
-pub struct LayerUri(#[resource(variable = "layer_id", error = |_| ViewResourceError)] LayerId);
-impl LayerUri {
-    pub fn new(id: LayerId) -> Self {
-        Self(id)
-    }
-    pub fn id(&self) -> &LayerId {
-        &self.0
-    }
-    pub fn parse(value: impl AsRef<str>) -> Result<Self, ViewResourceError> {
-        let uri = ResourceUri::new(value.as_ref()).map_err(|_| ViewResourceError)?;
-        <Self as ResourceAddress>::parse(&uri)
-    }
-    pub fn to_uri(&self) -> ResourceUri {
-        self.resource_components_uri()
-            .expect("admitted View resource")
-    }
-}
-impl fmt::Display for LayerUri {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.to_uri().fmt(f)
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, veoveo_types::ResourceAddress)]
-#[serde(try_from = "String", into = "String")]
-#[resource(template = "view://view/{view_id}", error = ViewResourceError, route_error = |_| ViewResourceError, wire, schema = resource_string_schema, schema_inline)]
-pub struct ViewUri(#[resource(variable = "view_id", error = |_| ViewResourceError)] ViewId);
-impl ViewUri {
-    pub fn new(id: ViewId) -> Self {
-        Self(id)
-    }
-    pub fn id(&self) -> &ViewId {
-        &self.0
-    }
-    pub fn parse(value: impl AsRef<str>) -> Result<Self, ViewResourceError> {
-        let uri = ResourceUri::new(value.as_ref()).map_err(|_| ViewResourceError)?;
-        <Self as ResourceAddress>::parse(&uri)
-    }
-    pub fn to_uri(&self) -> ResourceUri {
-        self.resource_components_uri()
-            .expect("admitted View resource")
-    }
-}
-impl fmt::Display for ViewUri {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.to_uri().fmt(f)
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, veoveo_types::ResourceAddress)]
-#[serde(try_from = "String", into = "String")]
-#[resource(template = "view://composition/{composition_id}", error = ViewResourceError, route_error = |_| ViewResourceError, wire, schema = resource_string_schema, schema_inline)]
+#[veoveo_types::resource_address(
+    components(ViewResourceErrorAddresses),
+    template = "view://layer/{layer_id}"
+)]
+pub struct LayerUri(
+    #[resource(variable = "layer_id", error = |_| ViewResourceError, accessor = id)] LayerId,
+);
+#[veoveo_types::resource_address(
+    components(ViewResourceErrorAddresses),
+    template = "view://view/{view_id}"
+)]
+pub struct ViewUri(
+    #[resource(variable = "view_id", error = |_| ViewResourceError, accessor = id)] ViewId,
+);
+#[veoveo_types::resource_address(
+    components(ViewResourceErrorAddresses),
+    template = "view://composition/{composition_id}"
+)]
 pub struct CompositionUri(
-    #[resource(variable = "composition_id", error = |_| ViewResourceError)] SceneCompositionId,
+    #[resource(variable = "composition_id", error = |_| ViewResourceError, accessor = id)]
+    SceneCompositionId,
 );
-impl CompositionUri {
-    pub fn new(id: SceneCompositionId) -> Self {
-        Self(id)
-    }
-    pub fn id(&self) -> &SceneCompositionId {
-        &self.0
-    }
-    pub fn parse(value: impl AsRef<str>) -> Result<Self, ViewResourceError> {
-        let uri = ResourceUri::new(value.as_ref()).map_err(|_| ViewResourceError)?;
-        <Self as ResourceAddress>::parse(&uri)
-    }
-    pub fn to_uri(&self) -> ResourceUri {
-        self.resource_components_uri()
-            .expect("admitted View resource")
-    }
-}
-impl fmt::Display for CompositionUri {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.to_uri().fmt(f)
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, veoveo_types::ResourceAddress)]
-#[serde(try_from = "String", into = "String")]
-#[resource(template = "view://frame/{frame_id}", error = ViewResourceError, route_error = |_| ViewResourceError, wire, schema = resource_string_schema, schema_inline)]
-pub struct FrameUri(#[resource(variable = "frame_id", error = |_| ViewResourceError)] FrameId);
-impl FrameUri {
-    pub fn new(id: FrameId) -> Self {
-        Self(id)
-    }
-    pub fn id(&self) -> &FrameId {
-        &self.0
-    }
-    pub fn parse(value: impl AsRef<str>) -> Result<Self, ViewResourceError> {
-        let uri = ResourceUri::new(value.as_ref()).map_err(|_| ViewResourceError)?;
-        <Self as ResourceAddress>::parse(&uri)
-    }
-    pub fn to_uri(&self) -> ResourceUri {
-        self.resource_components_uri()
-            .expect("admitted View resource")
-    }
-}
-impl fmt::Display for FrameUri {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.to_uri().fmt(f)
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, veoveo_types::ResourceAddress)]
-#[serde(try_from = "String", into = "String")]
-#[resource(template = "view://tile/{tile_key}", error = ViewResourceError, route_error = |_| ViewResourceError, wire, schema = resource_string_schema, schema_inline)]
+#[veoveo_types::resource_address(
+    components(ViewResourceErrorAddresses),
+    template = "view://frame/{frame_id}"
+)]
+pub struct FrameUri(
+    #[resource(variable = "frame_id", error = |_| ViewResourceError, accessor = id)] FrameId,
+);
+#[veoveo_types::resource_address(
+    components(ViewResourceErrorAddresses),
+    template = "view://tile/{tile_key}"
+)]
 pub struct TileUri(
-    #[resource(variable = "tile_key", codec = TileKeyCodec, error = |_| ViewResourceError)] TileKey,
+    #[resource(variable = "tile_key", codec = TileKeyCodec, error = |_| ViewResourceError, accessor = id)]
+     TileKey,
 );
-impl TileUri {
-    pub fn new(id: TileKey) -> Self {
-        Self(id)
-    }
-    pub fn id(&self) -> &TileKey {
-        &self.0
-    }
-    pub fn parse(value: impl AsRef<str>) -> Result<Self, ViewResourceError> {
-        let uri = ResourceUri::new(value.as_ref()).map_err(|_| ViewResourceError)?;
-        <Self as ResourceAddress>::parse(&uri)
-    }
-    pub fn to_uri(&self) -> ResourceUri {
-        self.resource_components_uri()
-            .expect("admitted View resource")
-    }
-}
-impl fmt::Display for TileUri {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.to_uri().fmt(f)
-    }
-}
-
 /// A checked scene request. Runtime admission also applies installation limits.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
@@ -297,7 +200,7 @@ impl schemars::JsonSchema for ViewSceneUri {
 /// Each address accepts only the IDs and parameters owned by its route.
 /// ```compile_fail
 /// use veoveo_view_mcp::{FrameId, ViewUri};
-/// ViewUri::new(FrameId::new("frame-1").unwrap());
+/// ViewUri::new(FrameId::parse("frame-1").unwrap());
 /// ```
 /// ```compile_fail
 /// use veoveo_view_mcp::TileUri;
@@ -351,7 +254,7 @@ impl ViewResource {
                         .map_err(|_| ViewResourceError)?,
                 };
                 Ok(Self::Scene(ViewSceneUri::new(
-                    ViewId::new(*id).map_err(|_| ViewResourceError)?,
+                    ViewId::parse(*id).map_err(|_| ViewResourceError)?,
                     policy,
                 )?))
             }
@@ -365,16 +268,16 @@ impl ViewResource {
             ("view", "views", []) => Ok(Self::Views),
             ("view", "frames", []) => Ok(Self::Frames),
             ("view", "layer", [id]) => Ok(Self::Layer(LayerUri::new(
-                LayerId::new(*id).map_err(|_| ViewResourceError)?,
+                LayerId::parse(*id).map_err(|_| ViewResourceError)?,
             ))),
             ("view", "composition", [id]) => Ok(Self::Composition(CompositionUri::new(
                 SceneCompositionId::parse(*id).map_err(|_| ViewResourceError)?,
             ))),
             ("view", "view", [id]) => Ok(Self::View(ViewUri::new(
-                ViewId::new(*id).map_err(|_| ViewResourceError)?,
+                ViewId::parse(*id).map_err(|_| ViewResourceError)?,
             ))),
             ("view", "frame", [id]) => Ok(Self::Frame(FrameUri::new(
-                FrameId::new(*id).map_err(|_| ViewResourceError)?,
+                FrameId::parse(*id).map_err(|_| ViewResourceError)?,
             ))),
             ("view", "tile", [id]) => Ok(Self::Tile(TileUri::new(TileKey::parse(*id)?))),
             _ => Err(ViewResourceError),
@@ -468,3 +371,17 @@ impl veoveo_types::ResourceFieldCodec<TileKey> for TileKeyCodec {
 
 #[cfg(test)]
 mod tests;
+
+#[doc(hidden)]
+pub struct ViewResourceErrorAddresses;
+impl veoveo_types::ResourceProfile for ViewResourceErrorAddresses {
+    type Error = ViewResourceError;
+    const PROFILE: veoveo_types::ResourceProfileSpec<Self::Error> =
+        veoveo_types::ResourceProfileSpec {
+            route_error: |_, _| ViewResourceError,
+        };
+    const SCHEMA: Option<veoveo_types::ResourceSchema> = Some(veoveo_types::ResourceSchema {
+        schema: |_, generator| resource_string_schema(generator),
+        inline: true,
+    });
+}

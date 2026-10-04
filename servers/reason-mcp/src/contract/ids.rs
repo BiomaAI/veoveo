@@ -1,5 +1,5 @@
 //! Reason-owned identifiers stay distinct through catalog and execution APIs.
-use std::{fmt, str::FromStr};
+use std::fmt;
 
 use serde::{Deserialize, Serialize};
 use veoveo_types::TaskId;
@@ -23,40 +23,33 @@ impl fmt::Display for ReasonContractError {
 }
 impl std::error::Error for ReasonContractError {}
 
-#[derive(
-    veoveo_types::Id, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=ReasonContractError,validate=|value| validate_catalog_id(value,"pipeline"),schema=String::json_schema,schema_inline)]
+#[veoveo_types::id(text(PipelineIdProfile), error_context = "pipeline")]
 pub struct PipelineId(String);
 
-#[derive(
-    veoveo_types::Id, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=ReasonContractError,validate=|value| validate_catalog_id(value,"model"),schema=String::json_schema,schema_inline)]
+#[veoveo_types::id(text(PipelineIdProfile), error_context = "model")]
 pub struct ModelId(String);
 
 /// Identity of a Reason analysis backed by a native UUIDv7 Task.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
+#[veoveo_types::id(custom(error = ReasonContractError, admit = admit_analysis_task, text = |inner: &TaskId| std::borrow::Cow::Owned(inner.to_string()), wire_string, schema = string_schema, schema_inline))]
 pub struct AnalysisId(TaskId);
 impl AnalysisId {
-    pub fn parse(value: impl AsRef<str>) -> Result<Self, ReasonContractError> {
-        let value = value.as_ref();
-        let task: TaskId = value
-            .parse()
-            .map_err(|_| ReasonContractError::InvalidId("analysis"))?;
-        let id = Self::try_from(task)?;
-        if id.to_string() != value {
-            return Err(ReasonContractError::InvalidId("analysis"));
-        }
-        Ok(id)
-    }
     pub fn task_id(self) -> TaskId {
         self.0
     }
 }
+fn admit_analysis_task(value: &str) -> Result<TaskId, ReasonContractError> {
+    let task: TaskId = value
+        .parse()
+        .map_err(|_| ReasonContractError::InvalidId("analysis"))?;
+    let id = AnalysisId::try_from(task)?;
+    if id.to_string() != value {
+        return Err(ReasonContractError::InvalidId("analysis"));
+    }
+    Ok(id.0)
+}
+
 impl TryFrom<TaskId> for AnalysisId {
     type Error = ReasonContractError;
     fn try_from(value: TaskId) -> Result<Self, Self::Error> {
@@ -68,47 +61,23 @@ impl TryFrom<TaskId> for AnalysisId {
         Ok(Self(value))
     }
 }
-impl TryFrom<String> for AnalysisId {
+use veoveo_types::{IdProfile, IdProfileSpec, IdSchema};
+
+#[doc(hidden)]
+pub struct PipelineIdProfile;
+impl IdProfile for PipelineIdProfile {
     type Error = ReasonContractError;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::parse(value)
-    }
+    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
+        schema: IdSchema::Owner {
+            schema: |generator, _| string_schema(generator),
+            inline: true,
+        },
+        ..IdProfileSpec::text(|value, metadata| validate_catalog_id(value, metadata.error_context))
+    };
 }
-impl FromStr for AnalysisId {
-    type Err = ReasonContractError;
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        Self::parse(value)
-    }
-}
-impl From<AnalysisId> for String {
-    fn from(value: AnalysisId) -> Self {
-        value.to_string()
-    }
-}
-impl veoveo_types::Identity for AnalysisId {
-    type Error = ReasonContractError;
-    fn parse_identity(value: &str) -> Result<Self, Self::Error> {
-        Self::parse(value)
-    }
-    fn identity_text(&self) -> std::borrow::Cow<'_, str> {
-        self.0.to_string().into()
-    }
-}
-impl fmt::Display for AnalysisId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
-    }
-}
-impl schemars::JsonSchema for AnalysisId {
-    fn inline_schema() -> bool {
-        true
-    }
-    fn schema_name() -> std::borrow::Cow<'static, str> {
-        "AnalysisId".into()
-    }
-    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
-        <String as schemars::JsonSchema>::json_schema(generator)
-    }
+
+fn string_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    <String as schemars::JsonSchema>::json_schema(generator)
 }
 
 fn validate_catalog_id(value: &str, kind: &'static str) -> Result<(), ReasonContractError> {

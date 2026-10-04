@@ -159,7 +159,7 @@ async fn malformed_selected_completions_fail_before_public_projection() {
         }
         // A self-consistent foreign snapshot still cannot borrow this Task's owner.
         let mut foreign = caller.clone();
-        foreign.authority.work_context = WorkContextId::new("other-context").unwrap();
+        foreign.authority.work_context = WorkContextId::parse("other-context").unwrap();
         let foreign_request = capture(&foreign);
         let id = create(&writer, &caller, &foreign_request).await;
         finish(&writer, id, completed(&foreign_request)).await;

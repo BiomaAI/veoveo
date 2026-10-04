@@ -34,7 +34,7 @@ pub fn registry() -> Result<CatalogRegistry, ExtensionError> {
             "usage",
         ]
         .into_iter()
-        .map(ExtensionName::new)
+        .map(ExtensionName::parse)
         .collect::<Result<Vec<_>, _>>()?,
     );
     builder.register_kernel::<GatewayAction>()?;

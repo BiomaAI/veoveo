@@ -72,7 +72,7 @@ fn template_parameters_and_public_choices_cannot_select_credentials_or_code() {
     }
     assert!(!template.accepts_parameters(&BTreeMap::new()));
     let mut principal = principal("managed-one");
-    let context = WorkContextId::new("operations").unwrap();
+    let context = WorkContextId::parse("operations").unwrap();
     let public = serde_json::to_string(&admitted.choices(&principal, &context)).unwrap();
     assert!(public.contains("Vehicle"));
     for private in [
@@ -98,15 +98,15 @@ fn template_parameters_and_public_choices_cannot_select_credentials_or_code() {
 
 fn principal(client: &str) -> Principal {
     Principal {
-        id: PrincipalId::new(format!("https://veoveo.example/oauth#{client}")).unwrap(),
+        id: PrincipalId::parse(format!("https://veoveo.example/oauth#{client}")).unwrap(),
         kind: PrincipalKind::Service,
-        issuer: TokenIssuer::new("https://veoveo.example/oauth").unwrap(),
-        subject: TokenSubject::new(client).unwrap(),
-        tenant: Some(TenantId::new("tenant-a").unwrap()),
+        issuer: TokenIssuer::parse("https://veoveo.example/oauth").unwrap(),
+        subject: TokenSubject::parse(client).unwrap(),
+        tenant: Some(TenantId::parse("tenant-a").unwrap()),
         groups: BTreeSet::new(),
         group_roles: BTreeSet::new(),
         roles: BTreeSet::new(),
-        scopes: BTreeSet::from([ScopeName::new("operator:use").unwrap()]),
+        scopes: BTreeSet::from([ScopeName::parse("operator:use").unwrap()]),
         data_labels: BTreeSet::new(),
         assurances: BTreeSet::new(),
         authenticated_at: Some(Utc::now()),
@@ -288,13 +288,13 @@ fn token(extensions: veoveo_types::AdmittedExtensions) -> VerifiedAccessToken {
             managed_execution: None,
             issuer: principal.issuer.clone(),
             subject: principal.subject.clone(),
-            oauth_client_id: OAuthClientId::new("managed-one").unwrap(),
+            oauth_client_id: OAuthClientId::parse("managed-one").unwrap(),
             session_family: None,
-            audience: veoveo_gateway_contract::ProtectedResourceId::new(
+            audience: veoveo_gateway_contract::ProtectedResourceId::parse(
                 "https://veoveo.example/mcp/operator",
             )
             .unwrap(),
-            work_context: WorkContextId::new("operations").unwrap(),
+            work_context: WorkContextId::parse("operations").unwrap(),
             invocation_mode: veoveo_types::InvocationMode::Automated,
             initiator: None,
             delegation_id: None,
@@ -320,7 +320,7 @@ async fn managed_identity_rechecks_binding_tools_revocation_and_source_collision
         let state =
             crate::gateway_test_state(db.a.clone(), Arc::new(templates(&template, &catalog)))
                 .unwrap();
-        let client_id = OAuthClientId::new("managed-one").unwrap();
+        let client_id = OAuthClientId::parse("managed-one").unwrap();
         assert!(
             GatewayState::new(db.a.clone())
                 .effective_oauth_client(&catalog, &client_id)
@@ -367,12 +367,12 @@ async fn managed_identity_rechecks_binding_tools_revocation_and_source_collision
                 .any(|role| role.as_str() == "managed-pilot")
         );
         let allowed = PolicyTarget::Tool {
-            server: ServerSlug::new("media").unwrap(),
-            tool: LocalToolName::new("describe_model").unwrap(),
+            server: ServerSlug::parse("media").unwrap(),
+            tool: LocalToolName::parse("describe_model").unwrap(),
         };
         let other = PolicyTarget::Tool {
-            server: ServerSlug::new("media").unwrap(),
-            tool: LocalToolName::new("run").unwrap(),
+            server: ServerSlug::parse("media").unwrap(),
+            tool: LocalToolName::parse("run").unwrap(),
         };
         assert!(
             state
@@ -409,7 +409,7 @@ async fn managed_identity_rechecks_binding_tools_revocation_and_source_collision
         excessive
             .access_token
             .scopes
-            .insert(ScopeName::new("admin:use").unwrap());
+            .insert(ScopeName::parse("admin:use").unwrap());
         assert!(
             state
                 .resolve_authenticated_subject(&catalog, excessive)

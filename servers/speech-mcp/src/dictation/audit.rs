@@ -17,7 +17,7 @@ pub(super) struct SessionAudit {
 }
 fn target(id: DictationSessionId) -> AuditTarget {
     AuditTarget::Resource {
-        server: ServerSlug::new("speech").expect("declared Speech server"),
+        server: ServerSlug::parse("speech").expect("declared Speech server"),
         uri: DictationUri::new(id).to_uri(),
     }
 }

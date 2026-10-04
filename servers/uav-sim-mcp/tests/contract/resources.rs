@@ -58,9 +58,9 @@ fn every_declared_resource_round_trips_through_the_public_contract() {
             resource
         );
     }
-    let session = SessionId::new("session-A.1").unwrap();
+    let session = SessionId::parse("session-A.1").unwrap();
     assert_eq!(
-        uris::vehicle(&session, &VehicleId::new("vehicle-B").unwrap()).as_str(),
+        uris::vehicle(&session, &VehicleId::parse("vehicle-B").unwrap()).as_str(),
         "uav-sim://session/session-A.1/vehicle/vehicle-B"
     );
     assert_eq!(
@@ -71,11 +71,11 @@ fn every_declared_resource_round_trips_through_the_public_contract() {
 
 #[test]
 fn cursor_v1_bytes_and_positions_are_preserved() {
-    let mission = UavMissionCursor::new(MissionId::new("m").unwrap()).unwrap();
-    let plan = UavPlanCursor::new(MissionPlanId::new("p").unwrap()).unwrap();
-    let grant = UavGrantCursor::new(None, ControlGrantId::new("g").unwrap()).unwrap();
-    let session = LiveSessionId::new("s").unwrap();
-    let view = UavLiveViewCursor::new(session.clone(), LiveViewId::new("v").unwrap()).unwrap();
+    let mission = UavMissionCursor::new(MissionId::parse("m").unwrap()).unwrap();
+    let plan = UavPlanCursor::new(MissionPlanId::parse("p").unwrap()).unwrap();
+    let grant = UavGrantCursor::new(None, ControlGrantId::parse("g").unwrap()).unwrap();
+    let session = LiveSessionId::parse("s").unwrap();
+    let view = UavLiveViewCursor::new(session.clone(), LiveViewId::parse("v").unwrap()).unwrap();
     let usage = UavUsageCursor::new(UavUsagePosition {
         created_at: "2026-09-28T12:00:00Z".parse().unwrap(),
         task_id: "0195e2ec-54a1-7000-8000-000000000001".parse().unwrap(),
@@ -135,8 +135,8 @@ fn cursor_v1_bytes_and_positions_are_preserved() {
 
 #[test]
 fn cursors_cannot_move_between_families_or_session_parents() {
-    let session = SessionId::new("s").unwrap();
-    let grant = UavGrantCursor::new(Some(&session), ControlGrantId::new("g").unwrap()).unwrap();
+    let session = SessionId::parse("s").unwrap();
+    let grant = UavGrantCursor::new(Some(&session), ControlGrantId::parse("g").unwrap()).unwrap();
     assert_eq!(
         grant.as_str(),
         hex_json(
@@ -149,7 +149,7 @@ fn cursors_cannot_move_between_families_or_session_parents() {
     );
     assert!(UavGrantCursor::parse(None, grant.as_str()).is_err());
     assert!(
-        UavGrantCursor::parse(Some(&SessionId::new("other").unwrap()), grant.as_str()).is_err()
+        UavGrantCursor::parse(Some(&SessionId::parse("other").unwrap()), grant.as_str()).is_err()
     );
     assert!(
         serde_json::to_value(UavResource::ControlGrants {
@@ -157,16 +157,16 @@ fn cursors_cannot_move_between_families_or_session_parents() {
         })
         .is_err()
     );
-    let plan = UavPlanCursor::new(MissionPlanId::new("p").unwrap()).unwrap();
+    let plan = UavPlanCursor::new(MissionPlanId::parse("p").unwrap()).unwrap();
     assert!(UavMissionCursor::parse(plan.as_str()).is_err());
     assert!(UavUsageCursor::parse(plan.as_str()).is_err());
     assert!(UavGrantCursor::parse(None, plan.as_str()).is_err());
     let view = UavLiveViewCursor::new(
-        LiveSessionId::new("s").unwrap(),
-        LiveViewId::new("v").unwrap(),
+        LiveSessionId::parse("s").unwrap(),
+        LiveViewId::parse("v").unwrap(),
     )
     .unwrap();
-    let other = LiveSessionId::new("other").unwrap();
+    let other = LiveSessionId::parse("other").unwrap();
     assert!(UavLiveViewCursor::parse(&other, view.as_str()).is_err());
     assert!(
         UavResource::parse(&format!(
@@ -254,27 +254,33 @@ fn resource_admission_rejects_ambiguous_routes_and_components() {
 
 #[test]
 fn relative_identifiers_are_rejected_at_construction_and_retained_json_admission() {
-    check_identifier::<SessionId, _>(stringify!(SessionId), |value| SessionId::new(value));
-    check_identifier::<VehicleId, _>(stringify!(VehicleId), |value| VehicleId::new(value));
-    check_identifier::<MissionId, _>(stringify!(MissionId), |value| MissionId::new(value));
+    check_identifier::<SessionId, _>(stringify!(SessionId), |value| SessionId::parse(value));
+    check_identifier::<VehicleId, _>(stringify!(VehicleId), |value| VehicleId::parse(value));
+    check_identifier::<MissionId, _>(stringify!(MissionId), |value| MissionId::parse(value));
     check_identifier::<MissionPlanId, _>(stringify!(MissionPlanId), |value| {
-        MissionPlanId::new(value)
+        MissionPlanId::parse(value)
     });
     check_identifier::<ControlGrantId, _>(stringify!(ControlGrantId), |value| {
-        ControlGrantId::new(value)
+        ControlGrantId::parse(value)
     });
-    check_identifier::<RecordingKey, _>(stringify!(RecordingKey), |value| RecordingKey::new(value));
+    check_identifier::<RecordingKey, _>(stringify!(RecordingKey), |value| {
+        RecordingKey::parse(value)
+    });
     check_identifier::<LiveSessionId, _>(stringify!(LiveSessionId), |value| {
-        LiveSessionId::new(value)
+        LiveSessionId::parse(value)
     });
-    check_identifier::<LiveCameraId, _>(stringify!(LiveCameraId), |value| LiveCameraId::new(value));
-    check_identifier::<LiveViewId, _>(stringify!(LiveViewId), |value| LiveViewId::new(value));
-    check_identifier::<LiveEntityId, _>(stringify!(LiveEntityId), |value| LiveEntityId::new(value));
+    check_identifier::<LiveCameraId, _>(stringify!(LiveCameraId), |value| {
+        LiveCameraId::parse(value)
+    });
+    check_identifier::<LiveViewId, _>(stringify!(LiveViewId), |value| LiveViewId::parse(value));
+    check_identifier::<LiveEntityId, _>(stringify!(LiveEntityId), |value| {
+        LiveEntityId::parse(value)
+    });
     check_identifier::<LiveViewerInstanceId, _>(stringify!(LiveViewerInstanceId), |value| {
-        LiveViewerInstanceId::new(value)
+        LiveViewerInstanceId::parse(value)
     });
     check_identifier::<LiveStreamProductId, _>(stringify!(LiveStreamProductId), |value| {
-        LiveStreamProductId::new(value)
+        LiveStreamProductId::parse(value)
     });
     assert!(
         serde_json::from_value::<SessionRequest>(serde_json::json!({"session_id":".."})).is_err()
@@ -293,8 +299,8 @@ fn generic_live_view_addresses_preserve_other_provider_schemes_without_normaliza
     assert!(
         LiveViewUri::new(
             uris::live_view(
-                &LiveSessionId::new("s").unwrap(),
-                &LiveViewId::new("v").unwrap()
+                &LiveSessionId::parse("s").unwrap(),
+                &LiveViewId::parse("v").unwrap()
             )
             .as_str()
         )

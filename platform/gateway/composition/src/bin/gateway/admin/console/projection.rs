@@ -236,7 +236,7 @@ impl ArtifactAccessContext {
     ) -> anyhow::Result<Self> {
         Ok(Self {
             actor: subject.actor.id.clone(),
-            tenant: TenantId::new(tenant_key)?,
+            tenant: TenantId::parse(tenant_key)?,
             clearance: subject.actor.data_labels.clone(),
             groups: subject.actor.group_memberships(),
             work_context: subject.authority.work_context.clone(),
@@ -530,7 +530,7 @@ fn effective_artifact_access(
     let labels = artifact
         .labels
         .iter()
-        .map(|label| DataLabelId::new(label.clone()))
+        .map(|label| DataLabelId::parse(label.clone()))
         .collect::<Result<BTreeSet<_>, _>>()?;
     let grants = summaries
         .iter()
@@ -539,10 +539,10 @@ fn effective_artifact_access(
                 artifact: artifact_id,
                 subject: match grant.subject_kind {
                     veoveo_platform_store::ArtifactGrantSubjectKind::Principal => {
-                        AccessSubject::Principal(PrincipalId::new(grant.subject.clone())?)
+                        AccessSubject::Principal(PrincipalId::parse(grant.subject.clone())?)
                     }
                     veoveo_platform_store::ArtifactGrantSubjectKind::Group => {
-                        AccessSubject::Group(veoveo_types::GroupId::new(grant.subject.clone())?)
+                        AccessSubject::Group(veoveo_types::GroupId::parse(grant.subject.clone())?)
                     }
                 },
                 level: contract_access_level(grant.permission),
@@ -550,7 +550,7 @@ fn effective_artifact_access(
                 data_labels: grant
                     .labels
                     .iter()
-                    .map(|label| DataLabelId::new(label.clone()))
+                    .map(|label| DataLabelId::parse(label.clone()))
                     .collect::<Result<_, _>>()?,
                 retention_expires_at: grant.expires_at,
             })
@@ -867,9 +867,9 @@ mod tests {
     #[test]
     fn upload_events_require_the_exact_actor_tenant_and_context() {
         let access = ArtifactAccessContext {
-            actor: PrincipalId::new("alice").unwrap(),
-            tenant: TenantId::new("example").unwrap(),
-            work_context: WorkContextId::new("operations").unwrap(),
+            actor: PrincipalId::parse("alice").unwrap(),
+            tenant: TenantId::parse("example").unwrap(),
+            work_context: WorkContextId::parse("operations").unwrap(),
             clearance: BTreeSet::new(),
             groups: BTreeSet::new(),
             membership: WorkContextMembershipLevel::Owner,

@@ -114,7 +114,7 @@ async fn pairing_is_one_use_private_and_connection_close_preserves_the_named_gra
             .query("SELECT VALUE credential_hash FROM ONLY $grant;")
             .bind((
                 "grant",
-                record("computer_cli_grant", paired.grant_id.into_uuid()),
+                record("computer_cli_grant", paired.grant_id.as_uuid()),
             ))
             .await
             .unwrap()
@@ -132,7 +132,7 @@ async fn pairing_is_one_use_private_and_connection_close_preserves_the_named_gra
     assert!(
         a.open_cli_connection(
             Some(computer),
-            veoveo_mcp_contract::GatewayProfileId::new("operator").unwrap(),
+            veoveo_mcp_contract::GatewayProfileId::parse("operator").unwrap(),
             &foreign
         )
         .await
@@ -141,7 +141,7 @@ async fn pairing_is_one_use_private_and_connection_close_preserves_the_named_gra
     assert!(
         a.open_cli_connection(
             Some(veoveo_computers_contract::ComputerId::new()),
-            veoveo_mcp_contract::GatewayProfileId::new("operator").unwrap(),
+            veoveo_mcp_contract::GatewayProfileId::parse("operator").unwrap(),
             &paired.credential
         )
         .await
@@ -150,7 +150,7 @@ async fn pairing_is_one_use_private_and_connection_close_preserves_the_named_gra
     let first = a
         .open_cli_connection(
             None,
-            veoveo_mcp_contract::GatewayProfileId::new("operator").unwrap(),
+            veoveo_mcp_contract::GatewayProfileId::parse("operator").unwrap(),
             &paired.credential,
         )
         .await
@@ -158,7 +158,7 @@ async fn pairing_is_one_use_private_and_connection_close_preserves_the_named_gra
     let second = b
         .open_cli_connection(
             Some(computer),
-            veoveo_mcp_contract::GatewayProfileId::new("operator").unwrap(),
+            veoveo_mcp_contract::GatewayProfileId::parse("operator").unwrap(),
             &paired.credential,
         )
         .await
@@ -169,7 +169,7 @@ async fn pairing_is_one_use_private_and_connection_close_preserves_the_named_gra
     assert!(
         b.open_cli_connection(
             Some(computer),
-            veoveo_mcp_contract::GatewayProfileId::new("operator").unwrap(),
+            veoveo_mcp_contract::GatewayProfileId::parse("operator").unwrap(),
             &paired.credential
         )
         .await
@@ -186,7 +186,7 @@ async fn pairing_is_one_use_private_and_connection_close_preserves_the_named_gra
     assert!(
         a.open_cli_connection(
             Some(computer),
-            veoveo_mcp_contract::GatewayProfileId::new("different").unwrap(),
+            veoveo_mcp_contract::GatewayProfileId::parse("different").unwrap(),
             &paired.credential
         )
         .await
@@ -223,7 +223,7 @@ async fn pairing_is_one_use_private_and_connection_close_preserves_the_named_gra
     assert!(
         b.open_cli_connection(
             Some(computer),
-            veoveo_mcp_contract::GatewayProfileId::new("operator").unwrap(),
+            veoveo_mcp_contract::GatewayProfileId::parse("operator").unwrap(),
             &paired.credential
         )
         .await
@@ -300,7 +300,7 @@ async fn connection_slots_are_shared_and_expired_connections_cannot_revive() {
         let store = if i % 2 == 0 { &a } else { &b };
         store.open_cli_connection(
             Some(computer),
-            veoveo_mcp_contract::GatewayProfileId::new("operator").unwrap(),
+            veoveo_mcp_contract::GatewayProfileId::parse("operator").unwrap(),
             &paired.credential,
         )
     }))
@@ -317,18 +317,18 @@ async fn connection_slots_are_shared_and_expired_connections_cannot_revive() {
     assert!(
         a.open_cli_connection(
             Some(computer),
-            veoveo_mcp_contract::GatewayProfileId::new("operator").unwrap(),
+            veoveo_mcp_contract::GatewayProfileId::parse("operator").unwrap(),
             &paired.credential
         )
         .await
         .is_ok()
     );
-    db.b.client().query("UPDATE computer_cli_connection SET expires_at = time::now() - 1s WHERE grant_id = $grant;").bind(("grant", paired.grant_id.into_uuid())).await.unwrap().check().unwrap();
+    db.b.client().query("UPDATE computer_cli_connection SET expires_at = time::now() - 1s WHERE grant_id = $grant;").bind(("grant", paired.grant_id.as_uuid())).await.unwrap().check().unwrap();
     assert!(b.renew_cli_grant(&handles[1], true).await.is_err());
     assert!(
         a.open_cli_connection(
             Some(computer),
-            veoveo_mcp_contract::GatewayProfileId::new("operator").unwrap(),
+            veoveo_mcp_contract::GatewayProfileId::parse("operator").unwrap(),
             &paired.credential
         )
         .await
@@ -353,7 +353,7 @@ async fn paired_client_crosses_token_and_process_changes_but_old_connections_and
     let handle = a
         .open_cli_connection(
             Some(computer),
-            veoveo_mcp_contract::GatewayProfileId::new("operator").unwrap(),
+            veoveo_mcp_contract::GatewayProfileId::parse("operator").unwrap(),
             &paired.credential,
         )
         .await
@@ -368,7 +368,7 @@ async fn paired_client_crosses_token_and_process_changes_but_old_connections_and
     assert!(
         b.open_cli_connection(
             Some(computer),
-            veoveo_mcp_contract::GatewayProfileId::new("operator").unwrap(),
+            veoveo_mcp_contract::GatewayProfileId::parse("operator").unwrap(),
             &paired.credential
         )
         .await
@@ -377,7 +377,7 @@ async fn paired_client_crosses_token_and_process_changes_but_old_connections_and
     support::policy::install(&db.b, control()).await;
     db.b.client()
         .query("UPDATE ONLY $computer SET process_id = 'replacement-process';")
-        .bind(("computer", record("computer", computer.into_uuid())))
+        .bind(("computer", record("computer", computer.as_uuid())))
         .await
         .unwrap()
         .check()
@@ -386,7 +386,7 @@ async fn paired_client_crosses_token_and_process_changes_but_old_connections_and
     let next = b
         .open_cli_connection(
             Some(computer),
-            veoveo_mcp_contract::GatewayProfileId::new("operator").unwrap(),
+            veoveo_mcp_contract::GatewayProfileId::parse("operator").unwrap(),
             &paired.credential,
         )
         .await
@@ -417,7 +417,7 @@ async fn paired_client_crosses_token_and_process_changes_but_old_connections_and
     assert!(
         a.open_cli_connection(
             Some(computer),
-            veoveo_mcp_contract::GatewayProfileId::new("operator").unwrap(),
+            veoveo_mcp_contract::GatewayProfileId::parse("operator").unwrap(),
             &paired.credential
         )
         .await
@@ -438,7 +438,7 @@ async fn expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_ac
         .query("UPDATE ONLY $pairing SET expires_at = time::now() - 1s;")
         .bind((
             "pairing",
-            record("computer_cli_pairing", challenge.pairing_id.into_uuid()),
+            record("computer_cli_pairing", challenge.pairing_id.as_uuid()),
         ))
         .await
         .unwrap()
@@ -453,7 +453,7 @@ async fn expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_ac
     let handle = a
         .open_cli_connection(
             Some(computer),
-            veoveo_mcp_contract::GatewayProfileId::new("operator").unwrap(),
+            veoveo_mcp_contract::GatewayProfileId::parse("operator").unwrap(),
             &paired.credential,
         )
         .await
@@ -463,7 +463,7 @@ async fn expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_ac
             .query("SELECT VALUE idle_expires_at FROM ONLY $grant;")
             .bind((
                 "grant",
-                record("computer_cli_grant", paired.grant_id.into_uuid()),
+                record("computer_cli_grant", paired.grant_id.as_uuid()),
             ))
             .await
             .unwrap()
@@ -476,7 +476,7 @@ async fn expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_ac
             .query("SELECT VALUE idle_expires_at FROM ONLY $grant;")
             .bind((
                 "grant",
-                record("computer_cli_grant", paired.grant_id.into_uuid()),
+                record("computer_cli_grant", paired.grant_id.as_uuid()),
             ))
             .await
             .unwrap()
@@ -496,7 +496,7 @@ async fn expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_ac
         .query("UPDATE ONLY $grant SET issued_at = time::now() - 2s;")
         .bind((
             "grant",
-            record("computer_cli_grant", paired.grant_id.into_uuid()),
+            record("computer_cli_grant", paired.grant_id.as_uuid()),
         ))
         .await
         .unwrap()
@@ -509,7 +509,7 @@ async fn expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_ac
     assert!(
         a.open_cli_connection(
             Some(computer),
-            veoveo_mcp_contract::GatewayProfileId::new("operator").unwrap(),
+            veoveo_mcp_contract::GatewayProfileId::parse("operator").unwrap(),
             &paired.credential
         )
         .await
@@ -529,7 +529,7 @@ async fn expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_ac
     assert!(
         b.open_cli_connection(
             Some(computer),
-            veoveo_mcp_contract::GatewayProfileId::new("operator").unwrap(),
+            veoveo_mcp_contract::GatewayProfileId::parse("operator").unwrap(),
             &paired.credential
         )
         .await
@@ -542,7 +542,7 @@ async fn expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_ac
         .query("UPDATE ONLY $grant SET idle_expires_at = time::now() - 1s;")
         .bind((
             "grant",
-            record("computer_cli_grant", paired.grant_id.into_uuid()),
+            record("computer_cli_grant", paired.grant_id.as_uuid()),
         ))
         .await
         .unwrap()
@@ -552,20 +552,20 @@ async fn expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_ac
     assert!(
         a.open_cli_connection(
             Some(computer),
-            veoveo_mcp_contract::GatewayProfileId::new("operator").unwrap(),
+            veoveo_mcp_contract::GatewayProfileId::parse("operator").unwrap(),
             &paired.credential
         )
         .await
         .is_err()
     );
     db.b.client().query("UPDATE ONLY $grant SET idle_expires_at = time::now() + 1m, expires_at = time::now() - 1s;")
-        .bind(("grant", record("computer_cli_grant", paired.grant_id.into_uuid())))
+        .bind(("grant", record("computer_cli_grant", paired.grant_id.as_uuid())))
         .await.unwrap().check().unwrap();
     assert!(b.renew_cli_grant(&handle, true).await.is_err());
     assert!(
         a.open_cli_connection(
             Some(computer),
-            veoveo_mcp_contract::GatewayProfileId::new("operator").unwrap(),
+            veoveo_mcp_contract::GatewayProfileId::parse("operator").unwrap(),
             &paired.credential
         )
         .await

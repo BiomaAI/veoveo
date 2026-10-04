@@ -103,7 +103,7 @@ async fn context() -> (crate::test_store::TestDb, GatewayHttpContext) {
     )
     .unwrap();
     let issuer = veoveo_mcp_contract::GatewayInternalTokenIssuer::new(
-        veoveo_mcp_contract::TokenIssuer::new(veoveo_mcp_contract::GATEWAY_INTERNAL_TOKEN_ISSUER)
+        veoveo_mcp_contract::TokenIssuer::parse(veoveo_mcp_contract::GATEWAY_INTERNAL_TOKEN_ISSUER)
             .unwrap(),
         veoveo_mcp_contract::GatewayInternalSigningKey::new(
             "fixture",

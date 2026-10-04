@@ -12,13 +12,13 @@ use veoveo_types::{
 };
 pub(super) fn identity(profile: &str, subject: &str) -> GatewayInternalIdentity {
     let now = Utc::now();
-    let issuer = TokenIssuer::new("https://idp.example.test").unwrap();
+    let issuer = TokenIssuer::parse("https://idp.example.test").unwrap();
     let actor = Principal {
-        id: PrincipalId::new(format!("principal-{subject}")).unwrap(),
+        id: PrincipalId::parse(format!("principal-{subject}")).unwrap(),
         kind: PrincipalKind::User,
         issuer,
-        subject: TokenSubject::new(subject).unwrap(),
-        tenant: Some(TenantId::new("tenant-a").unwrap()),
+        subject: TokenSubject::parse(subject).unwrap(),
+        tenant: Some(TenantId::parse("tenant-a").unwrap()),
         groups: BTreeSet::<GroupId>::new(),
         group_roles: BTreeSet::new(),
         roles: BTreeSet::<RoleId>::new(),
@@ -28,15 +28,15 @@ pub(super) fn identity(profile: &str, subject: &str) -> GatewayInternalIdentity 
         authenticated_at: Some(now),
     };
     GatewayInternalIdentity {
-        issuer: TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER).unwrap(),
-        profile: GatewayProfileId::new(profile).unwrap(),
-        server: ServerSlug::new("duckdb").unwrap(),
+        issuer: TokenIssuer::parse(GATEWAY_INTERNAL_TOKEN_ISSUER).unwrap(),
+        profile: GatewayProfileId::parse(profile).unwrap(),
+        server: ServerSlug::parse("duckdb").unwrap(),
         actor: actor.clone(),
         authority: InvocationAuthority {
-            work_context: WorkContextId::new("mission").unwrap(),
-            tenant: TenantId::new("tenant-a").unwrap(),
+            work_context: WorkContextId::parse("mission").unwrap(),
+            tenant: TenantId::parse("tenant-a").unwrap(),
             membership: WorkContextMembershipLevel::Owner,
-            policy_revision: PolicyVersion::new("r1").unwrap(),
+            policy_revision: PolicyVersion::parse("r1").unwrap(),
             output_policy: WorkContextOutputPolicy {
                 owner: AccessSubject::Principal(actor.id.clone()),
                 initial_grants: Vec::new(),
@@ -48,7 +48,7 @@ pub(super) fn identity(profile: &str, subject: &str) -> GatewayInternalIdentity 
             },
         },
         request_context: None,
-        jwt_id: JwtId::new(uuid::Uuid::now_v7().to_string()).unwrap(),
+        jwt_id: JwtId::parse(uuid::Uuid::now_v7().to_string()).unwrap(),
         issued_at: now,
         not_before: now,
         expires_at: now + TimeDelta::minutes(5),

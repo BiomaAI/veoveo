@@ -23,7 +23,7 @@ impl ComputersStore {
             candidate.check()?;
             let id = candidate.computer.computer_id;
             match candidate.mode {
-                ComputerAccessMode::Owner => owned.push(id.into_uuid()),
+                ComputerAccessMode::Owner => owned.push(id.as_uuid()),
                 ComputerAccessMode::Granted => grants.extend(candidate.read_permits.clone()),
             }
             if access.insert(id, candidate).is_some() {
@@ -36,10 +36,7 @@ impl ComputersStore {
         params.extend([
             ("owned", owned.into_value()),
             ("grants", grants.into_value()),
-            (
-                "provider",
-                self.provider_instance_id.into_uuid().into_value(),
-            ),
+            ("provider", self.provider_instance_id.as_uuid().into_value()),
             ("policy", self.automation_policy_record().into_value()),
             ("limit", limit.into_value()),
         ]);

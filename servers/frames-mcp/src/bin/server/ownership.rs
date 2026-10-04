@@ -78,7 +78,7 @@ pub(super) async fn frame_scope_from_runtime(
             .data_labels
             .iter()
             .cloned()
-            .map(veoveo_types::DataLabelId::new)
+            .map(veoveo_types::DataLabelId::parse)
             .collect::<Result<_, _>>()
             .map_err(|error| McpError::internal_error(error.to_string(), None))?,
     ))
@@ -99,18 +99,18 @@ pub(super) fn operation_scope_from_runtime(
     owner: &TaskOwner,
 ) -> anyhow::Result<veoveo_frames_mcp::state::FrameOperationScope> {
     Ok(veoveo_frames_mcp::state::FrameOperationScope::new(
-        veoveo_types::PrincipalId::new(owner.principal_key.clone())?,
+        veoveo_types::PrincipalId::parse(owner.principal_key.clone())?,
         owner
             .tenant_key
             .clone()
-            .map(veoveo_types::TenantId::new)
+            .map(veoveo_types::TenantId::parse)
             .transpose()?,
-        veoveo_mcp_contract::GatewayProfileId::new(owner.profile.clone())?,
+        veoveo_mcp_contract::GatewayProfileId::parse(owner.profile.clone())?,
         owner
             .data_labels
             .iter()
             .cloned()
-            .map(veoveo_types::DataLabelId::new)
+            .map(veoveo_types::DataLabelId::parse)
             .collect::<Result<_, _>>()?,
     ))
 }

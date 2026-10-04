@@ -43,8 +43,8 @@ pub(crate) fn publish(
     args: &ReleaseSimulationRuntimeArgs,
     output: &Path,
 ) -> Result<()> {
-    let source_revision = SourceRevision::new(revision)?;
-    let version = ReleaseVersion::new(&args.version)?;
+    let source_revision = SourceRevision::parse(revision)?;
+    let version = ReleaseVersion::parse(&args.version)?;
     let build_lock_path =
         source_root.join("platform/runtimes/simulation/simulation-runtime.lock.json");
     let build_lock_bytes = fs::read(&build_lock_path)
@@ -52,7 +52,7 @@ pub(crate) fn publish(
     let build_lock: SimulationRuntimeBuildLock =
         serde_json::from_slice(&build_lock_bytes).context("decoding simulation runtime lock")?;
     build_lock.validate()?;
-    let build_lock_digest = ArtifactDigest::new(format!(
+    let build_lock_digest = ArtifactDigest::parse(format!(
         "sha256:{}",
         hex::encode(Sha256::digest(&build_lock_bytes))
     ))?;
@@ -141,14 +141,14 @@ pub(crate) fn publish(
         "simulation conformance OCI publication failed with {status}"
     );
     let conformance_digest = inspect_manifest_digest(invocation_repository, &tag)?;
-    let conformance_digest = ArtifactDigest::new(conformance_digest)?;
+    let conformance_digest = ArtifactDigest::parse(conformance_digest)?;
 
     let evidence = SimulationRuntimeReleaseEvidence {
         schema_version: SimulationRuntimeReleaseEvidenceSchema::V1,
         source_revision,
         profile: build_lock.profile.clone(),
         base_image: ArtifactDescriptor {
-            name: ArtifactName::new("simulation-runtime")?,
+            name: ArtifactName::parse("simulation-runtime")?,
             kind: ArtifactKind::OciImage,
             version: version.clone(),
             coordinate: first_party.base_image.clone(),
@@ -162,7 +162,7 @@ pub(crate) fn publish(
         components: build_lock.components.clone(),
         gpu: build_lock.gpu.runtime.clone(),
         conformance_result: ArtifactDescriptor {
-            name: ArtifactName::new(CONFORMANCE_ARTIFACT_NAME)?,
+            name: ArtifactName::parse(CONFORMANCE_ARTIFACT_NAME)?,
             kind: ArtifactKind::ConformanceResult,
             version,
             coordinate: ArtifactCoordinate::new(format!(

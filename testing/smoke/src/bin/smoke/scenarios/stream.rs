@@ -629,34 +629,34 @@ pub(crate) async fn issue_internal_token(
         .context("acceptance tenant and Work Context must exist in the installed catalog")?;
     let private_key_der = BASE64_STANDARD.decode(private_key_der_b64.trim())?;
     let issuer = GatewayInternalTokenIssuer::new(
-        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
+        TokenIssuer::parse(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
         GatewayInternalSigningKey::new(key_id.to_owned(), private_key_der)?,
     );
-    let principal_issuer = TokenIssuer::new("https://smoke.veoveo.local")?;
-    let principal_subject = TokenSubject::new(subject)?;
+    let principal_issuer = TokenIssuer::parse("https://smoke.veoveo.local")?;
+    let principal_subject = TokenSubject::parse(subject)?;
     let principal = Principal {
-        id: PrincipalId::new(format!("{principal_issuer}#{principal_subject}"))?,
+        id: PrincipalId::parse(format!("{principal_issuer}#{principal_subject}"))?,
         kind: PrincipalKind::Service,
         issuer: principal_issuer,
         subject: principal_subject,
-        tenant: Some(TenantId::new(tenant)?),
+        tenant: Some(TenantId::parse(tenant)?),
         groups: Default::default(),
         group_roles: Default::default(),
         roles: Default::default(),
         scopes: installation
             .scopes()
             .into_iter()
-            .map(ScopeName::new)
+            .map(ScopeName::parse)
             .collect::<std::result::Result<_, _>>()?,
         data_labels: Default::default(),
         assurances: Default::default(),
         authenticated_at: Some(Utc::now()),
     };
     let authority = InvocationAuthority {
-        work_context: WorkContextId::new(work_context)?,
-        tenant: TenantId::new(tenant)?,
+        work_context: WorkContextId::parse(work_context)?,
+        tenant: TenantId::parse(tenant)?,
         membership: WorkContextMembershipLevel::Owner,
-        policy_revision: PolicyVersion::new(context.policy_revision)?,
+        policy_revision: PolicyVersion::parse(context.policy_revision)?,
         output_policy: WorkContextOutputPolicy {
             owner: AccessSubject::Principal(principal.id.clone()),
             initial_grants: Vec::new(),
@@ -677,7 +677,7 @@ pub(crate) async fn issue_internal_token(
             managed_execution: None,
             issuer: principal.issuer.clone(),
             subject: principal.subject.clone(),
-            oauth_client_id: OAuthClientId::new(subject)?,
+            oauth_client_id: OAuthClientId::parse(subject)?,
             session_family: None,
             audience: installation.operator.resource.clone(),
             work_context: authority.work_context.clone(),
@@ -693,8 +693,8 @@ pub(crate) async fn issue_internal_token(
     };
     Ok(issuer
         .issue(
-            GatewayProfileId::new(installation.profile())?,
-            ServerSlug::new(server)?,
+            GatewayProfileId::parse(installation.profile())?,
+            ServerSlug::parse(server)?,
             principal,
             authority,
             Some(request_context),

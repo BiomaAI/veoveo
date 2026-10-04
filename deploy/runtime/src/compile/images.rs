@@ -29,7 +29,7 @@ impl ImageInputs {
                     },
                     target: image.name.clone(),
                     repository: image.repository.clone(),
-                    digest: ArtifactDigest::new(&image.digest)?,
+                    digest: ArtifactDigest::parse(&image.digest)?,
                 })
             })
             .collect::<Result<Vec<_>>>()?;
@@ -65,7 +65,7 @@ impl ImageInputs {
                     && let Some(image) = updates.get(&(source.name.clone(), target.clone()))
                 {
                     source.revision = image.source_revision.clone();
-                    *digest = ArtifactDigest::new(&image.digest)?;
+                    *digest = ArtifactDigest::parse(&image.digest)?;
                 }
                 Ok(input)
             })
@@ -176,7 +176,7 @@ mod tests {
             images: vec![LockedImage {
                 name: name.into(),
                 repository: format!("registry.example/{name}"),
-                source_revision: SourceRevision::new(revision.to_string().repeat(40)).unwrap(),
+                source_revision: SourceRevision::parse(revision.to_string().repeat(40)).unwrap(),
                 digest: format!("sha256:{}", "a".repeat(64)),
                 publication_digest: format!("sha256:{}", "b".repeat(64)),
             }],
@@ -263,7 +263,7 @@ mod tests {
         );
         let mut newer = input.clone();
         if let ComponentInput::Image { source, .. } = &mut newer {
-            source.revision = SourceRevision::new("c".repeat(40)).unwrap();
+            source.revision = SourceRevision::parse("c".repeat(40)).unwrap();
         }
         assert!(ImageInputs::new("registry.example", [input.clone(), newer], true).is_err());
         assert!(ImageInputs::new("different.example", [input], true).is_err());

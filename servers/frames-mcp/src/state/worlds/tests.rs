@@ -9,7 +9,7 @@ use veoveo_types::DataLabelId;
 
 fn create_request(name: &str) -> CreateWorldRequest {
     CreateWorldRequest {
-        world_id: FrameWorldId::new(name).unwrap(),
+        world_id: FrameWorldId::parse(name).unwrap(),
         display_name: "Survey".into(),
         description: Some("A complete world".into()),
     }
@@ -22,7 +22,7 @@ fn publication(
     let mut tree = tree();
     tree.frames[0].description = Some(description.into());
     PublishWorldRequest {
-        world_id: FrameWorldId::new(name).unwrap(),
+        world_id: FrameWorldId::parse(name).unwrap(),
         expected_head_revision_id: expected,
         tree,
     }
@@ -81,7 +81,7 @@ async fn concurrent_world_creation_preserves_visible_metadata_replay_and_limits(
         let mut oversized = owner.clone();
         oversized
             .data_labels
-            .insert(DataLabelId::new("x".repeat(257)).unwrap());
+            .insert(DataLabelId::parse("x".repeat(257)).unwrap());
         assert!(
             a.create_world(&oversized, create_request("invalid"))
                 .await
@@ -257,7 +257,7 @@ async fn domain_failure_rolls_back_creation_revision_and_head_and_allows_retry()
             db.a.client().query(query).await.unwrap().check().unwrap();
             assert!(a.publish_world(&owner, publication("world", "first", None)).await.is_err());
             assert_eq!(counts(&db).await, (1,0));
-            let world = a.get_world(&owner, &FrameWorldId::new("world").unwrap()).await.unwrap().unwrap();
+            let world = a.get_world(&owner, &FrameWorldId::parse("world").unwrap()).await.unwrap().unwrap();
             assert_eq!(world.revision(), 0); assert!(world.head_revision_id().is_none());
             db.a.client().query("REMOVE EVENT IF EXISTS fail_world ON frame_world; REMOVE EVENT IF EXISTS fail_world ON frame_world_revision;").await.unwrap().check().unwrap();
         }

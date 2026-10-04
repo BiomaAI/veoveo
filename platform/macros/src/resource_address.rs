@@ -1,20 +1,12 @@
 //! Thin address derive. Component matching and encoding live in veoveo-types.
-use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::ext::IdentExt;
 use syn::{Data, DeriveInput, Fields, Type};
 
-mod declaration;
+pub(crate) mod declaration;
 use declaration::{Options, Route, read_options};
 
-pub fn expand(input: TokenStream) -> TokenStream {
-    let input = syn::parse_macro_input!(input as DeriveInput);
-    generate(&input)
-        .unwrap_or_else(|error| error.to_compile_error())
-        .into()
-}
-
-fn generate(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
+pub(super) fn generate(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
     if !input.generics.params.is_empty() || input.generics.where_clause.is_some() {
         return Err(syn::Error::new_spanned(
             input,
@@ -262,10 +254,10 @@ fn implementations(
     let mut cache = None;
     let mut uses_capture = false;
     for (position, field) in fields.iter().enumerate() {
-        let binding = field
-            .ident
-            .clone()
-            .unwrap_or_else(|| format_ident!("field_{position}"));
+        let binding = format_ident!(
+            "__resource_field_{position}",
+            span = proc_macro2::Span::mixed_site()
+        );
         names.push(binding.clone());
         let field_options = declaration::read_field(field, position)?;
         if field_options.cache {
@@ -312,20 +304,29 @@ fn implementations(
         }
     }
     let construction = match fields {
-        Fields::Named(_) => quote! { #target { #(#names),* } },
+        Fields::Named(fields) => {
+            let members = fields
+                .named
+                .iter()
+                .map(|field| field.ident.as_ref().unwrap());
+            quote! { #target { #(#members: #names),* } }
+        }
         Fields::Unnamed(_) => quote! { #target(#(#names),*) },
         Fields::Unit => quote! { #target },
     };
     let build_names = names.iter().enumerate().map(|(position, name)| {
+        let member = fields.iter().nth(position).unwrap().ident.as_ref();
         if cache
             .as_ref()
             .is_some_and(|(cache_position, _, _)| position == *cache_position)
         {
             if matches!(fields, Fields::Named(_)) {
-                quote!(#name: _)
+                quote!(#member: _)
             } else {
                 quote!(_)
             }
+        } else if matches!(fields, Fields::Named(_)) {
+            quote!(#member: #name)
         } else {
             quote!(#name)
         }
@@ -365,10 +366,11 @@ fn implementations(
     let wire = if let Some((position, name, string)) = cache {
         let names = names.iter().enumerate().map(|(index, field)| {
             if matches!(fields, Fields::Named(_)) {
+                let member = fields.iter().nth(index).unwrap().ident.as_ref();
                 if index == position {
-                    quote!(#field)
+                    quote!(#member: #field)
                 } else {
-                    quote!(#field: _)
+                    quote!(#member: _)
                 }
             } else if index == position {
                 quote!(#field)

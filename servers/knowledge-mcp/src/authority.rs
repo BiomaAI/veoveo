@@ -86,7 +86,7 @@ impl RequestAuthority {
         let Some(request) = identity.request_context.as_ref() else {
             return false;
         };
-        let Ok(trace) = TraceId::new(request.audit.trace_id.to_string()) else {
+        let Ok(trace) = TraceId::parse(&request.audit.trace_id) else {
             return false;
         };
         veoveo_policy::decide(

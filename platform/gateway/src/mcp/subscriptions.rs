@@ -71,7 +71,7 @@ impl GatewayMcp {
                 .task_ids
                 .iter()
                 .flatten()
-                .filter(|task_id| CanonicalTaskId::new((*task_id).clone()).is_ok())
+                .filter(|task_id| CanonicalTaskId::parse((*task_id).clone()).is_ok())
                 .cloned()
                 .collect::<Vec<_>>();
             if !task_ids.is_empty() {

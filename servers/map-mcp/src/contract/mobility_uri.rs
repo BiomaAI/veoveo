@@ -1,8 +1,7 @@
 //! Map-owned mobility-profile addresses, independent of the runtime and MCP.
 use super::{MapMobilityProfileCursor, MobilityProfileId, MobilityProfileVersion};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-use veoveo_types::{ResourceAddress, ResourceFieldCodec, ResourceUri};
+
+use veoveo_types::{ResourceFieldCodec, ResourceUri};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum MapMobilityError {
@@ -16,79 +15,30 @@ pub enum MapMobilityError {
     Metadata,
 }
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::ResourceAddress,
-)]
-#[serde(try_from = "String", into = "String")]
-#[schemars(with = "String")]
-#[resource(template = "map://mobility-profile/{profile_id}/{profile_version}", error = MapMobilityError, route_error = |_| MapMobilityError::Address, wire)]
+#[veoveo_types::resource_address(cached(MapMobilityErrorAddresses), template = "map://mobility-profile/{profile_id}/{profile_version}", schema = string, no_display)]
 pub struct MapMobilityProfileUri {
     #[resource(cache)]
     wire: ResourceUri,
-    #[resource(variable = "profile_id", error = |_| MapMobilityError::Address)]
+    #[resource(variable = "profile_id", error = |_| MapMobilityError::Address, accessor = id)]
     id: MobilityProfileId,
-    #[resource(variable = "profile_version", codec = MobilityVersionCodec, error = |_| MapMobilityError::Address)]
+    #[resource(variable = "profile_version", codec = MobilityVersionCodec, error = |_| MapMobilityError::Address, accessor = version, copy_accessor)]
     version: MobilityProfileVersion,
 }
 
 impl MapMobilityProfileUri {
     pub const TEMPLATE: &str = Self::RESOURCE_TEMPLATE;
-
-    /// ```compile_fail
-    /// use veoveo_map_mcp::contract::{MapMobilityProfileUri, RouteId};
-    /// MapMobilityProfileUri::new(RouteId::new(), veoveo_map_mcp::contract::MobilityProfileVersion::FIRST);
-    /// ```
-    /// ```compile_fail
-    /// use veoveo_map_mcp::contract::MapMobilityProfileUri;
-    /// MapMobilityProfileUri::new(veoveo_map_mcp::contract::MobilityProfileId::new(), 1);
-    /// ```
-    pub fn new(id: MobilityProfileId, version: MobilityProfileVersion) -> Self {
-        Self::resource_from_parts(id, version).expect("typed Map mobility address")
-    }
-    pub fn parse(value: impl AsRef<str>) -> Result<Self, MapMobilityError> {
-        let uri = ResourceUri::new(value.as_ref()).map_err(|_| MapMobilityError::Address)?;
-        <Self as ResourceAddress>::parse(&uri)
-    }
-    pub fn version(&self) -> MobilityProfileVersion {
-        self.version
-    }
-    pub fn id(&self) -> &MobilityProfileId {
-        &self.id
-    }
-    pub fn as_str(&self) -> &str {
-        self.wire.as_str()
-    }
 }
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::ResourceAddress,
-)]
-#[serde(try_from = "String", into = "String")]
-#[schemars(with = "String")]
-#[resource(template = "map://mobility-profiles{?cursor}", error = MapMobilityError, route_error = |_| MapMobilityError::Address, wire)]
+#[veoveo_types::resource_address(cached(MapMobilityErrorAddresses), template = "map://mobility-profiles{?cursor}", schema = string, no_display)]
 pub struct MapMobilityProfilesUri {
     #[resource(cache)]
     wire: ResourceUri,
-    #[resource(codec = MapMobilityProfileCursorCodec, error = |error| error)]
+    #[resource(codec = MapMobilityProfileCursorCodec,  accessor = cursor)]
     cursor: Option<MapMobilityProfileCursor>,
 }
 impl MapMobilityProfilesUri {
     pub const ROOT: &str = "map://mobility-profiles";
     pub const TEMPLATE: &str = Self::RESOURCE_TEMPLATE;
-
-    pub fn new(cursor: Option<MapMobilityProfileCursor>) -> Self {
-        Self::resource_from_parts(cursor).expect("typed Map mobility address")
-    }
-    pub fn parse(value: impl AsRef<str>) -> Result<Self, MapMobilityError> {
-        let uri = ResourceUri::new(value.as_ref()).map_err(|_| MapMobilityError::Address)?;
-        <Self as ResourceAddress>::parse(&uri)
-    }
-    pub fn cursor(&self) -> Option<&MapMobilityProfileCursor> {
-        self.cursor.as_ref()
-    }
-    pub fn as_str(&self) -> &str {
-        self.wire.as_str()
-    }
 }
 
 struct MapMobilityProfileCursorCodec;
@@ -112,3 +62,23 @@ impl ResourceFieldCodec<MobilityProfileVersion> for MobilityVersionCodec {
         value.to_string().into()
     }
 }
+
+#[doc(hidden)]
+pub struct MapMobilityErrorAddresses;
+impl veoveo_types::ResourceProfile for MapMobilityErrorAddresses {
+    type Error = MapMobilityError;
+    const PROFILE: veoveo_types::ResourceProfileSpec<Self::Error> =
+        veoveo_types::ResourceProfileSpec {
+            route_error: |_, _| MapMobilityError::Address,
+        };
+}
+
+/// ```compile_fail
+/// use veoveo_map_mcp::contract::{MapMobilityProfileUri, RouteId};
+/// MapMobilityProfileUri::new(RouteId::new(), veoveo_map_mcp::contract::MobilityProfileVersion::FIRST);
+/// ```
+/// ```compile_fail
+/// use veoveo_map_mcp::contract::MapMobilityProfileUri;
+/// MapMobilityProfileUri::new(veoveo_map_mcp::contract::MobilityProfileId::new(), 1);
+/// ```
+const _: () = ();

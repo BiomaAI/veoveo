@@ -19,15 +19,15 @@ fn plane() -> GatewayControlPlane {
 
 fn principal() -> Principal {
     Principal {
-        id: PrincipalId::new("template-test").unwrap(),
+        id: PrincipalId::parse("template-test").unwrap(),
         kind: PrincipalKind::User,
-        issuer: TokenIssuer::new("https://idp.example.com").unwrap(),
-        subject: TokenSubject::new("template-test").unwrap(),
-        tenant: Some(TenantId::new("tenant-a").unwrap()),
+        issuer: TokenIssuer::parse("https://idp.example.com").unwrap(),
+        subject: TokenSubject::parse("template-test").unwrap(),
+        tenant: Some(TenantId::parse("tenant-a").unwrap()),
         groups: BTreeSet::new(),
         group_roles: BTreeSet::new(),
-        roles: BTreeSet::from([RoleId::new("operator").unwrap()]),
-        scopes: BTreeSet::from([ScopeName::new("operator:use").unwrap()]),
+        roles: BTreeSet::from([RoleId::parse("operator").unwrap()]),
+        scopes: BTreeSet::from([ScopeName::parse("operator:use").unwrap()]),
         data_labels: BTreeSet::new(),
         assurances: BTreeSet::new(),
         authenticated_at: None,
@@ -49,7 +49,7 @@ fn check(
             profile: &profile,
             action: action.into(),
             target,
-            trace_id: &TraceId::new("template-policy").unwrap(),
+            trace_id: &TraceId::parse("template-policy").unwrap(),
         },
     )
     .reason
@@ -57,7 +57,7 @@ fn check(
 
 fn target(uri: &str) -> PolicyTarget {
     PolicyTarget::ResourceTemplate {
-        server: ServerSlug::new("media").unwrap(),
+        server: ServerSlug::parse("media").unwrap(),
         uri: ResourceTemplateUri::new(uri).unwrap(),
     }
 }
@@ -69,7 +69,7 @@ fn declarations_keep_lexical_selectors_and_do_not_grant_expanded_reads() {
         (Exposure::None, false),
         (
             Exposure::Listed(vec![ResourceSelector::Scheme {
-                scheme: ResourceScheme::new("media").unwrap(),
+                scheme: ResourceScheme::parse("media").unwrap(),
             }]),
             true,
         ),
@@ -137,7 +137,7 @@ fn declarations_keep_lexical_selectors_and_do_not_grant_expanded_reads() {
         prefix: ResourceUriPrefix::new("media://model/allowed/").unwrap(),
     }]);
     let read = PolicyTarget::Resource {
-        server: ServerSlug::new("media").unwrap(),
+        server: ServerSlug::parse("media").unwrap(),
         uri: ResourceUri::new("media://model/denied/item").unwrap(),
     };
     assert_eq!(
@@ -180,9 +180,9 @@ fn template_ownership_scope_requirements_filters_and_denials_stay_in_force() {
     );
     let mut plane = plane();
     plane.policies[0].rules[0].resource_schemes =
-        BTreeSet::from([ResourceScheme::new("media").unwrap()]);
+        BTreeSet::from([ResourceScheme::parse("media").unwrap()]);
     let mut denial = plane.policies[0].rules[0].clone();
-    denial.id = PolicyRuleId::new("deny-template").unwrap();
+    denial.id = PolicyRuleId::parse("deny-template").unwrap();
     denial.effect = PolicyEffect::Deny;
     plane.policies[0].rules.push(denial);
     assert_eq!(
@@ -197,7 +197,7 @@ fn template_ownership_scope_requirements_filters_and_denials_stay_in_force() {
     plane.policies[0].rules.pop();
     plane.servers[0].resource_projection = ResourceProjectionMode::ServerOwned;
     plane.policies[0].rules[0].resource_schemes =
-        BTreeSet::from([ResourceScheme::new("ui").unwrap()]);
+        BTreeSet::from([ResourceScheme::parse("ui").unwrap()]);
     assert_eq!(
         check(
             plane,
@@ -216,7 +216,7 @@ fn ui_ownership_and_action_target_types_are_independent_of_literal_template_synt
     plane.profiles[0].servers[0].resources = Exposure::All;
     plane.policies[0].rules[0]
         .resource_schemes
-        .insert(ResourceScheme::new("ui").unwrap());
+        .insert(ResourceScheme::parse("ui").unwrap());
     assert_eq!(
         check(
             plane.clone(),
@@ -236,7 +236,7 @@ fn ui_ownership_and_action_target_types_are_independent_of_literal_template_synt
         PolicyReasonCode::UnknownResource
     );
     let concrete = PolicyTarget::Resource {
-        server: ServerSlug::new("media").unwrap(),
+        server: ServerSlug::parse("media").unwrap(),
         uri: ResourceUri::new("media://model/literal").unwrap(),
     };
     for action in [
@@ -321,7 +321,7 @@ fn resource_read_selection_matches_concrete_policy_for_each_rule_requirement() {
                 }
                 9 => {
                     let mut deny = rule.clone();
-                    deny.id = PolicyRuleId::new("deny-read").unwrap();
+                    deny.id = PolicyRuleId::parse("deny-read").unwrap();
                     deny.effect = PolicyEffect::Deny;
                     plane.policies[0].rules.push(deny);
                 }
@@ -377,7 +377,7 @@ fn resource_read_selection_matches_concrete_policy_for_each_rule_requirement() {
                             server: server.clone(),
                             uri: uri.clone(),
                         },
-                        trace_id: &TraceId::new("read-selection-parity").unwrap(),
+                        trace_id: &TraceId::parse("read-selection-parity").unwrap(),
                     },
                 );
                 assert_eq!(

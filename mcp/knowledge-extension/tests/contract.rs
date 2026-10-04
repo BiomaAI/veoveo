@@ -5,8 +5,8 @@ use veoveo_types::{AccessSubject, ResourceScheme, ServerSlug};
 
 fn docs_collection() -> CollectionDescriptor {
     docs::collection(
-        &ServerSlug::new("independent").unwrap(),
-        &ResourceScheme::new("example").unwrap(),
+        &ServerSlug::parse("independent").unwrap(),
+        &ResourceScheme::parse("example").unwrap(),
     )
 }
 
@@ -157,11 +157,11 @@ fn read_grants_and_record_deadlines_use_closed_timezone_aware_values() {
 
 #[test]
 fn doc_pages_are_sorted_bounded_and_reject_foreign_cursors() {
-    let scheme = ResourceScheme::new("example").unwrap();
+    let scheme = ResourceScheme::parse("example").unwrap();
     let entries: Vec<_> = (0..70)
         .rev()
         .map(|n| {
-            let id = DocumentId::new(format!("doc-{n:03}")).unwrap();
+            let id = DocumentId::parse(format!("doc-{n:03}")).unwrap();
             docs::DocumentEntry {
                 uri: docs::member_uri(&scheme, &id),
                 id,
@@ -176,7 +176,7 @@ fn doc_pages_are_sorted_bounded_and_reject_foreign_cursors() {
     let third = docs::page(entries.clone(), second.next_cursor.as_ref()).unwrap();
     assert_eq!(third.items.len(), 6);
     assert!(third.next_cursor.is_none());
-    assert!(docs::page(entries, Some(&DocumentId::new("foreign").unwrap())).is_err());
+    assert!(docs::page(entries, Some(&DocumentId::parse("foreign").unwrap())).is_err());
 }
 
 #[test]

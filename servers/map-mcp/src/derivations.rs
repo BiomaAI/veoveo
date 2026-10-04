@@ -180,7 +180,7 @@ impl MapCatalog {
                 Ok(DerivationSummary {
                     derivation_id: row.derivation_key,
                     resource_uri,
-                    created_by: PrincipalId::new(row.created_by)?,
+                    created_by: PrincipalId::parse(row.created_by)?,
                     created_at: row.created_at,
                 })
             })

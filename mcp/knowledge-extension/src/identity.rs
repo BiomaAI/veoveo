@@ -13,46 +13,25 @@ fn slug(value: &str) -> bool {
             .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
 }
 
-#[derive(
-    veoveo_types::Id, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,error=KnowledgeError,validate=|value| validate_knowledge_name(value,slug,"invalid collection name"),schema=|_| knowledge_name_schema("^[a-z][a-z0-9-]*$",128))]
+#[veoveo_types::id(text(CollectionNameProfile), error_context = "invalid collection name")]
 pub struct CollectionName(String);
 
-#[derive(
-    veoveo_types::Id, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,error=KnowledgeError,validate=|value| validate_knowledge_name(value,slug,"invalid document id"),schema=|_| knowledge_name_schema("^[a-z][a-z0-9-]*$",128))]
+#[veoveo_types::id(text(CollectionNameProfile), error_context = "invalid document id")]
 pub struct DocumentId(String);
 
-#[derive(
-    veoveo_types::Id, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,error=KnowledgeError,validate=|value| validate_knowledge_name(value,slug,"invalid entity kind"),schema=|_| knowledge_name_schema("^[a-z][a-z0-9-]*$",128))]
+#[veoveo_types::id(text(CollectionNameProfile), error_context = "invalid entity kind")]
 pub struct EntityKind(String);
 
-#[derive(
-    veoveo_types::Id, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+#[veoveo_types::id(
+    text(CollectionNameProfile),
+    error_context = "invalid external system id"
 )]
-#[serde(try_from = "String", into = "String")]
-#[id(string,error=KnowledgeError,validate=|value| validate_knowledge_name(value,slug,"invalid external system id"),schema=|_| knowledge_name_schema("^[a-z][a-z0-9-]*$",128))]
 pub struct ExternalSystemId(String);
 
-#[derive(
-    veoveo_types::Id, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,error=KnowledgeError,validate=|value| validate_knowledge_name(value,|v: &str| !v.trim().is_empty() && v.len() <= 1024 && !v.chars().any(char::is_control),"external record id must contain 1 to 1024 bytes without controls"),schema=|_| knowledge_name_schema("^[^\\x00-\\x1f\\x7f]+$",1024))]
+#[veoveo_types::id(text(ExternalRecordIdProfile))]
 pub struct ExternalRecordId(String);
 
-#[derive(
-    veoveo_types::Id, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,error=KnowledgeError,validate=|value| validate_knowledge_name(value,|v: &str| !v.is_empty() && v.len() <= 256 && v.bytes().all(|b| (0x21..=0x7e).contains(&b)),"revision must contain 1 to 256 visible ASCII bytes"),schema=|_| knowledge_name_schema("^[!-~]+$",256))]
+#[veoveo_types::id(text(RevisionProfile))]
 pub struct Revision(String);
 
 /// An installation-unique collection name owned by one server.
@@ -85,7 +64,7 @@ impl TryFrom<String> for CollectionId {
             .split_once('.')
             .ok_or(KnowledgeError("collection must be server.name"))?;
         Self::new(
-            ServerSlug::new(server).map_err(|_| KnowledgeError("invalid collection server"))?,
+            ServerSlug::parse(server).map_err(|_| KnowledgeError("invalid collection server"))?,
             name.parse()?,
         )
     }
@@ -107,6 +86,68 @@ impl fmt::Display for CollectionId {
     }
 }
 
+fn knowledge_name_schema(pattern: &str, max: usize) -> schemars::Schema {
+    schemars::json_schema!({"type":"string","pattern":pattern,"maxLength":max,"minLength":1})
+}
+
+use veoveo_types::{IdProfile, IdProfileSpec, IdSchema};
+
+#[doc(hidden)]
+pub struct CollectionNameProfile;
+impl IdProfile for CollectionNameProfile {
+    type Error = KnowledgeError;
+    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
+        schema: IdSchema::Owner {
+            schema: |_, _| knowledge_name_schema("^[a-z][a-z0-9-]*$", 128),
+            inline: false,
+        },
+        ..IdProfileSpec::text(|value, metadata| {
+            validate_knowledge_name(value, slug, metadata.error_context)
+        })
+    };
+}
+
+#[doc(hidden)]
+pub struct ExternalRecordIdProfile;
+impl IdProfile for ExternalRecordIdProfile {
+    type Error = KnowledgeError;
+    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
+        schema: IdSchema::Owner {
+            schema: |_, _| knowledge_name_schema("^[^\\x00-\\x1f\\x7f]+$", 1024),
+            inline: false,
+        },
+        ..IdProfileSpec::text(|value, _| {
+            validate_knowledge_name(
+                value,
+                |v: &str| {
+                    !v.trim().is_empty() && v.len() <= 1024 && !v.chars().any(char::is_control)
+                },
+                "external record id must contain 1 to 1024 bytes without controls",
+            )
+        })
+    };
+}
+#[doc(hidden)]
+pub struct RevisionProfile;
+impl IdProfile for RevisionProfile {
+    type Error = KnowledgeError;
+    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
+        schema: IdSchema::Owner {
+            schema: |_, _| knowledge_name_schema("^[!-~]+$", 256),
+            inline: false,
+        },
+        ..IdProfileSpec::text(|value, _| {
+            validate_knowledge_name(
+                value,
+                |v: &str| {
+                    !v.is_empty() && v.len() <= 256 && v.bytes().all(|b| (0x21..=0x7e).contains(&b))
+                },
+                "revision must contain 1 to 256 visible ASCII bytes",
+            )
+        })
+    };
+}
+
 fn validate_knowledge_name(
     value: &str,
     valid: impl FnOnce(&str) -> bool,
@@ -116,7 +157,4 @@ fn validate_knowledge_name(
         return Err(KnowledgeError(message));
     }
     Ok(())
-}
-fn knowledge_name_schema(pattern: &str, max: usize) -> schemars::Schema {
-    schemars::json_schema!({"type":"string","pattern":pattern,"maxLength":max,"minLength":1})
 }

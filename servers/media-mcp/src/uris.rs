@@ -1,7 +1,7 @@
 //! Fixed declarations shared by the public resource contract and hosted discovery.
 pub static SCHEME: std::sync::LazyLock<veoveo_types::ResourceScheme> =
     std::sync::LazyLock::new(|| {
-        veoveo_types::ResourceScheme::new("media").expect("declared server resource scheme")
+        veoveo_types::ResourceScheme::parse("media").expect("declared server resource scheme")
     });
 
 pub const MODELS_URI: &str = "media://models";

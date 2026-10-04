@@ -1,12 +1,7 @@
 //! Domain-owned resource routes, independent of hosted MCP and persistence.
 use std::{borrow::Cow, error::Error, fmt};
 
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-use veoveo_types::{
-    ResourceAddress, ResourceFieldCodec, ResourceRouteError, ResourceTailCodec, ResourceUri,
-    ResourceUriError,
-};
+use veoveo_types::{ResourceFieldCodec, ResourceRouteError, ResourceTailCodec, ResourceUriError};
 
 use super::{AuthorityReleaseId, CalendarId, MissionEpochId, TemporalEventId, TimeVersion};
 
@@ -66,19 +61,12 @@ impl From<ResourceUriError> for TimeResourceError {
 /// use veoveo_time_mcp::contract::{CalendarCursor, TimeResource};
 /// fn wrong_page(cursor: CalendarCursor) { let _ = TimeResource::Events { cursor: Some(cursor) }; }
 /// ```
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::ResourceAddress,
-)]
-#[serde(try_from = "String", into = "String")]
-#[resource(error = TimeResourceError, route_error = time_route_error, wire)]
+#[veoveo_types::resource_address(routes(TimeResourceErrorAddresses), schema = derived, wire, parse = borrowed, display)]
 pub enum TimeResource {
     #[resource(template = "time://docs")]
     Docs,
     #[resource(template = "time://docs/{doc_id}")]
-    Document(
-        #[resource(variable = "doc_id", codec = TimeDocumentCodec, error = |error| error)]
-        TimeDocument,
-    ),
+    Document(#[resource(variable = "doc_id", codec = TimeDocumentCodec)] TimeDocument),
     #[resource(template = "time://contract")]
     Contract,
     #[resource(template = "ui://time/timeline.html")]
@@ -96,7 +84,7 @@ pub enum TimeResource {
     ),
     #[resource(template = "time://authorities/releases{?cursor}", route_error = page_route_error)]
     AuthorityReleases {
-        #[resource(codec = TimeCursorCodec, error = |error| error)]
+        #[resource(codec = TimeCursorCodec)]
         cursor: Option<AuthorityCursor>,
     },
     #[resource(template = "time://authorities/bootstrap/{release_id}")]
@@ -106,29 +94,26 @@ pub enum TimeResource {
     ),
     #[resource(template = "time://authorities/bootstrap{?cursor}", route_error = page_route_error)]
     BootstrapAuthorities {
-        #[resource(codec = TimeCursorCodec, error = |error| error)]
+        #[resource(codec = TimeCursorCodec)]
         cursor: Option<BootstrapAuthorityCursor>,
     },
     #[resource(template = "time://zones/{+zone_id}")]
-    Zone(
-        #[resource(variable = "zone_id", tail, codec = TimeZoneCodec, error = |error| error)]
-        TimeZoneId,
-    ),
+    Zone(#[resource(variable = "zone_id", tail, codec = TimeZoneCodec)] TimeZoneId),
     #[resource(template = "time://calendars{?cursor}", route_error = page_route_error)]
     Calendars {
-        #[resource(codec = TimeCursorCodec, error = |error| error)]
+        #[resource(codec = TimeCursorCodec)]
         cursor: Option<CalendarCursor>,
     },
     #[resource(template = "time://calendars/{calendar_id}/versions/{version}")]
     Calendar {
         #[resource(variable = "calendar_id", error = |_| TimeResourceError::InvalidId)]
         id: CalendarId,
-        #[resource(codec = TimeVersionCodec, error = |error| error)]
+        #[resource(codec = TimeVersionCodec)]
         version: TimeVersion,
     },
     #[resource(template = "time://epochs{?cursor}", route_error = page_route_error)]
     Epochs {
-        #[resource(codec = TimeCursorCodec, error = |error| error)]
+        #[resource(codec = TimeCursorCodec)]
         cursor: Option<EpochCursor>,
     },
     #[resource(template = "time://epochs/{epoch_id}")]
@@ -139,12 +124,12 @@ pub enum TimeResource {
     EpochVersion {
         #[resource(variable = "epoch_id", error = |_| TimeResourceError::InvalidId)]
         id: MissionEpochId,
-        #[resource(codec = TimeVersionCodec, error = |error| error)]
+        #[resource(codec = TimeVersionCodec)]
         version: TimeVersion,
     },
     #[resource(template = "time://events{?cursor}", route_error = page_route_error)]
     Events {
-        #[resource(codec = TimeCursorCodec, error = |error| error)]
+        #[resource(codec = TimeCursorCodec)]
         cursor: Option<EventCursor>,
     },
     #[resource(template = "time://events/{event_id}")]
@@ -155,11 +140,6 @@ pub enum TimeResource {
 }
 
 impl TimeResource {
-    pub fn parse(value: &str) -> Result<Self, TimeResourceError> {
-        let uri = ResourceUri::new(value)?;
-        <Self as ResourceAddress>::parse(&uri)
-    }
-
     /// Cursor pages are invalidated through their collection root.
     pub fn is_subscribable(&self) -> bool {
         matches!(
@@ -174,14 +154,6 @@ impl TimeResource {
                 | Self::Epoch(_)
                 | Self::Event(_)
         )
-    }
-}
-
-impl fmt::Display for TimeResource {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.to_uri()
-            .expect("validated Time resource components")
-            .fmt(f)
     }
 }
 
@@ -236,7 +208,7 @@ struct TimeZoneCodec;
 impl ResourceTailCodec<TimeZoneId> for TimeZoneCodec {
     type Error = TimeResourceError;
     fn parse(segments: &[Cow<'_, str>]) -> Result<TimeZoneId, Self::Error> {
-        TimeZoneId::new(
+        TimeZoneId::parse(
             segments
                 .iter()
                 .map(|part| part.as_ref())
@@ -294,4 +266,14 @@ impl ResourceFieldCodec<EventCursor> for TimeCursorCodec {
     fn text(value: &EventCursor) -> Cow<'_, str> {
         value.as_str().into()
     }
+}
+
+#[doc(hidden)]
+pub struct TimeResourceErrorAddresses;
+impl veoveo_types::ResourceProfile for TimeResourceErrorAddresses {
+    type Error = TimeResourceError;
+    const PROFILE: veoveo_types::ResourceProfileSpec<Self::Error> =
+        veoveo_types::ResourceProfileSpec {
+            route_error: |_, error| time_route_error(error),
+        };
 }

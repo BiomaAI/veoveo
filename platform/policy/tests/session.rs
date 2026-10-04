@@ -17,15 +17,15 @@ impl Fixture {
     fn new() -> Self {
         let now = Utc::now();
         let principal = Principal {
-            id: PrincipalId::new("https://identity.test#one").unwrap(),
+            id: PrincipalId::parse("https://identity.test#one").unwrap(),
             kind: PrincipalKind::User,
-            issuer: TokenIssuer::new("https://gateway.test").unwrap(),
-            subject: TokenSubject::new("one").unwrap(),
-            tenant: Some(TenantId::new("tenant-a").unwrap()),
+            issuer: TokenIssuer::parse("https://gateway.test").unwrap(),
+            subject: TokenSubject::parse("one").unwrap(),
+            tenant: Some(TenantId::parse("tenant-a").unwrap()),
             groups: BTreeSet::new(),
             group_roles: BTreeSet::new(),
             roles: BTreeSet::new(),
-            scopes: BTreeSet::from([ScopeName::new("operator:use").unwrap()]),
+            scopes: BTreeSet::from([ScopeName::parse("operator:use").unwrap()]),
             data_labels: BTreeSet::new(),
             assurances: BTreeSet::new(),
             authenticated_at: None,
@@ -34,12 +34,12 @@ impl Fixture {
             managed_execution: None,
             issuer: principal.issuer.clone(),
             subject: principal.subject.clone(),
-            oauth_client_id: OAuthClientId::new("console").unwrap(),
+            oauth_client_id: OAuthClientId::parse("console").unwrap(),
             session_family: Some(
-                GatewayRefreshFamilyId::new("019939b1-6770-7000-8000-000000000001").unwrap(),
+                GatewayRefreshFamilyId::parse("019939b1-6770-7000-8000-000000000001").unwrap(),
             ),
-            audience: ProtectedResourceId::new("https://gateway.test/mcp/operator").unwrap(),
-            work_context: WorkContextId::new("mission").unwrap(),
+            audience: ProtectedResourceId::parse("https://gateway.test/mcp/operator").unwrap(),
+            work_context: WorkContextId::parse("mission").unwrap(),
             invocation_mode: InvocationMode::Direct,
             initiator: Some(principal.id.clone()),
             delegation_id: None,
@@ -49,10 +49,10 @@ impl Fixture {
             not_before: None,
             expires_at: now + TimeDelta::minutes(15),
         };
-        let profile = GatewayProfileId::new("operator").unwrap();
-        let server = AuthorizationServerId::new("veoveo").unwrap();
+        let profile = GatewayProfileId::parse("operator").unwrap();
+        let server = AuthorizationServerId::parse("veoveo").unwrap();
         let mut retained = principal.clone();
-        retained.issuer = TokenIssuer::new("https://identity.test").unwrap();
+        retained.issuer = TokenIssuer::parse("https://identity.test").unwrap();
         let family = json!({
             "authorization_server":server, "profile":profile,
             "oauth_client_id":token.oauth_client_id, "work_context":token.work_context,
@@ -119,10 +119,10 @@ fn every_family_authority_binding_is_required() {
     fixture.token.session_family = None;
     assert!(!fixture.allowed());
     let mut fixture = Fixture::new();
-    fixture.token.issuer = TokenIssuer::new("https://other.test").unwrap();
+    fixture.token.issuer = TokenIssuer::parse("https://other.test").unwrap();
     assert!(!fixture.allowed());
     let mut fixture = Fixture::new();
-    fixture.token.subject = TokenSubject::new("other").unwrap();
+    fixture.token.subject = TokenSubject::parse("other").unwrap();
     assert!(!fixture.allowed());
 }
 

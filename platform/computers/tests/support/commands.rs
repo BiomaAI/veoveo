@@ -49,7 +49,7 @@ pub async fn permit(
         .unwrap()
 }
 pub fn computer_record(id: veoveo_computers_contract::ComputerId) -> RecordId {
-    RecordId::new("computer", surrealdb::types::Uuid::from(id.into_uuid()))
+    RecordId::new("computer", surrealdb::types::Uuid::from(id.as_uuid()))
 }
 
 pub async fn queue_claim(

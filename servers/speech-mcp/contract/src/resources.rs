@@ -1,13 +1,8 @@
 //! Speech addresses retain the specific domain identity through construction.
 use super::{DictationSessionId, TranscriptionId};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-use std::fmt;
+
 use veoveo_artifact_contract::ArtifactId;
-use veoveo_types::{
-    ResourceAddress, ResourceFieldCodec, ResourceRouteError, ResourceUri, ResourceUriError,
-    TaskResourceAddress,
-};
+use veoveo_types::{ResourceFieldCodec, ResourceRouteError, ResourceUriError, TaskResourceAddress};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SpeechDocument {
@@ -30,84 +25,16 @@ impl SpeechDocument {
     }
 }
 
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, veoveo_types::ResourceAddress,
-)]
-#[serde(try_from = "String", into = "String")]
-#[resource(template = "speech://transcript/{task_id}", error = ResourceUriError, route_error = speech_route_error, wire)]
+#[veoveo_types::resource_address(components(ResourceUriErrorAddresses), template = "speech://transcript/{task_id}", traits = copied, parse = borrowed, to_uri = copied)]
 pub struct TranscriptionUri(
-    #[resource(variable = "task_id", error = |_| ResourceUriError::DisallowedComponent)]
-    TranscriptionId,
+    #[resource(variable = "task_id", error = |_| ResourceUriError::DisallowedComponent, accessor = id, owned_accessor)]
+     TranscriptionId,
 );
-impl TranscriptionUri {
-    pub fn new(id: TranscriptionId) -> Self {
-        Self(id)
-    }
-    pub fn id(self) -> TranscriptionId {
-        self.0
-    }
-    pub fn to_uri(self) -> ResourceUri {
-        self.resource_components_uri()
-            .expect("admitted Speech resource")
-    }
-    pub fn parse(value: &str) -> Result<Self, ResourceUriError> {
-        let uri = ResourceUri::new(value)?;
-        <Self as ResourceAddress>::parse(&uri)
-    }
-}
-impl fmt::Display for TranscriptionUri {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        (*self).to_uri().fmt(f)
-    }
-}
-impl JsonSchema for TranscriptionUri {
-    fn schema_name() -> std::borrow::Cow<'static, str> {
-        "TranscriptionUri".into()
-    }
-    fn json_schema(_generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
-        schemars::json_schema!({ "type": "string", "pattern": "^speech://transcript/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?![\\s\\S])" })
-    }
-}
-
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, veoveo_types::ResourceAddress,
-)]
-#[serde(try_from = "String", into = "String")]
-#[resource(template = "speech://dictation/{id}", error = ResourceUriError, route_error = speech_route_error, wire)]
+#[veoveo_types::resource_address(components(ResourceUriErrorAddresses), template = "speech://dictation/{id}", traits = copied, parse = borrowed, to_uri = copied)]
 pub struct DictationUri(
-    #[resource(variable = "id", error = |_| ResourceUriError::DisallowedComponent)]
-    DictationSessionId,
+    #[resource(variable = "id", error = |_| ResourceUriError::DisallowedComponent, accessor = id, owned_accessor)]
+     DictationSessionId,
 );
-impl DictationUri {
-    pub fn new(id: DictationSessionId) -> Self {
-        Self(id)
-    }
-    pub fn id(self) -> DictationSessionId {
-        self.0
-    }
-    pub fn to_uri(self) -> ResourceUri {
-        self.resource_components_uri()
-            .expect("admitted Speech resource")
-    }
-    pub fn parse(value: &str) -> Result<Self, ResourceUriError> {
-        let uri = ResourceUri::new(value)?;
-        <Self as ResourceAddress>::parse(&uri)
-    }
-}
-impl fmt::Display for DictationUri {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        (*self).to_uri().fmt(f)
-    }
-}
-impl JsonSchema for DictationUri {
-    fn schema_name() -> std::borrow::Cow<'static, str> {
-        "DictationUri".into()
-    }
-    fn json_schema(_generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
-        schemars::json_schema!({ "type": "string", "pattern": "^speech://dictation/[0-9a-f]{8}-[0-9a-f]{4}-[47][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?![\\s\\S])" })
-    }
-}
-
 /// ```compile_fail
 /// use veoveo_speech_contract::{DictationSessionId, TranscriptionUri};
 /// TranscriptionUri::new(DictationSessionId::new());
@@ -116,18 +43,14 @@ impl JsonSchema for DictationUri {
 /// use veoveo_speech_contract::DictationUri;
 /// DictationUri::new("01983da0-0000-7000-8000-000000000001");
 /// ```
-#[derive(Clone, Copy, Debug, PartialEq, Eq, veoveo_types::ResourceAddress)]
-#[resource(error = ResourceUriError, route_error = speech_route_error)]
+#[veoveo_types::resource_address(routes(ResourceUriErrorAddresses), traits = copied, parse = borrowed, to_uri = copied)]
 pub enum SpeechResource {
     #[resource(template = "speech://capabilities")]
     Capabilities,
     #[resource(template = "speech://docs")]
     Docs,
     #[resource(template = "speech://docs/{doc_id}")]
-    Document(
-        #[resource(variable = "doc_id", codec = SpeechDocumentCodec, error = |error| error)]
-        SpeechDocument,
-    ),
+    Document(#[resource(variable = "doc_id", codec = SpeechDocumentCodec)] SpeechDocument),
     #[resource(template = "speech://contract")]
     Contract,
     #[resource(template = "speech://transcript/{task_id}")]
@@ -151,15 +74,6 @@ impl SpeechResource {
     pub const DICTATION_TEMPLATE: &'static str = Self::RESOURCE_TEMPLATE_DICTATION;
     pub const ARTIFACT_TEMPLATE: &'static str = Self::RESOURCE_TEMPLATE_ARTIFACT;
     pub const DOCUMENT_TEMPLATE: &'static str = Self::RESOURCE_TEMPLATE_DOCUMENT;
-
-    pub fn parse(value: &str) -> Result<Self, ResourceUriError> {
-        let uri = ResourceUri::new(value)?;
-        <Self as ResourceAddress>::parse(&uri)
-    }
-    pub fn to_uri(self) -> ResourceUri {
-        self.resource_components_uri()
-            .expect("declared Speech resource")
-    }
 }
 
 fn speech_route_error(error: ResourceRouteError) -> ResourceUriError {
@@ -183,6 +97,28 @@ impl TaskResourceAddress for TranscriptionUri {
     fn task_id(&self) -> veoveo_types::TaskId {
         self.0.task_id()
     }
+}
+
+#[doc(hidden)]
+pub struct ResourceUriErrorAddresses;
+impl veoveo_types::ResourceProfile for ResourceUriErrorAddresses {
+    type Error = ResourceUriError;
+    const PROFILE: veoveo_types::ResourceProfileSpec<Self::Error> =
+        veoveo_types::ResourceProfileSpec {
+            route_error: |_, error| speech_route_error(error),
+        };
+    const SCHEMA: Option<veoveo_types::ResourceSchema> = Some(veoveo_types::ResourceSchema {
+        schema: |name, _generator| match name {
+            "TranscriptionUri" => {
+                schemars::json_schema!({ "type": "string", "pattern": "^speech://transcript/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?![\\s\\S])" })
+            }
+            "DictationUri" => {
+                schemars::json_schema!({ "type": "string", "pattern": "^speech://dictation/[0-9a-f]{8}-[0-9a-f]{4}-[47][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?![\\s\\S])" })
+            }
+            _ => unreachable!("owner schema declaration"),
+        },
+        inline: false,
+    });
 }
 
 #[cfg(test)]

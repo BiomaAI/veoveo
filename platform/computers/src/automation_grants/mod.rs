@@ -14,7 +14,7 @@ use surrealdb::types::{RecordId, SurrealValue};
 pub(crate) fn record(id: crate::api::AutomationGrantId) -> RecordId {
     RecordId::new(
         "computer_automation_grant",
-        surrealdb::types::Uuid::from(id.into_uuid()),
+        surrealdb::types::Uuid::from(id.as_uuid()),
     )
 }
 
@@ -29,15 +29,12 @@ impl ComputersStore {
                 include_str!("../../queries/owned_automation_grant.surql"),
                 vec![
                     ("grant", record(id).into_value()),
-                    ("computer", computer.computer_id.into_uuid().into_value()),
+                    ("computer", computer.computer_id.as_uuid().into_value()),
                     (
                         "owner_key",
                         crate::identity::owner_key(&computer.owner)?.into_value(),
                     ),
-                    (
-                        "provider",
-                        self.provider_instance_id.into_uuid().into_value(),
-                    ),
+                    ("provider", self.provider_instance_id.as_uuid().into_value()),
                 ],
             )
             .await?;
@@ -57,11 +54,8 @@ impl ComputersStore {
         let mut params = crate::computer_access::scope(accepted)?;
         params.extend([
             ("grant", record(id).into_value()),
-            ("computer", computer.into_uuid().into_value()),
-            (
-                "provider",
-                self.provider_instance_id.into_uuid().into_value(),
-            ),
+            ("computer", computer.as_uuid().into_value()),
+            ("provider", self.provider_instance_id.as_uuid().into_value()),
         ]);
         let mut read = self
             .query(

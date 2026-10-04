@@ -11,11 +11,11 @@ use veoveo_types::{DelegationId, InvocationProvenance, PolicyVersion, PrincipalI
 /// ```compile_fail
 /// use veoveo_artifact_contract::ArtifactProvenance;
 /// use veoveo_types::{InvocationProvenance, PolicyVersion, PrincipalId};
-/// let producer = PrincipalId::new("issuer#worker").unwrap();
+/// let producer = PrincipalId::parse("issuer#worker").unwrap();
 /// ArtifactProvenance::new(
 ///     producer.clone(),
 ///     InvocationProvenance::Delegated { initiator: producer },
-///     PolicyVersion::new("v1").unwrap(),
+///     PolicyVersion::parse("v1").unwrap(),
 /// );
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

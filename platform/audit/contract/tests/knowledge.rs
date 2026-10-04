@@ -3,12 +3,12 @@ use veoveo_mcp_knowledge_extension::{Observation, Revision, content_digest, docs
 use veoveo_types::{ResourceScheme, ResourceUri, ServerSlug};
 
 fn draft() -> AuditDraft {
-    let server = ServerSlug::new("time").unwrap();
+    let server = ServerSlug::parse("time").unwrap();
     let uri = ResourceUri::new("time://docs/design").unwrap();
-    let collection = docs::collection(&server, &ResourceScheme::new("time").unwrap());
+    let collection = docs::collection(&server, &ResourceScheme::parse("time").unwrap());
     let observation = Observation::builder(
         collection.collection().clone(),
-        Revision::new("opaque-revision").unwrap(),
+        Revision::parse("opaque-revision").unwrap(),
         content_digest("body"),
         chrono::Utc::now(),
     )

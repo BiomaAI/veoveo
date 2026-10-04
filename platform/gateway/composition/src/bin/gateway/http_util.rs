@@ -84,26 +84,26 @@ fn random_token_value() -> String {
 }
 
 pub(super) fn random_oauth_state() -> anyhow::Result<OAuthStateValue> {
-    Ok(OAuthStateValue::new(random_token_value())?)
+    Ok(OAuthStateValue::parse(random_token_value())?)
 }
 
 pub(super) fn random_authorization_code() -> anyhow::Result<OAuthAuthorizationCode> {
-    Ok(OAuthAuthorizationCode::new(random_token_value())?)
+    Ok(OAuthAuthorizationCode::parse(random_token_value())?)
 }
 
 pub(super) fn random_pkce_verifier() -> anyhow::Result<PkceCodeVerifier> {
-    Ok(PkceCodeVerifier::new(random_token_value())?)
+    Ok(PkceCodeVerifier::parse(random_token_value())?)
 }
 
 pub(super) fn random_oidc_nonce() -> anyhow::Result<OidcNonce> {
-    Ok(OidcNonce::new(random_token_value())?)
+    Ok(OidcNonce::parse(random_token_value())?)
 }
 
 pub(super) fn pkce_s256_challenge(
     verifier: &PkceCodeVerifier,
 ) -> anyhow::Result<PkceCodeChallenge> {
     let digest = Sha256::digest(verifier.as_str().as_bytes());
-    Ok(PkceCodeChallenge::new(
+    Ok(PkceCodeChallenge::parse(
         BASE64_URL_SAFE_NO_PAD.encode(digest),
     )?)
 }
@@ -277,7 +277,7 @@ mod tests {
     #[test]
     fn oauth_error_redirect_returns_to_registered_client_with_state() {
         let redirect_uri = OAuthRedirectUri::new("https://console.example/auth/callback").unwrap();
-        let state = OAuthStateValue::new("opaque-console-state").unwrap();
+        let state = OAuthStateValue::parse("opaque-console-state").unwrap();
         let response = redirect_with_oauth_error(
             &redirect_uri,
             "invalid_scope",

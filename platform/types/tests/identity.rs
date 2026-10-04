@@ -109,19 +109,19 @@ fn work_context_profile_is_a_path_identity() {
         ],
     );
     assert_eq!(
-        WorkContextId::new("").unwrap_err().to_string(),
+        WorkContextId::parse("").unwrap_err().to_string(),
         "invalid identifier \"\": must not be empty and must contain lowercase ASCII letters, digits, hyphen, or underscore",
     );
     assert_eq!(
-        WorkContextId::new("Ops").unwrap_err().to_string(),
+        WorkContextId::parse("Ops").unwrap_err().to_string(),
         "invalid identifier \"Ops\": must contain only lowercase ASCII letters, digits, hyphen, or underscore",
     );
     assert_eq!(
-        PrincipalId::new("").unwrap_err().to_string(),
+        PrincipalId::parse("").unwrap_err().to_string(),
         "invalid identifier \"\": must not be empty"
     );
     assert_eq!(
-        DataLabelId::new("a b").unwrap_err().to_string(),
+        DataLabelId::parse("a b").unwrap_err().to_string(),
         "invalid identifier \"a b\": must not contain whitespace or control characters"
     );
 }
@@ -130,11 +130,11 @@ fn work_context_profile_is_a_path_identity() {
 fn subjects_preserve_their_tagged_wire_representation() {
     for (subject, wire) in [
         (
-            AccessSubject::Principal(PrincipalId::new("idp#actor").unwrap()),
+            AccessSubject::Principal(PrincipalId::parse("idp#actor").unwrap()),
             json!({"kind": "principal", "id": "idp#actor"}),
         ),
         (
-            AccessSubject::Group(GroupId::new("operators").unwrap()),
+            AccessSubject::Group(GroupId::parse("operators").unwrap()),
             json!({"kind": "group", "id": "operators"}),
         ),
     ] {
@@ -155,7 +155,7 @@ fn subjects_preserve_their_tagged_wire_representation() {
 
 #[test]
 fn provenance_preserves_attribution_and_required_delegation() {
-    let actor = PrincipalId::new("idp#actor").unwrap();
+    let actor = PrincipalId::parse("idp#actor").unwrap();
     for (value, mode, wire) in [
         (
             InvocationProvenance::Direct {
@@ -167,7 +167,7 @@ fn provenance_preserves_attribution_and_required_delegation() {
         (
             InvocationProvenance::Delegated {
                 initiator: actor.clone(),
-                delegation_id: DelegationId::new("delegation/17").unwrap(),
+                delegation_id: DelegationId::parse("delegation/17").unwrap(),
             },
             InvocationMode::Delegated,
             json!({"mode": "delegated", "initiator": "idp#actor", "delegation_id": "delegation/17"}),

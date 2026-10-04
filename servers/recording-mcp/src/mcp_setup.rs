@@ -23,10 +23,10 @@ impl McpServerContract for RecordingContract {
     type Scope = RecordingScope;
     type Resource = RecordingResource;
     fn slug() -> ServerSlug {
-        ServerSlug::new("recording").expect("declared Recording slug")
+        ServerSlug::parse("recording").expect("declared Recording slug")
     }
     fn scheme() -> ResourceScheme {
-        ResourceScheme::new("recording").expect("declared Recording scheme")
+        ResourceScheme::parse("recording").expect("declared Recording scheme")
     }
     fn scopes() -> &'static [RecordingScope] {
         RecordingScope::ALL

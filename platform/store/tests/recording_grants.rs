@@ -28,8 +28,8 @@ impl Grants {
             actor_id: identity.principal_id,
             work_context_id: deterministic_work_context_id(&identity.tenant_key, "operations")
                 .unwrap(),
-            policy_revision: PolicyVersion::new("r1").unwrap(),
-            data_labels: [DataLabelId::new("operations").unwrap()]
+            policy_revision: PolicyVersion::parse("r1").unwrap(),
+            data_labels: [DataLabelId::parse("operations").unwrap()]
                 .into_iter()
                 .collect(),
         };
@@ -185,7 +185,7 @@ async fn qualify(db: &fixture::TestDb) {
     scope.work_context_id = WorkContextId::new();
     denied_scopes.push(scope);
     let mut scope = f.scope.clone();
-    scope.policy_revision = PolicyVersion::new("r2").unwrap();
+    scope.policy_revision = PolicyVersion::parse("r2").unwrap();
     denied_scopes.push(scope);
     let mut scope = f.scope.clone();
     scope.data_labels.clear();

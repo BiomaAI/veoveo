@@ -89,10 +89,10 @@ pub(super) async fn consume(
     let key_id = String::from_utf8(STANDARD.decode(secret.data.key_id)?)?;
     let key = STANDARD.decode(String::from_utf8(STANDARD.decode(secret.data.key)?)?.trim())?;
     let issuer = GatewayInternalTokenIssuer::new(
-        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
+        TokenIssuer::parse(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
         GatewayInternalSigningKey::new(key_id, key)?,
     );
-    let foreign_tenant = TenantId::new(format!("artifact-consumer-{}", uuid::Uuid::new_v4()))?;
+    let foreign_tenant = TenantId::parse(format!("artifact-consumer-{}", uuid::Uuid::new_v4()))?;
     ensure!(
         foreign_tenant != installation.operator.tenant,
         "foreign fixture tenant collided"
@@ -146,10 +146,10 @@ fn fixture_caller(
     tenant: TenantId,
 ) -> Result<CallerInput> {
     let actor = Principal {
-        id: PrincipalId::new("https://conformance.veoveo.local#artifact-consumer")?,
+        id: PrincipalId::parse("https://conformance.veoveo.local#artifact-consumer")?,
         kind: PrincipalKind::Service,
-        issuer: TokenIssuer::new("https://conformance.veoveo.local")?,
-        subject: TokenSubject::new("artifact-consumer")?,
+        issuer: TokenIssuer::parse("https://conformance.veoveo.local")?,
+        subject: TokenSubject::parse("artifact-consumer")?,
         tenant: Some(tenant.clone()),
         groups: BTreeSet::new(),
         group_roles: BTreeSet::new(),
@@ -168,8 +168,8 @@ fn fixture_caller(
         provenance: InvocationProvenance::Automated,
     };
     let token = issuer.issue(
-        GatewayProfileId::new(installation.profile())?,
-        ServerSlug::new("datasheet")?,
+        GatewayProfileId::parse(installation.profile())?,
+        ServerSlug::parse("datasheet")?,
         actor,
         authority,
         None,

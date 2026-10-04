@@ -34,7 +34,7 @@ impl ViewCaptureTaskRequest {
 
     pub(super) fn validate_owner(&self, owner: &TaskOwner) -> anyhow::Result<ResourceOwner> {
         let resource_owner = ResourceOwner {
-            principal_id: PrincipalId::new(owner.principal_key.clone())?,
+            principal_id: PrincipalId::parse(owner.principal_key.clone())?,
             work_context: owner.authority.work_context.clone(),
             tenant: owner.authority.tenant.clone(),
         };

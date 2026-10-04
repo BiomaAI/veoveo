@@ -30,7 +30,7 @@ fn governed_addresses_preserve_the_owner_types_and_string_wire_shape() {
         GovernedResourceUri::Route(MapRouteUri::new(RouteId::new())),
         GovernedResourceUri::Recording(RecordingUri::new(RecordingId::new())),
         GovernedResourceUri::FrameOperation(FrameOperationUri::new(
-            &CoordinateOperationId::new("operation-1").unwrap(),
+            &CoordinateOperationId::parse("operation-1").unwrap(),
         )),
     ] {
         assert_eq!(

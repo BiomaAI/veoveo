@@ -253,7 +253,7 @@ impl VehicleControlAuthority {
         validate_map_handoff(&request, &grant)?;
         let (tenant, work_context) = context_records(identity)?;
         let now = Utc::now();
-        let plan_id = MissionPlanId::new(format!("plan-{}", Uuid::now_v7()))
+        let plan_id = MissionPlanId::parse(format!("plan-{}", Uuid::now_v7()))
             .map_err(|error| ControlAuthorityError::Invalid(error.to_string()))?;
         let plan = VehicleMissionPlan {
             plan_id: plan_id.clone(),
@@ -366,11 +366,11 @@ fn same_grant(record: &GrantRecord, content: &GrantContent) -> bool {
 
 fn grant_view(record: GrantRecord) -> Result<VehicleControlGrant> {
     Ok(VehicleControlGrant {
-        grant_id: ControlGrantId::new(record.grant_id)
+        grant_id: ControlGrantId::parse(record.grant_id)
             .map_err(|error| ControlAuthorityError::Invalid(error.to_string()))?,
-        session_id: SessionId::new(record.session_id)
+        session_id: SessionId::parse(record.session_id)
             .map_err(|error| ControlAuthorityError::Invalid(error.to_string()))?,
-        vehicle_id: VehicleId::new(record.vehicle_id)
+        vehicle_id: VehicleId::parse(record.vehicle_id)
             .map_err(|error| ControlAuthorityError::Invalid(error.to_string()))?,
         principal_key: record.principal_key,
         permissions: record

@@ -100,7 +100,7 @@ impl<E: Embeddings + 'static> KnowledgeMcp<E> {
     ) -> Result<ToolAuthority, ErrorData> {
         let target = PolicyTarget::Tool {
             server: "knowledge".parse().unwrap(),
-            tool: LocalToolName::new(tool.name.as_ref()).expect("declared Knowledge tool"),
+            tool: LocalToolName::parse(tool.name.as_ref()).expect("declared Knowledge tool"),
         };
         let (identity, admitted) = self
             .authority(context, required, GatewayAction::ToolsCall, &target)

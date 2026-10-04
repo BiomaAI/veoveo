@@ -46,8 +46,8 @@ fn artifact_audit_context(
     };
     veoveo_platform_store::audit::AuditContextRecord(AuditContext {
         actor: AuditActor {
-            principal: veoveo_types::PrincipalId::new(identity.principal_key.clone()).unwrap(),
-            tenant: Some(veoveo_types::TenantId::new(identity.tenant_key.clone()).unwrap()),
+            principal: veoveo_types::PrincipalId::parse(identity.principal_key.clone()).unwrap(),
+            tenant: Some(veoveo_types::TenantId::parse(identity.tenant_key.clone()).unwrap()),
             kind: AuditPrincipalKind::User,
             oauth_client: None,
             session_family: None,
@@ -57,10 +57,11 @@ fn artifact_audit_context(
         authority: AuditAuthority {
             profile: Some("operator".parse().unwrap()),
             work_context: Some(
-                veoveo_types::WorkContextId::new(artifact_authority(identity).context_key).unwrap(),
+                veoveo_types::WorkContextId::parse(artifact_authority(identity).context_key)
+                    .unwrap(),
             ),
             policy_revision: Some(
-                veoveo_types::PolicyVersion::new(artifact_authority(identity).policy_revision)
+                veoveo_types::PolicyVersion::parse(artifact_authority(identity).policy_revision)
                     .unwrap(),
             ),
             ..Default::default()
@@ -1421,9 +1422,9 @@ async fn qualify_recording_catalog(store: &PlatformStore, reader: &PlatformStore
         tenant_id: identity.tenant_id,
         actor_id: identity.principal_id,
         work_context_id: deterministic_work_context_id(&identity.tenant_key, "operations").unwrap(),
-        policy_revision: veoveo_types::PolicyVersion::new("r1").unwrap(),
+        policy_revision: veoveo_types::PolicyVersion::parse("r1").unwrap(),
         data_labels: ["operations", "restricted"]
-            .map(|label| veoveo_types::DataLabelId::new(label).unwrap())
+            .map(|label| veoveo_types::DataLabelId::parse(label).unwrap())
             .into_iter()
             .collect(),
     };

@@ -803,15 +803,15 @@ pub(crate) mod tests {
     fn signed_caller() -> PlaneCaller {
         let now = Utc::now();
         let issuer = GatewayInternalTokenIssuer::new(
-            TokenIssuer::new("veoveo-internal").unwrap(),
+            TokenIssuer::parse("veoveo-internal").unwrap(),
             signing_key(),
         );
         let principal = Principal {
-            id: PrincipalId::new("alice").unwrap(),
+            id: PrincipalId::parse("alice").unwrap(),
             kind: PrincipalKind::User,
-            issuer: TokenIssuer::new("https://idp.example.com").unwrap(),
-            subject: TokenSubject::new("alice-subject").unwrap(),
-            tenant: Some(TenantId::new("acme").unwrap()),
+            issuer: TokenIssuer::parse("https://idp.example.com").unwrap(),
+            subject: TokenSubject::parse("alice-subject").unwrap(),
+            tenant: Some(TenantId::parse("acme").unwrap()),
             groups: BTreeSet::new(),
             group_roles: BTreeSet::new(),
             roles: BTreeSet::new(),
@@ -821,10 +821,10 @@ pub(crate) mod tests {
             authenticated_at: Some(now),
         };
         let authority = InvocationAuthority {
-            work_context: WorkContextId::new("mission").unwrap(),
-            tenant: TenantId::new("acme").unwrap(),
+            work_context: WorkContextId::parse("mission").unwrap(),
+            tenant: TenantId::parse("acme").unwrap(),
             membership: WorkContextMembershipLevel::Owner,
-            policy_revision: PolicyVersion::new("r1").unwrap(),
+            policy_revision: PolicyVersion::parse("r1").unwrap(),
             output_policy: WorkContextOutputPolicy {
                 owner: AccessSubject::Principal(principal.id.clone()),
                 initial_grants: Vec::new(),
@@ -838,8 +838,8 @@ pub(crate) mod tests {
         let context = crate::service::tests::request_context(&principal, &authority);
         let issued = issuer
             .issue(
-                GatewayProfileId::new("operator").unwrap(),
-                ServerSlug::new("media").unwrap(),
+                GatewayProfileId::parse("operator").unwrap(),
+                ServerSlug::parse("media").unwrap(),
                 principal,
                 authority,
                 Some(context),
@@ -869,8 +869,8 @@ pub(crate) mod tests {
         let service =
             ArtifactService::with_options(repository, InMemoryBlobStore::default(), &base, 1024);
         let auth = PlaneAuthenticator::new(
-            TokenIssuer::new("veoveo-internal").unwrap(),
-            vec![ServerSlug::new("media").unwrap()],
+            TokenIssuer::parse("veoveo-internal").unwrap(),
+            vec![ServerSlug::parse("media").unwrap()],
             trust_bundle(),
         );
         let app = router(AppState::new(service, auth));

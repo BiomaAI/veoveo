@@ -78,12 +78,12 @@ async fn native_revision_and_frame_completions_bind_visible_parents_before_limit
             let child = tree.frames[1].clone();
             for n in 0..125 {
                 tree.frames.push(FrameNode {
-                    frame_id: FrameId::new(format!("node-{n:03}")).unwrap(),
+                    frame_id: FrameId::parse(format!("node-{n:03}")).unwrap(),
                     ..child.clone()
                 });
             }
             tree.frames.push(FrameNode {
-                frame_id: FrameId::new("zz-Needle").unwrap(),
+                frame_id: FrameId::parse("zz-Needle").unwrap(),
                 ..child
             });
             let revision = writer
@@ -119,7 +119,7 @@ async fn native_revision_and_frame_completions_bind_visible_parents_before_limit
                 .complete_frames(&owner, &revision, "NEEDLE")
                 .await
                 .unwrap(),
-            vec![FrameId::new("zz-Needle").unwrap()]
+            vec![FrameId::parse("zz-Needle").unwrap()]
         );
         assert_eq!(
             reader
@@ -147,7 +147,7 @@ async fn native_revision_and_frame_completions_bind_visible_parents_before_limit
         }
         let wrong_world = FrameWorldRevisionUri::new(&other, &revision_id);
         let missing_revision =
-            FrameWorldRevisionUri::new(&world, &FrameWorldRevisionId::new("missing").unwrap());
+            FrameWorldRevisionUri::new(&world, &FrameWorldRevisionId::parse("missing").unwrap());
         for wrong in [&wrong_world, &missing_revision] {
             assert!(
                 reader

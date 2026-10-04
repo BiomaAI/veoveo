@@ -43,7 +43,7 @@ pub(super) async fn qualify(
             .unwrap()
     );
     let mut changed = caller.clone();
-    changed.authority.work_context = WorkContextId::new("investigation").unwrap();
+    changed.authority.work_context = WorkContextId::parse("investigation").unwrap();
     let replacement = service
         .issue_read_grant(
             &changed,
@@ -63,7 +63,7 @@ pub(super) async fn qualify(
             .unwrap()
             .record_id()
     );
-    changed.authority.policy_revision = PolicyVersion::new("r2").unwrap();
+    changed.authority.policy_revision = PolicyVersion::parse("r2").unwrap();
     let replacement = service
         .issue_read_grant(
             &changed,

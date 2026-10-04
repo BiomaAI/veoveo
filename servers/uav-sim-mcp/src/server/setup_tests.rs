@@ -22,8 +22,8 @@ fn variables() -> BTreeMap<String, String> {
 }
 
 fn template_cases() -> Vec<(&'static str, UavResource)> {
-    let session = SessionId::new("Session_1.2").unwrap();
-    let live = LiveSessionId::new("Session_1.2").unwrap();
+    let session = SessionId::parse("Session_1.2").unwrap();
+    let live = LiveSessionId::parse("Session_1.2").unwrap();
     vec![
         (
             uris::CONTROL_GRANTS_PAGE_TEMPLATE,
@@ -63,7 +63,7 @@ fn template_cases() -> Vec<(&'static str, UavResource)> {
             uris::VEHICLE_TEMPLATE,
             UavResource::Vehicle {
                 session,
-                vehicle: VehicleId::new("vehicle-1").unwrap(),
+                vehicle: VehicleId::parse("vehicle-1").unwrap(),
             },
         ),
         (
@@ -74,7 +74,7 @@ fn template_cases() -> Vec<(&'static str, UavResource)> {
             uris::LIVE_CAMERA_TEMPLATE,
             UavResource::LiveCamera {
                 session: live.clone(),
-                camera: LiveCameraId::new("camera-1").unwrap(),
+                camera: LiveCameraId::parse("camera-1").unwrap(),
             },
         ),
         (
@@ -85,7 +85,7 @@ fn template_cases() -> Vec<(&'static str, UavResource)> {
             uris::STREAM_PRODUCT_TEMPLATE,
             UavResource::StreamProduct {
                 session: live.clone(),
-                product: LiveStreamProductId::new("product-1").unwrap(),
+                product: LiveStreamProductId::parse("product-1").unwrap(),
             },
         ),
         (
@@ -106,20 +106,20 @@ fn template_cases() -> Vec<(&'static str, UavResource)> {
             uris::LIVE_VIEW_TEMPLATE,
             UavResource::LiveView {
                 session: live,
-                view: LiveViewId::new("view-1").unwrap(),
+                view: LiveViewId::parse("view-1").unwrap(),
             },
         ),
         (
             uris::MISSION_TEMPLATE,
-            UavResource::Mission(MissionId::new("mission-1").unwrap()),
+            UavResource::Mission(MissionId::parse("mission-1").unwrap()),
         ),
         (
             uris::CONTROL_GRANT_TEMPLATE,
-            UavResource::ControlGrant(ControlGrantId::new("grant-1").unwrap()),
+            UavResource::ControlGrant(ControlGrantId::parse("grant-1").unwrap()),
         ),
         (
             uris::MISSION_PLAN_TEMPLATE,
-            UavResource::MissionPlan(MissionPlanId::new("plan-1").unwrap()),
+            UavResource::MissionPlan(MissionPlanId::parse("plan-1").unwrap()),
         ),
         (
             uris::USAGE_TASK_TEMPLATE,
@@ -216,11 +216,12 @@ fn every_advertised_template_expands_to_its_domain_builder() {
 
 #[test]
 fn optional_cursor_templates_expand_the_exact_collection_bound_cursor() {
-    let session = LiveSessionId::new("Session_1.2").unwrap();
-    let grant = UavGrantCursor::new(None, ControlGrantId::new("grant-1").unwrap()).unwrap();
-    let plan = UavPlanCursor::new(MissionPlanId::new("plan-1").unwrap()).unwrap();
-    let mission = UavMissionCursor::new(MissionId::new("mission-1").unwrap()).unwrap();
-    let live = UavLiveViewCursor::new(session.clone(), LiveViewId::new("view-1").unwrap()).unwrap();
+    let session = LiveSessionId::parse("Session_1.2").unwrap();
+    let grant = UavGrantCursor::new(None, ControlGrantId::parse("grant-1").unwrap()).unwrap();
+    let plan = UavPlanCursor::new(MissionPlanId::parse("plan-1").unwrap()).unwrap();
+    let mission = UavMissionCursor::new(MissionId::parse("mission-1").unwrap()).unwrap();
+    let live =
+        UavLiveViewCursor::new(session.clone(), LiveViewId::parse("view-1").unwrap()).unwrap();
     let usage = UavUsageCursor::new(UavUsagePosition {
         created_at: "2026-09-28T12:00:00Z".parse().unwrap(),
         task_id: "0195e2ec-54a1-7000-8000-000000000001".parse().unwrap(),
@@ -276,7 +277,7 @@ fn optional_cursor_templates_expand_the_exact_collection_bound_cursor() {
         assert_eq!(UavResource::parse(expanded.as_str()).unwrap(), expected);
         variables.insert(
             "cursor".into(),
-            UavMissionCursor::new(MissionId::new("other").unwrap())
+            UavMissionCursor::new(MissionId::parse("other").unwrap())
                 .unwrap()
                 .as_str()
                 .into(),

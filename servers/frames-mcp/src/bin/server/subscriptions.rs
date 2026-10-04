@@ -151,7 +151,7 @@ mod tests {
     fn subscriptions_admit_mutable_worlds_and_usage() {
         assert_eq!(subscribe(FrameWorldsUri::ROOT).unwrap(), Watched::Catalog);
         let cursor = veoveo_frames_mcp::contract::FrameWorldCursor::new(
-            &FrameWorldId::new("world").unwrap(),
+            &FrameWorldId::parse("world").unwrap(),
         );
         assert_eq!(
             subscribe(FrameWorldsUri::new(Some(&cursor)).as_str()).unwrap(),
@@ -163,7 +163,7 @@ mod tests {
         );
         assert_eq!(
             subscribe("frames://world/fixture").unwrap(),
-            Watched::World(FrameWorldId::new("fixture").unwrap())
+            Watched::World(FrameWorldId::parse("fixture").unwrap())
         );
         let task_id = TaskId::new();
         let usage = FrameTaskUsageUri::new(task_id).unwrap();

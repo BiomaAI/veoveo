@@ -147,10 +147,10 @@ impl ComputersStore {
         }
         let grant_id = crate::api::AutomationGrantId::new();
         let content = Content {
-            grant_id: grant_id.into_uuid(),
-            computer_id: input.computer_id.into_uuid(),
+            grant_id: grant_id.as_uuid(),
+            computer_id: input.computer_id.as_uuid(),
             owner_key: key.clone(),
-            provider_instance_id: self.provider_instance_id.into_uuid(),
+            provider_instance_id: self.provider_instance_id.as_uuid(),
             authority: object(actor.accepted())?,
             grantee: grantee.id,
             principal_id: principal.to_string(),
@@ -170,12 +170,9 @@ impl ComputersStore {
         let mut params = owner.bindings(actor)?;
         params.extend([
             ("computer", computer_record(input.computer_id).into_value()),
-            ("computer_id", input.computer_id.into_uuid().into_value()),
+            ("computer_id", input.computer_id.as_uuid().into_value()),
             ("owner_key", key.into_value()),
-            (
-                "provider",
-                self.provider_instance_id.into_uuid().into_value(),
-            ),
+            ("provider", self.provider_instance_id.as_uuid().into_value()),
             ("request", request.clone().into_value()),
             ("fingerprint", fingerprint.into_value()),
             ("grant", super::record(grant_id).into_value()),
@@ -191,7 +188,7 @@ impl ComputersStore {
                 "guard",
                 RecordId::new(
                     "computer_automation_guard",
-                    surrealdb::types::Uuid::from(input.computer_id.into_uuid()),
+                    surrealdb::types::Uuid::from(input.computer_id.as_uuid()),
                 )
                 .into_value(),
             ),
@@ -239,8 +236,8 @@ impl ComputersStore {
                  ORDER BY grant_id LIMIT 64;",
                     vec![
                         ("owner_key", owner_key(&computer.owner)?.into_value()),
-                        ("computer_id", computer_id.into_uuid().into_value()),
-                        ("provider", self.provider_instance_id.into_uuid().into_value()),
+                        ("computer_id", computer_id.as_uuid().into_value()),
+                        ("provider", self.provider_instance_id.as_uuid().into_value()),
                     ],
                 )
                 .await?;
@@ -312,12 +309,9 @@ impl ComputersStore {
             params.extend([
                 ("grant", super::record(input.grant_id).into_value()),
                 ("computer", computer_record(input.computer_id).into_value()),
-                ("computer_id", input.computer_id.into_uuid().into_value()),
+                ("computer_id", input.computer_id.as_uuid().into_value()),
                 ("owner_key", owner_key(&computer.owner)?.into_value()),
-                (
-                    "provider",
-                    self.provider_instance_id.into_uuid().into_value(),
-                ),
+                ("provider", self.provider_instance_id.as_uuid().into_value()),
                 crate::audit::binding(
                     actor.accepted(),
                     input.computer_id,

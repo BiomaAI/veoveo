@@ -83,10 +83,10 @@ impl McpServerContract for FixtureContract {
     type Scope = FixtureScope;
     type Resource = FixtureResource;
     fn slug() -> ServerSlug {
-        ServerSlug::new("fixture").unwrap()
+        ServerSlug::parse("fixture").unwrap()
     }
     fn scheme() -> ResourceScheme {
-        ResourceScheme::new("fixture").unwrap()
+        ResourceScheme::parse("fixture").unwrap()
     }
     fn scopes() -> &'static [FixtureScope] {
         FixtureScope::ALL
@@ -192,7 +192,7 @@ impl DomainServer for FixtureDomain {
         tools: Vec<rmcp::model::Tool>,
         context: &RequestContext<RoleServer>,
     ) -> Result<super::Listing<rmcp::model::Tool>, ErrorData> {
-        let admin = veoveo_types::ScopeName::new("admin:use").unwrap();
+        let admin = veoveo_types::ScopeName::parse("admin:use").unwrap();
         let is_admin = gateway_identity(context)?.actor.scopes.contains(&admin);
         Ok(super::Listing::all(
             tools

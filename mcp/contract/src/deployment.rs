@@ -7,39 +7,11 @@ use serde::{Deserialize, Serialize};
 use crate::ServerSlug;
 
 /// Stable identifier for one canonical self-hosted installation profile.
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = anyhow::Error, validate = |value| validate_path_segment(value, "DeploymentProfileId"))]
+#[veoveo_types::id(text(DeploymentIds))]
 pub struct DeploymentProfileId(String);
 
 /// Stable identifier for one deployment requirement.
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = anyhow::Error, validate = |value| validate_path_segment(value, "DeploymentRequirementId"))]
+#[veoveo_types::id(text(DeploymentIds))]
 pub struct DeploymentRequirementId(String);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -683,7 +655,7 @@ fn normalize_base_url(input: &str) -> Result<(String, String)> {
 fn normalize_server_slug(input: &str) -> Result<String> {
     let value = input.trim();
     validate_path_segment(value, "server slug")?;
-    ServerSlug::new(value)?;
+    ServerSlug::parse(value)?;
     Ok(value.to_string())
 }
 
@@ -717,3 +689,13 @@ fn validate_endpoint(value: &str) -> Result<()> {
 
 #[cfg(test)]
 mod tests;
+
+use veoveo_types::{IdProfile, IdProfileSpec};
+
+#[doc(hidden)]
+pub struct DeploymentIds;
+impl IdProfile for DeploymentIds {
+    type Error = anyhow::Error;
+    const PROFILE: IdProfileSpec<Self::Error> =
+        IdProfileSpec::text(|value, metadata| validate_path_segment(value, metadata.error_context));
+}

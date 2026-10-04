@@ -126,7 +126,7 @@ mod tests {
     fn operation_provenance_round_trips() {
         let provenance = CoordinateOperationProvenance {
             operation: CoordinateOperationRef::new(
-                CoordinateOperationId::new("op-test").unwrap(),
+                CoordinateOperationId::parse("op-test").unwrap(),
                 "2026-01-01T00:00:00Z".parse().unwrap(),
             )
             .with_frames(
@@ -134,8 +134,8 @@ mod tests {
                 Some(CoordinateSpace::EcefWgs84),
             ),
             kind: CoordinateOperationKind::FrameConversion,
-            source_crs: Some(CrsId::new("EPSG:4326").unwrap()),
-            target_crs: Some(CrsId::new("EPSG:4978").unwrap()),
+            source_crs: Some(CrsId::parse("EPSG:4326").unwrap()),
+            target_crs: Some(CrsId::parse("EPSG:4978").unwrap()),
             engine: Some("test".to_string()),
             grid_packages: Vec::new(),
             approximation_used: false,

@@ -367,7 +367,7 @@ pub(crate) fn parse_gateway_tool(
     catalog: &GatewayCatalog,
     name: &str,
 ) -> Result<crate::GatewayToolProjection, McpError> {
-    let gateway_name = GatewayToolName::new(name.to_string())
+    let gateway_name = GatewayToolName::parse(name)
         .map_err(|err| mcp_invalid_params(format!("invalid gateway tool name: {err}")))?;
     catalog
         .parse_tool_name(&gateway_name)
@@ -470,7 +470,7 @@ mod tests {
 
     #[test]
     fn concrete_resource_admission_rejects_templates_without_echoing_input() {
-        let server = ServerSlug::new("media").unwrap();
+        let server = ServerSlug::parse("media").unwrap();
         for wire in [
             "media://model/private-fixture/{id}",
             "media://model/private-fixture{?cursor}",
@@ -490,7 +490,7 @@ mod tests {
 
     #[test]
     fn template_admission_preserves_declarations_and_rejects_malformed_input() {
-        let server = ServerSlug::new("media").unwrap();
+        let server = ServerSlug::parse("media").unwrap();
         for wire in [
             "media://model/literal",
             "media://model/{+id}{?cursor}",
@@ -520,14 +520,14 @@ mod tests {
     ) -> ServerManifest {
         ServerManifest {
             knowledge: Vec::new(),
-            slug: ServerSlug::new(slug).unwrap(),
-            uri_scheme: ResourceScheme::new(uri_scheme).unwrap(),
+            slug: ServerSlug::parse(slug).unwrap(),
+            uri_scheme: ResourceScheme::parse(uri_scheme).unwrap(),
             mount_path: MountPath::new(format!("/{slug}")).unwrap(),
             mcp_path: MountPath::new(format!("/{slug}/mcp")).unwrap(),
             upstream: UpstreamEndpoint {
                 transport: UpstreamTransport::StreamableHttp,
-                url: UpstreamUrl::new(format!("http://{slug}-mcp:8787/{slug}/mcp")).unwrap(),
-                health_url: UpstreamUrl::new(format!("http://{slug}-mcp:8787/{slug}/healthz"))
+                url: UpstreamUrl::parse(format!("http://{slug}-mcp:8787/{slug}/mcp")).unwrap(),
+                health_url: UpstreamUrl::parse(format!("http://{slug}-mcp:8787/{slug}/healthz"))
                     .unwrap(),
                 security: UpstreamTransportSecurity::ClusterInternalHttp,
                 trusted_certificate_authorities: Vec::new(),
@@ -551,10 +551,10 @@ mod tests {
             referenced_resource_schemes: std::collections::BTreeSet::new(),
             app_resource_dependencies: Vec::new(),
             app_tool_dependencies: Vec::new(),
-            tools: vec![LocalToolName::new("run").unwrap()],
+            tools: vec![LocalToolName::parse("run").unwrap()],
             compatibility_helpers: Vec::new(),
             prompts: Vec::new(),
-            required_scopes: vec![ScopeName::new("operator:use").unwrap()],
+            required_scopes: vec![ScopeName::parse("operator:use").unwrap()],
             owned_routes: Vec::new(),
             metadata: Value::Null,
         }
@@ -800,24 +800,24 @@ mod tests {
         server.capabilities.apps = true;
         server.app_resource_dependencies = vec![AppResourceDependency {
             app_resource: ResourceUri::new("ui://mission/operations.html").unwrap(),
-            server: ServerSlug::new("view").unwrap(),
-            scheme: ResourceScheme::new("view").unwrap(),
+            server: ServerSlug::parse("view").unwrap(),
+            scheme: ResourceScheme::parse("view").unwrap(),
             uri_prefix: ResourceUriPrefix::new("view://frame/").unwrap(),
-            required_scope: ScopeName::new("view:read").unwrap(),
+            required_scope: ScopeName::parse("view:read").unwrap(),
             operations: BTreeSet::from([AppResourceOperation::Read]),
-            data_labels: BTreeSet::from([DataLabelId::new("cui").unwrap()]),
+            data_labels: BTreeSet::from([DataLabelId::parse("cui").unwrap()]),
         }];
         let mut resource = Resource::new("ui://mission/operations.html", "mission-operations");
         let profile_servers = BTreeSet::from([
-            ServerSlug::new("mission").unwrap(),
-            ServerSlug::new("view").unwrap(),
+            ServerSlug::parse("mission").unwrap(),
+            ServerSlug::parse("view").unwrap(),
         ]);
         project_app_resource_dependencies(
             &server,
             &mut resource,
             &profile_servers,
-            &BTreeSet::from([ScopeName::new("view:read").unwrap()]),
-            &BTreeSet::from([DataLabelId::new("cui").unwrap()]),
+            &BTreeSet::from([ScopeName::parse("view:read").unwrap()]),
+            &BTreeSet::from([DataLabelId::parse("cui").unwrap()]),
         )
         .unwrap();
         let projected =
@@ -832,7 +832,7 @@ mod tests {
             &mut resource,
             &profile_servers,
             &BTreeSet::new(),
-            &BTreeSet::from([DataLabelId::new("cui").unwrap()]),
+            &BTreeSet::from([DataLabelId::parse("cui").unwrap()]),
         )
         .unwrap();
         assert!(

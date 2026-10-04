@@ -16,39 +16,11 @@ pub const MAX_TRAVEL_MODEL_LOCATIONS: usize = 128;
 pub const MAX_TRAVEL_MODEL_VEHICLE_TYPES: usize = 64;
 pub const MAX_TRAVEL_MODEL_CELLS: usize = 1_048_576;
 
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
+#[veoveo_types::id(text(TravelKeys), error_context = "travel location id")]
 #[schemars(with = "String")]
-#[id(string, error = TravelModelContractError, validate = |value| validate_travel_key(value, "travel location id"))]
 pub struct TravelLocationId(String);
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
+#[veoveo_types::id(text(TravelKeys), error_context = "travel vehicle type id")]
 #[schemars(with = "String")]
-#[id(string, error = TravelModelContractError, validate = |value| validate_travel_key(value, "travel vehicle type id"))]
 pub struct TravelVehicleTypeId(String);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
@@ -246,14 +218,24 @@ fn validate_travel_key(value: &str, label: &'static str) -> Result<(), TravelMod
     Ok(())
 }
 
+#[doc(hidden)]
+pub struct TravelKeys;
+impl veoveo_types::IdProfile for TravelKeys {
+    type Error = TravelModelContractError;
+    const PROFILE: veoveo_types::IdProfileSpec<Self::Error> =
+        veoveo_types::IdProfileSpec::text(|value, metadata| {
+            validate_travel_key(value, metadata.error_context)
+        });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn controlled_keys_reject_path_segments() {
-        assert!(TravelLocationId::new("depot-1").is_ok());
-        assert!(TravelLocationId::new("../depot").is_err());
-        assert!(TravelVehicleTypeId::new("truck:heavy").is_ok());
+        assert!(TravelLocationId::parse("depot-1").is_ok());
+        assert!(TravelLocationId::parse("../depot").is_err());
+        assert!(TravelVehicleTypeId::parse("truck:heavy").is_ok());
     }
 }

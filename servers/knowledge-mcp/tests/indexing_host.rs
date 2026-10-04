@@ -156,7 +156,7 @@ impl ServerHandler for Gateway {
                 let descriptor = descriptor();
                 let observation = Observation::builder(
                     descriptor.collection().clone(),
-                    Revision::new("r1").unwrap(),
+                    Revision::parse("r1").unwrap(),
                     knowledge::content_digest(TEXT),
                     chrono::Utc::now(),
                 )
@@ -302,7 +302,7 @@ async fn machine_connection_rotates_reconciles_current_catalog_and_releases_its_
             .iter_mut()
             .find(|profile| profile.id.as_str() == "knowledge-indexing")
             .unwrap();
-        profile.protected_resource = ProtectedResourceId::new(&resource).unwrap();
+        profile.protected_resource = ProtectedResourceId::parse(&resource).unwrap();
         plane
             .oauth_clients
             .iter_mut()

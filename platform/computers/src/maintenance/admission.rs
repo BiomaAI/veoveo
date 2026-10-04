@@ -73,13 +73,10 @@ impl ComputersStore {
         let mut params = crate::store::owner_query_bindings(caller)?;
         params.extend([
             ("maintenance", record(id).into_value()),
-            (
-                "provider",
-                self.provider_instance_id.into_uuid().into_value(),
-            ),
+            ("provider", self.provider_instance_id.as_uuid().into_value()),
             (
                 "expected_computer",
-                computer.map(crate::api::ComputerId::into_uuid).into_value(),
+                computer.map(crate::api::ComputerId::as_uuid).into_value(),
             ),
         ]);
         let mut reply = self
@@ -201,7 +198,7 @@ impl ComputersStore {
                 if original.computer_id != computer.computer_id
                     || original.action != Action::Create
                     || original.stage != OperationStage::RecoveryRequired
-                    || original.instance_id() != computer.computer_id.into_uuid()
+                    || original.instance_id() != computer.computer_id.as_uuid()
                     || original.template_fingerprint != computer.template_fingerprint
                     || original.provider_instance_id != self.provider_instance_id
                     || original.dispatch_id.is_none()
@@ -288,13 +285,13 @@ impl ComputersStore {
         let id = veoveo_types::TaskId::new();
         let content = Content {
             operation_id: id.as_uuid(),
-            request_id: request_id.into_uuid(),
-            computer_id: computer_id.into_uuid(),
+            request_id: request_id.as_uuid(),
+            computer_id: computer_id.as_uuid(),
             task: task_record_id(id),
             owner_key: owner_key(caller)?,
             actor_context: object(caller)?,
             execution_authority: object(actor.accepted())?,
-            provider_instance_id: self.provider_instance_id.into_uuid(),
+            provider_instance_id: self.provider_instance_id.as_uuid(),
             source_instance_id: computer.instance_id(),
             source_template_id: computer.template_id.to_string(),
             source_template_fingerprint: computer.template_fingerprint.clone(),
@@ -347,7 +344,7 @@ impl ComputersStore {
                     "execution_slot",
                     RecordId::new(
                         "computer_execution_slot",
-                        surrealdb::types::Uuid::from(computer_id.into_uuid()),
+                        surrealdb::types::Uuid::from(computer_id.as_uuid()),
                     )
                     .into_value(),
                 ),

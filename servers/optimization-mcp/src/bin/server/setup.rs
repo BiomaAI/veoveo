@@ -28,7 +28,7 @@ impl McpServerContract for OptimizationContract {
     type Scope = OptimizationScope;
     type Resource = OptimizationResource;
     fn slug() -> ServerSlug {
-        ServerSlug::new("optimization").expect("declared slug")
+        ServerSlug::parse("optimization").expect("declared slug")
     }
     fn scheme() -> ResourceScheme {
         uris::SCHEME.clone()

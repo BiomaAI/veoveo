@@ -284,9 +284,9 @@ mod tests {
 
     #[test]
     fn contextual_cursors_preserve_alias_text_and_reject_other_sessions() {
-        let session = SessionId::new("session-alpha").unwrap();
-        let other = SessionId::new("session-beta").unwrap();
-        let grant = ControlGrantId::new("grant-alpha").unwrap();
+        let session = SessionId::parse("session-alpha").unwrap();
+        let other = SessionId::parse("session-beta").unwrap();
+        let grant = ControlGrantId::parse("grant-alpha").unwrap();
         let cursor = UavGrantCursor::new(Some(&session), grant.clone()).unwrap();
         let alias = cursor.as_str().to_ascii_uppercase();
         let parsed = UavGrantCursor::parse(Some(&session), alias.clone()).unwrap();
@@ -297,9 +297,9 @@ mod tests {
         assert!(UavGrantCursor::parse(Some(&other), &alias).is_err());
         assert!(UavGrantCursor::parse(None, &alias).is_err());
 
-        let session = LiveSessionId::new("live-alpha").unwrap();
-        let other = LiveSessionId::new("live-beta").unwrap();
-        let view = LiveViewId::new("view-alpha").unwrap();
+        let session = LiveSessionId::parse("live-alpha").unwrap();
+        let other = LiveSessionId::parse("live-beta").unwrap();
+        let view = LiveViewId::parse("view-alpha").unwrap();
         let cursor = UavLiveViewCursor::new(session.clone(), view.clone()).unwrap();
         let alias = cursor.as_str().to_ascii_uppercase();
         let parsed = UavLiveViewCursor::parse(&session, alias.clone()).unwrap();

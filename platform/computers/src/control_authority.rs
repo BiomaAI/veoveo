@@ -35,7 +35,7 @@ impl ComputersStore {
         Ok(ControlAuthority {
             snapshot,
             admission_deadline: Instant::now() + remaining,
-            trace: TraceId::new(Uuid::now_v7().to_string()).expect("UUID trace"),
+            trace: TraceId::parse(Uuid::now_v7().to_string()).expect("UUID trace"),
         })
     }
 }
@@ -158,7 +158,7 @@ impl ControlAuthority {
             crate::api::computer_uri,
         );
         let target = PolicyTarget::Resource {
-            server: ServerSlug::new("computers").expect("static server"),
+            server: ServerSlug::parse("computers").expect("static server"),
             uri: ResourceUri::new(uri).map_err(|_| ComputerError::InvalidInput)?,
         };
         if self

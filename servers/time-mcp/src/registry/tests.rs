@@ -79,7 +79,7 @@ impl AuthorityFiles {
 }
 
 fn bootstrap_reference(id: &str, kind: AuthorityDatasetKind) -> TimeAuthorityReference {
-    let release_id = AuthorityReleaseId::new(id).unwrap();
+    let release_id = AuthorityReleaseId::parse(id).unwrap();
     TimeAuthorityReference::new(
         TimeAuthorityReleaseUri::bootstrap(&release_id),
         kind,
@@ -116,7 +116,7 @@ async fn stage(
         .create_source(
             scope,
             crate::NewTimeSource {
-                source_id: TimeSourceId::new(format!("time-source-{}", Uuid::now_v7())).unwrap(),
+                source_id: TimeSourceId::parse(format!("time-source-{}", Uuid::now_v7())).unwrap(),
                 name: "fixture".into(),
                 dataset_kind: kind,
                 url: "https://example.test/data".into(),
@@ -136,7 +136,7 @@ async fn stage(
         .create_release(
             scope,
             AuthorityRelease {
-                release_id: AuthorityReleaseId::new(format!("time-release-{}", Uuid::now_v7()))
+                release_id: AuthorityReleaseId::parse(format!("time-release-{}", Uuid::now_v7()))
                     .unwrap(),
                 source_id: source.source_id.clone(),
                 dataset_kind: kind,
@@ -156,7 +156,7 @@ async fn stage(
         .create_acquisition(
             scope,
             TimeAcquisition {
-                acquisition_id: TimeAcquisitionId::new(format!(
+                acquisition_id: TimeAcquisitionId::parse(format!(
                     "time-acquisition-{}",
                     Uuid::now_v7()
                 ))
@@ -291,7 +291,7 @@ async fn replicas_load_persisted_authority_before_serving_and_validate_cache_reu
                 .available()
                 .any(|zone| zone.to_string() == "Mission/Test")
         );
-        let epoch_id = MissionEpochId::new("epoch-private").unwrap();
+        let epoch_id = MissionEpochId::parse("epoch-private").unwrap();
         engine.replace_epochs([MissionEpoch {
             epoch_id: epoch_id.clone(),
             name: "request local".into(),
@@ -540,7 +540,7 @@ async fn event_batches_reuse_authority_and_skip_registered_or_terminal_events() 
                     .create_event(
                         &owner,
                         TemporalEvent {
-                            event_id: TemporalEventId::new(format!("event-{}", Uuid::now_v7()))
+                            event_id: TemporalEventId::parse(format!("event-{}", Uuid::now_v7()))
                                 .unwrap(),
                             name: format!("event {index}"),
                             due: due.clone(),

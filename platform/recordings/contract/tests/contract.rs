@@ -79,7 +79,7 @@ fn sealing_permission_is_an_owner_type_with_one_wire_spelling() {
     ] {
         assert!(serde_json::from_value::<RecordingScope>(json!(value)).is_err());
     }
-    assert!(ScopeName::new("independent-server:operate").is_ok());
+    assert!(ScopeName::parse("independent-server:operate").is_ok());
     assert_eq!(
         serde_json::to_value(schemars::schema_for!(RecordingScope)).unwrap()["enum"],
         json!(["recording:seal"])

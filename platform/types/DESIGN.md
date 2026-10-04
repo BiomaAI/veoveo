@@ -102,27 +102,27 @@ name or reference a domain contract.
 The public `Identity` trait in `src/id.rs` exposes owner admission through
 `parse_identity` and deliberate text exposure through `identity_text`. Its associated
 error type belongs to the owner. An independent library can implement the trait
-without a derive or an edit to the foundation. Raw String has no blanket `Identity`
+without an attribute or an edit to the foundation. Raw String has no blanket `Identity`
 implementation. Admission establishes syntax; authentication and domain policy
 establish authority.
 
-The re-exported `Id` derive calls these ordinary mechanics. Owner functions choose
-UUID versions, accepted aliases, text limits, generation and stable-key namespaces.
-The String validation hook preserves the owned input allocation. Optional parser,
-wire-conversion, generation and schema hooks remove plumbing while leaving these
-rules with their owner. Generated values pass owner admission before construction.
-The [macro design](../macros/DESIGN.md#id) defines the hook interface.
+The re-exported `id` attribute supplies compact declarations through ordinary
+`IdProfile` implementations. Owners choose complete text validators, UUID admission,
+hex rules, generation namespaces and wire/schema profiles. Shared forms emit standard
+derives and conversions; owner declarations carry prefixes and differing error
+context. `parse` admits input, while `new` generates a fresh ID only when that
+capability is declared. The [macro design](../macros/DESIGN.md#id) defines these forms.
 
-Serde and Schemars declarations belong to each wrapper. A transparent UUID wrapper
-keeps UUID's binary behavior, while an owner-declared String conversion keeps string
-serialization in binary formats too. Schema derives retain their metadata and identity;
-the optional owner schema hook retains its declared shape and Schemars' default
-identity. The shared mechanics impose no universal UUID or schema profile.
+An owner profile preserves String versus inner-UUID binary serialization, schema
+metadata and schema identity. Generated metadata and identity overrides avoid
+copying descriptions into schema callbacks. Independent libraries can add their
+profiles and trait implementations without changing core. UUID and stable-key
+capabilities compose through public traits; their generation does not confer access.
 
 `identity_text` can expose secret material even when Display and Debug redact it.
 Owners must make that exposure deliberate and sanitize errors at secret admission.
 Gateway refresh tokens preserve their explicit text and wire access while replacing
-rejected input in `IdentifierError` with `[REDACTED]`. The derive adds no zeroization.
+rejected input in `IdentifierError` with `[REDACTED]`. The attribute adds no zeroization.
 Nonidentity display metadata, such as `PrincipalDisplayName`, uses an ordinary checked
 newtype. Database adapters and SDK derives stay in their consumers; the foundation
 knows neither Store tables nor server-owned IDs.
@@ -197,12 +197,12 @@ descriptor serves shape matching, encoding and checked discovery. Its private fi
 prevent independent callers from publishing an unchecked template. Static owners use
 `declare`; capture, build, pattern and discovery operations validate that the declared
 template agrees with every component. The re-exported
-[ResourceAddress derive](../macros/DESIGN.md#resourceaddress) compiles these declarations
+[resource_address attribute](../macros/DESIGN.md#resourceaddress) compiles these declarations
 for struct and enum owners while retaining the ordinary trait's independent extension
 interface.
 
 Shape selection compares literals and path arity before domain admission. A matched
-route's query or field error ends parsing. The derive rejects intersecting sibling
+route's query or field error ends parsing. The attribute rejects intersecting sibling
 shapes rather than resolving meanings by declaration order. Scalar and tail codecs
 belong to owners through `ResourceFieldCodec<T>` and `ResourceTailCodec<T>`.
 `IdentityResourceCodec` delegates to an admitted identity; raw String has no blanket
@@ -222,7 +222,7 @@ Cached owners also ensure that component types and accessors cannot mutate admit
 values through interior mutability and invalidate their wire agreement. Field privacy
 prevents direct external assignment; it does not prove arbitrary codec types immutable.
 
-Typed accessors are an explicit derive choice. Borrowed Option getters expose
+Typed accessors are an explicit declaration choice. Borrowed Option getters expose
 `Option<&T>`, and copied getters are opt-in; enum convenience APIs stay with their owner.
 
 `wire_pattern` describes the encoded route shape without importing domain-ID regular

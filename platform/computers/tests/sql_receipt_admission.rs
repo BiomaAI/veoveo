@@ -44,7 +44,7 @@ async fn command_receipts_admit_the_accepted_actor_before_decoding_private_paylo
         let keys = command_fixture::keys();
         let authority = command_fixture::permit(&store, &agent, computer, grant.grant_id).await;
         let operation = store.queue_command(&agent, authority, request, &payload, &keys).await.unwrap();
-        let row = RecordId::new("computer_execution", surrealdb::types::Uuid::from(operation.execution_id().into_uuid()));
+        let row = RecordId::new("computer_execution", surrealdb::types::Uuid::from(operation.execution_id().as_uuid()));
         corrupt_denied_target(&db, row).await;
         let authority = command_fixture::permit(&store, &agent, computer, grant.grant_id).await;
         assert!(matches!(store.queue_command(&agent, authority, request, &payload, &keys).await, Err(ComputerError::NotFound)));
@@ -67,7 +67,7 @@ async fn file_receipts_admit_the_accepted_actor_before_decoding_private_payloads
         let keys = command_fixture::keys();
         let authority = store.file_transfer_authority(&owner, computer, None).await.unwrap();
         let operation = store.queue_file_transfer(&owner, authority, request, &payload, &keys).await.unwrap();
-        let row = RecordId::new("computer_file_transfer", surrealdb::types::Uuid::from(operation.transfer_id().into_uuid()));
+        let row = RecordId::new("computer_file_transfer", surrealdb::types::Uuid::from(operation.transfer_id().as_uuid()));
         corrupt_denied_target(&db, row).await;
         let authority = store.file_transfer_authority(&owner, computer, None).await.unwrap();
         assert!(matches!(store.queue_file_transfer(&owner, authority, request, &payload, &keys).await, Err(ComputerError::NotFound)));

@@ -50,15 +50,15 @@ fn snapshot_owner_requires_principal_tenant_and_work_context() {
     snapshot.require_owner(&owner).unwrap();
     for other in [
         ResourceOwner {
-            principal_id: veoveo_types::PrincipalId::new("other").unwrap(),
+            principal_id: veoveo_types::PrincipalId::parse("other").unwrap(),
             ..owner.clone()
         },
         ResourceOwner {
-            tenant: veoveo_types::TenantId::new("other").unwrap(),
+            tenant: veoveo_types::TenantId::parse("other").unwrap(),
             ..owner.clone()
         },
         ResourceOwner {
-            work_context: veoveo_types::WorkContextId::new("other").unwrap(),
+            work_context: veoveo_types::WorkContextId::parse("other").unwrap(),
             ..owner.clone()
         },
     ] {
@@ -70,7 +70,7 @@ fn snapshot_owner_requires_principal_tenant_and_work_context() {
 fn decoded_artifact_snapshot_preserves_captured_camera_after_live_revision_changes() {
     let composition = resolved::with_artifact();
     let mut view = ViewRecord::new(
-        ViewId::new("view-1").unwrap(),
+        ViewId::parse("view-1").unwrap(),
         composition.record(),
         fixture::camera(),
         fixture::now(),

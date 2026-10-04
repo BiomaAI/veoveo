@@ -32,7 +32,7 @@ pub(crate) async fn bootstrap(
     if catalog.profile(&profile).is_none() {
         return StatusCode::NOT_FOUND.into_response();
     }
-    let trace_id = TraceId::new(uuid::Uuid::now_v7().to_string()).expect("UUID trace");
+    let trace_id = TraceId::parse(uuid::Uuid::now_v7().to_string()).expect("UUID trace");
     let can_read_installation = catalog
         .decide(PolicyRequest {
             principal: &subject.principal,

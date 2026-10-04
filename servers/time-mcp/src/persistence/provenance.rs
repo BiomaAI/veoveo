@@ -42,7 +42,7 @@ impl TimeProvenanceRecord {
             work_context: self.work_context.parse().map_err(|_| invalid())?,
             read_policy: policy,
             owner: AccessSubject::Principal(
-                PrincipalId::new(&self.owner_key).map_err(|_| invalid())?,
+                PrincipalId::parse(&self.owner_key).map_err(|_| invalid())?,
             ),
             grants: vec![],
             data_labels: vec![],

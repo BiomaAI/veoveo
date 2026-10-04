@@ -71,8 +71,8 @@ impl ExecutionDecision {
 
 pub(crate) fn execution_target(action: Action) -> PolicyTarget {
     PolicyTarget::Tool {
-        server: ServerSlug::new("computers").expect("static server"),
-        tool: LocalToolName::new(match action {
+        server: ServerSlug::parse("computers").expect("static server"),
+        tool: LocalToolName::parse(match action {
             Action::Create => "create",
             Action::Start => "start",
             Action::Stop => "stop",
@@ -121,7 +121,7 @@ impl ComputersStore {
         let decision = snapshot.decision(
             GatewayAction::ToolsCall,
             &execution_target(operation.action),
-            &TraceId::new(operation.operation_id.to_string()).expect("UUID trace"),
+            &TraceId::parse(operation.operation_id.to_string()).expect("UUID trace"),
         );
         if !snapshot
             .membership

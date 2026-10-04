@@ -56,7 +56,7 @@ impl FileTransferAuthority {
                 source: value.snapshot.decision(
                     GatewayAction::ToolsCall,
                     &super::target(),
-                    &TraceId::new(transfer.to_string()).expect("UUID trace"),
+                    &TraceId::parse(transfer.to_string()).expect("UUID trace"),
                 ),
                 owner: None,
             }),
@@ -134,7 +134,7 @@ impl FileTransferAuthority {
             .owner
             .data_labels
             .iter()
-            .map(|value| DataLabelId::new(value.clone()).map_err(|_| ComputerError::Unavailable))
+            .map(|value| DataLabelId::parse(value.clone()).map_err(|_| ComputerError::Unavailable))
             .collect::<Result<BTreeSet<_>>>()?;
         let policy = &computer.owner.authority.output_policy;
         labels.extend(policy.data_labels.iter().cloned());
@@ -211,7 +211,7 @@ impl ComputersStore {
                 .decision(
                     GatewayAction::ToolsCall,
                     &super::target(),
-                    &TraceId::new(operation.transfer_id().to_string()).expect("UUID trace"),
+                    &TraceId::parse(operation.transfer_id().to_string()).expect("UUID trace"),
                 )
                 .effect
                 != PolicyEffect::Allow
@@ -270,7 +270,7 @@ impl ComputersStore {
                     .decision(
                         GatewayAction::ToolsCall,
                         &super::target(),
-                        &TraceId::new(Uuid::now_v7().to_string()).expect("UUID trace"),
+                        &TraceId::parse(Uuid::now_v7().to_string()).expect("UUID trace"),
                     )
                     .effect
                     != PolicyEffect::Allow

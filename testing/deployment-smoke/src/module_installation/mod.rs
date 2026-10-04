@@ -22,7 +22,7 @@ impl FromStr for PinnedImage {
         if reference.tag().is_some() {
             return Err("gateway image requires an untagged digest reference".into());
         }
-        let digest = ArtifactDigest::new(
+        let digest = ArtifactDigest::parse(
             reference
                 .digest()
                 .ok_or("gateway image requires a digest")?,

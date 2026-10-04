@@ -32,14 +32,11 @@ fn native_identity_admission_rejects_aliases_wrong_versions_and_variants() {
         serde_json::from_value::<ComputerId>(json!(good)).unwrap(),
         computer
     );
-    assert_eq!(
-        ComputerId::try_from(computer.into_uuid()).unwrap(),
-        computer
-    );
+    assert_eq!(ComputerId::try_from(computer.as_uuid()).unwrap(), computer);
     let execution = ExecutionId::new();
-    assert_eq!(execution.task_id().as_uuid(), execution.into_uuid());
+    assert_eq!(execution.task_id().as_uuid(), execution.as_uuid());
     let transfer = FileTransferId::new();
-    assert_eq!(transfer.task_id().as_uuid(), transfer.into_uuid());
+    assert_eq!(transfer.task_id().as_uuid(), transfer.as_uuid());
     let grant = AccessGrantId::new();
     let pairing = CliPairingId::new();
     let connection = AccessConnectionId::new();
@@ -141,5 +138,5 @@ fn resource_admission_rejects_wrong_families_queries_and_documents() {
         FileTransferResultUri::try_from(String::from(ExecutionResultUri::new(ExecutionId::new())))
             .is_err()
     );
-    assert!(ComputerScope::try_from(&ScopeName::new("computers:read").unwrap()).is_err());
+    assert!(ComputerScope::try_from(&ScopeName::parse("computers:read").unwrap()).is_err());
 }

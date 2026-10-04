@@ -112,7 +112,7 @@ async fn exhausted_source_acquisition_and_event_versions_cannot_advance() {
             .create_source(
                 &owner,
                 crate::NewTimeSource {
-                    source_id: TimeSourceId::new(
+                    source_id: TimeSourceId::parse(
                         "time-source-00000000-0000-7000-8000-000000000001",
                     )
                     .unwrap(),
@@ -150,7 +150,7 @@ async fn exhausted_source_acquisition_and_event_versions_cannot_advance() {
             .create_acquisition(
                 &owner,
                 TimeAcquisition {
-                    acquisition_id: TimeAcquisitionId::new(
+                    acquisition_id: TimeAcquisitionId::parse(
                         "time-acquisition-00000000-0000-7000-8000-000000000001",
                     )
                     .unwrap(),
@@ -196,7 +196,7 @@ async fn exhausted_source_acquisition_and_event_versions_cannot_advance() {
             .create_event(
                 &owner,
                 TemporalEvent {
-                    event_id: TemporalEventId::new("event-00000000-0000-7000-8000-000000000001")
+                    event_id: TemporalEventId::parse("event-00000000-0000-7000-8000-000000000001")
                         .unwrap(),
                     name: "event".into(),
                     due: instant(),

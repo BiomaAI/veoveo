@@ -23,66 +23,11 @@ mod composition;
 
 pub use composition::*;
 
-fn validate_id(value: &str) -> Result<(), ContractError> {
-    if value.is_empty()
-        || matches!(value, "." | "..")
-        || value.len() > 128
-        || !value
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
-    {
-        return Err(ContractError::InvalidIdentifier(value.to_owned()));
-    }
-    Ok(())
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = ContractError, validate = validate_id)]
+#[veoveo_types::id(text(ViewIds))]
 pub struct ViewId(String);
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = ContractError, validate = validate_id)]
+#[veoveo_types::id(text(ViewIds))]
 pub struct FrameId(String);
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = ContractError, validate = validate_id)]
+#[veoveo_types::id(text(ViewIds))]
 pub struct LayerId(String);
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -409,6 +354,28 @@ pub enum ContractError {
     InvalidDeadline { max_deadline_ms: u32 },
 }
 
+use veoveo_types::{IdProfile, IdProfileSpec};
+
+#[doc(hidden)]
+pub struct ViewIds;
+impl IdProfile for ViewIds {
+    type Error = ContractError;
+    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec::text(|value, _| validate_id(value));
+}
+
+fn validate_id(value: &str) -> Result<(), ContractError> {
+    if value.is_empty()
+        || matches!(value, "." | "..")
+        || value.len() > 128
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+    {
+        return Err(ContractError::InvalidIdentifier(value.to_owned()));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use serde_json::{Value, json};
@@ -459,9 +426,9 @@ mod tests {
 
     #[test]
     fn ids_are_bounded_and_uri_safe() {
-        assert!(LayerId::new("google-photorealistic").is_ok());
-        assert!(LayerId::new("bad/id").is_err());
-        assert!(LayerId::new("").is_err());
+        assert!(LayerId::parse("google-photorealistic").is_ok());
+        assert!(LayerId::parse("bad/id").is_err());
+        assert!(LayerId::parse("").is_err());
     }
 
     #[test]

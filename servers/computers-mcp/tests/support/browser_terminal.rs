@@ -285,10 +285,10 @@ pub async fn qualify(
     let _ = rustls::crypto::ring::default_provider().install_default();
     let mut control = support::policy::control();
     let mut read = control.policies[0].rules[0].clone();
-    read.id = PolicyRuleId::new("computer-browser").unwrap();
+    read.id = PolicyRuleId::parse("computer-browser").unwrap();
     read.actions = [
         GatewayAction::ResourcesRead.into(),
-        veoveo_types::ActionName::new(veoveo_computers_contract::ComputerAction::Attach.as_str())
+        veoveo_types::ActionName::parse(veoveo_computers_contract::ComputerAction::Attach.as_str())
             .unwrap(),
     ]
     .into_iter()
@@ -377,8 +377,10 @@ pub async fn qualify(
     command(&mut socket, "after-resize").await;
     let mut denied = control.clone();
     denied.policies[0].rules.last_mut().unwrap().actions.remove(
-        &veoveo_types::ActionName::new(veoveo_computers_contract::ComputerAction::Attach.as_str())
-            .unwrap(),
+        &veoveo_types::ActionName::parse(
+            veoveo_computers_contract::ComputerAction::Attach.as_str(),
+        )
+        .unwrap(),
     );
     support::policy::install(&db.b, denied).await;
     closed(&mut socket).await;

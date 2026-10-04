@@ -138,7 +138,7 @@ impl GatewayMcp {
             server_slug.clone(),
             subject,
             (server_slug.as_str() == "recording")
-                .then(|| ServerSlug::new("artifact").expect("artifact is a valid server slug")),
+                .then(|| ServerSlug::parse("artifact").expect("artifact is a valid server slug")),
         );
         let handler = GatewayUpstreamHandler::new(GatewayUpstreamHandlerConfig {
             catalog: self.catalog.clone(),
@@ -437,15 +437,15 @@ mod tests {
 
     pub(super) fn principal() -> Principal {
         Principal {
-            id: PrincipalId::new("issuer#subject").unwrap(),
+            id: PrincipalId::parse("issuer#subject").unwrap(),
             kind: PrincipalKind::User,
-            issuer: TokenIssuer::new("https://identity.example").unwrap(),
-            subject: TokenSubject::new("subject").unwrap(),
+            issuer: TokenIssuer::parse("https://identity.example").unwrap(),
+            subject: TokenSubject::parse("subject").unwrap(),
             tenant: None,
             groups: BTreeSet::new(),
             group_roles: BTreeSet::new(),
-            roles: BTreeSet::from([RoleId::new("operator").unwrap()]),
-            scopes: BTreeSet::from([ScopeName::new("tools:call").unwrap()]),
+            roles: BTreeSet::from([RoleId::parse("operator").unwrap()]),
+            scopes: BTreeSet::from([ScopeName::parse("tools:call").unwrap()]),
             data_labels: BTreeSet::new(),
             assurances: BTreeSet::new(),
             authenticated_at: None,
@@ -454,18 +454,18 @@ mod tests {
 
     pub(super) fn authority() -> InvocationAuthority {
         InvocationAuthority {
-            work_context: WorkContextId::new("mission").unwrap(),
-            tenant: TenantId::new("tenant").unwrap(),
+            work_context: WorkContextId::parse("mission").unwrap(),
+            tenant: TenantId::parse("tenant").unwrap(),
             membership: WorkContextMembershipLevel::Owner,
-            policy_revision: PolicyVersion::new("r1").unwrap(),
+            policy_revision: PolicyVersion::parse("r1").unwrap(),
             output_policy: WorkContextOutputPolicy {
-                owner: AccessSubject::Principal(PrincipalId::new("issuer#subject").unwrap()),
+                owner: AccessSubject::Principal(PrincipalId::parse("issuer#subject").unwrap()),
                 initial_grants: Vec::new(),
                 classification: None,
                 data_labels: BTreeSet::new(),
             },
             provenance: InvocationProvenance::Direct {
-                initiator: PrincipalId::new("issuer#subject").unwrap(),
+                initiator: PrincipalId::parse("issuer#subject").unwrap(),
             },
         }
     }
@@ -474,7 +474,9 @@ mod tests {
     fn upstream_fingerprint_covers_actor_and_authority() {
         let baseline = principal();
         let mut changed = baseline.clone();
-        changed.roles.insert(RoleId::new("administrator").unwrap());
+        changed
+            .roles
+            .insert(RoleId::parse("administrator").unwrap());
         let mut reverified = baseline.clone();
         reverified.authenticated_at = Some(Utc::now());
 
@@ -519,7 +521,7 @@ mod execution_fingerprint_tests {
         let baseline = discovery_authorization_fingerprint(&subject).unwrap();
         subject.access_token.managed_execution =
             Some(veoveo_audit_contract::AuditManagedExecution {
-                instance: veoveo_types::AgentManagedInstanceId::new("fixture-agent").unwrap(),
+                instance: veoveo_types::AgentManagedInstanceId::parse("fixture-agent").unwrap(),
                 generation: std::num::NonZeroU64::new(1).unwrap(),
                 dispatch_epoch: std::num::NonZeroU64::new(2).unwrap(),
                 episode: None,

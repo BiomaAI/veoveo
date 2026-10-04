@@ -215,7 +215,7 @@ async fn observe(
                         Some(surrealdb::types::RecordIdKey::Uuid(id)) => **id,
                         _ => return Err(ComputerError::Unavailable),
                     };
-                    let family = GatewayRefreshFamilyId::new(id.to_string())
+                    let family = GatewayRefreshFamilyId::parse(id.to_string())
                         .map_err(|_| ComputerError::Unavailable)?;
                     let _ = changes.send(Change::Family(family));
                 }
@@ -297,7 +297,7 @@ mod tests {
             connected,
         };
         let computer = veoveo_computers_contract::ComputerId::new();
-        let family = GatewayRefreshFamilyId::new(Uuid::now_v7().to_string()).unwrap();
+        let family = GatewayRefreshFamilyId::parse(Uuid::now_v7().to_string()).unwrap();
         changes
             .send(Change::Computer(
                 veoveo_computers_contract::ComputerId::new(),

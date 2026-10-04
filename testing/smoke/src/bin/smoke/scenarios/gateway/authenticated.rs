@@ -620,7 +620,7 @@ pub(crate) async fn gateway_authenticated(
             .at_least(
                 Select::DataLabel {
                     class,
-                    label: DataLabelId::new("cui")?,
+                    label: DataLabelId::parse("cui")?,
                 },
                 None,
                 1,
@@ -641,9 +641,9 @@ pub(crate) async fn gateway_authenticated(
         .at_least(
             Select::DelegatedActor {
                 class: AuditClass::ApiActivity,
-                actor: PrincipalId::new("https://veoveo.example/oauth#admin-delegated")?,
-                delegator: PrincipalId::new("https://idp.example.com#00u-smoke")?,
-                client: OAuthClientId::new("admin-delegated")?,
+                actor: PrincipalId::parse("https://veoveo.example/oauth#admin-delegated")?,
+                delegator: PrincipalId::parse("https://idp.example.com#00u-smoke")?,
+                client: OAuthClientId::parse("admin-delegated")?,
             },
             Some(AuditOutcome::Allowed),
             1,

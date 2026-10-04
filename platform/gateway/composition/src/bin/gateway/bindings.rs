@@ -14,7 +14,7 @@ pub(super) fn gateway_state(
 ) -> anyhow::Result<GatewayState> {
     let mut builder = veoveo_mcp_gateway::auth::access_token_extension_registry_builder();
     let name =
-        veoveo_types::ExtensionName::new(veoveo_agent_runtime::contract::MANAGED_AGENT_CLAIM)?;
+        veoveo_types::ExtensionName::parse(veoveo_agent_runtime::contract::MANAGED_AGENT_CLAIM)?;
     builder.reserve(name.clone())?;
     let key = builder.bind(
         &name,

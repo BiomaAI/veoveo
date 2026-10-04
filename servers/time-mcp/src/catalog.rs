@@ -16,7 +16,7 @@ mod tests;
 /// ```compile_fail
 /// use veoveo_time_mcp::{catalog::TimeCompletion, MissionEpochId};
 /// TimeCompletion::CalendarVersion {
-///     calendar_key: Some(MissionEpochId::new("epoch-example").unwrap()),
+///     calendar_key: Some(MissionEpochId::parse("epoch-example").unwrap()),
 /// };
 /// ```
 /// ```compile_fail

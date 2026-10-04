@@ -127,7 +127,7 @@ fn declared_sections_targets_and_audit_share_checked_owner_types() {
         Vec::<String>::new(),
         ["gateway", "server", "resource"]
             .into_iter()
-            .map(|kind| ExtensionName::new(kind).unwrap()),
+            .map(|kind| ExtensionName::parse(kind).unwrap()),
     );
     builder.register_kernel::<GatewayAction>().unwrap();
     register_catalog(&mut builder).unwrap();
@@ -136,7 +136,7 @@ fn declared_sections_targets_and_audit_share_checked_owner_types() {
     let admitted = registry.admit_sections(&values, &current).unwrap();
     let section_key = registry
         .section_key::<RecordingCatalogSection>(
-            &ExtensionName::new(RECORDING_INGEST_SECTION).unwrap(),
+            &ExtensionName::parse(RECORDING_INGEST_SECTION).unwrap(),
         )
         .unwrap();
     assert_eq!(admitted.get(&section_key).unwrap().unwrap(), section);
@@ -145,7 +145,7 @@ fn declared_sections_targets_and_audit_share_checked_owner_types() {
         stream_id: "01983da0-0000-7000-8000-000000000001".parse().unwrap(),
     };
     let key = registry
-        .target_key::<RecordingTarget>(&ExtensionName::new(RECORDING_TARGET_GROUP).unwrap())
+        .target_key::<RecordingTarget>(&ExtensionName::parse(RECORDING_TARGET_GROUP).unwrap())
         .unwrap();
     registry.contribute_target(&key, &target).unwrap();
     let audit = target_audit_resource(&target).unwrap();
@@ -158,13 +158,13 @@ fn declared_sections_targets_and_audit_share_checked_owner_types() {
 fn ingest_ids_keep_v7_alias_spelling_and_unconstrained_string_schema() {
     let uuid = uuid::Uuid::now_v7();
     let alias = format!("urn:uuid:{}", uuid.hyphenated().to_string().to_uppercase());
-    let id = RecordingIngestStreamId::new(alias.clone()).unwrap();
+    let id = RecordingIngestStreamId::parse(alias.clone()).unwrap();
     assert_eq!(id.as_str(), alias);
     assert_eq!(id.identity_text(), alias);
     assert_eq!(serde_json::to_value(&id).unwrap(), alias);
     assert_eq!(alias.parse::<RecordingIngestStreamId>().unwrap(), id);
     let v4 = "550e8400-e29b-41d4-a716-446655440000";
-    assert!(RecordingIngestStreamId::new(v4).is_err());
+    assert!(RecordingIngestStreamId::parse(v4).is_err());
     assert!(v4.parse::<RecordingIngestStreamId>().is_err());
     assert!(serde_json::from_value::<RecordingIngestStreamId>(serde_json::json!(v4)).is_err());
     let schema = serde_json::to_value(schemars::schema_for!(RecordingIngestStreamId)).unwrap();

@@ -88,7 +88,7 @@ impl AcquisitionService {
             bail!("time acquisition idempotency key conflicts with a different request");
         }
         let now = Utc::now();
-        let proposed_id = TimeAcquisitionId::new(format!("time-acquisition-{}", Uuid::now_v7()))
+        let proposed_id = TimeAcquisitionId::parse(format!("time-acquisition-{}", Uuid::now_v7()))
             .map_err(anyhow::Error::msg)?;
         let acquisition = TimeAcquisition {
             acquisition_id: proposed_id.clone(),
@@ -244,7 +244,7 @@ impl AcquisitionService {
             }
         };
         check_cancelled(&cancellation)?;
-        let release_id = AuthorityReleaseId::new(format!("time-release-{}", Uuid::now_v7()))
+        let release_id = AuthorityReleaseId::parse(format!("time-release-{}", Uuid::now_v7()))
             .map_err(anyhow::Error::msg)?;
         let release_dir = self.config.release_root.join(release_id.as_str());
         tokio::fs::create_dir_all(&release_dir).await?;

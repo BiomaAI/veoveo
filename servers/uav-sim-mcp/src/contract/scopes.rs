@@ -7,7 +7,7 @@
 /// ```compile_fail
 /// use veoveo_uav_sim_mcp::contract::UavScope;
 /// fn authorize(_: UavScope) {}
-/// authorize(veoveo_types::ScopeName::new("uav-sim:control").unwrap());
+/// authorize(veoveo_types::ScopeName::parse("uav-sim:control").unwrap());
 /// ```
 /// ```compile_fail
 /// use veoveo_uav_sim_mcp::contract::UavScope;

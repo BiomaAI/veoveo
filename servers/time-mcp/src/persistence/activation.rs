@@ -90,7 +90,7 @@ impl TimePersistence {
                 "snapshot belongs to another tenant",
             ));
         }
-        let release_key = AuthorityReleaseId::new(&release.release_key)
+        let release_key = AuthorityReleaseId::parse(&release.release_key)
             .map_err(|_| invalid("release_key", "invalid release identity"))?;
         validate_key("release_key", &release_key, "time-release-")?;
         let next_release = expected_release_version.checked_next()?;

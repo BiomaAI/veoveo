@@ -25,7 +25,7 @@ impl McpServerContract for ReasonContract {
     type Scope = ReasonScope;
     type Resource = ReasonResource;
     fn slug() -> ServerSlug {
-        ServerSlug::new(SERVER_SLUG).expect("declared Reason slug")
+        ServerSlug::parse(SERVER_SLUG).expect("declared Reason slug")
     }
     fn scheme() -> ResourceScheme {
         uris::SCHEME.clone()

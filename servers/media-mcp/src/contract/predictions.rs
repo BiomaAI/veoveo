@@ -1,10 +1,9 @@
 //! Caller-owned prediction catalog and collection-bound continuation.
-use std::fmt;
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_types::{ResourceAddress, ResourceFieldCodec, ResourceUri};
+use veoveo_types::{ResourceFieldCodec, ResourceUri};
 
 pub const MEDIA_PREDICTION_PAGE_SIZE: usize = 100;
 
@@ -90,37 +89,20 @@ impl From<MediaPredictionCursor> for String {
     }
 }
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::ResourceAddress,
+#[veoveo_types::resource_address(
+    cached(MediaPredictionErrorAddresses),
+    template = "media://predictions{?cursor}"
 )]
-#[serde(try_from = "String", into = "String")]
-#[resource(template="media://predictions{?cursor}", error=MediaPredictionError, route_error=|_| MediaPredictionError, wire)]
 pub struct MediaPredictionIndexUri {
     #[resource(cache)]
     wire: ResourceUri,
-    #[resource(codec=PredictionCursorCodec, error=|_| MediaPredictionError)]
+    #[resource(codec=PredictionCursorCodec, error=|_| MediaPredictionError, accessor = cursor, argument = optional_borrowed)]
     cursor: Option<MediaPredictionCursor>,
 }
 
 impl MediaPredictionIndexUri {
     pub const ROOT: &str = Self::RESOURCE_ROOT;
     pub const TEMPLATE: &str = Self::RESOURCE_TEMPLATE;
-
-    pub fn new(cursor: Option<&MediaPredictionCursor>) -> Self {
-        Self::resource_from_parts(cursor.cloned()).expect("typed prediction index address")
-    }
-
-    pub fn parse(value: impl AsRef<str>) -> Result<Self, MediaPredictionError> {
-        let uri = ResourceUri::new(value.as_ref()).map_err(|_| MediaPredictionError)?;
-        <Self as ResourceAddress>::parse(&uri)
-    }
-
-    pub fn cursor(&self) -> Option<&MediaPredictionCursor> {
-        self.cursor.as_ref()
-    }
-    pub fn as_str(&self) -> &str {
-        self.wire.as_str()
-    }
 }
 
 struct PredictionCursorCodec;
@@ -131,11 +113,6 @@ impl ResourceFieldCodec<MediaPredictionCursor> for PredictionCursorCodec {
     }
     fn text(value: &MediaPredictionCursor) -> std::borrow::Cow<'_, str> {
         value.as_str().into()
-    }
-}
-impl fmt::Display for MediaPredictionIndexUri {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
     }
 }
 
@@ -270,4 +247,14 @@ impl From<MediaPredictionPage> for PageWire {
             next_cursor: value.next_cursor,
         }
     }
+}
+
+#[doc(hidden)]
+pub struct MediaPredictionErrorAddresses;
+impl veoveo_types::ResourceProfile for MediaPredictionErrorAddresses {
+    type Error = MediaPredictionError;
+    const PROFILE: veoveo_types::ResourceProfileSpec<Self::Error> =
+        veoveo_types::ResourceProfileSpec {
+            route_error: |_, _| MediaPredictionError,
+        };
 }

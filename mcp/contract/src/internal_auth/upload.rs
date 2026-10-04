@@ -28,7 +28,7 @@ impl GatewayInternalTokenIssuer {
     ) -> Result<String, InternalTokenError> {
         let identity = self.create_identity(
             profile,
-            ServerSlug::new(ARTIFACT_UPLOAD_AUDIENCE).map_err(InternalTokenError::Identifier)?,
+            ServerSlug::parse(ARTIFACT_UPLOAD_AUDIENCE).map_err(InternalTokenError::Identifier)?,
             actor,
             authority,
             Some(request_context),
@@ -57,7 +57,7 @@ impl GatewayInternalTokenVerifier {
     ) -> Result<VerifiedArtifactUploadIdentity, InternalTokenError> {
         let claims = self.decode_claims::<UploadClaims>(token)?;
         let expected =
-            ServerSlug::new(ARTIFACT_UPLOAD_AUDIENCE).map_err(InternalTokenError::Identifier)?;
+            ServerSlug::parse(ARTIFACT_UPLOAD_AUDIENCE).map_err(InternalTokenError::Identifier)?;
         if claims.identity.server != expected {
             return Err(InternalTokenError::AudienceMismatch {
                 expected,

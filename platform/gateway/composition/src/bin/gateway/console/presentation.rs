@@ -14,7 +14,7 @@ pub(crate) fn presentation(
         .principal
         .tenant
         .clone()
-        .unwrap_or(TenantId::new("installation")?);
+        .unwrap_or(TenantId::parse("installation")?);
     let tenant_name = control
         .tenants
         .iter()

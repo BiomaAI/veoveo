@@ -201,7 +201,7 @@ mod presentation_tests {
         };
         // ...and each server re-presents it under its own scheme.
         let presented =
-            meta.presented_under_scheme(&veoveo_types::ResourceScheme::new("media").unwrap());
+            meta.presented_under_scheme(&veoveo_types::ResourceScheme::parse("media").unwrap());
         assert_eq!(
             presented.artifact_uri.as_str(),
             format!("media://artifact/{artifact_id}")

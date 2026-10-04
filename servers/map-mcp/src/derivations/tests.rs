@@ -22,7 +22,7 @@ async fn map_scope(store: &veoveo_platform_store::PlatformStore, tenant: &str) -
     }
 }
 fn context() -> WorkContextId {
-    WorkContextId::new("operations").unwrap()
+    WorkContextId::parse("operations").unwrap()
 }
 fn raster(n: usize) -> RasterDerivation {
     RasterDerivation {
@@ -46,7 +46,7 @@ fn raster(n: usize) -> RasterDerivation {
         output_crs: "EPSG:4326".into(),
         output_transform: None,
         output_checksum_sha256: "b".repeat(64),
-        created_by: PrincipalId::new("author").unwrap(),
+        created_by: PrincipalId::parse("author").unwrap(),
         work_context: context(),
         created_at: Utc::now(),
     }
@@ -91,7 +91,7 @@ fn spatial() -> SpatialDerivation {
         algorithm_revision: SPATIAL_DERIVATION_ALGORITHM_REVISION.into(),
         request_digest_sha256: "c".repeat(64),
         geometry_digest_sha256: "d".repeat(64),
-        created_by: PrincipalId::new("author").unwrap(),
+        created_by: PrincipalId::parse("author").unwrap(),
         work_context: context(),
         created_at: Utc::now(),
     }
@@ -118,7 +118,7 @@ async fn qualify_sql_pages() {
             .put_raster_derivation(&foreign, &value)
             .await
             .unwrap();
-        value.work_context = WorkContextId::new("private").unwrap();
+        value.work_context = WorkContextId::parse("private").unwrap();
         writer.put_raster_derivation(&scope, &value).await.unwrap();
     }
     let mut expected = Vec::new();
@@ -163,7 +163,7 @@ async fn qualify_sql_pages() {
         reader
             .raster_derivation(
                 &scope,
-                &WorkContextId::new("private").unwrap(),
+                &WorkContextId::parse("private").unwrap(),
                 &original.derivation_id
             )
             .await

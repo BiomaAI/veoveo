@@ -133,7 +133,7 @@ impl ManagedOAuthClientResolver {
                 };
                 let template = self
                     .templates
-                    .get(&wire::AgentTemplateId::new(template.clone())?)
+                    .get(&wire::AgentTemplateId::parse(template.clone())?)
                     .context("managed template is unavailable")?;
                 ensure!(
                     runtime_template_revision(template).as_str()
@@ -142,8 +142,8 @@ impl ManagedOAuthClientResolver {
                 );
                 let instance = &managed.instance;
                 let identity = &instance.identity;
-                let tenant = TenantId::new(managed.tenant_key.clone())?;
-                let context = WorkContextId::new(managed.context_key.clone())?;
+                let tenant = TenantId::parse(managed.tenant_key.clone())?;
+                let context = WorkContextId::parse(managed.context_key.clone())?;
                 let profile = catalog
                     .profile(&template.profile)
                     .context("managed profile is unavailable")?;
@@ -154,7 +154,7 @@ impl ManagedOAuthClientResolver {
                     .scopes
                     .iter()
                     .cloned()
-                    .map(ScopeName::new)
+                    .map(ScopeName::parse)
                     .collect::<std::result::Result<_, _>>()?;
                 ensure!(
                     template.tenant == tenant
@@ -168,7 +168,7 @@ impl ManagedOAuthClientResolver {
                             .roles
                             .iter()
                             .cloned()
-                            .map(RoleId::new)
+                            .map(RoleId::parse)
                             .collect::<std::result::Result<BTreeSet<_>, _>>()?
                             == template.roles
                         && membership(identity.membership) == template.membership,
@@ -281,7 +281,7 @@ impl OAuthClientAuthority for ManagedAuthority {
     fn token_extensions(&self) -> Result<veoveo_types::AdmittedExtensions> {
         let m = &self.managed;
         let binding = ManagedAgentToken {
-            instance: wire::AgentManagedInstanceId::new(m.instance.key.clone())?,
+            instance: wire::AgentManagedInstanceId::parse(m.instance.key.clone())?,
             generation: m.instance.active_generation,
             epoch: m.instance.dispatch_epoch,
         };
@@ -306,7 +306,7 @@ impl OAuthClientAuthority for ManagedAuthority {
             .roles
             .iter()
             .cloned()
-            .map(RoleId::new)
+            .map(RoleId::parse)
             .collect::<std::result::Result<_, _>>()?;
         Ok(())
     }
@@ -396,7 +396,7 @@ mod attribution_tests {
     #[test]
     fn attribution_checks_counters_and_preserves_signed_epoch() {
         let mut binding = ManagedAgentToken {
-            instance: wire::AgentManagedInstanceId::new("worker-one").unwrap(),
+            instance: wire::AgentManagedInstanceId::parse("worker-one").unwrap(),
             generation: i64::MAX,
             epoch: 3,
         };

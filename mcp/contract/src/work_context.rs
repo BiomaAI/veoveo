@@ -82,14 +82,14 @@ mod tests {
 
     fn principal() -> Principal {
         Principal {
-            id: PrincipalId::new("issuer#subject").unwrap(),
+            id: PrincipalId::parse("issuer#subject").unwrap(),
             kind: PrincipalKind::User,
-            issuer: TokenIssuer::new("issuer").unwrap(),
-            subject: TokenSubject::new("subject").unwrap(),
-            tenant: Some(TenantId::new("tenant").unwrap()),
-            groups: BTreeSet::from([GroupId::new("flight").unwrap()]),
+            issuer: TokenIssuer::parse("issuer").unwrap(),
+            subject: TokenSubject::parse("subject").unwrap(),
+            tenant: Some(TenantId::parse("tenant").unwrap()),
+            groups: BTreeSet::from([GroupId::parse("flight").unwrap()]),
             group_roles: BTreeSet::new(),
-            roles: BTreeSet::from([RoleId::new("operator").unwrap()]),
+            roles: BTreeSet::from([RoleId::parse("operator").unwrap()]),
             scopes: BTreeSet::<ScopeName>::new(),
             data_labels: BTreeSet::new(),
             assurances: BTreeSet::<PrincipalAssurance>::new(),
@@ -100,12 +100,12 @@ mod tests {
     #[test]
     fn highest_matching_membership_wins() {
         let context = WorkContextDefinition {
-            id: WorkContextId::new("mission").unwrap(),
-            tenant: TenantId::new("tenant").unwrap(),
+            id: WorkContextId::parse("mission").unwrap(),
+            tenant: TenantId::parse("tenant").unwrap(),
             title: "Mission".into(),
-            policy_revision: PolicyVersion::new("r1").unwrap(),
+            policy_revision: PolicyVersion::parse("r1").unwrap(),
             output_policy: WorkContextOutputPolicy {
-                owner: AccessSubject::Group(GroupId::new("flight").unwrap()),
+                owner: AccessSubject::Group(GroupId::parse("flight").unwrap()),
                 initial_grants: Vec::new(),
                 classification: None,
                 data_labels: BTreeSet::new(),
@@ -114,7 +114,7 @@ mod tests {
                 WorkContextMembershipRule {
                     level: WorkContextMembershipLevel::Viewer,
                     principals: BTreeSet::new(),
-                    groups: BTreeSet::from([GroupId::new("flight").unwrap()]),
+                    groups: BTreeSet::from([GroupId::parse("flight").unwrap()]),
                     roles: BTreeSet::new(),
                     oauth_clients: BTreeSet::new(),
                 },
@@ -122,13 +122,13 @@ mod tests {
                     level: WorkContextMembershipLevel::Custodian,
                     principals: BTreeSet::new(),
                     groups: BTreeSet::new(),
-                    roles: BTreeSet::from([RoleId::new("operator").unwrap()]),
+                    roles: BTreeSet::from([RoleId::parse("operator").unwrap()]),
                     oauth_clients: BTreeSet::new(),
                 },
             ],
         };
         assert_eq!(
-            context.membership_for(&principal(), &OAuthClientId::new("console").unwrap()),
+            context.membership_for(&principal(), &OAuthClientId::parse("console").unwrap()),
             Some(WorkContextMembershipLevel::Custodian)
         );
     }

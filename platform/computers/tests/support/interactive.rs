@@ -17,20 +17,17 @@ pub const LIMITS: SessionGrantPolicy = SessionGrantPolicy {
 pub fn control() -> GatewayControlPlane {
     let mut control = super::policy::control();
     let mut read = control.policies[0].rules[0].clone();
-    read.id = PolicyRuleId::new("computer-read").unwrap();
+    read.id = PolicyRuleId::parse("computer-read").unwrap();
     read.actions = [GatewayAction::ResourcesRead.into()].into_iter().collect();
     read.tools.clear();
     control.policies[0].rules.push(read.clone());
-    read.id = PolicyRuleId::new("computer-attach").unwrap();
-    read.actions =
-        [
-            veoveo_types::ActionName::new(
-                veoveo_computers_contract::ComputerAction::Attach.as_str(),
-            )
-            .unwrap(),
-        ]
-        .into_iter()
-        .collect();
+    read.id = PolicyRuleId::parse("computer-attach").unwrap();
+    read.actions = [veoveo_types::ActionName::parse(
+        veoveo_computers_contract::ComputerAction::Attach.as_str(),
+    )
+    .unwrap()]
+    .into_iter()
+    .collect();
     control.policies[0].rules.push(read);
     control
 }
@@ -78,7 +75,7 @@ pub async fn ready(
         .await
         .unwrap();
     db.a.client().query("UPDATE ONLY $computer SET phase = 'ready', provider_resource_id = 'fixture-resource', process_id = 'fixture-process';")
-        .bind(("computer", RecordId::new("computer", surrealdb::types::Uuid::from(computer.computer_id.into_uuid()))))
+        .bind(("computer", RecordId::new("computer", surrealdb::types::Uuid::from(computer.computer_id.as_uuid()))))
         .await.unwrap().check().unwrap();
     (a, b, computer.computer_id)
 }

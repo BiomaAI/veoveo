@@ -147,7 +147,7 @@ fn verify_image_publication(
         )
         .unwrap();
         let revision = commit(&roots[owner], "new image build input");
-        image.source_revision = SourceRevision::new(revision).unwrap();
+        image.source_revision = SourceRevision::parse(revision).unwrap();
         image.digest = format!("sha256:{}", "d".repeat(64));
         image.publication_digest = format!("sha256:{}", "e".repeat(64));
         let requested = BTreeSet::from([ComponentId::try_from(owner.to_owned()).unwrap()]);
@@ -324,7 +324,7 @@ fn independent_sources(publication: Option<PublicationCheck>) {
             images: vec![LockedImage {
                 name: image_target(&source.name).into(),
                 repository: format!("registry.example.invalid/{}", image_target(&source.name)),
-                source_revision: veoveo_deploy_contract::SourceRevision::new(git(
+                source_revision: veoveo_deploy_contract::SourceRevision::parse(git(
                     &roots[&source.name],
                     &["rev-parse", "HEAD"],
                 ))
@@ -435,7 +435,7 @@ fn independent_sources(publication: Option<PublicationCheck>) {
     assert_ne!(retained_image.revision.as_str(), sources[0].revision);
 
     sources[0].images[0].source_revision =
-        veoveo_deploy_contract::SourceRevision::new(&sources[0].revision).unwrap();
+        veoveo_deploy_contract::SourceRevision::parse(&sources[0].revision).unwrap();
     sources[0].images[0].digest = format!("sha256:{}", "d".repeat(64));
     let compiled = compile_components(
         &profile,
@@ -613,7 +613,7 @@ fn retained_component_inputs(change: InputChange) {
         images: vec![LockedImage {
             name: "artifact-service".into(),
             repository: "registry.example.invalid/artifact-service".into(),
-            source_revision: SourceRevision::new(&old_revision).unwrap(),
+            source_revision: SourceRevision::parse(&old_revision).unwrap(),
             digest: format!("sha256:{}", "a".repeat(64)),
             publication_digest: format!("sha256:{}", "b".repeat(64)),
         }],
@@ -670,7 +670,7 @@ fn retained_component_inputs(change: InputChange) {
     sources[0].revision = new_revision.clone();
     if matches!(change, InputChange::Image | InputChange::ImageProvenance) {
         let image = &mut sources[0].images[0];
-        image.source_revision = SourceRevision::new(&new_revision).unwrap();
+        image.source_revision = SourceRevision::parse(&new_revision).unwrap();
         image.publication_digest = format!("sha256:{}", "d".repeat(64));
         if matches!(change, InputChange::Image) {
             image.digest = format!("sha256:{}", "c".repeat(64));
@@ -732,7 +732,7 @@ fn retained_component_inputs(change: InputChange) {
         if matches!(change, InputChange::Chart) {
             updates.source_revisions.insert(
                 "platform".into(),
-                SourceRevision::new(&new_revision).unwrap(),
+                SourceRevision::parse(&new_revision).unwrap(),
             );
         }
         let composed =

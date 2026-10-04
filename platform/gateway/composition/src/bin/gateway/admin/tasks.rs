@@ -37,7 +37,7 @@ pub(crate) async fn cancel_task(
     if task_id.as_uuid().get_version_num() != 7 {
         return StatusCode::NOT_FOUND.into_response();
     }
-    let Ok(server_slug) = ServerSlug::new(server) else {
+    let Ok(server_slug) = ServerSlug::parse(server) else {
         return StatusCode::NOT_FOUND.into_response();
     };
     let target = PolicyTarget::PlatformTask {

@@ -185,7 +185,7 @@ impl AgentHook for RecorderHook {
         _ctx: &HookContext,
         event: DeferredToolEvent<'_>,
     ) -> ObservationAction {
-        let task_id = match CanonicalTaskId::new(event.descriptor.execution_id().to_owned()) {
+        let task_id = match CanonicalTaskId::parse(event.descriptor.execution_id()) {
             Ok(task_id) => task_id,
             Err(error) => return ObservationAction::stop(error.to_string()),
         };

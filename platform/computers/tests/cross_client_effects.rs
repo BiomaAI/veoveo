@@ -12,7 +12,7 @@ use veoveo_task_runtime::TaskRuntime;
 async fn install(db: &support::TestDb) {
     let mut control = support::automation::control();
     for name in ["transfer_file", "update_template", "resume_update"] {
-        let name = LocalToolName::new(name).unwrap();
+        let name = LocalToolName::parse(name).unwrap();
         control.servers[0].tools.push(name.clone());
         control.policies[0].rules[0].tools.insert(name);
     }
@@ -24,7 +24,7 @@ async fn install(db: &support::TestDb) {
         .unwrap()
         .allowed_resources
         .insert(
-            veoveo_gateway_contract::ProtectedResourceId::new(
+            veoveo_gateway_contract::ProtectedResourceId::parse(
                 "https://computers.test/mcp/workspace",
             )
             .unwrap(),
@@ -141,7 +141,7 @@ async fn file_task_recovery_preserves_ciphertext_and_original_actor() {
     replica.ensure_file_task(&operation).await.unwrap();
     let record = veoveo_platform_store::RecordId::new(
         "computer_file_transfer",
-        surrealdb::types::Uuid::from(operation.transfer_id().into_uuid()),
+        surrealdb::types::Uuid::from(operation.transfer_id().as_uuid()),
     );
     let mut read =
         db.a.client()
@@ -212,7 +212,7 @@ async fn automation_grant_parent_and_task_recovery_span_owner_clients() {
         .unwrap()
         .access_token
         .audience =
-        veoveo_gateway_contract::ProtectedResourceId::new("https://computers.test/mcp/workspace")
+        veoveo_gateway_contract::ProtectedResourceId::parse("https://computers.test/mcp/workspace")
             .unwrap();
     let workspace_agent = veoveo_computers::ComputerActor::from_verified(&agent_identity).unwrap();
     let grant = store
@@ -317,7 +317,7 @@ async fn cli_pairing_keeps_its_profile_and_can_be_revoked_from_another_client() 
         store
             .open_cli_connection(
                 Some(computer),
-                GatewayProfileId::new("operator").unwrap(),
+                GatewayProfileId::parse("operator").unwrap(),
                 &paired.credential
             )
             .await
@@ -326,7 +326,7 @@ async fn cli_pairing_keeps_its_profile_and_can_be_revoked_from_another_client() 
     let handle = store
         .open_cli_connection(
             Some(computer),
-            GatewayProfileId::new("workspace").unwrap(),
+            GatewayProfileId::parse("workspace").unwrap(),
             &paired.credential,
         )
         .await

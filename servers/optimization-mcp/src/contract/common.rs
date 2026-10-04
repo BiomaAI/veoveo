@@ -23,240 +23,55 @@ pub enum OptimizationContractError {
     InvalidProblem(String),
 }
 
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[schemars(with = "String")]
-#[id(string,error=OptimizationContractError,validate=|value| validate_controlled_id(value,"location id",|_: &str| true))]
+#[veoveo_types::id(text(LocationIdProfile), error_context = "location id")]
 pub struct LocationId(String);
 
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[schemars(with = "String")]
-#[id(string,error=OptimizationContractError,validate=|value| validate_controlled_id(value,"order id",|_: &str| true))]
+#[veoveo_types::id(text(LocationIdProfile), error_context = "order id")]
 pub struct OrderId(String);
 
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[schemars(with = "String")]
-#[id(string,error=OptimizationContractError,validate=|value| validate_controlled_id(value,"vehicle id",|_: &str| true))]
+#[veoveo_types::id(text(LocationIdProfile), error_context = "vehicle id")]
 pub struct VehicleId(String);
 
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[schemars(with = "String")]
-#[id(string,error=OptimizationContractError,validate=|value| validate_controlled_id(value,"vehicle type id",|_: &str| true))]
+#[veoveo_types::id(text(LocationIdProfile), error_context = "vehicle type id")]
 pub struct VehicleTypeId(String);
 
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[schemars(with = "String")]
-#[id(string,error=OptimizationContractError,validate=|value| validate_controlled_id(value,"capacity dimension id",|_: &str| true))]
+#[veoveo_types::id(text(LocationIdProfile), error_context = "capacity dimension id")]
 pub struct CapacityDimensionId(String);
 
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[schemars(with = "String")]
-#[id(string,error=OptimizationContractError,validate=|value| validate_controlled_id(value,"route case id",|_: &str| true))]
+#[veoveo_types::id(text(LocationIdProfile), error_context = "route case id")]
 pub struct RouteCaseId(String);
 
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[schemars(with = "String")]
-#[id(string,error=OptimizationContractError,validate=|value| validate_controlled_id(value,"variable id",|_: &str| true))]
+#[veoveo_types::id(text(LocationIdProfile), error_context = "variable id")]
 pub struct VariableId(String);
 
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[schemars(with = "String")]
-#[id(string,error=OptimizationContractError,validate=|value| validate_controlled_id(value,"constraint id",|_: &str| true))]
+#[veoveo_types::id(text(LocationIdProfile), error_context = "constraint id")]
 pub struct ConstraintId(String);
 
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[schemars(with = "String")]
-#[id(string,error=OptimizationContractError,validate=|value| validate_controlled_id(value,"solver profile id",|value: &str| {
-    !matches!(value, "." | "..") && !value.contains(':')
-}))]
+#[veoveo_types::id(text(SolverProfileIdProfile))]
 pub struct SolverProfileId(String);
 
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
+#[veoveo_types::id(
+    prefixed(ProblemIdProfile, "problem-"),
+    fresh,
+    error_context = "problem id"
 )]
-#[serde(try_from = "String", into = "String")]
-#[schemars(with = "String")]
-#[id(string,constructor=parse,error=OptimizationContractError,validate=|value| validate_output_id(value,"problem-","problem id"),generate=|| format!("{}{}","problem-",uuid::Uuid::now_v7()))]
 pub struct ProblemId(String);
 
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[schemars(with = "String")]
-#[id(string,constructor=parse,error=OptimizationContractError,validate=|value| validate_output_id(value,"run-","run id"),generate=|| format!("{}{}","run-",uuid::Uuid::now_v7()))]
+#[veoveo_types::id(prefixed(ProblemIdProfile, "run-"), fresh, error_context = "run id")]
 pub struct RunId(String);
 
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
+#[veoveo_types::id(
+    prefixed(ProblemIdProfile, "solution-"),
+    fresh,
+    error_context = "solution id"
 )]
-#[serde(try_from = "String", into = "String")]
-#[schemars(with = "String")]
-#[id(string,constructor=parse,error=OptimizationContractError,validate=|value| validate_output_id(value,"solution-","solution id"),generate=|| format!("{}{}","solution-",uuid::Uuid::now_v7()))]
 pub struct SolutionId(String);
 
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
+#[veoveo_types::id(
+    prefixed(ProblemIdProfile, "verification-"),
+    fresh,
+    error_context = "verification id"
 )]
-#[serde(try_from = "String", into = "String")]
-#[schemars(with = "String")]
-#[id(string,constructor=parse,error=OptimizationContractError,validate=|value| validate_output_id(value,"verification-","verification id"),generate=|| format!("{}{}","verification-",uuid::Uuid::now_v7()))]
 pub struct VerificationId(String);
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, JsonSchema)]
@@ -474,6 +289,61 @@ pub(crate) fn require_collection(
     Ok(())
 }
 
+fn check_number(
+    value: f64,
+    label: &'static str,
+    requirement: &'static str,
+    predicate: impl FnOnce(f64) -> bool,
+) -> Result<(), OptimizationContractError> {
+    if !value.is_finite() || !predicate(value) {
+        return Err(OptimizationContractError::InvalidNumber(label, requirement));
+    }
+    Ok(())
+}
+
+use veoveo_types::{
+    FreshId, IdGeneration, IdProfile, IdProfileSpec, UuidGrammar, UuidSpelling, UuidVariant,
+};
+
+#[doc(hidden)]
+pub struct LocationIdProfile;
+impl IdProfile for LocationIdProfile {
+    type Error = OptimizationContractError;
+    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec::text(|value, metadata| {
+        validate_controlled_id(value, metadata.error_context, |_: &str| true)
+    });
+}
+
+#[doc(hidden)]
+pub struct SolverProfileIdProfile;
+impl IdProfile for SolverProfileIdProfile {
+    type Error = OptimizationContractError;
+    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec::text(|value, _| {
+        validate_controlled_id(value, "solver profile id", |value: &str| {
+            !matches!(value, "." | "..") && !value.contains(':')
+        })
+    });
+}
+#[doc(hidden)]
+pub struct ProblemIdProfile;
+impl IdProfile for ProblemIdProfile {
+    type Error = OptimizationContractError;
+    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
+        generation: IdGeneration {
+            fresh: FreshId::UuidV7,
+            stable_v5_namespace: None,
+        },
+        ..IdProfileSpec::uuid(
+            UuidGrammar {
+                versions: &[7],
+                variant: UuidVariant::Rfc4122,
+                spelling: UuidSpelling::CanonicalLowerHyphenated,
+            },
+            |_, metadata, _| OptimizationContractError::InvalidIdentifier(metadata.error_context),
+        )
+    };
+}
+
 fn validate_controlled_id(
     value: &str,
     label: &'static str,
@@ -491,33 +361,6 @@ fn validate_controlled_id(
     }
     Ok(())
 }
-fn validate_output_id(
-    value: &str,
-    prefix: &str,
-    label: &'static str,
-) -> Result<(), OptimizationContractError> {
-    let parsed = value
-        .strip_prefix(prefix)
-        .and_then(|suffix| uuid::Uuid::parse_str(suffix).ok())
-        .filter(|uuid| uuid.get_version_num() == 7 && uuid.get_variant() == uuid::Variant::RFC4122)
-        .ok_or(OptimizationContractError::InvalidIdentifier(label))?;
-    if value != format!("{}{}", prefix, parsed) {
-        return Err(OptimizationContractError::InvalidIdentifier(label));
-    }
-    Ok(())
-}
-
-fn check_number(
-    value: f64,
-    label: &'static str,
-    requirement: &'static str,
-    predicate: impl FnOnce(f64) -> bool,
-) -> Result<(), OptimizationContractError> {
-    if !value.is_finite() || !predicate(value) {
-        return Err(OptimizationContractError::InvalidNumber(label, requirement));
-    }
-    Ok(())
-}
 
 #[cfg(test)]
 mod tests {
@@ -525,14 +368,14 @@ mod tests {
 
     #[test]
     fn controlled_ids_reject_path_segments() {
-        assert!(LocationId::new("warehouse-1").is_ok());
-        assert!(LocationId::new("../warehouse").is_err());
+        assert!(LocationId::parse("warehouse-1").is_ok());
+        assert!(LocationId::parse("../warehouse").is_err());
     }
 
     #[test]
     fn output_ids_are_uuid_v7() {
         let id = ProblemId::new();
-        assert_eq!(ProblemId::parse(id.to_string()).unwrap(), id);
+        assert_eq!(ProblemId::parse(&id).unwrap(), id);
     }
 }
 

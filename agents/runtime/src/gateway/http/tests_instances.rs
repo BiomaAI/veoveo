@@ -53,7 +53,7 @@ async fn approved_image_adoption_preserves_bindings_and_replays_after_template_r
             .unwrap();
     let original = state
         .templates
-        .get(&wire::AgentTemplateId::new("bounded").unwrap())
+        .get(&wire::AgentTemplateId::parse("bounded").unwrap())
         .unwrap()
         .clone();
     let new_image = format!("registry.test/kernel@sha256:{}", "c".repeat(64));
@@ -417,7 +417,7 @@ async fn managed_dispatch_rechecks_model_generation_epoch_and_revocation() {
     service.access_token.invocation_mode = veoveo_types::InvocationMode::Automated;
     service.access_token.initiator = None;
     let mut binding = crate::contract::ManagedAgentToken {
-        instance: wire::AgentManagedInstanceId::new("worker-one").unwrap(),
+        instance: wire::AgentManagedInstanceId::parse("worker-one").unwrap(),
         generation: 1,
         epoch: 1,
     };

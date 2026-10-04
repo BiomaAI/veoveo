@@ -26,7 +26,7 @@ pub fn mcp_method_name(action: GatewayAction) -> Result<McpMethodName> {
     let Some(method) = action.mcp_method() else {
         anyhow::bail!("gateway action {action:?} does not map to one MCP method")
     };
-    Ok(McpMethodName::new(method)?)
+    Ok(McpMethodName::parse(method)?)
 }
 
 pub fn resource_scheme_from_uri(uri: &str) -> Option<ResourceScheme> {
@@ -35,7 +35,7 @@ pub fn resource_scheme_from_uri(uri: &str) -> Option<ResourceScheme> {
 
 pub(crate) fn resource_scheme(uri: &str) -> Option<ResourceScheme> {
     let (scheme, _) = uri.split_once("://")?;
-    ResourceScheme::new(scheme).ok()
+    ResourceScheme::parse(scheme).ok()
 }
 
 pub fn exposure_contains<T: PartialEq>(

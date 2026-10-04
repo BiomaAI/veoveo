@@ -368,12 +368,12 @@ async fn main() -> anyhow::Result<()> {
             applied_by,
             wait_seconds,
         } => {
-            let applied_by = PrincipalId::new(applied_by)?;
+            let applied_by = PrincipalId::parse(applied_by)?;
             // Audit records identify the database-authenticated operator. The
             // revision's applied_by option is operator-supplied attribution.
             let audit_context = veoveo_mcp_contract::audit::AuditContext {
                 actor: veoveo_mcp_contract::audit::AuditActor {
-                    principal: PrincipalId::new(store.username.clone())?,
+                    principal: PrincipalId::parse(store.username.clone())?,
                     kind: veoveo_mcp_contract::audit::AuditPrincipalKind::Service,
                     tenant: None,
                     oauth_client: None,
@@ -464,7 +464,7 @@ async fn main() -> anyhow::Result<()> {
             purpose,
         } => {
             let catalog = GatewayCatalog::load_json(&control_plane, crate::catalog_admission()?)?;
-            let secret_id = SecretReferenceId::new(secret_id)?;
+            let secret_id = SecretReferenceId::parse(secret_id)?;
             let purpose = parse_secret_purpose(&purpose)?;
             let resolved = GatewaySecretResolver::new()
                 .resolve_string(&catalog, &secret_id, purpose)

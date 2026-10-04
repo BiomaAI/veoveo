@@ -59,7 +59,7 @@ fn validate_reference(value: &str) -> Result<(), ResourceUriError> {
     // RFC 3986 parsing preserves concrete wire identity, including network ports
     // and fragments. Templates have their own type and never enter this parser.
     let uri = UriStr::new(value).map_err(|_| ResourceUriError::InvalidUri)?;
-    ResourceScheme::new(uri.scheme_str()).map_err(|_| ResourceUriError::InvalidUri)?;
+    ResourceScheme::parse(uri.scheme_str()).map_err(|_| ResourceUriError::InvalidUri)?;
     let authority = uri
         .authority_str()
         .ok_or(ResourceUriError::NotHierarchical)?;

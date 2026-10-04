@@ -12,7 +12,7 @@ async fn context_agreement_precedes_decode_limits_and_subscription_admission() {
         let db = fixture::TestDb::new().await;
         let runtime = TaskRuntime::new(db.a.clone(), "integration-server", "reader");
         let mut foreign = draft(SELECTED.as_str(), RecoveryClass::Resume);
-        foreign.owner.authority.work_context = WorkContextId::new("another-context").unwrap();
+        foreign.owner.authority.work_context = WorkContextId::parse("another-context").unwrap();
         let foreign_owner = foreign.owner.clone();
         let foreign = runtime.create(foreign).await.unwrap().snapshot;
         let query = runtime
@@ -154,7 +154,7 @@ async fn context_agreement_precedes_decode_limits_and_subscription_admission() {
         assert_eq!(observed, expected.into_iter().collect());
 
         let mut invalid = owner();
-        invalid.authority.tenant = TenantId::new("another-tenant").unwrap();
+        invalid.authority.tenant = TenantId::parse("another-tenant").unwrap();
         assert!(matches!(
             runtime.for_owner(&invalid).in_work_context(),
             Err(TaskError::InvalidAuthority(_))
@@ -214,7 +214,8 @@ async fn protocol_reads_and_mutations_preserve_the_selected_context() {
         for allowed in [false, true] {
             let mut input = draft(SELECTED.as_str(), RecoveryClass::Resume);
             if !allowed {
-                input.owner.authority.work_context = WorkContextId::new("another-context").unwrap();
+                input.owner.authority.work_context =
+                    WorkContextId::parse("another-context").unwrap();
             }
             let id = runtime.create(input).await.unwrap().snapshot.task_id;
             runtime.claim(id, Duration::from_secs(30)).await.unwrap();

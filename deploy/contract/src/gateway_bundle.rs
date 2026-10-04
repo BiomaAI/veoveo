@@ -31,7 +31,7 @@ pub fn gateway_bundle_digest(data: &BTreeMap<String, String>) -> Result<Artifact
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect::<String>();
-    Ok(ArtifactDigest::new(format!("sha256:{hex}"))?)
+    Ok(ArtifactDigest::parse(format!("sha256:{hex}"))?)
 }
 
 #[cfg(test)]

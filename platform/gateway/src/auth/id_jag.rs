@@ -68,17 +68,17 @@ impl IdJagVerifier {
             return Err(AuthError::MissingIdentityAssertionScope);
         }
 
-        let issuer = TokenIssuer::new(claims.iss.clone()).map_err(AuthError::Claim)?;
-        let subject = TokenSubject::new(claims.sub.clone()).map_err(AuthError::Claim)?;
-        let client_id = OAuthClientId::new(claims.client_id.clone()).map_err(AuthError::Claim)?;
+        let issuer = TokenIssuer::parse(claims.iss.clone()).map_err(AuthError::Claim)?;
+        let subject = TokenSubject::parse(claims.sub.clone()).map_err(AuthError::Claim)?;
+        let client_id = OAuthClientId::parse(claims.client_id.clone()).map_err(AuthError::Claim)?;
         let principal = Principal {
-            id: PrincipalId::new(format!("{issuer}#{subject}")).map_err(AuthError::Claim)?,
+            id: PrincipalId::parse(format!("{issuer}#{subject}")).map_err(AuthError::Claim)?,
             kind: PrincipalKind::User,
             issuer,
             subject,
             tenant: claims
                 .tenant
-                .map(TenantId::new)
+                .map(TenantId::parse)
                 .transpose()
                 .map_err(AuthError::Claim)?,
             groups: claims
@@ -86,7 +86,7 @@ impl IdJagVerifier {
                 .map(StringListClaim::into_values)
                 .unwrap_or_default()
                 .into_iter()
-                .map(GroupId::new)
+                .map(GroupId::parse)
                 .collect::<Result<_, _>>()
                 .map_err(AuthError::Claim)?,
             // Per-group roles are not asserted in the ID-JAG claim set today;
@@ -97,7 +97,7 @@ impl IdJagVerifier {
                 .map(StringListClaim::into_values)
                 .unwrap_or_default()
                 .into_iter()
-                .map(RoleId::new)
+                .map(RoleId::parse)
                 .collect::<Result<_, _>>()
                 .map_err(AuthError::Claim)?,
             scopes: scopes.clone(),
@@ -106,7 +106,7 @@ impl IdJagVerifier {
                 .map(StringListClaim::into_values)
                 .unwrap_or_default()
                 .into_iter()
-                .map(DataLabelId::new)
+                .map(DataLabelId::parse)
                 .collect::<Result<_, _>>()
                 .map_err(AuthError::Claim)?,
             assurances: principal_assurances(claims.principal_assurances)?,
@@ -117,7 +117,7 @@ impl IdJagVerifier {
             client_id,
             principal,
             scopes,
-            jwt_id: JwtId::new(claims.jti).map_err(AuthError::Claim)?,
+            jwt_id: JwtId::parse(claims.jti).map_err(AuthError::Claim)?,
             expires_at: unix_timestamp(claims.exp, "exp")?,
         })
     }

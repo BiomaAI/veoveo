@@ -604,7 +604,7 @@ mod tests {
             serde_json::from_value(constrained).unwrap();
         assert_eq!(
             request.required_data_labels,
-            BTreeSet::from([DataLabelId::new("retained-home").unwrap()])
+            BTreeSet::from([DataLabelId::parse("retained-home").unwrap()])
         );
         let mut typo = base;
         typo["required_labels"] = json!(["retained-home"]);
@@ -643,8 +643,8 @@ mod tests {
 
     #[test]
     fn effective_labels_union_classification() {
-        let classification = DataLabelId::new("cui").unwrap();
-        let explicit = DataLabelId::new("us_only").unwrap();
+        let classification = DataLabelId::parse("cui").unwrap();
+        let explicit = DataLabelId::parse("us_only").unwrap();
         let request = PutArtifactRequest {
             classification: Some(classification.clone()),
             data_labels: BTreeSet::from([explicit.clone()]),

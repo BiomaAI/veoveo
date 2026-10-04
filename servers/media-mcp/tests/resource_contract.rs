@@ -65,7 +65,7 @@ fn route_admission_rejects_wrong_parents_aliases_and_unsupported_components() {
         assert!(serde_json::from_value::<MediaResource>(json!(uri)).is_err());
     }
     for scope in ["media:read", "media:admin", "map:feature:read"] {
-        assert!(MediaScope::try_from(&ScopeName::new(scope).unwrap()).is_err());
+        assert!(MediaScope::try_from(&ScopeName::parse(scope).unwrap()).is_err());
     }
 }
 

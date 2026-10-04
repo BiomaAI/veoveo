@@ -75,7 +75,7 @@ async fn ticket_redemption_is_private_one_use_and_cross_replica_revocation_ends_
     let mut stored =
         db.b.client()
             .query("SELECT VALUE ticket_hash FROM ONLY $grant;")
-            .bind(("grant", grant_record(handle.grant_id().into_uuid())))
+            .bind(("grant", grant_record(handle.grant_id().as_uuid())))
             .await
             .unwrap()
             .check()
@@ -232,10 +232,7 @@ async fn accepted_grant_crosses_token_expiry_but_never_logout_or_current_policy_
         .query("UPDATE ONLY $computer SET process_id = 'replacement-process';")
         .bind((
             "computer",
-            RecordId::new(
-                "computer",
-                surrealdb::types::Uuid::from(computer.into_uuid()),
-            ),
+            RecordId::new("computer", surrealdb::types::Uuid::from(computer.as_uuid())),
         ))
         .await
         .unwrap()

@@ -593,7 +593,7 @@ async fn a_grant_does_not_admit_create_other_computers_other_clients_or_changed_
         .as_mut()
         .unwrap()
         .access_token
-        .oauth_client_id = veoveo_gateway_contract::OAuthClientId::new("console").unwrap();
+        .oauth_client_id = veoveo_gateway_contract::OAuthClientId::parse("console").unwrap();
     assert!(ComputerActor::from_verified(&wrong).is_err());
     assert!(
         store

@@ -48,7 +48,7 @@ async fn artifact_read_delegation_rechecks_grants_clearance_tenant_and_revocatio
     let (service, repository) = service();
     let alice = caller("alice", "acme", &["private"]);
     let mut bob = caller("bob", "acme", &[]);
-    bob.identity.authority.work_context = WorkContextId::new("research").unwrap();
+    bob.identity.authority.work_context = WorkContextId::parse("research").unwrap();
     bind_request_context(&mut bob.identity);
     admit_context(&repository, &bob);
     let artifact = service
@@ -95,7 +95,7 @@ async fn artifact_read_delegation_rechecks_grants_clearance_tenant_and_revocatio
         .put(
             &alice,
             PutArtifactRequest {
-                classification: Some(DataLabelId::new("private").unwrap()),
+                classification: Some(DataLabelId::parse("private").unwrap()),
                 ..Default::default()
             },
             b"sensitive".to_vec(),

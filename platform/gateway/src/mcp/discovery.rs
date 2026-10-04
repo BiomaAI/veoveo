@@ -528,8 +528,8 @@ mod tests {
     #[test]
     fn fail_closed_profiles_reject_incomplete_tool_and_prompt_catalogs() {
         let errors = [
-            (ServerSlug::new("uav-sim").unwrap(), ()),
-            (ServerSlug::new("map").unwrap(), ()),
+            (ServerSlug::parse("uav-sim").unwrap(), ()),
+            (ServerSlug::parse("map").unwrap(), ()),
         ];
         for surface in [
             GatewayDiscoverySurface::Tools,
@@ -554,8 +554,11 @@ mod tests {
     #[test]
     fn isolated_prompt_failures_name_the_missing_server() {
         let results: Vec<(ServerSlug, Result<Vec<&str>, ()>)> = vec![
-            (ServerSlug::new("frames").unwrap(), Ok(vec!["frame_audit"])),
-            (ServerSlug::new("uav-sim").unwrap(), Err(())),
+            (
+                ServerSlug::parse("frames").unwrap(),
+                Ok(vec!["frame_audit"]),
+            ),
+            (ServerSlug::parse("uav-sim").unwrap(), Err(())),
         ];
         let (prompts, degradation, errors) =
             isolate_discovery_failures(GatewayDiscoverySurface::Prompts, results);
@@ -564,7 +567,7 @@ mod tests {
         assert_eq!(
             degradation.failures,
             [GatewayDiscoveryFailure {
-                server: ServerSlug::new("uav-sim").unwrap(),
+                server: ServerSlug::parse("uav-sim").unwrap(),
                 surface: GatewayDiscoverySurface::Prompts,
                 code: GatewayDiscoveryFailureCode::UpstreamUnavailable,
             }]
@@ -574,9 +577,9 @@ mod tests {
     fn key(generation: u64, server: &str) -> DiscoveryCacheKey {
         DiscoveryCacheKey {
             catalog_generation: generation,
-            principal: PrincipalId::new("principal").unwrap(),
+            principal: PrincipalId::parse("principal").unwrap(),
             authorization_fingerprint: [7; 32],
-            server: ServerSlug::new(server).unwrap(),
+            server: ServerSlug::parse(server).unwrap(),
         }
     }
 
@@ -615,7 +618,7 @@ mod tests {
             );
         }
         let mut other = owner.clone();
-        other.principal = PrincipalId::new("other").unwrap();
+        other.principal = PrincipalId::parse("other").unwrap();
         assert!(cache.resource_routes(&other).await.is_none());
         other = owner.clone();
         other.authorization_fingerprint = [8; 32];
@@ -877,7 +880,7 @@ mod tests {
             .finish_resources(other, vec![Resource::new("two://kept", "kept")])
             .await;
         cache
-            .invalidate_resource_surfaces(&ServerSlug::new("one").unwrap())
+            .invalidate_resource_surfaces(&ServerSlug::parse("one").unwrap())
             .await;
         let current = begin(&cache, key(1, "one")).await;
         cache
@@ -919,7 +922,7 @@ mod tests {
         let cache = CatalogDiscoveryCache::default();
         let stale = cache.start_tools(key(1, "one")).await;
         cache
-            .invalidate_tools(&ServerSlug::new("one").unwrap())
+            .invalidate_tools(&ServerSlug::parse("one").unwrap())
             .await;
         let current = cache.start_tools(key(1, "one")).await;
         cache
@@ -1002,8 +1005,8 @@ mod tests {
 
     #[test]
     fn one_failed_server_does_not_discard_healthy_discovery() {
-        let healthy = ServerSlug::new("healthy").unwrap();
-        let failed = ServerSlug::new("failed").unwrap();
+        let healthy = ServerSlug::parse("healthy").unwrap();
+        let failed = ServerSlug::parse("failed").unwrap();
         let (values, degradation, errors) = isolate_discovery_failures(
             GatewayDiscoverySurface::Resources,
             vec![

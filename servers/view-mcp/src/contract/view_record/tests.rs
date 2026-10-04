@@ -8,7 +8,7 @@ fn view_decoder_rejects_disagreeing_addresses_revisions_timestamps_and_pose() {
     for (path, replacement) in [
         (
             "/view_uri",
-            json!(ViewUri::new(ViewId::new("other").unwrap())),
+            json!(ViewUri::new(ViewId::parse("other").unwrap())),
         ),
         (
             "/composition_uri",
@@ -52,7 +52,7 @@ fn every_camera_rig_round_trips_and_cannot_substitute_a_saved_pose() {
         }),
     ] {
         let view = ViewRecord::new(
-            ViewId::new("view-1").unwrap(),
+            ViewId::parse("view-1").unwrap(),
             &fixture::composition(),
             camera,
             fixture::now(),
@@ -121,7 +121,7 @@ fn replacing_camera_advances_revision_and_preserves_composition() {
 fn view_creation_cannot_precede_its_composition() {
     assert!(
         ViewRecord::new(
-            ViewId::new("view-1").unwrap(),
+            ViewId::parse("view-1").unwrap(),
             &fixture::composition(),
             fixture::camera(),
             fixture::now() - chrono::Duration::seconds(1)

@@ -65,7 +65,7 @@ impl UavDocument {
 /// Addresses keep their domain IDs and collection-specific cursors.
 /// ```compile_fail
 /// use veoveo_uav_sim_mcp::contract::{UavResource, VehicleId};
-/// let address = UavResource::Session(VehicleId::new("vehicle").unwrap());
+/// let address = UavResource::Session(VehicleId::parse("vehicle").unwrap());
 /// ```
 /// ```compile_fail
 /// use veoveo_uav_sim_mcp::contract::{UavResource, UavPlanCursor};

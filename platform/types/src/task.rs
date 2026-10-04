@@ -1,7 +1,5 @@
-use std::borrow::Cow;
+use schemars::{Schema, SchemaGenerator};
 
-use schemars::{JsonSchema, Schema, SchemaGenerator};
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// Identity of a native Veoveo Task, independent of its storage or MCP projection.
@@ -13,69 +11,54 @@ use uuid::Uuid;
 /// ```compile_fail
 /// use veoveo_types::{TaskId, WorkContextId};
 /// fn observe_task(_: TaskId) {}
-/// observe_task(WorkContextId::new("operations").unwrap());
+/// observe_task(WorkContextId::parse("operations").unwrap());
 /// ```
-#[derive(
-    veoveo_types::Id,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd,
-    Serialize,
-    Deserialize,
-)]
-#[serde(transparent)]
-#[id(error = uuid::Error, admit = Uuid::parse_str)]
+#[veoveo_types::id(uuid(TaskIds), fresh)]
 pub struct TaskId(Uuid);
 
 impl TaskId {
-    pub fn new() -> Self {
-        Self(Uuid::now_v7())
-    }
-
     pub const fn from_uuid(value: Uuid) -> Self {
         Self(value)
     }
-
-    pub const fn as_uuid(self) -> Uuid {
-        self.0
-    }
 }
 
-impl Default for TaskId {
-    fn default() -> Self {
-        Self::new()
-    }
+#[doc(hidden)]
+pub struct TaskIds;
+impl crate::IdProfile for TaskIds {
+    type Error = uuid::Error;
+    const PROFILE: crate::IdProfileSpec<Self::Error> = crate::IdProfileSpec {
+        generation: crate::IdGeneration {
+            fresh: crate::FreshId::UuidV7,
+            stable_v5_namespace: None,
+        },
+        wire: crate::IdWire::InnerUuid,
+        schema_id: Some(|_| concat!(module_path!(), "::TaskId").into()),
+        schema: crate::IdSchema::Owner {
+            schema: task_schema,
+
+            inline: false,
+        },
+        ..crate::IdProfileSpec::uuid(
+            crate::UuidGrammar {
+                versions: &[],
+                variant: crate::UuidVariant::Any,
+                spelling: crate::UuidSpelling::ParserAliases,
+            },
+            task_id_error,
+        )
+    };
 }
-
-impl From<TaskId> for Uuid {
-    fn from(value: TaskId) -> Self {
-        value.0
-    }
+fn task_id_error(value: &str, _: crate::IdMetadata, _: crate::IdFailure) -> uuid::Error {
+    Uuid::parse_str(value)
+        .expect_err("only malformed UUIDs reach the unrestricted Task error mapping")
 }
-
-impl JsonSchema for TaskId {
-    fn schema_name() -> Cow<'static, str> {
-        Cow::Borrowed("TaskId")
-    }
-
-    fn schema_id() -> Cow<'static, str> {
-        Cow::Borrowed(concat!(module_path!(), "::TaskId"))
-    }
-
-    fn json_schema(_generator: &mut SchemaGenerator) -> Schema {
-        // UUID's parser also admits simple, braced, and lowercase-prefix URN
-        // spellings. A `format: uuid` schema would narrow that input profile.
-        let hyphenated =
-            "[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}";
-        schemars::json_schema!({
-            "type": "string",
-            "pattern": format!("^(?:[0-9A-Fa-f]{{32}}|{hyphenated}|\\{{{hyphenated}\\}}|urn:uuid:{hyphenated})(?![\\s\\S])"),
-            "maxLength": 45
-        })
-    }
+fn task_schema(_: &mut SchemaGenerator, _: crate::IdMetadata) -> Schema {
+    // UUID's parser also admits simple, braced, and lowercase-prefix URN
+    // spellings. A `format: uuid` schema would narrow that input profile.
+    let hyphenated = "[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}";
+    schemars::json_schema!({
+        "type": "string",
+        "pattern": format!("^(?:[0-9A-Fa-f]{{32}}|{hyphenated}|\\{{{hyphenated}\\}}|urn:uuid:{hyphenated})(?![\\s\\S])"),
+        "maxLength": 45
+    })
 }

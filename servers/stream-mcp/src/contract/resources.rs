@@ -1,5 +1,4 @@
 //! Stream route vocabulary composed with the shared URI parser and builder.
-use std::fmt;
 
 use serde::{Deserialize, Serialize};
 use veoveo_artifact_contract::{ArtifactId, ArtifactUri};
@@ -31,195 +30,41 @@ impl StreamDocument {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, veoveo_types::ResourceAddress)]
-#[serde(try_from = "String", into = "String")]
-#[resource(template = "stream://pipeline/{pipeline_id}", error = StreamContractError, route_error = |_| StreamContractError::InvalidResource, wire, schema = resource_string_schema, schema_inline)]
-pub struct PipelineUri(#[resource(variable = "pipeline_id", error = |error| error)] PipelineId);
-impl PipelineUri {
-    pub fn new(id: PipelineId) -> Self {
-        Self(id)
-    }
-    pub fn id(&self) -> &PipelineId {
-        &self.0
-    }
-    pub fn parse(value: impl AsRef<str>) -> Result<Self, StreamContractError> {
-        let uri =
-            ResourceUri::new(value.as_ref()).map_err(|_| StreamContractError::InvalidResource)?;
-        <Self as ResourceAddress>::parse(&uri)
-    }
-    pub fn to_uri(&self) -> ResourceUri {
-        self.resource_components_uri()
-            .expect("admitted Stream resource")
-    }
-}
-impl fmt::Display for PipelineUri {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.to_uri().fmt(f)
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, veoveo_types::ResourceAddress)]
-#[serde(try_from = "String", into = "String")]
-#[resource(template = "stream://model/{model_id}", error = StreamContractError, route_error = |_| StreamContractError::InvalidResource, wire, schema = resource_string_schema, schema_inline)]
-pub struct ModelUri(#[resource(variable = "model_id", error = |error| error)] ModelId);
-impl ModelUri {
-    pub fn new(id: ModelId) -> Self {
-        Self(id)
-    }
-    pub fn id(&self) -> &ModelId {
-        &self.0
-    }
-    pub fn parse(value: impl AsRef<str>) -> Result<Self, StreamContractError> {
-        let uri =
-            ResourceUri::new(value.as_ref()).map_err(|_| StreamContractError::InvalidResource)?;
-        <Self as ResourceAddress>::parse(&uri)
-    }
-    pub fn to_uri(&self) -> ResourceUri {
-        self.resource_components_uri()
-            .expect("admitted Stream resource")
-    }
-}
-impl fmt::Display for ModelUri {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.to_uri().fmt(f)
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, veoveo_types::ResourceAddress)]
-#[serde(try_from = "String", into = "String")]
-#[resource(template = "stream://run/{run_id}", error = StreamContractError, route_error = |_| StreamContractError::InvalidResource, wire, schema = resource_string_schema, schema_inline)]
-pub struct RunUri(#[resource(variable = "run_id", error = |error| error)] RunId);
-impl RunUri {
-    pub fn new(id: RunId) -> Self {
-        Self(id)
-    }
-    pub fn id(&self) -> &RunId {
-        &self.0
-    }
-    pub fn parse(value: impl AsRef<str>) -> Result<Self, StreamContractError> {
-        let uri =
-            ResourceUri::new(value.as_ref()).map_err(|_| StreamContractError::InvalidResource)?;
-        <Self as ResourceAddress>::parse(&uri)
-    }
-    pub fn to_uri(&self) -> ResourceUri {
-        self.resource_components_uri()
-            .expect("admitted Stream resource")
-    }
-}
-impl fmt::Display for RunUri {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.to_uri().fmt(f)
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, veoveo_types::ResourceAddress)]
-#[serde(try_from = "String", into = "String")]
-#[resource(template = "stream://run/{run_id}/results", error = StreamContractError, route_error = |_| StreamContractError::InvalidResource, wire, schema = resource_string_schema, schema_inline)]
-pub struct RunResultsUri(#[resource(variable = "run_id", error = |error| error)] RunId);
-impl RunResultsUri {
-    pub fn new(id: RunId) -> Self {
-        Self(id)
-    }
-    pub fn id(&self) -> &RunId {
-        &self.0
-    }
-    pub fn parse(value: impl AsRef<str>) -> Result<Self, StreamContractError> {
-        let uri =
-            ResourceUri::new(value.as_ref()).map_err(|_| StreamContractError::InvalidResource)?;
-        <Self as ResourceAddress>::parse(&uri)
-    }
-    pub fn to_uri(&self) -> ResourceUri {
-        self.resource_components_uri()
-            .expect("admitted Stream resource")
-    }
-}
-impl fmt::Display for RunResultsUri {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.to_uri().fmt(f)
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, veoveo_types::ResourceAddress)]
-#[serde(try_from = "String", into = "String")]
-#[resource(template = "stream://session/{session_id}", error = StreamContractError, route_error = |_| StreamContractError::InvalidResource, wire, schema = resource_string_schema, schema_inline)]
-pub struct SessionUri(#[resource(variable = "session_id", error = |error| error)] SessionId);
-impl SessionUri {
-    pub fn new(id: SessionId) -> Self {
-        Self(id)
-    }
-    pub fn id(&self) -> &SessionId {
-        &self.0
-    }
-    pub fn parse(value: impl AsRef<str>) -> Result<Self, StreamContractError> {
-        let uri =
-            ResourceUri::new(value.as_ref()).map_err(|_| StreamContractError::InvalidResource)?;
-        <Self as ResourceAddress>::parse(&uri)
-    }
-    pub fn to_uri(&self) -> ResourceUri {
-        self.resource_components_uri()
-            .expect("admitted Stream resource")
-    }
-}
-impl fmt::Display for SessionUri {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.to_uri().fmt(f)
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, veoveo_types::ResourceAddress)]
-#[serde(try_from = "String", into = "String")]
-#[resource(template = "stream://session/{session_id}/results", error = StreamContractError, route_error = |_| StreamContractError::InvalidResource, wire, schema = resource_string_schema, schema_inline)]
-pub struct SessionResultsUri(#[resource(variable = "session_id", error = |error| error)] SessionId);
-impl SessionResultsUri {
-    pub fn new(id: SessionId) -> Self {
-        Self(id)
-    }
-    pub fn id(&self) -> &SessionId {
-        &self.0
-    }
-    pub fn parse(value: impl AsRef<str>) -> Result<Self, StreamContractError> {
-        let uri =
-            ResourceUri::new(value.as_ref()).map_err(|_| StreamContractError::InvalidResource)?;
-        <Self as ResourceAddress>::parse(&uri)
-    }
-    pub fn to_uri(&self) -> ResourceUri {
-        self.resource_components_uri()
-            .expect("admitted Stream resource")
-    }
-}
-impl fmt::Display for SessionResultsUri {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.to_uri().fmt(f)
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, veoveo_types::ResourceAddress)]
-#[serde(try_from = "String", into = "String")]
-#[resource(template = "stream://session/{session_id}/preview", error = StreamContractError, route_error = |_| StreamContractError::InvalidResource, wire, schema = resource_string_schema, schema_inline)]
-pub struct SessionPreviewUri(#[resource(variable = "session_id", error = |error| error)] SessionId);
-impl SessionPreviewUri {
-    pub fn new(id: SessionId) -> Self {
-        Self(id)
-    }
-    pub fn id(&self) -> &SessionId {
-        &self.0
-    }
-    pub fn parse(value: impl AsRef<str>) -> Result<Self, StreamContractError> {
-        let uri =
-            ResourceUri::new(value.as_ref()).map_err(|_| StreamContractError::InvalidResource)?;
-        <Self as ResourceAddress>::parse(&uri)
-    }
-    pub fn to_uri(&self) -> ResourceUri {
-        self.resource_components_uri()
-            .expect("admitted Stream resource")
-    }
-}
-impl fmt::Display for SessionPreviewUri {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.to_uri().fmt(f)
-    }
-}
-
+#[veoveo_types::resource_address(
+    components(StreamContractErrorAddresses),
+    template = "stream://pipeline/{pipeline_id}"
+)]
+pub struct PipelineUri(#[resource(variable = "pipeline_id",  accessor = id)] PipelineId);
+#[veoveo_types::resource_address(
+    components(StreamContractErrorAddresses),
+    template = "stream://model/{model_id}"
+)]
+pub struct ModelUri(#[resource(variable = "model_id",  accessor = id)] ModelId);
+#[veoveo_types::resource_address(
+    components(StreamContractErrorAddresses),
+    template = "stream://run/{run_id}"
+)]
+pub struct RunUri(#[resource(variable = "run_id",  accessor = id)] RunId);
+#[veoveo_types::resource_address(
+    components(StreamContractErrorAddresses),
+    template = "stream://run/{run_id}/results"
+)]
+pub struct RunResultsUri(#[resource(variable = "run_id",  accessor = id)] RunId);
+#[veoveo_types::resource_address(
+    components(StreamContractErrorAddresses),
+    template = "stream://session/{session_id}"
+)]
+pub struct SessionUri(#[resource(variable = "session_id",  accessor = id)] SessionId);
+#[veoveo_types::resource_address(
+    components(StreamContractErrorAddresses),
+    template = "stream://session/{session_id}/results"
+)]
+pub struct SessionResultsUri(#[resource(variable = "session_id",  accessor = id)] SessionId);
+#[veoveo_types::resource_address(
+    components(StreamContractErrorAddresses),
+    template = "stream://session/{session_id}/preview"
+)]
+pub struct SessionPreviewUri(#[resource(variable = "session_id",  accessor = id)] SessionId);
 /// Every resource constructor keeps its owning ID and collection cursor type.
 /// ```compile_fail
 /// use veoveo_stream_mcp::contract::{PipelineUri, ModelId};
@@ -406,4 +251,18 @@ impl schemars::JsonSchema for StreamResource {
 
 fn resource_string_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
     <String as schemars::JsonSchema>::json_schema(generator)
+}
+
+#[doc(hidden)]
+pub struct StreamContractErrorAddresses;
+impl veoveo_types::ResourceProfile for StreamContractErrorAddresses {
+    type Error = StreamContractError;
+    const PROFILE: veoveo_types::ResourceProfileSpec<Self::Error> =
+        veoveo_types::ResourceProfileSpec {
+            route_error: |_, _| StreamContractError::InvalidResource,
+        };
+    const SCHEMA: Option<veoveo_types::ResourceSchema> = Some(veoveo_types::ResourceSchema {
+        schema: |_, generator| resource_string_schema(generator),
+        inline: true,
+    });
 }

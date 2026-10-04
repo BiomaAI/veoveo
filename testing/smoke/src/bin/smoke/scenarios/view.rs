@@ -582,36 +582,36 @@ fn image_bytes(payload: &rmcp::model::CallToolResult, expected_mime: &str) -> Re
 
 fn issue_view_token(subject: &str) -> Result<String> {
     let issuer = GatewayInternalTokenIssuer::new(
-        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
+        TokenIssuer::parse(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
         GatewayInternalSigningKey::new(
             "veoveo-internal-1",
             STANDARD.decode(INTERNAL_SIGNING_KEY_DER_B64)?,
         )?,
     );
-    let principal_issuer = TokenIssuer::new("https://smoke.veoveo.local")?;
-    let principal_subject = TokenSubject::new(subject)?;
+    let principal_issuer = TokenIssuer::parse("https://smoke.veoveo.local")?;
+    let principal_subject = TokenSubject::parse(subject)?;
     let principal = Principal {
-        id: PrincipalId::new(format!("{principal_issuer}#{principal_subject}"))?,
+        id: PrincipalId::parse(format!("{principal_issuer}#{principal_subject}"))?,
         kind: PrincipalKind::Service,
         issuer: principal_issuer,
         subject: principal_subject,
-        tenant: Some(TenantId::new("local")?),
+        tenant: Some(TenantId::parse("local")?),
         groups: BTreeSet::new(),
         group_roles: BTreeSet::new(),
         roles: BTreeSet::new(),
         scopes: ["operator:use", "view:read", "view:write", "view:capture"]
             .into_iter()
-            .map(ScopeName::new)
+            .map(ScopeName::parse)
             .collect::<Result<_, _>>()?,
         data_labels: BTreeSet::new(),
         assurances: BTreeSet::new(),
         authenticated_at: Some(Utc::now()),
     };
     let authority = InvocationAuthority {
-        work_context: WorkContextId::new("smoke")?,
-        tenant: TenantId::new("local")?,
+        work_context: WorkContextId::parse("smoke")?,
+        tenant: TenantId::parse("local")?,
         membership: WorkContextMembershipLevel::Owner,
-        policy_revision: PolicyVersion::new("r1")?,
+        policy_revision: PolicyVersion::parse("r1")?,
         output_policy: WorkContextOutputPolicy {
             owner: AccessSubject::Principal(principal.id.clone()),
             initial_grants: Vec::new(),
@@ -622,8 +622,8 @@ fn issue_view_token(subject: &str) -> Result<String> {
     };
     Ok(issuer
         .issue(
-            GatewayProfileId::new("operator")?,
-            ServerSlug::new("view")?,
+            GatewayProfileId::parse("operator")?,
+            ServerSlug::parse("view")?,
             principal,
             authority,
             None,

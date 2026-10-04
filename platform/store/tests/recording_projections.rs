@@ -32,8 +32,8 @@ impl ProjectionFixture {
             actor_id: identity.principal_id,
             work_context_id: deterministic_work_context_id(&identity.tenant_key, "operations")
                 .unwrap(),
-            policy_revision: PolicyVersion::new("r1").unwrap(),
-            data_labels: [DataLabelId::new("operations").unwrap()]
+            policy_revision: PolicyVersion::parse("r1").unwrap(),
+            data_labels: [DataLabelId::parse("operations").unwrap()]
                 .into_iter()
                 .collect(),
         };
@@ -240,7 +240,7 @@ async fn qualify(db: &fixture::TestDb) {
     s.work_context_id = WorkContextId::new();
     denied_scopes.push(s);
     let mut s = f.scope.clone();
-    s.policy_revision = PolicyVersion::new("r2").unwrap();
+    s.policy_revision = PolicyVersion::parse("r2").unwrap();
     denied_scopes.push(s);
     let mut s = f.scope.clone();
     s.data_labels.clear();

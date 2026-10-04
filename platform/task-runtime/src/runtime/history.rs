@@ -23,7 +23,7 @@ impl TaskRuntime {
         after: Option<TaskUpdateCursor>,
     ) -> Result<TaskUpdateStream, TaskError> {
         let mut wake = self.task_wake().await?;
-        let server = ServerSlug::new(&self.server)
+        let server = ServerSlug::parse(&self.server)
             .map_err(|_| TaskError::InvalidRecord("invalid runtime server identity".into()))?;
         let head = self.store.changefeed_head().await?;
         let mut cursor = after.map_or(head, |after| {

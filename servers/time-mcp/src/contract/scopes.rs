@@ -9,7 +9,7 @@
 /// use veoveo_time_mcp::contract::TimeScope;
 /// use veoveo_types::ScopeName;
 /// fn requires_time(_: TimeScope) {}
-/// requires_time(ScopeName::new("time:read").unwrap());
+/// requires_time(ScopeName::parse("time:read").unwrap());
 /// ```
 /// ```compile_fail
 /// use veoveo_time_mcp::contract::TimeScope;

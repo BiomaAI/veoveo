@@ -1,8 +1,13 @@
 # Platform Foundations And Contract Consistency Plan
 
-Status: Phase 0 shared mechanics pass behavioral qualification, but declaration
-repetition remains an unmet requirement. The current Id hooks expanded concise owner
-declarations; compact declarative forms and address convenience generation remain open.
+Status: Phase 0 shared mechanics have a qualified baseline. The declaration repetition
+repair is applied across owners and callers and passes native qualification.
+Compact ID and resource attributes now generate standard derives, conversions and
+convenience methods through owner profiles. Shared tests, the owner-contract aggregate,
+both independent consumers, full workspace compilation, strict lint, source-policy
+checks and Task Runtime's database integration pass. The complete
+cost gate remains open; current-source reduction alone does not establish reduction
+from before the migration.
 Vocabulary, embedded documents, Id, ResourceAddress, Checked models and opaque cursors
 preserve their owner admission and wire/schema profiles. Production helper and static
 unit-error adoption is complete; the tracked-source macro catalog is enforced.
@@ -270,7 +275,7 @@ CE register or owning designs by appearing in this plan.
 | D11 | Knowledge | Knowledge is a kernel module. Its extension point is the `ai.veoveo/knowledge-source` protocol: a server becomes a knowledge source by declaring collections, with no Rust adapter, and Knowledge consumes sources through the gateway as an MCP client. Collection approvals are kernel policy. Future source capabilities extend the protocol contract |
 | D12 | Embedding device profiles | Keep the qualified NVIDIA cluster profile required. Preserve Metal as deferred proposal X1 for separate Apple hardware qualification. No CPU profile or automatic fallback. Do not advertise Metal support or change GPU rules before it is qualified |
 | D13 | Embedding space identity | Model, checkpoint revision, dimension, pooling, normalization, numeric precision and maximum input tokens. The runtime image, vLLM version and device leave the identity. Keep runtime image, version and device in execution provenance. Space reuse requires reference-vector and retrieval qualification on the declared model/configuration; a failed qualification needs an explicitly distinct space or rejection, not a fabricated setting change |
-| D14 | Macros | Veoveo defines five macros: the `ResourceAddress`, `Id` and `Vocabulary` derives and `embedded_document!` in `platform/macros`, and `server_docs!` in `mcp/contract`. Their generated code calls ordinary traits in `platform/types`. Checked models and opaque cursors are generic types, and error types use `thiserror`. Any other macro is a declared exception. No new third-party crate: strum, nutype, parse-display and serde_with were evaluated in [phase 0](#evaluated-crates) |
+| D14 | Macros | Veoveo defines five core macros: the `resource_address` and `id` attributes, the `Vocabulary` derive and `embedded_document!` in `platform/macros`, and `server_docs!` in `mcp/contract`. Their generated code calls ordinary traits in `platform/types`. Checked models and opaque cursors are generic types, and error types use `thiserror`. Any other macro is a declared exception. No new third-party crate: strum, nutype, parse-display and serde_with were evaluated in [phase 0](#evaluated-crates) |
 
 ## Kernel And Modules
 
@@ -461,8 +466,8 @@ definitions and two approved declarative definitions, with no other local defini
 
 | Shape | Baseline local macros | Count | Replacement |
 |---|---|---|---|
-| Typed resource addresses | `address` in 7 crates, `address_traits` in 6, `string_schema` in 4, `address_wire` in 3, `wire_traits`, `wire_address`, `single_address`, `result_uri` | 24 | `#[derive(ResourceAddress)]` |
-| Identifiers, names, keys and digests | `coordinate_id` in 3 crates; `catalog_id`, `controlled_id`, `domain_id`, `id_type`, `identity` and `name` in 2 each; `typed_id`, `secret_typed_id`, `identifier`, `id`, `deployment_id`, `artifact_uuid_id`, `uuid_id`, `hex_id`, `map_id`, `output_id`, `public_id`, `recording_identity`, `rrd_id`, `text_identity`, `travel_key`, `typed_string` | 31 | `#[derive(Id)]` |
+| Typed resource addresses | `address` in 7 crates, `address_traits` in 6, `string_schema` in 4, `address_wire` in 3, `wire_traits`, `wire_address`, `single_address`, `result_uri` | 24 | `#[veoveo_types::resource_address(...)]` |
+| Identifiers, names, keys and digests | `coordinate_id` in 3 crates; `catalog_id`, `controlled_id`, `domain_id`, `id_type`, `identity` and `name` in 2 each; `typed_id`, `secret_typed_id`, `identifier`, `id`, `deployment_id`, `artifact_uuid_id`, `uuid_id`, `hex_id`, `map_id`, `output_id`, `public_id`, `recording_identity`, `rrd_id`, `text_identity`, `travel_key`, `typed_string` | 31 | `#[veoveo_types::id(...)]` |
 | Validated text and bounded numbers | `request_text`, `checked_string`, `counter`, `finite_number`, `non_negative_quantity` | 5 | Hand-written newtypes with `TryFrom`, or `Checked<T>` |
 | Closed string vocabularies | `scope_enum`, `vocabulary`, `declare_task_types`, `string_enum` in Store and Time | 5 | `#[derive(Vocabulary)]` |
 | Embedded documents | `server_docs`, over the `embedded_document!` proc macro in `mcp/knowledge-extension/macros` | 1 | Kept as core macros |
@@ -490,8 +495,8 @@ Redap trait delegation. Generated code calls ordinary traits in
 
 | Macro | Kind | Generates |
 |---|---|---|
-| `ResourceAddress` | Derive | Owner-declared struct/enum routes delegate parsing and typed construction to ordinary `ResourceRoute` descriptors. Public field/tail codecs preserve owner admission; optional string conversions, checked constructors, accessors and template constants share the declaration. Standard Serde/schemars or an owner schema hook preserve wire, metadata, IDs and inline profiles. Encoding-aware structural `wire_pattern()` is available explicitly; it does not enforce domain IDs, relationships or query uniqueness. Optional owner-supplied encoded component fragments support identifier-precise patterns and are qualified against typed builders and admitted aliases with a JSON Schema validator; codecs may omit fragments for broader structural schemas |
-| `Id` | Derive | Shared `Identity` parsing/text projection, `FromStr`, optional validating String constructors/conversions, owner generation and owner schema delegation. Standard Serde and schemars derives or owner implementations retain each wire, binary and schema profile; Id alone does not establish Serde admission. Validators, domain errors, namespaces, exposure and redaction belong to each owner. No generic unchecked construction hook or database dependency is introduced. Checked display metadata, numbers and resource addresses remain separate |
+| `resource_address` | Attribute | Owner-declared struct/enum routes delegate parsing and typed construction to ordinary `ResourceRoute` descriptors. Cached, checked, component and enum forms generate standard derives, constructors, accessors and formatting. Public field/tail codecs and owner profiles preserve admission, wire, schema metadata and error mapping. Encoding-aware schema fragments are qualified against typed builders and admitted aliases; codecs may omit fragments for broader structural schemas |
+| `id` | Attribute | Text, hex, prefixed and UUID forms generate standard derives, checked conversions and shared `Identity` capabilities. Ordinary owner profiles select admission, generation, wire/schema policy and errors. `parse` admits input; `new` generates a fresh ID. Namespaces, deliberate secret exposure and redaction belong to each owner. Required unrestricted UUID const/storage construction is explicit; database delegation adds no SDK dependency to the foundation. Unusual storage uses the custom form |
 | `Vocabulary` | Derive | For an enum of unit variants: one spelling per variant (snake_case by default), `ALL`, `as_str`, `Display`, `FromStr`, serde and the JSON Schema enum from the same spelling, compile-time checks for empty or duplicate spellings, and opt-in hooks `scope` (OAuth token syntax and `ScopeDefinition`), `task_type` (`TaskTypeDefinition`) and `surreal` |
 | `embedded_document!` | Function-like | Embeds a document at compile time with its SHA-256; implemented in `platform/macros` |
 | `server_docs!` | `macro_rules!` in `mcp/contract` | Embeds a server's `AGENTS.md` and `DESIGN.md` through `embedded_document!` |
@@ -633,6 +638,19 @@ current tree and the tree before the Id migration; report subsequently added
 capabilities separately. A smaller macro catalog alone does not satisfy this
 requirement. Existing value, wire, schema and independent-consumer tests continue to
 protect behavior during the correction.
+
+The applied repair removes the repeated ordinary-ID derives and conversions. A
+deduplicated comparison of 144 ID/address paths against `ba20a34d^`, including moved
+owners and the complete shared route backend, still shows roughly 2,200 additional
+implementation/API lines. Owner implementations shrink, while shared machinery grows.
+The comparison separates tests and includes whole owner, facade and manifest files.
+The cursor codec migration in `bf914bfcf` accounts for 214 added implementation lines;
+Optimization's numeric wrapper replacement in `fae271c3e` accounts for 87. About 1,900
+lines still require attribution or reduction, with all shared ID/address machinery
+charged to the replacement. The repair's reduction against the expanded current
+implementation does not prove a net reduction from the historical baseline. The next
+simplification to evaluate is a single typed address declaration passed from frontend
+to backend instead of synthesized attributes and reparsing; its savings are unproven.
 
 The correction uses attribute front ends for ID and resource declarations so they
 can generate standard derives as well as implementations. Ordinary public traits

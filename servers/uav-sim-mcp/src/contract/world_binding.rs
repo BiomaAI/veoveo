@@ -178,22 +178,22 @@ mod tests {
     };
 
     fn request() -> ConfigureWorldRequest {
-        let world_id = FrameWorldId::new("uav-showcase-new-york").unwrap();
-        let revision_id = FrameWorldRevisionId::new("revision-1").unwrap();
+        let world_id = FrameWorldId::parse("uav-showcase-new-york").unwrap();
+        let revision_id = FrameWorldRevisionId::parse("revision-1").unwrap();
         let revision_uri = FrameWorldRevisionUri::new(&world_id, &revision_id);
         let tree = FrameWorldTree {
             frames: vec![
                 FrameNode {
-                    frame_id: FrameId::new("earth-ecef").unwrap(),
+                    frame_id: FrameId::parse("earth-ecef").unwrap(),
                     basis: FrameBasis::EcefWgs84,
                     parent_frame_id: None,
                     parent_transform: None,
                     description: None,
                 },
                 FrameNode {
-                    frame_id: FrameId::new("times-square-enu").unwrap(),
+                    frame_id: FrameId::parse("times-square-enu").unwrap(),
                     basis: FrameBasis::Enu,
-                    parent_frame_id: Some(FrameId::new("earth-ecef").unwrap()),
+                    parent_frame_id: Some(FrameId::parse("earth-ecef").unwrap()),
                     parent_transform: Some(FrameParentTransform::GeodeticTangent {
                         origin: Wgs84Position {
                             latitude_degrees: 40.758,
@@ -204,11 +204,11 @@ mod tests {
                     description: None,
                 },
                 FrameNode {
-                    frame_id: FrameId::new("isaac-world").unwrap(),
+                    frame_id: FrameId::parse("isaac-world").unwrap(),
                     basis: FrameBasis::Cartesian {
                         axes: FrameAxes::east_north_up(),
                     },
-                    parent_frame_id: Some(FrameId::new("times-square-enu").unwrap()),
+                    parent_frame_id: Some(FrameId::parse("times-square-enu").unwrap()),
                     parent_transform: Some(FrameParentTransform::StaticRigid {
                         translation_m: [0.0; 3],
                         rotation_xyzw: [0.0, 0.0, 0.0, 1.0],
@@ -218,10 +218,10 @@ mod tests {
             ],
         };
         ConfigureWorldRequest {
-            session_id: crate::contract::SessionId::new("showcase").unwrap(),
+            session_id: crate::contract::SessionId::parse("showcase").unwrap(),
             simulation_frame_uri: WorldFrameUri::new(
                 &revision_uri,
-                &FrameId::new("isaac-world").unwrap(),
+                &FrameId::parse("isaac-world").unwrap(),
             ),
             world_revision: FrameWorldRevision::new(
                 revision_uri,
@@ -247,25 +247,25 @@ mod tests {
     fn rejects_frames_outside_the_selected_revision_or_tree() {
         let request = request();
         let other_revision = FrameWorldRevisionUri::new(
-            &FrameWorldId::new("other-world").unwrap(),
-            &FrameWorldRevisionId::new("revision-1").unwrap(),
+            &FrameWorldId::parse("other-world").unwrap(),
+            &FrameWorldRevisionId::parse("revision-1").unwrap(),
         );
         for (frame, expected) in [
             (
-                WorldFrameUri::new(&other_revision, &FrameId::new("isaac-world").unwrap()),
+                WorldFrameUri::new(&other_revision, &FrameId::parse("isaac-world").unwrap()),
                 WorldBindingError::DifferentRevision,
             ),
             (
                 WorldFrameUri::new(
                     request.world_revision.revision_uri(),
-                    &FrameId::new("missing").unwrap(),
+                    &FrameId::parse("missing").unwrap(),
                 ),
                 WorldBindingError::MissingFrame,
             ),
             (
                 WorldFrameUri::new(
                     request.world_revision.revision_uri(),
-                    &FrameId::new("earth-ecef").unwrap(),
+                    &FrameId::parse("earth-ecef").unwrap(),
                 ),
                 WorldBindingError::MissingGeodeticAncestor,
             ),

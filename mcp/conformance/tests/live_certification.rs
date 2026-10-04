@@ -107,7 +107,10 @@ impl ServerHandler for DomainFixture {
         let uri = request.uri.as_str();
         if uri == "domain://docs" {
             let entries = FIXTURE_DOCS
-                .document_page(&veoveo_types::ResourceScheme::new("domain").unwrap(), None)
+                .document_page(
+                    &veoveo_types::ResourceScheme::parse("domain").unwrap(),
+                    None,
+                )
                 .unwrap();
             let text = serde_json::to_string(&entries).expect("doc index serializes");
             return Ok(ReadResourceResult::new(vec![ResourceContents::text(text, uri)]).into());

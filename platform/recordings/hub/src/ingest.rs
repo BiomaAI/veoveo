@@ -1921,7 +1921,7 @@ mod tests {
         let config = RecordingIngestServiceConfig {
             journal_root: PathBuf::from("/journal"),
             spool_root: PathBuf::from("/spool"),
-            protected_resource: ProtectedResourceId::new("https://example.test/ingest").unwrap(),
+            protected_resource: ProtectedResourceId::parse("https://example.test/ingest").unwrap(),
             maximum_batch_bytes: DEFAULT_MAXIMUM_BATCH_BYTES + 1,
             capture_layer_max_bytes: DEFAULT_MAXIMUM_BATCH_BYTES + 1,
             capture_layer_max_age_seconds: 60,

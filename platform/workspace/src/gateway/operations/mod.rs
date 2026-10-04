@@ -191,7 +191,7 @@ pub(crate) fn router(state: OperationState) -> Router {
 }
 
 fn profile(value: String) -> Result<GatewayProfileId, StatusCode> {
-    GatewayProfileId::new(value).map_err(|_| StatusCode::NOT_FOUND)
+    GatewayProfileId::parse(value).map_err(|_| StatusCode::NOT_FOUND)
 }
 
 async fn capabilities(

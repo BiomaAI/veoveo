@@ -74,7 +74,7 @@ async fn usage_reader_pages_visible_solves_and_rechecks_authority_on_every_read(
         let caller = owner("owner", &["mission"]);
         let denied = owner("other", &["mission"]);
         let mut other_context = caller.clone();
-        other_context.authority.work_context = veoveo_types::WorkContextId::new("other-context").unwrap();
+        other_context.authority.work_context = veoveo_types::WorkContextId::parse("other-context").unwrap();
         // The old raw 100-row page was entirely consumed by these denied Tasks.
         for number in 1..=105 {
             let denied = if number % 2 == 0 { &denied } else { &other_context };

@@ -82,7 +82,7 @@ fn bioma_profiles_expose_computer_execution_and_retained_maintenance() {
             "update_template",
             "resume_update",
         ] {
-            let tool = LocalToolName::new(name).unwrap();
+            let tool = LocalToolName::parse(name).unwrap();
             assert!(
                 veoveo_policy::exposure_contains(&computers.tools, &tool),
                 "Bioma {id} hides delivered Computer workflow {name}"

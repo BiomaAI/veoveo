@@ -68,7 +68,7 @@ pub fn register_catalog(
                             _ => veoveo_gateway_contract::ActionAccess::Write,
                         },
                         target_kinds: BTreeSet::from([
-                            ExtensionName::new("gateway").expect("fixed target kind")
+                            ExtensionName::parse("gateway").expect("fixed target kind")
                         ]),
                         selectors: selectors.clone(),
                         server: None,

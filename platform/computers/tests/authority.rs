@@ -21,13 +21,13 @@ fn admission_requires_verified_computer_context_for_every_invocation_mode() {
     for fixture in fixtures {
         let now = Utc::now();
         let identity = GatewayInternalIdentity {
-            issuer: TokenIssuer::new("veoveo-internal").unwrap(),
-            profile: GatewayProfileId::new("operator").unwrap(),
-            server: ServerSlug::new("computers").unwrap(),
+            issuer: TokenIssuer::parse("veoveo-internal").unwrap(),
+            profile: GatewayProfileId::parse("operator").unwrap(),
+            server: ServerSlug::parse("computers").unwrap(),
             actor: fixture.actor,
             authority: fixture.authority,
             request_context: Some(fixture.request_context),
-            jwt_id: JwtId::new(uuid::Uuid::now_v7().to_string()).unwrap(),
+            jwt_id: JwtId::parse(uuid::Uuid::now_v7().to_string()).unwrap(),
             issued_at: now,
             not_before: now,
             expires_at: now + TimeDelta::minutes(1),
@@ -46,7 +46,7 @@ fn admission_requires_verified_computer_context_for_every_invocation_mode() {
             let mut wrong = identity.clone();
             match mismatch {
                 "missing" => wrong.request_context = None,
-                "audience" => wrong.server = ServerSlug::new("artifact").unwrap(),
+                "audience" => wrong.server = ServerSlug::parse("artifact").unwrap(),
                 "expired_assertion" => wrong.expires_at = now - TimeDelta::seconds(1),
                 "expired_source" => {
                     wrong
@@ -57,7 +57,7 @@ fn admission_requires_verified_computer_context_for_every_invocation_mode() {
                         .expires_at = now - TimeDelta::seconds(1)
                 }
                 "not_yet_valid" => wrong.not_before = now + TimeDelta::seconds(60),
-                _ => wrong.authority.tenant = TenantId::new("foreign").unwrap(),
+                _ => wrong.authority.tenant = TenantId::parse("foreign").unwrap(),
             }
             assert!(
                 matches!(

@@ -14,65 +14,55 @@ mod apps;
 pub use apps::*;
 
 // Workspace identities admit the UUID parser's full version and alias profile.
-fn admit_workspace_id(value: &str) -> Result<Uuid, uuid::Error> {
+#[doc(hidden)]
+pub struct WorkspaceIds;
+impl veoveo_types::IdProfile for WorkspaceIds {
+    type Error = uuid::Error;
+    const PROFILE: veoveo_types::IdProfileSpec<Self::Error> = veoveo_types::IdProfileSpec {
+        wire: veoveo_types::IdWire::InnerUuid,
+        schema: veoveo_types::IdSchema::DerivedUuid,
+        ..veoveo_types::IdProfileSpec::uuid(
+            veoveo_types::UuidGrammar {
+                versions: &[],
+                variant: veoveo_types::UuidVariant::Any,
+                spelling: veoveo_types::UuidSpelling::ParserAliases,
+            },
+            workspace_id_error,
+        )
+    };
+}
+fn workspace_id_error(
+    value: &str,
+    _: veoveo_types::IdMetadata,
+    _: veoveo_types::IdFailure,
+) -> uuid::Error {
     Uuid::parse_str(value)
+        .expect_err("only malformed UUIDs reach the unrestricted Workspace error mapping")
 }
 
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::Id,
-)]
-#[serde(transparent)]
-#[id(admit = admit_workspace_id, error = uuid::Error)]
+#[veoveo_types::id(uuid(WorkspaceIds))]
 pub struct ChatId(pub Uuid);
 
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::Id,
-)]
-#[serde(transparent)]
-#[id(admit = admit_workspace_id, error = uuid::Error)]
+#[veoveo_types::id(uuid(WorkspaceIds))]
 pub struct MessageId(pub Uuid);
 
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::Id,
-)]
-#[serde(transparent)]
-#[id(admit = admit_workspace_id, error = uuid::Error)]
+#[veoveo_types::id(uuid(WorkspaceIds))]
 pub struct MemberId(pub Uuid);
 
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::Id,
-)]
-#[serde(transparent)]
-#[id(admit = admit_workspace_id, error = uuid::Error)]
+#[veoveo_types::id(uuid(WorkspaceIds))]
 pub struct InvitationId(pub Uuid);
 
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::Id,
-)]
-#[serde(transparent)]
-#[id(admit = admit_workspace_id, error = uuid::Error)]
+#[veoveo_types::id(uuid(WorkspaceIds))]
 pub struct AgentId(pub Uuid);
 
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::Id,
-)]
-#[serde(transparent)]
-#[id(admit = admit_workspace_id, error = uuid::Error)]
+#[veoveo_types::id(uuid(WorkspaceIds))]
 pub struct RunId(pub Uuid);
 
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::Id,
-)]
-#[serde(transparent)]
-#[id(admit = admit_workspace_id, error = uuid::Error)]
+#[veoveo_types::id(uuid(WorkspaceIds))]
 pub struct OperationId(pub Uuid);
 
 /// Installation-local human identity; never an email address or bearer credential.
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, veoveo_types::Id,
-)]
-#[serde(transparent)]
-#[id(admit = admit_workspace_id, error = uuid::Error)]
+#[veoveo_types::id(uuid(WorkspaceIds))]
 pub struct PersonId(pub Uuid);
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]

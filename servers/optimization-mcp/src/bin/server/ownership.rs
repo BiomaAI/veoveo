@@ -8,21 +8,21 @@ pub(super) fn task_owner_from_runtime(
 ) -> Result<TaskOwner, String> {
     Ok(TaskOwner {
         task_id,
-        principal_id: veoveo_types::PrincipalId::new(owner.principal_key.clone())
+        principal_id: veoveo_types::PrincipalId::parse(owner.principal_key.clone())
             .map_err(|error| error.to_string())?,
-        profile: veoveo_mcp_contract::GatewayProfileId::new(owner.profile.clone())
+        profile: veoveo_mcp_contract::GatewayProfileId::parse(owner.profile.clone())
             .map_err(|error| error.to_string())?,
         tenant: owner
             .tenant_key
             .clone()
-            .map(veoveo_types::TenantId::new)
+            .map(veoveo_types::TenantId::parse)
             .transpose()
             .map_err(|error| error.to_string())?,
         data_labels: owner
             .data_labels
             .iter()
             .cloned()
-            .map(veoveo_types::DataLabelId::new)
+            .map(veoveo_types::DataLabelId::parse)
             .collect::<Result<_, _>>()
             .map_err(|error| error.to_string())?,
         authority: owner.authority.clone(),

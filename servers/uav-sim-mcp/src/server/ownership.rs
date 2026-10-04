@@ -54,11 +54,11 @@ mod tests {
             &["actor-only"],
         );
         identity.authority.output_policy.owner =
-            AccessSubject::Group(GroupId::new("operators").unwrap());
+            AccessSubject::Group(GroupId::parse("operators").unwrap());
         identity.authority.output_policy.data_labels =
-            BTreeSet::from([DataLabelId::new("sensor").unwrap()]);
+            BTreeSet::from([DataLabelId::parse("sensor").unwrap()]);
         identity.authority.output_policy.classification =
-            Some(DataLabelId::new("restricted").unwrap());
+            Some(DataLabelId::parse("restricted").unwrap());
         let owner = live_view_owner(&identity);
         assert_eq!(owner.subject, identity.authority.output_policy.owner);
         assert_eq!(owner.tenant, identity.authority.tenant);
@@ -67,11 +67,12 @@ mod tests {
         assert_eq!(
             owner.data_labels,
             BTreeSet::from([
-                DataLabelId::new("sensor").unwrap(),
-                DataLabelId::new("restricted").unwrap(),
+                DataLabelId::parse("sensor").unwrap(),
+                DataLabelId::parse("restricted").unwrap(),
             ])
         );
-        identity.authority.output_policy.classification = Some(DataLabelId::new("sensor").unwrap());
+        identity.authority.output_policy.classification =
+            Some(DataLabelId::parse("sensor").unwrap());
         assert_eq!(live_view_owner(&identity).data_labels.len(), 1);
     }
 }

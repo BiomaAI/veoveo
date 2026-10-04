@@ -12,17 +12,17 @@ use veoveo_types::{
 };
 pub(crate) fn subject(name: &str) -> AuthenticatedSubject {
     let principal = Principal {
-        id: PrincipalId::new(format!("https://workspace.test#{name}")).unwrap(),
+        id: PrincipalId::parse(format!("https://workspace.test#{name}")).unwrap(),
         kind: PrincipalKind::User,
-        issuer: TokenIssuer::new("https://workspace.test").unwrap(),
-        subject: TokenSubject::new(name).unwrap(),
-        tenant: Some(TenantId::new("test").unwrap()),
-        groups: [GroupId::new("collaborators").unwrap()]
+        issuer: TokenIssuer::parse("https://workspace.test").unwrap(),
+        subject: TokenSubject::parse(name).unwrap(),
+        tenant: Some(TenantId::parse("test").unwrap()),
+        groups: [GroupId::parse("collaborators").unwrap()]
             .into_iter()
             .collect(),
         roles: Default::default(),
         group_roles: Default::default(),
-        scopes: [ScopeName::new("operator:use").unwrap()]
+        scopes: [ScopeName::parse("operator:use").unwrap()]
             .into_iter()
             .collect(),
         data_labels: Default::default(),
@@ -39,17 +39,17 @@ pub(crate) fn subject(name: &str) -> AuthenticatedSubject {
         managed_execution: None,
         issuer: principal.issuer.clone(),
         subject: principal.subject.clone(),
-        oauth_client_id: OAuthClientId::new("workspace").unwrap(),
+        oauth_client_id: OAuthClientId::parse("workspace").unwrap(),
         session_family: Some(
-            GatewayRefreshFamilyId::new(uuid::Uuid::now_v7().to_string()).unwrap(),
+            GatewayRefreshFamilyId::parse(uuid::Uuid::now_v7().to_string()).unwrap(),
         ),
-        audience: ProtectedResourceId::new("https://workspace.test/mcp/operator").unwrap(),
+        audience: ProtectedResourceId::parse("https://workspace.test/mcp/operator").unwrap(),
         work_context: authority.work_context.clone(),
         invocation_mode: InvocationMode::Direct,
         initiator: Some(principal.id.clone()),
         delegation_id: None,
         scopes: principal.scopes.clone(),
-        jwt_id: Some(JwtId::new(uuid::Uuid::now_v7().to_string()).unwrap()),
+        jwt_id: Some(JwtId::parse(uuid::Uuid::now_v7().to_string()).unwrap()),
         issued_at: now,
         not_before: None,
         expires_at: now + TimeDelta::minutes(5),

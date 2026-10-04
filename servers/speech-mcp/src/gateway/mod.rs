@@ -56,12 +56,12 @@ struct Route {
 }
 impl Route {
     fn authorization(&self) -> (PolicyTarget, &'static [GatewayAction]) {
-        let server = ServerSlug::new("speech").expect("static server");
+        let server = ServerSlug::parse("speech").expect("static server");
         match self.tool {
             Some(tool) => (
                 PolicyTarget::Tool {
                     server,
-                    tool: LocalToolName::new(tool).expect("static tool"),
+                    tool: LocalToolName::parse(tool).expect("static tool"),
                 },
                 &[GatewayAction::ToolsCall],
             ),

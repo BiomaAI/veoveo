@@ -9,14 +9,14 @@ use veoveo_types::WorkContextMembershipLevel;
 
 pub(crate) fn target() -> PolicyTarget {
     PolicyTarget::Tool {
-        server: ServerSlug::new("computers").expect("static server"),
-        tool: LocalToolName::new("update_template").expect("static tool"),
+        server: ServerSlug::parse("computers").expect("static server"),
+        tool: LocalToolName::parse("update_template").expect("static tool"),
     }
 }
 pub(crate) fn resume_target() -> PolicyTarget {
     PolicyTarget::Tool {
-        server: ServerSlug::new("computers").expect("static server"),
-        tool: LocalToolName::new("resume_update").expect("static tool"),
+        server: ServerSlug::parse("computers").expect("static server"),
+        tool: LocalToolName::parse("resume_update").expect("static tool"),
     }
 }
 impl ComputersStore {
@@ -32,7 +32,7 @@ impl ComputersStore {
             let decision = snapshot.decision(
                 GatewayAction::ToolsCall,
                 &target(),
-                &TraceId::new(operation.operation_id.to_string()).expect("UUID trace"),
+                &TraceId::parse(operation.operation_id.to_string()).expect("UUID trace"),
             );
             if deadline <= std::time::Instant::now() {
                 return Err(ComputerError::Unavailable);
@@ -89,7 +89,7 @@ impl ComputersStore {
                     .decision(
                         GatewayAction::ToolsCall,
                         target,
-                        &TraceId::new(Uuid::now_v7().to_string()).expect("UUID trace"),
+                        &TraceId::parse(Uuid::now_v7().to_string()).expect("UUID trace"),
                     )
                     .effect
                     != PolicyEffect::Allow

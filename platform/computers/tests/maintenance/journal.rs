@@ -475,7 +475,7 @@ async fn cancellation_before_dispatch_preserves_run_and_policy_revocation_blocks
     let mut denied = control();
     denied.policies[0].rules[0]
         .tools
-        .remove(&LocalToolName::new("update_template").unwrap());
+        .remove(&LocalToolName::parse("update_template").unwrap());
     support::policy::install(&db.b, denied).await;
     assert!(matches!(
         b.begin_maintenance_step(&claim).await,

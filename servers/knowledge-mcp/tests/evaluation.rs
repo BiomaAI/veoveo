@@ -56,7 +56,7 @@ async fn measured_generation_persists_across_connections_and_rejects_corpus_drif
                     collection: registration.descriptor.collection().clone(),
                     uri: address,
                 },
-                revision: Revision::new("1").unwrap(),
+                revision: Revision::parse("1").unwrap(),
                 content_sha256: content_digest(text),
             });
         }

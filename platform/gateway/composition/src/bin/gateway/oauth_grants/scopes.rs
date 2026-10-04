@@ -25,7 +25,7 @@ pub(crate) fn requested_client_credentials_scopes(
     let raw_scope = raw_scope.ok_or_else(|| anyhow!("scope is required"))?;
     let scopes = raw_scope
         .split_whitespace()
-        .map(ScopeName::new)
+        .map(ScopeName::parse)
         .collect::<Result<BTreeSet<_>, _>>()?;
     if scopes.is_empty() {
         return Err(anyhow!("scope is required"));
@@ -55,7 +55,7 @@ pub(super) fn id_jag_token_scopes(
         Some(raw_scope) => {
             let scopes = raw_scope
                 .split_whitespace()
-                .map(ScopeName::new)
+                .map(ScopeName::parse)
                 .collect::<Result<BTreeSet<_>, _>>()?;
             if scopes.is_empty() {
                 return Err(anyhow!("scope is required"));

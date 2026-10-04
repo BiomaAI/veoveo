@@ -1,137 +1,94 @@
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 #[error("invalid audit identity: {0}")]
 pub struct AuditIdentityError(&'static str);
 
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(error=AuditIdentityError, admit=|value| admit_uuid(value, "AuditRecordId"), wire_string, generate=Uuid::now_v7, schema=uuid_schema)]
+#[veoveo_types::id(uuid(AuditRecordIdProfile), fresh)]
 pub struct AuditRecordId(Uuid);
-impl AuditRecordId {
-    pub fn as_uuid(self) -> Uuid {
-        self.0
-    }
-}
-impl TryFrom<Uuid> for AuditRecordId {
-    type Error = AuditIdentityError;
-    fn try_from(value: Uuid) -> Result<Self, Self::Error> {
-        validate_uuid(value, "AuditRecordId").map(Self)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(error=AuditIdentityError, admit=|value| admit_uuid(value, "AuditRequestId"), wire_string, generate=Uuid::now_v7, schema=uuid_schema)]
+#[veoveo_types::id(uuid(AuditRecordIdProfile), fresh)]
 pub struct AuditRequestId(Uuid);
-impl AuditRequestId {
-    pub fn as_uuid(self) -> Uuid {
-        self.0
-    }
-}
-impl TryFrom<Uuid> for AuditRequestId {
-    type Error = AuditIdentityError;
-    fn try_from(value: Uuid) -> Result<Self, Self::Error> {
-        validate_uuid(value, "AuditRequestId").map(Self)
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(error=AuditIdentityError, admit=|value| admit_uuid(value, "AuditEpisodeId"), wire_string, generate=Uuid::now_v7, schema=uuid_schema)]
+#[veoveo_types::id(uuid(AuditRecordIdProfile), fresh)]
 pub struct AuditEpisodeId(Uuid);
-impl AuditEpisodeId {
-    pub fn as_uuid(self) -> Uuid {
-        self.0
-    }
-}
-impl TryFrom<Uuid> for AuditEpisodeId {
-    type Error = AuditIdentityError;
-    fn try_from(value: Uuid) -> Result<Self, Self::Error> {
-        validate_uuid(value, "AuditEpisodeId").map(Self)
-    }
-}
-
-#[derive(
-    veoveo_types::Id, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, constructor=parse, error=AuditIdentityError, validate=|value| validate_hex(value,32,"AuditTraceId"), schema=|_| hex_schema(32))]
+#[veoveo_types::id(hex(AuditTraceIdProfile))]
 pub struct AuditTraceId(String);
 
-#[derive(
-    veoveo_types::Id, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, constructor=parse, error=AuditIdentityError, validate=|value| validate_hex(value,16,"AuditSpanId"), schema=|_| hex_schema(16))]
+#[veoveo_types::id(hex(AuditSpanIdProfile))]
 pub struct AuditSpanId(String);
 
-fn validate_uuid(value: Uuid, name: &'static str) -> Result<Uuid, AuditIdentityError> {
-    if value.get_version_num() != 7 || value.get_variant() != uuid::Variant::RFC4122 {
-        return Err(AuditIdentityError(name));
-    }
-    Ok(value)
-}
-fn admit_uuid(value: &str, name: &'static str) -> Result<Uuid, AuditIdentityError> {
-    let id = Uuid::parse_str(value).map_err(|_| AuditIdentityError(name))?;
-    if id.to_string() != value {
-        return Err(AuditIdentityError(name));
-    }
-    validate_uuid(id, name)
-}
 fn uuid_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
     schemars::json_schema!({"type":"string","pattern":"^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"})
 }
-fn validate_hex(value: &str, length: usize, name: &'static str) -> Result<(), AuditIdentityError> {
-    if value.len() != length
-        || !value
-            .bytes()
-            .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c))
-        || value.bytes().all(|c| c == b'0')
-    {
-        return Err(AuditIdentityError(name));
-    }
-    Ok(())
-}
 fn hex_schema(length: usize) -> schemars::Schema {
     schemars::json_schema!({"type":"string","pattern":format!("^[0-9a-f]{{{}}}$",length),"not":{"const":"0".repeat(length)}})
+}
+
+use veoveo_types::{
+    FreshId, HexCase, HexGrammar, IdGeneration, IdProfile, IdProfileSpec, IdSchema, UuidGrammar,
+    UuidSpelling, UuidVariant,
+};
+
+#[doc(hidden)]
+pub struct AuditRecordIdProfile;
+impl IdProfile for AuditRecordIdProfile {
+    type Error = AuditIdentityError;
+    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
+        generation: IdGeneration {
+            fresh: FreshId::UuidV7,
+            stable_v5_namespace: None,
+        },
+        schema: IdSchema::Owner {
+            schema: |generator, _| uuid_schema(generator),
+            inline: false,
+        },
+        ..IdProfileSpec::uuid(
+            UuidGrammar {
+                versions: &[7],
+                variant: UuidVariant::Rfc4122,
+                spelling: UuidSpelling::CanonicalLowerHyphenated,
+            },
+            |_, metadata, _| AuditIdentityError(metadata.error_context),
+        )
+    };
+}
+
+#[doc(hidden)]
+pub struct AuditTraceIdProfile;
+impl IdProfile for AuditTraceIdProfile {
+    type Error = AuditIdentityError;
+    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
+        schema: IdSchema::Owner {
+            schema: |_, _| hex_schema(32),
+            inline: false,
+        },
+        ..IdProfileSpec::hex(
+            HexGrammar {
+                length: 32,
+                case: HexCase::Lower,
+                nonzero: true,
+            },
+            |_, metadata, _| AuditIdentityError(metadata.error_context),
+        )
+    };
+}
+#[doc(hidden)]
+pub struct AuditSpanIdProfile;
+impl IdProfile for AuditSpanIdProfile {
+    type Error = AuditIdentityError;
+    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
+        schema: IdSchema::Owner {
+            schema: |_, _| hex_schema(16),
+            inline: false,
+        },
+        ..IdProfileSpec::hex(
+            HexGrammar {
+                length: 16,
+                case: HexCase::Lower,
+                nonzero: true,
+            },
+            |_, metadata, _| AuditIdentityError(metadata.error_context),
+        )
+    };
 }
 
 #[cfg(test)]

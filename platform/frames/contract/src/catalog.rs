@@ -69,7 +69,7 @@ impl FrameWorldCursor {
     /// A cursor is a position; every page rechecks current caller authority.
     /// ```compile_fail
     /// use veoveo_frames_contract::{FrameId, FrameWorldCursor};
-    /// FrameWorldCursor::new(&FrameId::new("camera").unwrap());
+    /// FrameWorldCursor::new(&FrameId::parse("camera").unwrap());
     /// ```
     pub fn new(after: &FrameWorldId) -> Self {
         let cursor = veoveo_types::OpaqueCursor::try_new(FrameWorldCursorCodec, after.clone())

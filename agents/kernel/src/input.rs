@@ -43,7 +43,7 @@ impl DurableInputHandler {
             )));
         }
         let input_request_id = AgentInputRequestId::new();
-        let related_task = CanonicalTaskId::new(descriptor.execution_id().to_owned()).ok();
+        let related_task = CanonicalTaskId::parse(descriptor.execution_id()).ok();
         let requested_schema = request
             .schema
             .clone()

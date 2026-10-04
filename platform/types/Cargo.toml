@@ -10,12 +10,9 @@ veoveo-macros.workspace = true
 chrono = { version = "=0.4.45", default-features = false, features = ["std"] }
 iri-string.workspace = true
 percent-encoding.workspace = true
-schemars.workspace = true
+schemars = { workspace = true, features = ["uuid1"] }
 serde.workspace = true
 url.workspace = true
 # Preserve the qualified Task/Map UUID profile during ownership extraction.
 # Upstream stable is 1.26.1 (2026-09-27); qualify that parser upgrade separately.
-uuid = { version = "=1.25.0", default-features = false, features = ["serde", "std", "v7"] }
-
-[dev-dependencies]
-schemars = { workspace = true, features = ["uuid1"] }
+uuid = { version = "=1.25.0", default-features = false, features = ["serde", "std", "v5", "v7"] }

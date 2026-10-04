@@ -4,8 +4,8 @@ use veoveo_gateway_contract::ProtectedResourceId;
 use veoveo_mcp_contract::{GatewayControlPlane, GatewayProfileId};
 
 pub fn control(mut control: GatewayControlPlane) -> GatewayControlPlane {
-    let profile_id = GatewayProfileId::new("workspace").unwrap();
-    let resource = ProtectedResourceId::new("https://computers.test/mcp/workspace").unwrap();
+    let profile_id = GatewayProfileId::parse("workspace").unwrap();
+    let resource = ProtectedResourceId::parse("https://computers.test/mcp/workspace").unwrap();
     let mut profile = control.profiles[0].clone();
     profile.id = profile_id.clone();
     profile.protected_resource = resource.clone();
@@ -14,7 +14,7 @@ pub fn control(mut control: GatewayControlPlane) -> GatewayControlPlane {
     for client in &mut control.oidc_clients {
         client.allowed_resources.insert(resource.clone());
     }
-    let client_id = OAuthClientId::new("workspace").unwrap();
+    let client_id = OAuthClientId::parse("workspace").unwrap();
     let mut client = control
         .oauth_clients
         .iter()

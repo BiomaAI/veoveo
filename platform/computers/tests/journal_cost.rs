@@ -78,7 +78,7 @@ async fn measure(profile: Profile, round: usize, stdin_bytes: usize) -> Measurem
         .unwrap();
     let record = RecordId::new(
         "computer_execution",
-        surrealdb::types::Uuid::from(operation.execution_id().into_uuid()),
+        surrealdb::types::Uuid::from(operation.execution_id().as_uuid()),
     );
     let ciphertext_bytes: Option<u64> = db
         .a
@@ -149,7 +149,7 @@ async fn measure(profile: Profile, round: usize, stdin_bytes: usize) -> Measurem
                         row.get("payload"),
                         &Value::RecordId(RecordId::new(
                             "computer_execution_payload",
-                            surrealdb::types::Uuid::from(operation.execution_id().into_uuid()),
+                            surrealdb::types::Uuid::from(operation.execution_id().as_uuid()),
                         ))
                     );
                 }

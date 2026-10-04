@@ -95,44 +95,50 @@ pub struct RouteQuery {
 
 /// A literal declaration. A tail may occur only at the end of the path.
 /// Optional query declarations preserve their array order when building.
-/// The derive requires owner fields to map to template variables and keeps
+/// The attribute requires owner fields to map to template variables and keeps
 /// constructors in the owning library. Unmapped fields cannot become components.
 /// ```compile_fail
-/// #[derive(veoveo_types::ResourceAddress)]
-/// #[resource(template = "example://items/{id}", error = veoveo_types::ResourceUriError,
-///     route_error = |_| veoveo_types::ResourceUriError::InvalidUri)]
+/// #[veoveo_types::resource_address(custom(template = "example://items/{id}", error = veoveo_types::ResourceUriError,
+///     route_error = |_| veoveo_types::ResourceUriError::InvalidUri))]
 /// struct Unmapped { other: veoveo_types::PrincipalId }
+/// ```
+/// Existing custom field codecs compose with the attribute's checked backend:
+/// ```
+/// #[veoveo_types::resource_address(custom(
+///     template = "example://items/{id}", error = veoveo_types::ResourceUriError,
+///     route_error = |_| veoveo_types::ResourceUriError::InvalidUri))]
+/// struct Address { id: veoveo_types::PrincipalId }
+/// let id = veoveo_types::PrincipalId::parse("actor").unwrap();
+/// let address = Address::resource_from_parts(id).unwrap();
+/// let uri = veoveo_types::ResourceAddress::to_uri(&address).unwrap();
+/// assert_eq!(uri.as_str(), "example://items/actor");
 /// ```
 /// A raw String cannot satisfy the default field codec.
 /// ```compile_fail
-/// #[derive(veoveo_types::ResourceAddress)]
-/// #[resource(template = "example://items/{id}", error = veoveo_types::ResourceUriError,
-///     route_error = |_| veoveo_types::ResourceUriError::InvalidUri)]
+/// #[veoveo_types::resource_address(custom(template = "example://items/{id}", error = veoveo_types::ResourceUriError,
+///     route_error = |_| veoveo_types::ResourceUriError::InvalidUri))]
 /// struct Unchecked { id: String }
 /// ```
-/// Generic owners cannot declare the derive's static route vocabulary.
+/// Generic owners cannot declare the attribute's static route vocabulary.
 /// ```compile_fail
-/// #[derive(veoveo_types::ResourceAddress)]
-/// #[resource(template = "example://items/{id}", error = veoveo_types::ResourceUriError,
-///     route_error = |_| veoveo_types::ResourceUriError::InvalidUri)]
+/// #[veoveo_types::resource_address(custom(template = "example://items/{id}", error = veoveo_types::ResourceUriError,
+///     route_error = |_| veoveo_types::ResourceUriError::InvalidUri))]
 /// struct Generic<T> { id: T }
 /// ```
 /// Component encoding helpers cannot bypass checked construction outside the owner.
 /// ```compile_fail
 /// mod owner {
-///     #[derive(veoveo_types::ResourceAddress)]
-///     #[resource(template = "example://items/{id}", error = veoveo_types::ResourceUriError,
-///         route_error = |_| veoveo_types::ResourceUriError::InvalidUri)]
+///     #[veoveo_types::resource_address(custom(template = "example://items/{id}", error = veoveo_types::ResourceUriError,
+///         route_error = |_| veoveo_types::ResourceUriError::InvalidUri))]
 ///     pub struct Address { id: veoveo_types::PrincipalId }
 /// }
-/// let id = veoveo_types::PrincipalId::new("actor").unwrap();
+/// let id = veoveo_types::PrincipalId::parse("actor").unwrap();
 /// owner::Address::resource_build_uri(&id);
 /// ```
 /// A cache must be private to the owner module.
 /// ```compile_fail
-/// #[derive(veoveo_types::ResourceAddress)]
-/// #[resource(template = "example://items/{id}", error = veoveo_types::ResourceUriError,
-///     route_error = |_| veoveo_types::ResourceUriError::InvalidUri)]
+/// #[veoveo_types::resource_address(custom(template = "example://items/{id}", error = veoveo_types::ResourceUriError,
+///     route_error = |_| veoveo_types::ResourceUriError::InvalidUri))]
 /// struct PublicCache {
 ///     id: veoveo_types::PrincipalId,
 ///     #[resource(cache)] pub wire: veoveo_types::ResourceUri,
@@ -141,16 +147,15 @@ pub struct RouteQuery {
 /// Private caches require private components; outside callers cannot mutate them.
 /// ```compile_fail
 /// mod owner {
-///     #[derive(veoveo_types::ResourceAddress)]
-///     #[resource(template = "example://items/{id}", error = veoveo_types::ResourceUriError,
-///         route_error = |_| veoveo_types::ResourceUriError::InvalidUri)]
+///     #[veoveo_types::resource_address(custom(template = "example://items/{id}", error = veoveo_types::ResourceUriError,
+///         route_error = |_| veoveo_types::ResourceUriError::InvalidUri))]
 ///     pub struct Address {
 ///         id: veoveo_types::PrincipalId,
 ///         #[resource(cache)] wire: veoveo_types::ResourceUri,
 ///     }
 /// }
-/// let mut address = owner::Address::resource_from_parts(veoveo_types::PrincipalId::new("actor").unwrap()).unwrap();
-/// address.id = veoveo_types::PrincipalId::new("other").unwrap();
+/// let mut address = owner::Address::resource_from_parts(veoveo_types::PrincipalId::parse("actor").unwrap()).unwrap();
+/// address.id = veoveo_types::PrincipalId::parse("other").unwrap();
 /// ```
 #[derive(Debug)]
 pub struct ResourceRoute {

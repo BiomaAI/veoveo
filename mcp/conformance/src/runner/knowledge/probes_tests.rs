@@ -60,7 +60,7 @@ enum Change {
 fn descriptor() -> CollectionDescriptor {
     CollectionDescriptor::new(
         CollectionId::try_from("fixture.readings".to_owned()).unwrap(),
-        EntityKind::new("reading").unwrap(),
+        EntityKind::parse("reading").unwrap(),
         ResourceTemplateUri::new(INDEX).unwrap(),
         Freshness::max_age(30),
         ChangeSignal::Listen,
@@ -261,7 +261,7 @@ impl ServerHandler for Fixture {
             let descriptor = descriptor();
             let observation = Observation::builder(
                 descriptor.collection().clone(),
-                Revision::new(version.to_string()).unwrap(),
+                Revision::parse(version.to_string()).unwrap(),
                 knowledge::content_digest(&text),
                 chrono::Utc::now(),
             )
@@ -427,7 +427,7 @@ async fn qualify(route: KnowledgeRoute, change: Change) -> Result<()> {
     )?;
     let descriptor = descriptor();
     let mut tool = Tool::new(
-        profile.tool_name(&LocalToolName::new("search")?)?,
+        profile.tool_name(&LocalToolName::parse("search")?)?,
         "Search the fixture",
         serde_json::from_value::<rmcp::model::JsonObject>(
             json!({"type": "object", "additionalProperties": false}),
@@ -464,7 +464,7 @@ async fn qualify(route: KnowledgeRoute, change: Change) -> Result<()> {
             vec![]
         } else {
             vec![KnowledgeSearchProbe {
-                tool: LocalToolName::new("search")?,
+                tool: LocalToolName::parse("search")?,
                 arguments: Default::default(),
                 expected: BTreeSet::from([ResourceUri::new(MEMBER)?]),
                 restricted: KnowledgeSearchAccess::Results(BTreeSet::new()),
@@ -507,7 +507,7 @@ async fn qualify(route: KnowledgeRoute, change: Change) -> Result<()> {
     println!("{}", serde_json::to_string(&checks)?);
     if change == Change::Update {
         let denied = KnowledgeSearchProbe {
-            tool: LocalToolName::new("search")?,
+            tool: LocalToolName::parse("search")?,
             arguments: Default::default(),
             expected: [ResourceUri::new(MEMBER)?].into(),
             restricted_credentials: ConformanceCredentials::bearer("tool-denied"),

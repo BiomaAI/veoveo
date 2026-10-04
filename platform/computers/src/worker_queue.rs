@@ -35,10 +35,7 @@ impl ComputersStore {
             .query(
                 include_str!("../queries/pending_operations.surql"),
                 vec![
-                    (
-                        "provider",
-                        self.provider_instance_id.into_uuid().into_value(),
-                    ),
+                    ("provider", self.provider_instance_id.as_uuid().into_value()),
                     (
                         "after",
                         after.map(veoveo_types::TaskId::as_uuid).into_value(),
@@ -96,10 +93,7 @@ impl ComputersStore {
                     operation_record(operation.operation_id).into_value(),
                 ),
                 ("task", task_record_id(operation.task_id()).into_value()),
-                (
-                    "provider",
-                    self.provider_instance_id.into_uuid().into_value(),
-                ),
+                ("provider", self.provider_instance_id.as_uuid().into_value()),
                 ("status", status.into_value()),
             ],
         )

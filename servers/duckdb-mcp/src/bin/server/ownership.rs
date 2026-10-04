@@ -41,22 +41,25 @@ pub(super) fn identity_from_runtime(
 ) -> Result<GatewayInternalIdentity, String> {
     let now = Utc::now();
     Ok(GatewayInternalIdentity {
-        issuer: TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)
+        issuer: TokenIssuer::parse(GATEWAY_INTERNAL_TOKEN_ISSUER)
             .map_err(|error| error.to_string())?,
-        profile: GatewayProfileId::new(owner.profile.clone()).map_err(|error| error.to_string())?,
-        server: ServerSlug::new("duckdb").map_err(|error| error.to_string())?,
+        profile: GatewayProfileId::parse(owner.profile.clone())
+            .map_err(|error| error.to_string())?,
+        server: ServerSlug::parse("duckdb").map_err(|error| error.to_string())?,
         actor: Principal {
-            id: PrincipalId::new(owner.principal_key.clone()).map_err(|error| error.to_string())?,
+            id: PrincipalId::parse(owner.principal_key.clone())
+                .map_err(|error| error.to_string())?,
             kind: match owner.principal_kind {
                 veoveo_task_runtime::PrincipalKind::User => PrincipalKind::User,
                 veoveo_task_runtime::PrincipalKind::Service => PrincipalKind::Service,
             },
-            issuer: TokenIssuer::new(owner.issuer.clone()).map_err(|error| error.to_string())?,
-            subject: TokenSubject::new(owner.subject.clone()).map_err(|error| error.to_string())?,
+            issuer: TokenIssuer::parse(owner.issuer.clone()).map_err(|error| error.to_string())?,
+            subject: TokenSubject::parse(owner.subject.clone())
+                .map_err(|error| error.to_string())?,
             tenant: owner
                 .tenant_key
                 .clone()
-                .map(TenantId::new)
+                .map(TenantId::parse)
                 .transpose()
                 .map_err(|error| error.to_string())?,
             groups: BTreeSet::new(),
@@ -67,7 +70,7 @@ pub(super) fn identity_from_runtime(
                 .data_labels
                 .iter()
                 .cloned()
-                .map(veoveo_types::DataLabelId::new)
+                .map(veoveo_types::DataLabelId::parse)
                 .collect::<Result<_, _>>()
                 .map_err(|error| error.to_string())?,
             assurances: BTreeSet::new(),
@@ -75,7 +78,8 @@ pub(super) fn identity_from_runtime(
         },
         authority: owner.authority.clone(),
         request_context: None,
-        jwt_id: JwtId::new(uuid::Uuid::now_v7().to_string()).map_err(|error| error.to_string())?,
+        jwt_id: JwtId::parse(uuid::Uuid::now_v7().to_string())
+            .map_err(|error| error.to_string())?,
         issued_at: now,
         not_before: now,
         expires_at: now + TimeDelta::hours(1),
@@ -208,19 +212,19 @@ mod tests {
         changed.actor.tenant = None;
         identities.push(changed);
         let mut changed = original.clone();
-        changed.actor.tenant = Some(TenantId::new("installation").unwrap());
+        changed.actor.tenant = Some(TenantId::parse("installation").unwrap());
         identities.push(changed);
         let mut changed = original.clone();
-        changed.actor.issuer = TokenIssuer::new("https://other.example.test").unwrap();
+        changed.actor.issuer = TokenIssuer::parse("https://other.example.test").unwrap();
         identities.push(changed);
         let mut changed = original.clone();
-        changed.actor.subject = TokenSubject::new("another-subject").unwrap();
+        changed.actor.subject = TokenSubject::parse("another-subject").unwrap();
         identities.push(changed);
         let mut changed = original.clone();
-        changed.actor.id = PrincipalId::new("another-principal").unwrap();
+        changed.actor.id = PrincipalId::parse("another-principal").unwrap();
         identities.push(changed);
         let mut changed = original.clone();
-        changed.profile = GatewayProfileId::new("research").unwrap();
+        changed.profile = GatewayProfileId::parse("research").unwrap();
         identities.push(changed);
         let mut selected_directories = BTreeSet::from([directory]);
         for (n, identity) in identities.iter().enumerate() {

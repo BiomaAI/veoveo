@@ -239,11 +239,11 @@ fn warm_cache_requires_current_artifact_read_permission_and_exact_metadata() {
 fn caller(name: &str) -> PlaneCaller {
     let now = Utc::now();
     let actor = Principal {
-        id: PrincipalId::new(name).unwrap(),
+        id: PrincipalId::parse(name).unwrap(),
         kind: PrincipalKind::User,
-        issuer: TokenIssuer::new("https://idp.example.com").unwrap(),
-        subject: TokenSubject::new(name).unwrap(),
-        tenant: Some(TenantId::new("fixture").unwrap()),
+        issuer: TokenIssuer::parse("https://idp.example.com").unwrap(),
+        subject: TokenSubject::parse(name).unwrap(),
+        tenant: Some(TenantId::parse("fixture").unwrap()),
         groups: BTreeSet::new(),
         group_roles: BTreeSet::new(),
         roles: BTreeSet::new(),
@@ -256,14 +256,14 @@ fn caller(name: &str) -> PlaneCaller {
         bearer_token: format!("fixture-{name}"),
         memberships: BTreeSet::new(),
         identity: GatewayInternalIdentity {
-            issuer: TokenIssuer::new("veoveo-internal").unwrap(),
-            profile: GatewayProfileId::new("operator").unwrap(),
-            server: ServerSlug::new("stream").unwrap(),
+            issuer: TokenIssuer::parse("veoveo-internal").unwrap(),
+            profile: GatewayProfileId::parse("operator").unwrap(),
+            server: ServerSlug::parse("stream").unwrap(),
             authority: InvocationAuthority {
-                work_context: WorkContextId::new("mission").unwrap(),
-                tenant: TenantId::new("fixture").unwrap(),
+                work_context: WorkContextId::parse("mission").unwrap(),
+                tenant: TenantId::parse("fixture").unwrap(),
                 membership: WorkContextMembershipLevel::Owner,
-                policy_revision: PolicyVersion::new("r1").unwrap(),
+                policy_revision: PolicyVersion::parse("r1").unwrap(),
                 output_policy: WorkContextOutputPolicy {
                     owner: AccessSubject::Principal(actor.id.clone()),
                     initial_grants: Vec::new(),
@@ -276,7 +276,7 @@ fn caller(name: &str) -> PlaneCaller {
             },
             actor,
             request_context: None,
-            jwt_id: JwtId::new(uuid::Uuid::now_v7().to_string()).unwrap(),
+            jwt_id: JwtId::parse(uuid::Uuid::now_v7().to_string()).unwrap(),
             issued_at: now,
             not_before: now,
             expires_at: now + chrono::TimeDelta::minutes(5),

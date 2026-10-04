@@ -230,7 +230,7 @@ fn authentication_draft(
         && let (Some(server), Some(client)) = (record.authorization_server, record.client_id)
     {
         draft = draft.actor(AuditActor {
-            principal: PrincipalId::new(format!("{}#{}", server.issuer, client))?,
+            principal: PrincipalId::parse(format!("{}#{}", server.issuer, client))?,
             kind: AuditPrincipalKind::Service,
             tenant: None,
             oauth_client: Some(client.clone()),
@@ -256,8 +256,8 @@ mod tests {
             "data_labels": ["cui"]
         }))
         .unwrap();
-        let resource = ProtectedResourceId::new("https://gateway.example/mcp/operator").unwrap();
-        let profile = GatewayProfileId::new("operator").unwrap();
+        let resource = ProtectedResourceId::parse("https://gateway.example/mcp/operator").unwrap();
+        let profile = GatewayProfileId::parse("operator").unwrap();
         for (outcome, expected_outcome, expected_reason, activity) in [
             (
                 AuthOutcome::Allow,
@@ -306,7 +306,7 @@ mod tests {
     #[test]
     fn anonymous_token_denial_identifies_its_protected_resource() {
         let resource =
-            ProtectedResourceId::new("https://gateway.example/recording-ingest").unwrap();
+            ProtectedResourceId::parse("https://gateway.example/recording-ingest").unwrap();
         let draft = authentication_draft(
             AuthAuditTarget {
                 profile: None,

@@ -15,7 +15,7 @@ use crate::store_fixture as fixture;
 use super::*;
 
 fn owner() -> TaskOwner {
-    let principal = PrincipalId::new("reason-result-test").unwrap();
+    let principal = PrincipalId::parse("reason-result-test").unwrap();
     TaskOwner {
         principal_key: principal.to_string(),
         principal_kind: PrincipalKind::User,
@@ -25,10 +25,10 @@ fn owner() -> TaskOwner {
         tenant_key: Some("reason-result-test".into()),
         data_labels: BTreeSet::new(),
         authority: InvocationAuthority {
-            work_context: WorkContextId::new("reason-result-test").unwrap(),
-            tenant: TenantId::new("reason-result-test").unwrap(),
+            work_context: WorkContextId::parse("reason-result-test").unwrap(),
+            tenant: TenantId::parse("reason-result-test").unwrap(),
             membership: WorkContextMembershipLevel::Owner,
-            policy_revision: PolicyVersion::new("test-v1").unwrap(),
+            policy_revision: PolicyVersion::parse("test-v1").unwrap(),
             output_policy: WorkContextOutputPolicy {
                 owner: AccessSubject::Principal(principal.clone()),
                 initial_grants: Vec::new(),

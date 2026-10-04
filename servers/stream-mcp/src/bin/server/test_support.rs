@@ -13,7 +13,7 @@ use veoveo_types::{
 use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy};
 
 pub(super) fn owner() -> TaskOwner {
-    let principal = PrincipalId::new("stream-result-test").unwrap();
+    let principal = PrincipalId::parse("stream-result-test").unwrap();
     TaskOwner {
         principal_key: principal.to_string(),
         principal_kind: PrincipalKind::User,
@@ -23,10 +23,10 @@ pub(super) fn owner() -> TaskOwner {
         tenant_key: Some("stream-result-test".into()),
         data_labels: BTreeSet::new(),
         authority: InvocationAuthority {
-            work_context: WorkContextId::new("stream-result-test").unwrap(),
-            tenant: TenantId::new("stream-result-test").unwrap(),
+            work_context: WorkContextId::parse("stream-result-test").unwrap(),
+            tenant: TenantId::parse("stream-result-test").unwrap(),
             membership: WorkContextMembershipLevel::Owner,
-            policy_revision: PolicyVersion::new("test-v1").unwrap(),
+            policy_revision: PolicyVersion::parse("test-v1").unwrap(),
             output_policy: WorkContextOutputPolicy {
                 owner: AccessSubject::Principal(principal.clone()),
                 initial_grants: Vec::new(),

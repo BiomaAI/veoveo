@@ -21,7 +21,7 @@ pub fn resolve_app_tool<'a>(
     tools: &'a [Tool],
     alias: &str,
 ) -> Option<&'a Tool> {
-    LocalToolName::new(alias).ok()?;
+    LocalToolName::parse(alias).ok()?;
     if alias.contains("__") {
         return None;
     }

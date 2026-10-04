@@ -180,8 +180,8 @@ fn coordinate_space(point: &CoordinatePoint) -> CoordinateSpace {
 
 fn crs_for_space(space: &CoordinateSpace) -> Option<CrsId> {
     match space {
-        CoordinateSpace::Wgs84 => CrsId::new("EPSG:4326").ok(),
-        CoordinateSpace::EcefWgs84 => CrsId::new("EPSG:4978").ok(),
+        CoordinateSpace::Wgs84 => CrsId::parse("EPSG:4326").ok(),
+        CoordinateSpace::EcefWgs84 => CrsId::parse("EPSG:4978").ok(),
         CoordinateSpace::WorldFrame { .. } => None,
     }
 }
@@ -217,7 +217,7 @@ fn provenance(
     target_frame: Option<CoordinateSpace>,
     target_crs: Option<CrsId>,
 ) -> CoordinateOperationProvenance {
-    let operation_id = CoordinateOperationId::new(format!("op-{}", uuid::Uuid::now_v7()))
+    let operation_id = CoordinateOperationId::parse(format!("op-{}", uuid::Uuid::now_v7()))
         .expect("generated operation id is valid");
     CoordinateOperationProvenance {
         operation: CoordinateOperationRef::new(operation_id, Utc::now())
@@ -243,8 +243,8 @@ mod tests {
     use chrono::Utc;
 
     fn revision() -> FrameWorldRevision {
-        let world_id = FrameWorldId::new("new-york-showcase").unwrap();
-        let revision_id = FrameWorldRevisionId::new("revision-1").unwrap();
+        let world_id = FrameWorldId::parse("new-york-showcase").unwrap();
+        let revision_id = FrameWorldRevisionId::parse("revision-1").unwrap();
         let revision_uri = FrameWorldRevisionUri::new(&world_id, &revision_id);
         FrameWorldRevision::new(
             revision_uri,
@@ -252,16 +252,16 @@ mod tests {
             crate::contract::ValidatedWorldTree::new(FrameWorldTree {
                 frames: vec![
                     FrameNode {
-                        frame_id: FrameId::new("earth-ecef").unwrap(),
+                        frame_id: FrameId::parse("earth-ecef").unwrap(),
                         basis: FrameBasis::EcefWgs84,
                         parent_frame_id: None,
                         parent_transform: None,
                         description: None,
                     },
                     FrameNode {
-                        frame_id: FrameId::new("times-square-enu").unwrap(),
+                        frame_id: FrameId::parse("times-square-enu").unwrap(),
                         basis: FrameBasis::Enu,
-                        parent_frame_id: Some(FrameId::new("earth-ecef").unwrap()),
+                        parent_frame_id: Some(FrameId::parse("earth-ecef").unwrap()),
                         parent_transform: Some(FrameParentTransform::GeodeticTangent {
                             origin: Wgs84Position {
                                 latitude_degrees: 40.758,
@@ -284,7 +284,7 @@ mod tests {
         let expected_revision_uri = revision.revision_uri().clone();
         let frame_uri = WorldFrameUri::new(
             revision.revision_uri(),
-            &FrameId::new("times-square-enu").unwrap(),
+            &FrameId::parse("times-square-enu").unwrap(),
         );
         let mut worlds = ResolvedWorlds::default();
         worlds.insert(revision).unwrap();
@@ -349,8 +349,8 @@ mod tests {
     fn conversion_excludes_prefetched_but_unused_world_revisions() {
         let used = revision();
         let used_uri = used.revision_uri().clone();
-        let unused_world_id = FrameWorldId::new("unused-world").unwrap();
-        let unused_revision_id = FrameWorldRevisionId::new("revision-unused").unwrap();
+        let unused_world_id = FrameWorldId::parse("unused-world").unwrap();
+        let unused_revision_id = FrameWorldRevisionId::parse("revision-unused").unwrap();
         let unused = FrameWorldRevision::new(
             FrameWorldRevisionUri::new(&unused_world_id, &unused_revision_id),
             1.try_into().unwrap(),
@@ -360,7 +360,7 @@ mod tests {
 
         let frame_uri = WorldFrameUri::new(
             used.revision_uri(),
-            &FrameId::new("times-square-enu").unwrap(),
+            &FrameId::parse("times-square-enu").unwrap(),
         );
         let mut worlds = ResolvedWorlds::default();
         worlds.insert(used).unwrap();

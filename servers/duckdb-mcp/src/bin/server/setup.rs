@@ -25,7 +25,7 @@ impl McpServerContract for DuckDbContract {
     type Scope = DuckDbScope;
     type Resource = DuckDbResource;
     fn slug() -> ServerSlug {
-        ServerSlug::new("duckdb").expect("declared DuckDB slug")
+        ServerSlug::parse("duckdb").expect("declared DuckDB slug")
     }
     fn scheme() -> ResourceScheme {
         uris::SCHEME.clone()

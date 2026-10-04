@@ -20,10 +20,10 @@ impl McpServerContract for ComputersContract {
     type Scope = ComputerScope;
     type Resource = ComputerResource;
     fn slug() -> ServerSlug {
-        ServerSlug::new("computers").expect("declared slug")
+        ServerSlug::parse("computers").expect("declared slug")
     }
     fn scheme() -> ResourceScheme {
-        ResourceScheme::new("computer").expect("declared resource scheme")
+        ResourceScheme::parse("computer").expect("declared resource scheme")
     }
     fn scopes() -> &'static [Self::Scope] {
         Self::Scope::ALL

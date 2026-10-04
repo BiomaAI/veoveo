@@ -52,7 +52,7 @@ impl ComputersStore {
                     "computer",
                     crate::model::computer_record(before.computer_id).into_value(),
                 ),
-                ("computer_id", before.computer_id.into_uuid().into_value()),
+                ("computer_id", before.computer_id.as_uuid().into_value()),
                 (
                     "slot",
                     crate::commands::slot(before.computer_id).into_value(),
@@ -67,7 +67,7 @@ impl ComputersStore {
                 ),
                 (
                     "provider",
-                    before.provider_instance_id.into_uuid().into_value(),
+                    before.provider_instance_id.as_uuid().into_value(),
                 ),
                 ("instance", before.replacement_instance_id.into_value()),
                 ("template", before.template_fingerprint.clone().into_value()),

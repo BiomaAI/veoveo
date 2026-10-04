@@ -243,7 +243,9 @@ async fn list(
     let next = if values.len() == page.limit as usize {
         values
             .last()
-            .map(|d| wire::AgentDefinitionId::new(d.key.clone()).map_err(|_| Fault::unavailable()))
+            .map(|d| {
+                wire::AgentDefinitionId::parse(d.key.clone()).map_err(|_| Fault::unavailable())
+            })
             .transpose()?
     } else {
         None
@@ -288,7 +290,7 @@ async fn draft(
         .agent_definition(&actor.authority, &id)
         .await?;
     Ok(Json(wire::Draft {
-        definition: wire::AgentDefinitionId::new(id)
+        definition: wire::AgentDefinitionId::parse(id)
             .map_err(|_| Fault::status(StatusCode::NOT_FOUND))?,
         revision: value.revision,
         content: projection::public_content(value.draft)?,
@@ -324,7 +326,7 @@ async fn revisions(
         )
         .await?;
     let definition =
-        wire::AgentDefinitionId::new(id).map_err(|_| Fault::status(StatusCode::NOT_FOUND))?;
+        wire::AgentDefinitionId::parse(id).map_err(|_| Fault::status(StatusCode::NOT_FOUND))?;
     let items = values
         .into_iter()
         .map(|v| {

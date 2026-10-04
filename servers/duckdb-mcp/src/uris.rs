@@ -5,7 +5,7 @@ use veoveo_artifact_contract::{ArtifactId, ArtifactUri};
 use veoveo_types::{ResourceAddress, ResourceScheme};
 
 pub static SCHEME: LazyLock<ResourceScheme> =
-    LazyLock::new(|| ResourceScheme::new("duckdb").expect("declared DuckDB scheme"));
+    LazyLock::new(|| ResourceScheme::parse("duckdb").expect("declared DuckDB scheme"));
 pub const DBS_ROOT_URI: &str = "duckdb://dbs";
 pub const DBS_TEMPLATE: &str = "duckdb://dbs{?cursor}";
 pub const WORKBENCH_APP_URI: &str = "ui://duckdb/workbench.html";

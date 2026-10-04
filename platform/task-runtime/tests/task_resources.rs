@@ -31,7 +31,7 @@ use veoveo_types::{
 use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy};
 
 fn owner() -> TaskOwner {
-    let principal = PrincipalId::new("resource-observer").unwrap();
+    let principal = PrincipalId::parse("resource-observer").unwrap();
     TaskOwner {
         principal_key: principal.to_string(),
         principal_kind: PrincipalKind::User,
@@ -41,10 +41,10 @@ fn owner() -> TaskOwner {
         tenant_key: Some("resource-test".into()),
         data_labels: BTreeSet::new(),
         authority: InvocationAuthority {
-            work_context: WorkContextId::new("resource-test").unwrap(),
-            tenant: TenantId::new("resource-test").unwrap(),
+            work_context: WorkContextId::parse("resource-test").unwrap(),
+            tenant: TenantId::parse("resource-test").unwrap(),
             membership: WorkContextMembershipLevel::Owner,
-            policy_revision: PolicyVersion::new("v1").unwrap(),
+            policy_revision: PolicyVersion::parse("v1").unwrap(),
             output_policy: WorkContextOutputPolicy {
                 owner: AccessSubject::Principal(principal.clone()),
                 initial_grants: vec![],

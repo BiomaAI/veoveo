@@ -219,7 +219,7 @@ fn reusable_route(
         });
     };
     let canonical =
-        CanonicalTaskId::new(id.clone()).map_err(|_| StoreError::InvalidGatewayTaskRoute {
+        CanonicalTaskId::parse(id.clone()).map_err(|_| StoreError::InvalidGatewayTaskRoute {
             reason: "invalid stored task route identity".into(),
         })?;
     Ok((canonical, route))
@@ -230,7 +230,7 @@ fn new_task_route_id() -> Result<CanonicalTaskId, StoreError> {
     getrandom::fill(&mut entropy).map_err(|error| StoreError::InvalidGatewayTaskRoute {
         reason: format!("task route entropy failed: {error}"),
     })?;
-    CanonicalTaskId::new(format!("gtr_{}", URL_SAFE_NO_PAD.encode(entropy))).map_err(|error| {
+    CanonicalTaskId::parse(format!("gtr_{}", URL_SAFE_NO_PAD.encode(entropy))).map_err(|error| {
         StoreError::InvalidGatewayTaskRoute {
             reason: error.to_string(),
         }

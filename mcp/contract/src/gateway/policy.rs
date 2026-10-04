@@ -283,7 +283,7 @@ pub enum PolicyTarget {
     /// use veoveo_mcp_contract::{PolicyTarget, ServerSlug};
     /// use veoveo_types::ResourceUri;
     /// PolicyTarget::ResourceTemplate {
-    ///     server: ServerSlug::new("example").unwrap(),
+    ///     server: ServerSlug::parse("example").unwrap(),
     ///     uri: ResourceUri::new("example://items/literal").unwrap(),
     /// };
     /// ```
@@ -330,16 +330,16 @@ mod group_membership_tests {
 
     fn principal_with(groups: &[&str], group_roles: &[(&str, GroupRole)]) -> Principal {
         Principal {
-            id: PrincipalId::new("https://idp#u1").unwrap(),
+            id: PrincipalId::parse("https://idp#u1").unwrap(),
             kind: PrincipalKind::User,
-            issuer: TokenIssuer::new("https://idp").unwrap(),
-            subject: TokenSubject::new("u1").unwrap(),
+            issuer: TokenIssuer::parse("https://idp").unwrap(),
+            subject: TokenSubject::parse("u1").unwrap(),
             tenant: None,
-            groups: groups.iter().map(|g| GroupId::new(*g).unwrap()).collect(),
+            groups: groups.iter().map(|g| GroupId::parse(*g).unwrap()).collect(),
             group_roles: group_roles
                 .iter()
                 .map(|(g, r)| GroupMembership {
-                    group: GroupId::new(*g).unwrap(),
+                    group: GroupId::parse(*g).unwrap(),
                     role: *r,
                 })
                 .collect(),
@@ -365,11 +365,11 @@ mod group_membership_tests {
         let m = p.group_memberships();
         let eng = m
             .iter()
-            .find(|gm| gm.group == GroupId::new("eng").unwrap())
+            .find(|gm| gm.group == GroupId::parse("eng").unwrap())
             .unwrap();
         let ops = m
             .iter()
-            .find(|gm| gm.group == GroupId::new("ops").unwrap())
+            .find(|gm| gm.group == GroupId::parse("ops").unwrap())
             .unwrap();
         assert_eq!(eng.role, GroupRole::Write);
         assert_eq!(ops.role, GroupRole::Read);
@@ -381,7 +381,10 @@ mod group_membership_tests {
         let p = principal_with(&["eng"], &[("secret", GroupRole::Admin)]);
         let m = p.group_memberships();
         assert_eq!(m.len(), 1);
-        assert_eq!(m.iter().next().unwrap().group, GroupId::new("eng").unwrap());
+        assert_eq!(
+            m.iter().next().unwrap().group,
+            GroupId::parse("eng").unwrap()
+        );
     }
 }
 

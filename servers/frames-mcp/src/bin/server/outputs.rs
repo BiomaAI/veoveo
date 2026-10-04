@@ -58,7 +58,7 @@ async fn store_artifact(
             .data_labels
             .iter()
             .cloned()
-            .map(veoveo_types::DataLabelId::new)
+            .map(veoveo_types::DataLabelId::parse)
             .collect::<Result<_, _>>()?,
         ..Default::default()
     };

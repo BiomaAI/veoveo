@@ -250,7 +250,7 @@ async fn authorize_agent_operation(
     operation: AgentOperation,
     started_at: Instant,
 ) -> Result<AuthorizedAgentOperation, Box<Response>> {
-    let Some(profile_id) = veoveo_mcp_contract::GatewayProfileId::new(profile).ok() else {
+    let Some(profile_id) = veoveo_mcp_contract::GatewayProfileId::parse(profile).ok() else {
         return Err(StatusCode::NOT_FOUND.into_response().into());
     };
     if agent_id.trim().is_empty() || agent_id.len() > 256 || agent_id.chars().any(char::is_control)

@@ -189,7 +189,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         struct Counter {
             value: std::num::NonZeroU64,
         }
-        let name = veoveo_types::ExtensionName::new("independent_counter").unwrap();
+        let name = veoveo_types::ExtensionName::parse("independent_counter").unwrap();
         let mut declarations = access_token_extension_registry_builder();
         declarations.reserve(name.clone()).unwrap();
         let unbound = declarations.build();
@@ -229,7 +229,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
             );
         }
         let mut invalid = veoveo_types::ExtensionRegistryBuilder::new(std::iter::empty::<String>());
-        let core = veoveo_types::ExtensionName::new("iss").unwrap();
+        let core = veoveo_types::ExtensionName::parse("iss").unwrap();
         invalid.reserve(core.clone()).unwrap();
         let bad_key = invalid.bind_serde::<String>(&core).unwrap();
         let invalid = invalid.build();
@@ -267,11 +267,11 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         jwk.common.key_id = Some("test-key".to_string());
         JwtVerifier::new(
             JwtAuthConfig::new(
-                TokenIssuer::new(ISSUER).unwrap(),
-                ProtectedResourceId::new(AUDIENCE).unwrap(),
+                TokenIssuer::parse(ISSUER).unwrap(),
+                ProtectedResourceId::parse(AUDIENCE).unwrap(),
                 required_scopes
                     .iter()
-                    .map(|scope| ScopeName::new(*scope).unwrap())
+                    .map(|scope| ScopeName::parse(*scope).unwrap())
                     .collect(),
                 algorithms,
             )
@@ -503,8 +503,8 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
     #[test]
     fn rejects_symmetric_gateway_jwt_algorithms() {
         let err = JwtAuthConfig::new(
-            TokenIssuer::new(ISSUER).unwrap(),
-            ProtectedResourceId::new(AUDIENCE).unwrap(),
+            TokenIssuer::parse(ISSUER).unwrap(),
+            ProtectedResourceId::parse(AUDIENCE).unwrap(),
             Default::default(),
             vec![Algorithm::HS256],
         )
@@ -542,13 +542,13 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
             subject
                 .principal
                 .scopes
-                .contains(&ScopeName::new("operator:use").unwrap())
+                .contains(&ScopeName::parse("operator:use").unwrap())
         );
         assert!(
             subject
                 .principal
                 .data_labels
-                .contains(&DataLabelId::new("cui").unwrap())
+                .contains(&DataLabelId::parse("cui").unwrap())
         );
         assert!(
             subject
@@ -652,7 +652,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
     fn verifies_private_key_jwt_client_assertion() {
         let verifier = ClientAssertionVerifier::new(
             ClientAssertionConfig::new(
-                OAuthClientId::new("operator-service").unwrap(),
+                OAuthClientId::parse("operator-service").unwrap(),
                 "https://veoveo.example/oauth/token",
                 vec![Algorithm::RS256],
             )
@@ -675,7 +675,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
     fn rejects_private_key_jwt_subject_mismatch() {
         let verifier = ClientAssertionVerifier::new(
             ClientAssertionConfig::new(
-                OAuthClientId::new("operator-service").unwrap(),
+                OAuthClientId::parse("operator-service").unwrap(),
                 "https://veoveo.example/oauth/token",
                 vec![Algorithm::RS256],
             )
@@ -699,9 +699,9 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
     fn verifies_enterprise_managed_id_jag() {
         let verifier = IdJagVerifier::new(
             IdJagConfig::new(
-                TokenIssuer::new(ISSUER).unwrap(),
-                TokenIssuer::new("https://veoveo.example/oauth").unwrap(),
-                ProtectedResourceId::new(AUDIENCE).unwrap(),
+                TokenIssuer::parse(ISSUER).unwrap(),
+                TokenIssuer::parse("https://veoveo.example/oauth").unwrap(),
+                ProtectedResourceId::parse(AUDIENCE).unwrap(),
                 vec![Algorithm::RS256],
             )
             .unwrap(),
@@ -717,13 +717,13 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         assert!(
             verified
                 .scopes
-                .contains(&ScopeName::new("operator:use").unwrap())
+                .contains(&ScopeName::parse("operator:use").unwrap())
         );
         assert!(
             verified
                 .principal
                 .data_labels
-                .contains(&DataLabelId::new("cui").unwrap())
+                .contains(&DataLabelId::parse("cui").unwrap())
         );
         assert!(
             verified
@@ -737,9 +737,9 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
     fn rejects_id_jag_for_wrong_resource() {
         let verifier = IdJagVerifier::new(
             IdJagConfig::new(
-                TokenIssuer::new(ISSUER).unwrap(),
-                TokenIssuer::new("https://veoveo.example/oauth").unwrap(),
-                ProtectedResourceId::new(AUDIENCE).unwrap(),
+                TokenIssuer::parse(ISSUER).unwrap(),
+                TokenIssuer::parse("https://veoveo.example/oauth").unwrap(),
+                ProtectedResourceId::parse(AUDIENCE).unwrap(),
                 vec![Algorithm::RS256],
             )
             .unwrap(),
@@ -757,9 +757,9 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
     fn verifies_oidc_id_token_and_maps_principal() {
         let verifier = OidcIdTokenVerifier::new(
             OidcIdTokenConfig::new(
-                TokenIssuer::new(ISSUER).unwrap(),
-                OidcClientId::new("veoveo").unwrap(),
-                OidcNonce::new("nonce-1").unwrap(),
+                TokenIssuer::parse(ISSUER).unwrap(),
+                OidcClientId::parse("veoveo").unwrap(),
+                OidcNonce::parse("nonce-1").unwrap(),
                 vec![Algorithm::RS256],
             )
             .unwrap(),
@@ -780,7 +780,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
             verified
                 .principal
                 .data_labels
-                .contains(&DataLabelId::new("cui").unwrap())
+                .contains(&DataLabelId::parse("cui").unwrap())
         );
         assert!(
             verified
@@ -798,15 +798,15 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
                 claim: veoveo_mcp_contract::IdentityProviderTenantClaim::Tid,
                 values: std::collections::BTreeMap::from([(
                     "tenant-a".to_string(),
-                    veoveo_types::TenantId::new("tenant-a").unwrap(),
+                    veoveo_types::TenantId::parse("tenant-a").unwrap(),
                 )]),
             }),
         };
         let verifier = OidcIdTokenVerifier::new(
             OidcIdTokenConfig::new_with_claim_mapping(
-                TokenIssuer::new(ISSUER).unwrap(),
-                OidcClientId::new("veoveo").unwrap(),
-                OidcNonce::new("nonce-1").unwrap(),
+                TokenIssuer::parse(ISSUER).unwrap(),
+                OidcClientId::parse("veoveo").unwrap(),
+                OidcNonce::parse("nonce-1").unwrap(),
                 vec![Algorithm::RS256],
                 claim_mapping,
             )
@@ -825,7 +825,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
             verified
                 .principal
                 .roles
-                .contains(&veoveo_types::RoleId::new("operator").unwrap())
+                .contains(&veoveo_types::RoleId::parse("operator").unwrap())
         );
     }
 
@@ -833,9 +833,9 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
     fn oidc_display_name_falls_back_to_the_stable_subject() {
         let verifier = OidcIdTokenVerifier::new(
             OidcIdTokenConfig::new(
-                TokenIssuer::new(ISSUER).unwrap(),
-                OidcClientId::new("veoveo").unwrap(),
-                OidcNonce::new("nonce-1").unwrap(),
+                TokenIssuer::parse(ISSUER).unwrap(),
+                OidcClientId::parse("veoveo").unwrap(),
+                OidcNonce::parse("nonce-1").unwrap(),
                 vec![Algorithm::RS256],
             )
             .unwrap(),
@@ -853,9 +853,9 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
     fn rejects_oidc_id_token_nonce_mismatch() {
         let verifier = OidcIdTokenVerifier::new(
             OidcIdTokenConfig::new(
-                TokenIssuer::new(ISSUER).unwrap(),
-                OidcClientId::new("veoveo").unwrap(),
-                OidcNonce::new("nonce-1").unwrap(),
+                TokenIssuer::parse(ISSUER).unwrap(),
+                OidcClientId::parse("veoveo").unwrap(),
+                OidcNonce::parse("nonce-1").unwrap(),
                 vec![Algorithm::RS256],
             )
             .unwrap(),

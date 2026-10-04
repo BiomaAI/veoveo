@@ -33,8 +33,8 @@ impl ComputersStore {
                  SELECT * FROM ONLY $policy; RETURN time::now();",
                 vec![
                     ("grant", super::record(handle.grant_id).into_value()),
-                    ("connection", handle.connection_id.into_uuid().into_value()),
-                    ("provider", self.provider_instance_id.into_uuid().into_value()),
+                    ("connection", handle.connection_id.as_uuid().into_value()),
+                    ("provider", self.provider_instance_id.as_uuid().into_value()),
                     ("policy", self.session_policy_record().into_value()),
                 ],
             )
@@ -52,8 +52,8 @@ impl ComputersStore {
         let idle = row
             .idle_expires_at
             .min(row.last_activity_at + TimeDelta::seconds(i64::from(limits.idle_seconds)));
-        if row.connection_id != Some(handle.connection_id.into_uuid())
-            || row.provider_instance_id != self.provider_instance_id.into_uuid()
+        if row.connection_id != Some(handle.connection_id.as_uuid())
+            || row.provider_instance_id != self.provider_instance_id.as_uuid()
             || limits.max_grants == 0
             || row.revoked_at.is_some()
             || absolute <= now
@@ -85,7 +85,7 @@ impl ComputersStore {
                 include_str!("../../queries/touch_session_grant.surql"),
                 vec![
                     ("grant", super::record(handle.grant_id).into_value()),
-                    ("connection", handle.connection_id.into_uuid().into_value()),
+                    ("connection", handle.connection_id.as_uuid().into_value()),
                     ("policy", self.session_policy_record().into_value()),
                     ("policy_fingerprint", policy.fingerprint.into_value()),
                     (
@@ -140,15 +140,12 @@ impl ComputersStore {
             let mut params = crate::store::owner_query_bindings(actor.owner())?;
             params.extend([
                 ("grant", super::record(grant_id).into_value()),
-                ("computer_id", computer_id.into_uuid().into_value()),
+                ("computer_id", computer_id.as_uuid().into_value()),
                 (
                     "owner_key",
                     crate::identity::owner_key(&computer.owner)?.into_value(),
                 ),
-                (
-                    "provider",
-                    self.provider_instance_id.into_uuid().into_value(),
-                ),
+                ("provider", self.provider_instance_id.as_uuid().into_value()),
             ]);
             let mut read = self
                 .query(
@@ -195,12 +192,12 @@ impl ComputersStore {
         tokio::time::timeout(Duration::from_secs(5), async {
             let mut read = self.query("SELECT * FROM ONLY $grant WHERE connection_id = $connection AND provider_instance_id = $provider;", vec![
                 ("grant", super::record(handle.grant_id).into_value()),
-                ("connection", handle.connection_id.into_uuid().into_value()),
-                ("provider", self.provider_instance_id.into_uuid().into_value()),
+                ("connection", handle.connection_id.as_uuid().into_value()),
+                ("provider", self.provider_instance_id.as_uuid().into_value()),
             ]).await?;
             let row: Option<model::Record> = read.take(0).map_err(|_| ComputerError::Unavailable)?;
             let row = row.ok_or(ComputerError::Forbidden)?;
-            if row.connection_id != Some(handle.connection_id.into_uuid()) {
+            if row.connection_id != Some(handle.connection_id.as_uuid()) {
                 return Err(ComputerError::Forbidden);
             }
             let accepted = row.accepted()?;
@@ -209,7 +206,7 @@ impl ComputersStore {
                 vec![
                     ("grant", super::record(handle.grant_id).into_value()),
                     ("owner_key", row.owner_key.clone().into_value()),
-                    ("connection", Some(handle.connection_id.into_uuid()).into_value()),
+                    ("connection", Some(handle.connection_id.as_uuid()).into_value()),
                     (
                         "admission_expires_at",
                         Option::<DateTime<Utc>>::None.into_value(),

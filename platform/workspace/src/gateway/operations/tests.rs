@@ -83,19 +83,19 @@ async fn model_capability_admission_checks_only_required_discovery_surfaces() {
     let fixture = super::test_domain::Fixture::start(db.a.clone(), &subject).await;
     let state = new_state(db.a.clone(), fixture.port);
     let caller = Caller {
-        profile: GatewayProfileId::new("operator").unwrap(),
+        profile: GatewayProfileId::parse("operator").unwrap(),
         subject,
         bearer: "explicit-workspace-fixture".to_owned().into(),
     };
-    let required = [GatewayToolName::new("fixture__task").unwrap()];
+    let required = [GatewayToolName::parse("fixture__task").unwrap()];
     *fixture.domain.degraded_server.lock().unwrap() =
-        Some(veoveo_mcp_contract::ServerSlug::new("fixture").unwrap());
+        Some(veoveo_mcp_contract::ServerSlug::parse("fixture").unwrap());
     assert_eq!(
         state.capabilities(&caller, &required).await.unwrap_err(),
         StatusCode::SERVICE_UNAVAILABLE
     );
     *fixture.domain.degraded_server.lock().unwrap() =
-        Some(veoveo_mcp_contract::ServerSlug::new("unrelated").unwrap());
+        Some(veoveo_mcp_contract::ServerSlug::parse("unrelated").unwrap());
     assert_eq!(
         state.capabilities(&caller, &required).await.unwrap().len(),
         2
@@ -111,7 +111,7 @@ async fn model_capability_admission_checks_only_required_discovery_surfaces() {
 
 #[tokio::test]
 async fn required_capabilities_recover_on_native_catalog_notifications_without_dispatch() {
-    reactive_catalog_admission(vec![GatewayToolName::new("fixture__task").unwrap()]).await;
+    reactive_catalog_admission(vec![GatewayToolName::parse("fixture__task").unwrap()]).await;
 }
 
 #[tokio::test]
@@ -130,10 +130,10 @@ async fn reactive_catalog_admission(required: Vec<GatewayToolName>) {
             .reactive_catalog
             .store(true, Ordering::SeqCst);
         *fixture.domain.degraded_server.lock().unwrap() =
-            Some(veoveo_mcp_contract::ServerSlug::new("fixture").unwrap());
+            Some(veoveo_mcp_contract::ServerSlug::parse("fixture").unwrap());
         let state = new_state(db.a.clone(), fixture.port);
         let caller = Caller {
-            profile: GatewayProfileId::new("operator").unwrap(),
+            profile: GatewayProfileId::parse("operator").unwrap(),
             subject,
             bearer: "explicit-workspace-fixture".to_owned().into(),
         };
@@ -170,7 +170,7 @@ async fn native_tasks_survive_restart_require_current_input_and_confirm_cancella
         let domain = &fixture.domain;
         let port = fixture.port;
         let state = new_state(db.a.clone(), port);
-        let authority = state.authority(&subject, &GatewayProfileId::new("operator").unwrap()).await.unwrap();
+        let authority = state.authority(&subject, &GatewayProfileId::parse("operator").unwrap()).await.unwrap();
         let chat = WorkspaceChatId::new();
         db.a.create_workspace_chat(&authority, chat, "Native Tasks").await.unwrap();
         let app = new_app(state.clone());
@@ -261,7 +261,7 @@ async fn request_progress_arrives_before_tool_receipt_and_ends_with_it() {
         fixture.domain.hold_dispatch.store(true, Ordering::SeqCst);
         let state = new_state(db.a.clone(), fixture.port);
         let authority = state
-            .authority(&subject, &GatewayProfileId::new("operator").unwrap())
+            .authority(&subject, &GatewayProfileId::parse("operator").unwrap())
             .await
             .unwrap();
         let chat = WorkspaceChatId::new();

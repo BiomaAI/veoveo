@@ -1,7 +1,6 @@
 //! Private Artifact ledger identities and addresses shared by service adapters.
 use crate::ArtifactShareLinkId;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+
 use std::fmt;
 use veoveo_types::{ResourceUri, ResourceUriBuilder, UriSegment};
 
@@ -14,144 +13,18 @@ impl fmt::Display for ArtifactLedgerIdError {
 }
 impl std::error::Error for ArtifactLedgerIdError {}
 
-#[derive(
-    veoveo_types::Id,
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(error=ArtifactLedgerIdError, admit=|value| admit_ledger_id(value,concat!("artifact write capability id"," must be an RFC UUIDv7")), wire_string, constructor=parse, generate=uuid::Uuid::now_v7)]
+#[veoveo_types::id(uuid(ArtifactWriteCapabilityIdProfile), fresh, error_context = concat!("artifact write capability id", " must be an RFC UUIDv7"))]
 pub struct ArtifactWriteCapabilityId(uuid::Uuid);
-impl ArtifactWriteCapabilityId {
-    pub const fn as_uuid(self) -> uuid::Uuid {
-        self.0
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(error=ArtifactLedgerIdError, admit=|value| admit_ledger_id(value,concat!("artifact read capability id"," must be an RFC UUIDv7")), wire_string, constructor=parse, generate=uuid::Uuid::now_v7)]
+#[veoveo_types::id(uuid(ArtifactWriteCapabilityIdProfile), fresh, error_context = concat!("artifact read capability id", " must be an RFC UUIDv7"))]
 pub struct ArtifactReadCapabilityId(uuid::Uuid);
-impl ArtifactReadCapabilityId {
-    pub const fn as_uuid(self) -> uuid::Uuid {
-        self.0
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(error=ArtifactLedgerIdError, admit=|value| admit_ledger_id(value,concat!("artifact task id"," must be an RFC UUIDv7")), wire_string, constructor=parse, generate=uuid::Uuid::now_v7)]
+#[veoveo_types::id(uuid(ArtifactWriteCapabilityIdProfile), fresh, error_context = concat!("artifact task id", " must be an RFC UUIDv7"))]
 pub struct ArtifactTaskId(uuid::Uuid);
-impl ArtifactTaskId {
-    pub const fn as_uuid(self) -> uuid::Uuid {
-        self.0
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(error=ArtifactLedgerIdError, admit=|value| admit_ledger_id(value,concat!("artifact access request id"," must be an RFC UUIDv7")), wire_string, constructor=parse, generate=uuid::Uuid::now_v7)]
+#[veoveo_types::id(uuid(ArtifactWriteCapabilityIdProfile), fresh, error_context = concat!("artifact access request id", " must be an RFC UUIDv7"))]
 pub struct ArtifactAccessRequestId(uuid::Uuid);
-impl ArtifactAccessRequestId {
-    pub const fn as_uuid(self) -> uuid::Uuid {
-        self.0
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(error=ArtifactLedgerIdError, admit=|value| admit_ledger_id(value,concat!("artifact upload id"," must be an RFC UUIDv7")), wire_string, constructor=parse, generate=uuid::Uuid::now_v7)]
+#[veoveo_types::id(uuid(ArtifactWriteCapabilityIdProfile), fresh, error_context = concat!("artifact upload id", " must be an RFC UUIDv7"))]
 pub struct ArtifactUploadId(uuid::Uuid);
-impl ArtifactUploadId {
-    pub const fn as_uuid(self) -> uuid::Uuid {
-        self.0
-    }
-}
-
-#[derive(
-    veoveo_types::Id,
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(error=ArtifactLedgerIdError, admit=|value| admit_ledger_id(value,concat!("upload idempotency key"," must be an RFC UUIDv7")), wire_string, constructor=parse, generate=uuid::Uuid::now_v7)]
+#[veoveo_types::id(uuid(ArtifactWriteCapabilityIdProfile), fresh, error_context = concat!("upload idempotency key", " must be an RFC UUIDv7"))]
 pub struct ArtifactUploadRequestId(uuid::Uuid);
-impl ArtifactUploadRequestId {
-    pub const fn as_uuid(self) -> uuid::Uuid {
-        self.0
-    }
-}
-
 /// Private platform addresses identify ledger objects without claiming an MCP route.
 #[derive(Clone, Copy, Debug)]
 pub enum ArtifactLedgerAddress {
@@ -192,15 +65,30 @@ impl ArtifactLedgerAddress {
     }
 }
 
-fn admit_ledger_id(
-    value: &str,
-    message: &'static str,
-) -> Result<uuid::Uuid, ArtifactLedgerIdError> {
-    let value = uuid::Uuid::parse_str(value).map_err(|_| ArtifactLedgerIdError(message))?;
-    if value.get_version_num() != 7 || value.get_variant() != uuid::Variant::RFC4122 {
-        return Err(ArtifactLedgerIdError(message));
-    }
-    Ok(value)
+use veoveo_types::{
+    FreshId, IdGeneration, IdProfile, IdProfileSpec, IdSchema, UuidGrammar, UuidSpelling,
+    UuidVariant,
+};
+
+#[doc(hidden)]
+pub struct ArtifactWriteCapabilityIdProfile;
+impl IdProfile for ArtifactWriteCapabilityIdProfile {
+    type Error = ArtifactLedgerIdError;
+    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
+        generation: IdGeneration {
+            fresh: FreshId::UuidV7,
+            stable_v5_namespace: None,
+        },
+        schema: IdSchema::DerivedString,
+        ..IdProfileSpec::uuid(
+            UuidGrammar {
+                versions: &[7],
+                variant: UuidVariant::Rfc4122,
+                spelling: UuidSpelling::ParserAliases,
+            },
+            |_, metadata, _| ArtifactLedgerIdError(metadata.error_context),
+        )
+    };
 }
 
 #[cfg(test)]

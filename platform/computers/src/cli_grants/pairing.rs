@@ -30,12 +30,12 @@ impl ComputersStore {
                     include_str!("../../queries/begin_cli_pairing.surql"),
                     vec![
                         ("pairing", super::pairing_record(id).into_value()),
-                        ("pairing_id", id.into_uuid().into_value()),
+                        ("pairing_id", id.as_uuid().into_value()),
                         (
                             "computer",
                             crate::model::computer_record(computer_id).into_value(),
                         ),
-                        ("computer_id", computer_id.into_uuid().into_value()),
+                        ("computer_id", computer_id.as_uuid().into_value()),
                         (
                             "guard",
                             RecordId::new("computer_cli_pairing_guard", owner.clone()).into_value(),
@@ -104,7 +104,7 @@ impl ComputersStore {
                      AND consumed_at = NONE AND expires_at > time::now(); SELECT * FROM ONLY $policy;",
                     vec![
                         ("pairing", super::pairing_record(pairing_id).into_value()),
-                        ("computer_id", computer_id.into_uuid().into_value()),
+                        ("computer_id", computer_id.as_uuid().into_value()),
                         ("owner_key", owner.clone().into_value()),
                         ("family", family.clone().into_value()),
                         ("binding_hash", binding.clone().into_value()),
@@ -119,8 +119,8 @@ impl ComputersStore {
                 read.take(1).map_err(|_| ComputerError::Unavailable)?;
             let policy = policy.ok_or(ComputerError::Unavailable)?;
             let limits = policy.checked()?;
-            if pairing.pairing_id != pairing_id.into_uuid()
-                || pairing.computer_id != computer_id.into_uuid()
+            if pairing.pairing_id != pairing_id.as_uuid()
+                || pairing.computer_id != computer_id.as_uuid()
                 || pairing.owner_key != owner
                 || pairing.family != family
                 || pairing.binding_hash != binding
@@ -138,16 +138,16 @@ impl ComputersStore {
                     "computer",
                     crate::model::computer_record(computer_id).into_value(),
                 ),
-                ("computer_id", computer_id.into_uuid().into_value()),
+                ("computer_id", computer_id.as_uuid().into_value()),
                 ("grant", super::grant_record(grant_id).into_value()),
-                ("grant_id", grant_id.into_uuid().into_value()),
+                ("grant_id", grant_id.as_uuid().into_value()),
                 (
                     "guard",
-                    super::record("computer_session_grant_guard", computer_id.into_uuid())
+                    super::record("computer_session_grant_guard", computer_id.as_uuid())
                         .into_value(),
                 ),
                 ("owner_key", owner.into_value()),
-                ("provider", self.provider_instance_id.into_uuid().into_value()),
+                ("provider", self.provider_instance_id.as_uuid().into_value()),
                 ("authority", object(actor.accepted())?.into_value()),
                 ("family", family.into_value()),
                 ("binding_hash", binding.into_value()),

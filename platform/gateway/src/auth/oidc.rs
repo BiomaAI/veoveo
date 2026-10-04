@@ -62,19 +62,18 @@ impl OidcIdTokenVerifier {
             return Err(AuthError::InvalidOidcNonce);
         }
 
-        let issuer = TokenIssuer::new(claims.iss.clone()).map_err(AuthError::Claim)?;
-        let subject = TokenSubject::new(
-            subject_claim(&claims, self.config.claim_mapping.subject)?.to_owned(),
-        )
-        .map_err(AuthError::Claim)?;
+        let issuer = TokenIssuer::parse(claims.iss.clone()).map_err(AuthError::Claim)?;
+        let subject =
+            TokenSubject::parse(subject_claim(&claims, self.config.claim_mapping.subject)?)
+                .map_err(AuthError::Claim)?;
         let principal_display_name = oidc_principal_display_name(&claims, &subject);
         let principal = Principal {
-            id: PrincipalId::new(format!("{issuer}#{subject}")).map_err(AuthError::Claim)?,
+            id: PrincipalId::parse(format!("{issuer}#{subject}")).map_err(AuthError::Claim)?,
             kind: PrincipalKind::User,
             issuer,
             subject,
             tenant: tenant_claim(&claims, self.config.claim_mapping.tenant.as_ref())?
-                .map(TenantId::new)
+                .map(TenantId::parse)
                 .transpose()
                 .map_err(AuthError::Claim)?,
             groups: claims
@@ -82,7 +81,7 @@ impl OidcIdTokenVerifier {
                 .map(StringListClaim::into_values)
                 .unwrap_or_default()
                 .into_iter()
-                .map(GroupId::new)
+                .map(GroupId::parse)
                 .collect::<Result<_, _>>()
                 .map_err(AuthError::Claim)?,
             // OIDC group claims carry membership, not per-group roles today;
@@ -93,7 +92,7 @@ impl OidcIdTokenVerifier {
                 .map(StringListClaim::into_values)
                 .unwrap_or_default()
                 .into_iter()
-                .map(RoleId::new)
+                .map(RoleId::parse)
                 .collect::<Result<_, _>>()
                 .map_err(AuthError::Claim)?,
             scopes: BTreeSet::new(),
@@ -102,7 +101,7 @@ impl OidcIdTokenVerifier {
                 .map(StringListClaim::into_values)
                 .unwrap_or_default()
                 .into_iter()
-                .map(DataLabelId::new)
+                .map(DataLabelId::parse)
                 .collect::<Result<_, _>>()
                 .map_err(AuthError::Claim)?,
             assurances: principal_assurances(claims.principal_assurances)?,

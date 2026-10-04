@@ -42,7 +42,7 @@ fn retained_bytes_require_declared_inputs_correct_digests_and_no_extras() {
     assert_rejected(&resolved);
     let mut resolved = fixture::with_artifact();
     resolved.artifact_bytes.insert(
-        SceneInputId::new("extra").unwrap(),
+        SceneInputId::parse("extra").unwrap(),
         ResolvedArtifactBytes(vec![0]),
     );
     assert_rejected(&resolved);
@@ -101,7 +101,7 @@ fn retained_artifact_limits_apply_before_geometry_work() {
     resolved.artifact_bytes.clear();
     for index in 0..5 {
         resolved.artifact_bytes.insert(
-            SceneInputId::new(format!("input-{index}")).unwrap(),
+            SceneInputId::parse(format!("input-{index}")).unwrap(),
             ResolvedArtifactBytes(vec![0; MAX_OVERLAY_ARTIFACT_BYTES as usize]),
         );
     }

@@ -27,7 +27,7 @@ async fn app_tasks_recover_with_exact_origin_and_native_input_without_replay() {
         let subject = alice();
         let fixture = super::super::test_domain::Fixture::start(db.a.clone(), &subject).await;
         let state = new_state(db.a.clone(), fixture.port);
-        let authority = state.authority(&subject, &GatewayProfileId::new("operator").unwrap()).await.unwrap();
+        let authority = state.authority(&subject, &GatewayProfileId::parse("operator").unwrap()).await.unwrap();
         let chat = WorkspaceChatId::new();
         db.a.create_workspace_chat(&authority, chat, "Native App Tasks").await.unwrap();
         let app = new_app(state);

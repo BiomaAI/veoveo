@@ -35,7 +35,7 @@ pub fn profile_from_route(matched: &str, raw: &str) -> Option<GatewayProfileId> 
     if raw.contains('%') {
         return None;
     }
-    GatewayProfileId::new(raw).ok()
+    GatewayProfileId::parse(raw).ok()
 }
 pub fn profile_from_request(request: &Request) -> Option<GatewayProfileId> {
     let matched = request.extensions().get::<MatchedPath>()?;

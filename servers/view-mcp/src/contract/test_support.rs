@@ -54,7 +54,7 @@ pub(crate) fn camera() -> CameraDefinition {
 
 pub(crate) fn view() -> ViewRecord {
     ViewRecord::new(
-        ViewId::new("view-1").unwrap(),
+        ViewId::parse("view-1").unwrap(),
         &composition(),
         camera(),
         now(),

@@ -54,21 +54,7 @@ impl fmt::Display for GeofenceIdError {
 impl std::error::Error for GeofenceIdError {}
 
 #[doc = "Geofence identity used by validation and plans."]
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = GeofenceIdError, validate = validate_coordinate_id)]
+#[veoveo_types::id(text(CoordinateIds))]
 pub struct GeofenceId(String);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -89,4 +75,14 @@ pub enum FrameKind {
 pub enum GeofenceRule {
     MustStayInside,
     MustStayOutside,
+}
+
+use veoveo_types::{IdProfile, IdProfileSpec};
+
+#[doc(hidden)]
+pub struct CoordinateIds;
+impl IdProfile for CoordinateIds {
+    type Error = GeofenceIdError;
+    const PROFILE: IdProfileSpec<Self::Error> =
+        IdProfileSpec::text(|value, _| validate_coordinate_id(value));
 }

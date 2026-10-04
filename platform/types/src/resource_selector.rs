@@ -117,7 +117,7 @@ fn validate_resource_pattern(value: &str) -> Result<(), IdentifierError> {
             "must be an absolute server-owned resource URI",
         ));
     };
-    ResourceScheme::new(scheme)?;
+    ResourceScheme::parse(scheme)?;
     if rest.is_empty() || rest.chars().any(|c| c.is_control() || c.is_whitespace()) {
         return Err(IdentifierError::new(
             value,

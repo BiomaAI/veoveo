@@ -38,18 +38,18 @@ mod playback;
 mod projections;
 
 fn identity(tenant: &str, name: &str, labels: &[&str]) -> GatewayInternalIdentity {
-    let principal = PrincipalId::new(name).unwrap();
-    let tenant = TenantId::new(tenant).unwrap();
+    let principal = PrincipalId::parse(name).unwrap();
+    let tenant = TenantId::parse(tenant).unwrap();
     let now = Utc::now();
     GatewayInternalIdentity {
-        issuer: TokenIssuer::new("https://gateway.example").unwrap(),
-        profile: GatewayProfileId::new("recording-test").unwrap(),
-        server: ServerSlug::new("recording").unwrap(),
+        issuer: TokenIssuer::parse("https://gateway.example").unwrap(),
+        profile: GatewayProfileId::parse("recording-test").unwrap(),
+        server: ServerSlug::parse("recording").unwrap(),
         actor: Principal {
             id: principal.clone(),
             kind: PrincipalKind::User,
-            issuer: TokenIssuer::new("https://identity.example").unwrap(),
-            subject: TokenSubject::new(name).unwrap(),
+            issuer: TokenIssuer::parse("https://identity.example").unwrap(),
+            subject: TokenSubject::parse(name).unwrap(),
             tenant: Some(tenant.clone()),
             groups: BTreeSet::new(),
             group_roles: BTreeSet::new(),
@@ -59,14 +59,14 @@ fn identity(tenant: &str, name: &str, labels: &[&str]) -> GatewayInternalIdentit
             authenticated_at: None,
             data_labels: labels
                 .iter()
-                .map(|label| DataLabelId::new(*label).unwrap())
+                .map(|label| DataLabelId::parse(*label).unwrap())
                 .collect(),
         },
         authority: InvocationAuthority {
-            work_context: WorkContextId::new("operations").unwrap(),
+            work_context: WorkContextId::parse("operations").unwrap(),
             tenant,
             membership: WorkContextMembershipLevel::Owner,
-            policy_revision: PolicyVersion::new("r1").unwrap(),
+            policy_revision: PolicyVersion::parse("r1").unwrap(),
             output_policy: WorkContextOutputPolicy {
                 owner: AccessSubject::Principal(principal.clone()),
                 initial_grants: Vec::new(),
@@ -78,7 +78,7 @@ fn identity(tenant: &str, name: &str, labels: &[&str]) -> GatewayInternalIdentit
             },
         },
         request_context: None,
-        jwt_id: JwtId::new(uuid::Uuid::now_v7().to_string()).unwrap(),
+        jwt_id: JwtId::parse(uuid::Uuid::now_v7().to_string()).unwrap(),
         issued_at: now,
         not_before: now,
         expires_at: now + TimeDelta::minutes(5),
@@ -231,7 +231,7 @@ async fn sql_authorizes_before_paging_completion_and_exact_reads() {
         sealer
             .actor
             .scopes
-            .insert(veoveo_types::ScopeName::new("admin:manage").unwrap());
+            .insert(veoveo_types::ScopeName::parse("admin:manage").unwrap());
         assert_eq!(
             service.seal(&sealer, oldest).await.unwrap_err().to_string(),
             "Missing Recording scope `recording:seal`."

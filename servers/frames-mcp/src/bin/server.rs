@@ -395,7 +395,7 @@ async fn start_batch_task(
     };
     let request = BatchTaskRequest {
         args,
-        operation_id: CoordinateOperationId::new(format!("op-{}", uuid::Uuid::now_v7()))
+        operation_id: CoordinateOperationId::parse(format!("op-{}", uuid::Uuid::now_v7()))
             .map_err(|error| error.to_string())?,
         operation_created_at: Utc::now(),
         artifact_write_capability,
@@ -776,7 +776,7 @@ mod task_tests {
         );
 
         let operation_id =
-            CoordinateOperationId::new(format!("op-{}", uuid::Uuid::now_v7())).unwrap();
+            CoordinateOperationId::parse(format!("op-{}", uuid::Uuid::now_v7())).unwrap();
         let created_at = Utc::now();
         stamp_batch_provenance(&mut first, operation_id.clone(), created_at);
         stamp_batch_provenance(&mut replay, operation_id, created_at);

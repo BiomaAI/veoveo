@@ -249,7 +249,7 @@ fn compile_with_inputs(
                     inputs.insert(ComponentInput::Chart {
                         source: owner.clone(),
                         coordinate: chart.coordinate.clone(),
-                        digest: ArtifactDigest::new(&chart.digest)?,
+                        digest: ArtifactDigest::parse(&chart.digest)?,
                     });
                     for path in &release.source_values {
                         inputs.insert(file_input(
@@ -404,7 +404,7 @@ fn component_source(source: &LockedSource) -> Result<ComponentSource> {
     Ok(ComponentSource {
         name: source.name.clone(),
         repository: source.repository.clone(),
-        revision: SourceRevision::new(&source.revision)?,
+        revision: SourceRevision::parse(&source.revision)?,
     })
 }
 
@@ -422,7 +422,7 @@ fn installation_source(profile: &LoadedProfile, revision: &str) -> Result<Compon
     Ok(ComponentSource {
         name: INSTALLATION_SOURCE_NAME.into(),
         repository,
-        revision: SourceRevision::new(revision)?,
+        revision: SourceRevision::parse(revision)?,
     })
 }
 
@@ -538,13 +538,13 @@ fn installation_unit(
                     "{}:{}@{}",
                     allocator.chart.coordinate, allocator.chart.version, allocator.chart.digest
                 ),
-                digest: ArtifactDigest::new(&allocator.chart.content_digest)?,
+                digest: ArtifactDigest::parse(&allocator.chart.content_digest)?,
             });
             inputs.insert(ComponentInput::Image {
                 source: source.clone(),
                 target: "nvidia-dra-driver-gpu".into(),
                 repository: allocator.image.repository.clone(),
-                digest: ArtifactDigest::new(&allocator.image.digest)?,
+                digest: ArtifactDigest::parse(&allocator.image.digest)?,
             });
             return Ok(UnitDraft {
                 helm: Some((

@@ -52,7 +52,8 @@ pub(super) fn allowed(
             profile,
             action,
             target: &PolicyTarget::Gateway,
-            trace_id: &TraceId::new("agent-management-authority").expect("fixed trace identifier"),
+            trace_id: &TraceId::parse("agent-management-authority")
+                .expect("fixed trace identifier"),
         })
         .effect
         == PolicyEffect::Allow
@@ -65,7 +66,7 @@ pub(super) async fn admit(
     action: AgentAction,
 ) -> Result<Admission, Fault> {
     let profile =
-        GatewayProfileId::new(profile).map_err(|_| Fault::status(StatusCode::NOT_FOUND))?;
+        GatewayProfileId::parse(profile).map_err(|_| Fault::status(StatusCode::NOT_FOUND))?;
     let started = Instant::now();
     let audit_target = veoveo_mcp_contract::audit::AuditTarget::WorkContext {
         tenant: subject.authority.tenant.clone(),

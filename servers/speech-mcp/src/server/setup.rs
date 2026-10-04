@@ -19,7 +19,7 @@ impl McpServerContract for SpeechContract {
     type Scope = SpeechScope;
     type Resource = SpeechResource;
     fn slug() -> ServerSlug {
-        ServerSlug::new("speech").expect("declared slug")
+        ServerSlug::parse("speech").expect("declared slug")
     }
     fn scheme() -> ResourceScheme {
         veoveo_speech_contract::ARTIFACT_SCHEME.clone()
@@ -144,7 +144,8 @@ mod tests {
                 .contains_key(TASKS_EXTENSION_ID)
         );
         assert!(
-            SpeechScope::try_from(&veoveo_types::ScopeName::new("external:read").unwrap()).is_err()
+            SpeechScope::try_from(&veoveo_types::ScopeName::parse("external:read").unwrap())
+                .is_err()
         );
     }
 }

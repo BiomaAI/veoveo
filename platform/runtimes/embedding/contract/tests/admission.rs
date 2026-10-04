@@ -4,8 +4,8 @@ use veoveo_types::Sha256Digest;
 #[test]
 fn vector_admission_binds_dimension_and_normalization() {
     let space = EmbeddingSpace {
-        model: EmbeddingModelId::new("synthetic").unwrap(),
-        revision: EmbeddingModelRevision::new("r1").unwrap(),
+        model: EmbeddingModelId::parse("synthetic").unwrap(),
+        revision: EmbeddingModelRevision::parse("r1").unwrap(),
         dimension: EmbeddingDimension::new(3).unwrap(),
         runtime_image: Sha256Digest::from_bytes([1; 32]),
     };
@@ -20,5 +20,5 @@ fn vector_admission_binds_dimension_and_normalization() {
     }
     assert!(EmbeddingDimension::new(0).is_err());
     assert!(EmbeddingDimension::new(8193).is_err());
-    assert!(EmbeddingModelRevision::new("r1\nsecret").is_err());
+    assert!(EmbeddingModelRevision::parse("r1\nsecret").is_err());
 }

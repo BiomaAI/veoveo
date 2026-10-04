@@ -78,7 +78,7 @@ impl Signing {
                 subject: actor.subject.clone(),
                 oauth_client_id: "artifact-fixture".parse().unwrap(),
                 session_family: None,
-                audience: ProtectedResourceId::new("https://artifact.fixture/mcp/operator")
+                audience: ProtectedResourceId::parse("https://artifact.fixture/mcp/operator")
                     .unwrap(),
                 work_context: authority.work_context.clone(),
                 invocation_mode: InvocationMode::Direct,

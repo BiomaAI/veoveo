@@ -1,5 +1,5 @@
 //! Stream-owned identifiers stay distinct through catalog and execution APIs.
-use std::{fmt, str::FromStr};
+use std::fmt;
 
 use serde::{Deserialize, Serialize};
 use veoveo_types::TaskId;
@@ -23,40 +23,33 @@ impl fmt::Display for StreamContractError {
 }
 impl std::error::Error for StreamContractError {}
 
-#[derive(
-    veoveo_types::Id, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=StreamContractError,validate=|value| validate_catalog_id(value,"pipeline"),schema=String::json_schema,schema_inline)]
+#[veoveo_types::id(text(PipelineIdProfile), error_context = "pipeline")]
 pub struct PipelineId(String);
 
-#[derive(
-    veoveo_types::Id, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string,constructor=parse,error=StreamContractError,validate=|value| validate_catalog_id(value,"model"),schema=String::json_schema,schema_inline)]
+#[veoveo_types::id(text(PipelineIdProfile), error_context = "model")]
 pub struct ModelId(String);
 
 /// Identity of a Stream run backed by a native UUIDv7 Task.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
+#[veoveo_types::id(custom(error = StreamContractError, admit = admit_run_task, text = |inner: &TaskId| std::borrow::Cow::Owned(inner.to_string()), wire_string, schema = string_schema, schema_inline))]
 pub struct RunId(TaskId);
 impl RunId {
-    pub fn parse(value: impl AsRef<str>) -> Result<Self, StreamContractError> {
-        let value = value.as_ref();
-        let task: TaskId = value
-            .parse()
-            .map_err(|_| StreamContractError::InvalidId("run"))?;
-        let id = Self::try_from(task)?;
-        if id.to_string() != value {
-            return Err(StreamContractError::InvalidId("run"));
-        }
-        Ok(id)
-    }
     pub fn task_id(self) -> TaskId {
         self.0
     }
 }
+fn admit_run_task(value: &str) -> Result<TaskId, StreamContractError> {
+    let task: TaskId = value
+        .parse()
+        .map_err(|_| StreamContractError::InvalidId("run"))?;
+    let id = RunId::try_from(task)?;
+    if id.to_string() != value {
+        return Err(StreamContractError::InvalidId("run"));
+    }
+    Ok(id.0)
+}
+
 impl TryFrom<TaskId> for RunId {
     type Error = StreamContractError;
     fn try_from(value: TaskId) -> Result<Self, Self::Error> {
@@ -68,118 +61,47 @@ impl TryFrom<TaskId> for RunId {
         Ok(Self(value))
     }
 }
-impl TryFrom<String> for RunId {
+/// Process-local live-session identity, distinct from a recording run's Task.
+#[veoveo_types::id(uuid(SessionIds))]
+pub struct SessionId(uuid::Uuid);
+
+#[doc(hidden)]
+pub struct SessionIds;
+impl IdProfile for SessionIds {
     type Error = StreamContractError;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::parse(value)
-    }
-}
-impl FromStr for RunId {
-    type Err = StreamContractError;
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        Self::parse(value)
-    }
-}
-impl From<RunId> for String {
-    fn from(value: RunId) -> Self {
-        value.to_string()
-    }
-}
-impl veoveo_types::Identity for RunId {
-    type Error = StreamContractError;
-    fn parse_identity(value: &str) -> Result<Self, Self::Error> {
-        Self::parse(value)
-    }
-    fn identity_text(&self) -> std::borrow::Cow<'_, str> {
-        self.0.to_string().into()
-    }
-}
-impl fmt::Display for RunId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
-    }
-}
-impl schemars::JsonSchema for RunId {
-    fn inline_schema() -> bool {
-        true
-    }
-    fn schema_name() -> std::borrow::Cow<'static, str> {
-        "RunId".into()
-    }
-    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
-        <String as schemars::JsonSchema>::json_schema(generator)
-    }
+    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
+        schema: IdSchema::Owner {
+            schema: |generator, _| string_schema(generator),
+            inline: true,
+        },
+        ..IdProfileSpec::uuid(
+            UuidGrammar {
+                versions: &[7],
+                variant: UuidVariant::Rfc4122,
+                spelling: UuidSpelling::CanonicalLowerHyphenated,
+            },
+            |_, _, _| StreamContractError::InvalidId("session"),
+        )
+    };
 }
 
-/// Process-local live-session identity, distinct from a recording run's Task.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
-#[serde(try_from = "String", into = "String")]
-pub struct SessionId(uuid::Uuid);
-impl SessionId {
-    pub fn parse(value: impl AsRef<str>) -> Result<Self, StreamContractError> {
-        let value = value.as_ref();
-        let uuid =
-            uuid::Uuid::parse_str(value).map_err(|_| StreamContractError::InvalidId("session"))?;
-        let id = Self::try_from(uuid)?;
-        if id.to_string() != value {
-            return Err(StreamContractError::InvalidId("session"));
-        }
-        Ok(id)
-    }
-    pub fn as_uuid(self) -> uuid::Uuid {
-        self.0
-    }
-}
-impl TryFrom<uuid::Uuid> for SessionId {
+use veoveo_types::{IdProfile, IdProfileSpec, IdSchema, UuidGrammar, UuidSpelling, UuidVariant};
+
+#[doc(hidden)]
+pub struct PipelineIdProfile;
+impl IdProfile for PipelineIdProfile {
     type Error = StreamContractError;
-    fn try_from(value: uuid::Uuid) -> Result<Self, Self::Error> {
-        if value.get_version_num() != 7 || value.get_variant() != uuid::Variant::RFC4122 {
-            return Err(StreamContractError::InvalidId("session"));
-        }
-        Ok(Self(value))
-    }
+    const PROFILE: IdProfileSpec<Self::Error> = IdProfileSpec {
+        schema: IdSchema::Owner {
+            schema: |generator, _| string_schema(generator),
+            inline: true,
+        },
+        ..IdProfileSpec::text(|value, metadata| validate_catalog_id(value, metadata.error_context))
+    };
 }
-impl TryFrom<String> for SessionId {
-    type Error = StreamContractError;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::parse(value)
-    }
-}
-impl FromStr for SessionId {
-    type Err = StreamContractError;
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        Self::parse(value)
-    }
-}
-impl From<SessionId> for String {
-    fn from(value: SessionId) -> Self {
-        value.to_string()
-    }
-}
-impl veoveo_types::Identity for SessionId {
-    type Error = StreamContractError;
-    fn parse_identity(value: &str) -> Result<Self, Self::Error> {
-        Self::parse(value)
-    }
-    fn identity_text(&self) -> std::borrow::Cow<'_, str> {
-        self.0.to_string().into()
-    }
-}
-impl fmt::Display for SessionId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
-    }
-}
-impl schemars::JsonSchema for SessionId {
-    fn inline_schema() -> bool {
-        true
-    }
-    fn schema_name() -> std::borrow::Cow<'static, str> {
-        "SessionId".into()
-    }
-    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
-        <String as schemars::JsonSchema>::json_schema(generator)
-    }
+
+fn string_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    <String as schemars::JsonSchema>::json_schema(generator)
 }
 
 fn validate_catalog_id(value: &str, kind: &'static str) -> Result<(), StreamContractError> {

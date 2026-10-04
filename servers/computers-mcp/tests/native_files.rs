@@ -91,7 +91,7 @@ async fn task_result(
     id: veoveo_computers_contract::FileTransferId,
 ) -> FileTransferResult {
     let task = tasks
-        .get(veoveo_types::TaskId::from_uuid(*id.as_uuid()))
+        .get(veoveo_types::TaskId::from_uuid(id.as_uuid()))
         .await
         .unwrap()
         .unwrap();
@@ -138,7 +138,7 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
     .unwrap();
     let db = support::TestDb::new().await;
     let mut control = support::automation::control();
-    let file_tool = veoveo_mcp_contract::LocalToolName::new("transfer_file").unwrap();
+    let file_tool = veoveo_mcp_contract::LocalToolName::parse("transfer_file").unwrap();
     control.servers[0].tools.push(file_tool.clone());
     control.policies[0].rules[0].tools.insert(file_tool);
     support::policy::install(&db.a, control).await;
@@ -224,10 +224,10 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
     .unwrap();
     // Isolated fixture adoption: qualify file and lifecycle paths against a
     // real replacement home. Durable product maintenance admission is separate.
-    let initial = Binding::new(computer.computer_id.into_uuid(), selected.fingerprint()).unwrap();
+    let initial = Binding::new(computer.computer_id.as_uuid(), selected.fingerprint()).unwrap();
     let replacement_id = Uuid::now_v7();
     let binding = Binding::replacement(
-        computer.computer_id.into_uuid(),
+        computer.computer_id.as_uuid(),
         replacement_id,
         selected.fingerprint(),
     )
@@ -244,7 +244,7 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
             "computer",
             surrealdb::types::RecordId::new(
                 "computer",
-                surrealdb::types::Uuid::from(computer.computer_id.into_uuid()),
+                surrealdb::types::Uuid::from(computer.computer_id.as_uuid()),
             ),
         ))
         .bind(("instance", replacement_id))
@@ -308,8 +308,8 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
         chrono::Utc::now() + chrono::TimeDelta::minutes(10),
     );
     let auth = PlaneAuthenticator::new(
-        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER).unwrap(),
-        vec![ServerSlug::new("computers").unwrap()],
+        TokenIssuer::parse(GATEWAY_INTERNAL_TOKEN_ISSUER).unwrap(),
+        vec![ServerSlug::parse("computers").unwrap()],
         signer.trust.clone(),
     );
     let caller = PlaneCaller {
@@ -498,7 +498,7 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
         WorkerStep::Settled
     );
     let duplicate_task = tasks_a
-        .get(veoveo_types::TaskId::from_uuid(*duplicate_id.as_uuid()))
+        .get(veoveo_types::TaskId::from_uuid(duplicate_id.as_uuid()))
         .await
         .unwrap()
         .unwrap();
@@ -511,7 +511,7 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
         .put(
             &caller,
             PutArtifactRequest {
-                data_labels: BTreeSet::from([veoveo_types::DataLabelId::new("cui").unwrap()]),
+                data_labels: BTreeSet::from([veoveo_types::DataLabelId::parse("cui").unwrap()]),
                 ..Default::default()
             },
             b"sensitive fixture".to_vec(),
@@ -538,7 +538,7 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
         WorkerStep::Settled
     );
     let denied_task = tasks_a
-        .get(veoveo_types::TaskId::from_uuid(*denied_id.as_uuid()))
+        .get(veoveo_types::TaskId::from_uuid(denied_id.as_uuid()))
         .await
         .unwrap()
         .unwrap();
@@ -560,7 +560,7 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
     .await;
     let cancelled_id = cancelled.transfer_id();
     tasks_a
-        .cancel(veoveo_types::TaskId::from_uuid(*cancelled_id.as_uuid()))
+        .cancel(veoveo_types::TaskId::from_uuid(cancelled_id.as_uuid()))
         .await
         .unwrap();
     assert_eq!(
@@ -569,7 +569,7 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
     );
     assert_eq!(
         tasks_a
-            .get(veoveo_types::TaskId::from_uuid(*cancelled_id.as_uuid()))
+            .get(veoveo_types::TaskId::from_uuid(cancelled_id.as_uuid()))
             .await
             .unwrap()
             .unwrap()

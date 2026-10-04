@@ -389,7 +389,7 @@ mod tests {
 
     #[test]
     fn verifier_rejects_constraint_and_bound_violations() {
-        let x = VariableId::new("x").unwrap();
+        let x = VariableId::parse("x").unwrap();
         let problem = ConvexProblem {
             version: CONVEX_PROBLEM_VERSION.to_owned(),
             kind: ConvexProblemKind::LinearProgram,
@@ -411,7 +411,7 @@ mod tests {
                 offset: FiniteF64::default(),
             },
             linear_constraints: vec![LinearConstraint {
-                constraint_id: ConstraintId::new("minimum").unwrap(),
+                constraint_id: ConstraintId::parse("minimum").unwrap(),
                 terms: vec![LinearTerm {
                     variable_id: x.clone(),
                     coefficient: FiniteF64::new(1.0).unwrap(),

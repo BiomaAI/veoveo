@@ -59,55 +59,13 @@ impl fmt::Display for RrdIdError {
 impl std::error::Error for RrdIdError {}
 
 #[doc = "Rerun transform frame id. Entity-derived ids use Rerun's `tf#/path` convention."]
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = RrdIdError, validate = |value| validate_rrd_id(value, "RRD transform frame id"))]
+#[veoveo_types::id(text(RrdIds), error_context = "RRD transform frame id")]
 pub struct RrdFrameId(String);
 #[doc = "Rerun entity path used to locate canonical spacetime data in an RRD recording."]
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = RrdIdError, validate = |value| validate_rrd_id(value, "RRD entity path"))]
+#[veoveo_types::id(text(RrdIds), error_context = "RRD entity path")]
 pub struct RrdEntityPath(String);
 #[doc = "Rerun timeline name used to scrub or query state over time."]
-#[derive(
-    veoveo_types::Id,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, error = RrdIdError, validate = |value| validate_rrd_id(value, "RRD timeline"))]
+#[veoveo_types::id(text(RrdIds), error_context = "RRD timeline")]
 pub struct RrdTimeline(String);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -419,9 +377,9 @@ mod tests {
 
     #[test]
     fn frame_ids_accept_rerun_entity_frames() {
-        let frame = RrdFrameId::new("tf#/mission/agent-a").unwrap();
+        let frame = RrdFrameId::parse("tf#/mission/agent-a").unwrap();
         assert_eq!(frame.as_str(), "tf#/mission/agent-a");
-        assert!(RrdFrameId::new("bad frame").is_err());
+        assert!(RrdFrameId::parse("bad frame").is_err());
     }
 
     #[test]
@@ -443,9 +401,9 @@ mod tests {
             recording: Some(RrdRecordingRef::Artifact {
                 uri: "artifact://rrd/abc123".to_string(),
             }),
-            entity_path: RrdEntityPath::new("/mission/agent-a").unwrap(),
+            entity_path: RrdEntityPath::parse("/mission/agent-a").unwrap(),
             time_range: Some(RrdTimeRange {
-                timeline: RrdTimeline::new("tick").unwrap(),
+                timeline: RrdTimeline::parse("tick").unwrap(),
                 start_sequence: 10,
                 end_sequence: 20,
             }),
@@ -466,18 +424,18 @@ mod tests {
     #[test]
     fn frame_definition_round_trip_and_adapters_construct() {
         let frame = RrdFrameDefinition {
-            frame_id: RrdFrameId::new("ENU:mission").unwrap(),
+            frame_id: RrdFrameId::parse("ENU:mission").unwrap(),
             kind: FrameKind::Enu,
             view_coordinates: Some(RrdViewCoordinates::east_north_up()),
-            parent: Some(RrdFrameId::new("WGS84").unwrap()),
+            parent: Some(RrdFrameId::parse("WGS84").unwrap()),
             origin: Some(RrdGeoPoint {
                 latitude_deg: 37.0,
                 longitude_deg: -122.0,
                 height_m: Some(10.0),
             }),
-            crs: Some(CrsId::new("EPSG:4326").unwrap()),
-            datum: Some(DatumId::new("WGS84").unwrap()),
-            ellipsoid: Some(EllipsoidId::new("WGS84").unwrap()),
+            crs: Some(CrsId::parse("EPSG:4326").unwrap()),
+            datum: Some(DatumId::parse("WGS84").unwrap()),
+            ellipsoid: Some(EllipsoidId::parse("WGS84").unwrap()),
             epoch: None,
             description: Some("mission local frame".to_string()),
             metadata: BTreeMap::new(),
@@ -496,7 +454,7 @@ mod tests {
             geofence_id: None,
             rule: GeofenceRule::MustStayInside,
             polygon: RrdLocalPolygon2 {
-                frame_id: RrdFrameId::new("ENU:test").unwrap(),
+                frame_id: RrdFrameId::parse("ENU:test").unwrap(),
                 exterior: vec![
                     [0.0, 0.0],
                     [10.0, 0.0],
@@ -547,4 +505,14 @@ mod identity_profiles {
         assert!(GeofenceId::parse_identity("zone/1").is_err());
         assert!(serde_json::from_value::<GeofenceId>(serde_json::json!("zone/1")).is_err());
     }
+}
+
+use veoveo_types::{IdProfile, IdProfileSpec};
+
+#[doc(hidden)]
+pub struct RrdIds;
+impl IdProfile for RrdIds {
+    type Error = RrdIdError;
+    const PROFILE: IdProfileSpec<Self::Error> =
+        IdProfileSpec::text(|value, metadata| validate_rrd_id(value, metadata.error_context));
 }

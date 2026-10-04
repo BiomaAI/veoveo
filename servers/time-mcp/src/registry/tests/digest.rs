@@ -72,7 +72,7 @@ async fn retained_digest_spelling_preserves_idempotency_and_canonical_provenance
         );
 
         acquisition.acquisition_id =
-            TimeAcquisitionId::new(format!("time-acquisition-{}", Uuid::now_v7())).unwrap();
+            TimeAcquisitionId::parse(format!("time-acquisition-{}", Uuid::now_v7())).unwrap();
         acquisition.expected_source_digest_sha256 = Some(uppercase.source_digest_sha256.clone());
         acquisition.staged_release_id = None;
         acquisition.status = TimeAcquisitionStatus::Queued;
@@ -82,7 +82,7 @@ async fn retained_digest_spelling_preserves_idempotency_and_canonical_provenance
             .await
             .unwrap();
         acquisition.acquisition_id =
-            TimeAcquisitionId::new(format!("time-acquisition-{}", Uuid::now_v7())).unwrap();
+            TimeAcquisitionId::parse(format!("time-acquisition-{}", Uuid::now_v7())).unwrap();
         let replay = catalog
             .create_acquisition(&owner, acquisition.clone(), "digest-replay".into())
             .await

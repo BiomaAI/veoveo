@@ -8,6 +8,36 @@ pub use agents::*;
 mod workspace;
 pub use workspace::*;
 
+#[doc(hidden)]
+pub struct PersistenceIds;
+impl veoveo_types::IdProfile for PersistenceIds {
+    type Error = uuid::Error;
+    const PROFILE: veoveo_types::IdProfileSpec<Self::Error> = veoveo_types::IdProfileSpec {
+        generation: veoveo_types::IdGeneration {
+            fresh: veoveo_types::FreshId::UuidV7,
+            stable_v5_namespace: None,
+        },
+        wire: veoveo_types::IdWire::InnerUuid,
+        schema: veoveo_types::IdSchema::DerivedUuid,
+        ..veoveo_types::IdProfileSpec::uuid(
+            veoveo_types::UuidGrammar {
+                versions: &[],
+                variant: veoveo_types::UuidVariant::Any,
+                spelling: veoveo_types::UuidSpelling::ParserAliases,
+            },
+            persistence_id_error,
+        )
+    };
+}
+fn persistence_id_error(
+    value: &str,
+    _: veoveo_types::IdMetadata,
+    _: veoveo_types::IdFailure,
+) -> uuid::Error {
+    uuid::Uuid::parse_str(value)
+        .expect_err("only malformed UUIDs reach the unrestricted persistence error mapping")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -168,6 +198,42 @@ mod identity_profiles {
         check::<WorkspaceInvitationId>(
             "workspace_invitation",
             WorkspaceInvitationId::from_uuid(uuid).record_id(),
+        );
+    }
+}
+
+#[cfg(test)]
+mod declaration_fixture {
+    use surrealdb::types::{RecordId, SurrealValue};
+    use uuid::Uuid;
+    #[veoveo_types::id(
+        uuid(super::PersistenceIds),
+        fresh,
+        const_uuid,
+        surreal = "fixture_identity"
+    )]
+    struct IndependentId(Uuid);
+    #[test]
+    fn independent_storage_identity_preserves_uuid_sdk_and_table_admission() {
+        const ID: IndependentId = IndependentId::from_uuid(Uuid::nil());
+        const UUID: Uuid = ID.as_uuid();
+        assert_eq!(UUID, Uuid::nil());
+        let id = IndependentId::new();
+        assert_eq!(id.as_uuid().get_version_num(), 7);
+        let record: RecordId = id.into();
+        assert_eq!(record.table.as_str(), IndependentId::TABLE);
+        let uuid = Uuid::parse_str("550E8400E29B41D4A716446655440000").unwrap();
+        let admitted: IndependentId = "550E8400E29B41D4A716446655440000".parse().unwrap();
+        assert_eq!(admitted, IndependentId::from_uuid(uuid));
+        assert_eq!(admitted.into_value(), uuid.into_value());
+        assert_eq!(
+            IndependentId::from_value(uuid.into_value()).unwrap(),
+            admitted
+        );
+        assert_eq!(
+            serde_json::from_str::<IndependentId>(&serde_json::to_string(&admitted).unwrap())
+                .unwrap(),
+            admitted
         );
     }
 }

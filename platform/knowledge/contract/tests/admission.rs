@@ -47,8 +47,8 @@ fn metadata_constructor_rejects_body_chunks_and_mismatched_mode() {
         control_revision: Sha256Digest::from_bytes([1; 32]),
     };
     let space = EmbeddingSpace {
-        model: EmbeddingModelId::new("fixture").unwrap(),
-        revision: EmbeddingModelRevision::new("v1").unwrap(),
+        model: EmbeddingModelId::parse("fixture").unwrap(),
+        revision: EmbeddingModelRevision::parse("v1").unwrap(),
         dimension: EmbeddingDimension::new(3).unwrap(),
         runtime_image: Sha256Digest::from_bytes([2; 32]),
     };

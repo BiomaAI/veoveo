@@ -723,7 +723,7 @@ impl AgentRuntime {
             .into_iter()
             .map(|record| {
                 Ok(AgentTaskResult {
-                    task_id: CanonicalTaskId::new(record.task_id).map_err(|error| {
+                    task_id: CanonicalTaskId::parse(record.task_id).map_err(|error| {
                         AgentRuntimeError::InvalidField {
                             field: "agent_task.task_id",
                             reason: error.to_string(),
@@ -865,7 +865,7 @@ impl AgentRuntime {
                     input_request_id: input_request_id_from_record(&record.id)?,
                     related_task: record
                         .related_task
-                        .map(CanonicalTaskId::new)
+                        .map(CanonicalTaskId::parse)
                         .transpose()
                         .map_err(|error| AgentRuntimeError::InvalidField {
                             field: "agent_input_request.related_task",
@@ -1260,7 +1260,7 @@ fn claimed_wake(record: WakeRecord) -> Result<ClaimedWake> {
 fn claimed_task(record: AgentTaskRecord) -> Result<ClaimedAgentTask> {
     Ok(ClaimedAgentTask {
         agent_task_id: agent_task_id_from_record(&record.id)?,
-        task_id: CanonicalTaskId::new(record.task_id).map_err(|error| {
+        task_id: CanonicalTaskId::parse(record.task_id).map_err(|error| {
             AgentRuntimeError::InvalidField {
                 field: "agent_task.task_id",
                 reason: error.to_string(),

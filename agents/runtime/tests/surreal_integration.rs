@@ -28,12 +28,12 @@ use veoveo_types::{
 use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy};
 
 fn agent_authority() -> InvocationAuthority {
-    let principal = PrincipalId::new("agent:durability-agent").unwrap();
+    let principal = PrincipalId::parse("agent:durability-agent").unwrap();
     InvocationAuthority {
-        work_context: WorkContextId::new("integration-mission").unwrap(),
-        tenant: TenantId::new("integration").unwrap(),
+        work_context: WorkContextId::parse("integration-mission").unwrap(),
+        tenant: TenantId::parse("integration").unwrap(),
         membership: WorkContextMembershipLevel::Contributor,
-        policy_revision: PolicyVersion::new("r1").unwrap(),
+        policy_revision: PolicyVersion::parse("r1").unwrap(),
         output_policy: WorkContextOutputPolicy {
             owner: AccessSubject::Principal(principal),
             initial_grants: Vec::new(),
@@ -590,7 +590,7 @@ async fn task_settlement_survives_restart_and_is_consumed_once() {
         .unwrap()
         .snapshot;
     let canonical_task_id =
-        veoveo_mcp_contract::CanonicalTaskId::new("gtr_integration_task_settlement".to_owned())
+        veoveo_mcp_contract::CanonicalTaskId::parse("gtr_integration_task_settlement")
             .expect("canonical task id");
     fixture
         .root

@@ -12,7 +12,7 @@ use veoveo_task_runtime::TaskRuntime;
 fn control() -> veoveo_mcp_contract::GatewayControlPlane {
     let mut config = app_support::control();
     for name in ["update_template", "resume_update"] {
-        let tool = LocalToolName::new(name).unwrap();
+        let tool = LocalToolName::parse(name).unwrap();
         config.servers[0].tools.push(tool.clone());
         config.policies[0].rules[0].tools.insert(tool);
     }
@@ -73,7 +73,7 @@ async fn maintenance_http_mcp_retry_and_current_task_authority_share_one_fence()
         .unwrap()
         .computer_id;
     db.a.client().query("UPDATE ONLY $computer SET phase = 'ready', provider_resource_id = 'private-source-resource', process_id = 'private-source-process';")
-        .bind(("computer", surrealdb::types::RecordId::new("computer", surrealdb::types::Uuid::from(computer.into_uuid()))))
+        .bind(("computer", surrealdb::types::RecordId::new("computer", surrealdb::types::Uuid::from(computer.as_uuid()))))
         .await.unwrap().check().unwrap();
     let client = client();
     let alice = signing.bearer("alice", "computers");
@@ -213,7 +213,7 @@ async fn maintenance_http_mcp_retry_and_current_task_authority_share_one_fence()
     let mut denied = control();
     denied.policies[0].rules[0]
         .tools
-        .remove(&LocalToolName::new("update_template").unwrap());
+        .remove(&LocalToolName::parse("update_template").unwrap());
     support::policy::install(&db.b, denied).await;
     assert!(
         rpc(
@@ -366,7 +366,7 @@ async fn maintenance_http_mcp_retry_and_current_task_authority_share_one_fence()
     let mut denied = control();
     denied.policies[0].rules[0]
         .tools
-        .remove(&LocalToolName::new("resume_update").unwrap());
+        .remove(&LocalToolName::parse("resume_update").unwrap());
     support::policy::install(&db.a, denied).await;
     let denied: MaintenanceView = client
         .get(&url)

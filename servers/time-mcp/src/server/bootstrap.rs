@@ -24,7 +24,7 @@ pub(super) async fn reference(
         AuthorityDatasetKind::LeapSeconds => "leaps",
     };
     let release_id =
-        AuthorityReleaseId::new(format!("time-release-bootstrap-{family}-{}", digest.hex()))
+        AuthorityReleaseId::parse(format!("time-release-bootstrap-{family}-{}", digest.hex()))
             .map_err(anyhow::Error::msg)?;
     let version = digest.to_string();
     Ok(TimeAuthorityReference::new(

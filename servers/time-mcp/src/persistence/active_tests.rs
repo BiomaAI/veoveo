@@ -34,7 +34,7 @@ async fn release(
         .create_source(
             scope,
             crate::NewTimeSource {
-                source_id: TimeSourceId::new(format!("time-source-{}", Uuid::now_v7())).unwrap(),
+                source_id: TimeSourceId::parse(format!("time-source-{}", Uuid::now_v7())).unwrap(),
                 name: "source".into(),
                 dataset_kind: kind,
                 url: "https://example.test/data".into(),
@@ -50,7 +50,7 @@ async fn release(
         .create_release(
             scope,
             AuthorityRelease {
-                release_id: AuthorityReleaseId::new(format!("time-release-{}", Uuid::now_v7()))
+                release_id: AuthorityReleaseId::parse(format!("time-release-{}", Uuid::now_v7()))
                     .unwrap(),
                 source_id: source.source_id,
                 dataset_kind: kind,
