@@ -63,7 +63,7 @@ pub fn identity(owner: &TaskOwner) -> veoveo_mcp_contract::GatewayInternalIdenti
     };
     let now = chrono::Utc::now();
     let access_token = AccessTokenSubject {
-        managed_agent: None,
+        managed_execution: None,
         issuer: principal.issuer.clone(),
         subject: principal.subject.clone(),
         oauth_client_id: OAuthClientId::new(
@@ -96,6 +96,7 @@ pub fn identity(owner: &TaskOwner) -> veoveo_mcp_contract::GatewayInternalIdenti
         actor: principal.clone(),
         authority: owner.authority.clone(),
         request_context: Some(GatewayRequestContext {
+            format: veoveo_mcp_contract::GatewayRequestContextFormat::V2,
             audit: veoveo_mcp_contract::audit::AuditRequest::background(),
             principal,
             access_token,

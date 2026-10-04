@@ -194,6 +194,8 @@ async fn gateway_preserves_body_rejection_without_replaying_or_poisoning_other_r
         let db = crate::test_store::TestDb::new().await;
         let source = Fixture::start(Fault::BodyLimit).await;
         let state = crate::GatewayState::new(db.a.clone())
+            .bind_token_extensions(Default::default())
+            .unwrap()
             .bind_oauth_client_resolver(std::sync::Arc::new(
                 crate::oauth_clients::CatalogOAuthClientResolver,
             ))

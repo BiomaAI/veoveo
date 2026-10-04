@@ -9,6 +9,7 @@ use veoveo_types::ScopeName;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedAccessToken {
+    pub extensions: veoveo_types::AdmittedExtensions,
     pub access_token: AccessTokenSubject,
     pub principal: Principal,
     pub principal_display_name: Option<PrincipalDisplayName>,
@@ -16,6 +17,7 @@ pub struct VerifiedAccessToken {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthenticatedSubject {
+    pub extensions: veoveo_types::AdmittedExtensions,
     pub audit: veoveo_audit_contract::AuditRequest,
     pub access_token: AccessTokenSubject,
     pub principal: Principal,
@@ -27,6 +29,7 @@ pub struct AuthenticatedSubject {
 impl AuthenticatedSubject {
     pub fn request_context(&self) -> veoveo_mcp_contract::GatewayRequestContext {
         veoveo_mcp_contract::GatewayRequestContext {
+            format: veoveo_mcp_contract::GatewayRequestContextFormat::V2,
             audit: self.audit.clone(),
             access_token: self.access_token.clone(),
             principal: self.principal.clone(),

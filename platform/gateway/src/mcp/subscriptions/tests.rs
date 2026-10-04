@@ -284,6 +284,8 @@ async fn subscription_list_changes_invalidate_cached_catalog_surfaces() {
         serde_json::from_str(include_str!("../../../../../configs/gateway.local.json")).unwrap();
     let gateway = task_ownership_tests::gateway(
         GatewayState::new(db.a.clone())
+            .bind_token_extensions(Default::default())
+            .unwrap()
             .bind_oauth_client_resolver(std::sync::Arc::new(
                 crate::oauth_clients::CatalogOAuthClientResolver,
             ))

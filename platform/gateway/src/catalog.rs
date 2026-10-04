@@ -27,6 +27,7 @@ use crate::{AuthenticatedSubject, GatewayCatalogAdmission, VerifiedAccessToken};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GatewayAuthorityError {
+    ContributedTokenAuthority,
     UnknownOAuthClient(OAuthClientId),
     UnknownWorkContext(WorkContextId),
     MissingTenant(PrincipalId),
@@ -50,6 +51,8 @@ pub enum GatewayAuthorityError {
 impl std::fmt::Display for GatewayAuthorityError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::ContributedTokenAuthority => formatter
+                .write_str("static OAuth registration cannot admit contributed token authority"),
             Self::UnknownOAuthClient(client) => {
                 write!(formatter, "unknown OAuth client `{client}`")
             }
@@ -421,6 +424,9 @@ impl GatewayCatalog {
         &self,
         verified: VerifiedAccessToken,
     ) -> Result<AuthenticatedSubject, GatewayAuthorityError> {
+        if !verified.extensions.is_empty() || verified.access_token.managed_execution.is_some() {
+            return Err(GatewayAuthorityError::ContributedTokenAuthority);
+        }
         let client = self
             .oauth_client(&verified.access_token.oauth_client_id)
             .ok_or_else(|| {
@@ -443,6 +449,7 @@ impl GatewayCatalog {
         membership: WorkContextMembershipLevel,
     ) -> Result<AuthenticatedSubject, GatewayAuthorityError> {
         let VerifiedAccessToken {
+            extensions,
             access_token,
             principal,
             principal_display_name,
@@ -533,6 +540,7 @@ impl GatewayCatalog {
             }
         };
         Ok(AuthenticatedSubject {
+            extensions,
             audit: crate::request_observation::RequestObservation::current()
                 .map(|request| request.audit)
                 .unwrap_or_else(veoveo_audit_contract::AuditRequest::background),

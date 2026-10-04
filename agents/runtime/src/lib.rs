@@ -4,6 +4,9 @@
 //! LIVE streams are latency hints only; every recovery path starts from the
 //! persisted pending rows.
 
+#[cfg(feature = "contract")]
+pub mod contract;
+
 #[cfg(feature = "runtime")]
 mod control;
 #[cfg(feature = "runtime")]
@@ -42,9 +45,33 @@ fn gateway_test_state(
     store: veoveo_platform_store::PlatformStore,
     templates: std::sync::Arc<crate::gateway::ManagedTemplateCatalog>,
 ) -> anyhow::Result<veoveo_mcp_gateway::GatewayState> {
-    veoveo_mcp_gateway::GatewayState::new(store.clone()).bind_oauth_client_resolver(
-        std::sync::Arc::new(crate::gateway::ManagedOAuthClientResolver::new(
-            store, templates,
-        )),
-    )
+    let (registry, key) = fixture_claims();
+    veoveo_mcp_gateway::GatewayState::new(store.clone())
+        .bind_token_extensions(registry.clone())?
+        .bind_oauth_client_resolver(std::sync::Arc::new(
+            crate::gateway::ManagedOAuthClientResolver::new(store, templates, registry, key),
+        ))
+}
+
+#[cfg(all(test, feature = "gateway"))]
+fn fixture_claims() -> (
+    veoveo_types::ExtensionRegistry,
+    veoveo_types::ExtensionKey<contract::ManagedAgentToken>,
+) {
+    static CLAIMS: std::sync::OnceLock<(
+        veoveo_types::ExtensionRegistry,
+        veoveo_types::ExtensionKey<contract::ManagedAgentToken>,
+    )> = std::sync::OnceLock::new();
+    CLAIMS
+        .get_or_init(|| {
+            let mut builder =
+                veoveo_types::ExtensionRegistryBuilder::new(std::iter::empty::<String>());
+            let name = veoveo_types::ExtensionName::new(contract::MANAGED_AGENT_CLAIM).unwrap();
+            builder.reserve(name.clone()).unwrap();
+            let key = builder
+                .bind(&name, contract::admit_managed_agent_token)
+                .unwrap();
+            (builder.build(), key)
+        })
+        .clone()
 }

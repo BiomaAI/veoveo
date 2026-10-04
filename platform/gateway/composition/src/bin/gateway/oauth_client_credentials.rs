@@ -406,7 +406,7 @@ pub(super) async fn token_endpoint_client_credentials(
         );
     }
 
-    let binding = match effective.token_binding() {
+    let binding = match effective.token_extensions() {
         Ok(binding) => binding,
         Err(_) => {
             return oauth_error_response(
@@ -424,7 +424,7 @@ pub(super) async fn token_endpoint_client_credentials(
         &service_principal,
         crate::tokens::ServiceTokenAuthority {
             work_context,
-            managed_agent: binding,
+            extensions: binding,
         },
         &scopes,
     )

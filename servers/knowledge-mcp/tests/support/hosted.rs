@@ -175,10 +175,11 @@ pub fn identity(plane: &GatewayControlPlane) -> GatewayInternalIdentity {
             provenance: InvocationProvenance::Automated,
         },
         request_context: Some(GatewayRequestContext {
+            format: GatewayRequestContextFormat::V2,
             audit: audit::AuditRequest::background(),
             principal: actor.clone(),
             access_token: AccessTokenSubject {
-                managed_agent: None,
+                managed_execution: None,
                 issuer: actor.issuer,
                 subject: actor.subject,
                 oauth_client_id: "operator-service".parse().unwrap(),

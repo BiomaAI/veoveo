@@ -32,6 +32,7 @@ pub enum AuthError {
     InvalidIdentityAssertionResource,
     MissingIdentityAssertionScope,
     InvalidTimestamp { claim: &'static str, value: u64 },
+    Extension(veoveo_types::ExtensionError),
     Claim(veoveo_types::IdentifierError),
     Jwt(jsonwebtoken::errors::Error),
 }
@@ -93,6 +94,7 @@ impl fmt::Display for AuthError {
             Self::InvalidTimestamp { claim, value } => {
                 write!(f, "JWT claim `{claim}` has invalid timestamp `{value}`")
             }
+            Self::Extension(err) => write!(f, "JWT extension admission failed: {err}"),
             Self::Claim(err) => write!(f, "invalid JWT claim: {err}"),
             Self::Jwt(err) => write!(f, "JWT validation failed: {err}"),
         }

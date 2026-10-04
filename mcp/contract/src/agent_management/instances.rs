@@ -107,12 +107,3 @@ pub struct ManagedDispatch {
     pub lease_owner: Uuid,
     pub lease_fence: i64,
 }
-
-/// Signed repository-owned OAuth claim. Current registration still overrides it.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct ManagedAgentToken {
-    pub instance: AgentManagedInstanceId,
-    pub generation: i64,
-    pub epoch: i64,
-}

@@ -6,7 +6,6 @@ use jsonwebtoken::jwk::JwkSet;
 use std::{fmt::Debug, sync::Arc};
 use veoveo_mcp_contract::{
     GatewayAction, OAuthClientId, OAuthClientRegistration, PolicyTarget, Principal,
-    agent_management::ManagedAgentToken,
 };
 use veoveo_types::{WorkContextId, WorkContextMembershipLevel};
 
@@ -26,7 +25,11 @@ pub trait OAuthClientAuthority: Debug + Send + Sync {
         context: &WorkContextId,
         principal: &Principal,
     ) -> Result<WorkContextMembershipLevel>;
-    fn token_binding(&self) -> Result<Option<ManagedAgentToken>>;
+    fn token_extensions(&self) -> Result<veoveo_types::AdmittedExtensions>;
+    fn execution_attribution(
+        &self,
+        verified: &VerifiedAccessToken,
+    ) -> Result<Option<veoveo_audit_contract::AuditManagedExecution>>;
     fn apply_service_roles(&self, principal: &mut Principal) -> Result<()>;
     fn validate_token(&self, verified: &VerifiedAccessToken) -> Result<()>;
     fn action_admitted(
@@ -76,10 +79,12 @@ impl EffectiveOAuthClient {
             }
         }
     }
-    pub fn token_binding(&self) -> Result<Option<ManagedAgentToken>> {
+    pub fn token_extensions(&self) -> Result<veoveo_types::AdmittedExtensions> {
         self.authority
             .as_ref()
-            .map_or(Ok(None), |authority| authority.token_binding())
+            .map_or(Ok(Default::default()), |authority| {
+                authority.token_extensions()
+            })
     }
     pub fn apply_service_roles(&self, principal: &mut Principal) -> Result<()> {
         self.authority
@@ -107,10 +112,32 @@ impl OAuthClientResolver for CatalogOAuthClientResolver {
     }
 }
 impl GatewayState {
+    pub fn bind_token_extensions(
+        mut self,
+        registry: veoveo_types::ExtensionRegistry,
+    ) -> Result<Self> {
+        crate::auth::validate_access_token_registry(&registry)?;
+        ensure!(
+            self.token_extensions.is_none(),
+            "token extensions already bound"
+        );
+        self.token_extensions = Some(registry);
+        Ok(self)
+    }
+    pub fn token_extension_registry(&self) -> Result<veoveo_types::ExtensionRegistry> {
+        self.token_extensions
+            .clone()
+            .context("JWT extension profile is unbound")
+    }
+
     pub fn bind_oauth_client_resolver(
         mut self,
         resolver: Arc<dyn OAuthClientResolver>,
     ) -> Result<Self> {
+        ensure!(
+            self.token_extensions.is_some(),
+            "bind JWT extension profile before OAuth client resolver"
+        );
         ensure!(
             self.oauth_client_resolver.is_none(),
             "OAuth client resolver already bound"
@@ -146,7 +173,10 @@ impl GatewayState {
         };
         match &client.authority {
             Some(authority) => authority.action_admitted(catalog, subject, action, target),
-            None => Ok(subject.access_token.managed_agent.is_none()),
+            None => {
+                Ok(subject.extensions.is_empty()
+                    && subject.access_token.managed_execution.is_none())
+            }
         }
     }
     pub async fn resolve_authenticated_subject(
@@ -172,10 +202,12 @@ impl GatewayState {
         match &client.authority {
             Some(authority) => {
                 authority.validate_token(&verified)?;
+                verified.access_token.managed_execution =
+                    authority.execution_attribution(&verified)?;
                 client.apply_service_roles(&mut verified.principal)?;
             }
             None => ensure!(
-                verified.access_token.managed_agent.is_none(),
+                verified.extensions.is_empty() && verified.access_token.managed_execution.is_none(),
                 "OAuth token registration source mismatch"
             ),
         }

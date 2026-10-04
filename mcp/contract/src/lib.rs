@@ -122,8 +122,8 @@ pub use internal_auth::{
     GATEWAY_ROUTING_REQUIRED, GatewayInternalIdentity, GatewayInternalResourceIdentity,
     GatewayInternalResourceTokenVerifier, GatewayInternalSigningKey, GatewayInternalTokenIssuer,
     GatewayInternalTokenVerifier, GatewayInternalTrustBundle, GatewayRequestContext,
-    InternalTokenError, IssuedGatewayInternalResourceToken, IssuedGatewayInternalToken,
-    VerifiedArtifactUploadIdentity,
+    GatewayRequestContextFormat, InternalTokenError, IssuedGatewayInternalResourceToken,
+    IssuedGatewayInternalToken, VerifiedArtifactUploadIdentity,
 };
 pub use pagination::{Page, PaginationError, paginate};
 pub use protocol::{

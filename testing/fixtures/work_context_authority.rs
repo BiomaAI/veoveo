@@ -35,7 +35,7 @@ pub(crate) fn subject(name: &str) -> AuthenticatedSubject {
     })).unwrap();
     let now = Utc::now();
     let access_token = AccessTokenSubject {
-        managed_agent: None,
+        managed_execution: None,
         issuer: principal.issuer.clone(),
         subject: principal.subject.clone(),
         oauth_client_id: OAuthClientId::new("workspace").unwrap(),
@@ -54,6 +54,7 @@ pub(crate) fn subject(name: &str) -> AuthenticatedSubject {
         expires_at: now + TimeDelta::minutes(5),
     };
     AuthenticatedSubject {
+        extensions: Default::default(),
         audit: veoveo_mcp_contract::audit::AuditRequest::background(),
         access_token,
         principal: principal.clone(),

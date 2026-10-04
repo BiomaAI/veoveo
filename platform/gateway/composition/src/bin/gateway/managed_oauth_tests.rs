@@ -4,7 +4,7 @@ use axum::{Extension, Router, http::StatusCode};
 use serde_json::{Value, json};
 use std::sync::Arc;
 use veoveo_agent_runtime::gateway::{
-    ManagedOAuthClientResolver, ManagedTemplateCatalog,
+    ManagedTemplateCatalog,
     http::{AgentManagementState, models::ModelConnection},
 };
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayCatalogHandle};
@@ -35,12 +35,7 @@ fn managed_state(store: &veoveo_platform_store::PlatformStore) -> AgentManagemen
         ManagedTemplateCatalog::from_json(&json!([template]).to_string(), &catalog.current())
             .unwrap(),
     );
-    let gateway = veoveo_mcp_gateway::GatewayState::new(store.clone())
-        .bind_oauth_client_resolver(Arc::new(ManagedOAuthClientResolver::new(
-            store.clone(),
-            templates.clone(),
-        )))
-        .unwrap();
+    let gateway = crate::bindings::gateway_state(store.clone(), templates.clone()).unwrap();
     let model:ModelConnection=serde_json::from_value(json!({"id":"approved","name":"Approved model","provider":"Fixture","tenant":"test","work_contexts":["shared"],"base_url":"https://provider.test/v1","model":"model","api_key":"media_provider_api_key","limits":{"maxOutputTokens":128,"maxCompletionCalls":4,"maxToolCalls":8,"deadlineSeconds":120}})).unwrap();
     let scope = veoveo_mcp_gateway::http::ModuleTaskScope::new();
     AgentManagementState {

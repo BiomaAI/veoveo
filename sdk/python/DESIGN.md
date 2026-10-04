@@ -80,3 +80,18 @@ Datasheet qualifies template expansion against its resource variants and exercis
 the handlers over MCP. Its installed acceptance uses the reference installation's
 hosted and knowledge-source suites. The unrelated fork workload also runs against
 the shared SDK to detect wire and packaging regressions.
+
+## Internal Identity Assertions
+
+The receiver requires `veoveo.ai/gateway-internal-assertion/v2` on the Ed25519 JWT
+and `veoveo.ai/gateway-request-context/v2` on its signed request context. Missing or
+unsupported formats fail verification. Hosted receivers and the gateway require a
+coordinated upgrade and drain; this SDK admits one internal format.
+
+`AuditManagedExecution` carries checked instance and optional UUIDv7 episode identity
+with positive unsigned 64-bit generation and dispatch counters. The closed access-token
+model rejects the public `managed_agent` claim in internal assertions. Only an automated
+service without a browser session may carry execution attribution. The receiver checks
+actor, source principal, client, tenant, context, invocation provenance and source-token
+expiry before delivery. Current registration and domain permissions remain the server's
+responsibility.

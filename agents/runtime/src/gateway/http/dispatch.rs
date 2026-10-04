@@ -20,10 +20,20 @@ pub(super) async fn check(
     let profile = GatewayProfileId::new(profile).map_err(|_| forbidden())?;
     let profile = catalog.profile(&profile).ok_or_else(forbidden)?;
     authority::live_session(&state, profile, &subject).await?;
+    let registry = state
+        .gateway
+        .token_extension_registry()
+        .map_err(|_| forbidden())?;
+    let key = registry
+        .key::<crate::contract::ManagedAgentToken>(
+            &veoveo_types::ExtensionName::new(crate::contract::MANAGED_AGENT_CLAIM)
+                .map_err(|_| forbidden())?,
+        )
+        .map_err(|_| forbidden())?;
     let binding = subject
-        .access_token
-        .managed_agent
-        .as_ref()
+        .extensions
+        .get(&key)
+        .map_err(|_| forbidden())?
         .ok_or_else(forbidden)?;
     if request.generation != binding.generation
         || request.epoch < 1
@@ -34,6 +44,8 @@ pub(super) async fn check(
     let managed = crate::gateway::ManagedOAuthClientResolver::new(
         state.store().clone(),
         state.templates.clone(),
+        registry,
+        key,
     )
     .admitted_managed_client(&catalog, &subject.access_token.oauth_client_id)
     .await

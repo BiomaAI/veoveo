@@ -114,8 +114,11 @@ checks the signed token's lifetime, current OAuth registration, Work Context mem
 session-family revocation and individual JWT revocation. Store checks the enabled
 enterprise, tenant and both source and delegated actor identities in SQL. The gateway
 synchronizes those identities before forwarding. Managed requests also bind to the
-current instance, generation, dispatch epoch and published tool allowlist; the gateway
-owns runtime-template admission.
+current instance, generation, dispatch epoch and published tool allowlist. Knowledge
+consumes the gateway-signed `AuditManagedExecution` from the v2 internal assertion;
+checked positive-counter conversion compares it with current Store counters without
+truncation. Attribution supplies execution identity and grants no permission. The
+gateway owns runtime-template admission.
 
 Tool and resource discovery evaluate each descriptor with the shared policy evaluator.
 A narrow tool rule does not require a separate rule granting the whole server. Search

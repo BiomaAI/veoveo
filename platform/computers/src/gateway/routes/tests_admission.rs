@@ -47,7 +47,7 @@ fn subject() -> AuthenticatedSubject {
     })).unwrap();
     let now = Utc::now();
     let access_token = AccessTokenSubject {
-        managed_agent: None,
+        managed_execution: None,
         issuer: principal.issuer.clone(),
         subject: principal.subject.clone(),
         oauth_client_id: OAuthClientId::new("console").unwrap(),
@@ -66,6 +66,7 @@ fn subject() -> AuthenticatedSubject {
         expires_at: now + TimeDelta::seconds(25),
     };
     AuthenticatedSubject {
+        extensions: Default::default(),
         audit: veoveo_mcp_contract::audit::AuditRequest::background(),
         access_token,
         principal: principal.clone(),
@@ -92,6 +93,8 @@ async fn admission_preserves_signed_source_context_without_admin_permission_and_
                 .unwrap(),
         )),
         gateway_state: veoveo_mcp_gateway::GatewayState::new(db.a.clone())
+            .bind_token_extensions(Default::default())
+            .unwrap()
             .bind_oauth_client_resolver(Arc::new(
                 veoveo_mcp_gateway::oauth_clients::CatalogOAuthClientResolver,
             ))

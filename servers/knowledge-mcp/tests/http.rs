@@ -12,6 +12,8 @@ mod hosted;
 mod indexing;
 #[path = "support/installed.rs"]
 mod installed;
+#[path = "support/managed.rs"]
+mod managed;
 use hosted::*;
 use indexing::*;
 use rmcp::model::{CallToolRequestParams, ReadResourceRequestParams};
@@ -358,4 +360,129 @@ async fn browser_session_revocation_and_scope_and_time_boundaries_are_current() 
     })
     .await
     .expect("browser session test exceeded 180 seconds");
+}
+
+#[tokio::test]
+async fn managed_execution_requires_signed_attribution_and_current_registration() {
+    tokio::time::timeout(Duration::from_secs(180), async {
+        let db = fixture::TestDb::new().await;
+        let mut plane = plane(&[]);
+        let mut identity = identity(&plane);
+        let (_, _, instance) = managed::provision(&db.a, &plane, &identity).await;
+        identity.actor.roles = ["managed-pilot".parse().unwrap()].into();
+        let request = identity.request_context.as_mut().unwrap();
+        request.principal.roles = identity.actor.roles.clone();
+        request.access_token.managed_execution =
+            Some(veoveo_mcp_contract::audit::AuditManagedExecution {
+                instance: "one".parse().unwrap(),
+                generation: u64::try_from(instance.active_generation)
+                    .unwrap()
+                    .try_into()
+                    .unwrap(),
+                dispatch_epoch: u64::try_from(instance.dispatch_epoch)
+                    .unwrap()
+                    .try_into()
+                    .unwrap(),
+                episode: None,
+            });
+        // A static/dynamic collision is refused even for a well-signed attribution.
+        install(&db.a, &plane).await;
+        let target = veoveo_mcp_contract::PolicyTarget::Tool {
+            server: "knowledge".parse().unwrap(),
+            tool: "search".parse().unwrap(),
+        };
+        async fn admit(
+            store: &veoveo_platform_store::PlatformStore,
+            identity: &veoveo_mcp_contract::GatewayInternalIdentity,
+            target: &veoveo_mcp_contract::PolicyTarget,
+        ) -> bool {
+            veoveo_knowledge_mcp::authority::authorize(
+                store,
+                identity,
+                KnowledgeScope::Search,
+                veoveo_mcp_contract::GatewayAction::ToolsCall,
+                target,
+            )
+            .await
+            .is_ok()
+        }
+        assert!(!admit(&db.a, &identity, &target).await);
+        plane
+            .oauth_clients
+            .retain(|client| client.id.as_str() != "operator-service");
+        install(&db.a, &plane).await;
+        let signing = Signing::new();
+        let issued = signing.issue(identity.clone());
+        let verifier = veoveo_mcp_contract::GatewayInternalTokenVerifier::new(
+            veoveo_mcp_contract::GATEWAY_INTERNAL_TOKEN_ISSUER
+                .parse()
+                .unwrap(),
+            "knowledge".parse().unwrap(),
+            signing.trust.clone(),
+        );
+        let identity = verifier.verify(&issued.bearer_token).unwrap();
+        assert!(admit(&db.a, &identity, &target).await);
+        for mutation in 0..8 {
+            let mut changed = identity.clone();
+            let request = changed.request_context.as_mut().unwrap();
+            match mutation {
+                0 => request.access_token.managed_execution = None,
+                1 => {
+                    request
+                        .access_token
+                        .managed_execution
+                        .as_mut()
+                        .unwrap()
+                        .generation = std::num::NonZeroU64::new(u64::MAX).unwrap()
+                }
+                2 => {
+                    request
+                        .access_token
+                        .managed_execution
+                        .as_mut()
+                        .unwrap()
+                        .dispatch_epoch = std::num::NonZeroU64::new(u64::MAX).unwrap()
+                }
+                3 => {
+                    request
+                        .access_token
+                        .managed_execution
+                        .as_mut()
+                        .unwrap()
+                        .instance = "other".parse().unwrap()
+                }
+                4 => {
+                    request.access_token.session_family =
+                        Some(uuid::Uuid::now_v7().to_string().parse().unwrap())
+                }
+                5 => request.principal.roles.clear(),
+                6 => {
+                    request
+                        .access_token
+                        .scopes
+                        .insert("ungranted:scope".parse().unwrap());
+                }
+                _ => request.access_token.issuer = "https://foreign.example/oauth".parse().unwrap(),
+            };
+            assert!(
+                !admit(&db.a, &changed, &target).await,
+                "mutation {mutation}"
+            );
+        }
+        let denied_tool = veoveo_mcp_contract::PolicyTarget::Tool {
+            server: "knowledge".parse().unwrap(),
+            tool: "embed".parse().unwrap(),
+        };
+        assert!(!admit(&db.a, &identity, &denied_tool).await);
+        db.a.client()
+            .query("UPDATE $instance SET dispatch_epoch += 1;")
+            .bind(("instance", instance.id.clone()))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        assert!(!admit(&db.a, &identity, &target).await);
+    })
+    .await
+    .expect("managed receiver authority deadline");
 }

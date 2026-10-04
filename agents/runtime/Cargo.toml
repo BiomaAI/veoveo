@@ -8,10 +8,12 @@ name = "veoveo_agent_runtime"
 path = "src/lib.rs"
 
 [features]
+contract = ["dep:veoveo-types", "dep:serde", "dep:serde_json", "dep:schemars"]
 gateway = ["runtime", "dep:veoveo-mcp-gateway", "dep:anyhow", "dep:jsonwebtoken", "dep:veoveo-types", "dep:axum", "dep:parking_lot", "dep:reqwest", "dep:rmcp", "dep:secrecy", "dep:sha2", "dep:hex", "dep:tokio-util", "dep:tower-http", "dep:tracing", "dep:url"]
 default = ["runtime"]
 schema = ["dep:veoveo-modules"]
 runtime = [
+    "contract",
     "dep:async-stream",
     "dep:chrono",
     "dep:futures",
@@ -27,6 +29,7 @@ runtime = [
 ]
 
 [dependencies]
+schemars = { workspace = true, optional = true }
 axum = { workspace = true, optional = true }
 parking_lot = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }

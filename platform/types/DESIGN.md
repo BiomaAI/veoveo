@@ -422,3 +422,24 @@ uses these ordinary mechanics and the existing scope and Task traits; the founda
 owns no domain variants. The [macro design](../macros/DESIGN.md) defines declaration
 syntax, Serde profiles and consumer-only database delegation. Existing schemas and
 wire spellings are preserved during mechanical adoption.
+
+## Owner Contributions
+
+`ExtensionRegistryBuilder` separates reserved names from bound admission codecs. Each
+name has one declaration and at most one codec. Core-name collisions and duplicate
+bindings fail before a registry is built. `ExtensionName` uses the shared identity
+admission mechanics; its syntax does not identify an authorization grant.
+
+A registry admits open JSON into private encoded storage. Unknown names can be
+ignored by the consuming protocol profile, while a reserved value requires its codec,
+including null values. `ExtensionKey<T>` carries private registry identity and codec
+type information. A foreign key or mismatched type cannot read a contribution.
+Typed reads return a fresh owned value through the owner codec and require its
+serialized representation to agree with the admitted value. Interior mutation of
+that returned value cannot change the stored payload or another read. Codecs own
+value admission and stable encoding; current authorization belongs to services.
+
+Generic Debug output contains names only. `wire()` returns a serialization copy;
+owner policy reads use typed keys. `UniqueJsonValue` rejects duplicate object fields
+at every depth before open JSON maps can discard them. The registry has no module
+catalog, transport dependencies or built-in owner claim names.

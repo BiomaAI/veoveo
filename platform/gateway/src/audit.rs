@@ -4,7 +4,6 @@ use crate::{
     request_observation::{RequestStage, StageTimer},
 };
 use anyhow::{Context, Result};
-use std::num::NonZeroU64;
 use veoveo_audit_contract::*;
 use veoveo_mcp_contract::{GatewayProfileId, PolicyTarget, PrincipalKind};
 
@@ -17,21 +16,7 @@ impl AuthenticatedSubject {
         })
     }
     pub fn audit_actor(&self) -> Result<AuditActor> {
-        let managed_agent = self
-            .access_token
-            .managed_agent
-            .as_ref()
-            .map(|agent| {
-                Ok::<_, anyhow::Error>(AuditManagedExecution {
-                    instance: agent.instance.clone(),
-                    generation: NonZeroU64::new(u64::try_from(agent.generation)?)
-                        .context("zero agent generation")?,
-                    dispatch_epoch: NonZeroU64::new(u64::try_from(agent.epoch)?)
-                        .context("zero agent epoch")?,
-                    episode: None,
-                })
-            })
-            .transpose()?;
+        let managed_agent = self.access_token.managed_execution.clone();
         Ok(AuditActor {
             principal: self.actor.id.clone(),
             kind: match self.actor.kind {

@@ -8,7 +8,10 @@ mod principal;
 mod support;
 mod verified;
 
-pub use access_token::JwtVerifier;
+pub use access_token::{
+    ACCESS_TOKEN_CORE_CLAIMS, JwtVerifier, access_token_extension_registry_builder,
+    validate_access_token_extensions, validate_access_token_registry,
+};
 pub use client_assertion::ClientAssertionVerifier;
 pub use config::{
     BearerToken, ClientAssertionConfig, IdJagConfig, JwtAuthConfig, OidcIdTokenConfig,
@@ -145,11 +148,115 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         principal_assurances: Vec<&'a str>,
     }
 
+    fn signed_raw_claims(raw: &str) -> BearerToken {
+        use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+        let header = serde_json::json!({"alg":"RS256","typ":"JWT","kid":"test-key"});
+        let message = format!(
+            "{}.{}",
+            URL_SAFE_NO_PAD.encode(serde_json::to_vec(&header).unwrap()),
+            URL_SAFE_NO_PAD.encode(raw)
+        );
+        let signature =
+            jsonwebtoken::crypto::sign(message.as_bytes(), &rsa_encoding_key(), Algorithm::RS256)
+                .unwrap();
+        BearerToken::from_authorization_header(&format!("Bearer {message}.{signature}")).unwrap()
+    }
+    fn claims_with_extra(extra: &str) -> BearerToken {
+        use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+        let base = token("operator:use");
+        let raw = String::from_utf8(
+            URL_SAFE_NO_PAD
+                .decode(base.as_str().split('.').nth(1).unwrap())
+                .unwrap(),
+        )
+        .unwrap();
+        signed_raw_claims(&format!(
+            "{},{} }}",
+            raw.trim_end().strip_suffix('}').unwrap(),
+            extra
+        ))
+    }
+    #[test]
+    fn independently_declared_signed_claims_require_bound_admission_and_reject_duplicates() {
+        assert!(
+            unbound_verifier_with_algorithms(&[], vec![Algorithm::RS256])
+                .verify(&token("operator:use"))
+                .is_err()
+        );
+        #[derive(serde::Serialize, serde::Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Counter {
+            value: std::num::NonZeroU64,
+        }
+        let name = veoveo_types::ExtensionName::new("independent_counter").unwrap();
+        let mut declarations = access_token_extension_registry_builder();
+        declarations.reserve(name.clone()).unwrap();
+        let unbound = declarations.build();
+        assert!(
+            verifier(&[])
+                .with_extensions(unbound)
+                .unwrap()
+                .verify(&claims_with_extra(r#""independent_counter":{"value":1}"#))
+                .is_err()
+        );
+        let mut declarations = access_token_extension_registry_builder();
+        declarations.reserve(name.clone()).unwrap();
+        let key = declarations.bind_serde::<Counter>(&name).unwrap();
+        let registry = declarations.build();
+        let verifier = verifier(&[]).with_extensions(registry.clone()).unwrap();
+        let verified = verifier
+            .verify(&claims_with_extra(
+                r#""independent_counter":{"value":7},"external_unknown":{"unconstrained":true}"#,
+            ))
+            .unwrap();
+        assert_eq!(
+            verified.extensions.get(&key).unwrap().unwrap().value.get(),
+            7
+        );
+        assert!(verified.access_token.managed_execution.is_none());
+        for extra in [
+            r#""independent_counter":null"#,
+            r#""independent_counter":{"value":0}"#,
+            r#""independent_counter":{"value":7,"value":8}"#,
+            r#""independent_counter":{"value":7},"independent_counter":{"value":8}"#,
+            r#""sub":"replacement""#,
+            r#""managed_execution":null"#,
+        ] {
+            assert!(
+                verifier.verify(&claims_with_extra(extra)).is_err(),
+                "{extra}"
+            );
+        }
+        let mut invalid = veoveo_types::ExtensionRegistryBuilder::new(std::iter::empty::<String>());
+        let core = veoveo_types::ExtensionName::new("iss").unwrap();
+        invalid.reserve(core.clone()).unwrap();
+        let bad_key = invalid.bind_serde::<String>(&core).unwrap();
+        let invalid = invalid.build();
+        assert!(
+            self::verifier(&[])
+                .with_extensions(invalid.clone())
+                .is_err()
+        );
+        assert!(
+            validate_access_token_extensions(
+                &invalid.contribute(&bad_key, &"foreign".to_owned()).unwrap()
+            )
+            .is_err()
+        );
+    }
     fn verifier(required_scopes: &[&str]) -> JwtVerifier {
         verifier_with_algorithms(required_scopes, vec![Algorithm::RS256])
     }
 
     fn verifier_with_algorithms(
+        required_scopes: &[&str],
+        algorithms: Vec<Algorithm>,
+    ) -> JwtVerifier {
+        unbound_verifier_with_algorithms(required_scopes, algorithms)
+            .with_extensions(Default::default())
+            .unwrap()
+    }
+    fn unbound_verifier_with_algorithms(
         required_scopes: &[&str],
         algorithms: Vec<Algorithm>,
     ) -> JwtVerifier {

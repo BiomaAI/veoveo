@@ -6,10 +6,10 @@ use veoveo_types::{InvocationMode, ScopeName};
 
 use super::AuthError;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub(super) struct JwtClaims {
-    #[serde(default)]
-    pub(super) managed_agent: Option<veoveo_mcp_contract::agent_management::ManagedAgentToken>,
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(super) struct JwtClaimsWire {
+    #[serde(flatten)]
+    pub(super) extensions: std::collections::BTreeMap<String, serde_json::Value>,
     pub(super) iss: String,
     pub(super) sub: String,
     pub(super) principal_id: String,
@@ -128,7 +128,7 @@ pub(super) struct OidcIdTokenClaims {
     pub(super) principal_assurances: Option<StringListClaim>,
 }
 
-impl JwtClaims {
+impl JwtClaimsWire {
     pub(super) fn scopes(&self) -> Result<BTreeSet<ScopeName>, AuthError> {
         let mut values = BTreeSet::new();
         if let Some(scope) = &self.scope {
@@ -182,5 +182,33 @@ impl StringListClaim {
             Self::One(value) => vec![value],
             Self::Many(values) => values,
         }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize)]
+pub(super) struct JwtClaims(pub JwtClaimsWire);
+impl std::ops::Deref for JwtClaims {
+    type Target = JwtClaimsWire;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl<'de> Deserialize<'de> for JwtClaims {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = veoveo_types::UniqueJsonValue::deserialize(deserializer)?.0;
+        if value.get("managed_execution").is_some() {
+            return Err(serde::de::Error::custom(
+                "public token cannot assert internal execution attribution",
+            ));
+        }
+        serde_json::from_value(value)
+            .map(Self)
+            .map_err(|_| serde::de::Error::custom("invalid access-token claims"))
+    }
+}
+
+impl std::fmt::Debug for JwtClaims {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("JwtClaims([REDACTED])")
     }
 }

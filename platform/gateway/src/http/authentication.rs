@@ -3,7 +3,9 @@ use super::auth_support::{
     authorization_server_jwks_from_signing_key, load_jwks, record_auth_audit, unauthorized,
 };
 use super::{ProfileAuthState, current_catalog, current_http_client, public_authorization_server};
-use crate::{AuthenticatedSubject, BearerToken, GatewayCatalog, JwtAuthConfig, JwtVerifier};
+use crate::{
+    AuthError, AuthenticatedSubject, BearerToken, GatewayCatalog, JwtAuthConfig, JwtVerifier,
+};
 use axum::{
     extract::{MatchedPath, OriginalUri, Request, State},
     http::{StatusCode, header::AUTHORIZATION},
@@ -163,7 +165,17 @@ pub async fn authenticate_profile(
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
-    let verified = match JwtVerifier::new(auth_config, jwks).verify(&token) {
+    let verified = match state
+        .gateway_state
+        .token_extension_registry()
+        .map_err(|_| {
+            AuthError::Extension(veoveo_types::ExtensionError::new(
+                "JWT extension profile is unbound",
+            ))
+        })
+        .and_then(|registry| JwtVerifier::new(auth_config, jwks).with_extensions(registry))
+        .and_then(|verifier| verifier.verify(&token))
+    {
         Ok(verified) => verified,
         Err(err) => {
             tracing::warn!("rejected gateway token: {err}");

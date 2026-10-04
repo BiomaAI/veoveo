@@ -13,7 +13,7 @@ from .artifacts import (
     PutArtifactRequest,
     RedeemArtifactWriteCapabilityRequest,
 )
-from .audit import AuditRequest, AuditRequestId, AuditSpanId, AuditTraceId
+from .audit import AuditManagedExecution, AuditRequest, AuditRequestId, AuditSpanId, AuditTraceId
 from .docs import (
     CHECKLIST_IDS,
     CONTRACT_REVISION,
@@ -42,7 +42,6 @@ from .identity import (
     GatewayInternalIdentity,
     GatewayRequestContext,
     AccessTokenSubject,
-    ManagedAgentToken,
     GroupAccessSubject,
     GroupMembership,
     GroupRole,
@@ -59,11 +58,11 @@ from .identity import (
 from .usage import UsageKind, UsageRecord, UsageReport
 
 __all__ = [
+    "AuditManagedExecution",
     "AuditRequest",
     "AuditRequestId",
     "AuditSpanId",
     "AuditTraceId",
-    "ManagedAgentToken",
     "ArtifactId",
     "ArtifactMetadata",
     "ArtifactObject",

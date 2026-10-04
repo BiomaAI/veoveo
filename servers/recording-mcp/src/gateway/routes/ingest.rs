@@ -561,7 +561,17 @@ async fn authenticate(
         Ok(config) => config,
         Err(error) => return Err(auth_audit_error_response(error.into()).into()),
     };
-    let verified = match JwtVerifier::new(auth_config, jwks).verify(&token) {
+    let verified = match state
+        .gateway_state
+        .token_extension_registry()
+        .map_err(|_| {
+            veoveo_mcp_gateway::AuthError::Extension(veoveo_types::ExtensionError::new(
+                "JWT extension profile is unbound",
+            ))
+        })
+        .and_then(|registry| JwtVerifier::new(auth_config, jwks).with_extensions(registry))
+        .and_then(|verifier| verifier.verify(&token))
+    {
         Ok(verified) => verified,
         Err(_) => {
             return Err(record_denial(

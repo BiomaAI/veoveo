@@ -80,7 +80,8 @@
         "trace_id": "00000000000000000000000000000001",
         "span_id": "0000000000000001",
         "source_ip": "192.0.2.1"
-      }
+      },
+      "format": "veoveo.ai/gateway-request-context/v2"
     }
   },
   {
@@ -163,7 +164,8 @@
         "trace_id": "00000000000000000000000000000002",
         "span_id": "0000000000000002",
         "source_ip": "2001:db8::1"
-      }
+      },
+      "format": "veoveo.ai/gateway-request-context/v2"
     }
   },
   {
@@ -220,10 +222,11 @@
         "issued_at": "2026-09-01T00:00:00Z",
         "not_before": null,
         "expires_at": "2100-01-01T00:00:00Z",
-        "managed_agent": {
+        "managed_execution": {
           "instance": "fixture-agent",
           "generation": 1,
-          "epoch": 2
+          "dispatch_epoch": 2,
+          "episode": null
         }
       },
       "principal": {
@@ -247,7 +250,8 @@
         "trace_id": "00000000000000000000000000000003",
         "span_id": "0000000000000003",
         "source_ip": null
-      }
+      },
+      "format": "veoveo.ai/gateway-request-context/v2"
     }
   }
 ]

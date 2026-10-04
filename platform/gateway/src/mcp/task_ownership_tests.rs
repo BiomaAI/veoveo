@@ -33,9 +33,10 @@ pub(crate) fn subject() -> AuthenticatedSubject {
     actor.scopes = BTreeSet::from([ScopeName::new("operator:use").unwrap()]);
     actor.data_labels.insert(DataLabelId::new("cui").unwrap());
     AuthenticatedSubject {
+        extensions: Default::default(),
         audit: veoveo_mcp_contract::audit::AuditRequest::background(),
         access_token: AccessTokenSubject {
-            managed_agent: None,
+            managed_execution: None,
             issuer: actor.issuer.clone(),
             subject: actor.subject.clone(),
             oauth_client_id: OAuthClientId::new("workspace").unwrap(),
@@ -122,6 +123,8 @@ async fn admitted(gateway: &GatewayMcp, subject: &AuthenticatedSubject, task: &s
 async fn recovery_uses_durable_identity_and_current_permissions_for_all_task_actions() {
     let db = fixture::TestDb::new().await;
     let state = GatewayState::new(db.a.clone())
+        .bind_token_extensions(Default::default())
+        .unwrap()
         .bind_oauth_client_resolver(std::sync::Arc::new(
             crate::oauth_clients::CatalogOAuthClientResolver,
         ))
@@ -259,6 +262,8 @@ fn delegated_ownership_requires_the_same_initiator_and_grant() {
 async fn version_zero_shared_task_recovers_without_rewriting_or_rebinding_external_routes() {
     let db = fixture::TestDb::new().await;
     let state = GatewayState::new(db.a.clone())
+        .bind_token_extensions(Default::default())
+        .unwrap()
         .bind_oauth_client_resolver(std::sync::Arc::new(
             crate::oauth_clients::CatalogOAuthClientResolver,
         ))
@@ -313,6 +318,8 @@ async fn version_zero_shared_task_recovers_without_rewriting_or_rebinding_extern
         .unwrap();
     let gateway = gateway(
         GatewayState::new(db.b.clone())
+            .bind_token_extensions(Default::default())
+            .unwrap()
             .bind_oauth_client_resolver(std::sync::Arc::new(
                 crate::oauth_clients::CatalogOAuthClientResolver,
             ))

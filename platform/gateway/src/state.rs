@@ -21,6 +21,7 @@ pub(crate) use task_routes::{GatewayTaskOwnership, GatewayTaskRouteDraft};
 /// sole authority for replay, OAuth, revocation, subscription, and audit data.
 #[derive(Debug, Clone)]
 pub struct GatewayState {
+    pub(crate) token_extensions: Option<veoveo_types::ExtensionRegistry>,
     pub(super) platform: PlatformStore,
     pub(crate) audit_writer: std::sync::Arc<tokio::sync::OnceCell<veoveo_audit::AuditWriter>>,
     pub(crate) audit_health: std::sync::Arc<std::sync::OnceLock<veoveo_audit::AuditHealth>>,
@@ -35,6 +36,7 @@ impl GatewayState {
             audit_writer: Default::default(),
             audit_health: Default::default(),
             oauth_client_resolver: None,
+            token_extensions: None,
         }
     }
 

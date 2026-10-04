@@ -73,10 +73,11 @@ pub(crate) fn request_context(
         principal.subject = TokenSubject::new(format!("subject-{initiator}")).unwrap();
     }
     let context = GatewayRequestContext {
+        format: veoveo_mcp_contract::GatewayRequestContextFormat::V2,
         audit: veoveo_mcp_contract::audit::AuditRequest::background(),
         principal: principal.clone(),
         access_token: AccessTokenSubject {
-            managed_agent: None,
+            managed_execution: None,
             issuer: principal.issuer.clone(),
             subject: principal.subject.clone(),
             oauth_client_id: OAuthClientId::new(if actor.kind == PrincipalKind::Service {

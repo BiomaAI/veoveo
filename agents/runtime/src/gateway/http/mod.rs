@@ -97,12 +97,7 @@ impl AgentManagementState {
     #[cfg(test)]
     fn install_templates(&mut self, templates: crate::gateway::ManagedTemplateCatalog) {
         let templates = Arc::new(templates);
-        self.gateway = veoveo_mcp_gateway::GatewayState::new(self.store().clone())
-            .bind_oauth_client_resolver(Arc::new(crate::gateway::ManagedOAuthClientResolver::new(
-                self.store().clone(),
-                templates.clone(),
-            )))
-            .unwrap();
+        self.gateway = crate::gateway_test_state(self.store().clone(), templates.clone()).unwrap();
         self.templates = templates;
     }
 

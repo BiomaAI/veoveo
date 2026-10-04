@@ -23,11 +23,14 @@ records and template packages stay in this module. The owner-only
 That entrypoint shares the resolver's current-registration and template admission;
 it does not reload the row after admission.
 
-The `ManagedAgentToken` claim and authoring vocabulary still live in the shared MCP
-contract. Their extraction to an Agents-owned contract requires transfer of OAuth
-issuance, verified-token decoding and browser consumers with unchanged wire forms.
-The present authority port preserves that token format and does not establish a
-universal module-specific JWT extension profile.
+The Agents-owned `contract` feature declares the public `managed_agent` claim with
+its existing JSON fields and schema identity. Composition reserves the claim name
+and binds its typed codec in the same immutable registry used for verification and
+issuance. Current registration and template admission precede execution attribution.
+The signed generation and epoch become checked positive counters in the internal
+`AuditManagedExecution`; task observation preserves the token's epoch, while tool
+dispatch checks it against the current instance. Authoring HTTP vocabulary still
+belongs to the shared MCP contract and requires a separate ownership transfer.
 
 ## Effective Registration
 

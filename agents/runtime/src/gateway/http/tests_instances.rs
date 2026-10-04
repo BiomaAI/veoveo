@@ -416,11 +416,15 @@ async fn managed_dispatch_rechecks_model_generation_epoch_and_revocation() {
     service.access_token.audience = instance.identity.resource.parse().unwrap();
     service.access_token.invocation_mode = veoveo_types::InvocationMode::Automated;
     service.access_token.initiator = None;
-    service.access_token.managed_agent = Some(wire::ManagedAgentToken {
+    let mut binding = crate::contract::ManagedAgentToken {
         instance: wire::AgentManagedInstanceId::new("worker-one").unwrap(),
         generation: 1,
         epoch: 1,
-    });
+    };
+    let (registry, key) = crate::fixture_claims();
+    service.extensions = registry.contribute(&key, &binding).unwrap();
+    service.access_token.managed_execution =
+        Some(crate::gateway::identity::execution_attribution(&binding).unwrap());
     let runtime = crate::AgentRuntime::register(
         db.a.clone(),
         crate::AgentSpec {
@@ -511,7 +515,10 @@ async fn managed_dispatch_rechecks_model_generation_epoch_and_revocation() {
             .0,
         StatusCode::FORBIDDEN
     );
-    service.access_token.managed_agent.as_mut().unwrap().epoch = 2;
+    binding.epoch = 2;
+    service.extensions = registry.contribute(&key, &binding).unwrap();
+    service.access_token.managed_execution =
+        Some(crate::gateway::identity::execution_attribution(&binding).unwrap());
     assert_eq!(
         request(
             &app(&state, service),

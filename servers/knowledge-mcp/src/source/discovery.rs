@@ -9,11 +9,12 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     time::Duration,
 };
+use veoveo_gateway_contract::GatewayDiscoveryFailureCode;
 use veoveo_knowledge_contract::{
     CollectionRegistration, KnowledgeCollectionApproval, KnowledgeError,
 };
 use veoveo_mcp_contract::{
-    GatewayDiscoveryDegradation, GatewayDiscoveryFailureCode, ServerResourceUris,
+    GatewayDiscoveryDegradation, ServerResourceUris,
     docs::{CONTRACT_REVISION, ContractDeclaration},
 };
 use veoveo_mcp_knowledge_extension::{

@@ -14,7 +14,18 @@ pub(super) fn gateway_state(
     platform: PlatformStore,
     templates: Arc<ManagedTemplateCatalog>,
 ) -> anyhow::Result<GatewayState> {
-    GatewayState::new(platform.clone()).bind_oauth_client_resolver(Arc::new(
-        ManagedOAuthClientResolver::new(platform, templates),
-    ))
+    let mut builder = veoveo_mcp_gateway::auth::access_token_extension_registry_builder();
+    let name =
+        veoveo_types::ExtensionName::new(veoveo_agent_runtime::contract::MANAGED_AGENT_CLAIM)?;
+    builder.reserve(name.clone())?;
+    let key = builder.bind(
+        &name,
+        veoveo_agent_runtime::contract::admit_managed_agent_token,
+    )?;
+    let registry = builder.build();
+    GatewayState::new(platform.clone())
+        .bind_token_extensions(registry.clone())?
+        .bind_oauth_client_resolver(Arc::new(ManagedOAuthClientResolver::new(
+            platform, templates, registry, key,
+        )))
 }

@@ -6,6 +6,7 @@ use veoveo_types::{InvocationMode, InvocationProvenance};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct GatewayRequestContext {
+    pub format: GatewayRequestContextFormat,
     /// Gateway-established HTTP correlation, authenticated by the internal assertion.
     pub audit: veoveo_audit_contract::AuditRequest,
     pub access_token: AccessTokenSubject,
@@ -64,7 +65,11 @@ impl GatewayRequestContext {
                     && token.session_family.is_none()
             }
         };
-        if !common
+        if (token.managed_execution.is_some()
+            && (token.invocation_mode != InvocationMode::Automated
+                || source.kind != PrincipalKind::Service
+                || token.session_family.is_some()))
+            || !common
             || !provenance
             || (token.session_family.is_some()
                 && (source.kind != PrincipalKind::User
@@ -84,30 +89,9 @@ impl GatewayRequestContext {
         authority: &InvocationAuthority,
         profile: &GatewayProfileId,
     ) -> Result<veoveo_audit_contract::AuditContext, InternalTokenError> {
-        use std::num::NonZeroU64;
         use veoveo_audit_contract::*;
         self.validate_for(actor, authority)?;
-        let managed_agent = self
-            .access_token
-            .managed_agent
-            .as_ref()
-            .map(|agent| {
-                let generation = u64::try_from(agent.generation)
-                    .ok()
-                    .and_then(NonZeroU64::new)
-                    .ok_or(InternalTokenError::InvalidRequestContext)?;
-                let dispatch_epoch = u64::try_from(agent.epoch)
-                    .ok()
-                    .and_then(NonZeroU64::new)
-                    .ok_or(InternalTokenError::InvalidRequestContext)?;
-                Ok::<_, InternalTokenError>(AuditManagedExecution {
-                    instance: agent.instance.clone(),
-                    generation,
-                    dispatch_epoch,
-                    episode: None,
-                })
-            })
-            .transpose()?;
+        let managed_agent = self.access_token.managed_execution.clone();
         Ok(AuditContext {
             actor: AuditActor {
                 principal: actor.id.clone(),
@@ -141,4 +125,11 @@ impl GatewayInternalIdentity {
             .ok_or(InternalTokenError::InvalidRequestContext)?
             .audit_context(&self.actor, &self.authority, &self.profile)
     }
+}
+
+/// The gateway and receiver require a coordinated drain when this signed shape changes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub enum GatewayRequestContextFormat {
+    #[serde(rename = "veoveo.ai/gateway-request-context/v2")]
+    V2,
 }

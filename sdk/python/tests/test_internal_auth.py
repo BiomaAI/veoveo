@@ -93,6 +93,7 @@ def _claims(server: str = "datasheet", **overrides) -> dict:
     actor = overrides.pop("actor", _principal())
     authority = overrides.pop("authority", _authority(actor))
     claims = {
+        "format": "veoveo.ai/gateway-internal-assertion/v2",
         "iss": ISSUER,
         "sub": actor["id"],
         "aud": server,
@@ -152,8 +153,8 @@ def test_preserves_the_shared_rust_request_context_fixture(fixture):
     assert received.request_context == GatewayRequestContext.model_validate(fixture["request_context"])
     context = received.request_context
     assert context.audit.model_dump(mode="json") == fixture["request_context"]["audit"]
-    expected_agent = fixture["request_context"]["access_token"].get("managed_agent")
-    assert context.access_token.model_dump(mode="json")["managed_agent"] == expected_agent
+    expected_agent = fixture["request_context"]["access_token"].get("managed_execution")
+    assert context.access_token.model_dump(mode="json")["managed_execution"] == expected_agent
 
 
 @pytest.mark.parametrize("field,value", [
@@ -289,3 +290,73 @@ def test_bearer_header_parsing_is_strict():
         bearer_from_header("Bearer ")
     with pytest.raises(InternalTokenError):
         bearer_from_header("Bearer two tokens")
+
+
+@pytest.mark.parametrize("format", [None, "veoveo.ai/gateway-internal-assertion/v1", "unknown"])
+def test_rejects_missing_or_unknown_assertion_format(format):
+    pem, jwks = _keypair()
+    claims = _claims()
+    if format is None:
+        del claims["format"]
+    else:
+        claims["format"] = format
+    with pytest.raises(InternalTokenError, match="format"):
+        _verifier(jwks).verify(_token(pem, claims))
+
+
+@pytest.mark.parametrize("format", [None, "veoveo.ai/gateway-request-context/v1", "unknown"])
+def test_rejects_missing_or_unknown_request_context_format(format):
+    fixture = deepcopy(_request_context_fixtures()[0])
+    context = fixture["request_context"]
+    if format is None:
+        del context["format"]
+    else:
+        context["format"] = format
+    pem, jwks = _keypair()
+    with pytest.raises(InternalTokenError, match="context"):
+        _verifier(jwks).verify(_token(pem, _claims(actor=fixture["actor"], authority=fixture["authority"], request_context=context)))
+
+
+@pytest.mark.parametrize("field,value", [
+    ("generation", value) for value in [True, "1", 1.0, 0, -1, 2**64]
+] + [
+    ("dispatch_epoch", value) for value in [True, "1", 1.0, 0, -1, 2**64]
+] + [("instance", "bad/instance"), ("episode", "not-a-uuid"),
+     ("episode", "0199a000-0000-4000-8000-000000000001")])
+def test_managed_attribution_rejects_malformed_ids_and_counters(field, value):
+    from veoveo_mcp.contract import AuditManagedExecution
+    from pydantic import ValidationError
+
+    payload = {"instance": "worker-one", "generation": 1, "dispatch_epoch": 1}
+    payload[field] = value
+    with pytest.raises(ValidationError):
+        AuditManagedExecution.model_validate(payload)
+
+
+def test_managed_attribution_preserves_u64_and_refuses_obsolete_claim():
+    from veoveo_mcp.contract import AuditManagedExecution, AccessTokenSubject
+    from pydantic import ValidationError
+
+    projection = AuditManagedExecution(instance="worker-one", generation=2**64 - 1, dispatch_epoch=2**64 - 1)
+    assert projection.model_dump()["dispatch_epoch"] == 2**64 - 1
+    fixture = deepcopy(_request_context_fixtures()[0])
+    fixture["request_context"]["access_token"]["managed_agent"] = {"instance": "worker-one", "generation": 1, "epoch": 1}
+    with pytest.raises(ValidationError):
+        AccessTokenSubject.model_validate(fixture["request_context"]["access_token"])
+
+
+@pytest.mark.parametrize("fixture", _request_context_fixtures(), ids=lambda f: f["name"])
+def test_managed_attribution_requires_automated_service_without_session(fixture):
+    from veoveo_mcp.contract import GatewayRequestContext, Principal, InvocationAuthority
+
+    fixture = deepcopy(fixture)
+    context = fixture["request_context"]
+    context["access_token"]["managed_execution"] = {"instance":"worker-one", "generation":1, "dispatch_epoch":1}
+    parsed = GatewayRequestContext.model_validate(context)
+    actor = Principal.model_validate(fixture["actor"])
+    authority = InvocationAuthority.model_validate(fixture["authority"])
+    if context["access_token"]["invocation_mode"] == "automated":
+        parsed.validate_for(actor, authority)
+        parsed.access_token.session_family = "0199a000-0000-7000-8000-000000000001"
+    with pytest.raises(ValueError):
+        parsed.validate_for(actor, authority)

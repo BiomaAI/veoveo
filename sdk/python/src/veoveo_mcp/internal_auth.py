@@ -163,6 +163,8 @@ class GatewayInternalTokenVerifier:
             raise InternalTokenError(
                 f"internal token JWT validation failed: {error}"
             ) from error
+        if claims.get("format") != "veoveo.ai/gateway-internal-assertion/v2":
+            raise InternalTokenError("unsupported internal assertion format")
         server = claims.get("server")
         if server not in self.audiences:
             raise InternalTokenError(

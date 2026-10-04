@@ -23,9 +23,20 @@ fn gateway_test_state(
     store: veoveo_platform_store::PlatformStore,
     templates: std::sync::Arc<veoveo_agent_runtime::gateway::ManagedTemplateCatalog>,
 ) -> anyhow::Result<veoveo_mcp_gateway::GatewayState> {
-    veoveo_mcp_gateway::GatewayState::new(store.clone()).bind_oauth_client_resolver(
-        std::sync::Arc::new(
-            veoveo_agent_runtime::gateway::ManagedOAuthClientResolver::new(store, templates),
-        ),
-    )
+    let mut builder = veoveo_mcp_gateway::auth::access_token_extension_registry_builder();
+    let name =
+        veoveo_types::ExtensionName::new(veoveo_agent_runtime::contract::MANAGED_AGENT_CLAIM)?;
+    builder.reserve(name.clone())?;
+    let key = builder.bind(
+        &name,
+        veoveo_agent_runtime::contract::admit_managed_agent_token,
+    )?;
+    let registry = builder.build();
+    veoveo_mcp_gateway::GatewayState::new(store.clone())
+        .bind_token_extensions(registry.clone())?
+        .bind_oauth_client_resolver(std::sync::Arc::new(
+            veoveo_agent_runtime::gateway::ManagedOAuthClientResolver::new(
+                store, templates, registry, key,
+            ),
+        ))
 }

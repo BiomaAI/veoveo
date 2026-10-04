@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+serde_json.workspace = true
 thiserror.workspace = true
 veoveo-macros.workspace = true
 chrono = { version = "=0.4.45", default-features = false, features = ["std"] }
@@ -17,4 +18,3 @@ url.workspace = true
 uuid = { version = "=1.25.0", default-features = false, features = ["serde", "std", "v7"] }
 
 [dev-dependencies]
-serde_json.workspace = true

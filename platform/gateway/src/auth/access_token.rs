@@ -25,11 +25,25 @@ use super::{
 pub struct JwtVerifier {
     config: JwtAuthConfig,
     jwks: JwkSet,
+    extensions: Option<veoveo_types::ExtensionRegistry>,
 }
 
 impl JwtVerifier {
     pub fn new(config: JwtAuthConfig, jwks: JwkSet) -> Self {
-        Self { config, jwks }
+        Self {
+            config,
+            jwks,
+            extensions: None,
+        }
+    }
+
+    pub fn with_extensions(
+        mut self,
+        registry: veoveo_types::ExtensionRegistry,
+    ) -> Result<Self, AuthError> {
+        validate_access_token_registry(&registry).map_err(AuthError::Extension)?;
+        self.extensions = Some(registry);
+        Ok(self)
     }
 
     pub fn verify(&self, token: &BearerToken) -> Result<VerifiedAccessToken, AuthError> {
@@ -56,7 +70,18 @@ impl JwtVerifier {
 
         let data =
             decode::<JwtClaims>(token.as_str(), &key, &validation).map_err(AuthError::Jwt)?;
-        let claims = data.claims;
+        let claims = data.claims.0;
+        let extensions = self
+            .extensions
+            .as_ref()
+            .ok_or_else(|| {
+                AuthError::Extension(veoveo_types::ExtensionError::new(
+                    "JWT extension profile is unbound",
+                ))
+            })?
+            .admit(claims.extensions.clone())
+            .map_err(AuthError::Extension)?;
+        validate_access_token_extensions(&extensions).map_err(AuthError::Extension)?;
         let expires_at = unix_timestamp(claims.exp, "exp")?;
         // JWT leeway must not extend caller authority: downstream assertions cannot
         // outlive this instant, including the exact expiration second.
@@ -75,7 +100,7 @@ impl JwtVerifier {
         let oauth_client_id =
             OAuthClientId::new(claims.client_id.clone()).map_err(AuthError::Claim)?;
         let token_subject = AccessTokenSubject {
-            managed_agent: claims.managed_agent,
+            managed_execution: None,
             issuer: issuer.clone(),
             subject: subject.clone(),
             oauth_client_id,
@@ -150,6 +175,7 @@ impl JwtVerifier {
         };
 
         Ok(VerifiedAccessToken {
+            extensions,
             access_token: token_subject,
             principal,
             principal_display_name: claims
@@ -166,4 +192,63 @@ impl JwtVerifier {
     ) -> Result<Vec<Algorithm>, AuthError> {
         allowed_algorithms_for_header(&self.config.algorithms, algorithm)
     }
+}
+
+/// Every fixed public token field, plus internal attribution prohibited on public tokens.
+pub const ACCESS_TOKEN_CORE_CLAIMS: &[&str] = &[
+    "iss",
+    "sub",
+    "principal_id",
+    "principal_display_name",
+    "client_id",
+    "session_family",
+    "work_context",
+    "invocation_mode",
+    "initiator",
+    "delegation_id",
+    "aud",
+    "exp",
+    "nbf",
+    "iat",
+    "jti",
+    "scope",
+    "scp",
+    "groups",
+    "roles",
+    "tenant",
+    "data_labels",
+    "principal_assurances",
+    "principal_kind",
+    "managed_execution",
+];
+pub fn access_token_extension_registry_builder() -> veoveo_types::ExtensionRegistryBuilder {
+    veoveo_types::ExtensionRegistryBuilder::new(ACCESS_TOKEN_CORE_CLAIMS.iter().copied())
+}
+pub fn validate_access_token_extensions(
+    values: &veoveo_types::AdmittedExtensions,
+) -> Result<(), veoveo_types::ExtensionError> {
+    if values
+        .wire()
+        .keys()
+        .any(|name| ACCESS_TOKEN_CORE_CLAIMS.contains(&name.as_str()))
+    {
+        return Err(veoveo_types::ExtensionError::new(
+            "extension collides with a public token core claim",
+        ));
+    }
+    Ok(())
+}
+
+pub fn validate_access_token_registry(
+    registry: &veoveo_types::ExtensionRegistry,
+) -> Result<(), veoveo_types::ExtensionError> {
+    if registry
+        .reserved_names()
+        .any(|name| ACCESS_TOKEN_CORE_CLAIMS.contains(&name.as_str()))
+    {
+        return Err(veoveo_types::ExtensionError::new(
+            "extension registry reserves a public token core claim",
+        ));
+    }
+    Ok(())
 }

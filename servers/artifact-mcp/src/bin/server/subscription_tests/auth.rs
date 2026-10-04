@@ -68,10 +68,11 @@ impl Signing {
             },
         };
         let request = GatewayRequestContext {
+            format: veoveo_mcp_contract::GatewayRequestContextFormat::V2,
             audit: audit::AuditRequest::background(),
             principal: actor.clone(),
             access_token: AccessTokenSubject {
-                managed_agent: None,
+                managed_execution: None,
                 issuer: actor.issuer.clone(),
                 subject: actor.subject.clone(),
                 oauth_client_id: "artifact-fixture".parse().unwrap(),

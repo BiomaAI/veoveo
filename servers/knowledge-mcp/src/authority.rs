@@ -190,7 +190,7 @@ async fn resolve(
         .map_err(|_| ServiceError::AccessChanged)?;
     let mut allowed_tools = None;
     let memberships: BTreeMap<WorkContextId, WorkContextMembershipLevel> =
-        match (installed, managed, &token.managed_agent) {
+        match (installed, managed, &token.managed_execution) {
             (Some(client), None, None) => {
                 if client.authorization_server != profile.authorization_server
                     || client.invocation_mode != token.invocation_mode
@@ -222,8 +222,10 @@ async fn resolve(
                     || managed.tenant_key != identity.authority.tenant.as_str()
                     || managed.context_key != identity.authority.work_context.as_str()
                     || binding.instance.as_str() != current.key
-                    || binding.generation != current.active_generation
-                    || binding.epoch != current.dispatch_epoch
+                    || Some(binding.generation)
+                        != checked_execution_counter(current.active_generation)
+                    || Some(binding.dispatch_epoch)
+                        != checked_execution_counter(current.dispatch_epoch)
                     || current.identity.profile != identity.profile.as_str()
                     || current.identity.issuer != token.issuer.as_str()
                     || current.identity.resource != token.audience.as_str()
@@ -372,4 +374,25 @@ fn check_lifetime(identity: &GatewayInternalIdentity) -> Result<(), ServiceError
         return Err(ServiceError::AccessChanged);
     }
     Ok(())
+}
+
+fn checked_execution_counter(value: i64) -> Option<std::num::NonZeroU64> {
+    u64::try_from(value)
+        .ok()
+        .and_then(std::num::NonZeroU64::new)
+}
+
+#[cfg(test)]
+mod execution_counter_tests {
+    use super::checked_execution_counter;
+    #[test]
+    fn stored_counters_require_positive_lossless_conversion() {
+        for value in [i64::MIN, -1, 0] {
+            assert!(checked_execution_counter(value).is_none());
+        }
+        assert_eq!(
+            checked_execution_counter(i64::MAX).unwrap().get(),
+            u64::try_from(i64::MAX).unwrap()
+        );
+    }
 }

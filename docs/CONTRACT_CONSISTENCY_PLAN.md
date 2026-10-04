@@ -15,8 +15,10 @@ activation remain open. Phase 2 Task contributions, versioned kernel SQL admissi
 Optimization's catalog reads pass their native checks. The gateway composition split
 and catalog, OAuth and TLS adapters pass native checks. Computers, Speech, Recordings,
 Agents and Workspace own their HTTP handlers; contributed route authentication and
-worker cleanup pass native checks. Owner-specific OAuth/catalog wire extraction and
-installed catalog startup admission remain open. Five additional browser contract
+worker cleanup pass native checks. Agents owns its public token claim; generic
+claim admission and internal execution attribution pass Rust and Python checks.
+Recording catalog extraction, optional-module policy actions and installed catalog
+startup admission remain open. Five additional browser contract
 bundles pass generation, consumer tests and builds. Production schema ownership moves
 in Phase 3.
 This is the single implementation plan for the former Foundations, Contract
@@ -300,7 +302,7 @@ qualified profile; D12 records the separate Apple proposal.
 | Leak | Evidence |
 |---|---|
 | Module persistence in the kernel store | `platform/store/src`: Workspace 1,885 lines and 27 query files; Agent management 1,634 and 7; Map 3,800 across `map`, `map_authoring`, `map_presentations`, `map_derivations`, `map_projection`; Recordings 3,861 across `recording_catalog`, `recording_ingest`, `recordings`, `recording_blueprints` |
-| Kernel crates depending on optional modules | The reusable gateway's normal/build graph excludes optional owner runtimes, Computers transport, Recording protocol and Speech contract. Domain owners supply their HTTP handlers through shared route registration and worker scopes. Native admission and shutdown checks pass. Shared wire models still include managed-agent claims and Recording configuration. `platform/store` depends on `veoveo-computers-contract`, which Phase 3 must remove |
+| Kernel crates depending on optional modules | The reusable gateway's normal/build graph excludes optional owner runtimes, Computers transport, Recording protocol and Speech contract. Domain owners supply HTTP handlers and public token claims through shared ports. Native admission and shutdown checks pass. Shared wire models still include Recording configuration and optional-module policy actions. `platform/store` depends on `veoveo-computers-contract`, which Phase 3 must remove |
 | Module schema in the kernel catalog | Every table is defined in `platform/store/migrations`; Optimization and UAV add indexes to `task` (migrations `0042`, `0093`) |
 | Module SQL on kernel tables | Statements reading or writing `task`, `artifact_occurrence` and identity tables directly: Computers 27, Reason 5, UAV 4, Map 3, Optimization 3, Frames, Stream, Artifact |
 
@@ -704,9 +706,12 @@ installation commands and the affected consumers. Image source selection uses ea
 compiler family's actual Cargo feature graph and keeps nested packages separate;
 the optional adapters cannot pull gateway code into Console's build inputs.
 
-The shared OAuth port still uses `ManagedAgentToken`, and the control-plane aggregate
-still names Recording configuration. Extracting these owner-specific wire types and
-their consumers remains required before the extension architecture is complete.
+The managed-claim ownership cut passes its native Rust and Python checks. Agents
+exposes `ManagedAgentToken` through its contract feature; the OAuth port carries
+typed admitted contributions. Independent review accepts the registration profile,
+immutable storage, current owner authority and receiver format checks. Recording
+configuration and policy extraction remain required before the extension
+architecture is complete.
 The route registration builder supplies a typed shared context and validates required
 bindings before starting factories. Each domain supplies its own handlers. Independent
 route fixtures qualify a nested namespace without a core prefix declaration, bearer
@@ -725,9 +730,9 @@ current policy, caller credentials, durable admission and cancellation. Stopped 
 admission cannot create a new durable operation, and transport cancellation does not
 settle an unresolved provider outcome.
 
-Owner-wire extraction follows the route move. The proposed ownership cut puts the
-managed token binding in Agents' contract feature and producer configuration in
-Recording's contract. A composition-supplied registry declares reserved access-token
+Owner-wire extraction follows the route move. The managed token binding belongs in
+Agents' contract feature and producer configuration belongs in Recording's contract.
+A composition-supplied registry declares reserved access-token
 claims and catalog sections separately from their bound owner codecs. A configured section or signed
 reserved claim requires its owner adapter. Disabling an adapter cannot turn a managed
 identity into an ordinary static client. Public OAuth verification enforces this
@@ -739,6 +744,41 @@ Recording contributes generic protected-resource descriptors for OAuth cross-ref
 validation. Publication and reload use the same admissions. Preserve the current JWT
 and catalog wire spellings until the composed schema, authority and isolated-contract
 checks qualify the ownership cut.
+
+Recording's cut includes its producer, dataset, application and stream IDs, all
+Recording policy actions and targets, catalog indexes and ingest evaluator. Its
+contract owns the vocabulary and configuration; its gateway adapter owns current
+admission and policy evaluation. Reusable authentication identifiers and upstream
+connection configuration belong below MCP. Keep connection security separate from
+MCP transport selection when moving these shared DTOs. Recording's plain HTTP ingest
+endpoint currently declares `transport: streamable_http`; remove that misleading
+field from its owner configuration and update fixtures, installation inputs and
+schema consumers together. This intentional configuration correction joins the
+coordinated installation cut; do not retain a compatibility field or alias.
+
+Policy configuration admits action names through the registered kernel and owner
+vocabularies. Rust callers supply the owning enums through typed constructors. Each
+action family validates applicable rule selectors; unknown actions and selectors
+that do not apply must fail admission. Preserve action spellings, target schemas,
+deny precedence, producer and tenant checks, scope and label checks and missing-condition
+diagnostics. Initial decoding, publication, persisted reload, installation validation
+and composed schema generation use the same catalog section registry. Transfer the
+policy matrix and native ingest, blueprint and layer-publication tests with their
+owner. Deleting core match arms without moving their validation is incomplete.
+
+The action cut covers all 21 optional-module actions together: fourteen Agents
+actions, `ComputerAttach` and six Recording actions. Kernel actions keep a closed
+enum. Each owner declares its closed vocabulary, supported targets and rule-selector
+constraints; composition registers it once. External action names resolve through
+that registry, and runtime callers use private handles obtained from typed owner
+keys. Reject duplicate, unknown, unbound and cross-registry actions. Preserve Agents'
+selector restrictions and audit-operation mapping, Computers' resource-capability
+checks and simultaneous attachment/read authorization, and Recording's distinct
+ingest and layer rules. Agents and Computers keep their existing shared target
+shapes; only Recording contributes new owner target types. Shared deny precedence
+and principal predicates stay in the policy engine, and owner adapters cannot
+override a denial. This is one action-registry concern across all affected consumers,
+not a Recording-only port followed by separate mechanical passes.
 
 Internal assertions need the checked execution attribution, rather than the public
 owner claim. Agents' admitted authority supplies the existing audit contract's
@@ -757,9 +797,15 @@ include it. Qualify missing or unexpected attribution, malformed counters, sourc
 collisions, current revocation and stale discovery. Public token shapes and stored
 audit records stay unchanged. The internal assertion format requires a declared,
 coordinated gateway/server drain and explicit rejection of unsupported formats;
-absence must never downgrade a managed identity to a static client. The proposed
-cut preserves the host builder and verifier call interfaces. If implementation
+absence must never downgrade a managed identity to a static client. The implemented
+cut requires `veoveo.ai/gateway-internal-assertion/v2` and the closed
+`veoveo.ai/gateway-request-context/v2` marker in both Rust and Python. It preserves
+the host builder and verifier call interfaces. If further implementation
 requires changes in shared hosting, present them for user-directed review first.
+Phase 8 upgrades every internal-assertion producer and receiver under that drain.
+Phase 10 must qualify managed and static service calls, browser session attribution,
+and rejection of unsupported formats through the installed Rust and Python receivers.
+Native qualification of the ownership cut does not close that installed gate.
 
 ## Phase 3: Module Ownership Of Persistence And Queries
 

@@ -13,7 +13,7 @@ from uuid import UUID
 
 from pydantic import AfterValidator, AwareDatetime, BaseModel, ConfigDict, Field, StringConstraints
 
-from .audit import AuditRequest
+from .audit import AuditManagedExecution, AuditRequest
 from veoveo_mcp.types import ScopeName
 
 GATEWAY_INTERNAL_TOKEN_ISSUER = "veoveo-internal"
@@ -207,20 +207,12 @@ def _session_family(value: str) -> str:
     return value
 
 
-class ManagedAgentToken(BaseModel):
-    """Gateway-signed execution generation from the agent management contract."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    instance: Annotated[str, Field(pattern=r"^[a-z0-9_-]{1,128}$")]
-    generation: Annotated[int, Field(strict=True, ge=-(2**63), lt=2**63)]
-    epoch: Annotated[int, Field(strict=True, ge=-(2**63), lt=2**63)]
-
-
 class AccessTokenSubject(BaseModel):
     """Verified token metadata; never contains the signed bearer value."""
 
-    managed_agent: ManagedAgentToken | None = None
+    model_config = ConfigDict(extra="forbid")
+
+    managed_execution: AuditManagedExecution | None = None
     issuer: TokenIssuer
     subject: TokenSubject
     oauth_client_id: Annotated[str, _identifier(512)]
@@ -240,6 +232,7 @@ class AccessTokenSubject(BaseModel):
 class GatewayRequestContext(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    format: Literal["veoveo.ai/gateway-request-context/v2"]
     audit: AuditRequest
     access_token: AccessTokenSubject
     principal: Principal
@@ -289,6 +282,10 @@ class GatewayRequestContext(BaseModel):
             )
         if (
             not common
+            or (
+                token.managed_execution is not None
+                and (token.invocation_mode != "automated" or source.kind != PrincipalKind.SERVICE or token.session_family is not None)
+            )
             or not provenance
             or (
                 token.session_family is not None

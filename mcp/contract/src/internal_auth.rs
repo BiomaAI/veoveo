@@ -1,6 +1,6 @@
 mod request;
 mod upload;
-pub use request::GatewayRequestContext;
+pub use request::{GatewayRequestContext, GatewayRequestContextFormat};
 #[cfg(test)]
 #[path = "internal_auth/request_tests.rs"]
 mod request_tests;
@@ -23,6 +23,8 @@ use serde::{Deserialize, Serialize};
 use crate::{GatewayProfileId, JwtId, Principal, ProtectedResourceId, ServerSlug, TokenIssuer};
 use veoveo_types::InvocationAuthority;
 use veoveo_types::{IdentifierError, PrincipalId};
+
+pub const GATEWAY_INTERNAL_ASSERTION_FORMAT: &str = "veoveo.ai/gateway-internal-assertion/v2";
 
 pub const GATEWAY_INTERNAL_TOKEN_ISSUER: &str = "veoveo-internal";
 pub const DEFAULT_GATEWAY_INTERNAL_SIGNING_KEY_ID: &str = "veoveo-internal-1";
@@ -499,6 +501,9 @@ impl GatewayInternalTokenVerifier {
         bearer_token: &str,
     ) -> Result<GatewayInternalIdentity, InternalTokenError> {
         let claims = self.decode_claims::<GatewayInternalJwtClaims>(bearer_token)?;
+        if claims.format.as_deref() != Some(GATEWAY_INTERNAL_ASSERTION_FORMAT) {
+            return Err(InternalTokenError::UnsupportedAssertionFormat);
+        }
         self.identity_from_claims(claims)
     }
 
@@ -577,6 +582,8 @@ fn ensure_jwt_crypto_provider() {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct GatewayInternalJwtClaims {
+    #[serde(default)]
+    format: Option<String>,
     iss: TokenIssuer,
     sub: String,
     aud: String,
@@ -595,6 +602,7 @@ struct GatewayInternalJwtClaims {
 impl GatewayInternalJwtClaims {
     fn from_identity(identity: &GatewayInternalIdentity) -> Self {
         Self {
+            format: Some(GATEWAY_INTERNAL_ASSERTION_FORMAT.to_owned()),
             iss: identity.issuer.clone(),
             sub: identity.actor.id.as_str().to_string(),
             aud: identity.server.as_str().to_string(),
@@ -627,6 +635,7 @@ pub enum InternalTokenError {
         actual: ServerSlug,
     },
     SubjectPrincipalMismatch,
+    UnsupportedAssertionFormat,
     InvalidRequestContext,
     InvalidTimestamp {
         claim: &'static str,
@@ -666,6 +675,7 @@ impl fmt::Display for InternalTokenError {
             Self::SubjectPrincipalMismatch => {
                 f.write_str("internal token subject does not match embedded principal")
             }
+            Self::UnsupportedAssertionFormat=>f.write_str("unsupported internal assertion format; drain and upgrade gateway and receivers together"),
             Self::InvalidRequestContext => {
                 f.write_str("internal token request context does not match its actor and authority")
             }
@@ -720,10 +730,11 @@ pub(crate) mod tests {
         let invocation = authority();
         let now = Utc::now();
         let request_context = GatewayRequestContext {
+            format: crate::GatewayRequestContextFormat::V2,
             audit: crate::audit::AuditRequest::background(),
             principal: actor.clone(),
             access_token: crate::AccessTokenSubject {
-                managed_agent: None,
+                managed_execution: None,
                 issuer: actor.issuer.clone(),
                 subject: actor.subject.clone(),
                 oauth_client_id: crate::OAuthClientId::new("upload-test").unwrap(),

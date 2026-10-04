@@ -247,7 +247,7 @@ fn discovery_authorization_fingerprint(
         serde_json::to_vec(&(
             authority,
             &subject.access_token.oauth_client_id,
-            &subject.access_token.managed_agent,
+            &subject.access_token.managed_execution,
         ))
         .map_err(|_| mcp_internal("failed to fingerprint discovery authority"))?,
     )
@@ -507,5 +507,34 @@ mod tests {
     fn application_upstream_error_is_not_retried() {
         let error = ServiceError::McpError(McpError::internal_error("application failure", None));
         assert!(!recoverable_upstream_connection_error(&error));
+    }
+}
+
+#[cfg(test)]
+mod execution_fingerprint_tests {
+    use super::*;
+    #[test]
+    fn gateway_attested_execution_epochs_fence_discovery_reuse() {
+        let mut subject = super::task_ownership_tests::subject();
+        let baseline = discovery_authorization_fingerprint(&subject).unwrap();
+        subject.access_token.managed_execution =
+            Some(veoveo_audit_contract::AuditManagedExecution {
+                instance: veoveo_types::AgentManagedInstanceId::new("fixture-agent").unwrap(),
+                generation: std::num::NonZeroU64::new(1).unwrap(),
+                dispatch_epoch: std::num::NonZeroU64::new(2).unwrap(),
+                episode: None,
+            });
+        let attributed = discovery_authorization_fingerprint(&subject).unwrap();
+        assert_ne!(baseline, attributed);
+        subject
+            .access_token
+            .managed_execution
+            .as_mut()
+            .unwrap()
+            .dispatch_epoch = std::num::NonZeroU64::new(3).unwrap();
+        assert_ne!(
+            attributed,
+            discovery_authorization_fingerprint(&subject).unwrap()
+        );
     }
 }

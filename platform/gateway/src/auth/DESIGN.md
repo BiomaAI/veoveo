@@ -8,8 +8,8 @@
 | JWT, RFC 7519 | Signed access tokens with the installation's qualified asymmetric algorithms; issuer, audience and time validation |
 | RFC 7009 / RFC 9700 | Refresh-family revocation and rotation; current family checks also deny bound access tokens |
 | Veoveo `session_family` claim | Repository-owned optional UUIDv7 refresh-family identity; it is signed metadata, not a bearer credential or standardized device authorization |
-| Veoveo `managed_agent` claim | Repository-owned instance, generation and dispatch-epoch binding for managed service tokens; current registration and template authority are checked independently |
-| Veoveo internal `request_context` | Verified source principal and token metadata carried into a signed upstream assertion; the source token bounds that assertion's lifetime |
+| Owner-contributed JWT claims | Explicit reserved-name profile and owner codecs; Agents owns its public managed claim in its contract library. Duplicate fields, reserved unbound values and core-name collisions reject admission. |
+| `veoveo.ai/gateway-internal-assertion/v2` and `veoveo.ai/gateway-request-context/v2` | EdDSA internal assertion and required closed context marker; verified source metadata and gateway-attested `AuditManagedExecution` attribution. The source token bounds the assertion lifetime. |
 | SurrealDB 3.3.0 | Shared refresh family, replay, JWT revocation and audit records; no process-local positive revocation cache |
 
 An authorization-code exchange creates its refresh family before signing the access
@@ -116,3 +116,28 @@ when that principal is available. Successful refresh-family revocation is an acc
 revocation activity; presenting a revoked credential is a denied credential activity.
 The detail retains its typed authentication reason in either case. Anonymous failures
 never acquire a principal or clearance from unverified claims.
+
+## Owner Claim Admission
+
+Composition declares its issuer's reserved claim names and binds their owner codecs.
+JWT verifiers and OAuth registration resolvers require an explicit extension profile;
+a static-only profile deliberately binds an empty registry. An unbound profile fails
+verification. Unknown unrelated external claims keep their treatment, while every
+present reserved claim requires admission. Null cannot hide a missing codec. JWT
+JSON rejects duplicate keys before typed or open values are constructed. The JWT
+port validates all fixed claim names even when a caller supplies its own registry.
+Signing refuses collisions rather than replacing a core field.
+
+Admitted claims carry registry-bound typed keys and immutable encoded payloads.
+Current owner authority validates the admitted token before producing execution
+attribution. Public JWT JSON cannot supply that internal field. Static registrations
+reject contributed claims. The checked attribution carries the signed instance,
+generation and dispatch epoch without refreshing them from a later registration.
+Audits and discovery fingerprints consume the same attribution.
+
+Internal assertions require v2 and the request context requires its v2 marker.
+The old context's strict shape rejects the added marker; the new reader rejects
+missing, unknown and obsolete shapes. Deployments must drain gateway-to-server
+traffic and upgrade both producers and receivers together. There is no mixed-version
+reader. Resource-only and upload-only assertion profiles keep their separate existing
+shapes and admission limits.

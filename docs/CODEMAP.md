@@ -69,6 +69,7 @@ Component designs live beside the code whose contract they specify:
 | [`apps/console/bff/src/agent_management/DESIGN.md`](../apps/console/bff/src/agent_management/DESIGN.md) | fixed-profile authoring HTTP and SSE routes with a separate browser session |
 | [`agents/runtime/src/gateway/http/DESIGN.md`](../agents/runtime/src/gateway/http/DESIGN.md) | agent definition API, approved-model admission, policy checks and catalog events |
 | [`agents/runtime/src/gateway/DESIGN.md`](../agents/runtime/src/gateway/DESIGN.md) | managed template ceilings, current service registration and request/action authority through the gateway resolver port |
+| [`agents/runtime/src/contract/DESIGN.md`](../agents/runtime/src/contract/DESIGN.md) | lightweight public managed-agent claim, schema identity and the distinction between syntax admission and current authority |
 | [`mcp/contract/src/agent_management/DESIGN.md`](../mcp/contract/src/agent_management/DESIGN.md) | authoring DTOs, installation model/template validation and generated browser schema |
 | [`apps/workspace/DESIGN.md`](../apps/workspace/DESIGN.md) | daily productivity client: shared-chat presentation, private Activity, live updates and client acceptance |
 | [`platform/computers/DESIGN.md`](../platform/computers/DESIGN.md) | Computers domain: lifecycle, access checks, named grants, files and maintenance |
@@ -435,6 +436,9 @@ Agents. Existing persistence and composition stay in their current hosts pending
 `checked.rs` owns immutable field-preserving admission through `Check` and `Checked`.
 `cursor.rs` owns typed owner-codec cursor admission and immutable storage; envelopes,
 context binding and text profiles stay in each owner.
+`extensions.rs` owns registry-bound typed keys and immutable admitted contributions.
+Protocol adapters declare reserved fields; owners supply codecs. Duplicate JSON field
+admission happens before object collection can discard a value.
 
 The `veoveo-types` crate owns `ScopeName`, `ResourceScheme`, `ResourceUri`, validation
 errors, `Sha256Digest`, platform identity, access subjects, resolved invocation authority
@@ -1493,6 +1497,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 
 | File | Responsibility |
 |---|---|
+| `src/contract/` | managed-agent public token claim and its schema through the lightweight `contract` feature; current authority belongs to the gateway adapter |
 | `control.rs` | database-authenticated operator messages and input-request decisions scoped to their tenant and Work Context, with UUIDv7 idempotency, wakes, actor attribution, and a domain-neutral conversation view over wakes and episodes |
 | `runtime.rs` | lease-fenced agent mutations, inactive-manifest reconciliation, race-safe input-request terminal waits, and atomic terminal-delivery consumption with first-party Task retention release |
 

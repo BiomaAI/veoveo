@@ -440,12 +440,27 @@ discovers capabilities through its own reader using shared native MCP transport;
 Workspace may consume Agents without becoming an Agents runtime requirement. Both
 owners preserve caller credentials and current policy when using that transport.
 
-The shared `ManagedAgentToken` claim and Recording-specific gateway configuration
-still couple wire models to those domains. Their ownership transfer must preserve
-issuance, decoding, checked audit attribution, policy, administration and installation
-consumers. [Phase 2](CONTRACT_CONSISTENCY_PLAN.md#phase-2-kernel-extension-points) tracks
-that required extraction and qualification of the HTTP extension points. Shared-host
-configuration changes follow the user-directed review recorded in that plan.
+Agents owns the public `ManagedAgentToken` claim through its lightweight
+[`contract` feature](../agents/runtime/src/contract/DESIGN.md). Composition reserves
+the claim name and binds its codec. Foundation registries supply private typed keys
+and immutable admitted payloads without knowing domain vocabulary. The gateway
+requires an explicit claim profile, rejects duplicate JSON fields and protects core
+claim names during verification and signing. A reserved claim without its codec
+refuses admission; static registrations cannot accept contributed authority.
+
+Current owner authority validates a token before producing `AuditManagedExecution`.
+The signed internal request context carries this existing audit type, which preserves
+nominal instance identity and positive generation and dispatch counters. Knowledge
+rechecks current registration and policy against that attribution. The public claim
+and persisted audit formats are unchanged. Internal assertion and request-context
+v2 markers require a coordinated gateway/server drain; old and new readers reject
+the unsupported context shape. There is no silent conversion to static authority.
+The [token design](../platform/gateway/src/auth/DESIGN.md) owns this transport cut.
+
+Recording-specific gateway configuration and policy still require owner extraction.
+[Phase 2](CONTRACT_CONSISTENCY_PLAN.md#phase-2-kernel-extension-points) tracks it and
+qualification of the claim and HTTP extension points. Shared-host configuration
+changes follow the user-directed review recorded in that plan.
 
 Media owns its prediction summaries and generation result DTOs. Protocol utilities
 consume Media's contract feature directly; extracting those DTOs preserves their

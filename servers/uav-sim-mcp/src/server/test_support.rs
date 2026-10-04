@@ -136,10 +136,11 @@ fn bind_request_context(identity: &mut GatewayInternalIdentity) {
         AccessTokenSubject, GatewayRequestContext, OAuthClientId, ProtectedResourceId,
     };
     identity.request_context = Some(GatewayRequestContext {
+        format: veoveo_mcp_contract::GatewayRequestContextFormat::V2,
         audit: veoveo_mcp_contract::audit::AuditRequest::background(),
         principal: identity.actor.clone(),
         access_token: AccessTokenSubject {
-            managed_agent: None,
+            managed_execution: None,
             issuer: identity.actor.issuer.clone(),
             subject: identity.actor.subject.clone(),
             oauth_client_id: OAuthClientId::new("native-test").unwrap(),

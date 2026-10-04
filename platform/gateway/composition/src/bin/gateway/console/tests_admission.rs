@@ -47,7 +47,7 @@ fn subject() -> AuthenticatedSubject {
     })).unwrap();
     let now = Utc::now();
     let access_token = AccessTokenSubject {
-        managed_agent: None,
+        managed_execution: None,
         issuer: principal.issuer.clone(),
         subject: principal.subject.clone(),
         oauth_client_id: OAuthClientId::new("console").unwrap(),
@@ -66,6 +66,7 @@ fn subject() -> AuthenticatedSubject {
         expires_at: now + TimeDelta::seconds(25),
     };
     AuthenticatedSubject {
+        extensions: Default::default(),
         audit: veoveo_mcp_contract::audit::AuditRequest::background(),
         access_token,
         principal: principal.clone(),

@@ -31,9 +31,9 @@ omit image, namespace, Secret and environment bindings. The gateway and manager
 must validate the full template before admitting an instance.
 
 `instances.rs` owns asynchronous provisioning and generation-preconditioned lifecycle
-requests. Its `ManagedAgentToken` is a signed repository extension to access tokens,
-binding the instance key, active generation and dispatch epoch. A token is evidence
-of issuance; current durable registration still determines whether it can be used.
+requests. Agents' [contract library](../../../../agents/runtime/src/contract/DESIGN.md) owns the
+signed managed access-token claim and its instance, generation and dispatch-epoch
+admission. Current registration determines whether the signed claim can be used.
 
 Managed inventory lives at `/admin/{profile}/agent-instances`, with operation reads
 at `/admin/{profile}/agent-operations/{id}`. Both browser edges expose the same suffixes.

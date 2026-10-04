@@ -27,6 +27,11 @@ pub use vocabulary::{Vocabulary, is_scope_token, scope_vocabulary_schema};
 
 mod access_grant;
 mod checked;
+mod extensions;
+pub use extensions::{
+    AdmittedExtensions, ExtensionError, ExtensionKey, ExtensionName, ExtensionRegistry,
+    ExtensionRegistryBuilder, UniqueJsonValue,
+};
 mod cursor;
 pub use checked::{Check, Checked};
 pub use cursor::{CursorCodec, OpaqueCursor};

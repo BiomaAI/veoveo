@@ -3,7 +3,7 @@
 from ipaddress import IPv4Address, IPv6Address
 from typing import Annotated, NewType
 
-from pydantic import AfterValidator, BaseModel, BeforeValidator, ConfigDict, StringConstraints
+from pydantic import AfterValidator, BaseModel, BeforeValidator, ConfigDict, Field, StringConstraints
 
 _AuditRequestId = NewType("_AuditRequestId", str)
 _AuditTraceId = NewType("_AuditTraceId", str)
@@ -46,3 +46,20 @@ class AuditRequest(BaseModel):
     trace_id: AuditTraceId
     span_id: AuditSpanId
     source_ip: Annotated[IPv4Address | IPv6Address, BeforeValidator(_ip_address)] | None = None
+
+
+_AgentManagedInstanceId = NewType("_AgentManagedInstanceId", str)
+_AuditEpisodeId = NewType("_AuditEpisodeId", str)
+AgentManagedInstanceId = Annotated[_AgentManagedInstanceId, StringConstraints(pattern=r"^[a-z0-9_-]{1,128}$")]
+AuditEpisodeId = Annotated[_AuditEpisodeId, StringConstraints(pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")]
+
+
+class AuditManagedExecution(BaseModel):
+    """Gateway-attested execution identity; current registration grants authority."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    instance: AgentManagedInstanceId
+    generation: Annotated[int, Field(strict=True, gt=0, le=2**64 - 1)]
+    dispatch_epoch: Annotated[int, Field(strict=True, gt=0, le=2**64 - 1)]
+    episode: AuditEpisodeId | None = None

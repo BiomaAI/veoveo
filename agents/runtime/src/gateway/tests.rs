@@ -277,11 +277,11 @@ async fn provision(
     (authority, definition, instance)
 }
 
-fn token(binding: wire::ManagedAgentToken) -> VerifiedAccessToken {
+fn token(extensions: veoveo_types::AdmittedExtensions) -> VerifiedAccessToken {
     let principal = principal("managed-one");
     VerifiedAccessToken {
         access_token: AccessTokenSubject {
-            managed_agent: Some(binding),
+            managed_execution: None,
             issuer: principal.issuer.clone(),
             subject: principal.subject.clone(),
             oauth_client_id: OAuthClientId::new("managed-one").unwrap(),
@@ -302,6 +302,7 @@ fn token(binding: wire::ManagedAgentToken) -> VerifiedAccessToken {
         },
         principal,
         principal_display_name: None,
+        extensions,
     }
 }
 
@@ -312,12 +313,9 @@ async fn managed_identity_rechecks_binding_tools_revocation_and_source_collision
         let catalog = catalog();
         let template = template();
         let (authority, definition, instance) = provision(&db.a, &template).await;
-        let state = GatewayState::new(db.a.clone())
-            .bind_oauth_client_resolver(Arc::new(ManagedOAuthClientResolver::new(
-                db.a.clone(),
-                Arc::new(templates(&template, &catalog)),
-            )))
-            .unwrap();
+        let state =
+            crate::gateway_test_state(db.a.clone(), Arc::new(templates(&template, &catalog)))
+                .unwrap();
         let client_id = OAuthClientId::new("managed-one").unwrap();
         assert!(
             GatewayState::new(db.a.clone())
@@ -331,7 +329,9 @@ async fn managed_identity_rechecks_binding_tools_revocation_and_source_collision
                 .clone()
                 .bind_oauth_client_resolver(Arc::new(ManagedOAuthClientResolver::new(
                     db.a.clone(),
-                    Arc::new(templates(&template, &catalog))
+                    Arc::new(templates(&template, &catalog)),
+                    crate::fixture_claims().0,
+                    crate::fixture_claims().1,
                 )))
                 .is_err(),
             "duplicate resolver replaced current authority"
@@ -350,7 +350,7 @@ async fn managed_identity_rechecks_binding_tools_revocation_and_source_collision
                 .as_deref(),
             Some("test-key")
         );
-        let verified = token(effective.token_binding().unwrap().unwrap());
+        let verified = token(effective.token_extensions().unwrap());
         let subject = state
             .resolve_authenticated_subject(&catalog, verified.clone())
             .await
@@ -383,7 +383,7 @@ async fn managed_identity_rechecks_binding_tools_revocation_and_source_collision
                 .unwrap()
         );
         let mut missing = verified.clone();
-        missing.access_token.managed_agent = None;
+        missing.extensions = Default::default();
         assert!(
             state
                 .resolve_authenticated_subject(&catalog, missing)
@@ -391,7 +391,10 @@ async fn managed_identity_rechecks_binding_tools_revocation_and_source_collision
                 .is_err()
         );
         let mut old = verified.clone();
-        old.access_token.managed_agent.as_mut().unwrap().generation += 1;
+        let (registry, key) = crate::fixture_claims();
+        let mut binding = old.extensions.get(&key).unwrap().unwrap().clone();
+        binding.generation += 1;
+        old.extensions = registry.contribute(&key, &binding).unwrap();
         assert!(
             state
                 .resolve_authenticated_subject(&catalog, old)
@@ -483,15 +486,14 @@ async fn managed_identity_rechecks_binding_tools_revocation_and_source_collision
             "disabled registration cannot fall back to a colliding static source"
         );
         let static_state = GatewayState::new(db.a.clone())
+            .bind_token_extensions(crate::fixture_claims().0)
+            .unwrap()
             .bind_oauth_client_resolver(Arc::new(
                 veoveo_mcp_gateway::oauth_clients::CatalogOAuthClientResolver,
             ))
             .unwrap();
         let error = static_state
-            .resolve_authenticated_subject(
-                &collision,
-                token(effective.token_binding().unwrap().unwrap()),
-            )
+            .resolve_authenticated_subject(&collision, token(effective.token_extensions().unwrap()))
             .await
             .unwrap_err();
         assert!(

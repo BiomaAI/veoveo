@@ -18,6 +18,7 @@ use veoveo_types::{InvocationMode, RoleId, ScopeName, TenantId, WorkContextId};
 
 use super::ManagedTemplateCatalog;
 use super::runtime_template_revision;
+use crate::contract::ManagedAgentToken;
 use futures::future::BoxFuture;
 use std::sync::Arc;
 use veoveo_mcp_gateway::oauth_clients::{
@@ -25,12 +26,15 @@ use veoveo_mcp_gateway::oauth_clients::{
 };
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayCatalog, VerifiedAccessToken};
 use veoveo_platform_store::PlatformStore;
+use veoveo_types::{ExtensionKey, ExtensionRegistry};
 
 /// Reads current durable registration and the installation template on each resolution.
 #[derive(Debug, Clone)]
 pub struct ManagedOAuthClientResolver {
     platform: PlatformStore,
     templates: Arc<ManagedTemplateCatalog>,
+    registry: ExtensionRegistry,
+    key: ExtensionKey<ManagedAgentToken>,
 }
 /// Current managed registration admitted against its installed template and catalog.
 #[derive(Debug)]
@@ -47,12 +51,20 @@ struct ResolvedClient {
     managed: Option<ManagedAgentRegistration>,
 }
 impl ResolvedClient {
-    fn into_effective(self) -> EffectiveOAuthClient {
+    fn into_effective(
+        self,
+        registry: ExtensionRegistry,
+        key: ExtensionKey<ManagedAgentToken>,
+    ) -> EffectiveOAuthClient {
         match self.managed {
             Some(managed) => EffectiveOAuthClient::contributed(
                 self.registration,
                 self.public_keys,
-                Arc::new(ManagedAuthority(managed)),
+                Arc::new(ManagedAuthority {
+                    managed,
+                    registry,
+                    key,
+                }),
             ),
             None => EffectiveOAuthClient::installed(self.registration),
         }
@@ -60,10 +72,17 @@ impl ResolvedClient {
 }
 
 impl ManagedOAuthClientResolver {
-    pub fn new(platform: PlatformStore, templates: Arc<ManagedTemplateCatalog>) -> Self {
+    pub fn new(
+        platform: PlatformStore,
+        templates: Arc<ManagedTemplateCatalog>,
+        registry: ExtensionRegistry,
+        key: ExtensionKey<ManagedAgentToken>,
+    ) -> Self {
         Self {
             platform,
             templates,
+            registry,
+            key,
         }
     }
     pub async fn admitted_managed_client(
@@ -220,13 +239,17 @@ impl OAuthClientResolver for ManagedOAuthClientResolver {
             Ok(self
                 .resolve_current(catalog, id)
                 .await?
-                .map(ResolvedClient::into_effective))
+                .map(|client| client.into_effective(self.registry.clone(), self.key.clone())))
         })
     }
 }
 
 #[derive(Debug)]
-struct ManagedAuthority(ManagedAgentRegistration);
+struct ManagedAuthority {
+    managed: ManagedAgentRegistration,
+    registry: ExtensionRegistry,
+    key: ExtensionKey<ManagedAgentToken>,
+}
 impl OAuthClientAuthority for ManagedAuthority {
     fn membership(
         &self,
@@ -234,7 +257,7 @@ impl OAuthClientAuthority for ManagedAuthority {
         context: &WorkContextId,
         principal: &Principal,
     ) -> Result<WorkContextMembershipLevel> {
-        let managed = &self.0;
+        let managed = &self.managed;
         ensure!(
             context.as_str() == managed.context_key
                 && principal
@@ -252,17 +275,29 @@ impl OAuthClientAuthority for ManagedAuthority {
         );
         Ok(membership(managed.instance.identity.membership))
     }
-    fn token_binding(&self) -> Result<Option<wire::ManagedAgentToken>> {
-        let m = &self.0;
-        Ok(Some(wire::ManagedAgentToken {
+    fn token_extensions(&self) -> Result<veoveo_types::AdmittedExtensions> {
+        let m = &self.managed;
+        let binding = ManagedAgentToken {
             instance: wire::AgentManagedInstanceId::new(m.instance.key.clone())?,
             generation: m.instance.active_generation,
             epoch: m.instance.dispatch_epoch,
-        }))
+        };
+        Ok(self.registry.contribute(&self.key, &binding)?)
+    }
+    fn execution_attribution(
+        &self,
+        verified: &VerifiedAccessToken,
+    ) -> Result<Option<veoveo_mcp_contract::audit::AuditManagedExecution>> {
+        self.validate_token(verified)?;
+        let binding = verified
+            .extensions
+            .get(&self.key)?
+            .context("OAuth token registration source mismatch")?;
+        Ok(Some(execution_attribution(&binding)?))
     }
     fn apply_service_roles(&self, principal: &mut Principal) -> Result<()> {
         principal.roles = self
-            .0
+            .managed
             .instance
             .identity
             .roles
@@ -273,11 +308,10 @@ impl OAuthClientAuthority for ManagedAuthority {
         Ok(())
     }
     fn validate_token(&self, verified: &VerifiedAccessToken) -> Result<()> {
-        let managed = &self.0;
+        let managed = &self.managed;
         let binding = verified
-            .access_token
-            .managed_agent
-            .as_ref()
+            .extensions
+            .get(&self.key)?
             .context("OAuth token registration source mismatch")?;
         ensure!(
             binding.instance.as_str() == managed.instance.key
@@ -295,10 +329,10 @@ impl OAuthClientAuthority for ManagedAuthority {
         action: GatewayAction,
         target: &PolicyTarget,
     ) -> Result<bool> {
-        let Some(binding) = &subject.access_token.managed_agent else {
+        let Some(binding) = subject.extensions.get(&self.key)? else {
             return Ok(false);
         };
-        let managed = &self.0;
+        let managed = &self.managed;
         if binding.instance.as_str() != managed.instance.key
             || binding.generation != managed.instance.active_generation
         {
@@ -331,5 +365,46 @@ fn membership(
         Stored::Contributor => WorkContextMembershipLevel::Contributor,
         Stored::Custodian => WorkContextMembershipLevel::Custodian,
         Stored::Owner => WorkContextMembershipLevel::Owner,
+    }
+}
+
+/// Attribution describes the admitted signed execution; it grants no authority.
+pub(crate) fn execution_attribution(
+    binding: &ManagedAgentToken,
+) -> Result<veoveo_mcp_contract::audit::AuditManagedExecution> {
+    use std::num::NonZeroU64;
+    Ok(veoveo_mcp_contract::audit::AuditManagedExecution {
+        instance: binding.instance.clone(),
+        generation: NonZeroU64::new(u64::try_from(binding.generation)?)
+            .context("managed generation must be positive")?,
+        dispatch_epoch: NonZeroU64::new(u64::try_from(binding.epoch)?)
+            .context("managed epoch must be positive")?,
+        episode: None,
+    })
+}
+
+#[cfg(test)]
+mod attribution_tests {
+    use super::*;
+    #[test]
+    fn attribution_checks_counters_and_preserves_signed_epoch() {
+        let mut binding = ManagedAgentToken {
+            instance: wire::AgentManagedInstanceId::new("worker-one").unwrap(),
+            generation: i64::MAX,
+            epoch: 3,
+        };
+        let attribution = execution_attribution(&binding).unwrap();
+        assert_eq!(
+            attribution.generation.get(),
+            u64::try_from(i64::MAX).unwrap()
+        );
+        assert_eq!(attribution.dispatch_epoch.get(), 3);
+        for invalid in [i64::MIN, -1, 0] {
+            binding.generation = invalid;
+            assert!(execution_attribution(&binding).is_err());
+            binding.generation = 1;
+            binding.epoch = invalid;
+            assert!(execution_attribution(&binding).is_err());
+        }
     }
 }

@@ -15,8 +15,8 @@ pub(super) const ACCESS_TOKEN_TTL_SECONDS: i64 = 15 * 60;
 
 #[derive(Serialize)]
 struct AccessTokenClaims {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    managed_agent: Option<veoveo_mcp_contract::agent_management::ManagedAgentToken>,
+    #[serde(flatten)]
+    extensions: std::collections::BTreeMap<String, serde_json::Value>,
     iss: String,
     sub: String,
     principal_id: String,
@@ -53,7 +53,7 @@ struct AccessTokenClaims {
 
 #[derive(Debug, Clone)]
 pub(super) struct AccessTokenInvocation {
-    pub(super) managed_agent: Option<veoveo_mcp_contract::agent_management::ManagedAgentToken>,
+    pub(super) extensions: veoveo_types::AdmittedExtensions,
     pub(super) session_family: Option<veoveo_mcp_contract::GatewayRefreshFamilyId>,
     pub(super) work_context: WorkContextId,
     pub(super) provenance: InvocationProvenance,
@@ -76,7 +76,7 @@ impl std::fmt::Debug for IssuedAccessToken {
 
 pub(super) struct ServiceTokenAuthority {
     pub work_context: WorkContextId,
-    pub managed_agent: Option<veoveo_mcp_contract::agent_management::ManagedAgentToken>,
+    pub extensions: veoveo_types::AdmittedExtensions,
 }
 
 pub(super) async fn issue_client_credentials_access_token(
@@ -99,7 +99,7 @@ pub(super) async fn issue_client_credentials_access_token(
         None,
         None,
         AccessTokenInvocation {
-            managed_agent: authority.managed_agent,
+            extensions: authority.extensions,
             session_family: None,
             work_context: authority.work_context,
             provenance: InvocationProvenance::Automated,
@@ -166,6 +166,7 @@ pub(super) async fn issue_access_token(
             .collect::<Vec<_>>()
             .join(" ")
     });
+    veoveo_mcp_gateway::auth::validate_access_token_extensions(&invocation.extensions)?;
     let claims = AccessTokenClaims {
         iss: authorization_server.issuer.to_string(),
         sub: subject.to_string(),
@@ -173,7 +174,7 @@ pub(super) async fn issue_access_token(
         principal_display_name: principal_display_name.map(ToString::to_string),
         client_id: client_id.to_string(),
         session_family: invocation.session_family,
-        managed_agent: invocation.managed_agent,
+        extensions: invocation.extensions.wire(),
         work_context: invocation.work_context.to_string(),
         invocation_mode: invocation.provenance.mode(),
         initiator: invocation.provenance.initiator().map(ToString::to_string),

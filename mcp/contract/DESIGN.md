@@ -26,6 +26,7 @@ complies with in its crate documents and in its contract resource.
 | W3C Trace Context and Baggage | `traceparent`, `tracestate`, and `baggage` in MCP request metadata with the authenticated HTTP boundary as the trust gate |
 | OAuth 2.0, RFC 8414, RFC 9207, RFC 8707, RFC 9728, and OpenID Connect Discovery 1.0 | private-installation profile with installation or governed managed-client registrations, exact issuer and resource binding, step-up scopes, and `private_key_jwt`; OAuth Dynamic Client Registration is excluded |
 | Veoveo resumable artifact HTTP upload | repository-owned JSON admission/completion and raw part PUT contract, UUIDv7 idempotency, SHA-256 integrity, and bounded browser-safe 64-bit counters; independent of MCP methods |
+| `veoveo.ai/gateway-internal-assertion/v2` and `veoveo.ai/gateway-request-context/v2` | EdDSA gateway-to-server invocation assertion and required typed request-context marker; unsupported profiles reject, and changes require a coordinated gateway/server drain. Checked execution attribution preserves the frozen audit contract. |
 | Veoveo upload assertion | EdDSA JWT with `artifact-upload` audience and signed control-plane/context digests; restricted to the HTTP upload service |
 | Veoveo access-token `session_family` | Signed UUIDv7 refresh-family binding for browser tokens; current family revocation is enforced by the gateway, and absence supplies no renewable session authority |
 | Veoveo internal `request_context` | Signed source principal, verified access-token metadata and required audit request correlation; includes OAuth client, optional session family and managed-agent execution metadata; contains no bearer value and grants no independent renewal permission |
@@ -308,7 +309,13 @@ Connection reuse depends only on validated transport security and
 catalog generation; request authority stays in the assertion and request metadata.
 
 Authenticated MCP and HTTP proxy requests include typed `request_context` in the
-internal assertion. It preserves the JWT-verified principal before delegated actor
+`veoveo.ai/gateway-internal-assertion/v2` assertion. The context requires the
+`veoveo.ai/gateway-request-context/v2` marker. Producers and receivers require a
+coordinated drain for this shape; missing and unsupported formats fail verification.
+The old strict context shape rejects the new marker. Access-token metadata carries
+checked `AuditManagedExecution` attribution rather than an owner public claim.
+Attributed requests must match automated service identity, client, tenant and Work
+Context and cannot carry a browser session family. It preserves the JWT-verified principal before delegated actor
 derivation and its access-token metadata. Rust and Python verify the context against
 the actor, tenant, Work Context, scopes and invocation provenance. The assertion's
 expiration cannot exceed the source access token's expiration. Every supplied context

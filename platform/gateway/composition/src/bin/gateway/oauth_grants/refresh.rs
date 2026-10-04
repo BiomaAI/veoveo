@@ -205,7 +205,7 @@ pub(crate) async fn token_endpoint_refresh_token(
         Some(&grant.principal_display_name),
         None,
         AccessTokenInvocation {
-            managed_agent: None,
+            extensions: Default::default(),
             session_family: Some(grant.family_id.clone()),
             work_context: grant.work_context.clone(),
             provenance: InvocationProvenance::Direct {

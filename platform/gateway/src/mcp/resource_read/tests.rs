@@ -130,6 +130,8 @@ async fn negotiated_read_commits_observation_before_delivery_and_fails_when_writ
 async fn qualify() {
     let db = crate::test_store::TestDb::new().await;
     let state = crate::GatewayState::new(db.a.clone())
+        .bind_token_extensions(Default::default())
+        .unwrap()
         .bind_oauth_client_resolver(std::sync::Arc::new(
             crate::oauth_clients::CatalogOAuthClientResolver,
         ))
@@ -275,6 +277,8 @@ async fn indexing_gate_binds_approval_enumeration_members_and_revocation() {
         plane.validate().unwrap();
         let mut gateway = super::super::task_ownership_tests::gateway(
             crate::GatewayState::new(db.a.clone())
+                .bind_token_extensions(Default::default())
+                .unwrap()
                 .bind_oauth_client_resolver(std::sync::Arc::new(
                     crate::oauth_clients::CatalogOAuthClientResolver,
                 ))

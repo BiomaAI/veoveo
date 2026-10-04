@@ -244,10 +244,13 @@ rejects managed claims; it supports installations that exclude durable registrat
 The Agents adapter reads current registration and template authority for each
 resolution. Its implementation and native policy cases live under
 [`agents/runtime/src/gateway`](../../agents/runtime/src/gateway/DESIGN.md).
-The existing `ManagedAgentToken` JWT claim still appears in the generic token-binding
-API and verified token envelope. Independent authority implementations can provide
-policy, but a new module-specific token binding needs owner-wire extraction and
-consumer transfer before activation. The authority port preserves the claim's wire form.
+Composition declares reserved JWT claims separately from owner codec bindings.
+The generic OAuth port carries immutable admitted contributions through private typed
+keys. Agents owns its public managed claim and supplies the checked execution audit
+attribution after current registration validation. Shared token and internal assertion
+contracts carry that attribution without importing the owner claim type. Static
+registrations refuse contributed authority; an unbound reserved claim fails admission.
+The [token design](src/auth/DESIGN.md) declares the coordinated internal-format drain.
 
 The generic upstream pool owns HTTP clients and checked TLS construction.
 `UpstreamClientKey` exposes the catalog revision while keeping the TLS fingerprint

@@ -670,10 +670,11 @@ pub(crate) async fn issue_internal_token(
     let now = Utc::now();
     let expires_at = now + TimeDelta::minutes(30);
     let request_context = GatewayRequestContext {
+        format: veoveo_mcp_contract::GatewayRequestContextFormat::V2,
         audit: veoveo_mcp_contract::audit::AuditRequest::background(),
         principal: principal.clone(),
         access_token: AccessTokenSubject {
-            managed_agent: None,
+            managed_execution: None,
             issuer: principal.issuer.clone(),
             subject: principal.subject.clone(),
             oauth_client_id: OAuthClientId::new(subject)?,
