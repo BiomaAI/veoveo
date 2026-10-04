@@ -200,21 +200,12 @@ test repetition uses generic functions.
 
 ## Dependencies And Qualification
 
-The macro implementation reuses the existing locked syn 3.0.4, quote 1.0.47,
-proc-macro2 1.0.107 and sha2 0.11.0 implementations. The crates.io registry reports syn 3.0.6 as stable; 3.0.4 preserves the parser
-already used by the document macro while this batch changes ownership and derives.
-A parser upgrade requires separate qualification of diagnostics and expansion behavior.
-quote and proc-macro2 match the registry's stable releases. These workspace pins are
-exact and do not change the resolved implementations. The macro crate explicitly enables
-syn’s `full` expression parser for owner closure hooks; independent consumers do not
-rely on another dependency to supply that feature.
-The source policy uses the same syn 3.0.4 pin with `full`, `visit` and `parsing`.
-Its input is on-disk Rust; the interpolated-lifetime fix in upstream 3.0.6 does not
-change that input profile. Parser and real-tree tests qualify the retained pin.
-Owner unit errors use thiserror 2.0.20, the resolved implementation shared by the
-workspace. Upstream stable is 2.0.21; the exact older pin keeps error-message parity
-qualification separate from an implementation upgrade.
-No additional third-party dependency implements these declarations.
+The macro implementation uses locked syn 3.0.6, quote 1.0.47, proc-macro2 1.0.107
+and sha2 0.11.0. The macro crate enables syn's `full` expression parser for owner
+hooks. The source-policy checker uses the same pin with `full`, `visit` and
+`parsing`; independent consumers do not depend on feature unification from a runtime.
+Owner errors use the exact workspace thiserror 2.0.21 pin. No additional third-party dependency
+implements these declarations.
 
 Foundation tests qualify independent trait implementations, explicit spellings,
 empty scopes, invalid declarations and same-named owners. Audit tests compare every

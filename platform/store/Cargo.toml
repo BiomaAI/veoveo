@@ -56,7 +56,7 @@ serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
 surrealdb = { version = "=3.3.0", default-features = false, features = ["protocol-ws", "rustls"], optional = true }
-thiserror = { version = "2.0.20", optional = true }
+thiserror = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["time", "rt", "sync"], optional = true }
 url = { workspace = true, optional = true }
 uuid = { workspace = true, features = ["serde", "v5", "v7"], optional = true }

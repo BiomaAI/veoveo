@@ -196,9 +196,8 @@ tokio = "1.53.1"
 tokio-rustls = { version = "=0.26.4", default-features = false, features = ["logging", "ring"] }
 tokio-tungstenite = { version = "=0.30.0", default-features = false, features = ["connect", "handshake"] }
 tokio-util = "0.7.19"
-# Upstream stable is 2.0.21; retain the resolved, qualified error implementation
-# while replacing owner plumbing so format parity is qualified independently.
-thiserror = "=2.0.20"
+# Exact qualified stable release.
+thiserror = "=2.0.21"
 tar = "0.4.46"
 tempfile = "=3.27.0"
 tower-http = { version = "0.7.0", features = ["fs", "trace", "cors"] }
