@@ -646,25 +646,32 @@ capabilities separately. A smaller macro catalog alone does not satisfy this
 requirement. Existing value, wire, schema and independent-consumer tests continue to
 protect behavior during the correction.
 
-The applied repair removes the repeated ordinary-ID derives and conversions. A
-deduplicated comparison of 144 ID/address paths against `ba20a34d^`, including moved
-owners and the complete shared route backend, still shows roughly 2,200 additional
-implementation/API lines. Owner implementations shrink, while shared machinery grows.
-The comparison separates tests and includes whole owner, facade and manifest files.
-The cursor codec migration in `bf914bfcf` accounts for 214 added implementation lines;
-Optimization's numeric wrapper replacement in `fae271c3e` accounts for 87. About 1,900
-lines still require attribution or reduction, with all shared ID/address machinery
-charged to the replacement. The repair's reduction against the expanded current
-implementation does not prove a net reduction from the historical baseline.
+The applied repair removes repeated ordinary-ID derives and conversions. The corrected
+comparison covers 172 Rust and manifest paths, including moved owners, previously
+omitted macro-expansion sites and the complete shared URI backend. It compares Git
+trees at `ba20a34d^` and `a69609ef0`, avoiding a worktree capture mislabeled as a commit.
+Complete owner, facade and manifest files remain counted. Qualification includes
+standalone tests, colocated test modules and Rustdoc fixtures.
 
-The address compiler now parses owner, variant and field options once. Compact and
-custom forms share a checked declaration, and constructors and resource output share
-one component builder. This removes attribute synthesis, reparsing and duplicated
-builder emission. The parsed model offsets those deletions: this change adds five
-implementation lines and leaves the historical cost requirement unmet. Shared and
-owner native tests and the independent contract consumer pass. Shared interfaces are
-stable enough for the independent Phase 5 and 6 work allowed by the phase ordering;
-the cost requirement stays open alongside those batches.
+| Source category | Before migration | Current | Change |
+|---|---:|---:|---:|
+| Implementation/API | 21,313 | 23,614 | +2,301 |
+| Qualification | 5,505 | 9,124 | +3,619 |
+| Total | 26,818 | 32,738 | +5,920 |
+
+Separately identified concerns contribute 374 implementation lines for cursor/numeric
+changes, 381 for Recording's optional catalog registration and 106 for later strict
+input admission. The remaining 1,440 lines require further attribution or reduction.
+That partial attribution does not prove the declaration machinery's final cost.
+All shared ID/address machinery stays charged to the replacement.
+
+The latest simplification removes 223 implementation lines, including its new shared
+helpers, and adds 56 test lines. UUID profiles share focused const constructors.
+The macro frontends share derive checks, and address emission shares field-shape and
+component construction. Shared and owner native suites, independent contract consumers,
+workspace lint and repository checks pass. Remaining repetition includes Redap wire
+adapters, cursor/schema wrappers and Rust convenience API variants. The historical
+reduction requirement stays open alongside the independent Phase 5 and 6 batches.
 
 The correction uses attribute front ends for ID and resource declarations so they
 can generate standard derives as well as implementations. Ordinary public traits
